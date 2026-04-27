@@ -13,7 +13,9 @@ describe("source/epub/archive", () => {
       const storedStream = await archive.openReadStream("EPUB/cover.xhtml");
       storedStream.setEncoding("utf8");
 
-      const deflatedStream = await archive.openReadStream("EPUB/chapter-1.xhtml");
+      const deflatedStream = await archive.openReadStream(
+        "EPUB/chapter-1.xhtml",
+      );
       deflatedStream.setEncoding("utf8");
 
       expect(await readStreamText(storedStream)).toContain(

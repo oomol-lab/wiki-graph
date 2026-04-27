@@ -105,10 +105,7 @@ function buildMarkdownFixture() {
 
 async function writeEpubFixture(
   path,
-  {
-    includeEncryptionManifest = false,
-    xhtmlCompressionByPath = {},
-  } = {},
+  { includeEncryptionManifest = false, xhtmlCompressionByPath = {} } = {},
 ) {
   await mkdir(dirname(path), { recursive: true });
 

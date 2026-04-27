@@ -112,7 +112,7 @@ describe("source/epub", () => {
     await expect(
       EPUB_SOURCE_ADAPTER.openSession(
         getFixturePath("sample-observatory-guide-encrypted.epub"),
-        async () => undefined,
+        () => Promise.resolve(undefined),
       ),
     ).rejects.toThrow(
       "Encrypted EPUB is not supported: found META-INF/encryption.xml.",

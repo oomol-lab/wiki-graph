@@ -14,10 +14,10 @@ The ridge path bends west at the cracked milestone and then drops toward the low
 
 ### Signal Table
 
-| Marker | Meaning | Action |
-| --- | --- | --- |
-| two taps | battery low | switch pack |
-| three taps | fog rising | light beacon |
+| Marker     | Meaning     | Action       |
+| ---------- | ----------- | ------------ |
+| two taps   | battery low | switch pack  |
+| three taps | fog rising  | light beacon |
 
 ```yaml
 beacon:
