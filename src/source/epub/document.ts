@@ -2,15 +2,22 @@ import type { SourceAdapter, SourceDocument } from "../adapter.js";
 import type { SourceAsset, SourceSection, SourceTextStream } from "../types.js";
 import { normalizeFragment } from "./archive.js";
 import { EpubArchive } from "./archive.js";
-import { EpubContentLoader, type EpubSectionTarget } from "./content.js";
+import {
+  analyzeSectionTargets,
+  EpubContentLoader,
+  type EpubSectionAnalysis,
+  type EpubSectionTarget,
+} from "./content.js";
 import { readEpubNavigation, type EpubNavigationItem } from "./navigation.js";
 import { readEpubPackage, type EpubPackageData } from "./package.js";
 
 interface SectionDefinition {
+  readonly hasContent: boolean;
   readonly id: string;
   readonly title: string | undefined;
   readonly path: string | undefined;
   readonly fragment: string | undefined;
+  readonly wordsCount: number;
   readonly children: readonly SectionDefinition[];
 }
 
@@ -31,11 +38,15 @@ class EpubSourceSection implements SourceSection {
   }
 
   public get hasContent(): boolean {
-    return this.#definition.path !== undefined;
+    return this.#definition.hasContent;
   }
 
   public get title(): string | undefined {
     return this.#definition.title;
+  }
+
+  public get wordsCount(): number {
+    return this.#definition.wordsCount;
   }
 
   public get children(): readonly SourceSection[] {
@@ -71,8 +82,10 @@ export class EpubSourceDocument implements SourceDocument {
     assertArchiveIsSupported(archive);
     const packageData = await readEpubPackage(archive);
     const navigation = await readEpubNavigation(archive, packageData);
-    const sections = buildSections(archive, navigation);
-    const targetsByPath = groupTargetsByPath(sections);
+    const rawSections = buildSections(archive, navigation);
+    const targetsByPath = groupTargetsByPath(rawSections);
+    const sectionAnalyses = await analyzeSectionTargets(archive, targetsByPath);
+    const sections = hydrateSectionAnalyses(rawSections, sectionAnalyses);
     const cover = await readCoverAsset(archive, packageData);
 
     return new EpubSourceDocument(
@@ -178,14 +191,32 @@ function buildSection(
   const id = createUniqueId(baseId, idCounts);
 
   return {
+    hasContent: item.path !== undefined,
     id,
     title: item.title,
     path: item.path,
     fragment,
+    wordsCount: 0,
     children: item.children.map((child, index) =>
       buildSection(archive, child, [...indexPath, index], idCounts),
     ),
   };
+}
+
+function hydrateSectionAnalyses(
+  sections: readonly SectionDefinition[],
+  sectionAnalyses: ReadonlyMap<string, EpubSectionAnalysis>,
+): readonly SectionDefinition[] {
+  return sections.map((section) => {
+    const analysis = sectionAnalyses.get(section.id);
+
+    return {
+      ...section,
+      hasContent: analysis?.hasContent ?? false,
+      wordsCount: analysis?.wordsCount ?? 0,
+      children: hydrateSectionAnalyses(section.children, sectionAnalyses),
+    };
+  });
 }
 
 function createUniqueId(baseId: string, idCounts: Map<string, number>): string {

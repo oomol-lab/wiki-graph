@@ -317,6 +317,78 @@ describe("facade/import", () => {
     });
   });
 
+  it("reuses source-provided words counts for discovery", async () => {
+    await withTempDir("spinedigest-import-", async (path) => {
+      const document = await DirectoryDocument.open(`${path}/document`);
+      const openCounts = new Map<string, number>();
+      const events: unknown[] = [];
+
+      try {
+        await importSourceDocument(
+          createSourceDocument({
+            meta: createBookMeta({
+              title: "Discovery Fixture",
+            }),
+            sections: [
+              createSourceSection({
+                hasContent: true,
+                openCounts,
+                streamText: "alpha beta",
+                title: "Chapter 1",
+                wordsCount: 2,
+              }),
+              createSourceSection({
+                hasContent: false,
+                openCounts,
+                streamText: "",
+                title: "Spacer",
+                wordsCount: 0,
+              }),
+              createSourceSection({
+                hasContent: true,
+                openCounts,
+                streamText: "gamma delta epsilon",
+                title: "Chapter 2",
+                wordsCount: 3,
+              }),
+            ],
+          }),
+          {
+            digestProgressTracker: createDigestProgressTracker({
+              onProgress: (event) => {
+                events.push(event);
+              },
+              operation: "digest-epub",
+            }),
+            document,
+            extractionPrompt: "Keep key beats",
+            llm: {} as never,
+          },
+        );
+
+        expect(events).toContainEqual({
+          available: true,
+          serials: [
+            {
+              id: 1,
+              words: 2,
+            },
+            {
+              id: 2,
+              words: 3,
+            },
+          ],
+          type: "serials-discovered",
+        });
+        expect(openCounts.get("Chapter 1")).toBe(1);
+        expect(openCounts.get("Spacer")).toBeUndefined();
+        expect(openCounts.get("Chapter 2")).toBe(1);
+      } finally {
+        await document.release();
+      }
+    });
+  });
+
   it("rejects imports when the target document already has content", async () => {
     await withTempDir("spinedigest-import-", async (path) => {
       const sourceDocument = createSourceDocument({
@@ -412,6 +484,7 @@ function createSourceSection(input: {
   readonly openCounts?: Map<string, number>;
   readonly streamText?: string;
   readonly title?: string;
+  readonly wordsCount?: number;
 }): SourceSection {
   const id = crypto.randomUUID();
 
@@ -435,6 +508,7 @@ function createSourceSection(input: {
       );
     },
     title: input.title,
+    wordsCount: input.wordsCount,
   };
 }
 

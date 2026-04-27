@@ -67,7 +67,7 @@ function buildLogBindings(
         available: Number(event.available),
         serials: event.serials.length,
         totalFragments: event.serials.reduce(
-          (sum, serial) => sum + serial.fragments,
+          (sum, serial) => sum + (serial.fragments ?? 0),
           0,
         ),
         totalWords: event.serials.reduce(

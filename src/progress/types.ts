@@ -6,7 +6,7 @@ export type SpineDigestOperation =
 
 export interface SerialDiscoveryItem {
   readonly id: number;
-  readonly fragments: number;
+  readonly fragments?: number | undefined;
   readonly words: number;
 }
 

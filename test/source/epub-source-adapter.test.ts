@@ -2,7 +2,10 @@ import { Readable } from "stream";
 
 import { describe, expect, it } from "vitest";
 
-import { EpubContentLoader } from "../../src/source/epub/content.js";
+import {
+  analyzeSectionTargets,
+  EpubContentLoader,
+} from "../../src/source/epub/content.js";
 import { EPUB_SOURCE_ADAPTER } from "../../src/source/index.js";
 import {
   collectSectionTitles,
@@ -106,6 +109,50 @@ describe("source/epub", () => {
       await readStreamText(await loader.openSection("chapter.xhtml")),
     ).toBe("Alpha beta.");
     expect(openReadStreamCount).toBe(2);
+  });
+
+  it("marks empty section targets as structure-only during analysis", async () => {
+    const analyses = await analyzeSectionTargets(
+      {
+        openReadStream: () =>
+          Promise.resolve(
+            Readable.from([
+              [
+                "<html><body>",
+                '<section id="empty"></section>',
+                '<section id="filled"><p>Alpha beta.</p></section>',
+                "</body></html>",
+              ].join(""),
+            ]),
+          ),
+      } as never,
+      new Map([
+        [
+          "chapter.xhtml",
+          [
+            {
+              fragment: "empty",
+              id: "empty",
+              path: "chapter.xhtml",
+            },
+            {
+              fragment: "filled",
+              id: "filled",
+              path: "chapter.xhtml",
+            },
+          ],
+        ],
+      ]),
+    );
+
+    expect(analyses.get("empty")).toStrictEqual({
+      hasContent: false,
+      wordsCount: 0,
+    });
+    expect(analyses.get("filled")).toStrictEqual({
+      hasContent: true,
+      wordsCount: 2,
+    });
   });
 
   it("rejects encrypted epub inputs", async () => {

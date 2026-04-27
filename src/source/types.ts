@@ -10,6 +10,7 @@ export interface SourceSection {
   readonly hasContent: boolean;
   readonly id: string;
   readonly title?: string | undefined;
+  readonly wordsCount?: number | undefined;
   readonly children: readonly SourceSection[];
   open(): Promise<SourceTextStream>;
 }
