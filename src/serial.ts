@@ -18,6 +18,7 @@ import type {
   ReadonlyDocument,
   ReadonlyFragmentGroupStore,
   ReadonlyKnowledgeEdgeStore,
+  ReadonlySerialFragments,
   ReadonlySnakeChunkStore,
   ReadonlySnakeEdgeStore,
   ReadonlySnakeStore,
@@ -199,6 +200,21 @@ export class SerialGeneration {
 
     if (existingSummary !== undefined) {
       return existingSummary;
+    }
+    const serialFragments = this.#getSerialFragments(serialId);
+    const fragmentIds = await serialFragments.listFragmentIds();
+
+    if (fragmentIds.length <= 1) {
+      const summary = await readSerialPassthroughSummary(
+        serialFragments,
+        fragmentIds,
+      );
+
+      await this.#writeSemaphore.use(
+        async () => await this.#document.writeSummary(serialId, summary),
+      );
+
+      return summary;
     }
     const groupIds = await this.#fragmentGroups.listGroupIdsForSerial(serialId);
     const summaryParts: string[] = [];
@@ -598,4 +614,26 @@ function countFragmentWords(
   }>,
 ): number {
   return sentences.reduce((sum, sentence) => sum + sentence.wordsCount, 0);
+}
+
+async function readSerialPassthroughSummary(
+  fragments: ReadonlySerialFragments,
+  fragmentIds: readonly number[],
+): Promise<string> {
+  if (fragmentIds.length === 0) {
+    return "";
+  }
+
+  const records = await Promise.all(
+    fragmentIds.map(
+      async (fragmentId) => await fragments.getFragment(fragmentId),
+    ),
+  );
+
+  return records
+    .flatMap((fragment: Awaited<ReturnType<typeof fragments.getFragment>>) =>
+      fragment.sentences.map((sentence) => sentence.text),
+    )
+    .join(" ")
+    .trim();
 }

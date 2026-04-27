@@ -164,6 +164,65 @@ describe("serial", () => {
       }
     });
   });
+
+  it("uses the original text as summary when a serial has one fragment", async () => {
+    await withTempDir("spinedigest-serial-", async (path) => {
+      const document = await DirectoryDocument.open(path);
+
+      readerSegmentMock.mockReturnValueOnce(
+        createSentenceStream([
+          {
+            offset: 0,
+            text: "Alpha beta.",
+            wordsCount: 2,
+          },
+          {
+            offset: 11,
+            text: "Gamma delta.",
+            wordsCount: 2,
+          },
+        ]),
+      );
+
+      try {
+        const serial = await new SerialGeneration({
+          document,
+          llm: {} as never,
+        }).generateInto(1, [], {
+          extractionPrompt: "Keep key beats",
+        });
+
+        expect(serial.getSummary()).toBe("Alpha beta. Gamma delta.");
+        expect(await document.readSummary(1)).toBe("Alpha beta. Gamma delta.");
+        expect(compressTextMock).not.toHaveBeenCalled();
+      } finally {
+        await document.release();
+      }
+    });
+  });
+
+  it("writes an empty summary when a serial has no fragments", async () => {
+    await withTempDir("spinedigest-serial-", async (path) => {
+      const document = await DirectoryDocument.open(path);
+
+      readerSegmentMock.mockReturnValueOnce(createSentenceStream([]));
+
+      try {
+        const serial = await new SerialGeneration({
+          document,
+          llm: {} as never,
+        }).generateInto(1, [], {
+          extractionPrompt: "Keep key beats",
+        });
+
+        expect(serial.getSummary()).toBe("");
+        expect(await document.readSummary(1)).toBe("");
+        expect(compressTextMock).not.toHaveBeenCalled();
+      } finally {
+        await document.release();
+      }
+    });
+  });
 });
 
 function createSentenceStream(
