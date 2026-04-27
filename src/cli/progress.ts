@@ -95,8 +95,10 @@ class TerminalProgressRenderer implements CLIProgressRenderer {
           this.#serials.set(serial.id, {
             completedFragments: 0,
             completedWords: 0,
-            fragments: serial.fragments,
             words: serial.words,
+            ...(serial.fragments === undefined
+              ? {}
+              : { fragments: serial.fragments }),
           });
         }
         return;
@@ -157,8 +159,8 @@ class TerminalProgressRenderer implements CLIProgressRenderer {
       ([leftId], [rightId]) => leftId - rightId,
     );
     const discoveredSerials = serials.filter(
-      (entry): entry is [number, KnownSerialState] =>
-        hasDiscoveryTotals(entry[1]),
+      (entry): entry is [number, SerialState & { words: number }] =>
+        hasDiscoveryWords(entry[1]),
     );
     const totalSerialWords = discoveredSerials.reduce(
       (sum, [, serial]) => sum + serial.words,
@@ -216,7 +218,7 @@ class TerminalProgressRenderer implements CLIProgressRenderer {
         `${formatSerialLabel(`#${serialId}`)}${renderBar(
           serial.completedWords,
           serial.words,
-        )} ${wordsLabel.padEnd(wordsLabelWidth)} (${fragmentsLabel})`,
+        )} ${wordsLabel.padEnd(wordsLabelWidth)}${fragmentsLabel === undefined ? "" : ` (${fragmentsLabel})`}`,
       );
     }
 
@@ -228,8 +230,10 @@ function swallowRenderError(): undefined {
   return undefined;
 }
 
-function hasDiscoveryTotals(serial: SerialState): serial is KnownSerialState {
-  return serial.fragments !== undefined && serial.words !== undefined;
+function hasDiscoveryWords(
+  serial: SerialState,
+): serial is SerialState & { words: number } {
+  return serial.words !== undefined;
 }
 
 function formatStageLabel(label: string): string {
@@ -244,7 +248,14 @@ function buildWordsLabel(completed: number, total: number): string {
   return `${formatNumber(completed)} / ${formatNumber(total)} words`;
 }
 
-function buildFragmentsLabel(completed: number, total: number): string {
+function buildFragmentsLabel(
+  completed: number,
+  total: number | undefined,
+): string | undefined {
+  if (total === undefined) {
+    return undefined;
+  }
+
   return `${formatNumber(completed)}/${formatNumber(total)} fragments`;
 }
 
@@ -259,9 +270,4 @@ function renderBar(completed: number, total: number): string {
 
 function formatNumber(value: number): string {
   return new Intl.NumberFormat("en-US").format(value);
-}
-
-interface KnownSerialState extends SerialState {
-  fragments: number;
-  words: number;
 }

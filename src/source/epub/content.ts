@@ -48,6 +48,11 @@ export interface EpubSectionTarget {
   readonly fragment: string | undefined;
 }
 
+export interface EpubSectionAnalysis {
+  readonly hasContent: boolean;
+  readonly wordsCount: number;
+}
+
 export class EpubContentLoader {
   readonly #archive: EpubArchive;
   readonly #targetsBySectionId: ReadonlyMap<
@@ -89,6 +94,30 @@ export class EpubContentLoader {
   }
 }
 
+export async function analyzeSectionTargets(
+  archive: Pick<EpubArchive, "openReadStream">,
+  targetsByPath: ReadonlyMap<string, readonly EpubSectionTarget[]>,
+): Promise<ReadonlyMap<string, EpubSectionAnalysis>> {
+  const analyses = new Map<string, EpubSectionAnalysis>();
+
+  for (const [path, targets] of targetsByPath.entries()) {
+    const stream = await archive.openReadStream(path);
+    stream.setEncoding("utf8");
+    const sections = await parseHtmlSectionTexts(stream, targets);
+
+    for (const target of targets) {
+      const text = sections.get(target.id) ?? "";
+
+      analyses.set(target.id, {
+        hasContent: text.trim() !== "",
+        wordsCount: countWords(text),
+      });
+    }
+  }
+
+  return analyses;
+}
+
 function createTargetsBySectionId(
   targetsByPath: ReadonlyMap<string, readonly EpubSectionTarget[]>,
 ): ReadonlyMap<
@@ -116,6 +145,13 @@ function createTargetsBySectionId(
 }
 
 async function parseHtmlSections(
+  stream: Readable,
+  targets: readonly EpubSectionTarget[],
+): Promise<ReadonlyMap<string, string>> {
+  return await parseHtmlSectionTexts(stream, targets);
+}
+
+async function parseHtmlSectionTexts(
   stream: Readable,
   targets: readonly EpubSectionTarget[],
 ): Promise<ReadonlyMap<string, string>> {
@@ -222,4 +258,22 @@ function toTextChunk(chunk: unknown): string {
   }
 
   throw new Error("Unexpected HTML stream chunk type");
+}
+
+function countWords(text: string): number {
+  return [...createWordSegmenter().segment(text)].filter(
+    (segment) => segment.isWordLike,
+  ).length;
+}
+
+let WORD_SEGMENTER: Intl.Segmenter | undefined;
+
+function createWordSegmenter(): Intl.Segmenter {
+  if (WORD_SEGMENTER === undefined) {
+    WORD_SEGMENTER = new Intl.Segmenter(undefined, {
+      granularity: "word",
+    });
+  }
+
+  return WORD_SEGMENTER;
 }

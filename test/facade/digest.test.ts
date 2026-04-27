@@ -237,7 +237,7 @@ describe("facade/digest", () => {
       readonly completedFragments?: number;
       readonly completedWords?: number;
       readonly serials?: readonly {
-        readonly fragments: number;
+        readonly fragments?: number | undefined;
         readonly id: number;
         readonly words: number;
       }[];

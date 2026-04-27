@@ -90,19 +90,11 @@ export async function importSourceDocument(
   const serials: Serial[] = [];
 
   if (options.digestProgressTracker !== undefined) {
-    const discoveries = [];
-
-    for (const plannedSection of plannedSections) {
-      discoveries.push({
-        id: plannedSection.serialId,
-        ...(await discoverSerial({
-          ...(options.segmenter === undefined
-            ? {}
-            : { segmenter: options.segmenter }),
-          stream: await plannedSection.section.open(),
-        })),
-      });
-    }
+    const discoveries = await discoverPlannedSections(plannedSections, {
+      ...(options.segmenter === undefined
+        ? {}
+        : { segmenter: options.segmenter }),
+    });
 
     await options.digestProgressTracker.discoverSerials(discoveries);
   }
@@ -234,4 +226,44 @@ async function assertImportTargetIsEmpty(document: Document): Promise<void> {
   if (serialIds.length > 0) {
     throw new Error("Document already contains serials");
   }
+}
+
+async function discoverPlannedSections(
+  plannedSections: readonly PlannedSection[],
+  options: {
+    readonly segmenter?: NonNullable<ImportSourceOptions["segmenter"]>;
+  },
+): Promise<
+  readonly {
+    readonly fragments?: number;
+    readonly id: number;
+    readonly words: number;
+  }[]
+> {
+  if (
+    plannedSections.every(
+      (plannedSection) => plannedSection.section.wordsCount !== undefined,
+    )
+  ) {
+    return plannedSections.map((plannedSection) => ({
+      id: plannedSection.serialId,
+      words: plannedSection.section.wordsCount ?? 0,
+    }));
+  }
+
+  const discoveries = [];
+
+  for (const plannedSection of plannedSections) {
+    discoveries.push({
+      id: plannedSection.serialId,
+      ...(await discoverSerial({
+        ...(options.segmenter === undefined
+          ? {}
+          : { segmenter: options.segmenter }),
+        stream: await plannedSection.section.open(),
+      })),
+    });
+  }
+
+  return discoveries;
 }
