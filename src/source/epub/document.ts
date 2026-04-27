@@ -130,8 +130,6 @@ async function assertArchiveIsSupported(archive: EpubArchive): Promise<void> {
     return;
   }
 
-  await archive.readText("META-INF/encryption.xml");
-
   throw new Error(
     "Encrypted EPUB is not supported: found META-INF/encryption.xml.",
   );
