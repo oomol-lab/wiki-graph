@@ -68,6 +68,7 @@ export class EpubSourceDocument implements SourceDocument {
   }
 
   public static async open(archive: EpubArchive): Promise<EpubSourceDocument> {
+    await assertArchiveIsSupported(archive);
     const packageData = await readEpubPackage(archive);
     const navigation = await readEpubNavigation(archive, packageData);
     const sections = buildSections(archive, navigation);
@@ -123,6 +124,18 @@ export class EpubSourceAdapter implements SourceAdapter {
 }
 
 export const EPUB_SOURCE_ADAPTER = new EpubSourceAdapter();
+
+async function assertArchiveIsSupported(archive: EpubArchive): Promise<void> {
+  if (!archive.hasEntry("META-INF/encryption.xml")) {
+    return;
+  }
+
+  await archive.readText("META-INF/encryption.xml");
+
+  throw new Error(
+    "Encrypted EPUB is not supported: found META-INF/encryption.xml.",
+  );
+}
 
 async function readCoverAsset(
   archive: EpubArchive,

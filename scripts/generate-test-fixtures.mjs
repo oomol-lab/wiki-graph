@@ -14,6 +14,14 @@ const FIXTURE_DIR = fileURLToPath(
 const TEXT_FIXTURE_PATH = join(FIXTURE_DIR, "sample-observatory-guide.txt");
 const MARKDOWN_FIXTURE_PATH = join(FIXTURE_DIR, "sample-observatory-guide.md");
 const EPUB_FIXTURE_PATH = join(FIXTURE_DIR, "sample-observatory-guide.epub");
+const EPUB_MIXED_FIXTURE_PATH = join(
+  FIXTURE_DIR,
+  "sample-observatory-guide-mixed.epub",
+);
+const EPUB_ENCRYPTED_FIXTURE_PATH = join(
+  FIXTURE_DIR,
+  "sample-observatory-guide-encrypted.epub",
+);
 const ONE_PIXEL_PNG_BASE64 =
   "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9WlH0pUAAAAASUVORK5CYII=";
 
@@ -23,6 +31,16 @@ await Promise.all([
   writeFile(TEXT_FIXTURE_PATH, buildTextFixture(), "utf8"),
   writeFile(MARKDOWN_FIXTURE_PATH, buildMarkdownFixture(), "utf8"),
   writeEpubFixture(EPUB_FIXTURE_PATH),
+  writeEpubFixture(EPUB_MIXED_FIXTURE_PATH, {
+    xhtmlCompressionByPath: {
+      "EPUB/cover.xhtml": false,
+      "EPUB/chapter-1.xhtml": true,
+      "EPUB/chapter-2-log.xhtml": false,
+    },
+  }),
+  writeEpubFixture(EPUB_ENCRYPTED_FIXTURE_PATH, {
+    includeEncryptionManifest: true,
+  }),
 ]);
 
 console.log(`Generated fixtures in ${FIXTURE_DIR}`);
@@ -85,7 +103,13 @@ function buildMarkdownFixture() {
   ].join("\n");
 }
 
-async function writeEpubFixture(path) {
+async function writeEpubFixture(
+  path,
+  {
+    includeEncryptionManifest = false,
+    xhtmlCompressionByPath = {},
+  } = {},
+) {
   await mkdir(dirname(path), { recursive: true });
 
   const zip = new ZipFile();
@@ -100,11 +124,34 @@ async function writeEpubFixture(path) {
 
   addStored(zip, "mimetype", "application/epub+zip");
   addFile(zip, "META-INF/container.xml", buildContainerXml());
+  if (includeEncryptionManifest) {
+    addFile(zip, "META-INF/encryption.xml", buildEncryptionXml());
+  }
   addFile(zip, "EPUB/package.opf", buildPackageOpf());
-  addFile(zip, "EPUB/nav.xhtml", buildNavXhtml());
-  addFile(zip, "EPUB/cover.xhtml", buildCoverXhtml());
-  addFile(zip, "EPUB/chapter-1.xhtml", buildChapterOneXhtml());
-  addFile(zip, "EPUB/chapter-2-log.xhtml", buildChapterTwoXhtml());
+  addXhtmlFile(
+    zip,
+    "EPUB/nav.xhtml",
+    buildNavXhtml(),
+    xhtmlCompressionByPath["EPUB/nav.xhtml"],
+  );
+  addXhtmlFile(
+    zip,
+    "EPUB/cover.xhtml",
+    buildCoverXhtml(),
+    xhtmlCompressionByPath["EPUB/cover.xhtml"],
+  );
+  addXhtmlFile(
+    zip,
+    "EPUB/chapter-1.xhtml",
+    buildChapterOneXhtml(),
+    xhtmlCompressionByPath["EPUB/chapter-1.xhtml"],
+  );
+  addXhtmlFile(
+    zip,
+    "EPUB/chapter-2-log.xhtml",
+    buildChapterTwoXhtml(),
+    xhtmlCompressionByPath["EPUB/chapter-2-log.xhtml"],
+  );
   zip.addBuffer(
     Buffer.from(ONE_PIXEL_PNG_BASE64, "base64"),
     "EPUB/images/cover.png",
@@ -136,6 +183,14 @@ function addFile(zip, path, content) {
   });
 }
 
+function addXhtmlFile(zip, path, content, compress = true) {
+  zip.addBuffer(Buffer.from(content, "utf8"), path, {
+    mtime: FIXTURE_MTIME,
+    mode: 0o644,
+    compress,
+  });
+}
+
 function buildContainerXml() {
   return `<?xml version="1.0" encoding="utf-8"?>
 <container version="1.0" xmlns="urn:oasis:names:tc:opendocument:xmlns:container">
@@ -143,6 +198,18 @@ function buildContainerXml() {
     <rootfile full-path="EPUB/package.opf" media-type="application/oebps-package+xml"/>
   </rootfiles>
 </container>
+`;
+}
+
+function buildEncryptionXml() {
+  return `<?xml version="1.0" encoding="utf-8"?>
+<encryption xmlns="urn:oasis:names:tc:opendocument:xmlns:container" xmlns:enc="http://www.w3.org/2001/04/xmlenc#">
+  <enc:EncryptedData>
+    <enc:CipherData>
+      <enc:CipherReference URI="EPUB/chapter-1.xhtml"/>
+    </enc:CipherData>
+  </enc:EncryptedData>
+</encryption>
 `;
 }
 

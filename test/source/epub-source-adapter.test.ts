@@ -107,4 +107,15 @@ describe("source/epub", () => {
     ).toBe("Alpha beta.");
     expect(openReadStreamCount).toBe(2);
   });
+
+  it("rejects encrypted epub inputs", async () => {
+    await expect(
+      EPUB_SOURCE_ADAPTER.openSession(
+        getFixturePath("sample-observatory-guide-encrypted.epub"),
+        async () => undefined,
+      ),
+    ).rejects.toThrow(
+      "Encrypted EPUB is not supported: found META-INF/encryption.xml.",
+    );
+  });
 });

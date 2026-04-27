@@ -1,6 +1,6 @@
 import { createHash } from "crypto";
 import { posix } from "path";
-import type { Readable } from "stream";
+import { PassThrough, type Readable } from "stream";
 import type { Entry, ZipFile } from "yauzl";
 import { open } from "yauzl";
 
@@ -230,7 +230,26 @@ async function openEntryStream(
         return;
       }
 
-      resolve(stream);
+      resolve(normalizeEntryStream(stream));
     });
   });
+}
+
+function normalizeEntryStream(stream: Readable): Readable {
+  const normalized = new PassThrough();
+
+  stream.once("error", (error: Error) => {
+    normalized.destroy(error);
+  });
+  normalized.once("close", () => {
+    stream.unpipe(normalized);
+
+    if (!stream.destroyed) {
+      stream.destroy();
+    }
+  });
+
+  stream.pipe(normalized);
+
+  return normalized;
 }

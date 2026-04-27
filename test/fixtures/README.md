@@ -12,5 +12,7 @@ Design goals:
 Included fixtures:
 
 - `sample-observatory-guide.epub`
+- `sample-observatory-guide-mixed.epub`
+- `sample-observatory-guide-encrypted.epub`
 - `sample-observatory-guide.txt`
 - `sample-observatory-guide.md`
