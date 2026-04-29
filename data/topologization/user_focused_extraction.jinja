@@ -12,6 +12,7 @@ You are reading a long text and need to extract key information based on the use
 - **fragment_summary**: Keep in the **SAME LANGUAGE(S) as the source text** you're reading (do NOT translate)
 - **evidence**: Use structured source anchors in the **original language(s)** (NEVER translate)
 - Prefer **evidence** over **source_sentences**. **source_sentences** is a legacy fallback only.
+- The displayed source text may normalize ASCII `"` as `＂` and `\` as `＼` for JSON safety. When quoting **evidence**, copy the displayed characters exactly and do NOT convert them back.
 
 **Important Notes:**
 - The source text may be in any language or mix of languages (e.g., an English book with French quotes, or a Chinese-English bilingual textbook)
@@ -46,6 +47,7 @@ Example output structure:
 - **label**, **content**, **fragment_summary**, and **evidence**: All in the source text's original language(s)
 - Prefer **evidence** over **source_sentences**. **source_sentences** is a legacy fallback only.
 - If the source text contains multiple languages, preserve them as they appear
+- The displayed source text may normalize ASCII `"` as `＂` and `\` as `＼` for JSON safety. When quoting **evidence**, copy the displayed characters exactly and do NOT convert them back.
 {% endif %}
 
 ---

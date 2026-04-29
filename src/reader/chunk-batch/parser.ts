@@ -27,6 +27,7 @@ import type {
   CognitiveChunk,
   SentenceTextSource,
 } from "./types.js";
+import { FragmentProjection, type TextSpan } from "./fragment-projection.js";
 
 const MAX_CHOICE_RETRIES = 3;
 
@@ -115,7 +116,6 @@ export interface ExtractChunksResult {
 interface SentenceIndex {
   readonly exactTextToIds: Readonly<Record<string, readonly SentenceId[]>>;
   readonly normalizedTextToIds: Readonly<Record<string, readonly SentenceId[]>>;
-  readonly sentenceTextByKey: Readonly<Record<string, string>>;
   readonly wordsCountByKey: Readonly<Record<string, number>>;
 }
 
@@ -150,6 +150,7 @@ export class ChunkBatchParser<
   readonly #normalizedTextToIds: Readonly<
     Record<string, readonly SentenceId[]>
   >;
+  readonly #projection: FragmentProjection;
   readonly #requestChoice: GuaranteedChoiceRequest;
   readonly #sentenceTextByKey: Readonly<Record<string, string>>;
   readonly #sentenceTextSource: SentenceTextSource;
@@ -161,6 +162,7 @@ export class ChunkBatchParser<
   public constructor(input: {
     choiceSystemPrompt: string;
     metadataField: ChunkMetadataField;
+    projection: FragmentProjection;
     requestChoice: GuaranteedChoiceRequest;
     sentenceTextSource: SentenceTextSource;
     sentences: readonly ChunkExtractionSentence[];
@@ -169,17 +171,24 @@ export class ChunkBatchParser<
   }) {
     this.#choiceSystemPrompt = input.choiceSystemPrompt;
     this.#metadataField = input.metadataField;
+    this.#projection = input.projection;
     this.#requestChoice = input.requestChoice;
     this.#sentenceTextSource = input.sentenceTextSource;
     this.#sentences = input.sentences;
     this.#visibleChunkIds = input.visibleChunkIds;
 
-    const sentenceIndex = indexSentences(input.sentences);
+    const sentenceIndex = indexSentences(
+      input.projection.sentences.map((sentence) => ({
+        sentenceId: sentence.sentenceId,
+        text: sentence.projectedText,
+        wordsCount: sentence.wordsCount,
+      })),
+    );
 
     this.#exactTextToIds = sentenceIndex.exactTextToIds;
     this.#normalizedTextToIds = sentenceIndex.normalizedTextToIds;
-    this.#sentenceTextByKey = sentenceIndex.sentenceTextByKey;
     this.#wordsCountByKey = sentenceIndex.wordsCountByKey;
+    this.#sentenceTextByKey = createSentenceTextRecord(input.projection);
     this.#validImportanceChunkIds =
       input.validImportanceChunkIds === undefined
         ? undefined
@@ -380,7 +389,15 @@ export class ChunkBatchParser<
     const candidateSentenceIds = this.#sentences.map(
       (sentence) => sentence.sentenceId,
     );
-    const candidateTexts = this.#sentences.map((sentence) => sentence.text);
+    const exactMatchSentenceIds = this.#resolveExactProjectionEvidence(evidence);
+
+    if (exactMatchSentenceIds.length > 0) {
+      return [exactMatchSentenceIds, undefined];
+    }
+
+    const candidateTexts = this.#projection.sentences.map(
+      (sentence) => sentence.projectedText,
+    );
     const [resolution, failure] = this.#evidenceResolver.resolve(
       evidence,
       candidateSentenceIds,
@@ -476,6 +493,54 @@ export class ChunkBatchParser<
     }
 
     return [[], resolveFailure];
+  }
+
+  #resolveExactProjectionEvidence(evidence: Record<string, unknown>): SentenceId[] {
+    const startValue = evidence.start_anchor ?? evidence.start;
+    const [startAnchor, startFailure] = this.#evidenceResolver.parseAnchor(
+      startValue,
+      "start_anchor",
+    );
+
+    if (startFailure !== undefined || startAnchor?.text === undefined) {
+      return [];
+    }
+
+    const startMatch = expectSingleSpan(
+      this.#projection.findExactMatches(startAnchor.text),
+    );
+
+    if (startMatch === undefined) {
+      return [];
+    }
+
+    const endValue = evidence.end_anchor ?? evidence.end;
+
+    if (endValue === undefined) {
+      return this.#projection.resolveSentenceIds(startMatch);
+    }
+
+    const [endAnchor, endFailure] = this.#evidenceResolver.parseAnchor(
+      endValue,
+      "end_anchor",
+    );
+
+    if (endFailure !== undefined || endAnchor?.text === undefined) {
+      return [];
+    }
+
+    const endMatch = expectSingleSpan(
+      this.#projection.findExactMatches(endAnchor.text),
+    );
+
+    if (endMatch === undefined || endMatch.offset < startMatch.offset) {
+      return [];
+    }
+
+    return this.#projection.resolveSentenceIds({
+      length: endMatch.offset + endMatch.length - startMatch.offset,
+      offset: startMatch.offset,
+    });
   }
 
   async #chooseAmbiguousCandidate(
@@ -780,7 +845,6 @@ function indexSentences(
 ): SentenceIndex {
   const exactTextToIds = createEmptyRecord<readonly SentenceId[]>();
   const normalizedTextToIds = createEmptyRecord<readonly SentenceId[]>();
-  const sentenceTextByKey = createEmptyRecord<string>();
   const wordsCountByKey = createEmptyRecord<number>();
 
   for (const sentence of sentences) {
@@ -797,16 +861,26 @@ function indexSentences(
     }
 
     const sentenceKey = createSentenceKey(sentence.sentenceId);
-    sentenceTextByKey[sentenceKey] = sentence.text;
     wordsCountByKey[sentenceKey] = sentence.wordsCount;
   }
 
   return {
     exactTextToIds,
     normalizedTextToIds,
-    sentenceTextByKey,
     wordsCountByKey,
   };
+}
+
+function createSentenceTextRecord(
+  projection: FragmentProjection,
+): Readonly<Record<string, string>> {
+  const record = createEmptyRecord<string>();
+
+  for (const sentence of projection.sentences) {
+    record[createSentenceKey(sentence.sentenceId)] = sentence.rawText;
+  }
+
+  return record;
 }
 
 function normalizeChunkLinks(links: readonly RawChunkLink[]): ChunkLink[] {
@@ -939,4 +1013,10 @@ function hasIndexedValue<TValue>(
 
 function createEmptyRecord<TValue>(): Record<string, TValue> {
   return Object.create(null) as Record<string, TValue>;
+}
+
+function expectSingleSpan(
+  spans: readonly TextSpan[],
+): TextSpan | undefined {
+  return spans.length === 1 ? spans[0] : undefined;
 }

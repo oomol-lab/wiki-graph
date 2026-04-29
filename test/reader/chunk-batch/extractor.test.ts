@@ -430,4 +430,58 @@ describe("reader/chunk-batch/extractor", () => {
       true,
     );
   });
+
+  it("projects dangerous ASCII characters before sending fragment text to the llm", async () => {
+    const llm = new ScriptedLLM<SpineDigestScope>([
+      JSON.stringify({
+        chunks: [
+          {
+            content: "Quoted summary",
+            evidence: {
+              start_anchor: {
+                mode: "full",
+                text: "He said ＂hi＂ and saved to ＼tmp＼log.",
+              },
+            },
+            label: "Quoted label",
+            retention: "focused",
+            temp_id: "temp-1",
+          },
+        ],
+        fragment_summary: "",
+        links: [],
+      }),
+    ]);
+    const extractor = new ChunkExtractor<SpineDigestScope>({
+      extractionGuidance: "Focus on plot",
+      llm: llm as never,
+      scopes: SPINE_DIGEST_READER_SCOPES,
+      sentenceTextSource: {
+        getSentence: (sentenceId) => Promise.resolve(sentenceId.join(":")),
+      },
+    });
+
+    const result = await extractor.extractUserFocused({
+      sentences: [
+        {
+          sentenceId: [1, 0, 0],
+          text: 'He said "hi" and saved to \\tmp\\log.',
+          wordsCount: 8,
+        },
+      ],
+      text: 'He said "hi" and saved to \\tmp\\log.',
+      visibleChunkIds: [],
+      workingMemoryPrompt: "memory",
+    });
+
+    expect(llm.calls[0]?.messages[1]).toMatchObject({
+      content: "He said ＂hi＂ and saved to ＼tmp＼log.",
+      role: "user",
+    });
+    expect(result.chunkBatch.chunks[0]).toMatchObject({
+      sentenceId: [1, 0, 0],
+      sentenceIds: [[1, 0, 0]],
+      wordsCount: 8,
+    });
+  });
 });

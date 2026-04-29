@@ -16,6 +16,7 @@ import {
   type UserFocusedResponseData,
   userFocusedResponseSchema,
 } from "./parser.js";
+import { FragmentProjection } from "./fragment-projection.js";
 import { needsTranslation } from "./language.js";
 import {
   BOOK_COHERENCE_PROMPT_TEMPLATE,
@@ -42,6 +43,7 @@ interface ExtractChunksInput<
   readonly emptyChunkBatch: ChunkBatch;
   readonly messages: readonly LLMessage[];
   readonly metadataField: ChunkMetadataField;
+  readonly projection: FragmentProjection;
   readonly schema: ZodType<TData>;
   readonly sentences: readonly ChunkExtractionSentence[];
   readonly validImportanceChunkIds?: readonly number[];
@@ -80,6 +82,7 @@ export class ChunkExtractor<S extends string> {
   public async extractUserFocused(
     input: ExtractUserFocusedInput,
   ): Promise<ExtractUserFocusedResult> {
+    const projection = new FragmentProjection(input.sentences);
     const messages = this.#buildMessages({
       promptTemplateName: USER_FOCUSED_PROMPT_TEMPLATE,
       templateContext: {
@@ -87,7 +90,7 @@ export class ChunkExtractor<S extends string> {
         user_language: this.#userLanguage,
         working_memory: input.workingMemoryPrompt,
       },
-      text: input.text,
+      text: projection.projectedText,
     });
     const extraction = await this.#extractChunks({
       emptyChunkBatch: {
@@ -98,6 +101,7 @@ export class ChunkExtractor<S extends string> {
       },
       messages,
       metadataField: ChunkMetadataField.Retention,
+      projection,
       schema: userFocusedResponseSchema,
       sentences: input.sentences,
       visibleChunkIds: input.visibleChunkIds,
@@ -115,6 +119,7 @@ export class ChunkExtractor<S extends string> {
   public async extractBookCoherence(
     input: ExtractBookCoherenceInput,
   ): Promise<ChunkBatch> {
+    const projection = new FragmentProjection(input.sentences);
     const messages = this.#buildMessages({
       promptTemplateName: BOOK_COHERENCE_PROMPT_TEMPLATE,
       templateContext: {
@@ -126,7 +131,7 @@ export class ChunkExtractor<S extends string> {
         user_language: this.#userLanguage,
         working_memory: input.workingMemoryPrompt,
       },
-      text: input.text,
+      text: projection.projectedText,
     });
     const extraction = await this.#extractChunks({
       emptyChunkBatch: {
@@ -138,6 +143,7 @@ export class ChunkExtractor<S extends string> {
       },
       messages,
       metadataField: ChunkMetadataField.Importance,
+      projection,
       schema: bookCoherenceResponseSchema,
       sentences: input.sentences,
       validImportanceChunkIds: input.userFocusedChunks.map((chunk) => chunk.id),
@@ -177,6 +183,7 @@ export class ChunkExtractor<S extends string> {
       async (context): Promise<ExtractChunksOutput<TData>> => {
         const parser = new ChunkBatchParser<TData>({
           metadataField: input.metadataField,
+          projection: input.projection,
           sentenceTextSource: this.#sentenceTextSource,
           sentences: input.sentences,
           visibleChunkIds: input.visibleChunkIds,

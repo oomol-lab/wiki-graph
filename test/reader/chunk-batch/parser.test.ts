@@ -9,6 +9,7 @@ import {
   ChunkBatchParser,
   ChunkMetadataField,
 } from "../../../src/reader/chunk-batch/parser.js";
+import { FragmentProjection } from "../../../src/reader/chunk-batch/fragment-projection.js";
 import type { ChunkExtractionSentence } from "../../../src/reader/chunk-batch/types.js";
 
 describe("reader/chunk-batch/parser", () => {
@@ -16,6 +17,7 @@ describe("reader/chunk-batch/parser", () => {
     const parser = new ChunkBatchParser({
       choiceSystemPrompt: "choice prompt",
       metadataField: ChunkMetadataField.Retention,
+      projection: new FragmentProjection(createSentences()),
       requestChoice: () => Promise.resolve('{"choice":"S1"}'),
       sentenceTextSource: {
         getSentence: (sentenceId) => Promise.resolve(sentenceId.join(":")),
@@ -71,25 +73,27 @@ describe("reader/chunk-batch/parser", () => {
 
   it("uses second-stage choice to resolve ambiguous evidence on the last attempt", async () => {
     const requestChoice = vi.fn(() => Promise.resolve('{"choice":"S2"}'));
+    const sentences = [
+      {
+        sentenceId: [1, 0, 0],
+        text: "Echo",
+        wordsCount: 2,
+      },
+      {
+        sentenceId: [1, 0, 1],
+        text: "Echo",
+        wordsCount: 3,
+      },
+    ] satisfies ChunkExtractionSentence[];
     const parser = new ChunkBatchParser({
       choiceSystemPrompt: "choice prompt",
       metadataField: ChunkMetadataField.Retention,
+      projection: new FragmentProjection(sentences),
       requestChoice,
       sentenceTextSource: {
         getSentence: (sentenceId) => Promise.resolve(sentenceId.join(":")),
       },
-      sentences: [
-        {
-          sentenceId: [1, 0, 0],
-          text: "Echo",
-          wordsCount: 2,
-        },
-        {
-          sentenceId: [1, 0, 1],
-          text: "Echo",
-          wordsCount: 3,
-        },
-      ] satisfies ChunkExtractionSentence[],
+      sentences,
       visibleChunkIds: [],
     });
 
@@ -126,6 +130,7 @@ describe("reader/chunk-batch/parser", () => {
     const parser = new ChunkBatchParser({
       choiceSystemPrompt: "choice prompt",
       metadataField: ChunkMetadataField.Importance,
+      projection: new FragmentProjection(createSentences()),
       requestChoice: () => Promise.resolve('{"choice":"S1"}'),
       sentenceTextSource: {
         getSentence: (sentenceId) => Promise.resolve(sentenceId.join(":")),
@@ -171,6 +176,7 @@ describe("reader/chunk-batch/parser", () => {
     const parser = new ChunkBatchParser({
       choiceSystemPrompt: "choice prompt",
       metadataField: ChunkMetadataField.Retention,
+      projection: new FragmentProjection(createSentences()),
       requestChoice: () => Promise.resolve('{"choice":"S1"}'),
       sentenceTextSource: {
         getSentence: (sentenceId) => Promise.resolve(sentenceId.join(":")),
@@ -218,6 +224,57 @@ describe("reader/chunk-batch/parser", () => {
       issues: [
         "Chunk #2 (\"Invalid label\"): Invalid evidence.start_anchor: head_tail anchor requires non-empty 'head' and 'tail'",
       ],
+    });
+  });
+
+  it("matches standardized evidence against the projected fragment text", async () => {
+    const sentences = [
+      {
+        sentenceId: [1, 0, 0],
+        text: 'He said "hi" and used \\\\server.',
+        wordsCount: 6,
+      },
+    ] satisfies ChunkExtractionSentence[];
+    const parser = new ChunkBatchParser({
+      choiceSystemPrompt: "choice prompt",
+      metadataField: ChunkMetadataField.Retention,
+      projection: new FragmentProjection(sentences),
+      requestChoice: () => Promise.resolve('{"choice":"S1"}'),
+      sentenceTextSource: {
+        getSentence: (sentenceId) => Promise.resolve(sentenceId.join(":")),
+      },
+      sentences,
+      visibleChunkIds: [],
+    });
+
+    const result = await parser.parse(
+      {
+        chunks: [
+          {
+            content: "Quoted content",
+            evidence: {
+              start_anchor: {
+                mode: "full",
+                text: "He said ＂hi＂ and used ＼＼server.",
+              },
+            },
+            label: "Quoted label",
+            retention: ChunkRetention.Focused,
+            temp_id: "temp-1",
+          },
+        ],
+        fragment_summary: "",
+        links: [],
+      },
+      {
+        isLastGenerationAttempt: false,
+      },
+    );
+
+    expect(result.chunkBatch.chunks[0]).toMatchObject({
+      sentenceId: [1, 0, 0],
+      sentenceIds: [[1, 0, 0]],
+      wordsCount: 6,
     });
   });
 });
