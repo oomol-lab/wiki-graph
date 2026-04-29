@@ -260,12 +260,6 @@ function parseSdpubArguments(
     };
   }
 
-  if (inputPath === undefined || inputPath === "-") {
-    throw new Error(
-      "The `sdpub` subcommands require --input <path>. stdin is not supported.",
-    );
-  }
-
   return {
     args: {
       inputPath,
