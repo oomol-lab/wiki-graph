@@ -1,10 +1,12 @@
 import { describe, expect, it } from "vitest";
 
+import { parseCLIArguments } from "../../src/cli/args.js";
 import {
-  CLI_HELP_TEXT,
-  SDPUB_HELP_TEXT,
-  parseCLIArguments,
-} from "../../src/cli/args.js";
+  renderHelpTopicText,
+  renderMainHelpText,
+  renderSdpubHelpText,
+  renderSdpubSubcommandHelpText,
+} from "../../src/cli/help.js";
 
 describe("cli/args", () => {
   it("parses help and io flags with normalized formats", () => {
@@ -36,7 +38,7 @@ describe("cli/args", () => {
         verbose: false,
       },
       help: true,
-      helpText: CLI_HELP_TEXT,
+      helpText: renderMainHelpText(),
       kind: "convert",
     });
   });
@@ -48,7 +50,6 @@ describe("cli/args", () => {
         verbose: false,
       },
       help: false,
-      helpText: CLI_HELP_TEXT,
       kind: "convert",
     });
   });
@@ -60,7 +61,6 @@ describe("cli/args", () => {
         verbose: true,
       },
       help: false,
-      helpText: CLI_HELP_TEXT,
       kind: "convert",
     });
   });
@@ -74,7 +74,6 @@ describe("cli/args", () => {
           verbose: false,
         },
         help: false,
-        helpText: CLI_HELP_TEXT,
         kind: "convert",
       },
     );
@@ -97,7 +96,6 @@ describe("cli/args", () => {
         subcommand: "cat",
       },
       help: false,
-      helpText: SDPUB_HELP_TEXT,
       kind: "sdpub",
     });
   });
@@ -105,7 +103,33 @@ describe("cli/args", () => {
   it("prints sdpub help text", () => {
     expect(parseCLIArguments(["sdpub", "--help"])).toStrictEqual({
       help: true,
-      helpText: SDPUB_HELP_TEXT,
+      helpText: renderSdpubHelpText(),
+      kind: "sdpub",
+    });
+  });
+
+  it("prints help topic pages", () => {
+    expect(parseCLIArguments(["help", "runtime"])).toStrictEqual({
+      help: true,
+      helpText: renderHelpTopicText("runtime"),
+      kind: "help",
+    });
+    expect(parseCLIArguments(["help", "env"])).toStrictEqual({
+      help: true,
+      helpText: renderHelpTopicText("env"),
+      kind: "help",
+    });
+    expect(parseCLIArguments(["help", "config-file"])).toStrictEqual({
+      help: true,
+      helpText: renderHelpTopicText("config-file"),
+      kind: "help",
+    });
+  });
+
+  it("prints sdpub subcommand help pages", () => {
+    expect(parseCLIArguments(["sdpub", "info", "--help"])).toStrictEqual({
+      help: true,
+      helpText: renderSdpubSubcommandHelpText("info"),
       kind: "sdpub",
     });
   });
@@ -167,27 +191,36 @@ describe("cli/args", () => {
     ).toThrow("Invalid --serial: x. Expected a non-negative integer.");
   });
 
-  it("documents the supported command-line contract", () => {
-    expect(CLI_HELP_TEXT).toContain(
-      "stdin/stdout only support txt or markdown",
+  it("rejects invalid help usage", () => {
+    expect(() => parseCLIArguments(["help", "unknown"])).toThrow(
+      "Invalid help topic: unknown. Expected one of overview, task, command, format, config, env, config-file, runtime, recipe, troubleshoot, ai, sdpub.",
     );
-    expect(CLI_HELP_TEXT).toContain(
-      "spinedigest sdpub <info|toc|list|cat|cover>",
+    expect(() =>
+      parseCLIArguments(["help", "task", "--input", "book.epub"]),
+    ).toThrow("The `help` command does not support --input.");
+  });
+
+  it("documents the layered help contract", () => {
+    const rootHelpText = renderMainHelpText();
+    const sdpubHelpText = renderSdpubHelpText();
+
+    expect(rootHelpText).toContain("spinedigest help [topic]");
+    expect(rootHelpText).toContain("spinedigest help overview");
+    expect(rootHelpText).toContain("spinedigest help env");
+    expect(rootHelpText).toContain("spinedigest help config-file");
+    expect(rootHelpText).toContain("spinedigest sdpub info --help");
+    expect(renderHelpTopicText("runtime")).toContain("Runtime Behavior");
+    expect(renderHelpTopicText("config")).toContain("Configuration Overview");
+    expect(renderHelpTopicText("config")).toContain("spinedigest help env");
+    expect(renderHelpTopicText("env")).toContain("SPINEDIGEST_LLM_MODEL");
+    expect(renderHelpTopicText("env")).toContain("SPINEDIGEST_REQUEST_STREAM");
+    expect(renderHelpTopicText("config-file")).toContain(
+      "~/.spinedigest/config.json",
     );
-    expect(CLI_HELP_TEXT).toContain("--digest-dir keeps the intermediate");
-    expect(CLI_HELP_TEXT).toContain(
-      "--digest-dir clears the target directory before each run",
+    expect(renderHelpTopicText("config-file")).toContain("llm.provider");
+    expect(sdpubHelpText).toContain("These subcommands do not call an LLM");
+    expect(renderSdpubSubcommandHelpText("cover")).toContain(
+      "refuses to write binary data to an interactive terminal",
     );
-    expect(CLI_HELP_TEXT).toContain(
-      "--prompt overrides config/env extraction prompts",
-    );
-    expect(CLI_HELP_TEXT).toContain(
-      "--verbose writes diagnostic logs to stderr",
-    );
-    expect(CLI_HELP_TEXT).toContain(
-      "--verbose cannot be used together with stdout output",
-    );
-    expect(CLI_HELP_TEXT).toContain("SPINEDIGEST_LLM_MODEL");
-    expect(SDPUB_HELP_TEXT).toContain("cover writes raw binary cover bytes");
   });
 });

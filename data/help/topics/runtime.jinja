@@ -1,0 +1,44 @@
+Help Type: topic
+Topic: runtime
+
+Runtime Behavior
+
+Streams:
+  - If `--input` is omitted, the CLI reads stdin.
+  - If `--output` is omitted, the CLI writes stdout.
+  - Interactive stdin is rejected for source digest runs.
+  - `--verbose` cannot be used when digest output goes to stdout.
+
+Exit behavior:
+  - Success returns exit code 0.
+  - Failures return non-zero and print a plain-text error to stderr.
+
+Progress and diagnostics:
+  - Normal progress rendering uses stderr when the digest path is active, stderr is a TTY, and `--verbose` is off.
+  - `--verbose` writes diagnostic logs to stderr.
+
+Digest workspace:
+  - `--digest-dir` applies only to source digest runs.
+  - The target directory is removed before each run, then rebuilt as the working digest directory.
+  - With the top-level convert command, `.sdpub` input ignores `--digest-dir`; with the `sdpub` subcommands, `--digest-dir` is rejected and cannot be used.
+
+Binary safety:
+  - `sdpub cover` refuses to write binary cover data to an interactive terminal.
+
+Where to go next:
+  - Need config-layer overview:
+    spinedigest help config
+  - Need the environment variable definitions:
+    spinedigest help env
+  - Need the config file schema:
+    spinedigest help config-file
+  - Need stream and format compatibility rules:
+    spinedigest help format
+  - Need the command forms that trigger these runtime rules:
+    spinedigest help command
+  - Need task examples that avoid stdout and stdin mistakes:
+    spinedigest help recipe
+  - Need archive inspection specifics:
+    spinedigest help sdpub
+  - Need error-driven guidance:
+    spinedigest help troubleshoot

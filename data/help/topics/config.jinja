@@ -1,0 +1,57 @@
+Help Type: topic
+Topic: config
+
+Configuration Overview
+
+Purpose:
+  This topic explains how SpineDigest layers configuration sources and when each layer applies.
+  Use it as the entry point before diving into env vars or the JSON file schema.
+
+Precedence:
+  - `--prompt` overrides both environment and config-file prompt settings for one run.
+  - Environment variables override the config file.
+  - The config file provides persistent machine defaults.
+  - Explicit format flags are separate from config and override file-extension inference.
+
+Configuration layers:
+  1. CLI flags:
+     Per-invocation decisions such as `--prompt`, `--input-format`, and `--output-format`.
+  2. Environment variables:
+     Best for one shell session, CI, wrappers, or temporary overrides.
+  3. Config file:
+     Best for stable machine defaults in `~/.spinedigest/config.json`.
+
+Minimum digest configuration:
+  - llm.provider
+  - llm.model
+  These are required only for source digest runs.
+
+Execution paths:
+  - Source digest runs use prompt, LLM, cache, and request settings.
+  - `.sdpub` re-export through the main convert command does not require LLM settings.
+  - `sdpub` inspection subcommands do not use these LLM settings.
+  - `paths.debugLogDir` may still matter when the app emits debug logs.
+
+When to prefer each layer:
+  - Prefer CLI flags for one run.
+  - Prefer environment variables for shell-local overrides and automation.
+  - Prefer the config file for persistent defaults.
+
+Main caution points:
+  - `openai` rejects `baseURL`.
+  - `openai-compatible` requires `baseURL`.
+  - Env path overrides resolve from the current working directory.
+  - Config-file paths resolve from the config file directory.
+  - Invalid JSON or invalid typed values fail before the digest run starts.
+
+Where to go next:
+  - Need the detailed environment variable list:
+    spinedigest help env
+  - Need the detailed JSON schema and examples:
+    spinedigest help config-file
+  - Need command-level override behavior:
+    spinedigest help command
+  - Need runtime effects for logs, retries, and streams:
+    spinedigest help runtime
+  - Need error handling:
+    spinedigest help troubleshoot

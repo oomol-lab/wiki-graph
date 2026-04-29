@@ -20,6 +20,12 @@
 
 ## Install
 
+Requirements:
+
+- Node `>=22.12.0`
+- For source digestion from EPUB, Markdown, or TXT: a supported LLM provider plus credentials
+- For `.sdpub` re-export or `sdpub` inspection only: no LLM access required
+
 Try it without a global install:
 
 ```bash
@@ -32,7 +38,21 @@ Global install:
 npm install -g spinedigest
 ```
 
+To explore the CLI surface first, start with:
+
+```bash
+spinedigest --help
+spinedigest help ai
+```
+
 ## Quick Start
+
+The first two examples below create a new digest from source input, so they require LLM configuration first.
+If you need config setup details, run:
+
+```bash
+spinedigest help config
+```
 
 Digest an EPUB into Markdown:
 
@@ -108,13 +128,26 @@ SpineDigest also exposes a programmatic API for embedding the pipeline in your o
 
 ## For AI Agents
 
-SpineDigest's CLI-first design means AI agents can call it directly with no extra integration code.
+SpineDigest's CLI-first design makes it easy to call directly, with no extra integration code.
 
 - **Prefer the CLI.** Use the programmatic API only when code-level integration is explicitly required.
+- **Use help as the discovery surface.** Start with `spinedigest --help`, then read `spinedigest help ai` and the relevant topic pages before guessing behavior.
+- **Trust `--help`.** Every command in the CLI exposes usage guidance through `--help`.
 - **Use explicit paths.** Pass `--input` and `--output` for deterministic, repeatable runs.
 - **Check exit codes.** Success returns `0`; failure returns non-zero with a plain-text error on `stderr`.
 - **stdin is narrow.** Only `txt` and `md` are accepted, and only in non-interactive flows.
 - **No LLM needed for `.sdpub`.** Re-exporting an archive never calls an LLM provider.
 - **Keep the archive.** If the same digest might need re-exporting, treat `.sdpub` as the intermediate artifact.
+
+Useful help entry points:
+
+```bash
+spinedigest help ai
+spinedigest help task
+spinedigest help config
+spinedigest help env
+spinedigest help config-file
+spinedigest help sdpub
+```
 
 Full agent guidance: [AI Agent Guide](./docs/en/ai-agents.md).

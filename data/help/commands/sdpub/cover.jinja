@@ -1,0 +1,18 @@
+Help Type: command
+Command: spinedigest sdpub cover
+
+sdpub cover
+
+Purpose:
+  Write the raw cover bytes stored in the archive.
+
+Usage:
+  spinedigest sdpub cover --input <path>
+
+Output shape:
+  - Raw binary bytes on stdout
+
+Notes:
+  - Redirect or pipe stdout.
+  - The command refuses to write binary data to an interactive terminal.
+  - The command fails if the archive has no cover.

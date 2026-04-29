@@ -1,0 +1,17 @@
+Help Type: command
+Command: spinedigest sdpub list
+
+sdpub list
+
+Purpose:
+  List the serial summaries referenced by the TOC.
+
+Usage:
+  spinedigest sdpub list --input <path>
+
+Output shape:
+  [<serialId>] <TOC path> (fragments: <count>)
+
+Notes:
+  - The TOC path is joined with ` / `.
+  - If the archive references no serials, the command prints `No serials referenced by TOC.`

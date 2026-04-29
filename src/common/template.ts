@@ -11,10 +11,16 @@ type LoaderSourceWithUpdateCheck = LoaderSource & {
   upToDate: () => boolean;
 };
 
-export function createEnv(dirPath: string): Environment {
+export function createEnv(
+  dirPath: string,
+  options: {
+    readonly autoescape?: boolean;
+    readonly trimBlocks?: boolean;
+  } = {},
+): Environment {
   return new Environment(new DSTemplateLoader(resolve(dirPath)), {
-    autoescape: true,
-    trimBlocks: true,
+    autoescape: options.autoescape ?? true,
+    trimBlocks: options.trimBlocks ?? true,
   });
 }
 

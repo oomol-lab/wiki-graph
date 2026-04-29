@@ -26,6 +26,25 @@ Prefer the CLI.
 
 Only use the library API if the surrounding system explicitly needs in-process integration.
 
+## Help-First Discovery
+
+SpineDigest exposes an AI-oriented help surface through the CLI itself.
+
+Start here:
+
+```bash
+spinedigest --help
+spinedigest help ai
+```
+
+Then follow the topic pages you need, such as:
+
+- `spinedigest help task`
+- `spinedigest help config`
+- `spinedigest help env`
+- `spinedigest help config-file`
+- `spinedigest help sdpub`
+
 ## Minimal Operational Contract
 
 - Input files: `epub`, `txt`, `markdown`, `sdpub`

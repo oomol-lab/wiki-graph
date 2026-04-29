@@ -26,6 +26,25 @@
 
 只有当外围系统明确需要进程内集成时，才使用库 API。
 
+## 先从 Help 开始探索
+
+SpineDigest 在 CLI 内部提供了面向 AI 的 help 体系。
+
+建议先执行：
+
+```bash
+spinedigest --help
+spinedigest help ai
+```
+
+然后按需继续读取对应专题页，例如：
+
+- `spinedigest help task`
+- `spinedigest help config`
+- `spinedigest help env`
+- `spinedigest help config-file`
+- `spinedigest help sdpub`
+
 ## 最小操作契约
 
 - 输入文件：`epub`、`txt`、`markdown`、`sdpub`

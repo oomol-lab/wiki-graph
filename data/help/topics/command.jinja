@@ -1,0 +1,48 @@
+Help Type: topic
+Topic: command
+
+Command Reference
+
+Main convert command:
+  spinedigest [--input <path>] [--output <path>] [--input-format <format>] [--output-format <format>] [--digest-dir <path>] [--prompt <text>] [--verbose]
+
+Main flags:
+  --input <path>          Read from a file. If omitted, stdin is used.
+  --output <path>         Write to a file. If omitted, stdout is used.
+  --input-format <format> Override input format inference.
+  --output-format <format>
+                          Override output format inference.
+  --digest-dir <path>     Keep the intermediate digest workspace for source digest runs.
+  --prompt <text>         Override the extraction prompt for the current digest run.
+  --verbose               Write diagnostic logs to stderr.
+  --help                  Print entry help.
+
+sdpub inspection family:
+{% for command in sdpubCommands %}
+  spinedigest sdpub {{ command.name }}{% if command.name == "cat" %} --serial <id>{% endif %} --input <path>
+    {{ command.summary }}
+{% endfor %}
+
+Help routing:
+  spinedigest --help
+  spinedigest help <topic>
+  spinedigest sdpub --help
+  spinedigest sdpub <subcommand> --help
+
+Where to go next:
+  - Need legal input and output combinations:
+    spinedigest help format
+  - Need configuration-layer overview and precedence:
+    spinedigest help config
+  - Need the detailed environment variable list:
+    spinedigest help env
+  - Need the detailed config file schema:
+    spinedigest help config-file
+  - Need stdout, stderr, progress, or digest-dir behavior:
+    spinedigest help runtime
+  - Need task-oriented examples instead of raw flags:
+    spinedigest help task
+  - Need archive inspection command details:
+    spinedigest help sdpub
+  - Need error-oriented guidance:
+    spinedigest help troubleshoot

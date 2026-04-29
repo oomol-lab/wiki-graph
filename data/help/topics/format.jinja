@@ -1,0 +1,42 @@
+Help Type: topic
+Topic: format
+
+Format Reference
+
+Supported formats:
+  {{ formats | join(", ") }}
+
+Input rules:
+  - `epub`, `markdown`, and `txt` are source formats for new digest runs.
+  - `.sdpub` is a processed archive format for re-export and inspection.
+  - `stdin` is supported only for txt or markdown input.
+  - `sdpub` subcommands require a real archive file path. stdin is not supported.
+
+Output rules:
+  - File output supports `markdown`, `txt`, `epub`, and `.sdpub`.
+  - `stdout` supports only `markdown` or `txt`.
+  - `sdpub info`, `toc`, `list`, and `cat` print text to stdout.
+  - `sdpub cover` writes raw binary bytes to stdout.
+
+Inference:
+  - If `--input-format` is omitted, input format is inferred from the file extension.
+  - If `--output-format` is omitted, output format is inferred from the file extension.
+  - Stream input and output cannot be inferred reliably, so explicit format flags are recommended there.
+
+LLM usage:
+  - Source digest runs require LLM configuration.
+  - `.sdpub` re-export and `sdpub` inspection do not call an LLM provider.
+
+Where to go next:
+  - Need the product-level mental model behind source vs archive paths:
+    spinedigest help overview
+  - Need the exact command forms that use these formats:
+    spinedigest help command
+  - Need real task examples:
+    spinedigest help task
+  - Need archive inspection and `.sdpub` semantics:
+    spinedigest help sdpub
+  - Need stdin, stdout, or binary-output runtime rules:
+    spinedigest help runtime
+  - Need format-related failure handling:
+    spinedigest help troubleshoot
