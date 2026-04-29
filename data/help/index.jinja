@@ -1,0 +1,34 @@
+SpineDigest CLI
+
+Purpose:
+  Distill long-form EPUB, Markdown, or plain text into compressed output.
+  Digesting source input uses an LLM pipeline. Re-opening an existing .sdpub archive does not.
+
+Usage:
+  spinedigest [--input <path>] [--output <path>] [--input-format <format>] [--output-format <format>] [--digest-dir <path>] [--prompt <text>] [--verbose]
+  spinedigest sdpub <subcommand> --input <path> [--serial <id>]
+  spinedigest help [topic]
+
+Common paths:
+  Source input -> digest -> markdown | txt | epub | .sdpub
+  .sdpub input -> re-export or inspect without re-running the digest pipeline
+
+Help topics:
+{% for topic in helpTopics %}
+  - spinedigest help {{ topic.name }}
+    {{ topic.summary }}
+{% endfor %}
+
+sdpub subcommands:
+{% for command in sdpubCommands %}
+  - spinedigest sdpub {{ command.name }} --help
+    {{ command.summary }}
+{% endfor %}
+
+Formats:
+  {{ formats | join(", ") }}
+
+Start here:
+  spinedigest help overview
+  spinedigest help task
+  spinedigest help ai

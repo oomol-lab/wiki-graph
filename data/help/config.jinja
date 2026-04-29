@@ -1,0 +1,61 @@
+Configuration Reference
+
+Config file:
+  Default path: ~/.spinedigest/config.json
+  Override path: SPINEDIGEST_CONFIG
+
+Precedence:
+  - Environment variables override the config file.
+  - `--prompt` overrides both config and environment prompt settings for one run.
+  - Explicit format flags override file-extension inference.
+
+Minimum digest configuration:
+  - llm.provider
+  - llm.model
+  These are required only for source digest runs.
+
+Main config sections:
+  - prompt
+  - llm.provider
+  - llm.model
+  - llm.apiKey
+  - llm.baseURL
+  - llm.name
+  - paths.cacheDir
+  - paths.debugLogDir
+  - request.concurrent
+  - request.timeout
+  - request.retryTimes
+  - request.retryIntervalSeconds
+  - request.temperature
+  - request.topP
+  - request.stream
+
+Important env vars:
+  SPINEDIGEST_PROMPT
+  SPINEDIGEST_LLM_PROVIDER
+  SPINEDIGEST_LLM_MODEL
+  SPINEDIGEST_LLM_BASE_URL
+  SPINEDIGEST_LLM_NAME
+  SPINEDIGEST_LLM_API_KEY
+  SPINEDIGEST_CACHE_DIR
+  SPINEDIGEST_DEBUG_LOG_DIR
+  SPINEDIGEST_REQUEST_CONCURRENT
+  SPINEDIGEST_REQUEST_TIMEOUT
+  SPINEDIGEST_REQUEST_RETRY_TIMES
+  SPINEDIGEST_REQUEST_RETRY_INTERVAL_SECONDS
+  SPINEDIGEST_REQUEST_TEMPERATURE
+  SPINEDIGEST_REQUEST_TOP_P
+  SPINEDIGEST_REQUEST_STREAM
+
+Minimal config skeleton:
+  {
+    "llm": {
+      "provider": "openai",
+      "model": "gpt-4.1"
+    }
+  }
+
+See also:
+  spinedigest help runtime
+  spinedigest help troubleshoot

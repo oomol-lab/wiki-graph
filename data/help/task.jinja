@@ -1,0 +1,31 @@
+Task Guide
+
+Digest source material into markdown:
+  Use when the input is EPUB, Markdown, txt, or stdin and you want a new compressed text result.
+  Command shape:
+    spinedigest --input <source> --output <digest.md>
+
+Digest source material into .sdpub:
+  Use when you want a reusable archive for future export or inspection.
+  Command shape:
+    spinedigest --input <source> --output <digest.sdpub>
+
+Re-export an existing .sdpub:
+  Use when the digest already exists and you only need markdown, txt, or EPUB output.
+  Command shape:
+    spinedigest --input <digest.sdpub> --output <target>
+
+Inspect archive structure:
+  Use when you need metadata, TOC, serial ids, one serial summary, or raw cover bytes.
+  Command shape:
+    spinedigest sdpub <info|toc|list|cat|cover> --input <digest.sdpub>
+
+Pipe text through stdin/stdout:
+  Use only for txt or markdown streams in non-interactive contexts.
+  Command shape:
+    cat <chapter.txt> | spinedigest --input-format txt --output-format markdown
+
+Related topics:
+  spinedigest help recipe
+  spinedigest help command
+  spinedigest help runtime

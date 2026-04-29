@@ -8,7 +8,6 @@ const mainMockState = vi.hoisted(() => ({
       verbose: false,
     },
     help: false,
-    helpText: "CLI HELP",
     kind: "convert" as const,
   } as Record<string, unknown>,
   parseError: undefined as Error | undefined,
@@ -19,7 +18,6 @@ const mainMockState = vi.hoisted(() => ({
 }));
 
 vi.mock("../../src/cli/args.js", () => ({
-  CLI_HELP_TEXT: "CLI HELP",
   parseCLIArguments: vi.fn(() => {
     if (mainMockState.parseError !== undefined) {
       throw mainMockState.parseError;
@@ -69,7 +67,6 @@ describe("cli/main", () => {
         verbose: false,
       },
       help: false,
-      helpText: "CLI HELP",
       kind: "convert",
     };
     mainMockState.parseError = undefined;
@@ -125,7 +122,6 @@ describe("cli/main", () => {
         verbose: false,
       },
       help: false,
-      helpText: "CLI HELP",
       kind: "convert",
     };
 
@@ -152,7 +148,6 @@ describe("cli/main", () => {
         subcommand: "list",
       },
       help: false,
-      helpText: "SDPUB HELP",
       kind: "sdpub",
     };
 
@@ -185,7 +180,6 @@ describe("cli/main", () => {
         verbose: false,
       },
       help: false,
-      helpText: "CLI HELP",
       kind: "convert",
     };
     mainMockState.runError = new Error("convert failed");
@@ -209,7 +203,6 @@ describe("cli/main", () => {
         subcommand: "info",
       },
       help: false,
-      helpText: "SDPUB HELP",
       kind: "sdpub",
     };
     mainMockState.sdpubRunError = new Error("sdpub failed");
@@ -233,7 +226,6 @@ describe("cli/main", () => {
         verbose: false,
       },
       help: false,
-      helpText: "CLI HELP",
       kind: "convert",
     };
     mainMockState.runError = new Error("convert failed", {

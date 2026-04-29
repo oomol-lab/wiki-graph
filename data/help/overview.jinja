@@ -1,0 +1,27 @@
+Overview
+
+What SpineDigest does:
+  SpineDigest reads long-form source material and compresses it into smaller, reusable output.
+  It accepts EPUB, Markdown, plain text, and previously generated .sdpub archives.
+
+Mental model:
+  1. Source digest path:
+     EPUB / Markdown / txt / stdin enters the digest pipeline.
+     This path requires LLM configuration.
+  2. Archive path:
+     A completed digest can be saved as .sdpub.
+     .sdpub preserves reusable structured output for later export.
+  3. Re-export path:
+     Opening .sdpub can export markdown, txt, or EPUB without calling an LLM again.
+  4. Inspection path:
+     `spinedigest sdpub ...` reads archive internals and prints them to stdout.
+
+Think in terms of intent:
+  - Use source input when you want a new digest.
+  - Use .sdpub input when you want deterministic reuse of a previous digest.
+  - Use `sdpub` subcommands when you want to inspect the archive, not export it.
+
+Next topics:
+  spinedigest help task
+  spinedigest help format
+  spinedigest help sdpub

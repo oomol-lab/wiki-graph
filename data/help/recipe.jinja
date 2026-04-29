@@ -1,0 +1,32 @@
+Recipes
+
+Digest an EPUB into markdown:
+  spinedigest --input ./book.epub --output ./digest.md
+
+Digest an EPUB into a reusable archive:
+  spinedigest --input ./book.epub --output ./book.sdpub
+
+Re-export an archive to EPUB:
+  spinedigest --input ./book.sdpub --output ./book.epub
+
+Re-export an archive to plain text:
+  spinedigest --input ./book.sdpub --output ./book.txt
+
+Digest piped text:
+  cat ./chapter.txt | spinedigest --input-format txt --output-format markdown
+
+Inspect archive metadata:
+  spinedigest sdpub info --input ./book.sdpub
+
+List archive serial ids:
+  spinedigest sdpub list --input ./book.sdpub
+
+Read one serial summary:
+  spinedigest sdpub cat --input ./book.sdpub --serial 12
+
+Write the cover to a file:
+  spinedigest sdpub cover --input ./book.sdpub > ./cover.bin
+
+See also:
+  spinedigest help task
+  spinedigest help sdpub

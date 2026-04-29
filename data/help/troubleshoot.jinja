@@ -1,0 +1,37 @@
+Troubleshooting
+
+Missing LLM configuration:
+  Symptom:
+    Source digest runs fail before processing starts.
+  Check:
+    `llm.provider` and `llm.model` in config or the matching env vars.
+
+Unexpected format errors:
+  Symptom:
+    The CLI rejects an input or output format.
+  Check:
+    The file extension, or pass `--input-format` / `--output-format` explicitly.
+
+stdin or stdout misuse:
+  Symptom:
+    The CLI rejects interactive stdin or `--verbose` with stdout output.
+  Check:
+    Pipe text into stdin, or write digest output to a file when using `--verbose`.
+
+sdpub command failure:
+  Symptom:
+    `sdpub` subcommands reject flags or input.
+  Check:
+    `sdpub` requires `--input <path>` to an existing archive file.
+    `cat` also requires `--serial <id>`.
+
+Binary cover output blocked:
+  Symptom:
+    `sdpub cover` refuses to write to the terminal.
+  Check:
+    Redirect stdout or pipe the bytes elsewhere.
+
+Where to look next:
+  spinedigest help config
+  spinedigest help runtime
+  spinedigest sdpub --help

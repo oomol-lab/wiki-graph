@@ -1,0 +1,29 @@
+AI Agent Guide
+
+Primary contract:
+  - Prefer the CLI over library integration unless code-level embedding is required.
+  - Use explicit `--input` and `--output` paths for deterministic runs.
+  - Check exit status and read stderr for failures.
+  - Assume source digest runs require LLM configuration.
+  - Assume `.sdpub` re-export and `sdpub` inspection do not call an LLM.
+
+Navigation:
+  - Need the mental model: `spinedigest help overview`
+  - Need a workflow entry point: `spinedigest help task`
+  - Need flags or command shapes: `spinedigest help command`
+  - Need format constraints: `spinedigest help format`
+  - Need environment or config setup: `spinedigest help config`
+  - Need runtime guarantees: `spinedigest help runtime`
+  - Need examples: `spinedigest help recipe`
+  - Need archive inspection details: `spinedigest help sdpub`
+
+Stable terms:
+  - digest: a new processing run from source input
+  - .sdpub: a reusable processed archive
+  - serial: one digestable summary unit referenced by the TOC
+  - TOC path: the section path that points to a serial
+
+Safety reminders:
+  - Do not use stdin for `.sdpub` inspection.
+  - Do not combine `--verbose` with stdout digest output.
+  - Do not send `sdpub cover` binary output to an interactive terminal.

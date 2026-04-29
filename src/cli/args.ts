@@ -1,6 +1,15 @@
 import { parseArgs } from "util";
 
-import { CLI_FORMATS, type CLIFormat, parseCLIFormat } from "./formats.js";
+import { type CLIFormat, parseCLIFormat } from "./formats.js";
+import {
+  parseHelpTopic,
+  renderHelpTopicText,
+  renderMainHelpText,
+  renderSdpubHelpText,
+  renderSdpubSubcommandHelpText,
+  SDPUB_SUBCOMMANDS,
+  type SDPubSubcommand,
+} from "./help.js";
 
 export interface CLIArguments {
   readonly digestDirPath?: string;
@@ -13,16 +22,6 @@ export interface CLIArguments {
   readonly verbose: boolean;
 }
 
-export const SDPUB_SUBCOMMANDS = [
-  "info",
-  "toc",
-  "list",
-  "cat",
-  "cover",
-] as const;
-
-export type SDPubSubcommand = (typeof SDPUB_SUBCOMMANDS)[number];
-
 export interface CLISdpubArguments {
   readonly inputPath: string;
   readonly serialId?: number;
@@ -32,73 +31,31 @@ export interface CLISdpubArguments {
 export type ParsedCLIArguments =
   | {
       readonly args: CLIArguments;
-      readonly help: boolean;
+      readonly help: false;
+      readonly kind: "convert";
+    }
+  | {
+      readonly args: CLIArguments;
+      readonly help: true;
       readonly helpText: string;
       readonly kind: "convert";
     }
   | {
+      readonly args: CLISdpubArguments;
+      readonly help: false;
+      readonly kind: "sdpub";
+    }
+  | {
       readonly args?: CLISdpubArguments;
-      readonly help: boolean;
+      readonly help: true;
       readonly helpText: string;
       readonly kind: "sdpub";
+    }
+  | {
+      readonly help: true;
+      readonly helpText: string;
+      readonly kind: "help";
     };
-
-export const CLI_HELP_TEXT = `
-Usage:
-  spinedigest [--input <path>] [--output <path>] [--input-format <format>] [--output-format <format>] [--digest-dir <path>] [--prompt <text>] [--verbose]
-  spinedigest sdpub <info|toc|list|cat|cover> --input <path> [--serial <id>]
-
-Behavior:
-  - If --input is omitted, stdin is used.
-  - If --output is omitted, stdout is used.
-  - stdin/stdout only support txt or markdown.
-  - --verbose cannot be used together with stdout output.
-  - If a format flag is omitted, the format is inferred from the file extension.
-  - --digest-dir keeps the intermediate digest workspace for digest inputs.
-  - --digest-dir clears the target directory before each run.
-  - --prompt overrides config/env extraction prompts for the current digest run.
-  - --verbose writes diagnostic logs to stderr.
-
-Formats:
-  ${CLI_FORMATS.join(", ")}
-
-Configuration:
-  Config file: ~/.spinedigest/config.json
-  Override path: SPINEDIGEST_CONFIG
-
-Important env vars:
-  SPINEDIGEST_PROMPT
-  SPINEDIGEST_LLM_PROVIDER
-  SPINEDIGEST_LLM_MODEL
-  SPINEDIGEST_LLM_BASE_URL
-  SPINEDIGEST_LLM_NAME
-  SPINEDIGEST_LLM_API_KEY
-  SPINEDIGEST_CACHE_DIR
-  SPINEDIGEST_DEBUG_LOG_DIR
-  SPINEDIGEST_REQUEST_CONCURRENT
-  SPINEDIGEST_REQUEST_TIMEOUT
-  SPINEDIGEST_REQUEST_RETRY_TIMES
-  SPINEDIGEST_REQUEST_RETRY_INTERVAL_SECONDS
-  SPINEDIGEST_REQUEST_TEMPERATURE
-  SPINEDIGEST_REQUEST_TOP_P
-`.trim();
-
-export const SDPUB_HELP_TEXT = `
-Usage:
-  spinedigest sdpub info --input <path>
-  spinedigest sdpub toc --input <path>
-  spinedigest sdpub list --input <path>
-  spinedigest sdpub cat --input <path> --serial <id>
-  spinedigest sdpub cover --input <path>
-
-Behavior:
-  - All sdpub subcommands require --input <path>.
-  - Input must be an existing .sdpub archive path.
-  - Output is written to stdout.
-  - cover writes raw binary cover bytes to stdout.
-  - cat writes only the serial summary text to stdout.
-  - cover refuses to write binary data to an interactive terminal.
-`.trim();
 
 export function parseCLIArguments(
   argv = process.argv.slice(2),
@@ -140,6 +97,10 @@ export function parseCLIArguments(
     strict: true,
   });
 
+  if (positionals[0] === "help") {
+    return parseHelpArguments(positionals.slice(1), values);
+  }
+
   if (positionals[0] === "sdpub") {
     return parseSdpubArguments(positionals.slice(1), values);
   }
@@ -150,35 +111,42 @@ export function parseCLIArguments(
     );
   }
 
-  return {
-    args: {
-      ...(values["digest-dir"] === undefined
-        ? {}
-        : { digestDirPath: values["digest-dir"] }),
-      help: values.help ?? false,
-      ...(values.input === undefined ? {} : { inputPath: values.input }),
-      ...(values["input-format"] === undefined
-        ? {}
-        : {
-            inputFormat: parseCLIFormat(
-              values["input-format"],
-              "--input-format",
-            ),
-          }),
-      ...(values.output === undefined ? {} : { outputPath: values.output }),
-      ...(values["output-format"] === undefined
-        ? {}
-        : {
-            outputFormat: parseCLIFormat(
-              values["output-format"],
-              "--output-format",
-            ),
-          }),
-      ...(values.prompt === undefined ? {} : { prompt: values.prompt }),
-      verbose: values.verbose ?? false,
-    },
+  const args = {
+    ...(values["digest-dir"] === undefined
+      ? {}
+      : { digestDirPath: values["digest-dir"] }),
     help: values.help ?? false,
-    helpText: CLI_HELP_TEXT,
+    ...(values.input === undefined ? {} : { inputPath: values.input }),
+    ...(values["input-format"] === undefined
+      ? {}
+      : {
+          inputFormat: parseCLIFormat(values["input-format"], "--input-format"),
+        }),
+    ...(values.output === undefined ? {} : { outputPath: values.output }),
+    ...(values["output-format"] === undefined
+      ? {}
+      : {
+          outputFormat: parseCLIFormat(
+            values["output-format"],
+            "--output-format",
+          ),
+        }),
+    ...(values.prompt === undefined ? {} : { prompt: values.prompt }),
+    verbose: values.verbose ?? false,
+  } satisfies CLIArguments;
+
+  if (values.help ?? false) {
+    return {
+      args,
+      help: true,
+      helpText: renderMainHelpText(),
+      kind: "convert",
+    };
+  }
+
+  return {
+    args,
+    help: false,
     kind: "convert",
   };
 }
@@ -210,7 +178,7 @@ function parseSdpubArguments(
     if (help) {
       return {
         help: true,
-        helpText: SDPUB_HELP_TEXT,
+        helpText: renderSdpubHelpText(),
         kind: "sdpub",
       };
     }
@@ -284,19 +252,75 @@ function parseSdpubArguments(
     }
   }
 
+  if (help) {
+    return {
+      help: true,
+      helpText: renderSdpubSubcommandHelpText(parsedSubcommand),
+      kind: "sdpub",
+    };
+  }
+
+  if (inputPath === undefined || inputPath === "-") {
+    throw new Error(
+      "The `sdpub` subcommands require --input <path>. stdin is not supported.",
+    );
+  }
+
   return {
-    ...(help || inputPath === undefined || inputPath === "-"
-      ? {}
-      : {
-          args: {
-            inputPath,
-            ...(serialId === undefined ? {} : { serialId }),
-            subcommand: parsedSubcommand,
-          } satisfies CLISdpubArguments,
-        }),
-    help,
-    helpText: SDPUB_HELP_TEXT,
+    args: {
+      inputPath,
+      ...(serialId === undefined ? {} : { serialId }),
+      subcommand: parsedSubcommand,
+    },
+    help: false,
     kind: "sdpub",
+  };
+}
+
+function parseHelpArguments(
+  positionals: readonly string[],
+  values: {
+    readonly "digest-dir"?: string;
+    readonly help?: boolean;
+    readonly input?: string;
+    readonly "input-format"?: string;
+    readonly output?: string;
+    readonly "output-format"?: string;
+    readonly prompt?: string;
+    readonly serial?: string;
+    readonly verbose?: boolean;
+  },
+): ParsedCLIArguments {
+  rejectHelpFlag("digest-dir", values["digest-dir"]);
+  rejectHelpFlag("input", values.input);
+  rejectHelpFlag("input-format", values["input-format"]);
+  rejectHelpFlag("output", values.output);
+  rejectHelpFlag("output-format", values["output-format"]);
+  rejectHelpFlag("prompt", values.prompt);
+  rejectHelpFlag("serial", values.serial);
+
+  if (values.verbose) {
+    throw new Error("The `help` command does not support --verbose.");
+  }
+
+  if (positionals.length > 1) {
+    throw new Error(
+      `Unexpected positional arguments: ${positionals.slice(1).join(" ")}.`,
+    );
+  }
+
+  if (positionals[0] === undefined) {
+    return {
+      help: true,
+      helpText: renderMainHelpText(),
+      kind: "help",
+    };
+  }
+
+  return {
+    help: true,
+    helpText: renderHelpTopicText(parseHelpTopic(positionals[0])),
+    kind: "help",
   };
 }
 
@@ -310,4 +334,10 @@ function parseSerialId(value: string, flag: string): number {
   }
 
   return Number(normalized);
+}
+
+function rejectHelpFlag(name: string, value: string | undefined): void {
+  if (value !== undefined) {
+    throw new Error(`The \`help\` command does not support --${name}.`);
+  }
 }
