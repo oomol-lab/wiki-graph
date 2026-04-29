@@ -1,0 +1,18 @@
+Help Type: topic
+Topic: index
+
+Help Topics
+
+Purpose:
+  These pages explain SpineDigest by problem domain rather than by one specific command.
+
+Available topics:
+{% for topic in helpTopics %}
+  - spinedigest help {{ topic.name }}
+    {{ topic.summary }}
+{% endfor %}
+
+Command help:
+  - spinedigest --help
+  - spinedigest sdpub --help
+  - spinedigest sdpub <subcommand> --help

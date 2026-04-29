@@ -111,24 +111,24 @@ const SDPUB_SUBCOMMAND_METADATA: readonly {
 ] as const;
 
 const HELP_TOPIC_TEMPLATE_NAMES: Readonly<Record<HelpTopic, string>> = {
-  overview: "help/overview",
-  task: "help/task",
-  command: "help/command",
-  format: "help/format",
-  config: "help/config",
-  env: "help/env",
-  "config-file": "help/config-file",
-  runtime: "help/runtime",
-  recipe: "help/recipe",
-  troubleshoot: "help/troubleshoot",
-  ai: "help/ai",
-  sdpub: "help/sdpub/index",
+  overview: "help/topics/overview",
+  task: "help/topics/task",
+  command: "help/topics/command",
+  format: "help/topics/format",
+  config: "help/topics/config",
+  env: "help/topics/env",
+  "config-file": "help/topics/config-file",
+  runtime: "help/topics/runtime",
+  recipe: "help/topics/recipe",
+  troubleshoot: "help/topics/troubleshoot",
+  ai: "help/topics/ai",
+  sdpub: "help/topics/sdpub",
 };
 
 let helpTemplateEnvironment: ReturnType<typeof createEnv> | undefined;
 
 export function renderMainHelpText(): string {
-  return renderHelpTemplate("help/index");
+  return renderHelpTemplate("help/commands/root");
 }
 
 export function renderHelpTopicText(topic: HelpTopic): string {
@@ -136,13 +136,13 @@ export function renderHelpTopicText(topic: HelpTopic): string {
 }
 
 export function renderSdpubHelpText(): string {
-  return renderHelpTemplate("help/sdpub/index");
+  return renderHelpTemplate("help/commands/sdpub/index");
 }
 
 export function renderSdpubSubcommandHelpText(
   subcommand: SDPubSubcommand,
 ): string {
-  return renderHelpTemplate(`help/sdpub/${subcommand}`);
+  return renderHelpTemplate(`help/commands/sdpub/${subcommand}`);
 }
 
 export function parseHelpTopic(value: string): HelpTopic {
