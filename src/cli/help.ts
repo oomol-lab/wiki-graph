@@ -9,6 +9,8 @@ export const HELP_TOPICS = [
   "command",
   "format",
   "config",
+  "env",
+  "config-file",
   "runtime",
   "recipe",
   "troubleshoot",
@@ -50,7 +52,15 @@ const HELP_TOPIC_METADATA: readonly {
   },
   {
     name: "config",
-    summary: "Config file location, env vars, and override precedence.",
+    summary: "Configuration overview, precedence, and when each layer applies.",
+  },
+  {
+    name: "env",
+    summary: "Detailed environment variable reference.",
+  },
+  {
+    name: "config-file",
+    summary: "Detailed ~/.spinedigest/config.json reference.",
   },
   {
     name: "runtime",
@@ -106,6 +116,8 @@ const HELP_TOPIC_TEMPLATE_NAMES: Readonly<Record<HelpTopic, string>> = {
   command: "help/command",
   format: "help/format",
   config: "help/config",
+  env: "help/env",
+  "config-file": "help/config-file",
   runtime: "help/runtime",
   recipe: "help/recipe",
   troubleshoot: "help/troubleshoot",

@@ -114,6 +114,16 @@ describe("cli/args", () => {
       helpText: renderHelpTopicText("runtime"),
       kind: "help",
     });
+    expect(parseCLIArguments(["help", "env"])).toStrictEqual({
+      help: true,
+      helpText: renderHelpTopicText("env"),
+      kind: "help",
+    });
+    expect(parseCLIArguments(["help", "config-file"])).toStrictEqual({
+      help: true,
+      helpText: renderHelpTopicText("config-file"),
+      kind: "help",
+    });
   });
 
   it("prints sdpub subcommand help pages", () => {
@@ -183,7 +193,7 @@ describe("cli/args", () => {
 
   it("rejects invalid help usage", () => {
     expect(() => parseCLIArguments(["help", "unknown"])).toThrow(
-      "Invalid help topic: unknown. Expected one of overview, task, command, format, config, runtime, recipe, troubleshoot, ai, sdpub.",
+      "Invalid help topic: unknown. Expected one of overview, task, command, format, config, env, config-file, runtime, recipe, troubleshoot, ai, sdpub.",
     );
     expect(() =>
       parseCLIArguments(["help", "task", "--input", "book.epub"]),
@@ -196,9 +206,18 @@ describe("cli/args", () => {
 
     expect(rootHelpText).toContain("spinedigest help [topic]");
     expect(rootHelpText).toContain("spinedigest help overview");
+    expect(rootHelpText).toContain("spinedigest help env");
+    expect(rootHelpText).toContain("spinedigest help config-file");
     expect(rootHelpText).toContain("spinedigest sdpub info --help");
     expect(renderHelpTopicText("runtime")).toContain("Runtime Behavior");
-    expect(renderHelpTopicText("config")).toContain("SPINEDIGEST_LLM_MODEL");
+    expect(renderHelpTopicText("config")).toContain("Configuration Overview");
+    expect(renderHelpTopicText("config")).toContain("spinedigest help env");
+    expect(renderHelpTopicText("env")).toContain("SPINEDIGEST_LLM_MODEL");
+    expect(renderHelpTopicText("env")).toContain("SPINEDIGEST_REQUEST_STREAM");
+    expect(renderHelpTopicText("config-file")).toContain(
+      "~/.spinedigest/config.json",
+    );
+    expect(renderHelpTopicText("config-file")).toContain("llm.provider");
     expect(sdpubHelpText).toContain("These subcommands do not call an LLM");
     expect(renderSdpubSubcommandHelpText("cover")).toContain(
       "refuses to write binary data to an interactive terminal",

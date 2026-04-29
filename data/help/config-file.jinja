@@ -1,0 +1,134 @@
+Config File Reference
+
+Location:
+  Default file:
+    ~/.spinedigest/config.json
+  Override mechanism:
+    SPINEDIGEST_CONFIG
+
+Scope:
+  This file defines persistent machine defaults.
+  Environment variables override file values.
+  `--prompt` overrides prompt-related defaults for one run.
+
+Path resolution:
+  - `~` is expanded to the current user's home directory.
+  - Relative paths inside the config file are resolved relative to the config file's directory.
+  - This differs from environment path overrides, which resolve relative to the current working directory.
+
+Top-level structure:
+  {
+    "prompt": "...",
+    "llm": {
+      "provider": "...",
+      "model": "...",
+      "apiKey": "...",
+      "baseURL": "...",
+      "name": "..."
+    },
+    "paths": {
+      "cacheDir": "...",
+      "debugLogDir": "..."
+    },
+    "request": {
+      "concurrent": 4,
+      "timeout": 120,
+      "retryTimes": 2,
+      "retryIntervalSeconds": 3,
+      "temperature": 0.2,
+      "topP": 0.9,
+      "stream": true
+    }
+  }
+
+Fields:
+  `prompt`
+    Default extraction prompt for source digest runs.
+    Type: non-empty string.
+
+  `llm.provider`
+    Provider selector.
+    Type: one of `anthropic`, `google`, `openai`, `openai-compatible`.
+
+  `llm.model`
+    Provider-specific model id.
+    Type: non-empty string.
+
+  `llm.apiKey`
+    Provider credential.
+    Type: non-empty string.
+
+  `llm.baseURL`
+    Custom base URL.
+    Type: non-empty string URL.
+    Notes:
+      `openai` does not accept this field.
+      `openai-compatible` requires it.
+
+  `llm.name`
+    SDK client name override.
+    Type: non-empty string.
+
+  `paths.cacheDir`
+    LLM cache directory for source digest runs.
+    Type: path string.
+
+  `paths.debugLogDir`
+    Debug log directory.
+    Type: path string.
+
+  `request.concurrent`
+    Concurrent LLM request limit.
+    Type: positive integer.
+
+  `request.timeout`
+    Request timeout.
+    Type: positive number.
+
+  `request.retryTimes`
+    Retry count.
+    Type: non-negative integer.
+
+  `request.retryIntervalSeconds`
+    Retry interval in seconds.
+    Type: positive number.
+
+  `request.temperature`
+    Sampling temperature.
+    Type: number or number array.
+
+  `request.topP`
+    Top-p sampling.
+    Type: number or number array.
+
+  `request.stream`
+    Streaming toggle.
+    Type: boolean.
+
+Minimum source digest config:
+  {
+    "llm": {
+      "provider": "openai",
+      "model": "gpt-4.1"
+    }
+  }
+
+Applicability:
+  - `llm.*`, `prompt`, `paths.cacheDir`, and `request.*` matter for source digest runs.
+  - `.sdpub` re-export through the main convert command does not require LLM settings.
+  - `paths.debugLogDir` can still matter outside source digest runs when the app emits debug logs.
+
+Common failures:
+  - Invalid JSON fails before execution starts.
+  - Schema mismatches are reported with field paths.
+  - Missing `llm.provider` or `llm.model` breaks source digest runs but not `.sdpub` re-export.
+
+Where to go next:
+  - Need the overview and precedence model:
+    spinedigest help config
+  - Need one-shot shell overrides:
+    spinedigest help env
+  - Need runtime context for retries, logs, and streams:
+    spinedigest help runtime
+  - Need troubleshooting:
+    spinedigest help troubleshoot
