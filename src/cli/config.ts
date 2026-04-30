@@ -202,7 +202,9 @@ async function readConfigFile(path: string): Promise<CLIConfigFile> {
     throw new Error(
       withHelpRoute(
         `Invalid CLI config at ${path}: ${parsed.error.issues
-          .map((issue) => `${issue.path.join(".") || "<root>"}: ${issue.message}`)
+          .map(
+            (issue) => `${issue.path.join(".") || "<root>"}: ${issue.message}`,
+          )
           .join("; ")}`,
         CLI_HELP_ROUTES["config-file"],
       ),

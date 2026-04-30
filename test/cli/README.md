@@ -4,15 +4,15 @@ This note tracks how the CLI help system is expected to recover from common user
 
 ## Error Routing Coverage
 
-| Problem family | Representative failures | Expected help landing |
-| --- | --- | --- |
-| Command shape | unexpected positional args, unsupported `help` flags | `spinedigest help command` or `spinedigest --help` |
-| `sdpub` usage | missing subcommand, unsupported `sdpub` flags, missing `--serial`, stdin on `sdpub` | `spinedigest sdpub --help` or `spinedigest sdpub <subcommand> --help` |
-| Format rules | unsupported `stdin`/`stdout` formats, missing format inference | `spinedigest help format` |
-| Runtime rules | interactive stdin refusal, `--verbose` with stdout output | `spinedigest help runtime` |
-| LLM config | missing provider/model, unsupported provider/baseURL combinations | `spinedigest help config` |
-| Env overrides | invalid provider values, invalid numeric/boolean/sampling env values | `spinedigest help env` |
-| Config file | invalid JSON, invalid schema fields | `spinedigest help config-file` |
+| Problem family | Representative failures                                                             | Expected help landing                                                 |
+| -------------- | ----------------------------------------------------------------------------------- | --------------------------------------------------------------------- |
+| Command shape  | unexpected positional args, unsupported `help` flags                                | `spinedigest help command` or `spinedigest --help`                    |
+| `sdpub` usage  | missing subcommand, unsupported `sdpub` flags, missing `--serial`, stdin on `sdpub` | `spinedigest sdpub --help` or `spinedigest sdpub <subcommand> --help` |
+| Format rules   | unsupported `stdin`/`stdout` formats, missing format inference                      | `spinedigest help format`                                             |
+| Runtime rules  | interactive stdin refusal, `--verbose` with stdout output                           | `spinedigest help runtime`                                            |
+| LLM config     | missing provider/model, unsupported provider/baseURL combinations                   | `spinedigest help config`                                             |
+| Env overrides  | invalid provider values, invalid numeric/boolean/sampling env values                | `spinedigest help env`                                                |
+| Config file    | invalid JSON, invalid schema fields                                                 | `spinedigest help config-file`                                        |
 
 ## Current Test Coverage
 

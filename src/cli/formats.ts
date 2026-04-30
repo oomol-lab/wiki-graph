@@ -35,10 +35,12 @@ export function parseCLIFormat(value: string, flag: string): CLIFormat {
     return normalized;
   }
 
-  throw new Error(withHelpRoute(
-    `Invalid ${flag}: ${value}. Expected one of ${CLI_FORMATS.join(", ")}.`,
-    CLI_HELP_ROUTES.format,
-  ));
+  throw new Error(
+    withHelpRoute(
+      `Invalid ${flag}: ${value}. Expected one of ${CLI_FORMATS.join(", ")}.`,
+      CLI_HELP_ROUTES.format,
+    ),
+  );
 }
 
 function isCLIFormat(value: string): value is CLIFormat {

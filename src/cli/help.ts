@@ -153,10 +153,12 @@ export function parseHelpTopic(value: string): HelpTopic {
     return normalized as HelpTopic;
   }
 
-  throw new Error(withHelpRoute(
-    `Invalid help topic: ${value}. Expected one of ${HELP_TOPICS.join(", ")}.`,
-    CLI_HELP_ROUTES.root,
-  ));
+  throw new Error(
+    withHelpRoute(
+      `Invalid help topic: ${value}. Expected one of ${HELP_TOPICS.join(", ")}.`,
+      CLI_HELP_ROUTES.root,
+    ),
+  );
 }
 
 function renderHelpTemplate(templateName: string): string {
