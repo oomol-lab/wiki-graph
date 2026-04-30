@@ -20,3 +20,11 @@ This note tracks how the CLI help system is expected to recover from common user
 - `test/cli/convert.test.ts` covers format and runtime failures in the convert path.
 - `test/cli/config.test.ts` covers environment-variable and config-file parsing failures.
 - `test/cli/llm.test.ts` covers LLM option validation failures.
+
+## Help Acceptance Checklist
+
+- Root help clearly explains the exploration rules and the difference between command help and topic help.
+- Public command shapes, flags, and short aliases are visible in help text and match the actual parser.
+- Common parse errors point to the next relevant help page instead of stopping at the raw error.
+- Common runtime and configuration failures also point to the next relevant help page.
+- Type labels in help are inputable as written, with syntax or examples where guessing would otherwise be required.
