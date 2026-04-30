@@ -211,6 +211,7 @@ describe("cli/args", () => {
   it("documents the layered help contract", () => {
     const rootHelpText = renderMainHelpText();
     const sdpubHelpText = renderSdpubHelpText();
+    const commandHelpText = renderHelpTopicText("command");
 
     expect(rootHelpText).toContain("spinedigest help [topic]");
     expect(rootHelpText).toContain("spinedigest help overview");
@@ -231,8 +232,19 @@ describe("cli/args", () => {
     expect(rootHelpText).toContain("Use `spinedigest help troubleshoot`");
     expect(renderHelpTopicText("runtime")).toContain("Runtime Behavior");
     expect(renderHelpTopicText("config")).toContain("Configuration Overview");
-    expect(renderHelpTopicText("command")).toContain("--verbose, -v");
-    expect(renderHelpTopicText("command")).toContain("--help, -h");
+    expect(commandHelpText).toContain("--verbose, -v");
+    expect(commandHelpText).toContain("--help, -h");
+    for (const flag of [
+      "--input <path>",
+      "--output <path>",
+      "--input-format <format>",
+      "--output-format <format>",
+      "--digest-dir <path>",
+      "--prompt <text>",
+      "--serial <id>",
+    ]) {
+      expect(commandHelpText).toContain(flag);
+    }
     expect(renderHelpTopicText("config")).toContain("spinedigest help env");
     expect(renderHelpTopicText("env")).toContain("SPINEDIGEST_LLM_MODEL");
     expect(renderHelpTopicText("env")).toContain("SPINEDIGEST_REQUEST_STREAM");

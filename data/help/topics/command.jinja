@@ -23,6 +23,9 @@ sdpub inspection family:
     {{ command.summary }}
 {% endfor %}
 
+sdpub-specific flags:
+  --serial <id>          Required by `spinedigest sdpub cat`; must be a non-negative integer.
+
 Help routing:
   spinedigest --help
   spinedigest help <topic>
