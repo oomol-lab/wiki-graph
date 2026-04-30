@@ -175,12 +175,17 @@ function parseSdpubArguments(
 ): ParsedCLIArguments {
   const help = values.help ?? false;
   const subcommand = positionals[0];
+  const isKnownSubcommand =
+    subcommand !== undefined &&
+    SDPUB_SUBCOMMANDS.includes(subcommand as SDPubSubcommand);
 
   if (positionals.length > 1) {
     throw new Error(
       withHelpRoute(
         `Unexpected positional arguments: ${positionals.slice(1).join(" ")}.`,
-        sdpubSubcommandHelpRoute(subcommand ?? "<subcommand>"),
+        isKnownSubcommand
+          ? sdpubSubcommandHelpRoute(subcommand)
+          : CLI_HELP_ROUTES.sdpub,
       ),
     );
   }

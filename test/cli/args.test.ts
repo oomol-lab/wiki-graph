@@ -156,6 +156,9 @@ describe("cli/args", () => {
     expect(() => parseCLIArguments(["sdpub", "inspect"])).toThrow(
       "Invalid sdpub subcommand: inspect. Expected one of info, toc, list, cat, cover.\nSee: spinedigest sdpub --help",
     );
+    expect(() => parseCLIArguments(["sdpub", "inspect", "extra"])).toThrow(
+      "Unexpected positional arguments: extra.\nSee: spinedigest sdpub --help",
+    );
     expect(() =>
       parseCLIArguments(["sdpub", "info", "--output", "out.txt"]),
     ).toThrow(
@@ -256,10 +259,10 @@ describe("cli/args", () => {
     expect(renderHelpTopicText("env")).toContain("SPINEDIGEST_LLM_MODEL");
     expect(renderHelpTopicText("env")).toContain("SPINEDIGEST_REQUEST_STREAM");
     expect(renderHelpTopicText("env")).toContain(
-      "JSON number array such as `0.2` or `[0.2, 0.4]`",
+      "positive number or JSON number array such as `0.2` or `[0.2, 0.4]`",
     );
     expect(renderHelpTopicText("env")).toContain(
-      "non-empty URL string such as `https://api.example/v1`",
+      "non-empty string (typically a URL) such as `https://api.example/v1`",
     );
     expect(renderHelpTopicText("config-file")).toContain(
       "~/.spinedigest/config.json",
@@ -269,7 +272,7 @@ describe("cli/args", () => {
       'JSON string such as `"https://api.example/v1"`',
     );
     expect(renderHelpTopicText("config-file")).toContain(
-      "JSON number array such as `0.9` or `[0.85, 0.9]`",
+      "positive number or JSON number array such as `0.9` or `[0.85, 0.9]`",
     );
     expect(renderHelpTopicText("config-file")).toContain(
       "JSON boolean, either `true` or `false`",
