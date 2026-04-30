@@ -6,6 +6,7 @@ import type { SpineDigest } from "../facade/index.js";
 
 import type { CLIArguments } from "./args.js";
 import { loadCLIConfig, type CLIConfig } from "./config.js";
+import { CLI_HELP_ROUTES, withHelpRoute } from "./errors.js";
 import {
   type CLIFormat,
   inferCLIFormatFromPath,
@@ -54,7 +55,7 @@ export async function runConvertCommand(args: CLIArguments): Promise<void> {
     throw new Error(
       withHelpRoute(
         "Cannot use --verbose when writing digest output to stdout. Use --output <path> or disable --verbose.",
-        "spinedigest help runtime",
+        CLI_HELP_ROUTES.runtime,
       ),
     );
   }
@@ -97,7 +98,7 @@ export async function runConvertCommand(args: CLIArguments): Promise<void> {
         throw new Error(
           withHelpRoute(
             "Missing --input. Refusing to read from interactive stdin. Use --input <path> or pipe text into stdin.",
-            "spinedigest help runtime",
+            CLI_HELP_ROUTES.runtime,
           ),
         );
       }
@@ -207,7 +208,7 @@ async function loadRequiredConfig(requiresDigest: boolean): Promise<CLIConfig> {
     throw new Error(
       withHelpRoute(
         "Missing LLM configuration. Set `llm.provider` and `llm.model` in ~/.spinedigest/config.json or the matching SPINEDIGEST_LLM_* environment variables.",
-        "spinedigest help config",
+        CLI_HELP_ROUTES.config,
       ),
     );
   }
@@ -290,7 +291,7 @@ function resolveInputEndpoint(args: CLIArguments): ResolvedInputEndpoint {
         normalizedPath === undefined
           ? "Cannot infer input format from stdin. Set --input-format."
           : `Cannot infer input format from ${normalizedPath}. Set --input-format.`,
-        "spinedigest help format",
+        CLI_HELP_ROUTES.format,
       ),
     );
   }
@@ -298,7 +299,7 @@ function resolveInputEndpoint(args: CLIArguments): ResolvedInputEndpoint {
     throw new Error(
       withHelpRoute(
         `stdin only supports txt or markdown, but got ${format}.`,
-        "spinedigest help format",
+        CLI_HELP_ROUTES.format,
       ),
     );
   }
@@ -332,7 +333,7 @@ function resolveOutputEndpoint(args: CLIArguments): ResolvedOutputEndpoint {
         normalizedPath === undefined
           ? "Cannot infer output format for stdout. Set --output-format."
           : `Cannot infer output format from ${normalizedPath}. Set --output-format.`,
-        "spinedigest help format",
+        CLI_HELP_ROUTES.format,
       ),
     );
   }
@@ -340,7 +341,7 @@ function resolveOutputEndpoint(args: CLIArguments): ResolvedOutputEndpoint {
     throw new Error(
       withHelpRoute(
         `stdout only supports txt or markdown, but got ${format}.`,
-        "spinedigest help format",
+        CLI_HELP_ROUTES.format,
       ),
     );
   }
@@ -379,8 +380,4 @@ function extensionForFormat(format: CLIFormat): string {
     case "txt":
       return ".txt";
   }
-}
-
-function withHelpRoute(message: string, route: string): string {
-  return `${message}\nSee: ${route}`;
 }

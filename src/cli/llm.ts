@@ -6,6 +6,7 @@ import { createOpenAI } from "@ai-sdk/openai";
 import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
 
 import type { CLIConfig, CLIProvider } from "./config.js";
+import { CLI_HELP_ROUTES, withHelpRoute } from "./errors.js";
 
 export function buildLLMOptions(config: CLIConfig): SpineDigestLLMOptions {
   const llm = config.llm;
@@ -14,7 +15,7 @@ export function buildLLMOptions(config: CLIConfig): SpineDigestLLMOptions {
     throw new Error(
       withHelpRoute(
         "Missing LLM configuration. Set `llm.provider` and `llm.model` in ~/.spinedigest/config.json or the matching SPINEDIGEST_LLM_* environment variables.",
-        "spinedigest help config",
+        CLI_HELP_ROUTES.config,
       ),
     );
   }
@@ -86,7 +87,7 @@ function createLanguageModel(
         throw new Error(
           withHelpRoute(
             "openai does not accept llm.baseURL or SPINEDIGEST_LLM_BASE_URL. Use openai-compatible for third-party OpenAI-style APIs.",
-            "spinedigest help config",
+            CLI_HELP_ROUTES.config,
           ),
         );
       }
@@ -103,7 +104,7 @@ function createLanguageModel(
         throw new Error(
           withHelpRoute(
             "openai-compatible requires llm.baseURL or SPINEDIGEST_LLM_BASE_URL.",
-            "spinedigest help config",
+            CLI_HELP_ROUTES.config,
           ),
         );
       }
@@ -125,8 +126,4 @@ function createOpenAICompatibleName(baseURL: string): string {
   } catch {
     return "openai-compatible";
   }
-}
-
-function withHelpRoute(message: string, route: string): string {
-  return `${message}\nSee: ${route}`;
 }

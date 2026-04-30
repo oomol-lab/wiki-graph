@@ -5,6 +5,8 @@ import { dirname, isAbsolute, join, resolve } from "path";
 
 import { z } from "zod";
 
+import { CLI_HELP_ROUTES, withHelpRoute } from "./errors.js";
+
 const CLI_PROVIDER_VALUES = [
   "anthropic",
   "google",
@@ -189,7 +191,7 @@ async function readConfigFile(path: string): Promise<CLIConfigFile> {
     throw new Error(
       withHelpRoute(
         `Invalid CLI config JSON at ${path}: ${formatError(error)}`,
-        "spinedigest help config-file",
+        CLI_HELP_ROUTES["config-file"],
       ),
     );
   }
@@ -202,7 +204,7 @@ async function readConfigFile(path: string): Promise<CLIConfigFile> {
         `Invalid CLI config at ${path}: ${parsed.error.issues
           .map((issue) => `${issue.path.join(".") || "<root>"}: ${issue.message}`)
           .join("; ")}`,
-        "spinedigest help config-file",
+        CLI_HELP_ROUTES["config-file"],
       ),
     );
   }
@@ -264,7 +266,7 @@ function parseOptionalProvider(
     throw new Error(
       withHelpRoute(
         `Invalid SPINEDIGEST_LLM_PROVIDER: ${value}. Expected one of ${CLI_PROVIDER_VALUES.join(", ")}.`,
-        "spinedigest help env",
+        CLI_HELP_ROUTES.env,
       ),
     );
   }
@@ -283,7 +285,7 @@ function parseOptionalPositiveInteger(
   }
   if (!Number.isInteger(parsed)) {
     throw new Error(
-      withHelpRoute(`${name} must be an integer.`, "spinedigest help env"),
+      withHelpRoute(`${name} must be an integer.`, CLI_HELP_ROUTES.env),
     );
   }
 
@@ -306,7 +308,7 @@ function parseOptionalNonNegativeInteger(
     throw new Error(
       withHelpRoute(
         `${name} must be a non-negative integer.`,
-        "spinedigest help env",
+        CLI_HELP_ROUTES.env,
       ),
     );
   }
@@ -328,7 +330,7 @@ function parseOptionalPositiveNumber(
 
   if (!Number.isFinite(parsed) || parsed <= 0) {
     throw new Error(
-      withHelpRoute(`${name} must be a positive number.`, "spinedigest help env"),
+      withHelpRoute(`${name} must be a positive number.`, CLI_HELP_ROUTES.env),
     );
   }
 
@@ -354,7 +356,7 @@ function parseOptionalBoolean(
   }
 
   throw new Error(
-    withHelpRoute(`${name} must be true/false or 1/0.`, "spinedigest help env"),
+    withHelpRoute(`${name} must be true/false or 1/0.`, CLI_HELP_ROUTES.env),
   );
 }
 
@@ -377,7 +379,7 @@ function parseOptionalSamplingSetting(
       throw new Error(
         withHelpRoute(
           `${name} must be a number or JSON number array: ${formatError(error)}`,
-          "spinedigest help env",
+          CLI_HELP_ROUTES.env,
         ),
       );
     }
@@ -388,7 +390,7 @@ function parseOptionalSamplingSetting(
       throw new Error(
         withHelpRoute(
           `${name} must be a number or JSON number array.`,
-          "spinedigest help env",
+          CLI_HELP_ROUTES.env,
         ),
       );
     }
@@ -492,8 +494,4 @@ function normalizeString(value: string | undefined): string | undefined {
 
 function formatError(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
-}
-
-function withHelpRoute(message: string, route: string): string {
-  return `${message}\nSee: ${route}`;
 }

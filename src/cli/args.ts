@@ -1,6 +1,7 @@
 import { parseArgs } from "util";
 
 import { type CLIFormat, parseCLIFormat } from "./formats.js";
+import { CLI_HELP_ROUTES, sdpubSubcommandHelpRoute, withHelpRoute } from "./errors.js";
 import {
   parseHelpTopic,
   renderHelpTopicText,
@@ -108,7 +109,7 @@ export function parseCLIArguments(
   if (positionals.length > 0) {
     throw new Error(withHelpRoute(
       `Unexpected positional arguments: ${positionals.join(" ")}. Use --input and --output instead.`,
-      "spinedigest help command",
+      CLI_HELP_ROUTES.command,
     ));
   }
 
@@ -172,7 +173,7 @@ function parseSdpubArguments(
   if (positionals.length > 1) {
     throw new Error(withHelpRoute(
       `Unexpected positional arguments: ${positionals.slice(1).join(" ")}.`,
-      `spinedigest sdpub ${subcommand ?? "<subcommand>"} --help`,
+      sdpubSubcommandHelpRoute(subcommand ?? "<subcommand>"),
     ));
   }
 
@@ -187,14 +188,14 @@ function parseSdpubArguments(
 
     throw new Error(withHelpRoute(
       `Missing sdpub subcommand. Expected one of ${SDPUB_SUBCOMMANDS.join(", ")}.`,
-      "spinedigest sdpub --help",
+      CLI_HELP_ROUTES.sdpub,
     ));
   }
 
   if (!SDPUB_SUBCOMMANDS.includes(subcommand as SDPubSubcommand)) {
     throw new Error(withHelpRoute(
       `Invalid sdpub subcommand: ${subcommand}. Expected one of ${SDPUB_SUBCOMMANDS.join(", ")}.`,
-      "spinedigest sdpub --help",
+      CLI_HELP_ROUTES.sdpub,
     ));
   }
 
@@ -203,37 +204,37 @@ function parseSdpubArguments(
   if (values["digest-dir"] !== undefined) {
     throw new Error(withHelpRoute(
       "The `sdpub` subcommands do not support --digest-dir. Use the main command for digest generation.",
-      "spinedigest sdpub --help",
+      CLI_HELP_ROUTES.sdpub,
     ));
   }
   if (values["input-format"] !== undefined) {
     throw new Error(withHelpRoute(
       "The `sdpub` subcommands do not support --input-format. They always read .sdpub archives.",
-      "spinedigest sdpub --help",
+      CLI_HELP_ROUTES.sdpub,
     ));
   }
   if (values.output !== undefined) {
     throw new Error(withHelpRoute(
       "The `sdpub` subcommands do not support --output. Use stdout redirection or pipes instead.",
-      "spinedigest sdpub --help",
+      CLI_HELP_ROUTES.sdpub,
     ));
   }
   if (values["output-format"] !== undefined) {
     throw new Error(withHelpRoute(
       "The `sdpub` subcommands do not support --output-format. Their output format is fixed by the subcommand.",
-      "spinedigest sdpub --help",
+      CLI_HELP_ROUTES.sdpub,
     ));
   }
   if (values.prompt !== undefined) {
     throw new Error(withHelpRoute(
       "The `sdpub` subcommands do not support --prompt. It only applies to digest generation from source inputs.",
-      "spinedigest sdpub --help",
+      CLI_HELP_ROUTES.sdpub,
     ));
   }
   if (values.verbose) {
     throw new Error(withHelpRoute(
       "The `sdpub` subcommands do not support --verbose.",
-      "spinedigest sdpub --help",
+      CLI_HELP_ROUTES.sdpub,
     ));
   }
 
@@ -243,19 +244,19 @@ function parseSdpubArguments(
       : parseSerialId(
           values.serial,
           "--serial",
-          `spinedigest sdpub ${parsedSubcommand} --help`,
+          sdpubSubcommandHelpRoute(parsedSubcommand),
         );
 
   if (parsedSubcommand === "cat" && serialId === undefined && !help) {
     throw new Error(withHelpRoute(
       "Missing --serial. `spinedigest sdpub cat` requires it.",
-      "spinedigest sdpub cat --help",
+      sdpubSubcommandHelpRoute("cat"),
     ));
   }
   if (parsedSubcommand !== "cat" && serialId !== undefined) {
     throw new Error(withHelpRoute(
       `The \`sdpub ${parsedSubcommand}\` subcommand does not support --serial.`,
-      `spinedigest sdpub ${parsedSubcommand} --help`,
+      sdpubSubcommandHelpRoute(parsedSubcommand),
     ));
   }
 
@@ -266,7 +267,7 @@ function parseSdpubArguments(
       throw new Error(
         withHelpRoute(
           "The `sdpub` subcommands require --input <path>. stdin is not supported.",
-          `spinedigest sdpub ${parsedSubcommand} --help`,
+          sdpubSubcommandHelpRoute(parsedSubcommand),
         ),
       );
     }
@@ -319,14 +320,14 @@ function parseHelpArguments(
   if (values.verbose) {
     throw new Error(withHelpRoute(
       "The `help` command does not support --verbose.",
-      "spinedigest --help",
+      CLI_HELP_ROUTES.root,
     ));
   }
 
   if (positionals.length > 1) {
     throw new Error(withHelpRoute(
       `Unexpected positional arguments: ${positionals.slice(1).join(" ")}.`,
-      "spinedigest --help",
+      CLI_HELP_ROUTES.root,
     ));
   }
 
@@ -363,12 +364,8 @@ function rejectHelpFlag(name: string, value: string | undefined): void {
     throw new Error(
       withHelpRoute(
         `The \`help\` command does not support --${name}.`,
-        "spinedigest --help",
+        CLI_HELP_ROUTES.root,
       ),
     );
   }
-}
-
-function withHelpRoute(message: string, route: string): string {
-  return `${message}\nSee: ${route}`;
 }
