@@ -90,12 +90,88 @@ describe("cli/progress", () => {
       "#2        [##########..] 1,576 / 1,820 words (2/3 fragments)",
     ]);
   });
+
+  it("preserves the terminal row above the progress block while lines shrink", async () => {
+    const stream = new FakeTTYStream({
+      lines: ["shell> "],
+      row: 1,
+    });
+    const renderer = createCLIProgressRenderer({
+      enabled: true,
+      stream: stream as unknown as NodeJS.WriteStream,
+    });
+
+    if (renderer.onProgress === undefined) {
+      throw new Error(
+        "Progress callback should exist when renderer is enabled",
+      );
+    }
+
+    await renderer.onProgress({
+      available: true,
+      serials: [
+        {
+          fragments: 2,
+          id: 1,
+          words: 10,
+        },
+        {
+          fragments: 2,
+          id: 2,
+          words: 10,
+        },
+      ],
+      type: "serials-discovered",
+    });
+    await renderer.onProgress({
+      completedWords: 0,
+      totalWords: 20,
+      type: "digest-progress",
+    });
+    await renderer.onProgress({
+      completedFragments: 1,
+      completedWords: 5,
+      id: 1,
+      type: "serial-progress",
+    });
+    await renderer.onProgress({
+      completedFragments: 2,
+      completedWords: 10,
+      id: 1,
+      type: "serial-progress",
+    });
+    await renderer.onProgress({
+      completedFragments: 1,
+      completedWords: 5,
+      id: 2,
+      type: "serial-progress",
+    });
+
+    await renderer.stop();
+
+    expect(stream.visibleLines()).toStrictEqual([
+      "shell> ",
+      "Serial  [#########...] 15 / 20 words",
+      "Digest  [............] 0 / 20 words",
+      "------------------------",
+      "#2        [######......] 5 / 10 words (1/2 fragments)",
+    ]);
+  });
 });
 
 class FakeTTYStream {
   #column = 0;
-  #lines = [""];
-  #row = 0;
+  #lines: string[];
+  #row: number;
+
+  public constructor(input?: {
+    readonly lines?: readonly string[];
+    readonly row?: number;
+  }) {
+    this.#lines = [...(input?.lines ?? [""])];
+    this.#row = input?.row ?? 0;
+    this.#ensureLine(this.#row);
+  }
 
   public clearLine(): void {
     this.#ensureLine(this.#row);

@@ -129,8 +129,8 @@ class TerminalProgressRenderer implements CLIProgressRenderer {
       return;
     }
 
-    if (this.#renderedLineCount > 0) {
-      moveCursor(this.#stream, 0, -this.#renderedLineCount);
+    if (this.#renderedLineCount > 1) {
+      moveCursor(this.#stream, 0, -(this.#renderedLineCount - 1));
     }
 
     const renderLineCount = Math.max(lines.length, this.#renderedLineCount);
@@ -150,7 +150,7 @@ class TerminalProgressRenderer implements CLIProgressRenderer {
       }
     }
 
-    this.#renderedLineCount = lines.length;
+    this.#renderedLineCount = renderLineCount;
   }
 
   #buildLines(): string[] {

@@ -13,6 +13,7 @@ export interface CreateDigestProgressTrackerOptions {
 export class DigestProgressTracker {
   readonly #reporter: ProgressReporter;
   #completedWords = 0;
+  readonly #completedWordsBySerial = new Map<number, number>();
   #totalWords = 0;
   #discoverySettled = false;
 
@@ -56,10 +57,17 @@ export class DigestProgressTracker {
   }
 
   public async completeSerial(words: number): Promise<void> {
-    this.#completedWords += words;
-    if (this.#completedWords > this.#totalWords) {
-      this.#totalWords = this.#completedWords;
+    const nextTotalWords = Math.max(
+      this.#totalWords,
+      this.#completedWords,
+      words,
+    );
+
+    if (nextTotalWords === this.#totalWords) {
+      return;
     }
+
+    this.#totalWords = nextTotalWords;
     await this.#emitDigestProgress();
   }
 
@@ -68,12 +76,28 @@ export class DigestProgressTracker {
     readonly completedWords: number;
     readonly id: number;
   }): Promise<void> {
+    const previousCompletedWords =
+      this.#completedWordsBySerial.get(input.id) ?? 0;
+
+    if (input.completedWords !== previousCompletedWords) {
+      this.#completedWordsBySerial.set(input.id, input.completedWords);
+      this.#completedWords += input.completedWords - previousCompletedWords;
+
+      if (this.#completedWords > this.#totalWords) {
+        this.#totalWords = this.#completedWords;
+      }
+    }
+
     await this.#reporter.emit({
       completedFragments: input.completedFragments,
       completedWords: input.completedWords,
       id: input.id,
       type: "serial-progress",
     });
+
+    if (input.completedWords !== previousCompletedWords) {
+      await this.#emitDigestProgress();
+    }
   }
 
   async #emitDigestProgress(): Promise<void> {
