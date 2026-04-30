@@ -209,6 +209,10 @@ describe("cli/args", () => {
     expect(rootHelpText).toContain("spinedigest help env");
     expect(rootHelpText).toContain("spinedigest help config-file");
     expect(rootHelpText).toContain("spinedigest sdpub info --help");
+    expect(rootHelpText).toContain(
+      "Append `--help` to any command or subcommand",
+    );
+    expect(rootHelpText).toContain("Treat `spinedigest --help` as the root");
     expect(renderHelpTopicText("runtime")).toContain("Runtime Behavior");
     expect(renderHelpTopicText("config")).toContain("Configuration Overview");
     expect(renderHelpTopicText("config")).toContain("spinedigest help env");
