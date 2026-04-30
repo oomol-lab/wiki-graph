@@ -7,17 +7,18 @@ Purpose:
   Inspect an existing .sdpub archive without exporting the whole document.
 
 Usage:
-  spinedigest sdpub info --input <path>
-  spinedigest sdpub toc --input <path>
-  spinedigest sdpub list --input <path>
-  spinedigest sdpub cat --input <path> --serial <id>
-  spinedigest sdpub cover --input <path>
+  spinedigest sdpub info --input <path> [--help|-h]
+  spinedigest sdpub toc --input <path> [--help|-h]
+  spinedigest sdpub list --input <path> [--help|-h]
+  spinedigest sdpub cat --input <path> --serial <id> [--help|-h]
+  spinedigest sdpub cover --input <path> [--help|-h]
 
 Shared behavior:
   - All subcommands require `--input <path>` to an existing `.sdpub` archive.
   - Output is written to stdout.
   - stdin is not supported.
   - `--digest-dir`, `--output`, `--output-format`, `--prompt`, and `--verbose` are not supported.
+  - `-h` is available as the short form of `--help`.
   - These subcommands do not call an LLM provider.
 
 Subcommands:

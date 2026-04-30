@@ -2,6 +2,11 @@ import { parseArgs } from "util";
 
 import { type CLIFormat, parseCLIFormat } from "./formats.js";
 import {
+  CLI_HELP_ROUTES,
+  sdpubSubcommandHelpRoute,
+  withHelpRoute,
+} from "./errors.js";
+import {
   parseHelpTopic,
   renderHelpTopicText,
   renderMainHelpText,
@@ -107,7 +112,10 @@ export function parseCLIArguments(
 
   if (positionals.length > 0) {
     throw new Error(
-      `Unexpected positional arguments: ${positionals.join(" ")}. Use --input and --output instead.`,
+      withHelpRoute(
+        `Unexpected positional arguments: ${positionals.join(" ")}. Use --input and --output instead.`,
+        CLI_HELP_ROUTES.command,
+      ),
     );
   }
 
@@ -167,10 +175,18 @@ function parseSdpubArguments(
 ): ParsedCLIArguments {
   const help = values.help ?? false;
   const subcommand = positionals[0];
+  const isKnownSubcommand =
+    subcommand !== undefined &&
+    SDPUB_SUBCOMMANDS.includes(subcommand as SDPubSubcommand);
 
   if (positionals.length > 1) {
     throw new Error(
-      `Unexpected positional arguments: ${positionals.slice(1).join(" ")}.`,
+      withHelpRoute(
+        `Unexpected positional arguments: ${positionals.slice(1).join(" ")}.`,
+        isKnownSubcommand
+          ? sdpubSubcommandHelpRoute(subcommand)
+          : CLI_HELP_ROUTES.sdpub,
+      ),
     );
   }
 
@@ -184,13 +200,19 @@ function parseSdpubArguments(
     }
 
     throw new Error(
-      `Missing sdpub subcommand. Expected one of ${SDPUB_SUBCOMMANDS.join(", ")}.`,
+      withHelpRoute(
+        `Missing sdpub subcommand. Expected one of ${SDPUB_SUBCOMMANDS.join(", ")}.`,
+        CLI_HELP_ROUTES.sdpub,
+      ),
     );
   }
 
   if (!SDPUB_SUBCOMMANDS.includes(subcommand as SDPubSubcommand)) {
     throw new Error(
-      `Invalid sdpub subcommand: ${subcommand}. Expected one of ${SDPUB_SUBCOMMANDS.join(", ")}.`,
+      withHelpRoute(
+        `Invalid sdpub subcommand: ${subcommand}. Expected one of ${SDPUB_SUBCOMMANDS.join(", ")}.`,
+        CLI_HELP_ROUTES.sdpub,
+      ),
     );
   }
 
@@ -198,44 +220,76 @@ function parseSdpubArguments(
 
   if (values["digest-dir"] !== undefined) {
     throw new Error(
-      "The `sdpub` subcommands do not support --digest-dir. Use the main command for digest generation.",
+      withHelpRoute(
+        "The `sdpub` subcommands do not support --digest-dir. Use the main command for digest generation.",
+        CLI_HELP_ROUTES.sdpub,
+      ),
     );
   }
   if (values["input-format"] !== undefined) {
     throw new Error(
-      "The `sdpub` subcommands do not support --input-format. They always read .sdpub archives.",
+      withHelpRoute(
+        "The `sdpub` subcommands do not support --input-format. They always read .sdpub archives.",
+        CLI_HELP_ROUTES.sdpub,
+      ),
     );
   }
   if (values.output !== undefined) {
     throw new Error(
-      "The `sdpub` subcommands do not support --output. Use stdout redirection or pipes instead.",
+      withHelpRoute(
+        "The `sdpub` subcommands do not support --output. Use stdout redirection or pipes instead.",
+        CLI_HELP_ROUTES.sdpub,
+      ),
     );
   }
   if (values["output-format"] !== undefined) {
     throw new Error(
-      "The `sdpub` subcommands do not support --output-format. Their output format is fixed by the subcommand.",
+      withHelpRoute(
+        "The `sdpub` subcommands do not support --output-format. Their output format is fixed by the subcommand.",
+        CLI_HELP_ROUTES.sdpub,
+      ),
     );
   }
   if (values.prompt !== undefined) {
     throw new Error(
-      "The `sdpub` subcommands do not support --prompt. It only applies to digest generation from source inputs.",
+      withHelpRoute(
+        "The `sdpub` subcommands do not support --prompt. It only applies to digest generation from source inputs.",
+        CLI_HELP_ROUTES.sdpub,
+      ),
     );
   }
   if (values.verbose) {
-    throw new Error("The `sdpub` subcommands do not support --verbose.");
+    throw new Error(
+      withHelpRoute(
+        "The `sdpub` subcommands do not support --verbose.",
+        CLI_HELP_ROUTES.sdpub,
+      ),
+    );
   }
 
   const serialId =
     values.serial === undefined
       ? undefined
-      : parseSerialId(values.serial, "--serial");
+      : parseSerialId(
+          values.serial,
+          "--serial",
+          sdpubSubcommandHelpRoute(parsedSubcommand),
+        );
 
   if (parsedSubcommand === "cat" && serialId === undefined && !help) {
-    throw new Error("Missing --serial. `spinedigest sdpub cat` requires it.");
+    throw new Error(
+      withHelpRoute(
+        "Missing --serial. `spinedigest sdpub cat` requires it.",
+        sdpubSubcommandHelpRoute("cat"),
+      ),
+    );
   }
   if (parsedSubcommand !== "cat" && serialId !== undefined) {
     throw new Error(
-      `The \`sdpub ${parsedSubcommand}\` subcommand does not support --serial.`,
+      withHelpRoute(
+        `The \`sdpub ${parsedSubcommand}\` subcommand does not support --serial.`,
+        sdpubSubcommandHelpRoute(parsedSubcommand),
+      ),
     );
   }
 
@@ -244,7 +298,10 @@ function parseSdpubArguments(
   if (!help) {
     if (inputPath === undefined || inputPath === "-") {
       throw new Error(
-        "The `sdpub` subcommands require --input <path>. stdin is not supported.",
+        withHelpRoute(
+          "The `sdpub` subcommands require --input <path>. stdin is not supported.",
+          sdpubSubcommandHelpRoute(parsedSubcommand),
+        ),
       );
     }
     if (parseCLIFormat("sdpub", "--input-format") !== "sdpub") {
@@ -294,12 +351,20 @@ function parseHelpArguments(
   rejectHelpFlag("serial", values.serial);
 
   if (values.verbose) {
-    throw new Error("The `help` command does not support --verbose.");
+    throw new Error(
+      withHelpRoute(
+        "The `help` command does not support --verbose.",
+        CLI_HELP_ROUTES.root,
+      ),
+    );
   }
 
   if (positionals.length > 1) {
     throw new Error(
-      `Unexpected positional arguments: ${positionals.slice(1).join(" ")}.`,
+      withHelpRoute(
+        `Unexpected positional arguments: ${positionals.slice(1).join(" ")}.`,
+        CLI_HELP_ROUTES.root,
+      ),
     );
   }
 
@@ -318,12 +383,15 @@ function parseHelpArguments(
   };
 }
 
-function parseSerialId(value: string, flag: string): number {
+function parseSerialId(value: string, flag: string, helpRoute: string): number {
   const normalized = value.trim();
 
   if (!/^\d+$/u.test(normalized)) {
     throw new Error(
-      `Invalid ${flag}: ${value}. Expected a non-negative integer.`,
+      withHelpRoute(
+        `Invalid ${flag}: ${value}. Expected a non-negative integer.`,
+        helpRoute,
+      ),
     );
   }
 
@@ -332,6 +400,11 @@ function parseSerialId(value: string, flag: string): number {
 
 function rejectHelpFlag(name: string, value: string | undefined): void {
   if (value !== undefined) {
-    throw new Error(`The \`help\` command does not support --${name}.`);
+    throw new Error(
+      withHelpRoute(
+        `The \`help\` command does not support --${name}.`,
+        CLI_HELP_ROUTES.root,
+      ),
+    );
   }
 }

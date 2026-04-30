@@ -163,33 +163,36 @@ describe("cli/config", () => {
       await expect(loadCLIConfig()).rejects.toThrow(
         `Invalid CLI config JSON at ${configPath}:`,
       );
+      await expect(loadCLIConfig()).rejects.toThrow(
+        "See: spinedigest help config-file",
+      );
     });
 
     process.env.SPINEDIGEST_LLM_PROVIDER = "bad-provider";
 
     await expect(loadCLIConfig()).rejects.toThrow(
-      "Invalid SPINEDIGEST_LLM_PROVIDER: bad-provider. Expected one of anthropic, google, openai, openai-compatible.",
+      "Invalid SPINEDIGEST_LLM_PROVIDER: bad-provider. Expected one of anthropic, google, openai, openai-compatible.\nSee: spinedigest help env",
     );
 
     delete process.env.SPINEDIGEST_LLM_PROVIDER;
     process.env.SPINEDIGEST_REQUEST_CONCURRENT = "1.5";
 
     await expect(loadCLIConfig()).rejects.toThrow(
-      "SPINEDIGEST_REQUEST_CONCURRENT must be an integer.",
+      "SPINEDIGEST_REQUEST_CONCURRENT must be an integer.\nSee: spinedigest help env",
     );
 
     delete process.env.SPINEDIGEST_REQUEST_CONCURRENT;
     process.env.SPINEDIGEST_REQUEST_TEMPERATURE = '[1,"bad"]';
 
     await expect(loadCLIConfig()).rejects.toThrow(
-      "SPINEDIGEST_REQUEST_TEMPERATURE must be a number or JSON number array.",
+      "SPINEDIGEST_REQUEST_TEMPERATURE must be a number or JSON number array.\nSee: spinedigest help env",
     );
 
     delete process.env.SPINEDIGEST_REQUEST_TEMPERATURE;
     process.env.SPINEDIGEST_REQUEST_STREAM = "maybe";
 
     await expect(loadCLIConfig()).rejects.toThrow(
-      "SPINEDIGEST_REQUEST_STREAM must be true/false or 1/0.",
+      "SPINEDIGEST_REQUEST_STREAM must be true/false or 1/0.\nSee: spinedigest help env",
     );
   });
 });

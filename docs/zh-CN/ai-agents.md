@@ -37,6 +37,8 @@ spinedigest --help
 spinedigest help ai
 ```
 
+把 `spinedigest --help` 当作根入口，而不是一屏看完全部细节的完整手册。
+
 然后按需继续读取对应专题页，例如：
 
 - `spinedigest help task`

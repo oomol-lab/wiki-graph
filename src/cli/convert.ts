@@ -6,6 +6,7 @@ import type { SpineDigest } from "../facade/index.js";
 
 import type { CLIArguments } from "./args.js";
 import { loadCLIConfig, type CLIConfig } from "./config.js";
+import { CLI_HELP_ROUTES, withHelpRoute } from "./errors.js";
 import {
   type CLIFormat,
   inferCLIFormatFromPath,
@@ -52,7 +53,10 @@ export async function runConvertCommand(args: CLIArguments): Promise<void> {
 
   if (args.verbose && output.standardStream === "stdout") {
     throw new Error(
-      "Cannot use --verbose when writing digest output to stdout. Use --output <path> or disable --verbose.",
+      withHelpRoute(
+        "Cannot use --verbose when writing digest output to stdout. Use --output <path> or disable --verbose.",
+        CLI_HELP_ROUTES.runtime,
+      ),
     );
   }
 
@@ -92,7 +96,10 @@ export async function runConvertCommand(args: CLIArguments): Promise<void> {
     if (input.path === undefined) {
       if (process.stdin.isTTY) {
         throw new Error(
-          "Missing --input. Refusing to read from interactive stdin. Use --input <path> or pipe text into stdin.",
+          withHelpRoute(
+            "Missing --input. Refusing to read from interactive stdin. Use --input <path> or pipe text into stdin.",
+            CLI_HELP_ROUTES.runtime,
+          ),
         );
       }
 
@@ -199,7 +206,10 @@ async function loadRequiredConfig(requiresDigest: boolean): Promise<CLIConfig> {
 
   if (config.llm?.provider === undefined || config.llm.model === undefined) {
     throw new Error(
-      "Missing LLM configuration. Set `llm.provider` and `llm.model` in ~/.spinedigest/config.json or the matching SPINEDIGEST_LLM_* environment variables.",
+      withHelpRoute(
+        "Missing LLM configuration. Set `llm.provider` and `llm.model` in ~/.spinedigest/config.json or the matching SPINEDIGEST_LLM_* environment variables.",
+        CLI_HELP_ROUTES.config,
+      ),
     );
   }
 
@@ -277,13 +287,21 @@ function resolveInputEndpoint(args: CLIArguments): ResolvedInputEndpoint {
 
   if (format === undefined) {
     throw new Error(
-      normalizedPath === undefined
-        ? "Cannot infer input format from stdin. Set --input-format."
-        : `Cannot infer input format from ${normalizedPath}. Set --input-format.`,
+      withHelpRoute(
+        normalizedPath === undefined
+          ? "Cannot infer input format from stdin. Set --input-format."
+          : `Cannot infer input format from ${normalizedPath}. Set --input-format.`,
+        CLI_HELP_ROUTES.format,
+      ),
     );
   }
   if (normalizedPath === undefined && !isTextCLIFormat(format)) {
-    throw new Error(`stdin only supports txt or markdown, but got ${format}.`);
+    throw new Error(
+      withHelpRoute(
+        `stdin only supports txt or markdown, but got ${format}.`,
+        CLI_HELP_ROUTES.format,
+      ),
+    );
   }
 
   if (normalizedPath === undefined) {
@@ -311,13 +329,21 @@ function resolveOutputEndpoint(args: CLIArguments): ResolvedOutputEndpoint {
 
   if (format === undefined) {
     throw new Error(
-      normalizedPath === undefined
-        ? "Cannot infer output format for stdout. Set --output-format."
-        : `Cannot infer output format from ${normalizedPath}. Set --output-format.`,
+      withHelpRoute(
+        normalizedPath === undefined
+          ? "Cannot infer output format for stdout. Set --output-format."
+          : `Cannot infer output format from ${normalizedPath}. Set --output-format.`,
+        CLI_HELP_ROUTES.format,
+      ),
     );
   }
   if (normalizedPath === undefined && !isTextCLIFormat(format)) {
-    throw new Error(`stdout only supports txt or markdown, but got ${format}.`);
+    throw new Error(
+      withHelpRoute(
+        `stdout only supports txt or markdown, but got ${format}.`,
+        CLI_HELP_ROUTES.format,
+      ),
+    );
   }
 
   if (normalizedPath === undefined) {

@@ -37,6 +37,8 @@ spinedigest --help
 spinedigest help ai
 ```
 
+Treat `spinedigest --help` as the root page, not as the entire manual in one screen.
+
 Then follow the topic pages you need, such as:
 
 - `spinedigest help task`

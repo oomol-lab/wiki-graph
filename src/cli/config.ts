@@ -5,6 +5,8 @@ import { dirname, isAbsolute, join, resolve } from "path";
 
 import { z } from "zod";
 
+import { CLI_HELP_ROUTES, withHelpRoute } from "./errors.js";
+
 const CLI_PROVIDER_VALUES = [
   "anthropic",
   "google",
@@ -187,7 +189,10 @@ async function readConfigFile(path: string): Promise<CLIConfigFile> {
     parsedJson = JSON.parse(content);
   } catch (error) {
     throw new Error(
-      `Invalid CLI config JSON at ${path}: ${formatError(error)}`,
+      withHelpRoute(
+        `Invalid CLI config JSON at ${path}: ${formatError(error)}`,
+        CLI_HELP_ROUTES["config-file"],
+      ),
     );
   }
 
@@ -195,9 +200,14 @@ async function readConfigFile(path: string): Promise<CLIConfigFile> {
 
   if (!parsed.success) {
     throw new Error(
-      `Invalid CLI config at ${path}: ${parsed.error.issues
-        .map((issue) => `${issue.path.join(".") || "<root>"}: ${issue.message}`)
-        .join("; ")}`,
+      withHelpRoute(
+        `Invalid CLI config at ${path}: ${parsed.error.issues
+          .map(
+            (issue) => `${issue.path.join(".") || "<root>"}: ${issue.message}`,
+          )
+          .join("; ")}`,
+        CLI_HELP_ROUTES["config-file"],
+      ),
     );
   }
 
@@ -256,7 +266,10 @@ function parseOptionalProvider(
 
   if (!parsed.success) {
     throw new Error(
-      `Invalid SPINEDIGEST_LLM_PROVIDER: ${value}. Expected one of ${CLI_PROVIDER_VALUES.join(", ")}.`,
+      withHelpRoute(
+        `Invalid SPINEDIGEST_LLM_PROVIDER: ${value}. Expected one of ${CLI_PROVIDER_VALUES.join(", ")}.`,
+        CLI_HELP_ROUTES.env,
+      ),
     );
   }
 
@@ -273,7 +286,9 @@ function parseOptionalPositiveInteger(
     return undefined;
   }
   if (!Number.isInteger(parsed)) {
-    throw new Error(`${name} must be an integer.`);
+    throw new Error(
+      withHelpRoute(`${name} must be an integer.`, CLI_HELP_ROUTES.env),
+    );
   }
 
   return parsed;
@@ -292,7 +307,12 @@ function parseOptionalNonNegativeInteger(
   const parsed = Number(normalized);
 
   if (!Number.isInteger(parsed) || parsed < 0) {
-    throw new Error(`${name} must be a non-negative integer.`);
+    throw new Error(
+      withHelpRoute(
+        `${name} must be a non-negative integer.`,
+        CLI_HELP_ROUTES.env,
+      ),
+    );
   }
 
   return parsed;
@@ -311,7 +331,9 @@ function parseOptionalPositiveNumber(
   const parsed = Number(normalized);
 
   if (!Number.isFinite(parsed) || parsed <= 0) {
-    throw new Error(`${name} must be a positive number.`);
+    throw new Error(
+      withHelpRoute(`${name} must be a positive number.`, CLI_HELP_ROUTES.env),
+    );
   }
 
   return parsed;
@@ -335,7 +357,9 @@ function parseOptionalBoolean(
     return false;
   }
 
-  throw new Error(`${name} must be true/false or 1/0.`);
+  throw new Error(
+    withHelpRoute(`${name} must be true/false or 1/0.`, CLI_HELP_ROUTES.env),
+  );
 }
 
 function parseOptionalSamplingSetting(
@@ -355,14 +379,22 @@ function parseOptionalSamplingSetting(
       parsedJson = JSON.parse(normalized);
     } catch (error) {
       throw new Error(
-        `${name} must be a number or JSON number array: ${formatError(error)}`,
+        withHelpRoute(
+          `${name} must be a number or JSON number array: ${formatError(error)}`,
+          CLI_HELP_ROUTES.env,
+        ),
       );
     }
 
     const parsed = z.array(z.number()).safeParse(parsedJson);
 
     if (!parsed.success) {
-      throw new Error(`${name} must be a number or JSON number array.`);
+      throw new Error(
+        withHelpRoute(
+          `${name} must be a number or JSON number array.`,
+          CLI_HELP_ROUTES.env,
+        ),
+      );
     }
 
     return parsed.data;

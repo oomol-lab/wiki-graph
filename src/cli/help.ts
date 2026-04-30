@@ -2,6 +2,7 @@ import { resolveDataDirPath } from "../common/data-dir.js";
 import { createEnv } from "../common/template.js";
 
 import { CLI_FORMATS } from "./formats.js";
+import { CLI_HELP_ROUTES, withHelpRoute } from "./errors.js";
 
 export const HELP_TOPICS = [
   "overview",
@@ -153,7 +154,10 @@ export function parseHelpTopic(value: string): HelpTopic {
   }
 
   throw new Error(
-    `Invalid help topic: ${value}. Expected one of ${HELP_TOPICS.join(", ")}.`,
+    withHelpRoute(
+      `Invalid help topic: ${value}. Expected one of ${HELP_TOPICS.join(", ")}.`,
+      CLI_HELP_ROUTES.root,
+    ),
   );
 }
 
