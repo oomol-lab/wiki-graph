@@ -12,7 +12,10 @@ export function buildLLMOptions(config: CLIConfig): SpineDigestLLMOptions {
 
   if (llm?.provider === undefined || llm.model === undefined) {
     throw new Error(
-      "Missing LLM configuration. Set `llm.provider` and `llm.model` in ~/.spinedigest/config.json or the matching SPINEDIGEST_LLM_* environment variables.",
+      withHelpRoute(
+        "Missing LLM configuration. Set `llm.provider` and `llm.model` in ~/.spinedigest/config.json or the matching SPINEDIGEST_LLM_* environment variables.",
+        "spinedigest help config",
+      ),
     );
   }
 
@@ -81,7 +84,10 @@ function createLanguageModel(
     case "openai": {
       if (options.baseURL !== undefined) {
         throw new Error(
-          "openai does not accept llm.baseURL or SPINEDIGEST_LLM_BASE_URL. Use openai-compatible for third-party OpenAI-style APIs.",
+          withHelpRoute(
+            "openai does not accept llm.baseURL or SPINEDIGEST_LLM_BASE_URL. Use openai-compatible for third-party OpenAI-style APIs.",
+            "spinedigest help config",
+          ),
         );
       }
 
@@ -95,7 +101,10 @@ function createLanguageModel(
     case "openai-compatible": {
       if (options.baseURL === undefined) {
         throw new Error(
-          "openai-compatible requires llm.baseURL or SPINEDIGEST_LLM_BASE_URL.",
+          withHelpRoute(
+            "openai-compatible requires llm.baseURL or SPINEDIGEST_LLM_BASE_URL.",
+            "spinedigest help config",
+          ),
         );
       }
 
@@ -116,4 +125,8 @@ function createOpenAICompatibleName(baseURL: string): string {
   } catch {
     return "openai-compatible";
   }
+}
+
+function withHelpRoute(message: string, route: string): string {
+  return `${message}\nSee: ${route}`;
 }

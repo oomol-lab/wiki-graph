@@ -302,7 +302,7 @@ describe("cli/convert", () => {
         verbose: false,
       }),
     ).rejects.toThrow(
-      "Missing --input. Refusing to read from interactive stdin. Use --input <path> or pipe text into stdin.",
+      "Missing --input. Refusing to read from interactive stdin. Use --input <path> or pipe text into stdin.\nSee: spinedigest help runtime",
     );
 
     expect(cliMockState.digestCalls.textStream).toHaveLength(0);
@@ -357,7 +357,7 @@ describe("cli/convert", () => {
         verbose: false,
       }),
     ).rejects.toThrow(
-      "Missing LLM configuration. Set `llm.provider` and `llm.model` in ~/.spinedigest/config.json or the matching SPINEDIGEST_LLM_* environment variables.",
+      "Missing LLM configuration. Set `llm.provider` and `llm.model` in ~/.spinedigest/config.json or the matching SPINEDIGEST_LLM_* environment variables.\nSee: spinedigest help config",
     );
 
     expect(cliMockState.appConstructorOptions).toHaveLength(0);
@@ -372,7 +372,7 @@ describe("cli/convert", () => {
         verbose: false,
       }),
     ).rejects.toThrow(
-      "Cannot infer input format from stdin. Set --input-format.",
+      "Cannot infer input format from stdin. Set --input-format.\nSee: spinedigest help format",
     );
 
     expect(cliMockState.appConstructorOptions).toHaveLength(0);
@@ -386,7 +386,9 @@ describe("cli/convert", () => {
         outputFormat: "sdpub",
         verbose: false,
       }),
-    ).rejects.toThrow("stdout only supports txt or markdown, but got sdpub.");
+    ).rejects.toThrow(
+      "stdout only supports txt or markdown, but got sdpub.\nSee: spinedigest help format",
+    );
 
     expect(cliMockState.appConstructorOptions).toHaveLength(0);
     expect(cliMockState.openCalls).toHaveLength(0);
@@ -408,7 +410,7 @@ describe("cli/convert", () => {
         verbose: true,
       }),
     ).rejects.toThrow(
-      "Cannot use --verbose when writing digest output to stdout. Use --output <path> or disable --verbose.",
+      "Cannot use --verbose when writing digest output to stdout. Use --output <path> or disable --verbose.\nSee: spinedigest help runtime",
     );
 
     expect(cliMockState.appConstructorOptions).toHaveLength(0);
