@@ -440,6 +440,35 @@ describe("cli/convert", () => {
     expect(cliMockState.digestCalls.txt[0]).not.toHaveProperty("onProgress");
   });
 
+  it("supports recovery from config and runtime failures", async () => {
+    cliMockState.config = {};
+
+    await expect(
+      runConvertCommand({
+        help: false,
+        inputPath: "/tmp/book.txt",
+        outputPath: "/tmp/output.txt",
+        verbose: false,
+      }),
+    ).rejects.toThrow("See: spinedigest help config");
+
+    cliMockState.config = {
+      llm: {
+        model: "gpt-test",
+        provider: "openai",
+      },
+    };
+
+    await expect(
+      runConvertCommand({
+        help: false,
+        inputPath: "/tmp/book.txt",
+        outputFormat: "txt",
+        verbose: true,
+      }),
+    ).rejects.toThrow("See: spinedigest help runtime");
+  });
+
   it("renders digest progress to stderr for interactive file output", async () => {
     cliMockState.config = {
       llm: {

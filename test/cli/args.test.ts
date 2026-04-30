@@ -142,10 +142,10 @@ describe("cli/args", () => {
 
   it("rejects invalid format flags", () => {
     expect(() => parseCLIArguments(["--input-format", "pdf"])).toThrow(
-      "Invalid --input-format: pdf. Expected one of sdpub, epub, txt, markdown.",
+      "Invalid --input-format: pdf. Expected one of sdpub, epub, txt, markdown.\nSee: spinedigest help format",
     );
     expect(() => parseCLIArguments(["--output-format", "pdf"])).toThrow(
-      "Invalid --output-format: pdf. Expected one of sdpub, epub, txt, markdown.",
+      "Invalid --output-format: pdf. Expected one of sdpub, epub, txt, markdown.\nSee: spinedigest help format",
     );
   });
 
@@ -280,5 +280,21 @@ describe("cli/args", () => {
       "refuses to write binary data to an interactive terminal",
     );
     expect(renderSdpubSubcommandHelpText("cover")).toContain("[--help|-h]");
+  });
+
+  it("supports a first-contact recovery chain from root help to parse failures", () => {
+    const rootHelpText = renderMainHelpText();
+
+    expect(rootHelpText).toContain("spinedigest help overview");
+    expect(rootHelpText).toContain("spinedigest help command");
+    expect(() => parseCLIArguments(["--input-format", "pdf"])).toThrow(
+      "See: spinedigest help format",
+    );
+    expect(() => parseCLIArguments(["sdpub", "inspect"])).toThrow(
+      "See: spinedigest sdpub --help",
+    );
+    expect(() => parseCLIArguments(["book.epub"])).toThrow(
+      "See: spinedigest help command",
+    );
   });
 });

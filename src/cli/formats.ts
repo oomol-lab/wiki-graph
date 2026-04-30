@@ -1,5 +1,7 @@
 import { extname } from "path";
 
+import { CLI_HELP_ROUTES, withHelpRoute } from "./errors.js";
+
 export const CLI_FORMATS = ["sdpub", "epub", "txt", "markdown"] as const;
 
 export type CLIFormat = (typeof CLI_FORMATS)[number];
@@ -33,9 +35,10 @@ export function parseCLIFormat(value: string, flag: string): CLIFormat {
     return normalized;
   }
 
-  throw new Error(
+  throw new Error(withHelpRoute(
     `Invalid ${flag}: ${value}. Expected one of ${CLI_FORMATS.join(", ")}.`,
-  );
+    CLI_HELP_ROUTES.format,
+  ));
 }
 
 function isCLIFormat(value: string): value is CLIFormat {
