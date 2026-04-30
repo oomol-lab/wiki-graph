@@ -232,6 +232,10 @@ describe("cli/args", () => {
     expect(rootHelpText).toContain("Use `spinedigest help troubleshoot`");
     expect(renderHelpTopicText("runtime")).toContain("Runtime Behavior");
     expect(renderHelpTopicText("config")).toContain("Configuration Overview");
+    expect(renderHelpTopicText("ai")).toContain("Suggested first pass:");
+    expect(renderHelpTopicText("ai")).toContain(
+      "Start with `spinedigest help overview`",
+    );
     expect(commandHelpText).toContain("--verbose, -v");
     expect(commandHelpText).toContain("--help, -h");
     for (const flag of [

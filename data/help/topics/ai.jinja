@@ -10,6 +10,12 @@ Primary contract:
   - Assume source digest runs require LLM configuration.
   - Assume `.sdpub` re-export and `sdpub` inspection do not call an LLM.
 
+Suggested first pass:
+  - Start with `spinedigest help overview` to decide whether you are digesting source input, re-exporting `.sdpub`, or inspecting an archive.
+  - Continue with `spinedigest help task` when the user request is workflow-shaped rather than command-shaped.
+  - Continue with `spinedigest help command` when you already know the action and need exact command shapes or flags.
+  - Jump to `format`, `config`, `runtime`, or `troubleshoot` only after the problem domain is clear.
+
 Navigation:
   - Need the mental model: `spinedigest help overview`
   - Need a workflow entry point: `spinedigest help task`
