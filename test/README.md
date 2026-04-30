@@ -5,6 +5,7 @@ This project uses `Vitest` for unit and integration tests.
 - `test/fixtures/` contains original, repository-safe sample inputs for tests.
 - `test/helpers/` contains reusable test utilities.
 - `test/` currently includes a minimal smoke test to verify the framework is wired correctly.
+- `test/cli/README.md` tracks CLI help-routing coverage and related acceptance criteria.
 
 Fixture policy:
 
