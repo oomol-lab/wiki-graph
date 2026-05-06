@@ -8,6 +8,7 @@ import {
   streamText,
   type LanguageModel,
   type ModelMessage,
+  type SystemModelMessage,
 } from "ai";
 import type { Environment } from "nunjucks";
 
@@ -271,15 +272,16 @@ export class LLM<S extends string> {
             maxRetries: number;
             messages: ModelMessage[];
             model: LanguageModel;
+            system?: string | SystemModelMessage | SystemModelMessage[];
             temperature?: number;
             timeout?: number;
             topP?: number;
-          } = {
+          } = normalizeGenerationInput({
             maxRetries: 0,
             messages: [...input.messages],
             model: this.#model,
             timeout: this.#timeoutMs,
-          };
+          });
 
           if (resolvedTemperature !== undefined) {
             generationInput.temperature = resolvedTemperature;
@@ -351,6 +353,56 @@ export class LLM<S extends string> {
 
     return response;
   }
+}
+
+function normalizeGenerationInput(input: {
+  maxRetries: number;
+  messages: ModelMessage[];
+  model: LanguageModel;
+  timeout: number;
+}): {
+  maxRetries: number;
+  messages: ModelMessage[];
+  model: LanguageModel;
+  system?: string | SystemModelMessage | SystemModelMessage[];
+  timeout: number;
+} {
+  const { messages, systemMessages } = splitLeadingSystemMessages(input.messages);
+
+  if (systemMessages.length === 0) {
+    return input;
+  }
+
+  return {
+    ...input,
+    messages,
+    system:
+      systemMessages.length === 1 ? systemMessages[0] : systemMessages,
+  };
+}
+
+function splitLeadingSystemMessages(messages: readonly ModelMessage[]): {
+  messages: ModelMessage[];
+  systemMessages: SystemModelMessage[];
+} {
+  const systemMessages: SystemModelMessage[] = [];
+  let index = 0;
+
+  while (index < messages.length) {
+    const message = messages[index];
+
+    if (message.role !== "system") {
+      break;
+    }
+
+    systemMessages.push(message);
+    index += 1;
+  }
+
+  return {
+    messages: messages.slice(index),
+    systemMessages,
+  };
 }
 
 function ensureDirectoryPath(dirPath?: string): string | undefined {
