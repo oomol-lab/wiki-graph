@@ -7,7 +7,7 @@ const statusMockState = vi.hoisted(() => ({
 }));
 
 vi.mock("../../src/cli/io.js", () => ({
-  writeTextToStdout: vi.fn(async (text: string) => {
+  writeTextToStdout: vi.fn((text: string) => {
     statusMockState.stdoutTexts.push(text);
   }),
 }));
@@ -89,7 +89,8 @@ describe("cli/status", () => {
 
       await runStatusCommand();
 
-      expect(statusMockState.stdoutTexts).toStrictEqual([`{
+      expect(statusMockState.stdoutTexts).toStrictEqual([
+        `{
   "llm": {
     "apiKey": "sk-t**********-key",
     "model": "gpt-4.1",
@@ -98,7 +99,8 @@ describe("cli/status", () => {
   "paths": {
     "cacheDir": "./cache"
   }
-}\n`]);
+}\n`,
+      ]);
     });
   });
 

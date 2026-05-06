@@ -48,19 +48,21 @@ function maskConfigSecrets(value: unknown): JSONLike {
   }
 
   const record = value as Record<string, unknown>;
-  const maskedEntries = Object.entries(record).map(([key, entryValue]) => [
-    key,
-    key === "apiKey" ? maskAPIKey(entryValue) : maskConfigSecrets(entryValue),
-  ]);
+  const maskedRecord: Record<string, unknown> = {};
 
-  const maskedRecord: Record<string, unknown> = Object.fromEntries(maskedEntries);
+  for (const [key, entryValue] of Object.entries(record)) {
+    maskedRecord[key] =
+      key === "apiKey" ? maskAPIKey(entryValue) : maskConfigSecrets(entryValue);
+  }
 
   return maskedRecord;
 }
 
 function maskAPIKey(value: unknown): string | number | boolean | null {
   if (typeof value !== "string") {
-    return value === null || typeof value === "number" || typeof value === "boolean"
+    return value === null ||
+      typeof value === "number" ||
+      typeof value === "boolean"
       ? value
       : null;
   }
