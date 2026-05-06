@@ -175,6 +175,34 @@ describe("llm/client", () => {
     });
   });
 
+  it("keeps cache keys based on the original messages", async () => {
+    const llm = new LLM({
+      cacheDirPath: process.cwd(),
+      dataDirPath: process.cwd(),
+      model: {
+        modelId: "test-model",
+        provider: "test-provider",
+      } as never,
+    });
+    const messages = [
+      {
+        content: "follow the style guide",
+        role: "system",
+      },
+      {
+        content: "hello",
+        role: "user",
+      },
+    ] as const;
+
+    await expect(llm.request(messages)).resolves.toBe("generated response");
+    aiMockState.generateTextResponse = "cached response should not be used";
+
+    await expect(llm.request(messages)).resolves.toBe("generated response");
+
+    expect(aiMockState.generateTextCalls).toHaveLength(1);
+  });
+
   it("preserves non-leading system messages in the messages array", async () => {
     const llm = new LLM({
       dataDirPath: process.cwd(),

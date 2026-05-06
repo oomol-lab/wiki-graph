@@ -367,7 +367,19 @@ function normalizeGenerationInput(input: {
   system?: string | SystemModelMessage | SystemModelMessage[];
   timeout: number;
 } {
-  const { messages, systemMessages } = splitLeadingSystemMessages(input.messages);
+  const systemMessages: SystemModelMessage[] = [];
+  let firstNonSystemIndex = 0;
+
+  while (firstNonSystemIndex < input.messages.length) {
+    const message = input.messages[firstNonSystemIndex];
+
+    if (message.role !== "system") {
+      break;
+    }
+
+    systemMessages.push(message);
+    firstNonSystemIndex += 1;
+  }
 
   if (systemMessages.length === 0) {
     return input;
@@ -375,33 +387,9 @@ function normalizeGenerationInput(input: {
 
   return {
     ...input,
-    messages,
+    messages: input.messages.slice(firstNonSystemIndex),
     system:
       systemMessages.length === 1 ? systemMessages[0] : systemMessages,
-  };
-}
-
-function splitLeadingSystemMessages(messages: readonly ModelMessage[]): {
-  messages: ModelMessage[];
-  systemMessages: SystemModelMessage[];
-} {
-  const systemMessages: SystemModelMessage[] = [];
-  let index = 0;
-
-  while (index < messages.length) {
-    const message = messages[index];
-
-    if (message.role !== "system") {
-      break;
-    }
-
-    systemMessages.push(message);
-    index += 1;
-  }
-
-  return {
-    messages: messages.slice(index),
-    systemMessages,
   };
 }
 
