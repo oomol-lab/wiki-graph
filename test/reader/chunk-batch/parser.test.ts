@@ -18,6 +18,7 @@ describe("reader/chunk-batch/parser", () => {
       choiceSystemPrompt: "choice prompt",
       metadataField: ChunkMetadataField.Retention,
       projection: new FragmentProjection(createSentences()),
+      responseIntentClassifierPrompt: "classifier prompt",
       requestChoice: () => Promise.resolve('{"choice":"S1"}'),
       sentenceTextSource: {
         getSentence: (sentenceId) => Promise.resolve(sentenceId.join(":")),
@@ -89,6 +90,7 @@ describe("reader/chunk-batch/parser", () => {
       choiceSystemPrompt: "choice prompt",
       metadataField: ChunkMetadataField.Retention,
       projection: new FragmentProjection(sentences),
+      responseIntentClassifierPrompt: "classifier prompt",
       requestChoice,
       sentenceTextSource: {
         getSentence: (sentenceId) => Promise.resolve(sentenceId.join(":")),
@@ -131,6 +133,7 @@ describe("reader/chunk-batch/parser", () => {
       choiceSystemPrompt: "choice prompt",
       metadataField: ChunkMetadataField.Importance,
       projection: new FragmentProjection(createSentences()),
+      responseIntentClassifierPrompt: "classifier prompt",
       requestChoice: () => Promise.resolve('{"choice":"S1"}'),
       sentenceTextSource: {
         getSentence: (sentenceId) => Promise.resolve(sentenceId.join(":")),
@@ -177,6 +180,7 @@ describe("reader/chunk-batch/parser", () => {
       choiceSystemPrompt: "choice prompt",
       metadataField: ChunkMetadataField.Retention,
       projection: new FragmentProjection(createSentences()),
+      responseIntentClassifierPrompt: "classifier prompt",
       requestChoice: () => Promise.resolve('{"choice":"S1"}'),
       sentenceTextSource: {
         getSentence: (sentenceId) => Promise.resolve(sentenceId.join(":")),
@@ -239,6 +243,7 @@ describe("reader/chunk-batch/parser", () => {
       choiceSystemPrompt: "choice prompt",
       metadataField: ChunkMetadataField.Retention,
       projection: new FragmentProjection(sentences),
+      responseIntentClassifierPrompt: "classifier prompt",
       requestChoice: () => Promise.resolve('{"choice":"S1"}'),
       sentenceTextSource: {
         getSentence: (sentenceId) => Promise.resolve(sentenceId.join(":")),

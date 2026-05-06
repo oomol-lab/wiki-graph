@@ -15,7 +15,7 @@ const schema = z.object({
 });
 
 describe("guaranteed/request", () => {
-  it("retries after syntax failures and eventually succeeds", async () => {
+  it("retries natural-language replies without keeping broken assistant history", async () => {
     const request = vi
       .fn<
         (
@@ -35,6 +35,7 @@ describe("guaranteed/request", () => {
         },
       ],
       parse: (data) => data.value,
+      responseIntentClassifierPrompt: "classifier prompt",
       request,
       schema,
     });
@@ -44,12 +45,13 @@ describe("guaranteed/request", () => {
 
     const secondCallMessages = request.mock.calls[1]?.[0];
 
-    expect(secondCallMessages).toHaveLength(3);
+    expect(secondCallMessages).toHaveLength(2);
     expect(secondCallMessages?.[1]).toMatchObject({
-      role: "assistant",
-      content: "not json",
+      role: "user",
     });
-    expect(secondCallMessages?.[2]?.content).toContain("structural issues");
+    expect(secondCallMessages?.[1]?.content).toContain(
+      "plain natural language",
+    );
   });
 
   it("treats consecutive non-JSON responses as a refusal", async () => {
@@ -57,7 +59,8 @@ describe("guaranteed/request", () => {
       requestGuaranteedJson({
         messages: [],
         parse: (data) => data.value,
-        request: () => Promise.resolve("}"),
+        responseIntentClassifierPrompt: "classifier prompt",
+        request: () => Promise.resolve("I cannot answer that."),
         schema,
       }),
     ).rejects.toBeInstanceOf(SuspectedModelRefusalError);
@@ -80,6 +83,7 @@ describe("guaranteed/request", () => {
         maxRetries: 1,
         messages: [],
         parse: (data) => data.value,
+        responseIntentClassifierPrompt: "classifier prompt",
         request,
         schema,
       }),
@@ -95,9 +99,76 @@ describe("guaranteed/request", () => {
         parse: () => {
           throw new ParsedJsonError(["value is not acceptable"]);
         },
+        responseIntentClassifierPrompt: "classifier prompt",
         request: () => Promise.resolve('{"value": 1}'),
         schema,
       }),
     ).rejects.toBeInstanceOf(GuaranteedParseValidationError);
+  });
+
+  it("keeps malformed JSON in history so the model can repair it", async () => {
+    const request = vi
+      .fn<
+        (
+          messages: readonly LLMessage[],
+          retryIndex: number,
+          retryMax: number,
+        ) => Promise<string>
+      >()
+      .mockResolvedValueOnce('{"value": "\\uZZZZ"}')
+      .mockResolvedValueOnce('{"value": 5}');
+
+    const result = await requestGuaranteedJson({
+      messages: [],
+      parse: (data) => data.value,
+      responseIntentClassifierPrompt: "classifier prompt",
+      request,
+      schema,
+    });
+
+    expect(result).toBe(5);
+
+    const secondCallMessages = request.mock.calls[1]?.[0];
+
+    expect(secondCallMessages).toHaveLength(2);
+    expect(secondCallMessages?.[0]).toMatchObject({
+      role: "assistant",
+      content: '{"value": "\\uZZZZ"}',
+    });
+    expect(secondCallMessages?.[1]?.content).toContain("malformed JSON");
+  });
+
+  it("uses classifier fallback for ambiguous replies before deciding to keep history", async () => {
+    const request = vi
+      .fn<
+        (
+          messages: readonly LLMessage[],
+          retryIndex: number,
+          retryMax: number,
+        ) => Promise<string>
+      >()
+      .mockResolvedValueOnce("value: 1")
+      .mockResolvedValueOnce("malformed_json")
+      .mockResolvedValueOnce('{"value": 7}');
+
+    const result = await requestGuaranteedJson({
+      messages: [],
+      parse: (data) => data.value,
+      responseIntentClassifierPrompt: "classifier prompt",
+      request,
+      schema,
+    });
+
+    expect(result).toBe(7);
+    expect(request).toHaveBeenCalledTimes(3);
+
+    const classifierMessages = request.mock.calls[1]?.[0];
+    const retryMessages = request.mock.calls[2]?.[0];
+
+    expect(classifierMessages?.[0]?.content).toBe("classifier prompt");
+    expect(retryMessages?.[0]).toMatchObject({
+      role: "assistant",
+      content: "value: 1",
+    });
   });
 });

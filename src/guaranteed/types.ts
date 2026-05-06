@@ -14,6 +14,7 @@ export type GuaranteedParser<TData, TResult> = (
 ) => TResult | Promise<TResult>;
 
 export interface GuaranteedRequestOptions<TData, TResult> {
+  readonly responseIntentClassifierPrompt: string;
   readonly schema: ZodType<TData>;
   readonly request: GuaranteedRequest;
   readonly messages: readonly LLMessage[];

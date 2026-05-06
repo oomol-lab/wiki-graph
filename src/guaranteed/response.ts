@@ -50,6 +50,31 @@ export function buildSyntaxErrorMessage(error: SyntaxError): string {
   return lines.join("\n");
 }
 
+export function buildMalformedJsonMessage(error: SyntaxError): string {
+  const lines = [
+    "Your previous reply looked like malformed JSON.",
+    `Error: ${error.message}`,
+    "",
+    "Return complete and valid JSON directly.",
+    "Do not answer conversationally.",
+    "Do not add explanations or markdown fences.",
+  ];
+
+  return lines.join("\n");
+}
+
+export function buildNaturalLanguageMessage(): string {
+  const lines = [
+    "Your previous reply was plain natural language, not a JSON object or array.",
+    "",
+    "Do not apologize or explain.",
+    "Do not answer conversationally.",
+    "Return complete and valid JSON directly.",
+  ];
+
+  return lines.join("\n");
+}
+
 export function buildSchemaErrorMessage(error: ZodError): string {
   const issues = error.issues.map(formatZodIssue);
   const lines = [

@@ -2,7 +2,9 @@ import { z, type ZodType } from "zod";
 
 import {
   GuaranteedParseValidationError,
+  GuaranteedRequestFailureError,
   ParsedJsonError,
+  RESPONSE_INTENT_CLASSIFIER_PROMPT_TEMPLATE,
   requestGuaranteedJson,
 } from "../../guaranteed/index.js";
 import type { Language } from "../../common/language.js";
@@ -184,6 +186,9 @@ export class ChunkExtractor<S extends string> {
         const parser = new ChunkBatchParser<TData>({
           metadataField: input.metadataField,
           projection: input.projection,
+          responseIntentClassifierPrompt: this.#llm.loadSystemPrompt(
+            RESPONSE_INTENT_CLASSIFIER_PROMPT_TEMPLATE,
+          ),
           sentenceTextSource: this.#sentenceTextSource,
           sentences: input.sentences,
           visibleChunkIds: input.visibleChunkIds,
@@ -218,6 +223,9 @@ export class ChunkExtractor<S extends string> {
               await parser.parse(data, {
                 isLastGenerationAttempt: index >= maxRetries,
               }),
+            responseIntentClassifierPrompt: this.#llm.loadSystemPrompt(
+              RESPONSE_INTENT_CLASSIFIER_PROMPT_TEMPLATE,
+            ),
             request: async (messages, index, maxRetries) =>
               await context.request(messages, {
                 retryIndex: index,
@@ -231,7 +239,7 @@ export class ChunkExtractor<S extends string> {
             result,
           };
         } catch (error) {
-          if (isParsedJsonValidationFailure(error)) {
+          if (isRecoverableChunkExtractionFailure(error)) {
             return {
               parser,
               result: {
@@ -344,6 +352,9 @@ export class ChunkExtractor<S extends string> {
         validateTranslatedChunks(chunks, data);
         return data;
       },
+      responseIntentClassifierPrompt: this.#llm.loadSystemPrompt(
+        RESPONSE_INTENT_CLASSIFIER_PROMPT_TEMPLATE,
+      ),
       request: async (messages, index, maxRetries) =>
         await this.#llm.request(messages, {
           retryIndex: index,
@@ -358,6 +369,13 @@ function isParsedJsonValidationFailure(error: unknown): boolean {
   return (
     error instanceof GuaranteedParseValidationError &&
     error.cause instanceof ParsedJsonError
+  );
+}
+
+function isRecoverableChunkExtractionFailure(error: unknown): boolean {
+  return (
+    isParsedJsonValidationFailure(error) ||
+    error instanceof GuaranteedRequestFailureError
   );
 }
 

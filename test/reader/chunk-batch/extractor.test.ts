@@ -242,6 +242,44 @@ describe("reader/chunk-batch/extractor", () => {
     expect(llm.calls.every((call) => call.viaContext)).toBe(true);
   });
 
+  it("returns an empty chunk batch when guaranteed retries are exhausted", async () => {
+    const llm = new ScriptedLLM<SpineDigestScope>(
+      Array.from({ length: 16 }, () => "I cannot answer that."),
+    );
+    const extractor = new ChunkExtractor<SpineDigestScope>({
+      extractionGuidance: "Focus on plot",
+      llm: llm as never,
+      scopes: SPINE_DIGEST_READER_SCOPES,
+      sentenceTextSource: {
+        getSentence: (sentenceId) => Promise.resolve(sentenceId.join(":")),
+      },
+    });
+
+    const result = await extractor.extractUserFocused({
+      sentences: [
+        {
+          sentenceId: [1, 0, 0],
+          text: "Alpha begins.",
+          wordsCount: 2,
+        },
+      ],
+      text: "Alpha begins.",
+      visibleChunkIds: [],
+      workingMemoryPrompt: "memory",
+    });
+
+    expect(result).toStrictEqual({
+      chunkBatch: {
+        chunks: [],
+        links: [],
+        orderCorrect: true,
+        tempIds: [],
+      },
+      fragmentSummary: "",
+    });
+    expect(llm.calls.length).toBeGreaterThanOrEqual(2);
+  });
+
   it("translates extracted chunks when the requested language differs", async () => {
     const llm = new ScriptedLLM<SpineDigestScope>([
       JSON.stringify({

@@ -151,6 +151,7 @@ export class ChunkBatchParser<
     Record<string, readonly SentenceId[]>
   >;
   readonly #projection: FragmentProjection;
+  readonly #responseIntentClassifierPrompt: string;
   readonly #requestChoice: GuaranteedChoiceRequest;
   readonly #sentenceTextByKey: Readonly<Record<string, string>>;
   readonly #sentenceTextSource: SentenceTextSource;
@@ -163,6 +164,7 @@ export class ChunkBatchParser<
     choiceSystemPrompt: string;
     metadataField: ChunkMetadataField;
     projection: FragmentProjection;
+    responseIntentClassifierPrompt: string;
     requestChoice: GuaranteedChoiceRequest;
     sentenceTextSource: SentenceTextSource;
     sentences: readonly ChunkExtractionSentence[];
@@ -172,6 +174,7 @@ export class ChunkBatchParser<
     this.#choiceSystemPrompt = input.choiceSystemPrompt;
     this.#metadataField = input.metadataField;
     this.#projection = input.projection;
+    this.#responseIntentClassifierPrompt = input.responseIntentClassifierPrompt;
     this.#requestChoice = input.requestChoice;
     this.#sentenceTextSource = input.sentenceTextSource;
     this.#sentences = input.sentences;
@@ -577,6 +580,7 @@ export class ChunkBatchParser<
 
           return candidate;
         },
+        responseIntentClassifierPrompt: this.#responseIntentClassifierPrompt,
         request: this.#requestChoice,
         schema: choiceResponseSchema,
       });

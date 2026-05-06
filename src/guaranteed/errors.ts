@@ -8,21 +8,30 @@ export class ParsedJsonError extends Error {
   }
 }
 
-export class GuaranteedEmptyResponseError extends Error {
+export abstract class GuaranteedRequestFailureError extends Error {
   public readonly attempts: number;
   public readonly maxRetries: number;
 
-  public constructor(attempts: number, maxRetries: number) {
-    super("LLM returned empty response after all retries");
-    this.name = "GuaranteedEmptyResponseError";
+  protected constructor(message: string, attempts: number, maxRetries: number) {
+    super(message);
+    this.name = "GuaranteedRequestFailureError";
     this.attempts = attempts;
     this.maxRetries = maxRetries;
   }
 }
 
-export class SuspectedModelRefusalError extends Error {
-  public readonly attempts: number;
-  public readonly maxRetries: number;
+export class GuaranteedEmptyResponseError extends GuaranteedRequestFailureError {
+  public constructor(attempts: number, maxRetries: number) {
+    super(
+      "LLM returned empty response after all retries",
+      attempts,
+      maxRetries,
+    );
+    this.name = "GuaranteedEmptyResponseError";
+  }
+}
+
+export class SuspectedModelRefusalError extends GuaranteedRequestFailureError {
   public readonly response: string;
   public readonly reason: string;
 
@@ -36,19 +45,17 @@ export class SuspectedModelRefusalError extends Error {
   ) {
     super(
       `Suspected model refusal after ${attempts} JSON syntax error attempt(s): ${input.reason}. Last response: ${JSON.stringify(input.response)}`,
+      attempts,
+      maxRetries,
     );
     this.name = "SuspectedModelRefusalError";
-    this.attempts = attempts;
-    this.maxRetries = maxRetries;
     this.response = input.response;
     this.reason = input.reason;
   }
 }
 
-export class GuaranteedSchemaValidationError extends Error {
-  public readonly attempts: number;
+export class GuaranteedSchemaValidationError extends GuaranteedRequestFailureError {
   public readonly issues: readonly string[];
-  public readonly maxRetries: number;
   public readonly response: string;
 
   public constructor(
@@ -60,19 +67,16 @@ export class GuaranteedSchemaValidationError extends Error {
     },
     cause: unknown,
   ) {
-    super("Schema validation failed after all retries", { cause });
+    super("Schema validation failed after all retries", attempts, maxRetries);
     this.name = "GuaranteedSchemaValidationError";
-    this.attempts = attempts;
     this.issues = [...input.issues];
-    this.maxRetries = maxRetries;
     this.response = input.response;
+    this.cause = cause;
   }
 }
 
-export class GuaranteedParseValidationError extends Error {
-  public readonly attempts: number;
+export class GuaranteedParseValidationError extends GuaranteedRequestFailureError {
   public readonly issues: readonly string[];
-  public readonly maxRetries: number;
   public readonly response: string;
 
   public constructor(
@@ -84,11 +88,10 @@ export class GuaranteedParseValidationError extends Error {
     },
     cause: unknown,
   ) {
-    super("Parse validation failed after all retries", { cause });
+    super("Parse validation failed after all retries", attempts, maxRetries);
     this.name = "GuaranteedParseValidationError";
-    this.attempts = attempts;
     this.issues = [...input.issues];
-    this.maxRetries = maxRetries;
     this.response = input.response;
+    this.cause = cause;
   }
 }

@@ -1,6 +1,9 @@
 import { z } from "zod";
 
-import { requestGuaranteedJson } from "../guaranteed/index.js";
+import {
+  requestGuaranteedJson,
+  RESPONSE_INTENT_CLASSIFIER_PROMPT_TEMPLATE,
+} from "../guaranteed/index.js";
 import type { Language } from "../common/language.js";
 import type { LLMessage, LLM } from "../llm/index.js";
 import type { ReadonlySerialFragments } from "../document/index.js";
@@ -135,6 +138,9 @@ export class CompressionReviewer<S extends string> {
               weight: clueReviewer.weight,
             },
           }),
+          responseIntentClassifierPrompt: this.#llm.loadSystemPrompt(
+            RESPONSE_INTENT_CLASSIFIER_PROMPT_TEMPLATE,
+          ),
           request: async (retryMessages, retryIndex, retryMax) =>
             await this.#llm.request(retryMessages, {
               retryIndex,
