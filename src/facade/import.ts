@@ -1,5 +1,6 @@
 import type { Document } from "../document/index.js";
 import type { DigestProgressTracker } from "../progress/index.js";
+import { AsyncSemaphore } from "../utils/async-semaphore.js";
 import {
   SerialGeneration,
   discoverSerial,
@@ -87,7 +88,6 @@ export async function importSourceDocument(
       ? {}
       : { segmenter: options.segmenter }),
   });
-  const serials: Serial[] = [];
 
   if (options.digestProgressTracker !== undefined) {
     const discoveries = await discoverPlannedSections(plannedSections, {
@@ -99,28 +99,18 @@ export async function importSourceDocument(
     await options.digestProgressTracker.discoverSerials(discoveries);
   }
 
-  for (const plannedSection of plannedSections) {
-    const serialProgressTracker =
-      options.digestProgressTracker?.createSerialTracker({
-        id: plannedSection.serialId,
-      });
-
-    const serial = await options.document.openSession(async () => {
-      return await generation.generateInto(
-        plannedSection.serialId,
-        await plannedSection.section.open(),
-        {
-          extractionPrompt: options.extractionPrompt,
-          ...(options.userLanguage === undefined
-            ? {}
-            : { userLanguage: options.userLanguage }),
-        },
-        serialProgressTracker,
-      );
-    });
-
-    serials.push(serial);
-  }
+  const serials = await generatePlannedSerials(plannedSections, {
+    document: options.document,
+    extractionPrompt: options.extractionPrompt,
+    generation,
+    serialConcurrency: resolveSerialGenerationConcurrency(options.llm),
+    ...(options.digestProgressTracker === undefined
+      ? {}
+      : { digestProgressTracker: options.digestProgressTracker }),
+    ...(options.userLanguage === undefined
+      ? {}
+      : { userLanguage: options.userLanguage }),
+  });
 
   await options.document.openSession(async (document) => {
     await document.writeBookMeta(meta);
@@ -137,6 +127,56 @@ export async function importSourceDocument(
     serials,
     toc,
   };
+}
+
+async function generatePlannedSerials(
+  plannedSections: readonly PlannedSection[],
+  options: {
+    readonly digestProgressTracker?: DigestProgressTracker;
+    readonly document: Document;
+    readonly extractionPrompt: string;
+    readonly generation: SerialGeneration;
+    readonly serialConcurrency: number;
+    readonly userLanguage?: GenerateSerialOptions["userLanguage"];
+  },
+): Promise<Serial[]> {
+  const limiter = new AsyncSemaphore(options.serialConcurrency);
+  const serials = await Promise.all(
+    plannedSections.map(async (plannedSection) => {
+      return await limiter.use(async () => {
+        const context = options.document.createContext();
+
+        context.ownSerial(plannedSection.serialId);
+
+        try {
+          const serialProgressTracker =
+            options.digestProgressTracker?.createSerialTracker({
+              id: plannedSection.serialId,
+            });
+          const serial = await context.run(async () => {
+            return await options.generation.generateInto(
+              plannedSection.serialId,
+              await plannedSection.section.open(),
+              {
+                extractionPrompt: options.extractionPrompt,
+                ...(options.userLanguage === undefined
+                  ? {}
+                  : { userLanguage: options.userLanguage }),
+              },
+              serialProgressTracker,
+            );
+          });
+
+          context.complete();
+          return serial;
+        } finally {
+          await context.dispose();
+        }
+      });
+    }),
+  );
+
+  return [...serials].sort((left, right) => left.id - right.id);
 }
 
 function planTocItems(input: {
@@ -269,4 +309,24 @@ async function discoverPlannedSections(
   }
 
   return discoveries;
+}
+
+function resolveSerialGenerationConcurrency(
+  llm: Pick<ImportSourceOptions, "llm">["llm"],
+): number {
+  if (
+    typeof llm !== "object" ||
+    llm === null ||
+    !("config" in llm) ||
+    typeof llm.config !== "object" ||
+    llm.config === null ||
+    !("concurrent" in llm.config) ||
+    typeof llm.config.concurrent !== "number" ||
+    !Number.isInteger(llm.config.concurrent) ||
+    llm.config.concurrent < 1
+  ) {
+    return 1;
+  }
+
+  return llm.config.concurrent;
 }

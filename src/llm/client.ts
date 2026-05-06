@@ -96,6 +96,7 @@ export class LLM<S extends string> {
   readonly #topP: TemperatureSetting;
 
   public readonly config: Readonly<{
+    concurrent: number;
     provider?: string;
     modelId: string;
     sampling?: SamplingScopeConfig<S>;
@@ -115,6 +116,7 @@ export class LLM<S extends string> {
     const modelInfo = resolveModelInfo(options.model);
 
     this.config = Object.freeze({
+      concurrent,
       modelId: modelInfo.modelId,
       temperature,
       stream,

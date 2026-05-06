@@ -5,7 +5,11 @@ export type {
   ReadonlySerialFragments,
 } from "./fragments.js";
 export { DirectoryDocument } from "./document.js";
-export type { Document, ReadonlyDocument } from "./document.js";
+export type {
+  Document,
+  DocumentContext,
+  ReadonlyDocument,
+} from "./document.js";
 export { SCHEMA_SQL } from "./schema.js";
 export {
   ChunkStore,
