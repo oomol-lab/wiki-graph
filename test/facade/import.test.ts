@@ -21,6 +21,8 @@ const serialMockState = vi.hoisted(() => ({
     readonly streamText: string;
   }>,
   releaseSerials: new Map<number, () => void>(),
+  startedResolvers: new Map<number, () => void>(),
+  startedSignals: new Map<number, Promise<void>>(),
   startedSerialIds: [] as number[],
 }));
 
@@ -56,6 +58,7 @@ vi.mock("../../src/serial.js", () => ({
       options: unknown,
     ): Promise<{ readonly id: number }> {
       serialMockState.startedSerialIds.push(serialId);
+      serialMockState.startedResolvers.get(serialId)?.();
 
       if (serialMockState.blockedSerialIds.has(serialId)) {
         await new Promise<void>((resolve) => {
@@ -90,6 +93,8 @@ describe("facade/import", () => {
     serialMockState.constructorOptions.length = 0;
     serialMockState.generateIntoCalls.length = 0;
     serialMockState.releaseSerials.clear();
+    serialMockState.startedResolvers.clear();
+    serialMockState.startedSignals.clear();
     serialMockState.startedSerialIds.length = 0;
   });
 
@@ -410,6 +415,16 @@ describe("facade/import", () => {
   it("runs planned serial generation up to the llm concurrent limit", async () => {
     await withTempDir("spinedigest-import-", async (path) => {
       const document = await DirectoryDocument.open(`${path}/document`);
+      const startedPromises = new Map<number, Promise<void>>();
+
+      for (const serialId of [1, 2, 3]) {
+        startedPromises.set(
+          serialId,
+          new Promise<void>((resolve) => {
+            serialMockState.startedResolvers.set(serialId, resolve);
+          }),
+        );
+      }
 
       serialMockState.blockedSerialIds.add(1);
       serialMockState.blockedSerialIds.add(2);
@@ -449,17 +464,16 @@ describe("facade/import", () => {
           },
         );
 
-        await vi.waitFor(() => {
-          expect(serialMockState.startedSerialIds).toStrictEqual([1, 2]);
-        });
-        await new Promise((resolve) => setTimeout(resolve, 20));
+        await Promise.all([
+          startedPromises.get(1),
+          startedPromises.get(2),
+        ]);
         expect(serialMockState.startedSerialIds).toStrictEqual([1, 2]);
 
         serialMockState.releaseSerials.get(1)?.();
 
-        await vi.waitFor(() => {
-          expect(serialMockState.startedSerialIds).toStrictEqual([1, 2, 3]);
-        });
+        await startedPromises.get(3);
+        expect(serialMockState.startedSerialIds).toStrictEqual([1, 2, 3]);
 
         serialMockState.releaseSerials.get(2)?.();
 
