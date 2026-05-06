@@ -135,6 +135,118 @@ describe("llm/client", () => {
     expect(aiMockState.streamTextCalls).toHaveLength(0);
   });
 
+  it("moves a leading system message to the top-level system field", async () => {
+    const llm = new LLM({
+      dataDirPath: process.cwd(),
+      model: {
+        modelId: "test-model",
+        provider: "test-provider",
+      } as never,
+    });
+
+    await llm.request([
+      {
+        content: "follow the style guide",
+        role: "system",
+      },
+      {
+        content: "hello",
+        role: "user",
+      },
+    ]);
+
+    expect(aiMockState.generateTextCalls).toHaveLength(1);
+    expect(
+      aiMockState.generateTextCalls[0] as {
+        readonly messages: readonly unknown[];
+        readonly system?: unknown;
+      },
+    ).toMatchObject({
+      messages: [
+        {
+          content: "hello",
+          role: "user",
+        },
+      ],
+      system: {
+        content: "follow the style guide",
+        role: "system",
+      },
+    });
+  });
+
+  it("keeps cache keys based on the original messages", async () => {
+    const llm = new LLM({
+      cacheDirPath: process.cwd(),
+      dataDirPath: process.cwd(),
+      model: {
+        modelId: "test-model",
+        provider: "test-provider",
+      } as never,
+    });
+    const messages = [
+      {
+        content: "follow the style guide",
+        role: "system",
+      },
+      {
+        content: "hello",
+        role: "user",
+      },
+    ] as const;
+
+    await expect(llm.request(messages)).resolves.toBe("generated response");
+    aiMockState.generateTextResponse = "cached response should not be used";
+
+    await expect(llm.request(messages)).resolves.toBe("generated response");
+
+    expect(aiMockState.generateTextCalls).toHaveLength(1);
+  });
+
+  it("preserves non-leading system messages in the messages array", async () => {
+    const llm = new LLM({
+      dataDirPath: process.cwd(),
+      model: {
+        modelId: "test-model",
+        provider: "test-provider",
+      } as never,
+    });
+
+    await llm.request([
+      {
+        content: "hello",
+        role: "user",
+      },
+      {
+        content: "follow the style guide",
+        role: "system",
+      },
+    ]);
+
+    expect(aiMockState.generateTextCalls).toHaveLength(1);
+    expect(
+      aiMockState.generateTextCalls[0] as {
+        readonly messages: readonly unknown[];
+        readonly system?: unknown;
+      },
+    ).toMatchObject({
+      messages: [
+        {
+          content: "hello",
+          role: "user",
+        },
+        {
+          content: "follow the style guide",
+          role: "system",
+        },
+      ],
+    });
+    expect(
+      (aiMockState.generateTextCalls[0] as { readonly system?: unknown })
+        .system,
+    ).toBeUndefined();
+  });
+
   it("uses streamText when stream mode is enabled", async () => {
     const llm = new LLM({
       dataDirPath: process.cwd(),
