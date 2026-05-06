@@ -1,5 +1,6 @@
 import { parseCLIArguments } from "./args.js";
 import { runConvertCommand } from "./convert.js";
+import { runStatusCommand } from "./status.js";
 import { runSdpubCommand } from "./sdpub.js";
 import { formatError } from "../utils/node-error.js";
 
@@ -22,6 +23,9 @@ export async function main(): Promise<void> {
         }
 
         await runSdpubCommand(parsed.args);
+        return;
+      case "status":
+        await runStatusCommand();
         return;
     }
   } catch (error) {

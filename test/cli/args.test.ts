@@ -4,6 +4,7 @@ import { parseCLIArguments } from "../../src/cli/args.js";
 import {
   renderHelpTopicText,
   renderMainHelpText,
+  renderStatusHelpText,
   renderSdpubHelpText,
   renderSdpubSubcommandHelpText,
 } from "../../src/cli/help.js";
@@ -124,6 +125,19 @@ describe("cli/args", () => {
     });
   });
 
+  it("parses status and prints status help text", () => {
+    expect(parseCLIArguments(["status"])).toStrictEqual({
+      help: false,
+      kind: "status",
+    });
+
+    expect(parseCLIArguments(["status", "--help"])).toStrictEqual({
+      help: true,
+      helpText: renderStatusHelpText(),
+      kind: "status",
+    });
+  });
+
   it("prints help topic pages", () => {
     expect(parseCLIArguments(["help", "runtime"])).toStrictEqual({
       help: true,
@@ -227,12 +241,25 @@ describe("cli/args", () => {
     );
   });
 
+  it("rejects invalid status usage", () => {
+    expect(() => parseCLIArguments(["status", "--input", "book.epub"])).toThrow(
+      "The `status` command does not support --input.\nSee: spinedigest status --help",
+    );
+    expect(() => parseCLIArguments(["status", "--verbose"])).toThrow(
+      "The `status` command does not support --verbose.\nSee: spinedigest status --help",
+    );
+    expect(() => parseCLIArguments(["status", "extra"])).toThrow(
+      "Unexpected positional arguments: extra.\nSee: spinedigest status --help",
+    );
+  });
+
   it("documents the layered help contract", () => {
     const rootHelpText = renderMainHelpText();
     const sdpubHelpText = renderSdpubHelpText();
     const commandHelpText = renderHelpTopicText("command");
 
     expect(rootHelpText).toContain("spinedigest help [topic]");
+    expect(rootHelpText).toContain("spinedigest status [--help|-h]");
     expect(rootHelpText).toContain("spinedigest help overview");
     expect(rootHelpText).toContain("spinedigest help env");
     expect(rootHelpText).toContain("spinedigest help config-file");
@@ -251,6 +278,7 @@ describe("cli/args", () => {
     expect(rootHelpText).toContain("Use `spinedigest help troubleshoot`");
     expect(renderHelpTopicText("runtime")).toContain("Runtime Behavior");
     expect(renderHelpTopicText("config")).toContain("Configuration Overview");
+    expect(renderHelpTopicText("command")).toContain("spinedigest status");
     expect(renderHelpTopicText("ai")).toContain("Suggested first pass:");
     expect(renderHelpTopicText("ai")).toContain(
       "Begin at `spinedigest --help`, which acts as the root page",

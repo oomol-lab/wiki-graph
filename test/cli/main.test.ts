@@ -12,8 +12,10 @@ const mainMockState = vi.hoisted(() => ({
   } as Record<string, unknown>,
   parseError: undefined as Error | undefined,
   runCalls: [] as unknown[],
+  statusRunCalls: 0,
   sdpubRunCalls: [] as unknown[],
   runError: undefined as Error | undefined,
+  statusRunError: undefined as Error | undefined,
   sdpubRunError: undefined as Error | undefined,
 }));
 
@@ -33,6 +35,18 @@ vi.mock("../../src/cli/convert.js", () => ({
 
     if (mainMockState.runError !== undefined) {
       return Promise.reject(mainMockState.runError);
+    }
+
+    return Promise.resolve();
+  }),
+}));
+
+vi.mock("../../src/cli/status.js", () => ({
+  runStatusCommand: vi.fn(() => {
+    mainMockState.statusRunCalls += 1;
+
+    if (mainMockState.statusRunError !== undefined) {
+      return Promise.reject(mainMockState.statusRunError);
     }
 
     return Promise.resolve();
@@ -71,8 +85,10 @@ describe("cli/main", () => {
     };
     mainMockState.parseError = undefined;
     mainMockState.runCalls.length = 0;
+    mainMockState.statusRunCalls = 0;
     mainMockState.sdpubRunCalls.length = 0;
     mainMockState.runError = undefined;
+    mainMockState.statusRunError = undefined;
     mainMockState.sdpubRunError = undefined;
     process.exitCode = 0;
     stdoutChunks = [];
@@ -109,6 +125,7 @@ describe("cli/main", () => {
     expect(stdoutChunks).toStrictEqual(["CLI HELP\n"]);
     expect(stderrChunks).toStrictEqual([]);
     expect(mainMockState.runCalls).toHaveLength(0);
+    expect(mainMockState.statusRunCalls).toBe(0);
     expect(mainMockState.sdpubRunCalls).toHaveLength(0);
     expect(process.exitCode).toBe(0);
   });
@@ -136,8 +153,23 @@ describe("cli/main", () => {
       },
     ]);
     expect(mainMockState.sdpubRunCalls).toHaveLength(0);
+    expect(mainMockState.statusRunCalls).toBe(0);
     expect(stdoutChunks).toStrictEqual([]);
     expect(stderrChunks).toStrictEqual([]);
+    expect(process.exitCode).toBe(0);
+  });
+
+  it("runs the status command for status execution", async () => {
+    mainMockState.argsResult = {
+      help: false,
+      kind: "status",
+    };
+
+    await main();
+
+    expect(mainMockState.runCalls).toHaveLength(0);
+    expect(mainMockState.statusRunCalls).toBe(1);
+    expect(mainMockState.sdpubRunCalls).toHaveLength(0);
     expect(process.exitCode).toBe(0);
   });
 
@@ -170,6 +202,7 @@ describe("cli/main", () => {
 
     expect(stderrChunks).toStrictEqual(["bad args\n"]);
     expect(mainMockState.runCalls).toHaveLength(0);
+    expect(mainMockState.statusRunCalls).toBe(0);
     expect(process.exitCode).toBe(1);
   });
 
@@ -193,6 +226,20 @@ describe("cli/main", () => {
         verbose: false,
       },
     ]);
+    expect(process.exitCode).toBe(1);
+  });
+
+  it("writes status command failures to stderr and sets a non-zero exit code", async () => {
+    mainMockState.argsResult = {
+      help: false,
+      kind: "status",
+    };
+    mainMockState.statusRunError = new Error("status failed");
+
+    await main();
+
+    expect(stderrChunks).toStrictEqual(["status failed\n"]);
+    expect(mainMockState.statusRunCalls).toBe(1);
     expect(process.exitCode).toBe(1);
   });
 

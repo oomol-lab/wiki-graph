@@ -10,6 +10,7 @@ import {
   parseHelpTopic,
   renderHelpTopicText,
   renderMainHelpText,
+  renderStatusHelpText,
   renderSdpubHelpText,
   renderSdpubSubcommandHelpText,
   SDPUB_SUBCOMMANDS,
@@ -60,6 +61,15 @@ export type ParsedCLIArguments =
       readonly help: true;
       readonly helpText: string;
       readonly kind: "help";
+    }
+  | {
+      readonly help: false;
+      readonly kind: "status";
+    }
+  | {
+      readonly help: true;
+      readonly helpText: string;
+      readonly kind: "status";
     };
 
 export function parseCLIArguments(
@@ -108,6 +118,10 @@ export function parseCLIArguments(
 
   if (positionals[0] === "sdpub") {
     return parseSdpubArguments(positionals.slice(1), values);
+  }
+
+  if (positionals[0] === "status") {
+    return parseStatusArguments(positionals.slice(1), values);
   }
 
   if (positionals.length > 0) {
@@ -383,6 +397,60 @@ function parseHelpArguments(
   };
 }
 
+function parseStatusArguments(
+  positionals: readonly string[],
+  values: {
+    readonly "digest-dir"?: string;
+    readonly help?: boolean;
+    readonly input?: string;
+    readonly "input-format"?: string;
+    readonly output?: string;
+    readonly "output-format"?: string;
+    readonly prompt?: string;
+    readonly serial?: string;
+    readonly verbose?: boolean;
+  },
+): ParsedCLIArguments {
+  rejectStatusFlag("digest-dir", values["digest-dir"]);
+  rejectStatusFlag("input", values.input);
+  rejectStatusFlag("input-format", values["input-format"]);
+  rejectStatusFlag("output", values.output);
+  rejectStatusFlag("output-format", values["output-format"]);
+  rejectStatusFlag("prompt", values.prompt);
+  rejectStatusFlag("serial", values.serial);
+
+  if (values.verbose) {
+    throw new Error(
+      withHelpRoute(
+        "The `status` command does not support --verbose.",
+        "spinedigest status --help",
+      ),
+    );
+  }
+
+  if (positionals.length > 0) {
+    throw new Error(
+      withHelpRoute(
+        `Unexpected positional arguments: ${positionals.join(" ")}.`,
+        "spinedigest status --help",
+      ),
+    );
+  }
+
+  if (values.help ?? false) {
+    return {
+      help: true,
+      helpText: renderStatusHelpText(),
+      kind: "status",
+    };
+  }
+
+  return {
+    help: false,
+    kind: "status",
+  };
+}
+
 function parseSerialId(value: string, flag: string, helpRoute: string): number {
   const normalized = value.trim();
 
@@ -404,6 +472,17 @@ function rejectHelpFlag(name: string, value: string | undefined): void {
       withHelpRoute(
         `The \`help\` command does not support --${name}.`,
         CLI_HELP_ROUTES.root,
+      ),
+    );
+  }
+}
+
+function rejectStatusFlag(name: string, value: string | undefined): void {
+  if (value !== undefined) {
+    throw new Error(
+      withHelpRoute(
+        `The \`status\` command does not support --${name}.`,
+        "spinedigest status --help",
       ),
     );
   }

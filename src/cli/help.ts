@@ -132,6 +132,10 @@ export function renderMainHelpText(): string {
   return renderHelpTemplate("help/commands/root");
 }
 
+export function renderStatusHelpText(): string {
+  return renderHelpTemplate("help/commands/status");
+}
+
 export function renderHelpTopicText(topic: HelpTopic): string {
   return renderHelpTemplate(HELP_TOPIC_TEMPLATE_NAMES[topic]);
 }

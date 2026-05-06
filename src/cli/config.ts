@@ -76,8 +76,8 @@ export interface CLIConfig {
 type CLIConfigFile = z.infer<typeof cliConfigSchema>;
 
 export async function loadCLIConfig(): Promise<CLIConfig> {
-  const configFilePath = resolveConfigFilePath(process.env.SPINEDIGEST_CONFIG);
-  const fileConfig = await readConfigFile(configFilePath);
+  const configFilePath = resolveCLIConfigFilePath();
+  const fileConfig = await readCLIConfigFile(configFilePath);
   const configDirectoryPath = dirname(configFilePath);
 
   const prompt = firstDefined(
@@ -177,7 +177,11 @@ export async function loadCLIConfig(): Promise<CLIConfig> {
   };
 }
 
-async function readConfigFile(path: string): Promise<CLIConfigFile> {
+export function resolveCLIConfigFilePath(): string {
+  return resolveConfigFilePath(process.env.SPINEDIGEST_CONFIG);
+}
+
+export async function readCLIConfigFile(path: string): Promise<CLIConfigFile> {
   if (!existsSync(path)) {
     return {};
   }
