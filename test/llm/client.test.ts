@@ -242,7 +242,8 @@ describe("llm/client", () => {
       ],
     });
     expect(
-      (aiMockState.generateTextCalls[0] as { readonly system?: unknown }).system,
+      (aiMockState.generateTextCalls[0] as { readonly system?: unknown })
+        .system,
     ).toBeUndefined();
   });
 
