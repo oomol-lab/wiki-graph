@@ -237,6 +237,7 @@ async function discoverPlannedSections(
   readonly {
     readonly fragments?: number;
     readonly id: number;
+    readonly title?: string | undefined;
     readonly words: number;
   }[]
 > {

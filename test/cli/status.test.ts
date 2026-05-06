@@ -104,6 +104,40 @@ describe("cli/status", () => {
     });
   });
 
+  it("masks short api keys without exposing the full secret", async () => {
+    await withTempDir("spinedigest-status-", async (path) => {
+      const configPath = `${path}/config.json`;
+
+      await writeFile(
+        configPath,
+        JSON.stringify(
+          {
+            llm: {
+              apiKey: "sk-x",
+              model: "gpt-4.1",
+              provider: "openai",
+            },
+          },
+          null,
+          2,
+        ),
+      );
+      process.env.SPINEDIGEST_CONFIG = configPath;
+
+      await runStatusCommand();
+
+      expect(statusMockState.stdoutTexts).toStrictEqual([
+        `{
+  "llm": {
+    "apiKey": "sk-***",
+    "model": "gpt-4.1",
+    "provider": "openai"
+  }
+}\n`,
+      ]);
+    });
+  });
+
   it("throws when the config file is invalid", async () => {
     await withTempDir("spinedigest-status-", async (path) => {
       const configPath = `${path}/broken.json`;

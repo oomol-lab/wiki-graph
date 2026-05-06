@@ -1,22 +1,9 @@
-import { existsSync } from "fs";
-import { readFile } from "fs/promises";
-
 import { readCLIConfigFile, resolveCLIConfigFilePath } from "./config.js";
 import { writeTextToStdout } from "./io.js";
 
 export async function runStatusCommand(): Promise<void> {
   const configFilePath = resolveCLIConfigFilePath();
-
-  await readCLIConfigFile(configFilePath);
-
-  if (!existsSync(configFilePath)) {
-    await writeTextToStdout("{}\n");
-    return;
-  }
-
-  const content = await readFile(configFilePath, "utf8");
-  const parsedJson = JSON.parse(content) as Record<string, unknown>;
-  const masked = maskConfigSecrets(parsedJson);
+  const masked = maskConfigSecrets(await readCLIConfigFile(configFilePath));
 
   await writeTextToStdout(`${JSON.stringify(masked, null, 2)}\n`);
 }
@@ -65,6 +52,10 @@ function maskAPIKey(value: unknown): string | number | boolean | null {
       typeof value === "boolean"
       ? value
       : null;
+  }
+
+  if (value.length <= 8) {
+    return `${value.slice(0, Math.min(3, value.length))}***`;
   }
 
   const visiblePrefixLength = Math.min(4, value.length);

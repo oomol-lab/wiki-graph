@@ -229,6 +229,54 @@ describe("cli/progress", () => {
       "       [######......] 10 / 20 words (1/2 fragments)",
     ]);
   });
+
+  it("sanitizes serial titles before rendering", async () => {
+    const stream = new FakeTTYStream();
+    const renderer = createCLIProgressRenderer({
+      enabled: true,
+      stream: stream as unknown as NodeJS.WriteStream,
+    });
+
+    if (renderer.onProgress === undefined) {
+      throw new Error(
+        "Progress callback should exist when renderer is enabled",
+      );
+    }
+
+    await renderer.onProgress({
+      available: true,
+      serials: [
+        {
+          fragments: 2,
+          id: 7,
+          title: "Line 1\n\u001B[31mLine 2\u001B[0m",
+          words: 10,
+        },
+      ],
+      type: "serials-discovered",
+    });
+    await renderer.onProgress({
+      completedFragments: 1,
+      completedWords: 5,
+      id: 7,
+      type: "serial-progress",
+    });
+    await renderer.onProgress({
+      completedWords: 5,
+      totalWords: 10,
+      type: "digest-progress",
+    });
+
+    await renderer.stop();
+
+    expect(stream.visibleLines()).toStrictEqual([
+      "Serial  [######......] 5 / 10 words",
+      "Digest  [######......] 5 / 10 words",
+      "------------------------",
+      "#7 Line 1Line 2",
+      "       [######......] 5 / 10 words (1/2 fragments)",
+    ]);
+  });
 });
 
 class FakeTTYStream {

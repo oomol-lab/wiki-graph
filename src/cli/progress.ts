@@ -248,7 +248,15 @@ function buildSerialHeading(
   serialId: number,
   title: string | undefined,
 ): string {
-  return title === undefined ? `#${serialId}` : `#${serialId} ${title}`;
+  if (title === undefined) {
+    return `#${serialId}`;
+  }
+
+  const sanitizedTitle = sanitizeSerialTitle(title);
+
+  return sanitizedTitle === ""
+    ? `#${serialId}`
+    : `#${serialId} ${sanitizedTitle}`;
 }
 
 function formatSerialDetailIndent(): string {
@@ -257,6 +265,75 @@ function formatSerialDetailIndent(): string {
 
 function buildWordsLabel(completed: number, total: number): string {
   return `${formatNumber(completed)} / ${formatNumber(total)} words`;
+}
+
+function sanitizeSerialTitle(title: string): string {
+  let sanitized = "";
+
+  for (let index = 0; index < title.length; index += 1) {
+    const current = title[index];
+
+    if (current === "\u001B") {
+      const next = title[index + 1];
+
+      if (next === "[") {
+        index = skipAnsiCSISequence(title, index + 2);
+        continue;
+      }
+
+      if (next === "]") {
+        index = skipAnsiOSCSequence(title, index + 2);
+        continue;
+      }
+
+      continue;
+    }
+
+    if (current !== undefined && /\p{Cc}/u.test(current)) {
+      continue;
+    }
+
+    sanitized += current ?? "";
+  }
+
+  return sanitized.trim();
+}
+
+function skipAnsiCSISequence(title: string, startIndex: number): number {
+  for (let index = startIndex; index < title.length; index += 1) {
+    const current = title[index];
+
+    if (current === undefined) {
+      return title.length;
+    }
+
+    if (current >= "@" && current <= "~") {
+      return index;
+    }
+  }
+
+  return title.length;
+}
+
+function skipAnsiOSCSequence(title: string, startIndex: number): number {
+  for (let index = startIndex; index < title.length; index += 1) {
+    const current = title[index];
+    const next = title[index + 1];
+
+    if (current === undefined) {
+      return title.length;
+    }
+
+    if (current === "\u0007") {
+      return index;
+    }
+
+    if (current === "\u001B" && next === "\\") {
+      return index + 1;
+    }
+  }
+
+  return title.length;
 }
 
 function buildFragmentsLabel(
