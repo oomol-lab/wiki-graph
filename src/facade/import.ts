@@ -100,12 +100,16 @@ export async function importSourceDocument(
   }
 
   const serials = await generatePlannedSerials(plannedSections, {
-    digestProgressTracker: options.digestProgressTracker,
     document: options.document,
     extractionPrompt: options.extractionPrompt,
     generation,
     serialConcurrency: resolveSerialGenerationConcurrency(options.llm),
-    userLanguage: options.userLanguage,
+    ...(options.digestProgressTracker === undefined
+      ? {}
+      : { digestProgressTracker: options.digestProgressTracker }),
+    ...(options.userLanguage === undefined
+      ? {}
+      : { userLanguage: options.userLanguage }),
   });
 
   await options.document.openSession(async (document) => {
