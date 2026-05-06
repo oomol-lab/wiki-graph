@@ -32,6 +32,7 @@ import {
   REVISION_FEEDBACK_PROMPT_TEMPLATE,
   TEXT_COMPRESSOR_PROMPT_TEMPLATE,
 } from "../../src/editor/prompt-templates.js";
+import { RESPONSE_INTENT_CLASSIFIER_PROMPT_TEMPLATE } from "../../src/guaranteed/index.js";
 import { ScriptedLLM } from "../helpers/scripted-llm.js";
 
 describe("editor/editor", () => {
@@ -143,9 +144,11 @@ describe("editor/editor", () => {
       CLUE_REVIEWER_GENERATOR_PROMPT_TEMPLATE,
       TEXT_COMPRESSOR_PROMPT_TEMPLATE,
       CLUE_REVIEWER_PROMPT_TEMPLATE,
+      RESPONSE_INTENT_CLASSIFIER_PROMPT_TEMPLATE,
       REVISION_FEEDBACK_PROMPT_TEMPLATE,
       TEXT_COMPRESSOR_PROMPT_TEMPLATE,
       CLUE_REVIEWER_PROMPT_TEMPLATE,
+      RESPONSE_INTENT_CLASSIFIER_PROMPT_TEMPLATE,
     ]);
     expect(llm.calls).toHaveLength(5);
     expect(llm.calls[0]?.options.scope).toBe(
