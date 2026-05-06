@@ -1,5 +1,11 @@
 import type { LLMessage } from "../llm/index.js";
 import {
+  buildResponseIntentClassificationMessages,
+  classifyResponseIntentLocally,
+  parseResponseIntentClassification,
+  type GuaranteedResponseIntent,
+} from "./classifier.js";
+import {
   GuaranteedEmptyResponseError,
   GuaranteedParseValidationError,
   GuaranteedSchemaValidationError,
@@ -7,6 +13,8 @@ import {
   SuspectedModelRefusalError,
 } from "./errors.js";
 import {
+  buildMalformedJsonMessage,
+  buildNaturalLanguageMessage,
   buildBusinessErrorMessage,
   buildSchemaErrorMessage,
   buildSyntaxErrorMessage,
@@ -23,7 +31,7 @@ export async function requestGuaranteedJson<TData, TResult>(
 ): Promise<TResult> {
   const initialMessages = [...options.messages];
   let currentMessages = [...options.messages];
-  let consecutiveJsonSyntaxErrors = 0;
+  let consecutiveProtocolDerailments = 0;
   const maxRetries = options.maxRetries ?? DEFAULT_MAX_RETRIES;
 
   for (let index = 0; index <= maxRetries; index += 1) {
@@ -42,30 +50,75 @@ export async function requestGuaranteedJson<TData, TResult>(
 
       parsedData = JSON.parse(repairedJsonText);
     } catch (error) {
-      consecutiveJsonSyntaxErrors += 1;
+      const intent = await classifyResponseIntent(options, response, index);
 
-      if (consecutiveJsonSyntaxErrors >= 2 || index >= maxRetries) {
-        const reason =
-          index >= maxRetries
-            ? "last retry still returned non-JSON content"
-            : "two consecutive retries returned non-JSON content";
-        throw new SuspectedModelRefusalError(index + 1, maxRetries, {
+      if (intent === "natural_language") {
+        consecutiveProtocolDerailments += 1;
+
+        if (consecutiveProtocolDerailments >= 2 || index >= maxRetries) {
+          const reason =
+            index >= maxRetries
+              ? "last retry still returned natural-language content"
+              : "two consecutive retries returned natural-language content";
+          throw new SuspectedModelRefusalError(index + 1, maxRetries, {
+            response,
+            reason,
+          });
+        }
+
+        currentMessages = buildRetryMessages(
+          initialMessages,
           response,
-          reason,
-        });
+          buildNaturalLanguageMessage(),
+          false,
+        );
+        continue;
       }
+
+      consecutiveProtocolDerailments = 0;
       currentMessages = buildRetryMessages(
         initialMessages,
         response,
-        buildSyntaxErrorMessage(asSyntaxError(error)),
+        intent === "malformed_json"
+          ? buildMalformedJsonMessage(asSyntaxError(error))
+          : buildSyntaxErrorMessage(asSyntaxError(error)),
+        true,
       );
       continue;
     }
-    consecutiveJsonSyntaxErrors = 0;
+    consecutiveProtocolDerailments = 0;
 
     const validation = await options.schema.safeParseAsync(parsedData);
 
     if (!validation.success) {
+      if (shouldTreatSchemaFailureAsNaturalLanguage(validation.error, parsedData)) {
+        const intent = await classifyResponseIntent(options, response, index);
+
+        if (intent === "natural_language") {
+          consecutiveProtocolDerailments += 1;
+
+          if (consecutiveProtocolDerailments >= 2 || index >= maxRetries) {
+            const reason =
+              index >= maxRetries
+                ? "last retry still returned natural-language content"
+                : "two consecutive retries returned natural-language content";
+            throw new SuspectedModelRefusalError(index + 1, maxRetries, {
+              response,
+              reason,
+            });
+          }
+
+          currentMessages = buildRetryMessages(
+            initialMessages,
+            response,
+            buildNaturalLanguageMessage(),
+            false,
+          );
+          continue;
+        }
+      }
+
+      consecutiveProtocolDerailments = 0;
       const feedback = buildSchemaErrorMessage(validation.error);
 
       if (index >= maxRetries) {
@@ -79,7 +132,12 @@ export async function requestGuaranteedJson<TData, TResult>(
           validation.error,
         );
       }
-      currentMessages = buildRetryMessages(initialMessages, response, feedback);
+      currentMessages = buildRetryMessages(
+        initialMessages,
+        response,
+        feedback,
+        true,
+      );
       continue;
     }
 
@@ -102,7 +160,12 @@ export async function requestGuaranteedJson<TData, TResult>(
           error,
         );
       }
-      currentMessages = buildRetryMessages(initialMessages, response, feedback);
+      currentMessages = buildRetryMessages(
+        initialMessages,
+        response,
+        feedback,
+        true,
+      );
     }
   }
   throw new Error("requestGuaranteedJson failed unexpectedly");
@@ -112,13 +175,18 @@ function buildRetryMessages(
   initialMessages: readonly LLMessage[],
   response: string,
   feedback: string,
+  includeAssistantResponse: boolean,
 ): LLMessage[] {
   return [
     ...initialMessages,
-    {
-      role: "assistant",
-      content: response,
-    },
+    ...(includeAssistantResponse
+      ? [
+          {
+            role: "assistant" as const,
+            content: response,
+          },
+        ]
+      : []),
     {
       role: "user",
       content: feedback,
@@ -132,4 +200,57 @@ function asSyntaxError(error: unknown): SyntaxError {
   }
 
   return new SyntaxError(String(error));
+}
+
+async function classifyResponseIntent<TData, TResult>(
+  options: GuaranteedRequestOptions<TData, TResult>,
+  response: string,
+  index: number,
+): Promise<GuaranteedResponseIntent> {
+  const localIntent = classifyResponseIntentLocally(response);
+
+  if (localIntent !== "ambiguous") {
+    return localIntent;
+  }
+
+  try {
+    const classifierResponse = await options.request(
+      buildResponseIntentClassificationMessages(response),
+      index,
+      options.maxRetries ?? DEFAULT_MAX_RETRIES,
+    );
+
+    if (classifierResponse === undefined || classifierResponse.trim() === "") {
+      return "natural_language";
+    }
+
+    const classifierIntent =
+      parseResponseIntentClassification(classifierResponse);
+
+    return classifierIntent === "ambiguous"
+      ? "natural_language"
+      : classifierIntent;
+  } catch {
+    return "natural_language";
+  }
+}
+
+function shouldTreatSchemaFailureAsNaturalLanguage(
+  error: { issues: readonly { code?: string; path: readonly PropertyKey[]; expected?: unknown }[] },
+  parsedData: unknown,
+): boolean {
+  if (!isPrimitiveJsonValue(parsedData)) {
+    return false;
+  }
+
+  return error.issues.some(
+    (issue) =>
+      issue.code === "invalid_type" &&
+      issue.path.length === 0 &&
+      (issue.expected === "object" || issue.expected === "array"),
+  );
+}
+
+function isPrimitiveJsonValue(value: unknown): boolean {
+  return value === null || (typeof value !== "object" && typeof value !== "function");
 }
