@@ -13,12 +13,15 @@ import { importSource, importSourceDocument } from "../../src/facade/import.js";
 import { withTempDir } from "../helpers/temp.js";
 
 const serialMockState = vi.hoisted(() => ({
+  blockedSerialIds: new Set<number>(),
   constructorOptions: [] as unknown[],
   generateIntoCalls: [] as Array<{
     readonly options: unknown;
     readonly serialId: number;
     readonly streamText: string;
   }>,
+  releaseSerials: new Map<number, () => void>(),
+  startedSerialIds: [] as number[],
 }));
 
 vi.mock("../../src/serial.js", () => ({
@@ -52,6 +55,14 @@ vi.mock("../../src/serial.js", () => ({
       stream: AsyncIterable<string> | Iterable<string>,
       options: unknown,
     ): Promise<{ readonly id: number }> {
+      serialMockState.startedSerialIds.push(serialId);
+
+      if (serialMockState.blockedSerialIds.has(serialId)) {
+        await new Promise<void>((resolve) => {
+          serialMockState.releaseSerials.set(serialId, resolve);
+        });
+      }
+
       let streamText = "";
 
       for await (const chunk of stream) {
@@ -75,8 +86,11 @@ vi.mock("../../src/serial.js", () => ({
 
 describe("facade/import", () => {
   beforeEach(() => {
+    serialMockState.blockedSerialIds.clear();
     serialMockState.constructorOptions.length = 0;
     serialMockState.generateIntoCalls.length = 0;
+    serialMockState.releaseSerials.clear();
+    serialMockState.startedSerialIds.length = 0;
   });
 
   it("imports source sections into an empty document with planned toc titles", async () => {
@@ -388,6 +402,75 @@ describe("facade/import", () => {
         expect(openCounts.get("Spacer")).toBeUndefined();
         expect(openCounts.get("Chapter 2")).toBe(1);
       } finally {
+        await document.release();
+      }
+    });
+  });
+
+  it("runs planned serial generation up to the llm concurrent limit", async () => {
+    await withTempDir("spinedigest-import-", async (path) => {
+      const document = await DirectoryDocument.open(`${path}/document`);
+
+      serialMockState.blockedSerialIds.add(1);
+      serialMockState.blockedSerialIds.add(2);
+
+      try {
+        const importPromise = importSourceDocument(
+          createSourceDocument({
+            meta: createBookMeta({
+              title: "Concurrent Fixture",
+            }),
+            sections: [
+              createSourceSection({
+                hasContent: true,
+                streamText: "Chapter one",
+                title: "Chapter 1",
+              }),
+              createSourceSection({
+                hasContent: true,
+                streamText: "Chapter two",
+                title: "Chapter 2",
+              }),
+              createSourceSection({
+                hasContent: true,
+                streamText: "Chapter three",
+                title: "Chapter 3",
+              }),
+            ],
+          }),
+          {
+            document,
+            extractionPrompt: "Keep key beats",
+            llm: {
+              config: {
+                concurrent: 2,
+              },
+            } as never,
+          },
+        );
+
+        await vi.waitFor(() => {
+          expect(serialMockState.startedSerialIds).toStrictEqual([1, 2]);
+        });
+        await new Promise((resolve) => setTimeout(resolve, 20));
+        expect(serialMockState.startedSerialIds).toStrictEqual([1, 2]);
+
+        serialMockState.releaseSerials.get(1)?.();
+
+        await vi.waitFor(() => {
+          expect(serialMockState.startedSerialIds).toStrictEqual([1, 2, 3]);
+        });
+
+        serialMockState.releaseSerials.get(2)?.();
+
+        const imported = await importPromise;
+
+        expect(imported.serials.map((serial) => serial.id)).toStrictEqual([
+          1, 2, 3,
+        ]);
+      } finally {
+        serialMockState.releaseSerials.get(1)?.();
+        serialMockState.releaseSerials.get(2)?.();
         await document.release();
       }
     });

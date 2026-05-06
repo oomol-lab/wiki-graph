@@ -1,5 +1,5 @@
 import { AsyncLocalStorage } from "async_hooks";
-import { mkdir, readFile, unlink, writeFile } from "fs/promises";
+import { mkdir, readFile, rm, unlink, writeFile } from "fs/promises";
 import { join, resolve } from "path";
 import { z } from "zod";
 
@@ -58,6 +58,13 @@ export interface ReadonlyDocument {
   release(): Promise<void>;
 }
 
+export interface DocumentContext {
+  complete(): void;
+  dispose(): Promise<void>;
+  ownSerial(serialId: number): void;
+  run<T>(operation: () => Promise<T> | T): Promise<T>;
+}
+
 export interface Document extends ReadonlyDocument {
   readonly chunks: ChunkStore;
   readonly fragmentGroups: FragmentGroupStore;
@@ -67,6 +74,7 @@ export interface Document extends ReadonlyDocument {
   readonly snakeEdges: SnakeEdgeStore;
   readonly snakes: SnakeStore;
 
+  createContext(): DocumentContext;
   getSerialFragments(serialId: number): SerialFragments;
   createSerial(): Promise<number>;
   flush(): Promise<void>;
@@ -76,10 +84,6 @@ export interface Document extends ReadonlyDocument {
   writeCover(cover: SourceAsset): Promise<void>;
   writeSummary(serialId: number, summary: string): Promise<void>;
   writeToc(toc: TocFile): Promise<void>;
-}
-
-interface DocumentSessionState {
-  readonly createdFilePaths: string[];
 }
 
 export class DirectoryDocument implements Document {
@@ -94,7 +98,7 @@ export class DirectoryDocument implements Document {
 
   readonly #database: Database;
   readonly #fragments: Fragments;
-  readonly #sessionScope = new AsyncLocalStorage<DocumentSessionState>();
+  readonly #contextScope = new AsyncLocalStorage<DirectoryDocumentContext>();
 
   public constructor(database: Database, fragments: Fragments, path: string) {
     this.#database = database;
@@ -153,8 +157,15 @@ export class DirectoryDocument implements Document {
     return this.#fragments.getSerial(serialId);
   }
 
+  public createContext(): DocumentContext {
+    return new DirectoryDocumentContext(this);
+  }
+
   public async createSerial(): Promise<number> {
-    return await this.serials.create();
+    const serialId = await this.serials.create();
+
+    this.#contextScope.getStore()?.ownSerial(serialId);
+    return serialId;
   }
 
   public async getSentence(sentenceId: SentenceId): Promise<string> {
@@ -164,27 +175,23 @@ export class DirectoryDocument implements Document {
   public async openSession<T>(
     operation: (document: Document) => Promise<T> | T,
   ): Promise<T> {
-    const activeSession = this.#sessionScope.getStore();
+    const activeContext = this.#contextScope.getStore();
 
-    if (activeSession !== undefined) {
+    if (activeContext !== undefined) {
       return await operation(this);
     }
 
-    const session = {
-      createdFilePaths: [],
-    } satisfies DocumentSessionState;
+    const context = new DirectoryDocumentContext(this);
 
     try {
-      return await this.#database.transaction(
-        async () =>
-          await this.#sessionScope.run(
-            session,
-            async () => await operation(this),
-          ),
+      const result = await this.#database.transaction(
+        async () => await context.run(async () => await operation(this)),
       );
-    } catch (error) {
-      await this.#rollbackCreatedFiles(session);
-      throw error;
+
+      context.complete();
+      return result;
+    } finally {
+      await context.dispose();
     }
   }
 
@@ -274,10 +281,122 @@ export class DirectoryDocument implements Document {
     await this.release();
   }
 
-  async #rollbackCreatedFiles(session: DocumentSessionState): Promise<void> {
-    for (const path of [...session.createdFilePaths].reverse()) {
+  async #rollbackContext(context: DirectoryDocumentContext): Promise<void> {
+    await this.#rollbackOwnedSerials(context.listOwnedSerialIds());
+    await this.#rollbackCreatedFiles(context.listCreatedFilePaths());
+  }
+
+  async #rollbackCreatedFiles(
+    createdFilePaths: readonly string[],
+  ): Promise<void> {
+    for (const path of [...createdFilePaths].reverse()) {
       try {
         await unlink(path);
+      } catch (error) {
+        if (isNodeError(error) && error.code === "ENOENT") {
+          continue;
+        }
+
+        throw error;
+      }
+    }
+  }
+
+  async #rollbackOwnedSerials(serialIds: readonly number[]): Promise<void> {
+    for (const serialId of [...serialIds].sort(compareNumberDescending)) {
+      await this.#database.transaction(async () => {
+        await this.#database.run(
+          `
+            DELETE FROM snake_edges
+            WHERE from_snake_id IN (
+              SELECT id
+              FROM snakes
+              WHERE serial_id = ?
+            ) OR to_snake_id IN (
+              SELECT id
+              FROM snakes
+              WHERE serial_id = ?
+            )
+          `,
+          [serialId, serialId],
+        );
+        await this.#database.run(
+          `
+            DELETE FROM snake_chunks
+            WHERE snake_id IN (
+              SELECT id
+              FROM snakes
+              WHERE serial_id = ?
+            )
+          `,
+          [serialId],
+        );
+        await this.#database.run(
+          `
+            DELETE FROM snakes
+            WHERE serial_id = ?
+          `,
+          [serialId],
+        );
+        await this.#database.run(
+          `
+            DELETE FROM fragment_groups
+            WHERE serial_id = ?
+          `,
+          [serialId],
+        );
+        await this.#database.run(
+          `
+            DELETE FROM knowledge_edges
+            WHERE from_id IN (
+              SELECT id
+              FROM chunks
+              WHERE serial_id = ?
+            ) OR to_id IN (
+              SELECT id
+              FROM chunks
+              WHERE serial_id = ?
+            )
+          `,
+          [serialId, serialId],
+        );
+        await this.#database.run(
+          `
+            DELETE FROM chunk_sentences
+            WHERE serial_id = ?
+          `,
+          [serialId],
+        );
+        await this.#database.run(
+          `
+            DELETE FROM chunks
+            WHERE serial_id = ?
+          `,
+          [serialId],
+        );
+        await this.#database.run(
+          `
+            DELETE FROM serial_states
+            WHERE serial_id = ?
+          `,
+          [serialId],
+        );
+        await this.#database.run(
+          `
+            DELETE FROM serials
+            WHERE id = ?
+          `,
+          [serialId],
+        );
+      });
+
+      await rm(this.#fragments.getSerial(serialId).path, {
+        force: true,
+        recursive: true,
+      });
+
+      try {
+        await unlink(this.#getSummaryPath(serialId));
       } catch (error) {
         if (isNodeError(error) && error.code === "ENOENT") {
           continue;
@@ -352,7 +471,7 @@ export class DirectoryDocument implements Document {
       throw error;
     }
 
-    this.#sessionScope.getStore()?.createdFilePaths.push(path);
+    this.#contextScope.getStore()?.registerCreatedFile(path);
   }
 
   #getSummariesPath(): string {
@@ -382,4 +501,80 @@ export class DirectoryDocument implements Document {
   #getTocPath(): string {
     return join(this.path, "toc.json");
   }
+
+  public async runWithContext<T>(
+    context: DirectoryDocumentContext,
+    operation: () => Promise<T> | T,
+  ): Promise<T> {
+    return await this.#contextScope.run(context, operation);
+  }
+
+  public async rollbackContext(
+    context: DirectoryDocumentContext,
+  ): Promise<void> {
+    await this.#rollbackContext(context);
+  }
+}
+
+class DirectoryDocumentContext implements DocumentContext {
+  readonly #createdFilePaths: string[] = [];
+  readonly #document: DirectoryDocument;
+  readonly #ownedSerialIds = new Set<number>();
+  #completed = false;
+  #disposed = false;
+
+  public constructor(document: DirectoryDocument) {
+    this.#document = document;
+  }
+
+  public complete(): void {
+    this.#assertActive();
+    this.#completed = true;
+  }
+
+  public async dispose(): Promise<void> {
+    if (this.#disposed) {
+      return;
+    }
+
+    this.#disposed = true;
+
+    if (this.#completed) {
+      return;
+    }
+
+    await this.#document.rollbackContext(this);
+  }
+
+  public ownSerial(serialId: number): void {
+    this.#assertActive();
+    this.#ownedSerialIds.add(serialId);
+  }
+
+  public async run<T>(operation: () => Promise<T> | T): Promise<T> {
+    this.#assertActive();
+    return await this.#document.runWithContext(this, operation);
+  }
+
+  public listCreatedFilePaths(): readonly string[] {
+    return [...this.#createdFilePaths];
+  }
+
+  public listOwnedSerialIds(): readonly number[] {
+    return [...this.#ownedSerialIds];
+  }
+
+  public registerCreatedFile(path: string): void {
+    this.#createdFilePaths.push(path);
+  }
+
+  #assertActive(): void {
+    if (this.#disposed) {
+      throw new Error("DocumentContext is already disposed");
+    }
+  }
+}
+
+function compareNumberDescending(left: number, right: number): number {
+  return right - left;
 }

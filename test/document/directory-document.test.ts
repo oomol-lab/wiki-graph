@@ -131,4 +131,30 @@ describe("document/directory-document", () => {
       }
     });
   });
+
+  it("rolls back owned serial resources when a document context is disposed without completion", async () => {
+    await withTempDir("spinedigest-document-", async (path) => {
+      const document = await DirectoryDocument.open(path);
+      const context = document.createContext();
+
+      context.ownSerial(1);
+
+      try {
+        await context.run(async () => {
+          await document.serials.createWithId(1);
+          await document.serials.setTopologyReady(1);
+          await document.writeSummary(1, "Transient summary");
+        });
+      } finally {
+        await context.dispose();
+      }
+
+      try {
+        await expect(document.serials.listIds()).resolves.toStrictEqual([]);
+        await expect(document.readSummary(1)).resolves.toBeUndefined();
+      } finally {
+        await document.release();
+      }
+    });
+  });
 });
