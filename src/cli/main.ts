@@ -2,6 +2,7 @@ import { parseCLIArguments } from "./args.js";
 import { runConvertCommand } from "./convert.js";
 import { runStatusCommand } from "./status.js";
 import { runSdpubCommand } from "./sdpub.js";
+import { LLMPaymentRequiredError } from "../llm/index.js";
 import { formatError } from "../utils/node-error.js";
 
 export async function main(): Promise<void> {
@@ -29,7 +30,15 @@ export async function main(): Promise<void> {
         return;
     }
   } catch (error) {
-    process.stderr.write(`${formatError(error)}\n`);
+    process.stderr.write(`${formatCLIError(error)}\n`);
     process.exitCode = 1;
   }
+}
+
+function formatCLIError(error: unknown): string {
+  if (error instanceof LLMPaymentRequiredError) {
+    return "LLM payment required. Check your provider billing status or account balance.";
+  }
+
+  return formatError(error);
 }

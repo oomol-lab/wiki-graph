@@ -80,6 +80,7 @@ vi.mock("ai", () => ({
 
 import { SpineDigestScope } from "../../src/common/llm-scope.js";
 import { LLM } from "../../src/llm/client.js";
+import { LLMPaymentRequiredError } from "../../src/llm/errors.js";
 import { withTempDir } from "../helpers/temp.js";
 
 const RETRYABLE_TRANSPORT_CODES = [
@@ -583,6 +584,53 @@ describe("llm/client", () => {
     ).rejects.toBe(aiMockState.generateTextError);
     expect(aiMockState.generateTextCalls).toHaveLength(1);
   });
+
+  it.each([false, true])(
+    "wraps HTTP 402 payment errors without retrying when isRetryable is %s",
+    async (isRetryable) => {
+      const { APICallError } = await import("ai");
+      const MockAPICallError = APICallError as unknown as {
+        new (
+          message: string,
+          options?: {
+            cause?: unknown;
+            isRetryable?: boolean;
+            statusCode?: number;
+          },
+        ): Error;
+      };
+
+      aiMockState.generateTextError = new MockAPICallError("Payment required", {
+        isRetryable,
+        statusCode: 402,
+      });
+
+      const llm = new LLM({
+        dataDirPath: process.cwd(),
+        model: {
+          modelId: "test-model",
+          provider: "test-provider",
+        } as never,
+        retryIntervalSeconds: 0,
+      });
+
+      const request = llm.request([
+        {
+          content: "hello",
+          role: "user",
+        },
+      ]);
+
+      await expect(request).rejects.toMatchObject({
+        cause: aiMockState.generateTextError,
+        isRetryable: false,
+        message: "LLM payment required.",
+        statusCode: 402,
+      });
+      await expect(request).rejects.toBeInstanceOf(LLMPaymentRequiredError);
+      expect(aiMockState.generateTextCalls).toHaveLength(1);
+    },
+  );
 
   it("retries terminated transport errors for streamText", async () => {
     aiMockState.streamTextError = new TypeError("terminated");

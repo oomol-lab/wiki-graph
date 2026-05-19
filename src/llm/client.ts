@@ -19,6 +19,7 @@ import { createHash } from "../utils/hash.js";
 import { formatError } from "../utils/node-error.js";
 import { LLMCache } from "./cache.js";
 import { LLMContext, type LLMContextRequestInput } from "./context.js";
+import { LLMPaymentRequiredError } from "./errors.js";
 import { createRequestLog } from "./request-log.js";
 import { getScopeDefaults, resolveSamplingSetting } from "./sampling.js";
 import type {
@@ -312,6 +313,17 @@ export class LLM<S extends string> {
       } catch (error) {
         lastError = error;
 
+        if (isPaymentRequiredError(error)) {
+          const paymentError = new LLMPaymentRequiredError(undefined, {
+            cause: error,
+          });
+
+          await requestLog.append(
+            `[[Error]]:\n${formatError(paymentError)}\n\n`,
+          );
+          throw paymentError;
+        }
+
         if (!isRetryableError(error)) {
           await requestLog.append(`[[Error]]:\n${formatError(error)}\n\n`);
           throw error;
@@ -526,6 +538,10 @@ function capitalize(value: string): string {
 
 function isRetryableError(error: unknown): boolean {
   if (APICallError.isInstance(error)) {
+    if (isPaymentRequiredError(error)) {
+      return false;
+    }
+
     if (error.isRetryable) {
       return true;
     }
@@ -534,6 +550,10 @@ function isRetryableError(error: unknown): boolean {
   }
 
   return !isAbortLikeError(error) && isRetryableTransportError(error);
+}
+
+function isPaymentRequiredError(error: unknown): boolean {
+  return APICallError.isInstance(error) && error.statusCode === 402;
 }
 
 function isRetryableStatusCode(statusCode: number | undefined): boolean {

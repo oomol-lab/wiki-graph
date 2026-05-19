@@ -66,6 +66,7 @@ vi.mock("../../src/cli/sdpub.js", () => ({
 }));
 
 import { main } from "../../src/cli/main.js";
+import { LLMPaymentRequiredError } from "../../src/llm/index.js";
 
 describe("cli/main", () => {
   const originalExitCode = process.exitCode;
@@ -282,6 +283,27 @@ describe("cli/main", () => {
     await main();
 
     expect(stderrChunks).toStrictEqual(["convert failed: tls reset\n"]);
+    expect(process.exitCode).toBe(1);
+  });
+
+  it("writes a stable payment required message for LLM billing failures", async () => {
+    mainMockState.argsResult = {
+      args: {
+        help: false,
+        verbose: false,
+      },
+      help: false,
+      kind: "convert",
+    };
+    mainMockState.runError = new LLMPaymentRequiredError("provider message", {
+      cause: new Error("raw provider error"),
+    });
+
+    await main();
+
+    expect(stderrChunks).toStrictEqual([
+      "LLM payment required. Check your provider billing status or account balance.\n",
+    ]);
     expect(process.exitCode).toBe(1);
   });
 });

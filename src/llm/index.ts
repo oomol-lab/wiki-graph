@@ -1,5 +1,6 @@
 export { LLM } from "./client.js";
 export { LLMContext } from "./context.js";
+export { LLMPaymentRequiredError } from "./errors.js";
 export {
   getScopeDefaults,
   resolveSamplingSetting,

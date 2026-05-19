@@ -1,4 +1,5 @@
 export { Language } from "./common/language.js";
+export { LLMPaymentRequiredError } from "./llm/index.js";
 export {
   type DigestProgressEvent,
   type SerialDiscoveryItem,
