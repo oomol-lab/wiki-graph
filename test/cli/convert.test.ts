@@ -26,6 +26,7 @@ const cliMockState = vi.hoisted(() => ({
     readonly method: "exportEpub" | "exportText" | "saveAs";
     readonly path: string;
   }>,
+  loadCLIConfigOptions: [] as unknown[],
   openCalls: [] as string[],
   resetDigestDirCalls: [] as string[],
   removeTemporaryDirectoryCalls: [] as string[],
@@ -99,7 +100,10 @@ vi.mock("../../src/index.js", () => ({
 }));
 
 vi.mock("../../src/cli/config.js", () => ({
-  loadCLIConfig: vi.fn(() => Promise.resolve(cliMockState.config)),
+  loadCLIConfig: vi.fn((options?: unknown) => {
+    cliMockState.loadCLIConfigOptions.push(options);
+    return Promise.resolve(cliMockState.config);
+  }),
 }));
 
 vi.mock("../../src/cli/llm.js", () => ({
@@ -156,6 +160,7 @@ describe("cli/convert", () => {
     cliMockState.digestCalls.textStream.length = 0;
     cliMockState.digestCalls.txt.length = 0;
     cliMockState.exportCalls.length = 0;
+    cliMockState.loadCLIConfigOptions.length = 0;
     cliMockState.openCalls.length = 0;
     cliMockState.resetDigestDirCalls.length = 0;
     cliMockState.removeTemporaryDirectoryCalls.length = 0;
@@ -285,6 +290,50 @@ describe("cli/convert", () => {
     ]);
   });
 
+  it("passes inline llm json into config loading", async () => {
+    cliMockState.config = {
+      llm: {
+        model: "gpt-test",
+        provider: "openai",
+      },
+    };
+
+    await runConvertCommand({
+      help: false,
+      inputPath: "/tmp/book.txt",
+      llmJSON: '{"model":"inline-model"}',
+      outputPath: "/tmp/output.txt",
+      verbose: false,
+    });
+
+    expect(cliMockState.loadCLIConfigOptions).toStrictEqual([
+      {
+        llmJSON: '{"model":"inline-model"}',
+      },
+    ]);
+    expect(cliMockState.buildLLMOptionsConfig).toStrictEqual([
+      cliMockState.config,
+    ]);
+  });
+
+  it("accepts inline llm json while reopening sdpub without building llm options", async () => {
+    await runConvertCommand({
+      help: false,
+      inputPath: "/tmp/book.sdpub",
+      llmJSON: '{"model":"inline-model"}',
+      outputPath: "/tmp/output.txt",
+      verbose: false,
+    });
+
+    expect(cliMockState.loadCLIConfigOptions).toStrictEqual([
+      {
+        llmJSON: '{"model":"inline-model"}',
+      },
+    ]);
+    expect(cliMockState.buildLLMOptionsConfig).toHaveLength(0);
+    expect(cliMockState.openCalls).toStrictEqual(["/tmp/book.sdpub"]);
+  });
+
   it("refuses to read interactive stdin when input is omitted", async () => {
     cliMockState.config = {
       llm: {
@@ -357,7 +406,7 @@ describe("cli/convert", () => {
         verbose: false,
       }),
     ).rejects.toThrow(
-      "Missing LLM configuration. Set `llm.provider` and `llm.model` in ~/.spinedigest/config.json or the matching SPINEDIGEST_LLM_* environment variables.\nSee: spinedigest help config",
+      "Missing LLM configuration. Set --llm, `llm.provider` and `llm.model` in ~/.spinedigest/config.json, or the matching SPINEDIGEST_LLM_* environment variables.\nSee: spinedigest help config",
     );
 
     expect(cliMockState.appConstructorOptions).toHaveLength(0);

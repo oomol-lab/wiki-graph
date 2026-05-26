@@ -1,9 +1,15 @@
-import { readCLIConfigFile, resolveCLIConfigFilePath } from "./config.js";
+import type { CLIStatusArguments } from "./args.js";
+import { loadCLIConfig } from "./config.js";
 import { writeTextToStdout } from "./io.js";
 
-export async function runStatusCommand(): Promise<void> {
-  const configFilePath = resolveCLIConfigFilePath();
-  const masked = maskConfigSecrets(await readCLIConfigFile(configFilePath));
+export async function runStatusCommand(
+  args: CLIStatusArguments,
+): Promise<void> {
+  const masked = maskConfigSecrets(
+    await loadCLIConfig({
+      ...(args.llmJSON === undefined ? {} : { llmJSON: args.llmJSON }),
+    }),
+  );
 
   await writeTextToStdout(`${JSON.stringify(masked, null, 2)}\n`);
 }

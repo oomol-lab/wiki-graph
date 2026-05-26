@@ -145,6 +145,73 @@ describe("cli/config", () => {
     });
   });
 
+  it("lets inline llm json override env and file llm values", async () => {
+    await withTempDir("spinedigest-config-", async (path) => {
+      const configPath = `${path}/config.json`;
+
+      await writeFile(
+        configPath,
+        JSON.stringify({
+          llm: {
+            apiKey: "file-key",
+            baseURL: "https://file.example/v1",
+            model: "file-model",
+            provider: "openai",
+          },
+        }),
+      );
+
+      process.env.SPINEDIGEST_CONFIG = configPath;
+      process.env.SPINEDIGEST_LLM_API_KEY = "env-key";
+      process.env.SPINEDIGEST_LLM_BASE_URL = "https://env.example/v1";
+      process.env.SPINEDIGEST_LLM_MODEL = "env-model";
+      process.env.SPINEDIGEST_LLM_PROVIDER = "openai-compatible";
+
+      await expect(
+        loadCLIConfig({
+          llmJSON: JSON.stringify({
+            apiKey: "inline-key",
+            baseUrl: "https://inline.example/v1",
+            model: "inline-model",
+          }),
+        }),
+      ).resolves.toStrictEqual({
+        configFilePath: configPath,
+        llm: {
+          apiKey: "inline-key",
+          baseURL: "https://inline.example/v1",
+          model: "inline-model",
+          provider: "openai-compatible",
+        },
+      });
+    });
+  });
+
+  it("accepts nested inline llm json and chat completions urls", async () => {
+    await withTempDir("spinedigest-config-", async (path) => {
+      process.env.SPINEDIGEST_CONFIG = `${path}/missing.json`;
+
+      await expect(
+        loadCLIConfig({
+          llmJSON: JSON.stringify({
+            llm: {
+              apiKey: "inline-key",
+              chatCompletionsUrl: "https://inline.example/v1/chat/completions",
+              model: "inline-model",
+            },
+          }),
+        }),
+      ).resolves.toStrictEqual({
+        llm: {
+          apiKey: "inline-key",
+          baseURL: "https://inline.example/v1",
+          model: "inline-model",
+          provider: "openai-compatible",
+        },
+      });
+    });
+  });
+
   it("returns an empty config when no config file exists", async () => {
     await withTempDir("spinedigest-config-", async (path) => {
       process.env.SPINEDIGEST_CONFIG = `${path}/missing.json`;
@@ -193,6 +260,38 @@ describe("cli/config", () => {
 
     await expect(loadCLIConfig()).rejects.toThrow(
       "SPINEDIGEST_REQUEST_STREAM must be true/false or 1/0.\nSee: spinedigest help env",
+    );
+
+    delete process.env.SPINEDIGEST_REQUEST_STREAM;
+
+    await expect(loadCLIConfig({ llmJSON: "{not json" })).rejects.toThrow(
+      "Invalid --llm JSON:",
+    );
+
+    await expect(loadCLIConfig({ llmJSON: "{}" })).rejects.toThrow(
+      "--llm must contain at least one supported LLM field.\nSee: spinedigest help config",
+    );
+
+    await expect(
+      loadCLIConfig({
+        llmJSON: JSON.stringify({
+          chatCompletionsUrl: "https://example.test/responses",
+        }),
+      }),
+    ).rejects.toThrow(
+      "--llm chatCompletionsUrl must end with /chat/completions when baseURL is not provided.\nSee: spinedigest help config",
+    );
+
+    await expect(
+      loadCLIConfig({
+        llmJSON: JSON.stringify({
+          llm: {
+            chatCompletionsUrl: "https://example.test/responses",
+          },
+        }),
+      }),
+    ).rejects.toThrow(
+      "--llm chatCompletionsUrl must end with /chat/completions when baseURL is not provided.\nSee: spinedigest help config",
     );
   });
 });

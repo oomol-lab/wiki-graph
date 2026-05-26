@@ -103,6 +103,8 @@ SpineDigest 至少需要：
 
 如果涉及密钥，通常更推荐通过环境变量覆盖。
 
+如果 Agent 已经持有运行时 LLM client descriptor，可以通过 `--llm <json>` 只为当前调用传入。这个 inline 对象对 OpenAI-compatible client 支持 `baseURL`、`baseUrl` 或 `chatCompletionsUrl`。
+
 ## 面向 Agent 的安全默认值
 
 - 相比 `stdout`，优先输出到文件

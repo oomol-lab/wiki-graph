@@ -11,6 +11,7 @@ Location:
 
 Scope:
   This file defines persistent machine defaults.
+  `--llm` overrides LLM-related file values for one run.
   Environment variables override file values.
   `--prompt` overrides prompt-related defaults for one run.
 
@@ -121,6 +122,11 @@ Applicability:
   - `llm.*`, `prompt`, `paths.cacheDir`, and `request.*` matter for source digest runs.
   - `.sdpub` re-export through the main convert command does not require LLM settings.
   - `paths.debugLogDir` can still matter outside source digest runs when the app emits debug logs.
+
+Inline LLM note:
+  `--llm <json>` is intentionally broader than this file schema.
+  It accepts direct LLM objects and common OpenAI-compatible aliases such as `baseUrl`.
+  The config file remains the narrower persistent schema shown on this page.
 
 Common failures:
   - Invalid JSON fails before execution starts.

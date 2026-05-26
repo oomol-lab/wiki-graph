@@ -9,15 +9,17 @@ SpineDigest is designed to be used from the command line first.
 Installed CLI:
 
 ```bash
-spinedigest [--input <path>] [--output <path>] [--input-format <format>] [--output-format <format>] [--digest-dir <path>] [--prompt <text>] [--verbose]
-spinedigest sdpub <info|toc|list|cat|cover> --input <path> [--serial <id>]
+spinedigest [--input <path>] [--output <path>] [--input-format <format>] [--output-format <format>] [--digest-dir <path>] [--llm <json>] [--prompt <text>] [--verbose]
+spinedigest status [--llm <json>]
+spinedigest sdpub <info|toc|list|cat|cover> --input <path> [--serial <id>] [--llm <json>]
 ```
 
 From a source checkout:
 
 ```bash
-pnpm dev -- [--input <path>] [--output <path>] [--input-format <format>] [--output-format <format>] [--digest-dir <path>] [--prompt <text>] [--verbose]
-pnpm dev -- sdpub <info|toc|list|cat|cover> --input <path> [--serial <id>]
+pnpm dev -- [--input <path>] [--output <path>] [--input-format <format>] [--output-format <format>] [--digest-dir <path>] [--llm <json>] [--prompt <text>] [--verbose]
+pnpm dev -- status [--llm <json>]
+pnpm dev -- sdpub <info|toc|list|cat|cover> --input <path> [--serial <id>] [--llm <json>]
 ```
 
 ## Flags
@@ -27,6 +29,7 @@ pnpm dev -- sdpub <info|toc|list|cat|cover> --input <path> [--serial <id>]
 - `--input-format <format>`: input format override
 - `--output-format <format>`: output format override
 - `--digest-dir <path>`: keep the digest workspace; the directory is cleared before each run
+- `--llm <json>`: inline LLM client JSON for this invocation
 - `--prompt <text>`: one-off extraction prompt override for the current digest run
 - `--verbose`: write diagnostic logs to `stderr`
 - `-h`, `--help`: print help text
@@ -38,6 +41,8 @@ The `sdpub` inspection interface uses positional subcommands: `spinedigest sdpub
 The `sdpub` inspection subcommands only accept `--input`, and `cat` also requires `--serial`.
 
 `--prompt` only affects digest generation from source inputs. It does not apply when reopening `.sdpub` archives or using `spinedigest sdpub ...`.
+
+`--llm` overrides LLM settings from environment variables and `config.json`. It is accepted by command paths that do not call an LLM so wrapper scripts can pass one consistent option set.
 
 ## Formats
 
@@ -128,6 +133,12 @@ Use a one-off extraction prompt:
 spinedigest --input ./book.md --output ./digest.md --prompt "Preserve named entities and decisive transitions."
 ```
 
+Use one-shot LLM client JSON:
+
+```bash
+spinedigest --llm "$LLM_JSON" --input ./book.md --output ./digest.md
+```
+
 ## Configuration
 
 Default config path:
@@ -171,7 +182,19 @@ Config fields:
 
 `request.timeout` is in milliseconds.
 
+Inline LLM JSON can be either a direct LLM object or an object with an `llm` field. It supports `provider`, `model`, `apiKey`, `baseURL`, `baseUrl`, `chatCompletionsUrl`, and `name`. A base URL implies `openai-compatible` when `provider` is omitted.
+
+```json
+{
+  "model": "<your-model>",
+  "apiKey": "<optional>",
+  "baseUrl": "https://your-provider.example/v1"
+}
+```
+
 For the main digest command, `--prompt` has the highest priority for the current run. Otherwise, `SPINEDIGEST_PROMPT` overrides `config.json`, and missing values fall back to the built-in default prompt.
+
+For LLM settings, `--llm` overrides `SPINEDIGEST_LLM_*` variables, which override `config.json`.
 
 ## Environment Variables
 
@@ -193,7 +216,7 @@ SpineDigest can override config values with environment variables:
 - `SPINEDIGEST_REQUEST_TEMPERATURE`
 - `SPINEDIGEST_REQUEST_TOP_P`
 
-`openai-compatible` requires a base URL from config or `SPINEDIGEST_LLM_BASE_URL`.
+`openai-compatible` requires a base URL from `--llm`, config, or `SPINEDIGEST_LLM_BASE_URL`.
 
 ## `.sdpub` Behavior
 

@@ -52,6 +52,7 @@ SpineDigest 会从以下位置读取配置：
 
 - 默认路径：`~/.spinedigest/config.json`
 - 覆盖路径：`SPINEDIGEST_CONFIG`
+- 临时 inline LLM JSON：`--llm <json>`
 
 最小配置文件示例：
 
@@ -77,6 +78,12 @@ export SPINEDIGEST_LLM_BASE_URL="https://your-provider.example/v1"
 ```
 
 如果你的环境更适合写进 `config.json`，也可以把这些字段写入配置文件。
+
+如果只是自动化里临时运行一次，也可以直接传 inline LLM client JSON：
+
+```bash
+spinedigest --llm "$LLM_JSON" --input ./book.md --output ./out/digest.md
+```
 
 ## 5. 跑第一条命令
 
@@ -177,6 +184,7 @@ spinedigest --input ./book.md --output ./digest.md --prompt "Preserve key argume
 如果看到缺少 LLM 配置的错误：
 
 - 确认已经设置 `llm.provider` 和 `llm.model`
+- 或者通过 `--llm` 传入 inline LLM 对象
 - 确认对应 provider 的 API key 已经可用
 
 如果格式推断失败：

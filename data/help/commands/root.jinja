@@ -8,9 +8,9 @@ Purpose:
   Digesting source input uses an LLM pipeline. Re-opening an existing .sdpub archive does not.
 
 Usage:
-  spinedigest [--input <path>] [--output <path>] [--input-format <format>] [--output-format <format>] [--digest-dir <path>] [--prompt <text>] [--verbose|-v] [--help|-h]
-  spinedigest status [--help|-h]
-  spinedigest sdpub <subcommand> --input <path> [--serial <id>] [--help|-h]
+  spinedigest [--input <path>] [--output <path>] [--input-format <format>] [--output-format <format>] [--digest-dir <path>] [--llm <json>] [--prompt <text>] [--verbose|-v] [--help|-h]
+  spinedigest status [--llm <json>] [--help|-h]
+  spinedigest sdpub <subcommand> --input <path> [--serial <id>] [--llm <json>] [--help|-h]
   spinedigest help [topic] [--help|-h]
 
 Help contract:
@@ -24,7 +24,7 @@ Flag aliases:
 
 Common paths:
   Source input -> digest -> markdown | txt | epub | .sdpub
-  Config status -> validate config file -> print masked JSON
+  Config status -> validate merged config -> print masked JSON
   .sdpub input -> re-export or inspect without re-running the digest pipeline
 
 Help topics:

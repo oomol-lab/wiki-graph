@@ -57,7 +57,7 @@ describe("cli/status", () => {
   it("prints {} when the config file does not exist", async () => {
     await withTempDir("spinedigest-status-", async (path) => {
       process.env.SPINEDIGEST_CONFIG = `${path}/missing.json`;
-      await runStatusCommand();
+      await runStatusCommand({});
 
       expect(statusMockState.stdoutTexts).toStrictEqual(["{}\n"]);
     });
@@ -87,17 +87,18 @@ describe("cli/status", () => {
       );
       process.env.SPINEDIGEST_CONFIG = configPath;
 
-      await runStatusCommand();
+      await runStatusCommand({});
 
       expect(statusMockState.stdoutTexts).toStrictEqual([
         `{
+  "configFilePath": "${configPath}",
   "llm": {
     "apiKey": "sk-t**********-key",
     "model": "gpt-4.1",
     "provider": "openai"
   },
   "paths": {
-    "cacheDir": "./cache"
+    "cacheDir": "${path}/nested/cache"
   }
 }\n`,
       ]);
@@ -124,10 +125,11 @@ describe("cli/status", () => {
       );
       process.env.SPINEDIGEST_CONFIG = configPath;
 
-      await runStatusCommand();
+      await runStatusCommand({});
 
       expect(statusMockState.stdoutTexts).toStrictEqual([
         `{
+  "configFilePath": "${configPath}",
   "llm": {
     "apiKey": "sk-***",
     "model": "gpt-4.1",
@@ -145,9 +147,34 @@ describe("cli/status", () => {
       await writeFile(configPath, "{not json", "utf8");
       process.env.SPINEDIGEST_CONFIG = configPath;
 
-      await expect(runStatusCommand()).rejects.toThrow(
+      await expect(runStatusCommand({})).rejects.toThrow(
         `Invalid CLI config JSON at ${configPath}:`,
       );
+    });
+  });
+
+  it("prints masked merged config when inline llm json is provided", async () => {
+    await withTempDir("spinedigest-status-", async (path) => {
+      process.env.SPINEDIGEST_CONFIG = `${path}/missing.json`;
+
+      await runStatusCommand({
+        llmJSON: JSON.stringify({
+          apiKey: "sk-inline-secret-key",
+          baseUrl: "https://inline.example/v1",
+          model: "inline-model",
+        }),
+      });
+
+      expect(statusMockState.stdoutTexts).toStrictEqual([
+        `{
+  "llm": {
+    "apiKey": "sk-i************-key",
+    "baseURL": "https://inline.example/v1",
+    "model": "inline-model",
+    "provider": "openai-compatible"
+  }
+}\n`,
+      ]);
     });
   });
 });

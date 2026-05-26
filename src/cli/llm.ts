@@ -14,7 +14,7 @@ export function buildLLMOptions(config: CLIConfig): SpineDigestLLMOptions {
   if (llm?.provider === undefined || llm.model === undefined) {
     throw new Error(
       withHelpRoute(
-        "Missing LLM configuration. Set `llm.provider` and `llm.model` in ~/.spinedigest/config.json or the matching SPINEDIGEST_LLM_* environment variables.",
+        "Missing LLM configuration. Set --llm, `llm.provider` and `llm.model` in ~/.spinedigest/config.json, or the matching SPINEDIGEST_LLM_* environment variables.",
         CLI_HELP_ROUTES.config,
       ),
     );
@@ -86,7 +86,7 @@ function createLanguageModel(
       if (options.baseURL !== undefined) {
         throw new Error(
           withHelpRoute(
-            "openai does not accept llm.baseURL or SPINEDIGEST_LLM_BASE_URL. Use openai-compatible for third-party OpenAI-style APIs.",
+            "openai does not accept llm.baseURL, baseURL in --llm JSON, or SPINEDIGEST_LLM_BASE_URL. Use openai-compatible for third-party OpenAI-style APIs.",
             CLI_HELP_ROUTES.config,
           ),
         );
@@ -103,7 +103,7 @@ function createLanguageModel(
       if (options.baseURL === undefined) {
         throw new Error(
           withHelpRoute(
-            "openai-compatible requires llm.baseURL or SPINEDIGEST_LLM_BASE_URL.",
+            "openai-compatible requires llm.baseURL, baseURL in --llm JSON, or SPINEDIGEST_LLM_BASE_URL.",
             CLI_HELP_ROUTES.config,
           ),
         );

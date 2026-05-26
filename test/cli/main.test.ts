@@ -13,6 +13,7 @@ const mainMockState = vi.hoisted(() => ({
   parseError: undefined as Error | undefined,
   runCalls: [] as unknown[],
   statusRunCalls: 0,
+  statusRunArgs: [] as unknown[],
   sdpubRunCalls: [] as unknown[],
   runError: undefined as Error | undefined,
   statusRunError: undefined as Error | undefined,
@@ -42,8 +43,9 @@ vi.mock("../../src/cli/convert.js", () => ({
 }));
 
 vi.mock("../../src/cli/status.js", () => ({
-  runStatusCommand: vi.fn(() => {
+  runStatusCommand: vi.fn((args: unknown) => {
     mainMockState.statusRunCalls += 1;
+    mainMockState.statusRunArgs.push(args);
 
     if (mainMockState.statusRunError !== undefined) {
       return Promise.reject(mainMockState.statusRunError);
@@ -87,6 +89,7 @@ describe("cli/main", () => {
     mainMockState.parseError = undefined;
     mainMockState.runCalls.length = 0;
     mainMockState.statusRunCalls = 0;
+    mainMockState.statusRunArgs.length = 0;
     mainMockState.sdpubRunCalls.length = 0;
     mainMockState.runError = undefined;
     mainMockState.statusRunError = undefined;
@@ -162,6 +165,9 @@ describe("cli/main", () => {
 
   it("runs the status command for status execution", async () => {
     mainMockState.argsResult = {
+      args: {
+        llmJSON: '{"model":"inline-model"}',
+      },
       help: false,
       kind: "status",
     };
@@ -170,6 +176,11 @@ describe("cli/main", () => {
 
     expect(mainMockState.runCalls).toHaveLength(0);
     expect(mainMockState.statusRunCalls).toBe(1);
+    expect(mainMockState.statusRunArgs).toStrictEqual([
+      {
+        llmJSON: '{"model":"inline-model"}',
+      },
+    ]);
     expect(mainMockState.sdpubRunCalls).toHaveLength(0);
     expect(process.exitCode).toBe(0);
   });
@@ -232,6 +243,9 @@ describe("cli/main", () => {
 
   it("writes status command failures to stderr and sets a non-zero exit code", async () => {
     mainMockState.argsResult = {
+      args: {
+        llmJSON: '{"model":"inline-model"}',
+      },
       help: false,
       kind: "status",
     };
@@ -241,6 +255,11 @@ describe("cli/main", () => {
 
     expect(stderrChunks).toStrictEqual(["status failed\n"]);
     expect(mainMockState.statusRunCalls).toBe(1);
+    expect(mainMockState.statusRunArgs).toStrictEqual([
+      {
+        llmJSON: '{"model":"inline-model"}',
+      },
+    ]);
     expect(process.exitCode).toBe(1);
   });
 

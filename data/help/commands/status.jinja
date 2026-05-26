@@ -4,21 +4,22 @@ Command: spinedigest status
 SpineDigest Status
 
 Purpose:
-  Validate and print the currently selected CLI config file.
+  Validate and print the currently selected CLI config after supported overrides are applied.
 
 Usage:
-  spinedigest status [--help|-h]
+  spinedigest status [--llm <json>] [--help|-h]
 
 Behavior:
   - Resolves the active config path using `SPINEDIGEST_CONFIG` when set, otherwise `~/.spinedigest/config.json`.
-  - If the config file does not exist, prints `{}` to stdout and exits 0.
-  - If the config file exists and is valid, prints the config JSON to stdout.
+  - Merges environment variable overrides and optional `--llm <json>`.
+  - If no config values are available, prints `{}` to stdout and exits 0.
+  - If config values are valid, prints the merged JSON to stdout.
   - `llm.apiKey` is masked before printing.
-  - If the file cannot be read, parsed, or validated, prints the error to stderr and exits non-zero.
+  - If the file or inline JSON cannot be read, parsed, or validated, prints the error to stderr and exits non-zero.
 
 Notes:
   - This command does not support digest, I/O, or verbose flags.
-  - Environment variables other than `SPINEDIGEST_CONFIG` do not get merged into the printed JSON.
+  - `--llm` is useful for checking one-shot LLM client JSON without writing it to disk.
 
 Where to go next:
   - Need config precedence and override rules:

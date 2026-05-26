@@ -103,6 +103,8 @@ For example:
 
 Environment variable overrides are supported and are often better for secrets.
 
+Agents that already have a runtime LLM client descriptor can pass it with `--llm <json>` for one invocation. This inline object may use `baseURL`, `baseUrl`, or `chatCompletionsUrl` for OpenAI-compatible clients.
+
 ## Safe Defaults For Agents
 
 - prefer output to a file over `stdout`

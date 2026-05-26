@@ -9,15 +9,17 @@ SpineDigest 的设计重心是命令行使用。
 已安装 CLI 时：
 
 ```bash
-spinedigest [--input <path>] [--output <path>] [--input-format <format>] [--output-format <format>] [--digest-dir <path>] [--prompt <text>] [--verbose]
-spinedigest sdpub <info|toc|list|cat|cover> --input <path> [--serial <id>]
+spinedigest [--input <path>] [--output <path>] [--input-format <format>] [--output-format <format>] [--digest-dir <path>] [--llm <json>] [--prompt <text>] [--verbose]
+spinedigest status [--llm <json>]
+spinedigest sdpub <info|toc|list|cat|cover> --input <path> [--serial <id>] [--llm <json>]
 ```
 
 在源码仓库中运行时：
 
 ```bash
-pnpm dev -- [--input <path>] [--output <path>] [--input-format <format>] [--output-format <format>] [--digest-dir <path>] [--prompt <text>] [--verbose]
-pnpm dev -- sdpub <info|toc|list|cat|cover> --input <path> [--serial <id>]
+pnpm dev -- [--input <path>] [--output <path>] [--input-format <format>] [--output-format <format>] [--digest-dir <path>] [--llm <json>] [--prompt <text>] [--verbose]
+pnpm dev -- status [--llm <json>]
+pnpm dev -- sdpub <info|toc|list|cat|cover> --input <path> [--serial <id>] [--llm <json>]
 ```
 
 ## 参数
@@ -27,6 +29,7 @@ pnpm dev -- sdpub <info|toc|list|cat|cover> --input <path> [--serial <id>]
 - `--input-format <format>`：显式指定输入格式
 - `--output-format <format>`：显式指定输出格式
 - `--digest-dir <path>`：保留 digest 中间工作目录；每次运行前会先清空该目录
+- `--llm <json>`：为当前这次调用传入 inline LLM client JSON
 - `--prompt <text>`：为当前这次 digest 临时覆盖 extraction prompt
 - `--verbose`：把诊断日志输出到 `stderr`
 - `-h`, `--help`：打印帮助文本
@@ -38,6 +41,8 @@ pnpm dev -- sdpub <info|toc|list|cat|cover> --input <path> [--serial <id>]
 `sdpub` 检查子命令只接受 `--input`，其中 `cat` 还要求提供 `--serial`。
 
 `--prompt` 只影响从源输入生成 digest 的过程，不适用于重新打开 `.sdpub` 或使用 `spinedigest sdpub ...`。
+
+`--llm` 会覆盖环境变量和 `config.json` 中的 LLM 设置。不调用 LLM 的命令路径也接受这个参数，方便 wrapper 脚本统一传参。
 
 ## 支持的格式
 
@@ -128,6 +133,12 @@ cat ./chapter.txt | spinedigest --input-format txt --output-format markdown
 spinedigest --input ./book.md --output ./digest.md --prompt "Preserve named entities and decisive transitions."
 ```
 
+临时传入 LLM client JSON：
+
+```bash
+spinedigest --llm "$LLM_JSON" --input ./book.md --output ./digest.md
+```
+
 ## 配置
 
 默认配置路径：
@@ -171,7 +182,19 @@ SPINEDIGEST_CONFIG
 
 `request.timeout` 的单位是毫秒。
 
+Inline LLM JSON 可以直接是 LLM 对象，也可以包含一个 `llm` 字段。它支持 `provider`、`model`、`apiKey`、`baseURL`、`baseUrl`、`chatCompletionsUrl` 和 `name`。如果省略 `provider` 但提供了 base URL，则按 `openai-compatible` 处理。
+
+```json
+{
+  "model": "<your-model>",
+  "apiKey": "<optional>",
+  "baseUrl": "https://your-provider.example/v1"
+}
+```
+
 对于主 digest 命令，`--prompt` 的优先级最高，只影响当前这次运行。否则，`SPINEDIGEST_PROMPT` 会覆盖 `config.json`，再没有时使用内置默认 prompt。
+
+对于 LLM 设置，`--llm` 会覆盖 `SPINEDIGEST_LLM_*` 环境变量，后者再覆盖 `config.json`。
 
 ## 环境变量
 
@@ -193,7 +216,7 @@ SpineDigest 支持通过环境变量覆盖配置值：
 - `SPINEDIGEST_REQUEST_TEMPERATURE`
 - `SPINEDIGEST_REQUEST_TOP_P`
 
-`openai-compatible` 必须通过配置或 `SPINEDIGEST_LLM_BASE_URL` 提供 base URL。
+`openai-compatible` 必须通过 `--llm`、配置或 `SPINEDIGEST_LLM_BASE_URL` 提供 base URL。
 
 ## `.sdpub` 行为
 
