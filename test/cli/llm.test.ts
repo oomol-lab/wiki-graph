@@ -224,7 +224,7 @@ describe("cli/llm", () => {
         },
       }),
     ).toThrow(
-      "openai-compatible requires llm.baseURL, --llm baseURL, or SPINEDIGEST_LLM_BASE_URL.\nSee: spinedigest help config",
+      "openai-compatible requires llm.baseURL, baseURL in --llm JSON, or SPINEDIGEST_LLM_BASE_URL.\nSee: spinedigest help config",
     );
   });
 
@@ -239,7 +239,7 @@ describe("cli/llm", () => {
         },
       }),
     ).toThrow(
-      "openai does not accept llm.baseURL, --llm baseURL, or SPINEDIGEST_LLM_BASE_URL. Use openai-compatible for third-party OpenAI-style APIs.\nSee: spinedigest help config",
+      "openai does not accept llm.baseURL, baseURL in --llm JSON, or SPINEDIGEST_LLM_BASE_URL. Use openai-compatible for third-party OpenAI-style APIs.\nSee: spinedigest help config",
     );
   });
 });

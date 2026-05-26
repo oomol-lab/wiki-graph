@@ -281,5 +281,17 @@ describe("cli/config", () => {
     ).rejects.toThrow(
       "--llm chatCompletionsUrl must end with /chat/completions when baseURL is not provided.\nSee: spinedigest help config",
     );
+
+    await expect(
+      loadCLIConfig({
+        llmJSON: JSON.stringify({
+          llm: {
+            chatCompletionsUrl: "https://example.test/responses",
+          },
+        }),
+      }),
+    ).rejects.toThrow(
+      "--llm chatCompletionsUrl must end with /chat/completions when baseURL is not provided.\nSee: spinedigest help config",
+    );
   });
 });

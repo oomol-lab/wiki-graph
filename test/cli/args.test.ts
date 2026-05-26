@@ -271,6 +271,11 @@ describe("cli/args", () => {
     ).toThrow(
       "The `help` command does not support --input.\nSee: spinedigest --help",
     );
+    expect(() =>
+      parseCLIArguments(["help", "overview", "--llm", '{"model":"cli-model"}']),
+    ).toThrow(
+      "The `help` command does not support --llm.\nSee: spinedigest --help",
+    );
   });
 
   it("rejects invalid status usage", () => {

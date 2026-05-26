@@ -165,7 +165,9 @@ describe("cli/main", () => {
 
   it("runs the status command for status execution", async () => {
     mainMockState.argsResult = {
-      args: {},
+      args: {
+        llmJSON: '{"model":"inline-model"}',
+      },
       help: false,
       kind: "status",
     };
@@ -174,7 +176,11 @@ describe("cli/main", () => {
 
     expect(mainMockState.runCalls).toHaveLength(0);
     expect(mainMockState.statusRunCalls).toBe(1);
-    expect(mainMockState.statusRunArgs).toStrictEqual([{}]);
+    expect(mainMockState.statusRunArgs).toStrictEqual([
+      {
+        llmJSON: '{"model":"inline-model"}',
+      },
+    ]);
     expect(mainMockState.sdpubRunCalls).toHaveLength(0);
     expect(process.exitCode).toBe(0);
   });
@@ -237,7 +243,9 @@ describe("cli/main", () => {
 
   it("writes status command failures to stderr and sets a non-zero exit code", async () => {
     mainMockState.argsResult = {
-      args: {},
+      args: {
+        llmJSON: '{"model":"inline-model"}',
+      },
       help: false,
       kind: "status",
     };
@@ -247,7 +255,11 @@ describe("cli/main", () => {
 
     expect(stderrChunks).toStrictEqual(["status failed\n"]);
     expect(mainMockState.statusRunCalls).toBe(1);
-    expect(mainMockState.statusRunArgs).toStrictEqual([{}]);
+    expect(mainMockState.statusRunArgs).toStrictEqual([
+      {
+        llmJSON: '{"model":"inline-model"}',
+      },
+    ]);
     expect(process.exitCode).toBe(1);
   });
 
