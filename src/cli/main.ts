@@ -26,7 +26,7 @@ export async function main(): Promise<void> {
         await runSdpubCommand(parsed.args);
         return;
       case "status":
-        await runStatusCommand();
+        await runStatusCommand(parsed.args);
         return;
     }
   } catch (error) {

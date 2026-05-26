@@ -22,6 +22,7 @@ export interface CLIArguments {
   readonly help: boolean;
   readonly inputPath?: string;
   readonly inputFormat?: CLIFormat;
+  readonly llmJSON?: string;
   readonly outputPath?: string;
   readonly outputFormat?: CLIFormat;
   readonly prompt?: string;
@@ -30,8 +31,13 @@ export interface CLIArguments {
 
 export interface CLISdpubArguments {
   readonly inputPath: string;
+  readonly llmJSON?: string;
   readonly serialId?: number;
   readonly subcommand: SDPubSubcommand;
+}
+
+export interface CLIStatusArguments {
+  readonly llmJSON?: string;
 }
 
 export type ParsedCLIArguments =
@@ -63,10 +69,12 @@ export type ParsedCLIArguments =
       readonly kind: "help";
     }
   | {
+      readonly args: CLIStatusArguments;
       readonly help: false;
       readonly kind: "status";
     }
   | {
+      readonly args: CLIStatusArguments;
       readonly help: true;
       readonly helpText: string;
       readonly kind: "status";
@@ -90,6 +98,9 @@ export function parseCLIArguments(
         type: "string",
       },
       "input-format": {
+        type: "string",
+      },
+      llm: {
         type: "string",
       },
       output: {
@@ -144,6 +155,7 @@ export function parseCLIArguments(
       : {
           inputFormat: parseCLIFormat(values["input-format"], "--input-format"),
         }),
+    ...(values.llm === undefined ? {} : { llmJSON: values.llm }),
     ...(values.output === undefined ? {} : { outputPath: values.output }),
     ...(values["output-format"] === undefined
       ? {}
@@ -180,6 +192,7 @@ function parseSdpubArguments(
     readonly help?: boolean;
     readonly input?: string;
     readonly "input-format"?: string;
+    readonly llm?: string;
     readonly output?: string;
     readonly "output-format"?: string;
     readonly prompt?: string;
@@ -334,6 +347,7 @@ function parseSdpubArguments(
   return {
     args: {
       inputPath: inputPath!,
+      ...(values.llm === undefined ? {} : { llmJSON: values.llm }),
       ...(serialId === undefined ? {} : { serialId }),
       subcommand: parsedSubcommand,
     },
@@ -349,6 +363,7 @@ function parseHelpArguments(
     readonly help?: boolean;
     readonly input?: string;
     readonly "input-format"?: string;
+    readonly llm?: string;
     readonly output?: string;
     readonly "output-format"?: string;
     readonly prompt?: string;
@@ -359,6 +374,7 @@ function parseHelpArguments(
   rejectHelpFlag("digest-dir", values["digest-dir"]);
   rejectHelpFlag("input", values.input);
   rejectHelpFlag("input-format", values["input-format"]);
+  rejectHelpFlag("llm", values.llm);
   rejectHelpFlag("output", values.output);
   rejectHelpFlag("output-format", values["output-format"]);
   rejectHelpFlag("prompt", values.prompt);
@@ -404,6 +420,7 @@ function parseStatusArguments(
     readonly help?: boolean;
     readonly input?: string;
     readonly "input-format"?: string;
+    readonly llm?: string;
     readonly output?: string;
     readonly "output-format"?: string;
     readonly prompt?: string;
@@ -437,8 +454,13 @@ function parseStatusArguments(
     );
   }
 
+  const args = {
+    ...(values.llm === undefined ? {} : { llmJSON: values.llm }),
+  } satisfies CLIStatusArguments;
+
   if (values.help ?? false) {
     return {
+      args,
       help: true,
       helpText: renderStatusHelpText(),
       kind: "status",
@@ -446,6 +468,7 @@ function parseStatusArguments(
   }
 
   return {
+    args,
     help: false,
     kind: "status",
   };

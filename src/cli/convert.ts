@@ -63,7 +63,7 @@ export async function runConvertCommand(args: CLIArguments): Promise<void> {
   const inputFormat = input.format;
   const requiresDigest = inputFormat !== "sdpub";
   const digestDirPath = await prepareDigestDirPath(args, requiresDigest);
-  const config = await loadRequiredConfig(requiresDigest);
+  const config = await loadRequiredConfig(args, requiresDigest);
   const app = new SpineDigestApp(
     createAppOptions(args, config, requiresDigest),
   );
@@ -197,8 +197,13 @@ async function prepareDigestDirPath(
   return resolvedPath;
 }
 
-async function loadRequiredConfig(requiresDigest: boolean): Promise<CLIConfig> {
-  const config = await loadCLIConfig();
+async function loadRequiredConfig(
+  args: CLIArguments,
+  requiresDigest: boolean,
+): Promise<CLIConfig> {
+  const config = await loadCLIConfig({
+    ...(args.llmJSON === undefined ? {} : { llmJSON: args.llmJSON }),
+  });
 
   if (!requiresDigest) {
     return config;
@@ -207,7 +212,7 @@ async function loadRequiredConfig(requiresDigest: boolean): Promise<CLIConfig> {
   if (config.llm?.provider === undefined || config.llm.model === undefined) {
     throw new Error(
       withHelpRoute(
-        "Missing LLM configuration. Set `llm.provider` and `llm.model` in ~/.spinedigest/config.json or the matching SPINEDIGEST_LLM_* environment variables.",
+        "Missing LLM configuration. Set --llm, `llm.provider` and `llm.model` in ~/.spinedigest/config.json, or the matching SPINEDIGEST_LLM_* environment variables.",
         CLI_HELP_ROUTES.config,
       ),
     );

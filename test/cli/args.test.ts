@@ -24,6 +24,8 @@ describe("cli/args", () => {
         "out.txt",
         "--output-format",
         "markdown",
+        "--llm",
+        '{"model":"cli-model"}',
         "--prompt",
         "Keep named entities",
       ]),
@@ -33,6 +35,7 @@ describe("cli/args", () => {
         help: true,
         inputFormat: "epub",
         inputPath: "book.epub",
+        llmJSON: '{"model":"cli-model"}',
         outputFormat: "markdown",
         outputPath: "out.txt",
         prompt: "Keep named entities",
@@ -96,6 +99,30 @@ describe("cli/args", () => {
     );
   });
 
+  it("parses --llm for runtime-configurable commands", () => {
+    expect(parseCLIArguments(["--llm", '{"model":"cli-model"}'])).toStrictEqual(
+      {
+        args: {
+          help: false,
+          llmJSON: '{"model":"cli-model"}',
+          verbose: false,
+        },
+        help: false,
+        kind: "convert",
+      },
+    );
+
+    expect(
+      parseCLIArguments(["status", "--llm", '{"model":"cli-model"}']),
+    ).toStrictEqual({
+      args: {
+        llmJSON: '{"model":"cli-model"}',
+      },
+      help: false,
+      kind: "status",
+    });
+  });
+
   it("parses sdpub subcommands", () => {
     expect(
       parseCLIArguments([
@@ -105,10 +132,13 @@ describe("cli/args", () => {
         "book.sdpub",
         "--serial",
         "12",
+        "--llm",
+        '{"model":"cli-model"}',
       ]),
     ).toStrictEqual({
       args: {
         inputPath: "book.sdpub",
+        llmJSON: '{"model":"cli-model"}',
         serialId: 12,
         subcommand: "cat",
       },
@@ -127,11 +157,13 @@ describe("cli/args", () => {
 
   it("parses status and prints status help text", () => {
     expect(parseCLIArguments(["status"])).toStrictEqual({
+      args: {},
       help: false,
       kind: "status",
     });
 
     expect(parseCLIArguments(["status", "--help"])).toStrictEqual({
+      args: {},
       help: true,
       helpText: renderStatusHelpText(),
       kind: "status",
@@ -259,7 +291,7 @@ describe("cli/args", () => {
     const commandHelpText = renderHelpTopicText("command");
 
     expect(rootHelpText).toContain("spinedigest help [topic]");
-    expect(rootHelpText).toContain("spinedigest status [--help|-h]");
+    expect(rootHelpText).toContain("spinedigest status [--llm <json>]");
     expect(rootHelpText).toContain("spinedigest help overview");
     expect(rootHelpText).toContain("spinedigest help env");
     expect(rootHelpText).toContain("spinedigest help config-file");
@@ -294,12 +326,15 @@ describe("cli/args", () => {
       "--input-format <format>",
       "--output-format <format>",
       "--digest-dir <path>",
+      "--llm <json>",
       "--prompt <text>",
       "--serial <id>",
     ]) {
       expect(commandHelpText).toContain(flag);
     }
     expect(renderHelpTopicText("config")).toContain("spinedigest help env");
+    expect(renderHelpTopicText("config")).toContain("Inline LLM JSON");
+    expect(renderHelpTopicText("config")).toContain("baseUrl");
     expect(renderHelpTopicText("env")).toContain("SPINEDIGEST_LLM_MODEL");
     expect(renderHelpTopicText("env")).toContain("SPINEDIGEST_REQUEST_STREAM");
     expect(renderHelpTopicText("env")).toContain(

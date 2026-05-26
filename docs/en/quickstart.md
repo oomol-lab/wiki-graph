@@ -52,6 +52,7 @@ SpineDigest reads configuration from:
 
 - default path: `~/.spinedigest/config.json`
 - override path: `SPINEDIGEST_CONFIG`
+- one-shot inline LLM JSON: `--llm <json>`
 
 A minimal config file looks like this:
 
@@ -77,6 +78,12 @@ export SPINEDIGEST_LLM_BASE_URL="https://your-provider.example/v1"
 ```
 
 You can also place these fields in `config.json` if your environment requires it.
+
+For one-off automation, pass inline LLM client JSON instead of writing config:
+
+```bash
+spinedigest --llm "$LLM_JSON" --input ./book.md --output ./out/digest.md
+```
 
 ## 5. Run Your First Digest
 
@@ -177,6 +184,7 @@ This prompt is applied when digesting source files or text streams. It is not us
 If you see a missing LLM configuration error:
 
 - make sure `llm.provider` and `llm.model` are set
+- or pass an inline LLM object with `--llm`
 - make sure the corresponding API key is available
 
 If format inference fails:

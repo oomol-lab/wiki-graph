@@ -16,6 +16,26 @@ const CLI_PROVIDER_VALUES = [
 
 const cliProviderSchema = z.enum(CLI_PROVIDER_VALUES);
 const samplingSettingSchema = z.union([z.number(), z.array(z.number())]);
+const inlineLLMConfigSchema = z.object({
+  apiKey: z.string().min(1).optional(),
+  baseURL: z.string().min(1).optional(),
+  baseUrl: z.string().min(1).optional(),
+  chatCompletionsUrl: z.string().min(1).optional(),
+  llm: z
+    .object({
+      apiKey: z.string().min(1).optional(),
+      baseURL: z.string().min(1).optional(),
+      baseUrl: z.string().min(1).optional(),
+      chatCompletionsUrl: z.string().min(1).optional(),
+      model: z.string().min(1).optional(),
+      name: z.string().min(1).optional(),
+      provider: cliProviderSchema.optional(),
+    })
+    .optional(),
+  model: z.string().min(1).optional(),
+  name: z.string().min(1).optional(),
+  provider: cliProviderSchema.optional(),
+});
 const cliConfigSchema = z.object({
   llm: z
     .object({
@@ -75,10 +95,18 @@ export interface CLIConfig {
 
 type CLIConfigFile = z.infer<typeof cliConfigSchema>;
 
-export async function loadCLIConfig(): Promise<CLIConfig> {
+type InlineLLMConfig = NonNullable<CLIConfig["llm"]>;
+
+export async function loadCLIConfig(options?: {
+  readonly llmJSON?: string;
+}): Promise<CLIConfig> {
   const configFilePath = resolveCLIConfigFilePath();
   const fileConfig = await readCLIConfigFile(configFilePath);
   const configDirectoryPath = dirname(configFilePath);
+  const inlineLLMConfig =
+    options?.llmJSON === undefined
+      ? undefined
+      : parseInlineLLMConfig(options.llmJSON);
 
   const prompt = firstDefined(
     normalizeString(process.env.SPINEDIGEST_PROMPT),
@@ -86,24 +114,39 @@ export async function loadCLIConfig(): Promise<CLIConfig> {
   );
   const llm = createLLMConfig({
     apiKey: firstDefined(
-      normalizeString(process.env.SPINEDIGEST_LLM_API_KEY),
-      fileConfig.llm?.apiKey,
+      inlineLLMConfig?.apiKey,
+      firstDefined(
+        normalizeString(process.env.SPINEDIGEST_LLM_API_KEY),
+        fileConfig.llm?.apiKey,
+      ),
     ),
     baseURL: firstDefined(
-      normalizeString(process.env.SPINEDIGEST_LLM_BASE_URL),
-      fileConfig.llm?.baseURL,
+      inlineLLMConfig?.baseURL,
+      firstDefined(
+        normalizeString(process.env.SPINEDIGEST_LLM_BASE_URL),
+        fileConfig.llm?.baseURL,
+      ),
     ),
     model: firstDefined(
-      normalizeString(process.env.SPINEDIGEST_LLM_MODEL),
-      fileConfig.llm?.model,
+      inlineLLMConfig?.model,
+      firstDefined(
+        normalizeString(process.env.SPINEDIGEST_LLM_MODEL),
+        fileConfig.llm?.model,
+      ),
     ),
     name: firstDefined(
-      normalizeString(process.env.SPINEDIGEST_LLM_NAME),
-      fileConfig.llm?.name,
+      inlineLLMConfig?.name,
+      firstDefined(
+        normalizeString(process.env.SPINEDIGEST_LLM_NAME),
+        fileConfig.llm?.name,
+      ),
     ),
     provider: firstDefined(
-      parseOptionalProvider(process.env.SPINEDIGEST_LLM_PROVIDER),
-      fileConfig.llm?.provider,
+      inlineLLMConfig?.provider,
+      firstDefined(
+        parseOptionalProvider(process.env.SPINEDIGEST_LLM_PROVIDER),
+        fileConfig.llm?.provider,
+      ),
     ),
   });
   const paths = createPathsConfig({
@@ -216,6 +259,123 @@ export async function readCLIConfigFile(path: string): Promise<CLIConfigFile> {
   }
 
   return parsed.data;
+}
+
+function parseInlineLLMConfig(value: string): InlineLLMConfig | undefined {
+  const normalized = normalizeString(value);
+
+  if (normalized === undefined) {
+    throw new Error(
+      withHelpRoute(
+        "--llm must be a non-empty JSON object.",
+        CLI_HELP_ROUTES.config,
+      ),
+    );
+  }
+
+  let parsedJson: unknown;
+
+  try {
+    parsedJson = JSON.parse(normalized);
+  } catch (error) {
+    throw new Error(
+      withHelpRoute(
+        `Invalid --llm JSON: ${formatError(error)}`,
+        CLI_HELP_ROUTES.config,
+      ),
+    );
+  }
+
+  const parsed = inlineLLMConfigSchema.safeParse(parsedJson);
+
+  if (!parsed.success) {
+    throw new Error(
+      withHelpRoute(
+        `Invalid --llm config: ${parsed.error.issues
+          .map(
+            (issue) => `${issue.path.join(".") || "<root>"}: ${issue.message}`,
+          )
+          .join("; ")}`,
+        CLI_HELP_ROUTES.config,
+      ),
+    );
+  }
+
+  const input = parsed.data.llm ?? parsed.data;
+  const provider = input.provider ?? inferInlineProvider(input);
+  const baseURL = resolveInlineBaseURL(input);
+  const config = createLLMConfig({
+    apiKey: input.apiKey,
+    baseURL,
+    model: input.model,
+    name: input.name,
+    provider,
+  });
+
+  if (config === undefined) {
+    throw new Error(
+      withHelpRoute(
+        "--llm must contain at least one supported LLM field.",
+        CLI_HELP_ROUTES.config,
+      ),
+    );
+  }
+
+  return config;
+}
+
+function inferInlineProvider(input: {
+  readonly baseURL?: string | undefined;
+  readonly baseUrl?: string | undefined;
+  readonly chatCompletionsUrl?: string | undefined;
+  readonly provider?: CLIProvider | undefined;
+}): CLIProvider | undefined {
+  if (
+    input.provider === undefined &&
+    (input.baseURL !== undefined ||
+      input.baseUrl !== undefined ||
+      input.chatCompletionsUrl !== undefined)
+  ) {
+    return "openai-compatible";
+  }
+
+  return input.provider;
+}
+
+function inferBaseURLFromChatCompletionsURL(input: {
+  readonly chatCompletionsUrl?: string | undefined;
+}): string | undefined {
+  if (input.chatCompletionsUrl === undefined) {
+    return undefined;
+  }
+
+  const suffix = "/chat/completions";
+
+  if (!input.chatCompletionsUrl.endsWith(suffix)) {
+    throw new Error(
+      withHelpRoute(
+        "--llm chatCompletionsUrl must end with /chat/completions when baseURL is not provided.",
+        CLI_HELP_ROUTES.config,
+      ),
+    );
+  }
+
+  return input.chatCompletionsUrl.slice(0, -suffix.length);
+}
+
+function resolveInlineBaseURL(input: {
+  readonly baseURL?: string | undefined;
+  readonly baseUrl?: string | undefined;
+  readonly chatCompletionsUrl?: string | undefined;
+}): string | undefined {
+  if (input.baseURL !== undefined) {
+    return input.baseURL;
+  }
+  if (input.baseUrl !== undefined) {
+    return input.baseUrl;
+  }
+
+  return inferBaseURLFromChatCompletionsURL(input);
 }
 
 function resolveConfigFilePath(path: string | undefined): string {
