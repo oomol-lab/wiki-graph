@@ -105,6 +105,73 @@ describe("editor/review", () => {
       ["system", "user", "assistant", "user"],
     );
   });
+
+  it("falls back to no issues when a reviewer cannot produce valid JSON", async () => {
+    const llm = new ScriptedLLM<SpineDigestScope>(Array(13).fill(""));
+    const reviewer = new CompressionReviewer(
+      llm as never,
+      createSerialFragments(),
+      {
+        review: SPINE_DIGEST_EDITOR_SCOPES.review,
+        reviewGuide: SPINE_DIGEST_EDITOR_SCOPES.reviewGuide,
+      },
+      Language.English,
+    );
+
+    const result = await reviewer.reviewCompression(
+      "Current compressed text",
+      [
+        {
+          clueId: 1,
+          label: "Alpha clue",
+          reviewerInfo: "Check continuity",
+          weight: 0.8,
+        },
+      ],
+      {},
+    );
+
+    expect(result.rawResponses["1"]).toBeUndefined();
+    expect(result.reviews).toStrictEqual([
+      {
+        clueId: 1,
+        issues: [],
+        weight: 0.8,
+      },
+    ]);
+  });
+
+  it("does not hide regular LLM request errors during review", async () => {
+    const llm = new ScriptedLLM<SpineDigestScope>([
+      () => {
+        throw new Error("network failed");
+      },
+    ]);
+    const reviewer = new CompressionReviewer(
+      llm as never,
+      createSerialFragments(),
+      {
+        review: SPINE_DIGEST_EDITOR_SCOPES.review,
+        reviewGuide: SPINE_DIGEST_EDITOR_SCOPES.reviewGuide,
+      },
+      Language.English,
+    );
+
+    await expect(
+      reviewer.reviewCompression(
+        "Current compressed text",
+        [
+          {
+            clueId: 1,
+            label: "Alpha clue",
+            reviewerInfo: "Check continuity",
+            weight: 0.8,
+          },
+        ],
+        {},
+      ),
+    ).rejects.toThrow("network failed");
+  });
 });
 
 function createChunk(

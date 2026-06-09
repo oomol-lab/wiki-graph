@@ -1,6 +1,8 @@
 import { z } from "zod";
 
+import { getLogger } from "../common/logging.js";
 import {
+  GuaranteedRequestFailureError,
   requestGuaranteedJson,
   RESPONSE_INTENT_CLASSIFIER_PROMPT_TEMPLATE,
 } from "../guaranteed/index.js";
@@ -125,31 +127,54 @@ export class CompressionReviewer<S extends string> {
           previousHistory,
         );
 
-        return await requestGuaranteedJson({
-          messages,
-          parse: (data) => ({
-            rawResponse: JSON.stringify(data),
+        try {
+          return await requestGuaranteedJson({
+            messages,
+            parse: (data) => ({
+              rawResponse: JSON.stringify(data),
+              review: {
+                clueId: clueReviewer.clueId,
+                issues: data.issues.map((issue) => ({
+                  ...issue,
+                  severity: expectReviewSeverity(issue.severity),
+                })),
+                weight: clueReviewer.weight,
+              },
+            }),
+            responseIntentClassifierPrompt: this.#llm.loadSystemPrompt(
+              RESPONSE_INTENT_CLASSIFIER_PROMPT_TEMPLATE,
+            ),
+            request: async (retryMessages, retryIndex, retryMax) =>
+              await this.#llm.request(retryMessages, {
+                retryIndex,
+                retryMax,
+                scope: this.#reviewScope,
+                useCache: false,
+              }),
+            schema: reviewResponseSchema,
+          });
+        } catch (error) {
+          if (!(error instanceof GuaranteedRequestFailureError)) {
+            throw error;
+          }
+
+          getLogger({
+            clueId: clueReviewer.clueId,
+            component: "editor-review",
+          }).warn(
+            { error },
+            "Compression reviewer failed to produce valid JSON; treating it as no issues.",
+          );
+
+          return {
+            rawResponse: undefined,
             review: {
               clueId: clueReviewer.clueId,
-              issues: data.issues.map((issue) => ({
-                ...issue,
-                severity: expectReviewSeverity(issue.severity),
-              })),
+              issues: [],
               weight: clueReviewer.weight,
             },
-          }),
-          responseIntentClassifierPrompt: this.#llm.loadSystemPrompt(
-            RESPONSE_INTENT_CLASSIFIER_PROMPT_TEMPLATE,
-          ),
-          request: async (retryMessages, retryIndex, retryMax) =>
-            await this.#llm.request(retryMessages, {
-              retryIndex,
-              retryMax,
-              scope: this.#reviewScope,
-              useCache: false,
-            }),
-          schema: reviewResponseSchema,
-        });
+          };
+        }
       }),
     );
     const rawResponses = Object.create(null) as Record<
