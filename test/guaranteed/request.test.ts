@@ -91,6 +91,21 @@ describe("guaranteed/request", () => {
     expect(request).toHaveBeenCalledTimes(2);
   });
 
+  it("uses twelve retries by default", async () => {
+    const request = vi.fn(() => Promise.resolve(""));
+
+    await expect(
+      requestGuaranteedJson({
+        messages: [],
+        parse: (data) => data.value,
+        responseIntentClassifierPrompt: "classifier prompt",
+        request,
+        schema,
+      }),
+    ).rejects.toBeInstanceOf(GuaranteedEmptyResponseError);
+    expect(request).toHaveBeenCalledTimes(13);
+  });
+
   it("throws a parse validation error after exhausting retries", async () => {
     await expect(
       requestGuaranteedJson({
@@ -136,6 +151,48 @@ describe("guaranteed/request", () => {
       content: '{"value": "\\uZZZZ"}',
     });
     expect(secondCallMessages?.[1]?.content).toContain("malformed JSON");
+  });
+
+  it("drops malformed JSON history after repeated repair failures", async () => {
+    const request = vi
+      .fn<
+        (
+          messages: readonly LLMessage[],
+          retryIndex: number,
+          retryMax: number,
+        ) => Promise<string>
+      >()
+      .mockResolvedValueOnce('{"value": "\\uZZZZ"}')
+      .mockResolvedValueOnce('{"value": "\\uZZZZ"}')
+      .mockResolvedValueOnce('{"value": "\\uZZZZ"}')
+      .mockResolvedValueOnce('{"value": 11}');
+
+    const result = await requestGuaranteedJson({
+      messages: [
+        {
+          role: "user",
+          content: "Return JSON",
+        },
+      ],
+      parse: (data) => data.value,
+      responseIntentClassifierPrompt: "classifier prompt",
+      request,
+      schema,
+    });
+
+    expect(result).toBe(11);
+
+    const fourthCallMessages = request.mock.calls[3]?.[0];
+
+    expect(fourthCallMessages).toHaveLength(2);
+    expect(fourthCallMessages?.[0]).toMatchObject({
+      role: "user",
+      content: "Return JSON",
+    });
+    expect(fourthCallMessages?.[1]).toMatchObject({
+      role: "user",
+    });
+    expect(fourthCallMessages?.[1]?.content).toContain("malformed JSON");
   });
 
   it("uses classifier fallback for ambiguous replies before deciding to keep history", async () => {

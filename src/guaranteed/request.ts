@@ -24,7 +24,8 @@ import {
 } from "./response.js";
 import type { GuaranteedRequestOptions } from "./types.js";
 
-const DEFAULT_MAX_RETRIES = 7;
+const DEFAULT_MAX_RETRIES = 12;
+const MAX_MALFORMED_JSON_REPAIR_HISTORY_ATTEMPTS = 3;
 
 export async function requestGuaranteedJson<TData, TResult>(
   options: GuaranteedRequestOptions<TData, TResult>,
@@ -32,6 +33,7 @@ export async function requestGuaranteedJson<TData, TResult>(
   const initialMessages = [...options.messages];
   let currentMessages = [...options.messages];
   let consecutiveProtocolDerailments = 0;
+  let consecutiveMalformedJsonFailures = 0;
   const maxRetries = options.maxRetries ?? DEFAULT_MAX_RETRIES;
 
   for (let index = 0; index <= maxRetries; index += 1) {
@@ -54,6 +56,7 @@ export async function requestGuaranteedJson<TData, TResult>(
 
       if (intent === "natural_language") {
         consecutiveProtocolDerailments += 1;
+        consecutiveMalformedJsonFailures = 0;
 
         if (consecutiveProtocolDerailments >= 2 || index >= maxRetries) {
           const reason =
@@ -76,17 +79,20 @@ export async function requestGuaranteedJson<TData, TResult>(
       }
 
       consecutiveProtocolDerailments = 0;
+      consecutiveMalformedJsonFailures += 1;
       currentMessages = buildRetryMessages(
         initialMessages,
         response,
         intent === "malformed_json"
           ? buildMalformedJsonMessage(asSyntaxError(error))
           : buildSyntaxErrorMessage(asSyntaxError(error)),
-        true,
+        consecutiveMalformedJsonFailures <
+          MAX_MALFORMED_JSON_REPAIR_HISTORY_ATTEMPTS,
       );
       continue;
     }
     consecutiveProtocolDerailments = 0;
+    consecutiveMalformedJsonFailures = 0;
 
     const validation = await options.schema.safeParseAsync(parsedData);
 
@@ -98,6 +104,7 @@ export async function requestGuaranteedJson<TData, TResult>(
 
         if (intent === "natural_language") {
           consecutiveProtocolDerailments += 1;
+          consecutiveMalformedJsonFailures = 0;
 
           if (consecutiveProtocolDerailments >= 2 || index >= maxRetries) {
             const reason =
