@@ -38,7 +38,8 @@ export async function runSdpubCommand(args: CLISdpubArguments): Promise<void> {
 }
 
 async function writeSdpubInfo(digest: SpineDigest): Promise<void> {
-  const [meta, cover, toc, serials] = await Promise.all([
+  const [formatVersion, meta, cover, toc, serials] = await Promise.all([
+    digest.readArchiveFormatVersion(),
     digest.readMeta(),
     digest.readCover(),
     digest.readToc(),
@@ -55,6 +56,7 @@ async function writeSdpubInfo(digest: SpineDigest): Promise<void> {
   ]);
   const lines: string[] = [];
 
+  lines.push(`Archive Format Version: ${formatVersion}`);
   appendOptionalLine(lines, "Title", meta?.title);
   if (meta?.authors.length !== undefined && meta.authors.length > 0) {
     lines.push(`Authors: ${meta.authors.join(", ")}`);

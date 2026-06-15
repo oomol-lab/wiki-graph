@@ -25,8 +25,10 @@ sdpub command failure:
   Symptom:
     `sdpub` subcommands reject flags or input.
   Check:
-    `sdpub` requires `--input <path>` to an existing archive file.
-    `cat` also requires `--serial <id>`.
+    Inspection commands such as `info`, `toc`, `list`, `cat`, `cover`, and `meta` require `--input <path>`.
+    `stage` and `chapter` actions require the `.sdpub` path as a positional argument.
+    `cat` requires `--serial <id>`.
+    Chapter-specific actions usually require `--chapter <id>`.
 
 Binary cover output blocked:
   Symptom:
@@ -49,5 +51,5 @@ Where to go next:
     spinedigest help command
   - Need task-level alternatives:
     spinedigest help task
-  - Need archive inspection-specific guidance:
+  - Need archive command-specific guidance:
     spinedigest help sdpub

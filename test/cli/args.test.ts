@@ -610,7 +610,12 @@ describe("cli/args", () => {
     expect(renderHelpTopicText("config-file")).toContain(
       "JSON boolean, either `true` or `false`",
     );
-    expect(sdpubHelpText).toContain("These subcommands do not call an LLM");
+    expect(sdpubHelpText).toContain(
+      "sdpub stage advance` calls an LLM provider",
+    );
+    expect(sdpubHelpText).toContain(
+      "Inspection commands and metadata/tree edits do not call an LLM provider",
+    );
     expect(sdpubHelpText).toContain("[--help|-h]");
     expect(renderSdpubSubcommandHelpText("stage")).toContain("advance <path>");
     expect(renderSdpubSubcommandHelpText("cover")).toContain(

@@ -9,6 +9,7 @@ Primary contract:
   - Check exit status and read stderr for failures.
   - Assume source digest runs require LLM configuration.
   - Assume `.sdpub` re-export and `sdpub` inspection do not call an LLM.
+  - Assume `sdpub stage advance` may call an LLM when graph or summary generation is needed.
 
 Suggested first pass:
   - Begin at `spinedigest --help`, which acts as the root page of the layered help system.
@@ -27,7 +28,7 @@ Navigation:
   - Need config file schema details: `spinedigest help config-file`
   - Need runtime guarantees: `spinedigest help runtime`
   - Need examples: `spinedigest help recipe`
-  - Need archive inspection details: `spinedigest help sdpub`
+  - Need archive command details: `spinedigest help sdpub`
   - Need error-focused recovery: `spinedigest help troubleshoot`
 
 Stable terms:
@@ -37,9 +38,9 @@ Stable terms:
   - TOC path: the section path that points to a serial
 
 Safety reminders:
-  - Do not use stdin for `.sdpub` inspection.
+  - Do not use stdin for `.sdpub` inspection; only `sdpub chapter set-source` and `set-summary` accept content from stdin.
   - Do not combine `--verbose` with stdout digest output.
   - Do not send `sdpub cover` binary output to an interactive terminal.
 
 Discovery rule:
-  - If a user question sounds like task selection, format support, config setup, runtime behavior, failure diagnosis, or `.sdpub` inspection, read the matching help topic before guessing.
+  - If a user question sounds like task selection, format support, config setup, runtime behavior, failure diagnosis, or `.sdpub` commands, read the matching help topic before guessing.

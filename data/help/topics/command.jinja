@@ -23,22 +23,39 @@ Main flags:
   --verbose, -v           Write diagnostic logs to stderr.
   --help, -h              Print entry help.
 
-sdpub inspection family:
-{% for command in sdpubCommands %}
-  spinedigest sdpub {{ command.name }}{% if command.name == "cat" %} --serial <id>{% endif %} --input <path> [--llm <json>]
-    {{ command.summary }}
-{% endfor %}
+sdpub inspection and metadata commands:
+  spinedigest sdpub info --input <path> [--llm <json>]
+  spinedigest sdpub toc --input <path> [--llm <json>]
+  spinedigest sdpub list --input <path> [--llm <json>]
+  spinedigest sdpub cat --input <path> --serial <id> [--llm <json>]
+  spinedigest sdpub cover --input <path> [--llm <json>]
+  spinedigest sdpub meta --input <path> [metadata options] [--llm <json>]
+
+sdpub stage commands:
+  spinedigest sdpub stage pending <path> [--llm <json>]
+  spinedigest sdpub stage advance <path> [--to <stage>] [--chapter <id>] [--prompt <text>] [--llm <json>]
+
+sdpub chapter commands:
+  spinedigest sdpub chapter list <path> [--llm <json>]
+  spinedigest sdpub chapter status <path> --chapter <id> [--llm <json>]
+  spinedigest sdpub chapter add <path> [--title <title>] [--parent <id>] [--llm <json>]
+  spinedigest sdpub chapter remove <path> --chapter <id> [--recursive] [--llm <json>]
+  spinedigest sdpub chapter reset <path> --chapter <id> --to <stage> [--llm <json>]
+  spinedigest sdpub chapter set-source <path> --chapter <id> [--input <path>] --input-format <format> [--llm <json>]
+  spinedigest sdpub chapter set-summary <path> --chapter <id> [--input <path>] [--llm <json>]
 
 sdpub-specific flags:
   --serial <id>          Required by `spinedigest sdpub cat`; must be a non-negative integer.
-  --chapter <id>         Used by `spinedigest sdpub stage advance` to limit work to one chapter subtree.
-  --to <stage>           Used by `spinedigest sdpub stage advance`; defaults to summarized.
+  --chapter <id>         Numeric chapter id printed by `sdpub chapter list` or `add`.
+  --parent <id>          Parent chapter id for `sdpub chapter add`.
+  --to <stage>           Target stage for `sdpub stage advance` or `sdpub chapter reset`.
 
 LLM flag:
   `--llm <json>` accepts a one-shot LLM client object.
   Supported fields include `provider`, `model`, `apiKey`, `baseURL`, `baseUrl`, `chatCompletionsUrl`, and `name`.
   It overrides LLM fields from environment variables and `config.json`.
-  It does not make `.sdpub` re-export or inspection call an LLM.
+  It does not make `.sdpub` re-export, inspection, metadata edits, or chapter tree edits call an LLM.
+  `sdpub stage advance` uses it when graph or summary generation is needed.
 
 Help routing:
   spinedigest --help
@@ -63,7 +80,7 @@ Where to go next:
     spinedigest help runtime
   - Need task-oriented examples instead of raw flags:
     spinedigest help task
-  - Need archive inspection command details:
+  - Need archive command details:
     spinedigest help sdpub
   - Need error-oriented guidance:
     spinedigest help troubleshoot

@@ -7,6 +7,7 @@ Streams:
   - If `--input` is omitted, the CLI reads stdin.
   - If `--output` is omitted, the CLI writes stdout.
   - Interactive stdin is rejected for source digest runs.
+  - `sdpub chapter set-source` and `set-summary` read stdin when their `--input` flag is omitted.
   - `--verbose` cannot be used when digest output goes to stdout.
 
 Exit behavior:
@@ -38,7 +39,7 @@ Where to go next:
     spinedigest help command
   - Need task examples that avoid stdout and stdin mistakes:
     spinedigest help recipe
-  - Need archive inspection specifics:
+  - Need archive command specifics:
     spinedigest help sdpub
   - Need error-driven guidance:
     spinedigest help troubleshoot

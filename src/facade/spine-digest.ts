@@ -7,7 +7,7 @@ import type {
   TocItem,
 } from "../source/index.js";
 
-import { writeSdpubArchive } from "./archive.js";
+import { readSdpubArchiveFormatVersion, writeSdpubArchive } from "./archive.js";
 import type { SpineDigestSerialEntry } from "./types.js";
 
 export class SpineDigest {
@@ -46,6 +46,10 @@ export class SpineDigest {
 
   public async readToc(): Promise<TocFile | undefined> {
     return await this.#document.readToc();
+  }
+
+  public async readArchiveFormatVersion(): Promise<number> {
+    return await readSdpubArchiveFormatVersion(this.#documentDirectoryPath);
   }
 
   public async listSerials(): Promise<readonly SpineDigestSerialEntry[]> {

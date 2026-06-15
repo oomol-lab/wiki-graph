@@ -9,6 +9,9 @@ Digest an EPUB into markdown:
 Digest an EPUB into a reusable archive:
   spinedigest --input ./book.epub --output ./book.sdpub
 
+Prepare an EPUB archive without LLM generation:
+  spinedigest --input ./book.epub --output ./book.sdpub --stage sourced
+
 Re-export an archive to EPUB:
   spinedigest --input ./book.sdpub --output ./book.epub
 
@@ -20,6 +23,15 @@ Digest piped text:
 
 Inspect archive metadata:
   spinedigest sdpub info --input ./book.sdpub
+
+List unfinished archive chapters:
+  spinedigest sdpub stage pending ./book.sdpub
+
+Advance a staged archive to summaries:
+  spinedigest sdpub stage advance ./book.sdpub --to summarized
+
+Add an empty planned chapter:
+  spinedigest sdpub chapter add ./book.sdpub --title "Appendix"
 
 List archive serial ids:
   spinedigest sdpub list --input ./book.sdpub
@@ -39,7 +51,7 @@ Where to go next:
     spinedigest help format
   - Need LLM setup before running source digests:
     spinedigest help config
-  - Need `.sdpub` inspection commands after generating an archive:
+  - Need `.sdpub` commands after generating an archive:
     spinedigest help sdpub
   - Need help because a copied recipe failed:
     spinedigest help troubleshoot

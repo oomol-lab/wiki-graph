@@ -16,13 +16,13 @@ Mental model:
      .sdpub preserves reusable structured output for later export.
   3. Re-export path:
      Opening .sdpub can export markdown, txt, or EPUB without calling an LLM again.
-  4. Inspection path:
-     `spinedigest sdpub ...` reads archive internals and prints them to stdout.
+  4. Archive command path:
+     `spinedigest sdpub ...` inspects or edits existing archives.
 
 Think in terms of intent:
   - Use source input when you want a new digest.
   - Use .sdpub input when you want deterministic reuse of a previous digest.
-  - Use `sdpub` subcommands when you want to inspect the archive, not export it.
+  - Use `sdpub` subcommands when you want to inspect or edit an archive, not export it.
 
 Where to go next:
   - Need a task-shaped entry point:
@@ -33,7 +33,7 @@ Where to go next:
     spinedigest help command
   - Need LLM or environment setup:
     spinedigest help config
-  - Need archive inspection details:
+  - Need archive command details:
     spinedigest help sdpub
   - Need failure-handling guidance:
     spinedigest help troubleshoot

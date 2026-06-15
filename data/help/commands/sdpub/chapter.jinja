@@ -24,6 +24,7 @@ Input rules:
   - `set-source` and `set-summary` read `--input <path>` when provided, otherwise stdin.
   - `set-source` accepts only `txt` or `markdown` for `--input-format`.
   - `reset --to` accepts `planned`, `sourced`, or `graphed`.
+  - Structure edits, `set-source`, `set-summary`, and `reset` do not call an LLM provider.
   - To generate graph or summary for a chapter, use `spinedigest sdpub stage advance <path> --chapter <id> --to <stage>`.
 
 See also:

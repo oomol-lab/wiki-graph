@@ -190,6 +190,7 @@ describe("cli/sdpub", () => {
     expect(sdpubMockState.openCalls).toStrictEqual(["/tmp/book.sdpub"]);
     expect(sdpubMockState.textWrites).toStrictEqual([
       [
+        "Archive Format Version: 1",
         "Title: Fixture Book",
         "Authors: Ari Lantern, Bea North",
         "Language: en",
@@ -358,6 +359,7 @@ describe("cli/sdpub", () => {
 
 interface MockDigest {
   listSerials(): Promise<readonly unknown[]>;
+  readArchiveFormatVersion(): Promise<number>;
   readCover(): Promise<typeof sdpubMockState.cover>;
   readMeta(): Promise<typeof sdpubMockState.meta>;
   readSerialSummary(serialId: number): Promise<string>;
@@ -372,6 +374,7 @@ interface MockEditableDocument {
 function createMockDigest(): MockDigest {
   return {
     listSerials: () => Promise.resolve(sdpubMockState.serialEntries),
+    readArchiveFormatVersion: () => Promise.resolve(1),
     readCover: () => Promise.resolve(sdpubMockState.cover),
     readMeta: () => Promise.resolve(sdpubMockState.meta),
     readSerialSummary: (serialId: number) => {

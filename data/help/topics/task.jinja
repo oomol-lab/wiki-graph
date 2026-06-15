@@ -12,8 +12,8 @@ Digest source material into .sdpub:
   Use when you want a reusable archive for future export or inspection.
   Command shape:
     spinedigest --input <source> --output <digest.sdpub>
-  To stop before graph or summary generation:
-    spinedigest --input <source> --output <digest.sdpub> --stage sourced
+  To choose how far the archive is prepared:
+    spinedigest --input <source> --output <digest.sdpub> --stage <planned|sourced|graphed|summarized>
 
 Re-export an existing .sdpub:
   Use when the digest already exists and you only need markdown, txt, or EPUB output.
@@ -21,9 +21,14 @@ Re-export an existing .sdpub:
     spinedigest --input <digest.sdpub> --output <target>
 
 Inspect archive structure:
-  Use when you need metadata, TOC, serial ids, one serial summary, or raw cover bytes.
+  Use when you need format version, metadata, TOC, serial ids, one serial summary, or raw cover bytes.
   Command shape:
     spinedigest sdpub <info|toc|list|cat|cover|meta> --input <digest.sdpub>
+
+Edit archive chapters:
+  Use when you need to add, remove, reset, or fill individual chapters.
+  Command shape:
+    spinedigest sdpub chapter <action> <digest.sdpub> [options]
 
 Advance staged .sdpub chapters:
   Use when an archive has planned, sourced, or graphed chapters and you want to continue safely.
@@ -42,9 +47,9 @@ Where to go next:
     spinedigest help command
   - Need format compatibility or stream limits:
     spinedigest help format
-  - Need to prepare LLM configuration for source digest runs:
+  - Need to prepare LLM configuration for digest or stage advancement:
     spinedigest help config
   - Need runtime rules like stdout, stderr, or digest-dir behavior:
     spinedigest help runtime
-  - Need archive inspection commands after producing `.sdpub`:
+  - Need archive commands after producing `.sdpub`:
     spinedigest help sdpub

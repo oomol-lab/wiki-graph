@@ -8,9 +8,10 @@ Supported formats:
 
 Input rules:
   - `epub`, `markdown`, and `txt` are source formats for new digest runs.
-  - `.sdpub` is a processed archive format for re-export and inspection.
+  - `.sdpub` is a processed archive format for re-export, inspection, and staged editing.
   - `stdin` is supported only for txt or markdown input.
-  - `sdpub` subcommands require a real archive file path. stdin is not supported.
+  - `sdpub` archive commands require a real archive file path.
+  - `sdpub chapter set-source` and `set-summary` can read content from stdin when their `--input` flag is omitted.
 
 Output rules:
   - File output supports `markdown`, `txt`, `epub`, and `.sdpub`.
@@ -19,6 +20,7 @@ Output rules:
   - `sdpub info`, `toc`, `list`, `cat`, and `meta` print text to stdout.
   - `sdpub cover` writes raw binary bytes to stdout.
   - `sdpub meta` edits book metadata in place when metadata edit flags are present.
+  - `sdpub stage` and `sdpub chapter` edit existing archives in place when their action changes data.
 
 Inference:
   - If `--input-format` is omitted, input format is inferred from the file extension.
@@ -29,7 +31,7 @@ LLM usage:
   - Source digest runs require LLM configuration when they generate graph or summary data.
   - `.sdpub` output with `--stage planned` or `--stage sourced` does not call an LLM provider.
   - `sdpub stage advance` calls an LLM provider when it needs graph or summary generation.
-  - `.sdpub` re-export and `sdpub` inspection do not call an LLM provider.
+  - `.sdpub` re-export, inspection, metadata edits, and chapter tree edits do not call an LLM provider.
 
 Where to go next:
   - Need the product-level mental model behind source vs archive paths:
@@ -38,7 +40,7 @@ Where to go next:
     spinedigest help command
   - Need real task examples:
     spinedigest help task
-  - Need archive inspection and `.sdpub` semantics:
+  - Need archive commands and `.sdpub` semantics:
     spinedigest help sdpub
   - Need stdin, stdout, or binary-output runtime rules:
     spinedigest help runtime

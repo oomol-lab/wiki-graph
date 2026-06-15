@@ -47,7 +47,7 @@ Top-level structure:
 
 Fields:
   `prompt`
-    Default extraction prompt for source digest runs.
+    Default extraction prompt for graph generation.
     Type: non-empty string.
 
   `llm.provider`
@@ -75,7 +75,7 @@ Fields:
     Type: non-empty string.
 
   `paths.cacheDir`
-    LLM cache directory for source digest runs.
+    LLM cache directory for LLM-backed operations.
     Type: path string.
 
   `paths.debugLogDir`
@@ -110,7 +110,7 @@ Fields:
     Streaming toggle.
     Type: JSON boolean, either `true` or `false`.
 
-Minimum source digest config:
+Minimum LLM-backed operation config:
   {
     "llm": {
       "provider": "openai",
@@ -119,8 +119,9 @@ Minimum source digest config:
   }
 
 Applicability:
-  - `llm.*`, `prompt`, `paths.cacheDir`, and `request.*` matter for source digest runs.
+  - `llm.*`, `prompt`, `paths.cacheDir`, and `request.*` matter for source digest runs and `sdpub stage advance` when generation is needed.
   - `.sdpub` re-export through the main convert command does not require LLM settings.
+  - `sdpub` inspection, metadata, and chapter tree edit commands do not require LLM settings.
   - `paths.debugLogDir` can still matter outside source digest runs when the app emits debug logs.
 
 Inline LLM note:
@@ -131,7 +132,7 @@ Inline LLM note:
 Common failures:
   - Invalid JSON fails before execution starts.
   - Schema mismatches are reported with field paths.
-  - Missing `llm.provider` or `llm.model` breaks source digest runs but not `.sdpub` re-export.
+  - Missing `llm.provider` or `llm.model` breaks LLM-backed operations but not `.sdpub` re-export.
 
 Where to go next:
   - Need the overview and precedence model:

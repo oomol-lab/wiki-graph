@@ -1,5 +1,5 @@
 import { createWriteStream } from "fs";
-import { mkdir, readdir } from "fs/promises";
+import { mkdir, readFile, readdir } from "fs/promises";
 import { dirname, join, posix, relative, resolve, sep } from "path";
 import { finished, pipeline } from "stream/promises";
 
@@ -11,7 +11,7 @@ import {
 } from "yauzl";
 import { ZipFile as YazlZipFile } from "yazl";
 
-const SDPUB_FORMAT_VERSION = 1;
+export const SDPUB_FORMAT_VERSION = 1;
 const SDPUB_MANIFEST_PATH = "manifest.json";
 const SDPUB_MANIFEST_CONTENT = `${JSON.stringify({
   formatVersion: SDPUB_FORMAT_VERSION,
@@ -96,6 +96,22 @@ export async function writeSdpubArchive(
   await Promise.all([outputDone, zipDone]);
 }
 
+export async function readSdpubArchiveFormatVersion(
+  documentDirectoryPath: string,
+): Promise<number> {
+  try {
+    return parseSdpubManifest(
+      await readFile(join(documentDirectoryPath, SDPUB_MANIFEST_PATH), "utf8"),
+    ).formatVersion;
+  } catch (error) {
+    if (isFileMissingError(error)) {
+      return SDPUB_FORMAT_VERSION;
+    }
+
+    throw error;
+  }
+}
+
 async function listDocumentFiles(
   rootDirectoryPath: string,
   currentDirectoryPath = rootDirectoryPath,
@@ -175,8 +191,20 @@ async function validateArchiveManifest(
     return;
   }
 
-  const content = await readArchiveEntryText(zipFile, entry);
-  const parsed: unknown = JSON.parse(content);
+  parseSdpubManifest(await readArchiveEntryText(zipFile, entry));
+}
+
+function parseSdpubManifest(
+  content: string,
+): z.infer<typeof sdpubManifestSchema> {
+  let parsed: unknown;
+
+  try {
+    parsed = JSON.parse(content);
+  } catch {
+    throw new Error(`Invalid SDPUB manifest: ${SDPUB_MANIFEST_PATH}.`);
+  }
+
   const result = sdpubManifestSchema.safeParse(parsed);
 
   if (!result.success) {
@@ -184,6 +212,8 @@ async function validateArchiveManifest(
       `Unsupported SDPUB format version in ${SDPUB_MANIFEST_PATH}.`,
     );
   }
+
+  return result.data;
 }
 
 function assertWithinDirectory(
@@ -261,4 +291,10 @@ async function readArchiveEntryText(
   }
 
   return Buffer.concat(chunks).toString("utf8");
+}
+
+function isFileMissingError(error: unknown): boolean {
+  return (
+    error instanceof Error && (error as NodeJS.ErrnoException).code === "ENOENT"
+  );
 }

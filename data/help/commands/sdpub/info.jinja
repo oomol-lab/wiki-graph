@@ -10,6 +10,7 @@ Usage:
   spinedigest sdpub info --input <path> [--llm <json>] [--help|-h]
 
 Output shape:
+  - Archive Format Version
   - Title
   - Authors
   - Language
@@ -24,5 +25,6 @@ Output shape:
   - Total fragment count
 
 Notes:
+  - Archives without `manifest.json` are reported as archive format version 1.
   - Missing metadata fields are omitted.
   - If no document metadata exists, the command prints a fallback message.

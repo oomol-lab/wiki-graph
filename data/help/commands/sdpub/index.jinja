@@ -4,7 +4,7 @@ Command: spinedigest sdpub
 sdpub Command Family
 
 Purpose:
-  Inspect an existing .sdpub archive without exporting the whole document.
+  Inspect or edit an existing .sdpub archive without exporting the whole document.
 
 Usage:
   spinedigest sdpub info --input <path> [--llm <json>] [--help|-h]
@@ -17,15 +17,16 @@ Usage:
   spinedigest sdpub chapter <action> <path> [options] [--help|-h]
 
 Shared behavior:
-  - Inspection subcommands require `--input <path>` to an existing `.sdpub` archive.
+  - Inspection subcommands use `--input <path>` for an existing `.sdpub` archive.
+  - `stage` and `chapter` actions use the archive path as a positional argument.
   - `sdpub meta` edits metadata in place when metadata options are present.
   - Output is written to stdout, except `sdpub cover` writes binary bytes.
-  - stdin is not supported by this command family.
+  - `chapter set-source` and `chapter set-summary` can read content from stdin when `--input` is omitted.
   - `--digest-dir`, `--output`, `--output-format`, and `--verbose` are not supported.
   - `--prompt` is only supported by `sdpub stage advance`.
-  - `--llm <json>` is accepted for wrapper consistency but is not used.
+  - `sdpub stage advance` calls an LLM provider when graph or summary generation is needed.
+  - Inspection commands and metadata/tree edits do not call an LLM provider.
   - `-h` is available as the short form of `--help`.
-  - These subcommands do not call an LLM provider.
 
 Subcommands:
 {% for command in sdpubCommands %}
@@ -43,5 +44,5 @@ Where to go next:
     spinedigest help format
   - Need runtime rules for stdout or binary cover output:
     spinedigest help runtime
-  - Need failure handling for archive inspection:
+  - Need failure handling for archive commands:
     spinedigest help troubleshoot
