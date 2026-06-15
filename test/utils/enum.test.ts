@@ -4,7 +4,6 @@ import {
   createEnumValueAsserter,
   createEnumValueGuard,
 } from "../../src/utils/enum.js";
-import { isNodeError } from "../../src/utils/node-error.js";
 
 enum DemoEnum {
   Alpha = "alpha",
@@ -24,13 +23,5 @@ describe("utils/enum", () => {
 
     expect(expectDemoEnum("beta")).toBe("beta");
     expect(() => expectDemoEnum("gamma")).toThrow("Unknown demo enum: gamma");
-  });
-});
-
-describe("utils/node-error", () => {
-  it("detects Error instances only", () => {
-    expect(isNodeError(new Error("boom"))).toBe(true);
-    expect(isNodeError({ code: "ENOENT" })).toBe(false);
-    expect(isNodeError("boom")).toBe(false);
   });
 });

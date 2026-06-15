@@ -4,7 +4,69 @@ Topic: sdpub
 sdpub Help Topic
 
 Purpose:
-  This topic points to the command-help pages for `.sdpub` inspection, metadata editing, stage advancement, and chapter editing.
+  Explain the `.sdpub` archive model and route safe CLI operations.
+
+Primary rule:
+  Treat `.sdpub` as an editable document managed by SpineDigest commands.
+  It is physically a ZIP archive, but agents should not unzip and edit files directly unless they are building an external reader or validator.
+  Use `spinedigest sdpub ...` commands for inspection and in-place edits.
+
+Archive model:
+  - Document metadata is edited with `sdpub meta`.
+  - The TOC is a chapter tree. Each editable chapter has a numeric chapter id.
+  - A chapter may store normalized source fragments, graph data, and a final summary.
+  - A cover, when present, can be read with `sdpub cover`.
+  - `manifest.json` stores the archive format version. Missing manifest means format version 1.
+  - `database.db` is internal state for SpineDigest. Do not edit it directly from automation.
+
+Chapter lifecycle:
+  planned     Chapter exists in the TOC, but has no source.
+  sourced     Normalized source fragments are stored.
+  graphed     Source plus generated graph/topology data are stored.
+  summarized  Source, graph, and final summary are stored.
+
+Readiness by stage:
+  - planned: inspect, edit structure, or set source.
+  - sourced: inspect, edit, or advance to graph/summary.
+  - graphed: inspect, edit, advance to summary, or set a manual summary.
+  - summarized: inspect, export, and use `sdpub cat`.
+
+Identifiers:
+  - `chapter id` is used by `sdpub chapter ...` and `sdpub stage --chapter`.
+  - `serial id` is used by older read commands such as `sdpub cat --serial`.
+  - In the current editable model, chapter ids and serial ids share the same numeric id for chapter-backed content.
+  - Prefer `sdpub chapter list` when selecting a chapter to edit.
+  - Prefer `sdpub list` when selecting a summarized serial to read with `sdpub cat`.
+
+Fragments:
+  A fragment is a normalized internal text unit stored for a chapter.
+  Fragment counts are useful for diagnostics and rough size checks, but they are not the original source file's chapter count.
+
+Read-only commands:
+  - `sdpub info --input <path>`
+  - `sdpub toc --input <path>`
+  - `sdpub list --input <path>`
+  - `sdpub cat --input <path> --serial <id>`
+  - `sdpub cover --input <path>`
+  - `sdpub stage pending <path>`
+  - `sdpub chapter list <path>`
+  - `sdpub chapter status <path> --chapter <id>`
+
+Mutating commands:
+  - `sdpub meta --input <path> [metadata options]`
+  - `sdpub stage advance <path> [options]`
+  - `sdpub chapter add|remove|reset|set-source|set-summary <path> [options]`
+
+LLM behavior:
+  - Inspection, metadata edits, chapter tree edits, `set-source`, `set-summary`, and `reset` do not call an LLM provider.
+  - `sdpub stage advance` calls an LLM provider when it needs graph or summary generation.
+  - Creating `.sdpub` with `--stage planned` or `--stage sourced` does not call an LLM provider.
+
+Mutation safety:
+  - Mutating commands edit archives in place.
+  - Do not run multiple mutating `sdpub` commands against the same archive concurrently.
+  - Writes are staged through a temporary archive and renamed into place, but no backup file is created.
+  - Keep your own copy before destructive commands such as `chapter remove` or `chapter reset`.
 
 Command help entry points:
   - spinedigest sdpub --help
@@ -19,12 +81,13 @@ Command help entry points:
 
 Use this topic when:
   - You know `.sdpub` is relevant, but you have not yet chosen the exact archive command.
-  - You want to jump from topic help into command help.
+  - You need enough conceptual context to operate through the CLI without directly editing ZIP contents.
 
 Where to go next:
-  - Need archive-vs-source mental model:
-    spinedigest help overview
-  - Need task-level guidance on when to generate or reuse `.sdpub`:
+  - Need task-level workflows:
     spinedigest help task
   - Need the command-family overview:
     spinedigest sdpub --help
+  - Need action-specific mutation details:
+    spinedigest sdpub chapter set-source --help
+    spinedigest sdpub stage advance --help

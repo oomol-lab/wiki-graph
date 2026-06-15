@@ -1,0 +1,25 @@
+Help Type: command
+Command: spinedigest sdpub chapter remove
+
+sdpub chapter remove
+
+Purpose:
+  Remove a chapter from the `.sdpub` chapter tree.
+
+Usage:
+  spinedigest sdpub chapter remove <path> --chapter <id> [--recursive] [--llm <json>] [--help|-h]
+
+Behavior:
+  - Removes the target chapter from the TOC tree.
+  - Removes that chapter's source fragments, graph data, and summary.
+  - Fails when the chapter has children unless `--recursive` is provided.
+  - With `--recursive`, removes the whole selected subtree and its stored data.
+  - Does not call an LLM provider.
+
+Safety:
+  This is a destructive in-place edit. Use `sdpub chapter list` first and keep your own copy if the archive is important.
+
+See also:
+  - spinedigest sdpub chapter list --help
+  - spinedigest sdpub chapter reset --help
+  - spinedigest help sdpub

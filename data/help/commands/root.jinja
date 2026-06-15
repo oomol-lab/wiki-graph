@@ -8,7 +8,7 @@ Purpose:
   Digesting source input uses an LLM pipeline. Re-opening an existing .sdpub archive does not.
 
 Usage:
-  spinedigest [--input <path>] [--output <path>] [--input-format <format>] [--output-format <format>] [--digest-dir <path>] [--llm <json>] [--prompt <text>] [--stage <stage>] [--verbose|-v] [--help|-h]
+  spinedigest [--input <path>] [--output <path>] [--input-format <format>] [--output-format <format>] [--digest-dir <path>] [--llm <json>] [--prompt <text>] [--stage <stage>] [--verbose|-v] [--help|-h] [--version]
   spinedigest status [--llm <json>] [--help|-h]
   spinedigest sdpub <info|toc|list|cat|cover|meta> --input <path> [options] [--help|-h]
   spinedigest sdpub chapter <action> <path> [options] [--help|-h]
@@ -23,6 +23,7 @@ Help contract:
 Flag aliases:
   - `-h` is the short form of `--help` on every command and subcommand.
   - `-v` is the short form of `--verbose` on the main convert command.
+  - `--version` prints the CLI package version and exits.
 
 Common paths:
   Source input -> digest -> markdown | txt | epub | .sdpub

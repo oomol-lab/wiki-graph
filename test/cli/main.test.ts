@@ -179,6 +179,24 @@ describe("cli/main", () => {
     expect(process.exitCode).toBe(0);
   });
 
+  it("prints the package version and skips commands", async () => {
+    mainMockState.argsResult = {
+      help: false,
+      kind: "version",
+    };
+
+    await main();
+
+    expect(stdoutChunks).toHaveLength(1);
+    expect(stdoutChunks[0]).toMatch(/^\d+\.\d+\.\d+\n$/u);
+    expect(stderrChunks).toStrictEqual([]);
+    expect(mainMockState.runCalls).toHaveLength(0);
+    expect(mainMockState.statusRunCalls).toBe(0);
+    expect(mainMockState.sdpubRunCalls).toHaveLength(0);
+    expect(mainMockState.sdpubStageRunCalls).toHaveLength(0);
+    expect(process.exitCode).toBe(0);
+  });
+
   it("runs the status command for status execution", async () => {
     mainMockState.argsResult = {
       args: {

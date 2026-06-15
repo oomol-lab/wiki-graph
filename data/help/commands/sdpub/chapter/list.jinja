@@ -1,0 +1,29 @@
+Help Type: command
+Command: spinedigest sdpub chapter list
+
+sdpub chapter list
+
+Purpose:
+  List every chapter in the `.sdpub` chapter tree.
+
+Usage:
+  spinedigest sdpub chapter list <path> [--llm <json>] [--help|-h]
+
+Output shape:
+  [<chapterId>] <stage> <title-or-[untitled]>
+
+Behavior:
+  - Includes summarized and unfinished chapters.
+  - Indents child chapters under their parent.
+  - The bracketed number is the chapter id used by `sdpub chapter` and `sdpub stage --chapter`.
+  - Does not call an LLM provider.
+  - Does not mutate chapter content or summaries.
+
+Use this before mutation:
+  Discover ids with:
+    spinedigest sdpub chapter list <path>
+
+See also:
+  - spinedigest sdpub stage pending --help
+  - spinedigest sdpub chapter status --help
+  - spinedigest help sdpub

@@ -28,6 +28,16 @@ Shared behavior:
   - Inspection commands and metadata/tree edits do not call an LLM provider.
   - `-h` is available as the short form of `--help`.
 
+Path convention:
+  - Use `--input <path>` for `info`, `toc`, `list`, `cat`, `cover`, and `meta`.
+  - Use positional `<path>` for `stage` and `chapter`.
+  - `.sdpub` is a ZIP archive, but routine automation should not unzip and edit it directly. Use this command family instead.
+
+Mutation safety:
+  - Mutating commands edit archives in place.
+  - Do not run multiple mutating commands against the same archive concurrently.
+  - Keep your own copy before destructive actions such as `chapter remove` or `chapter reset`.
+
 Subcommands:
 {% for command in sdpubCommands %}
   {{ command.name }}:

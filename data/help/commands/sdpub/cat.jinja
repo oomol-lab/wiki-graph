@@ -4,7 +4,7 @@ Command: spinedigest sdpub cat
 sdpub cat
 
 Purpose:
-  Print the summary text for one serial id.
+  Print the final summary text for one summarized serial id.
 
 Usage:
   spinedigest sdpub cat --input <path> --serial <id> [--llm <json>] [--help|-h]
@@ -16,4 +16,7 @@ Output shape:
   - Plain summary text only
 
 Notes:
-  - Use `spinedigest sdpub list --input <path>` to discover valid serial ids.
+  - The serial must have a summary.
+  - Planned, sourced, or graphed chapters are not ready for `cat`.
+  - Use `spinedigest sdpub list --input <path>` to discover summarized serial ids.
+  - Use `spinedigest sdpub stage pending <path>` to find unfinished chapters.

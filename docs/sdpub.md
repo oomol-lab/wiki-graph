@@ -6,6 +6,13 @@ persisted digest documents.
 It is written for implementations that need to inspect, parse, validate,
 or render `.sdpub` files outside the SpineDigest runtime.
 
+This is not the recommended guide for routine archive editing. `.sdpub`
+is physically a ZIP file, but automation that wants to add chapters,
+change metadata, set source text, reset stages, or advance generation
+should use `spinedigest sdpub ...` commands. Direct ZIP mutation is for
+external readers, validators, recovery tooling, or format experiments
+that intentionally take responsibility for preserving every invariant.
+
 ## Overview
 
 An `.sdpub` file is a ZIP archive that stores a serialized

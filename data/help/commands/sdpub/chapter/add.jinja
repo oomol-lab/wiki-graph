@@ -1,0 +1,29 @@
+Help Type: command
+Command: spinedigest sdpub chapter add
+
+sdpub chapter add
+
+Purpose:
+  Insert a new planned chapter into an existing `.sdpub` chapter tree.
+
+Usage:
+  spinedigest sdpub chapter add <path> [--title <title>] [--parent <id>] [--llm <json>] [--help|-h]
+
+Behavior:
+  - Creates a planned chapter with no source, graph, or summary.
+  - Omitting `--title` creates an untitled planned chapter.
+  - Omitting `--parent` adds the chapter at the top level.
+  - `--parent <id>` adds the chapter under an existing chapter.
+  - Does not call an LLM provider.
+
+Output shape:
+  Prints the new chapter status.
+  The `Chapter: <id>` line is the new chapter id for later commands.
+
+Typical next step:
+  spinedigest sdpub chapter set-source <path> --chapter <id> --input <file> --input-format txt
+
+See also:
+  - spinedigest sdpub chapter list --help
+  - spinedigest sdpub chapter set-source --help
+  - spinedigest help sdpub

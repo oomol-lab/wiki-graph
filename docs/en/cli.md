@@ -10,18 +10,22 @@ Installed CLI:
 
 ```bash
 spinedigest [--input <path>] [--output <path>] [--input-format <format>] [--output-format <format>] [--digest-dir <path>] [--llm <json>] [--prompt <text>] [--stage <stage>] [--verbose]
+spinedigest --version
 spinedigest status [--llm <json>]
 spinedigest sdpub <info|toc|list|cat|cover|meta> --input <path> [--serial <id>] [--llm <json>]
 spinedigest sdpub stage <pending|advance> <path> [--to <stage>] [--chapter <id>] [--prompt <text>] [--llm <json>]
+spinedigest sdpub chapter <list|status|add|remove|reset|set-source|set-summary> <path> [options]
 ```
 
 From a source checkout:
 
 ```bash
 pnpm dev -- [--input <path>] [--output <path>] [--input-format <format>] [--output-format <format>] [--digest-dir <path>] [--llm <json>] [--prompt <text>] [--stage <stage>] [--verbose]
+pnpm dev -- --version
 pnpm dev -- status [--llm <json>]
 pnpm dev -- sdpub <info|toc|list|cat|cover|meta> --input <path> [--serial <id>] [--llm <json>]
 pnpm dev -- sdpub stage <pending|advance> <path> [--to <stage>] [--chapter <id>] [--prompt <text>] [--llm <json>]
+pnpm dev -- sdpub chapter <list|status|add|remove|reset|set-source|set-summary> <path> [options]
 ```
 
 ## Flags
@@ -35,13 +39,14 @@ pnpm dev -- sdpub stage <pending|advance> <path> [--to <stage>] [--chapter <id>]
 - `--prompt <text>`: one-off extraction prompt override for the current digest run
 - `--stage <stage>`: create `.sdpub` output up to `planned`, `sourced`, `graphed`, or `summarized`
 - `--verbose`: write diagnostic logs to `stderr`
+- `--version`: print the installed package version
 - `-h`, `--help`: print help text
 
 The main conversion command does not support positional arguments.
 
-The `sdpub` inspection interface uses positional subcommands: `spinedigest sdpub <subcommand>`.
+The `sdpub` interface uses positional subcommands: `spinedigest sdpub <subcommand>`.
 
-The `sdpub` inspection subcommands only accept `--input`, except `cat` also requires `--serial` and `meta` accepts metadata edit flags.
+Read-oriented `sdpub` subcommands use `--input`, except `cat` also requires `--serial` and `meta` accepts metadata edit flags. `sdpub stage` and `sdpub chapter` edit existing archives in place and take the archive path as a positional argument.
 
 `--prompt` affects digest generation from source inputs and graph generation through `spinedigest sdpub stage advance`.
 
@@ -130,6 +135,14 @@ spinedigest sdpub cat --input ./book.sdpub --serial 12
 spinedigest sdpub cover --input ./book.sdpub > ./cover.png
 spinedigest sdpub meta --input ./book.sdpub
 spinedigest sdpub stage pending ./book.sdpub
+spinedigest sdpub chapter list ./book.sdpub
+```
+
+Edit and advance an `.sdpub` archive:
+
+```bash
+spinedigest sdpub chapter add ./book.sdpub --title "Appendix"
+spinedigest sdpub chapter set-source ./book.sdpub --chapter 3 --input ./appendix.md --input-format markdown
 spinedigest sdpub stage advance ./book.sdpub --to summarized
 ```
 
@@ -232,18 +245,28 @@ SpineDigest can override config values with environment variables:
 
 ## `.sdpub` Behavior
 
-`.sdpub` is a portable archive of a processed digest document.
+`.sdpub` is a portable archive of a processed digest document. It is physically a ZIP file, but routine automation should treat it as a SpineDigest-managed document and use `spinedigest sdpub ...` commands instead of editing ZIP contents directly.
 
 When the input is `.sdpub`:
 
 - SpineDigest opens the saved digest state
 - no LLM configuration is required
-- you can export to `.txt`, `.md`, or `.epub`
-- you can inspect metadata, TOC, serials, serial text, and cover data through `spinedigest sdpub ...`
+- if the archive is summarized, you can export to `.txt`, `.md`, or `.epub`
+- you can inspect metadata, TOC, summarized serials, serial text, cover data, pending chapters, and chapter stages through `spinedigest sdpub ...`
 
 When the output is `.sdpub`:
 
 - SpineDigest saves the processed digest document for later reuse
+- `--stage planned|sourced|graphed|summarized` controls how far the archive is prepared
+
+Chapter stages:
+
+- `planned`: the chapter exists in the TOC but has no source
+- `sourced`: normalized source fragments are stored
+- `graphed`: graph data is stored, but no final summary exists yet
+- `summarized`: final summary exists and the chapter is ready for re-export or `sdpub cat`
+
+Use `spinedigest help sdpub` for the archive model, stage lifecycle, id rules, mutation safety, and command routing.
 
 ## Failure Modes
 
@@ -255,9 +278,10 @@ Expect a plain-text error message on `stderr` and a non-zero exit code when:
 - `--verbose` is used while writing output to `stdout`
 - no LLM configuration is available for a digest operation
 - `spinedigest sdpub cat` is used without `--serial`
-- `sdpub` inspection subcommands are used with unsupported flags such as `--output`, `--output-format`, `--prompt`, or `--verbose`
+- `sdpub` subcommands are used with unsupported flags such as `--output`, `--output-format`, `--prompt`, or `--verbose`
 - `spinedigest sdpub cover` tries to write binary data to an interactive terminal
 - `spinedigest sdpub cover` is used on an archive without a cover
+- `.sdpub` re-export or `sdpub cat` is attempted before the selected chapters are summarized
 - provider-specific configuration is invalid
 
 ## Related Docs

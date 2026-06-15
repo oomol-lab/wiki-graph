@@ -6,6 +6,7 @@ import { runSdpubChapterCommand } from "./sdpub-chapter.js";
 import { runSdpubStageCommand } from "./sdpub-stage.js";
 import { LLMPaymentRequiredError } from "../llm/index.js";
 import { formatError } from "../utils/node-error.js";
+import { readCLIVersion } from "./version.js";
 
 export async function main(): Promise<void> {
   try {
@@ -17,6 +18,9 @@ export async function main(): Promise<void> {
     }
 
     switch (parsed.kind) {
+      case "version":
+        process.stdout.write(`${readCLIVersion()}\n`);
+        return;
       case "convert":
         await runConvertCommand(parsed.args);
         return;

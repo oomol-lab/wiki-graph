@@ -4,7 +4,7 @@ Topic: command
 Command Reference
 
 Main convert command:
-  spinedigest [--input <path>] [--output <path>] [--input-format <format>] [--output-format <format>] [--digest-dir <path>] [--llm <json>] [--prompt <text>] [--stage <stage>] [--verbose|-v] [--help|-h]
+  spinedigest [--input <path>] [--output <path>] [--input-format <format>] [--output-format <format>] [--digest-dir <path>] [--llm <json>] [--prompt <text>] [--stage <stage>] [--verbose|-v] [--help|-h] [--version]
 
 Status command:
   spinedigest status [--llm <json>] [--help|-h]
@@ -22,6 +22,7 @@ Main flags:
   --stage <stage>         For .sdpub output, stop at planned, sourced, graphed, or summarized.
   --verbose, -v           Write diagnostic logs to stderr.
   --help, -h              Print entry help.
+  --version               Print the CLI package version and exit.
 
 sdpub inspection and metadata commands:
   spinedigest sdpub info --input <path> [--llm <json>]

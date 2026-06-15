@@ -576,7 +576,9 @@ export async function readSerial(
   const summary = await document.readSummary(serialId);
 
   if (summary === undefined) {
-    throw new Error(`Serial ${serialId} summary is missing`);
+    throw new Error(
+      `Serial ${serialId} summary is missing. Run \`spinedigest sdpub stage pending <path>\` to inspect unfinished chapters.`,
+    );
   }
 
   return new Serial(document, serialId, summary);
@@ -599,7 +601,9 @@ async function getSerialRecord(
   const record = await document.serials.getById(serialId);
 
   if (record === undefined) {
-    throw new Error(`Serial ${serialId} does not exist`);
+    throw new Error(
+      `Serial ${serialId} does not exist. Use \`spinedigest sdpub list --input <path>\` to discover summarized serial ids.`,
+    );
   }
 
   return record;

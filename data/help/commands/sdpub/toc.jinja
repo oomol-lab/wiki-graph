@@ -12,8 +12,11 @@ Usage:
 Output shape:
   - Document title first, when available
   - Indented TOC items
-  - `[serial N]` markers on items linked to a serial summary
+  - `[serial N]` markers on items linked to chapter-backed serial data
 
 Notes:
   - The command fails if the archive has no TOC.
   - Empty TOCs print `No TOC items.`
+  - A `[serial N]` marker does not guarantee that `sdpub cat --serial N` is ready; `cat` requires a summary.
+  - Use `sdpub list` to discover ids ready for `cat`.
+  - Use `sdpub chapter list` or `sdpub stage pending` to inspect unfinished chapters.

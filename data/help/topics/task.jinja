@@ -16,12 +16,14 @@ Digest source material into .sdpub:
     spinedigest --input <source> --output <digest.sdpub> --stage <planned|sourced|graphed|summarized>
 
 Re-export an existing .sdpub:
-  Use when the digest already exists and you only need markdown, txt, or EPUB output.
+  Use when the archive is summarized and you only need markdown, txt, or EPUB output.
   Command shape:
     spinedigest --input <digest.sdpub> --output <target>
+  If re-export fails with a missing summary, inspect unfinished chapters:
+    spinedigest sdpub stage pending <digest.sdpub>
 
 Inspect archive structure:
-  Use when you need format version, metadata, TOC, serial ids, one serial summary, or raw cover bytes.
+  Use when you need format version, metadata, TOC, summarized serial ids, one serial summary, or raw cover bytes.
   Command shape:
     spinedigest sdpub <info|toc|list|cat|cover|meta> --input <digest.sdpub>
 
@@ -34,6 +36,12 @@ Advance staged .sdpub chapters:
   Use when an archive has planned, sourced, or graphed chapters and you want to continue safely.
   Command shape:
     spinedigest sdpub stage advance <digest.sdpub> --to summarized
+
+Manual staged workflow:
+  1. Create or add planned chapters.
+  2. Fill source with `sdpub chapter set-source`.
+  3. Generate graph with `sdpub stage advance --to graphed`.
+  4. Set a manual summary or advance to `summarized`.
 
 Pipe text through stdin/stdout:
   Use only for txt or markdown streams in non-interactive contexts.

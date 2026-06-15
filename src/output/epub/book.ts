@@ -72,7 +72,9 @@ async function collectSections(
       const summary = await document.readSummary(item.serialId);
 
       if (summary === undefined) {
-        throw new Error(`Serial ${item.serialId} summary is missing`);
+        throw new Error(
+          `Serial ${item.serialId} summary is missing. Run \`spinedigest sdpub stage pending <path>\` to inspect unfinished chapters.`,
+        );
       }
 
       const section = createSectionDocument(

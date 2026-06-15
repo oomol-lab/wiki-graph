@@ -1,0 +1,31 @@
+Help Type: command
+Command: spinedigest sdpub chapter status
+
+sdpub chapter status
+
+Purpose:
+  Print one chapter's current stage and stored artifacts.
+
+Usage:
+  spinedigest sdpub chapter status <path> --chapter <id> [--llm <json>] [--help|-h]
+
+Output shape:
+  Chapter: <id>
+  Title: <title-or-[untitled]>
+  Stage: <planned|sourced|graphed|summarized>
+  Fragments: <count>
+  Children: <count>
+  Graph: yes|no
+  Summary: yes|no
+
+Behavior:
+  - Does not call an LLM provider.
+  - Does not mutate the archive.
+  - `Fragments` is the number of stored normalized fragment records for that chapter.
+  - `Graph` reports whether graph/topology data is present.
+  - `Summary` reports whether the final serial summary file is present.
+
+See also:
+  - spinedigest sdpub chapter list --help
+  - spinedigest sdpub stage advance --help
+  - spinedigest help sdpub

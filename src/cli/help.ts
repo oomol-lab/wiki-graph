@@ -3,6 +3,7 @@ import { createEnv } from "../common/template.js";
 
 import { CLI_FORMATS } from "./formats.js";
 import { CLI_HELP_ROUTES, withHelpRoute } from "./errors.js";
+import type { CLISdpubChapterAction, CLISdpubStageAction } from "./args.js";
 
 export const HELP_TOPICS = [
   "overview",
@@ -163,6 +164,18 @@ export function renderSdpubSubcommandHelpText(
   subcommand: SDPubSubcommand,
 ): string {
   return renderHelpTemplate(`help/commands/sdpub/${subcommand}`);
+}
+
+export function renderSdpubChapterActionHelpText(
+  action: CLISdpubChapterAction,
+): string {
+  return renderHelpTemplate(`help/commands/sdpub/chapter/${action}`);
+}
+
+export function renderSdpubStageActionHelpText(
+  action: CLISdpubStageAction,
+): string {
+  return renderHelpTemplate(`help/commands/sdpub/stage/${action}`);
 }
 
 export function parseHelpTopic(value: string): HelpTopic {

@@ -1,0 +1,33 @@
+Help Type: command
+Command: spinedigest sdpub chapter set-source
+
+sdpub chapter set-source
+
+Purpose:
+  Fill a planned chapter with normalized source text.
+
+Usage:
+  spinedigest sdpub chapter set-source <path> --chapter <id> [--input <path>] --input-format <format> [--llm <json>] [--help|-h]
+
+Input:
+  - `--input-format` must be `txt` or `markdown`.
+  - If `--input` is omitted, source text is read from stdin.
+
+Preconditions:
+  - The chapter must be `planned`.
+  - To replace source on a later-stage chapter, first reset it to `planned`.
+
+Behavior:
+  - Writes normalized source fragments.
+  - Moves the chapter to `sourced`.
+  - Does not generate graph data.
+  - Does not generate or modify a summary.
+  - Does not call an LLM provider.
+
+Typical next step:
+  spinedigest sdpub stage advance <path> --chapter <id> --to graphed
+
+See also:
+  - spinedigest sdpub chapter reset --help
+  - spinedigest sdpub stage advance --help
+  - spinedigest help sdpub

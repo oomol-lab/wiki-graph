@@ -120,7 +120,7 @@ async function writeSdpubSerialList(digest: SpineDigest): Promise<void> {
   const serials = await digest.listSerials();
 
   if (serials.length === 0) {
-    await writeTextToStdout("No serials referenced by TOC.\n");
+    await writeTextToStdout("No summarized serials available.\n");
     return;
   }
 

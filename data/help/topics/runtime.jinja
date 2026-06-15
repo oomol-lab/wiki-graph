@@ -23,6 +23,12 @@ Digest workspace:
   - The target directory is removed before each run, then rebuilt as the working digest directory.
   - With the top-level convert command, `.sdpub` input ignores `--digest-dir`; with the `sdpub` subcommands, `--digest-dir` is rejected and cannot be used.
 
+In-place archive edits:
+  - `sdpub meta`, `sdpub stage advance`, and mutating `sdpub chapter` actions edit archives in place.
+  - Do not run multiple mutating `sdpub` commands against the same archive concurrently.
+  - Writes are staged through a temporary archive and renamed into place, but no backup file is created.
+  - Keep your own copy before destructive commands such as `sdpub chapter remove` or `sdpub chapter reset`.
+
 Binary safety:
   - `sdpub cover` refuses to write binary cover data to an interactive terminal.
 

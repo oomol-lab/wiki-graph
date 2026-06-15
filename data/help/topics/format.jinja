@@ -22,6 +22,12 @@ Output rules:
   - `sdpub meta` edits book metadata in place when metadata edit flags are present.
   - `sdpub stage` and `sdpub chapter` edit existing archives in place when their action changes data.
 
+Output readiness by `.sdpub` stage:
+  - planned: inspect and edit only; add source before generation.
+  - sourced: inspect, edit, or advance; re-export and `sdpub cat` are not ready.
+  - graphed: inspect, edit, advance, or set a manual summary; re-export and `sdpub cat` are not ready.
+  - summarized: inspect, re-export, and read summaries with `sdpub cat`.
+
 Inference:
   - If `--input-format` is omitted, input format is inferred from the file extension.
   - If `--output-format` is omitted, output format is inferred from the file extension.

@@ -26,8 +26,11 @@ Input rules:
   - `reset --to` accepts `planned`, `sourced`, or `graphed`.
   - Structure edits, `set-source`, `set-summary`, and `reset` do not call an LLM provider.
   - To generate graph or summary for a chapter, use `spinedigest sdpub stage advance <path> --chapter <id> --to <stage>`.
+  - Append `--help` after an action for action-specific details, for example `spinedigest sdpub chapter reset --help`.
 
 See also:
   - spinedigest sdpub chapter list <path>
+  - spinedigest sdpub chapter set-source --help
+  - spinedigest sdpub chapter set-summary --help
   - spinedigest sdpub stage --help
   - spinedigest help sdpub

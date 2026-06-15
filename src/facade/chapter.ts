@@ -129,7 +129,9 @@ export async function addChapter(
     } else if (
       !appendChildToChapter(toc.items, options.parentChapterId, chapterItem)
     ) {
-      throw new Error(`Chapter ${options.parentChapterId} does not exist.`);
+      throw new Error(
+        `Chapter ${options.parentChapterId} does not exist. Use \`spinedigest sdpub chapter list <path>\` to discover chapter ids.`,
+      );
     }
 
     await openedDocument.replaceToc(toc);
@@ -207,7 +209,9 @@ export async function getChapterDetails(
   const entry = entries.find((item) => item.chapterId === chapterId);
 
   if (entry === undefined) {
-    throw new Error(`Chapter ${chapterId} does not exist.`);
+    throw new Error(
+      `Chapter ${chapterId} does not exist. Use \`spinedigest sdpub chapter list <path>\` to discover chapter ids.`,
+    );
   }
 
   const serial = await document.serials.getById(chapterId);
@@ -242,7 +246,9 @@ export async function removeChapter(
     });
 
     if (!result.removed) {
-      throw new Error(`Chapter ${chapterId} does not exist.`);
+      throw new Error(
+        `Chapter ${chapterId} does not exist. Use \`spinedigest sdpub chapter list <path>\` to discover chapter ids.`,
+      );
     }
 
     toc.items = result.items;
@@ -458,7 +464,9 @@ async function selectChapterEntries(
   const selectedIds = await collectChapterSubtreeIds(document, chapterId);
 
   if (selectedIds.size === 0) {
-    throw new Error(`Chapter ${chapterId} does not exist.`);
+    throw new Error(
+      `Chapter ${chapterId} does not exist. Use \`spinedigest sdpub chapter list <path>\` to discover chapter ids.`,
+    );
   }
 
   return entries.filter((entry) => selectedIds.has(entry.chapterId));

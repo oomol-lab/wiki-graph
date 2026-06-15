@@ -1,0 +1,30 @@
+Help Type: command
+Command: spinedigest sdpub stage pending
+
+sdpub stage pending
+
+Purpose:
+  List chapters that are not yet summarized.
+
+Usage:
+  spinedigest sdpub stage pending <path> [--llm <json>] [--help|-h]
+
+Output shape:
+  [<chapterId>] <stage> <TOC path>
+
+Behavior:
+  - Prints only chapters whose stage is not `summarized`.
+  - Prints `No pending chapters.` when every chapter is summarized.
+  - Does not call an LLM provider.
+  - Does not mutate the archive.
+
+Next actions:
+  - For `planned` chapters, add source first:
+    spinedigest sdpub chapter set-source <path> --chapter <id> --input <file> --input-format txt
+  - For `sourced` or `graphed` chapters, advance safely:
+    spinedigest sdpub stage advance <path> --chapter <id> --to summarized
+
+See also:
+  - spinedigest sdpub stage advance --help
+  - spinedigest sdpub chapter list --help
+  - spinedigest help sdpub

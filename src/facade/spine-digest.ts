@@ -69,13 +69,17 @@ export class SpineDigest {
       const record = await document.serials.getById(serialId);
 
       if (record === undefined) {
-        throw new Error(`Serial ${serialId} does not exist`);
+        throw new Error(
+          `Serial ${serialId} does not exist. Use \`spinedigest sdpub list --input <path>\` to discover summarized serial ids.`,
+        );
       }
 
       const summary = await document.readSummary(serialId);
 
       if (summary === undefined) {
-        throw new Error(`Serial ${serialId} summary is missing`);
+        throw new Error(
+          `Serial ${serialId} summary is missing. Run \`spinedigest sdpub stage pending <path>\` to inspect unfinished chapters.`,
+        );
       }
 
       return summary;
@@ -114,14 +118,18 @@ async function collectSerialEntries(
     const tocPath = [...ancestorTitles, title];
 
     if (item.serialId !== undefined) {
-      entries.push({
-        fragmentCount: (
-          await document.getSerialFragments(item.serialId).listFragmentIds()
-        ).length,
-        serialId: item.serialId,
-        title,
-        tocPath,
-      });
+      const summary = await document.readSummary(item.serialId);
+
+      if (summary !== undefined) {
+        entries.push({
+          fragmentCount: (
+            await document.getSerialFragments(item.serialId).listFragmentIds()
+          ).length,
+          serialId: item.serialId,
+          title,
+          tocPath,
+        });
+      }
     }
 
     entries.push(

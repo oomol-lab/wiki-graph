@@ -84,6 +84,13 @@ async function writeAdvanceResult(
     lines.push("", "Pending chapters:");
     lines.push(...result.pending.map(formatChapterEntry));
   }
+  if (result.skipped.some((entry) => entry.stage === "planned")) {
+    lines.push(
+      "",
+      "Next: set source for planned chapters, then advance again.",
+      "Example: spinedigest sdpub chapter set-source <path> --chapter <id> --input <file> --input-format txt",
+    );
+  }
 
   await writeTextToStdout(`${lines.join("\n")}\n`);
 }

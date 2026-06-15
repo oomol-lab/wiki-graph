@@ -30,6 +30,22 @@ function describeError(error: Error): string {
     typeof errnoError.code === "string" && errnoError.code !== ""
       ? errnoError.code
       : undefined;
+  const path =
+    typeof errnoError.path === "string" && errnoError.path !== ""
+      ? errnoError.path
+      : undefined;
+
+  if (code === "ENOENT") {
+    return path === undefined
+      ? "File not found (ENOENT)"
+      : `File not found: ${path} (ENOENT)`;
+  }
+
+  if (code === "EACCES" || code === "EPERM") {
+    return path === undefined
+      ? `Permission denied (${code})`
+      : `Permission denied: ${path} (${code})`;
+  }
 
   if (message === "") {
     return code === undefined ? error.name : `${error.name} (${code})`;

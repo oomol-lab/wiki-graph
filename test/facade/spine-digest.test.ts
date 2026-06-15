@@ -124,6 +124,48 @@ describe("facade/spine-digest", () => {
       ).rejects.toThrow();
     });
   });
+
+  it("lists only serials with summaries for cat-ready output", async () => {
+    await withTempDir("spinedigest-facade-", async (path) => {
+      const document = await DirectoryDocument.open(`${path}/document`);
+
+      try {
+        await document.openSession(async (openedDocument) => {
+          await openedDocument.createSerial();
+          await openedDocument.createSerial();
+          await openedDocument.writeSummary(1, "Summary one");
+          await openedDocument.writeToc({
+            items: [
+              {
+                children: [],
+                serialId: 1,
+                title: "Ready",
+              },
+              {
+                children: [],
+                serialId: 2,
+                title: "Pending",
+              },
+            ],
+            version: 1,
+          });
+        });
+
+        const digest = new SpineDigest(document, document.path);
+
+        expect(await digest.listSerials()).toStrictEqual([
+          {
+            fragmentCount: 0,
+            serialId: 1,
+            title: "Ready",
+            tocPath: ["Ready"],
+          },
+        ]);
+      } finally {
+        await document.release();
+      }
+    });
+  });
 });
 
 async function seedDocument(document: DirectoryDocument): Promise<void> {

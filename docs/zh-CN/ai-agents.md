@@ -55,6 +55,7 @@ spinedigest help ai
 - 退出行为：失败时返回非零
 - 错误通道：在 `stderr` 输出纯文本
 - 是否需要 LLM：处理源文件时需要；重新导出 `.sdpub` 时不需要
+- `.sdpub` 编辑：使用 `spinedigest sdpub ...` 命令；常规编辑不要直接解压并改写归档内部文件
 
 ## 推荐执行策略
 
@@ -63,6 +64,7 @@ spinedigest help ai
 3. 后续导出时优先复用 `.sdpub`，避免再次处理原始文件。
 4. 只在非交互式流水线中使用 `stdin`。
 5. 当文件缺少扩展名或格式不明确时，显式设置 `--input-format` 或 `--output-format`。
+6. 编辑 `.sdpub` 章节前，先运行 `spinedigest help sdpub` 和具体命令的 `--help`。
 
 ## 从源码仓库运行
 
@@ -111,6 +113,7 @@ SpineDigest 至少需要：
 - 如果下游还没决定最终输出格式，优先使用 `.sdpub`
 - 当生成的临时文件没有明确扩展名时，优先显式传格式参数
 - 把 `.sdpub` 当成最便宜、最适合复用的中间产物
+- 把 `.sdpub` 当成托管归档：即便它在物理上是 ZIP，也通过 CLI 命令检查和修改
 
 ## 相关文档
 

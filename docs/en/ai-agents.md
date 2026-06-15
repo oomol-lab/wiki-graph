@@ -55,6 +55,7 @@ Then follow the topic pages you need, such as:
 - Exit behavior: non-zero on failure
 - Error channel: plain text on `stderr`
 - LLM required: yes for source digestion, no for `.sdpub` re-export
+- `.sdpub` editing: use `spinedigest sdpub ...` commands; do not unzip and mutate archive internals directly for routine edits
 
 ## Recommended Execution Strategy
 
@@ -63,6 +64,7 @@ Then follow the topic pages you need, such as:
 3. Reuse `.sdpub` for follow-up exports to avoid re-digesting the original file.
 4. Use `stdin` only in non-interactive pipelines.
 5. Set `--input-format` or `--output-format` when file extensions are missing or ambiguous.
+6. Before editing `.sdpub` chapters, run `spinedigest help sdpub` and the specific command's `--help`.
 
 ## Source Checkout Commands
 
@@ -111,6 +113,7 @@ Agents that already have a runtime LLM client descriptor can pass it with `--llm
 - prefer `.sdpub` when downstream format decisions are unknown
 - prefer explicit format flags when generating temporary files without extensions
 - treat `.sdpub` as the cheapest reusable intermediate artifact
+- treat `.sdpub` as a managed archive: inspect and mutate it through CLI commands, even though the file is physically ZIP
 
 ## Related Docs
 

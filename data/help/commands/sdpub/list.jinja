@@ -4,7 +4,7 @@ Command: spinedigest sdpub list
 sdpub list
 
 Purpose:
-  List the serial summaries referenced by the TOC.
+  List summarized serials that can be read with `sdpub cat`.
 
 Usage:
   spinedigest sdpub list --input <path> [--llm <json>] [--help|-h]
@@ -14,4 +14,6 @@ Output shape:
 
 Notes:
   - The TOC path is joined with ` / `.
-  - If the archive references no serials, the command prints `No serials referenced by TOC.`
+  - Listed ids are suitable for `spinedigest sdpub cat --serial <id>`.
+  - Use `sdpub chapter list` when you need editable chapter ids for staged or unfinished chapters.
+  - If the archive references no summarized serials, the command prints `No serials referenced by TOC.`

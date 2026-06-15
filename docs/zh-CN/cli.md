@@ -10,18 +10,22 @@ SpineDigest 的设计重心是命令行使用。
 
 ```bash
 spinedigest [--input <path>] [--output <path>] [--input-format <format>] [--output-format <format>] [--digest-dir <path>] [--llm <json>] [--prompt <text>] [--stage <stage>] [--verbose]
+spinedigest --version
 spinedigest status [--llm <json>]
 spinedigest sdpub <info|toc|list|cat|cover|meta> --input <path> [--serial <id>] [--llm <json>]
 spinedigest sdpub stage <pending|advance> <path> [--to <stage>] [--chapter <id>] [--prompt <text>] [--llm <json>]
+spinedigest sdpub chapter <list|status|add|remove|reset|set-source|set-summary> <path> [options]
 ```
 
 在源码仓库中运行时：
 
 ```bash
 pnpm dev -- [--input <path>] [--output <path>] [--input-format <format>] [--output-format <format>] [--digest-dir <path>] [--llm <json>] [--prompt <text>] [--stage <stage>] [--verbose]
+pnpm dev -- --version
 pnpm dev -- status [--llm <json>]
 pnpm dev -- sdpub <info|toc|list|cat|cover|meta> --input <path> [--serial <id>] [--llm <json>]
 pnpm dev -- sdpub stage <pending|advance> <path> [--to <stage>] [--chapter <id>] [--prompt <text>] [--llm <json>]
+pnpm dev -- sdpub chapter <list|status|add|remove|reset|set-source|set-summary> <path> [options]
 ```
 
 ## 参数
@@ -35,13 +39,14 @@ pnpm dev -- sdpub stage <pending|advance> <path> [--to <stage>] [--chapter <id>]
 - `--prompt <text>`：为当前这次 digest 临时覆盖 extraction prompt
 - `--stage <stage>`：把 `.sdpub` 输出生成到 `planned`、`sourced`、`graphed` 或 `summarized`
 - `--verbose`：把诊断日志输出到 `stderr`
+- `--version`：打印已安装包版本
 - `-h`, `--help`：打印帮助文本
 
 主转换命令不支持 positional arguments。
 
-`sdpub` 检查接口本身使用 positional subcommands：`spinedigest sdpub <subcommand>`。
+`sdpub` 接口本身使用 positional subcommands：`spinedigest sdpub <subcommand>`。
 
-`sdpub` 检查子命令只接受 `--input`，其中 `cat` 还要求提供 `--serial`，`meta` 额外接受 metadata 编辑参数。
+偏读取的 `sdpub` 子命令使用 `--input`，其中 `cat` 还要求提供 `--serial`，`meta` 额外接受 metadata 编辑参数。`sdpub stage` 和 `sdpub chapter` 会原地编辑已有归档，并把归档路径作为 positional argument。
 
 `--prompt` 影响从源输入生成 digest 的过程，也会影响 `spinedigest sdpub stage advance` 中的 graph 生成。
 
@@ -130,6 +135,14 @@ spinedigest sdpub cat --input ./book.sdpub --serial 12
 spinedigest sdpub cover --input ./book.sdpub > ./cover.png
 spinedigest sdpub meta --input ./book.sdpub
 spinedigest sdpub stage pending ./book.sdpub
+spinedigest sdpub chapter list ./book.sdpub
+```
+
+编辑并推进 `.sdpub` 归档：
+
+```bash
+spinedigest sdpub chapter add ./book.sdpub --title "Appendix"
+spinedigest sdpub chapter set-source ./book.sdpub --chapter 3 --input ./appendix.md --input-format markdown
 spinedigest sdpub stage advance ./book.sdpub --to summarized
 ```
 
@@ -232,18 +245,28 @@ SpineDigest 支持通过环境变量覆盖配置值：
 
 ## `.sdpub` 行为
 
-`.sdpub` 是处理后 digest 文档的可移植归档格式。
+`.sdpub` 是处理后 digest 文档的可移植归档格式。它在物理上是 ZIP 文件，但常规自动化应把它视为由 SpineDigest 管理的文档，通过 `spinedigest sdpub ...` 命令操作，而不是直接编辑 ZIP 内部文件。
 
 当输入是 `.sdpub` 时：
 
 - SpineDigest 会直接打开已经保存的 digest 状态
 - 不需要 LLM 配置
-- 可以导出为 `.txt`、`.md` 或 `.epub`
-- 也可以通过 `spinedigest sdpub ...` 检查元信息、TOC、serial、serial 文本和封面数据
+- 如果归档已经 summarized，可以导出为 `.txt`、`.md` 或 `.epub`
+- 也可以通过 `spinedigest sdpub ...` 检查元信息、TOC、已完成 serial、serial 文本、封面数据、未完成章节和章节阶段
 
 当输出是 `.sdpub` 时：
 
 - SpineDigest 会保存这份处理后的 digest 文档，以便后续复用
+- `--stage planned|sourced|graphed|summarized` 控制归档预先处理到哪个阶段
+
+章节阶段：
+
+- `planned`：章节已经存在于 TOC，但还没有原文
+- `sourced`：已经保存 normalized source fragments
+- `graphed`：已经保存 graph 数据，但还没有最终摘要
+- `summarized`：已经有最终摘要，可以重新导出或用 `sdpub cat` 读取
+
+归档模型、阶段生命周期、id 规则、原地修改安全性和命令路由，见 `spinedigest help sdpub`。
 
 ## 失败场景
 
@@ -255,9 +278,10 @@ SpineDigest 支持通过环境变量覆盖配置值：
 - 在写入 `stdout` 时同时使用了 `--verbose`
 - digest 操作缺少 LLM 配置
 - `spinedigest sdpub cat` 缺少 `--serial`
-- `sdpub` 检查子命令使用了不支持的参数，例如 `--output`、`--output-format`、`--prompt` 或 `--verbose`
+- `sdpub` 子命令使用了不支持的参数，例如 `--output`、`--output-format`、`--prompt` 或 `--verbose`
 - `spinedigest sdpub cover` 试图向交互式终端输出二进制数据
 - `spinedigest sdpub cover` 针对一个没有封面的归档运行
+- `.sdpub` 重新导出或 `sdpub cat` 的目标章节还没有 summarized
 - provider 相关配置不合法
 
 ## 相关文档

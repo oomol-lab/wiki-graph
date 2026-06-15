@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 
 import { parseCLIArguments } from "../../src/cli/args.js";
 import {
+  renderSdpubChapterActionHelpText,
+  renderSdpubStageActionHelpText,
   renderHelpTopicText,
   renderMainHelpText,
   renderStatusHelpText,
@@ -55,6 +57,13 @@ describe("cli/args", () => {
       },
       help: false,
       kind: "convert",
+    });
+  });
+
+  it("parses --version", () => {
+    expect(parseCLIArguments(["--version"])).toStrictEqual({
+      help: false,
+      kind: "version",
     });
   });
 
@@ -350,6 +359,20 @@ describe("cli/args", () => {
       helpText: renderSdpubSubcommandHelpText("info"),
       kind: "sdpub",
     });
+    expect(
+      parseCLIArguments(["sdpub", "chapter", "set-summary", "--help"]),
+    ).toStrictEqual({
+      help: true,
+      helpText: renderSdpubChapterActionHelpText("set-summary"),
+      kind: "sdpub-chapter",
+    });
+    expect(
+      parseCLIArguments(["sdpub", "stage", "advance", "--help"]),
+    ).toStrictEqual({
+      help: true,
+      helpText: renderSdpubStageActionHelpText("advance"),
+      kind: "sdpub-stage",
+    });
   });
 
   it("rejects positional arguments", () => {
@@ -574,6 +597,7 @@ describe("cli/args", () => {
     );
     expect(commandHelpText).toContain("--verbose, -v");
     expect(commandHelpText).toContain("--help, -h");
+    expect(commandHelpText).toContain("--version");
     for (const flag of [
       "--input <path>",
       "--output <path>",
@@ -618,11 +642,20 @@ describe("cli/args", () => {
     );
     expect(sdpubHelpText).toContain("[--help|-h]");
     expect(renderSdpubSubcommandHelpText("stage")).toContain("advance <path>");
+    expect(renderSdpubStageActionHelpText("advance")).toContain(
+      "Advancement is idempotent",
+    );
+    expect(renderSdpubChapterActionHelpText("set-summary")).toContain(
+      "The chapter must be `graphed`",
+    );
     expect(renderSdpubSubcommandHelpText("cover")).toContain(
       "refuses to write binary data to an interactive terminal",
     );
     expect(renderSdpubSubcommandHelpText("cover")).toContain("[--help|-h]");
     expect(renderSdpubSubcommandHelpText("meta")).toContain("--clear-authors");
+    expect(renderHelpTopicText("sdpub")).toContain(
+      "agents should not unzip and edit files directly",
+    );
   });
 
   it("supports a first-contact recovery chain from root help to parse failures", () => {

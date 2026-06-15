@@ -11,7 +11,9 @@ import {
   parseHelpTopic,
   renderHelpTopicText,
   renderMainHelpText,
+  renderSdpubChapterActionHelpText,
   renderStatusHelpText,
+  renderSdpubStageActionHelpText,
   renderSdpubHelpText,
   renderSdpubSubcommandHelpText,
   SDPUB_SUBCOMMANDS,
@@ -114,6 +116,10 @@ interface SdpubMetaFlagValues {
 }
 
 export type ParsedCLIArguments =
+  | {
+      readonly help: false;
+      readonly kind: "version";
+    }
   | {
       readonly args: CLIArguments;
       readonly help: false;
@@ -270,9 +276,19 @@ export function parseCLIArguments(
         short: "v",
         type: "boolean",
       },
+      version: {
+        type: "boolean",
+      },
     },
     strict: true,
   });
+
+  if (values.version === true) {
+    return {
+      help: false,
+      kind: "version",
+    };
+  }
 
   if (positionals[0] === "help") {
     return parseHelpArguments(positionals.slice(1), values);
@@ -609,6 +625,14 @@ function parseSdpubChapterArguments(
   }
 
   if (help) {
+    if (isSdpubChapterAction(action)) {
+      return {
+        help: true,
+        helpText: renderSdpubChapterActionHelpText(action),
+        kind: "sdpub-chapter",
+      };
+    }
+
     return {
       help: true,
       helpText: renderSdpubSubcommandHelpText("chapter"),
@@ -710,6 +734,14 @@ function parseSdpubStageArguments(
   }
 
   if (help) {
+    if (isSdpubStageAction(action)) {
+      return {
+        help: true,
+        helpText: renderSdpubStageActionHelpText(action),
+        kind: "sdpub-stage",
+      };
+    }
+
     return {
       help: true,
       helpText: renderSdpubSubcommandHelpText("stage"),
