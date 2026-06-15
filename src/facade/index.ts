@@ -16,6 +16,7 @@ export {
 } from "./app.js";
 export {
   addChapter,
+  advanceChapterStages,
   CHAPTER_STAGES,
   generateChapterGraph,
   generateChapterSummary,
@@ -28,6 +29,8 @@ export {
 } from "./chapter.js";
 export type {
   AddChapterOptions,
+  AdvanceChapterStagesOptions,
+  AdvanceChapterStagesResult,
   ChapterDetails,
   ChapterEntry,
   ChapterStage,

@@ -50,6 +50,7 @@ type ResolvedOutputEndpoint =
 export async function runConvertCommand(args: CLIArguments): Promise<void> {
   const input = resolveInputEndpoint(args);
   const output = resolveOutputEndpoint(args);
+  const targetStage = args.targetStage ?? "summarized";
 
   if (args.verbose && output.standardStream === "stdout") {
     throw new Error(
@@ -59,14 +60,30 @@ export async function runConvertCommand(args: CLIArguments): Promise<void> {
       ),
     );
   }
+  if (args.targetStage !== undefined && output.format !== "sdpub") {
+    throw new Error(
+      withHelpRoute(
+        "--stage is only supported when output format is sdpub.",
+        CLI_HELP_ROUTES.command,
+      ),
+    );
+  }
 
   const inputFormat = input.format;
+  if (args.targetStage !== undefined && inputFormat === "sdpub") {
+    throw new Error(
+      withHelpRoute(
+        "--stage is only supported when creating .sdpub from source input.",
+        CLI_HELP_ROUTES.command,
+      ),
+    );
+  }
   const requiresDigest = inputFormat !== "sdpub";
+  const requiresLLM =
+    requiresDigest && targetStage !== "planned" && targetStage !== "sourced";
   const digestDirPath = await prepareDigestDirPath(args, requiresDigest);
-  const config = await loadRequiredConfig(args, requiresDigest);
-  const app = new SpineDigestApp(
-    createAppOptions(args, config, requiresDigest),
-  );
+  const config = await loadRequiredConfig(args, requiresLLM);
+  const app = new SpineDigestApp(createAppOptions(args, config, requiresLLM));
   const progressRenderer = createCLIProgressRenderer({
     enabled:
       requiresDigest &&
@@ -114,6 +131,7 @@ export async function runConvertCommand(args: CLIArguments): Promise<void> {
           sourceFormat: input.format,
           stream: readTextStreamFromStdin(),
           ...(extractionPrompt === undefined ? {} : { extractionPrompt }),
+          targetStage,
         },
         async (digest) => {
           await writeDigestOutput(digest, output);
@@ -134,6 +152,7 @@ export async function runConvertCommand(args: CLIArguments): Promise<void> {
               : { onProgress: progressRenderer.onProgress }),
             path: input.path,
             ...(extractionPrompt === undefined ? {} : { extractionPrompt }),
+            targetStage,
           },
           async (digest) => {
             await writeDigestOutput(digest, output);
@@ -151,6 +170,7 @@ export async function runConvertCommand(args: CLIArguments): Promise<void> {
               : { onProgress: progressRenderer.onProgress }),
             path: input.path,
             ...(extractionPrompt === undefined ? {} : { extractionPrompt }),
+            targetStage,
           },
           async (digest) => {
             await writeDigestOutput(digest, output);
@@ -168,6 +188,7 @@ export async function runConvertCommand(args: CLIArguments): Promise<void> {
               : { onProgress: progressRenderer.onProgress }),
             path: input.path,
             ...(extractionPrompt === undefined ? {} : { extractionPrompt }),
+            targetStage,
           },
           async (digest) => {
             await writeDigestOutput(digest, output);

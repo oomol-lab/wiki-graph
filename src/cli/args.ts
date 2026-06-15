@@ -27,6 +27,7 @@ export interface CLIArguments {
   readonly outputPath?: string;
   readonly outputFormat?: CLIFormat;
   readonly prompt?: string;
+  readonly targetStage?: ChapterStage;
   readonly verbose: boolean;
 }
 
@@ -84,6 +85,17 @@ export interface CLIStatusArguments {
   readonly llmJSON?: string;
 }
 
+export type CLISdpubStageAction = "advance" | "pending";
+
+export interface CLISdpubStageArguments {
+  readonly action: CLISdpubStageAction;
+  readonly chapterId?: number;
+  readonly llmJSON?: string;
+  readonly path: string;
+  readonly prompt?: string;
+  readonly targetStage?: ChapterStage;
+}
+
 interface SdpubMetaFlagValues {
   readonly author?: readonly string[];
   readonly "clear-authors"?: boolean;
@@ -133,6 +145,16 @@ export type ParsedCLIArguments =
       readonly help: true;
       readonly helpText: string;
       readonly kind: "sdpub-chapter";
+    }
+  | {
+      readonly args: CLISdpubStageArguments;
+      readonly help: false;
+      readonly kind: "sdpub-stage";
+    }
+  | {
+      readonly help: true;
+      readonly helpText: string;
+      readonly kind: "sdpub-stage";
     }
   | {
       readonly help: true;
@@ -220,6 +242,9 @@ export function parseCLIArguments(
       serial: {
         type: "string",
       },
+      stage: {
+        type: "string",
+      },
       chapter: {
         type: "string",
       },
@@ -294,6 +319,15 @@ export function parseCLIArguments(
           ),
         }),
     ...(values.prompt === undefined ? {} : { prompt: values.prompt }),
+    ...(values.stage === undefined
+      ? {}
+      : {
+          targetStage: parseChapterStage(
+            values.stage,
+            "--stage",
+            CLI_HELP_ROUTES.command,
+          ),
+        }),
     verbose: values.verbose ?? false,
   } satisfies CLIArguments;
 
@@ -341,6 +375,7 @@ function parseSdpubArguments(
     readonly prompt?: string;
     readonly recursive?: boolean;
     readonly serial?: string;
+    readonly stage?: string;
     readonly title?: string;
     readonly to?: string;
     readonly verbose?: boolean;
@@ -354,6 +389,9 @@ function parseSdpubArguments(
 
   if (subcommand === "chapter") {
     return parseSdpubChapterArguments(positionals.slice(1), values);
+  }
+  if (subcommand === "stage") {
+    return parseSdpubStageArguments(positionals.slice(1), values);
   }
 
   if (positionals.length > 1) {
@@ -431,6 +469,14 @@ function parseSdpubArguments(
     throw new Error(
       withHelpRoute(
         "The `sdpub` subcommands do not support --prompt. It only applies to digest generation from source inputs.",
+        CLI_HELP_ROUTES.sdpub,
+      ),
+    );
+  }
+  if (values.stage !== undefined) {
+    throw new Error(
+      withHelpRoute(
+        "The `sdpub` subcommands do not support --stage. Use the main command when creating .sdpub output.",
         CLI_HELP_ROUTES.sdpub,
       ),
     );
@@ -536,6 +582,7 @@ function parseSdpubChapterArguments(
     readonly prompt?: string;
     readonly recursive?: boolean;
     readonly serial?: string;
+    readonly stage?: string;
     readonly title?: string;
     readonly to?: string;
     readonly verbose?: boolean;
@@ -550,6 +597,7 @@ function parseSdpubChapterArguments(
   rejectSdpubChapterFlag("output", values.output);
   rejectSdpubChapterFlag("output-format", values["output-format"]);
   rejectSdpubChapterFlag("serial", values.serial);
+  rejectSdpubChapterFlag("stage", values.stage);
   rejectSdpubChapterMetaFlags(values);
   if (values.verbose) {
     throw new Error(
@@ -600,6 +648,139 @@ function parseSdpubChapterArguments(
     help: false,
     kind: "sdpub-chapter",
   };
+}
+
+function parseSdpubStageArguments(
+  positionals: readonly string[],
+  values: {
+    readonly author?: readonly string[];
+    readonly chapter?: string;
+    readonly "clear-authors"?: boolean;
+    readonly "clear-description"?: boolean;
+    readonly "clear-identifier"?: boolean;
+    readonly "clear-language"?: boolean;
+    readonly "clear-published-at"?: boolean;
+    readonly "clear-publisher"?: boolean;
+    readonly "clear-title"?: boolean;
+    readonly description?: string;
+    readonly "digest-dir"?: string;
+    readonly help?: boolean;
+    readonly identifier?: string;
+    readonly input?: string;
+    readonly "input-format"?: string;
+    readonly language?: string;
+    readonly llm?: string;
+    readonly output?: string;
+    readonly "output-format"?: string;
+    readonly parent?: string;
+    readonly "published-at"?: string;
+    readonly publisher?: string;
+    readonly prompt?: string;
+    readonly recursive?: boolean;
+    readonly serial?: string;
+    readonly stage?: string;
+    readonly title?: string;
+    readonly to?: string;
+    readonly verbose?: boolean;
+  },
+): ParsedCLIArguments {
+  const help = values.help ?? false;
+  const action = positionals[0];
+  const path = positionals[1];
+  const helpRoute = "spinedigest sdpub stage --help";
+
+  rejectSdpubStageFlag("digest-dir", values["digest-dir"]);
+  rejectSdpubStageFlag("input", values.input);
+  rejectSdpubStageFlag("input-format", values["input-format"]);
+  rejectSdpubStageFlag("output", values.output);
+  rejectSdpubStageFlag("output-format", values["output-format"]);
+  rejectSdpubStageFlag("parent", values.parent);
+  rejectSdpubStageFlag("recursive", values.recursive);
+  rejectSdpubStageFlag("serial", values.serial);
+  rejectSdpubStageFlag("stage", values.stage);
+  rejectSdpubStageFlag("title", values.title);
+  rejectSdpubStageMetaFlags(values);
+  if (values.verbose) {
+    throw new Error(
+      withHelpRoute(
+        "The `sdpub stage` command does not support --verbose.",
+        helpRoute,
+      ),
+    );
+  }
+
+  if (help) {
+    return {
+      help: true,
+      helpText: renderSdpubSubcommandHelpText("stage"),
+      kind: "sdpub-stage",
+    };
+  }
+
+  if (!isSdpubStageAction(action)) {
+    throw new Error(
+      withHelpRoute(
+        action === undefined
+          ? "Missing sdpub stage action."
+          : `Invalid sdpub stage action: ${action}.`,
+        helpRoute,
+      ),
+    );
+  }
+  if (path === undefined || path === "-") {
+    throw new Error(
+      withHelpRoute(
+        "`spinedigest sdpub stage` requires a .sdpub path positional argument.",
+        helpRoute,
+      ),
+    );
+  }
+  if (positionals.length > 2) {
+    throw new Error(
+      withHelpRoute(
+        `Unexpected positional arguments: ${positionals.slice(2).join(" ")}.`,
+        helpRoute,
+      ),
+    );
+  }
+
+  const chapterId =
+    values.chapter === undefined
+      ? undefined
+      : parseSerialId(values.chapter, "--chapter", helpRoute);
+  const targetStage =
+    values.to === undefined
+      ? undefined
+      : parseChapterStage(values.to, "--to", helpRoute);
+
+  switch (action) {
+    case "advance":
+      return {
+        args: {
+          action,
+          ...(chapterId === undefined ? {} : { chapterId }),
+          ...(values.llm === undefined ? {} : { llmJSON: values.llm }),
+          path,
+          ...(values.prompt === undefined ? {} : { prompt: values.prompt }),
+          ...(targetStage === undefined ? {} : { targetStage }),
+        },
+        help: false,
+        kind: "sdpub-stage",
+      };
+    case "pending":
+      rejectSdpubStageActionFlag(values.chapter, "--chapter", action);
+      rejectSdpubStageActionFlag(values.prompt, "--prompt", action);
+      rejectSdpubStageActionFlag(values.to, "--to", action);
+      return {
+        args: {
+          action,
+          ...(values.llm === undefined ? {} : { llmJSON: values.llm }),
+          path,
+        },
+        help: false,
+        kind: "sdpub-stage",
+      };
+  }
 }
 
 function normalizeSdpubChapterArguments(
@@ -893,6 +1074,7 @@ function parseHelpArguments(
     readonly publisher?: string;
     readonly prompt?: string;
     readonly serial?: string;
+    readonly stage?: string;
     readonly verbose?: boolean;
   },
 ): ParsedCLIArguments {
@@ -904,6 +1086,7 @@ function parseHelpArguments(
   rejectHelpFlag("output-format", values["output-format"]);
   rejectHelpFlag("prompt", values.prompt);
   rejectHelpFlag("serial", values.serial);
+  rejectHelpFlag("stage", values.stage);
   rejectHelpMetaFlags(values);
 
   if (values.verbose) {
@@ -964,6 +1147,7 @@ function parseStatusArguments(
     readonly publisher?: string;
     readonly prompt?: string;
     readonly serial?: string;
+    readonly stage?: string;
     readonly verbose?: boolean;
   },
 ): ParsedCLIArguments {
@@ -974,6 +1158,7 @@ function parseStatusArguments(
   rejectStatusFlag("output-format", values["output-format"]);
   rejectStatusFlag("prompt", values.prompt);
   rejectStatusFlag("serial", values.serial);
+  rejectStatusFlag("stage", values.stage);
   rejectStatusMetaFlags(values);
 
   if (values.verbose) {
@@ -1042,6 +1227,31 @@ function isSdpubChapterAction(
     value === "set-source" ||
     value === "set-summary" ||
     value === "status"
+  );
+}
+
+function isSdpubStageAction(
+  value: string | undefined,
+): value is CLISdpubStageAction {
+  return value === "advance" || value === "pending";
+}
+
+function parseChapterStage(
+  value: string,
+  flag: string,
+  helpRoute: string,
+): ChapterStage {
+  const normalized = value.trim().toLowerCase();
+
+  if (CHAPTER_STAGES.includes(normalized as ChapterStage)) {
+    return normalized as ChapterStage;
+  }
+
+  throw new Error(
+    withHelpRoute(
+      `Invalid ${flag}: ${value}. Expected planned, sourced, graphed, or summarized.`,
+      helpRoute,
+    ),
   );
 }
 
@@ -1227,7 +1437,7 @@ function normalizeNonEmptyFlagValue(
 function rejectActionFlag(
   value: string | undefined,
   flag: string,
-  action: CLISdpubChapterAction,
+  action: string,
   helpRoute: string,
 ): void {
   if (value !== undefined) {
@@ -1243,7 +1453,7 @@ function rejectActionFlag(
 function rejectActionBooleanFlag(
   value: boolean | undefined,
   flag: string,
-  action: CLISdpubChapterAction,
+  action: string,
   helpRoute: string,
 ): void {
   if (value !== undefined) {
@@ -1256,12 +1466,41 @@ function rejectActionBooleanFlag(
   }
 }
 
+function rejectSdpubStageActionFlag(
+  value: string | undefined,
+  flag: string,
+  action: CLISdpubStageAction,
+): void {
+  if (value !== undefined) {
+    throw new Error(
+      withHelpRoute(
+        `The \`sdpub stage ${action}\` action does not support ${flag}.`,
+        "spinedigest sdpub stage --help",
+      ),
+    );
+  }
+}
+
 function rejectSdpubChapterFlag(name: string, value: string | undefined): void {
   if (value !== undefined) {
     throw new Error(
       withHelpRoute(
         `The \`sdpub chapter\` command does not support --${name}.`,
         "spinedigest sdpub chapter --help",
+      ),
+    );
+  }
+}
+
+function rejectSdpubStageFlag(
+  name: string,
+  value: boolean | string | undefined,
+): void {
+  if (value !== undefined) {
+    throw new Error(
+      withHelpRoute(
+        `The \`sdpub stage\` command does not support --${name}.`,
+        "spinedigest sdpub stage --help",
       ),
     );
   }
@@ -1284,6 +1523,17 @@ function rejectSdpubChapterMetaFlags(values: SdpubMetaFlagValues): void {
       withHelpRoute(
         `The \`sdpub chapter\` command does not support ${flag}.`,
         "spinedigest sdpub chapter --help",
+      ),
+    );
+  }
+}
+
+function rejectSdpubStageMetaFlags(values: SdpubMetaFlagValues): void {
+  for (const flag of listPresentMetaFlags(values)) {
+    throw new Error(
+      withHelpRoute(
+        `The \`sdpub stage\` command does not support ${flag}.`,
+        "spinedigest sdpub stage --help",
       ),
     );
   }

@@ -240,6 +240,7 @@ describe("cli/convert", () => {
       extractionPrompt: "Keep the main beats",
       sourceFormat: "txt",
       stream: mockStdinStream,
+      targetStage: "summarized",
     });
     expect(cliMockState.digestCalls.textStream[0]).not.toHaveProperty(
       "onProgress",
@@ -286,6 +287,7 @@ describe("cli/convert", () => {
       {
         extractionPrompt: "CLI prompt",
         path: "/tmp/book.txt",
+        targetStage: "summarized",
       },
     ]);
   });
@@ -382,6 +384,7 @@ describe("cli/convert", () => {
         documentDirPath: "/tmp/kept-digest",
         extractionPrompt: "Keep the main beats",
         path: "/tmp/book.epub",
+        targetStage: "summarized",
       },
     ]);
     expect(cliMockState.resetDigestDirCalls).toStrictEqual([
@@ -411,6 +414,59 @@ describe("cli/convert", () => {
 
     expect(cliMockState.appConstructorOptions).toHaveLength(0);
     expect(cliMockState.digestCalls.txt).toHaveLength(0);
+  });
+
+  it("creates sourced sdpub output without llm configuration", async () => {
+    cliMockState.config = {};
+
+    await runConvertCommand({
+      help: false,
+      inputPath: "/tmp/book.txt",
+      outputPath: "/tmp/output.sdpub",
+      targetStage: "sourced",
+      verbose: false,
+    });
+
+    expect(cliMockState.appConstructorOptions).toStrictEqual([{}]);
+    expect(cliMockState.buildLLMOptionsConfig).toHaveLength(0);
+    expect(cliMockState.digestCalls.txt).toStrictEqual([
+      {
+        path: "/tmp/book.txt",
+        targetStage: "sourced",
+      },
+    ]);
+    expect(cliMockState.exportCalls).toStrictEqual([
+      {
+        method: "saveAs",
+        path: "/tmp/output.sdpub",
+      },
+    ]);
+  });
+
+  it("rejects --stage outside source-to-sdpub conversion", async () => {
+    await expect(
+      runConvertCommand({
+        help: false,
+        inputPath: "/tmp/book.txt",
+        outputPath: "/tmp/output.txt",
+        targetStage: "sourced",
+        verbose: false,
+      }),
+    ).rejects.toThrow(
+      "--stage is only supported when output format is sdpub.\nSee: spinedigest help command",
+    );
+
+    await expect(
+      runConvertCommand({
+        help: false,
+        inputPath: "/tmp/book.sdpub",
+        outputPath: "/tmp/output.sdpub",
+        targetStage: "sourced",
+        verbose: false,
+      }),
+    ).rejects.toThrow(
+      "--stage is only supported when creating .sdpub from source input.\nSee: spinedigest help command",
+    );
   });
 
   it("rejects stdin input when the format cannot be inferred", async () => {

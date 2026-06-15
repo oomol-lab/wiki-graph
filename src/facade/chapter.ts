@@ -34,6 +34,21 @@ export interface ChapterDetails extends ChapterEntry {
   readonly hasSummary: boolean;
 }
 
+export interface AdvanceChapterStagesOptions {
+  readonly chapterId?: number;
+  readonly extractionPrompt: string;
+  readonly llm: LLM<SpineDigestScope>;
+  readonly logDirPath?: string;
+  readonly targetStage: ChapterStage;
+  readonly userLanguage?: Language;
+}
+
+export interface AdvanceChapterStagesResult {
+  readonly advanced: readonly ChapterEntry[];
+  readonly pending: readonly ChapterEntry[];
+  readonly skipped: readonly ChapterEntry[];
+}
+
 export interface AddChapterOptions {
   readonly parentChapterId?: number;
   readonly title?: string | null | undefined;
@@ -50,6 +65,48 @@ export interface GenerateChapterSummaryOptions {
   readonly llm: LLM<SpineDigestScope>;
   readonly logDirPath?: string;
   readonly userLanguage?: Language;
+}
+
+export async function advanceChapterStages(
+  document: Document,
+  options: AdvanceChapterStagesOptions,
+): Promise<AdvanceChapterStagesResult> {
+  if (options.targetStage === "planned") {
+    return {
+      advanced: [],
+      pending: await selectChapterEntries(document, options.chapterId),
+      skipped: [],
+    };
+  }
+
+  const advancedIds = new Set<number>();
+  const entries = await selectChapterEntries(document, options.chapterId);
+
+  if (isStageBefore("sourced", options.targetStage)) {
+    await advanceEntriesToGraphed(document, entries, options, {
+      advancedIds,
+    });
+  }
+  if (isStageBefore("graphed", options.targetStage)) {
+    const graphedEntries = await selectChapterEntries(
+      document,
+      options.chapterId,
+    );
+
+    await advanceEntriesToSummarized(document, graphedEntries, options, {
+      advancedIds,
+    });
+  }
+
+  const nextEntries = await selectChapterEntries(document, options.chapterId);
+
+  return {
+    advanced: nextEntries.filter((entry) => advancedIds.has(entry.chapterId)),
+    pending: nextEntries.filter((entry) =>
+      isStageBefore(entry.stage, options.targetStage),
+    ),
+    skipped: nextEntries.filter((entry) => entry.stage === "planned"),
+  };
 }
 
 export async function addChapter(
@@ -335,6 +392,120 @@ async function collectChapterEntries(
   return entries;
 }
 
+async function advanceEntriesToGraphed(
+  document: Document,
+  entries: readonly ChapterEntry[],
+  options: AdvanceChapterStagesOptions,
+  state: { readonly advancedIds: Set<number> },
+): Promise<readonly ChapterEntry[]> {
+  for (const entry of entries) {
+    if (entry.stage !== "sourced") {
+      continue;
+    }
+
+    await generateChapterGraph(document, entry.chapterId, {
+      extractionPrompt: options.extractionPrompt,
+      llm: options.llm,
+      ...(options.logDirPath === undefined
+        ? {}
+        : { logDirPath: options.logDirPath }),
+      ...(options.userLanguage === undefined
+        ? {}
+        : { userLanguage: options.userLanguage }),
+    });
+    state.advancedIds.add(entry.chapterId);
+  }
+
+  return await selectChapterEntries(document, options.chapterId);
+}
+
+async function advanceEntriesToSummarized(
+  document: Document,
+  entries: readonly ChapterEntry[],
+  options: AdvanceChapterStagesOptions,
+  state: { readonly advancedIds: Set<number> },
+): Promise<readonly ChapterEntry[]> {
+  for (const entry of entries) {
+    if (entry.stage !== "graphed") {
+      continue;
+    }
+
+    await generateChapterSummary(document, entry.chapterId, {
+      llm: options.llm,
+      ...(options.logDirPath === undefined
+        ? {}
+        : { logDirPath: options.logDirPath }),
+      ...(options.userLanguage === undefined
+        ? {}
+        : { userLanguage: options.userLanguage }),
+    });
+    state.advancedIds.add(entry.chapterId);
+  }
+
+  return await selectChapterEntries(document, options.chapterId);
+}
+
+async function selectChapterEntries(
+  document: Document,
+  chapterId: number | undefined,
+): Promise<readonly ChapterEntry[]> {
+  const entries = await listChapters(document);
+
+  if (chapterId === undefined) {
+    return entries;
+  }
+
+  const selectedIds = await collectChapterSubtreeIds(document, chapterId);
+
+  if (selectedIds.size === 0) {
+    throw new Error(`Chapter ${chapterId} does not exist.`);
+  }
+
+  return entries.filter((entry) => selectedIds.has(entry.chapterId));
+}
+
+async function collectChapterSubtreeIds(
+  document: Document,
+  chapterId: number,
+): Promise<ReadonlySet<number>> {
+  const toc = await normalizeChapterToc(document);
+  const selectedIds = new Set<number>();
+
+  for (const item of toc.items) {
+    if (collectChapterSubtreeIdsFromItem(item, chapterId, selectedIds)) {
+      break;
+    }
+  }
+
+  return selectedIds;
+}
+
+function collectChapterSubtreeIdsFromItem(
+  item: TocItem,
+  chapterId: number,
+  selectedIds: Set<number>,
+): boolean {
+  if (item.serialId === chapterId) {
+    collectChapterIds(item, selectedIds);
+    return true;
+  }
+
+  for (const child of item.children) {
+    if (collectChapterSubtreeIdsFromItem(child, chapterId, selectedIds)) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+function isStageBefore(
+  stage: ChapterStage,
+  targetStage: ChapterStage,
+): boolean {
+  return CHAPTER_STAGES.indexOf(stage) < CHAPTER_STAGES.indexOf(targetStage);
+}
+
 async function resolveChapterStage(
   document: Document,
   chapterId: number,
@@ -468,9 +639,16 @@ function removeChapterFromItems(
   };
 }
 
-function collectChapterIds(item: TocItem, chapterIds: number[]): void {
+function collectChapterIds(
+  item: TocItem,
+  chapterIds: number[] | Set<number>,
+): void {
   if (item.serialId !== undefined) {
-    chapterIds.push(item.serialId);
+    if (Array.isArray(chapterIds)) {
+      chapterIds.push(item.serialId);
+    } else {
+      chapterIds.add(item.serialId);
+    }
   }
 
   for (const child of item.children) {

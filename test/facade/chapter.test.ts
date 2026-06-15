@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import { DirectoryDocument } from "../../src/document/index.js";
 import {
   addChapter,
+  advanceChapterStages,
   getChapterDetails,
   listChapters,
   removeChapter,
@@ -196,6 +197,59 @@ describe("facade/chapter", () => {
 
         await expect(listChapters(document)).resolves.toStrictEqual([]);
         await expect(document.serials.listIds()).resolves.toStrictEqual([]);
+      } finally {
+        await document.release();
+      }
+    });
+  });
+
+  it("advances stages idempotently without resetting planned chapters", async () => {
+    await withTempDir("spinedigest-chapter-", async (path) => {
+      const document = await DirectoryDocument.open(path);
+
+      try {
+        const chapter = await addChapter(document, {
+          title: "Draft",
+        });
+
+        const noop = await advanceChapterStages(document, {
+          extractionPrompt: "Keep key beats",
+          llm: {} as never,
+          targetStage: "planned",
+        });
+
+        expect(noop.advanced).toStrictEqual([]);
+        expect(noop.pending).toMatchObject([
+          {
+            chapterId: chapter.chapterId,
+            stage: "planned",
+          },
+        ]);
+        expect(
+          await getChapterDetails(document, chapter.chapterId),
+        ).toMatchObject({
+          stage: "planned",
+        });
+
+        const skipped = await advanceChapterStages(document, {
+          extractionPrompt: "Keep key beats",
+          llm: {} as never,
+          targetStage: "summarized",
+        });
+
+        expect(skipped.advanced).toStrictEqual([]);
+        expect(skipped.pending).toMatchObject([
+          {
+            chapterId: chapter.chapterId,
+            stage: "planned",
+          },
+        ]);
+        expect(skipped.skipped).toMatchObject([
+          {
+            chapterId: chapter.chapterId,
+            stage: "planned",
+          },
+        ]);
       } finally {
         await document.release();
       }

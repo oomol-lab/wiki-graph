@@ -14,6 +14,7 @@ Input rules:
 
 Output rules:
   - File output supports `markdown`, `txt`, `epub`, and `.sdpub`.
+  - `.sdpub` output supports `--stage planned|sourced|graphed|summarized`.
   - `stdout` supports only `markdown` or `txt`.
   - `sdpub info`, `toc`, `list`, `cat`, and `meta` print text to stdout.
   - `sdpub cover` writes raw binary bytes to stdout.
@@ -25,7 +26,9 @@ Inference:
   - Stream input and output cannot be inferred reliably, so explicit format flags are recommended there.
 
 LLM usage:
-  - Source digest runs require LLM configuration.
+  - Source digest runs require LLM configuration when they generate graph or summary data.
+  - `.sdpub` output with `--stage planned` or `--stage sourced` does not call an LLM provider.
+  - `sdpub stage advance` calls an LLM provider when it needs graph or summary generation.
   - `.sdpub` re-export and `sdpub` inspection do not call an LLM provider.
 
 Where to go next:

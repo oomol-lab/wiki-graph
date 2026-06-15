@@ -9,8 +9,6 @@ Usage:
   spinedigest sdpub chapter remove <path> --chapter <id> [--recursive] [--llm <json>] [--help|-h]
   spinedigest sdpub chapter reset <path> --chapter <id> --to <stage> [--llm <json>] [--help|-h]
   spinedigest sdpub chapter set-source <path> --chapter <id> [--input <path>] --input-format <format> [--llm <json>] [--help|-h]
-  spinedigest sdpub chapter generate-graph <path> --chapter <id> [--prompt <text>] [--llm <json>] [--help|-h]
-  spinedigest sdpub chapter generate-summary <path> --chapter <id> [--llm <json>] [--help|-h]
   spinedigest sdpub chapter set-summary <path> --chapter <id> [--input <path>] [--llm <json>] [--help|-h]
 
 Chapter stages:
@@ -26,7 +24,9 @@ Input rules:
   - `set-source` and `set-summary` read `--input <path>` when provided, otherwise stdin.
   - `set-source` accepts only `txt` or `markdown` for `--input-format`.
   - `reset --to` accepts `planned`, `sourced`, or `graphed`.
+  - To generate graph or summary for a chapter, use `spinedigest sdpub stage advance <path> --chapter <id> --to <stage>`.
 
 See also:
   - spinedigest sdpub chapter list <path>
+  - spinedigest sdpub stage --help
   - spinedigest help sdpub

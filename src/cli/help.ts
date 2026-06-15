@@ -28,6 +28,7 @@ export const SDPUB_SUBCOMMANDS = [
   "cat",
   "cover",
   "meta",
+  "stage",
   "chapter",
 ] as const;
 
@@ -114,6 +115,10 @@ const SDPUB_SUBCOMMAND_METADATA: readonly {
   {
     name: "meta",
     summary: "Read or edit book metadata stored in the archive.",
+  },
+  {
+    name: "stage",
+    summary: "List pending chapters or advance chapter stages.",
   },
   {
     name: "chapter",

@@ -9,17 +9,19 @@ SpineDigest is designed to be used from the command line first.
 Installed CLI:
 
 ```bash
-spinedigest [--input <path>] [--output <path>] [--input-format <format>] [--output-format <format>] [--digest-dir <path>] [--llm <json>] [--prompt <text>] [--verbose]
+spinedigest [--input <path>] [--output <path>] [--input-format <format>] [--output-format <format>] [--digest-dir <path>] [--llm <json>] [--prompt <text>] [--stage <stage>] [--verbose]
 spinedigest status [--llm <json>]
 spinedigest sdpub <info|toc|list|cat|cover|meta> --input <path> [--serial <id>] [--llm <json>]
+spinedigest sdpub stage <pending|advance> <path> [--to <stage>] [--chapter <id>] [--prompt <text>] [--llm <json>]
 ```
 
 From a source checkout:
 
 ```bash
-pnpm dev -- [--input <path>] [--output <path>] [--input-format <format>] [--output-format <format>] [--digest-dir <path>] [--llm <json>] [--prompt <text>] [--verbose]
+pnpm dev -- [--input <path>] [--output <path>] [--input-format <format>] [--output-format <format>] [--digest-dir <path>] [--llm <json>] [--prompt <text>] [--stage <stage>] [--verbose]
 pnpm dev -- status [--llm <json>]
 pnpm dev -- sdpub <info|toc|list|cat|cover|meta> --input <path> [--serial <id>] [--llm <json>]
+pnpm dev -- sdpub stage <pending|advance> <path> [--to <stage>] [--chapter <id>] [--prompt <text>] [--llm <json>]
 ```
 
 ## Flags
@@ -31,6 +33,7 @@ pnpm dev -- sdpub <info|toc|list|cat|cover|meta> --input <path> [--serial <id>] 
 - `--digest-dir <path>`: keep the digest workspace; the directory is cleared before each run
 - `--llm <json>`: inline LLM client JSON for this invocation
 - `--prompt <text>`: one-off extraction prompt override for the current digest run
+- `--stage <stage>`: create `.sdpub` output up to `planned`, `sourced`, `graphed`, or `summarized`
 - `--verbose`: write diagnostic logs to `stderr`
 - `-h`, `--help`: print help text
 
@@ -40,7 +43,7 @@ The `sdpub` inspection interface uses positional subcommands: `spinedigest sdpub
 
 The `sdpub` inspection subcommands only accept `--input`, except `cat` also requires `--serial` and `meta` accepts metadata edit flags.
 
-`--prompt` only affects digest generation from source inputs. It does not apply when reopening `.sdpub` archives or using `spinedigest sdpub ...`.
+`--prompt` affects digest generation from source inputs and graph generation through `spinedigest sdpub stage advance`.
 
 `--llm` overrides LLM settings from environment variables and `config.json`. It is accepted by command paths that do not call an LLM so wrapper scripts can pass one consistent option set.
 
@@ -105,6 +108,12 @@ Create an `.sdpub` archive:
 spinedigest --input ./book.md --output ./book.sdpub
 ```
 
+Create a staged `.sdpub` archive without LLM generation:
+
+```bash
+spinedigest --input ./book.epub --output ./book.sdpub --stage sourced
+```
+
 Reuse an existing `.sdpub` archive:
 
 ```bash
@@ -120,6 +129,8 @@ spinedigest sdpub list --input ./book.sdpub
 spinedigest sdpub cat --input ./book.sdpub --serial 12
 spinedigest sdpub cover --input ./book.sdpub > ./cover.png
 spinedigest sdpub meta --input ./book.sdpub
+spinedigest sdpub stage pending ./book.sdpub
+spinedigest sdpub stage advance ./book.sdpub --to summarized
 ```
 
 Use pipes:

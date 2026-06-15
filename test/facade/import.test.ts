@@ -20,6 +20,10 @@ const serialMockState = vi.hoisted(() => ({
     readonly serialId: number;
     readonly streamText: string;
   }>,
+  writeSourceCalls: [] as Array<{
+    readonly serialId: number;
+    readonly streamText: string;
+  }>,
   releaseSerials: new Map<number, () => void>(),
   startedResolvers: new Map<number, () => void>(),
   startedSignals: new Map<number, Promise<void>>(),
@@ -85,6 +89,26 @@ vi.mock("../../src/serial.js", () => ({
       return { id: serialId };
     }
   },
+  writeSerialSource: async (
+    document: DirectoryDocument,
+    serialId: number,
+    stream: AsyncIterable<string> | Iterable<string>,
+  ) => {
+    let streamText = "";
+
+    for await (const chunk of stream) {
+      streamText += chunk;
+    }
+
+    serialMockState.writeSourceCalls.push({
+      serialId,
+      streamText,
+    });
+    const draft = await document.getSerialFragments(serialId).createDraft();
+
+    draft.addSentence(streamText, 1);
+    await draft.commit();
+  },
 }));
 
 describe("facade/import", () => {
@@ -96,6 +120,7 @@ describe("facade/import", () => {
     serialMockState.startedResolvers.clear();
     serialMockState.startedSignals.clear();
     serialMockState.startedSerialIds.length = 0;
+    serialMockState.writeSourceCalls.length = 0;
   });
 
   it("imports source sections into an empty document with optional toc titles", async () => {
@@ -221,6 +246,82 @@ describe("facade/import", () => {
             title: "Single Section Book",
           },
         ]);
+      } finally {
+        await document.release();
+      }
+    });
+  });
+
+  it("imports source documents to planned without opening section content", async () => {
+    await withTempDir("spinedigest-import-", async (path) => {
+      const document = await DirectoryDocument.open(`${path}/document`);
+      const openCounts = new Map<string, number>();
+
+      try {
+        const imported = await importSourceDocument(
+          createSourceDocument({
+            meta: createBookMeta(),
+            sections: [
+              createSourceSection({
+                hasContent: true,
+                openCounts,
+                streamText: "Should not be opened",
+                title: "Draft",
+              }),
+            ],
+          }),
+          {
+            document,
+            extractionPrompt: "Keep key beats",
+            targetStage: "planned",
+          },
+        );
+
+        expect(imported.serials.map((serial) => serial.id)).toStrictEqual([1]);
+        expect(openCounts.get("Draft")).toBeUndefined();
+        expect(serialMockState.generateIntoCalls).toHaveLength(0);
+        expect(serialMockState.writeSourceCalls).toHaveLength(0);
+        expect(await document.readSummary(1)).toBeUndefined();
+      } finally {
+        await document.release();
+      }
+    });
+  });
+
+  it("imports source documents to sourced without graph or summary generation", async () => {
+    await withTempDir("spinedigest-import-", async (path) => {
+      const document = await DirectoryDocument.open(`${path}/document`);
+
+      try {
+        await importSourceDocument(
+          createSourceDocument({
+            meta: createBookMeta(),
+            sections: [
+              createSourceSection({
+                hasContent: true,
+                streamText: "Source only",
+                title: "Source Chapter",
+              }),
+            ],
+          }),
+          {
+            document,
+            extractionPrompt: "Keep key beats",
+            targetStage: "sourced",
+          },
+        );
+
+        expect(serialMockState.generateIntoCalls).toHaveLength(0);
+        expect(serialMockState.writeSourceCalls).toStrictEqual([
+          {
+            serialId: 1,
+            streamText: "Source only",
+          },
+        ]);
+        expect(
+          await document.getSerialFragments(1).listFragmentIds(),
+        ).toStrictEqual([0]);
+        expect(await document.readSummary(1)).toBeUndefined();
       } finally {
         await document.release();
       }

@@ -15,9 +15,11 @@ const mainMockState = vi.hoisted(() => ({
   statusRunCalls: 0,
   statusRunArgs: [] as unknown[],
   sdpubRunCalls: [] as unknown[],
+  sdpubStageRunCalls: [] as unknown[],
   runError: undefined as Error | undefined,
   statusRunError: undefined as Error | undefined,
   sdpubRunError: undefined as Error | undefined,
+  sdpubStageRunError: undefined as Error | undefined,
 }));
 
 vi.mock("../../src/cli/args.js", () => ({
@@ -67,6 +69,18 @@ vi.mock("../../src/cli/sdpub.js", () => ({
   }),
 }));
 
+vi.mock("../../src/cli/sdpub-stage.js", () => ({
+  runSdpubStageCommand: vi.fn((args: unknown) => {
+    mainMockState.sdpubStageRunCalls.push(args);
+
+    if (mainMockState.sdpubStageRunError !== undefined) {
+      return Promise.reject(mainMockState.sdpubStageRunError);
+    }
+
+    return Promise.resolve();
+  }),
+}));
+
 import { main } from "../../src/cli/main.js";
 import { LLMPaymentRequiredError } from "../../src/llm/index.js";
 
@@ -91,9 +105,11 @@ describe("cli/main", () => {
     mainMockState.statusRunCalls = 0;
     mainMockState.statusRunArgs.length = 0;
     mainMockState.sdpubRunCalls.length = 0;
+    mainMockState.sdpubStageRunCalls.length = 0;
     mainMockState.runError = undefined;
     mainMockState.statusRunError = undefined;
     mainMockState.sdpubRunError = undefined;
+    mainMockState.sdpubStageRunError = undefined;
     process.exitCode = 0;
     stdoutChunks = [];
     stderrChunks = [];
@@ -202,6 +218,28 @@ describe("cli/main", () => {
       {
         inputPath: "/tmp/book.sdpub",
         subcommand: "list",
+      },
+    ]);
+    expect(process.exitCode).toBe(0);
+  });
+
+  it("runs the sdpub stage command for stage actions", async () => {
+    mainMockState.argsResult = {
+      args: {
+        action: "pending",
+        path: "/tmp/book.sdpub",
+      },
+      help: false,
+      kind: "sdpub-stage",
+    };
+
+    await main();
+
+    expect(mainMockState.runCalls).toHaveLength(0);
+    expect(mainMockState.sdpubStageRunCalls).toStrictEqual([
+      {
+        action: "pending",
+        path: "/tmp/book.sdpub",
       },
     ]);
     expect(process.exitCode).toBe(0);

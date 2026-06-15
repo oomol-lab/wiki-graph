@@ -28,8 +28,8 @@ that layout.
 
 In this document, a _serial_ means one persisted digest unit referenced
 from `toc.json` by `serialId`. A serial usually corresponds to one
-exportable section, carries one serial summary text file, and may also
-have fragment files.
+exportable section. Depending on the archive stage, it may carry source
+fragments, graph data, and a serial summary text file.
 
 ## Container Model
 
@@ -71,14 +71,14 @@ requirements are treated separately.
 
 For archives written by SpineDigest today:
 
-| Path family                                              | SpineDigest writer behavior                             | Notes                                         |
-| -------------------------------------------------------- | ------------------------------------------------------- | --------------------------------------------- |
-| `database.db`                                            | always written                                          | Created for every document directory          |
-| `book-meta.json`                                         | always written                                          | Written for TXT, Markdown, and EPUB imports   |
-| `toc.json`                                               | always written                                          | Written for TXT, Markdown, and EPUB imports   |
-| `cover/info.json` + `cover/data.bin`                     | written together only when a source cover exists        | Treat as a pair                               |
-| `summaries/serial-<serialId>.txt`                        | written for every `serialId` that appears in `toc.json` | Grouping-only TOC nodes have no summary file  |
-| `fragments/serial-<serialId>/fragment_<fragmentId>.json` | written only for non-empty fragments                    | Do not assume every serial has fragment files |
+| Path family                                              | SpineDigest writer behavior                      | Notes                                         |
+| -------------------------------------------------------- | ------------------------------------------------ | --------------------------------------------- |
+| `database.db`                                            | always written                                   | Created for every document directory          |
+| `book-meta.json`                                         | always written                                   | Written for TXT, Markdown, and EPUB imports   |
+| `toc.json`                                               | always written                                   | Written for TXT, Markdown, and EPUB imports   |
+| `cover/info.json` + `cover/data.bin`                     | written together only when a source cover exists | Treat as a pair                               |
+| `summaries/serial-<serialId>.txt`                        | written for summarized serials                   | Staged archives may omit summary files        |
+| `fragments/serial-<serialId>/fragment_<fragmentId>.json` | written only for non-empty fragments             | Do not assume every serial has fragment files |
 
 Source-specific notes:
 
@@ -89,11 +89,18 @@ Source-specific notes:
   supplied.
 - EPUB input may or may not produce a cover.
 - EPUB input may produce grouping TOC nodes that omit `serialId`.
+- When the CLI is run with `--stage planned`, serials are allocated but
+  source fragments, graph data, and summaries are omitted.
+- When the CLI is run with `--stage sourced`, source fragments are
+  written but graph data and summaries are omitted.
+- When the CLI is run with `--stage graphed`, graph data is written but
+  summaries are omitted.
 
 For readers and validators:
 
 - `toc.json` plus `summaries/` is the minimum useful set for ordered text
-  rendering.
+  rendering of completed archives. Staged archives may require
+  `spinedigest sdpub stage advance` before text rendering is complete.
 - `book-meta.json` is optional for plain rendering, but required if
   metadata is part of the target feature set.
 - `cover/info.json` and `cover/data.bin` are optional as a pair.
@@ -236,7 +243,7 @@ again.
 
 ### `summaries/serial-<serialId>.txt`
 
-Each serial summary is stored as a standalone UTF-8 text file.
+Each completed serial summary is stored as a standalone UTF-8 text file.
 
 The text is the serial-level digest content used by plain-text and EPUB
 export. The file may be empty. Readers should not depend on a trailing
@@ -310,7 +317,7 @@ This database is useful when an implementation needs full structural
 fidelity with SpineDigest's internal model.
 
 A minimal reader does not need to understand the entire database. For
-simple rendering, `toc.json` plus `summaries/` is enough. For
+simple rendering of completed archives, `toc.json` plus `summaries/` is enough. For
 sentence-level inspection, `fragments/` is enough for sentence payloads,
 but `toc.json` is still needed if reading order or section titles
 matter. The SQLite layer matters when the implementation needs chunk
@@ -324,7 +331,7 @@ For a lightweight reader:
 
 1. read `book-meta.json` if metadata is needed
 2. read `toc.json`
-3. follow each `serialId` into `summaries/serial-<serialId>.txt`
+3. follow each summarized `serialId` into `summaries/serial-<serialId>.txt`
 4. read `cover/info.json` and `cover/data.bin` only if a cover is needed
 
 For a sentence-aware reader:
@@ -356,7 +363,7 @@ Readers that accept untrusted `.sdpub` input should validate at least the follow
 
 - the ZIP entry path normalizes to a safe relative path
 - JSON payloads match the expected schema
-- every `serialId` referenced by `toc.json` has a matching summary file
+- every summarized `serialId` referenced by `toc.json` has a matching summary file
 - cover metadata and cover bytes either both exist or are both absent
 - fragment files, if present, use non-negative integer ids and valid
   sentence records

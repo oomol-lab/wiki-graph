@@ -19,18 +19,20 @@ import {
 } from "../progress/index.js";
 import type { ReaderSegmenter, ReaderTextStream } from "../reader/index.js";
 import type { LLM } from "../llm/index.js";
-import { SerialGeneration } from "../serial.js";
+import { SerialGeneration, writeSerialSource } from "../serial.js";
 
 import { importSource } from "./import.js";
 import { SpineDigest } from "./spine-digest.js";
+import type { ChapterStage } from "./chapter.js";
 
 interface DigestSessionOptions {
   readonly documentDirPath?: string;
   readonly extractionPrompt: string;
-  readonly llm: LLM<SpineDigestScope>;
+  readonly llm?: LLM<SpineDigestScope>;
   readonly logDirPath?: string;
   readonly onProgress?: SpineDigestProgressCallback;
   readonly segmenter?: ReaderSegmenter;
+  readonly targetStage?: ChapterStage;
   readonly userLanguage?: Language;
 }
 
@@ -88,32 +90,60 @@ export async function digestTextStreamSession<T>(
     await document.openSession(async (openedDocument) => {
       const serialId = await openedDocument.peekNextSerialId();
       const normalizedTitle = normalizeTitle(options.title);
-      const serialProgressTracker = progressTracker.createSerialTracker({
-        id: serialId,
-      });
+      const targetStage = options.targetStage ?? "summarized";
       await progressTracker.markDiscoveryUnavailable();
 
-      const generation = new SerialGeneration({
-        document: openedDocument,
-        llm: options.llm,
-        ...(options.logDirPath === undefined
-          ? {}
-          : { logDirPath: options.logDirPath }),
-        ...(options.segmenter === undefined
-          ? {}
-          : { segmenter: options.segmenter }),
-      });
-      const serial = await generation.generateInto(
-        serialId,
-        options.stream,
-        {
-          extractionPrompt: options.extractionPrompt,
-          ...(options.userLanguage === undefined
+      if (targetStage === "planned") {
+        await openedDocument.serials.createWithId(serialId);
+      } else if (targetStage === "sourced") {
+        await openedDocument.serials.createWithId(serialId);
+        await writeSerialSource(openedDocument, serialId, options.stream, {
+          ...(options.segmenter === undefined
             ? {}
-            : { userLanguage: options.userLanguage }),
-        },
-        serialProgressTracker,
-      );
+            : { segmenter: options.segmenter }),
+        });
+      } else {
+        const serialProgressTracker = progressTracker.createSerialTracker({
+          id: serialId,
+        });
+        const generation = new SerialGeneration({
+          document: openedDocument,
+          llm: requireDigestLLM(options.llm, targetStage),
+          ...(options.logDirPath === undefined
+            ? {}
+            : { logDirPath: options.logDirPath }),
+          ...(options.segmenter === undefined
+            ? {}
+            : { segmenter: options.segmenter }),
+        });
+
+        if (targetStage === "graphed") {
+          await openedDocument.serials.createWithId(serialId);
+          await generation.buildTopologyInto(
+            serialId,
+            options.stream,
+            {
+              extractionPrompt: options.extractionPrompt,
+              ...(options.userLanguage === undefined
+                ? {}
+                : { userLanguage: options.userLanguage }),
+            },
+            serialProgressTracker,
+          );
+        } else {
+          await generation.generateInto(
+            serialId,
+            options.stream,
+            {
+              extractionPrompt: options.extractionPrompt,
+              ...(options.userLanguage === undefined
+                ? {}
+                : { userLanguage: options.userLanguage }),
+            },
+            serialProgressTracker,
+          );
+        }
+      }
 
       await openedDocument.writeBookMeta({
         version: BOOK_META_VERSION,
@@ -130,7 +160,7 @@ export async function digestTextStreamSession<T>(
         version: TOC_FILE_VERSION,
         items: [
           {
-            serialId: serial.id,
+            serialId,
             children: [],
             ...(normalizedTitle === undefined
               ? {}
@@ -175,8 +205,11 @@ async function digestSourceSession<T>(
       document,
       digestProgressTracker: progressTracker,
       extractionPrompt: options.extractionPrompt,
-      llm: options.llm,
+      ...(options.llm === undefined ? {} : { llm: options.llm }),
       path: options.path,
+      ...(options.targetStage === undefined
+        ? {}
+        : { targetStage: options.targetStage }),
       ...(options.logDirPath === undefined
         ? {}
         : { logDirPath: options.logDirPath }),
@@ -219,4 +252,15 @@ function normalizeTitle(title: string | null | undefined): string | undefined {
   const normalized = title?.trim();
 
   return normalized === undefined || normalized === "" ? undefined : normalized;
+}
+
+function requireDigestLLM(
+  llm: LLM<SpineDigestScope> | undefined,
+  targetStage: ChapterStage,
+): LLM<SpineDigestScope> {
+  if (llm === undefined) {
+    throw new Error(`LLM is required to digest source to ${targetStage}.`);
+  }
+
+  return llm;
 }

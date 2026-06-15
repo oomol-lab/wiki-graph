@@ -1,8 +1,6 @@
 import { createReadStream } from "fs";
 import { readFile } from "fs/promises";
 
-import { resolveDataDirPath } from "../common/data-dir.js";
-import type { SpineDigestScope } from "../common/llm-scope.js";
 import type { DirectoryDocument } from "../document/index.js";
 import {
   addChapter,
@@ -17,18 +15,15 @@ import {
   type ChapterDetails,
   type ChapterEntry,
 } from "../facade/index.js";
-import { createDefaultSpineDigestSampling } from "../facade/llm-sampling.js";
 import { SpineDigestFile } from "../facade/spine-digest-file.js";
-import { LLM } from "../llm/index.js";
 
 import type { CLISdpubChapterArguments } from "./args.js";
-import { loadCLIConfig, type CLIConfig } from "./config.js";
-import { CLI_HELP_ROUTES, withHelpRoute } from "./errors.js";
-import { buildLLMOptions } from "./llm.js";
 import { readTextStreamFromStdin, writeTextToStdout } from "./io.js";
-
-const DEFAULT_EXTRACTION_PROMPT =
-  "Focus on the main storyline and key character developments. Preserve important dialogues and critical plot points. Background descriptions and minor details can be compressed significantly.";
+import {
+  createStageLLM,
+  loadRequiredStageConfig,
+  resolveExtractionPrompt,
+} from "./stage-runtime.js";
 
 export async function runSdpubChapterCommand(
   args: CLISdpubChapterArguments,
@@ -48,12 +43,12 @@ export async function runSdpubChapterCommand(
       return;
     case "generate-graph":
       await runEditableCommand(args.path, async (document) => {
-        const config = await loadRequiredChapterConfig(args);
+        const config = await loadRequiredStageConfig(args);
         const details = await generateChapterGraph(document, args.chapterId!, {
           extractionPrompt: resolveExtractionPrompt(
             args.prompt ?? config.prompt,
           ),
-          llm: createChapterLLM(config),
+          llm: createStageLLM(config),
         });
 
         await writeChapterDetails(details);
@@ -61,12 +56,12 @@ export async function runSdpubChapterCommand(
       return;
     case "generate-summary":
       await runEditableCommand(args.path, async (document) => {
-        const config = await loadRequiredChapterConfig(args);
+        const config = await loadRequiredStageConfig(args);
         const details = await generateChapterSummary(
           document,
           args.chapterId!,
           {
-            llm: createChapterLLM(config),
+            llm: createStageLLM(config),
           },
         );
 
@@ -131,48 +126,6 @@ export async function runSdpubChapterCommand(
       );
       return;
   }
-}
-
-function resolveExtractionPrompt(prompt: string | undefined): string {
-  const normalizedPrompt = prompt?.trim();
-
-  return normalizedPrompt === undefined || normalizedPrompt === ""
-    ? DEFAULT_EXTRACTION_PROMPT
-    : normalizedPrompt;
-}
-
-function createChapterLLM(config: CLIConfig): LLM<SpineDigestScope> {
-  const llmOptions = buildLLMOptions(config);
-
-  return new LLM<SpineDigestScope>({
-    dataDirPath: resolveDataDirPath(),
-    sampling: createDefaultSpineDigestSampling({
-      ...(llmOptions.temperature === undefined
-        ? {}
-        : { temperature: llmOptions.temperature }),
-      ...(llmOptions.topP === undefined ? {} : { topP: llmOptions.topP }),
-    }),
-    ...llmOptions,
-  });
-}
-
-async function loadRequiredChapterConfig(
-  args: CLISdpubChapterArguments,
-): Promise<CLIConfig> {
-  const config = await loadCLIConfig({
-    ...(args.llmJSON === undefined ? {} : { llmJSON: args.llmJSON }),
-  });
-
-  if (config.llm?.provider === undefined || config.llm.model === undefined) {
-    throw new Error(
-      withHelpRoute(
-        "Missing LLM configuration. Set --llm, `llm.provider` and `llm.model` in ~/.spinedigest/config.json, or the matching SPINEDIGEST_LLM_* environment variables.",
-        CLI_HELP_ROUTES.config,
-      ),
-    );
-  }
-
-  return config;
 }
 
 async function runEditableCommand(

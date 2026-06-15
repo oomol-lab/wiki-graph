@@ -9,17 +9,19 @@ SpineDigest 的设计重心是命令行使用。
 已安装 CLI 时：
 
 ```bash
-spinedigest [--input <path>] [--output <path>] [--input-format <format>] [--output-format <format>] [--digest-dir <path>] [--llm <json>] [--prompt <text>] [--verbose]
+spinedigest [--input <path>] [--output <path>] [--input-format <format>] [--output-format <format>] [--digest-dir <path>] [--llm <json>] [--prompt <text>] [--stage <stage>] [--verbose]
 spinedigest status [--llm <json>]
 spinedigest sdpub <info|toc|list|cat|cover|meta> --input <path> [--serial <id>] [--llm <json>]
+spinedigest sdpub stage <pending|advance> <path> [--to <stage>] [--chapter <id>] [--prompt <text>] [--llm <json>]
 ```
 
 在源码仓库中运行时：
 
 ```bash
-pnpm dev -- [--input <path>] [--output <path>] [--input-format <format>] [--output-format <format>] [--digest-dir <path>] [--llm <json>] [--prompt <text>] [--verbose]
+pnpm dev -- [--input <path>] [--output <path>] [--input-format <format>] [--output-format <format>] [--digest-dir <path>] [--llm <json>] [--prompt <text>] [--stage <stage>] [--verbose]
 pnpm dev -- status [--llm <json>]
 pnpm dev -- sdpub <info|toc|list|cat|cover|meta> --input <path> [--serial <id>] [--llm <json>]
+pnpm dev -- sdpub stage <pending|advance> <path> [--to <stage>] [--chapter <id>] [--prompt <text>] [--llm <json>]
 ```
 
 ## 参数
@@ -31,6 +33,7 @@ pnpm dev -- sdpub <info|toc|list|cat|cover|meta> --input <path> [--serial <id>] 
 - `--digest-dir <path>`：保留 digest 中间工作目录；每次运行前会先清空该目录
 - `--llm <json>`：为当前这次调用传入 inline LLM client JSON
 - `--prompt <text>`：为当前这次 digest 临时覆盖 extraction prompt
+- `--stage <stage>`：把 `.sdpub` 输出生成到 `planned`、`sourced`、`graphed` 或 `summarized`
 - `--verbose`：把诊断日志输出到 `stderr`
 - `-h`, `--help`：打印帮助文本
 
@@ -40,7 +43,7 @@ pnpm dev -- sdpub <info|toc|list|cat|cover|meta> --input <path> [--serial <id>] 
 
 `sdpub` 检查子命令只接受 `--input`，其中 `cat` 还要求提供 `--serial`，`meta` 额外接受 metadata 编辑参数。
 
-`--prompt` 只影响从源输入生成 digest 的过程，不适用于重新打开 `.sdpub` 或使用 `spinedigest sdpub ...`。
+`--prompt` 影响从源输入生成 digest 的过程，也会影响 `spinedigest sdpub stage advance` 中的 graph 生成。
 
 `--llm` 会覆盖环境变量和 `config.json` 中的 LLM 设置。不调用 LLM 的命令路径也接受这个参数，方便 wrapper 脚本统一传参。
 
@@ -105,6 +108,12 @@ spinedigest --input ./book.txt --output ./digest.epub
 spinedigest --input ./book.md --output ./book.sdpub
 ```
 
+生成不触发 LLM 的 staged `.sdpub` 归档：
+
+```bash
+spinedigest --input ./book.epub --output ./book.sdpub --stage sourced
+```
+
 复用已有 `.sdpub`：
 
 ```bash
@@ -120,6 +129,8 @@ spinedigest sdpub list --input ./book.sdpub
 spinedigest sdpub cat --input ./book.sdpub --serial 12
 spinedigest sdpub cover --input ./book.sdpub > ./cover.png
 spinedigest sdpub meta --input ./book.sdpub
+spinedigest sdpub stage pending ./book.sdpub
+spinedigest sdpub stage advance ./book.sdpub --to summarized
 ```
 
 通过管道处理：

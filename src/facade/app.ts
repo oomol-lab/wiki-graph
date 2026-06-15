@@ -28,6 +28,7 @@ import {
 import { createDefaultSpineDigestSampling } from "./llm-sampling.js";
 import { SpineDigestFile } from "./spine-digest-file.js";
 import type { SpineDigest } from "./spine-digest.js";
+import type { ChapterStage } from "./chapter.js";
 
 const DATA_DIR_PATH = resolveDataDirPath();
 
@@ -59,6 +60,7 @@ export interface SpineDigestSourceSessionOptions extends DigestDocumentSessionOp
   readonly extractionPrompt?: string;
   readonly onProgress?: SpineDigestProgressCallback;
   readonly path: string;
+  readonly targetStage?: ChapterStage;
   readonly userLanguage?: Language;
 }
 
@@ -68,6 +70,7 @@ export interface SpineDigestTextStreamSessionOptions extends DigestDocumentSessi
   readonly onProgress?: SpineDigestProgressCallback;
   readonly sourceFormat?: "markdown" | "txt";
   readonly stream: AsyncIterable<string> | Iterable<string>;
+  readonly targetStage?: ChapterStage;
   readonly title?: string | null;
   readonly userLanguage?: Language;
 }
@@ -133,7 +136,7 @@ export class SpineDigestApp {
         await digestTextStreamSession(
           {
             extractionPrompt: resolveExtractionPrompt(options.extractionPrompt),
-            llm: this.#requireLLM(),
+            ...optionalLLM(this.#resolveStageLLM(options.targetStage)),
             ...(options.onProgress === undefined
               ? {}
               : { onProgress: options.onProgress }),
@@ -150,6 +153,9 @@ export class SpineDigestApp {
             ...(options.sourceFormat === undefined
               ? {}
               : { sourceFormat: options.sourceFormat }),
+            ...(options.targetStage === undefined
+              ? {}
+              : { targetStage: options.targetStage }),
             ...(options.title === undefined ? {} : { title: options.title }),
             ...(options.userLanguage === undefined
               ? {}
@@ -192,7 +198,7 @@ export class SpineDigestApp {
   ): DigestSourceSessionOptions {
     return {
       extractionPrompt: resolveExtractionPrompt(options.extractionPrompt),
-      llm: this.#requireLLM(),
+      ...optionalLLM(this.#resolveStageLLM(options.targetStage)),
       ...(options.onProgress === undefined
         ? {}
         : { onProgress: options.onProgress }),
@@ -203,6 +209,9 @@ export class SpineDigestApp {
       ...(options.documentDirPath === undefined
         ? {}
         : { documentDirPath: options.documentDirPath }),
+      ...(options.targetStage === undefined
+        ? {}
+        : { targetStage: options.targetStage }),
       ...(options.userLanguage === undefined
         ? {}
         : { userLanguage: options.userLanguage }),
@@ -217,6 +226,16 @@ export class SpineDigestApp {
     }
 
     return this.#llm;
+  }
+
+  #resolveStageLLM(
+    targetStage: ChapterStage | undefined,
+  ): LLM<SpineDigestScope> | undefined {
+    if (targetStage === "planned" || targetStage === "sourced") {
+      return undefined;
+    }
+
+    return this.#requireLLM();
   }
 
   async #withLogging<T>(operation: string, task: () => Promise<T>): Promise<T> {
@@ -243,6 +262,12 @@ export type {
   SpineDigestProgressEventType,
   SpineDigestOperation,
 };
+
+function optionalLLM(
+  llm: LLM<SpineDigestScope> | undefined,
+): { readonly llm: LLM<SpineDigestScope> } | Record<string, never> {
+  return llm === undefined ? {} : { llm };
+}
 
 function normalizeLLMOptions(
   llm: NonNullable<SpineDigestAppOptions["llm"]>,

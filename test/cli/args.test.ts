@@ -99,6 +99,29 @@ describe("cli/args", () => {
     );
   });
 
+  it("parses --stage for sdpub output conversion", () => {
+    expect(
+      parseCLIArguments([
+        "--input",
+        "book.epub",
+        "--output",
+        "book.sdpub",
+        "--stage",
+        "sourced",
+      ]),
+    ).toStrictEqual({
+      args: {
+        help: false,
+        inputPath: "book.epub",
+        outputPath: "book.sdpub",
+        targetStage: "sourced",
+        verbose: false,
+      },
+      help: false,
+      kind: "convert",
+    });
+  });
+
   it("parses --llm for runtime-configurable commands", () => {
     expect(parseCLIArguments(["--llm", '{"model":"cli-model"}'])).toStrictEqual(
       {
@@ -243,6 +266,43 @@ describe("cli/args", () => {
     });
   });
 
+  it("parses sdpub stage actions", () => {
+    expect(
+      parseCLIArguments([
+        "sdpub",
+        "stage",
+        "advance",
+        "book.sdpub",
+        "--chapter",
+        "3",
+        "--to",
+        "graphed",
+        "--prompt",
+        "Focus on claims",
+      ]),
+    ).toStrictEqual({
+      args: {
+        action: "advance",
+        chapterId: 3,
+        path: "book.sdpub",
+        prompt: "Focus on claims",
+        targetStage: "graphed",
+      },
+      help: false,
+      kind: "sdpub-stage",
+    });
+    expect(
+      parseCLIArguments(["sdpub", "stage", "pending", "book.sdpub"]),
+    ).toStrictEqual({
+      args: {
+        action: "pending",
+        path: "book.sdpub",
+      },
+      help: false,
+      kind: "sdpub-stage",
+    });
+  });
+
   it("prints sdpub help text", () => {
     expect(parseCLIArguments(["sdpub", "--help"])).toStrictEqual({
       help: true,
@@ -309,10 +369,10 @@ describe("cli/args", () => {
 
   it("rejects invalid sdpub usage", () => {
     expect(() => parseCLIArguments(["sdpub"])).toThrow(
-      "Missing sdpub subcommand. Expected one of info, toc, list, cat, cover, meta, chapter.\nSee: spinedigest sdpub --help",
+      "Missing sdpub subcommand. Expected one of info, toc, list, cat, cover, meta, stage, chapter.\nSee: spinedigest sdpub --help",
     );
     expect(() => parseCLIArguments(["sdpub", "inspect"])).toThrow(
-      "Invalid sdpub subcommand: inspect. Expected one of info, toc, list, cat, cover, meta, chapter.\nSee: spinedigest sdpub --help",
+      "Invalid sdpub subcommand: inspect. Expected one of info, toc, list, cat, cover, meta, stage, chapter.\nSee: spinedigest sdpub --help",
     );
     expect(() => parseCLIArguments(["sdpub", "inspect", "extra"])).toThrow(
       "Unexpected positional arguments: extra.\nSee: spinedigest sdpub --help",
@@ -420,6 +480,36 @@ describe("cli/args", () => {
     );
   });
 
+  it("rejects invalid sdpub stage usage", () => {
+    expect(() => parseCLIArguments(["sdpub", "stage"])).toThrow(
+      "Missing sdpub stage action.\nSee: spinedigest sdpub stage --help",
+    );
+    expect(() =>
+      parseCLIArguments([
+        "sdpub",
+        "stage",
+        "advance",
+        "book.sdpub",
+        "--to",
+        "x",
+      ]),
+    ).toThrow(
+      "Invalid --to: x. Expected planned, sourced, graphed, or summarized.\nSee: spinedigest sdpub stage --help",
+    );
+    expect(() =>
+      parseCLIArguments([
+        "sdpub",
+        "stage",
+        "pending",
+        "book.sdpub",
+        "--prompt",
+        "unused",
+      ]),
+    ).toThrow(
+      "The `sdpub stage pending` action does not support --prompt.\nSee: spinedigest sdpub stage --help",
+    );
+  });
+
   it("rejects invalid help usage", () => {
     expect(() => parseCLIArguments(["help", "unknown"])).toThrow(
       "Invalid help topic: unknown. Expected one of overview, task, command, format, config, env, config-file, runtime, recipe, troubleshoot, ai, sdpub.\nSee: spinedigest --help",
@@ -460,6 +550,7 @@ describe("cli/args", () => {
     expect(rootHelpText).toContain("spinedigest help config-file");
     expect(rootHelpText).toContain("spinedigest sdpub info --help");
     expect(rootHelpText).toContain("[--verbose|-v] [--help|-h]");
+    expect(rootHelpText).toContain("[--stage <stage>]");
     expect(rootHelpText).toContain("`-h` is the short form of `--help`");
     expect(rootHelpText).toContain("`-v` is the short form of `--verbose`");
     expect(rootHelpText).toContain(
@@ -521,6 +612,7 @@ describe("cli/args", () => {
     );
     expect(sdpubHelpText).toContain("These subcommands do not call an LLM");
     expect(sdpubHelpText).toContain("[--help|-h]");
+    expect(renderSdpubSubcommandHelpText("stage")).toContain("advance <path>");
     expect(renderSdpubSubcommandHelpText("cover")).toContain(
       "refuses to write binary data to an interactive terminal",
     );
