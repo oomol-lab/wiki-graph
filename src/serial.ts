@@ -52,6 +52,12 @@ export interface GenerateSerialOptions {
   readonly userLanguage?: Language;
 }
 
+export type BuildSerialTopologyOptions = GenerateSerialOptions;
+
+export interface BuildSerialSummaryOptions {
+  readonly userLanguage?: Language;
+}
+
 export interface SerialDiscovery {
   readonly fragments: number;
   readonly words: number;
@@ -155,6 +161,30 @@ export class SerialGeneration {
       options,
       progressTracker,
     );
+  }
+
+  public async buildTopologyInto(
+    serialId: number,
+    stream: ReaderTextStream,
+    options: BuildSerialTopologyOptions,
+    progressTracker?: SerialProgressTracker,
+  ): Promise<void> {
+    await this.#buildTopology(
+      serialId,
+      stream,
+      options.extractionPrompt,
+      options.userLanguage,
+      progressTracker,
+    );
+  }
+
+  public async buildSummary(
+    serialId: number,
+    options: BuildSerialSummaryOptions = {},
+  ): Promise<Serial> {
+    const summary = await this.#buildSummary(serialId, options.userLanguage);
+
+    return new Serial(this.#document, serialId, summary);
   }
 
   async #generatePrepared(

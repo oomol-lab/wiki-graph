@@ -1,4 +1,13 @@
 export { Language } from "./common/language.js";
+export {
+  createSpineDigestTaskId,
+  SpineDigestTask,
+  SpineDigestTaskContext,
+  SPINE_DIGEST_CONTEXT_VERSION,
+  type SpineDigestTaskContextOptions,
+  type SpineDigestTaskIdentity,
+  type SpineDigestTaskType,
+} from "./context/index.js";
 export { LLMPaymentRequiredError } from "./llm/index.js";
 export {
   type DigestProgressEvent,

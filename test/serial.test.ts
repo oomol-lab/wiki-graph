@@ -223,6 +223,106 @@ describe("serial", () => {
       }
     });
   });
+
+  it("can build topology and summary as separate phases", async () => {
+    await withTempDir("spinedigest-serial-", async (path) => {
+      const document = await DirectoryDocument.open(path);
+
+      readerSegmentMock.mockReturnValueOnce(
+        createSentenceStream([
+          {
+            offset: 0,
+            text: "Alpha beta.",
+            wordsCount: 2,
+          },
+        ]),
+      );
+
+      try {
+        const generation = new SerialGeneration({
+          document,
+          llm: {} as never,
+        });
+
+        await document.serials.createWithId(1);
+        await generation.buildTopologyInto(1, [], {
+          extractionPrompt: "Keep key beats",
+        });
+
+        expect(await document.readSummary(1)).toBeUndefined();
+        expect(await document.serials.getById(1)).toMatchObject({
+          topologyReady: true,
+        });
+
+        const serial = await generation.buildSummary(1);
+
+        expect(serial.getSummary()).toBe("Alpha beta.");
+        expect(await document.readSummary(1)).toBe("Alpha beta.");
+      } finally {
+        await document.release();
+      }
+    });
+  });
+
+  it("does not build a summary before topology is ready", async () => {
+    await withTempDir("spinedigest-serial-", async (path) => {
+      const document = await DirectoryDocument.open(path);
+
+      try {
+        await document.serials.createWithId(1);
+
+        await expect(
+          new SerialGeneration({
+            document,
+            llm: {} as never,
+          }).buildSummary(1),
+        ).rejects.toThrow("Serial 1 is not ready for summary");
+      } finally {
+        await document.release();
+      }
+    });
+  });
+
+  it("reuses an existing summary without recompressing", async () => {
+    await withTempDir("spinedigest-serial-", async (path) => {
+      const document = await DirectoryDocument.open(path);
+
+      readerSegmentMock.mockReturnValueOnce(
+        createSentenceStream([
+          {
+            offset: 0,
+            text: "Alpha beta.",
+            wordsCount: 2,
+          },
+          {
+            offset: 11,
+            text: "Gamma delta.",
+            wordsCount: 2,
+          },
+        ]),
+      );
+
+      try {
+        const generation = new SerialGeneration({
+          document,
+          llm: {} as never,
+        });
+
+        await document.serials.createWithId(1);
+        await generation.buildTopologyInto(1, [], {
+          extractionPrompt: "Keep key beats",
+        });
+        await document.writeSummary(1, "Existing summary");
+
+        const serial = await generation.buildSummary(1);
+
+        expect(serial.getSummary()).toBe("Existing summary");
+        expect(compressTextMock).not.toHaveBeenCalled();
+      } finally {
+        await document.release();
+      }
+    });
+  });
 });
 
 function createSentenceStream(
