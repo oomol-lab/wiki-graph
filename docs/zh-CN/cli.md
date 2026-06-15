@@ -15,6 +15,7 @@ spinedigest status [--llm <json>]
 spinedigest sdpub <info|toc|list|cat|cover|meta> --input <path> [--chapter <id>] [--json] [--llm <json>]
 spinedigest sdpub stage <pending|advance> <path> [--to <stage>] [--chapter <id>] [--prompt <text>] [--llm <json>]
 spinedigest sdpub chapter <list|status|add|remove|reset|set-source|set-summary> <path> [options]
+spinedigest sdpub graph <status|log|show|grep|neighbors|blame|path> <path> --chapter <id> [options]
 ```
 
 在源码仓库中运行时：
@@ -26,6 +27,7 @@ pnpm dev -- status [--llm <json>]
 pnpm dev -- sdpub <info|toc|list|cat|cover|meta> --input <path> [--chapter <id>] [--json] [--llm <json>]
 pnpm dev -- sdpub stage <pending|advance> <path> [--to <stage>] [--chapter <id>] [--prompt <text>] [--llm <json>]
 pnpm dev -- sdpub chapter <list|status|add|remove|reset|set-source|set-summary> <path> [options]
+pnpm dev -- sdpub graph <status|log|show|grep|neighbors|blame|path> <path> --chapter <id> [options]
 ```
 
 ## 参数
@@ -39,6 +41,7 @@ pnpm dev -- sdpub chapter <list|status|add|remove|reset|set-source|set-summary> 
 - `--prompt <text>`：为当前这次 digest 临时覆盖 extraction prompt
 - `--stage <stage>`：把 `.sdpub` 输出生成到 `planned`、`sourced`、`graphed` 或 `summarized`
 - `--json`：把 `sdpub list` 输出为结构化 JSON
+- `--limit <n>`：限制 `sdpub graph log` 的输出数量
 - `--verbose`：把诊断日志输出到 `stderr`
 - `--version`：打印已安装包版本
 - `-h`, `--help`：打印帮助文本
@@ -49,7 +52,7 @@ pnpm dev -- sdpub chapter <list|status|add|remove|reset|set-source|set-summary> 
 
 `sdpub` 接口本身使用 positional subcommands：`spinedigest sdpub <subcommand>`。
 
-偏读取的 `sdpub` 子命令使用 `--input`，其中 `cat` 还要求提供 `--chapter`，`meta` 额外接受 metadata 编辑参数。`sdpub stage` 和 `sdpub chapter` 会原地编辑已有归档，并把归档路径作为 positional argument。
+偏读取的 `sdpub` 子命令使用 `--input`，其中 `cat` 还要求提供 `--chapter`，`meta` 额外接受 metadata 编辑参数。`sdpub stage`、`sdpub chapter` 和 `sdpub graph` 会把归档路径作为 positional argument。
 
 `--prompt` 影响从源输入生成 digest 的过程，也会影响 `spinedigest sdpub stage advance` 中的 graph 生成。
 

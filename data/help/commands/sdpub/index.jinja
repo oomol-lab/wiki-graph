@@ -15,6 +15,7 @@ Usage:
   spinedigest sdpub meta --input <path> [metadata options] [--llm <json>] [--help|-h]
   spinedigest sdpub stage <action> <path> [options] [--help|-h]
   spinedigest sdpub chapter <action> <path> [options] [--help|-h]
+  spinedigest sdpub graph <action> <path> --chapter <id> [options] [--help|-h]
 
 Shared behavior:
   - Inspection subcommands use `--input <path>` for an existing `.sdpub` archive.
@@ -24,16 +25,16 @@ Shared behavior:
   - `chapter set-source` and `chapter set-summary` can read content from stdin when `--input` is omitted.
   - `--digest-dir`, `--output`, `--output-format`, and `--verbose` are not supported.
   - `--prompt` is only supported by `sdpub stage advance`.
-  - `--json` is only supported by `sdpub list`.
+  - `--json` is only supported by `sdpub list` and `sdpub meta`.
   - `sdpub stage advance` calls an LLM provider when graph or summary generation is needed.
   - Inspection commands and metadata/tree edits do not call an LLM provider.
   - `-h` is available as the short form of `--help`.
 
 Path convention:
   - Use `--input <path>` for read-oriented commands: `info`, `toc`, `list`, `cat`, `cover`, and `meta`.
-  - Use positional `<path>` for operated-document commands: `stage` and `chapter`.
+  - Use positional `<path>` for operated-document commands: `stage`, `chapter`, and `graph`.
   - This keeps `chapter set-source` and `chapter set-summary` free to use `--input` for the text being inserted.
-  - Mutating/stage commands treat the archive as the document being operated on.
+  - Operated-document commands treat the archive as the document being operated on.
   - `.sdpub` is a ZIP archive, but routine automation should not unzip and edit it directly. Use this command family instead.
 
 Mutation safety:

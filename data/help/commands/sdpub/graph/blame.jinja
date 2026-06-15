@@ -1,0 +1,21 @@
+Help Type: command
+Command: spinedigest sdpub graph blame
+
+sdpub graph blame
+
+Purpose:
+  Show the source sentences behind one graph node.
+
+Usage:
+  spinedigest sdpub graph blame <path> --chapter <id> <node> [--help|-h]
+
+Output shape:
+  <sentence-id> <source sentence>
+
+Notes:
+  - This is the graph-reader equivalent of source attribution.
+  - Sentence ids are diagnostic anchors, not a public editing API.
+
+See also:
+  - spinedigest sdpub graph show --help
+  - spinedigest sdpub cat --help

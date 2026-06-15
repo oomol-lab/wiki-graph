@@ -33,6 +33,12 @@ Inspect archive structure:
   Command shape:
     spinedigest sdpub <info|toc|list|cat|cover|meta> --input <digest.sdpub>
 
+Explore a chapter graph:
+  Use when a chapter is graphed or summarized and you want to inspect generated graph nodes without reading SQLite directly.
+  Command shape:
+    spinedigest sdpub graph log <digest.sdpub> --chapter <id>
+    spinedigest sdpub graph show <digest.sdpub> --chapter <id> <node>
+
 Edit archive chapters:
   Use when you need to add, remove, reset, or fill individual chapters.
   Command shape:

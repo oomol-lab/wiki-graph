@@ -3,7 +3,11 @@ import { createEnv } from "../common/template.js";
 
 import { CLI_FORMATS } from "./formats.js";
 import { CLI_HELP_ROUTES, withHelpRoute } from "./errors.js";
-import type { CLISdpubChapterAction, CLISdpubStageAction } from "./args.js";
+import type {
+  CLISdpubChapterAction,
+  CLISdpubGraphAction,
+  CLISdpubStageAction,
+} from "./args.js";
 
 export const HELP_TOPICS = [
   "overview",
@@ -31,6 +35,7 @@ export const SDPUB_SUBCOMMANDS = [
   "meta",
   "stage",
   "chapter",
+  "graph",
 ] as const;
 
 export type SDPubSubcommand = (typeof SDPUB_SUBCOMMANDS)[number];
@@ -125,6 +130,10 @@ const SDPUB_SUBCOMMAND_METADATA: readonly {
     name: "chapter",
     summary: "Edit the chapter tree and per-chapter digest stages.",
   },
+  {
+    name: "graph",
+    summary: "Explore a chapter graph with Git-like read-only commands.",
+  },
 ] as const;
 
 const HELP_TOPIC_TEMPLATE_NAMES: Readonly<Record<HelpTopic, string>> = {
@@ -176,6 +185,12 @@ export function renderSdpubStageActionHelpText(
   action: CLISdpubStageAction,
 ): string {
   return renderHelpTemplate(`help/commands/sdpub/stage/${action}`);
+}
+
+export function renderSdpubGraphActionHelpText(
+  action: CLISdpubGraphAction,
+): string {
+  return renderHelpTemplate(`help/commands/sdpub/graph/${action}`);
 }
 
 export function parseHelpTopic(value: string): HelpTopic {

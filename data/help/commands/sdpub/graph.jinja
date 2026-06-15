@@ -1,0 +1,43 @@
+Help Type: command
+Command: spinedigest sdpub graph
+
+sdpub graph
+
+Purpose:
+  Explore a chapter graph with Git-like read-only commands.
+
+Usage:
+  spinedigest sdpub graph status <path> --chapter <id> [--llm <json>] [--help|-h]
+  spinedigest sdpub graph log <path> --chapter <id> [--limit <n>] [--llm <json>] [--help|-h]
+  spinedigest sdpub graph show <path> --chapter <id> <node> [--llm <json>] [--help|-h]
+  spinedigest sdpub graph grep <path> --chapter <id> <pattern> [--llm <json>] [--help|-h]
+  spinedigest sdpub graph neighbors <path> --chapter <id> <node> [--llm <json>] [--help|-h]
+  spinedigest sdpub graph blame <path> --chapter <id> <node> [--llm <json>] [--help|-h]
+  spinedigest sdpub graph path <path> --chapter <id> <from> <to> [--llm <json>] [--help|-h]
+
+Model:
+  - The chapter graph is a read-only exploration view over generated graph data.
+  - A node is a digest graph node with a numeric id, label, content, weight, and source evidence.
+  - Edges represent directed relationships between nodes.
+  - Use `sdpub graph log` to discover node ids, then `show`, `neighbors`, `blame`, or `path`.
+
+Git-like command map:
+  status     Show whether graph data exists and count nodes/edges.
+  log        List graph nodes in a compact one-line form.
+  show       Show one node with content, neighbors, and source evidence.
+  grep       Search node labels, content, and source evidence.
+  neighbors  Show incoming and outgoing adjacent nodes.
+  blame      Show the source sentences behind one node.
+  path       Find a directed path between two nodes.
+
+Behavior:
+  - Does not call an LLM provider.
+  - Does not mutate the archive.
+  - Does not expose or require ZIP internals.
+  - Does not support `--json` in this first graph reader.
+
+See also:
+  - spinedigest sdpub list --help
+  - spinedigest sdpub graph log --help
+  - spinedigest sdpub graph show --help
+  - spinedigest help sdpub

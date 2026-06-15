@@ -50,9 +50,19 @@ sdpub chapter commands:
   spinedigest sdpub chapter set-source <path> --chapter <id> [--input <path>] --input-format <format> [--llm <json>]
   spinedigest sdpub chapter set-summary <path> --chapter <id> [--input <path>] [--llm <json>]
 
+sdpub graph commands:
+  spinedigest sdpub graph status <path> --chapter <id> [--llm <json>]
+  spinedigest sdpub graph log <path> --chapter <id> [--limit <n>] [--llm <json>]
+  spinedigest sdpub graph show <path> --chapter <id> <node> [--llm <json>]
+  spinedigest sdpub graph grep <path> --chapter <id> <pattern> [--llm <json>]
+  spinedigest sdpub graph neighbors <path> --chapter <id> <node> [--llm <json>]
+  spinedigest sdpub graph blame <path> --chapter <id> <node> [--llm <json>]
+  spinedigest sdpub graph path <path> --chapter <id> <from> <to> [--llm <json>]
+
 sdpub-specific flags:
   --chapter <id>         Numeric chapter id printed by `sdpub list`, `sdpub chapter list`, or `sdpub chapter add`.
-  --json                 Print `sdpub list` as structured JSON.
+  --json                 Print supported read commands as structured JSON.
+  --limit <n>            Limit `sdpub graph log` output.
   --parent <id>          Parent chapter id for `sdpub chapter add`.
   --to <stage>           Target stage for `sdpub stage advance` or `sdpub chapter reset`.
 

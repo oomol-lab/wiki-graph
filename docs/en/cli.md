@@ -15,6 +15,7 @@ spinedigest status [--llm <json>]
 spinedigest sdpub <info|toc|list|cat|cover|meta> --input <path> [--chapter <id>] [--json] [--llm <json>]
 spinedigest sdpub stage <pending|advance> <path> [--to <stage>] [--chapter <id>] [--prompt <text>] [--llm <json>]
 spinedigest sdpub chapter <list|status|add|remove|reset|set-source|set-summary> <path> [options]
+spinedigest sdpub graph <status|log|show|grep|neighbors|blame|path> <path> --chapter <id> [options]
 ```
 
 From a source checkout:
@@ -26,6 +27,7 @@ pnpm dev -- status [--llm <json>]
 pnpm dev -- sdpub <info|toc|list|cat|cover|meta> --input <path> [--chapter <id>] [--json] [--llm <json>]
 pnpm dev -- sdpub stage <pending|advance> <path> [--to <stage>] [--chapter <id>] [--prompt <text>] [--llm <json>]
 pnpm dev -- sdpub chapter <list|status|add|remove|reset|set-source|set-summary> <path> [options]
+pnpm dev -- sdpub graph <status|log|show|grep|neighbors|blame|path> <path> --chapter <id> [options]
 ```
 
 ## Flags
@@ -39,6 +41,7 @@ pnpm dev -- sdpub chapter <list|status|add|remove|reset|set-source|set-summary> 
 - `--prompt <text>`: one-off extraction prompt override for the current digest run
 - `--stage <stage>`: create `.sdpub` output up to `planned`, `sourced`, `graphed`, or `summarized`
 - `--json`: print `sdpub list` as structured JSON
+- `--limit <n>`: limit `sdpub graph log` output
 - `--verbose`: write diagnostic logs to `stderr`
 - `--version`: print the installed package version
 - `-h`, `--help`: print help text
@@ -49,7 +52,7 @@ The main conversion command does not support positional arguments.
 
 The `sdpub` interface uses positional subcommands: `spinedigest sdpub <subcommand>`.
 
-Read-oriented `sdpub` subcommands use `--input`, except `cat` also requires `--chapter` and `meta` accepts metadata edit flags. `sdpub stage` and `sdpub chapter` edit existing archives in place and take the archive path as a positional argument.
+Read-oriented `sdpub` subcommands use `--input`, except `cat` also requires `--chapter` and `meta` accepts metadata edit flags. `sdpub stage`, `sdpub chapter`, and `sdpub graph` take the archive path as a positional argument.
 
 `--prompt` affects digest generation from source inputs and graph generation through `spinedigest sdpub stage advance`.
 

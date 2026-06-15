@@ -42,6 +42,10 @@ List chapters as JSON:
 Read one completed chapter summary:
   spinedigest sdpub cat --input ./book.sdpub --chapter 12
 
+Explore one chapter graph:
+  spinedigest sdpub graph log ./book.sdpub --chapter 12
+  spinedigest sdpub graph show ./book.sdpub --chapter 12 84
+
 Edit one completed chapter summary with normal file tools:
   spinedigest sdpub cat --input ./book.sdpub --chapter 12 > /tmp/chapter-12.md
   # edit /tmp/chapter-12.md with your editor or automation

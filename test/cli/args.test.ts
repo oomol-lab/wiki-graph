@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import { parseCLIArguments } from "../../src/cli/args.js";
 import {
   renderSdpubChapterActionHelpText,
+  renderSdpubGraphActionHelpText,
   renderSdpubStageActionHelpText,
   renderHelpTopicText,
   renderMainHelpText,
@@ -334,6 +335,75 @@ describe("cli/args", () => {
     });
   });
 
+  it("parses sdpub graph actions", () => {
+    expect(
+      parseCLIArguments([
+        "sdpub",
+        "graph",
+        "log",
+        "book.sdpub",
+        "--chapter",
+        "2",
+        "--limit",
+        "5",
+        "--llm",
+        '{"model":"cli-model"}',
+      ]),
+    ).toStrictEqual({
+      args: {
+        action: "log",
+        chapterId: 2,
+        limit: 5,
+        llmJSON: '{"model":"cli-model"}',
+        path: "book.sdpub",
+      },
+      help: false,
+      kind: "sdpub-graph",
+    });
+    expect(
+      parseCLIArguments([
+        "sdpub",
+        "graph",
+        "show",
+        "book.sdpub",
+        "--chapter",
+        "2",
+        "9",
+      ]),
+    ).toStrictEqual({
+      args: {
+        action: "show",
+        chapterId: 2,
+        nodeId: 9,
+        path: "book.sdpub",
+      },
+      help: false,
+      kind: "sdpub-graph",
+    });
+    expect(
+      parseCLIArguments([
+        "sdpub",
+        "graph",
+        "path",
+        "book.sdpub",
+        "--chapter",
+        "2",
+        "9",
+        "11",
+      ]),
+    ).toStrictEqual({
+      args: {
+        action: "path",
+        chapterId: 2,
+        fromNodeId: 9,
+        path: "book.sdpub",
+        toNodeId: 11,
+      },
+      help: false,
+      kind: "sdpub-graph",
+    });
+  });
+
   it("prints sdpub help text", () => {
     expect(parseCLIArguments(["sdpub", "--help"])).toStrictEqual({
       help: true,
@@ -395,6 +465,13 @@ describe("cli/args", () => {
       helpText: renderSdpubStageActionHelpText("advance"),
       kind: "sdpub-stage",
     });
+    expect(
+      parseCLIArguments(["sdpub", "graph", "show", "--help"]),
+    ).toStrictEqual({
+      help: true,
+      helpText: renderSdpubGraphActionHelpText("show"),
+      kind: "sdpub-graph",
+    });
   });
 
   it("rejects positional arguments", () => {
@@ -414,10 +491,10 @@ describe("cli/args", () => {
 
   it("rejects invalid sdpub usage", () => {
     expect(() => parseCLIArguments(["sdpub"])).toThrow(
-      "Missing sdpub subcommand. Expected one of info, toc, list, cat, cover, meta, stage, chapter.\nSee: spinedigest sdpub --help",
+      "Missing sdpub subcommand. Expected one of info, toc, list, cat, cover, meta, stage, chapter, graph.\nSee: spinedigest sdpub --help",
     );
     expect(() => parseCLIArguments(["sdpub", "inspect"])).toThrow(
-      "Invalid sdpub subcommand: inspect. Expected one of info, toc, list, cat, cover, meta, stage, chapter.\nSee: spinedigest sdpub --help",
+      "Invalid sdpub subcommand: inspect. Expected one of info, toc, list, cat, cover, meta, stage, chapter, graph.\nSee: spinedigest sdpub --help",
     );
     expect(() => parseCLIArguments(["sdpub", "inspect", "extra"])).toThrow(
       "Unexpected positional arguments: extra.\nSee: spinedigest sdpub --help",
@@ -506,6 +583,48 @@ describe("cli/args", () => {
       ]),
     ).toThrow(
       "Cannot combine --title with --clear-title.\nSee: spinedigest sdpub meta --help",
+    );
+  });
+
+  it("rejects invalid sdpub graph usage", () => {
+    expect(() => parseCLIArguments(["sdpub", "graph"])).toThrow(
+      "Missing sdpub graph action.\nSee: spinedigest sdpub graph --help",
+    );
+    expect(() =>
+      parseCLIArguments(["sdpub", "graph", "bogus", "book.sdpub"]),
+    ).toThrow(
+      "Invalid sdpub graph action: bogus. Expected one of status, log, show, grep, neighbors, blame, path.\nSee: spinedigest sdpub graph --help",
+    );
+    expect(() =>
+      parseCLIArguments(["sdpub", "graph", "log", "book.sdpub"]),
+    ).toThrow(
+      "Missing --chapter. `sdpub graph` requires a chapter id.\nSee: spinedigest sdpub graph --help",
+    );
+    expect(() =>
+      parseCLIArguments([
+        "sdpub",
+        "graph",
+        "show",
+        "book.sdpub",
+        "--chapter",
+        "2",
+      ]),
+    ).toThrow(
+      "`sdpub graph show` requires exactly one node id.\nSee: spinedigest sdpub graph --help",
+    );
+    expect(() =>
+      parseCLIArguments([
+        "sdpub",
+        "graph",
+        "status",
+        "book.sdpub",
+        "--chapter",
+        "2",
+        "--limit",
+        "5",
+      ]),
+    ).toThrow(
+      "The `sdpub graph status` action does not support --limit.\nSee: spinedigest sdpub graph --help",
     );
   });
 

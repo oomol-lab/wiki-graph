@@ -15,10 +15,12 @@ const mainMockState = vi.hoisted(() => ({
   statusRunCalls: 0,
   statusRunArgs: [] as unknown[],
   sdpubRunCalls: [] as unknown[],
+  sdpubGraphRunCalls: [] as unknown[],
   sdpubStageRunCalls: [] as unknown[],
   runError: undefined as Error | undefined,
   statusRunError: undefined as Error | undefined,
   sdpubRunError: undefined as Error | undefined,
+  sdpubGraphRunError: undefined as Error | undefined,
   sdpubStageRunError: undefined as Error | undefined,
 }));
 
@@ -81,6 +83,18 @@ vi.mock("../../src/cli/sdpub-stage.js", () => ({
   }),
 }));
 
+vi.mock("../../src/cli/sdpub-graph.js", () => ({
+  runSdpubGraphCommand: vi.fn((args: unknown) => {
+    mainMockState.sdpubGraphRunCalls.push(args);
+
+    if (mainMockState.sdpubGraphRunError !== undefined) {
+      return Promise.reject(mainMockState.sdpubGraphRunError);
+    }
+
+    return Promise.resolve();
+  }),
+}));
+
 import { main } from "../../src/cli/main.js";
 import { renderMainHelpText } from "../../src/cli/help.js";
 import { LLMPaymentRequiredError } from "../../src/llm/index.js";
@@ -108,10 +122,12 @@ describe("cli/main", () => {
     mainMockState.statusRunCalls = 0;
     mainMockState.statusRunArgs.length = 0;
     mainMockState.sdpubRunCalls.length = 0;
+    mainMockState.sdpubGraphRunCalls.length = 0;
     mainMockState.sdpubStageRunCalls.length = 0;
     mainMockState.runError = undefined;
     mainMockState.statusRunError = undefined;
     mainMockState.sdpubRunError = undefined;
+    mainMockState.sdpubGraphRunError = undefined;
     mainMockState.sdpubStageRunError = undefined;
     process.exitCode = 0;
     process.argv = ["node", "spinedigest"];
@@ -277,6 +293,30 @@ describe("cli/main", () => {
     expect(mainMockState.sdpubStageRunCalls).toStrictEqual([
       {
         action: "pending",
+        path: "/tmp/book.sdpub",
+      },
+    ]);
+    expect(process.exitCode).toBe(0);
+  });
+
+  it("runs the sdpub graph command for graph actions", async () => {
+    mainMockState.argsResult = {
+      args: {
+        action: "log",
+        chapterId: 2,
+        path: "/tmp/book.sdpub",
+      },
+      help: false,
+      kind: "sdpub-graph",
+    };
+
+    await main();
+
+    expect(mainMockState.runCalls).toHaveLength(0);
+    expect(mainMockState.sdpubGraphRunCalls).toStrictEqual([
+      {
+        action: "log",
+        chapterId: 2,
         path: "/tmp/book.sdpub",
       },
     ]);

@@ -1,0 +1,22 @@
+Help Type: command
+Command: spinedigest sdpub graph log
+
+sdpub graph log
+
+Purpose:
+  List chapter graph nodes in a compact Git-like one-line form.
+
+Usage:
+  spinedigest sdpub graph log <path> --chapter <id> [--limit <n>] [--help|-h]
+
+Output shape:
+  [<node>] <weight> <label> - <content>
+
+Notes:
+  - Nodes are ordered by descending weight.
+  - `--limit` defaults to 20.
+  - Use node ids with `show`, `neighbors`, `blame`, and `path`.
+
+See also:
+  - spinedigest sdpub graph show --help
+  - spinedigest sdpub graph grep --help
