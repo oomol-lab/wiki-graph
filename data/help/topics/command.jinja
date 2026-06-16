@@ -41,10 +41,12 @@ Command shapes:
 Direct digest and maintenance:
   spinedigest transform [--input <path>] [--output <path>] [--input-format <format>] [--output-format <format>] [--digest-dir <path>] [--llm <json>] [--prompt <text>] [--stage <planned|sourced|graphed|summarized>] [--verbose]
   spinedigest ls <archive.sdpub> [chapters|nodes|edges|evidence|summaries|meta] [--json]
-  spinedigest sdpub <subcommand> ...
+  spinedigest meta <archive.sdpub> [metadata options] [--json]
+  spinedigest cover <archive.sdpub>
+  spinedigest chapter <action> <archive.sdpub> [options]
   spinedigest config status [--llm <json>]
 
 Where to go next:
   - Need archive mental model: spinedigest help overview
   - Need agent rules: spinedigest help ai
-  - Need lower-level archive maintenance: spinedigest help sdpub
+  - Need command-specific details: append --help to the command.

@@ -1,12 +1,13 @@
 import { parseCLIArguments } from "./args.js";
 import { runArchiveCommand } from "./archive.js";
+import { runArchiveChapterCommand } from "./archive-chapter.js";
+import {
+  runArchiveCoverCommand,
+  runArchiveMetaCommand,
+} from "./archive-maintenance.js";
 import { runConvertCommand } from "./convert.js";
 import { renderMainHelpText } from "./help.js";
 import { runStatusCommand } from "./status.js";
-import { runSdpubCommand } from "./sdpub.js";
-import { runSdpubChapterCommand } from "./sdpub-chapter.js";
-import { runSdpubGraphCommand } from "./sdpub-graph.js";
-import { runSdpubStageCommand } from "./sdpub-stage.js";
 import { LLMPaymentRequiredError } from "../llm/index.js";
 import { formatError } from "../utils/node-error.js";
 import { readCLIVersion } from "./version.js";
@@ -32,21 +33,14 @@ export async function main(): Promise<void> {
       case "convert":
         await runConvertCommand(parsed.args);
         return;
-      case "sdpub":
-        if (parsed.args === undefined) {
-          throw new Error("Internal error: missing sdpub command arguments.");
-        }
-
-        await runSdpubCommand(parsed.args);
+      case "meta":
+        await runArchiveMetaCommand(parsed.args);
         return;
-      case "sdpub-chapter":
-        await runSdpubChapterCommand(parsed.args);
+      case "cover":
+        await runArchiveCoverCommand(parsed.args);
         return;
-      case "sdpub-stage":
-        await runSdpubStageCommand(parsed.args);
-        return;
-      case "sdpub-graph":
-        await runSdpubGraphCommand(parsed.args);
+      case "chapter":
+        await runArchiveChapterCommand(parsed.args);
         return;
       case "archive":
         await runArchiveCommand(parsed.args);

@@ -6,11 +6,10 @@ export const CLI_HELP_ROUTES = {
   format: "spinedigest help format",
   root: "spinedigest --help",
   runtime: "spinedigest help runtime",
-  sdpub: "spinedigest sdpub --help",
 } as const;
 
-export function sdpubSubcommandHelpRoute(subcommand: string): string {
-  return `spinedigest sdpub ${subcommand} --help`;
+export function archiveMaintenanceHelpRoute(subcommand: string): string {
+  return `spinedigest ${subcommand} --help`;
 }
 
 export function withHelpRoute(message: string, route: string): string {

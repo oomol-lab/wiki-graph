@@ -9,9 +9,10 @@ or render `.sdpub` files outside the SpineDigest runtime.
 This is not the recommended guide for routine archive editing. `.sdpub`
 is physically a ZIP file, but automation that wants to add chapters,
 change metadata, set source text, reset stages, or advance generation
-should use `spinedigest sdpub ...` commands. Direct ZIP mutation is for
-external readers, validators, recovery tooling, or format experiments
-that intentionally take responsibility for preserving every invariant.
+should use `spinedigest meta`, `spinedigest chapter`, or `spinedigest build`.
+Direct ZIP mutation is for external readers, validators, recovery tooling, or
+format experiments that intentionally take responsibility for preserving every
+invariant.
 
 ## Overview
 
@@ -109,7 +110,7 @@ For readers and validators:
 
 - `toc.json` plus `summaries/` is the minimum useful set for ordered text
   rendering of completed archives. Staged archives may require
-  `spinedigest sdpub stage advance` before text rendering is complete.
+  `spinedigest build` before text rendering is complete.
 - `book-meta.json` is optional for plain rendering, but required if
   metadata is part of the target feature set.
 - `cover/info.json` and `cover/data.bin` are optional as a pair.
@@ -200,7 +201,7 @@ metadata. It is not a promise that the current public CLI necessarily
 accepts that source type as direct input.
 
 The public CLI can inspect and edit these fields with
-`spinedigest sdpub meta --input <path>`. The command preserves `version`
+`spinedigest meta <archive.sdpub>`. The command preserves `version`
 and `sourceFormat`.
 
 ### `toc.json`

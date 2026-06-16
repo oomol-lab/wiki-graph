@@ -207,9 +207,9 @@ vi.mock("fs", () => ({
   createReadStream: vi.fn(() => chapterMockState.sourceFileStream),
 }));
 
-import { runSdpubChapterCommand } from "../../src/cli/sdpub-chapter.js";
+import { runArchiveChapterCommand } from "../../src/cli/archive-chapter.js";
 
-describe("cli/sdpub-chapter", () => {
+describe("cli/archive-chapter", () => {
   const originalStdinIsTTY = process.stdin.isTTY;
 
   beforeEach(() => {
@@ -231,7 +231,7 @@ describe("cli/sdpub-chapter", () => {
   });
 
   it("prints chapter list with stages", async () => {
-    await runSdpubChapterCommand({
+    await runArchiveChapterCommand({
       action: "list",
       path: "/tmp/book.sdpub",
     });
@@ -243,7 +243,7 @@ describe("cli/sdpub-chapter", () => {
   });
 
   it("adds a chapter and prints the new chapter id", async () => {
-    await runSdpubChapterCommand({
+    await runArchiveChapterCommand({
       action: "add",
       parentChapterId: 1,
       path: "/tmp/book.sdpub",
@@ -260,7 +260,7 @@ describe("cli/sdpub-chapter", () => {
   });
 
   it("reads source content from --input", async () => {
-    await runSdpubChapterCommand({
+    await runArchiveChapterCommand({
       action: "set-source",
       chapterId: 2,
       inputFormat: "markdown",
@@ -277,7 +277,7 @@ describe("cli/sdpub-chapter", () => {
   });
 
   it("reads summary content from --input", async () => {
-    await runSdpubChapterCommand({
+    await runArchiveChapterCommand({
       action: "set-summary",
       chapterId: 2,
       inputPath: "/tmp/summary.txt",
@@ -293,7 +293,7 @@ describe("cli/sdpub-chapter", () => {
   });
 
   it("passes prompt to generate-graph", async () => {
-    await runSdpubChapterCommand({
+    await runArchiveChapterCommand({
       action: "generate-graph",
       chapterId: 2,
       path: "/tmp/book.sdpub",
@@ -310,7 +310,7 @@ describe("cli/sdpub-chapter", () => {
   });
 
   it("removes chapters recursively when requested", async () => {
-    await runSdpubChapterCommand({
+    await runArchiveChapterCommand({
       action: "remove",
       chapterId: 1,
       path: "/tmp/book.sdpub",

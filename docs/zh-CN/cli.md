@@ -101,16 +101,15 @@ spinedigest evidence book.sdpub node:84 --json
 spinedigest transform [--input <path>] [--output <path>] [--input-format <format>] [--output-format <format>] [--digest-dir <path>] [--llm <json>] [--prompt <text>] [--confirm] [--stage <planned|sourced|graphed|summarized>] [--verbose]
 ```
 
-低层 `.sdpub` 维护命令：
+归档维护命令以一级命令暴露：
 
 ```bash
-spinedigest sdpub <subcommand> ...
-spinedigest sdpub stage <pending|advance> <path> [options]
-spinedigest sdpub chapter <list|status|add|remove|reset|set-source|set-summary> <path> [options]
-spinedigest sdpub graph <status|log|show|grep|neighbors|blame|path> <path> --chapter <id> [options]
+spinedigest meta <archive.sdpub> [metadata options] [--json]
+spinedigest cover <archive.sdpub>
+spinedigest chapter <list|status|add|remove|reset|set-source|set-summary> <path> [options]
 ```
 
-常规探索请使用顶层 archive commands。`sdpub ...` 家族用于兼容脚本、metadata、chapter 编辑和更低层维护。
+常规探索请使用 archive-first commands。维护命令用于 metadata 编辑、cover 提取和 chapter tree 编辑。
 
 `spinedigest config status` 输出配置状态。`spinedigest status <archive.sdpub>` 输出归档状态。
 

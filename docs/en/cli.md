@@ -101,16 +101,15 @@ The direct one-shot digest command remains available:
 spinedigest transform [--input <path>] [--output <path>] [--input-format <format>] [--output-format <format>] [--digest-dir <path>] [--llm <json>] [--prompt <text>] [--confirm] [--stage <planned|sourced|graphed|summarized>] [--verbose]
 ```
 
-The low-level `.sdpub` maintenance family remains available:
+Archive maintenance commands remain available as top-level commands:
 
 ```bash
-spinedigest sdpub <subcommand> ...
-spinedigest sdpub stage <pending|advance> <path> [options]
-spinedigest sdpub chapter <list|status|add|remove|reset|set-source|set-summary> <path> [options]
-spinedigest sdpub graph <status|log|show|grep|neighbors|blame|path> <path> --chapter <id> [options]
+spinedigest meta <archive.sdpub> [metadata options] [--json]
+spinedigest cover <archive.sdpub>
+spinedigest chapter <list|status|add|remove|reset|set-source|set-summary> <path> [options]
 ```
 
-Use the top-level archive commands for routine exploration. The `sdpub ...` family exists for compatibility, metadata work, chapter editing, and lower-level maintenance.
+Use archive-first commands for routine exploration. Maintenance commands are for metadata edits, cover extraction, and chapter tree edits.
 
 `spinedigest config status` prints configuration status. `spinedigest status <archive.sdpub>` prints archive status.
 

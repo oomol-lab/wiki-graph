@@ -1,0 +1,30 @@
+Help Type: command
+Command: spinedigest chapter set-summary
+
+chapter set-summary
+
+Purpose:
+  Fill a graphed chapter with a manual final summary.
+
+Usage:
+  spinedigest chapter set-summary <path> --chapter <id> [--input <path>] [--llm <json>] [--help|-h]
+
+Input:
+  - If `--input` is omitted, summary text is read from stdin.
+  - Summary text is stored as the chapter's final summary.
+  - A common workflow is `read > /tmp/summary.md`, edit the file, then pass it back with `--input`.
+
+Preconditions:
+  - The chapter must be `graphed`.
+  - If the chapter is `sourced`, run:
+    spinedigest build <path> --chapter <id> --stage graph --confirm
+
+Behavior:
+  - Moves the chapter to `summarized`.
+  - Does not generate or modify graph data.
+  - Does not call an LLM provider.
+
+See also:
+  - spinedigest build --help
+  - spinedigest chapter status --help
+  - spinedigest help command

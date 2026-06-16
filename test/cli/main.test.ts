@@ -14,14 +14,14 @@ const mainMockState = vi.hoisted(() => ({
   runCalls: [] as unknown[],
   statusRunCalls: 0,
   statusRunArgs: [] as unknown[],
-  sdpubRunCalls: [] as unknown[],
-  sdpubGraphRunCalls: [] as unknown[],
-  sdpubStageRunCalls: [] as unknown[],
+  archiveChapterRunCalls: [] as unknown[],
+  archiveCoverRunCalls: [] as unknown[],
+  archiveMetaRunCalls: [] as unknown[],
   runError: undefined as Error | undefined,
   statusRunError: undefined as Error | undefined,
-  sdpubRunError: undefined as Error | undefined,
-  sdpubGraphRunError: undefined as Error | undefined,
-  sdpubStageRunError: undefined as Error | undefined,
+  archiveChapterRunError: undefined as Error | undefined,
+  archiveCoverRunError: undefined as Error | undefined,
+  archiveMetaRunError: undefined as Error | undefined,
 }));
 
 vi.mock("../../src/cli/args.js", () => ({
@@ -59,36 +59,33 @@ vi.mock("../../src/cli/status.js", () => ({
   }),
 }));
 
-vi.mock("../../src/cli/sdpub.js", () => ({
-  runSdpubCommand: vi.fn((args: unknown) => {
-    mainMockState.sdpubRunCalls.push(args);
+vi.mock("../../src/cli/archive-maintenance.js", () => ({
+  runArchiveCoverCommand: vi.fn((args: unknown) => {
+    mainMockState.archiveCoverRunCalls.push(args);
 
-    if (mainMockState.sdpubRunError !== undefined) {
-      return Promise.reject(mainMockState.sdpubRunError);
+    if (mainMockState.archiveCoverRunError !== undefined) {
+      return Promise.reject(mainMockState.archiveCoverRunError);
+    }
+
+    return Promise.resolve();
+  }),
+  runArchiveMetaCommand: vi.fn((args: unknown) => {
+    mainMockState.archiveMetaRunCalls.push(args);
+
+    if (mainMockState.archiveMetaRunError !== undefined) {
+      return Promise.reject(mainMockState.archiveMetaRunError);
     }
 
     return Promise.resolve();
   }),
 }));
 
-vi.mock("../../src/cli/sdpub-stage.js", () => ({
-  runSdpubStageCommand: vi.fn((args: unknown) => {
-    mainMockState.sdpubStageRunCalls.push(args);
+vi.mock("../../src/cli/archive-chapter.js", () => ({
+  runArchiveChapterCommand: vi.fn((args: unknown) => {
+    mainMockState.archiveChapterRunCalls.push(args);
 
-    if (mainMockState.sdpubStageRunError !== undefined) {
-      return Promise.reject(mainMockState.sdpubStageRunError);
-    }
-
-    return Promise.resolve();
-  }),
-}));
-
-vi.mock("../../src/cli/sdpub-graph.js", () => ({
-  runSdpubGraphCommand: vi.fn((args: unknown) => {
-    mainMockState.sdpubGraphRunCalls.push(args);
-
-    if (mainMockState.sdpubGraphRunError !== undefined) {
-      return Promise.reject(mainMockState.sdpubGraphRunError);
+    if (mainMockState.archiveChapterRunError !== undefined) {
+      return Promise.reject(mainMockState.archiveChapterRunError);
     }
 
     return Promise.resolve();
@@ -121,14 +118,14 @@ describe("cli/main", () => {
     mainMockState.runCalls.length = 0;
     mainMockState.statusRunCalls = 0;
     mainMockState.statusRunArgs.length = 0;
-    mainMockState.sdpubRunCalls.length = 0;
-    mainMockState.sdpubGraphRunCalls.length = 0;
-    mainMockState.sdpubStageRunCalls.length = 0;
+    mainMockState.archiveChapterRunCalls.length = 0;
+    mainMockState.archiveCoverRunCalls.length = 0;
+    mainMockState.archiveMetaRunCalls.length = 0;
     mainMockState.runError = undefined;
     mainMockState.statusRunError = undefined;
-    mainMockState.sdpubRunError = undefined;
-    mainMockState.sdpubGraphRunError = undefined;
-    mainMockState.sdpubStageRunError = undefined;
+    mainMockState.archiveChapterRunError = undefined;
+    mainMockState.archiveCoverRunError = undefined;
+    mainMockState.archiveMetaRunError = undefined;
     process.exitCode = 0;
     process.argv = ["node", "spinedigest"];
     setStdinTTY(false);
@@ -165,7 +162,7 @@ describe("cli/main", () => {
     expect(stderrChunks).toStrictEqual([]);
     expect(mainMockState.runCalls).toHaveLength(0);
     expect(mainMockState.statusRunCalls).toBe(0);
-    expect(mainMockState.sdpubRunCalls).toHaveLength(0);
+    expect(mainMockState.archiveMetaRunCalls).toHaveLength(0);
     expect(process.exitCode).toBe(0);
   });
 
@@ -182,7 +179,7 @@ describe("cli/main", () => {
     expect(stderrChunks).toStrictEqual([]);
     expect(mainMockState.runCalls).toHaveLength(0);
     expect(mainMockState.statusRunCalls).toBe(0);
-    expect(mainMockState.sdpubRunCalls).toHaveLength(0);
+    expect(mainMockState.archiveMetaRunCalls).toHaveLength(0);
     expect(process.exitCode).toBe(0);
   });
 
@@ -208,7 +205,7 @@ describe("cli/main", () => {
         verbose: false,
       },
     ]);
-    expect(mainMockState.sdpubRunCalls).toHaveLength(0);
+    expect(mainMockState.archiveMetaRunCalls).toHaveLength(0);
     expect(mainMockState.statusRunCalls).toBe(0);
     expect(stdoutChunks).toStrictEqual([]);
     expect(stderrChunks).toStrictEqual([]);
@@ -228,8 +225,8 @@ describe("cli/main", () => {
     expect(stderrChunks).toStrictEqual([]);
     expect(mainMockState.runCalls).toHaveLength(0);
     expect(mainMockState.statusRunCalls).toBe(0);
-    expect(mainMockState.sdpubRunCalls).toHaveLength(0);
-    expect(mainMockState.sdpubStageRunCalls).toHaveLength(0);
+    expect(mainMockState.archiveChapterRunCalls).toHaveLength(0);
+    expect(mainMockState.archiveMetaRunCalls).toHaveLength(0);
     expect(process.exitCode).toBe(0);
   });
 
@@ -251,72 +248,68 @@ describe("cli/main", () => {
         llmJSON: '{"model":"inline-model"}',
       },
     ]);
-    expect(mainMockState.sdpubRunCalls).toHaveLength(0);
+    expect(mainMockState.archiveMetaRunCalls).toHaveLength(0);
     expect(process.exitCode).toBe(0);
   });
 
-  it("runs the sdpub command for sdpub subcommands", async () => {
+  it("runs the archive meta command", async () => {
     mainMockState.argsResult = {
       args: {
         inputPath: "/tmp/book.sdpub",
-        subcommand: "list",
+        json: true,
       },
       help: false,
-      kind: "sdpub",
+      kind: "meta",
     };
 
     await main();
 
     expect(mainMockState.runCalls).toHaveLength(0);
-    expect(mainMockState.sdpubRunCalls).toStrictEqual([
+    expect(mainMockState.archiveMetaRunCalls).toStrictEqual([
       {
         inputPath: "/tmp/book.sdpub",
-        subcommand: "list",
+        json: true,
       },
     ]);
     expect(process.exitCode).toBe(0);
   });
 
-  it("runs the sdpub stage command for stage actions", async () => {
+  it("runs the archive cover command", async () => {
     mainMockState.argsResult = {
       args: {
-        action: "pending",
-        path: "/tmp/book.sdpub",
+        inputPath: "/tmp/book.sdpub",
       },
       help: false,
-      kind: "sdpub-stage",
+      kind: "cover",
     };
 
     await main();
 
     expect(mainMockState.runCalls).toHaveLength(0);
-    expect(mainMockState.sdpubStageRunCalls).toStrictEqual([
+    expect(mainMockState.archiveCoverRunCalls).toStrictEqual([
       {
-        action: "pending",
-        path: "/tmp/book.sdpub",
+        inputPath: "/tmp/book.sdpub",
       },
     ]);
     expect(process.exitCode).toBe(0);
   });
 
-  it("runs the sdpub graph command for graph actions", async () => {
+  it("runs the archive chapter command", async () => {
     mainMockState.argsResult = {
       args: {
-        action: "log",
-        chapterId: 2,
+        action: "list",
         path: "/tmp/book.sdpub",
       },
       help: false,
-      kind: "sdpub-graph",
+      kind: "chapter",
     };
 
     await main();
 
     expect(mainMockState.runCalls).toHaveLength(0);
-    expect(mainMockState.sdpubGraphRunCalls).toStrictEqual([
+    expect(mainMockState.archiveChapterRunCalls).toStrictEqual([
       {
-        action: "log",
-        chapterId: 2,
+        action: "list",
         path: "/tmp/book.sdpub",
       },
     ]);
@@ -379,24 +372,22 @@ describe("cli/main", () => {
     expect(process.exitCode).toBe(1);
   });
 
-  it("writes sdpub command failures to stderr and sets a non-zero exit code", async () => {
+  it("writes archive maintenance command failures to stderr and sets a non-zero exit code", async () => {
     mainMockState.argsResult = {
       args: {
         inputPath: "/tmp/book.sdpub",
-        subcommand: "info",
       },
       help: false,
-      kind: "sdpub",
+      kind: "meta",
     };
-    mainMockState.sdpubRunError = new Error("sdpub failed");
+    mainMockState.archiveMetaRunError = new Error("metadata failed");
 
     await main();
 
-    expect(stderrChunks).toStrictEqual(["sdpub failed\n"]);
-    expect(mainMockState.sdpubRunCalls).toStrictEqual([
+    expect(stderrChunks).toStrictEqual(["metadata failed\n"]);
+    expect(mainMockState.archiveMetaRunCalls).toStrictEqual([
       {
         inputPath: "/tmp/book.sdpub",
-        subcommand: "info",
       },
     ]);
     expect(process.exitCode).toBe(1);

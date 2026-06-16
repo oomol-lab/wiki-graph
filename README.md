@@ -197,7 +197,7 @@ spinedigest help task
 spinedigest help config
 spinedigest help env
 spinedigest help config-file
-spinedigest help sdpub
+spinedigest help command
 ```
 
 Full agent guidance: [AI Agent Guide](./docs/en/ai-agents.md).

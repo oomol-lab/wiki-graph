@@ -285,10 +285,6 @@ vi.mock("../../src/cli/convert.js", () => ({
   runConvertCommand: vi.fn(() => Promise.resolve()),
 }));
 
-vi.mock("../../src/cli/sdpub-stage.js", () => ({
-  runSdpubStageCommand: vi.fn(() => Promise.resolve()),
-}));
-
 import { runArchiveCommand } from "../../src/cli/archive.js";
 import {
   findArchiveObjects,

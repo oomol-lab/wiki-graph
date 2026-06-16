@@ -5,9 +5,8 @@ import { CLI_FORMATS } from "./formats.js";
 import { CLI_HELP_ROUTES, withHelpRoute } from "./errors.js";
 import type {
   CLIArchiveAction,
-  CLISdpubChapterAction,
-  CLISdpubGraphAction,
-  CLISdpubStageAction,
+  CLIArchiveChapterAction,
+  CLIArchiveMaintenanceCommand,
 } from "./args.js";
 
 export const HELP_TOPICS = [
@@ -22,7 +21,6 @@ export const HELP_TOPICS = [
   "recipe",
   "troubleshoot",
   "ai",
-  "sdpub",
 ] as const;
 
 export type HelpTopic = (typeof HELP_TOPICS)[number];
@@ -49,19 +47,11 @@ export const ARCHIVE_COMMANDS = [
   "export",
 ] as const satisfies readonly CLIArchiveAction[];
 
-export const SDPUB_SUBCOMMANDS = [
-  "info",
-  "toc",
-  "list",
-  "cat",
+export const ARCHIVE_MAINTENANCE_COMMANDS = [
   "cover",
   "meta",
-  "stage",
   "chapter",
-  "graph",
-] as const;
-
-export type SDPubSubcommand = (typeof SDPUB_SUBCOMMANDS)[number];
+] as const satisfies readonly CLIArchiveMaintenanceCommand[];
 
 const HELP_TOPIC_METADATA: readonly {
   readonly name: HelpTopic;
@@ -111,32 +101,12 @@ const HELP_TOPIC_METADATA: readonly {
     name: "ai",
     summary: "Navigation hints and operating contract for AI agents.",
   },
-  {
-    name: "sdpub",
-    summary: "The .sdpub inspection and chapter editing command family.",
-  },
 ] as const;
 
-const SDPUB_SUBCOMMAND_METADATA: readonly {
-  readonly name: SDPubSubcommand;
+const ARCHIVE_MAINTENANCE_COMMAND_METADATA: readonly {
+  readonly name: CLIArchiveMaintenanceCommand;
   readonly summary: string;
 }[] = [
-  {
-    name: "info",
-    summary: "Print archive metadata, cover presence, and aggregate counts.",
-  },
-  {
-    name: "toc",
-    summary: "Print the TOC tree, including chapter id markers.",
-  },
-  {
-    name: "list",
-    summary: "List the chapter tree with ids and cat readiness.",
-  },
-  {
-    name: "cat",
-    summary: "Print one completed chapter summary.",
-  },
   {
     name: "cover",
     summary: "Write raw cover bytes to stdout for redirection or piping.",
@@ -146,16 +116,8 @@ const SDPUB_SUBCOMMAND_METADATA: readonly {
     summary: "Read or edit book metadata stored in the archive.",
   },
   {
-    name: "stage",
-    summary: "List pending chapters or advance chapter stages.",
-  },
-  {
     name: "chapter",
     summary: "Edit the chapter tree and per-chapter digest stages.",
-  },
-  {
-    name: "graph",
-    summary: "Explore a chapter graph with Git-like read-only commands.",
   },
 ] as const;
 
@@ -171,7 +133,6 @@ const HELP_TOPIC_TEMPLATE_NAMES: Readonly<Record<HelpTopic, string>> = {
   recipe: "help/topics/recipe",
   troubleshoot: "help/topics/troubleshoot",
   ai: "help/topics/ai",
-  sdpub: "help/topics/sdpub",
 };
 
 let helpTemplateEnvironment: ReturnType<typeof createEnv> | undefined;
@@ -196,32 +157,16 @@ export function renderHelpTopicText(topic: HelpTopic): string {
   return renderHelpTemplate(HELP_TOPIC_TEMPLATE_NAMES[topic]);
 }
 
-export function renderSdpubHelpText(): string {
-  return renderHelpTemplate("help/commands/sdpub/index");
+export function renderArchiveMaintenanceCommandHelpText(
+  command: CLIArchiveMaintenanceCommand,
+): string {
+  return renderHelpTemplate(`help/commands/maintenance/${command}`);
 }
 
-export function renderSdpubSubcommandHelpText(
-  subcommand: SDPubSubcommand,
+export function renderArchiveMaintenanceChapterActionHelpText(
+  action: CLIArchiveChapterAction,
 ): string {
-  return renderHelpTemplate(`help/commands/sdpub/${subcommand}`);
-}
-
-export function renderSdpubChapterActionHelpText(
-  action: CLISdpubChapterAction,
-): string {
-  return renderHelpTemplate(`help/commands/sdpub/chapter/${action}`);
-}
-
-export function renderSdpubStageActionHelpText(
-  action: CLISdpubStageAction,
-): string {
-  return renderHelpTemplate(`help/commands/sdpub/stage/${action}`);
-}
-
-export function renderSdpubGraphActionHelpText(
-  action: CLISdpubGraphAction,
-): string {
-  return renderHelpTemplate(`help/commands/sdpub/graph/${action}`);
+  return renderHelpTemplate(`help/commands/maintenance/chapter/${action}`);
 }
 
 export function parseHelpTopic(value: string): HelpTopic {
@@ -243,7 +188,7 @@ function renderHelpTemplate(templateName: string): string {
   return getHelpTemplateEnvironment().render(templateName, {
     formats: CLI_FORMATS,
     helpTopics: HELP_TOPIC_METADATA,
-    sdpubCommands: SDPUB_SUBCOMMAND_METADATA,
+    archiveMaintenanceCommands: ARCHIVE_MAINTENANCE_COMMAND_METADATA,
   });
 }
 

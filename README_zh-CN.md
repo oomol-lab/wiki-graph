@@ -193,7 +193,7 @@ spinedigest help task
 spinedigest help config
 spinedigest help env
 spinedigest help config-file
-spinedigest help sdpub
+spinedigest help command
 ```
 
 完整 agent 操作参考见 [AI Agent Guide](./docs/zh-CN/ai-agents.md)。

@@ -17,7 +17,7 @@ import {
 } from "../facade/index.js";
 import { SpineDigestFile } from "../facade/spine-digest-file.js";
 
-import type { CLISdpubChapterArguments } from "./args.js";
+import type { CLIArchiveChapterArguments } from "./args.js";
 import { readTextStreamFromStdin, writeTextToStdout } from "./io.js";
 import {
   createStageLLM,
@@ -25,8 +25,8 @@ import {
   resolveExtractionPrompt,
 } from "./stage-runtime.js";
 
-export async function runSdpubChapterCommand(
-  args: CLISdpubChapterArguments,
+export async function runArchiveChapterCommand(
+  args: CLIArchiveChapterArguments,
 ): Promise<void> {
   switch (args.action) {
     case "add":
@@ -136,7 +136,7 @@ async function runEditableCommand(
 }
 
 function createContentStream(
-  args: Pick<CLISdpubChapterArguments, "inputPath">,
+  args: Pick<CLIArchiveChapterArguments, "inputPath">,
 ): AsyncIterable<string> {
   if (args.inputPath !== undefined) {
     return createReadStream(args.inputPath, { encoding: "utf8" });
@@ -151,7 +151,7 @@ function createContentStream(
 }
 
 async function readContentText(
-  args: Pick<CLISdpubChapterArguments, "inputPath">,
+  args: Pick<CLIArchiveChapterArguments, "inputPath">,
 ): Promise<string> {
   if (args.inputPath !== undefined) {
     return await readFile(args.inputPath, "utf8");

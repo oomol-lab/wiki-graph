@@ -70,7 +70,7 @@ export class SpineDigest {
 
       if (record === undefined) {
         throw new Error(
-          `No completed summary exists for id ${serialId}. Use \`spinedigest sdpub list --input <path>\` to discover ids ready for \`sdpub cat --serial\`.`,
+          `No completed summary exists for id ${serialId}. Use \`spinedigest list <archive.sdpub> --type chapter\` to discover chapter ids, then \`spinedigest read <archive.sdpub> summary:${serialId}\` after summary is ready.`,
         );
       }
 

@@ -48,11 +48,13 @@ Direct digest command:
 
 Direct and maintenance usage:
   spinedigest transform [--input <path>] [--output <path>] [--input-format <format>] [--output-format <format>] [--digest-dir <path>] [--llm <json>] [--prompt <text>] [--stage <stage>] [--verbose|-v] [--help|-h]
+  spinedigest meta <archive.sdpub> [metadata options] [--json] [--llm <json>] [--help|-h]
+  spinedigest cover <archive.sdpub> [--llm <json>] [--help|-h]
+  spinedigest chapter <action> <archive.sdpub> [options] [--llm <json>] [--help|-h]
   spinedigest config status [--llm <json>] [--help|-h]
-  spinedigest sdpub <subcommand> ...
   spinedigest help [topic] [--help|-h]
 
-  The `sdpub ...` family is a lower-level compatibility and maintenance surface. Do not use it for routine archive exploration; prefer `index`, `list`, `page`, `find`, `grep`, `read`, and `evidence`.
+  Maintenance commands are for metadata, cover extraction, and chapter tree edits. Routine archive exploration should use `index`, `list`, `page`, `find`, `grep`, `read`, and `evidence`.
 
 Core object ids:
   chapter:<id>     A chapter-like archive page.
@@ -85,4 +87,3 @@ Start here:
   - Read `spinedigest help overview` for the archive-first mental model.
   - Read `spinedigest help ai` for the agent operating contract.
   - Read `spinedigest help command` for command shapes.
-  - Read `spinedigest help sdpub` when maintaining lower-level archive scripts that still use `sdpub ...`.

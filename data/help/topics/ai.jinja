@@ -61,8 +61,8 @@ Stable terms:
   - projection: exported Markdown, txt, EPUB, JSON, or graph output
 
 Maintenance commands:
-  - `spinedigest sdpub ...` remains available for low-level chapter and graph maintenance.
-  - Prefer archive-first commands unless the user specifically needs lower-level maintenance operations.
+  - `meta`, `cover`, and `chapter` are maintenance commands, not routine exploration commands.
+  - Prefer archive-first commands unless the user specifically needs metadata mutation, cover extraction, or chapter tree edits.
 
 Discovery rule:
   If the user question asks for synthesis, a timeline, a process, a relationship map, character development, or conceptual structure, start with `list --type chapter`, then `page chapter:<id>` and inspect `nodeGroups`. Do not flatten the archive into raw text first.

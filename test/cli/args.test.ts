@@ -3,14 +3,11 @@ import { describe, expect, it } from "vitest";
 import { parseCLIArguments } from "../../src/cli/args.js";
 import {
   renderArchiveCommandHelpText,
-  renderSdpubChapterActionHelpText,
-  renderSdpubGraphActionHelpText,
-  renderSdpubStageActionHelpText,
+  renderArchiveMaintenanceChapterActionHelpText,
+  renderArchiveMaintenanceCommandHelpText,
   renderHelpTopicText,
   renderMainHelpText,
   renderStatusHelpText,
-  renderSdpubHelpText,
-  renderSdpubSubcommandHelpText,
 } from "../../src/cli/help.js";
 
 describe("cli/args", () => {
@@ -444,55 +441,18 @@ describe("cli/args", () => {
     });
   });
 
-  it("parses sdpub subcommands", () => {
-    expect(
-      parseCLIArguments([
-        "sdpub",
-        "cat",
-        "--input",
-        "book.sdpub",
-        "--chapter",
-        "12",
-        "--llm",
-        '{"model":"cli-model"}',
-      ]),
-    ).toStrictEqual({
-      args: {
-        inputPath: "book.sdpub",
-        llmJSON: '{"model":"cli-model"}',
-        chapterId: 12,
-        subcommand: "cat",
-      },
-      help: false,
-      kind: "sdpub",
-    });
-    expect(
-      parseCLIArguments(["sdpub", "list", "--input", "book.sdpub", "--json"]),
-    ).toStrictEqual({
+  it("parses archive metadata and cover commands", () => {
+    expect(parseCLIArguments(["meta", "book.sdpub", "--json"])).toStrictEqual({
       args: {
         inputPath: "book.sdpub",
         json: true,
-        subcommand: "list",
       },
       help: false,
-      kind: "sdpub",
-    });
-    expect(
-      parseCLIArguments(["sdpub", "meta", "--input", "book.sdpub", "--json"]),
-    ).toStrictEqual({
-      args: {
-        inputPath: "book.sdpub",
-        json: true,
-        subcommand: "meta",
-      },
-      help: false,
-      kind: "sdpub",
+      kind: "meta",
     });
     expect(
       parseCLIArguments([
-        "sdpub",
         "meta",
-        "--input",
         "book.sdpub",
         "--title",
         "  Updated Book  ",
@@ -510,17 +470,22 @@ describe("cli/args", () => {
           clearDescription: true,
           title: "Updated Book",
         },
-        subcommand: "meta",
       },
       help: false,
-      kind: "sdpub",
+      kind: "meta",
+    });
+    expect(parseCLIArguments(["cover", "book.sdpub"])).toStrictEqual({
+      args: {
+        inputPath: "book.sdpub",
+      },
+      help: false,
+      kind: "cover",
     });
   });
 
-  it("parses sdpub chapter edit actions", () => {
+  it("parses archive chapter edit actions", () => {
     expect(
       parseCLIArguments([
-        "sdpub",
         "chapter",
         "set-source",
         "book.sdpub",
@@ -540,11 +505,10 @@ describe("cli/args", () => {
         path: "book.sdpub",
       },
       help: false,
-      kind: "sdpub-chapter",
+      kind: "chapter",
     });
     expect(
       parseCLIArguments([
-        "sdpub",
         "chapter",
         "add",
         "book.sdpub",
@@ -561,11 +525,10 @@ describe("cli/args", () => {
         title: "Chapter 1",
       },
       help: false,
-      kind: "sdpub-chapter",
+      kind: "chapter",
     });
     expect(
       parseCLIArguments([
-        "sdpub",
         "chapter",
         "reset",
         "book.sdpub",
@@ -582,121 +545,27 @@ describe("cli/args", () => {
         resetStage: "sourced",
       },
       help: false,
-      kind: "sdpub-chapter",
+      kind: "chapter",
     });
   });
 
-  it("parses sdpub stage actions", () => {
-    expect(
-      parseCLIArguments([
-        "sdpub",
-        "stage",
-        "advance",
-        "book.sdpub",
-        "--chapter",
-        "3",
-        "--to",
-        "graphed",
-        "--prompt",
-        "Focus on claims",
-      ]),
-    ).toStrictEqual({
-      args: {
-        action: "advance",
-        chapterId: 3,
-        path: "book.sdpub",
-        prompt: "Focus on claims",
-        targetStage: "graphed",
-      },
-      help: false,
-      kind: "sdpub-stage",
-    });
-    expect(
-      parseCLIArguments(["sdpub", "stage", "pending", "book.sdpub"]),
-    ).toStrictEqual({
-      args: {
-        action: "pending",
-        path: "book.sdpub",
-      },
-      help: false,
-      kind: "sdpub-stage",
-    });
-  });
-
-  it("parses sdpub graph actions", () => {
-    expect(
-      parseCLIArguments([
-        "sdpub",
-        "graph",
-        "log",
-        "book.sdpub",
-        "--chapter",
-        "2",
-        "--limit",
-        "5",
-        "--llm",
-        '{"model":"cli-model"}',
-      ]),
-    ).toStrictEqual({
-      args: {
-        action: "log",
-        chapterId: 2,
-        limit: 5,
-        llmJSON: '{"model":"cli-model"}',
-        path: "book.sdpub",
-      },
-      help: false,
-      kind: "sdpub-graph",
-    });
-    expect(
-      parseCLIArguments([
-        "sdpub",
-        "graph",
-        "show",
-        "book.sdpub",
-        "--chapter",
-        "2",
-        "9",
-      ]),
-    ).toStrictEqual({
-      args: {
-        action: "show",
-        chapterId: 2,
-        nodeId: 9,
-        path: "book.sdpub",
-      },
-      help: false,
-      kind: "sdpub-graph",
-    });
-    expect(
-      parseCLIArguments([
-        "sdpub",
-        "graph",
-        "path",
-        "book.sdpub",
-        "--chapter",
-        "2",
-        "9",
-        "11",
-      ]),
-    ).toStrictEqual({
-      args: {
-        action: "path",
-        chapterId: 2,
-        fromNodeId: 9,
-        path: "book.sdpub",
-        toNodeId: 11,
-      },
-      help: false,
-      kind: "sdpub-graph",
-    });
-  });
-
-  it("prints sdpub help text", () => {
-    expect(parseCLIArguments(["sdpub", "--help"])).toStrictEqual({
+  it("prints archive maintenance help pages", () => {
+    expect(parseCLIArguments(["meta", "--help"])).toStrictEqual({
       help: true,
-      helpText: renderSdpubHelpText(),
-      kind: "sdpub",
+      helpText: renderArchiveMaintenanceCommandHelpText("meta"),
+      kind: "maintenance",
+    });
+    expect(parseCLIArguments(["cover", "--help"])).toStrictEqual({
+      help: true,
+      helpText: renderArchiveMaintenanceCommandHelpText("cover"),
+      kind: "maintenance",
+    });
+    expect(
+      parseCLIArguments(["chapter", "set-summary", "--help"]),
+    ).toStrictEqual({
+      help: true,
+      helpText: renderArchiveMaintenanceChapterActionHelpText("set-summary"),
+      kind: "chapter",
     });
   });
 
@@ -739,35 +608,6 @@ describe("cli/args", () => {
     });
   });
 
-  it("prints sdpub subcommand help pages", () => {
-    expect(parseCLIArguments(["sdpub", "info", "--help"])).toStrictEqual({
-      help: true,
-      helpText: renderSdpubSubcommandHelpText("info"),
-      kind: "sdpub",
-    });
-    expect(
-      parseCLIArguments(["sdpub", "chapter", "set-summary", "--help"]),
-    ).toStrictEqual({
-      help: true,
-      helpText: renderSdpubChapterActionHelpText("set-summary"),
-      kind: "sdpub-chapter",
-    });
-    expect(
-      parseCLIArguments(["sdpub", "stage", "advance", "--help"]),
-    ).toStrictEqual({
-      help: true,
-      helpText: renderSdpubStageActionHelpText("advance"),
-      kind: "sdpub-stage",
-    });
-    expect(
-      parseCLIArguments(["sdpub", "graph", "show", "--help"]),
-    ).toStrictEqual({
-      help: true,
-      helpText: renderSdpubGraphActionHelpText("show"),
-      kind: "sdpub-graph",
-    });
-  });
-
   it("rejects positional arguments", () => {
     expect(() => parseCLIArguments(["book.epub"])).toThrow(
       "Unexpected positional argument or unknown command: book.epub. The direct digest command reads from stdin or --input; it does not accept positional input paths. Use `spinedigest transform --input <path>`, or see available subcommands with `spinedigest --help`.\nSee: spinedigest help command",
@@ -783,157 +623,37 @@ describe("cli/args", () => {
     );
   });
 
-  it("rejects invalid sdpub usage", () => {
+  it("rejects removed sdpub family and invalid maintenance usage", () => {
     expect(() => parseCLIArguments(["sdpub"])).toThrow(
-      "Missing sdpub subcommand. Expected one of info, toc, list, cat, cover, meta, stage, chapter, graph.\nSee: spinedigest sdpub --help",
+      "Unexpected positional argument or unknown command: sdpub.",
     );
-    expect(() => parseCLIArguments(["sdpub", "inspect"])).toThrow(
-      "Invalid sdpub subcommand: inspect. Expected one of info, toc, list, cat, cover, meta, stage, chapter, graph.\nSee: spinedigest sdpub --help",
+    expect(() => parseCLIArguments(["sdpub", "toc"])).toThrow(
+      "Unexpected positional argument or unknown command: sdpub toc.",
     );
-    expect(() => parseCLIArguments(["sdpub", "inspect", "extra"])).toThrow(
-      "Unexpected positional arguments: extra.\nSee: spinedigest sdpub --help",
-    );
-    expect(() => parseCLIArguments(["sdpub", "info", "book.sdpub"])).toThrow(
-      "Unexpected positional arguments: book.sdpub. The `sdpub info` subcommand uses --input <path>; it does not accept a positional archive path.\nSee: spinedigest sdpub info --help",
+    expect(() => parseCLIArguments(["meta"])).toThrow(
+      "Missing archive path. Use `spinedigest meta <archive.sdpub>`.",
     );
     expect(() =>
-      parseCLIArguments(["sdpub", "info", "--output", "out.txt"]),
+      parseCLIArguments(["meta", "book.sdpub", "--json", "--title", "Updated"]),
     ).toThrow(
-      "The `sdpub` subcommands do not support --output. Use stdout redirection or pipes instead.\nSee: spinedigest sdpub --help",
+      "`meta --json` is read-only and cannot be combined with metadata edit flags.",
     );
-    expect(() =>
-      parseCLIArguments(["sdpub", "info", "--prompt", "Keep dialogue only"]),
-    ).toThrow(
-      "The `sdpub` subcommands do not support --prompt. It only applies to digest generation from source inputs.\nSee: spinedigest sdpub --help",
-    );
-    expect(() =>
-      parseCLIArguments(["sdpub", "info", "--input", "book.sdpub", "--json"]),
-    ).toThrow(
-      "The `sdpub info` subcommand does not support --json.\nSee: spinedigest sdpub info --help",
+    expect(() => parseCLIArguments(["cover", "book.sdpub", "--json"])).toThrow(
+      "The `cover` command does not support --json.",
     );
     expect(() =>
       parseCLIArguments([
-        "sdpub",
-        "meta",
-        "--input",
-        "book.sdpub",
-        "--json",
-        "--title",
-        "Updated",
-      ]),
-    ).toThrow(
-      "`sdpub meta --json` is read-only and cannot be combined with metadata edit flags.\nSee: spinedigest sdpub meta --help",
-    );
-    expect(() =>
-      parseCLIArguments(["sdpub", "cat", "--input", "book.sdpub"]),
-    ).toThrow(
-      "Missing --chapter. `spinedigest sdpub cat` requires a chapter id.\nSee: spinedigest sdpub cat --help",
-    );
-    expect(() =>
-      parseCLIArguments([
-        "sdpub",
-        "list",
-        "--input",
-        "book.sdpub",
-        "--chapter",
-        "2",
-      ]),
-    ).toThrow(
-      "The `sdpub list` subcommand does not support --chapter.\nSee: spinedigest sdpub list --help",
-    );
-    expect(() =>
-      parseCLIArguments([
-        "sdpub",
-        "cat",
-        "--input",
+        "chapter",
+        "set-source",
         "book.sdpub",
         "--chapter",
         "x",
       ]),
     ).toThrow(
-      "Invalid --chapter: x. Expected a non-negative integer.\nSee: spinedigest sdpub cat --help",
+      "Invalid --chapter: x. Expected a non-negative integer.\nSee: spinedigest chapter --help",
     );
     expect(() =>
       parseCLIArguments([
-        "sdpub",
-        "info",
-        "--input",
-        "book.sdpub",
-        "--title",
-        "Updated",
-      ]),
-    ).toThrow(
-      "The `sdpub info` subcommand does not support metadata edit flags.\nSee: spinedigest sdpub info --help",
-    );
-    expect(() =>
-      parseCLIArguments([
-        "sdpub",
-        "meta",
-        "--input",
-        "book.sdpub",
-        "--title",
-        "Updated",
-        "--clear-title",
-      ]),
-    ).toThrow(
-      "Cannot combine --title with --clear-title.\nSee: spinedigest sdpub meta --help",
-    );
-  });
-
-  it("rejects invalid sdpub graph usage", () => {
-    expect(() => parseCLIArguments(["sdpub", "graph"])).toThrow(
-      "Missing sdpub graph action.\nSee: spinedigest sdpub graph --help",
-    );
-    expect(() =>
-      parseCLIArguments(["sdpub", "graph", "bogus", "book.sdpub"]),
-    ).toThrow(
-      "Invalid sdpub graph action: bogus. Expected one of status, log, show, grep, neighbors, blame, path.\nSee: spinedigest sdpub graph --help",
-    );
-    expect(() =>
-      parseCLIArguments(["sdpub", "graph", "log", "book.sdpub"]),
-    ).toThrow(
-      "Missing --chapter. `sdpub graph` requires a chapter id.\nSee: spinedigest sdpub graph --help",
-    );
-    expect(() =>
-      parseCLIArguments([
-        "sdpub",
-        "graph",
-        "show",
-        "book.sdpub",
-        "--chapter",
-        "2",
-      ]),
-    ).toThrow(
-      "`sdpub graph show` requires exactly one node id.\nSee: spinedigest sdpub graph --help",
-    );
-    expect(() =>
-      parseCLIArguments([
-        "sdpub",
-        "graph",
-        "status",
-        "book.sdpub",
-        "--chapter",
-        "2",
-        "--limit",
-        "5",
-      ]),
-    ).toThrow(
-      "The `sdpub graph status` action does not support --limit.\nSee: spinedigest sdpub graph --help",
-    );
-  });
-
-  it("rejects invalid sdpub chapter usage", () => {
-    expect(() => parseCLIArguments(["sdpub", "chapter"])).toThrow(
-      "Missing sdpub chapter action.\nSee: spinedigest sdpub chapter --help",
-    );
-    expect(() =>
-      parseCLIArguments(["sdpub", "chapter", "set-source", "book.sdpub"]),
-    ).toThrow(
-      "Missing --chapter. `sdpub chapter set-source` requires a chapter id.\nSee: spinedigest sdpub chapter --help",
-    );
-    expect(() =>
-      parseCLIArguments([
-        "sdpub",
         "chapter",
         "set-source",
         "book.sdpub",
@@ -941,11 +661,10 @@ describe("cli/args", () => {
         "1",
       ]),
     ).toThrow(
-      "Missing --input-format. `sdpub chapter set-source` requires txt or markdown.\nSee: spinedigest sdpub chapter --help",
+      "Missing --input-format. `chapter set-source` requires txt or markdown.\nSee: spinedigest chapter --help",
     );
     expect(() =>
       parseCLIArguments([
-        "sdpub",
         "chapter",
         "reset",
         "book.sdpub",
@@ -955,43 +674,13 @@ describe("cli/args", () => {
         "summarized",
       ]),
     ).toThrow(
-      "`sdpub chapter reset` does not support --to summarized.\nSee: spinedigest sdpub chapter --help",
-    );
-  });
-
-  it("rejects invalid sdpub stage usage", () => {
-    expect(() => parseCLIArguments(["sdpub", "stage"])).toThrow(
-      "Missing sdpub stage action.\nSee: spinedigest sdpub stage --help",
-    );
-    expect(() =>
-      parseCLIArguments([
-        "sdpub",
-        "stage",
-        "advance",
-        "book.sdpub",
-        "--to",
-        "x",
-      ]),
-    ).toThrow(
-      "Invalid --to: x. Expected planned, sourced, graphed, or summarized.\nSee: spinedigest sdpub stage --help",
-    );
-    expect(() =>
-      parseCLIArguments([
-        "sdpub",
-        "stage",
-        "pending",
-        "book.sdpub",
-        "--prompt",
-        "unused",
-      ]),
-    ).toThrow(
-      "The `sdpub stage pending` action does not support --prompt.\nSee: spinedigest sdpub stage --help",
+      "`chapter reset` does not support --to summarized.\nSee: spinedigest chapter --help",
     );
   });
 
   it("rejects invalid help usage", () => {
     expect(() => parseCLIArguments(["help", "unknown"])).toThrow(
-      "Invalid help topic: unknown. Expected one of overview, task, command, format, config, env, config-file, runtime, recipe, troubleshoot, ai, sdpub.\nSee: spinedigest --help",
+      "Invalid help topic: unknown. Expected one of overview, task, command, format, config, env, config-file, runtime, recipe, troubleshoot, ai.\nSee: spinedigest --help",
     );
     expect(() =>
       parseCLIArguments(["help", "task", "--input", "book.epub"]),
@@ -1029,7 +718,6 @@ describe("cli/args", () => {
 
   it("documents the layered help contract", () => {
     const rootHelpText = renderMainHelpText();
-    const sdpubHelpText = renderSdpubHelpText();
     const commandHelpText = renderHelpTopicText("command");
 
     expect(rootHelpText).toContain("spinedigest help [topic]");
@@ -1037,9 +725,9 @@ describe("cli/args", () => {
     expect(rootHelpText).toContain("spinedigest help overview");
     expect(rootHelpText).toContain("spinedigest help env");
     expect(rootHelpText).toContain("spinedigest help config-file");
-    expect(rootHelpText).toContain("spinedigest sdpub <subcommand> ...");
+    expect(rootHelpText).toContain("spinedigest meta <archive.sdpub>");
     expect(rootHelpText).toContain(
-      "The `sdpub ...` family is a lower-level compatibility and maintenance surface.",
+      "spinedigest chapter <action> <archive.sdpub>",
     );
     expect(rootHelpText).toContain("[--verbose|-v] [--help|-h]");
     expect(rootHelpText).toContain("chapter:<id>");
@@ -1099,27 +787,17 @@ describe("cli/args", () => {
     expect(renderHelpTopicText("config-file")).toContain(
       "JSON boolean, either `true` or `false`",
     );
-    expect(sdpubHelpText).toContain(
-      "sdpub stage advance` calls an LLM provider",
-    );
-    expect(sdpubHelpText).toContain(
-      "Inspection commands and metadata/tree edits do not call an LLM provider",
-    );
-    expect(sdpubHelpText).toContain("[--help|-h]");
-    expect(renderSdpubSubcommandHelpText("stage")).toContain("advance <path>");
-    expect(renderSdpubStageActionHelpText("advance")).toContain(
-      "Advancement is idempotent",
-    );
-    expect(renderSdpubChapterActionHelpText("set-summary")).toContain(
-      "The chapter must be `graphed`",
-    );
-    expect(renderSdpubSubcommandHelpText("cover")).toContain(
+    expect(
+      renderArchiveMaintenanceChapterActionHelpText("set-summary"),
+    ).toContain("The chapter must be `graphed`");
+    expect(renderArchiveMaintenanceCommandHelpText("cover")).toContain(
       "refuses to write binary data to an interactive terminal",
     );
-    expect(renderSdpubSubcommandHelpText("cover")).toContain("[--help|-h]");
-    expect(renderSdpubSubcommandHelpText("meta")).toContain("--clear-authors");
-    expect(renderHelpTopicText("sdpub")).toContain(
-      "agents should not unzip it or read `database.db` directly",
+    expect(renderArchiveMaintenanceCommandHelpText("cover")).toContain(
+      "[--help|-h]",
+    );
+    expect(renderArchiveMaintenanceCommandHelpText("meta")).toContain(
+      "--clear-authors",
     );
   });
 
@@ -1132,18 +810,10 @@ describe("cli/args", () => {
       "See: spinedigest help format",
     );
     expect(() => parseCLIArguments(["sdpub", "inspect"])).toThrow(
-      "See: spinedigest sdpub --help",
+      "See: spinedigest help command",
     );
     expect(() => parseCLIArguments(["book.epub"])).toThrow(
       "See: spinedigest help command",
     );
   });
 });
-expect(() =>
-  parseCLIArguments(["sdpub", "chapter", "bogus", "--help"]),
-).toThrow(
-  "Invalid sdpub chapter action: bogus. Expected one of list, status, add, remove, reset, set-source, set-summary.\nSee: spinedigest sdpub chapter --help",
-);
-expect(() => parseCLIArguments(["sdpub", "stage", "bogus", "--help"])).toThrow(
-  "Invalid sdpub stage action: bogus. Expected one of advance, pending.\nSee: spinedigest sdpub stage --help",
-);

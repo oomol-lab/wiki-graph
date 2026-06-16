@@ -1,13 +1,13 @@
 Help Type: command
-Command: spinedigest sdpub chapter status
+Command: spinedigest chapter status
 
-sdpub chapter status
+chapter status
 
 Purpose:
   Print one chapter's current stage and stored artifacts.
 
 Usage:
-  spinedigest sdpub chapter status <path> --chapter <id> [--llm <json>] [--help|-h]
+  spinedigest chapter status <path> --chapter <id> [--llm <json>] [--help|-h]
 
 Output shape:
   Chapter: <id>
@@ -26,6 +26,6 @@ Behavior:
   - `Summary` reports whether the final chapter summary is present.
 
 See also:
-  - spinedigest sdpub chapter list --help
-  - spinedigest sdpub stage advance --help
-  - spinedigest help sdpub
+  - spinedigest chapter list --help
+  - spinedigest build --help
+  - spinedigest help command

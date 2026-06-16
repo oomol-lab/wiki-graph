@@ -119,9 +119,9 @@ Minimum LLM-backed operation config:
   }
 
 Applicability:
-  - `llm.*`, `prompt`, `paths.cacheDir`, and `request.*` matter for source digest runs and `sdpub stage advance` when generation is needed.
+  - `llm.*`, `prompt`, `paths.cacheDir`, and `request.*` matter for source digest runs and `build` when generation is needed.
   - `.sdpub` re-export through the main convert command does not require LLM settings.
-  - `sdpub` inspection, metadata, and chapter tree edit commands do not require LLM settings.
+  - `meta`, `cover`, and non-generating `chapter` maintenance commands do not require LLM settings.
   - `paths.debugLogDir` can still matter outside source digest runs when the app emits debug logs.
 
 Inline LLM note:

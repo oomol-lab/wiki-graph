@@ -1,13 +1,13 @@
 Help Type: command
-Command: spinedigest sdpub cover
+Command: spinedigest cover
 
-sdpub cover
+cover
 
 Purpose:
   Write the raw cover bytes stored in the archive.
 
 Usage:
-  spinedigest sdpub cover --input <path> [--llm <json>] [--help|-h]
+  spinedigest cover <archive.sdpub> [--llm <json>] [--help|-h]
 
 Output shape:
   - Raw binary bytes on stdout
@@ -16,10 +16,10 @@ Notes:
   - Redirect or pipe stdout.
   - The command refuses to write binary data to an interactive terminal.
   - The command fails if the archive has no cover.
-  - Use `sdpub info` first when you need the stored cover media type or original cover path.
+  - Use `spinedigest meta <archive.sdpub>` first when you need stored metadata.
   - For multimodal agents, project the cover to a normal image file, then inspect that file with image/OCR tools.
 
 Examples:
-  spinedigest sdpub info --input ./book.sdpub
-  spinedigest sdpub cover --input ./book.sdpub > /tmp/cover.jpg
-  spinedigest sdpub cover --input ./book.sdpub > /tmp/cover.png
+  spinedigest meta ./book.sdpub
+  spinedigest cover ./book.sdpub > /tmp/cover.jpg
+  spinedigest cover ./book.sdpub > /tmp/cover.png

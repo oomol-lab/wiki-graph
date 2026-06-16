@@ -1,15 +1,15 @@
 Help Type: command
-Command: spinedigest sdpub meta
+Command: spinedigest meta
 
-sdpub meta
+meta
 
 Purpose:
   Read or edit book metadata stored in an existing `.sdpub` archive.
 
 Usage:
-  spinedigest sdpub meta --input <path> [--llm <json>] [--help|-h]
-  spinedigest sdpub meta --input <path> --json [--llm <json>] [--help|-h]
-  spinedigest sdpub meta --input <path> [metadata options] [--llm <json>] [--help|-h]
+  spinedigest meta <archive.sdpub> [--llm <json>] [--help|-h]
+  spinedigest meta <archive.sdpub> --json [--llm <json>] [--help|-h]
+  spinedigest meta <archive.sdpub> [metadata options] [--llm <json>] [--help|-h]
 
 Metadata options:
   --title <text>             Set the book title.
@@ -38,16 +38,14 @@ Behavior:
   - This command does not call an LLM provider.
 
 Examples:
-  spinedigest sdpub meta --input ./book.sdpub
-  spinedigest sdpub meta --input ./book.sdpub --json
-  spinedigest sdpub meta --input ./book.sdpub --title "New Title"
-  spinedigest sdpub meta --input ./book.sdpub --author "Author One" --author "Author Two"
-  spinedigest sdpub meta --input ./book.sdpub --clear-title --clear-description
+  spinedigest meta ./book.sdpub
+  spinedigest meta ./book.sdpub --json
+  spinedigest meta ./book.sdpub --title "New Title"
+  spinedigest meta ./book.sdpub --author "Author One" --author "Author Two"
+  spinedigest meta ./book.sdpub --clear-title --clear-description
 
 Where to go next:
-  - Need the whole `.sdpub` command family:
-    spinedigest sdpub --help
   - Need chapter tree editing:
-    spinedigest sdpub chapter --help
+    spinedigest chapter --help
   - Need archive-vs-source mental model:
-    spinedigest help sdpub
+    spinedigest help command

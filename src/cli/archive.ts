@@ -3,6 +3,9 @@ import { join } from "path";
 import { tmpdir } from "os";
 
 import {
+  advanceChapterStages,
+  type AdvanceChapterStagesProgressEvent,
+  type AdvanceChapterStagesResult,
   findGraphPath,
   getArchiveIndex,
   listArchiveCollection,
@@ -29,14 +32,23 @@ import {
   type GraphEvidenceLine,
   type GraphNeighbor,
   type GraphPathStep,
+  type ChapterEntry,
 } from "../facade/index.js";
 import { SpineDigestFile } from "../facade/spine-digest-file.js";
 import type { Document } from "../document/index.js";
 
 import type { CLIArchiveArguments } from "./args.js";
 import { runConvertCommand } from "./convert.js";
-import { readTextStreamFromStdin, writeTextToStdout } from "./io.js";
-import { runSdpubStageCommand } from "./sdpub-stage.js";
+import {
+  readTextStreamFromStdin,
+  writeTextToStderr,
+  writeTextToStdout,
+} from "./io.js";
+import {
+  createStageLLM,
+  loadRequiredStageConfig,
+  resolveExtractionPrompt,
+} from "./stage-runtime.js";
 
 export async function runArchiveCommand(
   args: CLIArchiveArguments,
@@ -46,18 +58,7 @@ export async function runArchiveCommand(
       await importArchive(args);
       return;
     case "build": {
-      const targetStage =
-        args.targetStage === "ready" || args.targetStage === "source"
-          ? undefined
-          : args.targetStage;
-      await runSdpubStageCommand({
-        action: "advance",
-        path: args.archivePath,
-        ...(args.chapterId === undefined ? {} : { chapterId: args.chapterId }),
-        ...(args.llmJSON === undefined ? {} : { llmJSON: args.llmJSON }),
-        ...(args.prompt === undefined ? {} : { prompt: args.prompt }),
-        ...(targetStage === undefined ? {} : { targetStage }),
-      });
+      await buildArchive(args);
       return;
     }
     case "export":
@@ -335,11 +336,130 @@ function createCollectionOptions(
   };
 }
 
+async function buildArchive(args: CLIArchiveArguments): Promise<void> {
+  const targetStage =
+    args.targetStage === "ready" ||
+    args.targetStage === "source" ||
+    args.targetStage === undefined
+      ? "summarized"
+      : args.targetStage;
+
+  if (targetStage === "planned") {
+    await writeAdvanceResult({
+      advanced: [],
+      pending: [],
+      skipped: [],
+    });
+    return;
+  }
+
+  const config = await loadRequiredStageConfig(args);
+
+  await withArchiveDocument(args.archivePath, async (document) => {
+    const progressWriter = createStageAdvanceProgressWriter();
+    let result: AdvanceChapterStagesResult;
+
+    try {
+      result = await advanceChapterStages(document, {
+        ...(args.chapterId === undefined ? {} : { chapterId: args.chapterId }),
+        extractionPrompt: resolveExtractionPrompt(args.prompt ?? config.prompt),
+        llm: createStageLLM(config),
+        onProgress: progressWriter.onProgress,
+        targetStage,
+      });
+    } finally {
+      await progressWriter.stop();
+    }
+
+    await writeAdvanceResult(result);
+  });
+}
+
 async function withArchiveDocument<T>(
   path: string,
   operation: (document: Document) => Promise<T> | T,
 ): Promise<void> {
   await new SpineDigestFile(path).openEditableSession(operation);
+}
+
+function createStageAdvanceProgressWriter(input?: {
+  readonly heartbeatIntervalMs?: number;
+}): {
+  readonly onProgress: (
+    event: AdvanceChapterStagesProgressEvent,
+  ) => Promise<void>;
+  stop(): Promise<void>;
+} {
+  const heartbeatIntervalMs = input?.heartbeatIntervalMs ?? 15_000;
+  let heartbeat: NodeJS.Timeout | undefined;
+  let activeLabel: string | undefined;
+  let writeQueue = Promise.resolve();
+
+  const writeLine = async (line: string): Promise<void> => {
+    writeQueue = writeQueue
+      .catch(() => undefined)
+      .then(async () => {
+        await writeTextToStderr(`${line}\n`);
+      });
+    await writeQueue;
+  };
+
+  const clearHeartbeat = (): void => {
+    if (heartbeat !== undefined) {
+      clearInterval(heartbeat);
+      heartbeat = undefined;
+    }
+  };
+
+  const startHeartbeat = (label: string): void => {
+    clearHeartbeat();
+    activeLabel = label;
+    heartbeat = setInterval(() => {
+      const currentLabel = activeLabel;
+
+      if (currentLabel === undefined) {
+        return;
+      }
+
+      void writeLine(`Still ${currentLabel.toLowerCase()}...`);
+    }, heartbeatIntervalMs);
+    heartbeat.unref();
+  };
+
+  return {
+    async onProgress(event) {
+      switch (event.type) {
+        case "selected":
+          await writeLine(
+            `Selected ${event.totalChapters} ${event.totalChapters === 1 ? "chapter" : "chapters"}; target: ${event.targetStage}.`,
+          );
+          return;
+        case "skipped":
+          await writeLine(
+            `Skipping ${formatProgressChapter(event.chapter)}: source is missing.`,
+          );
+          return;
+        case "started": {
+          const label = `${formatProgressVerb(event.step)} for ${formatProgressChapter(event.chapter)}`;
+          startHeartbeat(label);
+          await writeLine(`${label}...`);
+          return;
+        }
+        case "completed":
+          clearHeartbeat();
+          activeLabel = undefined;
+          await writeLine(
+            `Finished ${formatProgressStep(event.step)} for ${formatProgressChapter(event.chapter)}.`,
+          );
+          return;
+      }
+    },
+    async stop() {
+      clearHeartbeat();
+      activeLabel = undefined;
+      await writeQueue.catch(() => undefined);
+    },
+  };
 }
 
 async function writeIndex(
@@ -828,6 +948,64 @@ function formatDuration(seconds: number): string {
   }
 
   return `${Math.round(minutes / 60)}h`;
+}
+
+async function writeAdvanceResult(
+  result: AdvanceChapterStagesResult,
+): Promise<void> {
+  const lines = [
+    `Advanced: ${result.advanced.length}`,
+    `Pending: ${result.pending.length}`,
+    `Skipped: ${result.skipped.length}`,
+  ];
+
+  if (result.pending.length > 0) {
+    lines.push("", "Pending chapters:");
+    lines.push(...result.pending.map(formatBuildChapterEntry));
+  }
+  if (result.skipped.some((entry) => entry.stage === "planned")) {
+    lines.push(
+      "",
+      "Next: set source for planned chapters, then build again.",
+      "Example: spinedigest chapter set-source <archive.sdpub> --chapter <id> --input <file> --input-format txt",
+    );
+  }
+
+  await writeTextToStdout(`${lines.join("\n")}\n`);
+}
+
+function formatBuildChapterEntry(entry: ChapterEntry): string {
+  return `[${entry.chapterId}] ${entry.stage.padEnd(10)} ${formatTocPath(entry)}`;
+}
+
+function formatTocPath(entry: ChapterEntry): string {
+  if (entry.tocPath.length === 0) {
+    return entry.title ?? "[untitled]";
+  }
+
+  return entry.tocPath.join(" / ");
+}
+
+function formatProgressChapter(entry: ChapterEntry): string {
+  return `chapter ${entry.chapterId} (${formatTocPath(entry)})`;
+}
+
+function formatProgressVerb(step: "graph" | "summary"): string {
+  switch (step) {
+    case "graph":
+      return "Generating graph";
+    case "summary":
+      return "Generating summary";
+  }
+}
+
+function formatProgressStep(step: "graph" | "summary"): string {
+  switch (step) {
+    case "graph":
+      return "graph";
+    case "summary":
+      return "summary";
+  }
 }
 
 function formatPackAnchor(anchor: ArchivePage): string {
