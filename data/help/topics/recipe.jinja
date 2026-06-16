@@ -3,68 +3,33 @@ Topic: recipe
 
 Recipes
 
-Digest an EPUB into markdown:
-  spinedigest --input ./book.epub --output ./digest.md
+Import Markdown into an archive:
+  spinedigest import notes.sdpub ./notes.md --input-format markdown
 
-Digest an EPUB into a reusable archive:
-  spinedigest --input ./book.epub --output ./book.sdpub
+Import EPUB into an archive:
+  spinedigest import book.sdpub ./book.epub
 
-Prepare an EPUB archive without LLM generation:
-  spinedigest --input ./book.epub --output ./book.sdpub --stage sourced
+Check readiness:
+  spinedigest status book.sdpub
+  spinedigest index book.sdpub
 
-Re-export an archive to EPUB:
-  spinedigest --input ./book.sdpub --output ./book.epub
+Estimate a full ready build:
+  spinedigest estimate book.sdpub --stage ready
 
-Re-export an archive to plain text:
-  spinedigest --input ./book.sdpub --output ./book.txt
+Build one chapter graph:
+  spinedigest build book.sdpub --stage graph --chapter 3
 
-Digest piped text:
-  cat ./chapter.txt | spinedigest --input-format txt --output-format markdown
+Find and read evidence-backed knowledge:
+  spinedigest find book.sdpub "knowledge graph"
+  spinedigest page book.sdpub node:84
+  spinedigest evidence book.sdpub node:84
 
-Inspect archive metadata:
-  spinedigest sdpub info --input ./book.sdpub
+List archive objects as JSON:
+  spinedigest ls book.sdpub nodes --json
+  spinedigest find book.sdpub "RAG" --json
 
-List unfinished archive chapters:
-  spinedigest sdpub stage pending ./book.sdpub
+Export a Markdown projection:
+  spinedigest export book.sdpub --output-format markdown --output digest.md
 
-Advance a staged archive to summaries:
-  spinedigest sdpub stage advance ./book.sdpub --to summarized
-
-Add an empty planned chapter:
-  spinedigest sdpub chapter add ./book.sdpub --title "Appendix"
-
-List chapters:
-  spinedigest sdpub list --input ./book.sdpub
-
-List chapters as JSON:
-  spinedigest sdpub list --input ./book.sdpub --json
-
-Read one completed chapter summary:
-  spinedigest sdpub cat --input ./book.sdpub --chapter 12
-
-Explore one chapter graph:
-  spinedigest sdpub graph log ./book.sdpub --chapter 12
-  spinedigest sdpub graph show ./book.sdpub --chapter 12 84
-
-Edit one completed chapter summary with normal file tools:
-  spinedigest sdpub cat --input ./book.sdpub --chapter 12 > /tmp/chapter-12.md
-  # edit /tmp/chapter-12.md with your editor or automation
-  spinedigest sdpub chapter set-summary ./book.sdpub --chapter 12 --input /tmp/chapter-12.md
-
-Write the cover to an image file:
-  spinedigest sdpub info --input ./book.sdpub
-  spinedigest sdpub cover --input ./book.sdpub > ./cover.jpg
-
-Where to go next:
-  - Need to choose the right workflow before copying a command:
-    spinedigest help task
-  - Need to understand every flag in these examples:
-    spinedigest help command
-  - Need format restrictions or stream caveats:
-    spinedigest help format
-  - Need LLM setup before running source digests:
-    spinedigest help config
-  - Need `.sdpub` commands after generating an archive:
-    spinedigest help sdpub
-  - Need help because a copied recipe failed:
-    spinedigest help troubleshoot
+Pipe source text into import through a temporary file or use the legacy command for pure stream workflows:
+  cat chapter.txt | spinedigest --input-format txt --output-format markdown

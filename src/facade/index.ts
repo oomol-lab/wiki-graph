@@ -15,6 +15,20 @@ export {
   type SpineDigestTextStreamSessionOptions,
 } from "./app.js";
 export {
+  estimateArchiveBuild,
+  findArchiveObjects,
+  formatChapterId,
+  formatEdgeId,
+  formatNodeId,
+  formatSentenceId,
+  formatSummaryId,
+  getArchiveIndex,
+  listArchiveLinks,
+  listArchiveObjects,
+  readArchiveEvidence,
+  readArchivePage,
+} from "./archive-view.js";
+export {
   addChapter,
   advanceChapterStages,
   CHAPTER_STAGES,
@@ -36,6 +50,16 @@ export {
   listGraphNodes,
   searchGraphNodes,
 } from "./graph.js";
+export type {
+  ArchiveEstimate,
+  ArchiveFindField,
+  ArchiveFindHit,
+  ArchiveIndex,
+  ArchiveListItem,
+  ArchiveListKind,
+  ArchiveObjectType,
+  ArchivePage,
+} from "./archive-view.js";
 export type {
   AddChapterOptions,
   AdvanceChapterStagesOptions,

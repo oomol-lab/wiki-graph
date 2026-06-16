@@ -3,69 +3,38 @@ Topic: task
 
 Task Guide
 
-Digest source material into markdown:
-  Use when the input is EPUB, Markdown, txt, or non-interactive stdin and you want a new compressed text result.
-  Command shape:
-    spinedigest --input <source> --output <digest.md>
+Create an archive from a source:
+  spinedigest import book.sdpub ./book.epub
+  spinedigest status book.sdpub
 
-Convenience stream path:
-  Pipe txt/markdown into `spinedigest` and write compressed text to stdout.
-  Use explicit `--input-format` and `--output-format` because stream formats cannot be inferred.
-  Command shape:
-    cat <chapter.txt> | spinedigest --input-format txt --output-format markdown
+Estimate before expensive build:
+  spinedigest estimate book.sdpub --stage ready
+  spinedigest estimate book.sdpub --stage graph --json
 
-Digest source material into .sdpub:
-  Use when you want a reusable archive for future export or inspection.
-  Command shape:
-    spinedigest --input <source> --output <digest.sdpub>
-  To choose how far the archive is prepared:
-    spinedigest --input <source> --output <digest.sdpub> --stage <planned|sourced|graphed|summarized>
+Build scoped knowledge:
+  spinedigest build book.sdpub --stage graph --chapter 3
+  spinedigest build book.sdpub --stage summary --chapter 3
 
-Re-export an existing .sdpub:
-  Use when the archive is summarized and you only need markdown, txt, or EPUB output.
-  Command shape:
-    spinedigest --input <digest.sdpub> --output <target>
-  If re-export fails with a missing summary, inspect unfinished chapters:
-    spinedigest sdpub stage pending <digest.sdpub>
+Browse an existing archive:
+  spinedigest status book.sdpub
+  spinedigest index book.sdpub
+  spinedigest ls book.sdpub chapters
+  spinedigest ls book.sdpub nodes
 
-Inspect archive structure:
-  Use when you need format version, metadata, TOC, chapter tree, or raw cover bytes.
-  Command shape:
-    spinedigest sdpub <info|toc|list|cat|cover|meta> --input <digest.sdpub>
-  For a cover image, inspect metadata first and redirect `sdpub cover` to a normal image file.
+Search and read:
+  spinedigest find book.sdpub "RAG"
+  spinedigest page book.sdpub node:84
+  spinedigest evidence book.sdpub node:84
 
-Explore a chapter graph:
-  Use when a chapter is graphed or summarized and you want to inspect generated chapter graph data without reading SQLite directly.
-  Command shape:
-    spinedigest sdpub graph log <digest.sdpub> --chapter <id>
-    spinedigest sdpub graph show <digest.sdpub> --chapter <id> <node>
+Navigate graph knowledge:
+  spinedigest links book.sdpub node:84
+  spinedigest backlinks book.sdpub node:84
+  spinedigest path book.sdpub node:84 node:120 --chapter 3
+  spinedigest map book.sdpub
 
-Edit archive chapters:
-  Use when you need to add, remove, reset, or fill individual chapters.
-  Command shape:
-    spinedigest sdpub chapter <action> <digest.sdpub> [options]
+Export projections:
+  spinedigest export book.sdpub --output-format markdown --output digest.md
+  spinedigest export book.sdpub --output-format epub --output digest.epub
 
-Advance staged .sdpub chapters:
-  Use when an archive has planned, sourced, or graphed chapters and you want to continue safely.
-  Command shape:
-    spinedigest sdpub stage advance <digest.sdpub> --to summarized
-
-Manual staged workflow:
-  1. Create or add planned chapters.
-  2. Fill source with `sdpub chapter set-source`.
-  3. Generate graph with `sdpub stage advance --to graphed`.
-  4. Set a manual summary or advance to `summarized`.
-
-Where to go next:
-  - Need copyable examples for these workflows:
-    spinedigest help recipe
-  - Need the exact flag surface:
-    spinedigest help command
-  - Need format compatibility or stream limits:
-    spinedigest help format
-  - Need to prepare LLM configuration for digest or stage advancement:
-    spinedigest help config
-  - Need runtime rules like stdout, stderr, or digest-dir behavior:
-    spinedigest help runtime
-  - Need archive commands after producing `.sdpub`:
-    spinedigest help sdpub
+Legacy maintenance:
+  Use `spinedigest sdpub ...` when you need lower-level chapter editing, metadata mutation, cover extraction, or graph maintenance commands not yet promoted to top-level archive commands.

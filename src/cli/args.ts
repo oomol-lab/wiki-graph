@@ -121,6 +121,48 @@ export interface CLISdpubGraphArguments {
   readonly toNodeId?: number;
 }
 
+export type CLIArchiveAction =
+  | "backlinks"
+  | "build"
+  | "estimate"
+  | "evidence"
+  | "export"
+  | "find"
+  | "grep"
+  | "import"
+  | "index"
+  | "links"
+  | "ls"
+  | "map"
+  | "page"
+  | "path"
+  | "status";
+
+export interface CLIArchiveArguments {
+  readonly action: CLIArchiveAction;
+  readonly archivePath: string;
+  readonly chapterId?: number;
+  readonly fromNodeId?: number;
+  readonly inputFormat?: CLIFormat;
+  readonly json?: boolean;
+  readonly listKind?:
+    | "chapters"
+    | "edges"
+    | "evidence"
+    | "meta"
+    | "nodes"
+    | "summaries";
+  readonly llmJSON?: string;
+  readonly objectId?: string;
+  readonly outputFormat?: CLIFormat;
+  readonly outputPath?: string;
+  readonly prompt?: string;
+  readonly query?: string;
+  readonly sourcePath?: string;
+  readonly targetStage?: ChapterStage | "ready" | "source";
+  readonly toNodeId?: number;
+}
+
 interface SdpubMetaFlagValues {
   readonly author?: readonly string[];
   readonly "clear-authors"?: boolean;
@@ -194,6 +236,11 @@ export type ParsedCLIArguments =
       readonly help: true;
       readonly helpText: string;
       readonly kind: "sdpub-graph";
+    }
+  | {
+      readonly args: CLIArchiveArguments;
+      readonly help: false;
+      readonly kind: "archive";
     }
   | {
       readonly help: true;
@@ -332,6 +379,13 @@ export function parseCLIArguments(
 
   if (positionals[0] === "sdpub") {
     return parseSdpubArguments(positionals.slice(1), values);
+  }
+
+  if (
+    isArchiveAction(positionals[0]) &&
+    !(positionals[0] === "status" && positionals.length === 1)
+  ) {
+    return parseArchiveArguments(positionals[0], positionals.slice(1), values);
   }
 
   if (positionals[0] === "status") {
@@ -634,6 +688,307 @@ function parseSdpubArguments(
     help: false,
     kind: "sdpub",
   };
+}
+
+function parseArchiveArguments(
+  action: CLIArchiveAction,
+  positionals: readonly string[],
+  values: {
+    readonly chapter?: string;
+    readonly help?: boolean;
+    readonly input?: string;
+    readonly "input-format"?: string;
+    readonly json?: boolean;
+    readonly limit?: string;
+    readonly llm?: string;
+    readonly output?: string;
+    readonly "output-format"?: string;
+    readonly prompt?: string;
+    readonly stage?: string;
+    readonly to?: string;
+    readonly verbose?: boolean;
+  },
+): ParsedCLIArguments {
+  const archivePath = positionals[0];
+  const helpRoute = `spinedigest ${action} --help`;
+
+  if (values.help === true) {
+    return {
+      args: {
+        help: true,
+        verbose: false,
+      },
+      help: true,
+      helpText: renderMainHelpText(),
+      kind: "convert",
+    };
+  }
+
+  if (archivePath === undefined || archivePath === "-") {
+    throw new Error(
+      withHelpRoute(
+        `Missing archive path. Use \`spinedigest ${action} <archive.sdpub>\`.`,
+        helpRoute,
+      ),
+    );
+  }
+
+  if (values.verbose === true) {
+    throw new Error(
+      withHelpRoute(
+        `The \`${action}\` command does not support --verbose.`,
+        helpRoute,
+      ),
+    );
+  }
+
+  switch (action) {
+    case "import": {
+      const sourcePath = positionals[1] ?? values.input;
+
+      if (sourcePath === undefined || sourcePath === "-") {
+        throw new Error(
+          withHelpRoute(
+            "`spinedigest import` requires a source path after the archive path.",
+            helpRoute,
+          ),
+        );
+      }
+      rejectArchiveExtraPositionals(action, positionals, 2, helpRoute);
+      rejectArchiveFlag(action, "--output", values.output, helpRoute);
+      rejectArchiveFlag(
+        action,
+        "--output-format",
+        values["output-format"],
+        helpRoute,
+      );
+      rejectArchiveFlag(action, "--stage", values.stage, helpRoute);
+      rejectArchiveFlag(action, "--to", values.to, helpRoute);
+      rejectArchiveFlag(action, "--chapter", values.chapter, helpRoute);
+      rejectArchiveFlag(action, "--limit", values.limit, helpRoute);
+      rejectArchiveBooleanFlag(action, "--json", values.json, helpRoute);
+      return {
+        args: {
+          action,
+          archivePath,
+          ...(values["input-format"] === undefined
+            ? {}
+            : {
+                inputFormat: parseCLIFormat(
+                  values["input-format"],
+                  "--input-format",
+                ),
+              }),
+          ...(values.llm === undefined ? {} : { llmJSON: values.llm }),
+          ...(values.prompt === undefined ? {} : { prompt: values.prompt }),
+          sourcePath,
+        },
+        help: false,
+        kind: "archive",
+      };
+    }
+    case "build":
+      rejectArchiveExtraPositionals(action, positionals, 1, helpRoute);
+      rejectArchiveReadFlags(action, values, helpRoute);
+      rejectArchiveFlag(action, "--input", values.input, helpRoute);
+      rejectArchiveFlag(
+        action,
+        "--input-format",
+        values["input-format"],
+        helpRoute,
+      );
+      rejectArchiveFlag(action, "--output", values.output, helpRoute);
+      rejectArchiveFlag(
+        action,
+        "--output-format",
+        values["output-format"],
+        helpRoute,
+      );
+      rejectArchiveFlag(action, "--limit", values.limit, helpRoute);
+      return {
+        args: {
+          action,
+          archivePath,
+          ...(values.chapter === undefined
+            ? {}
+            : {
+                chapterId: parseSerialId(
+                  values.chapter,
+                  "--chapter",
+                  helpRoute,
+                ),
+              }),
+          ...(values.llm === undefined ? {} : { llmJSON: values.llm }),
+          ...(values.prompt === undefined ? {} : { prompt: values.prompt }),
+          targetStage: parseArchiveBuildStage(values.stage ?? values.to),
+        },
+        help: false,
+        kind: "archive",
+      };
+    case "export":
+      rejectArchiveExtraPositionals(action, positionals, 1, helpRoute);
+      rejectArchiveFlag(action, "--input", values.input, helpRoute);
+      rejectArchiveFlag(
+        action,
+        "--input-format",
+        values["input-format"],
+        helpRoute,
+      );
+      rejectArchiveFlag(action, "--prompt", values.prompt, helpRoute);
+      rejectArchiveFlag(action, "--stage", values.stage, helpRoute);
+      rejectArchiveFlag(action, "--to", values.to, helpRoute);
+      rejectArchiveFlag(action, "--chapter", values.chapter, helpRoute);
+      rejectArchiveFlag(action, "--limit", values.limit, helpRoute);
+      rejectArchiveBooleanFlag(action, "--json", values.json, helpRoute);
+      return {
+        args: {
+          action,
+          archivePath,
+          ...(values.output === undefined ? {} : { outputPath: values.output }),
+          outputFormat:
+            values["output-format"] === undefined
+              ? parseCLIFormat("markdown", "--output-format")
+              : parseCLIFormat(values["output-format"], "--output-format"),
+        },
+        help: false,
+        kind: "archive",
+      };
+    case "estimate":
+      rejectArchiveExtraPositionals(action, positionals, 1, helpRoute);
+      rejectArchiveNonReadFlags(action, values, helpRoute);
+      return {
+        args: {
+          action,
+          archivePath,
+          ...(values.json === undefined ? {} : { json: values.json }),
+          targetStage: parseArchiveEstimateStage(values.stage ?? values.to),
+        },
+        help: false,
+        kind: "archive",
+      };
+    case "status":
+    case "index":
+    case "map":
+      rejectArchiveExtraPositionals(action, positionals, 1, helpRoute);
+      rejectArchiveNonReadFlags(action, values, helpRoute);
+      return {
+        args: {
+          action,
+          archivePath,
+          ...(values.json === undefined ? {} : { json: values.json }),
+        },
+        help: false,
+        kind: "archive",
+      };
+    case "ls": {
+      rejectArchiveExtraPositionals(action, positionals, 2, helpRoute);
+      rejectArchiveNonReadFlags(action, values, helpRoute);
+      const listKind = parseArchiveListKind(positionals[1]);
+
+      return {
+        args: {
+          action,
+          archivePath,
+          ...(values.json === undefined ? {} : { json: values.json }),
+          listKind,
+        },
+        help: false,
+        kind: "archive",
+      };
+    }
+    case "find":
+    case "grep": {
+      const query = positionals[1];
+
+      if (query === undefined) {
+        throw new Error(
+          withHelpRoute(
+            `\`spinedigest ${action}\` requires a search query.`,
+            helpRoute,
+          ),
+        );
+      }
+      rejectArchiveExtraPositionals(action, positionals, 2, helpRoute);
+      rejectArchiveNonReadFlags(action, values, helpRoute);
+      return {
+        args: {
+          action,
+          archivePath,
+          ...(values.json === undefined ? {} : { json: values.json }),
+          query,
+        },
+        help: false,
+        kind: "archive",
+      };
+    }
+    case "page":
+    case "evidence":
+    case "links":
+    case "backlinks": {
+      const objectId = positionals[1];
+
+      if (objectId === undefined) {
+        throw new Error(
+          withHelpRoute(
+            `\`spinedigest ${action}\` requires an object id.`,
+            helpRoute,
+          ),
+        );
+      }
+      rejectArchiveExtraPositionals(action, positionals, 2, helpRoute);
+      rejectArchiveNonReadFlags(action, values, helpRoute);
+      return {
+        args: {
+          action,
+          archivePath,
+          ...(values.json === undefined ? {} : { json: values.json }),
+          objectId,
+        },
+        help: false,
+        kind: "archive",
+      };
+    }
+    case "path": {
+      const from = positionals[1];
+      const to = positionals[2];
+
+      if (from === undefined || to === undefined) {
+        throw new Error(
+          withHelpRoute("`spinedigest path` requires two node ids.", helpRoute),
+        );
+      }
+      rejectArchiveExtraPositionals(action, positionals, 3, helpRoute);
+      rejectArchiveNonReadFlags(action, values, helpRoute);
+      const fromNodeId = parseNodeObjectId(from, helpRoute);
+      const toNodeId = parseNodeObjectId(to, helpRoute);
+      const chapterId =
+        values.chapter === undefined
+          ? undefined
+          : parseSerialId(values.chapter, "--chapter", helpRoute);
+
+      if (chapterId === undefined) {
+        throw new Error(
+          withHelpRoute(
+            "`spinedigest path` requires --chapter because graph paths are chapter-scoped.",
+            helpRoute,
+          ),
+        );
+      }
+
+      return {
+        args: {
+          action,
+          archivePath,
+          chapterId,
+          fromNodeId,
+          ...(values.json === undefined ? {} : { json: values.json }),
+          toNodeId,
+        },
+        help: false,
+        kind: "archive",
+      };
+    }
+  }
 }
 
 function parseSdpubChapterArguments(
@@ -2072,4 +2427,190 @@ function rejectStatusFlag(
       ),
     );
   }
+}
+
+function isArchiveAction(value: string | undefined): value is CLIArchiveAction {
+  return (
+    value === "backlinks" ||
+    value === "build" ||
+    value === "estimate" ||
+    value === "evidence" ||
+    value === "export" ||
+    value === "find" ||
+    value === "grep" ||
+    value === "import" ||
+    value === "index" ||
+    value === "links" ||
+    value === "ls" ||
+    value === "map" ||
+    value === "page" ||
+    value === "path" ||
+    value === "status"
+  );
+}
+
+function parseArchiveBuildStage(value: string | undefined): ChapterStage {
+  if (value === undefined || value === "ready") {
+    return "summarized";
+  }
+  if (value === "source") {
+    return "sourced";
+  }
+  if (value === "graph") {
+    return "graphed";
+  }
+  if (value === "summary") {
+    return "summarized";
+  }
+
+  return parseChapterStage(value, "--stage", CLI_HELP_ROUTES.command);
+}
+
+function parseArchiveEstimateStage(
+  value: string | undefined,
+): ChapterStage | "ready" | "source" {
+  if (value === undefined) {
+    return "ready";
+  }
+  if (value === "ready" || value === "source") {
+    return value;
+  }
+  if (value === "graph") {
+    return "graphed";
+  }
+  if (value === "summary") {
+    return "summarized";
+  }
+
+  return parseChapterStage(value, "--stage", CLI_HELP_ROUTES.command);
+}
+
+function parseArchiveListKind(
+  value: string | undefined,
+): NonNullable<CLIArchiveArguments["listKind"]> {
+  if (value === undefined) {
+    return "chapters";
+  }
+  if (
+    value === "chapters" ||
+    value === "edges" ||
+    value === "evidence" ||
+    value === "meta" ||
+    value === "nodes" ||
+    value === "summaries"
+  ) {
+    return value;
+  }
+
+  throw new Error(
+    withHelpRoute(
+      `Invalid list kind: ${value}. Expected chapters, nodes, edges, evidence, summaries, or meta.`,
+      "spinedigest ls --help",
+    ),
+  );
+}
+
+function parseNodeObjectId(value: string, helpRoute: string): number {
+  const normalized = value.trim();
+  const nodePrefix = "node:";
+  const rawId = normalized.startsWith(nodePrefix)
+    ? normalized.slice(nodePrefix.length)
+    : normalized;
+  const parsed = Number(rawId);
+
+  if (!Number.isInteger(parsed) || parsed <= 0) {
+    throw new Error(
+      withHelpRoute(`Invalid node id: ${value}. Use node:<id>.`, helpRoute),
+    );
+  }
+
+  return parsed;
+}
+
+function rejectArchiveExtraPositionals(
+  action: CLIArchiveAction,
+  positionals: readonly string[],
+  allowed: number,
+  helpRoute: string,
+): void {
+  if (positionals.length > allowed) {
+    throw new Error(
+      withHelpRoute(
+        `Unexpected positional arguments for \`${action}\`: ${positionals.slice(allowed).join(" ")}.`,
+        helpRoute,
+      ),
+    );
+  }
+}
+
+function rejectArchiveFlag(
+  action: CLIArchiveAction,
+  flag: string,
+  value: string | undefined,
+  helpRoute: string,
+): void {
+  if (value !== undefined) {
+    throw new Error(
+      withHelpRoute(
+        `The \`${action}\` command does not support ${flag}.`,
+        helpRoute,
+      ),
+    );
+  }
+}
+
+function rejectArchiveBooleanFlag(
+  action: CLIArchiveAction,
+  flag: string,
+  value: boolean | undefined,
+  helpRoute: string,
+): void {
+  if (value !== undefined) {
+    throw new Error(
+      withHelpRoute(
+        `The \`${action}\` command does not support ${flag}.`,
+        helpRoute,
+      ),
+    );
+  }
+}
+
+function rejectArchiveNonReadFlags(
+  action: CLIArchiveAction,
+  values: {
+    readonly input?: string;
+    readonly "input-format"?: string;
+    readonly llm?: string;
+    readonly output?: string;
+    readonly "output-format"?: string;
+    readonly prompt?: string;
+  },
+  helpRoute: string,
+): void {
+  rejectArchiveFlag(action, "--input", values.input, helpRoute);
+  rejectArchiveFlag(
+    action,
+    "--input-format",
+    values["input-format"],
+    helpRoute,
+  );
+  rejectArchiveFlag(action, "--llm", values.llm, helpRoute);
+  rejectArchiveFlag(action, "--output", values.output, helpRoute);
+  rejectArchiveFlag(
+    action,
+    "--output-format",
+    values["output-format"],
+    helpRoute,
+  );
+  rejectArchiveFlag(action, "--prompt", values.prompt, helpRoute);
+}
+
+function rejectArchiveReadFlags(
+  action: CLIArchiveAction,
+  values: {
+    readonly json?: boolean;
+  },
+  helpRoute: string,
+): void {
+  rejectArchiveBooleanFlag(action, "--json", values.json, helpRoute);
 }
