@@ -23,6 +23,20 @@ export type ArchiveObjectType =
   | "node"
   | "summary";
 
+export type ArchiveFindObjectType =
+  | "chapter"
+  | "fragment"
+  | "meta"
+  | "node"
+  | "sentence"
+  | "summary";
+
+export type ArchiveFindFilterType =
+  | "fragment"
+  | "node"
+  | "sentence"
+  | "summary";
+
 export interface ArchiveIndex {
   readonly chapters: readonly ChapterEntry[];
   readonly edgeCount: number;
@@ -32,11 +46,13 @@ export interface ArchiveIndex {
 }
 
 export interface ArchiveFindHit {
+  readonly chapter?: number;
   readonly field: ArchiveFindField;
   readonly id: string;
+  readonly position?: ArchiveFindPosition;
   readonly snippet: string;
   readonly title: string;
-  readonly type: ArchiveObjectType;
+  readonly type: ArchiveFindObjectType;
 }
 
 export type ArchiveFindField =
@@ -46,6 +62,32 @@ export type ArchiveFindField =
   | "source"
   | "summary"
   | "title";
+
+export interface ArchiveFindOptions {
+  readonly chapters?: readonly number[];
+  readonly cursor?: string;
+  readonly limit?: number;
+  readonly order?: ArchiveFindOrder;
+  readonly types?: readonly ArchiveFindFilterType[];
+}
+
+export type ArchiveFindOrder = "doc-asc" | "doc-desc";
+
+export interface ArchiveFindPosition {
+  readonly chapter: number;
+  readonly fragment?: number;
+  readonly sentence?: number;
+}
+
+export interface ArchiveFindResult {
+  readonly chapters: readonly number[] | null;
+  readonly items: readonly ArchiveFindHit[];
+  readonly limit: number;
+  readonly nextCursor: string | null;
+  readonly order: ArchiveFindOrder;
+  readonly query: string;
+  readonly types: readonly ArchiveFindFilterType[] | null;
+}
 
 export type ArchiveListKind =
   | "chapters"
@@ -135,6 +177,7 @@ export interface ArchivePack {
 }
 
 export interface ArchiveSourceFragment {
+  readonly fragmentId: number;
   readonly id: string;
   readonly preview: string;
   readonly sentenceCount: number;
@@ -244,11 +287,12 @@ export async function listArchiveObjects(
 export async function findArchiveObjects(
   document: Document,
   query: string,
-): Promise<readonly ArchiveFindHit[]> {
+  options: ArchiveFindOptions = {},
+): Promise<ArchiveFindResult> {
   const search = createKeywordSearch(query);
 
   if (search === undefined) {
-    return [];
+    return createFindResult(query, [], options);
   }
 
   const hits: ArchiveFindHit[] = [];
@@ -257,17 +301,18 @@ export async function findArchiveObjects(
   hits.push(...(await findChapters(document, search)));
   hits.push(...(await findNodes(document, search)));
 
-  return hits;
+  return createFindResult(query, hits, options);
 }
 
 export async function grepArchiveObjects(
   document: Document,
   query: string,
-): Promise<readonly ArchiveFindHit[]> {
+  options: ArchiveFindOptions = {},
+): Promise<ArchiveFindResult> {
   const search = createPhraseSearch(query);
 
   if (search === undefined) {
-    return [];
+    return createFindResult(query, [], options);
   }
 
   const hits: ArchiveFindHit[] = [];
@@ -276,7 +321,7 @@ export async function grepArchiveObjects(
   hits.push(...(await findChapters(document, search)));
   hits.push(...(await findNodes(document, search)));
 
-  return hits;
+  return createFindResult(query, hits, options);
 }
 
 export async function readArchivePage(
@@ -574,8 +619,12 @@ async function findChapters(
 
     if (matches(title, search)) {
       hits.push({
+        chapter: chapter.chapterId,
         field: "title",
         id: formatChapterId(chapter.chapterId),
+        position: {
+          chapter: chapter.chapterId,
+        },
         snippet: title,
         title,
         type: "chapter",
@@ -586,8 +635,12 @@ async function findChapters(
 
     if (summary !== undefined && matches(summary, search)) {
       hits.push({
+        chapter: chapter.chapterId,
         field: "summary",
         id: formatSummaryId(chapter.chapterId),
+        position: {
+          chapter: chapter.chapterId,
+        },
         snippet: createSnippet(summary, search.snippetNeedle),
         title,
         type: "summary",
@@ -600,8 +653,13 @@ async function findChapters(
     )) {
       if (matches(fragment.text, search)) {
         hits.push({
+          chapter: chapter.chapterId,
           field: "source",
           id: fragment.id,
+          position: {
+            chapter: chapter.chapterId,
+            fragment: fragment.fragmentId,
+          },
           snippet: createSnippet(fragment.text, search.snippetNeedle),
           title,
           type: "fragment",
@@ -627,6 +685,7 @@ async function listChapterSourceFragments(
         .join("\n");
 
       return {
+        fragmentId,
         id: formatFragmentId(chapterId, fragmentId),
         preview: createSnippet(text),
         sentenceCount: fragment.sentences.length,
@@ -651,6 +710,7 @@ async function readSourceFragment(
   const text = fragment.sentences.map((sentence) => sentence.text).join("\n");
 
   return {
+    fragmentId,
     id: formatFragmentId(serialId, fragmentId),
     preview: createSnippet(text),
     sentenceCount: fragment.sentences.length,
@@ -715,10 +775,14 @@ async function findNodes(
   const hits: ArchiveFindHit[] = [];
 
   for (const node of await document.chunks.listAll()) {
+    const position = createNodePosition(node.sentenceIds);
+
     if (matches(node.label, search)) {
       hits.push({
+        chapter: node.sentenceId[0],
         field: "title",
         id: formatNodeId(node.id),
+        ...(position === undefined ? {} : { position }),
         snippet: node.label,
         title: node.label,
         type: "node",
@@ -726,8 +790,10 @@ async function findNodes(
     }
     if (matches(node.content, search)) {
       hits.push({
+        chapter: node.sentenceId[0],
         field: "content",
         id: formatNodeId(node.id),
+        ...(position === undefined ? {} : { position }),
         snippet: createSnippet(node.content, search.snippetNeedle),
         title: node.label,
         type: "node",
@@ -739,11 +805,13 @@ async function findNodes(
 
       if (matches(text, search)) {
         hits.push({
+          chapter: sentenceId[0],
           field: "evidence",
           id: formatSentenceId(sentenceId),
+          position: createSentencePosition(sentenceId),
           snippet: createSnippet(text, search.snippetNeedle),
           title: node.label,
-          type: "evidence",
+          type: "sentence",
         });
       }
     }
@@ -923,6 +991,8 @@ interface ArchiveTextSearch {
   readonly terms: readonly string[];
 }
 
+const DEFAULT_FIND_LIMIT = 20;
+
 function createKeywordSearch(query: string): ArchiveTextSearch | undefined {
   const terms = query
     .trim()
@@ -963,6 +1033,174 @@ function matches(value: string, search: ArchiveTextSearch): boolean {
   const lower = value.toLowerCase();
 
   return search.terms.every((term) => lower.includes(term));
+}
+
+function createFindResult(
+  query: string,
+  hits: readonly ArchiveFindHit[],
+  options: ArchiveFindOptions,
+): ArchiveFindResult {
+  const order = options.order ?? "doc-asc";
+  const limit = options.limit ?? DEFAULT_FIND_LIMIT;
+  const chapters = options.chapters ?? null;
+  const types = options.types ?? null;
+  const start = decodeFindCursor(options.cursor);
+  const filtered = hits
+    .filter((hit) => matchesFindChapter(hit, chapters))
+    .filter((hit) => matchesFindType(hit, types))
+    .sort((left, right) => compareFindHits(left, right, order));
+  const items = filtered.slice(start, start + limit);
+  const nextOffset = start + items.length;
+
+  return {
+    chapters,
+    items,
+    limit,
+    nextCursor:
+      nextOffset < filtered.length ? encodeFindCursor(nextOffset) : null,
+    order,
+    query,
+    types,
+  };
+}
+
+function matchesFindChapter(
+  hit: ArchiveFindHit,
+  chapters: readonly number[] | null,
+): boolean {
+  if (chapters === null) {
+    return true;
+  }
+
+  return hit.chapter !== undefined && chapters.includes(hit.chapter);
+}
+
+function matchesFindType(
+  hit: ArchiveFindHit,
+  types: readonly ArchiveFindFilterType[] | null,
+): boolean {
+  if (types === null) {
+    return true;
+  }
+
+  return isFindFilterType(hit.type) && types.includes(hit.type);
+}
+
+function compareFindHits(
+  left: ArchiveFindHit,
+  right: ArchiveFindHit,
+  order: ArchiveFindOrder,
+): number {
+  const direction = order === "doc-asc" ? 1 : -1;
+  const compared =
+    compareNumbers(getPositionChapter(left), getPositionChapter(right)) ||
+    compareNumbers(getPositionFragment(left), getPositionFragment(right)) ||
+    compareNumbers(getPositionSentence(left), getPositionSentence(right)) ||
+    compareNumbers(getTypeOrder(left.type), getTypeOrder(right.type)) ||
+    left.id.localeCompare(right.id);
+
+  return compared * direction;
+}
+
+function getPositionChapter(hit: ArchiveFindHit): number {
+  return hit.position?.chapter ?? Number.MAX_SAFE_INTEGER;
+}
+
+function getPositionFragment(hit: ArchiveFindHit): number {
+  return hit.position?.fragment ?? 0;
+}
+
+function getPositionSentence(hit: ArchiveFindHit): number {
+  return hit.position?.sentence ?? 0;
+}
+
+function getTypeOrder(type: ArchiveFindObjectType): number {
+  switch (type) {
+    case "chapter":
+      return 0;
+    case "summary":
+      return 1;
+    case "node":
+      return 2;
+    case "fragment":
+      return 3;
+    case "sentence":
+      return 4;
+    case "meta":
+      return 5;
+  }
+}
+
+function createNodePosition(
+  sentenceIds: readonly SentenceId[],
+): ArchiveFindPosition | undefined {
+  const [first] = [...sentenceIds].sort(compareSentenceIds);
+
+  return first === undefined ? undefined : createSentencePosition(first);
+}
+
+function createSentencePosition(sentenceId: SentenceId): ArchiveFindPosition {
+  return {
+    chapter: sentenceId[0],
+    fragment: sentenceId[1],
+    sentence: sentenceId[2],
+  };
+}
+
+function compareSentenceIds(left: SentenceId, right: SentenceId): number {
+  return (
+    compareNumbers(left[0], right[0]) ||
+    compareNumbers(left[1], right[1]) ||
+    compareNumbers(left[2], right[2])
+  );
+}
+
+function compareNumbers(left: number, right: number): number {
+  return left === right ? 0 : left < right ? -1 : 1;
+}
+
+function isFindFilterType(
+  type: ArchiveFindObjectType,
+): type is ArchiveFindFilterType {
+  return (
+    type === "fragment" ||
+    type === "node" ||
+    type === "sentence" ||
+    type === "summary"
+  );
+}
+
+function encodeFindCursor(offset: number): string {
+  return Buffer.from(JSON.stringify({ offset, v: 1 })).toString("base64url");
+}
+
+function decodeFindCursor(cursor: string | undefined): number {
+  if (cursor === undefined) {
+    return 0;
+  }
+
+  try {
+    const parsed: unknown = JSON.parse(
+      Buffer.from(cursor, "base64url").toString("utf8"),
+    );
+
+    if (
+      typeof parsed === "object" &&
+      parsed !== null &&
+      "v" in parsed &&
+      "offset" in parsed &&
+      parsed.v === 1 &&
+      Number.isInteger(parsed.offset) &&
+      typeof parsed.offset === "number" &&
+      parsed.offset >= 0
+    ) {
+      return parsed.offset;
+    }
+  } catch {
+    throw new Error("Invalid search cursor.");
+  }
+
+  throw new Error("Invalid search cursor.");
 }
 
 function createSnippet(value: string, needle?: string): string {

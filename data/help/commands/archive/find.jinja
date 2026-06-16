@@ -5,13 +5,17 @@ Purpose:
   Find archive objects by deterministic keyword search.
 
 Usage:
-  spinedigest find <archive.sdpub> <query> [--json]
+  spinedigest find <archive.sdpub> <query> [--chapter <ids>] [--type <types>] [--order <doc-asc|doc-desc>] [--limit <n>] [--cursor <token>] [--json]
 
 Contract:
   - Mutates: no.
   - LLM: no.
   - Searches: metadata, chapter titles, summaries, graph nodes, evidence, and source fragments.
   - Query: split on whitespace into keywords; every keyword must appear inside the same returned object.
+  - Scope: `--chapter 12` or `--chapter 11,12` limits results to chapters.
+  - Types: `--type summary,node,fragment,sentence` limits result object types.
+  - Order: `doc-asc` or `doc-desc`; default `doc-asc`.
+  - Pagination: default `--limit 20`; pass returned `nextCursor` back with `--cursor`.
   - Matching: case-insensitive substring matching, with no semantic expansion, stemming, fuzzy matching, or vector search.
   - JSON: yes.
 
@@ -20,3 +24,4 @@ Use `grep` instead when the query must be treated as one exact continuous text p
 Examples:
   spinedigest find book.sdpub "Wiki"
   spinedigest find book.sdpub "朱元璋 亲自 来到" --json
+  spinedigest find book.sdpub "张定边" --chapter 12 --type summary,node --limit 10 --json

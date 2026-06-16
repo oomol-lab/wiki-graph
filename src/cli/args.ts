@@ -146,11 +146,14 @@ export interface CLIArchiveArguments {
   readonly action: CLIArchiveAction;
   readonly archivePath: string;
   readonly budget?: number;
+  readonly chapters?: readonly number[];
   readonly chapterId?: number;
   readonly confirm?: boolean;
+  readonly cursor?: string;
   readonly fromNodeId?: number;
   readonly inputFormat?: CLIFormat;
   readonly json?: boolean;
+  readonly limit?: number;
   readonly listKind?:
     | "chapters"
     | "edges"
@@ -165,6 +168,13 @@ export interface CLIArchiveArguments {
   readonly outputPath?: string;
   readonly prompt?: string;
   readonly query?: string;
+  readonly searchOrder?: "doc-asc" | "doc-desc";
+  readonly searchTypes?: readonly (
+    | "fragment"
+    | "node"
+    | "sentence"
+    | "summary"
+  )[];
   readonly sourcePath?: string;
   readonly targetStage?: ChapterStage | "ready" | "source";
   readonly toNodeId?: number;
@@ -191,6 +201,7 @@ interface ArchiveArgumentValues extends SdpubMetaFlagValues {
   readonly budget?: string;
   readonly chapter?: string;
   readonly confirm?: boolean;
+  readonly cursor?: string;
   readonly "digest-dir"?: string;
   readonly help?: boolean;
   readonly input?: string;
@@ -200,8 +211,10 @@ interface ArchiveArgumentValues extends SdpubMetaFlagValues {
   readonly llm?: string;
   readonly output?: string;
   readonly "output-format"?: string;
+  readonly order?: string;
   readonly prompt?: string;
   readonly stage?: string;
+  readonly type?: string;
   readonly to?: string;
   readonly verbose?: boolean;
 }
@@ -369,6 +382,12 @@ export function parseCLIArguments(
       confirm: {
         type: "boolean",
       },
+      cursor: {
+        type: "string",
+      },
+      order: {
+        type: "string",
+      },
       parent: {
         type: "string",
       },
@@ -382,6 +401,9 @@ export function parseCLIArguments(
         type: "boolean",
       },
       title: {
+        type: "string",
+      },
+      type: {
         type: "string",
       },
       to: {
@@ -1011,8 +1033,27 @@ function parseArchiveArguments(
         args: {
           action,
           archivePath,
+          ...(values.chapter === undefined
+            ? {}
+            : { chapters: parseArchiveSearchChapters(values.chapter) }),
+          ...(values.cursor === undefined ? {} : { cursor: values.cursor }),
           ...(values.json === undefined ? {} : { json: values.json }),
+          ...(values.limit === undefined
+            ? {}
+            : {
+                limit: parsePositiveIntegerFlag(
+                  values.limit,
+                  "--limit",
+                  helpRoute,
+                ),
+              }),
           query,
+          ...(values.order === undefined
+            ? {}
+            : { searchOrder: parseArchiveSearchOrder(values.order) }),
+          ...(values.type === undefined
+            ? {}
+            : { searchTypes: parseArchiveSearchTypes(values.type) }),
         },
         help: false,
         kind: "archive",
@@ -2649,6 +2690,77 @@ function parseArchiveListKind(
   );
 }
 
+function parseArchiveSearchChapters(value: string): readonly number[] {
+  const chapters = value
+    .split(",")
+    .map((item) => item.trim())
+    .filter((item) => item !== "")
+    .map((item) =>
+      parsePositiveIntegerFlag(item, "--chapter", CLI_HELP_ROUTES.command),
+    );
+
+  if (chapters.length === 0) {
+    throw new Error(
+      withHelpRoute("--chapter cannot be empty.", CLI_HELP_ROUTES.command),
+    );
+  }
+
+  return [...new Set(chapters)];
+}
+
+function parseArchiveSearchOrder(
+  value: string,
+): NonNullable<CLIArchiveArguments["searchOrder"]> {
+  if (value === "doc-asc" || value === "doc-desc") {
+    return value;
+  }
+
+  throw new Error(
+    withHelpRoute(
+      `Invalid --order: ${value}. Expected doc-asc or doc-desc.`,
+      CLI_HELP_ROUTES.command,
+    ),
+  );
+}
+
+function parseArchiveSearchTypes(
+  value: string,
+): NonNullable<CLIArchiveArguments["searchTypes"]> {
+  const types = value
+    .split(",")
+    .map((item) => item.trim())
+    .filter((item) => item !== "")
+    .map(parseArchiveSearchType);
+
+  if (types.length === 0) {
+    throw new Error(
+      withHelpRoute("--type cannot be empty.", CLI_HELP_ROUTES.command),
+    );
+  }
+
+  return [...new Set(types)];
+}
+
+function parseArchiveSearchType(
+  value: string,
+): NonNullable<CLIArchiveArguments["searchTypes"]>[number] {
+  if (
+    value === "fragment" ||
+    value === "node" ||
+    value === "sentence" ||
+    value === "summary"
+  ) {
+    return value;
+  }
+
+  throw new Error(
+    withHelpRoute(
+      `Invalid --type: ${value}. Expected summary, node, fragment, or sentence.`,
+      CLI_HELP_ROUTES.command,
+    ),
+  );
+}
+
 function parseNodeObjectId(value: string, helpRoute: string): number {
   const normalized = value.trim();
   const nodePrefix = "node:";
@@ -2711,14 +2823,17 @@ function normalizeArchiveInlineOptions(
         continue;
       case "--budget":
       case "--chapter":
+      case "--cursor":
       case "--input":
       case "--input-format":
       case "--limit":
       case "--llm":
+      case "--order":
       case "--output":
       case "--output-format":
       case "--prompt":
       case "--stage":
+      case "--type":
       case "--to": {
         const value = positionals[index + 1];
 

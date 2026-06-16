@@ -10,8 +10,10 @@ const archiveMockState = vi.hoisted(() => ({
   ],
   findHits: [
     {
+      chapter: 2,
       field: "content",
       id: "node:9",
+      position: { chapter: 2, fragment: 0, sentence: 1 },
       snippet: "RAG appears in this node.",
       title: "Retrieval design",
       type: "node",
@@ -19,8 +21,10 @@ const archiveMockState = vi.hoisted(() => ({
   ],
   grepHits: [
     {
+      chapter: 2,
       field: "source",
       id: "fragment:2:0",
+      position: { chapter: 2, fragment: 0 },
       snippet: "Exact phrase appears here.",
       title: "Chapter 2",
       type: "fragment",
@@ -133,11 +137,31 @@ vi.mock("../../src/facade/index.js", () => ({
       targetStage: "ready",
     }),
   ),
-  findArchiveObjects: vi.fn(() => Promise.resolve(archiveMockState.findHits)),
+  findArchiveObjects: vi.fn(() =>
+    Promise.resolve({
+      chapters: null,
+      items: archiveMockState.findHits,
+      limit: 20,
+      nextCursor: null,
+      order: "doc-asc",
+      query: "RAG",
+      types: null,
+    }),
+  ),
   findGraphPath: vi.fn(() => Promise.resolve([])),
   formatNodeId: (id: number) => `node:${id}`,
   getArchiveIndex: vi.fn(() => Promise.resolve(archiveMockState.index)),
-  grepArchiveObjects: vi.fn(() => Promise.resolve(archiveMockState.grepHits)),
+  grepArchiveObjects: vi.fn(() =>
+    Promise.resolve({
+      chapters: null,
+      items: archiveMockState.grepHits,
+      limit: 20,
+      nextCursor: null,
+      order: "doc-asc",
+      query: "exact phrase",
+      types: null,
+    }),
+  ),
   listArchiveLinks: vi.fn(() => Promise.resolve(archiveMockState.links)),
   listArchiveObjects: vi.fn(() => Promise.resolve(archiveMockState.listItems)),
   listRelatedArchiveObjects: vi.fn(() =>
@@ -221,7 +245,13 @@ describe("cli/archive", () => {
     expect(archiveMockState.textWrites[0]).toContain(
       "Next: spinedigest page <archive.sdpub> node:9",
     );
-    expect(findArchiveObjects).toHaveBeenCalledWith({}, "RAG");
+    expect(findArchiveObjects).toHaveBeenCalledWith({}, "RAG", {
+      chapters: undefined,
+      cursor: undefined,
+      limit: undefined,
+      order: undefined,
+      types: undefined,
+    });
     expect(grepArchiveObjects).not.toHaveBeenCalled();
   });
 
@@ -235,8 +265,35 @@ describe("cli/archive", () => {
     expect(archiveMockState.textWrites[0]).toContain(
       "fragment:2:0  fragment/source",
     );
-    expect(grepArchiveObjects).toHaveBeenCalledWith({}, "exact phrase");
+    expect(grepArchiveObjects).toHaveBeenCalledWith({}, "exact phrase", {
+      chapters: undefined,
+      cursor: undefined,
+      limit: undefined,
+      order: undefined,
+      types: undefined,
+    });
     expect(findArchiveObjects).not.toHaveBeenCalled();
+  });
+
+  it("passes search controls to find", async () => {
+    await runArchiveCommand({
+      action: "find",
+      archivePath: "/tmp/book.sdpub",
+      chapters: [11, 12],
+      cursor: "cursor-token",
+      limit: 10,
+      query: "RAG",
+      searchOrder: "doc-desc",
+      searchTypes: ["summary", "node"],
+    });
+
+    expect(findArchiveObjects).toHaveBeenCalledWith({}, "RAG", {
+      chapters: [11, 12],
+      cursor: "cursor-token",
+      limit: 10,
+      order: "doc-desc",
+      types: ["summary", "node"],
+    });
   });
 
   it("prints page content and evidence", async () => {

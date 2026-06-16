@@ -5,13 +5,17 @@ Purpose:
   Search archive objects for one exact continuous text phrase.
 
 Usage:
-  spinedigest grep <archive.sdpub> <query> [--json]
+  spinedigest grep <archive.sdpub> <query> [--chapter <ids>] [--type <types>] [--order <doc-asc|doc-desc>] [--limit <n>] [--cursor <token>] [--json]
 
 Contract:
   - Mutates: no.
   - LLM: no.
   - Searches: metadata, chapter titles, summaries, graph nodes, evidence, and source fragments.
   - Query: treated as one continuous string; whitespace is not split into keywords.
+  - Scope: `--chapter 12` or `--chapter 11,12` limits results to chapters.
+  - Types: `--type summary,node,fragment,sentence` limits result object types.
+  - Order: `doc-asc` or `doc-desc`; default `doc-asc`.
+  - Pagination: default `--limit 20`; pass returned `nextCursor` back with `--cursor`.
   - Matching: case-insensitive substring matching, with no semantic expansion, stemming, fuzzy matching, or vector search.
   - JSON: yes.
 
@@ -20,3 +24,4 @@ Use `find` instead for whitespace-separated keyword discovery.
 Examples:
   spinedigest grep book.sdpub "Agent"
   spinedigest grep book.sdpub "朱元璋知道了这个消息"
+  spinedigest grep book.sdpub "火攻" --chapter 12 --type fragment,sentence --limit 10 --json

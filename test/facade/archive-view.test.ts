@@ -17,9 +17,9 @@ describe("facade/archive-view", () => {
       try {
         await seedSourcedDocument(document);
 
-        const hits = await findArchiveObjects(document, "Wiki");
+        const result = await findArchiveObjects(document, "Wiki");
 
-        expect(hits).toContainEqual(
+        expect(result.items).toContainEqual(
           expect.objectContaining({
             field: "source",
             id: "fragment:1:0",
@@ -39,9 +39,9 @@ describe("facade/archive-view", () => {
       try {
         await seedSourcedDocument(document);
 
-        const hits = await findArchiveObjects(document, "朱元璋 亲自 来到");
+        const result = await findArchiveObjects(document, "朱元璋 亲自 来到");
 
-        expect(hits).toContainEqual(
+        expect(result.items).toContainEqual(
           expect.objectContaining({
             field: "source",
             id: "fragment:1:0",
@@ -63,16 +63,91 @@ describe("facade/archive-view", () => {
 
         await expect(
           grepArchiveObjects(document, "朱元璋 亲自 来到"),
-        ).resolves.toStrictEqual([]);
-        await expect(
-          grepArchiveObjects(document, "朱元璋知道了这个消息"),
-        ).resolves.toContainEqual(
+        ).resolves.toMatchObject({ items: [] });
+
+        const result = await grepArchiveObjects(
+          document,
+          "朱元璋知道了这个消息",
+        );
+
+        expect(result.items).toContainEqual(
           expect.objectContaining({
             field: "source",
             id: "fragment:1:0",
             type: "fragment",
           }),
         );
+      } finally {
+        await document.release();
+      }
+    });
+  });
+
+  it("filters search results by type and chapter", async () => {
+    await withTempDir("spinedigest-archive-view-", async (path) => {
+      const document = await DirectoryDocument.open(`${path}/document`);
+
+      try {
+        await seedSourcedDocument(document);
+
+        const result = await findArchiveObjects(document, "Wiki", {
+          chapters: [1],
+          types: ["fragment"],
+        });
+
+        expect(result.chapters).toStrictEqual([1]);
+        expect(result.types).toStrictEqual(["fragment"]);
+        expect(result.items).toStrictEqual([
+          expect.objectContaining({
+            chapter: 1,
+            id: "fragment:1:0",
+            position: { chapter: 1, fragment: 0 },
+            type: "fragment",
+          }),
+        ]);
+      } finally {
+        await document.release();
+      }
+    });
+  });
+
+  it("paginates search results with stable cursors", async () => {
+    await withTempDir("spinedigest-archive-view-", async (path) => {
+      const document = await DirectoryDocument.open(`${path}/document`);
+
+      try {
+        await seedSourcedDocument(document);
+
+        const firstPage = await findArchiveObjects(document, "Wiki", {
+          limit: 1,
+        });
+        const secondPage = await findArchiveObjects(document, "Wiki", {
+          ...(firstPage.nextCursor === null
+            ? {}
+            : { cursor: firstPage.nextCursor }),
+          limit: 1,
+        });
+
+        expect(firstPage.items).toHaveLength(1);
+        expect(firstPage.nextCursor).not.toBeNull();
+        expect(secondPage.items).toHaveLength(1);
+        expect(secondPage.items[0]?.id).not.toBe(firstPage.items[0]?.id);
+      } finally {
+        await document.release();
+      }
+    });
+  });
+
+  it("rejects invalid search cursors", async () => {
+    await withTempDir("spinedigest-archive-view-", async (path) => {
+      const document = await DirectoryDocument.open(`${path}/document`);
+
+      try {
+        await seedSourcedDocument(document);
+
+        await expect(
+          findArchiveObjects(document, "Wiki", { cursor: "not-a-cursor" }),
+        ).rejects.toThrow("Invalid search cursor.");
       } finally {
         await document.release();
       }
@@ -143,7 +218,7 @@ async function seedSourcedDocument(document: DirectoryDocument): Promise<void> {
       publishedAt: null,
       publisher: null,
       sourceFormat: "markdown",
-      title: "Archive View Fixture",
+      title: "Archive Wiki Fixture",
       version: 1,
     });
     await openedDocument.writeToc({

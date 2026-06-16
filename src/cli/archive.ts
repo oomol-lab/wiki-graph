@@ -15,7 +15,8 @@ import {
   findArchiveObjects,
   formatNodeId,
   type ArchiveEstimate,
-  type ArchiveFindHit,
+  type ArchiveFindOptions,
+  type ArchiveFindResult,
   type ArchiveIndex,
   type ArchiveListItem,
   type ArchivePack,
@@ -102,7 +103,11 @@ export async function runArchiveCommand(
     case "find":
       await withArchiveDocument(args.archivePath, async (document) => {
         await writeFindHits(
-          await findArchiveObjects(document, args.query!),
+          await findArchiveObjects(
+            document,
+            args.query!,
+            createFindOptions(args),
+          ),
           args.json ?? false,
         );
       });
@@ -110,7 +115,11 @@ export async function runArchiveCommand(
     case "grep":
       await withArchiveDocument(args.archivePath, async (document) => {
         await writeFindHits(
-          await grepArchiveObjects(document, args.query!),
+          await grepArchiveObjects(
+            document,
+            args.query!,
+            createFindOptions(args),
+          ),
           args.json ?? false,
         );
       });
@@ -280,6 +289,16 @@ async function importArchiveFromStdin(
   }
 }
 
+function createFindOptions(args: CLIArchiveArguments): ArchiveFindOptions {
+  return {
+    ...(args.chapters === undefined ? {} : { chapters: args.chapters }),
+    ...(args.cursor === undefined ? {} : { cursor: args.cursor }),
+    ...(args.limit === undefined ? {} : { limit: args.limit }),
+    ...(args.searchOrder === undefined ? {} : { order: args.searchOrder }),
+    ...(args.searchTypes === undefined ? {} : { types: args.searchTypes }),
+  };
+}
+
 async function withArchiveDocument<T>(
   path: string,
   operation: (document: Document) => Promise<T> | T,
@@ -388,26 +407,26 @@ async function writeList(
 }
 
 async function writeFindHits(
-  hits: readonly ArchiveFindHit[],
+  result: ArchiveFindResult,
   json: boolean,
 ): Promise<void> {
   if (json) {
-    await writeTextToStdout(`${JSON.stringify({ hits }, null, 2)}\n`);
+    await writeTextToStdout(`${JSON.stringify(result, null, 2)}\n`);
     return;
   }
 
-  if (hits.length === 0) {
+  if (result.items.length === 0) {
     await writeTextToStdout("No matches.\n");
     return;
   }
 
   await writeTextToStdout(
-    `${hits
+    `${result.items
       .map(
         (hit) =>
           `${hit.id}  ${hit.type}/${hit.field}  ${hit.title}\n${hit.snippet}\nNext: spinedigest page <archive.sdpub> ${hit.id}`,
       )
-      .join("\n\n")}\n`,
+      .join("\n\n")}${formatNextCursor(result)}\n`,
   );
 }
 
@@ -568,6 +587,14 @@ function formatPath(steps: readonly GraphPathStep[]): string {
   }
 
   return `${steps.map((step) => `${formatNodeId(step.node.id)}  ${step.node.label}`).join("\n  ->\n")}\n`;
+}
+
+function formatNextCursor(result: ArchiveFindResult): string {
+  if (result.nextCursor === null) {
+    return "";
+  }
+
+  return `\n\nNext page: add --cursor ${result.nextCursor}`;
 }
 
 function formatNeighborLines(neighbors: readonly GraphNeighbor[]): string[] {

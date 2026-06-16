@@ -17,8 +17,8 @@ spinedigest estimate <archive.sdpub> [--stage <source|graph|summary|ready>] [--j
 spinedigest status <archive.sdpub> [--json]
 spinedigest index <archive.sdpub> [--json]
 spinedigest ls <archive.sdpub> [chapters|nodes|edges|evidence|summaries|meta] [--json]
-spinedigest find <archive.sdpub> <query> [--json]
-spinedigest grep <archive.sdpub> <query> [--json]
+spinedigest find <archive.sdpub> <query> [--chapter <ids>] [--type <types>] [--order <doc-asc|doc-desc>] [--limit <n>] [--cursor <token>] [--json]
+spinedigest grep <archive.sdpub> <query> [--chapter <ids>] [--type <types>] [--order <doc-asc|doc-desc>] [--limit <n>] [--cursor <token>] [--json]
 spinedigest page <archive.sdpub> <id> [--json]
 spinedigest evidence <archive.sdpub> <id> [--json]
 spinedigest links <archive.sdpub> <node:id> [--json]
@@ -32,6 +32,10 @@ spinedigest export <archive.sdpub> --output-format <format> [--output <path>]
 
 - `find` 是确定性的关键词发现。它按空白拆分 query，并返回同一个对象内包含全部关键词的结果。
 - `grep` 是精确文本搜索。它把 query 当作一个连续字符串。
+- `--chapter 12` 或 `--chapter 11,12` 用于限定章节。
+- `--type summary,node,fragment,sentence` 用于限定结果对象类型。
+- `--order doc-asc|doc-desc` 按稳定文档位置排序，默认 `doc-asc`。
+- `--limit` 默认 `20`；下一页把返回的 `nextCursor` 传给 `--cursor`。
 - 两个命令都不做语义扩展、模糊匹配、词干匹配或向量搜索。
 
 对象 ID：

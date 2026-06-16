@@ -282,6 +282,39 @@ describe("cli/args", () => {
       kind: "archive",
     });
 
+    expect(
+      parseCLIArguments([
+        "grep",
+        "book.sdpub",
+        "exact phrase",
+        "--chapter",
+        "11,12",
+        "--type",
+        "summary,node",
+        "--limit",
+        "10",
+        "--order",
+        "doc-desc",
+        "--cursor",
+        "cursor-token",
+        "--json",
+      ]),
+    ).toStrictEqual({
+      args: {
+        action: "grep",
+        archivePath: "book.sdpub",
+        chapters: [11, 12],
+        cursor: "cursor-token",
+        json: true,
+        limit: 10,
+        query: "exact phrase",
+        searchOrder: "doc-desc",
+        searchTypes: ["summary", "node"],
+      },
+      help: false,
+      kind: "archive",
+    });
+
     expect(parseCLIArguments(["ls", "book.sdpub", "nodes"])).toStrictEqual({
       args: {
         action: "ls",

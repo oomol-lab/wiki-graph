@@ -17,8 +17,8 @@ spinedigest estimate <archive.sdpub> [--stage <source|graph|summary|ready>] [--j
 spinedigest status <archive.sdpub> [--json]
 spinedigest index <archive.sdpub> [--json]
 spinedigest ls <archive.sdpub> [chapters|nodes|edges|evidence|summaries|meta] [--json]
-spinedigest find <archive.sdpub> <query> [--json]
-spinedigest grep <archive.sdpub> <query> [--json]
+spinedigest find <archive.sdpub> <query> [--chapter <ids>] [--type <types>] [--order <doc-asc|doc-desc>] [--limit <n>] [--cursor <token>] [--json]
+spinedigest grep <archive.sdpub> <query> [--chapter <ids>] [--type <types>] [--order <doc-asc|doc-desc>] [--limit <n>] [--cursor <token>] [--json]
 spinedigest page <archive.sdpub> <id> [--json]
 spinedigest evidence <archive.sdpub> <id> [--json]
 spinedigest links <archive.sdpub> <node:id> [--json]
@@ -32,6 +32,10 @@ Search behavior:
 
 - `find` is deterministic keyword discovery. It splits the query on whitespace and returns objects where every keyword appears in the same object.
 - `grep` is exact text search. It treats the query as one continuous string.
+- `--chapter 12` or `--chapter 11,12` limits results to chapters.
+- `--type summary,node,fragment,sentence` limits result object types.
+- `--order doc-asc|doc-desc` sorts by stable document position. Default is `doc-asc`.
+- `--limit` defaults to `20`; pass returned `nextCursor` back through `--cursor` for the next page.
 - Neither command does semantic expansion, fuzzy matching, stemming, or vector search.
 
 Object ids:
