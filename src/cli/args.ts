@@ -15,6 +15,7 @@ import {
   renderSdpubChapterActionHelpText,
   renderSdpubGraphActionHelpText,
   renderStatusHelpText,
+  renderTransformHelpText,
   renderSdpubStageActionHelpText,
   renderSdpubHelpText,
   renderSdpubSubcommandHelpText,
@@ -186,10 +187,11 @@ interface SdpubMetaFlagValues {
   readonly title?: string;
 }
 
-interface ArchiveArgumentValues {
+interface ArchiveArgumentValues extends SdpubMetaFlagValues {
   readonly budget?: string;
   readonly chapter?: string;
   readonly confirm?: boolean;
+  readonly "digest-dir"?: string;
   readonly help?: boolean;
   readonly input?: string;
   readonly "input-format"?: string;
@@ -274,13 +276,13 @@ export type ParsedCLIArguments =
   | {
       readonly args: CLIStatusArguments;
       readonly help: false;
-      readonly kind: "status";
+      readonly kind: "config-status";
     }
   | {
       readonly args: CLIStatusArguments;
       readonly help: true;
       readonly helpText: string;
-      readonly kind: "status";
+      readonly kind: "config-status";
     };
 
 export function parseCLIArguments(
@@ -411,26 +413,34 @@ export function parseCLIArguments(
     return parseSdpubArguments(positionals.slice(1), values);
   }
 
-  if (
-    isArchiveAction(positionals[0]) &&
-    !(positionals[0] === "status" && positionals.length === 1)
-  ) {
+  if (positionals[0] === "config") {
+    return parseConfigArguments(positionals.slice(1), values);
+  }
+
+  if (positionals[0] === "transform") {
+    return parseConvertArguments(positionals.slice(1), values, "transform");
+  }
+
+  if (isArchiveAction(positionals[0])) {
     return parseArchiveArguments(positionals[0], positionals.slice(1), values);
   }
 
-  if (positionals[0] === "status") {
-    return parseStatusArguments(positionals.slice(1), values);
-  }
+  return parseConvertArguments(positionals, values, "bare");
+}
 
+function parseConvertArguments(
+  positionals: readonly string[],
+  values: ArchiveArgumentValues,
+  command: "bare" | "transform",
+): ParsedCLIArguments {
   if (positionals.length > 0) {
     throw new Error(
       withHelpRoute(
-        `Unexpected positional argument or unknown command: ${positionals.join(" ")}. The default command reads from stdin or --input; it does not accept positional input paths. Use --input <path>, or see available subcommands with \`spinedigest --help\`.`,
+        `Unexpected positional argument or unknown command: ${positionals.join(" ")}. The direct digest command reads from stdin or --input; it does not accept positional input paths. Use \`spinedigest transform --input <path>\`, or see available subcommands with \`spinedigest --help\`.`,
         CLI_HELP_ROUTES.command,
       ),
     );
   }
-
   rejectConvertMetaFlags(values);
   rejectConvertFlag("budget", values.budget);
   rejectConvertFlag("confirm", values.confirm);
@@ -474,7 +484,10 @@ export function parseCLIArguments(
     return {
       args,
       help: true,
-      helpText: renderMainHelpText(),
+      helpText:
+        command === "transform"
+          ? renderTransformHelpText()
+          : renderMainHelpText(),
       kind: "convert",
     };
   }
@@ -484,6 +497,35 @@ export function parseCLIArguments(
     help: false,
     kind: "convert",
   };
+}
+
+function parseConfigArguments(
+  positionals: readonly string[],
+  values: ArchiveArgumentValues & SdpubMetaFlagValues,
+): ParsedCLIArguments {
+  const action = positionals[0];
+
+  if (values.help === true && action === undefined) {
+    return {
+      args: {},
+      help: true,
+      helpText: renderStatusHelpText(),
+      kind: "config-status",
+    };
+  }
+
+  if (action !== "status") {
+    throw new Error(
+      withHelpRoute(
+        action === undefined
+          ? "Missing config action. Expected status."
+          : `Invalid config action: ${action}. Expected status.`,
+        "spinedigest config status --help",
+      ),
+    );
+  }
+
+  return parseConfigStatusArguments(positionals.slice(1), values);
 }
 
 function parseSdpubArguments(
@@ -1900,7 +1942,7 @@ function parseHelpArguments(
   };
 }
 
-function parseStatusArguments(
+function parseConfigStatusArguments(
   positionals: readonly string[],
   values: {
     readonly author?: readonly string[];
@@ -1944,8 +1986,8 @@ function parseStatusArguments(
   if (values.verbose) {
     throw new Error(
       withHelpRoute(
-        "The `status` command does not support --verbose.",
-        "spinedigest status --help",
+        "The `config status` command does not support --verbose.",
+        "spinedigest config status --help",
       ),
     );
   }
@@ -1954,7 +1996,7 @@ function parseStatusArguments(
     throw new Error(
       withHelpRoute(
         `Unexpected positional arguments: ${positionals.join(" ")}.`,
-        "spinedigest status --help",
+        "spinedigest config status --help",
       ),
     );
   }
@@ -1968,14 +2010,14 @@ function parseStatusArguments(
       args,
       help: true,
       helpText: renderStatusHelpText(),
-      kind: "status",
+      kind: "config-status",
     };
   }
 
   return {
     args,
     help: false,
-    kind: "status",
+    kind: "config-status",
   };
 }
 
@@ -2409,8 +2451,8 @@ function rejectStatusMetaFlags(values: SdpubMetaFlagValues): void {
   for (const flag of listPresentMetaFlags(values)) {
     throw new Error(
       withHelpRoute(
-        `The \`status\` command does not support ${flag}.`,
-        "spinedigest status --help",
+        `The \`config status\` command does not support ${flag}.`,
+        "spinedigest config status --help",
       ),
     );
   }
@@ -2515,8 +2557,8 @@ function rejectStatusFlag(
   if (value !== undefined) {
     throw new Error(
       withHelpRoute(
-        `The \`status\` command does not support --${name}.`,
-        "spinedigest status --help",
+        `The \`config status\` command does not support --${name}.`,
+        "spinedigest config status --help",
       ),
     );
   }
@@ -2648,7 +2690,10 @@ function normalizeArchiveInlineOptions(
   readonly values: ArchiveArgumentValues;
 } {
   const normalizedPositionals: string[] = [];
-  const normalizedValues: Record<string, boolean | string | undefined> = {
+  const normalizedValues: Record<
+    string,
+    boolean | readonly string[] | string | undefined
+  > = {
     ...values,
   };
 

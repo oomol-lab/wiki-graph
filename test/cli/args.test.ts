@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { parseCLIArguments } from "../../src/cli/args.js";
 import {
+  renderArchiveCommandHelpText,
   renderSdpubChapterActionHelpText,
   renderSdpubGraphActionHelpText,
   renderSdpubStageActionHelpText,
@@ -178,13 +179,39 @@ describe("cli/args", () => {
     );
 
     expect(
-      parseCLIArguments(["status", "--llm", '{"model":"cli-model"}']),
+      parseCLIArguments(["config", "status", "--llm", '{"model":"cli-model"}']),
     ).toStrictEqual({
       args: {
         llmJSON: '{"model":"cli-model"}',
       },
       help: false,
-      kind: "status",
+      kind: "config-status",
+    });
+  });
+
+  it("parses the transform command as direct digest", () => {
+    expect(
+      parseCLIArguments([
+        "transform",
+        "--input",
+        "book.md",
+        "--output-format",
+        "markdown",
+      ]),
+    ).toStrictEqual({
+      args: {
+        help: false,
+        inputPath: "book.md",
+        outputFormat: "markdown",
+        verbose: false,
+      },
+      help: false,
+      kind: "convert",
+    });
+
+    expect(parseCLIArguments(["transform", "--help"])).toMatchObject({
+      help: true,
+      kind: "convert",
     });
   });
 
@@ -566,18 +593,24 @@ describe("cli/args", () => {
     });
   });
 
-  it("parses status and prints status help text", () => {
-    expect(parseCLIArguments(["status"])).toStrictEqual({
+  it("parses config status and prints config status help text", () => {
+    expect(parseCLIArguments(["config", "status"])).toStrictEqual({
       args: {},
       help: false,
-      kind: "status",
+      kind: "config-status",
     });
 
-    expect(parseCLIArguments(["status", "--help"])).toStrictEqual({
+    expect(parseCLIArguments(["config", "status", "--help"])).toStrictEqual({
       args: {},
       help: true,
       helpText: renderStatusHelpText(),
-      kind: "status",
+      kind: "config-status",
+    });
+
+    expect(parseCLIArguments(["status", "--help"])).toStrictEqual({
+      help: true,
+      helpText: renderArchiveCommandHelpText("status"),
+      kind: "help",
     });
   });
 
@@ -630,7 +663,7 @@ describe("cli/args", () => {
 
   it("rejects positional arguments", () => {
     expect(() => parseCLIArguments(["book.epub"])).toThrow(
-      "Unexpected positional argument or unknown command: book.epub. The default command reads from stdin or --input; it does not accept positional input paths. Use --input <path>, or see available subcommands with `spinedigest --help`.\nSee: spinedigest help command",
+      "Unexpected positional argument or unknown command: book.epub. The direct digest command reads from stdin or --input; it does not accept positional input paths. Use `spinedigest transform --input <path>`, or see available subcommands with `spinedigest --help`.\nSee: spinedigest help command",
     );
   });
 
@@ -867,10 +900,15 @@ describe("cli/args", () => {
 
   it("rejects invalid status usage", () => {
     expect(() => parseCLIArguments(["status", "--input", "book.epub"])).toThrow(
-      "The `status` command does not support --input.\nSee: spinedigest status --help",
+      "Missing archive path. Use `spinedigest status <archive.sdpub>`.\nSee: spinedigest status --help",
     );
     expect(() => parseCLIArguments(["status", "--verbose"])).toThrow(
-      "The `status` command does not support --verbose.\nSee: spinedigest status --help",
+      "Missing archive path. Use `spinedigest status <archive.sdpub>`.\nSee: spinedigest status --help",
+    );
+    expect(() =>
+      parseCLIArguments(["config", "status", "--input", "book.epub"]),
+    ).toThrow(
+      "The `config status` command does not support --input.\nSee: spinedigest config status --help",
     );
     expect(parseCLIArguments(["status", "book.sdpub"])).toStrictEqual({
       args: {

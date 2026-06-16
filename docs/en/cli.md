@@ -80,7 +80,7 @@ Human-readable stdout is Markdown-like text with stable ids and suggested next c
 The direct one-shot digest command remains available:
 
 ```bash
-spinedigest [--input <path>] [--output <path>] [--input-format <format>] [--output-format <format>] [--digest-dir <path>] [--llm <json>] [--prompt <text>] [--confirm] [--stage <planned|sourced|graphed|summarized>] [--verbose]
+spinedigest transform [--input <path>] [--output <path>] [--input-format <format>] [--output-format <format>] [--digest-dir <path>] [--llm <json>] [--prompt <text>] [--confirm] [--stage <planned|sourced|graphed|summarized>] [--verbose]
 ```
 
 The low-level `.sdpub` maintenance family remains available:
@@ -92,14 +92,14 @@ spinedigest sdpub chapter <list|status|add|remove|reset|set-source|set-summary> 
 spinedigest sdpub graph <status|log|show|grep|neighbors|blame|path> <path> --chapter <id> [options]
 ```
 
-A bare `spinedigest status` still prints configuration status. `spinedigest status <archive.sdpub>` prints archive status.
+`spinedigest config status` prints configuration status. `spinedigest status <archive.sdpub>` prints archive status.
 
 ## Standard Stream Rules
 
-The archive-first `import` command writes `.sdpub` archives. For pure one-shot stream digest/export workflows, use bare `spinedigest`:
+The archive-first `import` command writes `.sdpub` archives. For pure one-shot stream digest/export workflows, use `spinedigest transform`:
 
 ```bash
-cat ./chapter.txt | spinedigest --input-format txt --output-format markdown
+cat ./chapter.txt | spinedigest transform --input-format txt --output-format markdown
 ```
 
 ## Related Docs

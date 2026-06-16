@@ -78,7 +78,7 @@ export class SpineDigest {
 
       if (summary === undefined) {
         throw new Error(
-          `Chapter ${serialId} summary is missing. Run \`spinedigest sdpub stage pending <path>\` to inspect unfinished chapters.`,
+          `Chapter ${serialId} summary is missing. Run \`spinedigest build <archive.sdpub> --stage ready --confirm\` before export, or inspect the chapter with \`spinedigest page <archive.sdpub> chapter:${serialId}\`.`,
         );
       }
 

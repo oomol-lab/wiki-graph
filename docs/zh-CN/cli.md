@@ -80,7 +80,7 @@ spinedigest evidence book.sdpub node:84 --json
 直接一次性 digest/export 命令仍然可用：
 
 ```bash
-spinedigest [--input <path>] [--output <path>] [--input-format <format>] [--output-format <format>] [--digest-dir <path>] [--llm <json>] [--prompt <text>] [--confirm] [--stage <planned|sourced|graphed|summarized>] [--verbose]
+spinedigest transform [--input <path>] [--output <path>] [--input-format <format>] [--output-format <format>] [--digest-dir <path>] [--llm <json>] [--prompt <text>] [--confirm] [--stage <planned|sourced|graphed|summarized>] [--verbose]
 ```
 
 低层 `.sdpub` 维护命令：
@@ -92,14 +92,14 @@ spinedigest sdpub chapter <list|status|add|remove|reset|set-source|set-summary> 
 spinedigest sdpub graph <status|log|show|grep|neighbors|blame|path> <path> --chapter <id> [options]
 ```
 
-裸 `spinedigest status` 仍输出配置状态。`spinedigest status <archive.sdpub>` 输出归档状态。
+`spinedigest config status` 输出配置状态。`spinedigest status <archive.sdpub>` 输出归档状态。
 
 ## 标准流规则
 
-archive-first `import` 命令用于写入 `.sdpub`。纯流式一次性 digest/export 可以直接使用裸 `spinedigest`：
+archive-first `import` 命令用于写入 `.sdpub`。纯流式一次性 digest/export 使用 `spinedigest transform`：
 
 ```bash
-cat ./chapter.txt | spinedigest --input-format txt --output-format markdown
+cat ./chapter.txt | spinedigest transform --input-format txt --output-format markdown
 ```
 
 ## 相关文档

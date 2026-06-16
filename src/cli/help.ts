@@ -179,7 +179,11 @@ export function renderMainHelpText(): string {
 }
 
 export function renderStatusHelpText(): string {
-  return renderHelpTemplate("help/commands/status");
+  return renderHelpTemplate("help/commands/config-status");
+}
+
+export function renderTransformHelpText(): string {
+  return renderHelpTemplate("help/commands/transform");
 }
 
 export function renderArchiveCommandHelpText(action: CLIArchiveAction): string {

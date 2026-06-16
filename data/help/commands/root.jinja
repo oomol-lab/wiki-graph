@@ -27,14 +27,15 @@ Archive-first usage:
   spinedigest export <archive.sdpub> --output-format <format> [--output <path>]
 
 Direct digest command:
-  `spinedigest` without a subcommand is the direct one-shot digest/export command.
+  `spinedigest transform` is the direct one-shot digest/export command.
   It reads from `--input <path>`, or from stdin when `--input` is omitted.
   It writes to `--output <path>`, or to stdout when `--output` is omitted.
+  A bare non-interactive `spinedigest` invocation still runs the same direct digest command for compatibility.
   Prefer the archive-first commands for new automation.
 
 Direct and maintenance usage:
-  spinedigest [--input <path>] [--output <path>] [--input-format <format>] [--output-format <format>] [--digest-dir <path>] [--llm <json>] [--prompt <text>] [--stage <stage>] [--verbose|-v] [--help|-h] [--version]
-  spinedigest status [--llm <json>]
+  spinedigest transform [--input <path>] [--output <path>] [--input-format <format>] [--output-format <format>] [--digest-dir <path>] [--llm <json>] [--prompt <text>] [--stage <stage>] [--verbose|-v] [--help|-h]
+  spinedigest config status [--llm <json>] [--help|-h]
   spinedigest sdpub <info|toc|list|cat|cover|meta> --input <path> [options] [--help|-h]
   spinedigest sdpub chapter <action> <path> [options] [--help|-h]
   spinedigest sdpub stage <action> <path> [options] [--help|-h]

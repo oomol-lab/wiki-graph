@@ -299,6 +299,22 @@ async function writeIndex(
     `Edges: ${index.edgeCount}`,
   ];
 
+  if (index.nodeCount === 0) {
+    lines.push(
+      "",
+      "Graph note:",
+      "  No graph nodes are currently available. If graph build already ran, the source may be too short, too sparse, or no stable knowledge units were extracted.",
+      "  Next: inspect a chapter with `spinedigest page <archive.sdpub> chapter:<id>` or build `--stage ready` if you need summaries.",
+    );
+  } else if (index.edgeCount === 0) {
+    lines.push(
+      "",
+      "Graph note:",
+      "  Graph nodes exist, but no edges are currently available. This can be valid when extracted nodes have no stable relationships.",
+      "  Next: inspect nodes with `spinedigest ls <archive.sdpub> nodes`.",
+    );
+  }
+
   if (action === "index") {
     lines.push("", "Entry Points:");
     for (const chapter of index.chapters.slice(0, 12)) {
@@ -498,7 +514,16 @@ async function writeMap(
   }
 
   if (edges.length === 0) {
-    await writeTextToStdout("No graph edges.\n");
+    await writeTextToStdout(
+      [
+        "No graph edges.",
+        "This can be valid after a graph build when the source is too short, too sparse, or the model found no stable relationships.",
+        "Next:",
+        "  spinedigest status <archive.sdpub>",
+        "  spinedigest ls <archive.sdpub> nodes",
+        "  spinedigest page <archive.sdpub> chapter:<id>",
+      ].join("\n") + "\n",
+    );
     return;
   }
 

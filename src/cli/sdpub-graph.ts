@@ -95,18 +95,39 @@ function formatStatus(status: {
   readonly graphReady: boolean;
   readonly nodeCount: number;
 }): string {
-  return [
+  const lines = [
     `Chapter: ${status.chapterId}`,
     `Graph: ${status.graphReady ? "yes" : "no"}`,
     `Nodes: ${status.nodeCount}`,
     `Edges: ${status.edgeCount}`,
     "",
-  ].join("\n");
+  ];
+
+  if (status.graphReady && status.nodeCount === 0) {
+    lines.push(
+      "Graph build completed, but no nodes were extracted.",
+      "This can happen when the source is too short, too sparse, or the model found no stable knowledge units.",
+      "",
+    );
+  } else if (status.graphReady && status.edgeCount === 0) {
+    lines.push(
+      "Graph nodes exist, but no edges were extracted.",
+      "This can happen when the model found standalone knowledge units but no stable relationships between them.",
+      "",
+    );
+  }
+
+  return lines.join("\n");
 }
 
 function formatLog(nodes: readonly GraphNode[], limit: number): string {
   if (nodes.length === 0) {
-    return "No nodes.\n";
+    return [
+      "No nodes.",
+      "A graph can be ready with zero nodes when the source is too short, too sparse, or the model found no stable knowledge units.",
+      "Next: inspect the chapter source or build a summary.",
+      "",
+    ].join("\n");
   }
 
   return `${nodes.slice(0, limit).map(formatNodeOneLine).join("\n")}\n`;

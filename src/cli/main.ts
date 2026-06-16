@@ -51,7 +51,7 @@ export async function main(): Promise<void> {
       case "archive":
         await runArchiveCommand(parsed.args);
         return;
-      case "status":
+      case "config-status":
         await runStatusCommand(parsed.args);
         return;
     }

@@ -239,7 +239,7 @@ describe("cli/main", () => {
         llmJSON: '{"model":"inline-model"}',
       },
       help: false,
-      kind: "status",
+      kind: "config-status",
     };
 
     await main();
@@ -363,7 +363,7 @@ describe("cli/main", () => {
         llmJSON: '{"model":"inline-model"}',
       },
       help: false,
-      kind: "status",
+      kind: "config-status",
     };
     mainMockState.statusRunError = new Error("status failed");
 

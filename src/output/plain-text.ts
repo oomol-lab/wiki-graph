@@ -66,7 +66,7 @@ async function renderTocItem(
 
     if (summary === undefined) {
       throw new Error(
-        `Chapter ${item.serialId} summary is missing. Run \`spinedigest sdpub stage pending <path>\` to inspect unfinished chapters.`,
+        `Chapter ${item.serialId} summary is missing. Run \`spinedigest build <archive.sdpub> --stage ready --confirm\` before export, or inspect the chapter with \`spinedigest page <archive.sdpub> chapter:${item.serialId}\`.`,
       );
     }
     if (summary.trim() !== "") {
