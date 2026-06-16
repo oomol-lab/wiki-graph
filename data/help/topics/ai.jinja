@@ -15,14 +15,19 @@ Safe first moves:
   - Existing archive:
     spinedigest status <archive.sdpub>
     spinedigest index <archive.sdpub>
-  - Need information:
+  - Broad understanding, synthesis, timeline, relationship, or process tasks:
     spinedigest list <archive.sdpub> --type chapter
-    spinedigest list <archive.sdpub> --type node --chapter <id>
+    spinedigest page <archive.sdpub> chapter:<id>
+    # inspect nodeGroups, then:
+    spinedigest page <archive.sdpub> node:<id>
+    spinedigest evidence <archive.sdpub> node:<id>
+  - Locate candidate chapters or verify missing concepts:
     spinedigest find <archive.sdpub> <query>
     spinedigest grep <archive.sdpub> <exact phrase>
-    spinedigest page <archive.sdpub> <id>
+    spinedigest list <archive.sdpub> --type node --chapter <id>
+  - Continuous reading after topology selection:
     spinedigest read <archive.sdpub> chapter:<id>
-    spinedigest evidence <archive.sdpub> <id>
+    spinedigest read <archive.sdpub> fragment:<serial>:<fragment>
   - Need graph context:
     spinedigest links <archive.sdpub> <node:id>
     spinedigest backlinks <archive.sdpub> <node:id>
@@ -60,8 +65,8 @@ Maintenance commands:
   - Prefer archive-first commands unless the user specifically needs lower-level maintenance operations.
 
 Discovery rule:
-  If the user question is about what is inside an archive, start with `status`, `index`, `list`, and `find`; do not unzip first.
-  Use `find` for multi-keyword discovery: whitespace separates keywords, default matching is `--match any`, and stronger matches are ranked first.
+  If the user question asks for synthesis, a timeline, a process, a relationship map, character development, or conceptual structure, start with `list --type chapter`, then `page chapter:<id>` and inspect `nodeGroups`. Do not flatten the archive into raw text first.
+  Use `find` for multi-keyword discovery after the topology pass, or when you need to locate candidate chapters quickly. Whitespace separates keywords, default matching is `--match any`, and stronger matches are ranked first.
   Use `find --match all` only when every keyword must appear inside the same returned object.
   Use `grep` only when checking whether an exact continuous phrase exists.
   Use `--type summary,node` to discover concepts first; use `--type fragment,sentence` when tracing wording or evidence.

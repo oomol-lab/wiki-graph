@@ -1037,8 +1037,9 @@ describe("cli/args", () => {
     expect(rootHelpText).toContain("spinedigest help overview");
     expect(rootHelpText).toContain("spinedigest help env");
     expect(rootHelpText).toContain("spinedigest help config-file");
+    expect(rootHelpText).toContain("spinedigest sdpub <subcommand> ...");
     expect(rootHelpText).toContain(
-      "spinedigest sdpub <info|toc|list|cat|cover|meta>",
+      "The `sdpub ...` family is a lower-level compatibility and maintenance surface.",
     );
     expect(rootHelpText).toContain("[--verbose|-v] [--help|-h]");
     expect(rootHelpText).toContain("chapter:<id>");

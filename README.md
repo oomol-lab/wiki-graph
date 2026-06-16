@@ -18,6 +18,8 @@ For agents, `.sdpub` exploration has three primary modes:
 - **Structure mode:** use `list` for bounded object collections and `page` for one detailed object with local navigation.
 - **Reading mode:** use `read` to print chapter, summary, fragment, node, or sentence text as continuous plain text.
 
+For synthesis, timelines, relationship analysis, process reconstruction, or concept-structure tasks, start with Structure mode: `list --type chapter`, then `page chapter:<id>` and inspect `nodeGroups`. Use search to locate candidates or verify exact wording.
+
 ![Inkora screenshot](./docs/images/app-screenshot-en.png)
 
 <div align=center>
@@ -180,7 +182,7 @@ SpineDigest also exposes a programmatic API for embedding the pipeline in your o
 SpineDigest's CLI-first design exposes `.sdpub` as a managed LLM Wiki archive.
 
 - **Treat `.sdpub` as the primary object.** Use archive commands before unpacking or inspecting internals.
-- **Choose an exploration mode first.** Use `find/grep` for search, `list/page` for structure, and `read` for continuous prose.
+- **Choose an exploration mode first.** For synthesis and structural understanding, start with `list/page`; use `find/grep` for candidate discovery and exact wording; use `read` for continuous prose after selecting the relevant object.
 - **Use help as the discovery surface.** Start with `spinedigest --help` as the root page, then follow `spinedigest help ai`, topic pages, or command-specific `--help` before guessing behavior.
 - **Prefer `--json`.** Use it when composing with tools.
 - **Estimate before build.** Do not run full-archive graph, summary, or ready builds without `spinedigest estimate`.

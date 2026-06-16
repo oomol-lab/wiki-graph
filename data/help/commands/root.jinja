@@ -15,6 +15,11 @@ Three exploration modes:
   3. Reading mode:
      Use `read` to print chapter, summary, fragment, node, or sentence text as continuous plain text.
 
+Task routing:
+  For synthesis, timelines, relationship analysis, process reconstruction, or concept-structure tasks, start with Structure mode:
+    status -> index -> list --type chapter -> page chapter:<id>
+  Use `find` to locate candidate chapters or verify missing concepts. Use `grep` only for exact source wording.
+
 Archive-first usage:
   spinedigest import <archive.sdpub> [source] [--input-format <format>] [--llm <json>] [--prompt <text>]
   spinedigest build <archive.sdpub> [--stage <source|graph|summary|ready>] [--chapter <id>] [--llm <json>] [--prompt <text>] [--confirm]
@@ -44,11 +49,10 @@ Direct digest command:
 Direct and maintenance usage:
   spinedigest transform [--input <path>] [--output <path>] [--input-format <format>] [--output-format <format>] [--digest-dir <path>] [--llm <json>] [--prompt <text>] [--stage <stage>] [--verbose|-v] [--help|-h]
   spinedigest config status [--llm <json>] [--help|-h]
-  spinedigest sdpub <info|toc|list|cat|cover|meta> --input <path> [options] [--help|-h]
-  spinedigest sdpub chapter <action> <path> [options] [--help|-h]
-  spinedigest sdpub stage <action> <path> [options] [--help|-h]
-  spinedigest sdpub graph <action> <path> --chapter <id> [options] [--help|-h]
+  spinedigest sdpub <subcommand> ...
   spinedigest help [topic] [--help|-h]
+
+  The `sdpub ...` family is a lower-level compatibility and maintenance surface. Do not use it for routine archive exploration; prefer `index`, `list`, `page`, `find`, `grep`, `read`, and `evidence`.
 
 Core object ids:
   chapter:<id>     A chapter-like archive page.

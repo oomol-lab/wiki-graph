@@ -24,7 +24,7 @@ spinedigest read book.sdpub chapter:12
 spinedigest evidence book.sdpub node:84
 ```
 
-优先先选择三种探索模式之一。搜索模式用 `find` 做多关键词发现，用 `grep` 检查连续精确短语。`find` 默认是 `--match any`；只有必须要求全部关键词出现在同一个对象内时，才使用 `--match all`。结构模式用 `list` 获取有界集合，用 `page` 打开单个详情对象。阅读模式用 `read` 输出连续文本，适合顺着章节或片段理解内容。
+优先先选择三种探索模式之一。对于综合理解、时间线、关系分析、过程梳理或概念结构任务，先走结构模式：`list --type chapter`，再 `page chapter:<id>` 并检查 `nodeGroups`。搜索模式用 `find` 做候选定位，用 `grep` 检查连续精确短语。`find` 默认是 `--match any`；只有必须要求全部关键词出现在同一个对象内时，才使用 `--match all`。阅读模式适合在选定相关 chapter、fragment 或 node 后用 `read` 输出连续文本。
 
 概念发现可加 `--type summary,node`，追原文可加 `--type fragment,sentence`，并用 `--chapter`、`--limit`、`--cursor` 控制检索范围。
 
@@ -43,13 +43,14 @@ spinedigest evidence book.sdpub node:84
 ## 推荐执行策略
 
 1. 面对未知归档，先运行 `status` 和 `index`。
-2. 用 `list`、`find` 或 `grep` 发现稳定对象 ID。
-3. 用 `page` 阅读单个对象。
-4. 当用户需要按 prose 理解章节、片段、summary、node 或 sentence 时，用 `read`。
-5. 引用或形成有来源支撑的判断前，先用 `evidence`。
-6. 用 `links`、`backlinks` 或 `path` 导航图上下文。
-7. 只有用户需要 projection 时才 `export`。
-8. `build` 前先 `estimate`；如果估算超出当前交互预算，先询问用户。
+2. 对理解型任务，先用 `list --type chapter`，再在关键词搜索前使用 `page chapter:<id>`。
+3. 检查 chapter 的 `nodeGroups`，再对相关知识节点使用 `page node:<id>`。
+4. 用 `find` 或 `grep` 定位候选章节、验证缺失概念，或检查精确原文。
+5. 当用户需要按 prose 理解章节、片段、summary、node 或 sentence 时，用 `read`。
+6. 引用或形成有来源支撑的判断前，先用 `evidence`。
+7. 用 `links`、`backlinks` 或 `path` 导航图上下文。
+8. 只有用户需要 projection 时才 `export`。
+9. `build` 前先 `estimate`；如果估算超出当前交互预算，先询问用户。
 
 ## 构建流程
 

@@ -104,11 +104,13 @@ spinedigest transform [--input <path>] [--output <path>] [--input-format <format
 低层 `.sdpub` 维护命令：
 
 ```bash
-spinedigest sdpub <info|toc|list|cat|cover|meta> --input <path> [options]
+spinedigest sdpub <subcommand> ...
 spinedigest sdpub stage <pending|advance> <path> [options]
 spinedigest sdpub chapter <list|status|add|remove|reset|set-source|set-summary> <path> [options]
 spinedigest sdpub graph <status|log|show|grep|neighbors|blame|path> <path> --chapter <id> [options]
 ```
+
+常规探索请使用顶层 archive commands。`sdpub ...` 家族用于兼容脚本、metadata、chapter 编辑和更低层维护。
 
 `spinedigest config status` 输出配置状态。`spinedigest status <archive.sdpub>` 输出归档状态。
 

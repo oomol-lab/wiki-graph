@@ -104,11 +104,13 @@ spinedigest transform [--input <path>] [--output <path>] [--input-format <format
 The low-level `.sdpub` maintenance family remains available:
 
 ```bash
-spinedigest sdpub <info|toc|list|cat|cover|meta> --input <path> [options]
+spinedigest sdpub <subcommand> ...
 spinedigest sdpub stage <pending|advance> <path> [options]
 spinedigest sdpub chapter <list|status|add|remove|reset|set-source|set-summary> <path> [options]
 spinedigest sdpub graph <status|log|show|grep|neighbors|blame|path> <path> --chapter <id> [options]
 ```
+
+Use the top-level archive commands for routine exploration. The `sdpub ...` family exists for compatibility, metadata work, chapter editing, and lower-level maintenance.
 
 `spinedigest config status` prints configuration status. `spinedigest status <archive.sdpub>` prints archive status.
 

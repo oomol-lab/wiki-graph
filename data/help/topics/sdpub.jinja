@@ -28,7 +28,10 @@ Archive model:
   - Current editable archives are still maintained internally around chapters and graph nodes.
 
 sdpub maintenance command family:
-  `spinedigest sdpub ...` remains available for lower-level maintenance:
+  `spinedigest sdpub ...` remains available for compatibility scripts and lower-level maintenance.
+  It is not the preferred interface for routine agent exploration. Use top-level `index`, `list`, `page`, `find`, `grep`, `read`, and `evidence` first.
+
+  Maintenance subcommands include:
   - info, toc, list, cat, cover, meta
   - chapter add/remove/reset/set-source/set-summary/status/list
   - stage pending/advance

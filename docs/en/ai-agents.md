@@ -24,7 +24,7 @@ spinedigest read book.sdpub chapter:12
 spinedigest evidence book.sdpub node:84
 ```
 
-Use three exploration modes. Search mode uses `find` for multi-keyword discovery and `grep` for exact phrases. `find` defaults to `--match any`; use `--match all` only when every keyword must appear in the same object. Structure mode uses `list` for bounded collections and `page` for one detailed object. Reading mode uses `read` when the user needs prose flow rather than object navigation.
+Use three exploration modes. For synthesis, timelines, relationship analysis, process reconstruction, or concept-structure tasks, start with Structure mode: `list --type chapter`, then `page chapter:<id>` and inspect `nodeGroups`. Search mode uses `find` for candidate discovery and `grep` for exact phrases. `find` defaults to `--match any`; use `--match all` only when every keyword must appear in the same object. Reading mode uses `read` after the relevant chapter, fragment, or node has been selected.
 
 Add `--type summary,node` for concept discovery, `--type fragment,sentence` for source wording, and `--chapter`, `--limit`, and `--cursor` to keep retrieval bounded.
 
@@ -43,13 +43,14 @@ Use the library API only when the surrounding system explicitly needs in-process
 ## Recommended Execution Strategy
 
 1. For an unknown archive, run `status` and `index`.
-2. Use `list`, `find`, or `grep` to discover stable object ids.
-3. Use `page` to read one object.
-4. Use `read` when the user needs chapter, fragment, summary, node, or sentence text as prose.
-5. Use `evidence` before quoting or making source-backed claims.
-6. Use `links`, `backlinks`, or `path` to navigate graph context.
-7. Use `export` only when the user needs a projection.
-8. Before `build`, run `estimate`; if the estimate is too large for the session, ask the user.
+2. For understanding tasks, use `list --type chapter`, then `page chapter:<id>` before keyword search.
+3. Inspect chapter `nodeGroups`, then use `page node:<id>` for relevant knowledge nodes.
+4. Use `find` or `grep` to locate candidate chapters, verify missing concepts, or check exact source wording.
+5. Use `read` when the user needs chapter, fragment, summary, node, or sentence text as prose.
+6. Use `evidence` before quoting or making source-backed claims.
+7. Use `links`, `backlinks`, or `path` to navigate graph context.
+8. Use `export` only when the user needs a projection.
+9. Before `build`, run `estimate`; if the estimate is too large for the session, ask the user.
 
 ## Build Workflow
 
