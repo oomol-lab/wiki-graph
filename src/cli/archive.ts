@@ -29,7 +29,7 @@ import type { Document } from "../document/index.js";
 
 import type { CLIArchiveArguments } from "./args.js";
 import { runConvertCommand } from "./convert.js";
-import { writeTextToStdout } from "./io.js";
+import { readTextStreamFromStdin, writeTextToStdout } from "./io.js";
 import { runSdpubStageCommand } from "./sdpub-stage.js";
 
 export async function runArchiveCommand(
@@ -37,9 +37,6 @@ export async function runArchiveCommand(
 ): Promise<void> {
   switch (args.action) {
     case "import":
-      if (args.sourcePath === undefined) {
-        throw new Error("Internal error: missing import source path.");
-      }
       await importArchive(args);
       return;
     case "build": {
@@ -185,7 +182,8 @@ export async function runArchiveCommand(
 
 async function importArchive(args: CLIArchiveArguments): Promise<void> {
   if (args.sourcePath === undefined) {
-    throw new Error("Internal error: missing import source path.");
+    await importArchiveFromStdin(args);
+    return;
   }
 
   if (!isUrl(args.sourcePath)) {
@@ -224,6 +222,42 @@ async function importArchive(args: CLIArchiveArguments): Promise<void> {
     await runConvertCommand({
       help: false,
       inputFormat: args.inputFormat ?? "markdown",
+      inputPath: sourcePath,
+      ...(args.llmJSON === undefined ? {} : { llmJSON: args.llmJSON }),
+      outputFormat: "sdpub",
+      outputPath: args.archivePath,
+      ...(args.prompt === undefined ? {} : { prompt: args.prompt }),
+      targetStage: "sourced",
+      verbose: false,
+    });
+  } finally {
+    await rm(temporaryDirectoryPath, { force: true, recursive: true });
+  }
+}
+
+async function importArchiveFromStdin(
+  args: CLIArchiveArguments,
+): Promise<void> {
+  if (args.inputFormat === undefined) {
+    throw new Error("Internal error: missing stdin import format.");
+  }
+  if (process.stdin.isTTY) {
+    throw new Error(
+      "Missing source input. Pipe text into stdin or pass a source path.",
+    );
+  }
+
+  const temporaryDirectoryPath = await mkdtemp(
+    join(tmpdir(), "spinedigest-stdin-import-"),
+  );
+  const extension = args.inputFormat === "markdown" ? ".md" : ".txt";
+  const sourcePath = join(temporaryDirectoryPath, `source${extension}`);
+
+  try {
+    await writeFile(sourcePath, await readAllText(readTextStreamFromStdin()));
+    await runConvertCommand({
+      help: false,
+      inputFormat: args.inputFormat,
       inputPath: sourcePath,
       ...(args.llmJSON === undefined ? {} : { llmJSON: args.llmJSON }),
       outputFormat: "sdpub",
@@ -366,7 +400,9 @@ async function writePage(page: ArchivePage, json: boolean): Promise<void> {
           `Stage: ${page.chapter.stage}`,
           `Fragments: ${page.chapter.fragmentCount}`,
           "",
-          page.content ?? "[summary missing]",
+          page.content === undefined
+            ? formatChapterSourcePreview(page)
+            : page.content,
         ].join("\n") + "\n",
       );
       return;
@@ -378,6 +414,17 @@ async function writePage(page: ArchivePage, json: boolean): Promise<void> {
         page.meta === undefined
           ? "No metadata.\n"
           : `${JSON.stringify(page.meta, null, 2)}\n`,
+      );
+      return;
+    case "fragment":
+      await writeTextToStdout(
+        [
+          `${page.id}`,
+          `Sentences: ${page.fragment.sentenceCount}`,
+          `Words: ${page.fragment.wordsCount}`,
+          "",
+          page.fragment.text,
+        ].join("\n") + "\n",
       );
       return;
     case "node":
@@ -526,6 +573,8 @@ function formatPackAnchor(anchor: ArchivePage): string {
       return `${anchor.id} ${anchor.title}\n${anchor.content ?? "[summary missing]"}`;
     case "evidence":
       return `${anchor.id}\n${anchor.text}`;
+    case "fragment":
+      return `${anchor.id}\n${anchor.fragment.text}`;
     case "meta":
       return `${anchor.id}\n${JSON.stringify(anchor.meta, null, 2)}`;
     case "node":
@@ -533,6 +582,36 @@ function formatPackAnchor(anchor: ArchivePage): string {
     case "summary":
       return `${anchor.id} ${anchor.title}\n${anchor.content}`;
   }
+}
+
+function formatChapterSourcePreview(
+  page: Extract<ArchivePage, { readonly type: "chapter" }>,
+): string {
+  const lines = ["[summary missing]"];
+
+  if (page.sourcePreview !== undefined) {
+    lines.push("", "Source Preview:", page.sourcePreview);
+  }
+
+  if (page.fragments.length > 0) {
+    lines.push(
+      "",
+      "Fragments:",
+      ...page.fragments.map(
+        (fragment) =>
+          `  ${fragment.id}  ${fragment.sentenceCount} sentences, ${fragment.wordsCount} words`,
+      ),
+    );
+  }
+
+  lines.push(
+    "",
+    "Next:",
+    "  spinedigest find <archive.sdpub> <keyword>",
+    `  spinedigest build <archive.sdpub> --chapter ${page.chapter.chapterId} --stage graph --confirm`,
+  );
+
+  return lines.join("\n");
 }
 
 function truncateToBudget(text: string, budget: number): string {
@@ -555,4 +634,14 @@ function isUrl(value: string): boolean {
 
 function formatFetchedUrlSource(url: string, text: string): string {
   return [`# ${url}`, "", text].join("\n");
+}
+
+async function readAllText(stream: AsyncIterable<string>): Promise<string> {
+  let text = "";
+
+  for await (const chunk of stream) {
+    text += chunk;
+  }
+
+  return text;
 }

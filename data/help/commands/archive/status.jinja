@@ -1,0 +1,18 @@
+Help Type: command
+Command: spinedigest status
+
+Purpose:
+  Show archive readiness and object counts.
+
+Usage:
+  spinedigest status <archive.sdpub> [--json]
+
+Contract:
+  - Mutates: no.
+  - LLM: no.
+  - JSON: yes.
+  - Note: bare `spinedigest status` shows config status.
+
+Examples:
+  spinedigest status book.sdpub
+  spinedigest status book.sdpub --json

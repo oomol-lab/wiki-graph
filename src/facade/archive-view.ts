@@ -18,6 +18,7 @@ export type ArchiveObjectType =
   | "chapter"
   | "edge"
   | "evidence"
+  | "fragment"
   | "meta"
   | "node"
   | "summary";
@@ -42,6 +43,7 @@ export type ArchiveFindField =
   | "content"
   | "evidence"
   | "metadata"
+  | "source"
   | "summary"
   | "title";
 
@@ -49,6 +51,7 @@ export type ArchiveListKind =
   | "chapters"
   | "edges"
   | "evidence"
+  | "fragments"
   | "meta"
   | "nodes"
   | "summaries";
@@ -64,7 +67,9 @@ export type ArchivePage =
   | {
       readonly chapter: ChapterEntry;
       readonly content: string | undefined;
+      readonly fragments: readonly ArchiveSourceFragment[];
       readonly id: string;
+      readonly sourcePreview: string | undefined;
       readonly title: string;
       readonly type: "chapter";
     }
@@ -75,6 +80,12 @@ export type ArchivePage =
       readonly node: GraphNode;
       readonly title: string;
       readonly type: "node";
+    }
+  | {
+      readonly fragment: ArchiveSourceFragment;
+      readonly id: string;
+      readonly title: string;
+      readonly type: "fragment";
     }
   | {
       readonly id: string;
@@ -121,6 +132,14 @@ export interface ArchivePack {
   readonly budget: number;
   readonly evidence: readonly GraphEvidenceLine[];
   readonly links: readonly GraphNeighbor[];
+}
+
+export interface ArchiveSourceFragment {
+  readonly id: string;
+  readonly preview: string;
+  readonly sentenceCount: number;
+  readonly text: string;
+  readonly wordsCount: number;
 }
 
 export async function getArchiveIndex(
@@ -199,6 +218,22 @@ export async function listArchiveObjects(
           }),
         )
       ).filter(isDefined);
+    case "fragments":
+      return (
+        await Promise.all(
+          (await listChapters(document)).map(
+            async (chapter) =>
+              await listChapterSourceFragments(document, chapter.chapterId),
+          ),
+        )
+      )
+        .flat()
+        .map((fragment) => ({
+          id: fragment.id,
+          label: fragment.id,
+          summary: fragment.preview,
+          type: "fragment" as const,
+        }));
   }
 }
 
@@ -230,11 +265,17 @@ export async function readArchivePage(
   switch (reference.type) {
     case "chapter": {
       const chapter = await requireChapter(document, reference.id);
+      const fragments = await listChapterSourceFragments(
+        document,
+        reference.id,
+      );
 
       return {
         chapter,
         content: await document.readSummary(reference.id),
+        fragments,
         id: formatChapterId(reference.id),
+        sourcePreview: createSourcePreview(fragments),
         title: chapter.title ?? `[chapter ${reference.id}]`,
         type: "chapter",
       };
@@ -248,6 +289,20 @@ export async function readArchivePage(
         text,
         title: formatSentenceId(reference.sentenceId),
         type: "evidence",
+      };
+    }
+    case "fragment": {
+      const fragment = await readSourceFragment(
+        document,
+        reference.serialId,
+        reference.fragmentId,
+      );
+
+      return {
+        fragment,
+        id: fragment.id,
+        title: fragment.id,
+        type: "fragment",
       };
     }
     case "meta":
@@ -311,6 +366,7 @@ export async function readArchiveEvidence(
         },
       ];
     case "chapter":
+    case "fragment":
     case "meta":
     case "summary":
       return [];
@@ -455,6 +511,10 @@ export function formatSummaryId(chapterId: number): string {
   return `summary:${chapterId}`;
 }
 
+export function formatFragmentId(serialId: number, fragmentId: number): string {
+  return `fragment:${serialId}:${fragmentId}`;
+}
+
 async function listEvidenceObjects(
   document: Document,
 ): Promise<readonly ArchiveListItem[]> {
@@ -505,9 +565,84 @@ async function findChapters(
         type: "summary",
       });
     }
+
+    for (const fragment of await listChapterSourceFragments(
+      document,
+      chapter.chapterId,
+    )) {
+      if (matches(fragment.text, needle)) {
+        hits.push({
+          field: "source",
+          id: fragment.id,
+          snippet: createSnippet(fragment.text, needle),
+          title,
+          type: "fragment",
+        });
+      }
+    }
   }
 
   return hits;
+}
+
+async function listChapterSourceFragments(
+  document: Document,
+  chapterId: number,
+): Promise<readonly ArchiveSourceFragment[]> {
+  const fragments = document.getSerialFragments(chapterId);
+
+  return await Promise.all(
+    (await fragments.listFragmentIds()).map(async (fragmentId) => {
+      const fragment = await fragments.getFragment(fragmentId);
+      const text = fragment.sentences
+        .map((sentence) => sentence.text)
+        .join("\n");
+
+      return {
+        id: formatFragmentId(chapterId, fragmentId),
+        preview: createSnippet(text),
+        sentenceCount: fragment.sentences.length,
+        text,
+        wordsCount: fragment.sentences.reduce(
+          (total, sentence) => total + sentence.wordsCount,
+          0,
+        ),
+      };
+    }),
+  );
+}
+
+async function readSourceFragment(
+  document: Document,
+  serialId: number,
+  fragmentId: number,
+): Promise<ArchiveSourceFragment> {
+  const fragment = await document
+    .getSerialFragments(serialId)
+    .getFragment(fragmentId);
+  const text = fragment.sentences.map((sentence) => sentence.text).join("\n");
+
+  return {
+    id: formatFragmentId(serialId, fragmentId),
+    preview: createSnippet(text),
+    sentenceCount: fragment.sentences.length,
+    text,
+    wordsCount: fragment.sentences.reduce(
+      (total, sentence) => total + sentence.wordsCount,
+      0,
+    ),
+  };
+}
+
+function createSourcePreview(
+  fragments: readonly ArchiveSourceFragment[],
+): string | undefined {
+  const text = fragments
+    .map((fragment) => fragment.text)
+    .join("\n")
+    .trim();
+
+  return text === "" ? undefined : createSnippet(text);
 }
 
 function findMeta(
@@ -669,6 +804,11 @@ function parseArchiveReference(id: string):
       readonly type: "node";
     }
   | {
+      readonly fragmentId: number;
+      readonly serialId: number;
+      readonly type: "fragment";
+    }
+  | {
       readonly sentenceId: SentenceId;
       readonly type: "evidence";
     }
@@ -692,6 +832,19 @@ function parseArchiveReference(id: string):
     return {
       id: parsedId,
       type: "node",
+    };
+  }
+  if (type === "fragment") {
+    const parts = normalized.slice("fragment:".length).split(":");
+
+    if (parts.length !== 2) {
+      throw new Error(`Invalid archive object id: ${id}`);
+    }
+
+    return {
+      fragmentId: parseNonNegativeInteger(parts[1], normalized),
+      serialId: parsePositiveInteger(parts[0], normalized),
+      type: "fragment",
     };
   }
   if (type === "sentence") {

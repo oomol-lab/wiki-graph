@@ -1,0 +1,17 @@
+Help Type: command
+Command: spinedigest ls
+
+Purpose:
+  List archive objects.
+
+Usage:
+  spinedigest ls <archive.sdpub> [chapters|nodes|edges|evidence|fragments|summaries|meta] [--json]
+
+Contract:
+  - Mutates: no.
+  - LLM: no.
+  - JSON: yes.
+
+Examples:
+  spinedigest ls book.sdpub chapters
+  spinedigest ls book.sdpub fragments --json

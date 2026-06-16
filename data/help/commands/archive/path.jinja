@@ -1,0 +1,17 @@
+Help Type: command
+Command: spinedigest path
+
+Purpose:
+  Find a directed path between two graph nodes in one chapter.
+
+Usage:
+  spinedigest path <archive.sdpub> <node:id> <node:id> --chapter <id>
+
+Contract:
+  - Mutates: no.
+  - LLM: no.
+  - JSON: no.
+  - Requires graph data.
+
+Examples:
+  spinedigest path book.sdpub node:84 node:120 --chapter 3

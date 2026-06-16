@@ -53,6 +53,7 @@ Import source material into an archive:
 
 ```bash
 spinedigest import ./book.sdpub ./book.epub
+cat ./article.md | spinedigest import ./article.sdpub --input-format markdown
 ```
 
 Inspect the archive before expensive work:

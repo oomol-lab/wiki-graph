@@ -11,7 +11,7 @@ spinedigest <action> <archive.sdpub> ...
 ## Archive Commands
 
 ```bash
-spinedigest import <archive.sdpub> <source> [--input-format <format>] [--llm <json>] [--prompt <text>] [--confirm]
+spinedigest import <archive.sdpub> [source] [--input-format <format>] [--llm <json>] [--prompt <text>] [--confirm]
 spinedigest build <archive.sdpub> [--stage <source|graph|summary|ready>] [--chapter <id>] [--llm <json>] [--prompt <text>] [--confirm]
 spinedigest estimate <archive.sdpub> [--stage <source|graph|summary|ready>] [--json]
 spinedigest status <archive.sdpub> [--json]

@@ -53,6 +53,7 @@ SpineDigest 的主对象是 `.sdpub`：一份由 CLI 管理的知识归档，而
 
 ```bash
 spinedigest import ./book.sdpub ./book.epub
+cat ./article.md | spinedigest import ./article.sdpub --input-format markdown
 ```
 
 在启动昂贵构建之前先查看和估算：

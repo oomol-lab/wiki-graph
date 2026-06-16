@@ -1,0 +1,19 @@
+Help Type: command
+Command: spinedigest page
+
+Purpose:
+  Read one archive object by id.
+
+Usage:
+  spinedigest page <archive.sdpub> <id> [--json]
+
+Contract:
+  - Mutates: no.
+  - LLM: no.
+  - JSON: yes.
+  - For sourced chapters without summaries, prints source preview and fragment ids.
+
+Examples:
+  spinedigest page book.sdpub chapter:1
+  spinedigest page book.sdpub fragment:1:0
+  spinedigest page book.sdpub node:84

@@ -4,6 +4,7 @@ import { createEnv } from "../common/template.js";
 import { CLI_FORMATS } from "./formats.js";
 import { CLI_HELP_ROUTES, withHelpRoute } from "./errors.js";
 import type {
+  CLIArchiveAction,
   CLISdpubChapterAction,
   CLISdpubGraphAction,
   CLISdpubStageAction,
@@ -25,6 +26,26 @@ export const HELP_TOPICS = [
 ] as const;
 
 export type HelpTopic = (typeof HELP_TOPICS)[number];
+
+export const ARCHIVE_COMMANDS = [
+  "import",
+  "build",
+  "estimate",
+  "status",
+  "index",
+  "ls",
+  "find",
+  "grep",
+  "page",
+  "evidence",
+  "links",
+  "backlinks",
+  "related",
+  "path",
+  "map",
+  "pack",
+  "export",
+] as const satisfies readonly CLIArchiveAction[];
 
 export const SDPUB_SUBCOMMANDS = [
   "info",
@@ -159,6 +180,10 @@ export function renderMainHelpText(): string {
 
 export function renderStatusHelpText(): string {
   return renderHelpTemplate("help/commands/status");
+}
+
+export function renderArchiveCommandHelpText(action: CLIArchiveAction): string {
+  return renderHelpTemplate(`help/commands/archive/${action}`);
 }
 
 export function renderHelpTopicText(topic: HelpTopic): string {

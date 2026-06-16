@@ -32,6 +32,7 @@ npx spinedigest --help
 
 ```bash
 spinedigest import ./book.sdpub ./book.md
+cat ./article.md | spinedigest import ./article.sdpub --input-format markdown
 ```
 
 Import creates or replaces a `.sdpub` archive at source stage. It does not mean the archive is fully graph-built or summarized.

@@ -1,0 +1,18 @@
+Help Type: command
+Command: spinedigest find
+
+Purpose:
+  Search all agent-readable archive objects, including sourced fragments.
+
+Usage:
+  spinedigest find <archive.sdpub> <query> [--json]
+
+Contract:
+  - Mutates: no.
+  - LLM: no.
+  - Searches: metadata, chapter titles, summaries, graph nodes, evidence, and source fragments.
+  - JSON: yes.
+
+Examples:
+  spinedigest find book.sdpub "Wiki"
+  spinedigest find book.sdpub "evidence" --json

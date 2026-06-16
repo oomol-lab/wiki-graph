@@ -95,6 +95,24 @@ describe("cli/args", () => {
     });
   });
 
+  it("renders archive command help", () => {
+    const importHelp = parseCLIArguments(["import", "--help"]);
+    const helpTopic = parseCLIArguments(["help", "import"]);
+
+    expect(importHelp.help).toBe(true);
+    expect(importHelp.kind).toBe("help");
+    expect(helpTopic.help).toBe(true);
+    expect(helpTopic.kind).toBe("help");
+    if (!importHelp.help || importHelp.kind !== "help") {
+      throw new Error("Expected import help");
+    }
+    if (!helpTopic.help || helpTopic.kind !== "help") {
+      throw new Error("Expected help topic");
+    }
+    expect(importHelp.helpText).toContain("Command: spinedigest import");
+    expect(helpTopic.helpText).toContain("stdin: supported");
+  });
+
   it("parses --prompt for the main convert command", () => {
     expect(parseCLIArguments(["--prompt", "Keep dialogue only"])).toStrictEqual(
       {
@@ -171,6 +189,18 @@ describe("cli/args", () => {
         archivePath: "book.sdpub",
         inputFormat: "markdown",
         sourcePath: "book.md",
+      },
+      help: false,
+      kind: "archive",
+    });
+
+    expect(
+      parseCLIArguments(["import", "book.sdpub", "--input-format", "markdown"]),
+    ).toStrictEqual({
+      args: {
+        action: "import",
+        archivePath: "book.sdpub",
+        inputFormat: "markdown",
       },
       help: false,
       kind: "archive",

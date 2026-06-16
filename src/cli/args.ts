@@ -9,6 +9,7 @@ import {
 import { CHAPTER_STAGES, type ChapterStage } from "../facade/index.js";
 import {
   parseHelpTopic,
+  renderArchiveCommandHelpText,
   renderHelpTopicText,
   renderMainHelpText,
   renderSdpubChapterActionHelpText,
@@ -153,6 +154,7 @@ export interface CLIArchiveArguments {
     | "chapters"
     | "edges"
     | "evidence"
+    | "fragments"
     | "meta"
     | "nodes"
     | "summaries";
@@ -182,6 +184,24 @@ interface SdpubMetaFlagValues {
   readonly "published-at"?: string;
   readonly publisher?: string;
   readonly title?: string;
+}
+
+interface ArchiveArgumentValues {
+  readonly budget?: string;
+  readonly chapter?: string;
+  readonly confirm?: boolean;
+  readonly help?: boolean;
+  readonly input?: string;
+  readonly "input-format"?: string;
+  readonly json?: boolean;
+  readonly limit?: string;
+  readonly llm?: string;
+  readonly output?: string;
+  readonly "output-format"?: string;
+  readonly prompt?: string;
+  readonly stage?: string;
+  readonly to?: string;
+  readonly verbose?: boolean;
 }
 
 export type ParsedCLIArguments =
@@ -705,36 +725,21 @@ function parseSdpubArguments(
 function parseArchiveArguments(
   action: CLIArchiveAction,
   positionals: readonly string[],
-  values: {
-    readonly budget?: string;
-    readonly chapter?: string;
-    readonly confirm?: boolean;
-    readonly help?: boolean;
-    readonly input?: string;
-    readonly "input-format"?: string;
-    readonly json?: boolean;
-    readonly limit?: string;
-    readonly llm?: string;
-    readonly output?: string;
-    readonly "output-format"?: string;
-    readonly prompt?: string;
-    readonly stage?: string;
-    readonly to?: string;
-    readonly verbose?: boolean;
-  },
+  values: ArchiveArgumentValues,
 ): ParsedCLIArguments {
+  const normalized = normalizeArchiveInlineOptions(positionals, values);
+
+  positionals = normalized.positionals;
+  values = normalized.values;
+
   const archivePath = positionals[0];
   const helpRoute = `spinedigest ${action} --help`;
 
   if (values.help === true) {
     return {
-      args: {
-        help: true,
-        verbose: false,
-      },
       help: true,
-      helpText: renderMainHelpText(),
-      kind: "convert",
+      helpText: renderArchiveCommandHelpText(action),
+      kind: "help",
     };
   }
 
@@ -758,12 +763,30 @@ function parseArchiveArguments(
 
   switch (action) {
     case "import": {
-      const sourcePath = positionals[1] ?? values.input;
+      const rawSourcePath = positionals[1] ?? values.input;
+      const sourcePath = rawSourcePath === "-" ? undefined : rawSourcePath;
+      const inputFormat =
+        values["input-format"] === undefined
+          ? undefined
+          : parseCLIFormat(values["input-format"], "--input-format");
 
-      if (sourcePath === undefined || sourcePath === "-") {
+      if (sourcePath === undefined && inputFormat === undefined) {
         throw new Error(
           withHelpRoute(
-            "`spinedigest import` requires a source path after the archive path.",
+            "`spinedigest import` requires a source path, or --input-format when reading source text from stdin.",
+            helpRoute,
+          ),
+        );
+      }
+      if (
+        sourcePath === undefined &&
+        inputFormat !== undefined &&
+        inputFormat !== "markdown" &&
+        inputFormat !== "txt"
+      ) {
+        throw new Error(
+          withHelpRoute(
+            "stdin import only supports --input-format markdown or txt.",
             helpRoute,
           ),
         );
@@ -787,17 +810,10 @@ function parseArchiveArguments(
         args: {
           action,
           archivePath,
-          ...(values["input-format"] === undefined
-            ? {}
-            : {
-                inputFormat: parseCLIFormat(
-                  values["input-format"],
-                  "--input-format",
-                ),
-              }),
+          ...(inputFormat === undefined ? {} : { inputFormat }),
           ...(values.llm === undefined ? {} : { llmJSON: values.llm }),
           ...(values.prompt === undefined ? {} : { prompt: values.prompt }),
-          sourcePath,
+          ...(sourcePath === undefined ? {} : { sourcePath }),
         },
         help: false,
         kind: "archive",
@@ -1869,6 +1885,14 @@ function parseHelpArguments(
     };
   }
 
+  if (isArchiveAction(positionals[0])) {
+    return {
+      help: true,
+      helpText: renderArchiveCommandHelpText(positionals[0]),
+      kind: "help",
+    };
+  }
+
   return {
     help: true,
     helpText: renderHelpTopicText(parseHelpTopic(positionals[0])),
@@ -2504,6 +2528,7 @@ function isArchiveAction(value: string | undefined): value is CLIArchiveAction {
     value === "build" ||
     value === "estimate" ||
     value === "evidence" ||
+    value === "fragments" ||
     value === "export" ||
     value === "find" ||
     value === "grep" ||
@@ -2575,7 +2600,7 @@ function parseArchiveListKind(
 
   throw new Error(
     withHelpRoute(
-      `Invalid list kind: ${value}. Expected chapters, nodes, edges, evidence, summaries, or meta.`,
+      `Invalid list kind: ${value}. Expected chapters, nodes, edges, evidence, fragments, summaries, or meta.`,
       "spinedigest ls --help",
     ),
   );
@@ -2612,6 +2637,63 @@ function parsePositiveIntegerFlag(
   }
 
   return parsed;
+}
+
+function normalizeArchiveInlineOptions(
+  positionals: readonly string[],
+  values: ArchiveArgumentValues,
+): {
+  readonly positionals: readonly string[];
+  readonly values: ArchiveArgumentValues;
+} {
+  const normalizedPositionals: string[] = [];
+  const normalizedValues: Record<string, boolean | string | undefined> = {
+    ...values,
+  };
+
+  for (let index = 0; index < positionals.length; index += 1) {
+    const item = positionals[index];
+
+    if (item === undefined) {
+      continue;
+    }
+
+    switch (item) {
+      case "--json":
+      case "--confirm":
+        normalizedValues[item.slice(2)] = true;
+        continue;
+      case "--budget":
+      case "--chapter":
+      case "--input":
+      case "--input-format":
+      case "--limit":
+      case "--llm":
+      case "--output":
+      case "--output-format":
+      case "--prompt":
+      case "--stage":
+      case "--to": {
+        const value = positionals[index + 1];
+
+        if (value === undefined) {
+          normalizedPositionals.push(item);
+          continue;
+        }
+
+        normalizedValues[item.slice(2)] = value;
+        index += 1;
+        continue;
+      }
+      default:
+        normalizedPositionals.push(item);
+    }
+  }
+
+  return {
+    positionals: normalizedPositionals,
+    values: normalizedValues,
+  };
 }
 
 function rejectArchiveExtraPositionals(

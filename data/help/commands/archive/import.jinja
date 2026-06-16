@@ -1,0 +1,18 @@
+Help Type: command
+Command: spinedigest import
+
+Purpose:
+  Import source material into an LLM Wiki archive at source stage.
+
+Usage:
+  spinedigest import <archive.sdpub> [source] [--input-format <format>] [--llm <json>] [--prompt <text>]
+
+Contract:
+  - Mutates: yes, writes the archive path.
+  - LLM: no; import stops at source stage.
+  - stdin: supported with --input-format markdown or txt.
+  - JSON: no.
+
+Examples:
+  spinedigest import book.sdpub ./book.md --input-format markdown
+  cat article.md | spinedigest import article.sdpub --input-format markdown
