@@ -50,7 +50,7 @@ Use the library API only when the surrounding system explicitly needs in-process
 spinedigest import book.sdpub ./book.epub
 spinedigest status book.sdpub
 spinedigest estimate book.sdpub --stage ready
-spinedigest build book.sdpub --stage graph --chapter 3
+spinedigest build book.sdpub --stage graph --chapter 3 --confirm
 ```
 
 Import/source is the safe first step. Graph and summary stages may call an LLM provider.

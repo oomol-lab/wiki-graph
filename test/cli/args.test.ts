@@ -176,12 +176,22 @@ describe("cli/args", () => {
       kind: "archive",
     });
 
-    expect(
+    expect(() =>
       parseCLIArguments(["build", "book.sdpub", "--stage", "graph"]),
+    ).toThrow("This build may call an LLM.");
+    expect(
+      parseCLIArguments([
+        "build",
+        "book.sdpub",
+        "--stage",
+        "graph",
+        "--confirm",
+      ]),
     ).toStrictEqual({
       args: {
         action: "build",
         archivePath: "book.sdpub",
+        confirm: true,
         targetStage: "graphed",
       },
       help: false,
@@ -206,6 +216,19 @@ describe("cli/args", () => {
         action: "ls",
         archivePath: "book.sdpub",
         listKind: "nodes",
+      },
+      help: false,
+      kind: "archive",
+    });
+
+    expect(
+      parseCLIArguments(["pack", "book.sdpub", "node:1", "--budget", "2000"]),
+    ).toStrictEqual({
+      args: {
+        action: "pack",
+        archivePath: "book.sdpub",
+        budget: 2000,
+        objectId: "node:1",
       },
       help: false,
       kind: "archive",

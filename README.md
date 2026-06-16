@@ -66,7 +66,7 @@ spinedigest estimate ./book.sdpub --stage ready
 Build derived knowledge when you intend to spend LLM time:
 
 ```bash
-spinedigest build ./book.sdpub --stage graph
+spinedigest build ./book.sdpub --stage graph --confirm
 ```
 
 Search and read through the archive interface:
@@ -76,6 +76,8 @@ spinedigest find ./book.sdpub "RAG"
 spinedigest page ./book.sdpub node:84
 spinedigest evidence ./book.sdpub node:84
 spinedigest links ./book.sdpub node:84
+spinedigest related ./book.sdpub node:84
+spinedigest pack ./book.sdpub node:84 --budget 5000
 ```
 
 Export a projection only when you need a portable view:

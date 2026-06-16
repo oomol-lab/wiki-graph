@@ -16,13 +16,15 @@ Archive-first commands:
   evidence    Show source evidence for an object.
   links       Show outgoing node links.
   backlinks   Show incoming node links.
+  related     Show graph-adjacent knowledge units.
   path        Find a directed graph path between two nodes in one chapter.
   map         Print graph edges.
+  pack        Pack deterministic context around a known object id.
   export      Export a projection from the archive.
 
 Command shapes:
   spinedigest import <archive.sdpub> <source> [--input-format <format>]
-  spinedigest build <archive.sdpub> [--stage <source|graph|summary|ready>] [--chapter <id>]
+  spinedigest build <archive.sdpub> [--stage <source|graph|summary|ready>] [--chapter <id>] [--confirm]
   spinedigest estimate <archive.sdpub> [--stage <source|graph|summary|ready>] [--json]
   spinedigest status <archive.sdpub> [--json]
   spinedigest index <archive.sdpub> [--json]
@@ -30,6 +32,8 @@ Command shapes:
   spinedigest find <archive.sdpub> <query> [--json]
   spinedigest page <archive.sdpub> <id> [--json]
   spinedigest evidence <archive.sdpub> <id> [--json]
+  spinedigest related <archive.sdpub> <node:id> [--json]
+  spinedigest pack <archive.sdpub> <id> [--budget <chars>] [--json]
   spinedigest export <archive.sdpub> --output-format <format> [--output <path>]
 
 Legacy compatibility:

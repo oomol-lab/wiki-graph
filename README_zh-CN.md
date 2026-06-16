@@ -66,7 +66,7 @@ spinedigest estimate ./book.sdpub --stage ready
 明确要花 LLM 成本时，再构建派生知识：
 
 ```bash
-spinedigest build ./book.sdpub --stage graph
+spinedigest build ./book.sdpub --stage graph --confirm
 ```
 
 通过归档接口搜索和阅读：
@@ -76,6 +76,8 @@ spinedigest find ./book.sdpub "RAG"
 spinedigest page ./book.sdpub node:84
 spinedigest evidence ./book.sdpub node:84
 spinedigest links ./book.sdpub node:84
+spinedigest related ./book.sdpub node:84
+spinedigest pack ./book.sdpub node:84 --budget 5000
 ```
 
 只有需要便携视图时再导出 projection：

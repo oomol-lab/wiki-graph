@@ -49,13 +49,13 @@ Use the estimate before full-archive graph, summary, or ready builds.
 ## 5. Build Knowledge
 
 ```bash
-spinedigest build ./book.sdpub --stage graph
+spinedigest build ./book.sdpub --stage graph --confirm
 ```
 
 For scoped work:
 
 ```bash
-spinedigest build ./book.sdpub --stage graph --chapter 3
+spinedigest build ./book.sdpub --stage graph --chapter 3 --confirm
 ```
 
 ## 6. Search And Read

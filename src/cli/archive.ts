@@ -1,8 +1,14 @@
+import { mkdtemp, rm, writeFile } from "fs/promises";
+import { join } from "path";
+import { tmpdir } from "os";
+
 import {
   findGraphPath,
   getArchiveIndex,
   listArchiveLinks,
   listArchiveObjects,
+  listRelatedArchiveObjects,
+  packArchiveContext,
   readArchiveEvidence,
   readArchivePage,
   estimateArchiveBuild,
@@ -12,6 +18,7 @@ import {
   type ArchiveFindHit,
   type ArchiveIndex,
   type ArchiveListItem,
+  type ArchivePack,
   type ArchivePage,
   type GraphEvidenceLine,
   type GraphNeighbor,
@@ -33,19 +40,7 @@ export async function runArchiveCommand(
       if (args.sourcePath === undefined) {
         throw new Error("Internal error: missing import source path.");
       }
-      await runConvertCommand({
-        help: false,
-        inputPath: args.sourcePath,
-        outputPath: args.archivePath,
-        ...(args.inputFormat === undefined
-          ? {}
-          : { inputFormat: args.inputFormat }),
-        ...(args.llmJSON === undefined ? {} : { llmJSON: args.llmJSON }),
-        outputFormat: "sdpub",
-        ...(args.prompt === undefined ? {} : { prompt: args.prompt }),
-        targetStage: "sourced",
-        verbose: false,
-      });
+      await importArchive(args);
       return;
     case "build": {
       const targetStage =
@@ -143,6 +138,26 @@ export async function runArchiveCommand(
       });
       return;
     }
+    case "related":
+      await withArchiveDocument(args.archivePath, async (document) => {
+        await writeList(
+          await listRelatedArchiveObjects(document, args.objectId!),
+          args.json ?? false,
+        );
+      });
+      return;
+    case "pack":
+      await withArchiveDocument(args.archivePath, async (document) => {
+        await writePack(
+          await packArchiveContext(
+            document,
+            args.objectId!,
+            args.budget ?? 5000,
+          ),
+          args.json ?? false,
+        );
+      });
+      return;
     case "map":
       await withArchiveDocument(args.archivePath, async (document) => {
         await writeMap(
@@ -165,6 +180,60 @@ export async function runArchiveCommand(
         );
       });
       return;
+  }
+}
+
+async function importArchive(args: CLIArchiveArguments): Promise<void> {
+  if (args.sourcePath === undefined) {
+    throw new Error("Internal error: missing import source path.");
+  }
+
+  if (!isUrl(args.sourcePath)) {
+    await runConvertCommand({
+      help: false,
+      inputPath: args.sourcePath,
+      outputPath: args.archivePath,
+      ...(args.inputFormat === undefined
+        ? {}
+        : { inputFormat: args.inputFormat }),
+      ...(args.llmJSON === undefined ? {} : { llmJSON: args.llmJSON }),
+      outputFormat: "sdpub",
+      ...(args.prompt === undefined ? {} : { prompt: args.prompt }),
+      targetStage: "sourced",
+      verbose: false,
+    });
+    return;
+  }
+
+  const temporaryDirectoryPath = await mkdtemp(
+    join(tmpdir(), "spinedigest-url-import-"),
+  );
+  const sourcePath = join(temporaryDirectoryPath, "source.md");
+
+  try {
+    const response = await fetch(args.sourcePath);
+
+    if (!response.ok) {
+      throw new Error(
+        `Failed to fetch ${args.sourcePath}: ${response.status} ${response.statusText}`,
+      );
+    }
+
+    const text = await response.text();
+    await writeFile(sourcePath, formatFetchedUrlSource(args.sourcePath, text));
+    await runConvertCommand({
+      help: false,
+      inputFormat: args.inputFormat ?? "markdown",
+      inputPath: sourcePath,
+      ...(args.llmJSON === undefined ? {} : { llmJSON: args.llmJSON }),
+      outputFormat: "sdpub",
+      outputPath: args.archivePath,
+      ...(args.prompt === undefined ? {} : { prompt: args.prompt }),
+      targetStage: "sourced",
+      verbose: false,
+    });
+  } finally {
+    await rm(temporaryDirectoryPath, { force: true, recursive: true });
   }
 }
 
@@ -383,6 +452,30 @@ async function writeMap(
   await writeTextToStdout(`${edges.map((edge) => edge.label).join("\n")}\n`);
 }
 
+async function writePack(pack: ArchivePack, json: boolean): Promise<void> {
+  if (json) {
+    await writeTextToStdout(`${JSON.stringify(pack, null, 2)}\n`);
+    return;
+  }
+
+  const lines = [
+    `Pack Budget: ${pack.budget}`,
+    "",
+    "# Anchor",
+    formatPackAnchor(pack.anchor),
+    "",
+    "# Evidence",
+    ...formatEvidenceLines(pack.evidence),
+    "",
+    "# Links",
+    ...formatNeighborLines(pack.links),
+  ];
+
+  await writeTextToStdout(
+    `${truncateToBudget(lines.join("\n"), pack.budget)}\n`,
+  );
+}
+
 function formatPath(steps: readonly GraphPathStep[]): string {
   if (steps.length === 0) {
     return "No path.\n";
@@ -425,4 +518,41 @@ function formatDuration(seconds: number): string {
   }
 
   return `${Math.round(minutes / 60)}h`;
+}
+
+function formatPackAnchor(anchor: ArchivePage): string {
+  switch (anchor.type) {
+    case "chapter":
+      return `${anchor.id} ${anchor.title}\n${anchor.content ?? "[summary missing]"}`;
+    case "evidence":
+      return `${anchor.id}\n${anchor.text}`;
+    case "meta":
+      return `${anchor.id}\n${JSON.stringify(anchor.meta, null, 2)}`;
+    case "node":
+      return `${anchor.id} ${anchor.node.label}\n${anchor.node.content}`;
+    case "summary":
+      return `${anchor.id} ${anchor.title}\n${anchor.content}`;
+  }
+}
+
+function truncateToBudget(text: string, budget: number): string {
+  if (text.length <= budget) {
+    return text;
+  }
+
+  return `${text.slice(0, Math.max(0, budget - 20))}\n[truncated]`;
+}
+
+function isUrl(value: string): boolean {
+  try {
+    const url = new URL(value);
+
+    return url.protocol === "http:" || url.protocol === "https:";
+  } catch {
+    return false;
+  }
+}
+
+function formatFetchedUrlSource(url: string, text: string): string {
+  return [`# ${url}`, "", text].join("\n");
 }

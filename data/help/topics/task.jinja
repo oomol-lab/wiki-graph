@@ -12,8 +12,8 @@ Estimate before expensive build:
   spinedigest estimate book.sdpub --stage graph --json
 
 Build scoped knowledge:
-  spinedigest build book.sdpub --stage graph --chapter 3
-  spinedigest build book.sdpub --stage summary --chapter 3
+  spinedigest build book.sdpub --stage graph --chapter 3 --confirm
+  spinedigest build book.sdpub --stage summary --chapter 3 --confirm
 
 Browse an existing archive:
   spinedigest status book.sdpub
@@ -29,8 +29,13 @@ Search and read:
 Navigate graph knowledge:
   spinedigest links book.sdpub node:84
   spinedigest backlinks book.sdpub node:84
+  spinedigest related book.sdpub node:84
   spinedigest path book.sdpub node:84 node:120 --chapter 3
   spinedigest map book.sdpub
+
+Pack deterministic context:
+  spinedigest pack book.sdpub node:84 --budget 5000
+  spinedigest pack book.sdpub node:84 --budget 5000 --json
 
 Export projections:
   spinedigest export book.sdpub --output-format markdown --output digest.md

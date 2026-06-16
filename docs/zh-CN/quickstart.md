@@ -49,13 +49,13 @@ spinedigest estimate ./book.sdpub --stage ready
 ## 5. 构建知识
 
 ```bash
-spinedigest build ./book.sdpub --stage graph
+spinedigest build ./book.sdpub --stage graph --confirm
 ```
 
 如果只需要局部构建：
 
 ```bash
-spinedigest build ./book.sdpub --stage graph --chapter 3
+spinedigest build ./book.sdpub --stage graph --chapter 3 --confirm
 ```
 
 ## 6. 搜索和阅读

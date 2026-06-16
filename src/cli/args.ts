@@ -135,13 +135,17 @@ export type CLIArchiveAction =
   | "ls"
   | "map"
   | "page"
+  | "pack"
   | "path"
+  | "related"
   | "status";
 
 export interface CLIArchiveArguments {
   readonly action: CLIArchiveAction;
   readonly archivePath: string;
+  readonly budget?: number;
   readonly chapterId?: number;
+  readonly confirm?: boolean;
   readonly fromNodeId?: number;
   readonly inputFormat?: CLIFormat;
   readonly json?: boolean;
@@ -270,6 +274,9 @@ export function parseCLIArguments(
         multiple: true,
         type: "string",
       },
+      budget: {
+        type: "string",
+      },
       "clear-authors": {
         type: "boolean",
       },
@@ -337,6 +344,9 @@ export function parseCLIArguments(
       chapter: {
         type: "string",
       },
+      confirm: {
+        type: "boolean",
+      },
       parent: {
         type: "string",
       },
@@ -402,6 +412,8 @@ export function parseCLIArguments(
   }
 
   rejectConvertMetaFlags(values);
+  rejectConvertFlag("budget", values.budget);
+  rejectConvertFlag("confirm", values.confirm);
   rejectConvertFlag("json", values.json);
 
   const args = {
@@ -694,7 +706,9 @@ function parseArchiveArguments(
   action: CLIArchiveAction,
   positionals: readonly string[],
   values: {
+    readonly budget?: string;
     readonly chapter?: string;
+    readonly confirm?: boolean;
     readonly help?: boolean;
     readonly input?: string;
     readonly "input-format"?: string;
@@ -766,6 +780,8 @@ function parseArchiveArguments(
       rejectArchiveFlag(action, "--to", values.to, helpRoute);
       rejectArchiveFlag(action, "--chapter", values.chapter, helpRoute);
       rejectArchiveFlag(action, "--limit", values.limit, helpRoute);
+      rejectArchiveFlag(action, "--budget", values.budget, helpRoute);
+      rejectArchiveBooleanFlag(action, "--confirm", values.confirm, helpRoute);
       rejectArchiveBooleanFlag(action, "--json", values.json, helpRoute);
       return {
         args: {
@@ -787,7 +803,7 @@ function parseArchiveArguments(
         kind: "archive",
       };
     }
-    case "build":
+    case "build": {
       rejectArchiveExtraPositionals(action, positionals, 1, helpRoute);
       rejectArchiveReadFlags(action, values, helpRoute);
       rejectArchiveFlag(action, "--input", values.input, helpRoute);
@@ -805,6 +821,17 @@ function parseArchiveArguments(
         helpRoute,
       );
       rejectArchiveFlag(action, "--limit", values.limit, helpRoute);
+      const targetStage = parseArchiveBuildStage(values.stage ?? values.to);
+
+      if (targetStage !== "sourced" && values.confirm !== true) {
+        throw new Error(
+          withHelpRoute(
+            "This build may call an LLM. Run `spinedigest estimate <archive.sdpub> --stage ready`, then rerun build with --confirm.",
+            helpRoute,
+          ),
+        );
+      }
+
       return {
         args: {
           action,
@@ -818,13 +845,15 @@ function parseArchiveArguments(
                   helpRoute,
                 ),
               }),
+          ...(values.confirm === undefined ? {} : { confirm: values.confirm }),
           ...(values.llm === undefined ? {} : { llmJSON: values.llm }),
           ...(values.prompt === undefined ? {} : { prompt: values.prompt }),
-          targetStage: parseArchiveBuildStage(values.stage ?? values.to),
+          targetStage,
         },
         help: false,
         kind: "archive",
       };
+    }
     case "export":
       rejectArchiveExtraPositionals(action, positionals, 1, helpRoute);
       rejectArchiveFlag(action, "--input", values.input, helpRoute);
@@ -839,6 +868,8 @@ function parseArchiveArguments(
       rejectArchiveFlag(action, "--to", values.to, helpRoute);
       rejectArchiveFlag(action, "--chapter", values.chapter, helpRoute);
       rejectArchiveFlag(action, "--limit", values.limit, helpRoute);
+      rejectArchiveFlag(action, "--budget", values.budget, helpRoute);
+      rejectArchiveBooleanFlag(action, "--confirm", values.confirm, helpRoute);
       rejectArchiveBooleanFlag(action, "--json", values.json, helpRoute);
       return {
         args: {
@@ -856,6 +887,8 @@ function parseArchiveArguments(
     case "estimate":
       rejectArchiveExtraPositionals(action, positionals, 1, helpRoute);
       rejectArchiveNonReadFlags(action, values, helpRoute);
+      rejectArchiveFlag(action, "--budget", values.budget, helpRoute);
+      rejectArchiveBooleanFlag(action, "--confirm", values.confirm, helpRoute);
       return {
         args: {
           action,
@@ -871,6 +904,8 @@ function parseArchiveArguments(
     case "map":
       rejectArchiveExtraPositionals(action, positionals, 1, helpRoute);
       rejectArchiveNonReadFlags(action, values, helpRoute);
+      rejectArchiveFlag(action, "--budget", values.budget, helpRoute);
+      rejectArchiveBooleanFlag(action, "--confirm", values.confirm, helpRoute);
       return {
         args: {
           action,
@@ -883,6 +918,8 @@ function parseArchiveArguments(
     case "ls": {
       rejectArchiveExtraPositionals(action, positionals, 2, helpRoute);
       rejectArchiveNonReadFlags(action, values, helpRoute);
+      rejectArchiveFlag(action, "--budget", values.budget, helpRoute);
+      rejectArchiveBooleanFlag(action, "--confirm", values.confirm, helpRoute);
       const listKind = parseArchiveListKind(positionals[1]);
 
       return {
@@ -910,6 +947,8 @@ function parseArchiveArguments(
       }
       rejectArchiveExtraPositionals(action, positionals, 2, helpRoute);
       rejectArchiveNonReadFlags(action, values, helpRoute);
+      rejectArchiveFlag(action, "--budget", values.budget, helpRoute);
+      rejectArchiveBooleanFlag(action, "--confirm", values.confirm, helpRoute);
       return {
         args: {
           action,
@@ -924,7 +963,8 @@ function parseArchiveArguments(
     case "page":
     case "evidence":
     case "links":
-    case "backlinks": {
+    case "backlinks":
+    case "related": {
       const objectId = positionals[1];
 
       if (objectId === undefined) {
@@ -937,10 +977,37 @@ function parseArchiveArguments(
       }
       rejectArchiveExtraPositionals(action, positionals, 2, helpRoute);
       rejectArchiveNonReadFlags(action, values, helpRoute);
+      rejectArchiveFlag(action, "--budget", values.budget, helpRoute);
+      rejectArchiveBooleanFlag(action, "--confirm", values.confirm, helpRoute);
       return {
         args: {
           action,
           archivePath,
+          ...(values.json === undefined ? {} : { json: values.json }),
+          objectId,
+        },
+        help: false,
+        kind: "archive",
+      };
+    }
+    case "pack": {
+      const objectId = positionals[1];
+
+      if (objectId === undefined) {
+        throw new Error(
+          withHelpRoute("`spinedigest pack` requires an object id.", helpRoute),
+        );
+      }
+      rejectArchiveExtraPositionals(action, positionals, 2, helpRoute);
+      rejectArchiveNonReadFlags(action, values, helpRoute);
+      return {
+        args: {
+          action,
+          archivePath,
+          budget:
+            values.budget === undefined
+              ? 5000
+              : parsePositiveIntegerFlag(values.budget, "--budget", helpRoute),
           ...(values.json === undefined ? {} : { json: values.json }),
           objectId,
         },
@@ -959,6 +1026,8 @@ function parseArchiveArguments(
       }
       rejectArchiveExtraPositionals(action, positionals, 3, helpRoute);
       rejectArchiveNonReadFlags(action, values, helpRoute);
+      rejectArchiveFlag(action, "--budget", values.budget, helpRoute);
+      rejectArchiveBooleanFlag(action, "--confirm", values.confirm, helpRoute);
       const fromNodeId = parseNodeObjectId(from, helpRoute);
       const toNodeId = parseNodeObjectId(to, helpRoute);
       const chapterId =
@@ -2444,7 +2513,9 @@ function isArchiveAction(value: string | undefined): value is CLIArchiveAction {
     value === "ls" ||
     value === "map" ||
     value === "page" ||
+    value === "pack" ||
     value === "path" ||
+    value === "related" ||
     value === "status"
   );
 }
@@ -2521,6 +2592,22 @@ function parseNodeObjectId(value: string, helpRoute: string): number {
   if (!Number.isInteger(parsed) || parsed <= 0) {
     throw new Error(
       withHelpRoute(`Invalid node id: ${value}. Use node:<id>.`, helpRoute),
+    );
+  }
+
+  return parsed;
+}
+
+function parsePositiveIntegerFlag(
+  value: string,
+  flag: string,
+  helpRoute: string,
+): number {
+  const parsed = Number(value);
+
+  if (!Number.isInteger(parsed) || parsed <= 0) {
+    throw new Error(
+      withHelpRoute(`${flag} must be a positive integer.`, helpRoute),
     );
   }
 

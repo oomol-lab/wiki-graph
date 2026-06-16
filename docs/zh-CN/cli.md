@@ -11,8 +11,8 @@ spinedigest <action> <archive.sdpub> ...
 ## 归档命令
 
 ```bash
-spinedigest import <archive.sdpub> <source> [--input-format <format>] [--llm <json>] [--prompt <text>]
-spinedigest build <archive.sdpub> [--stage <source|graph|summary|ready>] [--chapter <id>] [--llm <json>] [--prompt <text>]
+spinedigest import <archive.sdpub> <source> [--input-format <format>] [--llm <json>] [--prompt <text>] [--confirm]
+spinedigest build <archive.sdpub> [--stage <source|graph|summary|ready>] [--chapter <id>] [--llm <json>] [--prompt <text>] [--confirm]
 spinedigest estimate <archive.sdpub> [--stage <source|graph|summary|ready>] [--json]
 spinedigest status <archive.sdpub> [--json]
 spinedigest index <archive.sdpub> [--json]
@@ -80,7 +80,7 @@ spinedigest evidence book.sdpub node:84 --json
 旧 convenience command 仍然可用：
 
 ```bash
-spinedigest [--input <path>] [--output <path>] [--input-format <format>] [--output-format <format>] [--digest-dir <path>] [--llm <json>] [--prompt <text>] [--stage <planned|sourced|graphed|summarized>] [--verbose]
+spinedigest [--input <path>] [--output <path>] [--input-format <format>] [--output-format <format>] [--digest-dir <path>] [--llm <json>] [--prompt <text>] [--confirm] [--stage <planned|sourced|graphed|summarized>] [--verbose]
 ```
 
 低层 `.sdpub` 维护命令仍然可用：

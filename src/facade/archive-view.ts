@@ -116,6 +116,13 @@ export interface ArchiveEstimate {
   readonly targetStage: string;
 }
 
+export interface ArchivePack {
+  readonly anchor: ArchivePage;
+  readonly budget: number;
+  readonly evidence: readonly GraphEvidenceLine[];
+  readonly links: readonly GraphNeighbor[];
+}
+
 export async function getArchiveIndex(
   document: Document,
 ): Promise<ArchiveIndex> {
@@ -329,6 +336,47 @@ export async function listArchiveLinks(
       ? neighbor.direction === "outgoing"
       : neighbor.direction === "incoming",
   );
+}
+
+export async function listRelatedArchiveObjects(
+  document: Document,
+  id: string,
+): Promise<readonly ArchiveListItem[]> {
+  const reference = parseArchiveReference(id);
+
+  if (reference.type !== "node") {
+    return [];
+  }
+
+  const { chapterId } = await requireNode(document, reference.id);
+
+  return (await listGraphNeighbors(document, chapterId, reference.id)).map(
+    (neighbor) => ({
+      id: formatNodeId(neighbor.node.id),
+      label: neighbor.node.label,
+      summary: neighbor.node.content,
+      type: "node",
+    }),
+  );
+}
+
+export async function packArchiveContext(
+  document: Document,
+  id: string,
+  budget: number,
+): Promise<ArchivePack> {
+  const anchor = await readArchivePage(document, id);
+  const [evidence, links] = await Promise.all([
+    readArchiveEvidence(document, id),
+    listArchiveLinks(document, id, "links"),
+  ]);
+
+  return {
+    anchor,
+    budget,
+    evidence,
+    links,
+  };
 }
 
 export async function estimateArchiveBuild(

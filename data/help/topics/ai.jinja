@@ -21,8 +21,10 @@ Safe first moves:
   - Need graph context:
     spinedigest links <archive.sdpub> <node:id>
     spinedigest backlinks <archive.sdpub> <node:id>
+    spinedigest related <archive.sdpub> <node:id>
     spinedigest map <archive.sdpub>
   - Need a reusable context projection:
+    spinedigest pack <archive.sdpub> <id> --budget 5000
     spinedigest export <archive.sdpub> --output-format markdown
 
 Build safety:
@@ -31,6 +33,7 @@ Build safety:
     spinedigest estimate <archive.sdpub> --stage ready
   - If estimated time or cost exceeds the interactive task budget, stop and ask.
   - Prefer scoped builds with `--chapter <id>`.
+  - LLM-backed `build` requires `--confirm` after estimation.
 
 Object ids:
   - chapter:<id> for chapter-like archive pages

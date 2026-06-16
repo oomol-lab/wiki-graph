@@ -50,7 +50,7 @@ spinedigest evidence book.sdpub node:84
 spinedigest import book.sdpub ./book.epub
 spinedigest status book.sdpub
 spinedigest estimate book.sdpub --stage ready
-spinedigest build book.sdpub --stage graph --chapter 3
+spinedigest build book.sdpub --stage graph --chapter 3 --confirm
 ```
 
 Import/source 是安全第一步。Graph 和 summary 阶段可能调用 LLM provider。

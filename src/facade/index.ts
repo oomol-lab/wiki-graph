@@ -25,6 +25,8 @@ export {
   getArchiveIndex,
   listArchiveLinks,
   listArchiveObjects,
+  listRelatedArchiveObjects,
+  packArchiveContext,
   readArchiveEvidence,
   readArchivePage,
 } from "./archive-view.js";
@@ -58,6 +60,7 @@ export type {
   ArchiveListItem,
   ArchiveListKind,
   ArchiveObjectType,
+  ArchivePack,
   ArchivePage,
 } from "./archive-view.js";
 export type {

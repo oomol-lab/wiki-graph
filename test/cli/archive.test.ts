@@ -130,6 +130,17 @@ vi.mock("../../src/facade/index.js", () => ({
   getArchiveIndex: vi.fn(() => Promise.resolve(archiveMockState.index)),
   listArchiveLinks: vi.fn(() => Promise.resolve(archiveMockState.links)),
   listArchiveObjects: vi.fn(() => Promise.resolve(archiveMockState.listItems)),
+  listRelatedArchiveObjects: vi.fn(() =>
+    Promise.resolve(archiveMockState.listItems),
+  ),
+  packArchiveContext: vi.fn(() =>
+    Promise.resolve({
+      anchor: archiveMockState.page,
+      budget: 1000,
+      evidence: archiveMockState.evidence,
+      links: archiveMockState.links,
+    }),
+  ),
   readArchiveEvidence: vi.fn(() => Promise.resolve(archiveMockState.evidence)),
   readArchivePage: vi.fn(() => Promise.resolve(archiveMockState.page)),
 }));
@@ -204,5 +215,29 @@ describe("cli/archive", () => {
     expect(JSON.parse(archiveMockState.textWrites[0] ?? "")).toStrictEqual({
       evidence: archiveMockState.evidence,
     });
+  });
+
+  it("prints related nodes", async () => {
+    await runArchiveCommand({
+      action: "related",
+      archivePath: "/tmp/book.sdpub",
+      objectId: "node:9",
+    });
+
+    expect(archiveMockState.textWrites[0]).toContain("node:9");
+    expect(archiveMockState.textWrites[0]).toContain("Retrieval design");
+  });
+
+  it("prints a context pack", async () => {
+    await runArchiveCommand({
+      action: "pack",
+      archivePath: "/tmp/book.sdpub",
+      budget: 1000,
+      objectId: "node:9",
+    });
+
+    expect(archiveMockState.textWrites[0]).toContain("Pack Budget: 1000");
+    expect(archiveMockState.textWrites[0]).toContain("# Anchor");
+    expect(archiveMockState.textWrites[0]).toContain("# Evidence");
   });
 });
