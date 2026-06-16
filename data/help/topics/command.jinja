@@ -3,100 +3,45 @@ Topic: command
 
 Command Reference
 
-Main convert command:
-  spinedigest [--input <path>] [--output <path>] [--input-format <format>] [--output-format <format>] [--digest-dir <path>] [--llm <json>] [--prompt <text>] [--stage <stage>] [--verbose|-v] [--help|-h] [--version]
+Archive-first commands:
+  import      Import source material into an archive at source stage.
+  build       Build graph, summary, or ready stages from existing source data.
+  estimate    Estimate words, token scale, calls, time, cost, and risk before build.
+  status      Show archive readiness and object counts.
+  index       Show the archive home/index page.
+  ls          List chapters, nodes, edges, evidence, summaries, or metadata.
+  find        Search all agent-readable archive objects.
+  grep        Alias for deterministic archive text search.
+  page        Read one object by id.
+  evidence    Show source evidence for an object.
+  links       Show outgoing node links.
+  backlinks   Show incoming node links.
+  related     Show graph-adjacent knowledge units.
+  path        Find a directed graph path between two nodes in one chapter.
+  map         Print graph edges.
+  pack        Pack deterministic context around a known object id.
+  export      Export a projection from the archive.
 
-Default command behavior:
-  `spinedigest` without a subcommand is the convenience digest/export command.
-  It reads stdin when `--input` is omitted and writes stdout when `--output` is omitted.
-  Use explicit format flags for streams because there is no filename extension to inspect.
+Command shapes:
+  spinedigest import <archive.sdpub> [source] [--input-format <format>]
+  spinedigest build <archive.sdpub> [--stage <source|graph|summary|ready>] [--chapter <id>] [--confirm]
+  spinedigest estimate <archive.sdpub> [--stage <source|graph|summary|ready>] [--json]
+  spinedigest status <archive.sdpub> [--json]
+  spinedigest index <archive.sdpub> [--json]
+  spinedigest ls <archive.sdpub> [chapters|nodes|edges|evidence|summaries|meta] [--json]
+  spinedigest find <archive.sdpub> <query> [--json]
+  spinedigest page <archive.sdpub> <id> [--json]
+  spinedigest evidence <archive.sdpub> <id> [--json]
+  spinedigest related <archive.sdpub> <node:id> [--json]
+  spinedigest pack <archive.sdpub> <id> [--budget <chars>] [--json]
+  spinedigest export <archive.sdpub> --output-format <format> [--output <path>]
 
-Status command:
-  spinedigest status [--llm <json>] [--help|-h]
-    Validate and print the masked merged config.
-
-Main flags:
-  --input <path>          Read from a file. If omitted, stdin is used.
-  --output <path>         Write to a file. If omitted, stdout is used.
-  --input-format <format> Override input format inference.
-  --output-format <format>
-                          Override output format inference.
-  --digest-dir <path>     Keep the intermediate digest workspace for source digest runs.
-  --llm <json>            Inline LLM client JSON for this invocation.
-  --prompt <text>         Override the extraction prompt for the current digest run.
-  --stage <stage>         For .sdpub output, stop at planned, sourced, graphed, or summarized.
-  --verbose, -v           Write diagnostic logs to stderr.
-  --help, -h              Print entry help.
-  --version               Print the CLI package version and exit.
-
-sdpub inspection and metadata commands:
-  spinedigest sdpub info --input <path> [--llm <json>]
-  spinedigest sdpub toc --input <path> [--llm <json>]
-  spinedigest sdpub list --input <path> [--json] [--llm <json>]
-  spinedigest sdpub cat --input <path> --chapter <id> [--llm <json>]
-  spinedigest sdpub cover --input <path> [--llm <json>]
-  spinedigest sdpub meta --input <path> [metadata options] [--llm <json>]
-
-sdpub stage commands:
-  spinedigest sdpub stage pending <path> [--llm <json>]
-  spinedigest sdpub stage advance <path> [--to <stage>] [--chapter <id>] [--prompt <text>] [--llm <json>]
-
-sdpub chapter commands:
-  spinedigest sdpub chapter list <path> [--llm <json>]
-  spinedigest sdpub chapter status <path> --chapter <id> [--llm <json>]
-  spinedigest sdpub chapter add <path> [--title <title>] [--parent <id>] [--llm <json>]
-  spinedigest sdpub chapter remove <path> --chapter <id> [--recursive] [--llm <json>]
-  spinedigest sdpub chapter reset <path> --chapter <id> --to <stage> [--llm <json>]
-  spinedigest sdpub chapter set-source <path> --chapter <id> [--input <path>] --input-format <format> [--llm <json>]
-  spinedigest sdpub chapter set-summary <path> --chapter <id> [--input <path>] [--llm <json>]
-
-sdpub graph commands:
-  spinedigest sdpub graph status <path> --chapter <id> [--llm <json>]
-  spinedigest sdpub graph log <path> --chapter <id> [--limit <n>] [--llm <json>]
-  spinedigest sdpub graph show <path> --chapter <id> <node> [--llm <json>]
-  spinedigest sdpub graph grep <path> --chapter <id> <pattern> [--llm <json>]
-  spinedigest sdpub graph neighbors <path> --chapter <id> <node> [--llm <json>]
-  spinedigest sdpub graph blame <path> --chapter <id> <node> [--llm <json>]
-  spinedigest sdpub graph path <path> --chapter <id> <from> <to> [--llm <json>]
-
-sdpub-specific flags:
-  --chapter <id>         Numeric chapter id printed by `sdpub list`, `sdpub chapter list`, or `sdpub chapter add`.
-  --json                 Print supported read commands as structured JSON.
-  --limit <n>            Limit `sdpub graph log` output.
-  --parent <id>          Parent chapter id for `sdpub chapter add`.
-  --to <stage>           Target stage for `sdpub stage advance` or `sdpub chapter reset`.
-
-LLM flag:
-  `--llm <json>` accepts a one-shot LLM client object.
-  Supported fields include `provider`, `model`, `apiKey`, `baseURL`, `baseUrl`, `chatCompletionsUrl`, and `name`.
-  It overrides LLM fields from environment variables and `config.json`.
-  It does not make `.sdpub` re-export, inspection, metadata edits, or chapter tree edits call an LLM.
-  `sdpub stage advance` uses it when graph or summary generation is needed.
-
-Help routing:
-  spinedigest --help
-  spinedigest help <topic>
-  spinedigest sdpub --help
-  spinedigest sdpub <subcommand> --help
-
-Alias scope:
-  - `-h` works anywhere `--help` works.
-  - `-v` only applies to the main convert command.
+Direct digest and maintenance:
+  spinedigest [--input <path>] [--output <path>] [--input-format <format>] [--output-format <format>] [--digest-dir <path>] [--llm <json>] [--prompt <text>] [--stage <planned|sourced|graphed|summarized>] [--verbose]
+  spinedigest sdpub <subcommand> ...
+  spinedigest status [--llm <json>]  # config status when no archive path is passed
 
 Where to go next:
-  - Need legal input and output combinations:
-    spinedigest help format
-  - Need configuration-layer overview and precedence:
-    spinedigest help config
-  - Need the detailed environment variable list:
-    spinedigest help env
-  - Need the detailed config file schema:
-    spinedigest help config-file
-  - Need stdout, stderr, progress, or digest-dir behavior:
-    spinedigest help runtime
-  - Need task-oriented examples instead of raw flags:
-    spinedigest help task
-  - Need archive command details:
-    spinedigest help sdpub
-  - Need error-oriented guidance:
-    spinedigest help troubleshoot
+  - Need archive mental model: spinedigest help overview
+  - Need agent rules: spinedigest help ai
+  - Need lower-level archive maintenance: spinedigest help sdpub

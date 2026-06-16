@@ -7,88 +7,45 @@ Purpose:
   Explain the `.sdpub` archive model and route safe CLI operations.
 
 Primary rule:
-  Treat `.sdpub` as an editable document managed by SpineDigest commands.
-  It is physically a ZIP archive, but agents should not unzip and edit files directly unless they are building an external reader or validator.
-  Use `spinedigest sdpub ...` commands for inspection and in-place edits.
+  Treat `.sdpub` as an LLM Wiki archive managed by SpineDigest commands.
+  It is physically a ZIP archive, but agents should not unzip it or read `database.db` directly for routine retrieval.
+
+Preferred top-level operations:
+  - `spinedigest status <archive.sdpub>` for readiness and counts
+  - `spinedigest index <archive.sdpub>` for entry points
+  - `spinedigest ls <archive.sdpub> ...` for object discovery
+  - `spinedigest find <archive.sdpub> <query>` for deterministic search
+  - `spinedigest page <archive.sdpub> <id>` for reading
+  - `spinedigest evidence <archive.sdpub> <id>` for source backing
+  - `spinedigest links/backlinks/map/path ...` for graph navigation
+  - `spinedigest export <archive.sdpub> ...` for projections
 
 Archive model:
-  - Document metadata is edited with `sdpub meta`.
-  - The TOC is a chapter tree. Each editable chapter has a numeric chapter id.
-  - A chapter may store normalized source data, graph data, and a final summary.
-  - A cover, when present, can be projected to a normal image file with `sdpub cover`.
-  - `manifest.json` stores the archive format version. Missing manifest means format version 1.
-  - `database.db` is internal state for SpineDigest. Do not edit it directly from automation.
-  - Chapter graph data can be explored with `sdpub graph ...`; routine users should not read SQLite directly.
+  - The archive stores metadata, TOC chapters, normalized source fragments, graph nodes, graph edges, source evidence, and summaries.
+  - Public object ids include chapter:<id>, node:<id>, sentence:<serial>:<fragment>:<index>, summary:<id>, and meta:book.
+  - Current editable archives are still maintained internally around chapters and graph nodes.
 
-Chapter lifecycle:
-  planned     Chapter exists in the TOC, but has no source.
-  sourced     Normalized source data is stored.
-  graphed     Source plus generated chapter graph data are stored.
-  summarized  Source, graph, and final summary are stored.
-
-Readiness by stage:
-  - planned: inspect, edit structure, or set source.
-  - sourced: inspect, edit, or advance to graph/summary.
-  - graphed: inspect, edit, advance to summary, or set a manual summary.
-  - summarized: inspect, export, and use `sdpub cat`.
-
-Primary model:
-  Current editable `.sdpub` archives are organized around chapters.
-  Use chapter ids with `sdpub chapter ...` and `sdpub stage --chapter`.
-  Prefer `sdpub chapter list` when selecting a chapter to inspect, edit, or advance.
-
-Stored source:
-  Source stored in `.sdpub` is normalized processing data, not a verbatim copy of the original EPUB, Markdown, or text file.
-  Routine automation should use chapter-level commands rather than ZIP internals.
-
-Read-only commands:
-  - `sdpub info --input <path>`
-  - `sdpub toc --input <path>`
-  - `sdpub list --input <path>` for the chapter tree and cat-ready chapters
-  - `sdpub cat --input <path> --chapter <id>` for one completed chapter summary
-  - `sdpub cover --input <path>`
-  - `sdpub stage pending <path>`
-  - `sdpub chapter list <path>`
-  - `sdpub chapter status <path> --chapter <id>`
-  - `sdpub graph status|log|show|grep|neighbors|blame|path <path> --chapter <id> ...`
-
-Mutating commands:
-  - `sdpub meta --input <path> [metadata options]`
-  - `sdpub stage advance <path> [options]`
-  - `sdpub chapter add|remove|reset|set-source|set-summary <path> [options]`
+sdpub maintenance command family:
+  `spinedigest sdpub ...` remains available for lower-level maintenance:
+  - info, toc, list, cat, cover, meta
+  - chapter add/remove/reset/set-source/set-summary/status/list
+  - stage pending/advance
+  - graph status/log/show/grep/neighbors/blame/path
 
 LLM behavior:
-  - Inspection, metadata edits, chapter tree edits, `set-source`, `set-summary`, and `reset` do not call an LLM provider.
-  - `sdpub stage advance` calls an LLM provider when it needs graph or summary generation.
-  - Creating `.sdpub` with `--stage planned` or `--stage sourced` does not call an LLM provider.
+  - Inspection, search, navigation, metadata edits, chapter tree edits, source edits, and export do not call an LLM provider.
+  - `build`, `sdpub stage advance`, and graph/summary generation may call an LLM provider.
+  - Run `spinedigest estimate <archive.sdpub>` before full-archive LLM-backed builds.
 
 Mutation safety:
-  - Mutating commands edit archives in place.
-  - Do not run multiple mutating `sdpub` commands against the same archive concurrently.
-  - Writes are staged through a temporary archive and renamed into place, but no backup file is created.
-  - Keep your own copy before destructive commands such as `chapter remove` or `chapter reset`.
-
-Command help entry points:
-  - spinedigest sdpub --help
-  - spinedigest sdpub info --help
-  - spinedigest sdpub toc --help
-  - spinedigest sdpub list --help
-  - spinedigest sdpub cat --help
-  - spinedigest sdpub cover --help
-  - spinedigest sdpub meta --help
-  - spinedigest sdpub stage --help
-  - spinedigest sdpub chapter --help
-  - spinedigest sdpub graph --help
-
-Use this topic when:
-  - You know `.sdpub` is relevant, but you have not yet chosen the exact archive command.
-  - You need enough conceptual context to operate through the CLI without directly editing ZIP contents.
+  - Mutating `sdpub` maintenance commands edit archives in place.
+  - Do not run multiple mutating commands against the same archive concurrently.
+  - Keep your own copy before destructive commands such as chapter remove or reset.
 
 Where to go next:
-  - Need task-level workflows:
-    spinedigest help task
-  - Need the command-family overview:
-    spinedigest sdpub --help
-  - Need action-specific mutation details:
-    spinedigest sdpub chapter set-source --help
-    spinedigest sdpub stage advance --help
+  - Need the archive-first model:
+    spinedigest help overview
+  - Need agent rules:
+    spinedigest help ai
+  - Need command shapes:
+    spinedigest help command

@@ -3,53 +3,51 @@ Topic: troubleshoot
 
 Troubleshooting
 
+Search returns no matches:
+  Check:
+    Run `spinedigest status <archive.sdpub>` and `spinedigest ls <archive.sdpub> fragments`.
+    Source-only archives should be searchable through fragment text. If there are no fragments, import did not store source text.
+
+Page shows missing summary:
+  Check:
+    For sourced chapters, `page chapter:<id>` should still show source preview and fragment ids.
+    Build summary only when a summary projection is needed.
+
+Build blocked by confirmation:
+  Symptom:
+    `build` says it may call an LLM and asks for `--confirm`.
+  Check:
+    Run `spinedigest estimate <archive.sdpub> --stage ready`, then rerun a scoped build with `--confirm` if the estimate is acceptable.
+
 Missing LLM configuration:
   Symptom:
-    Source digest runs fail before processing starts.
+    Graph, summary, or ready build fails before processing starts.
   Check:
     `--llm`, `llm.provider` and `llm.model` in config, or the matching env vars.
 
 Unexpected format errors:
   Symptom:
-    The CLI rejects an input or output format.
+    The CLI rejects an import or export format.
   Check:
     The file extension, or pass `--input-format` / `--output-format` explicitly.
+    stdin import supports only markdown and txt.
 
 stdin or stdout misuse:
   Symptom:
-    The CLI rejects interactive stdin or `--verbose` with stdout output.
+    The CLI rejects interactive stdin or cannot infer a stream format.
   Check:
-    Pipe text into stdin, or write digest output to a file when using `--verbose`.
+    Pipe text into stdin and pass `--input-format`, or pass a source path.
 
-sdpub command failure:
+sdpub maintenance command failure:
   Symptom:
     `sdpub` subcommands reject flags or input.
   Check:
-    Inspection commands such as `info`, `toc`, `list`, `cat`, `cover`, and `meta` require `--input <path>`.
-    `stage` and `chapter` actions require the `.sdpub` path as a positional argument.
-    `cat` requires `--chapter <id>`.
-    Chapter-specific actions usually require `--chapter <id>`.
-
-Binary cover output blocked:
-  Symptom:
-    `sdpub cover` refuses to write to the terminal.
-  Check:
-    Redirect stdout or pipe the bytes elsewhere.
+    Use top-level archive commands for routine retrieval. Use `spinedigest help sdpub` for low-level maintenance commands.
 
 Where to go next:
-  - Need config-layer overview:
-    spinedigest help config
-  - Need environment variable details:
-    spinedigest help env
-  - Need config file field definitions:
-    spinedigest help config-file
-  - Need stream, stderr, progress, or digest-dir behavior:
-    spinedigest help runtime
-  - Need legal format combinations:
-    spinedigest help format
-  - Need to verify the command shape or unsupported flags:
+  - Need command shape:
     spinedigest help command
-  - Need task-level alternatives:
-    spinedigest help task
-  - Need archive command-specific guidance:
-    spinedigest help sdpub
+  - Need runtime stream rules:
+    spinedigest help runtime
+  - Need archive model:
+    spinedigest help overview

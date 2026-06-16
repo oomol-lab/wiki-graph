@@ -3,51 +3,38 @@ Topic: runtime
 
 Runtime Behavior
 
-Streams:
-  - If `--input` is omitted, the CLI reads stdin.
-  - If `--output` is omitted, the CLI writes stdout.
+Archive-first streams:
+  - `spinedigest import <archive.sdpub> --input-format markdown|txt` reads source text from stdin.
+  - `spinedigest export <archive.sdpub> --output-format markdown|txt` can write text projections to stdout.
+  - Retrieval commands print human-readable text by default and support `--json` where documented.
   - A bare `spinedigest` in an interactive terminal prints root help.
-  - Interactive stdin is rejected for source digest runs.
-  - `sdpub chapter set-source` and `set-summary` read stdin when their `--input` flag is omitted.
-  - `--verbose` cannot be used when digest output goes to stdout.
 
 Exit behavior:
   - Success returns exit code 0.
   - Failures return non-zero and print a plain-text error to stderr.
 
-Progress and diagnostics:
-  - Normal progress rendering uses stderr when the digest path is active, stderr is a TTY, and `--verbose` is off.
-  - `sdpub stage advance` writes chapter advancement progress and long-step heartbeat messages to stderr.
-  - `--verbose` writes diagnostic logs to stderr.
+Build safety:
+  - `build --stage graph|summary|ready` may call an LLM and requires `--confirm`.
+  - Run `estimate` before full-archive LLM-backed builds.
+  - Prefer `--chapter <id>` for scoped build work.
 
-Digest workspace:
-  - `--digest-dir` applies only to source digest runs.
-  - The target directory is removed before each run, then rebuilt as the working digest directory.
-  - With the top-level convert command, `.sdpub` input ignores `--digest-dir`; with the `sdpub` subcommands, `--digest-dir` is rejected and cannot be used.
+Progress and diagnostics:
+  - LLM-backed build progress writes to stderr.
+  - `--verbose` is available for the direct digest command and writes diagnostic logs to stderr.
+
+Workspace behavior:
+  - Archive-first import uses temporary workspaces unless the direct digest command is used with `--digest-dir`.
+  - `--digest-dir` applies only to source digest runs through the direct digest command.
 
 In-place archive edits:
-  - `sdpub meta`, `sdpub stage advance`, and mutating `sdpub chapter` actions edit archives in place.
-  - Do not run multiple mutating `sdpub` commands against the same archive concurrently.
+  - `build` and mutating `sdpub` maintenance commands edit archives in place.
+  - Do not run multiple mutating commands against the same archive concurrently.
   - Writes are staged through a temporary archive and renamed into place, but no backup file is created.
-  - Keep your own copy before destructive commands such as `sdpub chapter remove` or `sdpub chapter reset`.
-
-Binary safety:
-  - `sdpub cover` refuses to write binary cover data to an interactive terminal.
 
 Where to go next:
-  - Need config-layer overview:
-    spinedigest help config
-  - Need the environment variable definitions:
-    spinedigest help env
-  - Need the config file schema:
-    spinedigest help config-file
-  - Need stream and format compatibility rules:
+  - Need legal format combinations:
     spinedigest help format
-  - Need the command forms that trigger these runtime rules:
+  - Need command forms:
     spinedigest help command
-  - Need task examples that avoid stdout and stdin mistakes:
-    spinedigest help recipe
-  - Need archive command specifics:
-    spinedigest help sdpub
-  - Need error-driven guidance:
+  - Need failure recovery:
     spinedigest help troubleshoot

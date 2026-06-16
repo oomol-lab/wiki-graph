@@ -4,61 +4,55 @@ Topic: ai
 AI Agent Guide
 
 Primary contract:
-  - Prefer the CLI over library integration unless code-level embedding is required.
-  - Use explicit `--input` and `--output` paths for deterministic runs.
-  - Check exit status and read stderr for failures.
-  - Assume source digest runs require LLM configuration.
-  - Assume `.sdpub` re-export and `sdpub` inspection do not call an LLM.
-  - Assume `sdpub stage advance` may call an LLM when graph or summary generation is needed.
+  - Treat `.sdpub` as an LLM Wiki archive managed by SpineDigest.
+  - Use `spinedigest index/find/page/evidence/links/backlinks/map/export` before unpacking or inspecting ZIP internals.
+  - Prefer `--json` when composing with tools.
+  - Do not inspect `database.db` for routine retrieval.
+  - Do not launch full-archive LLM-backed builds without estimating first.
 
-Suggested first pass:
-  - Begin at `spinedigest --help`, which acts as the root page of the layered help system.
-  - Start with `spinedigest help overview` to decide whether you are digesting source input, re-exporting `.sdpub`, or inspecting an archive.
-  - Continue with `spinedigest help task` when the user request is workflow-shaped rather than command-shaped.
-  - Continue with `spinedigest help command` when you already know the action and need exact command shapes or flags.
-  - Jump to `format`, `config`, `runtime`, or `troubleshoot` only after the problem domain is clear.
+Safe first moves:
+  - Existing archive:
+    spinedigest status <archive.sdpub>
+    spinedigest index <archive.sdpub>
+  - Need information:
+    spinedigest find <archive.sdpub> <query>
+    spinedigest page <archive.sdpub> <id>
+    spinedigest evidence <archive.sdpub> <id>
+  - Need graph context:
+    spinedigest links <archive.sdpub> <node:id>
+    spinedigest backlinks <archive.sdpub> <node:id>
+    spinedigest related <archive.sdpub> <node:id>
+    spinedigest map <archive.sdpub>
+  - Need a reusable context projection:
+    spinedigest pack <archive.sdpub> <id> --budget 5000
+    spinedigest export <archive.sdpub> --output-format markdown
 
-Navigation:
-  - Need the mental model: `spinedigest help overview`
-  - Need a workflow entry point: `spinedigest help task`
-  - Need flags or command shapes: `spinedigest help command`
-  - Need format constraints: `spinedigest help format`
-  - Need config overview and precedence: `spinedigest help config`
-  - Need environment variable details: `spinedigest help env`
-  - Need config file schema details: `spinedigest help config-file`
-  - Need runtime guarantees: `spinedigest help runtime`
-  - Need examples: `spinedigest help recipe`
-  - Need archive command details: `spinedigest help sdpub`
-  - Need error-focused recovery: `spinedigest help troubleshoot`
+Build safety:
+  - Safe default: import source into `.sdpub`.
+  - Before any graph, summary, or ready build, run:
+    spinedigest estimate <archive.sdpub> --stage ready
+  - If estimated time or cost exceeds the interactive task budget, stop and ask.
+  - Prefer scoped builds with `--chapter <id>`.
+  - LLM-backed `build` requires `--confirm` after estimation.
+
+Object ids:
+  - chapter:<id> for chapter-like archive pages
+  - node:<id> for graph knowledge nodes
+  - sentence:<serial>:<fragment>:<index> for source evidence
+  - summary:<id> for chapter summaries
+  - meta:book for metadata
 
 Stable terms:
-  - digest: a new processing run from source input
-  - .sdpub: a reusable processed archive
-  - chapter: the current editable unit inside a .sdpub TOC
-  - chapter id: the numeric id used by `sdpub chapter ...` and `sdpub stage --chapter`
-  - node: a read-only chapter graph item discovered with `sdpub graph log`
-  - TOC path: the section path for a chapter or completed summary
+  - archive: `.sdpub`, the primary managed knowledge object
+  - source: imported normalized source material
+  - chapter: current top-level readable unit inside the archive
+  - node: graph knowledge unit surfaced as an agent-readable page
+  - evidence: source sentence backing a node
+  - projection: exported Markdown, txt, EPUB, JSON, or graph output
 
-Safety reminders:
-  - Do not use stdin for `.sdpub` inspection; only `sdpub chapter set-source` and `set-summary` accept content from stdin.
-  - Do not combine `--verbose` with stdout digest output.
-  - Do not send `sdpub cover` binary output to an interactive terminal.
-
-File workflow:
-  - Prefer projecting chapter summaries into ordinary temporary files, then use your normal file tools.
-  - Read a summary with `spinedigest sdpub cat --input <archive.sdpub> --chapter <id> > /tmp/summary.md`.
-  - Write a revised summary back with `spinedigest sdpub chapter set-summary <archive.sdpub> --chapter <id> --input /tmp/summary.md`.
-  - Do not inspect or edit the `.sdpub` ZIP internals for routine summary edits.
-
-Graph workflow:
-  - Use `spinedigest sdpub graph status <archive.sdpub> --chapter <id>` to check graph availability.
-  - Use `spinedigest sdpub graph log <archive.sdpub> --chapter <id>` to discover node ids.
-  - Use `show`, `grep`, `neighbors`, `blame`, and `path` as Git-like read-only chapter graph commands.
-
-Cover workflow:
-  - Use `spinedigest sdpub info --input <archive.sdpub>` to see whether a cover exists and which media type is stored.
-  - Project the cover to a normal image file, for example `spinedigest sdpub cover --input <archive.sdpub> > /tmp/cover.jpg`.
-  - If you have multimodal tools, inspect the exported image file rather than the `.sdpub` archive internals.
+Maintenance commands:
+  - `spinedigest sdpub ...` remains available for low-level chapter and graph maintenance.
+  - Prefer archive-first commands unless the user specifically needs lower-level maintenance operations.
 
 Discovery rule:
-  - If a user question sounds like task selection, format support, config setup, runtime behavior, failure diagnosis, or `.sdpub` commands, read the matching help topic before guessing.
+  If the user question is about what is inside an archive, start with `status`, `index`, `ls`, and `find`; do not unzip first.

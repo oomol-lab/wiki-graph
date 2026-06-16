@@ -1,0 +1,18 @@
+Help Type: command
+Command: spinedigest build
+
+Purpose:
+  Build derived graph or summary data from imported source.
+
+Usage:
+  spinedigest build <archive.sdpub> [--stage <source|graph|summary|ready>] [--chapter <id>] [--llm <json>] [--prompt <text>] [--confirm]
+
+Contract:
+  - Mutates: yes, advances archive stages.
+  - LLM: graph, summary, and ready builds may call an LLM.
+  - Safety: LLM-backed builds require --confirm after estimate.
+  - JSON: no.
+
+Examples:
+  spinedigest estimate book.sdpub --stage ready
+  spinedigest build book.sdpub --stage graph --chapter 3 --confirm

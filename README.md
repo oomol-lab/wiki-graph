@@ -10,7 +10,7 @@
 
 ![SpineDigest Terminal Demo](./docs/images/terminal-en.png)
 
-**Distill every book down to its spine**: SpineDigest feeds long-form books into an LLM pipeline and distills them into their essential content. The output isn't just a text summary — it also builds a chapter topology and a knowledge graph so the structure of the whole book is visible at a glance.
+**SpineDigest builds portable LLM Wiki archives for AI agents.** It imports long-form sources into `.sdpub`, then lets agents search, browse, trace evidence, follow graph links, and export projections without unpacking the archive.
 
 ![Inkora screenshot](./docs/images/app-screenshot-en.png)
 
@@ -23,8 +23,8 @@
 Requirements:
 
 - Node `>=22.12.0`
-- For source digestion from EPUB, Markdown, or TXT: a supported LLM provider plus credentials
-- For `.sdpub` re-export or `sdpub` inspection only: no LLM access required
+- For LLM-backed graph or summary builds: a supported LLM provider plus credentials
+- For `.sdpub` search, reading, navigation, and export: no LLM access required
 
 Try it without a global install:
 
@@ -47,49 +47,54 @@ spinedigest help ai
 
 ## Quick Start
 
-The first two examples below create a new digest from source input, so they require LLM configuration first.
-For full config details, run:
+SpineDigest's primary object is `.sdpub`: a managed knowledge archive, not a one-off conversion output.
+
+Import source material into an archive:
 
 ```bash
-spinedigest help config
+spinedigest import ./book.sdpub ./book.epub
+cat ./article.md | spinedigest import ./article.sdpub --input-format markdown
 ```
 
-Create the required LLM config before running a source digest:
+Inspect the archive before expensive work:
 
 ```bash
-mkdir -p ~/.spinedigest
-
-cat > ~/.spinedigest/config.json <<'JSON'
-{
-  "llm": {
-    "provider": "openai-compatible",
-    "model": "your-model",
-    "baseURL": "https://your-provider.example/v1",
-    "apiKey": "your-api-key"
-  }
-}
-JSON
-
-spinedigest status
+spinedigest status ./book.sdpub
+spinedigest index ./book.sdpub
+spinedigest estimate ./book.sdpub --stage ready
 ```
 
-Digest an EPUB into Markdown:
+Build derived knowledge when you intend to spend LLM time:
 
 ```bash
-spinedigest --input ./book.epub --output ./digest.md --prompt "Preserve emotional shifts for both major and supporting characters."
+spinedigest build ./book.sdpub --stage graph --confirm
 ```
 
-Save a reusable archive first, then export later:
+Search and read through the archive interface:
 
 ```bash
-spinedigest --input ./book.epub --output ./book.sdpub
-spinedigest --input ./book.sdpub --output ./book.epub
+spinedigest find ./book.sdpub "RAG"
+spinedigest page ./book.sdpub node:84
+spinedigest evidence ./book.sdpub node:84
+spinedigest links ./book.sdpub node:84
+spinedigest related ./book.sdpub node:84
+spinedigest pack ./book.sdpub node:84 --budget 5000
 ```
 
-Pipe from stdin, receive on stdout:
+Export a projection only when you need a portable view:
 
 ```bash
-cat ./chapter.txt | spinedigest --input-format txt --output-format markdown
+spinedigest export ./book.sdpub --output-format markdown --output ./digest.md
+spinedigest export ./book.sdpub --output-format epub --output ./digest.epub
+```
+
+Cost rule:
+
+```text
+Import is cheap.
+Estimate before build.
+Build can be expensive.
+Search, read, navigate, and export are cheap after build.
 ```
 
 Full flag reference: [CLI Reference](./docs/en/cli.md).
@@ -120,9 +125,19 @@ Your intent runs through the whole pipeline. During the reading phase, the AI's 
 
 ## The `.sdpub` Format
 
-Every time SpineDigest finishes processing, it produces a `.sdpub` file. Think of it as a processed archive: it holds not just the summary text but the complete knowledge structure built along the way — chunks, snakes, the full concept graph.
+`.sdpub` is the core SpineDigest knowledge archive. It holds source-derived structure, chapter-like pages, graph nodes, evidence pointers, summaries, and metadata that the CLI can expose as an Agent-readable LLM Wiki.
 
-With that archive on hand, you can export to EPUB, Markdown, or plain text any time without re-running the LLM pipeline. The trade-off: exported formats carry the text but lose the structural data. The chapter topology, snake connections, and knowledge graph live only inside `.sdpub`. If you might want to re-export later, or browse the book's structure in a visualization tool, keep the file around.
+With that archive on hand, agents can search and navigate the knowledge structure directly:
+
+```bash
+spinedigest index ./book.sdpub
+spinedigest ls ./book.sdpub nodes
+spinedigest find ./book.sdpub "central argument"
+spinedigest page ./book.sdpub node:84
+spinedigest evidence ./book.sdpub node:84
+```
+
+Markdown, EPUB, txt, and JSON-style outputs are projections of the archive. They are useful for portability, but they do not replace the `.sdpub` object when graph links and evidence matter.
 
 To open a `.sdpub` file, use **[Inkora](http://inkora.oomol.com/download/sdpub)** — a free app built specifically for it, with chapter topology and knowledge graph views.
 
@@ -130,16 +145,16 @@ For the internal layout and parser guidance, see the [format spec](./docs/sdpub.
 
 ## Inputs and Outputs
 
-| Format             | Input | Output |
-| ------------------ | ----- | ------ |
-| `.epub`            | ✓     | ✓      |
-| `.md`              | ✓     | ✓      |
-| `.txt`             | ✓     | ✓      |
-| `.sdpub`           | ✓     | ✓      |
-| `stdin` (txt / md) | ✓     | —      |
-| `stdout`           | —     | ✓      |
+| Format             | Import Source | Export Projection |
+| ------------------ | ------------- | ----------------- |
+| `.epub`            | ✓             | ✓                 |
+| `.md`              | ✓             | ✓                 |
+| `.txt`             | ✓             | ✓                 |
+| `.sdpub`           | archive       | archive           |
+| `stdin` (txt / md) | compatibility | —                 |
+| `stdout`           | —             | ✓                 |
 
-Requirements: Node `>=22.12.0` and a supported LLM provider with credentials. `.sdpub` input does not require LLM access.
+Requirements: Node `>=22.12.0`. LLM credentials are required for graph and summary builds, not for `.sdpub` inspection, search, evidence lookup, navigation, or export.
 
 ## Library Usage
 
@@ -152,16 +167,15 @@ SpineDigest also exposes a programmatic API for embedding the pipeline in your o
 
 ## For AI Agents
 
-SpineDigest's CLI-first design makes it easy to call directly, with no extra integration code.
+SpineDigest's CLI-first design exposes `.sdpub` as a managed LLM Wiki archive.
 
-- **Prefer the CLI.** Use the programmatic API only when code-level integration is explicitly required.
+- **Treat `.sdpub` as the primary object.** Use archive commands before unpacking or inspecting internals.
+- **Search and read through the CLI.** Start with `status`, `index`, `ls`, `find`, `page`, and `evidence`.
 - **Use help as the discovery surface.** Start with `spinedigest --help` as the root page, then follow `spinedigest help ai`, topic pages, or command-specific `--help` before guessing behavior.
-- **Trust `--help`.** Every command in the CLI exposes usage guidance through `--help`.
-- **Use explicit paths.** Pass `--input` and `--output` for deterministic, repeatable runs.
+- **Prefer `--json`.** Use it when composing with tools.
+- **Estimate before build.** Do not run full-archive graph, summary, or ready builds without `spinedigest estimate`.
 - **Check exit codes.** Success returns `0`; failure returns non-zero with a plain-text error on `stderr`.
-- **stdin is narrow.** Only `txt` and `md` are accepted, and only in non-interactive flows.
-- **No LLM needed for `.sdpub`.** Re-exporting an archive never calls an LLM provider.
-- **Keep the archive.** If the same digest might need re-exporting, treat `.sdpub` as the intermediate artifact.
+- **Do not inspect `database.db` routinely.** Use `page`, `evidence`, `links`, and `map` instead.
 
 Useful help entry points:
 

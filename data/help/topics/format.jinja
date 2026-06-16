@@ -6,49 +6,42 @@ Format Reference
 Supported formats:
   {{ formats | join(", ") }}
 
-Input rules:
-  - `epub`, `markdown`, and `txt` are source formats for new digest runs.
-  - `.sdpub` is a processed archive format for re-export, inspection, and staged editing.
-  - `stdin` is supported only for txt or markdown input.
-  - `sdpub` archive commands require a real archive file path.
-  - `sdpub chapter set-source` and `set-summary` can read content from stdin when their `--input` flag is omitted.
+Archive-first rules:
+  - `.sdpub` is the primary managed knowledge archive.
+  - `epub`, `markdown`, `txt`, URL text, and stdin text are import sources.
+  - `markdown`, `txt`, `epub`, and `.sdpub` are export projections.
+  - Search, page, evidence, links, map, and pack operate on `.sdpub` and do not require output formats.
 
-Output rules:
-  - File output supports `markdown`, `txt`, `epub`, and `.sdpub`.
-  - `.sdpub` output supports `--stage planned|sourced|graphed|summarized`.
-  - `stdout` supports only `markdown` or `txt`.
-  - `sdpub info`, `toc`, `list`, `cat`, and `meta` print text to stdout.
-  - `sdpub cover` writes raw binary bytes to stdout.
-  - `sdpub meta` edits book metadata in place when metadata edit flags are present.
-  - `sdpub stage` and `sdpub chapter` edit existing archives in place when their action changes data.
+Import rules:
+  - `spinedigest import <archive.sdpub> <source>` infers source format from the source path when possible.
+  - `spinedigest import <archive.sdpub> --input-format markdown` reads source text from stdin.
+  - stdin import supports only `markdown` and `txt`.
+  - `.sdpub` itself must be a real archive file path.
 
-Output readiness by `.sdpub` stage:
-  - planned: inspect and edit only; add source before generation.
-  - sourced: inspect, edit, or advance; re-export and `sdpub cat` are not ready.
-  - graphed: inspect, edit, advance, or set a manual summary; re-export and `sdpub cat` are not ready.
-  - summarized: inspect, re-export, and read summaries with `sdpub cat`.
+Export rules:
+  - `spinedigest export <archive.sdpub> --output-format markdown|txt|epub|sdpub` exports a projection.
+  - If `--output` is omitted, text projections can go to stdout.
+  - Binary or archive projections should be written to a file.
 
-Inference:
-  - If `--input-format` is omitted, input format is inferred from the file extension.
-  - If `--output-format` is omitted, output format is inferred from the file extension.
-  - Stream input and output cannot be inferred reliably, so explicit format flags are recommended there.
+Readiness by archive stage:
+  - planned: chapter exists, but no source is available.
+  - sourced: source fragments are searchable and readable; graph and summary may be missing.
+  - graphed: graph nodes, links, and evidence are available; summary may be missing.
+  - summarized: summaries and export projections are ready.
 
 LLM usage:
-  - Source digest runs require LLM configuration when they generate graph or summary data.
-  - `.sdpub` output with `--stage planned` or `--stage sourced` does not call an LLM provider.
-  - `sdpub stage advance` calls an LLM provider when it needs graph or summary generation.
-  - `.sdpub` re-export, inspection, metadata edits, and chapter tree edits do not call an LLM provider.
+  - Import/source does not call an LLM.
+  - Graph, summary, and ready builds may call an LLM and require `--confirm`.
+  - Search, page, evidence, navigation, pack, and export do not call an LLM.
+
+Direct digest and maintenance commands:
+  The direct `spinedigest --input ... --output ...` command remains available for one-shot digest/export workflows.
+  The `spinedigest sdpub ...` family remains available for lower-level archive maintenance.
 
 Where to go next:
-  - Need the product-level mental model behind source vs archive paths:
-    spinedigest help overview
-  - Need the exact command forms that use these formats:
+  - Need command forms:
     spinedigest help command
-  - Need real task examples:
-    spinedigest help task
-  - Need archive commands and `.sdpub` semantics:
-    spinedigest help sdpub
-  - Need stdin, stdout, or binary-output runtime rules:
+  - Need agent contract:
+    spinedigest help ai
+  - Need runtime stream rules:
     spinedigest help runtime
-  - Need format-related failure handling:
-    spinedigest help troubleshoot

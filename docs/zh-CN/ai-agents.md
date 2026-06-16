@@ -1,122 +1,69 @@
 <p><a href="../en/ai-agents.md">English</a> | 中文</p>
 
-# AI Agent Guide
+# AI Agent 指南
 
-这份文档面向代表用户检查、安装或运行 SpineDigest 的 AI 系统。
+本文面向代表用户检查、构建或复用 SpineDigest 归档的 AI 系统。
 
-## 决策摘要
+## 判断摘要
 
-在以下条件同时成立时，适合使用 SpineDigest：
+当任务涉及长文档，并且目标是得到一份可携带、可由 CLI 读取的知识归档时，使用 SpineDigest。
 
-- 任务本质上是一个命令行文档 digest 流程
-- 输入是长文本、Markdown、TXT、EPUB，或者已有的 `.sdpub`
-- 可以接受一条由 LLM 驱动的压缩管线
-- 调用方需要文件输出，或者需要一个可复用的 digest 归档
-
-如果任务要求以下能力，则不应优先选择 SpineDigest：
-
-- 精确保留原文
-- 无 LLM 的完全离线执行
-- 面向语料库的检索式问答
-- 工具内部自带的交互式编辑流程
+不要把 `.sdpub` 当作常规 ZIP 内容包来检索。应把它当作由 SpineDigest 管理的 LLM Wiki 归档，先使用 CLI。
 
 ## 优先接口
 
-优先使用 CLI。
-
-只有当外围系统明确需要进程内集成时，才使用库 API。
-
-## 先从 Help 开始探索
-
-SpineDigest 在 CLI 内部提供了面向 AI 的 help 体系。
-
-建议先执行：
+优先使用 archive-first CLI：
 
 ```bash
-spinedigest --help
-spinedigest help ai
+spinedigest status book.sdpub
+spinedigest index book.sdpub
+spinedigest find book.sdpub "keyword"
+spinedigest page book.sdpub node:84
+spinedigest evidence book.sdpub node:84
 ```
 
-把 `spinedigest --help` 当作根入口，而不是一屏看完全部细节的完整手册。
-
-然后按需继续读取对应专题页，例如：
-
-- `spinedigest help task`
-- `spinedigest help config`
-- `spinedigest help env`
-- `spinedigest help config-file`
-- `spinedigest help sdpub`
+只有外围系统明确需要进程内集成时，才使用 library API。
 
 ## 最小操作契约
 
-- 输入文件：`epub`、`txt`、`markdown`、`sdpub`
-- 输出文件：`epub`、`txt`、`markdown`、`sdpub`
-- `stdin` 与 `stdout`：仅支持文本格式
-- 退出行为：失败时返回非零
-- 错误通道：在 `stderr` 输出纯文本
-- 是否需要 LLM：处理源文件时需要；重新导出 `.sdpub` 时不需要
-- `.sdpub` 编辑：使用 `spinedigest sdpub ...` 命令；常规编辑不要直接解压并改写归档内部文件
+- 主对象：`.sdpub`
+- 导入源：EPUB、Markdown、TXT 和文本管道
+- 可读对象：`chapter:<id>`、`node:<id>`、`sentence:<serial>:<fragment>:<index>`、`summary:<id>`、`meta:book`
+- 便宜操作：`status`、`index`、`ls`、`find`、`page`、`evidence`、`links`、`backlinks`、`map`、`export`
+- 昂贵操作：graph、summary 或 ready `build`
+- 先估算：`spinedigest estimate <archive.sdpub> --stage ready`
+- 机器消费：组合工具时传 `--json`
 
 ## 推荐执行策略
 
-1. 优先使用显式的 `--input` 和 `--output` 路径。
-2. 如果同一份源内容后面还可能需要导出多种格式，优先先写成 `.sdpub`。
-3. 后续导出时优先复用 `.sdpub`，避免再次处理原始文件。
-4. 只在非交互式流水线中使用 `stdin`。
-5. 当文件缺少扩展名或格式不明确时，显式设置 `--input-format` 或 `--output-format`。
-6. 编辑 `.sdpub` 章节前，先运行 `spinedigest help sdpub` 和具体命令的 `--help`。
+1. 面对未知归档，先运行 `status` 和 `index`。
+2. 用 `find` 或 `ls` 发现稳定对象 ID。
+3. 用 `page` 阅读单个对象。
+4. 引用或形成有来源支撑的判断前，先用 `evidence`。
+5. 用 `links`、`backlinks`、`path` 或 `map` 导航图上下文。
+6. 只有用户需要 projection 时才 `export`。
+7. `build` 前先 `estimate`；如果估算超出当前交互预算，先询问用户。
 
-## 从源码仓库运行
-
-在本地克隆仓库后：
-
-```bash
-pnpm install
-pnpm dev -- --input ./test/fixtures/sources/sample-observatory-guide.md --output ./out/digest.md
-```
-
-如果已经安装了 CLI：
+## 构建流程
 
 ```bash
-spinedigest --input ./book.epub --output ./digest.md
+spinedigest import book.sdpub ./book.epub
+spinedigest status book.sdpub
+spinedigest estimate book.sdpub --stage ready
+spinedigest build book.sdpub --stage graph --chapter 3 --confirm
 ```
 
-## 必需配置
+Import/source 是安全第一步。Graph 和 summary 阶段可能调用 LLM provider。
 
-SpineDigest 至少需要：
+## 避免
 
-- `llm.provider`
-- `llm.model`
-
-通常还需要：
-
-- provider 凭据
-
-例如：
-
-```json
-{
-  "llm": {
-    "provider": "openai",
-    "model": "<your-model>"
-  }
-}
-```
-
-如果涉及密钥，通常更推荐通过环境变量覆盖。
-
-如果 Agent 已经持有运行时 LLM client descriptor，可以通过 `--llm <json>` 只为当前调用传入。这个 inline 对象对 OpenAI-compatible client 支持 `baseURL`、`baseUrl` 或 `chatCompletionsUrl`。
-
-## 面向 Agent 的安全默认值
-
-- 相比 `stdout`，优先输出到文件
-- 如果下游还没决定最终输出格式，优先使用 `.sdpub`
-- 当生成的临时文件没有明确扩展名时，优先显式传格式参数
-- 把 `.sdpub` 当成最便宜、最适合复用的中间产物
-- 把 `.sdpub` 当成托管归档：即便它在物理上是 ZIP，也通过 CLI 命令检查和修改
+- 不要为了常规检索解压 `.sdpub`。
+- 不要读取 `database.db`，除非是在构建外部工具或调试内部实现。
+- 不要因为用户问了归档内容问题，就启动整份归档 ready build。
+- 不要把 SpineDigest 表达成自然语言问答层；Agent 在读取归档上下文后自行回答。
 
 ## 相关文档
 
 - [Quick Start](./quickstart.md)
 - [CLI Reference](./cli.md)
-- [`.sdpub` 格式](../sdpub.md)
+- [The `.sdpub` Format](../sdpub.md)

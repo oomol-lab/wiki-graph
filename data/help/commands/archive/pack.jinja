@@ -1,0 +1,19 @@
+Help Type: command
+Command: spinedigest pack
+
+Purpose:
+  Pack deterministic context around a known object id.
+
+Usage:
+  spinedigest pack <archive.sdpub> <id> [--budget <chars>] [--json]
+
+Contract:
+  - Mutates: no.
+  - LLM: no.
+  - JSON: yes.
+  - Input must be a known id from index, ls, find, page, or links.
+  - Node packs include source evidence and both incoming and outgoing graph neighbors.
+
+Examples:
+  spinedigest pack book.sdpub node:84 --budget 5000
+  spinedigest pack book.sdpub chapter:1 --json

@@ -4,39 +4,59 @@ Command: spinedigest
 SpineDigest CLI
 
 Purpose:
-  Distill long-form EPUB, Markdown, or plain text into compressed output.
-  Digesting source input uses an LLM pipeline. Re-opening an existing .sdpub archive does not.
+  Build portable LLM Wiki archives for AI agents.
+  Treat `.sdpub` as the primary knowledge archive: import sources, build derived knowledge, then search, browse, trace evidence, navigate links, and export projections without unpacking it.
 
-Default command:
-  `spinedigest` without a subcommand is the convenience digest/export command.
+Archive-first usage:
+  spinedigest import <archive.sdpub> [source] [--input-format <format>] [--llm <json>] [--prompt <text>]
+  spinedigest build <archive.sdpub> [--stage <source|graph|summary|ready>] [--chapter <id>] [--llm <json>] [--prompt <text>] [--confirm]
+  spinedigest estimate <archive.sdpub> [--stage <source|graph|summary|ready>] [--json]
+  spinedigest status <archive.sdpub> [--json]
+  spinedigest index <archive.sdpub> [--json]
+  spinedigest ls <archive.sdpub> [chapters|nodes|edges|evidence|summaries|meta] [--json]
+  spinedigest find <archive.sdpub> <query> [--json]
+  spinedigest grep <archive.sdpub> <query> [--json]
+  spinedigest page <archive.sdpub> <id> [--json]
+  spinedigest evidence <archive.sdpub> <id> [--json]
+  spinedigest links <archive.sdpub> <node:id> [--json]
+  spinedigest backlinks <archive.sdpub> <node:id> [--json]
+  spinedigest related <archive.sdpub> <node:id> [--json]
+  spinedigest path <archive.sdpub> <node:id> <node:id> --chapter <id>
+  spinedigest map <archive.sdpub> [--json]
+  spinedigest pack <archive.sdpub> <id> [--budget <chars>] [--json]
+  spinedigest export <archive.sdpub> --output-format <format> [--output <path>]
+
+Direct digest command:
+  `spinedigest` without a subcommand is the direct one-shot digest/export command.
   It reads from `--input <path>`, or from stdin when `--input` is omitted.
   It writes to `--output <path>`, or to stdout when `--output` is omitted.
-  If no arguments are passed in an interactive terminal, it prints this help page.
-  Stream input/output formats cannot be inferred, so pass `--input-format` and `--output-format` for pipes.
+  Prefer the archive-first commands for new automation.
 
-Usage:
+Direct and maintenance usage:
   spinedigest [--input <path>] [--output <path>] [--input-format <format>] [--output-format <format>] [--digest-dir <path>] [--llm <json>] [--prompt <text>] [--stage <stage>] [--verbose|-v] [--help|-h] [--version]
-  spinedigest status [--llm <json>] [--help|-h]
+  spinedigest status [--llm <json>]
   spinedigest sdpub <info|toc|list|cat|cover|meta> --input <path> [options] [--help|-h]
   spinedigest sdpub chapter <action> <path> [options] [--help|-h]
   spinedigest sdpub stage <action> <path> [options] [--help|-h]
+  spinedigest sdpub graph <action> <path> --chapter <id> [options] [--help|-h]
   spinedigest help [topic] [--help|-h]
 
+Core object ids:
+  chapter:<id>     A chapter-like archive page.
+  node:<id>        A graph knowledge node.
+  sentence:a:b:c   A source evidence sentence.
+  summary:<id>     A chapter summary projection.
+  meta:book        Archive metadata.
+
+Cost contract:
+  Import is cheap when it stops at source.
+  Search, page, evidence, links, map, and export are cheap after build.
+  Build can call an LLM and may be expensive. Run `spinedigest estimate <archive.sdpub>` before full-archive graph, summary, or ready builds, then rerun `build` with `--confirm`.
+
 Help contract:
-  - Append `--help` to any command or subcommand to see its command-specific usage.
+  - Append `--help` to commands and subcommands to see command-specific usage.
   - Use `spinedigest help <topic>` for cross-command concepts, constraints, and runtime behavior.
   - Treat `spinedigest --help` as the root page of the same help system.
-
-Flag aliases:
-  - `-h` is the short form of `--help` on every command and subcommand.
-  - `-v` is the short form of `--verbose` on the main convert command.
-  - `--version` prints the CLI package version and exits.
-
-Common paths:
-  Source input -> digest -> markdown | txt | epub | .sdpub
-  Piped txt/markdown -> digest -> stdout text
-  Config status -> validate merged config -> print masked JSON
-  .sdpub input -> re-export or inspect without re-running the digest pipeline
 
 Help topics:
 {% for topic in helpTopics %}
@@ -44,22 +64,11 @@ Help topics:
     {{ topic.summary }}
 {% endfor %}
 
-sdpub subcommands:
-{% for command in sdpubCommands %}
-  - spinedigest sdpub {{ command.name }} --help
-    {{ command.summary }}
-{% endfor %}
-
 Formats:
   {{ formats | join(", ") }}
 
 Start here:
-  - Read `spinedigest help overview` for the product mental model.
-  - Read `spinedigest help task` if you are starting from a workflow goal.
-  - Read `spinedigest help command` if you already know the action and need command shapes.
-  - Read `spinedigest help ai` if you want the CLI-first navigation contract.
-
-If a run fails:
-  - Re-check the command shape with `<command> --help`.
-  - Re-check format, config, or runtime rules with the matching topic page.
-  - Use `spinedigest help troubleshoot` when the failure mode is still unclear.
+  - Read `spinedigest help overview` for the archive-first mental model.
+  - Read `spinedigest help ai` for the agent operating contract.
+  - Read `spinedigest help command` for command shapes.
+  - Read `spinedigest help sdpub` when maintaining lower-level archive scripts that still use `sdpub ...`.

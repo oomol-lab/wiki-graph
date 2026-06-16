@@ -95,6 +95,38 @@ describe("cli/args", () => {
     });
   });
 
+  it("renders archive command help", () => {
+    const importHelp = parseCLIArguments(["import", "--help"]);
+    const helpTopic = parseCLIArguments(["help", "import"]);
+
+    expect(importHelp.help).toBe(true);
+    expect(importHelp.kind).toBe("help");
+    expect(helpTopic.help).toBe(true);
+    expect(helpTopic.kind).toBe("help");
+    if (!importHelp.help || importHelp.kind !== "help") {
+      throw new Error("Expected import help");
+    }
+    if (!helpTopic.help || helpTopic.kind !== "help") {
+      throw new Error("Expected help topic");
+    }
+    expect(importHelp.helpText).toContain("Command: spinedigest import");
+    expect(helpTopic.helpText).toContain("stdin: supported");
+  });
+
+  it("renders archive-first stdin import recipes", () => {
+    const recipeHelp = parseCLIArguments(["help", "recipe"]);
+
+    expect(recipeHelp.help).toBe(true);
+    expect(recipeHelp.kind).toBe("help");
+    if (!recipeHelp.help || recipeHelp.kind !== "help") {
+      throw new Error("Expected recipe help");
+    }
+    expect(recipeHelp.helpText).toContain(
+      "cat article.md | spinedigest import article.sdpub --input-format markdown",
+    );
+    expect(recipeHelp.helpText).toContain("One-shot stream digest");
+  });
+
   it("parses --prompt for the main convert command", () => {
     expect(parseCLIArguments(["--prompt", "Keep dialogue only"])).toStrictEqual(
       {
@@ -153,6 +185,128 @@ describe("cli/args", () => {
       },
       help: false,
       kind: "status",
+    });
+  });
+
+  it("parses archive-first commands", () => {
+    expect(
+      parseCLIArguments([
+        "import",
+        "book.sdpub",
+        "book.md",
+        "--input-format",
+        "markdown",
+      ]),
+    ).toStrictEqual({
+      args: {
+        action: "import",
+        archivePath: "book.sdpub",
+        inputFormat: "markdown",
+        sourcePath: "book.md",
+      },
+      help: false,
+      kind: "archive",
+    });
+
+    expect(
+      parseCLIArguments(["import", "book.sdpub", "--input-format", "markdown"]),
+    ).toStrictEqual({
+      args: {
+        action: "import",
+        archivePath: "book.sdpub",
+        inputFormat: "markdown",
+      },
+      help: false,
+      kind: "archive",
+    });
+
+    expect(() =>
+      parseCLIArguments(["build", "book.sdpub", "--stage", "graph"]),
+    ).toThrow("This build may call an LLM.");
+    expect(
+      parseCLIArguments([
+        "build",
+        "book.sdpub",
+        "--stage",
+        "graph",
+        "--confirm",
+      ]),
+    ).toStrictEqual({
+      args: {
+        action: "build",
+        archivePath: "book.sdpub",
+        confirm: true,
+        targetStage: "graphed",
+      },
+      help: false,
+      kind: "archive",
+    });
+
+    expect(
+      parseCLIArguments(["find", "book.sdpub", "RAG", "--json"]),
+    ).toStrictEqual({
+      args: {
+        action: "find",
+        archivePath: "book.sdpub",
+        json: true,
+        query: "RAG",
+      },
+      help: false,
+      kind: "archive",
+    });
+
+    expect(parseCLIArguments(["ls", "book.sdpub", "nodes"])).toStrictEqual({
+      args: {
+        action: "ls",
+        archivePath: "book.sdpub",
+        listKind: "nodes",
+      },
+      help: false,
+      kind: "archive",
+    });
+
+    expect(parseCLIArguments(["ls", "book.sdpub", "fragments"])).toStrictEqual({
+      args: {
+        action: "ls",
+        archivePath: "book.sdpub",
+        listKind: "fragments",
+      },
+      help: false,
+      kind: "archive",
+    });
+
+    expect(
+      parseCLIArguments(["pack", "book.sdpub", "node:1", "--budget", "2000"]),
+    ).toStrictEqual({
+      args: {
+        action: "pack",
+        archivePath: "book.sdpub",
+        budget: 2000,
+        objectId: "node:1",
+      },
+      help: false,
+      kind: "archive",
+    });
+
+    expect(
+      parseCLIArguments([
+        "path",
+        "book.sdpub",
+        "node:1",
+        "node:2",
+        "--chapter",
+        "3",
+      ]),
+    ).toStrictEqual({
+      args: {
+        action: "path",
+        archivePath: "book.sdpub",
+        chapterId: 3,
+        fromNodeId: 1,
+        toNodeId: 2,
+      },
+      help: false,
+      kind: "archive",
     });
   });
 
@@ -718,9 +872,14 @@ describe("cli/args", () => {
     expect(() => parseCLIArguments(["status", "--verbose"])).toThrow(
       "The `status` command does not support --verbose.\nSee: spinedigest status --help",
     );
-    expect(() => parseCLIArguments(["status", "extra"])).toThrow(
-      "Unexpected positional arguments: extra.\nSee: spinedigest status --help",
-    );
+    expect(parseCLIArguments(["status", "book.sdpub"])).toStrictEqual({
+      args: {
+        action: "status",
+        archivePath: "book.sdpub",
+      },
+      help: false,
+      kind: "archive",
+    });
   });
 
   it("documents the layered help contract", () => {
@@ -729,37 +888,36 @@ describe("cli/args", () => {
     const commandHelpText = renderHelpTopicText("command");
 
     expect(rootHelpText).toContain("spinedigest help [topic]");
-    expect(rootHelpText).toContain("spinedigest status [--llm <json>]");
+    expect(rootHelpText).toContain("spinedigest status <archive.sdpub>");
     expect(rootHelpText).toContain("spinedigest help overview");
     expect(rootHelpText).toContain("spinedigest help env");
     expect(rootHelpText).toContain("spinedigest help config-file");
-    expect(rootHelpText).toContain("spinedigest sdpub info --help");
-    expect(rootHelpText).toContain("[--verbose|-v] [--help|-h]");
-    expect(rootHelpText).toContain("[--stage <stage>]");
-    expect(rootHelpText).toContain("`-h` is the short form of `--help`");
-    expect(rootHelpText).toContain("`-v` is the short form of `--verbose`");
     expect(rootHelpText).toContain(
-      "Append `--help` to any command or subcommand",
+      "spinedigest sdpub <info|toc|list|cat|cover|meta>",
+    );
+    expect(rootHelpText).toContain("[--verbose|-v] [--help|-h]");
+    expect(rootHelpText).toContain("chapter:<id>");
+    expect(rootHelpText).toContain(
+      "Append `--help` to commands and subcommands",
     );
     expect(rootHelpText).toContain("Treat `spinedigest --help` as the root");
     expect(rootHelpText).toContain(
-      "Read `spinedigest help overview` for the product mental model.",
+      "Read `spinedigest help overview` for the archive-first mental model.",
     );
-    expect(rootHelpText).toContain("If a run fails:");
-    expect(rootHelpText).toContain("Use `spinedigest help troubleshoot`");
+    expect(rootHelpText).toContain("Build can call an LLM");
     expect(renderHelpTopicText("runtime")).toContain("Runtime Behavior");
     expect(renderHelpTopicText("config")).toContain("Configuration Overview");
     expect(renderHelpTopicText("command")).toContain("spinedigest status");
-    expect(renderHelpTopicText("ai")).toContain("Suggested first pass:");
+    expect(renderHelpTopicText("ai")).toContain("Primary contract:");
     expect(renderHelpTopicText("ai")).toContain(
-      "Begin at `spinedigest --help`, which acts as the root page",
+      "Treat `.sdpub` as an LLM Wiki archive",
     );
     expect(renderHelpTopicText("ai")).toContain(
-      "Start with `spinedigest help overview`",
+      "spinedigest estimate <archive.sdpub> --stage ready",
     );
-    expect(commandHelpText).toContain("--verbose, -v");
-    expect(commandHelpText).toContain("--help, -h");
-    expect(commandHelpText).toContain("--version");
+    expect(commandHelpText).toContain("Archive-first commands:");
+    expect(commandHelpText).toContain("spinedigest import <archive.sdpub>");
+    expect(commandHelpText).toContain("spinedigest export <archive.sdpub>");
     for (const flag of [
       "--input <path>",
       "--output <path>",
@@ -768,7 +926,6 @@ describe("cli/args", () => {
       "--digest-dir <path>",
       "--llm <json>",
       "--prompt <text>",
-      "--chapter <id>",
     ]) {
       expect(commandHelpText).toContain(flag);
     }
@@ -816,7 +973,7 @@ describe("cli/args", () => {
     expect(renderSdpubSubcommandHelpText("cover")).toContain("[--help|-h]");
     expect(renderSdpubSubcommandHelpText("meta")).toContain("--clear-authors");
     expect(renderHelpTopicText("sdpub")).toContain(
-      "agents should not unzip and edit files directly",
+      "agents should not unzip it or read `database.db` directly",
     );
   });
 

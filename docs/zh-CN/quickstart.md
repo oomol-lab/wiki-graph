@@ -2,14 +2,14 @@
 
 # Quick Start
 
-这份文档面向 SpineDigest 的主要使用方式：直接运行 CLI。
+本文展示 SpineDigest 的 archive-first 主流程。
 
-## 1. 环境要求
+## 1. 运行要求
 
 - Node `>=22.12.0`
-- 一个 SpineDigest 支持的 LLM provider
+- 只有构建 graph 或 summary 阶段时才需要 LLM provider 凭据
 
-当前支持的 provider：
+支持的 provider：
 
 - `anthropic`
 - `google`
@@ -18,42 +18,68 @@
 
 ## 2. 安装 CLI
 
-对大多数用户，直接安装发布后的 CLI：
-
 ```bash
 npm install -g spinedigest
 ```
 
-如果你只是想临时执行一次，不做全局安装：
+或无需全局安装直接运行：
 
 ```bash
 npx spinedigest --help
 ```
 
-如果你更习惯 `pnpm`：
+## 3. 导入源材料
 
 ```bash
-pnpm add -g spinedigest
+spinedigest import ./book.sdpub ./book.md
+cat ./article.md | spinedigest import ./article.sdpub --input-format markdown
 ```
 
-## 3. 用于开发的源码 checkout
+Import 会创建或替换 source 阶段的 `.sdpub` 归档。这不表示归档已经完成 graph 构建或 summary 构建。
 
-如果你是在仓库里开发，再克隆源码并安装依赖：
+## 4. 查看和估算
 
 ```bash
-git clone https://github.com/oomol-lab/spinedigest.git
-cd spinedigest
-pnpm install
+spinedigest status ./book.sdpub
+spinedigest index ./book.sdpub
+spinedigest estimate ./book.sdpub --stage ready
 ```
 
-## 4. 配置 CLI
+整份归档的 graph、summary 或 ready 构建之前，先看 estimate。
 
-SpineDigest 会从以下位置读取配置：
+## 5. 构建知识
 
-- 默认路径：`~/.spinedigest/config.json`
-- 覆盖路径：`SPINEDIGEST_CONFIG`
+```bash
+spinedigest build ./book.sdpub --stage graph --confirm
+```
 
-先创建必需的 LLM 配置，再检查配置，然后才能运行源文件 digest：
+如果只需要局部构建：
+
+```bash
+spinedigest build ./book.sdpub --stage graph --chapter 3 --confirm
+```
+
+## 6. 搜索和阅读
+
+```bash
+spinedigest find ./book.sdpub "central argument"
+spinedigest page ./book.sdpub node:84
+spinedigest evidence ./book.sdpub node:84
+spinedigest links ./book.sdpub node:84
+```
+
+输出要交给其他工具消费时，使用 `--json`。
+
+## 7. 导出 projection
+
+```bash
+spinedigest export ./book.sdpub --output-format markdown --output ./digest.md
+spinedigest export ./book.sdpub --output-format epub --output ./digest.epub
+```
+
+## 8. 配置 LLM 构建
+
+运行 LLM-backed build stage 前，创建配置：
 
 ```bash
 mkdir -p ~/.spinedigest
@@ -68,121 +94,13 @@ cat > ~/.spinedigest/config.json <<'JSON'
   }
 }
 JSON
+```
 
+然后验证配置：
+
+```bash
 spinedigest status
 ```
-
-## 5. 跑第一条命令
-
-如果你已经安装好了 CLI，可以直接运行：
-
-```bash
-spinedigest --input ./book.md --output ./out/digest.md
-```
-
-在源码仓库里，最直接的命令是：
-
-```bash
-pnpm dev -- --input ./test/fixtures/sources/sample-observatory-guide.md --output ./out/digest.md
-```
-
-执行完成后，可以查看结果：
-
-```bash
-cat ./out/digest.md
-```
-
-## 6. 常见输出模式
-
-输出纯文本：
-
-```bash
-spinedigest --input ./book.epub --output ./digest.txt
-```
-
-输出 Markdown：
-
-```bash
-spinedigest --input ./book.txt --output ./digest.md
-```
-
-输出 EPUB：
-
-```bash
-spinedigest --input ./book.md --output ./digest.epub
-```
-
-输出可复用的 `.sdpub` 归档：
-
-```bash
-spinedigest --input ./book.epub --output ./book.sdpub
-```
-
-重新打开已有 `.sdpub` 并再次导出：
-
-```bash
-spinedigest --input ./book.sdpub --output ./digest.txt
-```
-
-## 7. 通过标准流处理
-
-`stdin` 和 `stdout` 只支持文本格式。
-
-从 `stdin` 读取：
-
-```bash
-cat ./chapter.txt | spinedigest --input-format txt --output ./digest.md
-```
-
-写到 `stdout`：
-
-```bash
-spinedigest --input ./chapter.md --output-format txt
-```
-
-双向管道：
-
-```bash
-cat ./chapter.txt | spinedigest --input-format txt --output-format markdown
-```
-
-## 8. 添加自定义 extraction prompt
-
-如果只是临时跑一次，可以直接传 `--prompt`：
-
-```bash
-spinedigest --input ./book.md --output ./digest.md --prompt "Preserve key arguments, named entities, and decisive transitions."
-```
-
-如果希望作为长期默认值，可以写进配置：
-
-```json
-{
-  "prompt": "Preserve key arguments, named entities, and decisive transitions."
-}
-```
-
-对于主 digest 命令，`--prompt` 会覆盖 `SPINEDIGEST_PROMPT`，后者再覆盖 `config.json`。如果都没有设置，则使用内置默认 prompt。
-
-这个 prompt 会用于处理源文件或文本流时的 digest 过程，不会用于重新打开已有 `.sdpub`。
-
-## 9. 故障排查
-
-如果看到缺少 LLM 配置的错误：
-
-- 确认已经设置 `llm.provider` 和 `llm.model`
-- 或者通过 `--llm` 传入 inline LLM 对象
-- 确认对应 provider 的 API key 已经可用
-
-如果格式推断失败：
-
-- 添加 `--input-format`
-- 添加 `--output-format`
-
-如果省略了 `--input`，但又没有真正通过管道传入内容：
-
-- SpineDigest 会拒绝从交互式 `stdin` 读取
-- 请显式提供 `--input <path>`，或者通过管道输入文本
 
 ## 下一步
 

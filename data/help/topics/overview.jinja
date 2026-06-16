@@ -4,42 +4,48 @@ Topic: overview
 Overview
 
 What SpineDigest does:
-  SpineDigest reads long-form source material and compresses it into smaller, reusable output.
-  It accepts EPUB, Markdown, plain text, and previously generated .sdpub archives.
+  SpineDigest builds portable LLM Wiki archives for AI agents.
+  It imports EPUB, Markdown, plain text, URL-ready text, or stdin into `.sdpub`, then exposes archive objects through deterministic CLI primitives.
 
 Mental model:
-  1. Source digest path:
-     EPUB / Markdown / txt / stdin enters the digest pipeline.
-     This path requires LLM configuration.
-  2. Archive path:
-     A completed digest can be saved as .sdpub.
-     .sdpub preserves reusable structured output for later export.
-  3. Re-export path:
-     Opening .sdpub can export markdown, txt, or EPUB without calling an LLM again.
-  4. Archive command path:
-     `spinedigest sdpub ...` inspects or edits existing archives.
+  1. Archive object:
+     `.sdpub` is the primary object. Treat it as a managed knowledge archive, not as a ZIP file to inspect manually.
+  2. Source layer:
+     Import stores normalized source material and metadata. This stage is cheap and safe to run by default.
+  3. Knowledge layer:
+     Build derives graph nodes, summaries, links, and evidence-backed reading surfaces. Graph and summary stages may call an LLM.
+  4. Retrieval layer:
+     `index`, `ls`, `find`, `page`, `evidence`, `links`, `backlinks`, `path`, and `map` project existing archive data into an agent-friendly Wiki-like interface.
+  5. Projection layer:
+     `export` writes Markdown, txt, EPUB, or other supported projections. Export is not the core archive object.
 
-Default command:
-  `spinedigest` without a subcommand is the convenience digest/export command.
-  It reads from `--input <path>` or stdin, and writes to `--output <path>` or stdout.
-  In an interactive terminal, a bare `spinedigest` prints root help instead of trying to digest empty stdin.
+Default workflow:
+  spinedigest import book.sdpub ./book.epub
+  spinedigest status book.sdpub
+  spinedigest estimate book.sdpub --stage ready
+  spinedigest build book.sdpub --stage graph --confirm
+  spinedigest index book.sdpub
+  spinedigest find book.sdpub "keyword"
+  spinedigest page book.sdpub node:84
+  spinedigest evidence book.sdpub node:84
 
-Think in terms of intent:
-  - Use source input when you want a new digest.
-  - Use a pipe only for non-interactive txt or markdown streams with explicit format flags.
-  - Use .sdpub input when you want deterministic reuse of a previous digest.
-  - Use `sdpub` subcommands when you want to inspect or edit an archive, not export it.
+Cost model:
+  - Import/source: cheap, no LLM when kept at source.
+  - Search/read/navigation/export: cheap after data exists.
+  - Graph/summary/ready build: may call an LLM; estimate first.
+
+Compatibility:
+  The direct `spinedigest --input ... --output ...` digest command and `spinedigest sdpub ...` maintenance command family still exist for scripts and lower-level archive work.
+  New automation should prefer archive-first commands.
 
 Where to go next:
-  - Need a task-shaped entry point:
+  - Need agent rules:
+    spinedigest help ai
+  - Need task-level workflows:
     spinedigest help task
-  - Need supported formats and stream constraints:
-    spinedigest help format
-  - Need flags and command shapes:
+  - Need command shapes:
     spinedigest help command
-  - Need LLM or environment setup:
-    spinedigest help config
-  - Need archive command details:
+  - Need format constraints:
+    spinedigest help format
+  - Need sdpub maintenance details:
     spinedigest help sdpub
-  - Need failure-handling guidance:
-    spinedigest help troubleshoot

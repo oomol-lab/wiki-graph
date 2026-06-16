@@ -1,4 +1,5 @@
 import { parseCLIArguments } from "./args.js";
+import { runArchiveCommand } from "./archive.js";
 import { runConvertCommand } from "./convert.js";
 import { renderMainHelpText } from "./help.js";
 import { runStatusCommand } from "./status.js";
@@ -46,6 +47,9 @@ export async function main(): Promise<void> {
         return;
       case "sdpub-graph":
         await runSdpubGraphCommand(parsed.args);
+        return;
+      case "archive":
+        await runArchiveCommand(parsed.args);
         return;
       case "status":
         await runStatusCommand(parsed.args);
