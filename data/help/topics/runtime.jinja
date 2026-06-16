@@ -20,14 +20,14 @@ Build safety:
 
 Progress and diagnostics:
   - LLM-backed build progress writes to stderr.
-  - `--verbose` is kept for the legacy convert command and writes diagnostic logs to stderr.
+  - `--verbose` is available for the direct digest command and writes diagnostic logs to stderr.
 
 Workspace behavior:
-  - Archive-first import uses temporary workspaces unless the legacy convert command is used with `--digest-dir`.
-  - The legacy `--digest-dir` option applies only to source digest runs through the compatibility command.
+  - Archive-first import uses temporary workspaces unless the direct digest command is used with `--digest-dir`.
+  - `--digest-dir` applies only to source digest runs through the direct digest command.
 
 In-place archive edits:
-  - `build` and legacy mutating `sdpub` commands edit archives in place.
+  - `build` and mutating `sdpub` maintenance commands edit archives in place.
   - Do not run multiple mutating commands against the same archive concurrently.
   - Writes are staged through a temporary archive and renamed into place, but no backup file is created.
 

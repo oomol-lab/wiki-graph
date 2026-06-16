@@ -75,15 +75,15 @@ spinedigest evidence book.sdpub node:84 --json
 
 默认 stdout 是适合人和 Agent 阅读的 Markdown-like 文本，包含稳定 ID 和下一步命令提示。
 
-## 兼容命令
+## 直接压缩与维护命令
 
-旧 convenience command 仍然可用：
+直接一次性 digest/export 命令仍然可用：
 
 ```bash
 spinedigest [--input <path>] [--output <path>] [--input-format <format>] [--output-format <format>] [--digest-dir <path>] [--llm <json>] [--prompt <text>] [--confirm] [--stage <planned|sourced|graphed|summarized>] [--verbose]
 ```
 
-低层 `.sdpub` 维护命令仍然可用：
+低层 `.sdpub` 维护命令：
 
 ```bash
 spinedigest sdpub <info|toc|list|cat|cover|meta> --input <path> [options]
@@ -96,7 +96,7 @@ spinedigest sdpub graph <status|log|show|grep|neighbors|blame|path> <path> --cha
 
 ## 标准流规则
 
-archive-first `import` 命令需要 source path。纯流式工作流使用兼容命令：
+archive-first `import` 命令用于写入 `.sdpub`。纯流式一次性 digest/export 可以直接使用裸 `spinedigest`：
 
 ```bash
 cat ./chapter.txt | spinedigest --input-format txt --output-format markdown

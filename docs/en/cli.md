@@ -77,7 +77,7 @@ Human-readable stdout is Markdown-like text with stable ids and suggested next c
 
 ## Compatibility Commands
 
-The legacy convenience command remains available:
+The direct one-shot digest command remains available:
 
 ```bash
 spinedigest [--input <path>] [--output <path>] [--input-format <format>] [--output-format <format>] [--digest-dir <path>] [--llm <json>] [--prompt <text>] [--confirm] [--stage <planned|sourced|graphed|summarized>] [--verbose]
@@ -96,7 +96,7 @@ A bare `spinedigest status` still prints configuration status. `spinedigest stat
 
 ## Standard Stream Rules
 
-The archive-first `import` command expects a source path. For pure stream workflows, use the compatibility command:
+The archive-first `import` command writes `.sdpub` archives. For pure one-shot stream digest/export workflows, use bare `spinedigest`:
 
 ```bash
 cat ./chapter.txt | spinedigest --input-format txt --output-format markdown

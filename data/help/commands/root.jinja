@@ -26,13 +26,13 @@ Archive-first usage:
   spinedigest pack <archive.sdpub> <id> [--budget <chars>] [--json]
   spinedigest export <archive.sdpub> --output-format <format> [--output <path>]
 
-Default compatibility command:
-  `spinedigest` without a subcommand is the legacy convenience digest/export command.
+Direct digest command:
+  `spinedigest` without a subcommand is the direct one-shot digest/export command.
   It reads from `--input <path>`, or from stdin when `--input` is omitted.
   It writes to `--output <path>`, or to stdout when `--output` is omitted.
   Prefer the archive-first commands for new automation.
 
-Compatibility usage:
+Direct and maintenance usage:
   spinedigest [--input <path>] [--output <path>] [--input-format <format>] [--output-format <format>] [--digest-dir <path>] [--llm <json>] [--prompt <text>] [--stage <stage>] [--verbose|-v] [--help|-h] [--version]
   spinedigest status [--llm <json>]
   spinedigest sdpub <info|toc|list|cat|cover|meta> --input <path> [options] [--help|-h]
@@ -54,7 +54,7 @@ Cost contract:
   Build can call an LLM and may be expensive. Run `spinedigest estimate <archive.sdpub>` before full-archive graph, summary, or ready builds, then rerun `build` with `--confirm`.
 
 Help contract:
-  - Append `--help` to legacy commands and subcommands to see command-specific usage.
+  - Append `--help` to commands and subcommands to see command-specific usage.
   - Use `spinedigest help <topic>` for cross-command concepts, constraints, and runtime behavior.
   - Treat `spinedigest --help` as the root page of the same help system.
 
@@ -71,4 +71,4 @@ Start here:
   - Read `spinedigest help overview` for the archive-first mental model.
   - Read `spinedigest help ai` for the agent operating contract.
   - Read `spinedigest help command` for command shapes.
-  - Read `spinedigest help sdpub` when maintaining compatibility scripts that still use `sdpub ...`.
+  - Read `spinedigest help sdpub` when maintaining lower-level archive scripts that still use `sdpub ...`.

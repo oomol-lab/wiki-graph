@@ -124,7 +124,7 @@ describe("cli/args", () => {
     expect(recipeHelp.helpText).toContain(
       "cat article.md | spinedigest import article.sdpub --input-format markdown",
     );
-    expect(recipeHelp.helpText).toContain("Legacy one-shot stream digest");
+    expect(recipeHelp.helpText).toContain("One-shot stream digest");
   });
 
   it("parses --prompt for the main convert command", () => {
@@ -898,7 +898,7 @@ describe("cli/args", () => {
     expect(rootHelpText).toContain("[--verbose|-v] [--help|-h]");
     expect(rootHelpText).toContain("chapter:<id>");
     expect(rootHelpText).toContain(
-      "Append `--help` to legacy commands and subcommands",
+      "Append `--help` to commands and subcommands",
     );
     expect(rootHelpText).toContain("Treat `spinedigest --help` as the root");
     expect(rootHelpText).toContain(

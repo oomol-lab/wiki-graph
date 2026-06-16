@@ -25,7 +25,7 @@ Archive model:
   - Public object ids include chapter:<id>, node:<id>, sentence:<serial>:<fragment>:<index>, summary:<id>, and meta:book.
   - Current editable archives are still maintained internally around chapters and graph nodes.
 
-Legacy sdpub command family:
+sdpub maintenance command family:
   `spinedigest sdpub ...` remains available for lower-level maintenance:
   - info, toc, list, cat, cover, meta
   - chapter add/remove/reset/set-source/set-summary/status/list
@@ -34,11 +34,11 @@ Legacy sdpub command family:
 
 LLM behavior:
   - Inspection, search, navigation, metadata edits, chapter tree edits, source edits, and export do not call an LLM provider.
-  - `build`, legacy `sdpub stage advance`, and graph/summary generation may call an LLM provider.
+  - `build`, `sdpub stage advance`, and graph/summary generation may call an LLM provider.
   - Run `spinedigest estimate <archive.sdpub>` before full-archive LLM-backed builds.
 
 Mutation safety:
-  - Mutating legacy `sdpub` commands edit archives in place.
+  - Mutating `sdpub` maintenance commands edit archives in place.
   - Do not run multiple mutating commands against the same archive concurrently.
   - Keep your own copy before destructive commands such as chapter remove or reset.
 
