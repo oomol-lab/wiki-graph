@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import { DirectoryDocument } from "../../src/document/index.js";
 import {
   findArchiveObjects,
+  listArchiveObjects,
   readArchivePage,
 } from "../../src/facade/archive-view.js";
 import { withTempDir } from "../helpers/temp.js";
@@ -45,6 +46,28 @@ describe("facade/archive-view", () => {
           throw new Error("Expected chapter page");
         }
         expect(page.sourcePreview).toContain("LLM Wiki");
+      } finally {
+        await document.release();
+      }
+    });
+  });
+
+  it("labels source fragments with their chapter title", async () => {
+    await withTempDir("spinedigest-archive-view-", async (path) => {
+      const document = await DirectoryDocument.open(`${path}/document`);
+
+      try {
+        await seedSourcedDocument(document);
+
+        await expect(
+          listArchiveObjects(document, "fragments"),
+        ).resolves.toContainEqual(
+          expect.objectContaining({
+            id: "fragment:1:0",
+            label: "Introduction",
+            type: "fragment",
+          }),
+        );
       } finally {
         await document.release();
       }

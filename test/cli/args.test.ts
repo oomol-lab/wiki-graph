@@ -251,6 +251,16 @@ describe("cli/args", () => {
       kind: "archive",
     });
 
+    expect(parseCLIArguments(["ls", "book.sdpub", "fragments"])).toStrictEqual({
+      args: {
+        action: "ls",
+        archivePath: "book.sdpub",
+        listKind: "fragments",
+      },
+      help: false,
+      kind: "archive",
+    });
+
     expect(
       parseCLIArguments(["pack", "book.sdpub", "node:1", "--budget", "2000"]),
     ).toStrictEqual({

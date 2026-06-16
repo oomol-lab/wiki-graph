@@ -166,6 +166,22 @@ describe("cli/archive", () => {
   beforeEach(() => {
     archiveMockState.editableCalls.length = 0;
     archiveMockState.textWrites.length = 0;
+    archiveMockState.links.splice(0, archiveMockState.links.length, {
+      direction: "outgoing",
+      edge: {
+        fromId: 9,
+        toId: 11,
+        weight: 0.5,
+      },
+      node: {
+        content: "Related node",
+        id: 11,
+        label: "Related",
+        sentenceIds: [[2, 0, 2]],
+        weight: 0.4,
+        wordsCount: 2,
+      },
+    });
   });
 
   it("prints an archive index", async () => {
@@ -226,6 +242,21 @@ describe("cli/archive", () => {
 
     expect(archiveMockState.textWrites[0]).toContain("node:9");
     expect(archiveMockState.textWrites[0]).toContain("Retrieval design");
+  });
+
+  it("points links users to backlinks when outgoing links are empty", async () => {
+    archiveMockState.links.length = 0;
+
+    await runArchiveCommand({
+      action: "links",
+      archivePath: "/tmp/book.sdpub",
+      objectId: "node:9",
+    });
+
+    expect(archiveMockState.textWrites[0]).toContain("No outgoing links");
+    expect(archiveMockState.textWrites[0]).toContain(
+      "spinedigest backlinks <archive.sdpub> <node:id>",
+    );
   });
 
   it("prints a context pack", async () => {

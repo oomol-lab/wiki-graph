@@ -2591,6 +2591,7 @@ function parseArchiveListKind(
     value === "chapters" ||
     value === "edges" ||
     value === "evidence" ||
+    value === "fragments" ||
     value === "meta" ||
     value === "nodes" ||
     value === "summaries"

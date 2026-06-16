@@ -221,16 +221,20 @@ export async function listArchiveObjects(
     case "fragments":
       return (
         await Promise.all(
-          (await listChapters(document)).map(
-            async (chapter) =>
-              await listChapterSourceFragments(document, chapter.chapterId),
+          (await listChapters(document)).map(async (chapter) =>
+            (await listChapterSourceFragments(document, chapter.chapterId)).map(
+              (fragment) => ({
+                fragment,
+                title: chapter.title ?? formatChapterId(chapter.chapterId),
+              }),
+            ),
           ),
         )
       )
         .flat()
-        .map((fragment) => ({
+        .map(({ fragment, title }) => ({
           id: fragment.id,
-          label: fragment.id,
+          label: title,
           summary: fragment.preview,
           type: "fragment" as const,
         }));
@@ -378,6 +382,17 @@ export async function listArchiveLinks(
   id: string,
   direction: "backlinks" | "links",
 ): Promise<readonly GraphNeighbor[]> {
+  return (await listAllArchiveLinks(document, id)).filter((neighbor) =>
+    direction === "links"
+      ? neighbor.direction === "outgoing"
+      : neighbor.direction === "incoming",
+  );
+}
+
+export async function listAllArchiveLinks(
+  document: Document,
+  id: string,
+): Promise<readonly GraphNeighbor[]> {
   const reference = parseArchiveReference(id);
 
   if (reference.type !== "node") {
@@ -385,13 +400,7 @@ export async function listArchiveLinks(
   }
 
   const { chapterId } = await requireNode(document, reference.id);
-  const neighbors = await listGraphNeighbors(document, chapterId, reference.id);
-
-  return neighbors.filter((neighbor) =>
-    direction === "links"
-      ? neighbor.direction === "outgoing"
-      : neighbor.direction === "incoming",
-  );
+  return await listGraphNeighbors(document, chapterId, reference.id);
 }
 
 export async function listRelatedArchiveObjects(
@@ -424,7 +433,7 @@ export async function packArchiveContext(
   const anchor = await readArchivePage(document, id);
   const [evidence, links] = await Promise.all([
     readArchiveEvidence(document, id),
-    listArchiveLinks(document, id, "links"),
+    listAllArchiveLinks(document, id),
   ]);
 
   return {

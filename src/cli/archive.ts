@@ -130,6 +130,7 @@ export async function runArchiveCommand(
       await withArchiveDocument(args.archivePath, async (document) => {
         await writeLinks(
           await listArchiveLinks(document, args.objectId!, linkDirection),
+          linkDirection,
           args.json ?? false,
         );
       });
@@ -467,6 +468,7 @@ async function writeEvidence(
 
 async function writeLinks(
   links: readonly GraphNeighbor[],
+  direction: "backlinks" | "links",
   json: boolean,
 ): Promise<void> {
   if (json) {
@@ -475,7 +477,11 @@ async function writeLinks(
   }
 
   if (links.length === 0) {
-    await writeTextToStdout("No links.\n");
+    const next =
+      direction === "links"
+        ? "No outgoing links. Try: spinedigest backlinks <archive.sdpub> <node:id>\n"
+        : "No incoming links.\n";
+    await writeTextToStdout(next);
     return;
   }
 

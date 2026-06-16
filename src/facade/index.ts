@@ -23,6 +23,7 @@ export {
   formatSentenceId,
   formatSummaryId,
   getArchiveIndex,
+  listAllArchiveLinks,
   listArchiveLinks,
   listArchiveObjects,
   listRelatedArchiveObjects,
