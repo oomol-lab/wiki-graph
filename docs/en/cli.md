@@ -2,7 +2,7 @@
 
 # CLI Reference
 
-SpineDigest is archive-first. The primary command shape is:
+SpineDigest is archive-first. The primary object is a `.sdpub` knowledge-base archive, and the primary command shape is:
 
 ```bash
 spinedigest <action> <archive.sdpub> ...
@@ -33,8 +33,8 @@ spinedigest export <archive.sdpub> --output-format <format> [--output <path>]
 Exploration modes:
 
 - Search mode: `find` discovers objects by deterministic keywords; `grep` checks exact continuous text.
-- Structure mode: `list` returns bounded object collections; `page` opens one detailed object with local navigation.
-- Reading mode: `read` prints one object as continuous plain text.
+- Structure mode: `list` shows chapter and knowledge-node directories; `page` opens one page and exposes related nodes, source fragments, and links.
+- Reading mode: `read` prints continuous text for a selected chapter, knowledge node, summary, source fragment, or metadata object.
 
 Search and collection behavior:
 
@@ -95,7 +95,7 @@ Human-readable stdout is Markdown-like text with stable ids and suggested next c
 
 ## Direct Transform
 
-`transform` runs a direct one-shot digest/export without creating a reusable `.sdpub` archive:
+`transform` runs a direct one-shot digest/export without creating a reusable `.sdpub` knowledge-base archive:
 
 ```bash
 spinedigest transform [--input <path>] [--output <path>] [--input-format <format>] [--output-format <format>] [--digest-dir <path>] [--llm <json>] [--prompt <text>] [--stage <planned|source|graph|summary>] [--verbose]

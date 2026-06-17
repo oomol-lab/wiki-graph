@@ -1,10 +1,10 @@
 # The `.sdpub` Format
 
 This document describes the archive layout used by SpineDigest for
-persisted digest documents.
+`.sdpub` knowledge-base archives.
 
 It is written for implementations that need to inspect, parse, validate,
-or render `.sdpub` files outside the SpineDigest runtime.
+render, or interoperate with `.sdpub` files outside the SpineDigest runtime.
 
 This is not the recommended guide for routine archive editing. `.sdpub`
 is physically a ZIP file, but automation that wants to add chapters,
@@ -16,26 +16,26 @@ invariant.
 
 ## Overview
 
-An `.sdpub` file is a ZIP archive that stores a serialized
-SpineDigest document directory.
+An `.sdpub` file is a ZIP archive that stores a serialized SpineDigest
+document directory.
 
 It is not a source-preserving format. The original EPUB, PDF, Markdown,
 or plain-text input is not embedded verbatim. Instead, the archive stores
-the processed digest state that SpineDigest can reopen later and export
-again without rerunning the source digestion step.
+the normalized source-derived state, graph-backed knowledge state, readable
+projection state, and metadata that SpineDigest can reopen later.
 
 At a high level, the archive contains three layers of data:
 
 - document metadata and navigation
-- digest text outputs at serial and fragment granularity
-- internal relational state used by SpineDigest itself
+- source fragments and readable summary/projection text
+- internal relational state for chunks, topology, and graph navigation
 
 Archive-level compatibility is expressed by `manifest.json`.
 
-In this document, a _serial_ means one persisted digest unit referenced
+In this document, a _serial_ means one persisted document unit referenced
 from `toc.json` by `serialId`. A serial usually corresponds to one
-exportable section. Depending on the archive stage, it may carry source
-fragments, graph data, and a serial summary text file.
+chapter-like readable section. Depending on the archive stage, it may carry
+source fragments, graph data, and a serial summary text file.
 
 ## Container Model
 
@@ -106,17 +106,17 @@ Source-specific notes:
 
 For readers and validators:
 
-- `toc.json` plus `summaries/` is the minimum useful set for ordered text
-  rendering of completed archives. Staged archives may require
-  `spinedigest build` before text rendering is complete.
+- `toc.json` plus `summaries/` is the minimum useful set for ordered summary
+  projection rendering of completed archives. Staged archives may require
+  `spinedigest build` before summary projection is complete.
 - `book-meta.json` is optional for plain rendering, but required if
   metadata is part of the target feature set.
 - `cover/info.json` and `cover/data.bin` are optional as a pair.
-- `fragments/` is optional unless fragment-level or sentence-level data
-  is needed.
+- `fragments/` is optional unless source-backed reading, evidence tracing,
+  fragment-level, or sentence-level data is needed.
 - `database.db` is optional for lightweight rendering, but should be
-  treated as required for full-fidelity interoperability with
-  SpineDigest internals.
+  treated as required for full-fidelity knowledge graph and SpineDigest
+  interoperability.
 
 ## Archive Layout
 
@@ -129,8 +129,8 @@ For readers and validators:
   reading order
 - `cover/info.json`: UTF-8 JSON with cover metadata
 - `cover/data.bin`: binary cover payload
-- `summaries/serial-<serialId>.txt`: UTF-8 text with the final digest
-  text for one serial
+- `summaries/serial-<serialId>.txt`: UTF-8 text with the readable summary
+  projection for one serial
 - `fragments/serial-<serialId>/fragment_<fragmentId>.json`: UTF-8 JSON
   with fragment-level summaries and sentence payloads for one serial
 
@@ -203,7 +203,8 @@ and `sourceFormat`.
 
 ### `toc.json`
 
-`toc.json` defines the exported reading order and section tree.
+`toc.json` defines the chapter-like navigation tree and exported reading
+order.
 
 Current schema:
 
@@ -235,8 +236,8 @@ Ordering is significant. Readers should preserve item order exactly as written.
 
 A node may omit `serialId` and act as a pure grouping node. When
 `serialId` is present, it points to
-`summaries/serial-<serialId>.txt` and may also have a matching
-fragment directory.
+`summaries/serial-<serialId>.txt` when summary projection data exists and may
+also have a matching fragment directory.
 
 A node may omit `title` or set it to `null`. Text renderers may omit the
 heading for such nodes. EPUB renderers should use a display fallback such
@@ -272,9 +273,9 @@ again.
 
 Each completed serial summary is stored as a standalone UTF-8 text file.
 
-The text is the serial-level digest content used by plain-text and EPUB
-export. The file may be empty. Readers should not depend on a trailing
-newline.
+The text is the serial-level readable summary/projection content used by
+plain-text and EPUB export. The file may be empty. Readers should not depend on
+a trailing newline.
 
 ### `fragments/serial-<serialId>/fragment_<fragmentId>.json`
 
@@ -329,38 +330,40 @@ The current schema includes these tables:
 SQLite may also add engine-managed tables such as `sqlite_sequence`.
 Those are not part of the SpineDigest application schema.
 
-This database is useful when an implementation needs full structural
-fidelity with SpineDigest's internal model.
+This database is useful when an implementation needs full structural fidelity
+with SpineDigest's internal model, including graph-backed LLM Wiki behavior.
 
 A minimal reader does not need to understand the entire database. For
-simple rendering of completed archives, `toc.json` plus `summaries/` is enough. For
-sentence-level inspection, `fragments/` is enough for sentence payloads,
-but `toc.json` is still needed if reading order or section titles
-matter. The SQLite layer matters when the implementation needs chunk
-topology, graph data, or close parity with SpineDigest internals.
+simple summary projection rendering of completed archives, `toc.json` plus
+`summaries/` is enough. For source-fragment or sentence-level inspection,
+`fragments/` is enough for sentence payloads, but `toc.json` is still needed if
+reading order or section titles matter. The SQLite layer matters when the
+implementation needs chunk topology, graph data, local navigation, or close
+parity with SpineDigest internals.
 
 ## Reading Strategy
 
 An implementation can choose its reading depth based on its use case.
 
-For a lightweight reader:
+For a lightweight projection reader:
 
 1. read `book-meta.json` if metadata is needed
 2. read `toc.json`
 3. follow each summarized `serialId` into `summaries/serial-<serialId>.txt`
 4. read `cover/info.json` and `cover/data.bin` only if a cover is needed
 
-For a sentence-aware reader:
+For a source-aware reader:
 
 1. read the same files as above
 2. read `fragments/serial-<serialId>/fragment_<fragmentId>.json` in
    fragment id order within each serial
 
-For a full-fidelity implementation:
+For a full-fidelity knowledge-base implementation:
 
 1. parse the file tree
 2. open `database.db`
-3. reconcile SQLite state with summaries and fragments as needed by the application
+3. reconcile SQLite state with summaries and fragments as needed by the
+   application
 
 ## Compatibility Notes
 
@@ -379,14 +382,16 @@ Readers that accept untrusted `.sdpub` input should validate at least the follow
 
 - the ZIP entry path normalizes to a safe relative path
 - JSON payloads match the expected schema
-- every summarized `serialId` referenced by `toc.json` has a matching summary file
+- every summarized `serialId` referenced by `toc.json` has a matching summary
+  file when the target feature set requires summary projection data
 - cover metadata and cover bytes either both exist or are both absent
 - fragment files, if present, use non-negative integer ids and valid
   sentence records
 
-Whether `database.db` should be treated as required depends on the
-target feature set. SpineDigest archives normally include it, but not
-every downstream reader needs to interpret it.
+Whether `database.db` should be treated as required depends on the target
+feature set. SpineDigest archives normally include it, but not every downstream
+reader needs to interpret it. Implementations that want LLM Wiki-style graph
+navigation should treat it as part of their required data surface.
 
 ## Related Sources
 

@@ -2,11 +2,11 @@
 
 # AI Agent Guide
 
-This guide is for AI systems that inspect, build, or reuse SpineDigest archives on behalf of a user.
+This guide is for AI systems that inspect, build, or reuse SpineDigest knowledge-base archives on behalf of a user.
 
 ## Decision Summary
 
-Use SpineDigest when the task involves long-form source material that should become a portable, CLI-readable knowledge archive.
+Use SpineDigest when the task involves long-form source material that should become a portable, CLI-readable knowledge-base archive.
 
 Do not treat `.sdpub` as a ZIP payload for routine retrieval. Treat it as a managed LLM Wiki archive and use the CLI first.
 
@@ -21,6 +21,7 @@ spinedigest list book.sdpub --type chapter
 spinedigest find book.sdpub "keyword" --type node
 spinedigest page book.sdpub node:84
 spinedigest read book.sdpub chapter:12
+spinedigest pack book.sdpub node:84 --budget 5000
 ```
 
 Use three exploration modes. For synthesis, timelines, relationship analysis, process reconstruction, or concept-structure tasks, start with Structure mode: `list --type chapter`, then `page chapter:<id>` and inspect `nodeGroups`. Search mode uses `find` for candidate discovery and `grep` for exact phrases. `find` defaults to `--match any`; use `--match all` only when every keyword must appear in the same object. Reading mode uses `read` after the relevant chapter, fragment, or node has been selected.
@@ -34,7 +35,7 @@ Use the library API only when the surrounding system explicitly needs in-process
 - Primary object: `.sdpub`
 - Creation sources: EPUB, Markdown, TXT, and text pipelines
 - Read objects: `chapter:<id>`, `node:<id>`, `fragment:<serial>:<fragment>`, `summary:<id>`, `meta:book`
-- Cheap operations: `status`, `index`, `list`, `find`, `grep`, `page`, `read`, `links`, `backlinks`, `export`
+- Cheap operations: `status`, `index`, `list`, `find`, `grep`, `page`, `read`, `links`, `backlinks`, `pack`, `export`
 - Expensive operations: graph or summary `build`
 - Estimate first: `spinedigest estimate <archive.sdpub> --stage summary`
 - JSON: pass `--json` when composing with tools
@@ -47,8 +48,9 @@ Use the library API only when the surrounding system explicitly needs in-process
 4. Use `find` or `grep` to locate candidate chapters, verify missing concepts, or check exact source wording.
 5. Use `read fragment:<id>` when the user needs original source prose after selecting a relevant node or chapter.
 6. Use `links`, `backlinks`, or `path` to navigate graph context.
-7. Use `export` only when the user needs a projection.
-8. Before `build`, run `estimate`; if the estimate is too large for the session, ask the user.
+7. Use `pack` when the user needs deterministic context around a known object id.
+8. Use `export` only when the user needs a projection.
+9. Before `build`, run `estimate`; if the estimate is too large for the session, ask the user.
 
 ## Build Workflow
 

@@ -2,7 +2,7 @@
 
 # Quick Start
 
-本文展示 SpineDigest 的 archive-first 主流程。
+本文展示 SpineDigest 的主流程：创建 `.sdpub` 知识库归档，按需构建派生知识，再从这份归档中搜索、浏览、阅读和导出投影视图。
 
 ## 1. 运行要求
 
@@ -28,14 +28,14 @@ npm install -g spinedigest
 npx spinedigest --help
 ```
 
-## 3. 导入源材料
+## 3. 创建知识库
 
 ```bash
-spinedigest create ./book.sdpub ./book.md
+spinedigest create ./book.sdpub ./book.epub
 cat ./article.md | spinedigest create ./article.sdpub --input-format markdown
 ```
 
-create 会创建或替换 source 阶段的 `.sdpub` 归档。这不表示归档已经完成 graph 构建或 summary 构建。
+create 会创建或替换 source 阶段的 `.sdpub` 归档。此时归档已经包含规范化源数据，但还不表示已经完成 graph 构建或 summary 构建。
 
 ## 4. 查看和估算
 
@@ -59,24 +59,28 @@ spinedigest build ./book.sdpub --stage graph --confirm
 spinedigest build ./book.sdpub --stage graph --chapter 3 --confirm
 ```
 
-## 6. 搜索和阅读
+## 6. 搜索、浏览和阅读
 
 ```bash
 spinedigest list ./book.sdpub --type chapter
 spinedigest page ./book.sdpub chapter:3
 spinedigest find ./book.sdpub "central argument" --type node
 spinedigest page ./book.sdpub node:84
+spinedigest read ./book.sdpub chapter:3
 spinedigest links ./book.sdpub node:84
+spinedigest pack ./book.sdpub node:84 --budget 5000
 ```
 
 无 `--type` 的 `find` 适合广泛发现候选内容。做内容理解时，选择一个 search lens：`--type node` 用于拓扑结构，`--type summary` 用于快速概览，`--type fragment` 用于原文措辞。
 
 输出要交给其他工具消费时，使用 `--json`。
 
-## 7. 导出 projection
+## 7. 输出 projection
+
+只有需要便携视图时再输出 projection。比如只需要某一章的 `.md` 文本，可以读取该章；需要完整电子书视图时再导出 EPUB：
 
 ```bash
-spinedigest export ./book.sdpub --output-format markdown --output ./digest.md
+spinedigest read ./book.sdpub chapter:3 > ./chapter-3.md
 spinedigest export ./book.sdpub --output-format epub --output ./digest.epub
 ```
 

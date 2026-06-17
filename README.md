@@ -10,15 +10,17 @@
 
 ![SpineDigest Terminal Demo](./docs/images/terminal-en.png)
 
-**SpineDigest builds portable LLM Wiki archives for AI agents.** It imports long-form sources into `.sdpub`, then lets agents search, browse, read source fragments, follow graph links, and export projections without unpacking the archive.
+**SpineDigest is a knowledge-base CLI optimized for AI agents.** It imports EPUB, Markdown, and plain text into `.sdpub`, can use LLMs to extract knowledge graphs and summaries, then exposes the archive as a searchable, browsable, readable, source-backed, graph-navigable, context-packable [LLM Wiki](https://gist.github.com/karpathy/442a6bf555914893e9891c11519de94f).
 
-For agents, `.sdpub` exploration has three primary modes:
+It is not a one-shot book-to-summary converter. Summaries, EPUB, Markdown, and JSON output are projections of the `.sdpub` knowledge archive. The primary object is `.sdpub` itself: a portable knowledge archive that can be built, maintained, searched, and reused.
 
-- **Search mode:** use `find` for whitespace-separated keyword discovery and `grep` for exact continuous text.
-- **Structure mode:** use `list` for bounded object collections and `page` for one detailed object with local navigation.
-- **Reading mode:** use `read` to print chapter, summary, fragment, or node text as continuous plain text.
+There are three main ways to explore a `.sdpub` archive:
 
-For synthesis, timelines, relationship analysis, process reconstruction, or concept-structure tasks, start with Structure mode: `list --type chapter`, then `page chapter:<id>` and inspect `nodeGroups`. Use search to locate candidates or verify exact wording.
+- **Search mode:** use `find` to discover keyword-related objects and `grep` to check exact continuous text.
+- **Structure mode:** use `list` to inspect chapter and knowledge-node directories, then `page` to open a page and follow related nodes, source fragments, and links.
+- **Reading mode:** use `read` for continuous reading of chapters, knowledge nodes, or source fragments.
+
+Together, these modes let long documents behave like navigable knowledge bases: start with structure, locate relevant content, then return to source text and knowledge nodes for deeper reading.
 
 ![Inkora screenshot](./docs/images/app-screenshot-en.png)
 
@@ -50,21 +52,22 @@ To explore the CLI surface first, start with:
 
 ```bash
 spinedigest --help
+spinedigest help overview
 spinedigest help ai
 ```
 
 ## Quick Start
 
-SpineDigest's primary object is `.sdpub`: a managed knowledge archive, not a one-off conversion output.
+SpineDigest's primary object is `.sdpub`: a CLI-managed knowledge-base archive, not a one-off export result.
 
-Create an archive from source material:
+Create a knowledge base from source material:
 
 ```bash
 spinedigest create ./book.sdpub ./book.epub
 cat ./article.md | spinedigest create ./article.sdpub --input-format markdown
 ```
 
-Inspect the archive before expensive work:
+Inspect and estimate before expensive work:
 
 ```bash
 spinedigest status ./book.sdpub
@@ -78,10 +81,11 @@ Build derived knowledge when you intend to spend LLM time:
 spinedigest build ./book.sdpub --stage graph --confirm
 ```
 
-Search and read through the archive interface:
+Search, browse, and read through the knowledge-base interface:
 
 ```bash
 spinedigest list ./book.sdpub --type chapter
+spinedigest page ./book.sdpub chapter:12
 spinedigest find ./book.sdpub "RAG" --type node
 spinedigest grep ./book.sdpub "exact source phrase"
 spinedigest page ./book.sdpub node:84
@@ -91,10 +95,10 @@ spinedigest related ./book.sdpub node:84
 spinedigest pack ./book.sdpub node:84 --budget 5000
 ```
 
-Export a projection only when you need a portable view:
+Output a projection only when you need a portable view. For example, read one chapter into Markdown text, or export the full archive as an EPUB:
 
 ```bash
-spinedigest export ./book.sdpub --output-format markdown --output ./digest.md
+spinedigest read ./book.sdpub chapter:12 > ./chapter-12.md
 spinedigest export ./book.sdpub --output-format epub --output ./digest.epub
 ```
 
@@ -104,40 +108,42 @@ Cost rule:
 Create is cheap.
 Estimate before build.
 Build can be expensive.
-Search, read, navigate, and export are cheap after build.
+Search, read, navigate, pack, and export are cheap after build.
 ```
 
 Full flag reference: [CLI Reference](./docs/en/cli.md).
 
 ## Why We Built This
 
-People say you can't summarize a whole book with an LLM because the context window isn't long enough. But consider this: human short-term memory holds only 7±2 items (Miller's Law) — far shorter than any LLM context window. Humans still manage to read entire books and write summaries.
+Knowledge bases are useful for long documents because they turn material into a structure you can re-enter: inspect the table of contents, find concepts, and return to evidence instead of stuffing everything into one context window. The problem is that knowledge bases usually require people to define page boundaries, concept relationships, and source references. Books are the most familiar long documents; if we can Wiki-ify a book, EPUB, Markdown, and plain text can enter the same knowledge-base workflow.
 
-The bottleneck isn't the window. It's knowing what to cut.
+That is why SpineDigest started with the problem of whole books. People often say an LLM cannot really read a whole book because the context window is not long enough. But human short-term memory holds only 7 +/- 2 items ([Miller's Law](https://en.wikipedia.org/wiki/The_Magical_Number_Seven,_Plus_or_Minus_Two)), far less than any modern LLM context window. Humans still read whole books, move back and forth with questions, build structures in their heads, and answer from those structures.
 
-A good summary can't preserve everything, and deciding what to drop is harder than deciding what to keep. There's no universal standard for what matters, either. It depends entirely on why you're reading: "What practical advice does the author give?", "What's the central argument?", "How does the protagonist change?" Each purpose leads to completely different trade-offs. Ask an AI to summarize without any direction and it genuinely doesn't know how — there's no single right answer that works for everyone.
+The bottleneck is not just window size. It is how working memory is organized.
 
-SpineDigest solves this with a staged pipeline.
+If you put a whole book directly into context, what you get is a very long text stream. It can be summarized on the fly, searched by keyword, or sliced into excerpts, but it is hard to answer stable structural questions: which concepts belong together, where a claim came from, how two chapters relate, and which source passages support a knowledge point. Longer context does not make those problems disappear. It makes structure more necessary.
 
-First, an LLM reads the source text section by section, simulating the way human attention is drawn to key ideas. It extracts a set of [chunks](<https://en.wikipedia.org/wiki/Chunking_(psychology)>) — the term cognitive psychology uses for discrete units of information in working memory. Each chunk is an attention landing point: one independent knowledge unit from the original text.
+SpineDigest's goal is to turn long documents into external working memory.
 
-Next, the pipeline hands off to a classical algorithm. I build a knowledge graph with chunks as nodes, connect them by conceptual relevance, then use graph traversal and community detection to cluster the semantically related ones together. Each cluster is serialized in original reading order into what I call a snake — a threaded knowledge chain that winds through the source text, linking related ideas end to end.
+First, an LLM reads the source text section by section, simulating how human attention is drawn to important ideas. It extracts a set of [chunks](<https://en.wikipedia.org/wiki/Chunking_(psychology)>). A chunk is not the final summary; it is an attention landing point, an independent knowledge unit that can be cited, traced, and recombined later.
 
-Finally, the summarization phase switches back to LLMs, using an adversarial Multi-Agent framework with two roles: a respondent who writes the summary, and a panel of professors who challenge it.
+Next, a classical algorithm takes over. I build a knowledge graph with chunks as nodes, connect them by conceptual relevance, then use graph traversal and community detection to cluster semantically related chunks. Each cluster is serialized in original reading order into what I call a snake: a knowledge chain that moves through the source text and links dispersed but related ideas.
+
+Finally, the LLM returns to work on that structure. The old use case compressed those structures into a summary; the more important use now is to save them into `.sdpub`. Later, you can use it like a Wiki: open chapter pages, inspect `nodeGroups`, enter nodes, trace source fragments, check links and backlinks, and pack an evidence-bounded context before answering.
 
 **Every professor holds a snake.**
 
-Picture a dissertation defense. The respondent stands at the front. The professors sit around the table, each holding a section of the original text, each measuring the draft against your stated extraction goal. They take turns: you missed this point, you didn't give that passage fair treatment. The respondent has to answer every challenge — they can't fully ignore anyone, but they can't fully satisfy everyone either. After several rounds, the final summary is the result of that pressure: a forced compromise where every part of the source gets some representation, even if it's just a sentence, and nothing is erased entirely.
+Picture a dissertation defense. The respondent stands at the front. The professors sit around the table. Each professor holds one knowledge chain and keeps reminding the respondent: this has evidence, that has a relationship, and this concept should not be mixed with that one. In the old story, the endpoint was a fairer summary. Now, the endpoint is a reference room you can enter again and again. You do not need to remember the whole book at once; you can call the relevant professors back, follow their chains to the evidence, and then compose your answer.
 
 ![SpineDigest architecture](./docs/images/flowchart.svg)
 
-Your intent runs through the whole pipeline. During the reading phase, the AI's attention is already shaped by what you told it to care about — your interests determine where the chunks land. During the defense phase, the professors apply that same goal as their evaluation standard. Content that aligns with your stated purpose gets protected by multiple professors at once; content that doesn't loses its advocates and gets pushed out under sustained pressure. The one sentence you wrote at the start keeps working at both ends.
+Your intent still runs through the whole process. During build, the prompt influences which knowledge units receive attention. During retrieval, the task decides whether to inspect structure first, search keywords first, or read source fragments first. The same `.sdpub` can serve different questions: a timeline today, a concept map tomorrow, a writing context pack later. The knowledge base is not a one-shot answer. It is an interface for repeated reading, locating, and reuse.
 
 ## The `.sdpub` Format
 
-`.sdpub` is the core SpineDigest knowledge archive. It holds source-derived structure, chapter-like pages, graph nodes, source fragment pointers, summaries, and metadata that the CLI can expose as an Agent-readable LLM Wiki.
+`.sdpub` is the core SpineDigest knowledge-base archive. It holds source-derived chapter pages, graph nodes, evidence pointers, summaries, and metadata, then exposes them through the CLI as an LLM Wiki.
 
-With that archive on hand, agents can search and navigate the knowledge structure directly:
+With that archive on hand, you can search and navigate the knowledge structure directly:
 
 ```bash
 spinedigest index ./book.sdpub
@@ -148,33 +154,31 @@ spinedigest page ./book.sdpub chapter:12
 spinedigest read ./book.sdpub chapter:12
 ```
 
-Markdown, EPUB, txt, and JSON-style outputs are projections of the archive. They are useful for portability, but they do not replace the `.sdpub` object when graph links and source fragments matter.
+Markdown, EPUB, txt, and JSON-style outputs are projections of the archive. They are useful for portability and reading, but they do not replace the `.sdpub` object when graph links and source fragments matter.
 
-To open a `.sdpub` file, use **[Inkora](http://inkora.oomol.com/download/sdpub)** — a free app built specifically for it, with chapter topology and knowledge graph views.
+To open a `.sdpub` file, use **[Inkora](http://inkora.oomol.com/download/sdpub)**. It is a free app built specifically for `.sdpub`, with chapter topology and knowledge graph views.
 
 For the internal layout and parser guidance, see the [format spec](./docs/sdpub.md).
 
-## Inputs and Outputs
+## Direct Transform
 
-| Format             | Creation Source | Export Projection |
-| ------------------ | --------------- | ----------------- |
-| `.epub`            | ✓               | ✓                 |
-| `.md`              | ✓               | ✓                 |
-| `.txt`             | ✓               | ✓                 |
-| `.sdpub`           | archive         | archive           |
-| `stdin` (txt / md) | ✓               | —                 |
-| `stdout`           | —               | ✓                 |
+If you only need a one-shot digest or format conversion, use `transform`. It does not leave a reusable `.sdpub` knowledge base unless you explicitly choose `--output-format sdpub`.
 
-Requirements: Node `>=22.12.0`. LLM credentials are required for graph and summary builds, not for `.sdpub` inspection, search, reading, navigation, or export.
+```bash
+cat chapter.txt | spinedigest transform --input-format txt --output-format markdown
+spinedigest transform --input book.epub --output digest.md --output-format markdown
+```
+
+This mode is for pure conversion tasks. If the material will later be searched, navigated, traced to evidence, or built further, create a `.sdpub` archive first.
 
 ## Library Usage
 
-SpineDigest also exposes a programmatic API for embedding the pipeline in your own Node or TypeScript code. See [Library Usage](./docs/en/library.md).
+SpineDigest also exposes a programmatic API for embedding lower-level import, build, and export flows in your own Node or TypeScript code. The CLI is still the most complete knowledge-base interface. See [Library Usage](./docs/en/library.md) for non-CLI integration.
 
 ## Related Projects
 
-- [PDF Craft](https://github.com/oomol-lab/pdf-craft): If your source material is a scanned PDF, PDF Craft can convert it into EPUB or Markdown before you feed it into SpineDigest.
-- [EPUB Translator](https://github.com/oomol-lab/epub-translator): If your goal is bilingual reading rather than summarization, EPUB Translator turns an EPUB into a bilingual edition while preserving the original layout.
+- [PDF Craft](https://github.com/oomol-lab/pdf-craft): If your source material is a scanned PDF, PDF Craft can convert it into EPUB or Markdown before you import it into a SpineDigest knowledge base.
+- [EPUB Translator](https://github.com/oomol-lab/epub-translator): If your goal is bilingual reading rather than building a knowledge base, EPUB Translator turns an EPUB into a bilingual edition while preserving the original layout.
 
 ## For AI Agents
 
@@ -182,7 +186,7 @@ SpineDigest's CLI-first design exposes `.sdpub` as a managed LLM Wiki archive.
 
 - **Treat `.sdpub` as the primary object.** Use archive commands before unpacking or inspecting internals.
 - **Choose an exploration mode first.** For synthesis and structural understanding, start with `list/page`; use `find/grep` for candidate discovery and exact wording; use `read` for continuous prose after selecting the relevant object.
-- **Use help as the discovery surface.** Start with `spinedigest --help` as the root page, then follow `spinedigest help ai`, topic pages, or command-specific `--help` before guessing behavior.
+- **Use help as the discovery surface.** Start with `spinedigest --help` as the root page, then follow `spinedigest help overview`, `spinedigest help ai`, topic pages, or command-specific `--help` before guessing behavior.
 - **Prefer `--json`.** Use it when composing with tools.
 - **Estimate before build.** Do not run full-archive graph or summary builds without `spinedigest estimate`.
 - **Check exit codes.** Success returns `0`; failure returns non-zero with a plain-text error on `stderr`.
@@ -191,6 +195,7 @@ SpineDigest's CLI-first design exposes `.sdpub` as a managed LLM Wiki archive.
 Useful help entry points:
 
 ```bash
+spinedigest help overview
 spinedigest help ai
 spinedigest help task
 spinedigest help config
