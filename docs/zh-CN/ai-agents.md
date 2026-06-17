@@ -15,19 +15,19 @@
 优先使用 archive-first CLI：
 
 ```bash
-spinedigest status book.sdpub
-spinedigest index book.sdpub
 spinedigest chapter tree book.sdpub --json
-spinedigest list book.sdpub --type chapter
+spinedigest list book.sdpub --type node --chapter 3,7,12
 spinedigest find book.sdpub "keyword" --type node
 spinedigest page book.sdpub node:84
 spinedigest read book.sdpub chapter:12
 spinedigest pack book.sdpub node:84 --budget 5000
 ```
 
-优先先选择三种探索模式之一。对于综合理解、时间线、关系分析、过程梳理或概念结构任务，先走结构模式：用 `chapter tree --json` 查看目录层级，再用 `list --type chapter`，再 `page chapter:<id>` 并检查 `nodeGroups`。搜索模式用 `find` 做候选定位，用 `grep` 检查连续精确短语。`find` 默认是 `--match any`；只有必须要求全部关键词出现在同一个对象内时，才使用 `--match all`。阅读模式适合在选定相关 chapter、fragment 或 node 后用 `read` 输出连续文本。
+优先先选择三种探索模式之一。对于综合理解、时间线、关系分析、过程梳理或概念结构任务，先走结构模式：用 `chapter tree --json` 查看压缩后的目录地图，再选择可能相关的 chapter id，并用带范围的 `list --chapter <ids>` 或 `page chapter:<id>` 展开局部。搜索模式用 `find` 做候选定位，用 `grep` 检查连续精确短语。`find` 默认是 `--match any`；只有必须要求全部关键词出现在同一个对象内时，才使用 `--match all`。阅读模式适合在选定相关 chapter、fragment 或 node 后用 `read` 输出连续文本。
 
 无 `--type` 的 `find` 适合广泛发现候选内容。做内容理解时，选择一个 search lens：`--type node` 用于拓扑 / LLM Wiki 结构，`--type summary` 用于快速概览，`--type fragment` 用于原文措辞。使用 `--chapter`、`--limit`、`--cursor` 控制检索范围。
+
+`index` 适合在需要归档级 readiness 或元信息时使用，例如标题、source format、章节数、summary 数、node 数和 edge 数。对于 `chapter tree` 之后的内容探索，先选择少量 chapter id，再用带范围的 `list --chapter <ids>` 展开局部，通常比回到归档级入口更节省上下文。
 
 只有外围系统明确需要进程内集成时，才使用 library API。
 
@@ -43,15 +43,16 @@ spinedigest pack book.sdpub node:84 --budget 5000
 
 ## 推荐执行策略
 
-1. 面对未知归档，先运行 `status` 和 `index`。
-2. 对理解型任务，先用 `chapter tree --json`，再用 `list --type chapter`，再在关键词搜索前使用 `page chapter:<id>`。
+1. 对内容理解任务，先用 `chapter tree --json` 作为压缩后的全局地图。
+2. 从 tree 中选择可能相关的 chapter id，再用带范围的 `list --chapter <ids>` 或 `page chapter:<id>`，然后再做关键词搜索。
 3. 检查 chapter 的 `nodeGroups`，再对相关知识节点使用 `page node:<id>`。
 4. 用 `find` 或 `grep` 定位候选章节、验证缺失概念，或检查精确原文。
 5. 选定相关 node 或 chapter 后，当用户需要原文 prose 时，用 `read fragment:<id>`。
 6. 用 `links`、`backlinks` 或 `path` 导航图上下文。
 7. 用户需要围绕已知 object id 打包确定性上下文时，使用 `pack`。
 8. 只有用户需要 projection 时才 `export`。
-9. `build` 前先 `estimate`；如果估算超出当前交互预算，先询问用户。
+9. 当任务涉及归档 readiness、元信息或构建状态时，再使用 `status` 或 `index`。
+10. `build` 前先 `estimate`；如果估算超出当前交互预算，先询问用户。
 
 ## 构建流程
 
