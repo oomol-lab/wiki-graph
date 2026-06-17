@@ -308,6 +308,7 @@ export class LLM<S extends string> {
             return textChunks.join("");
           } else {
             const result = await generateText(generationInput);
+            await this.#emitStreamProgress(result.text.length);
             return result.text;
           }
         });

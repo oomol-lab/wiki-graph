@@ -388,15 +388,6 @@ function createStageAdvanceProgressWriter(input?: {
   let renderedStatusLine = false;
   let writeQueue = Promise.resolve();
 
-  const writeLine = async (line: string): Promise<void> => {
-    writeQueue = writeQueue
-      .catch(() => undefined)
-      .then(async () => {
-        await writeTextToStderr(`${line}\n`);
-      });
-    await writeQueue;
-  };
-
   const writeStatus = async (force = false): Promise<void> => {
     const now = Date.now();
     const line = formatBuildProgressLine({
@@ -461,34 +452,18 @@ function createStageAdvanceProgressWriter(input?: {
 
       switch (event.type) {
         case "selected":
-          await finishStatusLine();
-          await writeLine(
-            `Selected ${event.totalChapters} ${event.totalChapters === 1 ? "chapter" : "chapters"}; target: ${formatStage(event.targetStage)}.`,
-          );
           await writeStatus(true);
           return;
         case "skipped":
-          await finishStatusLine();
-          await writeLine(
-            `Skipping ${formatProgressChapter(event.chapter)}: source is missing.`,
-          );
           return;
-        case "started": {
-          const label = `${formatProgressVerb(event.step)} for ${formatProgressChapter(event.chapter)}`;
-          await finishStatusLine();
-          await writeLine(`${label}...`);
+        case "started":
           await writeStatus(true);
           return;
-        }
         case "progress":
           await writeStatus();
           return;
         case "completed":
           await writeStatus(true);
-          await finishStatusLine();
-          await writeLine(
-            `Finished ${formatProgressStep(event.step)} for ${formatProgressChapter(event.chapter)}.`,
-          );
           return;
       }
     },
@@ -1020,28 +995,6 @@ function formatTocPath(entry: ChapterEntry): string {
   }
 
   return entry.tocPath.join(" / ");
-}
-
-function formatProgressChapter(entry: ChapterEntry): string {
-  return `chapter ${entry.chapterId} (${formatTocPath(entry)})`;
-}
-
-function formatProgressVerb(step: "graph" | "summary"): string {
-  switch (step) {
-    case "graph":
-      return "Generating graph";
-    case "summary":
-      return "Generating summary";
-  }
-}
-
-function formatProgressStep(step: "graph" | "summary"): string {
-  switch (step) {
-    case "graph":
-      return "graph";
-    case "summary":
-      return "summary";
-  }
 }
 
 function formatPackAnchor(anchor: ArchivePage): string {
