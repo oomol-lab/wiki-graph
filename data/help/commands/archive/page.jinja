@@ -2,10 +2,10 @@ Help Type: command
 Command: spinedigest page
 
 Purpose:
-  Open one detailed archive object page by id.
+  Open one detailed archive object page by selector.
 
 Usage:
-  spinedigest page <archive.sdpub> <id> [--json]
+  spinedigest page <archive.sdpub> (--chapter <id>|--node <id>|--fragment <chapter>:<fragment>|--summary <id>|--meta book) [--json]
 
 Contract:
   - Mutates: no.
@@ -17,6 +17,6 @@ Contract:
   - Summary and meta pages show only their own content.
 
 Examples:
-  spinedigest page book.sdpub chapter:1
-  spinedigest page book.sdpub fragment:1:0
-  spinedigest page book.sdpub node:84
+  spinedigest page book.sdpub --chapter 1
+  spinedigest page book.sdpub --fragment 1:0
+  spinedigest page book.sdpub --node 84

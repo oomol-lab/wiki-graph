@@ -63,15 +63,15 @@ spinedigest build ./book.sdpub --stage graph --chapter 3 --confirm
 
 ```bash
 spinedigest list ./book.sdpub --type chapter
-spinedigest page ./book.sdpub chapter:3
+spinedigest page ./book.sdpub --chapter 3
 spinedigest find ./book.sdpub "central argument" --type node
-spinedigest page ./book.sdpub node:84
-spinedigest read ./book.sdpub chapter:3
-spinedigest links ./book.sdpub node:84
-spinedigest pack ./book.sdpub node:84 --budget 5000
+spinedigest page ./book.sdpub --node 84
+spinedigest read ./book.sdpub --chapter 3
+spinedigest links ./book.sdpub --node 84
+spinedigest pack ./book.sdpub --node 84 --budget 5000
 ```
 
-无 `--type` 的 `find` 适合广泛发现候选内容。做内容理解时，选择一个 search lens：`--type node` 用于拓扑结构，`--type summary` 用于快速概览，`--type fragment` 用于原文措辞。
+使用 `--type` 选择 search lens：`--type node` 用于拓扑结构，`--type summary` 用于快速概览，`--type fragment` 用于原文措辞。
 
 输出要交给其他工具消费时，使用 `--json`。
 
@@ -80,7 +80,7 @@ spinedigest pack ./book.sdpub node:84 --budget 5000
 只有需要便携视图时再输出 projection。比如只需要某一章的 `.md` 文本，可以读取该章；需要完整电子书视图时再导出 EPUB：
 
 ```bash
-spinedigest read ./book.sdpub chapter:3 > ./chapter-3.md
+spinedigest read ./book.sdpub --chapter 3 > ./chapter-3.md
 spinedigest export ./book.sdpub --output-format epub --output ./digest.epub
 ```
 

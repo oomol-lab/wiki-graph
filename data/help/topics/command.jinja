@@ -27,13 +27,13 @@ Command shapes:
   spinedigest estimate <archive.sdpub> [--stage <source|graph|summary>] [--json]
   spinedigest status <archive.sdpub> [--json]
   spinedigest index <archive.sdpub> [--json]
-  spinedigest list <archive.sdpub> [--id <ids>] [--chapter <ids>] [--type <types>] [--order <doc-asc|doc-desc>] [--limit <n>] [--cursor <token>] [--json]
-  spinedigest find <archive.sdpub> <query> [--match <any|all>] [--chapter <ids>] [--type <types>] [--order <doc-asc|doc-desc>] [--limit <n>] [--cursor <token>] [--json]
-  spinedigest grep <archive.sdpub> <query> [--chapter <ids>] [--type <types>] [--order <doc-asc|doc-desc>] [--limit <n>] [--cursor <token>] [--json]
-  spinedigest page <archive.sdpub> <id> [--json]
-  spinedigest read <archive.sdpub> <id>
-  spinedigest related <archive.sdpub> <node:id> [--json]
-  spinedigest pack <archive.sdpub> <id> [--budget <chars>] [--json]
+  spinedigest list <archive.sdpub> --type <types> [--id <ids>] [--chapter <ids>] [--order <doc-asc|doc-desc>] [--limit <n>] [--cursor <token>] [--json]
+  spinedigest find <archive.sdpub> <query> --type <types> [--match <any|all>] [--chapter <ids>] [--order <doc-asc|doc-desc>] [--limit <n>] [--cursor <token>] [--json]
+  spinedigest grep <archive.sdpub> <query> --type <types> [--chapter <ids>] [--order <doc-asc|doc-desc>] [--limit <n>] [--cursor <token>] [--json]
+  spinedigest page <archive.sdpub> <selector> [--json]
+  spinedigest read <archive.sdpub> <selector>
+  spinedigest related <archive.sdpub> --node <id> [--json]
+  spinedigest pack <archive.sdpub> <selector> [--budget <chars>] [--json]
   spinedigest export <archive.sdpub> --output-format <format> [--output <path>]
 
 Direct transform:

@@ -23,25 +23,25 @@ Browse an existing archive:
   spinedigest list book.sdpub --type node --chapter 3
 
 Understand a chapter as wiki topology:
-  spinedigest page book.sdpub chapter:3 --json
+  spinedigest page book.sdpub --chapter 3 --json
   Inspect `nodeGroups` to choose the relevant knowledge nodes.
-  spinedigest page book.sdpub node:84
+  spinedigest page book.sdpub --node 84
 
 Search and read:
   spinedigest find book.sdpub "RAG" --type node
-  spinedigest grep book.sdpub "exact source phrase"
-  spinedigest page book.sdpub node:84
-  spinedigest read book.sdpub chapter:3
+  spinedigest grep book.sdpub "exact source phrase" --type fragment
+  spinedigest page book.sdpub --node 84
+  spinedigest read book.sdpub --chapter 3
 
 Navigate graph knowledge:
-  spinedigest links book.sdpub node:84
-  spinedigest backlinks book.sdpub node:84
-  spinedigest related book.sdpub node:84
-  spinedigest path book.sdpub node:84 node:120 --chapter 3
+  spinedigest links book.sdpub --node 84
+  spinedigest backlinks book.sdpub --node 84
+  spinedigest related book.sdpub --node 84
+  spinedigest path book.sdpub --from 84 --to 120 --chapter 3
 
 Pack deterministic context:
-  spinedigest pack book.sdpub node:84 --budget 5000
-  spinedigest pack book.sdpub node:84 --budget 5000 --json
+  spinedigest pack book.sdpub --node 84 --budget 5000
+  spinedigest pack book.sdpub --node 84 --budget 5000 --json
 
 Export projections:
   spinedigest export book.sdpub --output-format markdown --output digest.md

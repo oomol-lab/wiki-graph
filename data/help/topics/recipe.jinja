@@ -21,7 +21,7 @@ Build one chapter graph:
 
 Find and read source-backed knowledge:
   spinedigest find book.sdpub "knowledge graph" --type node
-  spinedigest page book.sdpub node:84
+  spinedigest page book.sdpub --node 84
 
 List archive objects as JSON:
   spinedigest list book.sdpub --type node --json
@@ -29,7 +29,7 @@ List archive objects as JSON:
   spinedigest find book.sdpub "RAG" --type node --json
 
 Read one chapter as continuous text:
-  spinedigest read book.sdpub chapter:3
+  spinedigest read book.sdpub --chapter 3
 
 Export a Markdown projection:
   spinedigest export book.sdpub --output-format markdown --output digest.md

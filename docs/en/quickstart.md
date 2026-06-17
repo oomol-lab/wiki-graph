@@ -63,15 +63,15 @@ spinedigest build ./book.sdpub --stage graph --chapter 3 --confirm
 
 ```bash
 spinedigest list ./book.sdpub --type chapter
-spinedigest page ./book.sdpub chapter:3
+spinedigest page ./book.sdpub --chapter 3
 spinedigest find ./book.sdpub "central argument" --type node
-spinedigest page ./book.sdpub node:84
-spinedigest read ./book.sdpub chapter:3
-spinedigest links ./book.sdpub node:84
-spinedigest pack ./book.sdpub node:84 --budget 5000
+spinedigest page ./book.sdpub --node 84
+spinedigest read ./book.sdpub --chapter 3
+spinedigest links ./book.sdpub --node 84
+spinedigest pack ./book.sdpub --node 84 --budget 5000
 ```
 
-Use untyped `find` for broad candidate discovery. For content understanding, choose a search lens: `--type node` for topology, `--type summary` for quick overview, or `--type fragment` for original source wording.
+Use `--type` to choose a search lens: `--type node` for topology, `--type summary` for quick overview, or `--type fragment` for original source wording.
 
 Use `--json` when another tool will consume the output.
 
@@ -80,7 +80,7 @@ Use `--json` when another tool will consume the output.
 Use projections when you need a portable view. For example, read one chapter into Markdown text, or export the full archive as an EPUB:
 
 ```bash
-spinedigest read ./book.sdpub chapter:3 > ./chapter-3.md
+spinedigest read ./book.sdpub --chapter 3 > ./chapter-3.md
 spinedigest export ./book.sdpub --output-format epub --output ./digest.epub
 ```
 

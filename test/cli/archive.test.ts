@@ -211,7 +211,7 @@ vi.mock("../../src/facade/index.js", () => ({
                   summary: "quick overview",
                 },
                 message:
-                  "Untyped find searched broadly. For content understanding, choose --type node, --type summary, or --type fragment as a search lens.",
+                  "Choose --type node, --type summary, or --type fragment as a search lens.",
               }
             : null,
         limit: 20,
@@ -326,15 +326,13 @@ describe("cli/archive", () => {
       action: "find",
       archivePath: "/tmp/book.sdpub",
       query: "RAG",
+      searchTypes: ["node"],
     });
 
     expect(archiveMockState.textWrites[0]).toContain("node:9  node/content");
     expect(archiveMockState.textWrites[0]).toContain("Matched: rag");
     expect(archiveMockState.textWrites[0]).toContain(
-      "Next: spinedigest page <archive.sdpub> node:9",
-    );
-    expect(archiveMockState.textWrites[0]).toContain(
-      "Lens hint: Untyped find searched broadly.",
+      "Next: spinedigest page <archive.sdpub> --node 9",
     );
     expect(findArchiveObjects).toHaveBeenCalledWith({}, "RAG", {
       chapters: undefined,
@@ -342,7 +340,7 @@ describe("cli/archive", () => {
       limit: undefined,
       match: undefined,
       order: undefined,
-      types: undefined,
+      types: ["node"],
     });
     expect(grepArchiveObjects).not.toHaveBeenCalled();
   });
@@ -381,6 +379,7 @@ describe("cli/archive", () => {
       action: "grep",
       archivePath: "/tmp/book.sdpub",
       query: "exact phrase",
+      searchTypes: ["fragment"],
     });
 
     expect(archiveMockState.textWrites[0]).toContain(
@@ -392,7 +391,7 @@ describe("cli/archive", () => {
       limit: undefined,
       match: undefined,
       order: undefined,
-      types: undefined,
+      types: ["fragment"],
     });
     expect(findArchiveObjects).not.toHaveBeenCalled();
   });
@@ -405,6 +404,7 @@ describe("cli/archive", () => {
       archivePath: "/tmp/book.sdpub",
       match: "all",
       query: "one two",
+      searchTypes: ["node"],
     });
 
     expect(archiveMockState.textWrites[0]).toContain(
@@ -416,7 +416,7 @@ describe("cli/archive", () => {
       limit: undefined,
       match: "all",
       order: undefined,
-      types: undefined,
+      types: ["node"],
     });
   });
 
@@ -498,7 +498,7 @@ describe("cli/archive", () => {
 
     expect(archiveMockState.textWrites[0]).toContain("No outgoing links");
     expect(archiveMockState.textWrites[0]).toContain(
-      "spinedigest backlinks <archive.sdpub> <node:id>",
+      "spinedigest backlinks <archive.sdpub> --node <id>",
     );
   });
 

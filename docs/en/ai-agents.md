@@ -18,17 +18,17 @@ Prefer archive-first CLI commands:
 spinedigest chapter tree book.sdpub --json
 spinedigest list book.sdpub --type node --chapter 3,7,12
 spinedigest find book.sdpub "keyword" --type fragment --chapter 3,7,12
-spinedigest page book.sdpub fragment:3:4
-spinedigest page book.sdpub node:84
-spinedigest read book.sdpub chapter:12
-spinedigest pack book.sdpub node:84 --budget 5000
+spinedigest page book.sdpub --fragment 3:4
+spinedigest page book.sdpub --node 84
+spinedigest read book.sdpub --chapter 12
+spinedigest pack book.sdpub --node 84 --budget 5000
 ```
 
-Use three exploration modes. For synthesis, timelines, relationship analysis, process reconstruction, or concept-structure tasks, start with Structure mode: `chapter tree --json` for a compact table-of-contents map, then choose likely chapter ids and expand them with scoped `list --chapter <ids>` or `page chapter:<id>`. Search mode uses `find` for candidate discovery and `grep` for exact phrases. `find` defaults to `--match any`; use `--match all` only when every keyword must appear in the same object. Reading mode uses `read` after the relevant chapter, fragment, or node has been selected.
+Use three exploration modes. For synthesis, timelines, relationship analysis, process reconstruction, or concept-structure tasks, start with Structure mode: `chapter tree --json` for a compact table-of-contents map, then choose likely chapter ids and expand them with scoped `list --chapter <ids>` or `page --chapter <id>`. Search mode uses `find --type <lens>` for candidate discovery and `grep --type <lens>` for exact phrases. `find` defaults to `--match any`; use `--match all` only when every keyword must appear in the same object. Reading mode uses `read` after the relevant chapter, fragment, or node has been selected.
 
-Untyped `find` is broad candidate discovery. For content understanding, choose a search lens: `--type node` for topology / LLM Wiki structure, `--type summary` for quick overview, or `--type fragment` for original source wording. Use `--chapter`, `--limit`, and `--cursor` to keep retrieval bounded.
+Choose a search lens explicitly: `--type node` for topology / LLM Wiki structure, `--type summary` for quick overview, or `--type fragment` for original source wording. Use `--chapter`, `--limit`, and `--cursor` to keep retrieval bounded.
 
-For evidence tracing, logic-chain reconstruction, or relationship analysis that starts from source text, `page fragment:<id>` is often more useful than `read fragment:<id>` because it keeps the source text together with adjacent fragments and related node labels. Use `read chapter:<id>` or `read fragment:<id>` when continuous prose is the goal.
+For evidence tracing, logic-chain reconstruction, or relationship analysis that starts from source text, `page --fragment <chapter>:<fragment>` is often more useful than `read --fragment <chapter>:<fragment>` because it keeps the source text together with adjacent fragments and related node labels. Use `read --chapter <id>` or `read --fragment <chapter>:<fragment>` when continuous prose is the goal.
 
 `index` is useful when archive-level readiness or metadata matters: title, source format, chapter count, summary count, node count, and edge count. For content exploration after `chapter tree`, selecting a small set of chapter ids and using scoped `list --chapter <ids>` usually spends less context than returning to archive-level entry points.
 
@@ -38,7 +38,7 @@ Use the library API only when the surrounding system explicitly needs in-process
 
 - Primary object: `.sdpub`
 - Creation sources: EPUB, Markdown, TXT, and text pipelines
-- Read objects: `chapter:<id>`, `node:<id>`, `fragment:<serial>:<fragment>`, `summary:<id>`, `meta:book`
+- Read objects: `--chapter <id>`, `--node <id>`, `--fragment <chapter>:<fragment>`, `--summary <id>`, `--meta book`
 - Cheap operations: `status`, `index`, `list`, `find`, `grep`, `page`, `read`, `links`, `backlinks`, `pack`, `export`
 - Expensive operations: graph or summary `build`
 - Estimate first: `spinedigest estimate <archive.sdpub> --stage summary`
@@ -47,10 +47,10 @@ Use the library API only when the surrounding system explicitly needs in-process
 ## Recommended Execution Strategy
 
 1. For content understanding, use `chapter tree --json` as the compact global map.
-2. Select likely chapter ids from the tree, then use scoped `list --chapter <ids>` or `page chapter:<id>` before keyword search.
-3. Inspect chapter `nodeGroups`, then use `page node:<id>` for relevant knowledge nodes.
+2. Select likely chapter ids from the tree, then use scoped `list --chapter <ids>` or `page --chapter <id>` before keyword search.
+3. Inspect chapter `nodeGroups`, then use `page --node <id>` for relevant knowledge nodes.
 4. Use `find` or `grep` to locate candidate chapters, verify missing concepts, or check exact source wording.
-5. Use `page fragment:<id>` when source evidence should lead into related nodes or adjacent fragments.
+5. Use `page --fragment <chapter>:<fragment>` when source evidence should lead into related nodes or adjacent fragments.
 6. Use `read` when the user needs prose rather than object navigation.
 7. Use `links`, `backlinks`, or `path` to navigate graph context.
 8. Use `pack` when the user needs deterministic context around a known object id.

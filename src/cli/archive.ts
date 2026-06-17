@@ -503,7 +503,7 @@ async function writeIndex(
       "",
       "Graph note:",
       "  No graph nodes are currently available. If graph build already ran, the source may be too short, too sparse, or no stable knowledge units were extracted.",
-      "  Next: inspect a chapter with `spinedigest page <archive.sdpub> chapter:<id>` or build `--stage summary` if you need summaries.",
+      "  Next: inspect a chapter with `spinedigest page <archive.sdpub> --chapter <id>` or build `--stage summary` if you need summaries.",
     );
   } else if (index.edgeCount === 0) {
     lines.push(
@@ -524,8 +524,8 @@ async function writeIndex(
     lines.push(
       "",
       "Next:",
-      "  spinedigest find <archive.sdpub> <term>",
-      "  spinedigest page <archive.sdpub> chapter:<id>",
+      "  spinedigest find <archive.sdpub> <term> --type node",
+      "  spinedigest page <archive.sdpub> --chapter <id>",
       "  spinedigest list <archive.sdpub> --type node",
     );
   }
@@ -596,7 +596,7 @@ async function writeCollection(
     `${result.items
       .map(
         (item) =>
-          `${item.id}  ${item.type}/${item.field}  ${item.title}\n${item.snippet}\nNext: spinedigest page <archive.sdpub> ${item.id}`,
+          `${item.id}  ${item.type}/${item.field}  ${item.title}\n${item.snippet}\nNext: spinedigest page <archive.sdpub> ${formatObjectSelector(item)}`,
       )
       .join("\n\n")}${formatCollectionCursor(result)}\n`,
   );
@@ -620,7 +620,7 @@ async function writeFindHits(
     `${result.items
       .map(
         (hit) =>
-          `${hit.id}  ${hit.type}/${hit.field}  ${hit.title}\n${formatFindMatchLine(hit)}${hit.snippet}\nNext: spinedigest page <archive.sdpub> ${hit.id}`,
+          `${hit.id}  ${hit.type}/${hit.field}  ${hit.title}\n${formatFindMatchLine(hit)}${hit.snippet}\nNext: spinedigest page <archive.sdpub> ${formatObjectSelector(hit)}`,
       )
       .join("\n\n")}${formatNextCursor(result)}${formatFindLensHint(result)}\n`,
   );
@@ -713,7 +713,7 @@ async function writeLinks(
   if (links.length === 0) {
     const next =
       direction === "links"
-        ? "No outgoing links. Try: spinedigest backlinks <archive.sdpub> <node:id>\n"
+        ? "No outgoing links. Try: spinedigest backlinks <archive.sdpub> --node <id>\n"
         : "No incoming links.\n";
     await writeTextToStdout(next);
     return;
@@ -739,7 +739,7 @@ async function writeMap(
         "Next:",
         "  spinedigest status <archive.sdpub>",
         "  spinedigest list <archive.sdpub> --type node",
-        "  spinedigest page <archive.sdpub> chapter:<id>",
+        "  spinedigest page <archive.sdpub> --chapter <id>",
       ].join("\n") + "\n",
     );
     return;
@@ -787,7 +787,7 @@ function formatNextCursor(result: ArchiveFindResult): string {
 
 function formatNoMatches(result: ArchiveFindResult): string {
   if (result.match === "all" && result.terms.length > 1) {
-    return `No matches. All ${result.terms.length} terms were required. Try: spinedigest find <archive.sdpub> "${result.query}" --match any${formatFindLensHint(result)}\n`;
+    return `No matches. All ${result.terms.length} terms were required. Try: spinedigest find <archive.sdpub> "${result.query}" --type ${formatFindTypes(result)} --match any${formatFindLensHint(result)}\n`;
   }
 
   const lines = [
@@ -808,6 +808,12 @@ function formatFindLensHint(result: ArchiveFindResult): string {
   }
 
   return `\n\nLens hint: ${result.lensHint.message}`;
+}
+
+function formatFindTypes(result: ArchiveFindResult): string {
+  return result.types === null || result.types.length === 0
+    ? "node"
+    : result.types.join(",");
 }
 
 function formatFindMatchLine(hit: {
@@ -832,6 +838,41 @@ function isSearchFilterType(
   type: NonNullable<CLIArchiveArguments["searchTypes"]>[number],
 ): type is NonNullable<ArchiveFindOptions["types"]>[number] {
   return type === "fragment" || type === "node" || type === "summary";
+}
+
+function formatObjectSelector(item: { readonly id: string }): string {
+  const [type, first, second] = item.id.split(":");
+
+  switch (type) {
+    case "chapter":
+      return `--chapter ${first}`;
+    case "fragment":
+      if (first === undefined || second === undefined) {
+        return item.id;
+      }
+
+      return `--fragment ${first}:${second}`;
+    case "meta":
+      if (first === undefined) {
+        return item.id;
+      }
+
+      return `--meta ${first}`;
+    case "node":
+      if (first === undefined) {
+        return item.id;
+      }
+
+      return `--node ${first}`;
+    case "summary":
+      if (first === undefined) {
+        return item.id;
+      }
+
+      return `--summary ${first}`;
+    default:
+      return item.id;
+  }
 }
 
 function formatNeighborLines(neighbors: readonly GraphNeighbor[]): string[] {
@@ -1026,8 +1067,8 @@ function formatChapterNextSteps(
   return [
     "Next:",
     `  spinedigest list <archive.sdpub> --type node --chapter ${page.chapter.chapterId}`,
-    `  spinedigest find <archive.sdpub> <keyword> --chapter ${page.chapter.chapterId}`,
-    `  spinedigest read <archive.sdpub> ${page.id}`,
+    `  spinedigest find <archive.sdpub> <keyword> --type node --chapter ${page.chapter.chapterId}`,
+    `  spinedigest read <archive.sdpub> --chapter ${page.chapter.chapterId}`,
   ].join("\n");
 }
 

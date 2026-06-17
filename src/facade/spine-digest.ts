@@ -70,7 +70,7 @@ export class SpineDigest {
 
       if (record === undefined) {
         throw new Error(
-          `No completed summary exists for id ${serialId}. Use \`spinedigest list <archive.sdpub> --type chapter\` to discover chapter ids, then \`spinedigest read <archive.sdpub> summary:${serialId}\` after summary is ready.`,
+          `No completed summary exists for id ${serialId}. Use \`spinedigest list <archive.sdpub> --type chapter\` to discover chapter ids, then \`spinedigest read <archive.sdpub> --summary ${serialId}\` after summary is ready.`,
         );
       }
 
@@ -78,7 +78,7 @@ export class SpineDigest {
 
       if (summary === undefined) {
         throw new Error(
-          `Chapter ${serialId} summary is missing. Run \`spinedigest build <archive.sdpub> --stage summary --confirm\` before export, or inspect the chapter with \`spinedigest page <archive.sdpub> chapter:${serialId}\`.`,
+          `Chapter ${serialId} summary is missing. Run \`spinedigest build <archive.sdpub> --stage summary --confirm\` before export, or inspect the chapter with \`spinedigest page <archive.sdpub> --chapter ${serialId}\`.`,
         );
       }
 
