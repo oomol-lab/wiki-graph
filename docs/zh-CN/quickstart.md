@@ -62,10 +62,14 @@ spinedigest build ./book.sdpub --stage graph --chapter 3 --confirm
 ## 6. 搜索和阅读
 
 ```bash
-spinedigest find ./book.sdpub "central argument"
+spinedigest list ./book.sdpub --type chapter
+spinedigest page ./book.sdpub chapter:3
+spinedigest find ./book.sdpub "central argument" --type node
 spinedigest page ./book.sdpub node:84
 spinedigest links ./book.sdpub node:84
 ```
+
+无 `--type` 的 `find` 适合广泛发现候选内容。做内容理解时，选择一个 search lens：`--type node` 用于拓扑结构，`--type summary` 用于快速概览，`--type fragment` 用于原文措辞。
 
 输出要交给其他工具消费时，使用 `--json`。
 

@@ -62,10 +62,14 @@ spinedigest build ./book.sdpub --stage graph --chapter 3 --confirm
 ## 6. Search And Read
 
 ```bash
-spinedigest find ./book.sdpub "central argument"
+spinedigest list ./book.sdpub --type chapter
+spinedigest page ./book.sdpub chapter:3
+spinedigest find ./book.sdpub "central argument" --type node
 spinedigest page ./book.sdpub node:84
 spinedigest links ./book.sdpub node:84
 ```
+
+Use untyped `find` for broad candidate discovery. For content understanding, choose a search lens: `--type node` for topology, `--type summary` for quick overview, or `--type fragment` for original source wording.
 
 Use `--json` when another tool will consume the output.
 

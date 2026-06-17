@@ -18,14 +18,14 @@ Prefer archive-first CLI commands:
 spinedigest status book.sdpub
 spinedigest index book.sdpub
 spinedigest list book.sdpub --type chapter
-spinedigest find book.sdpub "keyword"
+spinedigest find book.sdpub "keyword" --type node
 spinedigest page book.sdpub node:84
 spinedigest read book.sdpub chapter:12
 ```
 
 Use three exploration modes. For synthesis, timelines, relationship analysis, process reconstruction, or concept-structure tasks, start with Structure mode: `list --type chapter`, then `page chapter:<id>` and inspect `nodeGroups`. Search mode uses `find` for candidate discovery and `grep` for exact phrases. `find` defaults to `--match any`; use `--match all` only when every keyword must appear in the same object. Reading mode uses `read` after the relevant chapter, fragment, or node has been selected.
 
-Add `--type summary,node` for concept discovery, `--type fragment` for source wording, and `--chapter`, `--limit`, and `--cursor` to keep retrieval bounded.
+Untyped `find` is broad candidate discovery. For content understanding, choose a search lens: `--type node` for topology / LLM Wiki structure, `--type summary` for quick overview, or `--type fragment` for original source wording. Use `--chapter`, `--limit`, and `--cursor` to keep retrieval bounded.
 
 Use the library API only when the surrounding system explicitly needs in-process integration.
 

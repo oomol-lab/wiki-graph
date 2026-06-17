@@ -82,7 +82,7 @@ spinedigest build ./book.sdpub --stage graph --confirm
 
 ```bash
 spinedigest list ./book.sdpub --type chapter
-spinedigest find ./book.sdpub "RAG"
+spinedigest find ./book.sdpub "RAG" --type node
 spinedigest grep ./book.sdpub "exact source phrase"
 spinedigest page ./book.sdpub node:84
 spinedigest read ./book.sdpub chapter:12
@@ -139,7 +139,7 @@ SpineDigest 用一套分阶段的流程来解决这件事。首先，AI 逐段�
 spinedigest index ./book.sdpub
 spinedigest list ./book.sdpub --type chapter
 spinedigest list ./book.sdpub --type node --chapter 12
-spinedigest find ./book.sdpub "central argument"
+spinedigest find ./book.sdpub "central argument" --type node
 spinedigest page ./book.sdpub chapter:12
 spinedigest read ./book.sdpub chapter:12
 ```
