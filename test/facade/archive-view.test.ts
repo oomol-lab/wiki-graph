@@ -211,7 +211,7 @@ describe("facade/archive-view", () => {
     });
   });
 
-  it("shows source previews on sourced chapter pages", async () => {
+  it("keeps chapter pages compact for topology exploration", async () => {
     await withTempDir("spinedigest-archive-view-", async (path) => {
       const document = await DirectoryDocument.open(`${path}/document`);
 
@@ -225,7 +225,14 @@ describe("facade/archive-view", () => {
         if (page.type !== "chapter") {
           throw new Error("Expected chapter page");
         }
-        expect(page.sourcePreview).toContain("LLM Wiki");
+        expect(page.summary).toContain("Summary");
+        expect(page.summaryTruncated).toBe(true);
+        expect(JSON.stringify(page)).not.toContain("sourcePreview");
+        expect(JSON.stringify(page)).not.toContain("fragments");
+        expect(JSON.stringify(page)).not.toContain("position");
+        expect(JSON.stringify(page)).not.toContain("span");
+        expect(JSON.stringify(page)).not.toContain("weight");
+        expect(JSON.stringify(page)).not.toContain("wordsCount");
       } finally {
         await document.release();
       }
@@ -268,6 +275,7 @@ describe("facade/archive-view", () => {
           nodeCount: 2,
           nodeGroups: [
             expect.objectContaining({
+              groupId: 0,
               nodeCount: 2,
               nodes: [
                 expect.objectContaining({
@@ -338,7 +346,7 @@ describe("facade/archive-view", () => {
           nodeCount: 2,
           nodeGroups: [
             expect.objectContaining({
-              id: "node-group:1:fragment:0",
+              groupId: 0,
               nodeCount: 2,
               nodes: [
                 expect.objectContaining({
@@ -459,6 +467,7 @@ async function seedSourcedDocument(
         snakeId,
       });
     }
+    await openedDocument.writeSummary(1, `Summary ${"detail ".repeat(400)}`);
     await openedDocument.writeBookMeta({
       authors: [],
       description: null,

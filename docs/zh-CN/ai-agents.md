@@ -18,14 +18,14 @@
 spinedigest status book.sdpub
 spinedigest index book.sdpub
 spinedigest list book.sdpub --type chapter
-spinedigest find book.sdpub "keyword"
+spinedigest find book.sdpub "keyword" --type node
 spinedigest page book.sdpub node:84
 spinedigest read book.sdpub chapter:12
 ```
 
 优先先选择三种探索模式之一。对于综合理解、时间线、关系分析、过程梳理或概念结构任务，先走结构模式：`list --type chapter`，再 `page chapter:<id>` 并检查 `nodeGroups`。搜索模式用 `find` 做候选定位，用 `grep` 检查连续精确短语。`find` 默认是 `--match any`；只有必须要求全部关键词出现在同一个对象内时，才使用 `--match all`。阅读模式适合在选定相关 chapter、fragment 或 node 后用 `read` 输出连续文本。
 
-概念发现可加 `--type summary,node`，追原文可加 `--type fragment`，并用 `--chapter`、`--limit`、`--cursor` 控制检索范围。
+无 `--type` 的 `find` 适合广泛发现候选内容。做内容理解时，选择一个 search lens：`--type node` 用于拓扑 / LLM Wiki 结构，`--type summary` 用于快速概览，`--type fragment` 用于原文措辞。使用 `--chapter`、`--limit`、`--cursor` 控制检索范围。
 
 只有外围系统明确需要进程内集成时，才使用 library API。
 

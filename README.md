@@ -82,7 +82,7 @@ Search and read through the archive interface:
 
 ```bash
 spinedigest list ./book.sdpub --type chapter
-spinedigest find ./book.sdpub "RAG"
+spinedigest find ./book.sdpub "RAG" --type node
 spinedigest grep ./book.sdpub "exact source phrase"
 spinedigest page ./book.sdpub node:84
 spinedigest read ./book.sdpub chapter:12
@@ -143,7 +143,7 @@ With that archive on hand, agents can search and navigate the knowledge structur
 spinedigest index ./book.sdpub
 spinedigest list ./book.sdpub --type chapter
 spinedigest list ./book.sdpub --type node --chapter 12
-spinedigest find ./book.sdpub "central argument"
+spinedigest find ./book.sdpub "central argument" --type node
 spinedigest page ./book.sdpub chapter:12
 spinedigest read ./book.sdpub chapter:12
 ```

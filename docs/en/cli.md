@@ -23,7 +23,10 @@ spinedigest page <archive.sdpub> <id> [--json]
 spinedigest read <archive.sdpub> <id>
 spinedigest links <archive.sdpub> <node:id> [--json]
 spinedigest backlinks <archive.sdpub> <node:id> [--json]
+spinedigest related <archive.sdpub> <node:id> [--json]
 spinedigest path <archive.sdpub> <node:id> <node:id> --chapter <id>
+spinedigest map <archive.sdpub> [--json]
+spinedigest pack <archive.sdpub> <id> [--budget <chars>] [--json]
 spinedigest export <archive.sdpub> --output-format <format> [--output <path>]
 ```
 
@@ -36,10 +39,11 @@ Exploration modes:
 Search and collection behavior:
 
 - `find` is deterministic keyword discovery. It splits the query on whitespace, defaults to `--match any`, and ranks objects that match more terms first.
+- Untyped `find` is broad candidate discovery. For content understanding, choose a search lens: `--type node` for topology / LLM Wiki structure, `--type summary` for quick overview, or `--type fragment` for original source wording.
 - `find --match all` is the strict mode where every keyword must appear in the same object.
 - `grep` is exact text search. It treats the query as one continuous string.
 - `--chapter 12` or `--chapter 11,12` limits results to chapters.
-- `--type chapter,summary,node,fragment,meta` limits `list`; `find` and `grep` search `summary,node,fragment`.
+- `--type chapter,summary,node,fragment,meta` limits `list`; `find` and `grep` accept `--type summary,node,fragment` as search lenses. Untyped search also checks metadata and chapter titles for broad candidate discovery.
 - `--order doc-asc|doc-desc` sorts by stable document position. Default is `doc-asc`.
 - `--limit` defaults to `20`; pass returned `nextCursor` back through `--cursor` for the next page.
 - Neither command does semantic expansion, fuzzy matching, stemming, or vector search.
@@ -84,8 +88,8 @@ Extension mapping:
 Read/search/navigation commands support `--json` for machine consumption:
 
 ```bash
-spinedigest find book.sdpub "RAG" --json
-spinedigest page book.sdpub node:84 --json
+spinedigest find book.sdpub "RAG" --type node --json
+spinedigest page book.sdpub chapter:3 --json
 ```
 
 Human-readable stdout is Markdown-like text with stable ids and suggested next commands.
@@ -103,7 +107,7 @@ Archive maintenance commands remain available as top-level commands:
 ```bash
 spinedigest meta <archive.sdpub> [metadata options] [--json]
 spinedigest cover <archive.sdpub>
-spinedigest chapter <list|status|add|remove|reset|set-source|set-summary> <path> [options]
+spinedigest chapter <list|status|add|remove|reset|set-source|set-summary|set-title> <path> [options]
 ```
 
 Use archive-first commands for routine exploration. Maintenance commands are for metadata edits, cover extraction, and chapter tree edits.

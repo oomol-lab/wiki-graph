@@ -23,7 +23,10 @@ spinedigest page <archive.sdpub> <id> [--json]
 spinedigest read <archive.sdpub> <id>
 spinedigest links <archive.sdpub> <node:id> [--json]
 spinedigest backlinks <archive.sdpub> <node:id> [--json]
+spinedigest related <archive.sdpub> <node:id> [--json]
 spinedigest path <archive.sdpub> <node:id> <node:id> --chapter <id>
+spinedigest map <archive.sdpub> [--json]
+spinedigest pack <archive.sdpub> <id> [--budget <chars>] [--json]
 spinedigest export <archive.sdpub> --output-format <format> [--output <path>]
 ```
 
@@ -36,10 +39,11 @@ spinedigest export <archive.sdpub> --output-format <format> [--output <path>]
 搜索与集合行为：
 
 - `find` 是确定性的关键词发现。它按空白拆分 query，默认 `--match any`，并优先返回命中更多关键词的对象。
+- 无 `--type` 的 `find` 适合广泛发现候选内容。做内容理解时，选择一个 search lens：`--type node` 用于拓扑 / LLM Wiki 结构，`--type summary` 用于快速概览，`--type fragment` 用于原文措辞。
 - `find --match all` 是严格模式，要求同一个对象内包含全部关键词。
 - `grep` 是精确文本搜索。它把 query 当作一个连续字符串。
 - `--chapter 12` 或 `--chapter 11,12` 用于限定章节。
-- `--type chapter,summary,node,fragment,meta` 用于限定 `list`；`find` 和 `grep` 搜索 `summary,node,fragment`。
+- `--type chapter,summary,node,fragment,meta` 用于限定 `list`；`find` 和 `grep` 接受 `--type summary,node,fragment` 作为 search lens。无 `--type` 的搜索也会检查 metadata 和 chapter title，用于广泛发现候选内容。
 - `--order doc-asc|doc-desc` 按稳定文档位置排序，默认 `doc-asc`。
 - `--limit` 默认 `20`；下一页把返回的 `nextCursor` 传给 `--cursor`。
 - 两个命令都不做语义扩展、模糊匹配、词干匹配或向量搜索。
@@ -84,8 +88,8 @@ spinedigest export <archive.sdpub> --output-format <format> [--output <path>]
 读取、搜索和导航命令支持 `--json`：
 
 ```bash
-spinedigest find book.sdpub "RAG" --json
-spinedigest page book.sdpub node:84 --json
+spinedigest find book.sdpub "RAG" --type node --json
+spinedigest page book.sdpub chapter:3 --json
 ```
 
 默认 stdout 是适合人和 Agent 阅读的 Markdown-like 文本，包含稳定 ID 和下一步命令提示。
@@ -103,7 +107,7 @@ spinedigest transform [--input <path>] [--output <path>] [--input-format <format
 ```bash
 spinedigest meta <archive.sdpub> [metadata options] [--json]
 spinedigest cover <archive.sdpub>
-spinedigest chapter <list|status|add|remove|reset|set-source|set-summary> <path> [options]
+spinedigest chapter <list|status|add|remove|reset|set-source|set-summary|set-title> <path> [options]
 ```
 
 常规探索请使用 archive-first commands。维护命令用于 metadata 编辑、cover 提取和 chapter tree 编辑。

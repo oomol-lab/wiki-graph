@@ -148,12 +148,11 @@ export interface ArchiveListItem {
 export type ArchivePage =
   | {
       readonly chapter: ChapterEntry;
-      readonly content: string | undefined;
-      readonly fragments: readonly ArchiveSourceFragment[];
       readonly id: string;
       readonly nodeGroups: readonly ArchiveNodeGroup[];
       readonly nodeCount: number;
-      readonly sourcePreview: string | undefined;
+      readonly summary: string | undefined;
+      readonly summaryTruncated: boolean;
       readonly title: string;
       readonly type: "chapter";
     }
@@ -218,21 +217,18 @@ export interface ArchivePack {
 
 export interface ArchiveNodeGroup {
   readonly groupId: number;
-  readonly id: string;
   readonly nodeCount: number;
   readonly nodes: readonly ArchiveNodeLabel[];
-  readonly span: {
-    readonly end?: ArchiveFindPosition;
-    readonly start?: ArchiveFindPosition;
-  };
-  readonly weight: number;
-  readonly wordsCount: number;
 }
 
 export interface ArchiveNodeLabel {
   readonly id: string;
-  readonly position: ArchiveFindPosition | undefined;
   readonly title: string;
+}
+
+interface PositionedNodeLabel {
+  readonly label: ArchiveNodeLabel;
+  readonly position: ArchiveFindPosition | undefined;
 }
 
 export interface ArchiveSourceFragment {
@@ -553,20 +549,21 @@ export async function readArchivePage(
   switch (reference.type) {
     case "chapter": {
       const chapter = await requireChapter(document, reference.id);
-      const [fragments, nodeGroups, nodes] = await Promise.all([
-        listChapterSourceFragments(document, reference.id),
+      const [nodeGroups, nodes, summary] = await Promise.all([
         listChapterNodeGroups(document, reference.id),
         document.chunks.listBySerial(reference.id),
+        document.readSummary(reference.id),
       ]);
+      const summaryPreview =
+        summary === undefined ? undefined : truncatePageSummary(summary);
 
       return {
         chapter,
-        content: await document.readSummary(reference.id),
-        fragments,
         id: formatChapterId(reference.id),
         nodeCount: nodes.length,
         nodeGroups,
-        sourcePreview: createSourcePreview(fragments),
+        summary: summaryPreview?.text,
+        summaryTruncated: summaryPreview?.truncated ?? false,
         title: chapter.title ?? `[chapter ${reference.id}]`,
         type: "chapter",
       };
@@ -930,10 +927,7 @@ async function listChapterNodeGroups(
       snakes.map(async (snake) =>
         createArchiveNodeGroup({
           groupId: snake.localSnakeId,
-          id: `node-group:${chapterId}:${snake.localSnakeId}`,
           nodes: await listSnakeNodeLabels(document, snake),
-          weight: snake.weight,
-          wordsCount: snake.wordsCount,
         }),
       ),
     )
@@ -945,15 +939,15 @@ async function listChapterNodeGroupsByFragment(
   chapterId: number,
 ): Promise<readonly ArchiveNodeGroup[]> {
   const nodes = (await document.chunks.listBySerial(chapterId))
-    .map(createNodeLabel)
-    .sort(compareNodeLabels);
+    .map(createPositionedNodeLabel)
+    .sort(comparePositionedNodeLabels);
   const nodesByFragment = new Map<number, ArchiveNodeLabel[]>();
 
   for (const node of nodes) {
     const fragmentId = node.position?.fragment ?? -1;
     const groupNodes = nodesByFragment.get(fragmentId) ?? [];
 
-    groupNodes.push(node);
+    groupNodes.push(node.label);
     nodesByFragment.set(fragmentId, groupNodes);
   }
 
@@ -961,45 +955,22 @@ async function listChapterNodeGroupsByFragment(
     .sort(([leftFragment], [rightFragment]) =>
       compareNumbers(leftFragment, rightFragment),
     )
-    .map(([fragmentId, groupNodes], index) =>
+    .map(([, groupNodes], index) =>
       createArchiveNodeGroup({
         groupId: index,
-        id:
-          fragmentId < 0
-            ? `node-group:${chapterId}:unknown`
-            : `node-group:${chapterId}:fragment:${fragmentId}`,
         nodes: groupNodes,
-        weight: groupNodes.length,
-        wordsCount: 0,
       }),
     );
 }
 
 function createArchiveNodeGroup(input: {
   readonly groupId: number;
-  readonly id: string;
   readonly nodes: readonly ArchiveNodeLabel[];
-  readonly weight: number;
-  readonly wordsCount: number;
 }): ArchiveNodeGroup {
-  const positions = input.nodes
-    .map((node) => node.position)
-    .filter(isDefined)
-    .sort(compareArchivePositions);
-
   return {
     groupId: input.groupId,
-    id: input.id,
     nodeCount: input.nodes.length,
     nodes: input.nodes,
-    span: {
-      ...(positions[positions.length - 1] === undefined
-        ? {}
-        : { end: positions[positions.length - 1] }),
-      ...(positions[0] === undefined ? {} : { start: positions[0] }),
-    },
-    weight: input.weight,
-    wordsCount: input.wordsCount,
   };
 }
 
@@ -1013,13 +984,16 @@ async function listSnakeNodeLabels(
         async (chunkId) => {
           const chunk = await document.chunks.getById(chunkId);
 
-          return chunk === undefined ? undefined : createNodeLabel(chunk);
+          return chunk === undefined
+            ? undefined
+            : createPositionedNodeLabel(chunk);
         },
       ),
     )
   )
     .filter(isDefined)
-    .sort(compareNodeLabels);
+    .sort(comparePositionedNodeLabels)
+    .map(({ label }) => label);
 }
 
 async function listFragmentNodes(
@@ -1028,21 +1002,28 @@ async function listFragmentNodes(
   fragmentId: number,
 ): Promise<readonly ArchiveNodeLabel[]> {
   return (await document.chunks.listByFragments(chapterId, [fragmentId]))
-    .map(createNodeLabel)
-    .sort(compareNodeLabels);
+    .map(createPositionedNodeLabel)
+    .sort(comparePositionedNodeLabels)
+    .map(({ label }) => label);
 }
 
 function createNodeLabel(node: ChunkRecord): ArchiveNodeLabel {
   return {
     id: formatNodeId(node.id),
-    position: createNodePosition(node.sentenceIds),
     title: node.label,
   };
 }
 
-function compareNodeLabels(
-  left: ArchiveNodeLabel,
-  right: ArchiveNodeLabel,
+function createPositionedNodeLabel(node: ChunkRecord): PositionedNodeLabel {
+  return {
+    label: createNodeLabel(node),
+    position: createNodePosition(node.sentenceIds),
+  };
+}
+
+function comparePositionedNodeLabels(
+  left: PositionedNodeLabel,
+  right: PositionedNodeLabel,
 ): number {
   if (left.position !== undefined && right.position !== undefined) {
     return compareArchivePositions(left.position, right.position);
@@ -1056,18 +1037,7 @@ function compareNodeLabels(
     return 1;
   }
 
-  return left.id.localeCompare(right.id);
-}
-
-function createSourcePreview(
-  fragments: readonly ArchiveSourceFragment[],
-): string | undefined {
-  const text = fragments
-    .map((fragment) => fragment.text)
-    .join("\n")
-    .trim();
-
-  return text === "" ? undefined : createSnippet(text);
+  return left.label.id.localeCompare(right.label.id);
 }
 
 function findMeta(
@@ -1338,6 +1308,7 @@ interface ArchiveTextMatch {
 }
 
 const DEFAULT_FIND_LIMIT = 20;
+const PAGE_SUMMARY_LIMIT = 1600;
 
 const BROAD_FIND_LENS_HINT = {
   lenses: {
@@ -1562,6 +1533,20 @@ function createSearchTerms(query: string): readonly string[] {
     .toLowerCase()
     .split(/\s+/u)
     .filter((term) => term !== "");
+}
+
+function truncatePageSummary(text: string): {
+  readonly text: string;
+  readonly truncated: boolean;
+} {
+  if (text.length <= PAGE_SUMMARY_LIMIT) {
+    return { text, truncated: false };
+  }
+
+  return {
+    text: `${text.slice(0, PAGE_SUMMARY_LIMIT - 3)}...`,
+    truncated: true,
+  };
 }
 
 function getPositionChapter(hit: ArchiveFindHit): number {

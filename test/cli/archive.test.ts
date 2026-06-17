@@ -131,36 +131,26 @@ const archiveMockState = vi.hoisted(() => ({
       title: "Chapter 2",
       tocPath: ["Chapter 2"],
     },
-    content: `Long summary ${"summary ".repeat(220)}`,
-    fragments: [],
     id: "chapter:2",
     nodeCount: 2,
     nodeGroups: [
       {
         groupId: 0,
-        id: "node-group:2:0",
         nodeCount: 2,
         nodes: [
           {
             id: "node:9",
-            position: { chapter: 2, fragment: 0 },
             title: "Retrieval design",
           },
           {
             id: "node:11",
-            position: { chapter: 2, fragment: 0 },
             title: "Related",
           },
         ],
-        span: {
-          end: { chapter: 2, fragment: 0 },
-          start: { chapter: 2, fragment: 0 },
-        },
-        weight: 1,
-        wordsCount: 7,
       },
     ],
-    sourcePreview: "Chapter source preview.",
+    summary: `Long summary ${"summary ".repeat(120)}`,
+    summaryTruncated: true,
     title: "Chapter 2",
     type: "chapter",
   },
@@ -481,7 +471,8 @@ describe("cli/archive", () => {
       output.indexOf("Summary:"),
     );
     expect(output).toContain("node:9  Retrieval design");
-    expect(output).toContain("Source Preview:");
+    expect(output).not.toContain("Source Preview:");
+    expect(output).toContain("[summary truncated]");
     expect(output.length).toBeLessThan(1800);
   });
 

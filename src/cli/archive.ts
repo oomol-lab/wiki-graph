@@ -619,9 +619,9 @@ async function writePage(page: ArchivePage, json: boolean): Promise<void> {
           ...formatNodeGroups(page.nodeGroups),
           "",
           "Summary:",
-          formatLongPageText(page.content ?? "[summary missing]"),
+          `${page.summary ?? "[summary missing]"}${page.summaryTruncated ? "\n[summary truncated]" : ""}`,
           "",
-          formatChapterSourcePreview(page),
+          formatChapterNextSteps(page),
         ].join("\n") + "\n",
       );
       return;
@@ -828,12 +828,12 @@ function formatNodeGroups(
   }
 
   const visibleGroups = groups.slice(0, 12);
-  const lines = visibleGroups.flatMap((group, index) => {
+  const lines = visibleGroups.flatMap((group) => {
     const visibleNodes = group.nodes.slice(0, 10);
     const moreNodes = group.nodeCount - visibleNodes.length;
 
     return [
-      `  Group ${index + 1}  ${group.nodeCount} nodes  ${formatSpan(group.span)}`,
+      `  Group ${group.groupId}  ${group.nodeCount} nodes`,
       ...formatNodeLabels(visibleNodes).map((line) => `  ${line}`),
       ...(moreNodes > 0 ? [`    ... ${moreNodes} more nodes`] : []),
     ];
@@ -889,23 +889,6 @@ function formatPosition(
   ]
     .filter((part): part is string => part !== undefined)
     .join(", ");
-}
-
-function formatSpan(span: {
-  readonly end?: {
-    readonly chapter: number;
-    readonly fragment?: number;
-  };
-  readonly start?: {
-    readonly chapter: number;
-    readonly fragment?: number;
-  };
-}): string {
-  if (span.start === undefined && span.end === undefined) {
-    return "span [unknown]";
-  }
-
-  return `span ${formatPosition(span.start)} -> ${formatPosition(span.end)}`;
 }
 
 function formatDuration(seconds: number): string {
@@ -983,7 +966,7 @@ function formatProgressStep(step: "graph" | "summary"): string {
 function formatPackAnchor(anchor: ArchivePage): string {
   switch (anchor.type) {
     case "chapter":
-      return `${anchor.id} ${anchor.title}\n${anchor.content ?? "[summary missing]"}`;
+      return `${anchor.id} ${anchor.title}\n${anchor.summary ?? "[summary missing]"}`;
     case "fragment":
       return `${anchor.id}\n${anchor.fragment.text}`;
     case "meta":
@@ -1003,28 +986,15 @@ function formatPackAnchor(anchor: ArchivePage): string {
   }
 }
 
-function formatChapterSourcePreview(
+function formatChapterNextSteps(
   page: Extract<ArchivePage, { readonly type: "chapter" }>,
 ): string {
-  const lines: string[] = [];
-
-  if (page.sourcePreview !== undefined) {
-    lines.push("Source Preview:", page.sourcePreview);
-  }
-
-  lines.push(
-    "",
+  return [
     "Next:",
     `  spinedigest list <archive.sdpub> --type node --chapter ${page.chapter.chapterId}`,
     `  spinedigest find <archive.sdpub> <keyword> --chapter ${page.chapter.chapterId}`,
     `  spinedigest read <archive.sdpub> ${page.id}`,
-  );
-
-  return lines.join("\n");
-}
-
-function formatLongPageText(text: string): string {
-  return text.length > 1200 ? `${text.slice(0, 1197)}...` : text;
+  ].join("\n");
 }
 
 function truncateToBudget(text: string, budget: number): string {
