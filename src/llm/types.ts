@@ -23,6 +23,10 @@ export interface LLMRequestOptions<S extends string> {
   readonly retryMax?: number;
 }
 
+export type LLMStreamProgressCallback = (event: {
+  readonly outputCharacters: number;
+}) => void | Promise<void>;
+
 export interface LLMOptions<S extends string> {
   readonly model: LLMModel;
   readonly dataDirPath: string;
@@ -36,4 +40,5 @@ export interface LLMOptions<S extends string> {
   readonly sampling?: SamplingScopeConfig<S>;
   readonly retryTimes?: number;
   readonly retryIntervalSeconds?: number;
+  readonly onStreamProgress?: LLMStreamProgressCallback;
 }

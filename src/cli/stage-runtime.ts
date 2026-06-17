@@ -2,6 +2,7 @@ import { resolveDataDirPath } from "../common/data-dir.js";
 import type { SpineDigestScope } from "../common/llm-scope.js";
 import { createDefaultSpineDigestSampling } from "../facade/llm-sampling.js";
 import { LLM } from "../llm/index.js";
+import type { LLMStreamProgressCallback } from "../llm/index.js";
 
 import { loadCLIConfig, type CLIConfig } from "./config.js";
 import { CLI_HELP_ROUTES, withHelpRoute } from "./errors.js";
@@ -10,7 +11,12 @@ import { buildLLMOptions } from "./llm.js";
 export const DEFAULT_EXTRACTION_PROMPT =
   "Focus on the main storyline and key character developments. Preserve important dialogues and critical plot points. Background descriptions and minor details can be compressed significantly.";
 
-export function createStageLLM(config: CLIConfig): LLM<SpineDigestScope> {
+export function createStageLLM(
+  config: CLIConfig,
+  options?: {
+    readonly onStreamProgress?: LLMStreamProgressCallback;
+  },
+): LLM<SpineDigestScope> {
   const llmOptions = buildLLMOptions(config);
 
   return new LLM<SpineDigestScope>({
@@ -22,6 +28,9 @@ export function createStageLLM(config: CLIConfig): LLM<SpineDigestScope> {
       ...(llmOptions.topP === undefined ? {} : { topP: llmOptions.topP }),
     }),
     ...llmOptions,
+    ...(options?.onStreamProgress === undefined
+      ? {}
+      : { onStreamProgress: options.onStreamProgress }),
   });
 }
 
