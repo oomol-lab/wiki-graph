@@ -105,20 +105,18 @@ describe("facade/archive", () => {
     });
   });
 
-  it("accepts archives that omit the manifest as format version 1", async () => {
+  it("rejects archives that omit the manifest", async () => {
     await withTempDir("spinedigest-archive-", async (path) => {
-      const archivePath = `${path}/legacy.sdpub`;
+      const archivePath = `${path}/missing-manifest.sdpub`;
       const extractDir = `${path}/extract`;
       const zipFile = new ZipFile();
 
       zipFile.addBuffer(Buffer.from("sqlite", "utf8"), "database.db");
       await writeZipFile(zipFile, archivePath);
 
-      await extractSdpubArchive(archivePath, extractDir);
-
-      expect(await readFile(`${extractDir}/database.db`, "utf8")).toBe(
-        "sqlite",
-      );
+      await expect(
+        extractSdpubArchive(archivePath, extractDir),
+      ).rejects.toThrow("Missing SDPUB manifest: manifest.json.");
     });
   });
 

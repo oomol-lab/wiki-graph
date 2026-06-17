@@ -41,9 +41,11 @@ describe("reader/chunk-batch/extractor", () => {
         chunks: [
           {
             content: "Alpha summary",
+            evidence: {
+              start_anchor: "Alpha begins.",
+            },
             label: "Alpha label",
             retention: "focused",
-            source_sentences: ["Alpha begins."],
             temp_id: "temp-1",
           },
         ],
@@ -111,9 +113,11 @@ describe("reader/chunk-batch/extractor", () => {
         chunks: [
           {
             content: "Bridge summary",
+            evidence: {
+              start_anchor: "Bridge sentence.",
+            },
             importance: "important",
             label: "Bridge label",
-            source_sentences: ["Bridge sentence."],
             temp_id: "temp-1",
           },
         ],
@@ -286,9 +290,11 @@ describe("reader/chunk-batch/extractor", () => {
         chunks: [
           {
             content: "こんにちは世界",
+            evidence: {
+              start_anchor: "Hello world.",
+            },
             label: "挨拶",
             retention: "detailed",
-            source_sentences: ["Hello world."],
             temp_id: "temp-1",
           },
         ],
@@ -345,9 +351,11 @@ describe("reader/chunk-batch/extractor", () => {
         chunks: [
           {
             content: "Hello world",
+            evidence: {
+              start_anchor: "Hello world.",
+            },
             label: "Greeting",
             retention: "focused",
-            source_sentences: ["Hello world."],
             temp_id: "temp-1",
           },
         ],
@@ -401,16 +409,20 @@ describe("reader/chunk-batch/extractor", () => {
         chunks: [
           {
             content: "こんにちは世界",
+            evidence: {
+              start_anchor: "Hello world.",
+            },
             label: "挨拶",
             retention: "detailed",
-            source_sentences: ["Hello world."],
             temp_id: "temp-1",
           },
           {
             content: "さようなら",
+            evidence: {
+              start_anchor: "Goodbye.",
+            },
             label: "別れ",
             retention: "focused",
-            source_sentences: ["Goodbye."],
             temp_id: "temp-2",
           },
         ],

@@ -3,9 +3,24 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 const chapterMockState = vi.hoisted(() => ({
   addCalls: [] as unknown[],
   editableCalls: [] as string[],
-  generatedGraphCalls: [] as unknown[],
-  generatedSummaryCalls: [] as unknown[],
   inputFileContent: "file content",
+  moveCalls: [] as unknown[],
+  treeApplyCalls: [] as unknown[],
+  tree: {
+    chapters: [
+      {
+        children: [
+          {
+            children: [],
+            id: 2,
+            title: "Chapter 1",
+          },
+        ],
+        id: 1,
+        title: "Part I",
+      },
+    ],
+  },
   listEntries: [
     {
       chapterId: 1,
@@ -26,7 +41,6 @@ const chapterMockState = vi.hoisted(() => ({
       tocPath: ["Part I", "Chapter 1"],
     },
   ],
-  loadConfigCalls: [] as unknown[],
   removeCalls: [] as unknown[],
   resetCalls: [] as unknown[],
   setSourceCalls: [] as Array<{
@@ -79,35 +93,49 @@ vi.mock("../../src/facade/index.js", () => ({
       title: "New Chapter",
     });
   }),
-  generateChapterGraph: vi.fn(
-    (_document: unknown, chapterId: number, options: unknown) => {
-      chapterMockState.generatedGraphCalls.push({
-        chapterId,
-        options,
-      });
-      return Promise.resolve({
-        ...chapterDetails,
-        graphReady: true,
-        stage: "graphed",
-      });
-    },
-  ),
-  generateChapterSummary: vi.fn(
-    (_document: unknown, chapterId: number, options: unknown) => {
-      chapterMockState.generatedSummaryCalls.push({
-        chapterId,
-        options,
-      });
-      return Promise.resolve({
-        ...chapterDetails,
-        graphReady: true,
-        hasSummary: true,
-        stage: "summarized",
-      });
-    },
-  ),
   getChapterDetails: vi.fn(() => Promise.resolve(chapterDetails)),
+  getChapterTree: vi.fn(() => Promise.resolve(chapterMockState.tree)),
   listChapters: vi.fn(() => Promise.resolve(chapterMockState.listEntries)),
+  moveChapter: vi.fn(
+    (_document: unknown, chapterId: number, options: unknown) => {
+      chapterMockState.moveCalls.push({
+        chapterId,
+        options,
+      });
+      return Promise.resolve(chapterDetails);
+    },
+  ),
+  parseChapterTreeInput: vi.fn((input: unknown) => input),
+  applyChapterTree: vi.fn(
+    (_document: unknown, tree: unknown, options: unknown) => {
+      chapterMockState.treeApplyCalls.push({
+        options,
+        tree,
+      });
+      return Promise.resolve({
+        changed: true,
+        moved: [
+          {
+            chapterId: 2,
+            newIndex: 0,
+            newParentChapterId: null,
+            newPath: ["Chapter 1"],
+            oldIndex: 0,
+            oldParentChapterId: 1,
+            oldPath: ["Part I", "Chapter 1"],
+          },
+        ],
+        renamed: [
+          {
+            chapterId: 2,
+            newTitle: null,
+            oldTitle: "Chapter 1",
+          },
+        ],
+        unchanged: 1,
+      });
+    },
+  ),
   removeChapter: vi.fn(
     (_document: unknown, chapterId: number, options: unknown) => {
       chapterMockState.removeCalls.push({
@@ -145,7 +173,11 @@ vi.mock("../../src/facade/index.js", () => ({
         chapterId,
         streamText,
       });
-      return chapterDetails;
+      return {
+        ...chapterDetails,
+        chapterId,
+        stage: "sourced",
+      };
     },
   ),
   setChapterSummary: vi.fn(
@@ -162,36 +194,17 @@ vi.mock("../../src/facade/index.js", () => ({
     },
   ),
   setChapterTitle: vi.fn(
-    (_document: unknown, chapterId: number, title: string) => {
+    (_document: unknown, chapterId: number, title: string | null) => {
       chapterMockState.setTitleCalls.push({
         chapterId,
         title,
       });
       return Promise.resolve({
         ...chapterDetails,
-        title: title.trim() === "" ? null : title.trim(),
+        title: title === null || title.trim() === "" ? null : title.trim(),
       });
     },
   ),
-}));
-
-vi.mock("../../src/cli/config.js", () => ({
-  loadCLIConfig: vi.fn((options?: unknown) => {
-    chapterMockState.loadConfigCalls.push(options);
-    return Promise.resolve({
-      llm: {
-        model: "gpt-test",
-        provider: "openai",
-      },
-      prompt: "Config prompt",
-    });
-  }),
-}));
-
-vi.mock("../../src/cli/llm.js", () => ({
-  buildLLMOptions: vi.fn(() => ({
-    model: {},
-  })),
 }));
 
 vi.mock("../../src/common/data-dir.js", () => ({
@@ -228,14 +241,13 @@ describe("cli/archive-chapter", () => {
   beforeEach(() => {
     chapterMockState.addCalls.length = 0;
     chapterMockState.editableCalls.length = 0;
-    chapterMockState.generatedGraphCalls.length = 0;
-    chapterMockState.generatedSummaryCalls.length = 0;
-    chapterMockState.loadConfigCalls.length = 0;
+    chapterMockState.moveCalls.length = 0;
     chapterMockState.removeCalls.length = 0;
     chapterMockState.resetCalls.length = 0;
     chapterMockState.setSourceCalls.length = 0;
     chapterMockState.setSummaryCalls.length = 0;
     chapterMockState.setTitleCalls.length = 0;
+    chapterMockState.treeApplyCalls.length = 0;
     chapterMockState.textWrites.length = 0;
     setStdinTTY(false);
   });
@@ -252,13 +264,14 @@ describe("cli/archive-chapter", () => {
 
     expect(chapterMockState.editableCalls).toStrictEqual(["/tmp/book.sdpub"]);
     expect(chapterMockState.textWrites).toStrictEqual([
-      "[1] planned    Part I\n  [2] sourced    Chapter 1\n",
+      "[1] planned  Part I\n  [2] source   Chapter 1\n",
     ]);
   });
 
   it("adds a chapter and prints the new chapter id", async () => {
     await runArchiveChapterCommand({
       action: "add",
+      addStage: "planned",
       parentChapterId: 1,
       path: "/tmp/book.sdpub",
       title: "New Chapter",
@@ -273,6 +286,30 @@ describe("cli/archive-chapter", () => {
     expect(chapterMockState.textWrites[0]).toContain("Chapter: 3\n");
   });
 
+  it("adds a sourced chapter from --input", async () => {
+    await runArchiveChapterCommand({
+      action: "add",
+      addStage: "sourced",
+      inputFormat: "markdown",
+      inputPath: "/tmp/chapter.md",
+      path: "/tmp/book.sdpub",
+      title: "New Chapter",
+    });
+
+    expect(chapterMockState.addCalls).toStrictEqual([
+      {
+        title: "New Chapter",
+      },
+    ]);
+    expect(chapterMockState.setSourceCalls).toStrictEqual([
+      {
+        chapterId: 3,
+        streamText: "file content",
+      },
+    ]);
+    expect(chapterMockState.textWrites[0]).toContain("Stage: source\n");
+  });
+
   it("reads source content from --input", async () => {
     await runArchiveChapterCommand({
       action: "set-source",
@@ -285,7 +322,7 @@ describe("cli/archive-chapter", () => {
     expect(chapterMockState.setSourceCalls).toStrictEqual([
       {
         chapterId: 2,
-        streamText: "source file content",
+        streamText: "file content",
       },
     ]);
   });
@@ -323,21 +360,96 @@ describe("cli/archive-chapter", () => {
     expect(chapterMockState.textWrites[0]).toContain("Title: Renamed Chapter");
   });
 
-  it("passes prompt to generate-graph", async () => {
+  it("clears a chapter title", async () => {
     await runArchiveChapterCommand({
-      action: "generate-graph",
+      action: "set-title",
       chapterId: 2,
+      clearTitle: true,
       path: "/tmp/book.sdpub",
-      prompt: "CLI prompt",
     });
 
-    expect(chapterMockState.generatedGraphCalls).toHaveLength(1);
-    expect(chapterMockState.generatedGraphCalls[0]).toMatchObject({
-      chapterId: 2,
-      options: {
-        extractionPrompt: "CLI prompt",
+    expect(chapterMockState.setTitleCalls).toStrictEqual([
+      {
+        chapterId: 2,
+        title: null,
       },
+    ]);
+  });
+
+  it("moves a chapter", async () => {
+    await runArchiveChapterCommand({
+      action: "move",
+      chapterId: 2,
+      first: true,
+      parentChapterId: 1,
+      path: "/tmp/book.sdpub",
     });
+
+    expect(chapterMockState.moveCalls).toStrictEqual([
+      {
+        chapterId: 2,
+        options: {
+          first: true,
+          parentChapterId: 1,
+        },
+      },
+    ]);
+    expect(chapterMockState.textWrites[0]).toContain("Chapter: 2\n");
+  });
+
+  it("prints and applies chapter trees", async () => {
+    await runArchiveChapterCommand({
+      action: "tree",
+      path: "/tmp/book.sdpub",
+      treeAction: "show",
+    });
+
+    expect(chapterMockState.textWrites[0]).toContain('"title": "Part I"');
+
+    chapterMockState.inputFileContent = JSON.stringify({
+      chapters: [
+        {
+          children: [],
+          id: 2,
+          title: null,
+        },
+        {
+          children: [],
+          id: 1,
+        },
+      ],
+    });
+    await runArchiveChapterCommand({
+      action: "tree",
+      dryRun: true,
+      inputPath: "/tmp/tree.json",
+      path: "/tmp/book.sdpub",
+      treeAction: "apply",
+    });
+
+    expect(chapterMockState.treeApplyCalls).toStrictEqual([
+      {
+        options: {
+          dryRun: true,
+        },
+        tree: {
+          chapters: [
+            {
+              children: [],
+              id: 2,
+              title: null,
+            },
+            {
+              children: [],
+              id: 1,
+            },
+          ],
+        },
+      },
+    ]);
+    expect(chapterMockState.textWrites.at(-1)).toContain(
+      "Dry run: chapter tree not changed.",
+    );
   });
 
   it("removes chapters recursively when requested", async () => {

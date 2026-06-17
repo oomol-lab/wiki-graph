@@ -73,7 +73,7 @@ async function collectSections(
 
       if (summary === undefined) {
         throw new Error(
-          `Chapter ${item.serialId} summary is missing. Run \`spinedigest build <archive.sdpub> --stage ready --confirm\` before export, or inspect the chapter with \`spinedigest page <archive.sdpub> chapter:${item.serialId}\`.`,
+          `Chapter ${item.serialId} summary is missing. Run \`spinedigest build <archive.sdpub> --stage summary --confirm\` before export, or inspect the chapter with \`spinedigest page <archive.sdpub> chapter:${item.serialId}\`.`,
         );
       }
 

@@ -40,9 +40,9 @@ Safe first moves:
     spinedigest export <archive.sdpub> --output-format markdown
 
 Build safety:
-  - Safe default: import source into `.sdpub`.
-  - Before any graph, summary, or ready build, run:
-    spinedigest estimate <archive.sdpub> --stage ready
+  - Safe default: create a `.sdpub` archive at source stage.
+  - Before any graph or summary build, run:
+    spinedigest estimate <archive.sdpub> --stage summary
   - If estimated time or cost exceeds the interactive task budget, stop and ask.
   - Prefer scoped builds with `--chapter <id>`.
   - LLM-backed `build` requires `--confirm` after estimation.
@@ -56,7 +56,7 @@ Object ids:
 
 Stable terms:
   - archive: `.sdpub`, the primary managed knowledge object
-  - source: imported normalized source material
+  - source: normalized source material stored in the archive
   - chapter: current top-level readable unit inside the archive
   - node: graph knowledge unit surfaced as an agent-readable page
   - source fragment: original text excerpt backing a node page

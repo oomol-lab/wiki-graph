@@ -31,6 +31,7 @@ import {
   type GraphNeighbor,
   type GraphPathStep,
   type ChapterEntry,
+  type ChapterStage,
 } from "../facade/index.js";
 import { SpineDigestFile } from "../facade/spine-digest-file.js";
 import type { Document } from "../document/index.js";
@@ -52,8 +53,8 @@ export async function runArchiveCommand(
   args: CLIArchiveArguments,
 ): Promise<void> {
   switch (args.action) {
-    case "import":
-      await importArchive(args);
+    case "create":
+      await createArchive(args);
       return;
     case "build": {
       await buildArchive(args);
@@ -77,7 +78,10 @@ export async function runArchiveCommand(
     case "estimate":
       await withArchiveDocument(args.archivePath, async (document) => {
         await writeEstimate(
-          await estimateArchiveBuild(document, args.targetStage ?? "ready"),
+          await estimateArchiveBuild(
+            document,
+            args.targetStage ?? "summarized",
+          ),
           args.json ?? false,
         );
       });
@@ -95,14 +99,6 @@ export async function runArchiveCommand(
       });
       return;
     }
-    case "ls":
-      await withArchiveDocument(args.archivePath, async (document) => {
-        await writeList(
-          await listArchiveObjects(document, args.listKind ?? "chapters"),
-          args.json ?? false,
-        );
-      });
-      return;
     case "list":
       await withArchiveDocument(args.archivePath, async (document) => {
         await writeCollection(
@@ -208,9 +204,9 @@ export async function runArchiveCommand(
   }
 }
 
-async function importArchive(args: CLIArchiveArguments): Promise<void> {
+async function createArchive(args: CLIArchiveArguments): Promise<void> {
   if (args.sourcePath === undefined) {
-    await importArchiveFromStdin(args);
+    await createArchiveFromStdin(args);
     return;
   }
 
@@ -232,7 +228,7 @@ async function importArchive(args: CLIArchiveArguments): Promise<void> {
   }
 
   const temporaryDirectoryPath = await mkdtemp(
-    join(tmpdir(), "spinedigest-url-import-"),
+    join(tmpdir(), "spinedigest-url-create-"),
   );
   const sourcePath = join(temporaryDirectoryPath, "source.md");
 
@@ -263,11 +259,11 @@ async function importArchive(args: CLIArchiveArguments): Promise<void> {
   }
 }
 
-async function importArchiveFromStdin(
+async function createArchiveFromStdin(
   args: CLIArchiveArguments,
 ): Promise<void> {
   if (args.inputFormat === undefined) {
-    throw new Error("Internal error: missing stdin import format.");
+    throw new Error("Internal error: missing stdin create format.");
   }
   if (process.stdin.isTTY) {
     throw new Error(
@@ -276,7 +272,7 @@ async function importArchiveFromStdin(
   }
 
   const temporaryDirectoryPath = await mkdtemp(
-    join(tmpdir(), "spinedigest-stdin-import-"),
+    join(tmpdir(), "spinedigest-stdin-create-"),
   );
   const extension = args.inputFormat === "markdown" ? ".md" : ".txt";
   const sourcePath = join(temporaryDirectoryPath, `source${extension}`);
@@ -327,12 +323,7 @@ function createCollectionOptions(
 }
 
 async function buildArchive(args: CLIArchiveArguments): Promise<void> {
-  const targetStage =
-    args.targetStage === "ready" ||
-    args.targetStage === "source" ||
-    args.targetStage === undefined
-      ? "summarized"
-      : args.targetStage;
+  const targetStage = args.targetStage ?? "summarized";
 
   if (targetStage === "planned") {
     await writeAdvanceResult({
@@ -421,7 +412,7 @@ function createStageAdvanceProgressWriter(input?: {
       switch (event.type) {
         case "selected":
           await writeLine(
-            `Selected ${event.totalChapters} ${event.totalChapters === 1 ? "chapter" : "chapters"}; target: ${event.targetStage}.`,
+            `Selected ${event.totalChapters} ${event.totalChapters === 1 ? "chapter" : "chapters"}; target: ${formatStage(event.targetStage)}.`,
           );
           return;
         case "skipped":
@@ -477,7 +468,7 @@ async function writeIndex(
       "",
       "Graph note:",
       "  No graph nodes are currently available. If graph build already ran, the source may be too short, too sparse, or no stable knowledge units were extracted.",
-      "  Next: inspect a chapter with `spinedigest page <archive.sdpub> chapter:<id>` or build `--stage ready` if you need summaries.",
+      "  Next: inspect a chapter with `spinedigest page <archive.sdpub> chapter:<id>` or build `--stage summary` if you need summaries.",
     );
   } else if (index.edgeCount === 0) {
     lines.push(
@@ -492,7 +483,7 @@ async function writeIndex(
     lines.push("", "Entry Points:");
     for (const chapter of index.chapters.slice(0, 12)) {
       lines.push(
-        `  chapter:${chapter.chapterId}  ${chapter.title ?? "[untitled]"} (${chapter.stage})`,
+        `  chapter:${chapter.chapterId}  ${chapter.title ?? "[untitled]"} (${formatStage(chapter.stage)})`,
       );
     }
     lines.push(
@@ -518,7 +509,7 @@ async function writeEstimate(
 
   await writeTextToStdout(
     [
-      `Target stage: ${estimate.targetStage}`,
+      `Target stage: ${formatEstimateStage(estimate.targetStage)}`,
       `Source words: ${estimate.sourceWords}`,
       `Estimated LLM calls: ${estimate.estimatedLlmCalls}`,
       `Estimated tokens: ${estimate.estimatedTokens.input} input / ${estimate.estimatedTokens.output} output`,
@@ -611,7 +602,7 @@ async function writePage(page: ArchivePage, json: boolean): Promise<void> {
       await writeTextToStdout(
         [
           `${page.id}  ${page.title}`,
-          `Stage: ${page.chapter.stage}`,
+          `Stage: ${formatStage(page.chapter.stage)}`,
           `Fragments: ${page.chapter.fragmentCount}`,
           `Nodes: ${page.nodeCount}`,
           "",
@@ -930,7 +921,7 @@ async function writeAdvanceResult(
 }
 
 function formatBuildChapterEntry(entry: ChapterEntry): string {
-  return `[${entry.chapterId}] ${entry.stage.padEnd(10)} ${formatTocPath(entry)}`;
+  return `[${entry.chapterId}] ${formatStage(entry.stage).padEnd(8)} ${formatTocPath(entry)}`;
 }
 
 function formatTocPath(entry: ChapterEntry): string {
@@ -1017,6 +1008,37 @@ function isUrl(value: string): boolean {
 
 function formatFetchedUrlSource(url: string, text: string): string {
   return [`# ${url}`, "", text].join("\n");
+}
+
+function formatStage(stage: ChapterStage): string {
+  switch (stage) {
+    case "planned":
+      return "planned";
+    case "sourced":
+      return "source";
+    case "graphed":
+      return "graph";
+    case "summarized":
+      return "summary";
+  }
+}
+
+function formatEstimateStage(stage: ArchiveEstimate["targetStage"]): string {
+  switch (stage) {
+    case "planned":
+      return "planned";
+    case "source":
+    case "sourced":
+      return "source";
+    case "graph":
+    case "graphed":
+      return "graph";
+    case "summary":
+    case "summarized":
+      return "summary";
+    default:
+      return stage;
+  }
 }
 
 async function readAllText(stream: AsyncIterable<string>): Promise<string> {

@@ -11,9 +11,9 @@ spinedigest <action> <archive.sdpub> ...
 ## Archive Commands
 
 ```bash
-spinedigest import <archive.sdpub> [source] [--input-format <format>] [--llm <json>] [--prompt <text>] [--confirm]
-spinedigest build <archive.sdpub> [--stage <source|graph|summary|ready>] [--chapter <id>] [--llm <json>] [--prompt <text>] [--confirm]
-spinedigest estimate <archive.sdpub> [--stage <source|graph|summary|ready>] [--json]
+spinedigest create <archive.sdpub> [source] [--input-format <format>] [--llm <json>] [--prompt <text>] [--confirm]
+spinedigest build <archive.sdpub> [--stage <source|graph|summary>] [--chapter <id>] [--llm <json>] [--prompt <text>] [--confirm]
+spinedigest estimate <archive.sdpub> [--stage <source|graph|summary>] [--json]
 spinedigest status <archive.sdpub> [--json]
 spinedigest index <archive.sdpub> [--json]
 spinedigest list <archive.sdpub> [--id <ids>] [--chapter <ids>] [--type <types>] [--order <doc-asc|doc-desc>] [--limit <n>] [--cursor <token>] [--json]
@@ -63,9 +63,8 @@ User-facing stages:
 - `source`: imported normalized source data
 - `graph`: graph nodes, edges, and source-backed knowledge units
 - `summary`: readable chapter summaries
-- `ready`: full ready archive projection
 
-`source` is cheap. `graph`, `summary`, and `ready` may call an LLM provider. Run `estimate` first for full-archive builds.
+`source` is cheap. `graph` and `summary` may call an LLM provider. Run `estimate` first for full-archive builds.
 
 ## Formats
 
@@ -94,29 +93,39 @@ spinedigest page book.sdpub chapter:3 --json
 
 Human-readable stdout is Markdown-like text with stable ids and suggested next commands.
 
-## Compatibility Commands
+## Direct Transform
 
-The direct one-shot digest command remains available:
+`transform` runs a direct one-shot digest/export without creating a reusable `.sdpub` archive:
 
 ```bash
-spinedigest transform [--input <path>] [--output <path>] [--input-format <format>] [--output-format <format>] [--digest-dir <path>] [--llm <json>] [--prompt <text>] [--confirm] [--stage <planned|sourced|graphed|summarized>] [--verbose]
+spinedigest transform [--input <path>] [--output <path>] [--input-format <format>] [--output-format <format>] [--digest-dir <path>] [--llm <json>] [--prompt <text>] [--stage <planned|source|graph|summary>] [--verbose]
 ```
 
-Archive maintenance commands remain available as top-level commands:
+There is no bare transform shortcut. Use `spinedigest transform ...` explicitly.
+
+## Maintenance Commands
+
+Archive maintenance commands are top-level commands:
 
 ```bash
 spinedigest meta <archive.sdpub> [metadata options] [--json]
 spinedigest cover <archive.sdpub>
-spinedigest chapter <list|status|add|remove|reset|set-source|set-summary|set-title> <path> [options]
+spinedigest chapter <list|status|add|move|remove|reset|set-source|set-summary|set-title|tree> <path> [options]
 ```
 
-Use archive-first commands for routine exploration. Maintenance commands are for metadata edits, cover extraction, and chapter tree edits.
+Use archive-first commands for routine exploration. Maintenance commands are for metadata edits, cover extraction, and chapter tree edits. `chapter tree` prints a stable JSON tree with `title: null` for untitled chapters; `chapter tree apply` can reorder chapters and change titles when `title` is present.
 
 `spinedigest config status` prints configuration status. `spinedigest status <archive.sdpub>` prints archive status.
 
 ## Standard Stream Rules
 
-The archive-first `import` command writes `.sdpub` archives. For pure one-shot stream digest/export workflows, use `spinedigest transform`:
+The archive-first `create` command writes `.sdpub` archives. It reads Markdown or plain text from stdin when `--input-format` is provided:
+
+```bash
+cat ./chapter.txt | spinedigest create ./chapter.sdpub --input-format txt
+```
+
+For direct stream digest/export, use `transform` explicitly:
 
 ```bash
 cat ./chapter.txt | spinedigest transform --input-format txt --output-format markdown

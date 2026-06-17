@@ -5,7 +5,7 @@ Purpose:
   Estimate build cost, calls, tokens, time, and risk.
 
 Usage:
-  spinedigest estimate <archive.sdpub> [--stage <source|graph|summary|ready>] [--json]
+  spinedigest estimate <archive.sdpub> [--stage <source|graph|summary>] [--json]
 
 Contract:
   - Mutates: no.
@@ -13,5 +13,5 @@ Contract:
   - JSON: yes.
 
 Examples:
-  spinedigest estimate book.sdpub --stage ready
+  spinedigest estimate book.sdpub --stage summary
   spinedigest estimate book.sdpub --stage graph --json

@@ -57,11 +57,11 @@ spinedigest help ai
 
 SpineDigest's primary object is `.sdpub`: a managed knowledge archive, not a one-off conversion output.
 
-Import source material into an archive:
+Create an archive from source material:
 
 ```bash
-spinedigest import ./book.sdpub ./book.epub
-cat ./article.md | spinedigest import ./article.sdpub --input-format markdown
+spinedigest create ./book.sdpub ./book.epub
+cat ./article.md | spinedigest create ./article.sdpub --input-format markdown
 ```
 
 Inspect the archive before expensive work:
@@ -69,7 +69,7 @@ Inspect the archive before expensive work:
 ```bash
 spinedigest status ./book.sdpub
 spinedigest index ./book.sdpub
-spinedigest estimate ./book.sdpub --stage ready
+spinedigest estimate ./book.sdpub --stage summary
 ```
 
 Build derived knowledge when you intend to spend LLM time:
@@ -101,7 +101,7 @@ spinedigest export ./book.sdpub --output-format epub --output ./digest.epub
 Cost rule:
 
 ```text
-Import is cheap.
+Create is cheap.
 Estimate before build.
 Build can be expensive.
 Search, read, navigate, and export are cheap after build.
@@ -156,14 +156,14 @@ For the internal layout and parser guidance, see the [format spec](./docs/sdpub.
 
 ## Inputs and Outputs
 
-| Format             | Import Source | Export Projection |
-| ------------------ | ------------- | ----------------- |
-| `.epub`            | ✓             | ✓                 |
-| `.md`              | ✓             | ✓                 |
-| `.txt`             | ✓             | ✓                 |
-| `.sdpub`           | archive       | archive           |
-| `stdin` (txt / md) | compatibility | —                 |
-| `stdout`           | —             | ✓                 |
+| Format             | Creation Source | Export Projection |
+| ------------------ | --------------- | ----------------- |
+| `.epub`            | ✓               | ✓                 |
+| `.md`              | ✓               | ✓                 |
+| `.txt`             | ✓               | ✓                 |
+| `.sdpub`           | archive         | archive           |
+| `stdin` (txt / md) | ✓               | —                 |
+| `stdout`           | —               | ✓                 |
 
 Requirements: Node `>=22.12.0`. LLM credentials are required for graph and summary builds, not for `.sdpub` inspection, search, reading, navigation, or export.
 
@@ -184,7 +184,7 @@ SpineDigest's CLI-first design exposes `.sdpub` as a managed LLM Wiki archive.
 - **Choose an exploration mode first.** For synthesis and structural understanding, start with `list/page`; use `find/grep` for candidate discovery and exact wording; use `read` for continuous prose after selecting the relevant object.
 - **Use help as the discovery surface.** Start with `spinedigest --help` as the root page, then follow `spinedigest help ai`, topic pages, or command-specific `--help` before guessing behavior.
 - **Prefer `--json`.** Use it when composing with tools.
-- **Estimate before build.** Do not run full-archive graph, summary, or ready builds without `spinedigest estimate`.
+- **Estimate before build.** Do not run full-archive graph or summary builds without `spinedigest estimate`.
 - **Check exit codes.** Success returns `0`; failure returns non-zero with a plain-text error on `stderr`.
 - **Do not inspect `database.db` routinely.** Use `list`, `page`, `read`, and graph navigation commands instead.
 

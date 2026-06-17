@@ -186,7 +186,7 @@ vi.mock("../../src/facade/index.js", () => ({
         "Estimate is low enough for an interactive build if the user expects LLM-backed work.",
       risk: "low",
       sourceWords: 500,
-      targetStage: "ready",
+      targetStage: "summarized",
     }),
   ),
   findArchiveObjects: vi.fn(

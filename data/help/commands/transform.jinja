@@ -5,7 +5,7 @@ Purpose:
   Run a direct one-shot digest/export without creating a reusable `.sdpub` archive.
 
 Usage:
-  spinedigest transform [--input <path>] [--output <path>] [--input-format <format>] [--output-format <format>] [--digest-dir <path>] [--llm <json>] [--prompt <text>] [--stage <planned|sourced|graphed|summarized>] [--verbose|-v]
+  spinedigest transform [--input <path>] [--output <path>] [--input-format <format>] [--output-format <format>] [--digest-dir <path>] [--llm <json>] [--prompt <text>] [--stage <planned|source|graph|summary>] [--verbose|-v]
 
 Behavior:
   - Reads from `--input <path>`, or from stdin when `--input` is omitted.
@@ -19,6 +19,6 @@ Examples:
 
 Where to go next:
   - Prefer reusable archives:
-    spinedigest import <archive.sdpub> <source>
+    spinedigest create <archive.sdpub> <source>
   - Check active configuration:
     spinedigest config status

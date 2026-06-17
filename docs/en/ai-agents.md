@@ -32,11 +32,11 @@ Use the library API only when the surrounding system explicitly needs in-process
 ## Minimal Operational Contract
 
 - Primary object: `.sdpub`
-- Import sources: EPUB, Markdown, TXT, and text pipelines
+- Creation sources: EPUB, Markdown, TXT, and text pipelines
 - Read objects: `chapter:<id>`, `node:<id>`, `fragment:<serial>:<fragment>`, `summary:<id>`, `meta:book`
 - Cheap operations: `status`, `index`, `list`, `find`, `grep`, `page`, `read`, `links`, `backlinks`, `export`
-- Expensive operations: graph, summary, or ready `build`
-- Estimate first: `spinedigest estimate <archive.sdpub> --stage ready`
+- Expensive operations: graph or summary `build`
+- Estimate first: `spinedigest estimate <archive.sdpub> --stage summary`
 - JSON: pass `--json` when composing with tools
 
 ## Recommended Execution Strategy
@@ -53,19 +53,19 @@ Use the library API only when the surrounding system explicitly needs in-process
 ## Build Workflow
 
 ```bash
-spinedigest import book.sdpub ./book.epub
+spinedigest create book.sdpub ./book.epub
 spinedigest status book.sdpub
-spinedigest estimate book.sdpub --stage ready
+spinedigest estimate book.sdpub --stage summary
 spinedigest build book.sdpub --stage graph --chapter 3 --confirm
 ```
 
-Import/source is the safe first step. Graph and summary stages may call an LLM provider.
+Create/source is the safe first step. Graph and summary stages may call an LLM provider.
 
 ## Avoid
 
 - Do not unzip `.sdpub` for routine retrieval.
 - Do not inspect `database.db` unless building external tooling or debugging internals.
-- Do not run a full-archive ready build just because a user asked a question about the archive.
+- Do not run a full-archive summary build just because a user asked a question about the archive.
 - Do not present SpineDigest as a natural-language QA layer; the agent answers after reading archive context.
 
 ## Related Docs

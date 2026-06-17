@@ -8,11 +8,14 @@ Purpose:
 
 Usage:
   spinedigest chapter set-title <path> --chapter <id> --title <title> [--llm <json>] [--help|-h]
+  spinedigest chapter set-title <path> --chapter <id> --clear [--llm <json>] [--help|-h]
 
 Behavior:
   - Updates only the chapter title stored in the TOC.
   - Does not change source text, graph nodes, summaries, or metadata.
-  - Pass an empty or whitespace-only `--title` value to clear the title and show `[untitled]`.
+  - `--title <title>` sets the explicit title.
+  - `--clear` removes the explicit title and shows `[untitled]`.
+  - `--title` and `--clear` are mutually exclusive.
   - Does not call an LLM provider.
 
 Output shape:
@@ -20,7 +23,7 @@ Output shape:
 
 Examples:
   spinedigest chapter set-title book.sdpub --chapter 12 --title "New Chapter Title"
-  spinedigest chapter set-title book.sdpub --chapter 12 --title ""
+  spinedigest chapter set-title book.sdpub --chapter 12 --clear
 
 See also:
   - spinedigest chapter list --help

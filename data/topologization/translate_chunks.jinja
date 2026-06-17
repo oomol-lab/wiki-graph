@@ -10,15 +10,15 @@ You are a professional translator specialized in translating extracted informati
 
 **Understand the hierarchical structure:**
 - Each chunk has three fields with a clear hierarchical relationship:
-  1. **source_sentences**: Original text excerpts (the source)
-  2. **content**: A summary/distillation of the source_sentences
+  1. **sourceSentences**: Original text excerpts (the source)
+  2. **content**: A summary/distillation of the sourceSentences
   3. **label**: A condensed summary of the content (5-15 characters)
 - When translating, maintain this hierarchy:
-  - Translate **content** based on the meaning in source_sentences
+  - Translate **content** based on the meaning in sourceSentences
   - Translate **label** as a concise summary of the translated content
 
-**Use source_sentences as translation reference:**
-- source_sentences provides the full context and original meaning
+**Use sourceSentences as translation reference:**
+- sourceSentences provides the full context and original meaning
 - This is crucial for understanding proper nouns, technical terms, and ambiguous phrases
 - Especially important for short labels which may be unclear without context
 
@@ -29,7 +29,7 @@ You are a professional translator specialized in translating extracted informati
 - Only translate fields that are NOT in {{ user_language }}
 
 **Output format:**
-- **Do NOT include source_sentences in your output** - it's for reference only
+- **Do NOT include sourceSentences in your output** - it's for reference only
 - Only output: id, label, and content
 
 ---
@@ -47,13 +47,13 @@ Input:
     "id": 1,
     "label": "新材料发现",
     "content": "研究团队在实验室中偶然发现了一种具有超导特性的新型合金材料。",
-    "source_sentences": ["在一次常规的材料测试中,科学家们意外地观察到一种金属混合物在室温下表现出零电阻现象。"]
+    "sourceSentences": ["在一次常规的材料测试中,科学家们意外地观察到一种金属混合物在室温下表现出零电阻现象。"]
   },
   {
     "id": 2,
     "label": "应用前景",
     "content": "这种材料有望在能源传输和量子计算领域带来革命性变化。",
-    "source_sentences": ["专家们认为,如果能够实现大规模生产,这项发现将彻底改变电力传输效率,并为下一代计算机技术铺平道路。"]
+    "sourceSentences": ["专家们认为,如果能够实现大规模生产,这项发现将彻底改变电力传输效率,并为下一代计算机技术铺平道路。"]
   }
 ]
 ```
@@ -76,8 +76,8 @@ Output (if target language is English):
 
 **Notice:**
 - Labels are concise translations informed by the source context
-- Content accurately reflects the meaning from source_sentences
-- source_sentences are NOT included in the output (they were only for translation reference)
+- Content accurately reflects the meaning from sourceSentences
+- sourceSentences are NOT included in the output (they were only for translation reference)
 
 ---
 
@@ -90,13 +90,13 @@ Input:
     "id": 3,
     "label": "New Discovery",
     "content": "科学家发现了一种新的治疗方法。",
-    "source_sentences": ["在最新的临床试验中，研究人员成功验证了一种创新的基因疗法。"]
+    "sourceSentences": ["在最新的临床试验中，研究人员成功验证了一种创新的基因疗法。"]
   },
   {
     "id": 4,
     "label": "临床试验",
     "content": "Clinical trials showed 85% success rate.",
-    "source_sentences": ["临床试验结果显示，在参与的200名患者中，有170人出现了显著改善。"]
+    "sourceSentences": ["临床试验结果显示，在参与的200名患者中，有170人出现了显著改善。"]
   }
 ]
 ```
@@ -135,4 +135,4 @@ Output (if target language is English):
    - If content is already in {{ user_language }}, output it unchanged
    - Only translate fields that are NOT in {{ user_language }}
 6. **Never rephrase or rewrite** content that's already in the target language
-7. **Do NOT output source_sentences** - they are for reference only, not part of the output
+7. **Do NOT output sourceSentences** - they are for reference only, not part of the output

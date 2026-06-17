@@ -4,8 +4,12 @@ import { DirectoryDocument } from "../../src/document/index.js";
 import {
   addChapter,
   advanceChapterStages,
+  applyChapterTree,
   getChapterDetails,
+  getChapterTree,
   listChapters,
+  moveChapter,
+  parseChapterTreeInput,
   removeChapter,
   resetChapter,
   setChapterSource,
@@ -65,7 +69,7 @@ describe("facade/chapter", () => {
     });
   });
 
-  it("normalizes legacy grouping nodes into planned chapters", async () => {
+  it("normalizes serial-less grouping nodes into planned chapters", async () => {
     await withTempDir("spinedigest-chapter-", async (path) => {
       const document = await DirectoryDocument.open(path);
 
@@ -257,6 +261,208 @@ describe("facade/chapter", () => {
 
         await expect(listChapters(document)).resolves.toStrictEqual([]);
         await expect(document.serials.listIds()).resolves.toStrictEqual([]);
+      } finally {
+        await document.release();
+      }
+    });
+  });
+
+  it("moves chapters across parents and sibling positions", async () => {
+    await withTempDir("spinedigest-chapter-", async (path) => {
+      const document = await DirectoryDocument.open(path);
+
+      try {
+        const part = await addChapter(document, { title: "Part" });
+        const first = await addChapter(document, {
+          parentChapterId: part.chapterId,
+          title: "First",
+        });
+        const second = await addChapter(document, {
+          parentChapterId: part.chapterId,
+          title: "Second",
+        });
+        const root = await addChapter(document, { title: "Root" });
+
+        await moveChapter(document, root.chapterId, {
+          first: true,
+          parentChapterId: part.chapterId,
+        });
+        await expect(listChapters(document)).resolves.toMatchObject([
+          { chapterId: part.chapterId, depth: 0 },
+          { chapterId: root.chapterId, depth: 1, title: "Root" },
+          { chapterId: first.chapterId, depth: 1, title: "First" },
+          { chapterId: second.chapterId, depth: 1, title: "Second" },
+        ]);
+
+        await moveChapter(document, first.chapterId, {
+          afterChapterId: second.chapterId,
+        });
+        await expect(listChapters(document)).resolves.toMatchObject([
+          { chapterId: part.chapterId, depth: 0 },
+          { chapterId: root.chapterId, depth: 1 },
+          { chapterId: second.chapterId, depth: 1 },
+          { chapterId: first.chapterId, depth: 1 },
+        ]);
+
+        await moveChapter(document, second.chapterId, {
+          root: true,
+        });
+        await expect(listChapters(document)).resolves.toMatchObject([
+          { chapterId: part.chapterId, depth: 0 },
+          { chapterId: root.chapterId, depth: 1 },
+          { chapterId: first.chapterId, depth: 1 },
+          { chapterId: second.chapterId, depth: 0 },
+        ]);
+
+        await expect(
+          moveChapter(document, part.chapterId, {
+            parentChapterId: root.chapterId,
+          }),
+        ).rejects.toThrow("own descendant");
+      } finally {
+        await document.release();
+      }
+    });
+  });
+
+  it("exports and applies complete chapter trees", async () => {
+    await withTempDir("spinedigest-chapter-", async (path) => {
+      const document = await DirectoryDocument.open(path);
+
+      try {
+        const part = await addChapter(document, { title: "Part" });
+        const first = await addChapter(document, {
+          parentChapterId: part.chapterId,
+          title: "First",
+        });
+        const second = await addChapter(document, {
+          parentChapterId: part.chapterId,
+        });
+
+        await expect(getChapterTree(document)).resolves.toStrictEqual({
+          chapters: [
+            {
+              children: [
+                {
+                  children: [],
+                  id: first.chapterId,
+                  title: "First",
+                },
+                {
+                  children: [],
+                  id: second.chapterId,
+                  title: null,
+                },
+              ],
+              id: part.chapterId,
+              title: "Part",
+            },
+          ],
+        });
+
+        const dryRun = await applyChapterTree(
+          document,
+          parseChapterTreeInput({
+            chapters: [
+              {
+                children: [],
+                id: second.chapterId,
+                title: "Second",
+              },
+              {
+                children: [
+                  {
+                    children: [],
+                    id: first.chapterId,
+                    title: null,
+                  },
+                ],
+                id: part.chapterId,
+              },
+            ],
+          }),
+          { dryRun: true },
+        );
+
+        expect(dryRun.changed).toBe(true);
+        expect(dryRun.moved.map((move) => move.chapterId)).toContain(
+          second.chapterId,
+        );
+        expect(
+          [...dryRun.renamed].sort(
+            (left, right) => left.chapterId - right.chapterId,
+          ),
+        ).toStrictEqual([
+          {
+            chapterId: first.chapterId,
+            newTitle: null,
+            oldTitle: "First",
+          },
+          {
+            chapterId: second.chapterId,
+            newTitle: "Second",
+            oldTitle: null,
+          },
+        ]);
+        await expect(listChapters(document)).resolves.toMatchObject([
+          { chapterId: part.chapterId, title: "Part" },
+          { chapterId: first.chapterId, title: "First" },
+          { chapterId: second.chapterId, title: null },
+        ]);
+
+        await applyChapterTree(
+          document,
+          parseChapterTreeInput({
+            chapters: [
+              {
+                children: [],
+                id: second.chapterId,
+                title: "Second",
+              },
+              {
+                children: [
+                  {
+                    children: [],
+                    id: first.chapterId,
+                    title: null,
+                  },
+                ],
+                id: part.chapterId,
+              },
+            ],
+          }),
+        );
+
+        await expect(listChapters(document)).resolves.toMatchObject([
+          { chapterId: second.chapterId, depth: 0, title: "Second" },
+          { chapterId: part.chapterId, depth: 0, title: "Part" },
+          { chapterId: first.chapterId, depth: 1, title: null },
+        ]);
+
+        await expect(
+          applyChapterTree(
+            document,
+            parseChapterTreeInput({
+              chapters: [
+                {
+                  children: [],
+                  id: second.chapterId,
+                },
+              ],
+            }),
+          ),
+        ).rejects.toThrow("missing chapter ids");
+        expect(() =>
+          parseChapterTreeInput({
+            chapters: [
+              {
+                children: [],
+                id: second.chapterId,
+                summary: "not allowed",
+              },
+            ],
+          }),
+        ).toThrow();
       } finally {
         await document.release();
       }

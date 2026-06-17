@@ -1,0 +1,35 @@
+Help Type: command
+Command: spinedigest chapter move
+
+chapter move
+
+Purpose:
+  Move one existing chapter to a new parent or sibling position.
+
+Usage:
+  spinedigest chapter move <path> --chapter <id> --parent <id> [--first|--last] [--llm <json>] [--help|-h]
+  spinedigest chapter move <path> --chapter <id> --root [--first|--last] [--llm <json>] [--help|-h]
+  spinedigest chapter move <path> --chapter <id> --before <id> [--llm <json>] [--help|-h]
+  spinedigest chapter move <path> --chapter <id> --after <id> [--llm <json>] [--help|-h]
+  spinedigest chapter move <path> --chapter <id> --first [--llm <json>] [--help|-h]
+  spinedigest chapter move <path> --chapter <id> --last [--llm <json>] [--help|-h]
+
+Behavior:
+  - Moves only the chapter tree node. Source text, graph data, and summary stay attached to the same chapter id.
+  - `--parent <id>` moves the chapter under another chapter.
+  - `--root` moves the chapter to the top level.
+  - `--before <id>` or `--after <id>` moves the chapter next to the target chapter.
+  - `--first` or `--last` moves within the target parent when combined with `--parent` or `--root`.
+  - Without `--parent` or `--root`, `--first` and `--last` reorder within the current parent.
+  - Cannot move a chapter into or next to its own descendant.
+  - Does not call an LLM provider.
+
+Examples:
+  spinedigest chapter move book.sdpub --chapter 8 --parent 3 --first
+  spinedigest chapter move book.sdpub --chapter 8 --root --last
+  spinedigest chapter move book.sdpub --chapter 8 --before 9
+
+See also:
+  - spinedigest chapter list --help
+  - spinedigest chapter tree --help
+  - spinedigest help command

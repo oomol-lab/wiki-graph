@@ -18,7 +18,6 @@ import type {
   RankedSentenceCandidate,
 } from "./evidence-types.js";
 import { EvidenceResolver } from "./evidence-resolver.js";
-import { normalizeText } from "./text.js";
 import type {
   ChunkBatch,
   ChunkExtractionSentence,
@@ -48,7 +47,6 @@ const userFocusedChunkSchema = z
       ChunkRetention.Focused,
       ChunkRetention.Relevant,
     ]),
-    source_sentences: z.array(z.string()).optional(),
     temp_id: z.string(),
   })
   .passthrough();
@@ -69,7 +67,6 @@ const bookCoherenceChunkSchema = z
       ChunkImportance.Helpful,
     ]),
     label: z.string(),
-    source_sentences: z.array(z.string()).optional(),
     temp_id: z.string(),
   })
   .passthrough();
@@ -113,12 +110,6 @@ export interface ExtractChunksResult {
   readonly fragmentSummary?: string;
 }
 
-interface SentenceIndex {
-  readonly exactTextToIds: Readonly<Record<string, readonly SentenceId[]>>;
-  readonly normalizedTextToIds: Readonly<Record<string, readonly SentenceId[]>>;
-  readonly wordsCountByKey: Readonly<Record<string, number>>;
-}
-
 interface ResolveChunkEvidenceInput {
   readonly data: ExtractedChunkData;
   readonly chunkIndex: number;
@@ -145,17 +136,12 @@ export class ChunkBatchParser<
 > {
   readonly #choiceSystemPrompt: string;
   readonly #evidenceResolver = new EvidenceResolver();
-  readonly #exactTextToIds: Readonly<Record<string, readonly SentenceId[]>>;
   readonly #metadataField: ChunkMetadataField;
-  readonly #normalizedTextToIds: Readonly<
-    Record<string, readonly SentenceId[]>
-  >;
   readonly #projection: FragmentProjection;
   readonly #responseIntentClassifierPrompt: string;
   readonly #requestChoice: GuaranteedChoiceRequest;
   readonly #sentenceTextByKey: Readonly<Record<string, string>>;
   readonly #sentenceTextSource: SentenceTextSource;
-  readonly #sentences: readonly ChunkExtractionSentence[];
   readonly #wordsCountByKey: Readonly<Record<string, number>>;
   readonly #validImportanceChunkIds: Readonly<Record<string, true>> | undefined;
   readonly #visibleChunkIds: readonly number[];
@@ -177,20 +163,14 @@ export class ChunkBatchParser<
     this.#responseIntentClassifierPrompt = input.responseIntentClassifierPrompt;
     this.#requestChoice = input.requestChoice;
     this.#sentenceTextSource = input.sentenceTextSource;
-    this.#sentences = input.sentences;
     this.#visibleChunkIds = input.visibleChunkIds;
 
-    const sentenceIndex = indexSentences(
+    this.#wordsCountByKey = createWordsCountRecord(
       input.projection.sentences.map((sentence) => ({
         sentenceId: sentence.sentenceId,
-        text: sentence.projectedText,
         wordsCount: sentence.wordsCount,
       })),
     );
-
-    this.#exactTextToIds = sentenceIndex.exactTextToIds;
-    this.#normalizedTextToIds = sentenceIndex.normalizedTextToIds;
-    this.#wordsCountByKey = sentenceIndex.wordsCountByKey;
     this.#sentenceTextByKey = createSentenceTextRecord(input.projection);
     this.#validImportanceChunkIds =
       input.validImportanceChunkIds === undefined
@@ -246,19 +226,14 @@ export class ChunkBatchParser<
           isLastGenerationAttempt: input.isLastGenerationAttempt,
         });
 
-      const resolvedSentenceIds =
-        matchedSentenceIds.length > 0
-          ? matchedSentenceIds
-          : this.#resolveLegacySourceSentences(data);
-
-      if (resolvedSentenceIds.length === 0) {
+      if (matchedSentenceIds.length === 0) {
         if (evidenceFailure !== undefined) {
           chunkIssues.push(
             `Chunk #${chunkIndex} ("${label}"): ${evidenceFailure.message}`,
           );
         } else {
           chunkIssues.push(
-            `Chunk #${chunkIndex} ("${label}"): Missing evidence or resolvable source_sentences`,
+            `Chunk #${chunkIndex} ("${label}"): Missing evidence`,
           );
         }
       }
@@ -268,7 +243,7 @@ export class ChunkBatchParser<
         continue;
       }
 
-      const primarySentenceId = resolvedSentenceIds[0];
+      const primarySentenceId = matchedSentenceIds[0];
 
       if (primarySentenceId === undefined) {
         issues.push(
@@ -277,7 +252,7 @@ export class ChunkBatchParser<
         continue;
       }
 
-      const totalWordsCount = resolvedSentenceIds.reduce((sum, sentenceId) => {
+      const totalWordsCount = matchedSentenceIds.reduce((sum, sentenceId) => {
         return (
           sum + (this.#wordsCountByKey[createSentenceKey(sentenceId)] ?? 0)
         );
@@ -294,7 +269,7 @@ export class ChunkBatchParser<
           links: [],
           retention: expectChunkRetention(chunkData.retention),
           sentenceId: primarySentenceId,
-          sentenceIds: [...resolvedSentenceIds],
+          sentenceIds: [...matchedSentenceIds],
           wordsCount: totalWordsCount,
         });
       } else {
@@ -308,7 +283,7 @@ export class ChunkBatchParser<
           label,
           links: [],
           sentenceId: primarySentenceId,
-          sentenceIds: [...resolvedSentenceIds],
+          sentenceIds: [...matchedSentenceIds],
           wordsCount: totalWordsCount,
         });
       }
@@ -726,157 +701,22 @@ export class ChunkBatchParser<
 
     return true;
   }
-
-  #resolveLegacySourceSentences(data: ExtractedChunkData): SentenceId[] {
-    const sourceSentences = getSourceSentences(data);
-
-    if (sourceSentences.length === 0) {
-      return [];
-    }
-
-    const matchedSentenceIds: SentenceId[] = [];
-    const seen = createEmptyRecord<true>();
-
-    for (const sourceSentence of sourceSentences) {
-      const matchedIds = this.#matchSourceSentence(sourceSentence);
-
-      for (const sentenceId of matchedIds) {
-        const sentenceKey = createSentenceKey(sentenceId);
-
-        if (hasIndexedValue(seen, sentenceKey)) {
-          continue;
-        }
-
-        seen[sentenceKey] = true;
-        matchedSentenceIds.push(sentenceId);
-      }
-    }
-
-    return matchedSentenceIds;
-  }
-
-  #matchSourceSentence(sourceSentence: string): readonly SentenceId[] {
-    const raw = sourceSentence.trim();
-
-    if (raw === "") {
-      return [];
-    }
-
-    const exactMatch = this.#exactTextToIds[raw];
-
-    if (exactMatch?.length === 1) {
-      return exactMatch;
-    }
-
-    const normalized = normalizeText(raw);
-
-    if (normalized === "") {
-      return [];
-    }
-
-    const normalizedMatch = this.#normalizedTextToIds[normalized];
-
-    if (normalizedMatch?.length === 1) {
-      return normalizedMatch;
-    }
-
-    const contiguousMatch = this.#matchContiguousSentenceSpan(normalized);
-
-    if (contiguousMatch.length > 0) {
-      return contiguousMatch;
-    }
-
-    const substringMatches = this.#sentences.filter((sentence) =>
-      normalizeText(sentence.text).includes(normalized),
-    );
-
-    if (substringMatches.length === 1) {
-      const singleMatch = substringMatches[0];
-
-      if (singleMatch !== undefined) {
-        return [singleMatch.sentenceId];
-      }
-    }
-
-    return [];
-  }
-
-  #matchContiguousSentenceSpan(
-    targetNormalized: string,
-  ): readonly SentenceId[] {
-    const matches: SentenceId[][] = [];
-
-    for (let start = 0; start < this.#sentences.length; start += 1) {
-      let combined = "";
-      const sentenceIds: SentenceId[] = [];
-
-      for (let end = start; end < this.#sentences.length; end += 1) {
-        const sentence = this.#sentences[end];
-
-        if (sentence === undefined) {
-          break;
-        }
-
-        const normalizedSentence = normalizeText(sentence.text);
-
-        if (normalizedSentence === "") {
-          continue;
-        }
-
-        combined += normalizedSentence;
-        sentenceIds.push(sentence.sentenceId);
-
-        if (combined === targetNormalized) {
-          matches.push([...sentenceIds]);
-          break;
-        }
-
-        if (
-          combined.length >= targetNormalized.length ||
-          !targetNormalized.startsWith(combined)
-        ) {
-          break;
-        }
-      }
-    }
-
-    if (matches.length === 1) {
-      return matches[0] ?? [];
-    }
-
-    return [];
-  }
 }
 
-function indexSentences(
-  sentences: readonly ChunkExtractionSentence[],
-): SentenceIndex {
-  const exactTextToIds = createEmptyRecord<readonly SentenceId[]>();
-  const normalizedTextToIds = createEmptyRecord<readonly SentenceId[]>();
+function createWordsCountRecord(
+  sentences: readonly Pick<
+    ChunkExtractionSentence,
+    "sentenceId" | "wordsCount"
+  >[],
+): Readonly<Record<string, number>> {
   const wordsCountByKey = createEmptyRecord<number>();
 
   for (const sentence of sentences) {
-    appendIndexedValue(exactTextToIds, sentence.text, sentence.sentenceId);
-
-    const normalizedText = normalizeText(sentence.text);
-
-    if (normalizedText !== "") {
-      appendIndexedValue(
-        normalizedTextToIds,
-        normalizedText,
-        sentence.sentenceId,
-      );
-    }
-
     const sentenceKey = createSentenceKey(sentence.sentenceId);
     wordsCountByKey[sentenceKey] = sentence.wordsCount;
   }
 
-  return {
-    exactTextToIds,
-    normalizedTextToIds,
-    wordsCountByKey,
-  };
+  return wordsCountByKey;
 }
 
 function createSentenceTextRecord(
@@ -906,34 +746,6 @@ function normalizeChunkLinks(links: readonly RawChunkLink[]): ChunkLink[] {
       to: link.to,
     };
   });
-}
-
-function getSourceSentences(data: ExtractedChunkData): readonly string[] {
-  const sourceSentences = data.source_sentences;
-
-  if (Array.isArray(sourceSentences)) {
-    return sourceSentences;
-  }
-
-  const typoValue = (data as Record<string, unknown>).source_sences;
-
-  if (
-    Array.isArray(typoValue) &&
-    typoValue.every((value) => typeof value === "string")
-  ) {
-    return typoValue;
-  }
-
-  const alternateTypoValue = (data as Record<string, unknown>).source_sentances;
-
-  if (
-    Array.isArray(alternateTypoValue) &&
-    alternateTypoValue.every((value) => typeof value === "string")
-  ) {
-    return alternateTypoValue;
-  }
-
-  return [];
 }
 
 function formatChoiceCandidate(candidate: RankedSentenceCandidate): string {
@@ -995,21 +807,6 @@ function hasMembership(
   value: number | string,
 ): boolean {
   return hasIndexedValue(record, String(value));
-}
-
-function appendIndexedValue<TValue>(
-  record: Record<string, readonly TValue[]>,
-  key: string,
-  value: TValue,
-): void {
-  const values = record[key];
-
-  if (values === undefined) {
-    record[key] = [value];
-    return;
-  }
-
-  record[key] = [...values, value];
 }
 
 function hasIndexedValue<TValue>(

@@ -4,13 +4,19 @@ Command: spinedigest chapter add
 chapter add
 
 Purpose:
-  Insert a new planned chapter into an existing `.sdpub` chapter tree.
+  Insert a new chapter into an existing `.sdpub` chapter tree.
 
 Usage:
-  spinedigest chapter add <path> [--title <title>] [--parent <id>] [--llm <json>] [--help|-h]
+  spinedigest chapter add <path> --stage planned [--title <title>] [--parent <id>] [--llm <json>] [--help|-h]
+  spinedigest chapter add <path> --stage source [--title <title>] [--parent <id>] [--input <path>] --input-format <format> [--llm <json>] [--help|-h]
 
 Behavior:
-  - Creates a planned chapter with no source, graph, or summary.
+  - `--stage planned` creates an empty chapter with no source, graph, or summary.
+  - Planned chapters can be used as chapter directories, groups, or drafting placeholders.
+  - `--stage source` creates a chapter and writes normalized source text.
+  - Source input comes from `--input <path>` when provided, otherwise stdin.
+  - Source input must not be empty or whitespace-only.
+  - `--stage source` accepts only `txt` or `markdown` for `--input-format`.
   - Omitting `--title` creates an untitled planned chapter.
   - Omitting `--parent` adds the chapter at the top level.
   - `--parent <id>` adds the chapter under an existing chapter.
@@ -21,7 +27,11 @@ Output shape:
   The `Chapter: <id>` line is the new chapter id for later commands.
 
 Typical next step:
-  spinedigest chapter set-source <path> --chapter <id> --input <file> --input-format txt
+  spinedigest build <path> --chapter <id> --stage graph --confirm
+
+Examples:
+  spinedigest chapter add book.sdpub --stage planned --title "Part I"
+  spinedigest chapter add book.sdpub --stage source --title "Chapter 1" --input ./chapter.md --input-format markdown --parent 3
 
 See also:
   - spinedigest chapter list --help

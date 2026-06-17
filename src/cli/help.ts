@@ -26,13 +26,12 @@ export const HELP_TOPICS = [
 export type HelpTopic = (typeof HELP_TOPICS)[number];
 
 export const ARCHIVE_COMMANDS = [
-  "import",
+  "create",
   "build",
   "estimate",
   "status",
   "index",
   "list",
-  "ls",
   "find",
   "grep",
   "page",

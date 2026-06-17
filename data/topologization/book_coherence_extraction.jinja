@@ -10,7 +10,7 @@ You are reading a long text and need to extract essential connective tissue for 
 **Output Requirements:**
 - **label** and **content** fields: Must be in **{{ user_language }}** (translate from source text if needed)
 - **evidence**: Use structured source anchors in the **original language(s)** (NEVER translate)
-- Prefer **evidence** over **source_sentences**. **source_sentences** is a legacy fallback only.
+- Use **evidence** anchors to identify the supporting source text.
 
 **Important Notes:**
 - The source text may be in any language or mix of languages
@@ -44,7 +44,7 @@ Example output structure:
 
 **Output Requirements:**
 - **label**, **content**, and **evidence**: All in the source text's original language(s)
-- Prefer **evidence** over **source_sentences**. **source_sentences** is a legacy fallback only.
+- Use **evidence** anchors to identify the supporting source text.
 - If the source text contains multiple languages, preserve them as they appear
 {% endif %}
 
@@ -199,8 +199,6 @@ This is a VALID successful result.
     - `end_anchor` must identify the LAST supporting sentence when needed
     - Keep anchors in the original source language(s)
     - Do NOT translate anchors
-  - "source_sentences": Legacy fallback only if you cannot express the evidence with anchors
-    - If used, copy exact original text
   - "importance": One of "critical", "important", or "helpful"
   - **Process this SECOND**: After annotating existing chunks, extract only missing book-critical information
 

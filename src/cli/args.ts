@@ -6,7 +6,7 @@ import {
   archiveMaintenanceHelpRoute,
   withHelpRoute,
 } from "./errors.js";
-import { CHAPTER_STAGES, type ChapterStage } from "../facade/index.js";
+import { type ChapterStage } from "../facade/index.js";
 import {
   parseHelpTopic,
   renderArchiveCommandHelpText,
@@ -62,28 +62,38 @@ export interface ArchiveMetaPatch {
 
 export type CLIArchiveChapterAction =
   | "add"
-  | "generate-graph"
-  | "generate-summary"
   | "list"
+  | "move"
   | "remove"
   | "reset"
   | "set-source"
   | "set-summary"
   | "set-title"
-  | "status";
+  | "status"
+  | "tree";
 
 export interface CLIArchiveChapterArguments {
   readonly action: CLIArchiveChapterAction;
+  readonly addStage?: Extract<ChapterStage, "planned" | "sourced">;
+  readonly afterChapterId?: number;
+  readonly beforeChapterId?: number;
   readonly chapterId?: number;
+  readonly clearTitle?: boolean;
+  readonly dryRun?: boolean;
+  readonly first?: boolean;
   readonly inputFormat?: Extract<CLIFormat, "markdown" | "txt">;
   readonly inputPath?: string;
+  readonly json?: boolean;
+  readonly last?: boolean;
   readonly llmJSON?: string;
+  readonly moveToRoot?: boolean;
   readonly parentChapterId?: number;
   readonly path: string;
   readonly prompt?: string;
   readonly recursive?: boolean;
   readonly resetStage?: Exclude<ChapterStage, "summarized">;
   readonly title?: string;
+  readonly treeAction?: "apply" | "show";
 }
 
 export interface CLIStatusArguments {
@@ -93,15 +103,14 @@ export interface CLIStatusArguments {
 export type CLIArchiveAction =
   | "backlinks"
   | "build"
+  | "create"
   | "estimate"
   | "export"
   | "find"
   | "grep"
-  | "import"
   | "index"
   | "links"
   | "list"
-  | "ls"
   | "map"
   | "page"
   | "pack"
@@ -148,7 +157,7 @@ export interface CLIArchiveArguments {
     | "summary"
   )[];
   readonly sourcePath?: string;
-  readonly targetStage?: ChapterStage | "ready" | "source";
+  readonly targetStage?: ChapterStage;
   readonly toNodeId?: number;
 }
 
@@ -170,11 +179,16 @@ interface ArchiveMetaFlagValues {
 }
 
 interface ArchiveArgumentValues extends ArchiveMetaFlagValues {
+  readonly after?: string;
+  readonly before?: string;
   readonly budget?: string;
   readonly chapter?: string;
+  readonly clear?: boolean;
   readonly confirm?: boolean;
   readonly cursor?: string;
   readonly "digest-dir"?: string;
+  readonly "dry-run"?: boolean;
+  readonly first?: boolean;
   readonly help?: boolean;
   readonly input?: string;
   readonly "input-format"?: string;
@@ -186,8 +200,11 @@ interface ArchiveArgumentValues extends ArchiveMetaFlagValues {
   readonly output?: string;
   readonly "output-format"?: string;
   readonly order?: string;
+  readonly parent?: string;
   readonly prompt?: string;
+  readonly root?: boolean;
   readonly stage?: string;
+  readonly last?: boolean;
   readonly type?: string;
   readonly to?: string;
   readonly verbose?: boolean;
@@ -268,8 +285,17 @@ export function parseCLIArguments(
         multiple: true,
         type: "string",
       },
+      after: {
+        type: "string",
+      },
+      before: {
+        type: "string",
+      },
       budget: {
         type: "string",
+      },
+      clear: {
+        type: "boolean",
       },
       "clear-authors": {
         type: "boolean",
@@ -301,6 +327,12 @@ export function parseCLIArguments(
       },
       "digest-dir": {
         type: "string",
+      },
+      "dry-run": {
+        type: "boolean",
+      },
+      first: {
+        type: "boolean",
       },
       identifier: {
         type: "string",
@@ -365,6 +397,12 @@ export function parseCLIArguments(
       recursive: {
         type: "boolean",
       },
+      root: {
+        type: "boolean",
+      },
+      last: {
+        type: "boolean",
+      },
       title: {
         type: "string",
       },
@@ -392,6 +430,14 @@ export function parseCLIArguments(
     };
   }
 
+  if (values.help === true && positionals.length === 0) {
+    return {
+      help: true,
+      helpText: renderMainHelpText(),
+      kind: "help",
+    };
+  }
+
   if (positionals[0] === "help") {
     return parseHelpArguments(positionals.slice(1), values);
   }
@@ -401,7 +447,7 @@ export function parseCLIArguments(
   }
 
   if (positionals[0] === "transform") {
-    return parseConvertArguments(positionals.slice(1), values, "transform");
+    return parseTransformArguments(positionals.slice(1), values);
   }
 
   if (isArchiveMaintenanceCommand(positionals[0])) {
@@ -416,26 +462,43 @@ export function parseCLIArguments(
     return parseArchiveArguments(positionals[0], positionals.slice(1), values);
   }
 
-  return parseConvertArguments(positionals, values, "bare");
+  throw new Error(
+    withHelpRoute(
+      positionals.length === 0
+        ? "Missing command."
+        : `Unknown command: ${positionals[0]}.`,
+      CLI_HELP_ROUTES.command,
+    ),
+  );
 }
 
-function parseConvertArguments(
+function parseTransformArguments(
   positionals: readonly string[],
   values: ArchiveArgumentValues,
-  command: "bare" | "transform",
 ): ParsedCLIArguments {
+  const helpRoute = "spinedigest transform --help";
+
   if (positionals.length > 0) {
     throw new Error(
       withHelpRoute(
-        `Unexpected positional argument or unknown command: ${positionals.join(" ")}. The direct digest command reads from stdin or --input; it does not accept positional input paths. Use \`spinedigest transform --input <path>\`, or see available subcommands with \`spinedigest --help\`.`,
-        CLI_HELP_ROUTES.command,
+        `Unexpected positional arguments: ${positionals.join(" ")}.`,
+        helpRoute,
       ),
     );
   }
-  rejectConvertMetaFlags(values);
-  rejectConvertFlag("budget", values.budget);
-  rejectConvertFlag("confirm", values.confirm);
-  rejectConvertFlag("json", values.json);
+  rejectTransformMetaFlags(values);
+  rejectTransformFlag("budget", values.budget, helpRoute);
+  rejectTransformFlag("chapter", values.chapter, helpRoute);
+  rejectTransformFlag("confirm", values.confirm, helpRoute);
+  rejectTransformFlag("cursor", values.cursor, helpRoute);
+  rejectTransformFlag("id", values.id, helpRoute);
+  rejectTransformFlag("json", values.json, helpRoute);
+  rejectTransformFlag("limit", values.limit, helpRoute);
+  rejectTransformFlag("match", values.match, helpRoute);
+  rejectTransformFlag("order", values.order, helpRoute);
+  rejectTransformFlag("parent", values.parent, helpRoute);
+  rejectTransformFlag("to", values.to, helpRoute);
+  rejectTransformFlag("type", values.type, helpRoute);
 
   const args = {
     ...(values["digest-dir"] === undefined
@@ -462,11 +525,7 @@ function parseConvertArguments(
     ...(values.stage === undefined
       ? {}
       : {
-          targetStage: parseChapterStage(
-            values.stage,
-            "--stage",
-            CLI_HELP_ROUTES.command,
-          ),
+          targetStage: parseChapterStage(values.stage, "--stage", helpRoute),
         }),
     verbose: values.verbose ?? false,
   } satisfies CLIArguments;
@@ -475,10 +534,7 @@ function parseConvertArguments(
     return {
       args,
       help: true,
-      helpText:
-        command === "transform"
-          ? renderTransformHelpText()
-          : renderMainHelpText(),
+      helpText: renderTransformHelpText(),
       kind: "convert",
     };
   }
@@ -708,7 +764,7 @@ function parseArchiveArguments(
   }
 
   switch (action) {
-    case "import": {
+    case "create": {
       const rawSourcePath = positionals[1] ?? values.input;
       const sourcePath = rawSourcePath === "-" ? undefined : rawSourcePath;
       const inputFormat =
@@ -719,7 +775,7 @@ function parseArchiveArguments(
       if (sourcePath === undefined && inputFormat === undefined) {
         throw new Error(
           withHelpRoute(
-            "`spinedigest import` requires a source path, or --input-format when reading source text from stdin.",
+            "`spinedigest create` requires a source path, or --input-format when reading source text from stdin.",
             helpRoute,
           ),
         );
@@ -732,7 +788,7 @@ function parseArchiveArguments(
       ) {
         throw new Error(
           withHelpRoute(
-            "stdin import only supports --input-format markdown or txt.",
+            "stdin create only supports --input-format markdown or txt.",
             helpRoute,
           ),
         );
@@ -788,7 +844,7 @@ function parseArchiveArguments(
       if (targetStage !== "sourced" && values.confirm !== true) {
         throw new Error(
           withHelpRoute(
-            "This build may call an LLM. Run `spinedigest estimate <archive.sdpub> --stage ready`, then rerun build with --confirm.",
+            "This build may call an LLM. Run `spinedigest estimate <archive.sdpub> --stage summary`, then rerun build with --confirm.",
             helpRoute,
           ),
         );
@@ -877,24 +933,6 @@ function parseArchiveArguments(
         help: false,
         kind: "archive",
       };
-    case "ls": {
-      rejectArchiveExtraPositionals(action, positionals, 2, helpRoute);
-      rejectArchiveNonReadFlags(action, values, helpRoute);
-      rejectArchiveFlag(action, "--budget", values.budget, helpRoute);
-      rejectArchiveBooleanFlag(action, "--confirm", values.confirm, helpRoute);
-      const listKind = parseArchiveListKind(positionals[1]);
-
-      return {
-        args: {
-          action,
-          archivePath,
-          ...(values.json === undefined ? {} : { json: values.json }),
-          listKind,
-        },
-        help: false,
-        kind: "archive",
-      };
-    }
     case "list": {
       rejectArchiveExtraPositionals(action, positionals, 1, helpRoute);
       rejectArchiveNonReadFlags(action, values, helpRoute);
@@ -1106,8 +1144,11 @@ function parseArchiveArguments(
 function parseArchiveChapterArguments(
   positionals: readonly string[],
   values: {
+    readonly after?: string;
     readonly author?: readonly string[];
+    readonly before?: string;
     readonly chapter?: string;
+    readonly clear?: boolean;
     readonly "clear-authors"?: boolean;
     readonly "clear-description"?: boolean;
     readonly "clear-identifier"?: boolean;
@@ -1117,6 +1158,8 @@ function parseArchiveChapterArguments(
     readonly "clear-title"?: boolean;
     readonly description?: string;
     readonly "digest-dir"?: string;
+    readonly "dry-run"?: boolean;
+    readonly first?: boolean;
     readonly help?: boolean;
     readonly identifier?: string;
     readonly input?: string;
@@ -1132,6 +1175,8 @@ function parseArchiveChapterArguments(
     readonly publisher?: string;
     readonly prompt?: string;
     readonly recursive?: boolean;
+    readonly root?: boolean;
+    readonly last?: boolean;
     readonly stage?: string;
     readonly title?: string;
     readonly to?: string;
@@ -1140,15 +1185,15 @@ function parseArchiveChapterArguments(
 ): ParsedCLIArguments {
   const help = values.help ?? false;
   const action = positionals[0];
-  const path = positionals[1];
+  const treeAction =
+    action === "tree" && positionals[1] === "apply" ? "apply" : undefined;
+  const path = treeAction === "apply" ? positionals[2] : positionals[1];
   const helpRoute = "spinedigest chapter --help";
 
   rejectArchiveChapterFlag("digest-dir", values["digest-dir"]);
-  rejectArchiveChapterFlag("json", values.json);
   rejectArchiveChapterFlag("limit", values.limit);
   rejectArchiveChapterFlag("output", values.output);
   rejectArchiveChapterFlag("output-format", values["output-format"]);
-  rejectArchiveChapterFlag("stage", values.stage);
   rejectArchiveChapterMetaFlags(values);
   if (values.verbose) {
     throw new Error(
@@ -1160,14 +1205,6 @@ function parseArchiveChapterArguments(
   }
 
   if (help && isArchiveChapterAction(action)) {
-    if (action === "generate-graph" || action === "generate-summary") {
-      return {
-        help: true,
-        helpText: renderArchiveMaintenanceCommandHelpText("chapter"),
-        kind: "chapter",
-      };
-    }
-
     return {
       help: true,
       helpText: renderArchiveMaintenanceChapterActionHelpText(action),
@@ -1188,7 +1225,7 @@ function parseArchiveChapterArguments(
       withHelpRoute(
         action === undefined
           ? "Missing chapter action."
-          : `Invalid chapter action: ${action}. Expected one of list, status, add, remove, reset, set-source, set-summary, set-title.`,
+          : `Invalid chapter action: ${action}. Expected one of list, status, add, move, remove, reset, set-source, set-summary, set-title, tree.`,
         helpRoute,
       ),
     );
@@ -1201,17 +1238,25 @@ function parseArchiveChapterArguments(
       ),
     );
   }
-  if (positionals.length > 2) {
+  const maxPositionals =
+    action === "tree" && positionals[1] === "apply" ? 3 : 2;
+  if (positionals.length > maxPositionals) {
     throw new Error(
       withHelpRoute(
-        `Unexpected positional arguments: ${positionals.slice(2).join(" ")}.`,
+        `Unexpected positional arguments: ${positionals.slice(maxPositionals).join(" ")}.`,
         helpRoute,
       ),
     );
   }
 
   return {
-    args: normalizeArchiveChapterArguments(action, path, values, helpRoute),
+    args: normalizeArchiveChapterArguments(
+      action,
+      path,
+      values,
+      helpRoute,
+      treeAction,
+    ),
     help: false,
     kind: "chapter",
   };
@@ -1222,16 +1267,26 @@ function normalizeArchiveChapterArguments(
   path: string,
   values: {
     readonly chapter?: string;
+    readonly after?: string;
+    readonly before?: string;
+    readonly clear?: boolean;
+    readonly "dry-run"?: boolean;
+    readonly first?: boolean;
     readonly input?: string;
     readonly "input-format"?: string;
+    readonly json?: boolean;
     readonly llm?: string;
     readonly parent?: string;
     readonly prompt?: string;
     readonly recursive?: boolean;
+    readonly root?: boolean;
+    readonly last?: boolean;
+    readonly stage?: string;
     readonly title?: string;
     readonly to?: string;
   },
   helpRoute: string,
+  treeAction?: "apply",
 ): CLIArchiveChapterArguments {
   const chapterId =
     values.chapter === undefined
@@ -1241,23 +1296,28 @@ function normalizeArchiveChapterArguments(
     values.parent === undefined
       ? undefined
       : parseSerialId(values.parent, "--parent", helpRoute);
+  const beforeChapterId =
+    values.before === undefined
+      ? undefined
+      : parseSerialId(values.before, "--before", helpRoute);
+  const afterChapterId =
+    values.after === undefined
+      ? undefined
+      : parseSerialId(values.after, "--after", helpRoute);
   const inputFormat =
     values["input-format"] === undefined
       ? undefined
       : parseChapterInputFormat(values["input-format"], helpRoute);
+  const addStage =
+    values.stage === undefined
+      ? undefined
+      : parseChapterAddStage(values.stage, helpRoute);
   const resetStage =
     values.to === undefined ? undefined : parseResetStage(values.to, helpRoute);
 
   switch (action) {
     case "add":
       rejectActionFlag(values.chapter, "--chapter", action, helpRoute);
-      rejectActionFlag(values.input, "--input", action, helpRoute);
-      rejectActionFlag(
-        values["input-format"],
-        "--input-format",
-        action,
-        helpRoute,
-      );
       rejectActionFlag(values.prompt, "--prompt", action, helpRoute);
       rejectActionFlag(values.to, "--to", action, helpRoute);
       rejectActionBooleanFlag(
@@ -1266,65 +1326,45 @@ function normalizeArchiveChapterArguments(
         action,
         helpRoute,
       );
+      if (addStage === undefined) {
+        throw new Error(
+          withHelpRoute(
+            "Missing --stage. `chapter add` requires planned or source.",
+            helpRoute,
+          ),
+        );
+      }
+      if (addStage === "planned") {
+        rejectActionFlag(values.input, "--input", action, helpRoute);
+        rejectActionFlag(
+          values["input-format"],
+          "--input-format",
+          action,
+          helpRoute,
+        );
+      } else if (addStage === "sourced" && inputFormat === undefined) {
+        throw new Error(
+          withHelpRoute(
+            "Missing --input-format. `chapter add --stage source` requires txt or markdown.",
+            helpRoute,
+          ),
+        );
+      }
       return {
         action,
         path,
+        ...(addStage === undefined ? {} : { addStage }),
+        ...(inputFormat === undefined ? {} : { inputFormat }),
+        ...(values.input === undefined ? {} : { inputPath: values.input }),
         ...(values.llm === undefined ? {} : { llmJSON: values.llm }),
         ...(parentChapterId === undefined ? {} : { parentChapterId }),
         ...(values.title === undefined ? {} : { title: values.title }),
       };
-    case "generate-graph":
-      requireChapterId(chapterId, action, helpRoute);
-      rejectActionFlag(values.input, "--input", action, helpRoute);
-      rejectActionFlag(
-        values["input-format"],
-        "--input-format",
-        action,
-        helpRoute,
-      );
-      rejectActionFlag(values.parent, "--parent", action, helpRoute);
-      rejectActionFlag(values.title, "--title", action, helpRoute);
-      rejectActionFlag(values.to, "--to", action, helpRoute);
-      rejectActionBooleanFlag(
-        values.recursive,
-        "--recursive",
-        action,
-        helpRoute,
-      );
-      return {
-        action,
-        chapterId,
-        path,
-        ...(values.llm === undefined ? {} : { llmJSON: values.llm }),
-        ...(values.prompt === undefined ? {} : { prompt: values.prompt }),
-      };
-    case "generate-summary":
-      requireChapterId(chapterId, action, helpRoute);
-      rejectActionFlag(values.input, "--input", action, helpRoute);
-      rejectActionFlag(
-        values["input-format"],
-        "--input-format",
-        action,
-        helpRoute,
-      );
-      rejectActionFlag(values.parent, "--parent", action, helpRoute);
-      rejectActionFlag(values.prompt, "--prompt", action, helpRoute);
-      rejectActionFlag(values.title, "--title", action, helpRoute);
-      rejectActionFlag(values.to, "--to", action, helpRoute);
-      rejectActionBooleanFlag(
-        values.recursive,
-        "--recursive",
-        action,
-        helpRoute,
-      );
-      return {
-        action,
-        chapterId,
-        path,
-        ...(values.llm === undefined ? {} : { llmJSON: values.llm }),
-      };
     case "list":
+      rejectActionFlag(values.stage, "--stage", action, helpRoute);
       rejectActionFlag(values.chapter, "--chapter", action, helpRoute);
+      rejectActionFlag(values.after, "--after", action, helpRoute);
+      rejectActionFlag(values.before, "--before", action, helpRoute);
       rejectActionFlag(values.input, "--input", action, helpRoute);
       rejectActionFlag(
         values["input-format"],
@@ -1336,6 +1376,16 @@ function normalizeArchiveChapterArguments(
       rejectActionFlag(values.prompt, "--prompt", action, helpRoute);
       rejectActionFlag(values.title, "--title", action, helpRoute);
       rejectActionFlag(values.to, "--to", action, helpRoute);
+      rejectActionBooleanFlag(values.clear, "--clear", action, helpRoute);
+      rejectActionBooleanFlag(
+        values["dry-run"],
+        "--dry-run",
+        action,
+        helpRoute,
+      );
+      rejectActionBooleanFlag(values.first, "--first", action, helpRoute);
+      rejectActionBooleanFlag(values.root, "--root", action, helpRoute);
+      rejectActionBooleanFlag(values.last, "--last", action, helpRoute);
       rejectActionBooleanFlag(
         values.recursive,
         "--recursive",
@@ -1346,9 +1396,51 @@ function normalizeArchiveChapterArguments(
         action,
         path,
         ...(values.llm === undefined ? {} : { llmJSON: values.llm }),
+      };
+    case "move":
+      requireChapterId(chapterId, action, helpRoute);
+      rejectActionFlag(values.stage, "--stage", action, helpRoute);
+      rejectActionFlag(values.input, "--input", action, helpRoute);
+      rejectActionFlag(
+        values["input-format"],
+        "--input-format",
+        action,
+        helpRoute,
+      );
+      rejectActionFlag(values.prompt, "--prompt", action, helpRoute);
+      rejectActionFlag(values.title, "--title", action, helpRoute);
+      rejectActionFlag(values.to, "--to", action, helpRoute);
+      rejectActionBooleanFlag(values.clear, "--clear", action, helpRoute);
+      rejectActionBooleanFlag(
+        values["dry-run"],
+        "--dry-run",
+        action,
+        helpRoute,
+      );
+      rejectActionBooleanFlag(
+        values.recursive,
+        "--recursive",
+        action,
+        helpRoute,
+      );
+      rejectConflictingMoveFlags(values, helpRoute);
+      return {
+        action,
+        ...(afterChapterId === undefined ? {} : { afterChapterId }),
+        ...(beforeChapterId === undefined ? {} : { beforeChapterId }),
+        chapterId,
+        ...(values.first === undefined ? {} : { first: values.first }),
+        ...(values.last === undefined ? {} : { last: values.last }),
+        ...(values.llm === undefined ? {} : { llmJSON: values.llm }),
+        ...(values.root === undefined ? {} : { moveToRoot: values.root }),
+        ...(parentChapterId === undefined ? {} : { parentChapterId }),
+        path,
       };
     case "remove":
       requireChapterId(chapterId, action, helpRoute);
+      rejectActionFlag(values.stage, "--stage", action, helpRoute);
+      rejectActionFlag(values.after, "--after", action, helpRoute);
+      rejectActionFlag(values.before, "--before", action, helpRoute);
       rejectActionFlag(values.input, "--input", action, helpRoute);
       rejectActionFlag(
         values["input-format"],
@@ -1360,6 +1452,16 @@ function normalizeArchiveChapterArguments(
       rejectActionFlag(values.prompt, "--prompt", action, helpRoute);
       rejectActionFlag(values.title, "--title", action, helpRoute);
       rejectActionFlag(values.to, "--to", action, helpRoute);
+      rejectActionBooleanFlag(values.clear, "--clear", action, helpRoute);
+      rejectActionBooleanFlag(
+        values["dry-run"],
+        "--dry-run",
+        action,
+        helpRoute,
+      );
+      rejectActionBooleanFlag(values.first, "--first", action, helpRoute);
+      rejectActionBooleanFlag(values.root, "--root", action, helpRoute);
+      rejectActionBooleanFlag(values.last, "--last", action, helpRoute);
       return {
         action,
         chapterId,
@@ -1371,10 +1473,13 @@ function normalizeArchiveChapterArguments(
       };
     case "reset":
       requireChapterId(chapterId, action, helpRoute);
+      rejectActionFlag(values.stage, "--stage", action, helpRoute);
+      rejectActionFlag(values.after, "--after", action, helpRoute);
+      rejectActionFlag(values.before, "--before", action, helpRoute);
       if (resetStage === undefined) {
         throw new Error(
           withHelpRoute(
-            "Missing --to. `chapter reset` requires planned, sourced, or graphed.",
+            "Missing --to. `chapter reset` requires planned, source, or graph.",
             helpRoute,
           ),
         );
@@ -1389,6 +1494,16 @@ function normalizeArchiveChapterArguments(
       rejectActionFlag(values.parent, "--parent", action, helpRoute);
       rejectActionFlag(values.prompt, "--prompt", action, helpRoute);
       rejectActionFlag(values.title, "--title", action, helpRoute);
+      rejectActionBooleanFlag(values.clear, "--clear", action, helpRoute);
+      rejectActionBooleanFlag(
+        values["dry-run"],
+        "--dry-run",
+        action,
+        helpRoute,
+      );
+      rejectActionBooleanFlag(values.first, "--first", action, helpRoute);
+      rejectActionBooleanFlag(values.root, "--root", action, helpRoute);
+      rejectActionBooleanFlag(values.last, "--last", action, helpRoute);
       rejectActionBooleanFlag(
         values.recursive,
         "--recursive",
@@ -1404,6 +1519,9 @@ function normalizeArchiveChapterArguments(
       };
     case "set-source":
       requireChapterId(chapterId, action, helpRoute);
+      rejectActionFlag(values.stage, "--stage", action, helpRoute);
+      rejectActionFlag(values.after, "--after", action, helpRoute);
+      rejectActionFlag(values.before, "--before", action, helpRoute);
       if (inputFormat === undefined) {
         throw new Error(
           withHelpRoute(
@@ -1416,6 +1534,16 @@ function normalizeArchiveChapterArguments(
       rejectActionFlag(values.prompt, "--prompt", action, helpRoute);
       rejectActionFlag(values.title, "--title", action, helpRoute);
       rejectActionFlag(values.to, "--to", action, helpRoute);
+      rejectActionBooleanFlag(values.clear, "--clear", action, helpRoute);
+      rejectActionBooleanFlag(
+        values["dry-run"],
+        "--dry-run",
+        action,
+        helpRoute,
+      );
+      rejectActionBooleanFlag(values.first, "--first", action, helpRoute);
+      rejectActionBooleanFlag(values.root, "--root", action, helpRoute);
+      rejectActionBooleanFlag(values.last, "--last", action, helpRoute);
       rejectActionBooleanFlag(
         values.recursive,
         "--recursive",
@@ -1432,6 +1560,9 @@ function normalizeArchiveChapterArguments(
       };
     case "set-summary":
       requireChapterId(chapterId, action, helpRoute);
+      rejectActionFlag(values.stage, "--stage", action, helpRoute);
+      rejectActionFlag(values.after, "--after", action, helpRoute);
+      rejectActionFlag(values.before, "--before", action, helpRoute);
       rejectActionFlag(
         values["input-format"],
         "--input-format",
@@ -1442,6 +1573,16 @@ function normalizeArchiveChapterArguments(
       rejectActionFlag(values.prompt, "--prompt", action, helpRoute);
       rejectActionFlag(values.title, "--title", action, helpRoute);
       rejectActionFlag(values.to, "--to", action, helpRoute);
+      rejectActionBooleanFlag(values.clear, "--clear", action, helpRoute);
+      rejectActionBooleanFlag(
+        values["dry-run"],
+        "--dry-run",
+        action,
+        helpRoute,
+      );
+      rejectActionBooleanFlag(values.first, "--first", action, helpRoute);
+      rejectActionBooleanFlag(values.root, "--root", action, helpRoute);
+      rejectActionBooleanFlag(values.last, "--last", action, helpRoute);
       rejectActionBooleanFlag(
         values.recursive,
         "--recursive",
@@ -1457,10 +1598,21 @@ function normalizeArchiveChapterArguments(
       };
     case "set-title":
       requireChapterId(chapterId, action, helpRoute);
-      if (values.title === undefined) {
+      rejectActionFlag(values.stage, "--stage", action, helpRoute);
+      rejectActionFlag(values.after, "--after", action, helpRoute);
+      rejectActionFlag(values.before, "--before", action, helpRoute);
+      if (values.title === undefined && values.clear !== true) {
         throw new Error(
           withHelpRoute(
-            "Missing --title. `chapter set-title` requires a title value.",
+            "Missing --title or --clear. `chapter set-title` requires a title value or --clear.",
+            helpRoute,
+          ),
+        );
+      }
+      if (values.title !== undefined && values.clear === true) {
+        throw new Error(
+          withHelpRoute(
+            "`chapter set-title` cannot combine --title with --clear.",
             helpRoute,
           ),
         );
@@ -1476,6 +1628,15 @@ function normalizeArchiveChapterArguments(
       rejectActionFlag(values.prompt, "--prompt", action, helpRoute);
       rejectActionFlag(values.to, "--to", action, helpRoute);
       rejectActionBooleanFlag(
+        values["dry-run"],
+        "--dry-run",
+        action,
+        helpRoute,
+      );
+      rejectActionBooleanFlag(values.first, "--first", action, helpRoute);
+      rejectActionBooleanFlag(values.root, "--root", action, helpRoute);
+      rejectActionBooleanFlag(values.last, "--last", action, helpRoute);
+      rejectActionBooleanFlag(
         values.recursive,
         "--recursive",
         action,
@@ -1484,12 +1645,16 @@ function normalizeArchiveChapterArguments(
       return {
         action,
         chapterId,
+        ...(values.clear === undefined ? {} : { clearTitle: values.clear }),
         path,
-        title: values.title,
+        ...(values.title === undefined ? {} : { title: values.title }),
         ...(values.llm === undefined ? {} : { llmJSON: values.llm }),
       };
     case "status":
       requireChapterId(chapterId, action, helpRoute);
+      rejectActionFlag(values.stage, "--stage", action, helpRoute);
+      rejectActionFlag(values.after, "--after", action, helpRoute);
+      rejectActionFlag(values.before, "--before", action, helpRoute);
       rejectActionFlag(values.input, "--input", action, helpRoute);
       rejectActionFlag(
         values["input-format"],
@@ -1501,6 +1666,16 @@ function normalizeArchiveChapterArguments(
       rejectActionFlag(values.prompt, "--prompt", action, helpRoute);
       rejectActionFlag(values.title, "--title", action, helpRoute);
       rejectActionFlag(values.to, "--to", action, helpRoute);
+      rejectActionBooleanFlag(values.clear, "--clear", action, helpRoute);
+      rejectActionBooleanFlag(
+        values["dry-run"],
+        "--dry-run",
+        action,
+        helpRoute,
+      );
+      rejectActionBooleanFlag(values.first, "--first", action, helpRoute);
+      rejectActionBooleanFlag(values.root, "--root", action, helpRoute);
+      rejectActionBooleanFlag(values.last, "--last", action, helpRoute);
       rejectActionBooleanFlag(
         values.recursive,
         "--recursive",
@@ -1512,6 +1687,65 @@ function normalizeArchiveChapterArguments(
         chapterId,
         path,
         ...(values.llm === undefined ? {} : { llmJSON: values.llm }),
+      };
+    case "tree":
+      rejectActionFlag(values.stage, "--stage", action, helpRoute);
+      rejectActionFlag(values.chapter, "--chapter", action, helpRoute);
+      rejectActionFlag(values.after, "--after", action, helpRoute);
+      rejectActionFlag(values.before, "--before", action, helpRoute);
+      rejectActionFlag(
+        values["input-format"],
+        "--input-format",
+        action,
+        helpRoute,
+      );
+      rejectActionFlag(values.parent, "--parent", action, helpRoute);
+      rejectActionFlag(values.prompt, "--prompt", action, helpRoute);
+      rejectActionFlag(values.title, "--title", action, helpRoute);
+      rejectActionFlag(values.to, "--to", action, helpRoute);
+      rejectActionBooleanFlag(values.clear, "--clear", action, helpRoute);
+      rejectActionBooleanFlag(values.first, "--first", action, helpRoute);
+      rejectActionBooleanFlag(values.root, "--root", action, helpRoute);
+      rejectActionBooleanFlag(values.last, "--last", action, helpRoute);
+      rejectActionBooleanFlag(
+        values.recursive,
+        "--recursive",
+        action,
+        helpRoute,
+      );
+      if (treeAction === "apply" && values.json === true) {
+        throw new Error(
+          withHelpRoute(
+            "`chapter tree apply` does not support --json.",
+            helpRoute,
+          ),
+        );
+      }
+      if (treeAction === "apply") {
+        return {
+          action,
+          ...(values["dry-run"] === undefined
+            ? {}
+            : { dryRun: values["dry-run"] }),
+          ...(values.input === undefined ? {} : { inputPath: values.input }),
+          ...(values.llm === undefined ? {} : { llmJSON: values.llm }),
+          path,
+          treeAction: "apply",
+        };
+      }
+      rejectActionFlag(values.input, "--input", action, helpRoute);
+      rejectActionBooleanFlag(
+        values["dry-run"],
+        "--dry-run",
+        action,
+        helpRoute,
+      );
+      return {
+        action,
+        json: values.json ?? false,
+        ...(values.llm === undefined ? {} : { llmJSON: values.llm }),
+        path,
+        treeAction: "show",
       };
   }
 }
@@ -1698,15 +1932,15 @@ function isArchiveChapterAction(
 ): value is CLIArchiveChapterAction {
   return (
     value === "add" ||
-    value === "generate-graph" ||
-    value === "generate-summary" ||
     value === "list" ||
+    value === "move" ||
     value === "remove" ||
     value === "reset" ||
     value === "set-source" ||
     value === "set-summary" ||
     value === "set-title" ||
-    value === "status"
+    value === "status" ||
+    value === "tree"
   );
 }
 
@@ -1721,15 +1955,15 @@ function parseChapterStage(
   flag: string,
   helpRoute: string,
 ): ChapterStage {
-  const normalized = value.trim().toLowerCase();
+  const stage = parseExternalChapterStage(value);
 
-  if (CHAPTER_STAGES.includes(normalized as ChapterStage)) {
-    return normalized as ChapterStage;
+  if (stage !== undefined) {
+    return stage;
   }
 
   throw new Error(
     withHelpRoute(
-      `Invalid ${flag}: ${value}. Expected planned, sourced, graphed, or summarized.`,
+      `Invalid ${flag}: ${value}. Expected planned, source, graph, or summary.`,
       helpRoute,
     ),
   );
@@ -1753,23 +1987,37 @@ function parseChapterInputFormat(
   );
 }
 
+function parseChapterAddStage(
+  value: string,
+  helpRoute: string,
+): Extract<ChapterStage, "planned" | "sourced"> {
+  const stage = parseExternalChapterStage(value);
+
+  if (stage === "planned" || stage === "sourced") {
+    return stage;
+  }
+
+  throw new Error(
+    withHelpRoute(
+      `Invalid --stage: ${value}. chapter add accepts planned or source.`,
+      helpRoute,
+    ),
+  );
+}
+
 function parseResetStage(
   value: string,
   helpRoute: string,
 ): Exclude<ChapterStage, "summarized"> {
-  const normalized = value.trim().toLowerCase();
+  const stage = parseExternalChapterStage(value);
 
-  if (
-    normalized === "planned" ||
-    normalized === "sourced" ||
-    normalized === "graphed"
-  ) {
-    return normalized;
+  if (stage === "planned" || stage === "sourced" || stage === "graphed") {
+    return stage;
   }
-  if (CHAPTER_STAGES.includes(normalized as ChapterStage)) {
+  if (stage !== undefined) {
     throw new Error(
       withHelpRoute(
-        "`chapter reset` does not support --to summarized.",
+        "`chapter reset` does not support --to summary.",
         helpRoute,
       ),
     );
@@ -1777,10 +2025,25 @@ function parseResetStage(
 
   throw new Error(
     withHelpRoute(
-      `Invalid --to: ${value}. Expected planned, sourced, or graphed.`,
+      `Invalid --to: ${value}. Expected planned, source, or graph.`,
       helpRoute,
     ),
   );
+}
+
+function parseExternalChapterStage(value: string): ChapterStage | undefined {
+  switch (value.trim().toLowerCase()) {
+    case "planned":
+      return "planned";
+    case "source":
+      return "sourced";
+    case "graph":
+      return "graphed";
+    case "summary":
+      return "summarized";
+    default:
+      return undefined;
+  }
 }
 
 function parseArchiveMetaPatch(
@@ -1942,15 +2205,60 @@ function rejectActionBooleanFlag(
   }
 }
 
-function rejectConvertFlag(
-  name: string,
-  value: boolean | string | undefined,
+function rejectConflictingMoveFlags(
+  values: {
+    readonly after?: string;
+    readonly before?: string;
+    readonly first?: boolean;
+    readonly last?: boolean;
+    readonly parent?: string;
+    readonly root?: boolean;
+  },
+  helpRoute: string,
 ): void {
-  if (value !== undefined) {
+  const parentTargets = [
+    values.parent === undefined ? undefined : "--parent",
+    values.root === undefined ? undefined : "--root",
+  ].filter((flag): flag is string => flag !== undefined);
+  const positionTargets = [
+    values.before === undefined ? undefined : "--before",
+    values.after === undefined ? undefined : "--after",
+    values.first === undefined ? undefined : "--first",
+    values.last === undefined ? undefined : "--last",
+  ].filter((flag): flag is string => flag !== undefined);
+
+  if (parentTargets.length > 1) {
     throw new Error(
       withHelpRoute(
-        `The main convert command does not support --${name}.`,
-        CLI_HELP_ROUTES.command,
+        `Choose only one parent target: ${parentTargets.join(", ")}.`,
+        helpRoute,
+      ),
+    );
+  }
+  if (positionTargets.length > 1) {
+    throw new Error(
+      withHelpRoute(
+        `Choose only one position target: ${positionTargets.join(", ")}.`,
+        helpRoute,
+      ),
+    );
+  }
+  if (
+    parentTargets.length > 0 &&
+    (values.before !== undefined || values.after !== undefined)
+  ) {
+    throw new Error(
+      withHelpRoute(
+        "Do not combine --parent or --root with --before or --after.",
+        helpRoute,
+      ),
+    );
+  }
+  if (parentTargets.length === 0 && positionTargets.length === 0) {
+    throw new Error(
+      withHelpRoute(
+        "`chapter move` requires --parent, --root, --before, --after, --first, or --last.",
+        helpRoute,
       ),
     );
   }
@@ -1965,17 +2273,6 @@ function rejectArchiveChapterFlag(
       withHelpRoute(
         `The \`chapter\` command does not support --${name}.`,
         "spinedigest chapter --help",
-      ),
-    );
-  }
-}
-
-function rejectConvertMetaFlags(values: ArchiveMetaFlagValues): void {
-  for (const flag of listPresentMetaFlags(values)) {
-    throw new Error(
-      withHelpRoute(
-        `The main convert command does not support ${flag}.`,
-        CLI_HELP_ROUTES.command,
       ),
     );
   }
@@ -2009,6 +2306,32 @@ function rejectStatusMetaFlags(values: ArchiveMetaFlagValues): void {
       withHelpRoute(
         `The \`config status\` command does not support ${flag}.`,
         "spinedigest config status --help",
+      ),
+    );
+  }
+}
+
+function rejectTransformFlag(
+  name: string,
+  value: boolean | string | undefined,
+  helpRoute: string,
+): void {
+  if (value !== undefined) {
+    throw new Error(
+      withHelpRoute(
+        `The \`transform\` command does not support --${name}.`,
+        helpRoute,
+      ),
+    );
+  }
+}
+
+function rejectTransformMetaFlags(values: ArchiveMetaFlagValues): void {
+  for (const flag of listPresentMetaFlags(values)) {
+    throw new Error(
+      withHelpRoute(
+        `The \`transform\` command does not support ${flag}.`,
+        "spinedigest transform --help",
       ),
     );
   }
@@ -2094,16 +2417,14 @@ function isArchiveAction(value: string | undefined): value is CLIArchiveAction {
   return (
     value === "backlinks" ||
     value === "build" ||
+    value === "create" ||
     value === "estimate" ||
-    value === "fragments" ||
     value === "export" ||
     value === "find" ||
     value === "grep" ||
-    value === "import" ||
     value === "index" ||
     value === "links" ||
     value === "list" ||
-    value === "ls" ||
     value === "map" ||
     value === "page" ||
     value === "pack" ||
@@ -2115,64 +2436,27 @@ function isArchiveAction(value: string | undefined): value is CLIArchiveAction {
 }
 
 function parseArchiveBuildStage(value: string | undefined): ChapterStage {
-  if (value === undefined || value === "ready") {
+  if (value === undefined) {
     return "summarized";
   }
-  if (value === "source") {
-    return "sourced";
-  }
-  if (value === "graph") {
-    return "graphed";
-  }
-  if (value === "summary") {
-    return "summarized";
+  if (value.trim().toLowerCase() === "planned") {
+    throw new Error(
+      withHelpRoute(
+        "Invalid --stage: planned. `build` advances existing source to graph or summary.",
+        CLI_HELP_ROUTES.command,
+      ),
+    );
   }
 
   return parseChapterStage(value, "--stage", CLI_HELP_ROUTES.command);
 }
 
-function parseArchiveEstimateStage(
-  value: string | undefined,
-): ChapterStage | "ready" | "source" {
+function parseArchiveEstimateStage(value: string | undefined): ChapterStage {
   if (value === undefined) {
-    return "ready";
-  }
-  if (value === "ready" || value === "source") {
-    return value;
-  }
-  if (value === "graph") {
-    return "graphed";
-  }
-  if (value === "summary") {
     return "summarized";
   }
 
   return parseChapterStage(value, "--stage", CLI_HELP_ROUTES.command);
-}
-
-function parseArchiveListKind(
-  value: string | undefined,
-): NonNullable<CLIArchiveArguments["listKind"]> {
-  if (value === undefined) {
-    return "chapters";
-  }
-  if (
-    value === "chapters" ||
-    value === "edges" ||
-    value === "fragments" ||
-    value === "meta" ||
-    value === "nodes" ||
-    value === "summaries"
-  ) {
-    return value;
-  }
-
-  throw new Error(
-    withHelpRoute(
-      `Invalid list kind: ${value}. Expected chapters, nodes, edges, fragments, summaries, or meta.`,
-      "spinedigest ls --help",
-    ),
-  );
 }
 
 function parseArchiveSearchChapters(value: string): readonly number[] {

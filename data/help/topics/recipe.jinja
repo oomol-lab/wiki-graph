@@ -3,18 +3,18 @@ Topic: recipe
 
 Recipes
 
-Import Markdown into an archive:
-  spinedigest import notes.sdpub ./notes.md --input-format markdown
+Create an archive from Markdown:
+  spinedigest create notes.sdpub ./notes.md --input-format markdown
 
-Import EPUB into an archive:
-  spinedigest import book.sdpub ./book.epub
+Create an archive from EPUB:
+  spinedigest create book.sdpub ./book.epub
 
 Check readiness:
   spinedigest status book.sdpub
   spinedigest index book.sdpub
 
-Estimate a full ready build:
-  spinedigest estimate book.sdpub --stage ready
+Estimate a full summary build:
+  spinedigest estimate book.sdpub --stage summary
 
 Build one chapter graph:
   spinedigest build book.sdpub --stage graph --chapter 3 --confirm
@@ -35,13 +35,13 @@ Export a Markdown projection:
   spinedigest export book.sdpub --output-format markdown --output digest.md
 
 Pipe Markdown into an archive:
-  cat article.md | spinedigest import article.sdpub --input-format markdown
+  cat article.md | spinedigest create article.sdpub --input-format markdown
 
 Pipe plain text into an archive:
-  cat chapter.txt | spinedigest import chapter.sdpub --input-format txt
+  cat chapter.txt | spinedigest create chapter.sdpub --input-format txt
 
 Pipe extracted webpage text into an archive:
-  curl -L https://example.com/post | defuddle | spinedigest import article.sdpub --input-format markdown
+  curl -L https://example.com/post | defuddle | spinedigest create article.sdpub --input-format markdown
 
-One-shot stream digest:
+Run a direct stream transform:
   cat chapter.txt | spinedigest transform --input-format txt --output-format markdown

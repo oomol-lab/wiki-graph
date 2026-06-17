@@ -32,11 +32,11 @@ spinedigest read book.sdpub chapter:12
 ## 最小操作契约
 
 - 主对象：`.sdpub`
-- 导入源：EPUB、Markdown、TXT 和文本管道
+- 创建源：EPUB、Markdown、TXT 和文本管道
 - 可读对象：`chapter:<id>`、`node:<id>`、`fragment:<serial>:<fragment>`、`summary:<id>`、`meta:book`
 - 便宜操作：`status`、`index`、`list`、`find`、`grep`、`page`、`read`、`links`、`backlinks`、`export`
-- 昂贵操作：graph、summary 或 ready `build`
-- 先估算：`spinedigest estimate <archive.sdpub> --stage ready`
+- 昂贵操作：graph 或 summary `build`
+- 先估算：`spinedigest estimate <archive.sdpub> --stage summary`
 - 机器消费：组合工具时传 `--json`
 
 ## 推荐执行策略
@@ -53,19 +53,19 @@ spinedigest read book.sdpub chapter:12
 ## 构建流程
 
 ```bash
-spinedigest import book.sdpub ./book.epub
+spinedigest create book.sdpub ./book.epub
 spinedigest status book.sdpub
-spinedigest estimate book.sdpub --stage ready
+spinedigest estimate book.sdpub --stage summary
 spinedigest build book.sdpub --stage graph --chapter 3 --confirm
 ```
 
-Import/source 是安全第一步。Graph 和 summary 阶段可能调用 LLM provider。
+Create/source 是安全第一步。Graph 和 summary 阶段可能调用 LLM provider。
 
 ## 避免
 
 - 不要为了常规检索解压 `.sdpub`。
 - 不要读取 `database.db`，除非是在构建外部工具或调试内部实现。
-- 不要因为用户问了归档内容问题，就启动整份归档 ready build。
+- 不要因为用户问了归档内容问题，就启动整份归档 summary build。
 - 不要把 SpineDigest 表达成自然语言问答层；Agent 在读取归档上下文后自行回答。
 
 ## 相关文档

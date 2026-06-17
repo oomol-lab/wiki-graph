@@ -31,21 +31,21 @@ npx spinedigest --help
 ## 3. 导入源材料
 
 ```bash
-spinedigest import ./book.sdpub ./book.md
-cat ./article.md | spinedigest import ./article.sdpub --input-format markdown
+spinedigest create ./book.sdpub ./book.md
+cat ./article.md | spinedigest create ./article.sdpub --input-format markdown
 ```
 
-Import 会创建或替换 source 阶段的 `.sdpub` 归档。这不表示归档已经完成 graph 构建或 summary 构建。
+create 会创建或替换 source 阶段的 `.sdpub` 归档。这不表示归档已经完成 graph 构建或 summary 构建。
 
 ## 4. 查看和估算
 
 ```bash
 spinedigest status ./book.sdpub
 spinedigest index ./book.sdpub
-spinedigest estimate ./book.sdpub --stage ready
+spinedigest estimate ./book.sdpub --stage summary
 ```
 
-整份归档的 graph、summary 或 ready 构建之前，先看 estimate。
+整份归档的 graph 或 summary 构建之前，先看 estimate。
 
 ## 5. 构建知识
 

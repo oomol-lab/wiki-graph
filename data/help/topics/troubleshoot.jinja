@@ -6,7 +6,7 @@ Troubleshooting
 Search returns no matches:
   Check:
     Run `spinedigest status <archive.sdpub>` and `spinedigest list <archive.sdpub> --type fragment`.
-    Source-only archives should be searchable through fragment text. If there are no fragments, import did not store source text.
+    Source-only archives should be searchable through fragment text. If there are no fragments, archive creation did not store source text.
 
 Page shows missing summary:
   Check:
@@ -17,20 +17,20 @@ Build blocked by confirmation:
   Symptom:
     `build` says it may call an LLM and asks for `--confirm`.
   Check:
-    Run `spinedigest estimate <archive.sdpub> --stage ready`, then rerun a scoped build with `--confirm` if the estimate is acceptable.
+    Run `spinedigest estimate <archive.sdpub> --stage summary`, then rerun a scoped build with `--confirm` if the estimate is acceptable.
 
 Missing LLM configuration:
   Symptom:
-    Graph, summary, or ready build fails before processing starts.
+    Graph or summary build fails before processing starts.
   Check:
     `--llm`, `llm.provider` and `llm.model` in config, or the matching env vars.
 
 Unexpected format errors:
   Symptom:
-    The CLI rejects an import or export format.
+    The CLI rejects a create or export format.
   Check:
     The file extension, or pass `--input-format` / `--output-format` explicitly.
-    stdin import supports only markdown and txt.
+    stdin create supports only markdown and txt.
 
 stdin or stdout misuse:
   Symptom:

@@ -1,0 +1,48 @@
+Help Type: command
+Command: spinedigest chapter tree
+
+chapter tree
+
+Purpose:
+  Print or apply the complete chapter tree as a stable JSON structure.
+
+Usage:
+  spinedigest chapter tree <path> [--json] [--llm <json>] [--help|-h]
+  spinedigest chapter tree apply <path> [--input <path>] [--dry-run] [--llm <json>] [--help|-h]
+
+Tree JSON shape:
+  {
+    "chapters": [
+      {
+        "id": 1,
+        "title": "Part I",
+        "children": [
+          { "id": 2, "title": null, "children": [] }
+        ]
+      }
+    ]
+  }
+
+Apply rules:
+  - Every existing chapter id must appear exactly once.
+  - Unknown, duplicated, or missing chapter ids are rejected.
+  - `children` is required on every node.
+  - `title` is optional when applying.
+  - Omitted `title` means keep the current title.
+  - `title: "text"` sets or replaces the chapter title.
+  - `title: null` clears the chapter title.
+  - Extra fields are rejected.
+  - Applying a tree never creates chapters, deletes chapters, or edits source, graph, or summary data.
+
+Dry run:
+  `--dry-run` validates the input and prints moved, renamed, and unchanged counts without changing the archive.
+
+Examples:
+  spinedigest chapter tree book.sdpub --json > tree.json
+  spinedigest chapter tree apply book.sdpub --input tree.json --dry-run
+  spinedigest chapter tree apply book.sdpub --input tree.json
+
+See also:
+  - spinedigest chapter move --help
+  - spinedigest chapter set-title --help
+  - spinedigest help command

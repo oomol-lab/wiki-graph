@@ -8,57 +8,10 @@ import {
   renderHelpTopicText,
   renderMainHelpText,
   renderStatusHelpText,
+  renderTransformHelpText,
 } from "../../src/cli/help.js";
 
 describe("cli/args", () => {
-  it("parses help and io flags with normalized formats", () => {
-    expect(
-      parseCLIArguments([
-        "--help",
-        "--digest-dir",
-        "/tmp/digest",
-        "--input",
-        "book.epub",
-        "--input-format",
-        " EPUB ",
-        "--output",
-        "out.txt",
-        "--output-format",
-        "markdown",
-        "--llm",
-        '{"model":"cli-model"}',
-        "--prompt",
-        "Keep named entities",
-      ]),
-    ).toStrictEqual({
-      args: {
-        digestDirPath: "/tmp/digest",
-        help: true,
-        inputFormat: "epub",
-        inputPath: "book.epub",
-        llmJSON: '{"model":"cli-model"}',
-        outputFormat: "markdown",
-        outputPath: "out.txt",
-        prompt: "Keep named entities",
-        verbose: false,
-      },
-      help: true,
-      helpText: renderMainHelpText(),
-      kind: "convert",
-    });
-  });
-
-  it("omits undefined optional arguments", () => {
-    expect(parseCLIArguments([])).toStrictEqual({
-      args: {
-        help: false,
-        verbose: false,
-      },
-      help: false,
-      kind: "convert",
-    });
-  });
-
   it("parses --version", () => {
     expect(parseCLIArguments(["--version"])).toStrictEqual({
       help: false,
@@ -66,52 +19,38 @@ describe("cli/args", () => {
     });
   });
 
-  it("parses --verbose", () => {
-    expect(parseCLIArguments(["--verbose"])).toStrictEqual({
-      args: {
-        help: false,
-        verbose: true,
-      },
-      help: false,
-      kind: "convert",
+  it("parses root help", () => {
+    expect(parseCLIArguments(["--help"])).toMatchObject({
+      help: true,
+      helpText: renderMainHelpText(),
+      kind: "help",
     });
-  });
-
-  it("parses short aliases -h and -v", () => {
     expect(parseCLIArguments(["-h"])).toMatchObject({
       help: true,
-      kind: "convert",
-    });
-
-    expect(parseCLIArguments(["-v"])).toStrictEqual({
-      args: {
-        help: false,
-        verbose: true,
-      },
-      help: false,
-      kind: "convert",
+      helpText: renderMainHelpText(),
+      kind: "help",
     });
   });
 
   it("renders archive command help", () => {
-    const importHelp = parseCLIArguments(["import", "--help"]);
-    const helpTopic = parseCLIArguments(["help", "import"]);
+    const createHelp = parseCLIArguments(["create", "--help"]);
+    const helpTopic = parseCLIArguments(["help", "recipe"]);
 
-    expect(importHelp.help).toBe(true);
-    expect(importHelp.kind).toBe("help");
+    expect(createHelp.help).toBe(true);
+    expect(createHelp.kind).toBe("help");
     expect(helpTopic.help).toBe(true);
     expect(helpTopic.kind).toBe("help");
-    if (!importHelp.help || importHelp.kind !== "help") {
-      throw new Error("Expected import help");
+    if (!createHelp.help || createHelp.kind !== "help") {
+      throw new Error("Expected create help");
     }
     if (!helpTopic.help || helpTopic.kind !== "help") {
       throw new Error("Expected help topic");
     }
-    expect(importHelp.helpText).toContain("Command: spinedigest import");
-    expect(helpTopic.helpText).toContain("stdin: supported");
+    expect(createHelp.helpText).toContain("Command: spinedigest create");
+    expect(createHelp.helpText).toContain("stdin: supported");
   });
 
-  it("renders archive-first stdin import recipes", () => {
+  it("renders archive-first stdin create recipes", () => {
     const recipeHelp = parseCLIArguments(["help", "recipe"]);
 
     expect(recipeHelp.help).toBe(true);
@@ -120,61 +59,14 @@ describe("cli/args", () => {
       throw new Error("Expected recipe help");
     }
     expect(recipeHelp.helpText).toContain(
-      "cat article.md | spinedigest import article.sdpub --input-format markdown",
+      "cat article.md | spinedigest create article.sdpub --input-format markdown",
     );
-    expect(recipeHelp.helpText).toContain("One-shot stream digest");
-  });
-
-  it("parses --prompt for the main convert command", () => {
-    expect(parseCLIArguments(["--prompt", "Keep dialogue only"])).toStrictEqual(
-      {
-        args: {
-          help: false,
-          prompt: "Keep dialogue only",
-          verbose: false,
-        },
-        help: false,
-        kind: "convert",
-      },
+    expect(recipeHelp.helpText).toContain(
+      "cat chapter.txt | spinedigest transform --input-format txt --output-format markdown",
     );
-  });
-
-  it("parses --stage for sdpub output conversion", () => {
-    expect(
-      parseCLIArguments([
-        "--input",
-        "book.epub",
-        "--output",
-        "book.sdpub",
-        "--stage",
-        "sourced",
-      ]),
-    ).toStrictEqual({
-      args: {
-        help: false,
-        inputPath: "book.epub",
-        outputPath: "book.sdpub",
-        targetStage: "sourced",
-        verbose: false,
-      },
-      help: false,
-      kind: "convert",
-    });
   });
 
   it("parses --llm for runtime-configurable commands", () => {
-    expect(parseCLIArguments(["--llm", '{"model":"cli-model"}'])).toStrictEqual(
-      {
-        args: {
-          help: false,
-          llmJSON: '{"model":"cli-model"}',
-          verbose: false,
-        },
-        help: false,
-        kind: "convert",
-      },
-    );
-
     expect(
       parseCLIArguments(["config", "status", "--llm", '{"model":"cli-model"}']),
     ).toStrictEqual({
@@ -194,20 +86,51 @@ describe("cli/args", () => {
         "book.md",
         "--output-format",
         "markdown",
+        "--prompt",
+        "Keep dialogue only",
+        "--verbose",
       ]),
     ).toStrictEqual({
       args: {
         help: false,
         inputPath: "book.md",
         outputFormat: "markdown",
+        prompt: "Keep dialogue only",
+        verbose: true,
+      },
+      help: false,
+      kind: "convert",
+    });
+
+    expect(
+      parseCLIArguments([
+        "transform",
+        "--input",
+        "book.epub",
+        "--output",
+        "book.sdpub",
+        "--stage",
+        "source",
+      ]),
+    ).toStrictEqual({
+      args: {
+        help: false,
+        inputPath: "book.epub",
+        outputPath: "book.sdpub",
+        targetStage: "sourced",
         verbose: false,
       },
       help: false,
       kind: "convert",
     });
 
-    expect(parseCLIArguments(["transform", "--help"])).toMatchObject({
+    expect(parseCLIArguments(["transform", "--help"])).toStrictEqual({
+      args: {
+        help: true,
+        verbose: false,
+      },
       help: true,
+      helpText: renderTransformHelpText(),
       kind: "convert",
     });
   });
@@ -215,7 +138,7 @@ describe("cli/args", () => {
   it("parses archive-first commands", () => {
     expect(
       parseCLIArguments([
-        "import",
+        "create",
         "book.sdpub",
         "book.md",
         "--input-format",
@@ -223,7 +146,7 @@ describe("cli/args", () => {
       ]),
     ).toStrictEqual({
       args: {
-        action: "import",
+        action: "create",
         archivePath: "book.sdpub",
         inputFormat: "markdown",
         sourcePath: "book.md",
@@ -233,10 +156,10 @@ describe("cli/args", () => {
     });
 
     expect(
-      parseCLIArguments(["import", "book.sdpub", "--input-format", "markdown"]),
+      parseCLIArguments(["create", "book.sdpub", "--input-format", "markdown"]),
     ).toStrictEqual({
       args: {
-        action: "import",
+        action: "create",
         archivePath: "book.sdpub",
         inputFormat: "markdown",
       },
@@ -386,26 +309,6 @@ describe("cli/args", () => {
       parseCLIArguments(["read", "book.sdpub", "chapter:12", "--json"]),
     ).toThrow("The `read` command does not support --json.");
 
-    expect(parseCLIArguments(["ls", "book.sdpub", "nodes"])).toStrictEqual({
-      args: {
-        action: "ls",
-        archivePath: "book.sdpub",
-        listKind: "nodes",
-      },
-      help: false,
-      kind: "archive",
-    });
-
-    expect(parseCLIArguments(["ls", "book.sdpub", "fragments"])).toStrictEqual({
-      args: {
-        action: "ls",
-        archivePath: "book.sdpub",
-        listKind: "fragments",
-      },
-      help: false,
-      kind: "archive",
-    });
-
     expect(
       parseCLIArguments(["pack", "book.sdpub", "node:1", "--budget", "2000"]),
     ).toStrictEqual({
@@ -512,6 +415,8 @@ describe("cli/args", () => {
         "chapter",
         "add",
         "book.sdpub",
+        "--stage",
+        "planned",
         "--title",
         "Chapter 1",
         "--parent",
@@ -520,9 +425,53 @@ describe("cli/args", () => {
     ).toStrictEqual({
       args: {
         action: "add",
+        addStage: "planned",
         parentChapterId: 3,
         path: "book.sdpub",
         title: "Chapter 1",
+      },
+      help: false,
+      kind: "chapter",
+    });
+    expect(
+      parseCLIArguments([
+        "chapter",
+        "move",
+        "book.sdpub",
+        "--chapter",
+        "8",
+        "--parent",
+        "3",
+        "--first",
+      ]),
+    ).toStrictEqual({
+      args: {
+        action: "move",
+        chapterId: 8,
+        first: true,
+        parentChapterId: 3,
+        path: "book.sdpub",
+      },
+      help: false,
+      kind: "chapter",
+    });
+    expect(
+      parseCLIArguments([
+        "chapter",
+        "move",
+        "book.sdpub",
+        "--chapter",
+        "8",
+        "--root",
+        "--last",
+      ]),
+    ).toStrictEqual({
+      args: {
+        action: "move",
+        chapterId: 8,
+        last: true,
+        moveToRoot: true,
+        path: "book.sdpub",
       },
       help: false,
       kind: "chapter",
@@ -535,7 +484,7 @@ describe("cli/args", () => {
         "--chapter",
         "12",
         "--to",
-        "sourced",
+        "source",
       ]),
     ).toStrictEqual({
       args: {
@@ -543,6 +492,76 @@ describe("cli/args", () => {
         chapterId: 12,
         path: "book.sdpub",
         resetStage: "sourced",
+      },
+      help: false,
+      kind: "chapter",
+    });
+    expect(
+      parseCLIArguments([
+        "chapter",
+        "set-title",
+        "book.sdpub",
+        "--chapter",
+        "12",
+        "--clear",
+      ]),
+    ).toStrictEqual({
+      args: {
+        action: "set-title",
+        chapterId: 12,
+        clearTitle: true,
+        path: "book.sdpub",
+      },
+      help: false,
+      kind: "chapter",
+    });
+    expect(
+      parseCLIArguments(["chapter", "tree", "book.sdpub", "--json"]),
+    ).toStrictEqual({
+      args: {
+        action: "tree",
+        json: true,
+        path: "book.sdpub",
+        treeAction: "show",
+      },
+      help: false,
+      kind: "chapter",
+    });
+    expect(
+      parseCLIArguments([
+        "chapter",
+        "tree",
+        "apply",
+        "book.sdpub",
+        "--input",
+        "tree.json",
+        "--dry-run",
+      ]),
+    ).toStrictEqual({
+      args: {
+        action: "tree",
+        dryRun: true,
+        inputPath: "tree.json",
+        path: "book.sdpub",
+        treeAction: "apply",
+      },
+      help: false,
+      kind: "chapter",
+    });
+    expect(
+      parseCLIArguments([
+        "chapter",
+        "tree",
+        "apply",
+        "book.sdpub",
+        "--dry-run",
+      ]),
+    ).toStrictEqual({
+      args: {
+        action: "tree",
+        dryRun: true,
+        path: "book.sdpub",
+        treeAction: "apply",
       },
       help: false,
       kind: "chapter",
@@ -567,6 +586,30 @@ describe("cli/args", () => {
       help: false,
       kind: "chapter",
     });
+    expect(() =>
+      parseCLIArguments([
+        "chapter",
+        "move",
+        "book.sdpub",
+        "--chapter",
+        "8",
+        "--parent",
+        "3",
+        "--root",
+      ]),
+    ).toThrow("Choose only one parent target");
+    expect(() =>
+      parseCLIArguments([
+        "chapter",
+        "set-title",
+        "book.sdpub",
+        "--chapter",
+        "12",
+        "--title",
+        "Title",
+        "--clear",
+      ]),
+    ).toThrow("cannot combine --title with --clear");
   });
 
   it("prints archive maintenance help pages", () => {
@@ -637,25 +680,44 @@ describe("cli/args", () => {
 
   it("rejects positional arguments", () => {
     expect(() => parseCLIArguments(["book.epub"])).toThrow(
-      "Unexpected positional argument or unknown command: book.epub. The direct digest command reads from stdin or --input; it does not accept positional input paths. Use `spinedigest transform --input <path>`, or see available subcommands with `spinedigest --help`.\nSee: spinedigest help command",
+      "Unknown command: book.epub.\nSee: spinedigest help command",
     );
   });
 
   it("rejects invalid format flags", () => {
-    expect(() => parseCLIArguments(["--input-format", "pdf"])).toThrow(
+    expect(() =>
+      parseCLIArguments([
+        "create",
+        "book.sdpub",
+        "book.md",
+        "--input-format",
+        "pdf",
+      ]),
+    ).toThrow(
       "Invalid --input-format: pdf. Expected one of sdpub, epub, txt, markdown.\nSee: spinedigest help format",
     );
-    expect(() => parseCLIArguments(["--output-format", "pdf"])).toThrow(
+    expect(() =>
+      parseCLIArguments(["export", "book.sdpub", "--output-format", "pdf"]),
+    ).toThrow(
       "Invalid --output-format: pdf. Expected one of sdpub, epub, txt, markdown.\nSee: spinedigest help format",
     );
   });
 
-  it("rejects removed sdpub family and invalid maintenance usage", () => {
+  it("rejects removed command families and invalid maintenance usage", () => {
+    expect(() => parseCLIArguments([])).toThrow(
+      "Missing command.\nSee: spinedigest help command",
+    );
+    expect(() => parseCLIArguments(["import", "--help"])).toThrow(
+      "Unknown command: import.\nSee: spinedigest help command",
+    );
+    expect(() => parseCLIArguments(["ls", "book.sdpub"])).toThrow(
+      "Unknown command: ls.\nSee: spinedigest help command",
+    );
     expect(() => parseCLIArguments(["sdpub"])).toThrow(
-      "Unexpected positional argument or unknown command: sdpub.",
+      "Unknown command: sdpub.",
     );
     expect(() => parseCLIArguments(["sdpub", "toc"])).toThrow(
-      "Unexpected positional argument or unknown command: sdpub toc.",
+      "Unknown command: sdpub.",
     );
     expect(() => parseCLIArguments(["meta"])).toThrow(
       "Missing archive path. Use `spinedigest meta <archive.sdpub>`.",
@@ -701,7 +763,7 @@ describe("cli/args", () => {
         "summarized",
       ]),
     ).toThrow(
-      "`chapter reset` does not support --to summarized.\nSee: spinedigest chapter --help",
+      "Invalid --to: summarized. Expected planned, source, or graph.\nSee: spinedigest chapter --help",
     );
   });
 
@@ -756,7 +818,8 @@ describe("cli/args", () => {
     expect(rootHelpText).toContain(
       "spinedigest chapter <action> <archive.sdpub>",
     );
-    expect(rootHelpText).toContain("[--verbose|-v] [--help|-h]");
+    expect(rootHelpText).toContain("spinedigest transform");
+    expect(rootHelpText).not.toContain("spinedigest import");
     expect(rootHelpText).toContain("chapter:<id>");
     expect(rootHelpText).toContain(
       "Append `--help` to commands and subcommands",
@@ -774,22 +837,13 @@ describe("cli/args", () => {
       "Treat `.sdpub` as an LLM Wiki archive",
     );
     expect(renderHelpTopicText("ai")).toContain(
-      "spinedigest estimate <archive.sdpub> --stage ready",
+      "spinedigest estimate <archive.sdpub> --stage summary",
     );
     expect(commandHelpText).toContain("Archive-first commands:");
-    expect(commandHelpText).toContain("spinedigest import <archive.sdpub>");
+    expect(commandHelpText).toContain("spinedigest create <archive.sdpub>");
     expect(commandHelpText).toContain("spinedigest export <archive.sdpub>");
-    for (const flag of [
-      "--input <path>",
-      "--output <path>",
-      "--input-format <format>",
-      "--output-format <format>",
-      "--digest-dir <path>",
-      "--llm <json>",
-      "--prompt <text>",
-    ]) {
-      expect(commandHelpText).toContain(flag);
-    }
+    expect(commandHelpText).toContain("spinedigest transform");
+    expect(commandHelpText).not.toContain("spinedigest ls");
     expect(renderHelpTopicText("config")).toContain("spinedigest help env");
     expect(renderHelpTopicText("config")).toContain("Inline LLM JSON");
     expect(renderHelpTopicText("config")).toContain("baseUrl");
@@ -816,7 +870,7 @@ describe("cli/args", () => {
     );
     expect(
       renderArchiveMaintenanceChapterActionHelpText("set-summary"),
-    ).toContain("The chapter must be `graphed`");
+    ).toContain("The chapter must be `graph`");
     expect(renderArchiveMaintenanceCommandHelpText("cover")).toContain(
       "refuses to write binary data to an interactive terminal",
     );
@@ -833,9 +887,15 @@ describe("cli/args", () => {
 
     expect(rootHelpText).toContain("spinedigest help overview");
     expect(rootHelpText).toContain("spinedigest help command");
-    expect(() => parseCLIArguments(["--input-format", "pdf"])).toThrow(
-      "See: spinedigest help format",
-    );
+    expect(() =>
+      parseCLIArguments([
+        "create",
+        "book.sdpub",
+        "book.md",
+        "--input-format",
+        "pdf",
+      ]),
+    ).toThrow("See: spinedigest help format");
     expect(() => parseCLIArguments(["sdpub", "inspect"])).toThrow(
       "See: spinedigest help command",
     );

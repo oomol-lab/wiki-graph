@@ -308,29 +308,20 @@ async function readFragmentFile(
     await readFile(fragmentPath, "utf8"),
   ) as unknown;
 
-  if (Array.isArray(rawContent)) {
-    return {
-      sentences: rawContent.map(parseSentenceRecord),
-      summary: "",
-    };
-  }
-
   if (typeof rawContent !== "object" || rawContent === null) {
-    throw new TypeError("Fragment file must be an object or an array");
+    throw new TypeError("Fragment file must be an object");
   }
 
-  const summary =
-    "summary" in rawContent && typeof rawContent.summary === "string"
-      ? rawContent.summary
-      : "";
-  const sentences =
-    "sentences" in rawContent && Array.isArray(rawContent.sentences)
-      ? rawContent.sentences.map(parseSentenceRecord)
-      : [];
+  if (!("summary" in rawContent) || typeof rawContent.summary !== "string") {
+    throw new TypeError("Fragment file summary must be a string");
+  }
+  if (!("sentences" in rawContent) || !Array.isArray(rawContent.sentences)) {
+    throw new TypeError("Fragment file sentences must be an array");
+  }
 
   return {
-    sentences,
-    summary,
+    sentences: rawContent.sentences.map(parseSentenceRecord),
+    summary: rawContent.summary,
   };
 }
 

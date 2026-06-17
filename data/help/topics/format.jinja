@@ -8,14 +8,14 @@ Supported formats:
 
 Archive-first rules:
   - `.sdpub` is the primary managed knowledge archive.
-  - `epub`, `markdown`, `txt`, URL text, and stdin text are import sources.
+  - `epub`, `markdown`, `txt`, URL text, and stdin text are archive creation sources.
   - `markdown`, `txt`, `epub`, and `.sdpub` are export projections.
   - List, search, page, read, links, path, and pack operate on `.sdpub` and do not require output formats.
 
-Import rules:
-  - `spinedigest import <archive.sdpub> <source>` infers source format from the source path when possible.
-  - `spinedigest import <archive.sdpub> --input-format markdown` reads source text from stdin.
-  - stdin import supports only `markdown` and `txt`.
+Create rules:
+  - `spinedigest create <archive.sdpub> <source>` infers source format from the source path when possible.
+  - `spinedigest create <archive.sdpub> --input-format markdown` reads source text from stdin.
+  - stdin create supports only `markdown` and `txt`.
   - `.sdpub` itself must be a real archive file path.
 
 Export rules:
@@ -25,17 +25,16 @@ Export rules:
 
 Readiness by archive stage:
   - planned: chapter exists, but no source is available.
-  - sourced: source fragments are searchable and readable; graph and summary may be missing.
-  - graphed: graph nodes, links, and source fragment pointers are available; summary may be missing.
-  - summarized: summaries and export projections are ready.
+  - source: source fragments are searchable and readable; graph and summary may be missing.
+  - graph: graph nodes, links, and source fragment pointers are available; summary may be missing.
+  - summary: summaries and export projections are ready.
 
 LLM usage:
-  - Import/source does not call an LLM.
-  - Graph, summary, and ready builds may call an LLM and require `--confirm`.
+  - Create/source does not call an LLM.
+  - Graph and summary builds may call an LLM and require `--confirm`.
   - List, search, page, read, navigation, pack, and export do not call an LLM.
 
-Direct digest and maintenance commands:
-  The direct `spinedigest transform --input ... --output ...` command remains available for one-shot digest/export workflows.
+Maintenance commands:
   Use `spinedigest meta`, `spinedigest cover`, and `spinedigest chapter` for metadata, cover extraction, and chapter tree maintenance.
 Where to go next:
   - Need command forms:

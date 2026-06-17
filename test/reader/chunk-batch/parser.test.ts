@@ -32,9 +32,12 @@ describe("reader/chunk-batch/parser", () => {
         chunks: [
           {
             content: "Joined content",
+            evidence: {
+              end_anchor: "Beta continues.",
+              start_anchor: "Alpha begins.",
+            },
             label: "Joined label",
             retention: ChunkRetention.Focused,
-            source_sentences: ["Alpha begins. Beta continues."],
             temp_id: "temp-1",
           },
         ],
@@ -149,9 +152,11 @@ describe("reader/chunk-batch/parser", () => {
           chunks: [
             {
               content: "Chunk content",
+              evidence: {
+                start_anchor: "Gamma ends.",
+              },
               importance: ChunkImportance.Critical,
               label: "Chunk label",
-              source_sentences: ["Gamma ends."],
               temp_id: "temp-1",
             },
           ],
@@ -195,9 +200,11 @@ describe("reader/chunk-batch/parser", () => {
           chunks: [
             {
               content: "Valid chunk",
+              evidence: {
+                start_anchor: "Alpha begins.",
+              },
               label: "Valid label",
               retention: ChunkRetention.Focused,
-              source_sentences: ["Alpha begins."],
               temp_id: "temp-1",
             },
             {

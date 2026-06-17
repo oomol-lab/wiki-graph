@@ -5,7 +5,7 @@ Overview
 
 What SpineDigest does:
   SpineDigest builds portable LLM Wiki archives for AI agents.
-  It imports EPUB, Markdown, plain text, URL-ready text, or stdin into `.sdpub`, then exposes archive objects through deterministic CLI primitives.
+  It creates `.sdpub` archives from EPUB, Markdown, plain text, URL-ready text, or stdin, then exposes archive objects through deterministic CLI primitives.
 
 Three exploration modes:
   1. Search mode:
@@ -25,7 +25,7 @@ Mental model:
   1. Archive object:
      `.sdpub` is the primary object. Treat it as a managed knowledge archive, not as a ZIP file to inspect manually.
   2. Source layer:
-     Import stores normalized source material and metadata. This stage is cheap and safe to run by default.
+     Create stores normalized source material and metadata. This stage is cheap and safe to run by default.
   3. Knowledge layer:
      Build derives graph nodes, summaries, links, and source-backed reading surfaces. Graph and summary stages may call an LLM.
   4. Retrieval layer:
@@ -34,9 +34,9 @@ Mental model:
      `export` writes Markdown, txt, EPUB, or other supported projections. Export is not the core archive object.
 
 Default workflow:
-  spinedigest import book.sdpub ./book.epub
+  spinedigest create book.sdpub ./book.epub
   spinedigest status book.sdpub
-  spinedigest estimate book.sdpub --stage ready
+  spinedigest estimate book.sdpub --stage summary
   spinedigest build book.sdpub --stage graph --confirm
   spinedigest index book.sdpub
   spinedigest list book.sdpub --type chapter
@@ -45,13 +45,9 @@ Default workflow:
   spinedigest read book.sdpub chapter:12
 
 Cost model:
-  - Import/source: cheap, no LLM when kept at source.
+  - Create/source: cheap, no LLM when kept at source.
   - Search/read/navigation/export: cheap after data exists.
-  - Graph/summary/ready build: may call an LLM; estimate first.
-
-Compatibility:
-  The direct `spinedigest transform --input ... --output ...` digest command still exists for one-shot workflows.
-  New automation should prefer archive-first commands.
+  - Graph/summary build: may call an LLM; estimate first.
 
 Where to go next:
   - Need agent rules:

@@ -30,9 +30,7 @@ At a high level, the archive contains three layers of data:
 - digest text outputs at serial and fragment granularity
 - internal relational state used by SpineDigest itself
 
-Archive-level compatibility is expressed by `manifest.json`. Archives
-that omit `manifest.json` are interpreted as format version `1` for
-compatibility with earlier SpineDigest output.
+Archive-level compatibility is expressed by `manifest.json`.
 
 In this document, a _serial_ means one persisted digest unit referenced
 from `toc.json` by `serialId`. A serial usually corresponds to one
@@ -101,9 +99,9 @@ Source-specific notes:
 - EPUB input may produce grouping TOC nodes that omit `serialId`.
 - When the CLI is run with `--stage planned`, serials are allocated but
   source fragments, graph data, and summaries are omitted.
-- When the CLI is run with `--stage sourced`, source fragments are
+- When the CLI is run with `--stage source`, source fragments are
   written but graph data and summaries are omitted.
-- When the CLI is run with `--stage graphed`, graph data is written but
+- When the CLI is run with `--stage graph`, graph data is written but
   summaries are omitted.
 
 For readers and validators:
@@ -161,8 +159,7 @@ Field contract:
 
 - `formatVersion`: currently `1`
 
-Archives that omit `manifest.json` are interpreted as
-`formatVersion: 1`.
+Archives that omit `manifest.json` are invalid.
 
 ### `book-meta.json`
 
@@ -282,10 +279,7 @@ newline.
 ### `fragments/serial-<serialId>/fragment_<fragmentId>.json`
 
 Each fragment file stores lower-level sentence payloads plus a fragment
-summary field. Current writer output always includes both keys, but
-current reader compatibility is broader.
-
-Current writer output:
+summary field.
 
 ```json
 {
@@ -313,16 +307,8 @@ Each sentence record contains:
 - `text`: sentence text
 - `wordsCount`: numeric word count recorded by SpineDigest
 
-Current reader compatibility is broader than current writer output:
-
-- in addition to the object form above, SpineDigest also accepts a
-  legacy fragment file encoded as a top-level JSON array of sentence
-  records; in that case the fragment summary is interpreted as an empty
-  string
-- in object form, a missing or non-string `summary` is interpreted as an
-  empty string
-- in object form, a missing or non-array `sentences` field is
-  interpreted as an empty list
+Fragment files must use the object form above. `summary` and `sentences`
+are required.
 
 ### `database.db`
 
@@ -379,8 +365,7 @@ For a full-fidelity implementation:
 ## Compatibility Notes
 
 - `manifest.json` carries the archive-level format version.
-- Archives without `manifest.json` are treated as archive format version
-  `1`.
+- Archives without `manifest.json` are invalid.
 - `book-meta.json` currently uses `version: 1`.
 - `toc.json` currently uses `version: 1`.
 - Fragment files have no explicit version field.

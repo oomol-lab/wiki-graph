@@ -99,17 +99,9 @@ export async function writeSdpubArchive(
 export async function readSdpubArchiveFormatVersion(
   documentDirectoryPath: string,
 ): Promise<number> {
-  try {
-    return parseSdpubManifest(
-      await readFile(join(documentDirectoryPath, SDPUB_MANIFEST_PATH), "utf8"),
-    ).formatVersion;
-  } catch (error) {
-    if (isFileMissingError(error)) {
-      return SDPUB_FORMAT_VERSION;
-    }
-
-    throw error;
-  }
+  return parseSdpubManifest(
+    await readFile(join(documentDirectoryPath, SDPUB_MANIFEST_PATH), "utf8"),
+  ).formatVersion;
 }
 
 async function listDocumentFiles(
@@ -188,7 +180,7 @@ async function validateArchiveManifest(
   );
 
   if (entry === undefined) {
-    return;
+    throw new Error(`Missing SDPUB manifest: ${SDPUB_MANIFEST_PATH}.`);
   }
 
   parseSdpubManifest(await readArchiveEntryText(zipFile, entry));
@@ -291,10 +283,4 @@ async function readArchiveEntryText(
   }
 
   return Buffer.concat(chunks).toString("utf8");
-}
-
-function isFileMissingError(error: unknown): boolean {
-  return (
-    error instanceof Error && (error as NodeJS.ErrnoException).code === "ENOENT"
-  );
 }

@@ -4,8 +4,8 @@ Topic: command
 Command Reference
 
 Archive-first commands:
-  import      Import source material into an archive at source stage.
-  build       Build graph, summary, or ready stages from existing source data.
+  create      Create an archive from source material at source stage.
+  build       Build graph or summary stages from existing source data.
   estimate    Estimate words, token scale, calls, time, cost, and risk before build.
   status      Show archive readiness and object counts.
   index       Show the archive home/index page.
@@ -22,9 +22,9 @@ Archive-first commands:
   export      Export a projection from the archive.
 
 Command shapes:
-  spinedigest import <archive.sdpub> [source] [--input-format <format>]
-  spinedigest build <archive.sdpub> [--stage <source|graph|summary|ready>] [--chapter <id>] [--confirm]
-  spinedigest estimate <archive.sdpub> [--stage <source|graph|summary|ready>] [--json]
+  spinedigest create <archive.sdpub> [source] [--input-format <format>]
+  spinedigest build <archive.sdpub> [--stage <source|graph|summary>] [--chapter <id>] [--confirm]
+  spinedigest estimate <archive.sdpub> [--stage <source|graph|summary>] [--json]
   spinedigest status <archive.sdpub> [--json]
   spinedigest index <archive.sdpub> [--json]
   spinedigest list <archive.sdpub> [--id <ids>] [--chapter <ids>] [--type <types>] [--order <doc-asc|doc-desc>] [--limit <n>] [--cursor <token>] [--json]
@@ -36,9 +36,10 @@ Command shapes:
   spinedigest pack <archive.sdpub> <id> [--budget <chars>] [--json]
   spinedigest export <archive.sdpub> --output-format <format> [--output <path>]
 
-Direct digest and maintenance:
-  spinedigest transform [--input <path>] [--output <path>] [--input-format <format>] [--output-format <format>] [--digest-dir <path>] [--llm <json>] [--prompt <text>] [--stage <planned|sourced|graphed|summarized>] [--verbose]
-  spinedigest ls <archive.sdpub> [chapters|nodes|edges|fragments|summaries|meta] [--json]
+Direct transform:
+  spinedigest transform [--input <path>] [--output <path>] [--input-format <format>] [--output-format <format>] [--digest-dir <path>] [--llm <json>] [--prompt <text>] [--stage <planned|source|graph|summary>] [--verbose]
+
+Maintenance:
   spinedigest meta <archive.sdpub> [metadata options] [--json]
   spinedigest cover <archive.sdpub>
   spinedigest chapter <action> <archive.sdpub> [options]

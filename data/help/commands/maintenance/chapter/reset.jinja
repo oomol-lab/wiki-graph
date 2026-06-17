@@ -7,12 +7,12 @@ Purpose:
   Move a chapter backward by deleting later-stage artifacts.
 
 Usage:
-  spinedigest chapter reset <path> --chapter <id> --to <stage> [--llm <json>] [--help|-h]
+  spinedigest chapter reset <path> --chapter <id> --to <planned|source|graph> [--llm <json>] [--help|-h]
 
 Targets:
   planned     Delete source text, graph data, and summary.
-  sourced     Keep source text; delete graph data and summary.
-  graphed     Keep source text and graph data; delete summary.
+  source      Keep source text; delete graph data and summary.
+  graph       Keep source text and graph data; delete summary.
 
 Behavior:
   - `--stage summary --confirm` is not supported because reset is a backward operation.

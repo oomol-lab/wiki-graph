@@ -1,18 +1,23 @@
 import { createReadStream } from "fs";
 import { readFile } from "fs/promises";
+import { Readable } from "stream";
 
 import type { DirectoryDocument } from "../document/index.js";
 import {
   addChapter,
-  generateChapterGraph,
-  generateChapterSummary,
+  applyChapterTree,
   getChapterDetails,
+  getChapterTree,
   listChapters,
+  moveChapter,
+  parseChapterTreeInput,
   removeChapter,
   resetChapter,
   setChapterSource,
   setChapterSummary,
   setChapterTitle,
+  type ChapterTree,
+  type ChapterTreeApplyResult,
   type ChapterDetails,
   type ChapterEntry,
 } from "../facade/index.js";
@@ -20,11 +25,6 @@ import { SpineDigestFile } from "../facade/spine-digest-file.js";
 
 import type { CLIArchiveChapterArguments } from "./args.js";
 import { readTextStreamFromStdin, writeTextToStdout } from "./io.js";
-import {
-  createStageLLM,
-  loadRequiredStageConfig,
-  resolveExtractionPrompt,
-} from "./stage-runtime.js";
 
 export async function runArchiveChapterCommand(
   args: CLIArchiveChapterArguments,
@@ -32,39 +32,20 @@ export async function runArchiveChapterCommand(
   switch (args.action) {
     case "add":
       await runEditableCommand(args.path, async (document) => {
-        const details = await addChapter(document, {
+        let details = await addChapter(document, {
           ...(args.parentChapterId === undefined
             ? {}
             : { parentChapterId: args.parentChapterId }),
           ...(args.title === undefined ? {} : { title: args.title }),
         });
 
-        await writeChapterDetails(details);
-      });
-      return;
-    case "generate-graph":
-      await runEditableCommand(args.path, async (document) => {
-        const config = await loadRequiredStageConfig(args);
-        const details = await generateChapterGraph(document, args.chapterId!, {
-          extractionPrompt: resolveExtractionPrompt(
-            args.prompt ?? config.prompt,
-          ),
-          llm: createStageLLM(config),
-        });
-
-        await writeChapterDetails(details);
-      });
-      return;
-    case "generate-summary":
-      await runEditableCommand(args.path, async (document) => {
-        const config = await loadRequiredStageConfig(args);
-        const details = await generateChapterSummary(
-          document,
-          args.chapterId!,
-          {
-            llm: createStageLLM(config),
-          },
-        );
+        if (args.addStage === "sourced") {
+          details = await setChapterSource(
+            document,
+            details.chapterId,
+            Readable.from([await readRequiredSourceText(args)]),
+          );
+        }
 
         await writeChapterDetails(details);
       });
@@ -75,6 +56,26 @@ export async function runArchiveChapterCommand(
           await writeChapterList(await listChapters(document));
         },
       );
+      return;
+    case "move":
+      await runEditableCommand(args.path, async (document) => {
+        const details = await moveChapter(document, args.chapterId!, {
+          ...(args.afterChapterId === undefined
+            ? {}
+            : { afterChapterId: args.afterChapterId }),
+          ...(args.beforeChapterId === undefined
+            ? {}
+            : { beforeChapterId: args.beforeChapterId }),
+          ...(args.first === undefined ? {} : { first: args.first }),
+          ...(args.last === undefined ? {} : { last: args.last }),
+          ...(args.moveToRoot === undefined ? {} : { root: args.moveToRoot }),
+          ...(args.parentChapterId === undefined
+            ? {}
+            : { parentChapterId: args.parentChapterId }),
+        });
+
+        await writeChapterDetails(details);
+      });
       return;
     case "remove":
       await runEditableCommand(args.path, async (document) => {
@@ -100,7 +101,7 @@ export async function runArchiveChapterCommand(
         const details = await setChapterSource(
           document,
           args.chapterId!,
-          createContentStream(args),
+          Readable.from([await readRequiredSourceText(args)]),
         );
 
         await writeChapterDetails(details);
@@ -122,7 +123,7 @@ export async function runArchiveChapterCommand(
         const details = await setChapterTitle(
           document,
           args.chapterId!,
-          args.title,
+          args.clearTitle === true ? null : args.title,
         );
 
         await writeChapterDetails(details);
@@ -134,6 +135,27 @@ export async function runArchiveChapterCommand(
           await writeChapterDetails(
             await getChapterDetails(document, args.chapterId!),
           );
+        },
+      );
+      return;
+    case "tree":
+      if (args.treeAction === "apply") {
+        await runEditableCommand(args.path, async (document) => {
+          await writeChapterTreeApplyResult(
+            await applyChapterTree(
+              document,
+              parseChapterTreeInput(JSON.parse(await readContentText(args))),
+              { dryRun: args.dryRun ?? false },
+            ),
+            args.dryRun ?? false,
+          );
+        });
+        return;
+      }
+
+      await new SpineDigestFile(args.path).openEditableSession(
+        async (document) => {
+          await writeChapterTree(await getChapterTree(document));
         },
       );
       return;
@@ -177,11 +199,25 @@ async function readContentText(
   return content;
 }
 
+async function readRequiredSourceText(
+  args: Pick<CLIArchiveChapterArguments, "inputPath">,
+): Promise<string> {
+  const content = await readContentText(args);
+
+  if (content.trim() === "") {
+    throw new Error(
+      "Source input is empty. Pass non-empty text with --input <path> or pipe text into stdin.",
+    );
+  }
+
+  return content;
+}
+
 async function writeChapterDetails(details: ChapterDetails): Promise<void> {
   const lines = [
     `Chapter: ${details.chapterId}`,
     `Title: ${details.title ?? "[untitled]"}`,
-    `Stage: ${details.stage}`,
+    `Stage: ${formatStage(details.stage)}`,
     `Source Units: ${details.fragmentCount}`,
     `Children: ${details.childCount}`,
     `Graph: ${details.graphReady ? "yes" : "no"}`,
@@ -203,8 +239,63 @@ async function writeChapterList(
     `${entries
       .map(
         (entry) =>
-          `${"  ".repeat(entry.depth)}[${entry.chapterId}] ${entry.stage.padEnd(10)} ${entry.title ?? "[untitled]"}`,
+          `${"  ".repeat(entry.depth)}[${entry.chapterId}] ${formatStage(entry.stage).padEnd(8)} ${entry.title ?? "[untitled]"}`,
       )
       .join("\n")}\n`,
   );
+}
+
+async function writeChapterTree(tree: ChapterTree): Promise<void> {
+  await writeTextToStdout(`${JSON.stringify(tree, null, 2)}\n`);
+}
+
+async function writeChapterTreeApplyResult(
+  result: ChapterTreeApplyResult,
+  dryRun: boolean,
+): Promise<void> {
+  const lines = [
+    dryRun ? "Dry run: chapter tree not changed." : "Applied chapter tree.",
+    `Changed: ${result.changed ? "yes" : "no"}`,
+    `Moved: ${result.moved.length}`,
+    `Renamed: ${result.renamed.length}`,
+    `Unchanged: ${result.unchanged}`,
+  ];
+
+  for (const move of result.moved) {
+    lines.push(
+      `Move ${move.chapterId}: ${formatPath(move.oldPath)} [parent ${formatParent(move.oldParentChapterId)}, index ${move.oldIndex}] -> ${formatPath(move.newPath)} [parent ${formatParent(move.newParentChapterId)}, index ${move.newIndex}]`,
+    );
+  }
+  for (const rename of result.renamed) {
+    lines.push(
+      `Rename ${rename.chapterId}: ${formatTitle(rename.oldTitle)} -> ${formatTitle(rename.newTitle)}`,
+    );
+  }
+
+  await writeTextToStdout(`${lines.join("\n")}\n`);
+}
+
+function formatParent(parentChapterId: number | null): string {
+  return parentChapterId === null ? "root" : String(parentChapterId);
+}
+
+function formatPath(path: readonly string[]): string {
+  return path.join(" / ");
+}
+
+function formatTitle(title: string | null): string {
+  return title === null ? "null" : JSON.stringify(title);
+}
+
+function formatStage(stage: ChapterEntry["stage"]): string {
+  switch (stage) {
+    case "planned":
+      return "planned";
+    case "sourced":
+      return "source";
+    case "graphed":
+      return "graph";
+    case "summarized":
+      return "summary";
+  }
 }
