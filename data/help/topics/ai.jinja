@@ -5,28 +5,31 @@ AI Agent Guide
 
 Primary contract:
   - Treat `.sdpub` as an LLM Wiki archive managed by SpineDigest.
-  - Use `spinedigest index/list/find/grep/page/read/links/backlinks/export` before unpacking or inspecting ZIP internals.
+  - Use archive commands such as `chapter tree`, `list`, `find`, `grep`, `page`, `read`, `links`, `backlinks`, and `export` before unpacking or inspecting ZIP internals.
   - Choose one of three exploration modes first: search mode (`find`/`grep`), structure mode (`chapter tree`/`list`/`page`), or reading mode (`read`).
   - In search mode, treat untyped `find` as broad candidate discovery. For content understanding, choose a search lens: `--type node`, `--type summary`, or `--type fragment`.
+  - Use `index` when archive-level readiness or metadata matters; after `chapter tree`, scoped `list --chapter <ids>` is usually a lower-context way to expand selected chapters.
+  - For evidence tracing, logic-chain reconstruction, or relationship analysis from source text, `page fragment:<id>` keeps source text with adjacent fragments and related node labels.
   - Prefer `--json` when composing with tools.
   - Do not inspect `database.db` for routine retrieval.
   - Do not launch full-archive LLM-backed builds without estimating first.
 
 Safe first moves:
-  - Existing archive:
-    spinedigest status <archive.sdpub>
-    spinedigest index <archive.sdpub>
   - Broad understanding, synthesis, timeline, relationship, or process tasks:
     spinedigest chapter tree <archive.sdpub> --json
-    spinedigest list <archive.sdpub> --type chapter
+    spinedigest list <archive.sdpub> --type node --chapter <ids>
     spinedigest page <archive.sdpub> chapter:<id>
     # inspect nodeGroups, then:
     spinedigest page <archive.sdpub> node:<id>
+  - Archive readiness, metadata, or build state:
+    spinedigest status <archive.sdpub>
+    spinedigest index <archive.sdpub>
   - Locate candidate chapters or verify missing concepts:
     spinedigest find <archive.sdpub> <query>
     spinedigest find <archive.sdpub> <query> --type node
     spinedigest find <archive.sdpub> <query> --type summary
     spinedigest find <archive.sdpub> <query> --type fragment
+    spinedigest page <archive.sdpub> fragment:<serial>:<fragment>
     spinedigest grep <archive.sdpub> <exact phrase>
     spinedigest list <archive.sdpub> --type node --chapter <id>
   - Continuous reading after topology selection:
@@ -69,11 +72,11 @@ Maintenance commands:
   - Prefer archive-first commands unless the user specifically needs metadata mutation, cover extraction, or chapter tree edits.
 
 Discovery rule:
-  If the user question asks for synthesis, a timeline, a process, a relationship map, character development, or conceptual structure, start with `chapter tree --json` for table-of-contents hierarchy, then `list --type chapter`, then `page chapter:<id>` and inspect `nodeGroups`. Do not flatten the archive into raw text first.
+  If the user question asks for synthesis, a timeline, a process, a relationship map, character development, or conceptual structure, start with `chapter tree --json` for a compact table-of-contents map, then select likely chapter ids and use scoped `list --chapter <ids>` or `page chapter:<id>` to expand local context. This usually spends less context than returning to archive-level entry points. Do not flatten the archive into raw text first.
   Use `find` for multi-keyword discovery after the topology pass, or when you need to locate candidate chapters quickly. Whitespace separates keywords, default matching is `--match any`, and stronger matches are ranked first.
   Untyped `find` is broad candidate discovery across metadata, chapter titles, summaries, nodes, and fragments.
   For content understanding, choose a search lens: `--type node` for topology / LLM Wiki structure, `--type summary` for quick overview, or `--type fragment` for original source wording.
   Use `find --match all` only when every keyword must appear inside the same returned object.
   Use `grep` only when checking whether an exact continuous phrase exists.
   Use `--chapter`, `--limit`, and returned `nextCursor` to keep retrieval bounded and reproducible.
-  Use `read` when the user wants to understand a chapter or fragment as prose rather than navigate object ids.
+  Use `page fragment:<id>` when source evidence should lead into related nodes or adjacent fragments. Use `read` when the user wants to understand a chapter or fragment as prose rather than navigate object ids.

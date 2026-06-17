@@ -12,13 +12,15 @@ Three exploration modes:
      `find` discovers objects by deterministic keywords; `grep` checks exact text phrases.
      Treat untyped `find` as broad candidate discovery. For content understanding, choose a search lens: `--type node` for topology / LLM Wiki structure, `--type summary` for quick overview, or `--type fragment` for original source wording.
   2. Structure mode:
-     `chapter tree --json` shows table-of-contents hierarchy and chapter ordering; `list` returns bounded collections; `page` opens one detailed object with local navigation such as chapter node groups, node source fragments, and node neighbors.
+     `chapter tree --json` shows a compact table-of-contents map; scoped `list --chapter <ids>` expands selected chapters into bounded collections; `page` opens one detailed object with local navigation such as chapter node groups, node source fragments, and node neighbors.
   3. Reading mode:
      `read` prints continuous plain text for a chapter, summary, fragment, or node.
+     When source text is evidence for a logic chain or relationship task, `page fragment:<id>` keeps the text with adjacent fragments and related node labels.
 
 Priority:
   For synthesis, timelines, relationships, process reconstruction, or concept-structure tasks, use Structure mode first:
-    chapter tree --json -> list --type chapter -> page chapter:<id>
+    chapter tree --json -> list --chapter <ids> -> page chapter:<id>
+  `index` is useful for archive-level readiness and metadata. After a chapter tree, selecting a small set of chapter ids and using scoped list/page usually spends less context for content exploration.
   Treat `find` as candidate discovery and verification, not as the default way to flatten a `.sdpub` into plain text.
 
 Mental model:
@@ -38,10 +40,10 @@ Default workflow:
   spinedigest status book.sdpub
   spinedigest estimate book.sdpub --stage summary
   spinedigest build book.sdpub --stage graph --confirm
-  spinedigest index book.sdpub
   spinedigest chapter tree book.sdpub --json
-  spinedigest list book.sdpub --type chapter
-  spinedigest find book.sdpub "keyword" --type node
+  spinedigest list book.sdpub --type node --chapter 3,7,12
+  spinedigest find book.sdpub "keyword" --type fragment --chapter 3,7,12
+  spinedigest page book.sdpub fragment:3:4
   spinedigest page book.sdpub node:84
   spinedigest read book.sdpub chapter:12
 
