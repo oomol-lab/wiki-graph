@@ -2,9 +2,9 @@
 
 # Library Usage
 
-SpineDigest 也提供面向 Node 和 TypeScript 环境的程序化 API。
+SpineDigest 提供面向 Node 和 TypeScript 环境的程序化 API。
 
-但这是次一级接口。如果你只是想直接使用这条管线，优先看 CLI 文档。
+CLI 是当前处理 `.sdpub` 知识库的主要、也是最完整的接口。Library API 更低层：当外围 Node 应用需要在进程内运行导入、构建、导出或打开归档流程时，再使用它。
 
 ## 环境要求
 
@@ -22,11 +22,15 @@ npm install spinedigest
 
 同时支持 ESM `import` 和 CommonJS `require()`。
 
-## 典型流程
+## 当前 API 形态
+
+当前公开 library API 仍然反映底层 digest session 模型。当你需要从 Node 代码直接控制流程时使用它；当你需要完整 LLM Wiki 检索界面时，使用 CLI，也就是 `list`、`page`、`find`、`read`、`links`、`pack` 等相关命令。
+
+典型流程：
 
 1. 用一个 LLM model 构造 `SpineDigestApp`。
-2. 针对源文件或文本流打开一个 digest session。
-3. 在回调里使用提供的 `SpineDigest` 对象进行导出或读取信息。
+2. 针对源文件或文本流打开 digest session，或打开已有 `.sdpub`。
+3. 使用提供的 `SpineDigest` 对象检查 metadata、导出 projection，或保存归档。
 
 ## 示例
 
@@ -70,13 +74,13 @@ const { SpineDigestApp } = require("spinedigest");
 - `digestTextStreamSession`
 - `openSession`
 
-`openSession` 面向已有的 `.sdpub` 归档，不需要重新执行一轮新的 digest。
+`openSession` 面向已有的 `.sdpub` 归档，不需要重新执行一轮新的 source digest。
 
 ## 进度回调
 
-digest session 的 option 现在可以传入可选的 `onProgress` 回调。
+digest session 的 option 可以传入可选的 `onProgress` 回调。
 
-这个回调在 digest 过程中会提供三种事件：
+这个回调在 LLM-backed generation 过程中会提供三种事件：
 
 - `serials-discovered`：一次性报告所有已发现 serial 的 id、fragment 数量和总词数；如果当前输入无法提前发现，则会发出一次 `available: false` 且 `serials` 为空数组的事件
 - `serial-progress`：报告某个 serial 当前已经完成的词数和 fragment 数量
@@ -95,8 +99,8 @@ digest session 的 option 现在可以传入可选的 `onProgress` 回调。
 
 ## 补充说明
 
-- digest 操作需要提供 LLM 配置。
-- 已有 `.sdpub` 可以在不重新处理源文件的情况下重新打开。
+- LLM-backed digest 和 build 工作需要提供 LLM 配置。
+- 已有 `.sdpub` 可以在不重新导入源文件的情况下重新打开。
 - 如果你是在评估项目是否可以直接使用，请先从 CLI 文档开始。
 
 ## 相关文档

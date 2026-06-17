@@ -2,7 +2,7 @@
 
 # CLI Reference
 
-SpineDigest 采用 archive-first CLI。主命令形态是：
+SpineDigest 采用 archive-first CLI。主对象是 `.sdpub` 知识库归档，主命令形态是：
 
 ```bash
 spinedigest <action> <archive.sdpub> ...
@@ -33,8 +33,8 @@ spinedigest export <archive.sdpub> --output-format <format> [--output <path>]
 探索模式：
 
 - 搜索模式：`find` 用确定性关键词发现对象；`grep` 检查连续精确文本。
-- 结构模式：`list` 返回有界对象集合；`page` 打开一个带局部导航的详情页。
-- 阅读模式：`read` 将一个对象以连续纯文本输出。
+- 结构模式：`list` 查看章节和知识点目录；`page` 打开具体页面并暴露相关节点、来源片段和链接。
+- 阅读模式：`read` 输出选定章节、知识点、summary、原文片段或 metadata object 的连续文本。
 
 搜索与集合行为：
 
@@ -95,7 +95,7 @@ spinedigest page book.sdpub chapter:3 --json
 
 ## 直接 Transform
 
-`transform` 运行一次性的 direct digest/export，不创建可复用的 `.sdpub` 归档：
+`transform` 运行一次性的 direct digest/export，不创建可复用的 `.sdpub` 知识库归档：
 
 ```bash
 spinedigest transform [--input <path>] [--output <path>] [--input-format <format>] [--output-format <format>] [--digest-dir <path>] [--llm <json>] [--prompt <text>] [--stage <planned|source|graph|summary>] [--verbose]

@@ -2,9 +2,9 @@
 
 # Library Usage
 
-SpineDigest also exposes a programmatic API for Node and TypeScript environments.
+SpineDigest exposes a programmatic API for Node and TypeScript environments.
 
-This is a secondary interface. If you only need to run the pipeline, prefer the CLI.
+The CLI is the primary and most complete interface for working with `.sdpub` as a knowledge base. The library API is lower-level: it is useful when a surrounding Node application needs to run import, build, export, or archive-opening flows in process.
 
 ## Requirements
 
@@ -22,11 +22,15 @@ The package exports `SpineDigestApp`, `SpineDigest`, and language helpers from t
 
 Both ESM `import` and CommonJS `require()` are supported.
 
-## Typical Flow
+## Current API Shape
+
+The current public library API still reflects the underlying digest session model. Use it when you need direct control from Node code; use the CLI when you need the full LLM Wiki retrieval surface (`list`, `page`, `find`, `read`, `links`, `pack`, and related commands).
+
+Typical flow:
 
 1. Construct `SpineDigestApp` with an LLM model.
-2. Open a digest session for a source file or text stream.
-3. Use the provided `SpineDigest` object to export or inspect the result.
+2. Open a digest session for a source file or text stream, or open an existing `.sdpub`.
+3. Use the provided `SpineDigest` object to inspect metadata, export projections, or save the archive.
 
 ## Example
 
@@ -70,13 +74,13 @@ const { SpineDigestApp } = require("spinedigest");
 - `digestTextStreamSession`
 - `openSession`
 
-`openSession` is for existing `.sdpub` archives and does not require a fresh digest run.
+`openSession` is for existing `.sdpub` archives and does not require a fresh source digest run.
 
 ## Progress Callbacks
 
 Digest session options accept an optional `onProgress` callback.
 
-The callback reports three event shapes during digest generation:
+The callback reports three event shapes during LLM-backed generation:
 
 - `serials-discovered`, which reports all discovered serial ids plus their fragment counts and total word counts in one batch; when discovery cannot be done up front, it is emitted once with `available: false` and an empty `serials` array
 - `serial-progress`, which reports completed word count and completed fragment count for a specific serial id
@@ -95,8 +99,8 @@ The callback reports three event shapes during digest generation:
 
 ## Notes
 
-- Digest operations require an LLM configuration.
-- Existing `.sdpub` archives can be reopened without re-running the source digest.
+- LLM-backed digest and build work requires an LLM configuration.
+- Existing `.sdpub` archives can be reopened without re-running source import.
 - If you are evaluating the project for direct use, start with the CLI docs instead.
 
 ## Related Docs

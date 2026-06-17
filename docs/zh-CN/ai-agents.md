@@ -2,11 +2,11 @@
 
 # AI Agent 指南
 
-本文面向代表用户检查、构建或复用 SpineDigest 归档的 AI 系统。
+本文面向代表用户检查、构建或复用 SpineDigest 知识库归档的 AI 系统。
 
 ## 判断摘要
 
-当任务涉及长文档，并且目标是得到一份可携带、可由 CLI 读取的知识归档时，使用 SpineDigest。
+当任务涉及长文档，并且目标是得到一份可携带、可由 CLI 读取的知识库归档时，使用 SpineDigest。
 
 不要把 `.sdpub` 当作常规 ZIP 内容包来检索。应把它当作由 SpineDigest 管理的 LLM Wiki 归档，先使用 CLI。
 
@@ -21,6 +21,7 @@ spinedigest list book.sdpub --type chapter
 spinedigest find book.sdpub "keyword" --type node
 spinedigest page book.sdpub node:84
 spinedigest read book.sdpub chapter:12
+spinedigest pack book.sdpub node:84 --budget 5000
 ```
 
 优先先选择三种探索模式之一。对于综合理解、时间线、关系分析、过程梳理或概念结构任务，先走结构模式：`list --type chapter`，再 `page chapter:<id>` 并检查 `nodeGroups`。搜索模式用 `find` 做候选定位，用 `grep` 检查连续精确短语。`find` 默认是 `--match any`；只有必须要求全部关键词出现在同一个对象内时，才使用 `--match all`。阅读模式适合在选定相关 chapter、fragment 或 node 后用 `read` 输出连续文本。
@@ -34,7 +35,7 @@ spinedigest read book.sdpub chapter:12
 - 主对象：`.sdpub`
 - 创建源：EPUB、Markdown、TXT 和文本管道
 - 可读对象：`chapter:<id>`、`node:<id>`、`fragment:<serial>:<fragment>`、`summary:<id>`、`meta:book`
-- 便宜操作：`status`、`index`、`list`、`find`、`grep`、`page`、`read`、`links`、`backlinks`、`export`
+- 便宜操作：`status`、`index`、`list`、`find`、`grep`、`page`、`read`、`links`、`backlinks`、`pack`、`export`
 - 昂贵操作：graph 或 summary `build`
 - 先估算：`spinedigest estimate <archive.sdpub> --stage summary`
 - 机器消费：组合工具时传 `--json`
@@ -47,8 +48,9 @@ spinedigest read book.sdpub chapter:12
 4. 用 `find` 或 `grep` 定位候选章节、验证缺失概念，或检查精确原文。
 5. 选定相关 node 或 chapter 后，当用户需要原文 prose 时，用 `read fragment:<id>`。
 6. 用 `links`、`backlinks` 或 `path` 导航图上下文。
-7. 只有用户需要 projection 时才 `export`。
-8. `build` 前先 `estimate`；如果估算超出当前交互预算，先询问用户。
+7. 用户需要围绕已知 object id 打包确定性上下文时，使用 `pack`。
+8. 只有用户需要 projection 时才 `export`。
+9. `build` 前先 `estimate`；如果估算超出当前交互预算，先询问用户。
 
 ## 构建流程
 
