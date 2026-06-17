@@ -17,6 +17,7 @@ Prefer archive-first CLI commands:
 ```bash
 spinedigest status book.sdpub
 spinedigest index book.sdpub
+spinedigest chapter tree book.sdpub --json
 spinedigest list book.sdpub --type chapter
 spinedigest find book.sdpub "keyword" --type node
 spinedigest page book.sdpub node:84
@@ -24,7 +25,7 @@ spinedigest read book.sdpub chapter:12
 spinedigest pack book.sdpub node:84 --budget 5000
 ```
 
-Use three exploration modes. For synthesis, timelines, relationship analysis, process reconstruction, or concept-structure tasks, start with Structure mode: `list --type chapter`, then `page chapter:<id>` and inspect `nodeGroups`. Search mode uses `find` for candidate discovery and `grep` for exact phrases. `find` defaults to `--match any`; use `--match all` only when every keyword must appear in the same object. Reading mode uses `read` after the relevant chapter, fragment, or node has been selected.
+Use three exploration modes. For synthesis, timelines, relationship analysis, process reconstruction, or concept-structure tasks, start with Structure mode: `chapter tree --json` for table-of-contents hierarchy, then `list --type chapter`, then `page chapter:<id>` and inspect `nodeGroups`. Search mode uses `find` for candidate discovery and `grep` for exact phrases. `find` defaults to `--match any`; use `--match all` only when every keyword must appear in the same object. Reading mode uses `read` after the relevant chapter, fragment, or node has been selected.
 
 Untyped `find` is broad candidate discovery. For content understanding, choose a search lens: `--type node` for topology / LLM Wiki structure, `--type summary` for quick overview, or `--type fragment` for original source wording. Use `--chapter`, `--limit`, and `--cursor` to keep retrieval bounded.
 
@@ -43,7 +44,7 @@ Use the library API only when the surrounding system explicitly needs in-process
 ## Recommended Execution Strategy
 
 1. For an unknown archive, run `status` and `index`.
-2. For understanding tasks, use `list --type chapter`, then `page chapter:<id>` before keyword search.
+2. For understanding tasks, use `chapter tree --json`, then `list --type chapter`, then `page chapter:<id>` before keyword search.
 3. Inspect chapter `nodeGroups`, then use `page node:<id>` for relevant knowledge nodes.
 4. Use `find` or `grep` to locate candidate chapters, verify missing concepts, or check exact source wording.
 5. Use `read fragment:<id>` when the user needs original source prose after selecting a relevant node or chapter.

@@ -15,13 +15,13 @@ Three exploration modes:
        --type summary   quick overview
        --type fragment  original source wording
   2. Structure mode:
-     Use `list` to get bounded object collections and `page` to open one detailed object with local navigation.
+     Use `chapter tree --json` for table-of-contents hierarchy, `list` for bounded object collections, and `page` to open one detailed object with local navigation.
   3. Reading mode:
      Use `read` to print chapter, summary, fragment, or node text as continuous plain text.
 
 Task routing:
   For synthesis, timelines, relationship analysis, process reconstruction, or concept-structure tasks, start with Structure mode:
-    status -> index -> list --type chapter -> page chapter:<id>
+    status -> index -> chapter tree --json -> list --type chapter -> page chapter:<id>
   Use broad `find` to locate candidate chapters or verify missing concepts, then add a search lens (`--type node|summary|fragment`) for content judgments. Use `grep` only for exact source wording.
 
 Archive-first usage:
@@ -52,7 +52,7 @@ Maintenance usage:
   spinedigest config status [--llm <json>] [--help|-h]
   spinedigest help [topic] [--help|-h]
 
-  `transform` is for direct one-shot digest/export. Maintenance commands are for metadata, cover extraction, and chapter tree edits. Routine archive exploration should use `index`, `list`, `page`, `find`, `grep`, and `read`.
+  `transform` is for direct one-shot digest/export. `chapter tree` without `apply` is read-only structure inspection. Maintenance commands are for metadata, cover extraction, and mutating chapter tree edits. Routine archive exploration should use `index`, `chapter tree`, `list`, `page`, `find`, `grep`, and `read`.
 
 Core object ids:
   chapter:<id>     A chapter-like archive page.

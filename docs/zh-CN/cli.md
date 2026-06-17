@@ -33,7 +33,7 @@ spinedigest export <archive.sdpub> --output-format <format> [--output <path>]
 探索模式：
 
 - 搜索模式：`find` 用确定性关键词发现对象；`grep` 检查连续精确文本。
-- 结构模式：`list` 查看章节和知识点目录；`page` 打开具体页面并暴露相关节点、来源片段和链接。
+- 结构模式：`chapter tree --json` 查看目录层级；`list` 查看章节和知识点集合；`page` 打开具体页面并暴露相关节点、来源片段和链接。
 - 阅读模式：`read` 输出选定章节、知识点、summary、原文片段或 metadata object 的连续文本。
 
 搜索与集合行为：
@@ -113,7 +113,7 @@ spinedigest cover <archive.sdpub>
 spinedigest chapter <list|status|add|move|remove|reset|set-source|set-summary|set-title|tree> <path> [options]
 ```
 
-常规探索请使用 archive-first commands。维护命令用于 metadata 编辑、cover 提取和 chapter tree 编辑。`chapter tree` 输出稳定 JSON tree，未命名章节会显示 `title: null`；`chapter tree apply` 可以重排章节，并在节点包含 `title` 时修改标题。
+常规探索请使用 archive-first commands。无 `apply` 的 `chapter tree` 是只读结构检查，会输出稳定 JSON tree，未命名章节显示为 `title: null`。维护命令用于 metadata 编辑、cover 提取和会修改 chapter tree 的编辑；`chapter tree apply` 可以重排章节，并在节点包含 `title` 时修改标题。
 
 `spinedigest config status` 输出配置状态。`spinedigest status <archive.sdpub>` 输出归档状态。
 

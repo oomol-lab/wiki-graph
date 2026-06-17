@@ -344,7 +344,9 @@ async function buildArchive(args: CLIArchiveArguments): Promise<void> {
       result = await advanceChapterStages(document, {
         ...(args.chapterId === undefined ? {} : { chapterId: args.chapterId }),
         extractionPrompt: resolveExtractionPrompt(args.prompt ?? config.prompt),
-        llm: createStageLLM(config),
+        llm: createStageLLM(config, {
+          onStreamProgress: progressWriter.onStreamProgress,
+        }),
         onProgress: progressWriter.onProgress,
         targetStage,
       });
@@ -364,16 +366,26 @@ async function withArchiveDocument<T>(
 }
 
 function createStageAdvanceProgressWriter(input?: {
-  readonly heartbeatIntervalMs?: number;
+  readonly refreshIntervalMs?: number;
 }): {
   readonly onProgress: (
     event: AdvanceChapterStagesProgressEvent,
   ) => Promise<void>;
+  readonly onStreamProgress: (event: {
+    readonly outputCharacters: number;
+  }) => Promise<void>;
   stop(): Promise<void>;
 } {
-  const heartbeatIntervalMs = input?.heartbeatIntervalMs ?? 15_000;
-  let heartbeat: NodeJS.Timeout | undefined;
-  let activeLabel: string | undefined;
+  const refreshIntervalMs = input?.refreshIntervalMs ?? 5_000;
+  const outputCharactersPerToken = 4;
+  let graphWords = 0;
+  let summaryWords = 0;
+  let totalGraphWords = 0;
+  let totalSummaryWords = 0;
+  let outputCharacters = 0;
+  let lastRenderAt = 0;
+  let lastRenderedLine: string | undefined;
+  let renderedStatusLine = false;
   let writeQueue = Promise.resolve();
 
   const writeLine = async (line: string): Promise<void> => {
@@ -385,59 +397,107 @@ function createStageAdvanceProgressWriter(input?: {
     await writeQueue;
   };
 
-  const clearHeartbeat = (): void => {
-    if (heartbeat !== undefined) {
-      clearInterval(heartbeat);
-      heartbeat = undefined;
+  const writeStatus = async (force = false): Promise<void> => {
+    const now = Date.now();
+    const line = formatBuildProgressLine({
+      graphWords,
+      outputTokens: estimateOutputTokens(
+        outputCharacters,
+        outputCharactersPerToken,
+      ),
+      summaryWords,
+      totalGraphWords,
+      totalSummaryWords,
+    });
+
+    if (
+      !force &&
+      (line === lastRenderedLine || now - lastRenderAt < refreshIntervalMs)
+    ) {
+      return;
     }
+
+    lastRenderAt = now;
+    lastRenderedLine = line;
+    writeQueue = writeQueue
+      .catch(() => undefined)
+      .then(async () => {
+        await writeTextToStderr(`\r${line}`);
+      });
+    renderedStatusLine = true;
+    await writeQueue;
   };
 
-  const startHeartbeat = (label: string): void => {
-    clearHeartbeat();
-    activeLabel = label;
-    heartbeat = setInterval(() => {
-      const currentLabel = activeLabel;
+  const finishStatusLine = async (): Promise<void> => {
+    if (!renderedStatusLine) {
+      return;
+    }
 
-      if (currentLabel === undefined) {
-        return;
-      }
+    writeQueue = writeQueue
+      .catch(() => undefined)
+      .then(async () => {
+        await writeTextToStderr("\n");
+      });
+    renderedStatusLine = false;
+    await writeQueue;
+  };
 
-      void writeLine(`Still ${currentLabel.toLowerCase()}...`);
-    }, heartbeatIntervalMs);
-    heartbeat.unref();
+  const applyProgressState = (
+    event: AdvanceChapterStagesProgressEvent,
+  ): void => {
+    if (!("state" in event)) {
+      return;
+    }
+
+    graphWords = event.state.graphWords;
+    summaryWords = event.state.summaryWords;
+    totalGraphWords = event.state.totalGraphWords;
+    totalSummaryWords = event.state.totalSummaryWords;
   };
 
   return {
     async onProgress(event) {
+      applyProgressState(event);
+
       switch (event.type) {
         case "selected":
+          await finishStatusLine();
           await writeLine(
             `Selected ${event.totalChapters} ${event.totalChapters === 1 ? "chapter" : "chapters"}; target: ${formatStage(event.targetStage)}.`,
           );
+          await writeStatus(true);
           return;
         case "skipped":
+          await finishStatusLine();
           await writeLine(
             `Skipping ${formatProgressChapter(event.chapter)}: source is missing.`,
           );
           return;
         case "started": {
           const label = `${formatProgressVerb(event.step)} for ${formatProgressChapter(event.chapter)}`;
-          startHeartbeat(label);
+          await finishStatusLine();
           await writeLine(`${label}...`);
+          await writeStatus(true);
           return;
         }
+        case "progress":
+          await writeStatus();
+          return;
         case "completed":
-          clearHeartbeat();
-          activeLabel = undefined;
+          await writeStatus(true);
+          await finishStatusLine();
           await writeLine(
             `Finished ${formatProgressStep(event.step)} for ${formatProgressChapter(event.chapter)}.`,
           );
           return;
       }
     },
+    async onStreamProgress(event) {
+      outputCharacters += event.outputCharacters;
+      await writeStatus();
+    },
     async stop() {
-      clearHeartbeat();
-      activeLabel = undefined;
+      await finishStatusLine();
       await writeQueue.catch(() => undefined);
     },
   };
@@ -894,6 +954,36 @@ function formatDuration(seconds: number): string {
   }
 
   return `${Math.round(minutes / 60)}h`;
+}
+
+function formatBuildProgressLine(input: {
+  readonly graphWords: number;
+  readonly outputTokens: number;
+  readonly summaryWords: number;
+  readonly totalGraphWords: number;
+  readonly totalSummaryWords: number;
+}): string {
+  return [
+    "[build]",
+    `graph=${formatWholeNumber(input.graphWords)}/${formatWholeNumber(input.totalGraphWords)}w`,
+    `summary=${formatWholeNumber(input.summaryWords)}/${formatWholeNumber(input.totalSummaryWords)}w`,
+    `out~${formatWholeNumber(input.outputTokens)}tok`,
+  ].join(" ");
+}
+
+function estimateOutputTokens(
+  outputCharacters: number,
+  outputCharactersPerToken: number,
+): number {
+  if (outputCharacters <= 0) {
+    return 0;
+  }
+
+  return Math.ceil(outputCharacters / outputCharactersPerToken);
+}
+
+function formatWholeNumber(value: number): string {
+  return String(Math.max(0, Math.round(value)));
 }
 
 async function writeAdvanceResult(

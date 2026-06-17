@@ -17,7 +17,7 @@ It is not a one-shot book-to-summary converter. Summaries, EPUB, Markdown, and J
 There are three main ways to explore a `.sdpub` archive:
 
 - **Search mode:** use `find` to discover keyword-related objects and `grep` to check exact continuous text.
-- **Structure mode:** use `list` to inspect chapter and knowledge-node directories, then `page` to open a page and follow related nodes, source fragments, and links.
+- **Structure mode:** use `chapter tree --json` for the table-of-contents hierarchy, `list` for chapter and knowledge-node collections, then `page` to open a page and follow related nodes, source fragments, and links.
 - **Reading mode:** use `read` for continuous reading of chapters, knowledge nodes, or source fragments.
 
 Together, these modes let long documents behave like navigable knowledge bases: start with structure, locate relevant content, then return to source text and knowledge nodes for deeper reading.

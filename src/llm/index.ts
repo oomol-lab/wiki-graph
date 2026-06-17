@@ -11,6 +11,7 @@ export type {
   LLMModel,
   LLMOptions,
   LLMRequestOptions,
+  LLMStreamProgressCallback,
   SamplingProfile,
   SamplingScopeConfig,
   TemperatureSetting,

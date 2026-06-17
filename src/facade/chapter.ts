@@ -7,6 +7,7 @@ import { z } from "zod";
 import {
   SerialGeneration,
   writeSerialSource,
+  type SerialProgressSink,
   type BuildSerialTopologyOptions,
 } from "../serial.js";
 import { TOC_FILE_VERSION, type TocItem } from "../source/index.js";
@@ -28,11 +29,13 @@ export interface ChapterEntry {
   readonly stage: ChapterStage;
   readonly title: string | null;
   readonly tocPath: readonly string[];
+  readonly words: number;
 }
 
 export interface ChapterDetails extends ChapterEntry {
   readonly graphReady: boolean;
   readonly hasSummary: boolean;
+  readonly words: number;
 }
 
 export interface ChapterTree {
@@ -97,6 +100,13 @@ export interface AdvanceChapterStagesOptions {
   readonly userLanguage?: Language;
 }
 
+export interface AdvanceChapterStagesProgressState {
+  readonly graphWords: number;
+  readonly summaryWords: number;
+  readonly totalGraphWords: number;
+  readonly totalSummaryWords: number;
+}
+
 export type AdvanceChapterStagesProgressCallback = (
   event: AdvanceChapterStagesProgressEvent,
 ) => void | Promise<void>;
@@ -104,6 +114,7 @@ export type AdvanceChapterStagesProgressCallback = (
 export type AdvanceChapterStagesProgressEvent =
   | {
       readonly type: "selected";
+      readonly state: AdvanceChapterStagesProgressState;
       readonly targetStage: ChapterStage;
       readonly totalChapters: number;
     }
@@ -111,6 +122,11 @@ export type AdvanceChapterStagesProgressEvent =
       readonly type: "skipped";
       readonly chapter: ChapterEntry;
       readonly reason: "planned";
+      readonly targetStage: ChapterStage;
+    }
+  | {
+      readonly type: "progress";
+      readonly state: AdvanceChapterStagesProgressState;
       readonly targetStage: ChapterStage;
     }
   | {
@@ -130,6 +146,12 @@ export interface AdvanceChapterStagesResult {
   readonly advanced: readonly ChapterEntry[];
   readonly pending: readonly ChapterEntry[];
   readonly skipped: readonly ChapterEntry[];
+}
+
+interface MutableAdvanceProgressState {
+  addGraphWords(words: number): void;
+  addSummaryWords(words: number): void;
+  snapshot(): AdvanceChapterStagesProgressState;
 }
 
 export interface AddChapterOptions {
@@ -159,6 +181,7 @@ export interface GenerateChapterGraphOptions {
   readonly extractionPrompt: string;
   readonly llm: LLM<SpineDigestScope>;
   readonly logDirPath?: string;
+  readonly progressTracker?: SerialProgressSink;
   readonly userLanguage?: Language;
 }
 
@@ -182,7 +205,12 @@ export async function advanceChapterStages(
 
   const advancedIds = new Set<number>();
   const entries = await selectChapterEntries(document, options.chapterId);
+  const progressState = createAdvanceProgressState(
+    entries,
+    options.targetStage,
+  );
   await emitAdvanceProgress(options, {
+    state: progressState.snapshot(),
     targetStage: options.targetStage,
     totalChapters: entries.length,
     type: "selected",
@@ -192,6 +220,7 @@ export async function advanceChapterStages(
   if (isStageBefore("sourced", options.targetStage)) {
     await advanceEntriesToGraphed(document, entries, options, {
       advancedIds,
+      progressState,
     });
   }
   if (isStageBefore("graphed", options.targetStage)) {
@@ -202,6 +231,7 @@ export async function advanceChapterStages(
 
     await advanceEntriesToSummarized(document, graphedEntries, options, {
       advancedIds,
+      progressState,
     });
   }
 
@@ -272,6 +302,7 @@ export async function generateChapterGraph(
       chapterId,
       readChapterSource(openedDocument, chapterId),
       createTopologyOptions(options),
+      options.progressTracker,
     );
     return await getChapterDetails(openedDocument, chapterId);
   });
@@ -559,9 +590,19 @@ async function collectChapterEntries(
 
     const title = normalizeTitle(item.title) ?? null;
     const tocPath = [...ancestorTitles, title ?? `Chapter ${item.serialId}`];
-    const fragmentCount = (
-      await document.getSerialFragments(item.serialId).listFragmentIds()
-    ).length;
+    const serialFragments = document.getSerialFragments(item.serialId);
+    const fragmentIds = await serialFragments.listFragmentIds();
+    const fragmentCount = fragmentIds.length;
+    let words = 0;
+
+    for (const fragmentId of fragmentIds) {
+      const fragment = await serialFragments.getFragment(fragmentId);
+
+      words += fragment.sentences.reduce(
+        (total, sentence) => total + sentence.wordsCount,
+        0,
+      );
+    }
 
     entries.push({
       chapterId: item.serialId,
@@ -571,6 +612,7 @@ async function collectChapterEntries(
       stage: await resolveChapterStage(document, item.serialId, fragmentCount),
       title,
       tocPath,
+      words,
     });
     entries.push(
       ...(await collectChapterEntries(
@@ -589,7 +631,10 @@ async function advanceEntriesToGraphed(
   document: Document,
   entries: readonly ChapterEntry[],
   options: AdvanceChapterStagesOptions,
-  state: { readonly advancedIds: Set<number> },
+  state: {
+    readonly advancedIds: Set<number>;
+    readonly progressState: MutableAdvanceProgressState;
+  },
 ): Promise<readonly ChapterEntry[]> {
   for (const entry of entries) {
     if (entry.stage !== "sourced") {
@@ -611,6 +656,17 @@ async function advanceEntriesToGraphed(
       ...(options.userLanguage === undefined
         ? {}
         : { userLanguage: options.userLanguage }),
+      progressTracker: {
+        async advance(wordsCount) {
+          state.progressState.addGraphWords(wordsCount);
+          await emitAdvanceProgress(options, {
+            state: state.progressState.snapshot(),
+            targetStage: options.targetStage,
+            type: "progress",
+          });
+        },
+        async complete() {},
+      },
     });
     await emitAdvanceProgress(options, {
       chapter: entry,
@@ -628,7 +684,10 @@ async function advanceEntriesToSummarized(
   document: Document,
   entries: readonly ChapterEntry[],
   options: AdvanceChapterStagesOptions,
-  state: { readonly advancedIds: Set<number> },
+  state: {
+    readonly advancedIds: Set<number>;
+    readonly progressState: MutableAdvanceProgressState;
+  },
 ): Promise<readonly ChapterEntry[]> {
   for (const entry of entries) {
     if (entry.stage !== "graphed") {
@@ -649,6 +708,12 @@ async function advanceEntriesToSummarized(
       ...(options.userLanguage === undefined
         ? {}
         : { userLanguage: options.userLanguage }),
+    });
+    state.progressState.addSummaryWords(entry.words);
+    await emitAdvanceProgress(options, {
+      state: state.progressState.snapshot(),
+      targetStage: options.targetStage,
+      type: "progress",
     });
     await emitAdvanceProgress(options, {
       chapter: entry,
@@ -681,6 +746,46 @@ async function selectChapterEntries(
   }
 
   return entries.filter((entry) => selectedIds.has(entry.chapterId));
+}
+
+function createAdvanceProgressState(
+  entries: readonly ChapterEntry[],
+  targetStage: ChapterStage,
+): MutableAdvanceProgressState {
+  const totalGraphWords = isStageBefore("sourced", targetStage)
+    ? entries
+        .filter((entry) => entry.stage === "sourced")
+        .reduce((sum, entry) => sum + entry.words, 0)
+    : 0;
+  const totalSummaryWords = isStageBefore("graphed", targetStage)
+    ? entries
+        .filter(
+          (entry) => entry.stage === "graphed" || entry.stage === "sourced",
+        )
+        .reduce((sum, entry) => sum + entry.words, 0)
+    : 0;
+  let graphWords = 0;
+  let summaryWords = 0;
+
+  return {
+    addGraphWords(words) {
+      graphWords = Math.min(totalGraphWords, graphWords + Math.max(0, words));
+    },
+    addSummaryWords(words) {
+      summaryWords = Math.min(
+        totalSummaryWords,
+        summaryWords + Math.max(0, words),
+      );
+    },
+    snapshot() {
+      return {
+        graphWords,
+        summaryWords,
+        totalGraphWords,
+        totalSummaryWords,
+      };
+    },
+  };
 }
 
 async function collectChapterSubtreeIds(

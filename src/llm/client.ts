@@ -27,6 +27,7 @@ import type {
   LLMModel,
   LLMOptions,
   LLMRequestOptions,
+  LLMStreamProgressCallback,
   SamplingScopeConfig,
   TemperatureSetting,
 } from "./types.js";
@@ -86,6 +87,7 @@ export class LLM<S extends string> {
   readonly #modelProvider: string | undefined;
   readonly #modelId: string;
   readonly #modelIdentity: string;
+  readonly #onStreamProgress: LLMStreamProgressCallback | undefined;
   readonly #requestLimiter: AsyncSemaphore;
   readonly #retryIntervalSeconds: number;
   readonly #retryTimes: number;
@@ -134,6 +136,7 @@ export class LLM<S extends string> {
     this.#modelProvider = modelInfo.provider;
     this.#modelId = modelInfo.modelId;
     this.#modelIdentity = modelInfo.identity;
+    this.#onStreamProgress = options.onStreamProgress;
     this.#requestLimiter = new AsyncSemaphore(concurrent);
     this.#retryIntervalSeconds = options.retryIntervalSeconds ?? 6;
     this.#retryTimes = options.retryTimes ?? 5;
@@ -300,6 +303,7 @@ export class LLM<S extends string> {
 
             for await (const chunk of result.textStream) {
               textChunks.push(chunk);
+              await this.#emitStreamProgress(chunk.length);
             }
             return textChunks.join("");
           } else {
@@ -366,6 +370,18 @@ export class LLM<S extends string> {
     }
 
     return response;
+  }
+
+  async #emitStreamProgress(outputCharacters: number): Promise<void> {
+    if (this.#onStreamProgress === undefined) {
+      return;
+    }
+
+    try {
+      await this.#onStreamProgress({ outputCharacters });
+    } catch {
+      return;
+    }
   }
 }
 

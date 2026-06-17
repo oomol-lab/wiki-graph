@@ -6,7 +6,6 @@ import {
   type SpineDigestScope,
 } from "./common/llm-scope.js";
 import type { LLM } from "./llm/index.js";
-import type { SerialProgressTracker } from "./progress/index.js";
 import type {
   ChunkRecord,
   ChunkStore,
@@ -65,6 +64,15 @@ export interface WriteSerialSourceOptions {
 export interface SerialDiscovery {
   readonly fragments: number;
   readonly words: number;
+}
+
+export interface SerialProgressSink {
+  begin?(input?: {
+    readonly fragments: number;
+    readonly words: number;
+  }): Promise<void>;
+  advance(wordsCount: number): Promise<void>;
+  complete(finalWordsCount?: number): Promise<void>;
 }
 
 type ReaderProgressScope =
@@ -161,7 +169,7 @@ export class SerialGeneration {
   public async generate(
     stream: ReaderTextStream,
     options: GenerateSerialOptions,
-    progressTracker?: SerialProgressTracker,
+    progressTracker?: SerialProgressSink,
   ): Promise<Serial> {
     return await this.#generatePrepared(
       await this.#createSerialId(),
@@ -182,7 +190,7 @@ export class SerialGeneration {
     serialId: number,
     stream: ReaderTextStream,
     options: GenerateSerialOptions,
-    progressTracker?: SerialProgressTracker,
+    progressTracker?: SerialProgressSink,
   ): Promise<Serial> {
     await this.#createExplicitSerialId(serialId);
     return await this.#generatePrepared(
@@ -197,7 +205,7 @@ export class SerialGeneration {
     serialId: number,
     stream: ReaderTextStream,
     options: BuildSerialTopologyOptions,
-    progressTracker?: SerialProgressTracker,
+    progressTracker?: SerialProgressSink,
   ): Promise<void> {
     await this.#buildTopology(
       serialId,
@@ -221,7 +229,7 @@ export class SerialGeneration {
     serialId: number,
     stream: ReaderTextStream,
     options: GenerateSerialOptions,
-    progressTracker?: SerialProgressTracker,
+    progressTracker?: SerialProgressSink,
   ): Promise<Serial> {
     await this.#buildTopology(
       serialId,
@@ -305,7 +313,7 @@ export class SerialGeneration {
     stream: ReaderTextStream,
     extractionPrompt: string,
     userLanguage: Language | undefined,
-    progressTracker?: SerialProgressTracker,
+    progressTracker?: SerialProgressSink,
   ): Promise<void> {
     const reader = new Reader({
       attention: {

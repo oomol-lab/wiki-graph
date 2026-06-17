@@ -18,6 +18,7 @@ Build scoped knowledge:
 Browse an existing archive:
   spinedigest status book.sdpub
   spinedigest index book.sdpub
+  spinedigest chapter tree book.sdpub --json
   spinedigest list book.sdpub --type chapter
   spinedigest list book.sdpub --type node --chapter 3
 
@@ -47,4 +48,4 @@ Export projections:
   spinedigest export book.sdpub --output-format epub --output digest.epub
 
 Lower-level maintenance:
-  Use `spinedigest meta`, `spinedigest cover`, and `spinedigest chapter` only when you need metadata mutation, cover extraction, or chapter tree edits.
+  Use `spinedigest chapter tree` to inspect table-of-contents hierarchy. Use `spinedigest meta`, `spinedigest cover`, `spinedigest chapter tree apply`, and other mutating `chapter` actions only when you need metadata mutation, cover extraction, or chapter tree edits.

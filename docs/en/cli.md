@@ -33,7 +33,7 @@ spinedigest export <archive.sdpub> --output-format <format> [--output <path>]
 Exploration modes:
 
 - Search mode: `find` discovers objects by deterministic keywords; `grep` checks exact continuous text.
-- Structure mode: `list` shows chapter and knowledge-node directories; `page` opens one page and exposes related nodes, source fragments, and links.
+- Structure mode: `chapter tree --json` shows table-of-contents hierarchy; `list` shows chapter and knowledge-node collections; `page` opens one page and exposes related nodes, source fragments, and links.
 - Reading mode: `read` prints continuous text for a selected chapter, knowledge node, summary, source fragment, or metadata object.
 
 Search and collection behavior:
@@ -113,7 +113,7 @@ spinedigest cover <archive.sdpub>
 spinedigest chapter <list|status|add|move|remove|reset|set-source|set-summary|set-title|tree> <path> [options]
 ```
 
-Use archive-first commands for routine exploration. Maintenance commands are for metadata edits, cover extraction, and chapter tree edits. `chapter tree` prints a stable JSON tree with `title: null` for untitled chapters; `chapter tree apply` can reorder chapters and change titles when `title` is present.
+Use archive-first commands for routine exploration. `chapter tree` without `apply` is read-only structure inspection and prints a stable JSON tree with `title: null` for untitled chapters. Maintenance commands are for metadata edits, cover extraction, and mutating chapter tree edits; `chapter tree apply` can reorder chapters and change titles when `title` is present.
 
 `spinedigest config status` prints configuration status. `spinedigest status <archive.sdpub>` prints archive status.
 

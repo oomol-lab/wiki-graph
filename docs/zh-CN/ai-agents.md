@@ -17,6 +17,7 @@
 ```bash
 spinedigest status book.sdpub
 spinedigest index book.sdpub
+spinedigest chapter tree book.sdpub --json
 spinedigest list book.sdpub --type chapter
 spinedigest find book.sdpub "keyword" --type node
 spinedigest page book.sdpub node:84
@@ -24,7 +25,7 @@ spinedigest read book.sdpub chapter:12
 spinedigest pack book.sdpub node:84 --budget 5000
 ```
 
-优先先选择三种探索模式之一。对于综合理解、时间线、关系分析、过程梳理或概念结构任务，先走结构模式：`list --type chapter`，再 `page chapter:<id>` 并检查 `nodeGroups`。搜索模式用 `find` 做候选定位，用 `grep` 检查连续精确短语。`find` 默认是 `--match any`；只有必须要求全部关键词出现在同一个对象内时，才使用 `--match all`。阅读模式适合在选定相关 chapter、fragment 或 node 后用 `read` 输出连续文本。
+优先先选择三种探索模式之一。对于综合理解、时间线、关系分析、过程梳理或概念结构任务，先走结构模式：用 `chapter tree --json` 查看目录层级，再用 `list --type chapter`，再 `page chapter:<id>` 并检查 `nodeGroups`。搜索模式用 `find` 做候选定位，用 `grep` 检查连续精确短语。`find` 默认是 `--match any`；只有必须要求全部关键词出现在同一个对象内时，才使用 `--match all`。阅读模式适合在选定相关 chapter、fragment 或 node 后用 `read` 输出连续文本。
 
 无 `--type` 的 `find` 适合广泛发现候选内容。做内容理解时，选择一个 search lens：`--type node` 用于拓扑 / LLM Wiki 结构，`--type summary` 用于快速概览，`--type fragment` 用于原文措辞。使用 `--chapter`、`--limit`、`--cursor` 控制检索范围。
 
@@ -43,7 +44,7 @@ spinedigest pack book.sdpub node:84 --budget 5000
 ## 推荐执行策略
 
 1. 面对未知归档，先运行 `status` 和 `index`。
-2. 对理解型任务，先用 `list --type chapter`，再在关键词搜索前使用 `page chapter:<id>`。
+2. 对理解型任务，先用 `chapter tree --json`，再用 `list --type chapter`，再在关键词搜索前使用 `page chapter:<id>`。
 3. 检查 chapter 的 `nodeGroups`，再对相关知识节点使用 `page node:<id>`。
 4. 用 `find` 或 `grep` 定位候选章节、验证缺失概念，或检查精确原文。
 5. 选定相关 node 或 chapter 后，当用户需要原文 prose 时，用 `read fragment:<id>`。
