@@ -11,7 +11,7 @@ spinedigest <action> <archive.sdpub> ...
 ## Archive Commands
 
 ```bash
-spinedigest import <archive.sdpub> [source] [--input-format <format>] [--llm <json>] [--prompt <text>] [--confirm]
+spinedigest create <archive.sdpub> [source] [--input-format <format>] [--llm <json>] [--prompt <text>] [--confirm]
 spinedigest build <archive.sdpub> [--stage <source|graph|summary>] [--chapter <id>] [--llm <json>] [--prompt <text>] [--confirm]
 spinedigest estimate <archive.sdpub> [--stage <source|graph|summary>] [--json]
 spinedigest status <archive.sdpub> [--json]
@@ -93,15 +93,19 @@ spinedigest page book.sdpub chapter:3 --json
 
 Human-readable stdout is Markdown-like text with stable ids and suggested next commands.
 
-## Compatibility Commands
+## Direct Transform
 
-The direct one-shot digest command remains available:
+`transform` runs a direct one-shot digest/export without creating a reusable `.sdpub` archive:
 
 ```bash
-spinedigest transform [--input <path>] [--output <path>] [--input-format <format>] [--output-format <format>] [--digest-dir <path>] [--llm <json>] [--prompt <text>] [--confirm] [--stage <planned|source|graph|summary>] [--verbose]
+spinedigest transform [--input <path>] [--output <path>] [--input-format <format>] [--output-format <format>] [--digest-dir <path>] [--llm <json>] [--prompt <text>] [--stage <planned|source|graph|summary>] [--verbose]
 ```
 
-Archive maintenance commands remain available as top-level commands:
+There is no bare transform shortcut. Use `spinedigest transform ...` explicitly.
+
+## Maintenance Commands
+
+Archive maintenance commands are top-level commands:
 
 ```bash
 spinedigest meta <archive.sdpub> [metadata options] [--json]
@@ -115,7 +119,13 @@ Use archive-first commands for routine exploration. Maintenance commands are for
 
 ## Standard Stream Rules
 
-The archive-first `import` command writes `.sdpub` archives. For pure one-shot stream digest/export workflows, use `spinedigest transform`:
+The archive-first `create` command writes `.sdpub` archives. It reads Markdown or plain text from stdin when `--input-format` is provided:
+
+```bash
+cat ./chapter.txt | spinedigest create ./chapter.sdpub --input-format txt
+```
+
+For direct stream digest/export, use `transform` explicitly:
 
 ```bash
 cat ./chapter.txt | spinedigest transform --input-format txt --output-format markdown

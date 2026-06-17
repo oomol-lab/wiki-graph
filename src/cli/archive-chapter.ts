@@ -5,8 +5,6 @@ import { Readable } from "stream";
 import type { DirectoryDocument } from "../document/index.js";
 import {
   addChapter,
-  generateChapterGraph,
-  generateChapterSummary,
   getChapterDetails,
   listChapters,
   removeChapter,
@@ -21,11 +19,6 @@ import { SpineDigestFile } from "../facade/spine-digest-file.js";
 
 import type { CLIArchiveChapterArguments } from "./args.js";
 import { readTextStreamFromStdin, writeTextToStdout } from "./io.js";
-import {
-  createStageLLM,
-  loadRequiredStageConfig,
-  resolveExtractionPrompt,
-} from "./stage-runtime.js";
 
 export async function runArchiveChapterCommand(
   args: CLIArchiveChapterArguments,
@@ -47,33 +40,6 @@ export async function runArchiveChapterCommand(
             Readable.from([await readRequiredSourceText(args)]),
           );
         }
-
-        await writeChapterDetails(details);
-      });
-      return;
-    case "generate-graph":
-      await runEditableCommand(args.path, async (document) => {
-        const config = await loadRequiredStageConfig(args);
-        const details = await generateChapterGraph(document, args.chapterId!, {
-          extractionPrompt: resolveExtractionPrompt(
-            args.prompt ?? config.prompt,
-          ),
-          llm: createStageLLM(config),
-        });
-
-        await writeChapterDetails(details);
-      });
-      return;
-    case "generate-summary":
-      await runEditableCommand(args.path, async (document) => {
-        const config = await loadRequiredStageConfig(args);
-        const details = await generateChapterSummary(
-          document,
-          args.chapterId!,
-          {
-            llm: createStageLLM(config),
-          },
-        );
 
         await writeChapterDetails(details);
       });

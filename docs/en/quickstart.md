@@ -28,14 +28,14 @@ Or run without global install:
 npx spinedigest --help
 ```
 
-## 3. Import A Source
+## 3. Create An Archive
 
 ```bash
-spinedigest import ./book.sdpub ./book.md
-cat ./article.md | spinedigest import ./article.sdpub --input-format markdown
+spinedigest create ./book.sdpub ./book.md
+cat ./article.md | spinedigest create ./article.sdpub --input-format markdown
 ```
 
-Import creates or replaces a `.sdpub` archive at source stage. It does not mean the archive is fully graph-built or summarized.
+Create creates or replaces a `.sdpub` archive at source stage. It does not mean the archive is fully graph-built or summarized.
 
 ## 4. Inspect And Estimate
 

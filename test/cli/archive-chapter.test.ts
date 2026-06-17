@@ -3,8 +3,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 const chapterMockState = vi.hoisted(() => ({
   addCalls: [] as unknown[],
   editableCalls: [] as string[],
-  generatedGraphCalls: [] as unknown[],
-  generatedSummaryCalls: [] as unknown[],
   inputFileContent: "file content",
   listEntries: [
     {
@@ -26,7 +24,6 @@ const chapterMockState = vi.hoisted(() => ({
       tocPath: ["Part I", "Chapter 1"],
     },
   ],
-  loadConfigCalls: [] as unknown[],
   removeCalls: [] as unknown[],
   resetCalls: [] as unknown[],
   setSourceCalls: [] as Array<{
@@ -79,33 +76,6 @@ vi.mock("../../src/facade/index.js", () => ({
       title: "New Chapter",
     });
   }),
-  generateChapterGraph: vi.fn(
-    (_document: unknown, chapterId: number, options: unknown) => {
-      chapterMockState.generatedGraphCalls.push({
-        chapterId,
-        options,
-      });
-      return Promise.resolve({
-        ...chapterDetails,
-        graphReady: true,
-        stage: "graphed",
-      });
-    },
-  ),
-  generateChapterSummary: vi.fn(
-    (_document: unknown, chapterId: number, options: unknown) => {
-      chapterMockState.generatedSummaryCalls.push({
-        chapterId,
-        options,
-      });
-      return Promise.resolve({
-        ...chapterDetails,
-        graphReady: true,
-        hasSummary: true,
-        stage: "summarized",
-      });
-    },
-  ),
   getChapterDetails: vi.fn(() => Promise.resolve(chapterDetails)),
   listChapters: vi.fn(() => Promise.resolve(chapterMockState.listEntries)),
   removeChapter: vi.fn(
@@ -179,25 +149,6 @@ vi.mock("../../src/facade/index.js", () => ({
   ),
 }));
 
-vi.mock("../../src/cli/config.js", () => ({
-  loadCLIConfig: vi.fn((options?: unknown) => {
-    chapterMockState.loadConfigCalls.push(options);
-    return Promise.resolve({
-      llm: {
-        model: "gpt-test",
-        provider: "openai",
-      },
-      prompt: "Config prompt",
-    });
-  }),
-}));
-
-vi.mock("../../src/cli/llm.js", () => ({
-  buildLLMOptions: vi.fn(() => ({
-    model: {},
-  })),
-}));
-
 vi.mock("../../src/common/data-dir.js", () => ({
   resolveDataDirPath: vi.fn(() => "/tmp/data"),
 }));
@@ -232,9 +183,6 @@ describe("cli/archive-chapter", () => {
   beforeEach(() => {
     chapterMockState.addCalls.length = 0;
     chapterMockState.editableCalls.length = 0;
-    chapterMockState.generatedGraphCalls.length = 0;
-    chapterMockState.generatedSummaryCalls.length = 0;
-    chapterMockState.loadConfigCalls.length = 0;
     chapterMockState.removeCalls.length = 0;
     chapterMockState.resetCalls.length = 0;
     chapterMockState.setSourceCalls.length = 0;
@@ -350,23 +298,6 @@ describe("cli/archive-chapter", () => {
       },
     ]);
     expect(chapterMockState.textWrites[0]).toContain("Title: Renamed Chapter");
-  });
-
-  it("passes prompt to generate-graph", async () => {
-    await runArchiveChapterCommand({
-      action: "generate-graph",
-      chapterId: 2,
-      path: "/tmp/book.sdpub",
-      prompt: "CLI prompt",
-    });
-
-    expect(chapterMockState.generatedGraphCalls).toHaveLength(1);
-    expect(chapterMockState.generatedGraphCalls[0]).toMatchObject({
-      chapterId: 2,
-      options: {
-        extractionPrompt: "CLI prompt",
-      },
-    });
   });
 
   it("removes chapters recursively when requested", async () => {

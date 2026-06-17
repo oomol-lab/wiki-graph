@@ -11,7 +11,7 @@ spinedigest <action> <archive.sdpub> ...
 ## 归档命令
 
 ```bash
-spinedigest import <archive.sdpub> [source] [--input-format <format>] [--llm <json>] [--prompt <text>] [--confirm]
+spinedigest create <archive.sdpub> [source] [--input-format <format>] [--llm <json>] [--prompt <text>] [--confirm]
 spinedigest build <archive.sdpub> [--stage <source|graph|summary>] [--chapter <id>] [--llm <json>] [--prompt <text>] [--confirm]
 spinedigest estimate <archive.sdpub> [--stage <source|graph|summary>] [--json]
 spinedigest status <archive.sdpub> [--json]
@@ -93,13 +93,17 @@ spinedigest page book.sdpub chapter:3 --json
 
 默认 stdout 是适合人和 Agent 阅读的 Markdown-like 文本，包含稳定 ID 和下一步命令提示。
 
-## 直接压缩与维护命令
+## 直接 Transform
 
-直接一次性 digest/export 命令仍然可用：
+`transform` 运行一次性的 direct digest/export，不创建可复用的 `.sdpub` 归档：
 
 ```bash
-spinedigest transform [--input <path>] [--output <path>] [--input-format <format>] [--output-format <format>] [--digest-dir <path>] [--llm <json>] [--prompt <text>] [--confirm] [--stage <planned|source|graph|summary>] [--verbose]
+spinedigest transform [--input <path>] [--output <path>] [--input-format <format>] [--output-format <format>] [--digest-dir <path>] [--llm <json>] [--prompt <text>] [--stage <planned|source|graph|summary>] [--verbose]
 ```
+
+不存在裸 transform shortcut。需要显式使用 `spinedigest transform ...`。
+
+## 维护命令
 
 归档维护命令以一级命令暴露：
 
@@ -115,7 +119,13 @@ spinedigest chapter <list|status|add|remove|reset|set-source|set-summary|set-tit
 
 ## 标准流规则
 
-archive-first `import` 命令用于写入 `.sdpub`。纯流式一次性 digest/export 使用 `spinedigest transform`：
+archive-first `create` 命令用于写入 `.sdpub`。传入 `--input-format` 时，它可以从 stdin 读取 Markdown 或纯文本：
+
+```bash
+cat ./chapter.txt | spinedigest create ./chapter.sdpub --input-format txt
+```
+
+直接流式 digest/export 需要显式使用 `transform`：
 
 ```bash
 cat ./chapter.txt | spinedigest transform --input-format txt --output-format markdown

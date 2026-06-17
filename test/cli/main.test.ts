@@ -4,20 +4,22 @@ import type { MockInstance } from "vitest";
 const mainMockState = vi.hoisted(() => ({
   argsResult: {
     args: {
-      help: false,
-      verbose: false,
+      action: "status",
+      archivePath: "/tmp/book.sdpub",
     },
     help: false,
-    kind: "convert" as const,
+    kind: "archive" as const,
   } as Record<string, unknown>,
   parseError: undefined as Error | undefined,
-  runCalls: [] as unknown[],
+  archiveRunCalls: [] as unknown[],
+  convertRunCalls: [] as unknown[],
   statusRunCalls: 0,
   statusRunArgs: [] as unknown[],
   archiveChapterRunCalls: [] as unknown[],
   archiveCoverRunCalls: [] as unknown[],
   archiveMetaRunCalls: [] as unknown[],
-  runError: undefined as Error | undefined,
+  archiveRunError: undefined as Error | undefined,
+  convertRunError: undefined as Error | undefined,
   statusRunError: undefined as Error | undefined,
   archiveChapterRunError: undefined as Error | undefined,
   archiveCoverRunError: undefined as Error | undefined,
@@ -34,12 +36,24 @@ vi.mock("../../src/cli/args.js", () => ({
   }),
 }));
 
+vi.mock("../../src/cli/archive.js", () => ({
+  runArchiveCommand: vi.fn((args: unknown) => {
+    mainMockState.archiveRunCalls.push(args);
+
+    if (mainMockState.archiveRunError !== undefined) {
+      return Promise.reject(mainMockState.archiveRunError);
+    }
+
+    return Promise.resolve();
+  }),
+}));
+
 vi.mock("../../src/cli/convert.js", () => ({
   runConvertCommand: vi.fn((args: unknown) => {
-    mainMockState.runCalls.push(args);
+    mainMockState.convertRunCalls.push(args);
 
-    if (mainMockState.runError !== undefined) {
-      return Promise.reject(mainMockState.runError);
+    if (mainMockState.convertRunError !== undefined) {
+      return Promise.reject(mainMockState.convertRunError);
     }
 
     return Promise.resolve();
@@ -108,20 +122,22 @@ describe("cli/main", () => {
   beforeEach(() => {
     mainMockState.argsResult = {
       args: {
-        help: false,
-        verbose: false,
+        action: "status",
+        archivePath: "/tmp/book.sdpub",
       },
       help: false,
-      kind: "convert",
+      kind: "archive",
     };
     mainMockState.parseError = undefined;
-    mainMockState.runCalls.length = 0;
+    mainMockState.archiveRunCalls.length = 0;
+    mainMockState.convertRunCalls.length = 0;
     mainMockState.statusRunCalls = 0;
     mainMockState.statusRunArgs.length = 0;
     mainMockState.archiveChapterRunCalls.length = 0;
     mainMockState.archiveCoverRunCalls.length = 0;
     mainMockState.archiveMetaRunCalls.length = 0;
-    mainMockState.runError = undefined;
+    mainMockState.archiveRunError = undefined;
+    mainMockState.convertRunError = undefined;
     mainMockState.statusRunError = undefined;
     mainMockState.archiveChapterRunError = undefined;
     mainMockState.archiveCoverRunError = undefined;
@@ -160,30 +176,55 @@ describe("cli/main", () => {
 
     expect(stdoutChunks).toStrictEqual([`${renderMainHelpText()}\n`]);
     expect(stderrChunks).toStrictEqual([]);
-    expect(mainMockState.runCalls).toHaveLength(0);
+    expect(mainMockState.archiveRunCalls).toHaveLength(0);
     expect(mainMockState.statusRunCalls).toBe(0);
     expect(mainMockState.archiveMetaRunCalls).toHaveLength(0);
     expect(process.exitCode).toBe(0);
   });
 
-  it("prints help text and skips conversion when --help is used", async () => {
+  it("prints help text and skips command execution when --help is used", async () => {
     mainMockState.argsResult = {
       help: true,
       helpText: "CLI HELP",
-      kind: "convert",
+      kind: "help",
     };
 
     await main();
 
     expect(stdoutChunks).toStrictEqual(["CLI HELP\n"]);
     expect(stderrChunks).toStrictEqual([]);
-    expect(mainMockState.runCalls).toHaveLength(0);
+    expect(mainMockState.archiveRunCalls).toHaveLength(0);
     expect(mainMockState.statusRunCalls).toBe(0);
     expect(mainMockState.archiveMetaRunCalls).toHaveLength(0);
     expect(process.exitCode).toBe(0);
   });
 
-  it("runs the convert command for normal execution", async () => {
+  it("runs the archive command for normal execution", async () => {
+    mainMockState.argsResult = {
+      args: {
+        action: "status",
+        archivePath: "/tmp/book.sdpub",
+      },
+      help: false,
+      kind: "archive",
+    };
+
+    await main();
+
+    expect(mainMockState.archiveRunCalls).toStrictEqual([
+      {
+        action: "status",
+        archivePath: "/tmp/book.sdpub",
+      },
+    ]);
+    expect(mainMockState.archiveMetaRunCalls).toHaveLength(0);
+    expect(mainMockState.statusRunCalls).toBe(0);
+    expect(stdoutChunks).toStrictEqual([]);
+    expect(stderrChunks).toStrictEqual([]);
+    expect(process.exitCode).toBe(0);
+  });
+
+  it("runs the transform command for direct conversion", async () => {
     mainMockState.argsResult = {
       args: {
         help: false,
@@ -197,7 +238,7 @@ describe("cli/main", () => {
 
     await main();
 
-    expect(mainMockState.runCalls).toStrictEqual([
+    expect(mainMockState.convertRunCalls).toStrictEqual([
       {
         help: false,
         inputPath: "/tmp/book.txt",
@@ -205,8 +246,8 @@ describe("cli/main", () => {
         verbose: false,
       },
     ]);
+    expect(mainMockState.archiveRunCalls).toHaveLength(0);
     expect(mainMockState.archiveMetaRunCalls).toHaveLength(0);
-    expect(mainMockState.statusRunCalls).toBe(0);
     expect(stdoutChunks).toStrictEqual([]);
     expect(stderrChunks).toStrictEqual([]);
     expect(process.exitCode).toBe(0);
@@ -223,7 +264,7 @@ describe("cli/main", () => {
     expect(stdoutChunks).toHaveLength(1);
     expect(stdoutChunks[0]).toMatch(/^\d+\.\d+\.\d+\n$/u);
     expect(stderrChunks).toStrictEqual([]);
-    expect(mainMockState.runCalls).toHaveLength(0);
+    expect(mainMockState.archiveRunCalls).toHaveLength(0);
     expect(mainMockState.statusRunCalls).toBe(0);
     expect(mainMockState.archiveChapterRunCalls).toHaveLength(0);
     expect(mainMockState.archiveMetaRunCalls).toHaveLength(0);
@@ -241,7 +282,7 @@ describe("cli/main", () => {
 
     await main();
 
-    expect(mainMockState.runCalls).toHaveLength(0);
+    expect(mainMockState.archiveRunCalls).toHaveLength(0);
     expect(mainMockState.statusRunCalls).toBe(1);
     expect(mainMockState.statusRunArgs).toStrictEqual([
       {
@@ -264,7 +305,7 @@ describe("cli/main", () => {
 
     await main();
 
-    expect(mainMockState.runCalls).toHaveLength(0);
+    expect(mainMockState.archiveRunCalls).toHaveLength(0);
     expect(mainMockState.archiveMetaRunCalls).toStrictEqual([
       {
         inputPath: "/tmp/book.sdpub",
@@ -285,7 +326,7 @@ describe("cli/main", () => {
 
     await main();
 
-    expect(mainMockState.runCalls).toHaveLength(0);
+    expect(mainMockState.archiveRunCalls).toHaveLength(0);
     expect(mainMockState.archiveCoverRunCalls).toStrictEqual([
       {
         inputPath: "/tmp/book.sdpub",
@@ -306,7 +347,7 @@ describe("cli/main", () => {
 
     await main();
 
-    expect(mainMockState.runCalls).toHaveLength(0);
+    expect(mainMockState.archiveRunCalls).toHaveLength(0);
     expect(mainMockState.archiveChapterRunCalls).toStrictEqual([
       {
         action: "list",
@@ -322,12 +363,35 @@ describe("cli/main", () => {
     await main();
 
     expect(stderrChunks).toStrictEqual(["bad args\n"]);
-    expect(mainMockState.runCalls).toHaveLength(0);
+    expect(mainMockState.archiveRunCalls).toHaveLength(0);
     expect(mainMockState.statusRunCalls).toBe(0);
     expect(process.exitCode).toBe(1);
   });
 
-  it("writes convert command failures to stderr and sets a non-zero exit code", async () => {
+  it("writes archive command failures to stderr and sets a non-zero exit code", async () => {
+    mainMockState.argsResult = {
+      args: {
+        action: "status",
+        archivePath: "/tmp/book.sdpub",
+      },
+      help: false,
+      kind: "archive",
+    };
+    mainMockState.archiveRunError = new Error("archive failed");
+
+    await main();
+
+    expect(stderrChunks).toStrictEqual(["archive failed\n"]);
+    expect(mainMockState.archiveRunCalls).toStrictEqual([
+      {
+        action: "status",
+        archivePath: "/tmp/book.sdpub",
+      },
+    ]);
+    expect(process.exitCode).toBe(1);
+  });
+
+  it("writes transform command failures to stderr and sets a non-zero exit code", async () => {
     mainMockState.argsResult = {
       args: {
         help: false,
@@ -336,12 +400,12 @@ describe("cli/main", () => {
       help: false,
       kind: "convert",
     };
-    mainMockState.runError = new Error("convert failed");
+    mainMockState.convertRunError = new Error("transform failed");
 
     await main();
 
-    expect(stderrChunks).toStrictEqual(["convert failed\n"]);
-    expect(mainMockState.runCalls).toStrictEqual([
+    expect(stderrChunks).toStrictEqual(["transform failed\n"]);
+    expect(mainMockState.convertRunCalls).toStrictEqual([
       {
         help: false,
         verbose: false,
@@ -396,34 +460,37 @@ describe("cli/main", () => {
   it("writes the full cause chain to stderr", async () => {
     mainMockState.argsResult = {
       args: {
-        help: false,
-        verbose: false,
+        action: "status",
+        archivePath: "/tmp/book.sdpub",
       },
       help: false,
-      kind: "convert",
+      kind: "archive",
     };
-    mainMockState.runError = new Error("convert failed", {
+    mainMockState.archiveRunError = new Error("archive failed", {
       cause: new Error("tls reset"),
     });
 
     await main();
 
-    expect(stderrChunks).toStrictEqual(["convert failed: tls reset\n"]);
+    expect(stderrChunks).toStrictEqual(["archive failed: tls reset\n"]);
     expect(process.exitCode).toBe(1);
   });
 
   it("writes a stable payment required message for LLM billing failures", async () => {
     mainMockState.argsResult = {
       args: {
-        help: false,
-        verbose: false,
+        action: "build",
+        archivePath: "/tmp/book.sdpub",
       },
       help: false,
-      kind: "convert",
+      kind: "archive",
     };
-    mainMockState.runError = new LLMPaymentRequiredError("provider message", {
-      cause: new Error("raw provider error"),
-    });
+    mainMockState.archiveRunError = new LLMPaymentRequiredError(
+      "provider message",
+      {
+        cause: new Error("raw provider error"),
+      },
+    );
 
     await main();
 

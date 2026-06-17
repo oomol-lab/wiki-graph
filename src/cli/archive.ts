@@ -53,8 +53,8 @@ export async function runArchiveCommand(
   args: CLIArchiveArguments,
 ): Promise<void> {
   switch (args.action) {
-    case "import":
-      await importArchive(args);
+    case "create":
+      await createArchive(args);
       return;
     case "build": {
       await buildArchive(args);
@@ -99,14 +99,6 @@ export async function runArchiveCommand(
       });
       return;
     }
-    case "ls":
-      await withArchiveDocument(args.archivePath, async (document) => {
-        await writeList(
-          await listArchiveObjects(document, args.listKind ?? "chapters"),
-          args.json ?? false,
-        );
-      });
-      return;
     case "list":
       await withArchiveDocument(args.archivePath, async (document) => {
         await writeCollection(
@@ -212,9 +204,9 @@ export async function runArchiveCommand(
   }
 }
 
-async function importArchive(args: CLIArchiveArguments): Promise<void> {
+async function createArchive(args: CLIArchiveArguments): Promise<void> {
   if (args.sourcePath === undefined) {
-    await importArchiveFromStdin(args);
+    await createArchiveFromStdin(args);
     return;
   }
 
@@ -236,7 +228,7 @@ async function importArchive(args: CLIArchiveArguments): Promise<void> {
   }
 
   const temporaryDirectoryPath = await mkdtemp(
-    join(tmpdir(), "spinedigest-url-import-"),
+    join(tmpdir(), "spinedigest-url-create-"),
   );
   const sourcePath = join(temporaryDirectoryPath, "source.md");
 
@@ -267,11 +259,11 @@ async function importArchive(args: CLIArchiveArguments): Promise<void> {
   }
 }
 
-async function importArchiveFromStdin(
+async function createArchiveFromStdin(
   args: CLIArchiveArguments,
 ): Promise<void> {
   if (args.inputFormat === undefined) {
-    throw new Error("Internal error: missing stdin import format.");
+    throw new Error("Internal error: missing stdin create format.");
   }
   if (process.stdin.isTTY) {
     throw new Error(
@@ -280,7 +272,7 @@ async function importArchiveFromStdin(
   }
 
   const temporaryDirectoryPath = await mkdtemp(
-    join(tmpdir(), "spinedigest-stdin-import-"),
+    join(tmpdir(), "spinedigest-stdin-create-"),
   );
   const extension = args.inputFormat === "markdown" ? ".md" : ".txt";
   const sourcePath = join(temporaryDirectoryPath, `source${extension}`);
@@ -1041,7 +1033,6 @@ function formatEstimateStage(stage: ArchiveEstimate["targetStage"]): string {
     case "graph":
     case "graphed":
       return "graph";
-    case "ready":
     case "summary":
     case "summarized":
       return "summary";

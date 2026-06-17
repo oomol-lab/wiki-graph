@@ -32,7 +32,7 @@ Use the library API only when the surrounding system explicitly needs in-process
 ## Minimal Operational Contract
 
 - Primary object: `.sdpub`
-- Import sources: EPUB, Markdown, TXT, and text pipelines
+- Creation sources: EPUB, Markdown, TXT, and text pipelines
 - Read objects: `chapter:<id>`, `node:<id>`, `fragment:<serial>:<fragment>`, `summary:<id>`, `meta:book`
 - Cheap operations: `status`, `index`, `list`, `find`, `grep`, `page`, `read`, `links`, `backlinks`, `export`
 - Expensive operations: graph or summary `build`
@@ -53,13 +53,13 @@ Use the library API only when the surrounding system explicitly needs in-process
 ## Build Workflow
 
 ```bash
-spinedigest import book.sdpub ./book.epub
+spinedigest create book.sdpub ./book.epub
 spinedigest status book.sdpub
 spinedigest estimate book.sdpub --stage summary
 spinedigest build book.sdpub --stage graph --chapter 3 --confirm
 ```
 
-Import/source is the safe first step. Graph and summary stages may call an LLM provider.
+Create/source is the safe first step. Graph and summary stages may call an LLM provider.
 
 ## Avoid
 

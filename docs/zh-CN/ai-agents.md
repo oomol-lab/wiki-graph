@@ -32,7 +32,7 @@ spinedigest read book.sdpub chapter:12
 ## 最小操作契约
 
 - 主对象：`.sdpub`
-- 导入源：EPUB、Markdown、TXT 和文本管道
+- 创建源：EPUB、Markdown、TXT 和文本管道
 - 可读对象：`chapter:<id>`、`node:<id>`、`fragment:<serial>:<fragment>`、`summary:<id>`、`meta:book`
 - 便宜操作：`status`、`index`、`list`、`find`、`grep`、`page`、`read`、`links`、`backlinks`、`export`
 - 昂贵操作：graph 或 summary `build`
@@ -53,13 +53,13 @@ spinedigest read book.sdpub chapter:12
 ## 构建流程
 
 ```bash
-spinedigest import book.sdpub ./book.epub
+spinedigest create book.sdpub ./book.epub
 spinedigest status book.sdpub
 spinedigest estimate book.sdpub --stage summary
 spinedigest build book.sdpub --stage graph --chapter 3 --confirm
 ```
 
-Import/source 是安全第一步。Graph 和 summary 阶段可能调用 LLM provider。
+Create/source 是安全第一步。Graph 和 summary 阶段可能调用 LLM provider。
 
 ## 避免
 

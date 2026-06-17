@@ -57,11 +57,11 @@ spinedigest help ai
 
 SpineDigest's primary object is `.sdpub`: a managed knowledge archive, not a one-off conversion output.
 
-Import source material into an archive:
+Create an archive from source material:
 
 ```bash
-spinedigest import ./book.sdpub ./book.epub
-cat ./article.md | spinedigest import ./article.sdpub --input-format markdown
+spinedigest create ./book.sdpub ./book.epub
+cat ./article.md | spinedigest create ./article.sdpub --input-format markdown
 ```
 
 Inspect the archive before expensive work:
@@ -101,7 +101,7 @@ spinedigest export ./book.sdpub --output-format epub --output ./digest.epub
 Cost rule:
 
 ```text
-Import is cheap.
+Create is cheap.
 Estimate before build.
 Build can be expensive.
 Search, read, navigate, and export are cheap after build.
@@ -156,14 +156,14 @@ For the internal layout and parser guidance, see the [format spec](./docs/sdpub.
 
 ## Inputs and Outputs
 
-| Format             | Import Source | Export Projection |
-| ------------------ | ------------- | ----------------- |
-| `.epub`            | ✓             | ✓                 |
-| `.md`              | ✓             | ✓                 |
-| `.txt`             | ✓             | ✓                 |
-| `.sdpub`           | archive       | archive           |
-| `stdin` (txt / md) | compatibility | —                 |
-| `stdout`           | —             | ✓                 |
+| Format             | Creation Source | Export Projection |
+| ------------------ | --------------- | ----------------- |
+| `.epub`            | ✓               | ✓                 |
+| `.md`              | ✓               | ✓                 |
+| `.txt`             | ✓               | ✓                 |
+| `.sdpub`           | archive         | archive           |
+| `stdin` (txt / md) | ✓               | —                 |
+| `stdout`           | —               | ✓                 |
 
 Requirements: Node `>=22.12.0`. LLM credentials are required for graph and summary builds, not for `.sdpub` inspection, search, reading, navigation, or export.
 

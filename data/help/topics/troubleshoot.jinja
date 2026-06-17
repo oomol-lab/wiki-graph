@@ -6,7 +6,7 @@ Troubleshooting
 Search returns no matches:
   Check:
     Run `spinedigest status <archive.sdpub>` and `spinedigest list <archive.sdpub> --type fragment`.
-    Source-only archives should be searchable through fragment text. If there are no fragments, import did not store source text.
+    Source-only archives should be searchable through fragment text. If there are no fragments, archive creation did not store source text.
 
 Page shows missing summary:
   Check:
@@ -27,10 +27,10 @@ Missing LLM configuration:
 
 Unexpected format errors:
   Symptom:
-    The CLI rejects an import or export format.
+    The CLI rejects a create or export format.
   Check:
     The file extension, or pass `--input-format` / `--output-format` explicitly.
-    stdin import supports only markdown and txt.
+    stdin create supports only markdown and txt.
 
 stdin or stdout misuse:
   Symptom:

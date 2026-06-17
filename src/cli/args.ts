@@ -62,8 +62,6 @@ export interface ArchiveMetaPatch {
 
 export type CLIArchiveChapterAction =
   | "add"
-  | "generate-graph"
-  | "generate-summary"
   | "list"
   | "remove"
   | "reset"
@@ -94,15 +92,14 @@ export interface CLIStatusArguments {
 export type CLIArchiveAction =
   | "backlinks"
   | "build"
+  | "create"
   | "estimate"
   | "export"
   | "find"
   | "grep"
-  | "import"
   | "index"
   | "links"
   | "list"
-  | "ls"
   | "map"
   | "page"
   | "pack"
@@ -187,6 +184,7 @@ interface ArchiveArgumentValues extends ArchiveMetaFlagValues {
   readonly output?: string;
   readonly "output-format"?: string;
   readonly order?: string;
+  readonly parent?: string;
   readonly prompt?: string;
   readonly stage?: string;
   readonly type?: string;
@@ -393,6 +391,14 @@ export function parseCLIArguments(
     };
   }
 
+  if (values.help === true && positionals.length === 0) {
+    return {
+      help: true,
+      helpText: renderMainHelpText(),
+      kind: "help",
+    };
+  }
+
   if (positionals[0] === "help") {
     return parseHelpArguments(positionals.slice(1), values);
   }
@@ -402,7 +408,7 @@ export function parseCLIArguments(
   }
 
   if (positionals[0] === "transform") {
-    return parseConvertArguments(positionals.slice(1), values, "transform");
+    return parseTransformArguments(positionals.slice(1), values);
   }
 
   if (isArchiveMaintenanceCommand(positionals[0])) {
@@ -417,26 +423,43 @@ export function parseCLIArguments(
     return parseArchiveArguments(positionals[0], positionals.slice(1), values);
   }
 
-  return parseConvertArguments(positionals, values, "bare");
+  throw new Error(
+    withHelpRoute(
+      positionals.length === 0
+        ? "Missing command."
+        : `Unknown command: ${positionals[0]}.`,
+      CLI_HELP_ROUTES.command,
+    ),
+  );
 }
 
-function parseConvertArguments(
+function parseTransformArguments(
   positionals: readonly string[],
   values: ArchiveArgumentValues,
-  command: "bare" | "transform",
 ): ParsedCLIArguments {
+  const helpRoute = "spinedigest transform --help";
+
   if (positionals.length > 0) {
     throw new Error(
       withHelpRoute(
-        `Unexpected positional argument or unknown command: ${positionals.join(" ")}. The direct digest command reads from stdin or --input; it does not accept positional input paths. Use \`spinedigest transform --input <path>\`, or see available subcommands with \`spinedigest --help\`.`,
-        CLI_HELP_ROUTES.command,
+        `Unexpected positional arguments: ${positionals.join(" ")}.`,
+        helpRoute,
       ),
     );
   }
-  rejectConvertMetaFlags(values);
-  rejectConvertFlag("budget", values.budget);
-  rejectConvertFlag("confirm", values.confirm);
-  rejectConvertFlag("json", values.json);
+  rejectTransformMetaFlags(values);
+  rejectTransformFlag("budget", values.budget, helpRoute);
+  rejectTransformFlag("chapter", values.chapter, helpRoute);
+  rejectTransformFlag("confirm", values.confirm, helpRoute);
+  rejectTransformFlag("cursor", values.cursor, helpRoute);
+  rejectTransformFlag("id", values.id, helpRoute);
+  rejectTransformFlag("json", values.json, helpRoute);
+  rejectTransformFlag("limit", values.limit, helpRoute);
+  rejectTransformFlag("match", values.match, helpRoute);
+  rejectTransformFlag("order", values.order, helpRoute);
+  rejectTransformFlag("parent", values.parent, helpRoute);
+  rejectTransformFlag("to", values.to, helpRoute);
+  rejectTransformFlag("type", values.type, helpRoute);
 
   const args = {
     ...(values["digest-dir"] === undefined
@@ -463,11 +486,7 @@ function parseConvertArguments(
     ...(values.stage === undefined
       ? {}
       : {
-          targetStage: parseChapterStage(
-            values.stage,
-            "--stage",
-            CLI_HELP_ROUTES.command,
-          ),
+          targetStage: parseChapterStage(values.stage, "--stage", helpRoute),
         }),
     verbose: values.verbose ?? false,
   } satisfies CLIArguments;
@@ -476,10 +495,7 @@ function parseConvertArguments(
     return {
       args,
       help: true,
-      helpText:
-        command === "transform"
-          ? renderTransformHelpText()
-          : renderMainHelpText(),
+      helpText: renderTransformHelpText(),
       kind: "convert",
     };
   }
@@ -709,7 +725,7 @@ function parseArchiveArguments(
   }
 
   switch (action) {
-    case "import": {
+    case "create": {
       const rawSourcePath = positionals[1] ?? values.input;
       const sourcePath = rawSourcePath === "-" ? undefined : rawSourcePath;
       const inputFormat =
@@ -720,7 +736,7 @@ function parseArchiveArguments(
       if (sourcePath === undefined && inputFormat === undefined) {
         throw new Error(
           withHelpRoute(
-            "`spinedigest import` requires a source path, or --input-format when reading source text from stdin.",
+            "`spinedigest create` requires a source path, or --input-format when reading source text from stdin.",
             helpRoute,
           ),
         );
@@ -733,7 +749,7 @@ function parseArchiveArguments(
       ) {
         throw new Error(
           withHelpRoute(
-            "stdin import only supports --input-format markdown or txt.",
+            "stdin create only supports --input-format markdown or txt.",
             helpRoute,
           ),
         );
@@ -878,24 +894,6 @@ function parseArchiveArguments(
         help: false,
         kind: "archive",
       };
-    case "ls": {
-      rejectArchiveExtraPositionals(action, positionals, 2, helpRoute);
-      rejectArchiveNonReadFlags(action, values, helpRoute);
-      rejectArchiveFlag(action, "--budget", values.budget, helpRoute);
-      rejectArchiveBooleanFlag(action, "--confirm", values.confirm, helpRoute);
-      const listKind = parseArchiveListKind(positionals[1]);
-
-      return {
-        args: {
-          action,
-          archivePath,
-          ...(values.json === undefined ? {} : { json: values.json }),
-          listKind,
-        },
-        help: false,
-        kind: "archive",
-      };
-    }
     case "list": {
       rejectArchiveExtraPositionals(action, positionals, 1, helpRoute);
       rejectArchiveNonReadFlags(action, values, helpRoute);
@@ -1160,14 +1158,6 @@ function parseArchiveChapterArguments(
   }
 
   if (help && isArchiveChapterAction(action)) {
-    if (action === "generate-graph" || action === "generate-summary") {
-      return {
-        help: true,
-        helpText: renderArchiveMaintenanceCommandHelpText("chapter"),
-        kind: "chapter",
-      };
-    }
-
     return {
       help: true,
       helpText: renderArchiveMaintenanceChapterActionHelpText(action),
@@ -1297,58 +1287,6 @@ function normalizeArchiveChapterArguments(
         ...(values.llm === undefined ? {} : { llmJSON: values.llm }),
         ...(parentChapterId === undefined ? {} : { parentChapterId }),
         ...(values.title === undefined ? {} : { title: values.title }),
-      };
-    case "generate-graph":
-      requireChapterId(chapterId, action, helpRoute);
-      rejectActionFlag(values.stage, "--stage", action, helpRoute);
-      rejectActionFlag(values.input, "--input", action, helpRoute);
-      rejectActionFlag(
-        values["input-format"],
-        "--input-format",
-        action,
-        helpRoute,
-      );
-      rejectActionFlag(values.parent, "--parent", action, helpRoute);
-      rejectActionFlag(values.title, "--title", action, helpRoute);
-      rejectActionFlag(values.to, "--to", action, helpRoute);
-      rejectActionBooleanFlag(
-        values.recursive,
-        "--recursive",
-        action,
-        helpRoute,
-      );
-      return {
-        action,
-        chapterId,
-        path,
-        ...(values.llm === undefined ? {} : { llmJSON: values.llm }),
-        ...(values.prompt === undefined ? {} : { prompt: values.prompt }),
-      };
-    case "generate-summary":
-      requireChapterId(chapterId, action, helpRoute);
-      rejectActionFlag(values.stage, "--stage", action, helpRoute);
-      rejectActionFlag(values.input, "--input", action, helpRoute);
-      rejectActionFlag(
-        values["input-format"],
-        "--input-format",
-        action,
-        helpRoute,
-      );
-      rejectActionFlag(values.parent, "--parent", action, helpRoute);
-      rejectActionFlag(values.prompt, "--prompt", action, helpRoute);
-      rejectActionFlag(values.title, "--title", action, helpRoute);
-      rejectActionFlag(values.to, "--to", action, helpRoute);
-      rejectActionBooleanFlag(
-        values.recursive,
-        "--recursive",
-        action,
-        helpRoute,
-      );
-      return {
-        action,
-        chapterId,
-        path,
-        ...(values.llm === undefined ? {} : { llmJSON: values.llm }),
       };
     case "list":
       rejectActionFlag(values.stage, "--stage", action, helpRoute);
@@ -1732,8 +1670,6 @@ function isArchiveChapterAction(
 ): value is CLIArchiveChapterAction {
   return (
     value === "add" ||
-    value === "generate-graph" ||
-    value === "generate-summary" ||
     value === "list" ||
     value === "remove" ||
     value === "reset" ||
@@ -2005,20 +1941,6 @@ function rejectActionBooleanFlag(
   }
 }
 
-function rejectConvertFlag(
-  name: string,
-  value: boolean | string | undefined,
-): void {
-  if (value !== undefined) {
-    throw new Error(
-      withHelpRoute(
-        `The main convert command does not support --${name}.`,
-        CLI_HELP_ROUTES.command,
-      ),
-    );
-  }
-}
-
 function rejectArchiveChapterFlag(
   name: string,
   value: boolean | string | undefined,
@@ -2028,17 +1950,6 @@ function rejectArchiveChapterFlag(
       withHelpRoute(
         `The \`chapter\` command does not support --${name}.`,
         "spinedigest chapter --help",
-      ),
-    );
-  }
-}
-
-function rejectConvertMetaFlags(values: ArchiveMetaFlagValues): void {
-  for (const flag of listPresentMetaFlags(values)) {
-    throw new Error(
-      withHelpRoute(
-        `The main convert command does not support ${flag}.`,
-        CLI_HELP_ROUTES.command,
       ),
     );
   }
@@ -2072,6 +1983,32 @@ function rejectStatusMetaFlags(values: ArchiveMetaFlagValues): void {
       withHelpRoute(
         `The \`config status\` command does not support ${flag}.`,
         "spinedigest config status --help",
+      ),
+    );
+  }
+}
+
+function rejectTransformFlag(
+  name: string,
+  value: boolean | string | undefined,
+  helpRoute: string,
+): void {
+  if (value !== undefined) {
+    throw new Error(
+      withHelpRoute(
+        `The \`transform\` command does not support --${name}.`,
+        helpRoute,
+      ),
+    );
+  }
+}
+
+function rejectTransformMetaFlags(values: ArchiveMetaFlagValues): void {
+  for (const flag of listPresentMetaFlags(values)) {
+    throw new Error(
+      withHelpRoute(
+        `The \`transform\` command does not support ${flag}.`,
+        "spinedigest transform --help",
       ),
     );
   }
@@ -2157,16 +2094,14 @@ function isArchiveAction(value: string | undefined): value is CLIArchiveAction {
   return (
     value === "backlinks" ||
     value === "build" ||
+    value === "create" ||
     value === "estimate" ||
-    value === "fragments" ||
     value === "export" ||
     value === "find" ||
     value === "grep" ||
-    value === "import" ||
     value === "index" ||
     value === "links" ||
     value === "list" ||
-    value === "ls" ||
     value === "map" ||
     value === "page" ||
     value === "pack" ||
@@ -2221,7 +2156,7 @@ function parseArchiveListKind(
   throw new Error(
     withHelpRoute(
       `Invalid list kind: ${value}. Expected chapters, nodes, edges, fragments, summaries, or meta.`,
-      "spinedigest ls --help",
+      "spinedigest list --help",
     ),
   );
 }

@@ -4,11 +4,12 @@ Topic: runtime
 Runtime Behavior
 
 Archive-first streams:
-  - `spinedigest import <archive.sdpub> --input-format markdown|txt` reads source text from stdin.
+  - `spinedigest create <archive.sdpub> --input-format markdown|txt` reads source text from stdin.
   - `spinedigest export <archive.sdpub> --output-format markdown|txt` can write text projections to stdout.
   - `spinedigest transform --input-format markdown|txt --output-format markdown|txt` runs direct one-shot stream digest/export.
   - Retrieval commands print human-readable text by default and support `--json` where documented.
   - A bare `spinedigest` in an interactive terminal prints root help.
+  - A bare non-interactive `spinedigest` invocation is not a transform shortcut; use `spinedigest transform`.
 
 Exit behavior:
   - Success returns exit code 0.
@@ -21,14 +22,14 @@ Build safety:
 
 Progress and diagnostics:
   - LLM-backed build progress writes to stderr.
-  - `--verbose` is available for the direct digest command and writes diagnostic logs to stderr.
+  - `transform --verbose` writes diagnostic logs to stderr.
 
 Workspace behavior:
-  - Archive-first import uses temporary workspaces unless the direct digest command is used with `--digest-dir`.
-  - `--digest-dir` applies only to source digest runs through the direct digest command.
+  - Archive creation from URL or stdin uses temporary workspaces.
+  - `transform --digest-dir <path>` uses the provided digest workspace for source digest runs.
 
 In-place archive edits:
-  - `build` and mutating `sdpub` maintenance commands edit archives in place.
+  - `build` and mutating `.sdpub` maintenance commands edit archives in place.
   - Do not run multiple mutating commands against the same archive concurrently.
   - Writes are staged through a temporary archive and renamed into place, but no backup file is created.
 

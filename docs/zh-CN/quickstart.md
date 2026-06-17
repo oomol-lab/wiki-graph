@@ -31,11 +31,11 @@ npx spinedigest --help
 ## 3. 导入源材料
 
 ```bash
-spinedigest import ./book.sdpub ./book.md
-cat ./article.md | spinedigest import ./article.sdpub --input-format markdown
+spinedigest create ./book.sdpub ./book.md
+cat ./article.md | spinedigest create ./article.sdpub --input-format markdown
 ```
 
-Import 会创建或替换 source 阶段的 `.sdpub` 归档。这不表示归档已经完成 graph 构建或 summary 构建。
+create 会创建或替换 source 阶段的 `.sdpub` 归档。这不表示归档已经完成 graph 构建或 summary 构建。
 
 ## 4. 查看和估算
 
