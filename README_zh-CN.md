@@ -85,20 +85,20 @@ spinedigest build ./book.sdpub --stage graph --confirm
 
 ```bash
 spinedigest list ./book.sdpub --type chapter
-spinedigest page ./book.sdpub chapter:12
+spinedigest page ./book.sdpub --chapter 12
 spinedigest find ./book.sdpub "RAG" --type node
-spinedigest grep ./book.sdpub "exact source phrase"
-spinedigest page ./book.sdpub node:84
-spinedigest read ./book.sdpub chapter:12
-spinedigest links ./book.sdpub node:84
-spinedigest related ./book.sdpub node:84
-spinedigest pack ./book.sdpub node:84 --budget 5000
+spinedigest grep ./book.sdpub "exact source phrase" --type fragment
+spinedigest page ./book.sdpub --node 84
+spinedigest read ./book.sdpub --chapter 12
+spinedigest links ./book.sdpub --node 84
+spinedigest related ./book.sdpub --node 84
+spinedigest pack ./book.sdpub --node 84 --budget 5000
 ```
 
 只有需要便携视图时再输出 projection。比如只需要某一章的 `.md` 文本，可以读取该章；需要完整电子书视图时再导出 EPUB：
 
 ```bash
-spinedigest read ./book.sdpub chapter:12 > ./chapter-12.md
+spinedigest read ./book.sdpub --chapter 12 > ./chapter-12.md
 spinedigest export ./book.sdpub --output-format epub --output ./digest.epub
 ```
 
@@ -150,8 +150,8 @@ spinedigest index ./book.sdpub
 spinedigest list ./book.sdpub --type chapter
 spinedigest list ./book.sdpub --type node --chapter 12
 spinedigest find ./book.sdpub "central argument" --type node
-spinedigest page ./book.sdpub chapter:12
-spinedigest read ./book.sdpub chapter:12
+spinedigest page ./book.sdpub --chapter 12
+spinedigest read ./book.sdpub --chapter 12
 ```
 
 Markdown、EPUB、txt 和 JSON 风格输出都是归档的 projection。它们适合携带和阅读，但当你需要图链接和证据追溯时，不能替代 `.sdpub` 本身。

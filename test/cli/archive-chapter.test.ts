@@ -93,6 +93,7 @@ vi.mock("../../src/facade/index.js", () => ({
       title: "New Chapter",
     });
   }),
+  assertNoActiveBuildJobs: vi.fn(() => Promise.resolve()),
   getChapterDetails: vi.fn(() => Promise.resolve(chapterDetails)),
   getChapterTree: vi.fn(() => Promise.resolve(chapterMockState.tree)),
   listChapters: vi.fn(() => Promise.resolve(chapterMockState.listEntries)),

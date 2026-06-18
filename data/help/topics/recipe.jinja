@@ -13,15 +13,22 @@ Check readiness:
   spinedigest status book.sdpub
   spinedigest index book.sdpub
 
-Estimate a full summary build:
+Estimate summary generation:
   spinedigest estimate book.sdpub --stage summary
 
-Build one chapter graph:
-  spinedigest build book.sdpub --stage graph --chapter 3 --confirm
+Queue one chapter summary:
+  spinedigest queue add book.sdpub --chapter 3 --to summary --accept-cost
+
+Queue one chapter graph and watch as JSONL:
+  spinedigest queue add book.sdpub --chapter 3 --to graph --accept-cost
+  spinedigest queue watch <job-id> --jsonl
+
+Prioritize an existing job:
+  spinedigest queue boost <job-id>
 
 Find and read source-backed knowledge:
   spinedigest find book.sdpub "knowledge graph" --type node
-  spinedigest page book.sdpub node:84
+  spinedigest page book.sdpub --node 84
 
 List archive objects as JSON:
   spinedigest list book.sdpub --type node --json
@@ -29,7 +36,7 @@ List archive objects as JSON:
   spinedigest find book.sdpub "RAG" --type node --json
 
 Read one chapter as continuous text:
-  spinedigest read book.sdpub chapter:3
+  spinedigest read book.sdpub --chapter 3
 
 Export a Markdown projection:
   spinedigest export book.sdpub --output-format markdown --output digest.md

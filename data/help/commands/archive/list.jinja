@@ -5,21 +5,21 @@ Purpose:
   List archive objects as a bounded, pageable collection.
 
 Usage:
-  spinedigest list <archive.sdpub> [--id <ids>] [--chapter <ids>] [--type <types>] [--order <doc-asc|doc-desc>] [--limit <n>] [--cursor <token>] [--json]
+  spinedigest list <archive.sdpub> --type <chapter|summary|node|fragment|meta> [--id <ids>] [--chapter <ids>] [--order <doc-asc|doc-desc>] [--limit <n>] [--cursor <token>] [--json]
 
 Contract:
   - Mutates: no.
   - LLM: no.
-  - Types: chapter, summary, node, fragment, meta.
+  - Types: chapter, summary, node, fragment, meta. `--type` is required.
   - Scope: `--chapter 12` or `--chapter 11,12` limits chapter-owned objects.
-  - IDs: `--id node:1,node:2,chapter:12` returns matching collection items.
+  - IDs: `--id` uses local ids for the selected single type, such as `--type node --id 1,2` or `--type fragment --id 12:0`.
   - Order: `doc-asc` or `doc-desc`; default `doc-asc`.
   - Pagination: default `--limit 20`; pass returned `nextCursor` back with `--cursor`.
   - JSON: yes.
 
-Use `page` when you already know one object id and need the detailed page.
+Use `page` when you already know one object selector and need the detailed page.
 
 Examples:
   spinedigest list book.sdpub --type chapter
   spinedigest list book.sdpub --type node --chapter 12 --json
-  spinedigest list book.sdpub --id node:320,fragment:13:0 --json
+  spinedigest list book.sdpub --type node --id 320 --json

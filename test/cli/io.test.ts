@@ -1,35 +1,48 @@
 import { access, mkdir, writeFile } from "fs/promises";
 
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { PipelineSource } from "stream";
+import {
+  afterEach,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  type MockInstance,
+  vi,
+} from "vitest";
 
 import { withTempDir } from "../helpers/temp.js";
-
-const ioMockState = vi.hoisted(() => ({
-  pipelineCalls: [] as unknown[][],
-}));
-
-vi.mock("stream/promises", () => ({
-  pipeline: vi.fn((...args: PipelineSource<unknown>[]) => {
-    ioMockState.pipelineCalls.push(args);
-    return Promise.resolve();
-  }),
-}));
 
 import {
   createTemporaryOutputPath,
   readTextStreamFromStdin,
   removeTemporaryDirectory,
+  writeBinaryToStdout,
   writeTextFileToStdout,
+  writeTextToStdout,
 } from "../../src/cli/io.js";
 
 describe("cli/io", () => {
+  let stdoutChunks: unknown[];
+  let stdoutWrite: MockInstance<typeof process.stdout.write>;
+
   beforeEach(() => {
-    ioMockState.pipelineCalls.length = 0;
+    stdoutChunks = [];
+    stdoutWrite = vi
+      .spyOn(process.stdout, "write")
+      .mockImplementation((chunk, callbackOrEncoding, callback) => {
+        stdoutChunks.push(chunk);
+        const writeCallback =
+          typeof callbackOrEncoding === "function"
+            ? callbackOrEncoding
+            : callback;
+
+        writeCallback?.();
+        return true;
+      });
   });
 
   afterEach(() => {
-    vi.restoreAllMocks();
+    stdoutWrite.mockRestore();
   });
 
   it("configures stdin for utf8 text and returns the stdin stream", () => {
@@ -48,12 +61,23 @@ describe("cli/io", () => {
       await writeFile(filePath, "hello stdout", "utf8");
       await writeTextFileToStdout(filePath);
 
-      expect(ioMockState.pipelineCalls).toHaveLength(1);
-      expect(ioMockState.pipelineCalls[0]?.[1]).toBe(process.stdout);
-      expect(ioMockState.pipelineCalls[0]?.[0]).toMatchObject({
-        path: filePath,
-      });
+      expect(stdoutChunks.join("")).toBe("hello stdout");
     });
+  });
+
+  it("writes multiple stdout chunks without ending stdout", async () => {
+    await writeTextToStdout("first\n");
+    await writeTextToStdout("second\n");
+
+    expect(stdoutChunks).toStrictEqual(["first\n", "second\n"]);
+  });
+
+  it("writes binary data to stdout", async () => {
+    const data = new Uint8Array([1, 2, 3]);
+
+    await writeBinaryToStdout(data);
+
+    expect(stdoutChunks).toStrictEqual([data]);
   });
 
   it("creates temporary output paths inside a new directory", async () => {

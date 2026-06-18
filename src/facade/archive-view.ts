@@ -1317,7 +1317,7 @@ const BROAD_FIND_LENS_HINT = {
     summary: "quick overview",
   },
   message:
-    "Untyped find searched broadly. For content understanding, choose --type node, --type summary, or --type fragment as a search lens.",
+    "Choose --type node, --type summary, or --type fragment as a search lens.",
 } satisfies ArchiveFindLensHint;
 
 function createKeywordSearch(

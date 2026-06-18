@@ -166,6 +166,71 @@ describe("facade/spine-digest", () => {
       }
     });
   });
+
+  it("reads chapter stage without requiring summary-ready serials", async () => {
+    await withTempDir("spinedigest-facade-", async (path) => {
+      const document = await DirectoryDocument.open(`${path}/document`);
+
+      try {
+        await document.openSession(async (openedDocument) => {
+          await openedDocument.createSerial();
+          await openedDocument.createSerial();
+          await openedDocument.createSerial();
+          await openedDocument.createSerial();
+          const sourcedDraft = await openedDocument
+            .getSerialFragments(2)
+            .createDraft();
+          sourcedDraft.addSentence("Source sentence.", 2);
+          await sourcedDraft.commit();
+          const graphedDraft = await openedDocument
+            .getSerialFragments(3)
+            .createDraft();
+          graphedDraft.addSentence("Graph sentence.", 2);
+          await graphedDraft.commit();
+          await openedDocument.serials.setTopologyReady(3);
+          await openedDocument.writeSummary(4, "Summary four");
+          await openedDocument.writeToc({
+            items: [
+              {
+                children: [
+                  {
+                    children: [],
+                    serialId: 2,
+                    title: "Sourced",
+                  },
+                ],
+                serialId: 1,
+                title: "Planned",
+              },
+              {
+                children: [],
+                serialId: 3,
+                title: "Graphed",
+              },
+              {
+                children: [],
+                serialId: 4,
+                title: "Summarized",
+              },
+            ],
+            version: 1,
+          });
+        });
+
+        const digest = new SpineDigest(document, document.path);
+
+        await expect(digest.readChapterStage(1)).resolves.toBe("planned");
+        await expect(digest.readChapterStage(2)).resolves.toBe("sourced");
+        await expect(digest.readChapterStage(3)).resolves.toBe("graphed");
+        await expect(digest.readChapterStage(4)).resolves.toBe("summarized");
+        await expect(digest.readChapterStage(404)).rejects.toThrow(
+          "Chapter 404 does not exist",
+        );
+      } finally {
+        await document.release();
+      }
+    });
+  });
 });
 
 async function seedDocument(document: DirectoryDocument): Promise<void> {

@@ -33,6 +33,31 @@ export {
   readArchiveText,
 } from "./archive-view.js";
 export {
+  addBuildJob,
+  assertNoActiveBuildJobs,
+  boostBuildJob,
+  cancelBuildJob,
+  cleanBuildJobs,
+  getBuildJob,
+  listBuildJobs,
+  pauseBuildJob,
+  readBuildJobEvents,
+  resumeBuildJob,
+  resolveBuildJobId,
+  runBuildJobWorker,
+  updateBuildJobTarget,
+} from "./build-queue.js";
+export type {
+  AddBuildJobOptions,
+  BuildJob,
+  BuildJobEvent,
+  BuildJobListOptions,
+  BuildJobProgressReporter,
+  BuildJobState,
+  BuildJobTarget,
+  BuildJobWorkerOptions,
+} from "./build-queue.js";
+export {
   addChapter,
   advanceChapterStages,
   applyChapterTree,

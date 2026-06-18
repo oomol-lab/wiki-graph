@@ -7,6 +7,7 @@ import {
 } from "./archive-maintenance.js";
 import { runConvertCommand } from "./convert.js";
 import { renderMainHelpText } from "./help.js";
+import { runQueueCommand } from "./queue.js";
 import { runStatusCommand } from "./status.js";
 import { LLMPaymentRequiredError } from "../llm/index.js";
 import { formatError } from "../utils/node-error.js";
@@ -44,6 +45,9 @@ export async function main(): Promise<void> {
         return;
       case "archive":
         await runArchiveCommand(parsed.args);
+        return;
+      case "queue":
+        await runQueueCommand(parsed.args);
         return;
       case "config-status":
         await runStatusCommand(parsed.args);

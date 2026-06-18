@@ -6,62 +6,72 @@ AI Agent Guide
 Primary contract:
   - Treat `.sdpub` as an LLM Wiki archive managed by SpineDigest.
   - Use archive commands such as `chapter tree`, `list`, `find`, `grep`, `page`, `read`, `links`, `backlinks`, and `export` before unpacking or inspecting ZIP internals.
-  - Choose one of three exploration modes first: search mode (`find`/`grep`), structure mode (`chapter tree`/`list`/`page`), or reading mode (`read`).
-  - In search mode, treat untyped `find` as broad candidate discovery. For content understanding, choose a search lens: `--type node`, `--type summary`, or `--type fragment`.
-  - Use `index` when archive-level readiness or metadata matters; after `chapter tree`, scoped `list --chapter <ids>` is usually a lower-context way to expand selected chapters.
-  - For evidence tracing, logic-chain reconstruction, or relationship analysis from source text, `page fragment:<id>` keeps source text with adjacent fragments and related node labels.
-  - Prefer `--json` when composing with tools.
+  - Choose one exploration mode first: search mode (`find`/`grep`), structure mode (`chapter tree`/`list`/`page`), or reading mode (`read`).
+  - Prefer `--json` for retrieval commands when composing with tools.
+  - Prefer `queue watch --jsonl` when observing generation jobs.
   - Do not inspect `database.db` for routine retrieval.
-  - Do not launch full-archive LLM-backed builds without estimating first.
+  - Do not queue large LLM-backed work without estimating first.
 
 Safe first moves:
   - Broad understanding, synthesis, timeline, relationship, or process tasks:
     spinedigest chapter tree <archive.sdpub> --json
     spinedigest list <archive.sdpub> --type node --chapter <ids>
-    spinedigest page <archive.sdpub> chapter:<id>
+    spinedigest page <archive.sdpub> --chapter <id>
     # inspect nodeGroups, then:
-    spinedigest page <archive.sdpub> node:<id>
-  - Archive readiness, metadata, or build state:
+    spinedigest page <archive.sdpub> --node <id>
+  - Archive readiness, metadata, or queue state:
     spinedigest status <archive.sdpub>
     spinedigest index <archive.sdpub>
+    spinedigest queue list --input <archive.sdpub>
   - Locate candidate chapters or verify missing concepts:
-    spinedigest find <archive.sdpub> <query>
     spinedigest find <archive.sdpub> <query> --type node
     spinedigest find <archive.sdpub> <query> --type summary
     spinedigest find <archive.sdpub> <query> --type fragment
-    spinedigest page <archive.sdpub> fragment:<serial>:<fragment>
+    spinedigest page <archive.sdpub> --fragment <chapter>:<fragment>
     spinedigest grep <archive.sdpub> <exact phrase>
     spinedigest list <archive.sdpub> --type node --chapter <id>
   - Continuous reading after topology selection:
-    spinedigest read <archive.sdpub> chapter:<id>
-    spinedigest read <archive.sdpub> fragment:<serial>:<fragment>
+    spinedigest read <archive.sdpub> --chapter <id>
+    spinedigest read <archive.sdpub> --fragment <chapter>:<fragment>
   - Need graph context:
-    spinedigest links <archive.sdpub> <node:id>
-    spinedigest backlinks <archive.sdpub> <node:id>
-    spinedigest related <archive.sdpub> <node:id>
+    spinedigest links <archive.sdpub> --node <id>
+    spinedigest backlinks <archive.sdpub> --node <id>
+    spinedigest related <archive.sdpub> --node <id>
   - Need a reusable context projection:
-    spinedigest pack <archive.sdpub> <id> --budget 5000
+    spinedigest pack <archive.sdpub> <selector> --budget 5000
     spinedigest export <archive.sdpub> --output-format markdown
 
-Build safety:
-  - Safe default: create a `.sdpub` archive at source stage.
-  - Before any graph or summary build, run:
+Queue safety:
+  - Graph and summary jobs consume LLM tokens, may incur provider charges, and can run for minutes to hours on large archives.
+  - `queue add` requires `--accept-cost` to make this explicit.
+  - Before large graph or summary generation, run:
     spinedigest estimate <archive.sdpub> --stage summary
-  - If estimated time or cost exceeds the interactive task budget, stop and ask.
-  - Prefer scoped builds with `--chapter <id>`.
-  - LLM-backed `build` requires `--confirm` after estimation.
+  - Queue one chapter at a time:
+    spinedigest queue add <archive.sdpub> --chapter <id> --to summary --accept-cost
+  - Watch as JSONL:
+    spinedigest queue watch <job-id> --jsonl
+  - Use `queue list` to distinguish running, queued, paused, and terminal jobs.
+  - Use `queue boost <job-id>` or `queue add ... --boost` only when the user asks to prioritize work.
+  - Use `queue cancel <job-id>` only when the user explicitly wants to abandon the job.
 
-Object ids:
-  - chapter:<id> for chapter-like archive pages
-  - node:<id> for graph knowledge nodes
-  - fragment:<serial>:<fragment> for source reading fragments
-  - summary:<id> for chapter summaries
-  - meta:book for metadata
+Queue event contract:
+  - JSONL watch prints one structured event per line.
+  - `progress_snapshot` events carry graph words, summary words, and approximate output tokens.
+  - State events include created, started, requeued, paused, resumed, target_changed, failed, canceled, and succeeded.
+  - Reconnecting with `--from beginning` replays durable event history.
+
+Object selectors:
+  - `--chapter <id>` for chapter-like archive pages
+  - `--node <id>` for graph knowledge nodes
+  - `--fragment <chapter>:<fragment>` for source reading fragments
+  - `--summary <id>` for chapter summaries
+  - `--meta book` for metadata
 
 Stable terms:
   - archive: `.sdpub`, the primary managed knowledge object
   - source: normalized source material stored in the archive
   - chapter: current top-level readable unit inside the archive
+  - queue job: device-local graph or summary generation task for one archive chapter
   - node: graph knowledge unit surfaced as an agent-readable page
   - source fragment: original text excerpt backing a node page
   - projection: exported Markdown, txt, EPUB, JSON, or graph output
@@ -69,14 +79,7 @@ Stable terms:
 Maintenance commands:
   - `chapter tree` without `apply` is read-only structure inspection for table-of-contents hierarchy and chapter ordering.
   - `meta`, `cover`, `chapter tree apply`, and other mutating `chapter` actions are maintenance commands.
-  - Prefer archive-first commands unless the user specifically needs metadata mutation, cover extraction, or chapter tree edits.
+  - Active queue jobs protect their chapters from destructive maintenance edits.
 
 Discovery rule:
-  If the user question asks for synthesis, a timeline, a process, a relationship map, character development, or conceptual structure, start with `chapter tree --json` for a compact table-of-contents map, then select likely chapter ids and use scoped `list --chapter <ids>` or `page chapter:<id>` to expand local context. This usually spends less context than returning to archive-level entry points. Do not flatten the archive into raw text first.
-  Use `find` for multi-keyword discovery after the topology pass, or when you need to locate candidate chapters quickly. Whitespace separates keywords, default matching is `--match any`, and stronger matches are ranked first.
-  Untyped `find` is broad candidate discovery across metadata, chapter titles, summaries, nodes, and fragments.
-  For content understanding, choose a search lens: `--type node` for topology / LLM Wiki structure, `--type summary` for quick overview, or `--type fragment` for original source wording.
-  Use `find --match all` only when every keyword must appear inside the same returned object.
-  Use `grep` only when checking whether an exact continuous phrase exists.
-  Use `--chapter`, `--limit`, and returned `nextCursor` to keep retrieval bounded and reproducible.
-  Use `page fragment:<id>` when source evidence should lead into related nodes or adjacent fragments. Use `read` when the user wants to understand a chapter or fragment as prose rather than navigate object ids.
+  If the user question asks for synthesis, a timeline, a process, a relationship map, character development, or conceptual structure, start with `chapter tree --json`, then select likely chapter ids and use scoped `list --chapter <ids>` or `page --chapter <id>`. Do not flatten the archive into raw text first.

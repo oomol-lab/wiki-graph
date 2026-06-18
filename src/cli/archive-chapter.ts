@@ -6,6 +6,7 @@ import type { DirectoryDocument } from "../document/index.js";
 import {
   addChapter,
   applyChapterTree,
+  assertNoActiveBuildJobs,
   getChapterDetails,
   getChapterTree,
   listChapters,
@@ -59,6 +60,14 @@ export async function runArchiveChapterCommand(
       return;
     case "move":
       await runEditableCommand(args.path, async (document) => {
+        await assertNoActiveBuildJobs({
+          archivePath: args.path,
+          chapterIds: collectChapterSubtreeIds(
+            await getChapterTree(document),
+            args.chapterId!,
+          ),
+          operation: "Moving chapter",
+        });
         const details = await moveChapter(document, args.chapterId!, {
           ...(args.afterChapterId === undefined
             ? {}
@@ -79,6 +88,17 @@ export async function runArchiveChapterCommand(
       return;
     case "remove":
       await runEditableCommand(args.path, async (document) => {
+        await assertNoActiveBuildJobs({
+          archivePath: args.path,
+          chapterIds:
+            args.recursive === true
+              ? collectChapterSubtreeIds(
+                  await getChapterTree(document),
+                  args.chapterId!,
+                )
+              : [args.chapterId!],
+          operation: "Removing chapter",
+        });
         await removeChapter(document, args.chapterId!, {
           recursive: args.recursive ?? false,
         });
@@ -87,6 +107,7 @@ export async function runArchiveChapterCommand(
       return;
     case "reset":
       await runEditableCommand(args.path, async (document) => {
+        await assertResetAllowed(args.path, args.chapterId!, args.resetStage!);
         const details = await resetChapter(
           document,
           args.chapterId!,
@@ -98,6 +119,11 @@ export async function runArchiveChapterCommand(
       return;
     case "set-source":
       await runEditableCommand(args.path, async (document) => {
+        await assertNoActiveBuildJobs({
+          archivePath: args.path,
+          chapterIds: [args.chapterId!],
+          operation: "Setting chapter source",
+        });
         const details = await setChapterSource(
           document,
           args.chapterId!,
@@ -109,6 +135,12 @@ export async function runArchiveChapterCommand(
       return;
     case "set-summary":
       await runEditableCommand(args.path, async (document) => {
+        await assertNoActiveBuildJobs({
+          archivePath: args.path,
+          chapterIds: [args.chapterId!],
+          operation: "Setting chapter summary",
+          requiresTarget: "summary",
+        });
         const details = await setChapterSummary(
           document,
           args.chapterId!,
@@ -298,4 +330,85 @@ function formatStage(stage: ChapterEntry["stage"]): string {
     case "summarized":
       return "summary";
   }
+}
+
+async function assertResetAllowed(
+  archivePath: string,
+  chapterId: number,
+  stage: NonNullable<CLIArchiveChapterArguments["resetStage"]>,
+): Promise<void> {
+  switch (stage) {
+    case "planned":
+      await assertNoActiveBuildJobs({
+        archivePath,
+        chapterIds: [chapterId],
+        operation: "Resetting chapter to planned",
+      });
+      return;
+    case "sourced":
+      await assertNoActiveBuildJobs({
+        archivePath,
+        chapterIds: [chapterId],
+        operation: "Resetting chapter graph",
+        requiresTarget: "graph",
+      });
+      await assertNoActiveBuildJobs({
+        archivePath,
+        chapterIds: [chapterId],
+        operation: "Resetting chapter graph",
+        requiresTarget: "summary",
+      });
+      return;
+    case "graphed":
+      await assertNoActiveBuildJobs({
+        archivePath,
+        chapterIds: [chapterId],
+        operation: "Resetting chapter summary",
+        requiresTarget: "summary",
+      });
+      return;
+  }
+}
+
+function collectChapterSubtreeIds(
+  tree: ChapterTree,
+  chapterId: number,
+): readonly number[] {
+  for (const node of tree.chapters) {
+    const ids = collectChapterSubtreeIdsFromNode(node, chapterId);
+
+    if (ids.length > 0) {
+      return ids;
+    }
+  }
+
+  return [chapterId];
+}
+
+function collectChapterSubtreeIdsFromNode(
+  node: ChapterTree["chapters"][number],
+  chapterId: number,
+): readonly number[] {
+  if (node.id === chapterId) {
+    return collectAllChapterIds(node);
+  }
+
+  for (const child of node.children) {
+    const ids = collectChapterSubtreeIdsFromNode(child, chapterId);
+
+    if (ids.length > 0) {
+      return ids;
+    }
+  }
+
+  return [];
+}
+
+function collectAllChapterIds(
+  node: ChapterTree["chapters"][number],
+): readonly number[] {
+  return [
+    node.id,
+    ...node.children.flatMap((child) => collectAllChapterIds(child)),
+  ];
 }

@@ -297,10 +297,15 @@ export async function generateChapterGraph(
         ? {}
         : { logDirPath: options.logDirPath }),
     });
+    const sourceText = await collectReaderText(
+      readChapterSource(openedDocument, chapterId),
+    );
+
+    await openedDocument.clearSerialSource(chapterId);
 
     await generation.buildTopologyInto(
       chapterId,
-      readChapterSource(openedDocument, chapterId),
+      sourceText,
       createTopologyOptions(options),
       options.progressTracker,
     );
@@ -1303,6 +1308,18 @@ async function* readChapterSource(
       yield sentence.text;
     }
   }
+}
+
+async function collectReaderText(
+  stream: ReaderTextStream,
+): Promise<readonly string[]> {
+  const text: string[] = [];
+
+  for await (const chunk of stream) {
+    text.push(chunk);
+  }
+
+  return text;
 }
 
 function normalizeTitle(title: string | null | undefined): string | undefined {

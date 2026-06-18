@@ -15,12 +15,12 @@ Targets:
   graph       Keep source text and graph data; delete summary.
 
 Behavior:
-  - `--stage summary --confirm` is not supported because reset is a backward operation.
+  - `summary` is not supported because reset is a backward operation.
   - Reset is destructive and may discard work.
   - Does not call an LLM provider.
-  - After reset, use `build` to move forward safely.
+  - After reset, use `queue add` to generate graph or summary again.
 
 See also:
-  - spinedigest build --help
+  - spinedigest queue --help
   - spinedigest chapter status --help
   - spinedigest help command

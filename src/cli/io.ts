@@ -2,8 +2,6 @@ import { createReadStream } from "fs";
 import { mkdtemp, rm } from "fs/promises";
 import { join } from "path";
 import { tmpdir } from "os";
-import { Readable } from "stream";
-import { pipeline } from "stream/promises";
 
 export function readTextStreamFromStdin(): AsyncIterable<string> {
   process.stdin.setEncoding("utf8");
@@ -11,11 +9,13 @@ export function readTextStreamFromStdin(): AsyncIterable<string> {
 }
 
 export async function writeTextFileToStdout(path: string): Promise<void> {
-  await pipeline(createReadStream(path, { encoding: "utf8" }), process.stdout);
+  for await (const chunk of createReadStream(path, { encoding: "utf8" })) {
+    await writeChunkToStdout(String(chunk));
+  }
 }
 
 export async function writeTextToStdout(text: string): Promise<void> {
-  await pipeline(Readable.from([text]), process.stdout);
+  await writeChunkToStdout(text);
 }
 
 export async function writeTextToStderr(text: string): Promise<void> {
@@ -32,7 +32,20 @@ export async function writeTextToStderr(text: string): Promise<void> {
 }
 
 export async function writeBinaryToStdout(data: Uint8Array): Promise<void> {
-  await pipeline(Readable.from([data]), process.stdout);
+  await writeChunkToStdout(data);
+}
+
+async function writeChunkToStdout(chunk: string | Uint8Array): Promise<void> {
+  await new Promise<void>((resolve, reject) => {
+    process.stdout.write(chunk, (error) => {
+      if (error === undefined || error === null) {
+        resolve();
+        return;
+      }
+
+      reject(error);
+    });
+  });
 }
 
 export async function createTemporaryOutputPath(

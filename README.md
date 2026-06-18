@@ -85,20 +85,20 @@ Search, browse, and read through the knowledge-base interface:
 
 ```bash
 spinedigest list ./book.sdpub --type chapter
-spinedigest page ./book.sdpub chapter:12
+spinedigest page ./book.sdpub --chapter 12
 spinedigest find ./book.sdpub "RAG" --type node
-spinedigest grep ./book.sdpub "exact source phrase"
-spinedigest page ./book.sdpub node:84
-spinedigest read ./book.sdpub chapter:12
-spinedigest links ./book.sdpub node:84
-spinedigest related ./book.sdpub node:84
-spinedigest pack ./book.sdpub node:84 --budget 5000
+spinedigest grep ./book.sdpub "exact source phrase" --type fragment
+spinedigest page ./book.sdpub --node 84
+spinedigest read ./book.sdpub --chapter 12
+spinedigest links ./book.sdpub --node 84
+spinedigest related ./book.sdpub --node 84
+spinedigest pack ./book.sdpub --node 84 --budget 5000
 ```
 
 Output a projection only when you need a portable view. For example, read one chapter into Markdown text, or export the full archive as an EPUB:
 
 ```bash
-spinedigest read ./book.sdpub chapter:12 > ./chapter-12.md
+spinedigest read ./book.sdpub --chapter 12 > ./chapter-12.md
 spinedigest export ./book.sdpub --output-format epub --output ./digest.epub
 ```
 
@@ -150,8 +150,8 @@ spinedigest index ./book.sdpub
 spinedigest list ./book.sdpub --type chapter
 spinedigest list ./book.sdpub --type node --chapter 12
 spinedigest find ./book.sdpub "central argument" --type node
-spinedigest page ./book.sdpub chapter:12
-spinedigest read ./book.sdpub chapter:12
+spinedigest page ./book.sdpub --chapter 12
+spinedigest read ./book.sdpub --chapter 12
 ```
 
 Markdown, EPUB, txt, and JSON-style outputs are projections of the archive. They are useful for portability and reading, but they do not replace the `.sdpub` object when graph links and source fragments matter.

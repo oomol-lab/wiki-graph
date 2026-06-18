@@ -7,6 +7,7 @@ import {
   renderArchiveMaintenanceCommandHelpText,
   renderHelpTopicText,
   renderMainHelpText,
+  renderQueueCommandHelpText,
   renderStatusHelpText,
   renderTransformHelpText,
 } from "../../src/cli/help.js";
@@ -75,6 +76,86 @@ describe("cli/args", () => {
       },
       help: false,
       kind: "config-status",
+    });
+  });
+
+  it("parses queue commands", () => {
+    expect(
+      parseCLIArguments([
+        "queue",
+        "add",
+        "book.sdpub",
+        "--chapter",
+        "12",
+        "--to",
+        "summary",
+        "--boost",
+        "--accept-cost",
+        "--llm",
+        '{"model":"cli-model"}',
+      ]),
+    ).toStrictEqual({
+      args: {
+        acceptCost: true,
+        action: "add",
+        archivePath: "book.sdpub",
+        boost: true,
+        chapterId: 12,
+        llmJSON: '{"model":"cli-model"}',
+        target: "summary",
+      },
+      help: false,
+      kind: "queue",
+    });
+
+    expect(
+      parseCLIArguments([
+        "queue",
+        "add",
+        "book.sdpub",
+        "--chapter",
+        "12",
+        "--to",
+        "summary",
+      ]),
+    ).toStrictEqual({
+      args: {
+        action: "add",
+        archivePath: "book.sdpub",
+        chapterId: 12,
+        target: "summary",
+      },
+      help: false,
+      kind: "queue",
+    });
+    expect(() =>
+      parseCLIArguments(["status", "book.sdpub", "--accept-cost"]),
+    ).toThrow("only valid for `spinedigest queue add`");
+
+    expect(
+      parseCLIArguments([
+        "queue",
+        "watch",
+        "job-1",
+        "--jsonl",
+        "--from",
+        "now",
+      ]),
+    ).toStrictEqual({
+      args: {
+        action: "watch",
+        from: "now",
+        jobId: "job-1",
+        jsonl: true,
+      },
+      help: false,
+      kind: "queue",
+    });
+
+    expect(parseCLIArguments(["queue", "--help"])).toStrictEqual({
+      help: true,
+      helpText: renderQueueCommandHelpText(),
+      kind: "help",
     });
   });
 
@@ -167,36 +248,26 @@ describe("cli/args", () => {
       kind: "archive",
     });
 
-    expect(() =>
-      parseCLIArguments(["build", "book.sdpub", "--stage", "graph"]),
-    ).toThrow("This build may call an LLM.");
-    expect(
-      parseCLIArguments([
-        "build",
-        "book.sdpub",
-        "--stage",
-        "graph",
-        "--confirm",
-      ]),
-    ).toStrictEqual({
-      args: {
-        action: "build",
-        archivePath: "book.sdpub",
-        confirm: true,
-        targetStage: "graphed",
-      },
-      help: false,
-      kind: "archive",
-    });
+    expect(() => parseCLIArguments(["build", "book.sdpub"])).toThrow(
+      "Unknown command: build.",
+    );
 
     expect(
-      parseCLIArguments(["find", "book.sdpub", "RAG", "--json"]),
+      parseCLIArguments([
+        "find",
+        "book.sdpub",
+        "RAG",
+        "--type",
+        "node",
+        "--json",
+      ]),
     ).toStrictEqual({
       args: {
         action: "find",
         archivePath: "book.sdpub",
         json: true,
         query: "RAG",
+        searchTypes: ["node"],
       },
       help: false,
       kind: "archive",
@@ -207,6 +278,8 @@ describe("cli/args", () => {
         "find",
         "book.sdpub",
         "朱元璋 洪都",
+        "--type",
+        "summary",
         "--match",
         "all",
       ]),
@@ -216,13 +289,14 @@ describe("cli/args", () => {
         archivePath: "book.sdpub",
         match: "all",
         query: "朱元璋 洪都",
+        searchTypes: ["summary"],
       },
       help: false,
       kind: "archive",
     });
     expect(() =>
       parseCLIArguments(["find", "book.sdpub", "RAG", "--match", "strict"]),
-    ).toThrow("Invalid --match: strict. Expected any or all.");
+    ).toThrow("--type is required.");
 
     expect(
       parseCLIArguments([
@@ -261,6 +335,8 @@ describe("cli/args", () => {
         "grep",
         "book.sdpub",
         "exact phrase",
+        "--type",
+        "node",
         "--match",
         "all",
       ]),
@@ -271,11 +347,11 @@ describe("cli/args", () => {
         "list",
         "book.sdpub",
         "--type",
-        "chapter,node",
+        "node",
         "--chapter",
         "12,13",
         "--id",
-        "chapter:12,node:320",
+        "320,321",
         "--limit",
         "20",
         "--json",
@@ -285,17 +361,17 @@ describe("cli/args", () => {
         action: "list",
         archivePath: "book.sdpub",
         chapters: [12, 13],
-        ids: ["chapter:12", "node:320"],
+        ids: ["node:320", "node:321"],
         json: true,
         limit: 20,
-        searchTypes: ["chapter", "node"],
+        searchTypes: ["node"],
       },
       help: false,
       kind: "archive",
     });
 
     expect(
-      parseCLIArguments(["read", "book.sdpub", "chapter:12"]),
+      parseCLIArguments(["read", "book.sdpub", "--chapter", "12"]),
     ).toStrictEqual({
       args: {
         action: "read",
@@ -306,11 +382,18 @@ describe("cli/args", () => {
       kind: "archive",
     });
     expect(() =>
-      parseCLIArguments(["read", "book.sdpub", "chapter:12", "--json"]),
+      parseCLIArguments(["read", "book.sdpub", "--chapter", "12", "--json"]),
     ).toThrow("The `read` command does not support --json.");
 
     expect(
-      parseCLIArguments(["pack", "book.sdpub", "node:1", "--budget", "2000"]),
+      parseCLIArguments([
+        "pack",
+        "book.sdpub",
+        "--node",
+        "1",
+        "--budget",
+        "2000",
+      ]),
     ).toStrictEqual({
       args: {
         action: "pack",
@@ -326,8 +409,10 @@ describe("cli/args", () => {
       parseCLIArguments([
         "path",
         "book.sdpub",
-        "node:1",
-        "node:2",
+        "--from",
+        "1",
+        "--to",
+        "2",
         "--chapter",
         "3",
       ]),
@@ -342,6 +427,32 @@ describe("cli/args", () => {
       help: false,
       kind: "archive",
     });
+
+    expect(() => parseCLIArguments(["list", "book.sdpub"])).toThrow(
+      "--type is required.",
+    );
+    expect(() =>
+      parseCLIArguments([
+        "list",
+        "book.sdpub",
+        "--type",
+        "node,chapter",
+        "--id",
+        "1",
+      ]),
+    ).toThrow("requires exactly one --type");
+    expect(() => parseCLIArguments(["page", "book.sdpub", "node:1"])).toThrow(
+      "Unexpected positional arguments for `page`: node:1.",
+    );
+    expect(() =>
+      parseCLIArguments(["page", "book.sdpub", "--node", "1", "--from", "2"]),
+    ).toThrow("The `page` command does not support --from.");
+    expect(() =>
+      parseCLIArguments(["links", "book.sdpub", "--chapter", "1"]),
+    ).toThrow("The `links` command does not support --chapter.");
+    expect(() =>
+      parseCLIArguments(["path", "book.sdpub", "--chapter", "3"]),
+    ).toThrow("spinedigest path requires --from.");
   });
 
   it("parses archive metadata and cover commands", () => {
@@ -820,7 +931,7 @@ describe("cli/args", () => {
     );
     expect(rootHelpText).toContain("spinedigest transform");
     expect(rootHelpText).not.toContain("spinedigest import");
-    expect(rootHelpText).toContain("chapter:<id>");
+    expect(rootHelpText).toContain("--chapter <id>");
     expect(rootHelpText).toContain(
       "Append `--help` to commands and subcommands",
     );
@@ -828,7 +939,7 @@ describe("cli/args", () => {
     expect(rootHelpText).toContain(
       "Read `spinedigest help overview` for the archive-first mental model.",
     );
-    expect(rootHelpText).toContain("Build can call an LLM");
+    expect(rootHelpText).toContain("Queue graph and summary jobs call an LLM");
     expect(renderHelpTopicText("runtime")).toContain("Runtime Behavior");
     expect(renderHelpTopicText("config")).toContain("Configuration Overview");
     expect(renderHelpTopicText("command")).toContain("spinedigest status");

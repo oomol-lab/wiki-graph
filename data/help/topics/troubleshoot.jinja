@@ -10,20 +10,34 @@ Search returns no matches:
 
 Page shows missing summary:
   Check:
-    `page chapter:<id>` remains a topology entry page; use `read chapter:<id>` for source text or `find --type fragment` to locate source fragments.
-    Build summary only when a summary projection is needed.
+    `page --chapter <id>` remains a topology entry page; use `read --chapter <id>` for source text or `find --type fragment` to locate source fragments.
+    Queue a summary job only when a summary projection is needed.
 
-Build blocked by confirmation:
-  Symptom:
-    `build` says it may call an LLM and asks for `--confirm`.
+Queued job does not start:
   Check:
-    Run `spinedigest estimate <archive.sdpub> --stage summary`, then rerun a scoped build with `--confirm` if the estimate is acceptable.
+    Run `spinedigest queue list`.
+    Confirm the job is `queued`, not `paused`.
+    Confirm `request.concurrent` in `~/.spinedigest/config.json` is positive.
+    Run `spinedigest queue resume <job-id>` for paused jobs.
+
+Need machine-readable progress:
+  Check:
+    Use `spinedigest queue watch <job-id> --jsonl`.
+    Use `--from beginning` to replay durable event history.
+    Look for `progress_snapshot`, `failed`, `canceled`, or `succeeded` events.
 
 Missing LLM configuration:
   Symptom:
-    Graph or summary build fails before processing starts.
+    A graph or summary queue job fails before generation starts.
   Check:
     `--llm`, `llm.provider` and `llm.model` in config, or the matching env vars.
+
+Chapter edit blocked by an active job:
+  Symptom:
+    A chapter maintenance command reports an active graph or summary job.
+  Check:
+    Run `spinedigest queue list --input <archive.sdpub>`.
+    Wait for the job, pause it, or cancel it before destructive chapter edits.
 
 Unexpected format errors:
   Symptom:

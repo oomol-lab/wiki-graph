@@ -5,7 +5,7 @@ Purpose:
   Find a directed path between two graph nodes in one chapter.
 
 Usage:
-  spinedigest path <archive.sdpub> <node:id> <node:id> --chapter <id>
+  spinedigest path <archive.sdpub> --from <id> --to <id> --chapter <id>
 
 Contract:
   - Mutates: no.
@@ -14,4 +14,4 @@ Contract:
   - Requires graph data.
 
 Examples:
-  spinedigest path book.sdpub node:84 node:120 --chapter 3
+  spinedigest path book.sdpub --from 84 --to 120 --chapter 3

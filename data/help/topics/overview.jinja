@@ -4,53 +4,47 @@ Topic: overview
 Overview
 
 What SpineDigest does:
-  SpineDigest builds portable LLM Wiki archives for AI agents.
-  It creates `.sdpub` archives from EPUB, Markdown, plain text, URL-ready text, or stdin, then exposes archive objects through deterministic CLI primitives.
+  SpineDigest creates portable `.sdpub` knowledge archives for AI agents.
+  A `.sdpub` archive stores source text, chapter structure, generated graph nodes, source-backed navigation, summaries, and exportable projections behind deterministic CLI commands.
+
+Primary workflow:
+  1. Create the archive:
+     spinedigest create book.sdpub ./book.epub
+  2. Inspect readiness and chapter ids:
+     spinedigest status book.sdpub
+     spinedigest chapter tree book.sdpub --json
+  3. Estimate graph or summary generation scale:
+     spinedigest estimate book.sdpub --stage summary
+  4. Queue chapter jobs:
+     spinedigest queue add book.sdpub --chapter 3 --to summary --accept-cost
+     spinedigest queue list
+     spinedigest queue watch <job-id> --jsonl
+  5. Retrieve existing archive knowledge:
+     spinedigest page book.sdpub --chapter 3
+     spinedigest list book.sdpub --type node --chapter 3
+     spinedigest page book.sdpub --node 84
 
 Three exploration modes:
   1. Search mode:
-     `find` discovers objects by deterministic keywords; `grep` checks exact text phrases.
-     Treat untyped `find` as broad candidate discovery. For content understanding, choose a search lens: `--type node` for topology / LLM Wiki structure, `--type summary` for quick overview, or `--type fragment` for original source wording.
+     `find` discovers objects by deterministic keywords; `grep` checks exact continuous phrases.
+     Choose a search lens with `--type node`, `--type summary`, or `--type fragment`.
   2. Structure mode:
-     `chapter tree --json` shows a compact table-of-contents map; scoped `list --chapter <ids>` expands selected chapters into bounded collections; `page` opens one detailed object with local navigation such as chapter node groups, node source fragments, and node neighbors.
+     `chapter tree --json` shows table-of-contents hierarchy; scoped `list --chapter <ids>` expands selected chapters; `page` opens a detailed object with local navigation.
   3. Reading mode:
      `read` prints continuous plain text for a chapter, summary, fragment, or node.
-     When source text is evidence for a logic chain or relationship task, `page fragment:<id>` keeps the text with adjacent fragments and related node labels.
 
-Priority:
-  For synthesis, timelines, relationships, process reconstruction, or concept-structure tasks, use Structure mode first:
-    chapter tree --json -> list --chapter <ids> -> page chapter:<id>
-  `index` is useful for archive-level readiness and metadata. After a chapter tree, selecting a small set of chapter ids and using scoped list/page usually spends less context for content exploration.
-  Treat `find` as candidate discovery and verification, not as the default way to flatten a `.sdpub` into plain text.
-
-Mental model:
-  1. Archive object:
-     `.sdpub` is the primary object. Treat it as a managed knowledge archive, not as a ZIP file to inspect manually.
-  2. Source layer:
-     Create stores normalized source material and metadata. This stage is cheap and safe to run by default.
-  3. Knowledge layer:
-     Build derives graph nodes, summaries, links, and source-backed reading surfaces. Graph and summary stages may call an LLM.
-  4. Retrieval layer:
-     `index`, `list`, `find`, `grep`, `page`, `read`, `links`, and `backlinks` project existing archive data into an agent-friendly Wiki-like interface.
-  5. Projection layer:
-     `export` writes Markdown, txt, EPUB, or other supported projections. Export is not the core archive object.
-
-Default workflow:
-  spinedigest create book.sdpub ./book.epub
-  spinedigest status book.sdpub
-  spinedigest estimate book.sdpub --stage summary
-  spinedigest build book.sdpub --stage graph --confirm
-  spinedigest chapter tree book.sdpub --json
-  spinedigest list book.sdpub --type node --chapter 3,7,12
-  spinedigest find book.sdpub "keyword" --type fragment --chapter 3,7,12
-  spinedigest page book.sdpub fragment:3:4
-  spinedigest page book.sdpub node:84
-  spinedigest read book.sdpub chapter:12
+Generation model:
+  - Graph and summary generation are queue jobs.
+  - One active job can exist for a given archive chapter.
+  - Jobs are device-local and stored under `~/.spinedigest/state`.
+  - `watch --jsonl` prints durable structured events for agents.
+  - `queue list` shows running, queued, paused, and historical jobs depending on flags.
 
 Cost model:
   - Create/source: cheap, no LLM when kept at source.
   - Search/read/navigation/export: cheap after data exists.
-  - Graph/summary build: may call an LLM; estimate first.
+  - Queue graph/summary jobs: call an LLM, consume tokens, may incur provider charges, and can run for minutes to hours on large archives.
+  - `queue add` requires `--accept-cost`; estimate first for large archives.
 
 Where to go next:
   - Need agent rules:
@@ -59,5 +53,5 @@ Where to go next:
     spinedigest help task
   - Need command shapes:
     spinedigest help command
-  - Need format constraints:
-    spinedigest help format
+  - Need queue details:
+    spinedigest queue --help

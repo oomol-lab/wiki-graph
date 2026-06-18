@@ -479,7 +479,7 @@ describe("cli/main", () => {
   it("writes a stable payment required message for LLM billing failures", async () => {
     mainMockState.argsResult = {
       args: {
-        action: "build",
+        action: "status",
         archivePath: "/tmp/book.sdpub",
       },
       help: false,

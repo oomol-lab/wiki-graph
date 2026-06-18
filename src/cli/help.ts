@@ -27,7 +27,6 @@ export type HelpTopic = (typeof HELP_TOPICS)[number];
 
 export const ARCHIVE_COMMANDS = [
   "create",
-  "build",
   "estimate",
   "status",
   "index",
@@ -145,6 +144,10 @@ export function renderStatusHelpText(): string {
 
 export function renderTransformHelpText(): string {
   return renderHelpTemplate("help/commands/transform");
+}
+
+export function renderQueueCommandHelpText(): string {
+  return renderHelpTemplate("help/commands/queue");
 }
 
 export function renderArchiveCommandHelpText(action: CLIArchiveAction): string {

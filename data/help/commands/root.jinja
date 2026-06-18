@@ -4,13 +4,16 @@ Command: spinedigest
 SpineDigest CLI
 
 Purpose:
-  Build portable LLM Wiki archives for AI agents.
-  Treat `.sdpub` as the primary knowledge archive: create archives from sources, build derived knowledge, then search, browse, read source fragments, navigate links, and export projections without unpacking it.
+  Create and operate portable LLM Wiki archives for AI agents.
+  Treat `.sdpub` as the primary knowledge archive: create archives from sources, queue derived knowledge generation, then search, browse, read source fragments, navigate links, and export projections without unpacking it.
+
+Agent safety:
+  Do not modify `.sdpub` as a ZIP file or edit its internals directly. Use `spinedigest` commands for all archive mutations; direct ZIP edits can break the archive structure and make data unreadable.
 
 Three exploration modes:
   1. Search mode:
      Use `find` for whitespace-separated keyword discovery and `grep` for exact continuous text.
-     Untyped `find` is broad candidate discovery. For content understanding, choose a search lens:
+     Choose a search lens with `--type`:
        --type node      topology / LLM Wiki structure
        --type summary   quick overview
        --type fragment  original source wording
@@ -21,25 +24,27 @@ Three exploration modes:
 
 Task routing:
   For synthesis, timelines, relationship analysis, process reconstruction, or concept-structure tasks, start with Structure mode:
-    status -> index -> chapter tree --json -> list --type chapter -> page chapter:<id>
-  Use broad `find` to locate candidate chapters or verify missing concepts, then add a search lens (`--type node|summary|fragment`) for content judgments. Use `grep` only for exact source wording.
+    status -> index -> chapter tree --json -> list --type chapter -> page --chapter <id>
+  Use `find --type node|summary|fragment` to locate candidate objects or verify missing concepts. Use `grep --type fragment` for exact source wording.
 
 Archive-first usage:
   spinedigest create <archive.sdpub> [source] [--input-format <format>] [--llm <json>] [--prompt <text>]
-  spinedigest build <archive.sdpub> [--stage <source|graph|summary>] [--chapter <id>] [--llm <json>] [--prompt <text>] [--confirm]
+  spinedigest queue add <archive.sdpub> --chapter <id> [--to graph|summary] --accept-cost [--boost] [--llm <json>] [--prompt <text>]
+  spinedigest queue list [--all] [--active]
+  spinedigest queue watch <job-id> [--jsonl] [--from beginning|now]
   spinedigest estimate <archive.sdpub> [--stage <source|graph|summary>] [--json]
   spinedigest status <archive.sdpub> [--json]
   spinedigest index <archive.sdpub> [--json]
-  spinedigest list <archive.sdpub> [--id <ids>] [--chapter <ids>] [--type <types>] [--limit <n>] [--cursor <token>] [--json]
-  spinedigest find <archive.sdpub> <query> [--match <any|all>] [--type <node|summary|fragment>] [--json]
-  spinedigest grep <archive.sdpub> <query> [--json]
-  spinedigest page <archive.sdpub> <id> [--json]
-  spinedigest read <archive.sdpub> <id>
-  spinedigest links <archive.sdpub> <node:id> [--json]
-  spinedigest backlinks <archive.sdpub> <node:id> [--json]
-  spinedigest related <archive.sdpub> <node:id> [--json]
-  spinedigest path <archive.sdpub> <node:id> <node:id> --chapter <id>
-  spinedigest pack <archive.sdpub> <id> [--budget <chars>] [--json]
+  spinedigest list <archive.sdpub> --type <chapter|summary|node|fragment|meta> [--id <ids>] [--chapter <ids>] [--limit <n>] [--cursor <token>] [--json]
+  spinedigest find <archive.sdpub> <query> --type <node|summary|fragment> [--match <any|all>] [--chapter <ids>] [--json]
+  spinedigest grep <archive.sdpub> <query> --type <node|summary|fragment> [--chapter <ids>] [--json]
+  spinedigest page <archive.sdpub> (--chapter <id>|--node <id>|--fragment <chapter>:<fragment>|--summary <id>|--meta book) [--json]
+  spinedigest read <archive.sdpub> (--chapter <id>|--node <id>|--fragment <chapter>:<fragment>|--summary <id>|--meta book)
+  spinedigest links <archive.sdpub> --node <id> [--json]
+  spinedigest backlinks <archive.sdpub> --node <id> [--json]
+  spinedigest related <archive.sdpub> --node <id> [--json]
+  spinedigest path <archive.sdpub> --from <id> --to <id> --chapter <id>
+  spinedigest pack <archive.sdpub> <selector> [--budget <chars>] [--json]
   spinedigest export <archive.sdpub> --output-format <format> [--output <path>]
 
 Direct transform usage:
@@ -49,22 +54,25 @@ Maintenance usage:
   spinedigest meta <archive.sdpub> [metadata options] [--json] [--llm <json>] [--help|-h]
   spinedigest cover <archive.sdpub> [--llm <json>] [--help|-h]
   spinedigest chapter <action> <archive.sdpub> [options] [--llm <json>] [--help|-h]
+  spinedigest queue <action> [options] [--help|-h]
   spinedigest config status [--llm <json>] [--help|-h]
   spinedigest help [topic] [--help|-h]
 
   `transform` is for direct one-shot digest/export. `chapter tree` without `apply` is read-only structure inspection. Maintenance commands are for metadata, cover extraction, and mutating chapter tree edits. Routine archive exploration should use `index`, `chapter tree`, `list`, `page`, `find`, `grep`, and `read`.
 
-Core object ids:
-  chapter:<id>     A chapter-like archive page.
-  node:<id>        A graph knowledge node.
-  fragment:a:b     A source reading fragment.
-  summary:<id>     A chapter summary projection.
-  meta:book        Archive metadata.
+Object selectors:
+  --chapter <id>                A chapter-like archive page.
+  --node <id>                   A graph knowledge node.
+  --fragment <chapter>:<id>     A source reading fragment.
+  --summary <id>                A chapter summary projection.
+  --meta book                   Archive metadata.
 
 Cost contract:
   Create is cheap when it stops at source.
-  List, search, page, read, links, and export are cheap after build.
-  Build can call an LLM and may be expensive. Run `spinedigest estimate <archive.sdpub> --stage summary` before full-archive graph or summary builds, then rerun `build` with `--confirm`.
+  List, search, page, read, links, and export are cheap after the needed archive data exists.
+  Queue graph and summary jobs call an LLM, consume tokens, may incur provider charges, and can run for minutes to hours on large archives.
+  `queue add` requires `--accept-cost` as an explicit cost/time acknowledgement.
+  Run `spinedigest estimate <archive.sdpub> --stage summary` before scheduling large graph or summary batches.
 
 Help contract:
   - Append `--help` to commands and subcommands to see command-specific usage.
@@ -72,8 +80,6 @@ Help contract:
   - Treat `spinedigest --help` as the root page of the same help system.
 
 Search lens examples:
-  spinedigest find book.sdpub "keyword"
-    Broad first pass across metadata, chapter titles, summaries, nodes, and fragments.
   spinedigest find book.sdpub "keyword" --type node
     Topology / LLM Wiki structure.
   spinedigest find book.sdpub "keyword" --type summary

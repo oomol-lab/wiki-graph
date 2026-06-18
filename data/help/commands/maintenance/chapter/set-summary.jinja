@@ -17,7 +17,7 @@ Input:
 Preconditions:
   - The chapter must be `graph`.
   - If the chapter is `source`, run:
-    spinedigest build <path> --chapter <id> --stage graph --confirm
+    spinedigest queue add <path> --chapter <id> --to graph --accept-cost
 
 Behavior:
   - Moves the chapter to `summary`.
@@ -25,6 +25,6 @@ Behavior:
   - Does not call an LLM provider.
 
 See also:
-  - spinedigest build --help
+  - spinedigest queue --help
   - spinedigest chapter status --help
   - spinedigest help command

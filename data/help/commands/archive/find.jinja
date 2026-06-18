@@ -5,17 +5,17 @@ Purpose:
   Find archive objects by deterministic keyword search.
 
 Usage:
-  spinedigest find <archive.sdpub> <query> [--match <any|all>] [--chapter <ids>] [--type <types>] [--order <doc-asc|doc-desc>] [--limit <n>] [--cursor <token>] [--json]
+  spinedigest find <archive.sdpub> <query> --type <node|summary|fragment> [--match <any|all>] [--chapter <ids>] [--order <doc-asc|doc-desc>] [--limit <n>] [--cursor <token>] [--json]
 
 Contract:
   - Mutates: no.
   - LLM: no.
-  - Searches: metadata, chapter titles, summaries, graph node summaries, and source fragments.
+  - Searches: summaries, graph node summaries, or source fragments depending on `--type`.
   - Query: split on whitespace into keywords.
   - Match: default `--match any` returns objects containing at least one keyword and ranks stronger matches first.
   - Strict match: `--match all` requires every keyword to appear inside the same returned object.
   - Scope: `--chapter 12` or `--chapter 11,12` limits results to chapters.
-  - Search lens: untyped `find` is broad candidate discovery. For content understanding, choose `--type node`, `--type summary`, or `--type fragment`.
+  - Search lens: `--type` is required.
   - Types: `--type node` searches topology / LLM Wiki structure, `--type summary` searches quick overview text, and `--type fragment` searches original source wording.
   - Order: `doc-asc` or `doc-desc`; default `doc-asc`.
   - Pagination: default `--limit 20`; pass returned `nextCursor` back with `--cursor`.
@@ -25,9 +25,8 @@ Contract:
 Use `grep` instead when the query must be treated as one exact continuous text phrase.
 
 Examples:
-  spinedigest find book.sdpub "Wiki"
   spinedigest find book.sdpub "朱元璋 濠州 和州 集庆 应天 洪都 鄱阳湖" --type node --json
   spinedigest find book.sdpub "鄱阳湖" --type summary --json
   spinedigest find book.sdpub "亲自来到洪都" --type fragment --json
-  spinedigest find book.sdpub "朱元璋 亲自 来到" --match all --json
+  spinedigest find book.sdpub "朱元璋 亲自 来到" --type fragment --match all --json
   spinedigest find book.sdpub "张定边" --chapter 12 --type node --limit 10 --json

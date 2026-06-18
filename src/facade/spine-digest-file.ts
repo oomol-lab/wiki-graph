@@ -1,14 +1,13 @@
-import { mkdir, mkdtemp, rename, rm } from "fs/promises";
-import { dirname, join, resolve } from "path";
-import { tmpdir } from "os";
+import { resolve } from "path";
 
 import { DirectoryDocument } from "../document/index.js";
 
-import { extractSdpubArchive, writeSdpubArchive } from "./archive.js";
+import { SdpubCoordinator } from "./sdpub-coordinator.js";
 import { SpineDigest } from "./spine-digest.js";
 
 export class SpineDigestFile {
   readonly #path: string;
+  readonly #coordinator = new SdpubCoordinator();
 
   public constructor(path: string) {
     this.#path = resolve(path);
@@ -20,65 +19,36 @@ export class SpineDigestFile {
       readonly documentDirPath?: string;
     } = {},
   ): Promise<T> {
-    const directoryPath =
-      options.documentDirPath === undefined
-        ? await mkdtemp(join(tmpdir(), "spinedigest-open-"))
-        : resolve(options.documentDirPath);
+    return await this.#coordinator.openSession(
+      this.#path,
+      async (directoryPath) => {
+        const document = await DirectoryDocument.open(directoryPath);
 
-    try {
-      await extractSdpubArchive(this.#path, directoryPath);
-
-      const document = await DirectoryDocument.open(directoryPath);
-
-      try {
-        return await operation(new SpineDigest(document, directoryPath));
-      } finally {
-        await document.release();
-      }
-    } finally {
-      if (options.documentDirPath === undefined) {
-        await rm(directoryPath, { force: true, recursive: true });
-      }
-    }
+        try {
+          return await operation(new SpineDigest(document, directoryPath));
+        } finally {
+          await document.release();
+        }
+      },
+      options,
+    );
   }
 
   public async openEditableSession<T>(
     operation: (document: DirectoryDocument) => Promise<T> | T,
   ): Promise<T> {
-    const directoryPath = await mkdtemp(join(tmpdir(), "spinedigest-edit-"));
-
-    try {
-      await extractSdpubArchive(this.#path, directoryPath);
-
-      const document = await DirectoryDocument.open(directoryPath);
-
-      try {
-        const result = await operation(document);
-        const temporaryOutputDirectoryPath = await mkdtemp(
-          join(tmpdir(), "spinedigest-save-"),
-        );
-        const temporaryOutputPath = join(
-          temporaryOutputDirectoryPath,
-          "document.sdpub",
-        );
+    return await this.#coordinator.openEditableSession(
+      this.#path,
+      async (directoryPath) => {
+        const document = await DirectoryDocument.open(directoryPath);
 
         try {
-          await document.flush();
-          await writeSdpubArchive(directoryPath, temporaryOutputPath);
-          await mkdir(dirname(this.#path), { recursive: true });
-          await rename(temporaryOutputPath, this.#path);
+          return await operation(document);
         } finally {
-          await rm(temporaryOutputDirectoryPath, {
-            force: true,
-            recursive: true,
-          });
+          await document.flush();
+          await document.release();
         }
-        return result;
-      } finally {
-        await document.release();
-      }
-    } finally {
-      await rm(directoryPath, { force: true, recursive: true });
-    }
+      },
+    );
   }
 }

@@ -1,0 +1,71 @@
+Help Type: command
+Command: spinedigest queue
+
+Purpose:
+  Manage device-local graph and summary jobs for `.sdpub` chapters.
+  Use queue jobs for LLM-backed archive generation. Use retrieval commands (`status`, `index`, `list`, `page`, `find`, `grep`, `read`) to inspect data that already exists.
+
+Cost and time:
+  Graph and summary jobs call an LLM.
+  They consume tokens and may incur provider charges.
+  Large archives can run for minutes to hours depending on chapter size, model speed, retries, and request concurrency.
+  `queue add` requires `--accept-cost` so agents and scripts cannot schedule paid work silently.
+  Run `spinedigest estimate <archive.sdpub> --stage summary` before queueing large batches.
+
+Usage:
+  spinedigest queue add <archive.sdpub> --chapter <id> [--to graph|summary] --accept-cost [--boost] [--llm <json>] [--prompt <text>]
+  spinedigest queue list [--all] [--active] [--input <archive.sdpub>]
+  spinedigest queue status <job-id>
+  spinedigest queue watch <job-id> [--jsonl] [--from beginning|now]
+  spinedigest queue pause <job-id>
+  spinedigest queue resume <job-id>
+  spinedigest queue cancel <job-id>
+  spinedigest queue boost <job-id>
+  spinedigest queue target <job-id> --to graph|summary
+  spinedigest queue clean
+
+Job identity:
+  - One active job may exist for one `(archive, chapter)` pair.
+  - Active states are `queued`, `running`, and `paused`.
+  - Terminal states are `succeeded`, `failed`, and `canceled`.
+  - Terminal records are history and do not block a new job for the same chapter.
+
+Scheduling:
+  - New jobs are appended to the queue by default.
+  - `queue add` requires `--accept-cost` for graph and summary jobs.
+  - `queue add ... --boost` inserts a new job at the front.
+  - `queue boost <job-id>` moves an existing queued job to the front.
+  - Boosting does not preempt running jobs.
+  - Paused jobs are not scheduled until resumed.
+  - Worker concurrency follows `request.concurrent` from configuration.
+
+Targets:
+  - `--to graph` generates chapter topology.
+  - `--to summary` generates graph if needed, then generates the chapter summary.
+  - A queued or graph-running summary job can be downgraded to graph.
+  - Downgrading is rejected after summary has started; cancel explicitly if that is what the user wants.
+
+Watch output:
+  - TTY output is human-readable.
+  - `--jsonl` prints one structured event per line and is the recommended mode for agents.
+  - `--from beginning` replays durable event history before following new events.
+  - `--from now` follows only new events.
+  - `progress_snapshot` events include graph words, summary words, and approximate output tokens.
+
+Agent examples:
+  spinedigest queue add book.sdpub --chapter 3 --to summary --accept-cost
+  spinedigest queue watch <job-id> --jsonl
+  spinedigest queue list --input book.sdpub
+  spinedigest queue status <job-id>
+
+Cleanup:
+  - Succeeded jobs delete their workspace by default.
+  - Failed and canceled jobs keep their workspace for debugging.
+  - `queue clean` removes old terminal job records and their retained files.
+
+Related commands:
+  - Estimate cost before large job batches:
+    spinedigest estimate <archive.sdpub> --stage summary
+  - Discover chapter ids:
+    spinedigest chapter tree <archive.sdpub> --json
+    spinedigest chapter list <archive.sdpub>

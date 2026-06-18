@@ -3,9 +3,6 @@ import { join } from "path";
 import { tmpdir } from "os";
 
 import {
-  advanceChapterStages,
-  type AdvanceChapterStagesProgressEvent,
-  type AdvanceChapterStagesResult,
   findGraphPath,
   getArchiveIndex,
   listArchiveCollection,
@@ -30,7 +27,6 @@ import {
   grepArchiveObjects,
   type GraphNeighbor,
   type GraphPathStep,
-  type ChapterEntry,
   type ChapterStage,
 } from "../facade/index.js";
 import { SpineDigestFile } from "../facade/spine-digest-file.js";
@@ -38,16 +34,7 @@ import type { Document } from "../document/index.js";
 
 import type { CLIArchiveArguments } from "./args.js";
 import { runConvertCommand } from "./convert.js";
-import {
-  readTextStreamFromStdin,
-  writeTextToStderr,
-  writeTextToStdout,
-} from "./io.js";
-import {
-  createStageLLM,
-  loadRequiredStageConfig,
-  resolveExtractionPrompt,
-} from "./stage-runtime.js";
+import { readTextStreamFromStdin, writeTextToStdout } from "./io.js";
 
 export async function runArchiveCommand(
   args: CLIArchiveArguments,
@@ -56,10 +43,6 @@ export async function runArchiveCommand(
     case "create":
       await createArchive(args);
       return;
-    case "build": {
-      await buildArchive(args);
-      return;
-    }
     case "export":
       if (args.outputFormat === undefined) {
         throw new Error("Internal error: missing export output format.");
@@ -322,160 +305,11 @@ function createCollectionOptions(
   };
 }
 
-async function buildArchive(args: CLIArchiveArguments): Promise<void> {
-  const targetStage = args.targetStage ?? "summarized";
-
-  if (targetStage === "planned") {
-    await writeAdvanceResult({
-      advanced: [],
-      pending: [],
-      skipped: [],
-    });
-    return;
-  }
-
-  const config = await loadRequiredStageConfig(args);
-
-  await withArchiveDocument(args.archivePath, async (document) => {
-    const progressWriter = createStageAdvanceProgressWriter();
-    let result: AdvanceChapterStagesResult;
-
-    try {
-      result = await advanceChapterStages(document, {
-        ...(args.chapterId === undefined ? {} : { chapterId: args.chapterId }),
-        extractionPrompt: resolveExtractionPrompt(args.prompt ?? config.prompt),
-        llm: createStageLLM(config, {
-          onStreamProgress: progressWriter.onStreamProgress,
-        }),
-        onProgress: progressWriter.onProgress,
-        targetStage,
-      });
-    } finally {
-      await progressWriter.stop();
-    }
-
-    await writeAdvanceResult(result);
-  });
-}
-
 async function withArchiveDocument<T>(
   path: string,
   operation: (document: Document) => Promise<T> | T,
 ): Promise<void> {
   await new SpineDigestFile(path).openEditableSession(operation);
-}
-
-function createStageAdvanceProgressWriter(input?: {
-  readonly refreshIntervalMs?: number;
-}): {
-  readonly onProgress: (
-    event: AdvanceChapterStagesProgressEvent,
-  ) => Promise<void>;
-  readonly onStreamProgress: (event: {
-    readonly outputCharacters: number;
-  }) => Promise<void>;
-  stop(): Promise<void>;
-} {
-  const refreshIntervalMs = input?.refreshIntervalMs ?? 5_000;
-  const outputCharactersPerToken = 4;
-  let graphWords = 0;
-  let summaryWords = 0;
-  let totalGraphWords = 0;
-  let totalSummaryWords = 0;
-  let outputCharacters = 0;
-  let lastRenderAt = 0;
-  let lastRenderedLine: string | undefined;
-  let renderedStatusLine = false;
-  let writeQueue = Promise.resolve();
-
-  const writeStatus = async (force = false): Promise<void> => {
-    const now = Date.now();
-    const line = formatBuildProgressLine({
-      graphWords,
-      outputTokens: estimateOutputTokens(
-        outputCharacters,
-        outputCharactersPerToken,
-      ),
-      summaryWords,
-      totalGraphWords,
-      totalSummaryWords,
-    });
-
-    if (
-      !force &&
-      (line === lastRenderedLine || now - lastRenderAt < refreshIntervalMs)
-    ) {
-      return;
-    }
-
-    lastRenderAt = now;
-    lastRenderedLine = line;
-    writeQueue = writeQueue
-      .catch(() => undefined)
-      .then(async () => {
-        await writeTextToStderr(`\r${line}`);
-      });
-    renderedStatusLine = true;
-    await writeQueue;
-  };
-
-  const finishStatusLine = async (): Promise<void> => {
-    if (!renderedStatusLine) {
-      return;
-    }
-
-    writeQueue = writeQueue
-      .catch(() => undefined)
-      .then(async () => {
-        await writeTextToStderr("\n");
-      });
-    renderedStatusLine = false;
-    await writeQueue;
-  };
-
-  const applyProgressState = (
-    event: AdvanceChapterStagesProgressEvent,
-  ): void => {
-    if (!("state" in event)) {
-      return;
-    }
-
-    graphWords = event.state.graphWords;
-    summaryWords = event.state.summaryWords;
-    totalGraphWords = event.state.totalGraphWords;
-    totalSummaryWords = event.state.totalSummaryWords;
-  };
-
-  return {
-    async onProgress(event) {
-      applyProgressState(event);
-
-      switch (event.type) {
-        case "selected":
-          await writeStatus(true);
-          return;
-        case "skipped":
-          return;
-        case "started":
-          await writeStatus(true);
-          return;
-        case "progress":
-          await writeStatus();
-          return;
-        case "completed":
-          await writeStatus(true);
-          return;
-      }
-    },
-    async onStreamProgress(event) {
-      outputCharacters += event.outputCharacters;
-      await writeStatus();
-    },
-    async stop() {
-      await finishStatusLine();
-      await writeQueue.catch(() => undefined);
-    },
-  };
 }
 
 async function writeIndex(
@@ -502,8 +336,8 @@ async function writeIndex(
     lines.push(
       "",
       "Graph note:",
-      "  No graph nodes are currently available. If graph build already ran, the source may be too short, too sparse, or no stable knowledge units were extracted.",
-      "  Next: inspect a chapter with `spinedigest page <archive.sdpub> chapter:<id>` or build `--stage summary` if you need summaries.",
+      "  No graph nodes are currently available. If a graph queue job already ran, the source may be too short, too sparse, or no stable knowledge units were extracted.",
+      "  Next: inspect a chapter with `spinedigest page <archive.sdpub> --chapter <id>` or queue a graph/summary job if you need generated knowledge.",
     );
   } else if (index.edgeCount === 0) {
     lines.push(
@@ -524,8 +358,8 @@ async function writeIndex(
     lines.push(
       "",
       "Next:",
-      "  spinedigest find <archive.sdpub> <term>",
-      "  spinedigest page <archive.sdpub> chapter:<id>",
+      "  spinedigest find <archive.sdpub> <term> --type node",
+      "  spinedigest page <archive.sdpub> --chapter <id>",
       "  spinedigest list <archive.sdpub> --type node",
     );
   }
@@ -596,7 +430,7 @@ async function writeCollection(
     `${result.items
       .map(
         (item) =>
-          `${item.id}  ${item.type}/${item.field}  ${item.title}\n${item.snippet}\nNext: spinedigest page <archive.sdpub> ${item.id}`,
+          `${item.id}  ${item.type}/${item.field}  ${item.title}\n${item.snippet}\nNext: spinedigest page <archive.sdpub> ${formatObjectSelector(item)}`,
       )
       .join("\n\n")}${formatCollectionCursor(result)}\n`,
   );
@@ -620,7 +454,7 @@ async function writeFindHits(
     `${result.items
       .map(
         (hit) =>
-          `${hit.id}  ${hit.type}/${hit.field}  ${hit.title}\n${formatFindMatchLine(hit)}${hit.snippet}\nNext: spinedigest page <archive.sdpub> ${hit.id}`,
+          `${hit.id}  ${hit.type}/${hit.field}  ${hit.title}\n${formatFindMatchLine(hit)}${hit.snippet}\nNext: spinedigest page <archive.sdpub> ${formatObjectSelector(hit)}`,
       )
       .join("\n\n")}${formatNextCursor(result)}${formatFindLensHint(result)}\n`,
   );
@@ -713,7 +547,7 @@ async function writeLinks(
   if (links.length === 0) {
     const next =
       direction === "links"
-        ? "No outgoing links. Try: spinedigest backlinks <archive.sdpub> <node:id>\n"
+        ? "No outgoing links. Try: spinedigest backlinks <archive.sdpub> --node <id>\n"
         : "No incoming links.\n";
     await writeTextToStdout(next);
     return;
@@ -735,11 +569,11 @@ async function writeMap(
     await writeTextToStdout(
       [
         "No graph edges.",
-        "This can be valid after a graph build when the source is too short, too sparse, or the model found no stable relationships.",
+        "This can be valid after a graph job when the source is too short, too sparse, or the model found no stable relationships.",
         "Next:",
         "  spinedigest status <archive.sdpub>",
         "  spinedigest list <archive.sdpub> --type node",
-        "  spinedigest page <archive.sdpub> chapter:<id>",
+        "  spinedigest page <archive.sdpub> --chapter <id>",
       ].join("\n") + "\n",
     );
     return;
@@ -787,7 +621,7 @@ function formatNextCursor(result: ArchiveFindResult): string {
 
 function formatNoMatches(result: ArchiveFindResult): string {
   if (result.match === "all" && result.terms.length > 1) {
-    return `No matches. All ${result.terms.length} terms were required. Try: spinedigest find <archive.sdpub> "${result.query}" --match any${formatFindLensHint(result)}\n`;
+    return `No matches. All ${result.terms.length} terms were required. Try: spinedigest find <archive.sdpub> "${result.query}" --type ${formatFindTypes(result)} --match any${formatFindLensHint(result)}\n`;
   }
 
   const lines = [
@@ -808,6 +642,12 @@ function formatFindLensHint(result: ArchiveFindResult): string {
   }
 
   return `\n\nLens hint: ${result.lensHint.message}`;
+}
+
+function formatFindTypes(result: ArchiveFindResult): string {
+  return result.types === null || result.types.length === 0
+    ? "node"
+    : result.types.join(",");
 }
 
 function formatFindMatchLine(hit: {
@@ -832,6 +672,41 @@ function isSearchFilterType(
   type: NonNullable<CLIArchiveArguments["searchTypes"]>[number],
 ): type is NonNullable<ArchiveFindOptions["types"]>[number] {
   return type === "fragment" || type === "node" || type === "summary";
+}
+
+function formatObjectSelector(item: { readonly id: string }): string {
+  const [type, first, second] = item.id.split(":");
+
+  switch (type) {
+    case "chapter":
+      return `--chapter ${first}`;
+    case "fragment":
+      if (first === undefined || second === undefined) {
+        return item.id;
+      }
+
+      return `--fragment ${first}:${second}`;
+    case "meta":
+      if (first === undefined) {
+        return item.id;
+      }
+
+      return `--meta ${first}`;
+    case "node":
+      if (first === undefined) {
+        return item.id;
+      }
+
+      return `--node ${first}`;
+    case "summary":
+      if (first === undefined) {
+        return item.id;
+      }
+
+      return `--summary ${first}`;
+    default:
+      return item.id;
+  }
 }
 
 function formatNeighborLines(neighbors: readonly GraphNeighbor[]): string[] {
@@ -931,72 +806,6 @@ function formatDuration(seconds: number): string {
   return `${Math.round(minutes / 60)}h`;
 }
 
-function formatBuildProgressLine(input: {
-  readonly graphWords: number;
-  readonly outputTokens: number;
-  readonly summaryWords: number;
-  readonly totalGraphWords: number;
-  readonly totalSummaryWords: number;
-}): string {
-  return [
-    "[build]",
-    `graph=${formatWholeNumber(input.graphWords)}/${formatWholeNumber(input.totalGraphWords)}w`,
-    `summary=${formatWholeNumber(input.summaryWords)}/${formatWholeNumber(input.totalSummaryWords)}w`,
-    `out~${formatWholeNumber(input.outputTokens)}tok`,
-  ].join(" ");
-}
-
-function estimateOutputTokens(
-  outputCharacters: number,
-  outputCharactersPerToken: number,
-): number {
-  if (outputCharacters <= 0) {
-    return 0;
-  }
-
-  return Math.ceil(outputCharacters / outputCharactersPerToken);
-}
-
-function formatWholeNumber(value: number): string {
-  return String(Math.max(0, Math.round(value)));
-}
-
-async function writeAdvanceResult(
-  result: AdvanceChapterStagesResult,
-): Promise<void> {
-  const lines = [
-    `Advanced: ${result.advanced.length}`,
-    `Pending: ${result.pending.length}`,
-    `Skipped: ${result.skipped.length}`,
-  ];
-
-  if (result.pending.length > 0) {
-    lines.push("", "Pending chapters:");
-    lines.push(...result.pending.map(formatBuildChapterEntry));
-  }
-  if (result.skipped.some((entry) => entry.stage === "planned")) {
-    lines.push(
-      "",
-      "Next: set source for planned chapters, then build again.",
-      "Example: spinedigest chapter set-source <archive.sdpub> --chapter <id> --input <file> --input-format txt",
-    );
-  }
-
-  await writeTextToStdout(`${lines.join("\n")}\n`);
-}
-
-function formatBuildChapterEntry(entry: ChapterEntry): string {
-  return `[${entry.chapterId}] ${formatStage(entry.stage).padEnd(8)} ${formatTocPath(entry)}`;
-}
-
-function formatTocPath(entry: ChapterEntry): string {
-  if (entry.tocPath.length === 0) {
-    return entry.title ?? "[untitled]";
-  }
-
-  return entry.tocPath.join(" / ");
-}
-
 function formatPackAnchor(anchor: ArchivePage): string {
   switch (anchor.type) {
     case "chapter":
@@ -1026,8 +835,8 @@ function formatChapterNextSteps(
   return [
     "Next:",
     `  spinedigest list <archive.sdpub> --type node --chapter ${page.chapter.chapterId}`,
-    `  spinedigest find <archive.sdpub> <keyword> --chapter ${page.chapter.chapterId}`,
-    `  spinedigest read <archive.sdpub> ${page.id}`,
+    `  spinedigest find <archive.sdpub> <keyword> --type node --chapter ${page.chapter.chapterId}`,
+    `  spinedigest read <archive.sdpub> --chapter ${page.chapter.chapterId}`,
   ].join("\n");
 }
 

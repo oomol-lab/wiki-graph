@@ -25,7 +25,7 @@ Configuration layers:
 Minimum LLM-backed operation configuration:
   - llm.provider
   - llm.model
-  These are required for source digest runs, and for `build` when generation is needed.
+  These are required for source digest runs and queue graph/summary jobs.
 
 Inline LLM JSON:
   `--llm <json>` accepts an inline LLM client object for the current invocation.
@@ -38,7 +38,7 @@ Execution paths:
   - Source digest runs use prompt, LLM, cache, and request settings.
   - `.sdpub` re-export through the main convert command does not require LLM settings.
   - `meta`, `cover`, and non-generating `chapter` maintenance commands accept but do not use these LLM settings.
-  - `build` uses LLM settings when graph or summary generation is needed.
+  - `queue` uses LLM settings when graph or summary generation is needed.
   - `paths.debugLogDir` may still matter when the app emits debug logs.
 
 When to prefer each layer:

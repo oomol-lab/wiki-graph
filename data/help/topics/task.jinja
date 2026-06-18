@@ -7,13 +7,30 @@ Create an archive from a source:
   spinedigest create book.sdpub ./book.epub
   spinedigest status book.sdpub
 
-Estimate before expensive build:
-  spinedigest estimate book.sdpub --stage summary
-  spinedigest estimate book.sdpub --stage graph --json
+Inspect chapters before queueing work:
+  spinedigest chapter tree book.sdpub --json
+  spinedigest chapter list book.sdpub
 
-Build scoped knowledge:
-  spinedigest build book.sdpub --stage graph --chapter 3 --confirm
-  spinedigest build book.sdpub --stage summary --chapter 3 --confirm
+Estimate generation scale:
+  spinedigest estimate book.sdpub --stage graph --json
+  spinedigest estimate book.sdpub --stage summary
+
+Queue scoped knowledge generation:
+  spinedigest queue add book.sdpub --chapter 3 --to graph --accept-cost
+  spinedigest queue add book.sdpub --chapter 3 --to summary --accept-cost
+  spinedigest queue add book.sdpub --chapter 3 --to summary --accept-cost --boost
+
+Observe queue progress:
+  spinedigest queue list
+  spinedigest queue status <job-id>
+  spinedigest queue watch <job-id> --jsonl
+
+Control jobs:
+  spinedigest queue pause <job-id>
+  spinedigest queue resume <job-id>
+  spinedigest queue cancel <job-id>
+  spinedigest queue target <job-id> --to summary --accept-cost
+  spinedigest queue boost <job-id>
 
 Browse an existing archive:
   spinedigest status book.sdpub
@@ -23,29 +40,29 @@ Browse an existing archive:
   spinedigest list book.sdpub --type node --chapter 3
 
 Understand a chapter as wiki topology:
-  spinedigest page book.sdpub chapter:3 --json
-  Inspect `nodeGroups` to choose the relevant knowledge nodes.
-  spinedigest page book.sdpub node:84
+  spinedigest page book.sdpub --chapter 3 --json
+  Inspect `nodeGroups` to choose relevant knowledge nodes.
+  spinedigest page book.sdpub --node 84
 
 Search and read:
   spinedigest find book.sdpub "RAG" --type node
-  spinedigest grep book.sdpub "exact source phrase"
-  spinedigest page book.sdpub node:84
-  spinedigest read book.sdpub chapter:3
+  spinedigest grep book.sdpub "exact source phrase" --type fragment
+  spinedigest page book.sdpub --node 84
+  spinedigest read book.sdpub --chapter 3
 
 Navigate graph knowledge:
-  spinedigest links book.sdpub node:84
-  spinedigest backlinks book.sdpub node:84
-  spinedigest related book.sdpub node:84
-  spinedigest path book.sdpub node:84 node:120 --chapter 3
+  spinedigest links book.sdpub --node 84
+  spinedigest backlinks book.sdpub --node 84
+  spinedigest related book.sdpub --node 84
+  spinedigest path book.sdpub --from 84 --to 120 --chapter 3
 
 Pack deterministic context:
-  spinedigest pack book.sdpub node:84 --budget 5000
-  spinedigest pack book.sdpub node:84 --budget 5000 --json
+  spinedigest pack book.sdpub --node 84 --budget 5000
+  spinedigest pack book.sdpub --node 84 --budget 5000 --json
 
 Export projections:
   spinedigest export book.sdpub --output-format markdown --output digest.md
   spinedigest export book.sdpub --output-format epub --output digest.epub
 
 Lower-level maintenance:
-  Use `spinedigest chapter tree` to inspect table-of-contents hierarchy. Use `spinedigest meta`, `spinedigest cover`, `spinedigest chapter tree apply`, and other mutating `chapter` actions only when you need metadata mutation, cover extraction, or chapter tree edits.
+  Use `spinedigest chapter tree` to inspect table-of-contents hierarchy. Use `spinedigest meta`, `spinedigest cover`, `spinedigest chapter tree apply`, and other mutating `chapter` actions only when you need metadata mutation, cover extraction, source edits, manual summaries, or chapter tree edits.
