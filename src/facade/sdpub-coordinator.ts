@@ -24,8 +24,6 @@ CREATE TABLE IF NOT EXISTS archives (
 );
 `;
 
-const FLUSH_QUIET_PERIOD_MS = 10_000;
-const FLUSH_IDLE_TIMEOUT_MS = 10_000;
 const FLUSH_HEARTBEAT_INTERVAL_MS = 5_000;
 
 export class SdpubCoordinator {
@@ -287,7 +285,7 @@ async function runSdpubFlusher(input: { readonly ownerId: string }) {
       const candidate = await selectFlushCandidate(state, input.ownerId);
 
       if (candidate === undefined) {
-        if (Date.now() - lastWorkAt >= FLUSH_IDLE_TIMEOUT_MS) {
+        if (Date.now() - lastWorkAt >= getFlushIdleTimeoutMs()) {
           break;
         }
         await delay(500);
@@ -323,7 +321,7 @@ WHERE dirty = 1
 ORDER BY updated_at ASC
 LIMIT 1
 `,
-    [ownerId, Date.now() - FLUSH_QUIET_PERIOD_MS],
+    [ownerId, Date.now() - getFlushQuietPeriodMs()],
     mapArchiveState,
   );
 }
@@ -469,7 +467,44 @@ async function createWorkspacePath(archiveKey: string): Promise<string> {
 }
 
 function getCoordinatorStateDirectoryPath(): string {
+  const stateDirectoryPath = process.env.SPINEDIGEST_STATE_DIR;
+
+  if (stateDirectoryPath !== undefined && stateDirectoryPath.trim() !== "") {
+    return resolve(stateDirectoryPath);
+  }
+
   return join(homedir(), ".spinedigest", "state");
+}
+
+function getFlushQuietPeriodMs(): number {
+  return parseNonNegativeIntegerEnv(
+    process.env.SPINEDIGEST_FLUSH_QUIET_PERIOD_MS,
+    10_000,
+  );
+}
+
+function getFlushIdleTimeoutMs(): number {
+  return parseNonNegativeIntegerEnv(
+    process.env.SPINEDIGEST_FLUSH_IDLE_TIMEOUT_MS,
+    10_000,
+  );
+}
+
+function parseNonNegativeIntegerEnv(
+  value: string | undefined,
+  fallback: number,
+): number {
+  if (value === undefined || value.trim() === "") {
+    return fallback;
+  }
+
+  const parsed = Number(value);
+
+  if (!Number.isInteger(parsed) || parsed < 0) {
+    return fallback;
+  }
+
+  return parsed;
 }
 
 function createArchiveKey(archivePath: string): string {
