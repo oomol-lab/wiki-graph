@@ -40,7 +40,7 @@ Use the library API only when the surrounding system explicitly needs in-process
 - Creation sources: EPUB, Markdown, TXT, and text pipelines
 - Read objects: `--chapter <id>`, `--node <id>`, `--fragment <chapter>:<fragment>`, `--summary <id>`, `--meta book`
 - Cheap operations: `status`, `index`, `list`, `find`, `grep`, `page`, `read`, `links`, `backlinks`, `pack`, `export`
-- Expensive operations: graph or summary `build`
+- Expensive operations: graph or summary `queue add`
 - Estimate first: `spinedigest estimate <archive.sdpub> --stage summary`
 - JSON: pass `--json` when composing with tools
 
@@ -56,15 +56,16 @@ Use the library API only when the surrounding system explicitly needs in-process
 8. Use `pack` when the user needs deterministic context around a known object id.
 9. Use `export` only when the user needs a projection.
 10. Use `status` or `index` when archive readiness, metadata, or build state is part of the task.
-11. Before `build`, run `estimate`; if the estimate is too large for the session, ask the user.
+11. Before `queue add`, run `estimate`; if the estimate is too large for the session, ask the user.
 
-## Build Workflow
+## Queue Workflow
 
 ```bash
 spinedigest create book.sdpub ./book.epub
 spinedigest status book.sdpub
 spinedigest estimate book.sdpub --stage summary
-spinedigest build book.sdpub --stage graph --chapter 3 --confirm
+spinedigest queue add book.sdpub --chapter 3 --to graph --accept-cost
+spinedigest queue watch <job-id> --jsonl
 ```
 
 Create/source is the safe first step. Graph and summary stages may call an LLM provider.
@@ -73,7 +74,7 @@ Create/source is the safe first step. Graph and summary stages may call an LLM p
 
 - Do not unzip `.sdpub` for routine retrieval.
 - Do not inspect `database.db` unless building external tooling or debugging internals.
-- Do not run a full-archive summary build just because a user asked a question about the archive.
+- Do not queue full-archive summary work just because a user asked a question about the archive.
 - Do not present SpineDigest as a natural-language QA layer; the agent answers after reading archive context.
 
 ## Related Docs

@@ -1,0 +1,18 @@
+Help Type: command
+Command: spinedigest queue boost
+
+Purpose:
+  Move one queued job to the front of the queue.
+
+Usage:
+  spinedigest queue boost <job-id>
+
+Arguments:
+  <job-id>              Full job id or an unambiguous prefix.
+
+Behavior:
+  - Boosting only applies to queued jobs.
+  - Boosting does not preempt running jobs.
+
+Example:
+  spinedigest queue boost 75d12f7e

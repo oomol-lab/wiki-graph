@@ -1,0 +1,18 @@
+Help Type: command
+Command: spinedigest queue pause
+
+Purpose:
+  Pause one queued or running job.
+
+Usage:
+  spinedigest queue pause <job-id>
+
+Arguments:
+  <job-id>              Full job id or an unambiguous prefix.
+
+Behavior:
+  - Paused jobs keep their workspace and are not scheduled.
+  - Resume with `spinedigest queue resume <job-id>`.
+
+Example:
+  spinedigest queue pause 75d12f7e

@@ -40,7 +40,7 @@ spinedigest pack book.sdpub --node 84 --budget 5000
 - 创建源：EPUB、Markdown、TXT 和文本管道
 - 可读对象：`--chapter <id>`、`--node <id>`、`--fragment <chapter>:<fragment>`、`--summary <id>`、`--meta book`
 - 便宜操作：`status`、`index`、`list`、`find`、`grep`、`page`、`read`、`links`、`backlinks`、`pack`、`export`
-- 昂贵操作：graph 或 summary `build`
+- 昂贵操作：graph 或 summary `queue add`
 - 先估算：`spinedigest estimate <archive.sdpub> --stage summary`
 - 机器消费：组合工具时传 `--json`
 
@@ -56,15 +56,16 @@ spinedigest pack book.sdpub --node 84 --budget 5000
 8. 用户需要围绕已知 object id 打包确定性上下文时，使用 `pack`。
 9. 只有用户需要 projection 时才 `export`。
 10. 当任务涉及归档 readiness、元信息或构建状态时，再使用 `status` 或 `index`。
-11. `build` 前先 `estimate`；如果估算超出当前交互预算，先询问用户。
+11. `queue add` 前先 `estimate`；如果估算超出当前交互预算，先询问用户。
 
-## 构建流程
+## Queue 流程
 
 ```bash
 spinedigest create book.sdpub ./book.epub
 spinedigest status book.sdpub
 spinedigest estimate book.sdpub --stage summary
-spinedigest build book.sdpub --stage graph --chapter 3 --confirm
+spinedigest queue add book.sdpub --chapter 3 --to graph --accept-cost
+spinedigest queue watch <job-id> --jsonl
 ```
 
 Create/source 是安全第一步。Graph 和 summary 阶段可能调用 LLM provider。
@@ -73,7 +74,7 @@ Create/source 是安全第一步。Graph 和 summary 阶段可能调用 LLM prov
 
 - 不要为了常规检索解压 `.sdpub`。
 - 不要读取 `database.db`，除非是在构建外部工具或调试内部实现。
-- 不要因为用户问了归档内容问题，就启动整份归档 summary build。
+- 不要因为用户问了归档内容问题，就排入整份归档 summary 任务。
 - 不要把 SpineDigest 表达成自然语言问答层；Agent 在读取归档上下文后自行回答。
 
 ## 相关文档

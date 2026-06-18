@@ -12,7 +12,6 @@ spinedigest <action> <archive.sdpub> ...
 
 ```bash
 spinedigest create <archive.sdpub> [source] [--input-format <format>] [--llm <json>] [--prompt <text>] [--confirm]
-spinedigest build <archive.sdpub> [--stage <source|graph|summary>] [--chapter <id>] [--llm <json>] [--prompt <text>] [--confirm]
 spinedigest estimate <archive.sdpub> [--stage <source|graph|summary>] [--json]
 spinedigest status <archive.sdpub> [--json]
 spinedigest index <archive.sdpub> [--json]
@@ -28,6 +27,13 @@ spinedigest path <archive.sdpub> --from <id> --to <id> --chapter <id>
 spinedigest map <archive.sdpub> [--json]
 spinedigest pack <archive.sdpub> <selector> [--budget <chars>] [--json]
 spinedigest export <archive.sdpub> --output-format <format> [--output <path>]
+spinedigest queue add <archive.sdpub> --chapter <id> [--to graph|summary] --accept-cost [--boost] [--llm <json>] [--prompt <text>]
+spinedigest queue list [--all] [--active] [--input <archive.sdpub>] [--json]
+spinedigest queue status <job-id> [--json]
+spinedigest queue watch <job-id> [--jsonl] [--from beginning|now]
+spinedigest queue pause|resume|cancel|boost <job-id>
+spinedigest queue target <job-id> --to graph|summary
+spinedigest queue clean
 ```
 
 Exploration modes:
@@ -64,7 +70,13 @@ User-facing stages:
 - `graph`: graph nodes, edges, and source-backed knowledge units
 - `summary`: readable chapter summaries
 
-`source` is cheap. `graph` and `summary` may call an LLM provider. Run `estimate` first for full-archive builds.
+`source` is cheap. `graph` and `summary` may call an LLM provider. Run `estimate` first, then use `queue add` for the chapter ids you want to generate.
+
+Queue behavior:
+
+- `queue add` requires `--accept-cost`.
+- `queue list --json` prints a machine-readable snapshot.
+- `queue watch --jsonl` prints durable progress events and is the recommended agent-facing stream.
 
 ## Formats
 

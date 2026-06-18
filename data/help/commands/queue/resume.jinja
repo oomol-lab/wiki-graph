@@ -1,0 +1,18 @@
+Help Type: command
+Command: spinedigest queue resume
+
+Purpose:
+  Requeue one paused job.
+
+Usage:
+  spinedigest queue resume <job-id>
+
+Arguments:
+  <job-id>              Full job id or an unambiguous prefix.
+
+Behavior:
+  - Resume changes the job back to queued.
+  - The transient worker is started if needed.
+
+Example:
+  spinedigest queue resume 75d12f7e

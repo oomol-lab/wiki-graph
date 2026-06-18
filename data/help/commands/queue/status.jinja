@@ -1,0 +1,21 @@
+Help Type: command
+Command: spinedigest queue status
+
+Purpose:
+  Inspect one queue job.
+
+Usage:
+  spinedigest queue status <job-id> [--json]
+
+Arguments:
+  <job-id>              Full job id or an unambiguous prefix.
+
+Options:
+  --json                Print a stable machine-readable job object.
+
+Human output:
+  Shows job id, state, archive path, chapter id, target, current step, workspace path, and error JSON when present.
+
+Examples:
+  spinedigest queue status 75d12f7e
+  spinedigest queue status 75d12f7e --json

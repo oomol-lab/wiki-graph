@@ -11,6 +11,7 @@ const queueMockState = vi.hoisted(() => ({
   commitSummaryCalls: [] as unknown[],
   events: [] as unknown[],
   getJobIds: [] as string[],
+  jobs: [] as unknown[],
   buildInputStage: "sourced" as
     | "planned"
     | "sourced"
@@ -24,7 +25,7 @@ const queueMockState = vi.hoisted(() => ({
     state: "succeeded",
     target: "summary",
     workspacePath: "/tmp/job-workspace",
-  },
+  } as Record<string, unknown>,
   readDocumentCalls: [] as string[],
   readChapterStageError: undefined as Error | undefined,
   openPaths: [] as string[],
@@ -148,7 +149,7 @@ vi.mock("../../src/facade/index.js", () => ({
     queueMockState.getJobIds.push(jobId);
     return Promise.resolve(queueMockState.job);
   }),
-  listBuildJobs: vi.fn(),
+  listBuildJobs: vi.fn(() => Promise.resolve(queueMockState.jobs)),
   pauseBuildJob: vi.fn(),
   readBuildJobEvents: vi.fn(() => Promise.resolve(queueMockState.events)),
   resolveBuildJobId: vi.fn((jobId: string) => {
@@ -227,13 +228,18 @@ describe("cli/queue", () => {
     queueMockState.commitSummaryCalls.length = 0;
     queueMockState.events = [];
     queueMockState.getJobIds.length = 0;
+    queueMockState.jobs = [];
     queueMockState.job = {
+      archiveKey: "archive-key",
       archivePath: "book.sdpub",
       chapterId: 12,
+      createdAt: 1,
       eventsPath: "events.ndjson",
       jobId: "job-1",
+      queueRank: 10,
       state: "succeeded",
       target: "summary",
+      updatedAt: 2,
       workspacePath: "/tmp/job-workspace",
     };
     queueMockState.openPaths.length = 0;
@@ -345,6 +351,89 @@ describe("cli/queue", () => {
       },
     ]);
     expect(queueMockState.textWrites.join("")).toContain("Job job-1 queued");
+  });
+
+  it("prints a header for human queue lists", async () => {
+    queueMockState.jobs = [
+      {
+        archiveKey: "archive-key",
+        archivePath: "/books/book.sdpub",
+        chapterId: 12,
+        createdAt: 1,
+        currentStep: "summary",
+        eventsPath: "events.ndjson",
+        jobId: "job-1-full",
+        queueRank: 1,
+        state: "running",
+        target: "summary",
+        updatedAt: 2,
+        workspacePath: "/tmp/job-workspace",
+      },
+    ];
+
+    await runQueueCommand({
+      action: "list",
+    });
+
+    expect(queueMockState.textWrites).toStrictEqual([
+      "JOB      STATE     STEP    TARGET  CHAPTER ARCHIVE\njob-1-fu running   summary summary      12 book.sdpub\n",
+    ]);
+  });
+
+  it("prints queue list json", async () => {
+    queueMockState.jobs = [
+      {
+        archiveKey: "archive-key",
+        archivePath: "/books/book.sdpub",
+        chapterId: 12,
+        createdAt: 1,
+        eventsPath: "events.ndjson",
+        jobId: "job-1-full",
+        queueRank: 1,
+        state: "queued",
+        target: "graph",
+        updatedAt: 2,
+        workspacePath: "/tmp/job-workspace",
+      },
+    ];
+
+    await runQueueCommand({
+      action: "list",
+      json: true,
+    });
+
+    expect(JSON.parse(queueMockState.textWrites.join(""))).toStrictEqual({
+      items: [
+        {
+          archiveKey: "archive-key",
+          archivePath: "/books/book.sdpub",
+          chapterId: 12,
+          createdAt: 1,
+          eventsPath: "events.ndjson",
+          jobId: "job-1-full",
+          queueRank: 1,
+          state: "queued",
+          target: "graph",
+          updatedAt: 2,
+          workspacePath: "/tmp/job-workspace",
+        },
+      ],
+    });
+  });
+
+  it("prints queue status json after resolving short job ids", async () => {
+    await runQueueCommand({
+      action: "status",
+      jobId: "job-1-short",
+      json: true,
+    });
+
+    expect(queueMockState.resolveJobIds).toStrictEqual(["job-1-short"]);
+    expect(JSON.parse(queueMockState.textWrites.join(""))).toMatchObject({
+      archiveKey: "archive-key",
+      jobId: "job-1",
+      state: "succeeded",
+    });
   });
 
   it("runs LLM build work outside archive write scopes", async () => {

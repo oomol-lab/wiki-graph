@@ -12,7 +12,6 @@ spinedigest <action> <archive.sdpub> ...
 
 ```bash
 spinedigest create <archive.sdpub> [source] [--input-format <format>] [--llm <json>] [--prompt <text>] [--confirm]
-spinedigest build <archive.sdpub> [--stage <source|graph|summary>] [--chapter <id>] [--llm <json>] [--prompt <text>] [--confirm]
 spinedigest estimate <archive.sdpub> [--stage <source|graph|summary>] [--json]
 spinedigest status <archive.sdpub> [--json]
 spinedigest index <archive.sdpub> [--json]
@@ -28,6 +27,13 @@ spinedigest path <archive.sdpub> --from <id> --to <id> --chapter <id>
 spinedigest map <archive.sdpub> [--json]
 spinedigest pack <archive.sdpub> <selector> [--budget <chars>] [--json]
 spinedigest export <archive.sdpub> --output-format <format> [--output <path>]
+spinedigest queue add <archive.sdpub> --chapter <id> [--to graph|summary] --accept-cost [--boost] [--llm <json>] [--prompt <text>]
+spinedigest queue list [--all] [--active] [--input <archive.sdpub>] [--json]
+spinedigest queue status <job-id> [--json]
+spinedigest queue watch <job-id> [--jsonl] [--from beginning|now]
+spinedigest queue pause|resume|cancel|boost <job-id>
+spinedigest queue target <job-id> --to graph|summary
+spinedigest queue clean
 ```
 
 探索模式：
@@ -64,7 +70,13 @@ spinedigest export <archive.sdpub> --output-format <format> [--output <path>]
 - `graph`：graph node、edge 和 source-backed knowledge unit
 - `summary`：可读的章节 summary
 
-`source` 便宜。`graph` 和 `summary` 可能调用 LLM provider。整份归档构建前先运行 `estimate`。
+`source` 便宜。`graph` 和 `summary` 可能调用 LLM provider。先运行 `estimate`，再用 `queue add` 为需要生成的 chapter id 排队。
+
+Queue 行为：
+
+- `queue add` 要求 `--accept-cost`。
+- `queue list --json` 输出机器可读快照。
+- `queue watch --jsonl` 输出持久化进度事件，是推荐的 Agent-facing 事件流。
 
 ## 格式
 

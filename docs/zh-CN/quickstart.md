@@ -50,13 +50,15 @@ spinedigest estimate ./book.sdpub --stage summary
 ## 5. 构建知识
 
 ```bash
-spinedigest build ./book.sdpub --stage graph --confirm
+spinedigest queue add ./book.sdpub --chapter 3 --to graph --accept-cost
+spinedigest queue watch <job-id> --jsonl
 ```
 
-如果只需要局部构建：
+如果需要 summary：
 
 ```bash
-spinedigest build ./book.sdpub --stage graph --chapter 3 --confirm
+spinedigest queue add ./book.sdpub --chapter 3 --to summary --accept-cost
+spinedigest queue list --input ./book.sdpub
 ```
 
 ## 6. 搜索、浏览和阅读

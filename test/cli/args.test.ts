@@ -152,11 +152,45 @@ describe("cli/args", () => {
       kind: "queue",
     });
 
+    expect(parseCLIArguments(["queue", "list", "--json"])).toStrictEqual({
+      args: {
+        action: "list",
+        json: true,
+      },
+      help: false,
+      kind: "queue",
+    });
+
+    expect(
+      parseCLIArguments(["queue", "status", "job-1", "--json"]),
+    ).toStrictEqual({
+      args: {
+        action: "status",
+        jobId: "job-1",
+        json: true,
+      },
+      help: false,
+      kind: "queue",
+    });
+
     expect(parseCLIArguments(["queue", "--help"])).toStrictEqual({
       help: true,
       helpText: renderQueueCommandHelpText(),
       kind: "help",
     });
+
+    expect(parseCLIArguments(["queue", "list", "--help"])).toStrictEqual({
+      help: true,
+      helpText: renderQueueCommandHelpText("list"),
+      kind: "help",
+    });
+
+    expect(() =>
+      parseCLIArguments(["queue", "watch", "job-1", "--json"]),
+    ).toThrow("does not support --json");
+    expect(() => parseCLIArguments(["queue", "list", "--jsonl"])).toThrow(
+      "does not support --jsonl",
+    );
   });
 
   it("parses the transform command as direct digest", () => {

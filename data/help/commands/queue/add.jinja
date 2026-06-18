@@ -1,0 +1,34 @@
+Help Type: command
+Command: spinedigest queue add
+
+Purpose:
+  Create one graph or summary job for one `.sdpub` chapter.
+
+Usage:
+  spinedigest queue add <archive.sdpub> --chapter <id> [--to graph|summary] --accept-cost [--boost] [--llm <json>] [--prompt <text>]
+
+Cost and time:
+  - Graph and summary jobs call an LLM, consume tokens, may incur provider charges, and can run for minutes to hours on large chapters.
+  - `--accept-cost` is required when a job is actually added.
+  - Run `spinedigest estimate <archive.sdpub> --stage summary` before queueing large batches.
+
+Options:
+  --chapter <id>       Required chapter id.
+  --to graph|summary   Target stage. Default: summary.
+  --accept-cost        Explicitly acknowledge LLM cost and wait time.
+  --boost              Insert the new job at the front of the queued jobs.
+  --llm <json>         Override LLM configuration for this job.
+  --prompt <text>      Override extraction prompt for this job.
+
+Scheduling:
+  - New jobs are appended by default.
+  - `--boost` moves the new job ahead of other queued work, but it does not preempt running jobs.
+  - One active job may exist for one `(archive, chapter)` pair.
+
+Examples:
+  spinedigest queue add book.sdpub --chapter 3 --to graph --accept-cost
+  spinedigest queue add book.sdpub --chapter 3 --to summary --accept-cost --boost
+
+Next:
+  spinedigest queue list --input book.sdpub
+  spinedigest queue watch <job-id> --jsonl

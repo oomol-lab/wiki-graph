@@ -124,6 +124,7 @@ export interface CLIQueueArguments {
   readonly chapterId?: number;
   readonly from?: "beginning" | "now";
   readonly jobId?: string;
+  readonly json?: boolean;
   readonly jsonl?: boolean;
   readonly llmJSON?: string;
   readonly prompt?: string;
@@ -673,6 +674,13 @@ function parseQueueArguments(
   const helpRoute = "spinedigest queue --help";
 
   if (values.help === true) {
+    if (isQueueAction(action)) {
+      return {
+        help: true,
+        helpText: renderQueueCommandHelpText(action),
+        kind: "help",
+      };
+    }
     return {
       help: true,
       helpText: renderQueueCommandHelpText(),
@@ -700,6 +708,8 @@ function parseQueueArguments(
 
   switch (action) {
     case "add": {
+      rejectQueueJSONFlag(action, values.json, helpRoute);
+      rejectQueueJSONLFlag(action, values.jsonl, helpRoute);
       const archivePath = positionals[1];
 
       if (archivePath === undefined || archivePath === "-") {
@@ -742,6 +752,7 @@ function parseQueueArguments(
       };
     }
     case "list":
+      rejectQueueJSONLFlag(action, values.jsonl, helpRoute);
       rejectQueueExtraPositionals(action, positionals, 1, helpRoute);
       return {
         args: {
@@ -749,22 +760,43 @@ function parseQueueArguments(
           ...(values.active === undefined ? {} : { activeOnly: values.active }),
           ...(values.all === undefined ? {} : { all: values.all }),
           ...(values.input === undefined ? {} : { archivePath: values.input }),
+          ...(values.json === undefined ? {} : { json: values.json }),
         },
         help: false,
         kind: "queue",
       };
-    case "status":
-    case "watch":
-    case "pause":
-    case "resume":
-    case "cancel":
-    case "boost": {
+    case "status": {
+      rejectQueueJSONLFlag(action, values.jsonl, helpRoute);
       const jobId = positionals[1];
 
       if (jobId === undefined) {
         throw new Error(
           withHelpRoute(
-            `\`spinedigest queue ${action}\` requires <job-id>.`,
+            "`spinedigest queue status` requires <job-id>.",
+            helpRoute,
+          ),
+        );
+      }
+      rejectQueueExtraPositionals(action, positionals, 2, helpRoute);
+
+      return {
+        args: {
+          action,
+          jobId,
+          ...(values.json === undefined ? {} : { json: values.json }),
+        },
+        help: false,
+        kind: "queue",
+      };
+    }
+    case "watch": {
+      rejectQueueJSONFlag(action, values.json, helpRoute);
+      const jobId = positionals[1];
+
+      if (jobId === undefined) {
+        throw new Error(
+          withHelpRoute(
+            "`spinedigest queue watch` requires <job-id>.",
             helpRoute,
           ),
         );
@@ -783,7 +815,36 @@ function parseQueueArguments(
         kind: "queue",
       };
     }
+    case "pause":
+    case "resume":
+    case "cancel":
+    case "boost": {
+      rejectQueueJSONFlag(action, values.json, helpRoute);
+      rejectQueueJSONLFlag(action, values.jsonl, helpRoute);
+      const jobId = positionals[1];
+
+      if (jobId === undefined) {
+        throw new Error(
+          withHelpRoute(
+            `\`spinedigest queue ${action}\` requires <job-id>.`,
+            helpRoute,
+          ),
+        );
+      }
+      rejectQueueExtraPositionals(action, positionals, 2, helpRoute);
+
+      return {
+        args: {
+          action,
+          jobId,
+        },
+        help: false,
+        kind: "queue",
+      };
+    }
     case "target": {
+      rejectQueueJSONFlag(action, values.json, helpRoute);
+      rejectQueueJSONLFlag(action, values.jsonl, helpRoute);
       const jobId = positionals[1];
 
       if (jobId === undefined) {
@@ -807,6 +868,8 @@ function parseQueueArguments(
     }
     case "clean":
     case "worker":
+      rejectQueueJSONFlag(action, values.json, helpRoute);
+      rejectQueueJSONLFlag(action, values.jsonl, helpRoute);
       rejectQueueExtraPositionals(action, positionals, 1, helpRoute);
       return {
         args: {
@@ -817,6 +880,40 @@ function parseQueueArguments(
         kind: "queue",
       };
   }
+}
+
+function rejectQueueJSONFlag(
+  action: CLIQueueAction,
+  value: boolean | undefined,
+  helpRoute: string,
+): void {
+  if (value !== true) {
+    return;
+  }
+
+  throw new Error(
+    withHelpRoute(
+      `\`spinedigest queue ${action}\` does not support --json.`,
+      helpRoute,
+    ),
+  );
+}
+
+function rejectQueueJSONLFlag(
+  action: CLIQueueAction,
+  value: boolean | undefined,
+  helpRoute: string,
+): void {
+  if (value !== true) {
+    return;
+  }
+
+  throw new Error(
+    withHelpRoute(
+      `\`spinedigest queue ${action}\` does not support --jsonl.`,
+      helpRoute,
+    ),
+  );
 }
 
 function parseArchiveMaintenanceArguments(

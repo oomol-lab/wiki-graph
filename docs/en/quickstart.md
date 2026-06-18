@@ -45,18 +45,20 @@ spinedigest index ./book.sdpub
 spinedigest estimate ./book.sdpub --stage summary
 ```
 
-Use the estimate before full-archive graph or summary builds.
+Use the estimate before queueing broad graph or summary work.
 
 ## 5. Build Knowledge
 
 ```bash
-spinedigest build ./book.sdpub --stage graph --confirm
+spinedigest queue add ./book.sdpub --chapter 3 --to graph --accept-cost
+spinedigest queue watch <job-id> --jsonl
 ```
 
-For scoped work:
+For summary work:
 
 ```bash
-spinedigest build ./book.sdpub --stage graph --chapter 3 --confirm
+spinedigest queue add ./book.sdpub --chapter 3 --to summary --accept-cost
+spinedigest queue list --input ./book.sdpub
 ```
 
 ## 6. Search, Browse, And Read

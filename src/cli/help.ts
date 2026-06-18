@@ -7,6 +7,7 @@ import type {
   CLIArchiveAction,
   CLIArchiveChapterAction,
   CLIArchiveMaintenanceCommand,
+  CLIQueueAction,
 } from "./args.js";
 
 export const HELP_TOPICS = [
@@ -146,8 +147,12 @@ export function renderTransformHelpText(): string {
   return renderHelpTemplate("help/commands/transform");
 }
 
-export function renderQueueCommandHelpText(): string {
-  return renderHelpTemplate("help/commands/queue");
+export function renderQueueCommandHelpText(action?: CLIQueueAction): string {
+  return renderHelpTemplate(
+    action === undefined
+      ? "help/commands/queue"
+      : `help/commands/queue/${action}`,
+  );
 }
 
 export function renderArchiveCommandHelpText(action: CLIArchiveAction): string {

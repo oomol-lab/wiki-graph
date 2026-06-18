@@ -1,0 +1,18 @@
+Help Type: command
+Command: spinedigest queue cancel
+
+Purpose:
+  Cancel one active job.
+
+Usage:
+  spinedigest queue cancel <job-id>
+
+Arguments:
+  <job-id>              Full job id or an unambiguous prefix.
+
+Behavior:
+  - Canceled jobs become terminal history.
+  - Their workspace is retained for debugging until `queue clean` removes old retained files.
+
+Example:
+  spinedigest queue cancel 75d12f7e

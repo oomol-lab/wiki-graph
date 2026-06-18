@@ -33,7 +33,7 @@ Together, these modes let long documents behave like navigable knowledge bases: 
 Requirements:
 
 - Node `>=22.12.0`
-- For LLM-backed graph or summary builds: a supported LLM provider plus credentials
+- For LLM-backed graph or summary jobs: a supported LLM provider plus credentials
 - For `.sdpub` search, reading, navigation, and export: no LLM access required
 
 Try it without a global install:
@@ -78,7 +78,8 @@ spinedigest estimate ./book.sdpub --stage summary
 Build derived knowledge when you intend to spend LLM time:
 
 ```bash
-spinedigest build ./book.sdpub --stage graph --confirm
+spinedigest queue add ./book.sdpub --chapter 12 --to graph --accept-cost
+spinedigest queue watch <job-id> --jsonl
 ```
 
 Search, browse, and read through the knowledge-base interface:
@@ -106,8 +107,8 @@ Cost rule:
 
 ```text
 Create is cheap.
-Estimate before build.
-Build can be expensive.
+Estimate before queueing graph or summary jobs.
+Queue graph or summary jobs only when the cost and wait time are acceptable.
 Search, read, navigate, pack, and export are cheap after build.
 ```
 
@@ -188,7 +189,7 @@ SpineDigest's CLI-first design exposes `.sdpub` as a managed LLM Wiki archive.
 - **Choose an exploration mode first.** For synthesis and structural understanding, start with `list/page`; use `find/grep` for candidate discovery and exact wording; use `read` for continuous prose after selecting the relevant object.
 - **Use help as the discovery surface.** Start with `spinedigest --help` as the root page, then follow `spinedigest help overview`, `spinedigest help ai`, topic pages, or command-specific `--help` before guessing behavior.
 - **Prefer `--json`.** Use it when composing with tools.
-- **Estimate before build.** Do not run full-archive graph or summary builds without `spinedigest estimate`.
+- **Estimate before queueing jobs.** Do not queue broad graph or summary work without `spinedigest estimate`.
 - **Check exit codes.** Success returns `0`; failure returns non-zero with a plain-text error on `stderr`.
 - **Do not inspect `database.db` routinely.** Use `list`, `page`, `read`, and graph navigation commands instead.
 

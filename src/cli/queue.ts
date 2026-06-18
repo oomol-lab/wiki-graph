@@ -72,10 +72,13 @@ export async function runQueueCommand(args: CLIQueueArguments): Promise<void> {
             ? {}
             : { archivePath: args.archivePath }),
         }),
+        { json: args.json ?? false },
       );
       return;
     case "status":
-      await writeJobStatus(await getBuildJob(await resolveQueueJobId(args)));
+      await writeJobStatus(await getBuildJob(await resolveQueueJobId(args)), {
+        json: args.json ?? false,
+      });
       return;
     case "watch":
       await watchBuildJob(await resolveQueueJobId(args), {
@@ -438,23 +441,45 @@ function clampWords(words: number, totalWords: number): number {
   return Math.min(totalWords, Math.max(0, words));
 }
 
-async function writeJobList(jobs: readonly BuildJob[]): Promise<void> {
+async function writeJobList(
+  jobs: readonly BuildJob[],
+  options: { readonly json: boolean },
+): Promise<void> {
+  if (options.json) {
+    await writeTextToStdout(
+      `${JSON.stringify({ items: jobs.map(formatJobJSON) }, null, 2)}\n`,
+    );
+    return;
+  }
+
   if (jobs.length === 0) {
     await writeTextToStdout("No jobs.\n");
     return;
   }
 
   await writeTextToStdout(
-    `${jobs
+    `${formatJobListHeader()}\n${jobs
       .map(
         (job) =>
-          `${job.jobId.slice(0, 8)} ${job.state.padEnd(9)} ${(job.currentStep ?? "-").padEnd(7)} ${job.target.padEnd(7)} ${job.chapterId.toString().padStart(5)} ${formatArchiveName(job.archivePath)}`,
+          `${job.jobId.slice(0, 8).padEnd(8)} ${job.state.padEnd(9)} ${(job.currentStep ?? "-").padEnd(7)} ${job.target.padEnd(7)} ${job.chapterId.toString().padStart(7)} ${formatArchiveName(job.archivePath)}`,
       )
       .join("\n")}\n`,
   );
 }
 
-async function writeJobStatus(job: BuildJob): Promise<void> {
+function formatJobListHeader(): string {
+  return `${"JOB".padEnd(8)} ${"STATE".padEnd(9)} ${"STEP".padEnd(7)} ${"TARGET".padEnd(7)} ${"CHAPTER".padStart(7)} ARCHIVE`;
+}
+
+async function writeJobStatus(
+  job: BuildJob,
+  options: { readonly json: boolean },
+): Promise<void> {
+  if (options.json) {
+    await writeTextToStdout(`${JSON.stringify(formatJobJSON(job), null, 2)}\n`);
+    return;
+  }
+
   await writeTextToStdout(
     [
       `Job: ${job.jobId}`,
@@ -467,6 +492,32 @@ async function writeJobStatus(job: BuildJob): Promise<void> {
       ...(job.errorJSON === undefined ? [] : [`Error: ${job.errorJSON}`]),
     ].join("\n") + "\n",
   );
+}
+
+function formatJobJSON(job: BuildJob): unknown {
+  return {
+    archiveKey: job.archiveKey,
+    archivePath: job.archivePath,
+    chapterId: job.chapterId,
+    createdAt: job.createdAt,
+    ...(job.currentStep === undefined ? {} : { currentStep: job.currentStep }),
+    ...(job.errorJSON === undefined ? {} : { errorJSON: job.errorJSON }),
+    eventsPath: job.eventsPath,
+    ...(job.finishedAt === undefined ? {} : { finishedAt: job.finishedAt }),
+    jobId: job.jobId,
+    ...(job.llmJSON === undefined ? {} : { llmJSON: job.llmJSON }),
+    ...(job.ownerId === undefined ? {} : { ownerId: job.ownerId }),
+    ...(job.ownerPid === undefined ? {} : { ownerPid: job.ownerPid }),
+    ...(job.prompt === undefined ? {} : { prompt: job.prompt }),
+    queueRank: job.queueRank,
+    state: job.state,
+    ...(job.summaryStartedAt === undefined
+      ? {}
+      : { summaryStartedAt: job.summaryStartedAt }),
+    target: job.target,
+    updatedAt: job.updatedAt,
+    workspacePath: job.workspacePath,
+  };
 }
 
 async function writeJobSummary(job: BuildJob): Promise<void> {

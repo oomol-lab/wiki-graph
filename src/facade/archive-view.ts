@@ -759,8 +759,8 @@ export async function estimateArchiveBuild(
     },
     recommendation:
       risk === "high"
-        ? "Do not run a full build in an interactive agent session; build a scoped chapter first."
-        : "Estimate is low enough for an interactive build if the user expects LLM-backed work.",
+        ? "Do not queue broad generation in an interactive agent session; queue scoped chapters first."
+        : "Estimate is low enough for scoped queue work if the user expects LLM-backed generation.",
     risk,
     sourceWords: words,
     targetStage,

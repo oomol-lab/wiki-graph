@@ -25,6 +25,7 @@
   "files": [
     "data",
     "dist",
+    "docs",
     "LICENSE"
   ],
   "bin": {

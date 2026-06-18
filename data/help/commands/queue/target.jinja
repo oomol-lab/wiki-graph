@@ -1,0 +1,22 @@
+Help Type: command
+Command: spinedigest queue target
+
+Purpose:
+  Change the target stage of an existing active job.
+
+Usage:
+  spinedigest queue target <job-id> --to graph|summary
+
+Arguments:
+  <job-id>              Full job id or an unambiguous prefix.
+
+Options:
+  --to graph|summary    New target.
+
+Rules:
+  - Upgrading graph to summary is allowed while the job is active.
+  - Downgrading summary to graph is allowed only before summary has started.
+  - If summary has already started, cancel explicitly instead of downgrading.
+
+Example:
+  spinedigest queue target 75d12f7e --to summary
