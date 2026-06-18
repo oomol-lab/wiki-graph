@@ -90,6 +90,7 @@ describe("cli/args", () => {
         "--to",
         "summary",
         "--boost",
+        "--accept-cost",
         "--llm",
         '{"model":"cli-model"}',
       ]),
@@ -105,6 +106,21 @@ describe("cli/args", () => {
       help: false,
       kind: "queue",
     });
+
+    expect(() =>
+      parseCLIArguments([
+        "queue",
+        "add",
+        "book.sdpub",
+        "--chapter",
+        "12",
+        "--to",
+        "summary",
+      ]),
+    ).toThrow("consume tokens");
+    expect(() =>
+      parseCLIArguments(["status", "book.sdpub", "--accept-cost"]),
+    ).toThrow("only valid for `spinedigest queue add`");
 
     expect(
       parseCLIArguments([
@@ -913,7 +929,7 @@ describe("cli/args", () => {
     expect(rootHelpText).toContain(
       "Read `spinedigest help overview` for the archive-first mental model.",
     );
-    expect(rootHelpText).toContain("Queue jobs can call an LLM");
+    expect(rootHelpText).toContain("Queue graph and summary jobs call an LLM");
     expect(renderHelpTopicText("runtime")).toContain("Runtime Behavior");
     expect(renderHelpTopicText("config")).toContain("Configuration Overview");
     expect(renderHelpTopicText("command")).toContain("spinedigest status");

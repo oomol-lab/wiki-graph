@@ -16,7 +16,7 @@ Primary workflow:
   3. Estimate graph or summary generation scale:
      spinedigest estimate book.sdpub --stage summary
   4. Queue chapter jobs:
-     spinedigest queue add book.sdpub --chapter 3 --to summary
+     spinedigest queue add book.sdpub --chapter 3 --to summary --accept-cost
      spinedigest queue list
      spinedigest queue watch <job-id> --jsonl
   5. Retrieve existing archive knowledge:
@@ -43,7 +43,8 @@ Generation model:
 Cost model:
   - Create/source: cheap, no LLM when kept at source.
   - Search/read/navigation/export: cheap after data exists.
-  - Queue graph/summary jobs: may call an LLM; estimate first for large archives.
+  - Queue graph/summary jobs: call an LLM, consume tokens, may incur provider charges, and can run for minutes to hours on large archives.
+  - `queue add` requires `--accept-cost`; estimate first for large archives.
 
 Where to go next:
   - Need agent rules:

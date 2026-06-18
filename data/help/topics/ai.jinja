@@ -42,10 +42,12 @@ Safe first moves:
     spinedigest export <archive.sdpub> --output-format markdown
 
 Queue safety:
+  - Graph and summary jobs consume LLM tokens, may incur provider charges, and can run for minutes to hours on large archives.
+  - `queue add` requires `--accept-cost` to make this explicit.
   - Before large graph or summary generation, run:
     spinedigest estimate <archive.sdpub> --stage summary
   - Queue one chapter at a time:
-    spinedigest queue add <archive.sdpub> --chapter <id> --to summary
+    spinedigest queue add <archive.sdpub> --chapter <id> --to summary --accept-cost
   - Watch as JSONL:
     spinedigest queue watch <job-id> --jsonl
   - Use `queue list` to distinguish running, queued, paused, and terminal jobs.

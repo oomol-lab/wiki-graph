@@ -16,9 +16,9 @@ Estimate generation scale:
   spinedigest estimate book.sdpub --stage summary
 
 Queue scoped knowledge generation:
-  spinedigest queue add book.sdpub --chapter 3 --to graph
-  spinedigest queue add book.sdpub --chapter 3 --to summary
-  spinedigest queue add book.sdpub --chapter 3 --to summary --boost
+  spinedigest queue add book.sdpub --chapter 3 --to graph --accept-cost
+  spinedigest queue add book.sdpub --chapter 3 --to summary --accept-cost
+  spinedigest queue add book.sdpub --chapter 3 --to summary --accept-cost --boost
 
 Observe queue progress:
   spinedigest queue list
@@ -29,7 +29,7 @@ Control jobs:
   spinedigest queue pause <job-id>
   spinedigest queue resume <job-id>
   spinedigest queue cancel <job-id>
-  spinedigest queue target <job-id> --to summary
+  spinedigest queue target <job-id> --to summary --accept-cost
   spinedigest queue boost <job-id>
 
 Browse an existing archive:

@@ -29,7 +29,7 @@ Task routing:
 
 Archive-first usage:
   spinedigest create <archive.sdpub> [source] [--input-format <format>] [--llm <json>] [--prompt <text>]
-  spinedigest queue add <archive.sdpub> --chapter <id> [--to graph|summary] [--boost] [--llm <json>] [--prompt <text>]
+  spinedigest queue add <archive.sdpub> --chapter <id> [--to graph|summary] --accept-cost [--boost] [--llm <json>] [--prompt <text>]
   spinedigest queue list [--all] [--active]
   spinedigest queue watch <job-id> [--jsonl] [--from beginning|now]
   spinedigest estimate <archive.sdpub> [--stage <source|graph|summary>] [--json]
@@ -70,7 +70,9 @@ Object selectors:
 Cost contract:
   Create is cheap when it stops at source.
   List, search, page, read, links, and export are cheap after the needed archive data exists.
-  Queue jobs can call an LLM and may be expensive. Run `spinedigest estimate <archive.sdpub> --stage summary` before scheduling large graph or summary batches.
+  Queue graph and summary jobs call an LLM, consume tokens, may incur provider charges, and can run for minutes to hours on large archives.
+  `queue add` requires `--accept-cost` as an explicit cost/time acknowledgement.
+  Run `spinedigest estimate <archive.sdpub> --stage summary` before scheduling large graph or summary batches.
 
 Help contract:
   - Append `--help` to commands and subcommands to see command-specific usage.

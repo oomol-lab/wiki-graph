@@ -17,6 +17,8 @@ Exit behavior:
 
 Queue behavior:
   - Graph and summary generation run as device-local queue jobs.
+  - Graph and summary jobs consume LLM tokens, may incur provider charges, and can run for minutes to hours on large archives.
+  - `queue add` requires `--accept-cost` as an explicit cost/time acknowledgement.
   - The queue state lives under `~/.spinedigest/state`.
   - `queue add`, `queue resume`, `queue boost`, and `queue target` try to start a transient worker.
   - The worker exits after idle time; it is not intended to be a permanent daemon.

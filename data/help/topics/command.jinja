@@ -35,7 +35,7 @@ Queue commands:
 Command shapes:
   spinedigest create <archive.sdpub> [source] [--input-format <format>]
   spinedigest estimate <archive.sdpub> [--stage <source|graph|summary>] [--json]
-  spinedigest queue add <archive.sdpub> --chapter <id> [--to graph|summary] [--boost] [--llm <json>] [--prompt <text>]
+  spinedigest queue add <archive.sdpub> --chapter <id> [--to graph|summary] --accept-cost [--boost] [--llm <json>] [--prompt <text>]
   spinedigest queue list [--all] [--active] [--input <archive.sdpub>]
   spinedigest queue watch <job-id> [--jsonl] [--from beginning|now]
   spinedigest status <archive.sdpub> [--json]

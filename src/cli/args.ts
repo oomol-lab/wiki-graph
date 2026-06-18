@@ -207,6 +207,7 @@ interface ArchiveMetaFlagValues {
 }
 
 interface ArchiveArgumentValues extends ArchiveMetaFlagValues {
+  readonly "accept-cost"?: boolean;
   readonly active?: boolean;
   readonly after?: string;
   readonly all?: boolean;
@@ -376,6 +377,9 @@ export function parseCLIArguments(
       active: {
         type: "boolean",
       },
+      "accept-cost": {
+        type: "boolean",
+      },
       all: {
         type: "boolean",
       },
@@ -505,6 +509,18 @@ export function parseCLIArguments(
       helpText: renderMainHelpText(),
       kind: "help",
     };
+  }
+
+  if (
+    values["accept-cost"] === true &&
+    !(positionals[0] === "queue" && positionals[1] === "add")
+  ) {
+    throw new Error(
+      withHelpRoute(
+        "`--accept-cost` is only valid for `spinedigest queue add`.",
+        "spinedigest queue --help",
+      ),
+    );
   }
 
   if (positionals[0] === "help") {
@@ -703,6 +719,14 @@ function parseQueueArguments(
         throw new Error(
           withHelpRoute(
             "`spinedigest queue add` requires --chapter <id>.",
+            helpRoute,
+          ),
+        );
+      }
+      if (values["accept-cost"] !== true) {
+        throw new Error(
+          withHelpRoute(
+            "Queue graph and summary jobs can call an LLM, consume tokens, incur provider charges, and run for minutes to hours on large archives. Run `spinedigest estimate <archive.sdpub> --stage summary`, then rerun `queue add` with --accept-cost if the cost and wait time are acceptable.",
             helpRoute,
           ),
         );

@@ -5,8 +5,15 @@ Purpose:
   Manage device-local graph and summary jobs for `.sdpub` chapters.
   Use queue jobs for LLM-backed archive generation. Use retrieval commands (`status`, `index`, `list`, `page`, `find`, `grep`, `read`) to inspect data that already exists.
 
+Cost and time:
+  Graph and summary jobs call an LLM.
+  They consume tokens and may incur provider charges.
+  Large archives can run for minutes to hours depending on chapter size, model speed, retries, and request concurrency.
+  `queue add` requires `--accept-cost` so agents and scripts cannot schedule paid work silently.
+  Run `spinedigest estimate <archive.sdpub> --stage summary` before queueing large batches.
+
 Usage:
-  spinedigest queue add <archive.sdpub> --chapter <id> [--to graph|summary] [--boost] [--llm <json>] [--prompt <text>]
+  spinedigest queue add <archive.sdpub> --chapter <id> [--to graph|summary] --accept-cost [--boost] [--llm <json>] [--prompt <text>]
   spinedigest queue list [--all] [--active] [--input <archive.sdpub>]
   spinedigest queue status <job-id>
   spinedigest queue watch <job-id> [--jsonl] [--from beginning|now]
@@ -25,6 +32,7 @@ Job identity:
 
 Scheduling:
   - New jobs are appended to the queue by default.
+  - `queue add` requires `--accept-cost` for graph and summary jobs.
   - `queue add ... --boost` inserts a new job at the front.
   - `queue boost <job-id>` moves an existing queued job to the front.
   - Boosting does not preempt running jobs.
@@ -45,7 +53,7 @@ Watch output:
   - `progress_snapshot` events include graph words, summary words, and approximate output tokens.
 
 Agent examples:
-  spinedigest queue add book.sdpub --chapter 3 --to summary
+  spinedigest queue add book.sdpub --chapter 3 --to summary --accept-cost
   spinedigest queue watch <job-id> --jsonl
   spinedigest queue list --input book.sdpub
   spinedigest queue status <job-id>
