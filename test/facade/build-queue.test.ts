@@ -275,6 +275,62 @@ describe("facade/build-queue", () => {
       await worker;
     });
   });
+
+  it("lists multiple running jobs when worker concurrency allows it", async () => {
+    await withTempDir("spinedigest-build-queue-", async (path) => {
+      useStateDir(`${path}/state`);
+      await addBuildJob({
+        archivePath: `${path}/book.sdpub`,
+        chapterId: 1,
+        target: "graph",
+      });
+      await addBuildJob({
+        archivePath: `${path}/book.sdpub`,
+        chapterId: 2,
+        target: "graph",
+      });
+
+      let firstStarted!: () => void;
+      let secondStarted!: () => void;
+      let releaseJobs!: () => void;
+      const firstStartedSignal = new Promise<void>((resolveStarted) => {
+        firstStarted = resolveStarted;
+      });
+      const secondStartedSignal = new Promise<void>((resolveStarted) => {
+        secondStarted = resolveStarted;
+      });
+      const releaseSignal = new Promise<void>((resolveRelease) => {
+        releaseJobs = resolveRelease;
+      });
+
+      const worker = runBuildJobWorker({
+        concurrency: 2,
+        executeJob: async (job) => {
+          if (job.chapterId === 1) {
+            firstStarted();
+          } else if (job.chapterId === 2) {
+            secondStarted();
+          }
+
+          await releaseSignal;
+        },
+        idleTimeoutMs: 0,
+      });
+
+      await withTimeout(
+        Promise.all([firstStartedSignal, secondStartedSignal]),
+        "Timed out waiting for both queue slots to become running.",
+      );
+
+      expect((await listBuildJobs()).map((job) => job.state)).toStrictEqual([
+        "running",
+        "running",
+      ]);
+
+      releaseJobs();
+      await worker;
+    });
+  });
 });
 
 async function forceRunningPid(
