@@ -1,6 +1,6 @@
 {
   "name": "spinedigest",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "CLI-first tool for digesting long-form text and ebooks into compressed text, EPUB, or reusable .sdpub archives.",
   "license": "Apache-2.0",
   "type": "module",
