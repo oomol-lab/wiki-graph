@@ -11,6 +11,8 @@ type SqlRowValue = SqlBindValue;
 
 export type SqlRow = Record<string, SqlRowValue>;
 
+const SQLITE_BUSY_TIMEOUT_MS = 15 * 60 * 1000;
+
 export class Database {
   readonly #database: SqliteDatabase;
   readonly #operationScope = new AsyncLocalStorage<boolean>();
@@ -30,6 +32,9 @@ export class Database {
     const database = await openSqliteDatabase(resolvedDatabasePath);
     const openedDatabase = new Database(database);
 
+    await openedDatabase.#executeSql(
+      `PRAGMA busy_timeout = ${SQLITE_BUSY_TIMEOUT_MS}`,
+    );
     await openedDatabase.#executeSql(schemaSql);
 
     return openedDatabase;

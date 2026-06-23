@@ -197,6 +197,70 @@ describe("facade/build-queue", () => {
     });
   });
 
+  it("continues claiming queued jobs after one job fails", async () => {
+    await withTempDir("spinedigest-build-queue-", async (path) => {
+      useStateDir(`${path}/state`);
+      const failedJob = await addBuildJob({
+        archivePath: `${path}/book.sdpub`,
+        chapterId: 1,
+        target: "summary",
+      });
+      const succeededJob = await addBuildJob({
+        archivePath: `${path}/book.sdpub`,
+        chapterId: 2,
+        target: "summary",
+      });
+
+      await runBuildJobWorker({
+        concurrency: 1,
+        executeJob: (job) => {
+          if (job.jobId === failedJob.jobId) {
+            throw new Error("planned failure");
+          }
+
+          return Promise.resolve();
+        },
+        idleTimeoutMs: 0,
+      });
+
+      expect(await getBuildJob(failedJob.jobId)).toMatchObject({
+        state: "failed",
+      });
+      expect(await getBuildJob(succeededJob.jobId)).toMatchObject({
+        state: "succeeded",
+      });
+    });
+  });
+
+  it("waits for transient sqlite locks while marking failed jobs", async () => {
+    await withTempDir("spinedigest-build-queue-", async (path) => {
+      useStateDir(`${path}/state`);
+      const job = await addBuildJob({
+        archivePath: `${path}/book.sdpub`,
+        chapterId: 1,
+        target: "summary",
+      });
+      let releaseLockPromise: Promise<void> | undefined;
+
+      await runBuildJobWorker({
+        concurrency: 1,
+        executeJob: async () => {
+          const lock = await lockSqliteDatabaseBriefly(
+            `${path}/state/state.sqlite`,
+          );
+          releaseLockPromise = lock.released;
+          throw new Error("planned failure");
+        },
+        idleTimeoutMs: 0,
+      });
+
+      await requirePromise(releaseLockPromise);
+      expect(await getBuildJob(job.jobId)).toMatchObject({
+        state: "failed",
+      });
+    });
+  });
+
   it("recovers stale running jobs back to queued", async () => {
     await withTempDir("spinedigest-build-queue-", async (path) => {
       useStateDir(`${path}/state`);
@@ -355,6 +419,43 @@ WHERE job_id = ?
   } finally {
     await database.close();
   }
+}
+
+async function lockSqliteDatabaseBriefly(
+  databasePath: string,
+): Promise<{ readonly released: Promise<void> }> {
+  const database = await Database.open(
+    databasePath,
+    "CREATE TABLE IF NOT EXISTS build_jobs (job_id TEXT PRIMARY KEY);",
+  );
+
+  await database.run("BEGIN EXCLUSIVE");
+
+  return {
+    released: new Promise<void>((resolveRelease, rejectRelease) => {
+      setTimeout(() => {
+        void (async () => {
+          try {
+            await database.run("COMMIT");
+            await database.close();
+            resolveRelease();
+          } catch (error) {
+            rejectRelease(
+              error instanceof Error ? error : new Error(String(error)),
+            );
+          }
+        })();
+      }, 100);
+    }),
+  };
+}
+
+function requirePromise<T>(promise: Promise<T> | undefined): Promise<T> {
+  if (promise === undefined) {
+    throw new Error("Expected promise to be assigned.");
+  }
+
+  return promise;
 }
 
 function useStateDir(path: string): void {
