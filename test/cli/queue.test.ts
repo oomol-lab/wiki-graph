@@ -177,7 +177,7 @@ vi.mock("../../src/facade/index.js", () => ({
   snapshotChapterSummaryInput: vi.fn(() => {
     queueMockState.stepLog.push("snapshot-summary");
     return Promise.resolve({
-      documentPath: "/tmp/job-workspace/summary-input-document",
+      filePath: "/tmp/job-workspace/summary-input.json",
     });
   }),
   updateBuildJobTarget: vi.fn(),
@@ -482,6 +482,13 @@ describe("cli/queue", () => {
     ]);
     expect(queueMockState.buildGraphCalls).toHaveLength(1);
     expect(queueMockState.buildSummaryCalls).toHaveLength(1);
+    expect(queueMockState.buildSummaryCalls[0]).toMatchObject({
+      snapshotPath: "/tmp/job-workspace/summary-input.json",
+      workspacePath: "/tmp/job-workspace",
+    });
+    expect(queueMockState.buildSummaryCalls[0]).not.toHaveProperty(
+      "sourceDocumentPath",
+    );
   });
 
   it("writes every watch jsonl event without closing stdout", async () => {

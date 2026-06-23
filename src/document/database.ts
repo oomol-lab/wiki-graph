@@ -79,7 +79,7 @@ export class Database {
       const isRootTransaction = this.#transactionDepth === 0;
 
       if (isRootTransaction) {
-        await this.#executeSql("BEGIN");
+        await this.#executeSql("BEGIN IMMEDIATE");
       }
 
       this.#transactionDepth += 1;

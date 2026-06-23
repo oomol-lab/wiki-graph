@@ -258,7 +258,7 @@ async function executeBuildJob(
   );
   const summary = await buildChapterSummaryArtifactFromSnapshot(job.chapterId, {
     llm,
-    sourceDocumentPath: summaryInput.documentPath,
+    snapshotPath: summaryInput.filePath,
     workspacePath: job.workspacePath,
   });
   details = await new SpineDigestFile(job.archivePath).write(

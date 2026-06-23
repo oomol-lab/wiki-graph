@@ -501,39 +501,48 @@ export async function runBuildJobWorker(
     }
 
     const runSlot = async (): Promise<void> => {
-      while (!stopping) {
-        await heartbeatBuildWorker(ownerId, state);
-        await recoverStaleBuildJobs(state);
+      const slotState = await openBuildQueueDatabase();
 
-        busySlotCount += 1;
-        let job: BuildJob | undefined;
+      try {
+        while (!stopping) {
+          await heartbeatBuildWorker(ownerId, slotState);
+          await recoverStaleBuildJobs(slotState);
 
-        try {
-          job = await claimQueuedBuildJob(state, ownerId);
-        } finally {
+          busySlotCount += 1;
+          let job: BuildJob | undefined;
+
+          try {
+            job = await claimQueuedBuildJob(slotState, ownerId);
+          } finally {
+            if (job === undefined) {
+              busySlotCount -= 1;
+            }
+          }
+
           if (job === undefined) {
+            if (
+              busySlotCount === 0 &&
+              Date.now() - idleSince >= idleTimeoutMs
+            ) {
+              break;
+            }
+            await delay(500);
+            continue;
+          }
+
+          idleSince = Date.now();
+
+          try {
+            await executeClaimedBuildJob(job, ownerId, options);
+          } finally {
             busySlotCount -= 1;
+            if (busySlotCount === 0) {
+              idleSince = Date.now();
+            }
           }
         }
-
-        if (job === undefined) {
-          if (busySlotCount === 0 && Date.now() - idleSince >= idleTimeoutMs) {
-            break;
-          }
-          await delay(500);
-          continue;
-        }
-
-        idleSince = Date.now();
-
-        try {
-          await executeClaimedBuildJob(job, ownerId, options);
-        } finally {
-          busySlotCount -= 1;
-          if (busySlotCount === 0) {
-            idleSince = Date.now();
-          }
-        }
+      } finally {
+        await slotState.close();
       }
     };
 
