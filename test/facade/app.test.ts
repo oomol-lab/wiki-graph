@@ -221,6 +221,9 @@ describe("facade/app", () => {
 
   it("opens saved digest archives without requiring llm configuration", async () => {
     await withTempDir("spinedigest-app-", async (path) => {
+      const originalStateDir = process.env.SPINEDIGEST_STATE_DIR;
+
+      process.env.SPINEDIGEST_STATE_DIR = `${path}/state`;
       const document = await DirectoryDocument.open(`${path}/document`);
 
       try {
@@ -261,6 +264,11 @@ describe("facade/app", () => {
         expect(title).toBe("App Open Fixture");
       } finally {
         await document.release();
+        if (originalStateDir === undefined) {
+          delete process.env.SPINEDIGEST_STATE_DIR;
+        } else {
+          process.env.SPINEDIGEST_STATE_DIR = originalStateDir;
+        }
       }
     });
   });

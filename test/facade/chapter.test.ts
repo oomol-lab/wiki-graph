@@ -1,3 +1,5 @@
+import { rm } from "fs/promises";
+
 import { describe, expect, it } from "vitest";
 
 import { DirectoryDocument } from "../../src/document/index.js";
@@ -249,6 +251,38 @@ describe("facade/chapter", () => {
         );
 
         expect(resetToPlanned.stage).toBe("planned");
+      } finally {
+        await document.release();
+      }
+    });
+  });
+
+  it("reads one chapter details without scanning unrelated chapter fragments", async () => {
+    await withTempDir("spinedigest-chapter-", async (path) => {
+      const document = await DirectoryDocument.open(path);
+
+      try {
+        const first = await addChapter(document, {
+          title: "Chapter 1",
+        });
+        const second = await addChapter(document, {
+          title: "Chapter 2",
+        });
+
+        await setChapterSource(document, first.chapterId, ["Alpha beta."]);
+        await setChapterSource(document, second.chapterId, ["Gamma delta."]);
+        await rm(document.getSerialFragments(second.chapterId).path, {
+          force: true,
+          recursive: true,
+        });
+
+        await expect(
+          getChapterDetails(document, first.chapterId),
+        ).resolves.toMatchObject({
+          chapterId: first.chapterId,
+          stage: "sourced",
+          words: 2,
+        });
       } finally {
         await document.release();
       }

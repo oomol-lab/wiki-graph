@@ -340,7 +340,7 @@ describe("facade/build-queue", () => {
     });
   });
 
-  it("does not run multiple jobs for the same archive at the same time", async () => {
+  it("runs multiple jobs for the same archive when worker concurrency allows it", async () => {
     await withTempDir("spinedigest-build-queue-", async (path) => {
       useStateDir(`${path}/state`);
       await addBuildJob({
@@ -355,10 +355,14 @@ describe("facade/build-queue", () => {
       });
 
       let firstStarted!: () => void;
+      let secondStarted!: () => void;
       let releaseFirst!: () => void;
       let releaseSecond!: () => void;
       const firstStartedSignal = new Promise<void>((resolveStarted) => {
         firstStarted = resolveStarted;
+      });
+      const secondStartedSignal = new Promise<void>((resolveStarted) => {
+        secondStarted = resolveStarted;
       });
       const firstReleaseSignal = new Promise<void>((resolveRelease) => {
         releaseFirst = resolveRelease;
@@ -378,23 +382,21 @@ describe("facade/build-queue", () => {
             return;
           }
 
+          secondStarted();
           await secondReleaseSignal;
         },
         idleTimeoutMs: 0,
       });
 
       await firstStartedSignal;
+      await secondStartedSignal;
 
       expect((await listBuildJobs()).map((job) => job.state)).toStrictEqual([
         "running",
-        "queued",
+        "running",
       ]);
 
       releaseFirst();
-      await withTimeout(
-        waitForRunningJobCount(1),
-        "Timed out waiting for the second same-archive job to start.",
-      );
       releaseSecond();
       await worker;
     });

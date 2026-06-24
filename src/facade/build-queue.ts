@@ -767,12 +767,6 @@ async function claimQueuedBuildJob(
 SELECT *
 FROM build_jobs
 WHERE state = 'queued'
-  AND NOT EXISTS (
-    SELECT 1
-    FROM build_jobs AS running_jobs
-    WHERE running_jobs.archive_key = build_jobs.archive_key
-      AND running_jobs.state = 'running'
-  )
 ORDER BY queue_rank ASC, created_at ASC
 LIMIT 1
 `,

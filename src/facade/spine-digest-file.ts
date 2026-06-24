@@ -2,7 +2,7 @@ import { resolve } from "path";
 
 import { DirectoryDocument } from "../document/index.js";
 
-import { SdpubCoordinator } from "./sdpub-coordinator.js";
+import { SdpubCoordinator, tryStartSdpubFlusher } from "./sdpub-coordinator.js";
 import { SpineDigest } from "./spine-digest.js";
 
 export class SpineDigestFile {
@@ -35,6 +35,20 @@ export class SpineDigestFile {
       readonly documentDirPath?: string;
     } = {},
   ): Promise<T> {
+    if (options.documentDirPath === undefined) {
+      const document = await DirectoryDocument.open(this.#path, {
+        fileStore: this.#coordinator.createFileStore(this.#path, {
+          readonlyDatabase: true,
+        }),
+      });
+
+      try {
+        return await operation(document, this.#path);
+      } finally {
+        await document.release();
+      }
+    }
+
     return await this.#coordinator.withReadWorkspace(
       this.#path,
       async (directoryPath) => {
@@ -53,18 +67,22 @@ export class SpineDigestFile {
   public async write<T>(
     operation: (document: DirectoryDocument) => Promise<T> | T,
   ): Promise<T> {
-    return await this.#coordinator.withWriteWorkspace(
-      this.#path,
-      async (directoryPath) => {
-        const document = await DirectoryDocument.open(directoryPath);
+    const document = await DirectoryDocument.open(this.#path, {
+      fileStore: this.#coordinator.createFileStore(this.#path),
+    });
+    let completed = false;
 
-        try {
-          return await operation(document);
-        } finally {
-          await document.flush();
-          await document.release();
-        }
-      },
-    );
+    try {
+      const result = await operation(document);
+
+      completed = true;
+      return result;
+    } finally {
+      await document.flush();
+      await document.release();
+      if (completed) {
+        await tryStartSdpubFlusher();
+      }
+    }
   }
 }

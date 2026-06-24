@@ -30,15 +30,18 @@ export class Database {
   public static async open(
     databasePath: string,
     schemaSql: string,
+    options: { readonly readonly?: boolean } = {},
   ): Promise<Database> {
     const resolvedDatabasePath = resolve(databasePath);
-    const database = await openSqliteDatabase(resolvedDatabasePath);
+    const database = await openSqliteDatabase(resolvedDatabasePath, options);
     const openedDatabase = new Database(database);
 
     await openedDatabase.#executeSql(
       `PRAGMA busy_timeout = ${SQLITE_BUSY_TIMEOUT_MS}`,
     );
-    await openedDatabase.#executeSql(schemaSql);
+    if (options.readonly !== true && schemaSql.trim() !== "") {
+      await openedDatabase.#executeSql(schemaSql);
+    }
 
     return openedDatabase;
   }
@@ -302,11 +305,16 @@ export function getOptionalString(
 
 async function openSqliteDatabase(
   databasePath: string,
+  options: { readonly readonly?: boolean } = {},
 ): Promise<SqliteDatabase> {
   const sqlite3 = await loadSqlite3();
+  const flags =
+    (options.readonly === true
+      ? sqlite3.OPEN_READONLY
+      : sqlite3.OPEN_READWRITE | sqlite3.OPEN_CREATE) | sqlite3.OPEN_FULLMUTEX;
 
   return await new Promise<SqliteDatabase>((resolveOpen, rejectOpen) => {
-    const database = new sqlite3.Database(databasePath, (error) => {
+    const database = new sqlite3.Database(databasePath, flags, (error) => {
       if (error !== null) {
         rejectOpen(error);
         return;

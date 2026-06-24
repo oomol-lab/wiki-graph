@@ -1,5 +1,5 @@
 import { AsyncLocalStorage } from "async_hooks";
-import { mkdir, readFile, rm, unlink, writeFile } from "fs/promises";
+import { mkdir, readFile, readdir, rm, unlink, writeFile } from "fs/promises";
 import { join, resolve } from "path";
 import { z } from "zod";
 
@@ -31,6 +31,67 @@ import {
   SnakeStore,
 } from "./stores.js";
 import type { SentenceId } from "./types.js";
+
+export interface DocumentFileStore {
+  close(): Promise<void>;
+  deleteFile(path: string): Promise<void>;
+  deleteTree(path: string): Promise<void>;
+  ensureDirectory(path: string): Promise<void>;
+  initializeDatabaseSchema(): boolean;
+  openDatabaseReadonly(): boolean;
+  listFiles(path: string): Promise<readonly string[]>;
+  readFile(path: string): Promise<Uint8Array | undefined>;
+  resolveDatabasePath(documentPath: string): Promise<string>;
+  writeFile(
+    path: string,
+    content: string | Uint8Array,
+    options: { readonly overwrite?: boolean },
+  ): Promise<void>;
+}
+
+const LOCAL_DOCUMENT_FILE_STORE: DocumentFileStore = {
+  close: () => Promise.resolve(),
+  deleteFile: async (path) => {
+    await unlink(path);
+  },
+  deleteTree: async (path) => {
+    await rm(path, { force: true, recursive: true });
+  },
+  ensureDirectory: async (path) => {
+    await mkdir(path, { recursive: true });
+  },
+  initializeDatabaseSchema: () => true,
+  openDatabaseReadonly: () => false,
+  listFiles: async (path) =>
+    (await readdir(path, { withFileTypes: true }))
+      .filter((entry) => entry.isFile())
+      .map((entry) => entry.name),
+  readFile: async (path) => {
+    try {
+      return await readFile(path);
+    } catch (error) {
+      if (isNodeError(error) && error.code === "ENOENT") {
+        return undefined;
+      }
+
+      throw error;
+    }
+  },
+  resolveDatabasePath: (documentPath) =>
+    Promise.resolve(join(documentPath, "database.db")),
+  writeFile: async (path, content, options) => {
+    if (typeof content === "string") {
+      await writeFile(path, content, {
+        encoding: "utf8",
+        flag: options.overwrite === true ? "w" : "wx",
+      });
+    } else {
+      await writeFile(path, content, {
+        flag: options.overwrite === true ? "w" : "wx",
+      });
+    }
+  },
+};
 
 const coverFileSchema = z.object({
   mediaType: z.string().min(1),
@@ -103,11 +164,18 @@ export class DirectoryDocument implements Document {
   public readonly snakes: SnakeStore;
 
   readonly #database: Database;
+  readonly #fileStore: DocumentFileStore;
   readonly #fragments: Fragments;
   readonly #contextScope = new AsyncLocalStorage<DirectoryDocumentContext>();
 
-  public constructor(database: Database, fragments: Fragments, path: string) {
+  public constructor(
+    database: Database,
+    fragments: Fragments,
+    path: string,
+    fileStore: DocumentFileStore = LOCAL_DOCUMENT_FILE_STORE,
+  ) {
     this.#database = database;
+    this.#fileStore = fileStore;
     this.#fragments = fragments;
     this.chunks = new ChunkStore(database);
     this.fragmentGroups = new FragmentGroupStore(database);
@@ -119,24 +187,40 @@ export class DirectoryDocument implements Document {
     this.snakes = new SnakeStore(database);
   }
 
-  public static async open(documentPath: string): Promise<DirectoryDocument> {
+  public static async open(
+    documentPath: string,
+    options: { readonly fileStore?: DocumentFileStore } = {},
+  ): Promise<DirectoryDocument> {
     const resolvedDocumentPath = resolve(documentPath);
-    const databasePath = join(resolvedDocumentPath, "database.db");
+    const fileStore = options.fileStore ?? LOCAL_DOCUMENT_FILE_STORE;
+    const databasePath =
+      await fileStore.resolveDatabasePath(resolvedDocumentPath);
     const writer = {
       write: async (path: string, content: string): Promise<void> => {
-        await writeFile(path, content, "utf8");
+        await fileStore.writeFile(path, content, { overwrite: false });
       },
     };
-    const fragments = new Fragments(resolvedDocumentPath, writer);
+    const fragments = new Fragments(resolvedDocumentPath, writer, {
+      ensureDirectory: async (path) => {
+        await fileStore.ensureDirectory(path);
+      },
+      listFiles: async (path) => await fileStore.listFiles(path),
+      readFile: async (path) => await fileStore.readFile(path),
+    });
 
-    await mkdir(resolvedDocumentPath, { recursive: true });
+    await fileStore.ensureDirectory(resolvedDocumentPath);
     await fragments.ensureCreated();
 
-    const database = await Database.open(databasePath, SCHEMA_SQL);
+    const database = await Database.open(
+      databasePath,
+      fileStore.initializeDatabaseSchema() ? SCHEMA_SQL : "",
+      { readonly: fileStore.openDatabaseReadonly() },
+    );
     const document = new DirectoryDocument(
       database,
       fragments,
       resolvedDocumentPath,
+      fileStore,
     );
 
     writer.write = async (path: string, content: string): Promise<void> => {
@@ -182,10 +266,7 @@ export class DirectoryDocument implements Document {
 
   public async clearSerialSource(serialId: number): Promise<void> {
     await this.clearSerialGraph(serialId);
-    await rm(this.#fragments.getSerial(serialId).path, {
-      force: true,
-      recursive: true,
-    });
+    await this.#fileStore.deleteTree(this.#fragments.getSerial(serialId).path);
   }
 
   public async deleteSerial(serialId: number): Promise<void> {
@@ -194,7 +275,7 @@ export class DirectoryDocument implements Document {
 
   public async deleteSummary(serialId: number): Promise<void> {
     try {
-      await unlink(this.#getSummaryPath(serialId));
+      await this.#fileStore.deleteFile(this.#getSummaryPath(serialId));
     } catch (error) {
       if (isNodeError(error) && error.code === "ENOENT") {
         return;
@@ -265,15 +346,7 @@ export class DirectoryDocument implements Document {
   }
 
   public async readSummary(serialId: number): Promise<string | undefined> {
-    try {
-      return await readFile(this.#getSummaryPath(serialId), "utf8");
-    } catch (error) {
-      if (isNodeError(error) && error.code === "ENOENT") {
-        return undefined;
-      }
-
-      throw error;
-    }
+    return await this.#readOptionalTextFile(this.#getSummaryPath(serialId));
   }
 
   public async readToc(): Promise<TocFile | undefined> {
@@ -293,7 +366,7 @@ export class DirectoryDocument implements Document {
   }
 
   public async writeCover(cover: SourceAsset): Promise<void> {
-    await mkdir(this.#getCoverDirectoryPath(), { recursive: true });
+    await this.#fileStore.ensureDirectory(this.#getCoverDirectoryPath());
     await this.#writeJsonFile(this.#getCoverInfoPath(), {
       mediaType: cover.mediaType,
       path: cover.path,
@@ -302,7 +375,7 @@ export class DirectoryDocument implements Document {
   }
 
   public async writeSummary(serialId: number, summary: string): Promise<void> {
-    await mkdir(this.#getSummariesPath(), { recursive: true });
+    await this.#fileStore.ensureDirectory(this.#getSummariesPath());
     await this.#writeNewFile(this.#getSummaryPath(serialId), summary);
   }
 
@@ -321,6 +394,7 @@ export class DirectoryDocument implements Document {
   public async release(): Promise<void> {
     await this.flush();
     await this.#database.close();
+    await this.#fileStore.close();
   }
 
   public async close(): Promise<void> {
@@ -373,10 +447,7 @@ export class DirectoryDocument implements Document {
       );
     });
 
-    await rm(this.#fragments.getSerial(serialId).path, {
-      force: true,
-      recursive: true,
-    });
+    await this.#fileStore.deleteTree(this.#fragments.getSerial(serialId).path);
     await this.deleteSummary(serialId);
   }
 
@@ -468,27 +539,15 @@ export class DirectoryDocument implements Document {
   }
 
   async #readOptionalFile(path: string): Promise<Uint8Array | undefined> {
-    try {
-      return await readFile(path);
-    } catch (error) {
-      if (isNodeError(error) && error.code === "ENOENT") {
-        return undefined;
-      }
-
-      throw error;
-    }
+    return await this.#fileStore.readFile(path);
   }
 
   async #readOptionalTextFile(path: string): Promise<string | undefined> {
-    try {
-      return await readFile(path, "utf8");
-    } catch (error) {
-      if (isNodeError(error) && error.code === "ENOENT") {
-        return undefined;
-      }
+    const content = await this.#fileStore.readFile(path);
 
-      throw error;
-    }
+    return content === undefined
+      ? undefined
+      : Buffer.from(content).toString("utf8");
   }
 
   async #writeJsonFile(
@@ -512,16 +571,7 @@ export class DirectoryDocument implements Document {
     options: { readonly overwrite?: boolean },
   ): Promise<void> {
     try {
-      if (typeof content === "string") {
-        await writeFile(path, content, {
-          encoding: "utf8",
-          flag: options.overwrite === true ? "w" : "wx",
-        });
-      } else {
-        await writeFile(path, content, {
-          flag: options.overwrite === true ? "w" : "wx",
-        });
-      }
+      await this.#fileStore.writeFile(path, content, options);
     } catch (error) {
       if (isNodeError(error) && error.code === "EEXIST") {
         throw new Error(`File already exists: ${path}`);

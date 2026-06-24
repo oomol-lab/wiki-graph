@@ -1,32 +1,75 @@
 import { createHash, randomUUID } from "crypto";
-import { mkdir, mkdtemp, rename, rm } from "fs/promises";
+import { mkdir, mkdtemp, readFile, rename, rm, writeFile } from "fs/promises";
 import { homedir, tmpdir } from "os";
-import { basename, dirname, join, resolve } from "path";
+import { basename, dirname, join, posix, resolve } from "path";
 
 import { Database } from "../document/index.js";
+import type { DocumentFileStore } from "../document/document.js";
+import { AsyncSemaphore } from "../utils/async-semaphore.js";
 
-import { extractSdpubArchive, writeSdpubArchive } from "./archive.js";
+import {
+  extractSdpubArchive,
+  readSdpubArchiveEntry,
+  writeSdpubArchiveWithOverlays,
+  type SdpubArchiveOverlay,
+} from "./archive.js";
 
 const STATE_SCHEMA_SQL = `
-CREATE TABLE IF NOT EXISTS archives (
-  archive_key TEXT PRIMARY KEY,
+CREATE TABLE IF NOT EXISTS entry_overlays (
+  archive_key TEXT NOT NULL,
   archive_path TEXT NOT NULL,
-  workspace_path TEXT NOT NULL,
-  dirty INTEGER NOT NULL DEFAULT 0,
-  flushable INTEGER NOT NULL DEFAULT 0,
-  operation_owner TEXT,
-  operation_pid INTEGER,
-  operation_heartbeat_at INTEGER,
-  flusher_owner TEXT,
-  flusher_pid INTEGER,
-  flusher_heartbeat_at INTEGER,
-  updated_at INTEGER NOT NULL
+  entry_path TEXT NOT NULL,
+  kind TEXT NOT NULL,
+  workspace_path TEXT,
+  updated_at INTEGER NOT NULL,
+  PRIMARY KEY (archive_key, entry_path)
+);
+
+CREATE TABLE IF NOT EXISTS entry_locks (
+  archive_key TEXT NOT NULL,
+  entry_path TEXT NOT NULL,
+  mode TEXT NOT NULL,
+  owner_id TEXT NOT NULL,
+  owner_pid INTEGER NOT NULL,
+  heartbeat_at INTEGER NOT NULL,
+  created_at INTEGER NOT NULL,
+  PRIMARY KEY (archive_key, entry_path, owner_id)
+);
+
+CREATE TABLE IF NOT EXISTS entry_sqlite_leases (
+  archive_key TEXT NOT NULL,
+  entry_path TEXT NOT NULL,
+  owner_id TEXT NOT NULL,
+  owner_pid INTEGER NOT NULL,
+  heartbeat_at INTEGER NOT NULL,
+  created_at INTEGER NOT NULL,
+  PRIMARY KEY (archive_key, entry_path, owner_id)
+);
+
+CREATE TABLE IF NOT EXISTS archive_commit_locks (
+  archive_key TEXT PRIMARY KEY,
+  owner_id TEXT NOT NULL,
+  owner_pid INTEGER NOT NULL,
+  heartbeat_at INTEGER NOT NULL,
+  created_at INTEGER NOT NULL
 );
 `;
 
-const FLUSH_HEARTBEAT_INTERVAL_MS = 5_000;
+const DATABASE_ENTRY_PATH = "database.db";
+const LOCK_POLL_INTERVAL_MS = 100;
+const LOCK_STALE_TIMEOUT_MS = 60_000;
+const STATE_DATABASE_SEMAPHORE = new AsyncSemaphore(1);
+
+type EntryLockMode = "read" | "state" | "write";
 
 export class SdpubCoordinator {
+  public createFileStore(
+    archivePath: string,
+    options: { readonly readonlyDatabase?: boolean } = {},
+  ): DocumentFileStore {
+    return new SdpubDocumentFileStore(resolve(archivePath), options);
+  }
+
   public async withReadWorkspace<T>(
     archivePath: string,
     operation: (documentDirectoryPath: string) => Promise<T> | T,
@@ -34,20 +77,26 @@ export class SdpubCoordinator {
       readonly documentDirPath?: string;
     } = {},
   ): Promise<T> {
-    if (options.documentDirPath !== undefined) {
-      const directoryPath = resolve(options.documentDirPath);
+    const directoryPath =
+      options.documentDirPath === undefined
+        ? await mkdtemp(join(tmpdir(), "spinedigest-open-"))
+        : resolve(options.documentDirPath);
 
+    try {
       await extractSdpubArchive(resolve(archivePath), directoryPath);
       return await operation(directoryPath);
+    } finally {
+      if (options.documentDirPath === undefined) {
+        await rm(directoryPath, { force: true, recursive: true });
+      }
     }
+  }
 
-    const entry = await this.#getArchiveEntry(resolve(archivePath));
-
-    if (entry !== undefined) {
-      return await operation(entry.workspacePath);
-    }
-
-    const directoryPath = await mkdtemp(join(tmpdir(), "spinedigest-open-"));
+  public async withWriteWorkspace<T>(
+    archivePath: string,
+    operation: (documentDirectoryPath: string) => Promise<T> | T,
+  ): Promise<T> {
+    const directoryPath = await mkdtemp(join(tmpdir(), "spinedigest-write-"));
 
     try {
       await extractSdpubArchive(resolve(archivePath), directoryPath);
@@ -56,393 +105,713 @@ export class SdpubCoordinator {
       await rm(directoryPath, { force: true, recursive: true });
     }
   }
-
-  public async withWriteWorkspace<T>(
-    archivePath: string,
-    operation: (documentDirectoryPath: string) => Promise<T> | T,
-  ): Promise<T> {
-    const resolvedArchivePath = resolve(archivePath);
-    const ownerId = createOwnerId();
-    const archiveKey = createArchiveKey(resolvedArchivePath);
-    const workspacePath = await this.#prepareWorkspace({
-      archiveKey,
-      archivePath: resolvedArchivePath,
-      ownerId,
-    });
-
-    let completed = false;
-
-    try {
-      const result = await operation(workspacePath);
-
-      await this.#markFlushable(archiveKey);
-      completed = true;
-      return result;
-    } finally {
-      await this.#releaseOperation(archiveKey, ownerId, completed);
-      if (completed) {
-        await tryStartSdpubFlusher();
-      }
-    }
-  }
-
-  async #prepareWorkspace(input: {
-    readonly archiveKey: string;
-    readonly archivePath: string;
-    readonly ownerId: string;
-  }): Promise<string> {
-    const state = await openStateDatabase();
-
-    try {
-      await cleanupStaleState(state);
-
-      return await state.transaction(async () => {
-        const now = Date.now();
-        const existing = await readArchiveState(state, input.archiveKey);
-
-        if (
-          existing?.operationOwner !== undefined &&
-          existing.operationPid !== undefined &&
-          isProcessAlive(existing.operationPid)
-        ) {
-          throw new Error(
-            `Archive is already being edited by process ${existing.operationPid}: ${input.archivePath}`,
-          );
-        }
-
-        if (existing !== undefined) {
-          await state.run(
-            `
-UPDATE archives
-SET operation_owner = ?, operation_pid = ?, operation_heartbeat_at = ?,
-    dirty = 1, flushable = 0, archive_path = ?, updated_at = ?
-WHERE archive_key = ?
-`,
-            [
-              input.ownerId,
-              process.pid,
-              now,
-              input.archivePath,
-              now,
-              input.archiveKey,
-            ],
-          );
-          return existing.workspacePath;
-        }
-
-        const workspacePath = await createWorkspacePath(input.archiveKey);
-
-        await extractSdpubArchive(input.archivePath, workspacePath);
-        await state.run(
-          `
-INSERT INTO archives (
-  archive_key, archive_path, workspace_path, dirty, flushable,
-  operation_owner, operation_pid, operation_heartbeat_at, updated_at
-) VALUES (?, ?, ?, 1, 0, ?, ?, ?, ?)
-`,
-          [
-            input.archiveKey,
-            input.archivePath,
-            workspacePath,
-            input.ownerId,
-            process.pid,
-            now,
-            now,
-          ],
-        );
-        return workspacePath;
-      });
-    } finally {
-      await state.close();
-    }
-  }
-
-  async #markFlushable(archiveKey: string): Promise<void> {
-    const state = await openStateDatabase();
-
-    try {
-      await state.run(
-        `
-UPDATE archives
-SET flushable = 1, updated_at = ?
-WHERE archive_key = ? AND dirty = 1
-`,
-        [Date.now(), archiveKey],
-      );
-    } finally {
-      await state.close();
-    }
-  }
-
-  async #releaseOperation(
-    archiveKey: string,
-    ownerId: string,
-    completed: boolean,
-  ): Promise<void> {
-    const state = await openStateDatabase();
-
-    try {
-      await state.run(
-        `
-UPDATE archives
-SET operation_owner = NULL, operation_pid = NULL, operation_heartbeat_at = NULL,
-    flushable = CASE WHEN ? = 1 THEN flushable ELSE 0 END,
-    updated_at = ?
-WHERE archive_key = ? AND operation_owner = ?
-`,
-        [completed ? 1 : 0, Date.now(), archiveKey, ownerId],
-      );
-    } finally {
-      await state.close();
-    }
-  }
-
-  async #getArchiveEntry(
-    archivePath: string,
-  ): Promise<{ readonly workspacePath: string } | undefined> {
-    const state = await openStateDatabase();
-
-    try {
-      await cleanupStaleState(state);
-      const archiveKey = createArchiveKey(archivePath);
-      const entry = await readArchiveState(state, archiveKey);
-
-      if (entry === undefined) {
-        return undefined;
-      }
-
-      return { workspacePath: entry.workspacePath };
-    } finally {
-      await state.close();
-    }
-  }
 }
 
 export async function tryStartSdpubFlusher(): Promise<void> {
-  const state = await openStateDatabase();
-  const ownerId = createOwnerId();
-
-  try {
+  const archiveKeys = await withStateDatabase(async (state) => {
     await cleanupStaleState(state);
-
-    const acquired = await state.transaction(async () => {
-      const running = await state.queryOne(
-        `
-SELECT flusher_pid
-FROM archives
-WHERE flusher_pid IS NOT NULL
-LIMIT 1
+    return await state.queryAll(
+      `
+SELECT DISTINCT archive_key
+FROM entry_overlays
+ORDER BY archive_key
 `,
-        undefined,
-        (row) => getNumber(row, "flusher_pid"),
-      );
+      undefined,
+      (row) => getString(row, "archive_key"),
+    );
+  });
 
-      if (running !== undefined && isProcessAlive(running)) {
-        return false;
-      }
+  for (const archiveKey of archiveKeys) {
+    await flushArchiveOverlays(archiveKey);
+  }
+}
 
-      const now = Date.now();
+class SdpubDocumentFileStore implements DocumentFileStore {
+  readonly #archiveKey: string;
+  readonly #archivePath: string;
+  readonly #readonlyDatabase: boolean;
+  readonly #sqliteLeaseOwnerId = createOwnerId();
 
-      await state.run(
-        `
-UPDATE archives
-SET flusher_owner = ?, flusher_pid = ?, flusher_heartbeat_at = ?
-WHERE dirty = 1 AND flushable = 1
-`,
-        [ownerId, process.pid, now],
-      );
-      return true;
+  public constructor(
+    archivePath: string,
+    options: { readonly readonlyDatabase?: boolean },
+  ) {
+    this.#archivePath = resolve(archivePath);
+    this.#archiveKey = createArchiveKey(this.#archivePath);
+    this.#readonlyDatabase = options.readonlyDatabase === true;
+  }
+
+  public async close(): Promise<void> {
+    await releaseSqliteLease({
+      archiveKey: this.#archiveKey,
+      entryPath: DATABASE_ENTRY_PATH,
+      ownerId: this.#sqliteLeaseOwnerId,
+    });
+  }
+
+  public async deleteFile(path: string): Promise<void> {
+    const entryPath = this.#toEntryPath(path);
+
+    await withEntryLock(this.#archiveKey, entryPath, "write", async () => {
+      await withEntryLock(this.#archiveKey, entryPath, "state", async () => {
+        const overlay = await readOverlay(this.#archiveKey, entryPath);
+
+        if (overlay?.workspacePath !== undefined) {
+          await rm(overlay.workspacePath, { force: true });
+        }
+
+        await upsertOverlay({
+          archiveKey: this.#archiveKey,
+          archivePath: this.#archivePath,
+          entryPath,
+          kind: "deleted",
+        });
+      });
+    });
+  }
+
+  public async deleteTree(path: string): Promise<void> {
+    const rootEntryPath = this.#toEntryPath(path);
+    const entries = await listVisibleEntryPaths(this.#archivePath, {
+      archiveKey: this.#archiveKey,
+      prefix: `${rootEntryPath}/`,
     });
 
-    if (!acquired) {
-      return;
+    for (const entryPath of entries) {
+      await this.deleteFile(entryPath);
     }
-
-    await runSdpubFlusher({ ownerId });
-  } finally {
-    await state.close();
   }
-}
 
-async function runSdpubFlusher(input: { readonly ownerId: string }) {
-  let stopping = false;
-  const stop = (): void => {
-    stopping = true;
-  };
+  public ensureDirectory(): Promise<void> {
+    return Promise.resolve();
+  }
 
-  process.once("SIGINT", stop);
-  process.once("SIGTERM", stop);
+  public initializeDatabaseSchema(): boolean {
+    return false;
+  }
 
-  const state = await openStateDatabase();
-  const heartbeat = setInterval(() => {
-    void heartbeatFlusher(input.ownerId).catch(() => undefined);
-  }, FLUSH_HEARTBEAT_INTERVAL_MS);
-  let lastWorkAt = Date.now();
+  public openDatabaseReadonly(): boolean {
+    return this.#readonlyDatabase;
+  }
 
-  try {
-    while (!stopping) {
-      await heartbeatFlusher(input.ownerId, state);
-      const candidate = await selectFlushCandidate(state, input.ownerId);
+  public async listFiles(path: string): Promise<readonly string[]> {
+    const directoryEntryPath = this.#toEntryPath(path);
+    const prefix = directoryEntryPath === "" ? "" : `${directoryEntryPath}/`;
+    const entries = await listVisibleEntryPaths(this.#archivePath, {
+      archiveKey: this.#archiveKey,
+      prefix,
+    });
 
-      if (candidate === undefined) {
-        if (Date.now() - lastWorkAt >= getFlushIdleTimeoutMs()) {
-          break;
+    return entries
+      .map((entryPath) => entryPath.slice(prefix.length))
+      .filter((entryPath) => !entryPath.includes("/"))
+      .map((entryPath) => posix.basename(entryPath))
+      .sort((left, right) => left.localeCompare(right));
+  }
+
+  public async readFile(path: string): Promise<Uint8Array | undefined> {
+    const entryPath = this.#toEntryPath(path);
+
+    return await withEntryLock(
+      this.#archiveKey,
+      entryPath,
+      "read",
+      async () => {
+        const source = await withEntryLock(
+          this.#archiveKey,
+          entryPath,
+          "state",
+          async () =>
+            await resolveEntrySource(this.#archivePath, {
+              archiveKey: this.#archiveKey,
+              entryPath,
+            }),
+        );
+
+        if (source.kind === "deleted") {
+          return undefined;
         }
-        await delay(500);
-        continue;
-      }
+        if (source.kind === "workspace") {
+          return await readFile(source.path);
+        }
 
-      lastWorkAt = Date.now();
-      await flushArchive(candidate);
-      await markFlushed(state, candidate.archiveKey);
+        return await readSdpubArchiveEntry(this.#archivePath, entryPath);
+      },
+    );
+  }
+
+  public async resolveDatabasePath(): Promise<string> {
+    return await withEntryLock(
+      this.#archiveKey,
+      DATABASE_ENTRY_PATH,
+      "state",
+      async () => {
+        let overlay = await readOverlay(this.#archiveKey, DATABASE_ENTRY_PATH);
+
+        if (overlay?.kind !== "file") {
+          const workspacePath = await createWorkspaceFilePath(
+            this.#archiveKey,
+            DATABASE_ENTRY_PATH,
+          );
+          const content = await readSdpubArchiveEntry(
+            this.#archivePath,
+            DATABASE_ENTRY_PATH,
+          );
+
+          await mkdir(dirname(workspacePath), { recursive: true });
+          await writeFile(workspacePath, content ?? new Uint8Array());
+          await upsertOverlay({
+            archiveKey: this.#archiveKey,
+            archivePath: this.#archivePath,
+            entryPath: DATABASE_ENTRY_PATH,
+            kind: "file",
+            workspacePath,
+          });
+          overlay = await readOverlay(this.#archiveKey, DATABASE_ENTRY_PATH);
+        }
+
+        if (overlay?.workspacePath === undefined) {
+          throw new Error("Could not materialize SQLite database.");
+        }
+
+        await acquireSqliteLease({
+          archiveKey: this.#archiveKey,
+          entryPath: DATABASE_ENTRY_PATH,
+          ownerId: this.#sqliteLeaseOwnerId,
+        });
+        return overlay.workspacePath;
+      },
+    );
+  }
+
+  public async writeFile(
+    path: string,
+    content: string | Uint8Array,
+    options: { readonly overwrite?: boolean },
+  ): Promise<void> {
+    const entryPath = this.#toEntryPath(path);
+
+    await withEntryLock(this.#archiveKey, entryPath, "write", async () => {
+      await withEntryLock(this.#archiveKey, entryPath, "state", async () => {
+        const source = await resolveEntrySource(this.#archivePath, {
+          archiveKey: this.#archiveKey,
+          entryPath,
+        });
+
+        if (options.overwrite !== true && source.kind !== "deleted") {
+          throw new Error(`File already exists: ${path}`);
+        }
+
+        const workspacePath =
+          source.kind === "workspace"
+            ? source.path
+            : await createWorkspaceFilePath(this.#archiveKey, entryPath);
+
+        await mkdir(dirname(workspacePath), { recursive: true });
+        await writeFile(workspacePath, content);
+        await upsertOverlay({
+          archiveKey: this.#archiveKey,
+          archivePath: this.#archivePath,
+          entryPath,
+          kind: "file",
+          workspacePath,
+        });
+      });
+    });
+  }
+
+  #toEntryPath(path: string): string {
+    const resolvedPath = resolve(path);
+    const rootPrefix = this.#archivePath.endsWith("/")
+      ? this.#archivePath
+      : `${this.#archivePath}/`;
+
+    if (resolvedPath.startsWith(rootPrefix)) {
+      return normalizeEntryPath(resolvedPath.slice(rootPrefix.length));
     }
-  } finally {
-    clearInterval(heartbeat);
-    process.removeListener("SIGINT", stop);
-    process.removeListener("SIGTERM", stop);
-    await releaseFlusher(input.ownerId, state);
-    await state.close();
+
+    return normalizeEntryPath(path);
   }
 }
 
-async function selectFlushCandidate(
-  state: Database,
-  ownerId: string,
-): Promise<ArchiveState | undefined> {
-  return await state.queryOne(
-    `
-SELECT *
-FROM archives
-WHERE dirty = 1
-  AND flushable = 1
-  AND operation_owner IS NULL
-  AND flusher_owner = ?
-  AND updated_at <= ?
-ORDER BY updated_at ASC
-LIMIT 1
-`,
-    [ownerId, Date.now() - getFlushQuietPeriodMs()],
-    mapArchiveState,
-  );
-}
+async function flushArchiveOverlays(archiveKey: string): Promise<void> {
+  const overlays = await listOverlays(archiveKey);
+  const archivePath = await resolveArchivePathFromKey(archiveKey);
 
-async function flushArchive(archive: ArchiveState): Promise<void> {
-  const temporaryDirectoryPath = await mkdtemp(
-    join(tmpdir(), "spinedigest-flush-"),
-  );
-  const temporaryArchivePath = join(
-    temporaryDirectoryPath,
-    basename(archive.archivePath),
-  );
-
-  try {
-    await writeSdpubArchive(archive.workspacePath, temporaryArchivePath);
-    await mkdir(dirname(archive.archivePath), { recursive: true });
-    await rename(temporaryArchivePath, archive.archivePath);
-  } finally {
-    await rm(temporaryDirectoryPath, { force: true, recursive: true });
-  }
-}
-
-async function markFlushed(state: Database, archiveKey: string): Promise<void> {
-  const archive = await readArchiveState(state, archiveKey);
-
-  if (archive === undefined) {
+  if (overlays.length === 0 || archivePath === undefined) {
     return;
   }
 
-  await state.run(
-    `
-UPDATE archives
-SET dirty = 0, flushable = 0, updated_at = ?
+  const entryPaths = overlays
+    .map((overlay) => overlay.entryPath)
+    .sort((left, right) => left.localeCompare(right));
+  const releaseLocks: Array<() => Promise<void>> = [];
+
+  try {
+    for (const entryPath of entryPaths) {
+      releaseLocks.push(await acquireEntryLock(archiveKey, entryPath, "write"));
+    }
+    for (const entryPath of entryPaths) {
+      releaseLocks.push(await acquireEntryLock(archiveKey, entryPath, "state"));
+    }
+
+    if (entryPaths.includes(DATABASE_ENTRY_PATH)) {
+      await waitForSqliteLeasesToDrain(archiveKey, DATABASE_ENTRY_PATH);
+    }
+
+    const currentOverlays = await listOverlays(archiveKey);
+
+    if (currentOverlays.length === 0) {
+      return;
+    }
+
+    const releaseCommit = await acquireArchiveCommitLock(archiveKey);
+
+    try {
+      const temporaryDirectoryPath = await mkdtemp(
+        join(tmpdir(), "spinedigest-flush-"),
+      );
+      const temporaryArchivePath = join(
+        temporaryDirectoryPath,
+        basename(archivePath),
+      );
+
+      try {
+        await writeSdpubArchiveWithOverlays(
+          archivePath,
+          temporaryArchivePath,
+          currentOverlays.map(toArchiveOverlay),
+        );
+        await mkdir(dirname(archivePath), { recursive: true });
+        await rename(temporaryArchivePath, archivePath);
+      } finally {
+        await rm(temporaryDirectoryPath, { force: true, recursive: true });
+      }
+    } finally {
+      await releaseCommit();
+    }
+
+    for (const overlay of currentOverlays) {
+      if (overlay.workspacePath !== undefined) {
+        await rm(overlay.workspacePath, { force: true });
+      }
+      await deleteOverlay(archiveKey, overlay.entryPath);
+    }
+  } finally {
+    for (const release of releaseLocks.reverse()) {
+      await release();
+    }
+  }
+}
+
+async function acquireArchiveCommitLock(
+  archiveKey: string,
+): Promise<() => Promise<void>> {
+  const ownerId = createOwnerId();
+
+  while (true) {
+    const acquired = await withStateDatabase(async (state) => {
+      await cleanupStaleState(state);
+      return await state.transaction(async () => {
+        const existing = await state.queryOne(
+          "SELECT * FROM archive_commit_locks WHERE archive_key = ?",
+          [archiveKey],
+          mapArchiveCommitLock,
+        );
+
+        if (existing !== undefined) {
+          return false;
+        }
+
+        await state.run(
+          `
+INSERT INTO archive_commit_locks (
+  archive_key, owner_id, owner_pid, heartbeat_at, created_at
+) VALUES (?, ?, ?, ?, ?)
+`,
+          [archiveKey, ownerId, process.pid, Date.now(), Date.now()],
+        );
+        return true;
+      });
+    });
+
+    if (acquired) {
+      return async () => {
+        await withStateDatabase(async (releaseState) => {
+          await releaseState.run(
+            "DELETE FROM archive_commit_locks WHERE archive_key = ? AND owner_id = ?",
+            [archiveKey, ownerId],
+          );
+        });
+      };
+    }
+
+    await delay(LOCK_POLL_INTERVAL_MS);
+  }
+}
+
+async function acquireEntryLock(
+  archiveKey: string,
+  entryPath: string,
+  mode: EntryLockMode,
+): Promise<() => Promise<void>> {
+  const ownerId = createOwnerId();
+
+  while (true) {
+    const acquired = await withStateDatabase(async (state) => {
+      await cleanupStaleState(state);
+      return await state.transaction(async () => {
+        const conflicts = await state.queryAll(
+          `
+SELECT *
+FROM entry_locks
+WHERE archive_key = ? AND entry_path = ?
+`,
+          [archiveKey, entryPath],
+          mapEntryLock,
+        );
+
+        if (
+          conflicts.some(
+            (lock) =>
+              lock.ownerId !== ownerId && locksConflict(mode, lock.mode),
+          )
+        ) {
+          return false;
+        }
+
+        await state.run(
+          `
+INSERT INTO entry_locks (
+  archive_key, entry_path, mode, owner_id, owner_pid, heartbeat_at, created_at
+) VALUES (?, ?, ?, ?, ?, ?, ?)
+`,
+          [
+            archiveKey,
+            entryPath,
+            mode,
+            ownerId,
+            process.pid,
+            Date.now(),
+            Date.now(),
+          ],
+        );
+        return true;
+      });
+    });
+
+    if (acquired) {
+      return async () => {
+        await withStateDatabase(async (releaseState) => {
+          await releaseState.run(
+            `
+DELETE FROM entry_locks
+WHERE archive_key = ? AND entry_path = ? AND owner_id = ?
+`,
+            [archiveKey, entryPath, ownerId],
+          );
+        });
+      };
+    }
+
+    await delay(LOCK_POLL_INTERVAL_MS);
+  }
+}
+
+async function withEntryLock<T>(
+  archiveKey: string,
+  entryPath: string,
+  mode: EntryLockMode,
+  operation: () => Promise<T> | T,
+): Promise<T> {
+  const release = await acquireEntryLock(archiveKey, entryPath, mode);
+
+  try {
+    return await operation();
+  } finally {
+    await release();
+  }
+}
+
+function locksConflict(requested: EntryLockMode, existing: EntryLockMode) {
+  if (requested === "state" || existing === "state") {
+    return requested === "state" && existing === "state";
+  }
+  if (requested === "read" && existing === "read") {
+    return false;
+  }
+
+  return true;
+}
+
+async function acquireSqliteLease(input: {
+  readonly archiveKey: string;
+  readonly entryPath: string;
+  readonly ownerId: string;
+}): Promise<void> {
+  await withStateDatabase(async (state) => {
+    await cleanupStaleState(state);
+    await state.run(
+      `
+INSERT OR REPLACE INTO entry_sqlite_leases (
+  archive_key, entry_path, owner_id, owner_pid, heartbeat_at, created_at
+) VALUES (?, ?, ?, ?, ?, ?)
+`,
+      [
+        input.archiveKey,
+        input.entryPath,
+        input.ownerId,
+        process.pid,
+        Date.now(),
+        Date.now(),
+      ],
+    );
+  });
+}
+
+async function releaseSqliteLease(input: {
+  readonly archiveKey: string;
+  readonly entryPath: string;
+  readonly ownerId: string;
+}): Promise<void> {
+  await withStateDatabase(async (state) => {
+    await state.run(
+      `
+DELETE FROM entry_sqlite_leases
+WHERE archive_key = ? AND entry_path = ? AND owner_id = ?
+`,
+      [input.archiveKey, input.entryPath, input.ownerId],
+    );
+  });
+}
+
+async function waitForSqliteLeasesToDrain(
+  archiveKey: string,
+  entryPath: string,
+): Promise<void> {
+  while (true) {
+    const count = await withStateDatabase(async (state) => {
+      await cleanupStaleState(state);
+      return await state.queryOne(
+        `
+SELECT COUNT(*) AS count
+FROM entry_sqlite_leases
+WHERE archive_key = ? AND entry_path = ?
+`,
+        [archiveKey, entryPath],
+        (row) => getNumber(row, "count"),
+      );
+    });
+
+    if (count === 0) {
+      return;
+    }
+
+    await delay(LOCK_POLL_INTERVAL_MS);
+  }
+}
+
+async function listVisibleEntryPaths(
+  archivePath: string,
+  input: { readonly archiveKey: string; readonly prefix: string },
+): Promise<readonly string[]> {
+  const archiveEntries = await listArchiveEntryPathsByPrefix(
+    archivePath,
+    input.prefix,
+  );
+  const overlays = await withStateDatabase(
+    async (state) =>
+      await state.queryAll(
+        `
+SELECT *
+FROM entry_overlays
 WHERE archive_key = ?
 `,
-    [Date.now(), archiveKey],
+        [input.archiveKey],
+        mapEntryOverlay,
+      ),
   );
+  const entries = new Set(archiveEntries);
 
-  await rm(archive.workspacePath, { force: true, recursive: true });
-  await state.run("DELETE FROM archives WHERE archive_key = ?", [archiveKey]);
-}
-
-async function heartbeatFlusher(
-  ownerId: string,
-  existingState?: Database,
-): Promise<void> {
-  const state = existingState ?? (await openStateDatabase());
-
-  try {
-    await state.run(
-      `
-UPDATE archives
-SET flusher_heartbeat_at = ?
-WHERE flusher_owner = ?
-`,
-      [Date.now(), ownerId],
-    );
-  } finally {
-    if (existingState === undefined) {
-      await state.close();
+  for (const overlay of overlays) {
+    if (!overlay.entryPath.startsWith(input.prefix)) {
+      continue;
+    }
+    if (overlay.kind === "deleted") {
+      entries.delete(overlay.entryPath);
+    } else {
+      entries.add(overlay.entryPath);
     }
   }
+
+  return [...entries].sort((left, right) => left.localeCompare(right));
 }
 
-async function releaseFlusher(
-  ownerId: string,
-  existingState?: Database,
-): Promise<void> {
-  const state = existingState ?? (await openStateDatabase());
+async function listArchiveEntryPathsByPrefix(
+  archivePath: string,
+  prefix: string,
+): Promise<readonly string[]> {
+  const { listSdpubArchiveEntries } = await import("./archive.js");
 
-  try {
+  return (await listSdpubArchiveEntries(archivePath)).filter((entryPath) =>
+    entryPath.startsWith(prefix),
+  );
+}
+
+async function resolveEntrySource(
+  archivePath: string,
+  input: { readonly archiveKey: string; readonly entryPath: string },
+): Promise<
+  | { readonly kind: "archive" }
+  | { readonly kind: "deleted" }
+  | { readonly kind: "workspace"; readonly path: string }
+> {
+  const overlay = await readOverlay(input.archiveKey, input.entryPath);
+
+  if (overlay?.kind === "deleted") {
+    return { kind: "deleted" };
+  }
+  if (overlay?.workspacePath !== undefined) {
+    return { kind: "workspace", path: overlay.workspacePath };
+  }
+  if (
+    (await readSdpubArchiveEntry(archivePath, input.entryPath)) === undefined
+  ) {
+    return { kind: "deleted" };
+  }
+
+  return { kind: "archive" };
+}
+
+async function readOverlay(
+  archiveKey: string,
+  entryPath: string,
+): Promise<EntryOverlay | undefined> {
+  return await withStateDatabase(
+    async (state) =>
+      await state.queryOne(
+        "SELECT * FROM entry_overlays WHERE archive_key = ? AND entry_path = ?",
+        [archiveKey, entryPath],
+        mapEntryOverlay,
+      ),
+  );
+}
+
+async function listOverlays(
+  archiveKey: string,
+): Promise<readonly EntryOverlay[]> {
+  return await withStateDatabase(
+    async (state) =>
+      await state.queryAll(
+        `
+SELECT *
+FROM entry_overlays
+WHERE archive_key = ?
+ORDER BY entry_path ASC
+`,
+        [archiveKey],
+        mapEntryOverlay,
+      ),
+  );
+}
+
+async function upsertOverlay(input: {
+  readonly archiveKey: string;
+  readonly archivePath: string;
+  readonly entryPath: string;
+  readonly kind: "deleted" | "file";
+  readonly workspacePath?: string;
+}): Promise<void> {
+  await withStateDatabase(async (state) => {
     await state.run(
       `
-UPDATE archives
-SET flusher_owner = NULL, flusher_pid = NULL, flusher_heartbeat_at = NULL
-WHERE flusher_owner = ?
+INSERT INTO entry_overlays (
+  archive_key, archive_path, entry_path, kind, workspace_path, updated_at
+) VALUES (?, ?, ?, ?, ?, ?)
+ON CONFLICT(archive_key, entry_path)
+DO UPDATE SET kind = excluded.kind,
+              archive_path = excluded.archive_path,
+              workspace_path = excluded.workspace_path,
+              updated_at = excluded.updated_at
 `,
-      [ownerId],
+      [
+        input.archiveKey,
+        input.archivePath,
+        input.entryPath,
+        input.kind,
+        input.workspacePath ?? null,
+        Date.now(),
+      ],
     );
-  } finally {
-    if (existingState === undefined) {
-      await state.close();
-    }
-  }
+  });
+}
+
+async function deleteOverlay(
+  archiveKey: string,
+  entryPath: string,
+): Promise<void> {
+  await withStateDatabase(async (state) => {
+    await state.run(
+      "DELETE FROM entry_overlays WHERE archive_key = ? AND entry_path = ?",
+      [archiveKey, entryPath],
+    );
+  });
+}
+
+async function resolveArchivePathFromKey(
+  archiveKey: string,
+): Promise<string | undefined> {
+  return await withStateDatabase(
+    async (state) =>
+      await state.queryOne(
+        "SELECT archive_path FROM entry_overlays WHERE archive_key = ? LIMIT 1",
+        [archiveKey],
+        (row) => getString(row, "archive_path"),
+      ),
+  );
 }
 
 async function cleanupStaleState(state: Database): Promise<void> {
-  const rows = await state.queryAll(
-    "SELECT * FROM archives",
-    undefined,
-    mapArchiveState,
-  );
+  const now = Date.now();
 
-  for (const row of rows) {
-    if (row.operationPid !== undefined && !isProcessAlive(row.operationPid)) {
-      await state.run(
-        `
-UPDATE archives
-SET operation_owner = NULL, operation_pid = NULL,
-    operation_heartbeat_at = NULL, flushable = 0, updated_at = ?
-WHERE archive_key = ?
+  await state.run(
+    `
+DELETE FROM entry_locks
+WHERE owner_pid IS NOT NULL
+  AND heartbeat_at <= ?
 `,
-        [Date.now(), row.archiveKey],
-      );
-    }
-
-    if (row.flusherPid !== undefined && !isProcessAlive(row.flusherPid)) {
-      await releaseFlusher(row.flusherOwner ?? "", state);
-    }
-  }
+    [now - LOCK_STALE_TIMEOUT_MS],
+  );
+  await state.run(
+    `
+DELETE FROM entry_sqlite_leases
+WHERE owner_pid IS NOT NULL
+  AND heartbeat_at <= ?
+`,
+    [now - LOCK_STALE_TIMEOUT_MS],
+  );
+  await state.run(
+    `
+DELETE FROM archive_commit_locks
+WHERE owner_pid IS NOT NULL
+  AND heartbeat_at <= ?
+`,
+    [now - LOCK_STALE_TIMEOUT_MS],
+  );
 }
 
-async function readArchiveState(
-  state: Database,
-  archiveKey: string,
-): Promise<ArchiveState | undefined> {
-  return await state.queryOne(
-    "SELECT * FROM archives WHERE archive_key = ?",
-    [archiveKey],
-    mapArchiveState,
-  );
+async function withStateDatabase<T>(
+  operation: (state: Database) => Promise<T> | T,
+): Promise<T> {
+  return await STATE_DATABASE_SEMAPHORE.use(async () => {
+    const state = await openStateDatabase();
+
+    try {
+      return await operation(state);
+    } finally {
+      await state.close();
+    }
+  });
 }
 
 async function openStateDatabase(): Promise<Database> {
@@ -455,15 +824,41 @@ async function openStateDatabase(): Promise<Database> {
   );
 }
 
-async function createWorkspacePath(archiveKey: string): Promise<string> {
-  const rootPath = join(
+async function createWorkspaceFilePath(
+  archiveKey: string,
+  entryPath: string,
+): Promise<string> {
+  const directoryPath = join(
     getCoordinatorStateDirectoryPath(),
     "workspaces",
     archiveKey,
+    dirname(entryPath),
   );
 
-  await mkdir(rootPath, { recursive: true });
-  return await mkdtemp(join(rootPath, "materialized-"));
+  await mkdir(directoryPath, { recursive: true });
+  return join(directoryPath, `${basename(entryPath)}.${randomUUID()}`);
+}
+
+function toArchiveOverlay(overlay: EntryOverlay): SdpubArchiveOverlay {
+  if (overlay.kind === "deleted") {
+    return {
+      entryPath: overlay.entryPath,
+      kind: "deleted",
+    };
+  }
+  if (overlay.workspacePath === undefined) {
+    throw new Error(`Missing workspace path for ${overlay.entryPath}.`);
+  }
+
+  return {
+    entryPath: overlay.entryPath,
+    kind: "file",
+    workspacePath: overlay.workspacePath,
+  };
+}
+
+function normalizeEntryPath(path: string): string {
+  return path.replaceAll("\\", "/").replace(/^\/+/u, "");
 }
 
 function getCoordinatorStateDirectoryPath(): string {
@@ -476,37 +871,6 @@ function getCoordinatorStateDirectoryPath(): string {
   return join(homedir(), ".spinedigest", "state");
 }
 
-function getFlushQuietPeriodMs(): number {
-  return parseNonNegativeIntegerEnv(
-    process.env.SPINEDIGEST_FLUSH_QUIET_PERIOD_MS,
-    10_000,
-  );
-}
-
-function getFlushIdleTimeoutMs(): number {
-  return parseNonNegativeIntegerEnv(
-    process.env.SPINEDIGEST_FLUSH_IDLE_TIMEOUT_MS,
-    10_000,
-  );
-}
-
-function parseNonNegativeIntegerEnv(
-  value: string | undefined,
-  fallback: number,
-): number {
-  if (value === undefined || value.trim() === "") {
-    return fallback;
-  }
-
-  const parsed = Number(value);
-
-  if (!Number.isInteger(parsed) || parsed < 0) {
-    return fallback;
-  }
-
-  return parsed;
-}
-
 function createArchiveKey(archivePath: string): string {
   return createHash("sha256").update(resolve(archivePath)).digest("hex");
 }
@@ -515,46 +879,72 @@ function createOwnerId(): string {
   return `${process.pid}-${randomUUID()}`;
 }
 
-function isProcessAlive(pid: number): boolean {
-  try {
-    process.kill(pid, 0);
-    return true;
-  } catch {
-    return false;
-  }
-}
-
 async function delay(ms: number): Promise<void> {
   await new Promise<void>((resolveDelay) => {
     setTimeout(resolveDelay, ms);
   });
 }
 
-interface ArchiveState {
+interface EntryOverlay {
   readonly archiveKey: string;
   readonly archivePath: string;
-  readonly workspacePath: string;
-  readonly operationOwner?: string;
-  readonly operationPid?: number;
-  readonly flusherOwner?: string;
-  readonly flusherPid?: number;
+  readonly entryPath: string;
+  readonly kind: "deleted" | "file";
+  readonly workspacePath?: string;
 }
 
-function mapArchiveState(row: Record<string, unknown>): ArchiveState {
-  const operationOwner = getOptionalString(row, "operation_owner");
-  const operationPid = getOptionalNumber(row, "operation_pid");
-  const flusherOwner = getOptionalString(row, "flusher_owner");
-  const flusherPid = getOptionalNumber(row, "flusher_pid");
+interface EntryLock {
+  readonly mode: EntryLockMode;
+  readonly ownerId: string;
+}
+
+interface ArchiveCommitLock {
+  readonly ownerId: string;
+}
+
+function mapEntryOverlay(row: Record<string, unknown>): EntryOverlay {
+  const workspacePath = getOptionalString(row, "workspace_path");
 
   return {
     archiveKey: getString(row, "archive_key"),
     archivePath: getString(row, "archive_path"),
-    workspacePath: getString(row, "workspace_path"),
-    ...(operationOwner === undefined ? {} : { operationOwner }),
-    ...(operationPid === undefined ? {} : { operationPid }),
-    ...(flusherOwner === undefined ? {} : { flusherOwner }),
-    ...(flusherPid === undefined ? {} : { flusherPid }),
+    entryPath: getString(row, "entry_path"),
+    kind: getOverlayKind(row),
+    ...(workspacePath === undefined ? {} : { workspacePath }),
   };
+}
+
+function mapEntryLock(row: Record<string, unknown>): EntryLock {
+  return {
+    mode: getEntryLockMode(row),
+    ownerId: getString(row, "owner_id"),
+  };
+}
+
+function mapArchiveCommitLock(row: Record<string, unknown>): ArchiveCommitLock {
+  return {
+    ownerId: getString(row, "owner_id"),
+  };
+}
+
+function getEntryLockMode(row: Record<string, unknown>): EntryLockMode {
+  const mode = getString(row, "mode");
+
+  if (mode === "read" || mode === "state" || mode === "write") {
+    return mode;
+  }
+
+  throw new Error(`Unsupported entry lock mode: ${mode}.`);
+}
+
+function getOverlayKind(row: Record<string, unknown>): "deleted" | "file" {
+  const kind = getString(row, "kind");
+
+  if (kind === "deleted" || kind === "file") {
+    return kind;
+  }
+
+  throw new Error(`Unsupported entry overlay kind: ${kind}.`);
 }
 
 function getString(row: Record<string, unknown>, key: string): string {
@@ -589,23 +979,6 @@ function getOptionalString(
 
   if (typeof value !== "string") {
     throw new TypeError(`Expected ${key} to be a string`);
-  }
-
-  return value;
-}
-
-function getOptionalNumber(
-  row: Record<string, unknown>,
-  key: string,
-): number | undefined {
-  const value = row[key];
-
-  if (value === null || value === undefined) {
-    return undefined;
-  }
-
-  if (typeof value !== "number") {
-    throw new TypeError(`Expected ${key} to be a number`);
   }
 
   return value;

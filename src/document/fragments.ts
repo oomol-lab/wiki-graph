@@ -16,9 +16,36 @@ interface FragmentWriter {
   write(path: string, content: string): Promise<void>;
 }
 
+interface FragmentFileAccess {
+  ensureDirectory(path: string): Promise<void>;
+  listFiles(path: string): Promise<readonly string[]>;
+  readFile(path: string): Promise<Uint8Array | undefined>;
+}
+
 const DEFAULT_FRAGMENT_WRITER: FragmentWriter = {
   write: async (path, content) => {
     await writeFile(path, content, "utf8");
+  },
+};
+
+const DEFAULT_FRAGMENT_FILE_ACCESS: FragmentFileAccess = {
+  ensureDirectory: async (path) => {
+    await mkdir(path, { recursive: true });
+  },
+  listFiles: async (path) =>
+    (await readdir(path, { withFileTypes: true }))
+      .filter((entry) => entry.isFile())
+      .map((entry) => entry.name),
+  readFile: async (path) => {
+    try {
+      return await readFile(path);
+    } catch (error) {
+      if (isNodeError(error) && error.code === "ENOENT") {
+        return undefined;
+      }
+
+      throw error;
+    }
   },
 };
 
@@ -39,19 +66,30 @@ export interface ReadonlySerialFragments {
 
 export class Fragments implements ReadonlyFragments {
   readonly #documentPath: string;
+  readonly #fileAccess: FragmentFileAccess;
   readonly #writer: FragmentWriter;
 
-  public constructor(documentPath: string, writer?: FragmentWriter) {
+  public constructor(
+    documentPath: string,
+    writer?: FragmentWriter,
+    fileAccess?: FragmentFileAccess,
+  ) {
     this.#documentPath = resolve(documentPath);
+    this.#fileAccess = fileAccess ?? DEFAULT_FRAGMENT_FILE_ACCESS;
     this.#writer = writer ?? DEFAULT_FRAGMENT_WRITER;
   }
 
   public async ensureCreated(): Promise<void> {
-    await mkdir(this.path, { recursive: true });
+    await this.#fileAccess.ensureDirectory(this.path);
   }
 
   public getSerial(serialId: number): SerialFragments {
-    return new SerialFragments(this.#documentPath, serialId, this.#writer);
+    return new SerialFragments(
+      this.#documentPath,
+      serialId,
+      this.#writer,
+      this.#fileAccess,
+    );
   }
 
   public async getSentence(sentenceId: SentenceId): Promise<string> {
@@ -94,6 +132,7 @@ export class SerialFragments implements ReadonlySerialFragments {
   readonly #serialId: number;
   #draftOpen = false;
   readonly #documentPath: string;
+  readonly #fileAccess: FragmentFileAccess;
   #nextFragmentId: number | undefined;
   readonly #writer: FragmentWriter;
 
@@ -101,9 +140,11 @@ export class SerialFragments implements ReadonlySerialFragments {
     documentPath: string,
     serialId: number,
     writer?: FragmentWriter,
+    fileAccess?: FragmentFileAccess,
   ) {
     this.#documentPath = resolve(documentPath);
     this.#serialId = serialId;
+    this.#fileAccess = fileAccess ?? DEFAULT_FRAGMENT_FILE_ACCESS;
     this.#writer = writer ?? DEFAULT_FRAGMENT_WRITER;
   }
 
@@ -112,7 +153,7 @@ export class SerialFragments implements ReadonlySerialFragments {
       throw new Error("Only one fragment draft can be open at a time");
     }
 
-    await mkdir(this.path, { recursive: true });
+    await this.#fileAccess.ensureDirectory(this.path);
     this.#draftOpen = true;
 
     return new FragmentDraft(this.#serialId, await this.#peekNextFragmentId(), {
@@ -127,6 +168,7 @@ export class SerialFragments implements ReadonlySerialFragments {
   public async getFragment(fragmentId: number): Promise<FragmentRecord> {
     const fileContent = await readFragmentFile(
       this.#getFragmentPath(fragmentId),
+      this.#fileAccess,
     );
 
     return {
@@ -139,11 +181,10 @@ export class SerialFragments implements ReadonlySerialFragments {
 
   public async listFragmentIds(): Promise<readonly number[]> {
     try {
-      const entries = await readdir(this.path, { withFileTypes: true });
+      const entries = await this.#fileAccess.listFiles(this.path);
 
       return entries
-        .filter((entry) => entry.isFile())
-        .map((entry) => FRAGMENT_FILE_PATTERN.exec(entry.name))
+        .map((entry) => FRAGMENT_FILE_PATTERN.exec(entry))
         .filter((match): match is RegExpExecArray => match !== null)
         .map((match) => Number(match[1]))
         .sort((left, right) => left - right);
@@ -179,7 +220,7 @@ export class SerialFragments implements ReadonlySerialFragments {
       return undefined;
     }
 
-    await mkdir(this.path, { recursive: true });
+    await this.#fileAccess.ensureDirectory(this.path);
     await this.#writer.write(
       this.#getFragmentPath(fragmentId),
       JSON.stringify(
@@ -303,9 +344,16 @@ export class FragmentDraft {
 
 async function readFragmentFile(
   fragmentPath: string,
+  fileAccess: FragmentFileAccess = DEFAULT_FRAGMENT_FILE_ACCESS,
 ): Promise<FragmentFileContent> {
+  const content = await fileAccess.readFile(fragmentPath);
+
+  if (content === undefined) {
+    throw new Error(`Fragment file does not exist: ${fragmentPath}`);
+  }
+
   const rawContent = JSON.parse(
-    await readFile(fragmentPath, "utf8"),
+    Buffer.from(content).toString("utf8"),
   ) as unknown;
 
   if (typeof rawContent !== "object" || rawContent === null) {

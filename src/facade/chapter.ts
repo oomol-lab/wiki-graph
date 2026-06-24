@@ -348,8 +348,8 @@ export async function getChapterDetails(
   document: ReadonlyDocument,
   chapterId: number,
 ): Promise<ChapterDetails> {
-  const entries = await listChapters(document);
-  const entry = entries.find((item) => item.chapterId === chapterId);
+  const toc = await readChapterToc(document);
+  const entry = await findChapterEntry(document, toc.items, chapterId);
 
   if (entry === undefined) {
     throw new Error(
@@ -589,6 +589,44 @@ async function readChapterToc(
       };
 }
 
+async function findChapterEntry(
+  document: ReadonlyDocument,
+  items: readonly TocItem[],
+  chapterId: number,
+  ancestorTitles: readonly string[] = [],
+  depth = 0,
+): Promise<ChapterEntry | undefined> {
+  for (const item of items) {
+    const title = normalizeTitle(item.title) ?? null;
+    const tocPath =
+      item.serialId === undefined
+        ? [...ancestorTitles, ...(title === null ? [] : [title])]
+        : [...ancestorTitles, title ?? `Chapter ${item.serialId}`];
+
+    if (item.serialId === chapterId) {
+      return await createChapterEntry(document, item, item.serialId, {
+        depth,
+        title,
+        tocPath,
+      });
+    }
+
+    const childEntry = await findChapterEntry(
+      document,
+      item.children,
+      chapterId,
+      tocPath,
+      depth + 1,
+    );
+
+    if (childEntry !== undefined) {
+      return childEntry;
+    }
+  }
+
+  return undefined;
+}
+
 async function collectChapterEntries(
   document: ReadonlyDocument,
   items: readonly TocItem[],
@@ -616,30 +654,13 @@ async function collectChapterEntries(
       continue;
     }
 
-    const serialFragments = document.getSerialFragments(item.serialId);
-    const fragmentIds = await serialFragments.listFragmentIds();
-    const fragmentCount = fragmentIds.length;
-    let words = 0;
-
-    for (const fragmentId of fragmentIds) {
-      const fragment = await serialFragments.getFragment(fragmentId);
-
-      words += fragment.sentences.reduce(
-        (total, sentence) => total + sentence.wordsCount,
-        0,
-      );
-    }
-
-    entries.push({
-      chapterId: item.serialId,
-      childCount: item.children.length,
-      depth,
-      fragmentCount,
-      stage: await resolveChapterStage(document, item.serialId, fragmentCount),
-      title,
-      tocPath,
-      words,
-    });
+    entries.push(
+      await createChapterEntry(document, item, item.serialId, {
+        depth,
+        title,
+        tocPath,
+      }),
+    );
     entries.push(
       ...(await collectChapterEntries(
         document,
@@ -651,6 +672,42 @@ async function collectChapterEntries(
   }
 
   return entries;
+}
+
+async function createChapterEntry(
+  document: ReadonlyDocument,
+  item: TocItem,
+  serialId: number,
+  input: {
+    readonly depth: number;
+    readonly title: string | null;
+    readonly tocPath: readonly string[];
+  },
+): Promise<ChapterEntry> {
+  const serialFragments = document.getSerialFragments(serialId);
+  const fragmentIds = await serialFragments.listFragmentIds();
+  const fragmentCount = fragmentIds.length;
+  let words = 0;
+
+  for (const fragmentId of fragmentIds) {
+    const fragment = await serialFragments.getFragment(fragmentId);
+
+    words += fragment.sentences.reduce(
+      (total, sentence) => total + sentence.wordsCount,
+      0,
+    );
+  }
+
+  return {
+    chapterId: serialId,
+    childCount: item.children.length,
+    depth: input.depth,
+    fragmentCount,
+    stage: await resolveChapterStage(document, serialId, fragmentCount),
+    title: input.title,
+    tocPath: input.tocPath,
+    words,
+  };
 }
 
 async function advanceEntriesToGraphed(

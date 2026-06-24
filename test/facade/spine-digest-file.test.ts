@@ -19,6 +19,7 @@ describe("facade/spine-digest-file", () => {
 
   it("opens a saved archive for reading and exposes digest operations", async () => {
     await withTempDir("spinedigest-facade-file-", async (path) => {
+      useCoordinatorStateDir(`${path}/state`);
       const document = await DirectoryDocument.open(`${path}/document`);
 
       try {
@@ -90,7 +91,7 @@ describe("facade/spine-digest-file", () => {
     });
   });
 
-  it("does not create coordinator state for plain archive reads", async () => {
+  it("materializes sqlite state for plain archive reads", async () => {
     await withTempDir("spinedigest-facade-file-", async (path) => {
       useCoordinatorStateDir(`${path}/state`);
       const archivePath = await createSeedArchive(path);
@@ -101,7 +102,31 @@ describe("facade/spine-digest-file", () => {
         });
       });
 
-      await expect(readCoordinatorArchives(path)).resolves.toStrictEqual([]);
+      await expect(readCoordinatorOverlays(path)).resolves.toMatchObject([
+        {
+          entryPath: "database.db",
+          kind: "file",
+        },
+      ]);
+    });
+  });
+
+  it("opens the same archive concurrently without reinitializing sqlite schema", async () => {
+    await withTempDir("spinedigest-facade-file-", async (path) => {
+      useCoordinatorStateDir(`${path}/state`);
+      const archivePath = await createSeedArchive(path);
+
+      await Promise.all(
+        Array.from(
+          { length: 6 },
+          async () =>
+            await new SpineDigestFile(archivePath).read(async (digest) => {
+              expect(await digest.readMeta()).toMatchObject({
+                title: "Session Fixture",
+              });
+            }),
+        ),
+      );
     });
   });
 
@@ -123,7 +148,7 @@ describe("facade/spine-digest-file", () => {
         });
       });
 
-      await expect(readCoordinatorArchives(path)).resolves.toStrictEqual([]);
+      await expect(readCoordinatorOverlays(path)).resolves.toStrictEqual([]);
 
       await expect(readArchivedTitle(path, archivePath)).resolves.toBe(
         "Flushed Title",
@@ -152,14 +177,11 @@ describe("facade/spine-digest-file", () => {
         }),
       ).rejects.toThrow("stop before flush");
 
-      const archives = await readCoordinatorArchives(path);
+      const overlays = await readCoordinatorOverlays(path);
 
-      expect(archives).toHaveLength(1);
-      expect(archives[0]).toMatchObject({
-        dirty: 1,
-        flushable: 0,
-        operationPid: null,
-      });
+      expect(overlays.map((overlay) => overlay.entryPath).sort()).toStrictEqual(
+        ["book-meta.json", "database.db"],
+      );
       await expect(readArchivedTitle(path, archivePath)).resolves.toBe(
         "Session Fixture",
       );
@@ -193,49 +215,63 @@ describe("facade/spine-digest-file", () => {
         });
       });
       await expect(readArchivedTitle(path, archivePath)).resolves.toBe(
-        "Session Fixture",
+        "Workspace Title",
       );
     });
   });
 
-  it("rejects concurrent writes for the same archive", async () => {
+  it("runs concurrent writes to different archive entries", async () => {
     await withTempDir("spinedigest-facade-file-", async (path) => {
       useCoordinatorStateDir(`${path}/state`, {
         idleTimeoutMs: 1_000,
         quietPeriodMs: 60_000,
       });
       const archivePath = await createSeedArchive(path);
-      let markFirstWriteEntered!: () => void;
-      let releaseFirstWrite!: () => void;
-      const firstWriteEntered = new Promise<void>((resolveEntered) => {
-        markFirstWriteEntered = resolveEntered;
-      });
-      const releaseFirstWriteSignal = new Promise<void>((resolveRelease) => {
-        releaseFirstWrite = resolveRelease;
-      });
+      await Promise.all([
+        new SpineDigestFile(archivePath).write(async (document) => {
+          const meta = await document.readBookMeta();
 
-      const firstWrite = new SpineDigestFile(archivePath).write(async () => {
-        markFirstWriteEntered();
-        await releaseFirstWriteSignal;
+          if (meta === undefined) {
+            throw new Error("Missing test metadata.");
+          }
+
+          await document.replaceBookMeta({
+            ...meta,
+            title: "Concurrent Title",
+          });
+        }),
+        new SpineDigestFile(archivePath).write(async (document) => {
+          await document.replaceToc({
+            items: [
+              {
+                children: [],
+                serialId: 1,
+                title: "Concurrent Chapter",
+              },
+            ],
+            version: 1,
+          });
+        }),
+      ]);
+
+      await new SpineDigestFile(archivePath).read(async (digest) => {
+        expect(await digest.readMeta()).toMatchObject({
+          title: "Concurrent Title",
+        });
+        expect(await digest.readToc()).toMatchObject({
+          items: [
+            {
+              title: "Concurrent Chapter",
+            },
+          ],
+        });
       });
-
-      await firstWriteEntered;
-      await waitForCoordinatorArchive(path);
-      await expect(
-        new SpineDigestFile(archivePath).write(async () => {}),
-      ).rejects.toThrow("Archive is already being edited");
-
-      releaseFirstWrite();
-      await firstWrite;
     });
   });
 
-  it("recovers stale writes when the owner process is gone", async () => {
+  it("preserves a failed write overlay for later reads", async () => {
     await withTempDir("spinedigest-facade-file-", async (path) => {
-      useCoordinatorStateDir(`${path}/state`, {
-        idleTimeoutMs: 1_000,
-        quietPeriodMs: 60_000,
-      });
+      useCoordinatorStateDir(`${path}/state`);
       const archivePath = await createSeedArchive(path);
 
       await expect(
@@ -248,18 +284,15 @@ describe("facade/spine-digest-file", () => {
 
           await document.replaceBookMeta({
             ...meta,
-            title: "Interrupted Title",
+            title: "Failed Overlay Title",
           });
-          throw new Error("interrupted");
+          throw new Error("keep overlay");
         }),
-      ).rejects.toThrow("interrupted");
+      ).rejects.toThrow("keep overlay");
 
-      await setCoordinatorOperationPid(path, -1);
-      await new SpineDigestFile(archivePath).write(async (document) => {
-        const meta = await document.readBookMeta();
-
-        expect(meta).toMatchObject({
-          title: "Interrupted Title",
+      await new SpineDigestFile(archivePath).read(async (digest) => {
+        expect(await digest.readMeta()).toMatchObject({
+          title: "Failed Overlay Title",
         });
       });
     });
@@ -323,12 +356,11 @@ async function readArchivedTitle(
   return meta.title;
 }
 
-async function readCoordinatorArchives(path: string): Promise<
+async function readCoordinatorOverlays(path: string): Promise<
   Array<{
     readonly archivePath: string;
-    readonly dirty: number;
-    readonly flushable: number;
-    readonly operationPid: number | null;
+    readonly entryPath: string;
+    readonly kind: string;
   }>
 > {
   try {
@@ -340,56 +372,23 @@ async function readCoordinatorArchives(path: string): Promise<
   const { Database } = await import("../../src/document/index.js");
   const database = await Database.open(
     `${path}/state/state.sqlite`,
-    "CREATE TABLE IF NOT EXISTS archives (archive_key TEXT);",
+    "CREATE TABLE IF NOT EXISTS entry_overlays (archive_key TEXT, archive_path TEXT, entry_path TEXT, kind TEXT, workspace_path TEXT, updated_at INTEGER);",
   );
 
   try {
     return await database.queryAll(
       `
-SELECT archive_path, dirty, flushable, operation_pid
-FROM archives
-ORDER BY archive_path
+SELECT archive_path, entry_path, kind
+FROM entry_overlays
+ORDER BY archive_path, entry_path
 `,
       undefined,
       (row) => ({
         archivePath: expectString(row.archive_path),
-        dirty: expectNumber(row.dirty),
-        flushable: expectNumber(row.flushable),
-        operationPid:
-          row.operation_pid === null ? null : expectNumber(row.operation_pid),
+        entryPath: expectString(row.entry_path),
+        kind: expectString(row.kind),
       }),
     );
-  } finally {
-    await database.close();
-  }
-}
-
-async function waitForCoordinatorArchive(path: string): Promise<void> {
-  for (let attempt = 0; attempt < 50; attempt += 1) {
-    if ((await readCoordinatorArchives(path)).length > 0) {
-      return;
-    }
-
-    await new Promise<void>((resolveDelay) => {
-      setTimeout(resolveDelay, 10);
-    });
-  }
-
-  throw new Error("Timed out waiting for coordinator archive state.");
-}
-
-async function setCoordinatorOperationPid(
-  path: string,
-  pid: number,
-): Promise<void> {
-  const { Database } = await import("../../src/document/index.js");
-  const database = await Database.open(
-    `${path}/state/state.sqlite`,
-    "CREATE TABLE IF NOT EXISTS archives (archive_key TEXT);",
-  );
-
-  try {
-    await database.run("UPDATE archives SET operation_pid = ?", [pid]);
   } finally {
     await database.close();
   }
@@ -429,14 +428,6 @@ function restoreEnv(key: string, value: string | undefined): void {
 function expectString(value: unknown): string {
   if (typeof value !== "string") {
     throw new TypeError("Expected string.");
-  }
-
-  return value;
-}
-
-function expectNumber(value: unknown): number {
-  if (typeof value !== "number") {
-    throw new TypeError("Expected number.");
   }
 
   return value;
