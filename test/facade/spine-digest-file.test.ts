@@ -364,14 +364,14 @@ async function readCoordinatorOverlays(path: string): Promise<
   }>
 > {
   try {
-    await access(`${path}/state/state.sqlite`);
+    await access(`${path}/state/sdpub-coordinator.sqlite`);
   } catch {
     return [];
   }
 
   const { Database } = await import("../../src/document/index.js");
   const database = await Database.open(
-    `${path}/state/state.sqlite`,
+    `${path}/state/sdpub-coordinator.sqlite`,
     "CREATE TABLE IF NOT EXISTS entry_overlays (archive_key TEXT, archive_path TEXT, entry_path TEXT, kind TEXT, workspace_path TEXT, updated_at INTEGER);",
   );
 

@@ -1,5 +1,15 @@
 import { createHash, randomUUID } from "crypto";
-import { mkdir, mkdtemp, readFile, rename, rm, writeFile } from "fs/promises";
+import { constants as fsConstants } from "fs";
+import {
+  copyFile,
+  mkdir,
+  mkdtemp,
+  readFile,
+  rename,
+  rm,
+  stat,
+  writeFile,
+} from "fs/promises";
 import { homedir, tmpdir } from "os";
 import { basename, dirname, join, posix, resolve } from "path";
 
@@ -835,12 +845,57 @@ async function withStateDatabase<T>(
 
 async function openStateDatabase(): Promise<Database> {
   const directoryPath = getCoordinatorStateDirectoryPath();
+  const databasePath = join(directoryPath, "sdpub-coordinator.sqlite");
 
   await mkdir(directoryPath, { recursive: true });
-  return await Database.open(
-    join(directoryPath, "state.sqlite"),
-    STATE_SCHEMA_SQL,
-  );
+  await copyLegacyStateDatabaseIfNeeded(directoryPath, databasePath);
+  return await Database.open(databasePath, STATE_SCHEMA_SQL);
+}
+
+async function copyLegacyStateDatabaseIfNeeded(
+  directoryPath: string,
+  databasePath: string,
+): Promise<void> {
+  try {
+    if ((await stat(databasePath)).size > 0) {
+      return;
+    }
+
+    await rm(databasePath, { force: true });
+  } catch {
+    await rm(databasePath, { force: true });
+  }
+
+  try {
+    const legacyDatabasePath = join(directoryPath, "state.sqlite");
+
+    if (!(await legacyDatabaseHasTable(legacyDatabasePath, "entry_overlays"))) {
+      return;
+    }
+
+    await copyFile(legacyDatabasePath, databasePath, fsConstants.COPYFILE_EXCL);
+  } catch {
+    return;
+  }
+}
+
+async function legacyDatabaseHasTable(
+  databasePath: string,
+  tableName: string,
+): Promise<boolean> {
+  const database = await Database.open(databasePath, "");
+
+  try {
+    return (
+      (await database.queryOne(
+        "SELECT 1 AS matched FROM sqlite_master WHERE type = 'table' AND name = ?",
+        [tableName],
+        () => true,
+      )) ?? false
+    );
+  } finally {
+    await database.close();
+  }
 }
 
 async function createWorkspaceFilePath(

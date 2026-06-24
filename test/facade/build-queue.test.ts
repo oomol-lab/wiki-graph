@@ -246,7 +246,7 @@ describe("facade/build-queue", () => {
         concurrency: 1,
         executeJob: async () => {
           const lock = await lockSqliteDatabaseBriefly(
-            `${path}/state/state.sqlite`,
+            `${path}/state/build-queue.sqlite`,
           );
           releaseLockPromise = lock.released;
           throw new Error("planned failure");
@@ -270,7 +270,11 @@ describe("facade/build-queue", () => {
         target: "graph",
       });
 
-      await forceRunningPid(`${path}/state/state.sqlite`, job.jobId, 99999999);
+      await forceRunningPid(
+        `${path}/state/build-queue.sqlite`,
+        job.jobId,
+        99999999,
+      );
 
       const jobs = await listBuildJobs();
       const updated = jobs.find((item) => item.jobId === job.jobId);
