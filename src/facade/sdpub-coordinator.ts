@@ -222,7 +222,7 @@ class SdpubDocumentFileStore implements DocumentFileStore {
           entryPath,
           "state",
           async () =>
-            await resolveEntrySource(this.#archivePath, {
+            await resolveEntrySource({
               archiveKey: this.#archiveKey,
               entryPath,
             }),
@@ -292,16 +292,29 @@ class SdpubDocumentFileStore implements DocumentFileStore {
     const entryPath = this.#toEntryPath(path);
 
     await withEntryLock(this.#archiveKey, entryPath, "write", async () => {
+      const source = await withEntryLock(
+        this.#archiveKey,
+        entryPath,
+        "state",
+        async () =>
+          await resolveEntrySource({
+            archiveKey: this.#archiveKey,
+            entryPath,
+          }),
+      );
+      const archiveEntryExists =
+        source.kind === "archive" &&
+        (await readSdpubArchiveEntry(this.#archivePath, entryPath)) !==
+          undefined;
+
+      if (
+        options.overwrite !== true &&
+        (source.kind === "workspace" || archiveEntryExists)
+      ) {
+        throw new Error(`File already exists: ${path}`);
+      }
+
       await withEntryLock(this.#archiveKey, entryPath, "state", async () => {
-        const source = await resolveEntrySource(this.#archivePath, {
-          archiveKey: this.#archiveKey,
-          entryPath,
-        });
-
-        if (options.overwrite !== true && source.kind !== "deleted") {
-          throw new Error(`File already exists: ${path}`);
-        }
-
         const workspacePath =
           source.kind === "workspace"
             ? source.path
@@ -658,10 +671,10 @@ async function listArchiveEntryPathsByPrefix(
   );
 }
 
-async function resolveEntrySource(
-  archivePath: string,
-  input: { readonly archiveKey: string; readonly entryPath: string },
-): Promise<
+async function resolveEntrySource(input: {
+  readonly archiveKey: string;
+  readonly entryPath: string;
+}): Promise<
   | { readonly kind: "archive" }
   | { readonly kind: "deleted" }
   | { readonly kind: "workspace"; readonly path: string }
@@ -674,12 +687,6 @@ async function resolveEntrySource(
   if (overlay?.workspacePath !== undefined) {
     return { kind: "workspace", path: overlay.workspacePath };
   }
-  if (
-    (await readSdpubArchiveEntry(archivePath, input.entryPath)) === undefined
-  ) {
-    return { kind: "deleted" };
-  }
-
   return { kind: "archive" };
 }
 
