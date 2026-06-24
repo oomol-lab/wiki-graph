@@ -10,6 +10,7 @@ import { AsyncSemaphore } from "../utils/async-semaphore.js";
 import {
   extractSdpubArchive,
   readSdpubArchiveEntry,
+  SdpubArchiveReader,
   writeSdpubArchiveWithOverlays,
   type SdpubArchiveOverlay,
 } from "./archive.js";
@@ -129,6 +130,7 @@ ORDER BY archive_key
 class SdpubDocumentFileStore implements DocumentFileStore {
   readonly #archiveKey: string;
   readonly #archivePath: string;
+  #archiveReader: Promise<SdpubArchiveReader> | undefined;
   readonly #readonlyDatabase: boolean;
   readonly #sqliteLeaseOwnerId = createOwnerId();
 
@@ -142,6 +144,10 @@ class SdpubDocumentFileStore implements DocumentFileStore {
   }
 
   public async close(): Promise<void> {
+    if (this.#archiveReader !== undefined) {
+      (await this.#archiveReader).close();
+      this.#archiveReader = undefined;
+    }
     await releaseSqliteLease({
       archiveKey: this.#archiveKey,
       entryPath: DATABASE_ENTRY_PATH,
@@ -172,10 +178,13 @@ class SdpubDocumentFileStore implements DocumentFileStore {
 
   public async deleteTree(path: string): Promise<void> {
     const rootEntryPath = this.#toEntryPath(path);
-    const entries = await listVisibleEntryPaths(this.#archivePath, {
-      archiveKey: this.#archiveKey,
-      prefix: `${rootEntryPath}/`,
-    });
+    const entries = await listVisibleEntryPaths(
+      await this.#listArchiveEntries(),
+      {
+        archiveKey: this.#archiveKey,
+        prefix: `${rootEntryPath}/`,
+      },
+    );
 
     for (const entryPath of entries) {
       await this.deleteFile(entryPath);
@@ -197,10 +206,13 @@ class SdpubDocumentFileStore implements DocumentFileStore {
   public async listFiles(path: string): Promise<readonly string[]> {
     const directoryEntryPath = this.#toEntryPath(path);
     const prefix = directoryEntryPath === "" ? "" : `${directoryEntryPath}/`;
-    const entries = await listVisibleEntryPaths(this.#archivePath, {
-      archiveKey: this.#archiveKey,
-      prefix,
-    });
+    const entries = await listVisibleEntryPaths(
+      await this.#listArchiveEntries(),
+      {
+        archiveKey: this.#archiveKey,
+        prefix,
+      },
+    );
 
     return entries
       .map((entryPath) => entryPath.slice(prefix.length))
@@ -235,7 +247,7 @@ class SdpubDocumentFileStore implements DocumentFileStore {
           return await readFile(source.path);
         }
 
-        return await readSdpubArchiveEntry(this.#archivePath, entryPath);
+        return await this.#readArchiveEntry(entryPath);
       },
     );
   }
@@ -304,8 +316,7 @@ class SdpubDocumentFileStore implements DocumentFileStore {
       );
       const archiveEntryExists =
         source.kind === "archive" &&
-        (await readSdpubArchiveEntry(this.#archivePath, entryPath)) !==
-          undefined;
+        (await this.#readArchiveEntry(entryPath)) !== undefined;
 
       if (
         options.overwrite !== true &&
@@ -344,6 +355,19 @@ class SdpubDocumentFileStore implements DocumentFileStore {
     }
 
     return normalizeEntryPath(path);
+  }
+
+  async #listArchiveEntries(): Promise<readonly string[]> {
+    return (await this.#getArchiveReader()).listEntries();
+  }
+
+  async #readArchiveEntry(entryPath: string): Promise<Buffer | undefined> {
+    return await (await this.#getArchiveReader()).readEntry(entryPath);
+  }
+
+  async #getArchiveReader(): Promise<SdpubArchiveReader> {
+    this.#archiveReader ??= SdpubArchiveReader.open(this.#archivePath);
+    return await this.#archiveReader;
   }
 }
 
@@ -625,12 +649,11 @@ WHERE archive_key = ? AND entry_path = ?
 }
 
 async function listVisibleEntryPaths(
-  archivePath: string,
+  archiveEntries: readonly string[],
   input: { readonly archiveKey: string; readonly prefix: string },
 ): Promise<readonly string[]> {
-  const archiveEntries = await listArchiveEntryPathsByPrefix(
-    archivePath,
-    input.prefix,
+  const matchingArchiveEntries = archiveEntries.filter((entryPath) =>
+    entryPath.startsWith(input.prefix),
   );
   const overlays = await withStateDatabase(
     async (state) =>
@@ -644,7 +667,7 @@ WHERE archive_key = ?
         mapEntryOverlay,
       ),
   );
-  const entries = new Set(archiveEntries);
+  const entries = new Set(matchingArchiveEntries);
 
   for (const overlay of overlays) {
     if (!overlay.entryPath.startsWith(input.prefix)) {
@@ -658,17 +681,6 @@ WHERE archive_key = ?
   }
 
   return [...entries].sort((left, right) => left.localeCompare(right));
-}
-
-async function listArchiveEntryPathsByPrefix(
-  archivePath: string,
-  prefix: string,
-): Promise<readonly string[]> {
-  const { listSdpubArchiveEntries } = await import("./archive.js");
-
-  return (await listSdpubArchiveEntries(archivePath)).filter((entryPath) =>
-    entryPath.startsWith(prefix),
-  );
 }
 
 async function resolveEntrySource(input: {

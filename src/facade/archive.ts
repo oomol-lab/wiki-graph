@@ -42,6 +42,56 @@ export type SdpubArchiveOverlay =
       readonly workspacePath: string;
     };
 
+export class SdpubArchiveReader {
+  readonly #entryByPath: Map<string, Entry>;
+  readonly #entries: readonly string[];
+  readonly #zipFile: YauzlZipFile;
+
+  public constructor(zipFile: YauzlZipFile, entries: readonly Entry[]) {
+    this.#zipFile = zipFile;
+    this.#entryByPath = new Map(
+      entries
+        .map((entry) => [normalizeArchivePath(entry.fileName), entry] as const)
+        .filter(([entryPath]) => entryPath !== "")
+        .filter(([entryPath]) => isSdpubArchivePath(entryPath)),
+    );
+    this.#entries = [...this.#entryByPath.keys()].sort((left, right) =>
+      left.localeCompare(right),
+    );
+  }
+
+  public static async open(inputPath: string): Promise<SdpubArchiveReader> {
+    const zipFile = await openArchive(inputPath);
+    const entries = await indexArchiveEntries(zipFile);
+
+    try {
+      await validateArchiveManifest(zipFile, entries);
+      return new SdpubArchiveReader(zipFile, entries);
+    } catch (error) {
+      zipFile.close();
+      throw error;
+    }
+  }
+
+  public close(): void {
+    this.#zipFile.close();
+  }
+
+  public listEntries(): readonly string[] {
+    return this.#entries;
+  }
+
+  public async readEntry(entryPath: string): Promise<Buffer | undefined> {
+    const entry = this.#entryByPath.get(normalizeArchivePath(entryPath));
+
+    if (entry === undefined) {
+      return undefined;
+    }
+
+    return await readArchiveEntryBuffer(this.#zipFile, entry);
+  }
+}
+
 export async function extractSdpubArchive(
   inputPath: string,
   outputDirectoryPath: string,
@@ -110,18 +160,12 @@ export async function writeSdpubArchive(
 export async function listSdpubArchiveEntries(
   inputPath: string,
 ): Promise<readonly string[]> {
-  const zipFile = await openArchive(inputPath);
-  const entries = await indexArchiveEntries(zipFile);
+  const reader = await SdpubArchiveReader.open(inputPath);
 
   try {
-    await validateArchiveManifest(zipFile, entries);
-    return entries
-      .map((entry) => normalizeArchivePath(entry.fileName))
-      .filter((entryPath) => entryPath !== "")
-      .filter(isSdpubArchivePath)
-      .sort((left, right) => left.localeCompare(right));
+    return reader.listEntries();
   } finally {
-    zipFile.close();
+    reader.close();
   }
 }
 
@@ -129,24 +173,12 @@ export async function readSdpubArchiveEntry(
   inputPath: string,
   entryPath: string,
 ): Promise<Buffer | undefined> {
-  const normalizedEntryPath = normalizeArchivePath(entryPath);
-  const zipFile = await openArchive(inputPath);
-  const entries = await indexArchiveEntries(zipFile);
+  const reader = await SdpubArchiveReader.open(inputPath);
 
   try {
-    await validateArchiveManifest(zipFile, entries);
-    const entry = entries.find(
-      (candidate) =>
-        normalizeArchivePath(candidate.fileName) === normalizedEntryPath,
-    );
-
-    if (entry === undefined) {
-      return undefined;
-    }
-
-    return await readArchiveEntryBuffer(zipFile, entry);
+    return await reader.readEntry(entryPath);
   } finally {
-    zipFile.close();
+    reader.close();
   }
 }
 
