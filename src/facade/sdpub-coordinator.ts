@@ -118,7 +118,14 @@ export class SdpubCoordinator {
   }
 }
 
-export async function tryStartSdpubFlusher(): Promise<void> {
+export async function tryStartSdpubFlusher(
+  archivePath?: string,
+): Promise<void> {
+  if (archivePath !== undefined) {
+    await flushArchiveOverlays(createArchiveKey(resolve(archivePath)));
+    return;
+  }
+
   const archiveKeys = await withStateDatabase(async (state) => {
     await cleanupStaleState(state);
     return await state.queryAll(

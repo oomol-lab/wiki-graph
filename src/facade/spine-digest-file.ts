@@ -81,7 +81,7 @@ export class SpineDigestFile {
       await document.flush();
       await document.release();
       if (completed) {
-        await tryStartSdpubFlusher();
+        await tryStartSdpubFlusher(this.#path);
       }
     }
   }

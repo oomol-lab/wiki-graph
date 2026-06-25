@@ -1,4 +1,4 @@
-import { access, readFile } from "fs/promises";
+import { access, mkdir, readFile } from "fs/promises";
 
 import { afterEach, describe, expect, it } from "vitest";
 
@@ -152,6 +152,38 @@ describe("facade/spine-digest-file", () => {
 
       await expect(readArchivedTitle(path, archivePath)).resolves.toBe(
         "Flushed Title",
+      );
+    });
+  });
+
+  it("does not let unrelated stale overlays fail archive writes", async () => {
+    await withTempDir("spinedigest-facade-file-", async (path) => {
+      useCoordinatorStateDir(`${path}/state`);
+      const archivePath = await createSeedArchive(path);
+      await createStaleOverlay(path);
+
+      await new SpineDigestFile(archivePath).write(async (document) => {
+        const meta = await document.readBookMeta();
+
+        if (meta === undefined) {
+          throw new Error("Missing test metadata.");
+        }
+
+        await document.replaceBookMeta({
+          ...meta,
+          title: "Fresh Title",
+        });
+      });
+
+      await expect(readArchivedTitle(path, archivePath)).resolves.toBe(
+        "Fresh Title",
+      );
+      await expect(readCoordinatorOverlays(path)).resolves.toContainEqual(
+        expect.objectContaining({
+          archivePath: `${path}/missing/book.sdpub`,
+          entryPath: "database.db",
+          kind: "file",
+        }),
       );
     });
   });
@@ -388,6 +420,46 @@ ORDER BY archive_path, entry_path
         entryPath: expectString(row.entry_path),
         kind: expectString(row.kind),
       }),
+    );
+  } finally {
+    await database.close();
+  }
+}
+
+async function createStaleOverlay(path: string): Promise<void> {
+  const { Database } = await import("../../src/document/index.js");
+
+  await mkdir(`${path}/state`, { recursive: true });
+  const database = await Database.open(
+    `${path}/state/sdpub-coordinator.sqlite`,
+    `
+CREATE TABLE IF NOT EXISTS entry_overlays (
+  archive_key TEXT NOT NULL,
+  archive_path TEXT NOT NULL,
+  entry_path TEXT NOT NULL,
+  kind TEXT NOT NULL,
+  workspace_path TEXT,
+  updated_at INTEGER NOT NULL,
+  PRIMARY KEY (archive_key, entry_path)
+);
+`,
+  );
+
+  try {
+    await database.run(
+      `
+INSERT INTO entry_overlays (
+  archive_key, archive_path, entry_path, kind, workspace_path, updated_at
+) VALUES (?, ?, ?, ?, ?, ?)
+`,
+      [
+        "missing-archive-key",
+        `${path}/missing/book.sdpub`,
+        "database.db",
+        "file",
+        `${path}/missing/database.db`,
+        Date.now(),
+      ],
     );
   } finally {
     await database.close();
