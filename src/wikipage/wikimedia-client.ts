@@ -1,4 +1,8 @@
+import { DomUtils, parseDocument } from "htmlparser2";
+
 import { RateLimiter, parseRetryAfterMs } from "./rate-limiter.js";
+
+export type SupportedWiki = "enwiki" | "zhwiki";
 
 export interface WikimediaClientOptions {
   readonly concurrency: number;
@@ -13,30 +17,31 @@ export interface WikidataEntityInfo {
   readonly description?: string;
   readonly label?: string;
   readonly qid: string;
-  readonly sitelinkTitle?: string;
-  readonly sitelinkWiki?: string;
+  readonly sitelinks: readonly WikidataSitelinkInfo[];
+}
+
+export interface WikidataSitelinkInfo {
+  readonly title: string;
+  readonly wiki: SupportedWiki;
 }
 
 export interface WikiPageInfo {
   readonly isDisambiguation: boolean;
   readonly pageId?: number;
   readonly title: string;
+  readonly wiki: SupportedWiki;
   readonly wikibaseItem?: string;
 }
 
 export interface ParsedDisambiguationPage {
-  readonly links: readonly ParsedPageLink[];
+  readonly linkedTitles: readonly string[];
   readonly pageId?: number;
+  readonly text: string;
   readonly title: string;
-}
-
-export interface ParsedPageLink {
-  readonly hint?: string;
-  readonly title: string;
+  readonly wiki: SupportedWiki;
 }
 
 interface MediaWikiPage {
-  readonly links?: ReadonlyArray<{ readonly title?: unknown }>;
   readonly ns?: unknown;
   readonly pageid?: unknown;
   readonly pageprops?: {
@@ -46,9 +51,13 @@ interface MediaWikiPage {
   readonly title?: unknown;
 }
 
-interface ParseLink {
-  readonly ns?: unknown;
-  readonly title?: unknown;
+const SUPPORTED_WIKIS: readonly SupportedWiki[] = ["zhwiki", "enwiki"];
+const TITLE_URI_PREFIX = "wikigraph-title://";
+
+interface HtmlElement {
+  readonly attribs: Record<string, string | undefined>;
+  readonly children?: readonly unknown[];
+  readonly name: string;
 }
 
 export class WikimediaClient {
@@ -80,8 +89,8 @@ export class WikimediaClient {
     url.searchParams.set("action", "wbgetentities");
     url.searchParams.set("ids", qids.join("|"));
     url.searchParams.set("props", "labels|descriptions|sitelinks");
-    url.searchParams.set("languages", this.#language);
-    url.searchParams.set("sitefilter", this.#wiki);
+    url.searchParams.set("languages", listWikidataLanguages(this.#language));
+    url.searchParams.set("sitefilter", SUPPORTED_WIKIS.join("|"));
     url.searchParams.set("format", "json");
     url.searchParams.set("formatversion", "2");
 
@@ -91,29 +100,22 @@ export class WikimediaClient {
 
     for (const qid of qids) {
       const entity = asRecord(entities[qid]);
-      const label = getNestedString(entity, [
-        "labels",
-        this.#language,
-        "value",
-      ]);
-      const description = getNestedString(entity, [
-        "descriptions",
-        this.#language,
-        "value",
-      ]);
-      const sitelinkTitle = getNestedString(entity, [
-        "sitelinks",
-        this.#wiki,
-        "title",
-      ]);
+      const labels = asRecord(entity.labels);
+      const descriptions = asRecord(entity.descriptions);
 
       results.set(qid, {
-        ...(description === undefined ? {} : { description }),
-        ...(label === undefined ? {} : { label }),
-        qid,
-        ...(sitelinkTitle === undefined
+        ...(pickLocalizedValue(labels, this.#language) === undefined
           ? {}
-          : { sitelinkTitle, sitelinkWiki: this.#wiki }),
+          : { label: pickLocalizedValue(labels, this.#language)! }),
+        ...(pickLocalizedValue(descriptions, this.#language) === undefined
+          ? {}
+          : { description: pickLocalizedValue(descriptions, this.#language)! }),
+        qid,
+        sitelinks: SUPPORTED_WIKIS.flatMap((wiki) => {
+          const title = getNestedString(entity, ["sitelinks", wiki, "title"]);
+
+          return title === undefined ? [] : [{ title, wiki }];
+        }),
       });
     }
 
@@ -122,12 +124,13 @@ export class WikimediaClient {
 
   public async getPagesByTitles(
     titles: readonly string[],
+    wiki: SupportedWiki = normalizeWiki(this.#wiki) ?? "enwiki",
   ): Promise<ReadonlyMap<string, WikiPageInfo>> {
     if (titles.length === 0) {
       return new Map();
     }
 
-    const url = new URL(`${this.#wikiApiBaseURL()}w/api.php`);
+    const url = new URL(`${wikiApiBaseURL(wiki)}w/api.php`);
     url.searchParams.set("action", "query");
     url.searchParams.set("titles", titles.join("|"));
     url.searchParams.set("prop", "pageprops");
@@ -153,6 +156,7 @@ export class WikimediaClient {
           ? {}
           : { pageId: getNumber(page.pageid)! }),
         title,
+        wiki,
         ...(getString(asRecord(page.pageprops).wikibase_item) === undefined
           ? {}
           : {
@@ -166,37 +170,27 @@ export class WikimediaClient {
 
   public async parseDisambiguationPage(
     title: string,
+    wiki: SupportedWiki,
   ): Promise<ParsedDisambiguationPage> {
-    const url = new URL(`${this.#wikiApiBaseURL()}w/api.php`);
+    const url = new URL(`${wikiApiBaseURL(wiki)}w/api.php`);
     url.searchParams.set("action", "parse");
     url.searchParams.set("page", title);
-    url.searchParams.set("prop", "links|text");
+    url.searchParams.set("prop", "text|properties");
     url.searchParams.set("format", "json");
     url.searchParams.set("formatversion", "2");
 
     const json = await this.#fetchJson(url);
     const parse = asRecord(json.parse);
-    const links = asArray(parse.links)
-      .map((value) => asRecord(value) as ParseLink)
-      .filter((link) => getNumber(link.ns) === 0)
-      .map((link) => getString(link.title))
-      .filter((linkTitle): linkTitle is string => linkTitle !== undefined);
-    const hints = extractLinkHints(getNestedString(parse, ["text"]) ?? "");
-    const uniqueLinks = [...new Set(links)];
+    const rendered = renderDisambiguationHtml(getNestedString(parse, ["text"]));
 
     return {
-      links: uniqueLinks.map((linkTitle) => ({
-        ...(hints.get(linkTitle) === undefined
-          ? {}
-          : {
-              hint: hints.get(linkTitle)!,
-            }),
-        title: linkTitle,
-      })),
+      linkedTitles: rendered.linkedTitles,
       ...(getNumber(parse.pageid) === undefined
         ? {}
         : { pageId: getNumber(parse.pageid)! }),
+      text: rendered.text,
       title: getString(parse.title) ?? title,
+      wiki,
     };
   }
 
@@ -229,55 +223,222 @@ export class WikimediaClient {
       return asRecord(await response.json());
     });
   }
+}
 
-  #wikiApiBaseURL(): string {
-    return `https://${this.#language}.wikipedia.org/`;
+export function replaceTitleUriWithQidUri(
+  text: string,
+  titleToQid: ReadonlyMap<string, string>,
+): string {
+  return text.replace(
+    /\[\[([^\]|]+)\|wikigraph-title:\/\/([^\]\s]+)\]\]/gu,
+    (_match: string, label: string, encodedTitle: string) => {
+      const title = decodeURIComponent(encodedTitle);
+      const qid = titleToQid.get(title);
+
+      return qid === undefined
+        ? label
+        : `[[${label}|wikigraph://qid=${qid}]]`;
+    },
+  );
+}
+
+function renderDisambiguationHtml(html: string | undefined): {
+  readonly linkedTitles: readonly string[];
+  readonly text: string;
+} {
+  if (html === undefined || html.trim() === "") {
+    return {
+      linkedTitles: [],
+      text: "",
+    };
   }
+
+  const linkedTitles = new Set<string>();
+  const document = parseDocument(html);
+  const text = renderNodes(DomUtils.getChildren(document), {
+    linkedTitles,
+    listDepth: 0,
+  })
+    .replace(/[ \t]+\n/gu, "\n")
+    .replace(/\n{3,}/gu, "\n\n")
+    .trim();
+
+  return {
+    linkedTitles: [...linkedTitles],
+    text,
+  };
 }
 
-function extractLinkHints(html: string): ReadonlyMap<string, string> {
-  const hints = new Map<string, string>();
-  const itemPattern = /<li\b[^>]*>(.*?)<\/li>/gis;
-  let itemMatch: RegExpExecArray | null;
+function renderNodes(
+  nodes: readonly unknown[],
+  context: {
+    readonly linkedTitles: Set<string>;
+    readonly listDepth: number;
+  },
+): string {
+  return nodes.map((node) => renderNode(node, context)).join("");
+}
 
-  while ((itemMatch = itemPattern.exec(html)) !== null) {
-    const itemHtml = itemMatch[1] ?? "";
-    const title = extractFirstTitle(itemHtml);
+function renderNode(
+  node: unknown,
+  context: {
+    readonly linkedTitles: Set<string>;
+    readonly listDepth: number;
+  },
+): string {
+  const record = asRecord(node);
+  const nodeType = getString(record.type);
 
-    if (title === undefined || hints.has(title)) {
-      continue;
-    }
+  if (nodeType === "text") {
+    return normalizeInlineText(getString(record.data) ?? "");
+  }
+  if (nodeType !== "tag" && nodeType !== "script" && nodeType !== "style") {
+    return "";
+  }
 
-    const hint = stripHtml(itemHtml)
-      .replace(/\s+/gu, " ")
-      .replace(/\s+([,.;:!?])/gu, "$1")
-      .trim();
+  const element = node as HtmlElement;
+  if (shouldSkipElement(element)) {
+    return "";
+  }
 
-    if (hint !== "") {
-      hints.set(title, hint);
+  const name = element.name.toLowerCase();
+
+  if (name === "a") {
+    return renderLink(element, context);
+  }
+  if (/^h[1-6]$/u.test(name)) {
+    const level = Math.min(6, Math.max(1, Number(name.slice(1))));
+    const marker = "=".repeat(level);
+    const heading = renderNodes(element.children ?? [], context).trim();
+
+    return heading === "" ? "" : `\n${marker} ${heading} ${marker}\n`;
+  }
+  if (name === "li") {
+    const indent = "  ".repeat(Math.max(0, context.listDepth - 1));
+    const content = renderNodes(element.children ?? [], {
+      ...context,
+      listDepth: context.listDepth + 1,
+    }).trim();
+
+    return content === "" ? "" : `\n${indent}* ${content}`;
+  }
+  if (name === "ul" || name === "ol") {
+    return `${renderNodes(element.children ?? [], context)}\n`;
+  }
+  if (isBlockElement(name)) {
+    const content = renderNodes(element.children ?? [], context).trim();
+
+    return content === "" ? "" : `\n${content}\n`;
+  }
+
+  return renderNodes(element.children ?? [], context);
+}
+
+function renderLink(
+  node: HtmlElement,
+  context: {
+    readonly linkedTitles: Set<string>;
+    readonly listDepth: number;
+  },
+): string {
+  const content = renderNodes(node.children ?? [], context).trim();
+  const title = extractWikiLinkTitle(node);
+
+  if (title === undefined) {
+    return content;
+  }
+
+  context.linkedTitles.add(title);
+
+  return `[[${content === "" ? title : content}|${TITLE_URI_PREFIX}${encodeURIComponent(title)}]]`;
+}
+
+function extractWikiLinkTitle(node: HtmlElement): string | undefined {
+  const title = node.attribs.title;
+  const href = node.attribs.href;
+
+  if (title !== undefined && title !== "" && !title.includes(":")) {
+    return title;
+  }
+  if (href === undefined || !href.startsWith("/wiki/")) {
+    return undefined;
+  }
+
+  const decoded = decodeURIComponent(href.slice("/wiki/".length)).replaceAll(
+    "_",
+    " ",
+  );
+
+  return decoded === "" || decoded.includes(":") ? undefined : decoded;
+}
+
+function shouldSkipElement(node: HtmlElement): boolean {
+  const name = node.name.toLowerCase();
+
+  if (["script", "style", "table", "sup"].includes(name)) {
+    return true;
+  }
+
+  const className = node.attribs.class ?? "";
+
+  return [
+    "catlinks",
+    "metadata",
+    "mw-editsection",
+    "mw-empty-elt",
+    "navbox",
+    "noprint",
+    "reference",
+    "reflist",
+    "shortdescription",
+    "toc",
+  ].some((item) => className.split(/\s+/u).includes(item));
+}
+
+function isBlockElement(name: string): boolean {
+  return [
+    "blockquote",
+    "br",
+    "dd",
+    "div",
+    "dl",
+    "dt",
+    "p",
+    "section",
+  ].includes(name);
+}
+
+function normalizeInlineText(value: string): string {
+  return value.replace(/\s+/gu, " ");
+}
+
+function listWikidataLanguages(language: string): string {
+  return [...new Set([language, "zh", "en"])].join("|");
+}
+
+function pickLocalizedValue(
+  values: Record<string, unknown>,
+  language: string,
+): string | undefined {
+  for (const candidate of [language, "zh", "en"]) {
+    const value = getNestedString(values, [candidate, "value"]);
+
+    if (value !== undefined) {
+      return value;
     }
   }
 
-  return hints;
+  return undefined;
 }
 
-function extractFirstTitle(html: string): string | undefined {
-  const match = /<a\b[^>]*\btitle="([^"]+)"/iu.exec(html);
-
-  return match === null ? undefined : decodeHtml(match[1] ?? "");
+function wikiApiBaseURL(wiki: SupportedWiki): string {
+  return wiki === "zhwiki"
+    ? "https://zh.wikipedia.org/"
+    : "https://en.wikipedia.org/";
 }
 
-function stripHtml(html: string): string {
-  return decodeHtml(html.replace(/<[^>]*>/gu, " "));
-}
-
-function decodeHtml(value: string): string {
-  return value
-    .replaceAll("&quot;", '"')
-    .replaceAll("&#039;", "'")
-    .replaceAll("&amp;", "&")
-    .replaceAll("&lt;", "<")
-    .replaceAll("&gt;", ">");
+function normalizeWiki(value: string): SupportedWiki | undefined {
+  return value === "zhwiki" || value === "enwiki" ? value : undefined;
 }
 
 function asRecord(value: unknown): Record<string, unknown> {

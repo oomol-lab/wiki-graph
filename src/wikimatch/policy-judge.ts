@@ -11,6 +11,8 @@ import type { LLMessage } from "../llm/index.js";
 import type {
   WikimatchAcceptedMention,
   WikimatchCandidate,
+  WikimatchConflictGroup,
+  WikimatchQidOption,
   WikimatchPolicyDecisionOutput,
   WikimatchPolicyJudgeInput,
   WikimatchPolicyJudgeResult,
@@ -209,14 +211,14 @@ function validateRecallDecision(
     );
     return;
   }
-  if (!isAllowedQid(candidate, decision.qid)) {
-    issues.push(formatIllegalQidIssue(candidate, decision.qid));
-    return;
-  }
   if (isDisambiguationQid(candidate, decision.qid)) {
     issues.push(
-      `Candidate ${candidate.id} selected disambiguation QID ${decision.qid}. Disambiguation pages cannot be final mention groundings. Choose one of the expanded option QIDs instead.`,
+      `Candidate ${candidate.id} selected source disambiguation QID ${decision.qid}. Source disambiguation QIDs are hidden behind DIS references and cannot be final mention groundings. Choose a QID from entityOptions or disambiguationOptions.meanings instead.`,
     );
+    return;
+  }
+  if (!isAllowedQid(candidate, decision.qid)) {
+    issues.push(formatIllegalQidIssue(candidate, decision.qid));
   }
 }
 
@@ -229,7 +231,7 @@ function isDisambiguationQid(
   qid: string,
 ): boolean {
   return candidate.qidOptions.some(
-    (option) => option.qid === qid && option.isDisambiguation === true,
+    (option) => option.disambiguation !== undefined && option.qid === qid,
   );
 }
 
@@ -237,8 +239,8 @@ function listAllowedQids(candidate: WikimatchCandidate): readonly string[] {
   return [
     ...new Set(
       candidate.qidOptions.flatMap((option) => [
-        option.qid,
-        ...(option.disambiguation?.options.map((item) => item.qid) ?? []),
+        ...(option.disambiguation === undefined ? [option.qid] : []),
+        ...(option.disambiguation?.linkedQids.map((item) => item.qid) ?? []),
       ]),
     ),
   ];
@@ -275,7 +277,8 @@ function buildPolicyMessages(input: WikimatchPolicyJudgeInput): LLMessage[] {
         "You judge which precomputed Wikidata mention candidates should be recalled.",
         "Return JSON only.",
         "Do not invent candidates, ranges, surfaces, or QIDs.",
-        "A recalled mention must choose a concrete non-disambiguation QID.",
+        "A recalled mention must choose a QID from entityOptions or disambiguationOptions.meanings.",
+        "Never return DIS identifiers as qid values; DIS identifiers are only disambiguation references.",
         "Overlapping recalled ranges are illegal; choose the most specific valid mention.",
       ].join("\n"),
     },
@@ -291,22 +294,11 @@ function formatPolicyPrompt(input: WikimatchPolicyJudgeInput): string {
     "Recall policy:",
     input.policyPrompt,
     "",
-    `Context [baseOffset=${input.window.baseOffset}]:`,
-    input.window.text,
+    "Tagged context:",
+    formatTaggedContext(input),
     "",
     "Candidate groups:",
-    JSON.stringify(
-      {
-        groups: input.window.groups.map((group) => ({
-          candidateIds: group.candidateIds,
-          groupId: group.id,
-          range: group.range,
-        })),
-        candidates: input.window.candidates.map(formatCandidateForPrompt),
-      },
-      null,
-      2,
-    ),
+    JSON.stringify(formatGroupsForPrompt(input), null, 2),
     "",
     "Return this JSON shape:",
     JSON.stringify(
@@ -327,31 +319,125 @@ function formatPolicyPrompt(input: WikimatchPolicyJudgeInput): string {
   ].join("\n");
 }
 
-function formatCandidateForPrompt(candidate: WikimatchCandidate): object {
+function formatTaggedContext(input: WikimatchPolicyJudgeInput): string {
+  const groups = [...input.window.groups].sort(
+    (left, right) => left.range.start - right.range.start,
+  );
+  const parts: string[] = [];
+  let cursor = input.window.baseOffset;
+
+  for (const group of groups) {
+    parts.push(
+      input.window.text.slice(
+        cursor - input.window.baseOffset,
+        group.range.start - input.window.baseOffset,
+      ),
+    );
+    parts.push(
+      `<group id="${escapeXmlAttribute(group.id)}">${escapeXmlText(
+        input.window.text.slice(
+          group.range.start - input.window.baseOffset,
+          group.range.end - input.window.baseOffset,
+        ),
+      )}</group>`,
+    );
+    cursor = group.range.end;
+  }
+
+  parts.push(input.window.text.slice(cursor - input.window.baseOffset));
+
+  return parts.join("");
+}
+
+function formatGroupsForPrompt(input: WikimatchPolicyJudgeInput): object[] {
+  const candidatesById = createCandidateMap(input.window.candidates);
+
+  return input.window.groups.map((group) => ({
+    candidates: group.candidateIds.flatMap((candidateId) => {
+      const candidate = candidatesById.get(candidateId);
+
+      return candidate === undefined
+        ? []
+        : [formatCandidateForPrompt(candidate, group, input.window.baseOffset)];
+    }),
+    groupId: group.id,
+    text: input.window.text.slice(
+      group.range.start - input.window.baseOffset,
+      group.range.end - input.window.baseOffset,
+    ),
+  }));
+}
+
+function formatCandidateForPrompt(
+  candidate: WikimatchCandidate,
+  group: WikimatchConflictGroup,
+  baseOffset: number,
+): object {
+  const formattedOptions = formatQidOptions(candidate.qidOptions);
+
   return {
     candidateId: candidate.id,
-    qidOptions: candidate.qidOptions.map((option) => ({
+    ...(formattedOptions.disambiguationOptions.length === 0
+      ? {}
+      : { disambiguationOptions: formattedOptions.disambiguationOptions }),
+    ...(formattedOptions.entityOptions.length === 0
+      ? {}
+      : { entityOptions: formattedOptions.entityOptions }),
+    offset: candidate.range.start - group.range.start,
+    surface: candidate.surface,
+  };
+}
+
+function formatQidOptions(
+  options: readonly WikimatchQidOption[],
+): {
+  readonly disambiguationOptions: readonly object[];
+  readonly entityOptions: readonly object[];
+} {
+  const disambiguationOptions: object[] = [];
+  const entityOptions: object[] = [];
+
+  for (const option of options) {
+    if (option.disambiguation !== undefined) {
+      disambiguationOptions.push({
+        id: `DIS${disambiguationOptions.length + 1}`,
+        ...(option.label === undefined ? {} : { label: option.label }),
+        meanings:
+          option.disambiguation.profile?.meanings ??
+          option.disambiguation.linkedQids.map((item) => ({
+            information: "",
+            name: item.title,
+            priority: "other",
+            qid: item.qid,
+          })),
+      });
+      continue;
+    }
+
+    entityOptions.push({
       ...(option.description === undefined
         ? {}
         : { description: option.description }),
-      ...(option.disambiguation === undefined
-        ? {}
-        : {
-            disambiguation: {
-              options: option.disambiguation.options,
-              pageTitle: option.disambiguation.pageTitle,
-              sourceQid: option.disambiguation.disambiguationQid,
-            },
-          }),
-      ...(option.isDisambiguation === undefined
-        ? {}
-        : { isDisambiguation: option.isDisambiguation }),
       ...(option.label === undefined ? {} : { label: option.label }),
       qid: option.qid,
-    })),
-    range: candidate.range,
-    surface: candidate.surface,
+    });
+  }
+
+  return {
+    disambiguationOptions,
+    entityOptions,
   };
+}
+
+function escapeXmlAttribute(value: string): string {
+  return escapeXmlText(value).replaceAll('"', "&quot;");
+}
+
+function escapeXmlText(value: string): string {
+  return value
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;");
 }
 
 function formatFallbackIssue(error: unknown): string {

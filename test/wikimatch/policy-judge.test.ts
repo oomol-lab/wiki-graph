@@ -102,11 +102,17 @@ describe("wikimatch/policy-judge", () => {
     });
 
     expect(request.mock.calls[0]?.[0][1]?.content).toContain(
-      '"sourceQid": "Q48397"',
+      '<group id="g2">Mercury</group>',
     );
     expect(request.mock.calls[0]?.[0][1]?.content).toContain(
-      '"hint": "Mercury, the first planet from the Sun"',
+      '"id": "DIS1"',
     );
+    expect(request.mock.calls[0]?.[0][1]?.content).toContain('"qid": "Q308"');
+    expect(request.mock.calls[0]?.[0][1]?.content).not.toContain("sourceQid");
+    expect(request.mock.calls[0]?.[0][1]?.content).not.toContain(
+      "isDisambiguation",
+    );
+    expect(request.mock.calls[0]?.[0][1]?.content).not.toContain('"range"');
     expect(result).toMatchObject({
       fallback: {
         reason: "guaranteed_json_failed",
@@ -114,7 +120,7 @@ describe("wikimatch/policy-judge", () => {
       mentions: [],
     });
     expect(result.fallback?.issues[0]).toContain(
-      "Disambiguation pages cannot be final mention groundings",
+      "Source disambiguation QIDs",
     );
   });
 
@@ -197,18 +203,25 @@ function createInput(): {
           disambiguation: {
             checkedAt: "2026-06-26T00:00:00.000Z",
             disambiguationQid: "Q48397",
-            language: "en",
-            options: [
+            linkedQids: [
               {
-                description: "first planet from the Sun",
-                hint: "Mercury, the first planet from the Sun",
-                label: "Mercury",
                 qid: "Q308",
                 title: "Mercury (planet)",
               },
             ],
-            pageTitle: "Mercury",
-            wiki: "enwiki",
+            pages: [
+              {
+                linkedQids: [
+                  {
+                    qid: "Q308",
+                    title: "Mercury (planet)",
+                  },
+                ],
+                text: "* [[Mercury (planet)|wikigraph://qid=Q308]], the first planet from the Sun",
+                title: "Mercury",
+                wiki: "enwiki",
+              },
+            ],
           },
           isDisambiguation: true,
           label: "Mercury",
@@ -216,8 +229,8 @@ function createInput(): {
         },
       ],
       range: {
-        end: 19,
-        start: 12,
+        end: 17,
+        start: 10,
       },
       surface: "Mercury",
     },

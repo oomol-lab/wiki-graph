@@ -8,11 +8,29 @@ describe("wikipage/resolver", () => {
     await withTempDir("spinedigest-wikipage-", async (path) => {
       const calls: string[] = [];
       const fetch = createMockFetch(calls);
+      const normalizerCalls: string[] = [];
       const resolver = await WikipageResolver.open({
         cacheDatabasePath: `${path}/cache.sqlite`,
         fetch,
         language: "en",
         minRequestIntervalMs: 0,
+        normalizer: async (input) => {
+          normalizerCalls.push(input.sourceQid);
+
+          return {
+            meanings: [
+              {
+                category: "place",
+                information: "first planet from the Sun",
+                name: "Mercury (planet)",
+                priority: "primary",
+                qid: "Q308",
+              },
+            ],
+            sourceQid: input.sourceQid,
+            ...(input.surface === undefined ? {} : { surface: input.surface }),
+          };
+        },
       });
 
       try {
@@ -22,22 +40,45 @@ describe("wikipage/resolver", () => {
           {
             disambiguation: {
               disambiguationQid: "Q48397",
-              options: [
+              linkedQids: [
                 {
-                  description: "chemical element",
-                  hint: "Mercury, a chemical element",
                   qid: "Q925",
                   title: "Mercury (element)",
                 },
                 {
-                  description: "first planet from the Sun",
-                  hint: "Mercury, the first planet from the Sun",
                   qid: "Q308",
                   title: "Mercury (planet)",
                 },
               ],
-              pageTitle: "Mercury",
+              pages: [
+                {
+                  text:
+                    "* [[Mercury|wikigraph://qid=Q925]], a chemical element\n" +
+                    "* [[Mercury|wikigraph://qid=Q308]], the first planet from the Sun",
+                  title: "Mercury",
+                  wiki: "enwiki",
+                },
+              ],
+              profile: {
+                meanings: [
+                  {
+                    information: "first planet from the Sun",
+                    name: "Mercury (planet)",
+                    qid: "Q308",
+                  },
+                ],
+                sourceQid: "Q48397",
+              },
             },
+            disambiguationPages: [
+              {
+                text:
+                  "* [[Mercury|wikigraph://qid=Q925]], a chemical element\n" +
+                  "* [[Mercury|wikigraph://qid=Q308]], the first planet from the Sun",
+                title: "Mercury",
+                wiki: "enwiki",
+              },
+            ],
             isDisambiguation: true,
             label: "Mercury",
             qid: "Q48397",
@@ -55,6 +96,7 @@ describe("wikipage/resolver", () => {
 
         expect(second).toStrictEqual(first);
         expect(calls).toHaveLength(firstCallCount);
+        expect(normalizerCalls).toStrictEqual(["Q48397"]);
       } finally {
         await resolver.close();
       }
@@ -88,10 +130,6 @@ function createMockFetch(calls: string[]): typeof fetch {
     if (url.searchParams.get("action") === "parse") {
       return jsonResponse({
         parse: {
-          links: [
-            { ns: 0, title: "Mercury (element)" },
-            { ns: 0, title: "Mercury (planet)" },
-          ],
           pageid: 19007,
           text: `
 <ul>

@@ -6,8 +6,12 @@ import { Database } from "../document/index.js";
 
 import type {
   CachedDisambiguationRecord,
+  CachedPageRecord,
   CachedQidRecord,
-  DisambiguationOption,
+  DisambiguationLinkedQid,
+  DisambiguationPageText,
+  DisambiguationProfile,
+  DisambiguationProfileMeaning,
 } from "./types.js";
 
 type SqlRow = Record<string, unknown>;
@@ -17,21 +21,15 @@ CREATE TABLE IF NOT EXISTS qid_cache (
   qid TEXT PRIMARY KEY,
   label TEXT,
   description TEXT,
-  sitelink_wiki TEXT,
-  sitelink_title TEXT,
-  page_id INTEGER,
-  is_disambiguation INTEGER NOT NULL,
+  pages_json TEXT NOT NULL,
   checked_at TEXT NOT NULL,
   updated_at TEXT NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS disambiguation_cache (
   qid TEXT PRIMARY KEY,
-  wiki TEXT NOT NULL,
-  language TEXT NOT NULL,
-  page_title TEXT NOT NULL,
-  page_id INTEGER,
-  options_json TEXT NOT NULL,
+  pages_json TEXT NOT NULL,
+  profile_json TEXT,
   checked_at TEXT NOT NULL
 );
 `;
@@ -95,16 +93,12 @@ WHERE qid = ?
         await this.#database.run(
           `
 INSERT INTO qid_cache (
-  qid, label, description, sitelink_wiki, sitelink_title, page_id,
-  is_disambiguation, checked_at, updated_at
-) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+  qid, label, description, pages_json, checked_at, updated_at
+) VALUES (?, ?, ?, ?, ?, ?)
 ON CONFLICT(qid) DO UPDATE SET
   label = excluded.label,
   description = excluded.description,
-  sitelink_wiki = excluded.sitelink_wiki,
-  sitelink_title = excluded.sitelink_title,
-  page_id = excluded.page_id,
-  is_disambiguation = excluded.is_disambiguation,
+  pages_json = excluded.pages_json,
   checked_at = excluded.checked_at,
   updated_at = excluded.updated_at
 `,
@@ -112,10 +106,7 @@ ON CONFLICT(qid) DO UPDATE SET
             record.qid,
             record.label ?? null,
             record.description ?? null,
-            record.sitelinkWiki ?? null,
-            record.sitelinkTitle ?? null,
-            record.pageId ?? null,
-            record.isDisambiguation ? 1 : 0,
+            JSON.stringify(record.sitelinks),
             record.checkedAt,
             record.updatedAt,
           ],
@@ -164,23 +155,19 @@ WHERE qid = ?
         await this.#database.run(
           `
 INSERT INTO disambiguation_cache (
-  qid, wiki, language, page_title, page_id, options_json, checked_at
-) VALUES (?, ?, ?, ?, ?, ?, ?)
+  qid, pages_json, profile_json, checked_at
+) VALUES (?, ?, ?, ?)
 ON CONFLICT(qid) DO UPDATE SET
-  wiki = excluded.wiki,
-  language = excluded.language,
-  page_title = excluded.page_title,
-  page_id = excluded.page_id,
-  options_json = excluded.options_json,
+  pages_json = excluded.pages_json,
+  profile_json = excluded.profile_json,
   checked_at = excluded.checked_at
 `,
           [
             record.disambiguationQid,
-            record.wiki,
-            record.language,
-            record.pageTitle,
-            record.pageId ?? null,
-            JSON.stringify(record.options),
+            JSON.stringify(record.pages),
+            record.profile === undefined
+              ? null
+              : JSON.stringify(record.profile),
             record.checkedAt,
           ],
         );
@@ -192,49 +179,140 @@ ON CONFLICT(qid) DO UPDATE SET
 function mapQidRecord(row: SqlRow): CachedQidRecord {
   const description = getOptionalString(row.description);
   const label = getOptionalString(row.label);
-  const pageId = getOptionalNumber(row.page_id);
-  const sitelinkTitle = getOptionalString(row.sitelink_title);
-  const sitelinkWiki = getOptionalString(row.sitelink_wiki);
 
   return {
     checkedAt: getString(row.checked_at, "checked_at"),
     ...(description === undefined ? {} : { description }),
-    isDisambiguation:
-      getNumber(row.is_disambiguation, "is_disambiguation") !== 0,
     ...(label === undefined ? {} : { label }),
-    ...(pageId === undefined ? {} : { pageId }),
     qid: getString(row.qid, "qid"),
-    ...(sitelinkTitle === undefined ? {} : { sitelinkTitle }),
-    ...(sitelinkWiki === undefined ? {} : { sitelinkWiki }),
+    sitelinks: parsePageRecords(getString(row.pages_json, "pages_json")),
     updatedAt: getString(row.updated_at, "updated_at"),
   };
 }
 
 function mapDisambiguationRecord(row: SqlRow): CachedDisambiguationRecord {
-  const pageId = getOptionalNumber(row.page_id);
-
   return {
     checkedAt: getString(row.checked_at, "checked_at"),
     disambiguationQid: getString(row.qid, "qid"),
-    language: getString(row.language, "language"),
-    options: parseOptions(getString(row.options_json, "options_json")),
-    ...(pageId === undefined ? {} : { pageId }),
-    pageTitle: getString(row.page_title, "page_title"),
-    wiki: getString(row.wiki, "wiki"),
+    pages: parseDisambiguationPages(getString(row.pages_json, "pages_json")),
+    ...(getOptionalString(row.profile_json) === undefined
+      ? {}
+      : {
+          profile: parseDisambiguationProfile(
+            getOptionalString(row.profile_json)!,
+          ),
+        }),
   };
 }
 
-function parseOptions(value: string): readonly DisambiguationOption[] {
+function parsePageRecords(value: string): readonly CachedPageRecord[] {
   const parsed = JSON.parse(value);
 
   if (!Array.isArray(parsed)) {
     return [];
   }
 
-  return parsed.filter(isDisambiguationOption);
+  return parsed.filter(isCachedPageRecord);
 }
 
-function isDisambiguationOption(value: unknown): value is DisambiguationOption {
+function parseDisambiguationPages(
+  value: string,
+): readonly DisambiguationPageText[] {
+  const parsed = JSON.parse(value);
+
+  if (!Array.isArray(parsed)) {
+    return [];
+  }
+
+  return parsed.filter(isDisambiguationPageText);
+}
+
+function isCachedPageRecord(value: unknown): value is CachedPageRecord {
+  if (typeof value !== "object" || value === null) {
+    return false;
+  }
+
+  const record = value as Record<string, unknown>;
+
+  return (
+    typeof record.isDisambiguation === "boolean" &&
+    typeof record.title === "string" &&
+    record.title !== "" &&
+    isSupportedWiki(record.wiki)
+  );
+}
+
+function isDisambiguationPageText(
+  value: unknown,
+): value is DisambiguationPageText {
+  if (typeof value !== "object" || value === null) {
+    return false;
+  }
+
+  const record = value as Record<string, unknown>;
+
+  return (
+    Array.isArray(record.linkedQids) &&
+    record.linkedQids.every(isLinkedQid) &&
+    typeof record.text === "string" &&
+    record.text !== "" &&
+    typeof record.title === "string" &&
+    record.title !== "" &&
+    isSupportedWiki(record.wiki)
+  );
+}
+
+function parseDisambiguationProfile(value: string): DisambiguationProfile {
+  const parsed = JSON.parse(value);
+
+  if (!isDisambiguationProfile(parsed)) {
+    throw new Error("Expected profile_json to contain a disambiguation profile.");
+  }
+
+  return parsed;
+}
+
+function isDisambiguationProfile(
+  value: unknown,
+): value is DisambiguationProfile {
+  if (typeof value !== "object" || value === null) {
+    return false;
+  }
+
+  const record = value as Record<string, unknown>;
+
+  return (
+    Array.isArray(record.meanings) &&
+    record.meanings.every(isDisambiguationProfileMeaning) &&
+    typeof record.sourceQid === "string" &&
+    /^Q[1-9]\d*$/u.test(record.sourceQid) &&
+    (!("surface" in record) || typeof record.surface === "string")
+  );
+}
+
+function isDisambiguationProfileMeaning(
+  value: unknown,
+): value is DisambiguationProfileMeaning {
+  if (typeof value !== "object" || value === null) {
+    return false;
+  }
+
+  const record = value as Record<string, unknown>;
+
+  return (
+    (!("category" in record) || typeof record.category === "string") &&
+    typeof record.information === "string" &&
+    typeof record.name === "string" &&
+    record.name !== "" &&
+    (record.priority === "primary" ||
+      record.priority === "secondary" ||
+      record.priority === "other") &&
+    typeof record.qid === "string" &&
+    /^Q[1-9]\d*$/u.test(record.qid)
+  );
+}
+
+function isLinkedQid(value: unknown): value is DisambiguationLinkedQid {
   if (typeof value !== "object" || value === null) {
     return false;
   }
@@ -243,10 +321,14 @@ function isDisambiguationOption(value: unknown): value is DisambiguationOption {
 
   return (
     typeof record.qid === "string" &&
-    record.qid !== "" &&
+    /^Q[1-9]\d*$/u.test(record.qid) &&
     typeof record.title === "string" &&
     record.title !== ""
   );
+}
+
+function isSupportedWiki(value: unknown): value is "enwiki" | "zhwiki" {
+  return value === "enwiki" || value === "zhwiki";
 }
 
 function getString(value: unknown, field: string): string {
@@ -259,18 +341,4 @@ function getString(value: unknown, field: string): string {
 
 function getOptionalString(value: unknown): string | undefined {
   return typeof value === "string" && value !== "" ? value : undefined;
-}
-
-function getNumber(value: unknown, field: string): number {
-  if (typeof value !== "number" || !Number.isFinite(value)) {
-    throw new Error(`Expected ${field} to be a number.`);
-  }
-
-  return value;
-}
-
-function getOptionalNumber(value: unknown): number | undefined {
-  return typeof value === "number" && Number.isFinite(value)
-    ? value
-    : undefined;
 }

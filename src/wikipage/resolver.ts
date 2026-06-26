@@ -1,20 +1,25 @@
 import { WikipageCache } from "./cache.js";
 import {
   WikimediaClient,
+  replaceTitleUriWithQidUri,
+  type SupportedWiki,
   type WikiPageInfo,
   type WikidataEntityInfo,
 } from "./wikimedia-client.js";
 import type {
   CachedDisambiguationRecord,
+  CachedPageRecord,
   CachedQidRecord,
   DisambiguationExpansion,
-  DisambiguationOption,
+  DisambiguationLinkedQid,
+  DisambiguationPageText,
+  DisambiguationProfileNormalizer,
   QidResolution,
   WikipageResolverOptions,
 } from "./types.js";
 
 const DEFAULT_CONCURRENCY = 3;
-const DEFAULT_LANGUAGE = "en";
+const DEFAULT_LANGUAGE = "zh";
 const DEFAULT_MAX_BATCH_SIZE = 50;
 const DEFAULT_MIN_REQUEST_INTERVAL_MS = 100;
 const DEFAULT_USER_AGENT =
@@ -25,6 +30,7 @@ export class WikipageResolver {
   readonly #client: WikimediaClient;
   readonly #language: string;
   readonly #maxBatchSize: number;
+  readonly #normalizer: DisambiguationProfileNormalizer | undefined;
   readonly #ownsCache: boolean;
   readonly #wiki: string;
 
@@ -33,6 +39,7 @@ export class WikipageResolver {
     readonly client: WikimediaClient;
     readonly language: string;
     readonly maxBatchSize: number;
+    readonly normalizer: DisambiguationProfileNormalizer | undefined;
     readonly ownsCache: boolean;
     readonly wiki: string;
   }) {
@@ -40,6 +47,7 @@ export class WikipageResolver {
     this.#client = input.client;
     this.#language = input.language;
     this.#maxBatchSize = input.maxBatchSize;
+    this.#normalizer = input.normalizer;
     this.#ownsCache = input.ownsCache;
     this.#wiki = input.wiki;
   }
@@ -64,6 +72,7 @@ export class WikipageResolver {
       }),
       language,
       maxBatchSize: normalizeBatchSize(options.maxBatchSize),
+      normalizer: options.normalizer,
       ownsCache: true,
       wiki,
     });
@@ -81,7 +90,7 @@ export class WikipageResolver {
     const normalizedQids = normalizeQids(qids);
     const qidRecords = await this.#resolveQidRecords(normalizedQids);
     const disambiguationRecords = await this.#resolveDisambiguations(
-      [...qidRecords.values()].filter((record) => record.isDisambiguation),
+      [...qidRecords.values()].filter(hasDisambiguationPage),
     );
 
     return normalizedQids.map((qid) => {
@@ -95,6 +104,8 @@ export class WikipageResolver {
       }
 
       const disambiguation = disambiguationRecords.get(qid);
+      const disambiguationPages = disambiguation?.pages ?? [];
+      const primarySitelink = pickPrimarySitelink(record.sitelinks, this.#wiki);
 
       return {
         ...(record.description === undefined
@@ -103,18 +114,16 @@ export class WikipageResolver {
         ...(disambiguation === undefined
           ? {}
           : { disambiguation: toDisambiguationExpansion(disambiguation) }),
-        isDisambiguation: record.isDisambiguation,
+        ...(disambiguationPages.length === 0
+          ? {}
+          : { disambiguationPages }),
+        isDisambiguation: disambiguationPages.length > 0,
         ...(record.label === undefined ? {} : { label: record.label }),
         qid,
-        ...(record.sitelinkTitle === undefined ||
-        record.sitelinkWiki === undefined
+        ...(primarySitelink === undefined ? {} : { sitelink: primarySitelink }),
+        ...(record.sitelinks.length === 0
           ? {}
-          : {
-              sitelink: {
-                title: record.sitelinkTitle,
-                wiki: record.sitelinkWiki,
-              },
-            }),
+          : { sitelinks: record.sitelinks.map(toSitelink) }),
       };
     });
   }
@@ -145,14 +154,26 @@ export class WikipageResolver {
   async #fetchPageInfos(
     entityInfos: ReadonlyMap<string, WikidataEntityInfo>,
   ): Promise<ReadonlyMap<string, WikiPageInfo>> {
-    const titles = [...entityInfos.values()]
-      .map((entity) => entity.sitelinkTitle)
-      .filter((title): title is string => title !== undefined);
     const results = new Map<string, WikiPageInfo>();
+    const titlesByWiki = new Map<SupportedWiki, Set<string>>();
 
-    for (const batch of chunk([...new Set(titles)], this.#maxBatchSize)) {
-      for (const [title, page] of await this.#client.getPagesByTitles(batch)) {
-        results.set(title, page);
+    for (const entity of entityInfos.values()) {
+      for (const sitelink of entity.sitelinks) {
+        const titles = titlesByWiki.get(sitelink.wiki) ?? new Set<string>();
+
+        titles.add(sitelink.title);
+        titlesByWiki.set(sitelink.wiki, titles);
+      }
+    }
+
+    for (const [wiki, titles] of titlesByWiki) {
+      for (const batch of chunk([...titles], this.#maxBatchSize)) {
+        for (const [title, page] of await this.#client.getPagesByTitles(
+          batch,
+          wiki,
+        )) {
+          results.set(pageKey(wiki, title), page);
+        }
       }
     }
 
@@ -164,9 +185,7 @@ export class WikipageResolver {
   ): Promise<ReadonlyMap<string, CachedDisambiguationRecord>> {
     const qids = records.map((record) => record.qid);
     const cached = new Map(await this.#cache.getDisambiguations(qids));
-    const missing = records.filter(
-      (record) => !cached.has(record.qid) && record.sitelinkTitle !== undefined,
-    );
+    const missing = records.filter((record) => !cached.has(record.qid));
 
     for (const record of missing) {
       const expansion = await this.#expandDisambiguation(record);
@@ -181,64 +200,65 @@ export class WikipageResolver {
   async #expandDisambiguation(
     record: CachedQidRecord,
   ): Promise<CachedDisambiguationRecord> {
-    const pageTitle = record.sitelinkTitle;
+    const pages: DisambiguationPageText[] = [];
 
-    if (pageTitle === undefined) {
-      throw new Error(`QID ${record.qid} has no ${this.#wiki} sitelink.`);
-    }
+    for (const page of record.sitelinks.filter((item) => item.isDisambiguation)) {
+      const parsedPage = await this.#client.parseDisambiguationPage(
+        page.title,
+        page.wiki,
+      );
+      const linkedPageInfos = new Map<string, WikiPageInfo>();
 
-    const parsedPage = await this.#client.parseDisambiguationPage(pageTitle);
-    const linkedPageInfos = new Map<string, WikiPageInfo>();
-
-    for (const batch of chunk(
-      parsedPage.links.map((link) => link.title),
-      this.#maxBatchSize,
-    )) {
-      for (const [title, page] of await this.#client.getPagesByTitles(batch)) {
-        linkedPageInfos.set(title, page);
-      }
-    }
-
-    const optionQids = parsedPage.links
-      .map((link) => linkedPageInfos.get(link.title)?.wikibaseItem)
-      .filter((qid): qid is string => qid !== undefined);
-    const optionRecords = await this.#resolveQidRecords(optionQids);
-    const options = parsedPage.links.flatMap((link): DisambiguationOption[] => {
-      const qid = linkedPageInfos.get(link.title)?.wikibaseItem;
-
-      if (qid === undefined) {
-        return [];
+      for (const batch of chunk(parsedPage.linkedTitles, this.#maxBatchSize)) {
+        for (const [title, linkedPage] of await this.#client.getPagesByTitles(
+          batch,
+          page.wiki,
+        )) {
+          linkedPageInfos.set(title, linkedPage);
+        }
       }
 
-      const optionRecord = optionRecords.get(qid);
+      const titleToQid = new Map<string, string>();
+      const linkedQids: DisambiguationLinkedQid[] = [];
 
-      return [
-        {
-          ...(optionRecord?.description === undefined
-            ? {}
-            : { description: optionRecord.description }),
-          ...(link.hint === undefined ? {} : { hint: link.hint }),
-          ...(optionRecord?.isDisambiguation === undefined
-            ? {}
-            : { isDisambiguation: optionRecord.isDisambiguation }),
-          ...(optionRecord?.label === undefined
-            ? {}
-            : { label: optionRecord.label }),
-          qid,
-          ...(link.hint === undefined ? {} : { sourceLine: link.hint }),
-          title: link.title,
-        },
-      ];
-    });
+      for (const title of parsedPage.linkedTitles) {
+        const qid = linkedPageInfos.get(title)?.wikibaseItem;
+
+        if (qid === undefined) {
+          continue;
+        }
+
+        titleToQid.set(title, qid);
+        linkedQids.push({ qid, title });
+      }
+
+      pages.push({
+        linkedQids,
+        ...(parsedPage.pageId === undefined
+          ? {}
+          : { pageId: parsedPage.pageId }),
+        text: replaceTitleUriWithQidUri(parsedPage.text, titleToQid),
+        title: parsedPage.title,
+        wiki: parsedPage.wiki,
+      });
+    }
+
+    const linkedQids = mergeLinkedQids(pages);
+    const profile =
+      this.#normalizer === undefined || linkedQids.length === 0
+        ? undefined
+        : await this.#normalizer({
+            pageQidLinks: linkedQids,
+            pages,
+            sourceQid: record.qid,
+            ...(record.label === undefined ? {} : { surface: record.label }),
+          });
 
     return {
       checkedAt: new Date().toISOString(),
       disambiguationQid: record.qid,
-      language: this.#language,
-      options,
-      ...(parsedPage.pageId === undefined ? {} : { pageId: parsedPage.pageId }),
-      pageTitle: parsedPage.title,
-      wiki: this.#wiki,
+      pages,
+      ...(profile === undefined ? {} : { profile }),
     };
   }
 }
@@ -249,26 +269,30 @@ function createQidRecord(
   pageInfos: ReadonlyMap<string, WikiPageInfo>,
   now: string,
 ): CachedQidRecord {
-  const pageInfo =
-    entityInfo?.sitelinkTitle === undefined
-      ? undefined
-      : pageInfos.get(entityInfo.sitelinkTitle);
-
   return {
     checkedAt: now,
     ...(entityInfo?.description === undefined
       ? {}
       : { description: entityInfo.description }),
-    isDisambiguation: pageInfo?.isDisambiguation ?? false,
     ...(entityInfo?.label === undefined ? {} : { label: entityInfo.label }),
-    ...(pageInfo?.pageId === undefined ? {} : { pageId: pageInfo.pageId }),
     qid,
-    ...(entityInfo?.sitelinkTitle === undefined
-      ? {}
-      : { sitelinkTitle: entityInfo.sitelinkTitle }),
-    ...(entityInfo?.sitelinkWiki === undefined
-      ? {}
-      : { sitelinkWiki: entityInfo.sitelinkWiki }),
+    sitelinks:
+      entityInfo?.sitelinks.flatMap((sitelink): CachedPageRecord[] => {
+        const page = pageInfos.get(pageKey(sitelink.wiki, sitelink.title));
+
+        if (page === undefined) {
+          return [];
+        }
+
+        return [
+          {
+            isDisambiguation: page.isDisambiguation,
+            ...(page.pageId === undefined ? {} : { pageId: page.pageId }),
+            title: page.title,
+            wiki: page.wiki,
+          },
+        ];
+      }) ?? [],
     updatedAt: now,
   };
 }
@@ -279,12 +303,51 @@ function toDisambiguationExpansion(
   return {
     checkedAt: record.checkedAt,
     disambiguationQid: record.disambiguationQid,
-    language: record.language,
-    options: record.options,
-    ...(record.pageId === undefined ? {} : { pageId: record.pageId }),
-    pageTitle: record.pageTitle,
-    wiki: record.wiki,
+    linkedQids: mergeLinkedQids(record.pages),
+    pages: record.pages,
+    ...(record.profile === undefined ? {} : { profile: record.profile }),
   };
+}
+
+function mergeLinkedQids(
+  pages: readonly DisambiguationPageText[],
+): readonly DisambiguationLinkedQid[] {
+  const results = new Map<string, DisambiguationLinkedQid>();
+
+  for (const page of pages) {
+    for (const item of page.linkedQids) {
+      results.set(item.qid, item);
+    }
+  }
+
+  return [...results.values()];
+}
+
+function hasDisambiguationPage(record: CachedQidRecord): boolean {
+  return record.sitelinks.some((page) => page.isDisambiguation);
+}
+
+function pickPrimarySitelink(
+  pages: readonly CachedPageRecord[],
+  wiki: string,
+): { readonly title: string; readonly wiki: string } | undefined {
+  const preferred = pages.find((page) => page.wiki === wiki) ?? pages[0];
+
+  return preferred === undefined ? undefined : toSitelink(preferred);
+}
+
+function toSitelink(page: CachedPageRecord): {
+  readonly title: string;
+  readonly wiki: string;
+} {
+  return {
+    title: page.title,
+    wiki: page.wiki,
+  };
+}
+
+function pageKey(wiki: SupportedWiki, title: string): string {
+  return `${wiki}:${title}`;
 }
 
 function normalizeQids(qids: readonly string[]): readonly string[] {
@@ -300,9 +363,11 @@ function normalizeQids(qids: readonly string[]): readonly string[] {
 function normalizeLanguage(value: string | undefined): string {
   const normalized = value?.trim().toLowerCase();
 
-  return normalized === undefined || normalized === ""
-    ? DEFAULT_LANGUAGE
-    : normalized;
+  if (normalized === "en" || normalized === "zh") {
+    return normalized;
+  }
+
+  return DEFAULT_LANGUAGE;
 }
 
 function normalizeBatchSize(value: number | undefined): number {

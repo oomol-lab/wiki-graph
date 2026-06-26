@@ -5,6 +5,7 @@ export interface WikipageResolverOptions {
   readonly language?: string;
   readonly maxBatchSize?: number;
   readonly minRequestIntervalMs?: number;
+  readonly normalizer?: DisambiguationProfileNormalizer;
   readonly userAgent?: string;
   readonly wiki?: string;
 }
@@ -12,10 +13,12 @@ export interface WikipageResolverOptions {
 export interface QidResolution {
   readonly description?: string;
   readonly disambiguation?: DisambiguationExpansion;
+  readonly disambiguationPages?: readonly DisambiguationPageText[];
   readonly isDisambiguation: boolean;
   readonly label?: string;
   readonly qid: string;
   readonly sitelink?: WikipageSitelink;
+  readonly sitelinks?: readonly WikipageSitelink[];
 }
 
 export interface WikipageSitelink {
@@ -26,41 +29,70 @@ export interface WikipageSitelink {
 export interface DisambiguationExpansion {
   readonly checkedAt: string;
   readonly disambiguationQid: string;
-  readonly language: string;
-  readonly options: readonly DisambiguationOption[];
-  readonly pageId?: number;
-  readonly pageTitle: string;
-  readonly wiki: string;
+  readonly linkedQids: readonly DisambiguationLinkedQid[];
+  readonly pages: readonly DisambiguationPageText[];
+  readonly profile?: DisambiguationProfile;
 }
 
-export interface DisambiguationOption {
-  readonly description?: string;
-  readonly hint?: string;
-  readonly isDisambiguation?: boolean;
-  readonly label?: string;
+export interface DisambiguationPageText {
+  readonly linkedQids: readonly DisambiguationLinkedQid[];
+  readonly pageId?: number;
+  readonly text: string;
+  readonly title: string;
+  readonly wiki: "enwiki" | "zhwiki";
+}
+
+export interface DisambiguationLinkedQid {
   readonly qid: string;
-  readonly sourceLine?: string;
   readonly title: string;
 }
 
 export interface CachedQidRecord {
   readonly checkedAt: string;
   readonly description?: string;
-  readonly isDisambiguation: boolean;
   readonly label?: string;
-  readonly pageId?: number;
   readonly qid: string;
-  readonly sitelinkTitle?: string;
-  readonly sitelinkWiki?: string;
+  readonly sitelinks: readonly CachedPageRecord[];
   readonly updatedAt: string;
 }
 
 export interface CachedDisambiguationRecord {
   readonly checkedAt: string;
   readonly disambiguationQid: string;
-  readonly language: string;
-  readonly options: readonly DisambiguationOption[];
+  readonly pages: readonly DisambiguationPageText[];
+  readonly profile?: DisambiguationProfile;
+}
+
+export interface CachedPageRecord {
+  readonly isDisambiguation: boolean;
   readonly pageId?: number;
-  readonly pageTitle: string;
-  readonly wiki: string;
+  readonly title: string;
+  readonly wiki: "enwiki" | "zhwiki";
+}
+
+export type DisambiguationMeaningPriority = "other" | "primary" | "secondary";
+
+export interface DisambiguationProfile {
+  readonly meanings: readonly DisambiguationProfileMeaning[];
+  readonly sourceQid: string;
+  readonly surface?: string;
+}
+
+export interface DisambiguationProfileMeaning {
+  readonly category?: string;
+  readonly information: string;
+  readonly name: string;
+  readonly priority: DisambiguationMeaningPriority;
+  readonly qid: string;
+}
+
+export type DisambiguationProfileNormalizer = (
+  input: DisambiguationProfileNormalizerInput,
+) => Promise<DisambiguationProfile>;
+
+export interface DisambiguationProfileNormalizerInput {
+  readonly pageQidLinks: readonly DisambiguationLinkedQid[];
+  readonly pages: readonly DisambiguationPageText[];
+  readonly sourceQid: string;
+  readonly surface?: string;
 }
