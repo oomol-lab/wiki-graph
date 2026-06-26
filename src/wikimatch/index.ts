@@ -15,6 +15,10 @@ export {
   type WikimatchSurfaceBlocklistRecord,
 } from "./surface-blocklist.js";
 export { buildWikimatchSurfaceWindows } from "./surface-window.js";
+export {
+  matchWikispineSentenceCandidates,
+  type MatchWikispineSentenceCandidatesOptions,
+} from "./wikispine.js";
 export { buildWikimatchWindows } from "./window.js";
 export { expandRangeByWords, listWordBoundaries } from "./words.js";
 export type {
@@ -31,6 +35,7 @@ export type {
   WikimatchPolicyResponse,
   WikimatchPolicyUpdate,
   WikimatchQidOption,
+  WikimatchSentence,
   WikimatchSurface,
   WikimatchSurfaceScreeningDecision,
   WikimatchSurfaceScreeningFallback,

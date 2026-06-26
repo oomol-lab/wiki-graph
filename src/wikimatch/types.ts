@@ -7,6 +7,12 @@ export interface WikimatchCandidate {
   readonly surface: string;
 }
 
+export interface WikimatchSentence {
+  readonly id?: string;
+  readonly range: WikimatchTextRange;
+  readonly text: string;
+}
+
 export interface WikimatchQidOption {
   readonly description?: string;
   readonly disambiguation?: DisambiguationExpansion;
