@@ -8,7 +8,6 @@ import {
 import type { LLM } from "./llm/index.js";
 import type {
   ChunkRecord,
-  ChunkStore,
   Document,
   FragmentGroupRecord,
   FragmentGroupStore,
@@ -141,7 +140,6 @@ export async function writeSerialSource(
 }
 
 export class SerialGeneration {
-  readonly #chunks: ChunkStore;
   readonly #fragmentWordsCount = DEFAULT_FRAGMENT_WORDS_COUNT;
   readonly #fragmentGroups: FragmentGroupStore;
   readonly #idSemaphore = new AsyncSemaphore(1);
@@ -157,7 +155,6 @@ export class SerialGeneration {
   public constructor(options: SerialGenerationOptions) {
     const document = resolveDocument(options);
 
-    this.#chunks = document.chunks;
     this.#fragmentGroups = document.fragmentGroups;
     this.#llm = options.llm;
     this.#logDirPath = options.logDirPath;
@@ -246,7 +243,7 @@ export class SerialGeneration {
   }
 
   async #allocateChunkId(): Promise<number> {
-    return await this.#idSemaphore.use(async () => {
+    return await this.#idSemaphore.use(() => {
       const chunkId = this.#nextChunkId;
       this.#nextChunkId += 1;
       return chunkId;
