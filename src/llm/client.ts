@@ -212,7 +212,8 @@ export class LLM<S extends string> {
       input.retryIndex,
       input.retryMax,
     );
-    const useCache = input.useCache ?? true;
+    const useCache =
+      (input.useCache ?? true) && hasVisibleNonSystemContent(input.messages);
     const cacheKey =
       this.#cache !== undefined && useCache
         ? createHash({
@@ -464,6 +465,12 @@ function createCache(cacheDirPath?: string): LLMCache | undefined {
   }
 
   return new LLMCache(resolvedCacheDirPath);
+}
+
+function hasVisibleNonSystemContent(messages: readonly LLMessage[]): boolean {
+  return messages.some(
+    (message) => message.role !== "system" && message.content.trim() !== "",
+  );
 }
 
 function formatRequestParameters(input: {
