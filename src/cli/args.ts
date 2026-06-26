@@ -2849,25 +2849,6 @@ function parsePositiveIntegerFlag(
   return parsed;
 }
 
-function parseNonNegativeIntegerFlag(
-  value: string,
-  flag: string,
-  helpRoute: string,
-): number {
-  const parsed = Number(value);
-
-  if (!Number.isInteger(parsed) || parsed < 0) {
-    throw new Error(
-      withHelpRoute(
-        `Invalid ${flag}: ${value}. Expected a non-negative integer.`,
-        helpRoute,
-      ),
-    );
-  }
-
-  return parsed;
-}
-
 function normalizeArchiveInlineOptions(
   positionals: readonly string[],
   values: ArchiveArgumentValues,
