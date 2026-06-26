@@ -127,7 +127,6 @@ describe("facade/chapter graph", () => {
         const artifact = await buildChapterGraphArtifact(chapter.chapterId, {
           extractionPrompt: "Keep key beats",
           llm: {} as never,
-          nextChunkId: input.nextChunkId,
           sourceText: input.sourceText,
           workspacePath: `${path}/job-workspace`,
         });
@@ -141,7 +140,81 @@ describe("facade/chapter graph", () => {
           stage: "graphed",
           words: 4,
         });
-        await expect(document.chunks.getMaxId()).resolves.toBe(0);
+      } finally {
+        await document.release();
+      }
+    });
+  });
+
+  it("remaps staged chunk ids when committing graph artifacts", async () => {
+    await withTempDir("spinedigest-chapter-graph-", async (path) => {
+      const document = await DirectoryDocument.open(`${path}/archive`);
+
+      try {
+        const firstChapter = await addChapter(document, {
+          title: "Chapter 1",
+        });
+        const secondChapter = await addChapter(document, {
+          title: "Chapter 2",
+        });
+
+        await setChapterSource(document, firstChapter.chapterId, [
+          "Alpha beta.",
+        ]);
+        await setChapterSource(document, secondChapter.chapterId, [
+          "Gamma delta.",
+        ]);
+
+        const firstArtifact = await createSingleChunkGraphArtifact({
+          chapterId: firstChapter.chapterId,
+          chunkContent: "Alpha beta.",
+          chunkLabel: "Alpha",
+          documentPath: `${path}/first-artifact`,
+        });
+        const secondArtifact = await createSingleChunkGraphArtifact({
+          chapterId: secondChapter.chapterId,
+          chunkContent: "Gamma delta.",
+          chunkLabel: "Gamma",
+          documentPath: `${path}/second-artifact`,
+        });
+
+        await commitChapterGraphArtifact(document, firstArtifact);
+        await commitChapterGraphArtifact(document, secondArtifact);
+
+        const firstChunks = await document.chunks.listBySerial(
+          firstChapter.chapterId,
+        );
+        const secondChunks = await document.chunks.listBySerial(
+          secondChapter.chapterId,
+        );
+
+        expect(firstChunks).toHaveLength(1);
+        expect(secondChunks).toHaveLength(1);
+        expect(firstChunks[0]?.id).not.toBe(secondChunks[0]?.id);
+        expect(firstChunks[0]).toMatchObject({
+          content: "Alpha beta.",
+          sentenceId: [firstChapter.chapterId, 0, 0],
+        });
+        expect(secondChunks[0]).toMatchObject({
+          content: "Gamma delta.",
+          sentenceId: [secondChapter.chapterId, 0, 0],
+        });
+
+        const firstSnakeIds = await document.snakes.listIdsByGroup(
+          firstChapter.chapterId,
+          0,
+        );
+        const secondSnakeIds = await document.snakes.listIdsByGroup(
+          secondChapter.chapterId,
+          0,
+        );
+
+        expect(
+          await document.snakeChunks.listChunkIds(firstSnakeIds[0]!),
+        ).toStrictEqual([firstChunks[0]!.id]);
+        expect(
+          await document.snakeChunks.listChunkIds(secondSnakeIds[0]!),
+        ).toStrictEqual([secondChunks[0]!.id]);
       } finally {
         await document.release();
       }
@@ -260,6 +333,65 @@ describe("facade/chapter graph", () => {
     });
   });
 });
+
+async function createSingleChunkGraphArtifact(input: {
+  chapterId: number;
+  chunkContent: string;
+  chunkLabel: string;
+  documentPath: string;
+}) {
+  const document = await DirectoryDocument.open(input.documentPath);
+
+  try {
+    await document.openSession(async (openedDocument) => {
+      await openedDocument.serials.createWithId(input.chapterId);
+      const fragments = openedDocument.getSerialFragments(input.chapterId);
+      const draft = await fragments.createDraft();
+
+      draft.addSentence(input.chunkContent, countWords(input.chunkContent));
+      await draft.commit();
+
+      await openedDocument.chunks.save({
+        content: input.chunkContent,
+        generation: 0,
+        id: 1,
+        label: input.chunkLabel,
+        retention: ChunkRetention.Verbatim,
+        sentenceId: [input.chapterId, 0, 0],
+        sentenceIds: [[input.chapterId, 0, 0]],
+        weight: 1,
+        wordsCount: countWords(input.chunkContent),
+      });
+      await openedDocument.fragmentGroups.save({
+        fragmentId: 0,
+        groupId: 0,
+        serialId: input.chapterId,
+      });
+      const snakeId = await openedDocument.snakes.create({
+        firstLabel: input.chunkLabel,
+        groupId: 0,
+        lastLabel: input.chunkLabel,
+        localSnakeId: 0,
+        serialId: input.chapterId,
+        size: 1,
+      });
+
+      await openedDocument.snakeChunks.save({
+        chunkId: 1,
+        position: 0,
+        snakeId,
+      });
+      await openedDocument.serials.setTopologyReady(input.chapterId);
+    });
+  } finally {
+    await document.release();
+  }
+
+  return {
+    chapterId: input.chapterId,
+    documentPath: input.documentPath,
+  };
+}
 
 async function pathExists(path: string): Promise<boolean> {
   try {

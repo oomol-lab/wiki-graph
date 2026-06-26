@@ -51,7 +51,6 @@ export interface ChapterSummaryInputSnapshot {
 
 export interface BuildChapterGraphArtifactOptions extends GenerateChapterGraphOptions {
   readonly sourceText: readonly string[];
-  readonly nextChunkId: number;
   readonly workspacePath: string;
 }
 
@@ -152,14 +151,12 @@ export async function readChapterBuildInput(
   chapterId: number,
 ): Promise<{
   readonly details: ChapterDetails;
-  readonly nextChunkId: number;
   readonly sourceText: readonly string[];
 }> {
   const details = await getChapterDetails(document, chapterId);
 
   return {
     details,
-    nextChunkId: (await document.chunks.getMaxId()) + 1,
     sourceText: await collectReaderText(readChapterSource(document, chapterId)),
   };
 }
@@ -184,7 +181,6 @@ export async function buildChapterGraphArtifact(
         ...(options.logDirPath === undefined
           ? {}
           : { logDirPath: options.logDirPath }),
-        nextChunkId: options.nextChunkId,
       }).buildTopologyInto(
         chapterId,
         options.sourceText,
@@ -219,22 +215,38 @@ export async function commitChapterGraphArtifact(
         artifact.chapterId,
       );
 
-      for (const chunk of await sourceDocument.chunks.listBySerial(
+      const chunkIdMap = await copyChunks(
+        sourceDocument,
+        openedDocument,
         artifact.chapterId,
-      )) {
-        await openedDocument.chunks.save(chunk);
-      }
+      );
 
       for (const edge of await sourceDocument.knowledgeEdges.listBySerial(
         artifact.chapterId,
       )) {
-        await openedDocument.knowledgeEdges.save(edge);
+        const fromId = chunkIdMap.get(edge.fromId);
+        const toId = chunkIdMap.get(edge.toId);
+
+        if (fromId === undefined || toId === undefined) {
+          continue;
+        }
+
+        await openedDocument.knowledgeEdges.save({
+          ...edge,
+          fromId,
+          toId,
+        });
       }
 
       await openedDocument.fragmentGroups.saveMany(
         await sourceDocument.fragmentGroups.listBySerial(artifact.chapterId),
       );
-      await copySnakes(sourceDocument, openedDocument, artifact.chapterId);
+      await copySnakes(
+        sourceDocument,
+        openedDocument,
+        artifact.chapterId,
+        chunkIdMap,
+      );
       await openedDocument.serials.setTopologyReady(artifact.chapterId);
     });
 
@@ -950,6 +962,7 @@ async function copySnakes(
   sourceDocument: ReadonlyDocument,
   targetDocument: Document,
   serialId: number,
+  chunkIdMap: ReadonlyMap<number, number>,
 ): Promise<void> {
   const sourceSnakes = await sourceDocument.snakes.listBySerial(serialId);
   const snakeIdMap = new Map<number, number>();
@@ -971,8 +984,14 @@ async function copySnakes(
     for (const snakeChunk of await sourceDocument.snakeChunks.listBySnake(
       sourceSnake.id,
     )) {
+      const chunkId = chunkIdMap.get(snakeChunk.chunkId);
+
+      if (chunkId === undefined) {
+        continue;
+      }
+
       await targetDocument.snakeChunks.save({
-        chunkId: snakeChunk.chunkId,
+        chunkId,
         position: snakeChunk.position,
         snakeId: targetSnakeId,
       });
@@ -993,6 +1012,34 @@ async function copySnakes(
       weight: edge.weight,
     });
   }
+}
+
+async function copyChunks(
+  sourceDocument: ReadonlyDocument,
+  targetDocument: Document,
+  serialId: number,
+): Promise<ReadonlyMap<number, number>> {
+  const chunkIdMap = new Map<number, number>();
+
+  for (const chunk of await sourceDocument.chunks.listBySerial(serialId)) {
+    const createdChunk = await targetDocument.chunks.create({
+      content: chunk.content,
+      generation: chunk.generation,
+      label: chunk.label,
+      sentenceId: chunk.sentenceId,
+      sentenceIds: chunk.sentenceIds,
+      weight: chunk.weight,
+      wordsCount: chunk.wordsCount,
+      ...(chunk.importance === undefined
+        ? {}
+        : { importance: chunk.importance }),
+      ...(chunk.retention === undefined ? {} : { retention: chunk.retention }),
+    });
+
+    chunkIdMap.set(chunk.id, createdChunk.id);
+  }
+
+  return chunkIdMap;
 }
 
 async function requireStage(

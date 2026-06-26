@@ -83,15 +83,16 @@ describe("topology/topology", () => {
 
     await topology.finalize();
 
-    const savedChunks = saveChunk.mock.calls as Array<[ChunkRecord]>;
+    const createdChunks = saveChunk.mock.calls as Array<
+      [Omit<ChunkRecord, "id">]
+    >;
     const savedEdges = saveEdge.mock.calls as Array<[KnowledgeEdgeRecord]>;
 
     expect(ensureSerial).toHaveBeenCalledWith(7);
-    expect(savedChunks.map(([record]) => record)).toStrictEqual([
+    expect(createdChunks.map(([record]) => record)).toStrictEqual([
       {
         content: "Chunk 1",
         generation: 0,
-        id: 1,
         label: "Chunk 1",
         retention: ChunkRetention.Relevant,
         sentenceId: [7, 1, 0],
@@ -102,7 +103,6 @@ describe("topology/topology", () => {
       {
         content: "Chunk 2",
         generation: 0,
-        id: 2,
         importance: ChunkImportance.Critical,
         label: "Chunk 2",
         retention: ChunkRetention.Focused,
@@ -440,7 +440,16 @@ function createDocumentStub(): {
     path: "/tmp/fragments",
     serialId: 7,
   } satisfies ReadonlySerialFragments;
-  const saveChunk = vi.fn(() => Promise.resolve());
+  let nextChunkId = 1;
+  const saveChunk = vi.fn((record: Omit<ChunkRecord, "id">) => {
+    const id = nextChunkId;
+
+    nextChunkId += 1;
+    return Promise.resolve({
+      ...record,
+      id,
+    });
+  });
   const saveEdge = vi.fn(() => Promise.resolve());
   const saveFragmentGroups = vi.fn(() => Promise.resolve());
   let nextSnakeId = 1;
@@ -454,7 +463,7 @@ function createDocumentStub(): {
     createSnake,
     document: {
       chunks: {
-        save: saveChunk,
+        create: saveChunk,
       },
       fragmentGroups: {
         saveMany: saveFragmentGroups,

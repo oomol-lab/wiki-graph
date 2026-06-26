@@ -6,6 +6,7 @@ import {
   type ChunkImportance,
   type ChunkRecord,
   type ChunkRetention,
+  type CreateChunkRecord,
   type CreateSnakeRecord,
   type FragmentGroupRecord,
   type KnowledgeEdgeRecord,
@@ -218,6 +219,50 @@ export class ChunkStore implements ReadonlyChunkStore {
     this.#database = database;
   }
 
+  public async create(record: CreateChunkRecord): Promise<ChunkRecord> {
+    return await this.#database.transaction(async () => {
+      await this.#database.run(
+        `
+          INSERT INTO chunks (
+            generation,
+            serial_id,
+            fragment_id,
+            sentence_index,
+            label,
+            content,
+            retention,
+            importance,
+            wordsCount,
+            weight
+          )
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `,
+        [
+          record.generation,
+          record.sentenceId[0],
+          record.sentenceId[1],
+          record.sentenceId[2],
+          record.label,
+          record.content,
+          record.retention ?? null,
+          record.importance ?? null,
+          record.wordsCount,
+          record.weight,
+        ],
+      );
+
+      const id = await this.#database.getLastInsertRowId();
+      const createdRecord = {
+        ...record,
+        id,
+      };
+
+      await this.#replaceChunkSentences(createdRecord);
+
+      return createdRecord;
+    });
+  }
+
   public async save(record: ChunkRecord): Promise<void> {
     await this.#database.transaction(async () => {
       await this.#database.run(
@@ -252,28 +297,7 @@ export class ChunkStore implements ReadonlyChunkStore {
         ],
       );
 
-      await this.#database.run(
-        `
-          DELETE FROM chunk_sentences
-          WHERE chunk_id = ?
-        `,
-        [record.id],
-      );
-
-      for (const sentenceId of record.sentenceIds) {
-        await this.#database.run(
-          `
-            INSERT INTO chunk_sentences (
-              chunk_id,
-              serial_id,
-              fragment_id,
-              sentence_index
-            )
-            VALUES (?, ?, ?, ?)
-          `,
-          [record.id, sentenceId[0], sentenceId[1], sentenceId[2]],
-        );
-      }
+      await this.#replaceChunkSentences(record);
     });
   }
 
@@ -446,6 +470,31 @@ export class ChunkStore implements ReadonlyChunkStore {
           getNumber(row, "sentence_index"),
         ] as const,
     );
+  }
+
+  async #replaceChunkSentences(record: ChunkRecord): Promise<void> {
+    await this.#database.run(
+      `
+        DELETE FROM chunk_sentences
+        WHERE chunk_id = ?
+      `,
+      [record.id],
+    );
+
+    for (const sentenceId of record.sentenceIds) {
+      await this.#database.run(
+        `
+          INSERT INTO chunk_sentences (
+            chunk_id,
+            serial_id,
+            fragment_id,
+            sentence_index
+          )
+          VALUES (?, ?, ?, ?)
+        `,
+        [record.id, sentenceId[0], sentenceId[1], sentenceId[2]],
+      );
+    }
   }
 
   async #mapChunkRow(row: SqlRow): Promise<ChunkRecord> {

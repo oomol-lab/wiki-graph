@@ -95,12 +95,41 @@ export class Topology {
 
     await this.#document.serials.ensure(this.#serialId);
 
+    const chunkIdMap = new Map<number, number>();
+
     for (const chunk of weightedChunks) {
-      await this.#document.chunks.save(chunk);
+      const createdChunk = await this.#document.chunks.create({
+        content: chunk.content,
+        generation: chunk.generation,
+        label: chunk.label,
+        sentenceId: chunk.sentenceId,
+        sentenceIds: chunk.sentenceIds,
+        weight: chunk.weight,
+        wordsCount: chunk.wordsCount,
+        ...(chunk.importance === undefined
+          ? {}
+          : { importance: chunk.importance }),
+        ...(chunk.retention === undefined
+          ? {}
+          : { retention: chunk.retention }),
+      });
+
+      chunkIdMap.set(chunk.id, createdChunk.id);
     }
 
     for (const edge of weightedEdges) {
-      await this.#document.knowledgeEdges.save(edge);
+      const fromId = chunkIdMap.get(edge.fromId);
+      const toId = chunkIdMap.get(edge.toId);
+
+      if (fromId === undefined || toId === undefined) {
+        continue;
+      }
+
+      await this.#document.knowledgeEdges.save({
+        ...edge,
+        fromId,
+        toId,
+      });
     }
 
     await this.#document.fragmentGroups.saveMany(fragmentGroups);
@@ -130,7 +159,7 @@ export class Topology {
       }
 
       await this.#document.snakeChunks.save({
-        chunkId: snakeChunk.chunkId,
+        chunkId: chunkIdMap.get(snakeChunk.chunkId) ?? snakeChunk.chunkId,
         position: snakeChunk.position,
         snakeId,
       });

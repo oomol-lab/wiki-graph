@@ -180,7 +180,7 @@ async function executeBuildJob(
     async (document) => await readChapterBuildInput(document, job.chapterId),
   );
   let { details } = buildInput;
-  const { nextChunkId, sourceText } = buildInput;
+  const { sourceText } = buildInput;
 
   await reporter.setTotals({
     totalGraphWords: details.stage === "sourced" ? details.words : 0,
@@ -202,7 +202,6 @@ async function executeBuildJob(
     const artifact = await buildChapterGraphArtifact(job.chapterId, {
       extractionPrompt: prompt,
       llm,
-      nextChunkId,
       sourceText,
       workspacePath: job.workspacePath,
       progressTracker: {

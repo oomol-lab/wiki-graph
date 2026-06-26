@@ -170,7 +170,6 @@ vi.mock("../../src/facade/index.js", () => ({
         stage: queueMockState.buildInputStage,
         words: 4,
       },
-      nextChunkId: 100,
       sourceText: ["Alpha beta."],
     }),
   ),

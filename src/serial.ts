@@ -8,7 +8,6 @@ import {
 import type { LLM } from "./llm/index.js";
 import type {
   ChunkRecord,
-  ChunkStore,
   Document,
   FragmentGroupRecord,
   FragmentGroupStore,
@@ -84,7 +83,6 @@ export interface SerialGenerationOptions {
   readonly document?: Document;
   readonly llm: LLM<SpineDigestScope>;
   readonly logDirPath?: string;
-  readonly nextChunkId?: number;
   readonly segmenter?: ReaderSegmenter;
   /** @deprecated Use `document` instead. */
   readonly workspace?: Document;
@@ -142,7 +140,6 @@ export async function writeSerialSource(
 }
 
 export class SerialGeneration {
-  readonly #chunks: ChunkStore;
   readonly #fragmentWordsCount = DEFAULT_FRAGMENT_WORDS_COUNT;
   readonly #fragmentGroups: FragmentGroupStore;
   readonly #idSemaphore = new AsyncSemaphore(1);
@@ -153,16 +150,14 @@ export class SerialGeneration {
   readonly #document: Document;
   readonly #writeSemaphore = new AsyncSemaphore(1);
 
-  #nextChunkId: number | undefined;
+  #nextChunkId = 1;
 
   public constructor(options: SerialGenerationOptions) {
     const document = resolveDocument(options);
 
-    this.#chunks = document.chunks;
     this.#fragmentGroups = document.fragmentGroups;
     this.#llm = options.llm;
     this.#logDirPath = options.logDirPath;
-    this.#nextChunkId = options.nextChunkId;
     this.#serials = document.serials;
     this.#segmenter = options.segmenter;
     this.#document = document;
@@ -248,10 +243,7 @@ export class SerialGeneration {
   }
 
   async #allocateChunkId(): Promise<number> {
-    return await this.#idSemaphore.use(async () => {
-      if (this.#nextChunkId === undefined) {
-        this.#nextChunkId = (await this.#chunks.getMaxId()) + 1;
-      }
+    return await this.#idSemaphore.use(() => {
       const chunkId = this.#nextChunkId;
       this.#nextChunkId += 1;
       return chunkId;

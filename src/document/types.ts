@@ -64,6 +64,8 @@ export interface ChunkRecord {
   readonly weight: number;
 }
 
+export type CreateChunkRecord = Omit<ChunkRecord, "id">;
+
 export interface KnowledgeEdgeRecord {
   readonly fromId: number;
   readonly toId: number;

@@ -207,6 +207,38 @@ describe("llm/client", () => {
     });
   });
 
+  it("does not use cache for requests without visible non-system content", async () => {
+    await withTempDir("spinedigest-llm-empty-cache-", async (cacheDirPath) => {
+      const llm = new LLM({
+        cacheDirPath,
+        dataDirPath: process.cwd(),
+        model: {
+          modelId: "test-model",
+          provider: "test-provider",
+        } as never,
+      });
+      const messages = [
+        {
+          content: "follow the style guide",
+          role: "system",
+        },
+        {
+          content: "\n\t ",
+          role: "user",
+        },
+      ] as const;
+
+      await expect(llm.request(messages)).resolves.toBe("generated response");
+      aiMockState.generateTextResponse = "second generated response";
+
+      await expect(llm.request(messages)).resolves.toBe(
+        "second generated response",
+      );
+
+      expect(aiMockState.generateTextCalls).toHaveLength(2);
+    });
+  });
+
   it("preserves non-leading system messages in the messages array", async () => {
     const llm = new LLM({
       dataDirPath: process.cwd(),
