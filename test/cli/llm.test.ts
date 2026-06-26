@@ -214,7 +214,7 @@ describe("cli/llm", () => {
 
   it("rejects missing provider/model inputs and missing openai-compatible base urls", () => {
     expect(() => buildLLMOptions({})).toThrow(
-      "Missing LLM configuration. Set --llm, `llm.provider` and `llm.model` in ~/.spinedigest/config.json, or the matching SPINEDIGEST_LLM_* environment variables.\nSee: spinedigest help config",
+      "Missing LLM configuration. Set --llm, `llm.provider` and `llm.model` in ~/.wikigraph/config.json, or the matching SPINEDIGEST_LLM_* environment variables.\nSee: spinedigest help config",
     );
     expect(() =>
       buildLLMOptions({

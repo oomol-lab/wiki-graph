@@ -1001,7 +1001,7 @@ describe("cli/args", () => {
       "non-empty string (typically a URL) such as `https://api.example/v1`",
     );
     expect(renderHelpTopicText("config-file")).toContain(
-      "~/.spinedigest/config.json",
+      "~/.wikigraph/config.json",
     );
     expect(renderHelpTopicText("config-file")).toContain("llm.provider");
     expect(renderHelpTopicText("config-file")).toContain(
