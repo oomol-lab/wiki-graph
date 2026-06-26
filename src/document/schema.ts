@@ -82,4 +82,95 @@ export const SCHEMA_SQL = `
     fragment_id INTEGER NOT NULL,
     PRIMARY KEY (serial_id, group_id, fragment_id)
   );
+
+  CREATE TABLE IF NOT EXISTS mentions (
+    id TEXT PRIMARY KEY,
+    chapter_id INTEGER NOT NULL,
+    fragment_id INTEGER NOT NULL,
+    sentence_index INTEGER,
+    range_start INTEGER NOT NULL,
+    range_end INTEGER NOT NULL,
+    surface TEXT NOT NULL,
+    qid TEXT NOT NULL,
+    confidence REAL,
+    note TEXT,
+    FOREIGN KEY (chapter_id) REFERENCES serials(id)
+  );
+
+  CREATE INDEX IF NOT EXISTS idx_mentions_chapter
+  ON mentions(chapter_id);
+
+  CREATE INDEX IF NOT EXISTS idx_mentions_qid
+  ON mentions(qid);
+
+  CREATE INDEX IF NOT EXISTS idx_mentions_fragment
+  ON mentions(fragment_id);
+
+  CREATE INDEX IF NOT EXISTS idx_mentions_sentence
+  ON mentions(chapter_id, fragment_id, sentence_index);
+
+  CREATE TABLE IF NOT EXISTS mention_links (
+    id TEXT PRIMARY KEY,
+    source_mention_id TEXT NOT NULL,
+    target_mention_id TEXT NOT NULL,
+    predicate TEXT NOT NULL,
+    evidence_start INTEGER,
+    evidence_end INTEGER,
+    confidence REAL,
+    note TEXT,
+    FOREIGN KEY (source_mention_id) REFERENCES mentions(id),
+    FOREIGN KEY (target_mention_id) REFERENCES mentions(id)
+  );
+
+  CREATE INDEX IF NOT EXISTS idx_mention_links_source
+  ON mention_links(source_mention_id);
+
+  CREATE INDEX IF NOT EXISTS idx_mention_links_target
+  ON mention_links(target_mention_id);
+
+  CREATE INDEX IF NOT EXISTS idx_mention_links_predicate
+  ON mention_links(predicate);
+
+  CREATE VIEW IF NOT EXISTS chapter_entities AS
+  SELECT
+    chapter_id,
+    qid,
+    COUNT(*) AS mention_count
+  FROM mentions
+  GROUP BY chapter_id, qid;
+
+  CREATE VIEW IF NOT EXISTS book_entities AS
+  SELECT
+    qid,
+    SUM(mention_count) AS mention_count
+  FROM chapter_entities
+  GROUP BY qid;
+
+  CREATE VIEW IF NOT EXISTS chapter_entity_relations AS
+  SELECT
+    source_mentions.chapter_id AS chapter_id,
+    source_mentions.qid AS subject_qid,
+    mention_links.predicate AS predicate,
+    target_mentions.qid AS object_qid,
+    COUNT(*) AS evidence_count
+  FROM mention_links
+  JOIN mentions AS source_mentions
+    ON source_mentions.id = mention_links.source_mention_id
+  JOIN mentions AS target_mentions
+    ON target_mentions.id = mention_links.target_mention_id
+  WHERE source_mentions.chapter_id = target_mentions.chapter_id
+  GROUP BY
+    source_mentions.chapter_id,
+    source_mentions.qid,
+    mention_links.predicate,
+    target_mentions.qid;
+
+  CREATE VIEW IF NOT EXISTS book_entity_relations AS
+  SELECT
+    subject_qid,
+    predicate,
+    object_qid,
+    SUM(evidence_count) AS evidence_count
+  FROM chapter_entity_relations
+  GROUP BY subject_qid, predicate, object_qid;
 `;
