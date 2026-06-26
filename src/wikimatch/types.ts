@@ -27,6 +27,18 @@ export interface WikimatchWindow {
   readonly text: string;
 }
 
+export interface WikimatchSurfaceWindow {
+  readonly baseOffset: number;
+  readonly surfaces: readonly WikimatchSurface[];
+  readonly text: string;
+}
+
+export interface WikimatchSurface {
+  readonly id: string;
+  readonly ranges: readonly WikimatchTextRange[];
+  readonly text: string;
+}
+
 export interface WikimatchConflictGroup {
   readonly candidateIds: readonly string[];
   readonly id: string;
@@ -38,6 +50,50 @@ export interface BuildWikimatchWindowsOptions {
   readonly candidateBudget: number;
   readonly contextWords: number;
   readonly text: string;
+}
+
+export interface BuildWikimatchSurfaceWindowsOptions {
+  readonly candidates: readonly WikimatchCandidate[];
+  readonly contextWords: number;
+  readonly surfaceBudget: number;
+  readonly text: string;
+}
+
+export type WikimatchSurfaceScreeningDecision =
+  | "allow"
+  | "global_blocklist_candidate"
+  | "skip_this_time";
+
+export interface WikimatchSurfaceScreeningInput {
+  readonly policyPrompt: string;
+  readonly window: WikimatchSurfaceWindow;
+}
+
+export interface WikimatchSurfaceScreeningResult {
+  readonly fallback?: WikimatchSurfaceScreeningFallback;
+  readonly surfaces: readonly WikimatchSurfaceScreeningItem[];
+}
+
+export interface WikimatchSurfaceScreeningItem {
+  readonly decision: WikimatchSurfaceScreeningDecision;
+  readonly note?: string;
+  readonly surfaceId: string;
+  readonly text: string;
+}
+
+export interface WikimatchSurfaceScreeningFallback {
+  readonly issues: readonly string[];
+  readonly reason: "guaranteed_json_failed";
+}
+
+export interface WikimatchSurfaceScreeningItemOutput {
+  readonly decision: WikimatchSurfaceScreeningDecision;
+  readonly note?: string;
+  readonly surfaceId: string;
+}
+
+export interface WikimatchSurfaceScreeningResponse {
+  readonly surfaces: readonly WikimatchSurfaceScreeningItemOutput[];
 }
 
 export type WikimatchPolicyDecision =
