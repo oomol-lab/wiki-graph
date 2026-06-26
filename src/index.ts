@@ -10,6 +10,20 @@ export {
 } from "./context/index.js";
 export { LLMPaymentRequiredError } from "./llm/index.js";
 export {
+  RateLimiter,
+  parseRetryAfterMs,
+  WikimediaClient,
+  WikipageCache,
+  WikipageResolver,
+  type CachedDisambiguationRecord,
+  type CachedQidRecord,
+  type DisambiguationExpansion,
+  type DisambiguationOption,
+  type QidResolution,
+  type WikipageResolverOptions,
+  type WikipageSitelink,
+} from "./wikipage/index.js";
+export {
   type DigestProgressEvent,
   type SerialDiscoveryItem,
   SpineDigest,
