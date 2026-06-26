@@ -10,6 +10,8 @@ import {
   type CreateSnakeRecord,
   type FragmentGroupRecord,
   type KnowledgeEdgeRecord,
+  type MentionLinkRecord,
+  type MentionRecord,
   type SerialRecord,
   type SentenceId,
   type SnakeChunkRecord,
@@ -40,6 +42,16 @@ export interface ReadonlyKnowledgeEdgeStore {
   listBySerial(serialId: number): Promise<KnowledgeEdgeRecord[]>;
   listIncoming(chunkId: number): Promise<KnowledgeEdgeRecord[]>;
   listOutgoing(chunkId: number): Promise<KnowledgeEdgeRecord[]>;
+}
+
+export interface ReadonlyMentionStore {
+  getById(mentionId: string): Promise<MentionRecord | undefined>;
+  listByChapter(chapterId: number): Promise<MentionRecord[]>;
+}
+
+export interface ReadonlyMentionLinkStore {
+  getById(linkId: string): Promise<MentionLinkRecord | undefined>;
+  listByChapter(chapterId: number): Promise<MentionLinkRecord[]>;
 }
 
 export interface ReadonlySnakeStore {
@@ -715,6 +727,218 @@ export class SnakeStore implements ReadonlySnakeStore {
   }
 }
 
+export class MentionStore implements ReadonlyMentionStore {
+  readonly #database: Database;
+
+  public constructor(database: Database) {
+    this.#database = database;
+  }
+
+  public async save(record: MentionRecord): Promise<void> {
+    await this.#database.run(
+      `
+        INSERT OR REPLACE INTO mentions (
+          id,
+          chapter_id,
+          fragment_id,
+          sentence_index,
+          range_start,
+          range_end,
+          surface,
+          qid,
+          confidence,
+          note
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `,
+      [
+        record.id,
+        record.chapterId,
+        record.fragmentId,
+        record.sentenceIndex ?? null,
+        record.rangeStart,
+        record.rangeEnd,
+        record.surface,
+        record.qid,
+        record.confidence ?? null,
+        record.note ?? null,
+      ],
+    );
+  }
+
+  public async saveMany(records: readonly MentionRecord[]): Promise<void> {
+    await this.#database.transaction(async () => {
+      for (const record of records) {
+        await this.save(record);
+      }
+    });
+  }
+
+  public async getById(mentionId: string): Promise<MentionRecord | undefined> {
+    return await this.#database.queryOne(
+      `
+        SELECT
+          id,
+          chapter_id,
+          fragment_id,
+          sentence_index,
+          range_start,
+          range_end,
+          surface,
+          qid,
+          confidence,
+          note
+        FROM mentions
+        WHERE id = ?
+      `,
+      [mentionId],
+      mapMentionRow,
+    );
+  }
+
+  public async listByChapter(chapterId: number): Promise<MentionRecord[]> {
+    return await this.#database.queryAll(
+      `
+        SELECT
+          id,
+          chapter_id,
+          fragment_id,
+          sentence_index,
+          range_start,
+          range_end,
+          surface,
+          qid,
+          confidence,
+          note
+        FROM mentions
+        WHERE chapter_id = ?
+        ORDER BY fragment_id, sentence_index, range_start, range_end, id
+      `,
+      [chapterId],
+      mapMentionRow,
+    );
+  }
+
+  public async deleteByChapter(chapterId: number): Promise<void> {
+    await this.#database.run(
+      `
+        DELETE FROM mentions
+        WHERE chapter_id = ?
+      `,
+      [chapterId],
+    );
+  }
+}
+
+export class MentionLinkStore implements ReadonlyMentionLinkStore {
+  readonly #database: Database;
+
+  public constructor(database: Database) {
+    this.#database = database;
+  }
+
+  public async save(record: MentionLinkRecord): Promise<void> {
+    await this.#database.run(
+      `
+        INSERT OR REPLACE INTO mention_links (
+          id,
+          source_mention_id,
+          target_mention_id,
+          predicate,
+          evidence_start,
+          evidence_end,
+          confidence,
+          note
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      `,
+      [
+        record.id,
+        record.sourceMentionId,
+        record.targetMentionId,
+        record.predicate,
+        record.evidenceStart ?? null,
+        record.evidenceEnd ?? null,
+        record.confidence ?? null,
+        record.note ?? null,
+      ],
+    );
+  }
+
+  public async saveMany(records: readonly MentionLinkRecord[]): Promise<void> {
+    await this.#database.transaction(async () => {
+      for (const record of records) {
+        await this.save(record);
+      }
+    });
+  }
+
+  public async getById(linkId: string): Promise<MentionLinkRecord | undefined> {
+    return await this.#database.queryOne(
+      `
+        SELECT
+          id,
+          source_mention_id,
+          target_mention_id,
+          predicate,
+          evidence_start,
+          evidence_end,
+          confidence,
+          note
+        FROM mention_links
+        WHERE id = ?
+      `,
+      [linkId],
+      mapMentionLinkRow,
+    );
+  }
+
+  public async listByChapter(chapterId: number): Promise<MentionLinkRecord[]> {
+    return await this.#database.queryAll(
+      `
+        SELECT
+          mention_links.id AS id,
+          mention_links.source_mention_id AS source_mention_id,
+          mention_links.target_mention_id AS target_mention_id,
+          mention_links.predicate AS predicate,
+          mention_links.evidence_start AS evidence_start,
+          mention_links.evidence_end AS evidence_end,
+          mention_links.confidence AS confidence,
+          mention_links.note AS note
+        FROM mention_links
+        INNER JOIN mentions AS source_mentions
+          ON source_mentions.id = mention_links.source_mention_id
+        INNER JOIN mentions AS target_mentions
+          ON target_mentions.id = mention_links.target_mention_id
+        WHERE source_mentions.chapter_id = ?
+          OR target_mentions.chapter_id = ?
+        ORDER BY mention_links.id
+      `,
+      [chapterId, chapterId],
+      mapMentionLinkRow,
+    );
+  }
+
+  public async deleteByChapter(chapterId: number): Promise<void> {
+    await this.#database.run(
+      `
+        DELETE FROM mention_links
+        WHERE source_mention_id IN (
+          SELECT id
+          FROM mentions
+          WHERE chapter_id = ?
+        )
+        OR target_mention_id IN (
+          SELECT id
+          FROM mentions
+          WHERE chapter_id = ?
+        )
+      `,
+      [chapterId, chapterId],
+    );
+  }
+}
+
 export class SnakeChunkStore implements ReadonlySnakeChunkStore {
   readonly #database: Database;
 
@@ -938,6 +1162,57 @@ function mapKnowledgeEdgeRow(row: SqlRow): KnowledgeEdgeRecord {
     weight: getNumber(row, "weight"),
     ...(strength === undefined ? {} : { strength }),
   };
+}
+
+function mapMentionRow(row: SqlRow): MentionRecord {
+  const sentenceIndex = getOptionalNumber(row, "sentence_index");
+  const confidence = getOptionalNumber(row, "confidence");
+  const note = getOptionalString(row, "note");
+
+  return {
+    chapterId: getNumber(row, "chapter_id"),
+    ...(confidence === undefined ? {} : { confidence }),
+    fragmentId: getNumber(row, "fragment_id"),
+    id: getString(row, "id"),
+    ...(note === undefined ? {} : { note }),
+    qid: getString(row, "qid"),
+    rangeEnd: getNumber(row, "range_end"),
+    rangeStart: getNumber(row, "range_start"),
+    ...(sentenceIndex === undefined ? {} : { sentenceIndex }),
+    surface: getString(row, "surface"),
+  };
+}
+
+function mapMentionLinkRow(row: SqlRow): MentionLinkRecord {
+  const confidence = getOptionalNumber(row, "confidence");
+  const evidenceEnd = getOptionalNumber(row, "evidence_end");
+  const evidenceStart = getOptionalNumber(row, "evidence_start");
+  const note = getOptionalString(row, "note");
+
+  return {
+    ...(confidence === undefined ? {} : { confidence }),
+    ...(evidenceEnd === undefined ? {} : { evidenceEnd }),
+    ...(evidenceStart === undefined ? {} : { evidenceStart }),
+    id: getString(row, "id"),
+    ...(note === undefined ? {} : { note }),
+    predicate: getString(row, "predicate"),
+    sourceMentionId: getString(row, "source_mention_id"),
+    targetMentionId: getString(row, "target_mention_id"),
+  };
+}
+
+function getOptionalNumber(row: SqlRow, key: string): number | undefined {
+  const value = row[key];
+
+  if (value === null || value === undefined) {
+    return undefined;
+  }
+
+  if (typeof value !== "number") {
+    throw new TypeError(`Expected ${key} to be a number`);
+  }
+
+  return value;
 }
 
 function parseChunkImportance(

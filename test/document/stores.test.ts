@@ -61,6 +61,103 @@ describe("document/stores", () => {
     });
   });
 
+  it("saves and clears mention evidence by chapter", async () => {
+    await withDocument(async (document) => {
+      await document.openSession(async (openedDocument) => {
+        await openedDocument.serials.createWithId(1);
+        await openedDocument.serials.createWithId(2);
+
+        await openedDocument.mentions.saveMany([
+          {
+            chapterId: 1,
+            confidence: 0.9,
+            fragmentId: 10,
+            id: "m1",
+            qid: "Q1",
+            rangeEnd: 2,
+            rangeStart: 0,
+            sentenceIndex: 0,
+            surface: "恩典",
+          },
+          {
+            chapterId: 1,
+            fragmentId: 10,
+            id: "m2",
+            note: "神学语境",
+            qid: "Q2",
+            rangeEnd: 7,
+            rangeStart: 3,
+            sentenceIndex: 0,
+            surface: "自由意志",
+          },
+          {
+            chapterId: 2,
+            fragmentId: 20,
+            id: "m3",
+            qid: "Q3",
+            rangeEnd: 3,
+            rangeStart: 0,
+            surface: "伯拉纠",
+          },
+        ]);
+        await openedDocument.mentionLinks.saveMany([
+          {
+            confidence: 0.8,
+            evidenceEnd: 16,
+            evidenceStart: 0,
+            id: "l1",
+            predicate: "discusses",
+            sourceMentionId: "m1",
+            targetMentionId: "m2",
+          },
+          {
+            id: "l2",
+            note: "cross chapter evidence is removed with either endpoint",
+            predicate: "mentions",
+            sourceMentionId: "m2",
+            targetMentionId: "m3",
+          },
+        ]);
+
+        expect(await openedDocument.mentions.getById("m1")).toStrictEqual({
+          chapterId: 1,
+          confidence: 0.9,
+          fragmentId: 10,
+          id: "m1",
+          qid: "Q1",
+          rangeEnd: 2,
+          rangeStart: 0,
+          sentenceIndex: 0,
+          surface: "恩典",
+        });
+        expect(await openedDocument.mentionLinks.listByChapter(1)).toHaveLength(
+          2,
+        );
+
+        await openedDocument.mentionLinks.deleteByChapter(1);
+        await openedDocument.mentions.deleteByChapter(1);
+
+        expect(await openedDocument.mentions.listByChapter(1)).toStrictEqual(
+          [],
+        );
+        expect(
+          await openedDocument.mentionLinks.listByChapter(1),
+        ).toStrictEqual([]);
+        expect(await openedDocument.mentions.listByChapter(2)).toStrictEqual([
+          {
+            chapterId: 2,
+            fragmentId: 20,
+            id: "m3",
+            qid: "Q3",
+            rangeEnd: 3,
+            rangeStart: 0,
+            surface: "伯拉纠",
+          },
+        ]);
+      });
+    });
+  });
+
   it("saves chunks and queries them by id, serial, and fragment", async () => {
     await withDocument(async (document) => {
       await document.openSession(async (openedDocument) => {

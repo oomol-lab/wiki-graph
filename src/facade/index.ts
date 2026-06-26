@@ -66,11 +66,20 @@ export {
   readChapterBuildInput,
   snapshotChapterSummaryInput,
 } from "./chapter-build.js";
+export {
+  buildChapterKnowledgeGraphArtifact,
+  clearChapterKnowledgeGraph,
+  commitChapterKnowledgeGraphArtifact,
+} from "./knowledge-graph-build.js";
 export type {
   BuildChapterGraphArtifactOptions,
   BuildChapterSummaryArtifactOptions,
   ChapterGraphBuildArtifact,
 } from "./chapter-build.js";
+export type {
+  BuildChapterKnowledgeGraphArtifactOptions,
+  ChapterKnowledgeGraphBuildArtifact,
+} from "./knowledge-graph-build.js";
 export {
   addChapter,
   advanceChapterStages,

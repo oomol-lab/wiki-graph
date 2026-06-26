@@ -73,6 +73,30 @@ export interface KnowledgeEdgeRecord {
   readonly weight: number;
 }
 
+export interface MentionRecord {
+  readonly id: string;
+  readonly chapterId: number;
+  readonly fragmentId: number;
+  readonly sentenceIndex?: number;
+  readonly rangeStart: number;
+  readonly rangeEnd: number;
+  readonly surface: string;
+  readonly qid: string;
+  readonly confidence?: number;
+  readonly note?: string;
+}
+
+export interface MentionLinkRecord {
+  readonly id: string;
+  readonly sourceMentionId: string;
+  readonly targetMentionId: string;
+  readonly predicate: string;
+  readonly evidenceStart?: number;
+  readonly evidenceEnd?: number;
+  readonly confidence?: number;
+  readonly note?: string;
+}
+
 export interface SnakeRecord {
   readonly id: number;
   readonly serialId: number;

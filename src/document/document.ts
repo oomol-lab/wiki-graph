@@ -18,9 +18,13 @@ import {
   ChunkStore,
   FragmentGroupStore,
   KnowledgeEdgeStore,
+  MentionLinkStore,
+  MentionStore,
   type ReadonlyChunkStore,
   type ReadonlyFragmentGroupStore,
   type ReadonlyKnowledgeEdgeStore,
+  type ReadonlyMentionLinkStore,
+  type ReadonlyMentionStore,
   type ReadonlySerialStore,
   type ReadonlySnakeChunkStore,
   type ReadonlySnakeEdgeStore,
@@ -102,6 +106,8 @@ export interface ReadonlyDocument {
   readonly chunks: ReadonlyChunkStore;
   readonly fragmentGroups: ReadonlyFragmentGroupStore;
   readonly knowledgeEdges: ReadonlyKnowledgeEdgeStore;
+  readonly mentionLinks: ReadonlyMentionLinkStore;
+  readonly mentions: ReadonlyMentionStore;
   readonly serials: ReadonlySerialStore;
   readonly snakeChunks: ReadonlySnakeChunkStore;
   readonly snakeEdges: ReadonlySnakeEdgeStore;
@@ -130,6 +136,8 @@ export interface Document extends ReadonlyDocument {
   readonly chunks: ChunkStore;
   readonly fragmentGroups: FragmentGroupStore;
   readonly knowledgeEdges: KnowledgeEdgeStore;
+  readonly mentionLinks: MentionLinkStore;
+  readonly mentions: MentionStore;
   readonly serials: SerialStore;
   readonly snakeChunks: SnakeChunkStore;
   readonly snakeEdges: SnakeEdgeStore;
@@ -157,6 +165,8 @@ export class DirectoryDocument implements Document {
   public readonly chunks: ChunkStore;
   public readonly fragmentGroups: FragmentGroupStore;
   public readonly knowledgeEdges: KnowledgeEdgeStore;
+  public readonly mentionLinks: MentionLinkStore;
+  public readonly mentions: MentionStore;
   public readonly path: string;
   public readonly serials: SerialStore;
   public readonly snakeChunks: SnakeChunkStore;
@@ -180,6 +190,8 @@ export class DirectoryDocument implements Document {
     this.chunks = new ChunkStore(database);
     this.fragmentGroups = new FragmentGroupStore(database);
     this.knowledgeEdges = new KnowledgeEdgeStore(database);
+    this.mentionLinks = new MentionLinkStore(database);
+    this.mentions = new MentionStore(database);
     this.path = path;
     this.serials = new SerialStore(database);
     this.snakeChunks = new SnakeChunkStore(database);

@@ -8,10 +8,14 @@ import type {
   FragmentGroupRecord,
   FragmentRecord,
   KnowledgeEdgeRecord,
+  MentionLinkRecord,
+  MentionRecord,
   ReadonlyChunkStore,
   ReadonlyDocument,
   ReadonlyFragmentGroupStore,
   ReadonlyKnowledgeEdgeStore,
+  ReadonlyMentionLinkStore,
+  ReadonlyMentionStore,
   ReadonlySerialFragments,
   ReadonlySerialStore,
   ReadonlySnakeChunkStore,
@@ -597,6 +601,8 @@ class SummaryInputSnapshotDocument implements ReadonlyDocument {
   public readonly chunks: ReadonlyChunkStore;
   public readonly fragmentGroups: ReadonlyFragmentGroupStore;
   public readonly knowledgeEdges: ReadonlyKnowledgeEdgeStore;
+  public readonly mentionLinks: ReadonlyMentionLinkStore;
+  public readonly mentions: ReadonlyMentionStore;
   public readonly serials: ReadonlySerialStore;
   public readonly snakeChunks: ReadonlySnakeChunkStore;
   public readonly snakeEdges: ReadonlySnakeEdgeStore;
@@ -614,6 +620,8 @@ class SummaryInputSnapshotDocument implements ReadonlyDocument {
       snapshot.knowledgeEdges,
       snapshot.chunks,
     );
+    this.mentionLinks = new EmptySnapshotMentionLinkStore();
+    this.mentions = new EmptySnapshotMentionStore();
     this.serials = new SnapshotSerialStore(snapshot.serial);
     this.snakeChunks = new SnapshotSnakeChunkStore(snapshot.snakeChunks);
     this.snakeEdges = new SnapshotSnakeEdgeStore(
@@ -668,6 +676,26 @@ class SummaryInputSnapshotDocument implements ReadonlyDocument {
 
   public release(): Promise<void> {
     return Promise.resolve();
+  }
+}
+
+class EmptySnapshotMentionStore implements ReadonlyMentionStore {
+  public getById(_mentionId: string): Promise<undefined> {
+    return Promise.resolve(undefined);
+  }
+
+  public listByChapter(_chapterId: number): Promise<MentionRecord[]> {
+    return Promise.resolve([]);
+  }
+}
+
+class EmptySnapshotMentionLinkStore implements ReadonlyMentionLinkStore {
+  public getById(_linkId: string): Promise<undefined> {
+    return Promise.resolve(undefined);
+  }
+
+  public listByChapter(_chapterId: number): Promise<MentionLinkRecord[]> {
+    return Promise.resolve([]);
   }
 }
 
