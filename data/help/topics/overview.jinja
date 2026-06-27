@@ -7,6 +7,7 @@ SpineDigest creates `.sdpub` archives and exposes them as Wiki Graph object coll
 
 Core object commands:
   - `search` finds URI-addressable objects.
+  - `list` enumerates URI-addressable objects without query text.
   - `get` reads one object.
   - `related` moves from one object to nearby objects.
   - `evidence` returns source-backed evidence.
@@ -18,3 +19,6 @@ Generation tasks:
   - `knowledge-graph` builds entity mentions from sourced text.
 
 Queue tasks may call an LLM. Object inspection commands do not start generation.
+
+URI routing:
+  Use `wikigraph help uri` before constructing object command inputs.

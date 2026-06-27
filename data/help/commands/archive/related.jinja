@@ -10,7 +10,7 @@ Use when:
   - You have a selected readable object and need adjacent graph context.
 
 Usage:
-  wikigraph related <archive.sdpub> <uri> [--json|--jsonl] [--help|-h]
+  wikigraph related <object-uri> [--json|--jsonl] [--help|-h]
 
 Returns:
   - Related full `wikigraph://...` URIs with labels or summaries.
@@ -18,6 +18,7 @@ Returns:
 Notes:
   - `related` starts from a known URI; `search` starts from query text.
   - Returned URIs can be inspected or verified with other object commands.
+  - Read `wikigraph help uri` before constructing object URIs.
 
 Next steps:
   - Use `get` to inspect a readable returned URI.
@@ -25,4 +26,4 @@ Next steps:
   - Use `pack` when one related object becomes the answer anchor.
 
 Examples:
-  wikigraph related book.sdpub wikigraph://chunk/123
+  wikigraph related wikigraph:///books/book.sdpub/chunk/123

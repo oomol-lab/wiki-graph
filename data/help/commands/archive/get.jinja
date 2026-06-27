@@ -10,7 +10,7 @@ Use when:
   - You already have a `wikigraph://...` URI and need to inspect its object payload.
 
 Usage:
-  wikigraph get <archive.sdpub> <uri> [--json|--jsonl] [--help|-h]
+  wikigraph get <object-uri> [--json|--jsonl] [--help|-h]
 
 Returns:
   - The selected object in human-readable text, JSON, or JSONL.
@@ -18,6 +18,7 @@ Returns:
 Notes:
   - `get` is for readable archive objects such as chunks, source chapters or ranges, and summaries.
   - Use `evidence` for entity or triple URIs when source-backed support is needed.
+  - Read `wikigraph help uri` before constructing object URIs.
 
 Next steps:
   - Use `related` to expand from this object.
@@ -25,5 +26,5 @@ Next steps:
   - Use `pack` to assemble bounded context around the object.
 
 Examples:
-  wikigraph get book.sdpub wikigraph://chunk/123
-  wikigraph get book.sdpub wikigraph://source/chapter/1/fragment/0#42..60
+  wikigraph get wikigraph:///books/book.sdpub/chunk/123
+  wikigraph get wikigraph:///books/book.sdpub/chapter/1/source/0#42..60

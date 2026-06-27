@@ -69,6 +69,7 @@ export {
 } from "./chapter-build.js";
 export {
   buildChapterKnowledgeGraphArtifact,
+  buildMentionLinks,
   clearChapterKnowledgeGraph,
   commitChapterKnowledgeGraphArtifact,
   generateChapterKnowledgeGraphArtifact,

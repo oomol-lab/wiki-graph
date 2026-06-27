@@ -1,9 +1,10 @@
 import { mkdtemp, rm, writeFile } from "fs/promises";
-import { join, resolve } from "path";
+import { join } from "path";
 import { tmpdir } from "os";
 
 import {
   getArchiveIndex,
+  listArchiveCollection,
   listArchiveEvidence,
   listRelatedArchiveObjects,
   packArchiveContext,
@@ -17,12 +18,18 @@ import {
   type ArchiveFindOptions,
   type ArchiveFindResult,
   type ArchiveFindHit,
+  type ArchiveCollectionOptions,
+  type ArchiveCollectionResult,
   type ArchiveIndex,
   type ArchiveListItem,
   type ArchivePack,
   type ArchivePage,
   type ChapterStage,
 } from "../facade/index.js";
+import {
+  parseLocatedWikiGraphUri,
+  requireLocatedObjectUri,
+} from "../facade/archive-uri.js";
 import { SpineDigestFile } from "../facade/spine-digest-file.js";
 import type { ReadonlyDocument } from "../document/index.js";
 
@@ -103,58 +110,89 @@ export async function runArchiveCommand(
       return;
     }
     case "search":
-      await readArchiveDocument(args.archivePath, async (document) => {
-        await writeFindHits(
-          await findArchiveObjects(
-            document,
-            args.query!,
-            createFindOptions(args),
-          ),
-          args.format ?? "text",
-        );
-      });
+      await readArchiveDocument(
+        getArchivePath(args.archivePath),
+        async (document) => {
+          await writeFindHits(
+            await findArchiveObjects(
+              document,
+              args.query!,
+              createFindOptions(args),
+            ),
+            args.format ?? "text",
+          );
+        },
+      );
+      return;
+    case "list":
+      await readArchiveDocument(
+        getArchivePath(args.archivePath),
+        async (document) => {
+          await writeFindHits(
+            createCollectionFindResult(
+              await listArchiveCollection(
+                document,
+                createCollectionOptions(args),
+              ),
+            ),
+            args.format ?? "text",
+          );
+        },
+      );
       return;
     case "get":
-      await readArchiveDocument(args.archivePath, async (document) => {
-        await writePage(
-          await readArchivePage(document, args.objectId!),
-          args.format ?? "text",
-        );
-      });
+      await readArchiveDocument(
+        getArchivePath(args.archivePath),
+        async (document) => {
+          await writePage(
+            await readArchivePage(document, getObjectUri(args.objectId!)),
+            args.format ?? "text",
+          );
+        },
+      );
       return;
     case "related":
-      await readArchiveDocument(args.archivePath, async (document) => {
-        await writeList(
-          await listRelatedArchiveObjects(
-            document,
-            toArchiveObjectId(args.objectId!),
-          ),
-          args.format ?? "text",
-        );
-      });
+      await readArchiveDocument(
+        getArchivePath(args.archivePath),
+        async (document) => {
+          await writeList(
+            await listRelatedArchiveObjects(
+              document,
+              getObjectUri(args.objectId!),
+            ),
+            args.format ?? "text",
+          );
+        },
+      );
       return;
     case "evidence":
-      await readArchiveDocument(args.archivePath, async (document) => {
-        await writeEvidence(
-          await listArchiveEvidence(document, args.objectId!, {
-            ...(args.cursor === undefined ? {} : { cursor: args.cursor }),
-            ...(args.limit === undefined ? {} : { limit: args.limit }),
-          }),
-          args.format ?? "text",
-        );
-      });
+      await readArchiveDocument(
+        getArchivePath(args.archivePath),
+        async (document) => {
+          await writeEvidence(
+            await listArchiveEvidence(document, getObjectUri(args.objectId!), {
+              ...(args.cursor === undefined ? {} : { cursor: args.cursor }),
+              ...(args.limit === undefined ? {} : { limit: args.limit }),
+            }),
+            args.format ?? "text",
+          );
+        },
+      );
       return;
     case "pack":
-      await readArchiveDocument(args.archivePath, async (document) => {
-        await writePack(
-          await packArchiveContext(
-            document,
-            toArchiveObjectId(args.objectId!),
-            args.budget ?? 5000,
-          ),
-          args.format ?? "text",
-        );
-      });
+      await readArchiveDocument(
+        getArchivePath(args.archivePath),
+        async (document) => {
+          await writePack(
+            await packArchiveContext(
+              document,
+              getObjectUri(args.objectId!),
+              args.budget ?? 5000,
+            ),
+            args.format ?? "text",
+          );
+        },
+      );
       return;
   }
 }
@@ -262,12 +300,97 @@ function createFindOptions(args: CLIArchiveArguments): ArchiveFindOptions {
   });
 
   return {
-    archiveKey: resolve(args.archivePath),
-    ...(args.chapters === undefined ? {} : { chapters: args.chapters }),
+    archiveKey: getArchivePath(args.archivePath),
+    ...createScopeOptions(args.archivePath),
     ...(args.cursor === undefined ? {} : { cursor: args.cursor }),
     ...(args.limit === undefined ? {} : { limit: args.limit }),
     ...(types === undefined ? {} : { types }),
   };
+}
+
+function createCollectionOptions(
+  args: CLIArchiveArguments,
+): ArchiveCollectionOptions {
+  const types = args.kinds?.map((kind) => {
+    const type = toArchiveCollectionType(kind);
+
+    if (type === undefined) {
+      throw new Error(`Unsupported archive list type: ${kind}`);
+    }
+
+    return type;
+  });
+
+  return {
+    ...createScopeOptions(args.archivePath),
+    ...(args.cursor === undefined ? {} : { cursor: args.cursor }),
+    ...(args.limit === undefined ? {} : { limit: args.limit }),
+    ...(types === undefined ? {} : { types }),
+  };
+}
+
+function createCollectionFindResult(
+  collection: ArchiveCollectionResult,
+): ArchiveFindResult {
+  return {
+    chapters: collection.chapters,
+    items: collection.items,
+    lens: "typed",
+    lensHint: null,
+    limit: collection.limit,
+    match: "any",
+    nextCursor: collection.nextCursor,
+    order: collection.order,
+    query: "",
+    terms: [],
+    types: null,
+  };
+}
+
+function createScopeOptions(uri: string): {
+  readonly chapters?: readonly number[];
+} {
+  const objectUri = parseLocatedWikiGraphUri(uri).objectUri;
+
+  if (objectUri === undefined) {
+    return {};
+  }
+
+  const chapterId = parseChapterScope(objectUri);
+
+  return chapterId === undefined ? {} : { chapters: [chapterId] };
+}
+
+function getArchivePath(uri: string): string {
+  return requireLocatedObjectOrArchiveUri(uri).archivePath;
+}
+
+function getObjectUri(uri: string): string {
+  return requireLocatedObjectUri(uri).objectUri;
+}
+
+function requireLocatedObjectOrArchiveUri(uri: string): {
+  readonly archivePath: string;
+} {
+  const parsed = parseLocatedWikiGraphUri(uri);
+
+  if (parsed.archivePath === undefined) {
+    throw new Error(
+      [
+        `Expected a Wiki Graph URI with a .sdpub archive locator: ${uri}`,
+        `Example: ${uri.endsWith(".sdpub") && uri.startsWith("/") ? `wikigraph://${uri}` : "wikigraph:///absolute/path/book.sdpub"}`,
+        "See: wikigraph help uri",
+      ].join("\n"),
+    );
+  }
+
+  return { archivePath: parsed.archivePath };
+}
+
+function parseChapterScope(uri: string): number | undefined {
+  const match = /^wikigraph:\/\/chapter\/([1-9][0-9]*)(?:\/|$)/u.exec(uri);
+
+  return match?.[1] === undefined ? undefined : Number(match[1]);
 }
 
 async function readArchiveDocument<T>(
@@ -302,14 +425,14 @@ async function writeIndex(
       "",
       "Reading Graph:",
       "  No reading chunks are currently available. If a reading-graph queue task already ran, the source may be too short or sparse.",
-      "  Next: inspect source with `wikigraph get <archive.sdpub> wikigraph://source/chapter/<id>` or queue `--task reading-graph`.",
+      "  Next: inspect source with `wikigraph get wikigraph://<archive.sdpub>/chapter/<id>/source/` or queue `--task reading-graph`.",
     );
   } else if (index.edgeCount === 0) {
     lines.push(
       "",
       "Reading Graph:",
       "  Reading chunks exist, but no chunk edges are currently available. This can be valid when extracted chunks have no stable relationships.",
-      "  Next: inspect chunks with `wikigraph search <archive.sdpub> <query> --type chunk`.",
+      "  Next: inspect chunks with `wikigraph search wikigraph://<archive.sdpub> <query> --type chunk`.",
     );
   }
 
@@ -323,9 +446,9 @@ async function writeIndex(
     lines.push(
       "",
       "Next:",
-      "  wikigraph search <archive.sdpub> <term>",
-      "  wikigraph get <archive.sdpub> wikigraph://source/chapter/<id>",
-      "  wikigraph related <archive.sdpub> <uri>",
+      "  wikigraph search wikigraph://<archive.sdpub> <term>",
+      "  wikigraph get wikigraph://<archive.sdpub>/chapter/<id>/source/",
+      "  wikigraph related <object-uri>",
     );
   }
 
@@ -612,7 +735,7 @@ function formatNextCursor(result: ArchiveFindResult): string {
 
 function formatNoMatches(result: ArchiveFindResult): string {
   if (result.match === "all" && result.terms.length > 1) {
-    return `No matches. Try: wikigraph search <archive.sdpub> "${result.query}" --type ${formatFindTypes(result)}${formatFindLensHint(result)}\n`;
+    return `No matches. Try: wikigraph search <archive-uri> "${result.query}" --type ${formatFindTypes(result)}${formatFindLensHint(result)}\n`;
   }
 
   const lines = [
@@ -839,6 +962,8 @@ function formatPackAnchor(anchor: ArchivePage): string {
   switch (anchor.type) {
     case "chapter":
       return `${anchor.id} ${anchor.title}\n${anchor.summary ?? "[summary missing]"}`;
+    case "chapter-tree":
+      return `${anchor.id} ${anchor.title}\n${JSON.stringify(anchor.tree, null, 2)}`;
     case "fragment":
       return `${anchor.id}\n${anchor.fragment.text}`;
     case "meta":
@@ -880,8 +1005,8 @@ function formatChapterNextSteps(
 ): string {
   return [
     "Next:",
-    `  wikigraph search <archive.sdpub> <keyword> --type chunk --chapter ${page.chapter.chapterId}`,
-    `  wikigraph get <archive.sdpub> wikigraph://source/chapter/${page.chapter.chapterId}`,
+    `  wikigraph search wikigraph://<archive.sdpub>/chapter/${page.chapter.chapterId} <keyword> --type chunk`,
+    `  wikigraph get wikigraph://<archive.sdpub>/chapter/${page.chapter.chapterId}/source/`,
   ].join("\n");
 }
 
@@ -900,47 +1025,18 @@ async function writeJSONL(items: readonly unknown[]): Promise<void> {
   );
 }
 
-function toArchiveObjectId(uri: string): string {
-  if (!uri.startsWith("wikigraph://")) {
-    return uri;
-  }
-
-  const parsed = new URL(uri);
-  const pathParts = parsed.pathname.split("/").filter((part) => part !== "");
-
-  switch (parsed.hostname) {
-    case "chunk":
-      return `node:${pathParts[0] ?? ""}`;
-    case "source":
-      if (pathParts[0] === "chapter" && pathParts[1] !== undefined) {
-        return `chapter:${pathParts[1]}`;
-      }
-      break;
-    case "summary":
-      if (pathParts[0] === "chapter" && pathParts[1] !== undefined) {
-        return `summary:${pathParts[1]}`;
-      }
-      break;
-    case "entity":
-    case "triple":
-      throw new Error(`${uri} is not readable by the current archive adapter.`);
-  }
-
-  throw new Error(`Invalid Wiki Graph URI: ${uri}`);
-}
-
 function toWikiGraphUri(id: string): string {
   const [type, first, second] = id.split(":");
 
   switch (type) {
     case "chapter":
-      return `wikigraph://source/chapter/${first ?? ""}`;
+      return `wikigraph://chapter/${first ?? ""}`;
     case "fragment":
-      return `wikigraph://source/chapter/${first ?? ""}#${second ?? "0"}..${second ?? "0"}`;
+      return `wikigraph://chapter/${first ?? ""}/source/${second ?? "0"}#0..0`;
     case "node":
       return `wikigraph://chunk/${first ?? ""}`;
     case "summary":
-      return `wikigraph://summary/chapter/${first ?? ""}`;
+      return `wikigraph://chapter/${first ?? ""}/summary/`;
     default:
       return id;
   }
@@ -950,6 +1046,8 @@ function toArchiveFindType(
   kind: NonNullable<CLIArchiveArguments["kinds"]>[number],
 ): NonNullable<ArchiveFindOptions["types"]>[number] | undefined {
   switch (kind) {
+    case "chapter":
+      return "chapter";
     case "chunk":
       return "node";
     case "source":
@@ -958,6 +1056,25 @@ function toArchiveFindType(
       return "summary";
     case "entity":
       return "entity";
+    case "triple":
+      return "triple";
+  }
+}
+
+function toArchiveCollectionType(
+  kind: NonNullable<CLIArchiveArguments["kinds"]>[number],
+): NonNullable<ArchiveCollectionOptions["types"]>[number] | undefined {
+  switch (kind) {
+    case "chapter":
+      return "chapter";
+    case "chunk":
+      return "node";
+    case "entity":
+      return "entity";
+    case "source":
+      return "fragment";
+    case "summary":
+      return "summary";
     case "triple":
       return "triple";
   }

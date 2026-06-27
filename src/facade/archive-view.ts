@@ -15,7 +15,12 @@ import {
   type GraphNeighbor,
   type GraphNode,
 } from "./graph.js";
-import { listChapters, type ChapterEntry } from "./chapter.js";
+import {
+  getChapterTree,
+  listChapters,
+  type ChapterEntry,
+  type ChapterTree,
+} from "./chapter.js";
 import {
   createLexicalQuery,
   listLexicalQueryCandidateTerms,
@@ -36,20 +41,16 @@ import {
 
 export type ArchiveObjectType =
   | "chapter"
+  | "chapter-tree"
   | "edge"
+  | "entity"
   | "fragment"
   | "meta"
   | "node"
-  | "summary";
+  | "summary"
+  | "triple";
 
 export type ArchiveCollectionType =
-  | "chapter"
-  | "fragment"
-  | "meta"
-  | "node"
-  | "summary";
-
-export type ArchiveFindObjectType =
   | "chapter"
   | "entity"
   | "fragment"
@@ -58,7 +59,18 @@ export type ArchiveFindObjectType =
   | "summary"
   | "triple";
 
+export type ArchiveFindObjectType =
+  | "chapter"
+  | "chapter-tree"
+  | "entity"
+  | "fragment"
+  | "meta"
+  | "node"
+  | "summary"
+  | "triple";
+
 export type ArchiveFindFilterType =
+  | "chapter"
   | "entity"
   | "fragment"
   | "node"
@@ -139,6 +151,7 @@ export type ArchiveFindLens = "broad" | "exact" | "typed";
 
 export interface ArchiveFindLensHint {
   readonly lenses: {
+    readonly chapter: string;
     readonly fragment: string;
     readonly node: string;
     readonly summary: string;
@@ -190,6 +203,12 @@ export type ArchivePage =
       readonly summaryTruncated: boolean;
       readonly title: string;
       readonly type: "chapter";
+    }
+  | {
+      readonly id: string;
+      readonly title: string;
+      readonly tree: ChapterTree;
+      readonly type: "chapter-tree";
     }
   | {
       readonly generatedNodeSummary: string;
@@ -424,10 +443,11 @@ export async function listArchiveCollection(
   const items: ArchiveFindHit[] = [];
   const types = options.types ?? [
     "chapter",
+    "entity",
     "node",
     "summary",
     "fragment",
-    "meta",
+    "triple",
   ];
 
   if (types.includes("meta")) {
@@ -516,6 +536,14 @@ export async function listArchiveCollection(
         type: "node",
       });
     }
+  }
+
+  if (types.includes("entity")) {
+    items.push(...listEntityCollection(await listAllMentions(document)));
+  }
+
+  if (types.includes("triple")) {
+    items.push(...(await listTripleCollection(document)));
   }
 
   return createCollectionResult(items, options);
@@ -877,8 +905,23 @@ async function readWikiGraphPage(
   const reference = parseWikiGraphReference(uri);
 
   switch (reference.type) {
+    case "chapter":
+      return await readArchivePage(
+        document,
+        formatChapterId(reference.chapterId),
+      );
+    case "chapter-tree":
+      return {
+        id: "chapter-tree",
+        title: "Chapter tree",
+        tree: await getChapterTree(document),
+        type: "chapter-tree",
+      };
     case "entity": {
-      const mentions = await document.mentions.listByQid(reference.qid);
+      const mentions = filterMentionsByChapter(
+        await document.mentions.listByQid(reference.qid),
+        reference.chapterId,
+      );
 
       if (mentions.length === 0) {
         throw new Error(`Entity ${uri} was not found in this archive.`);
@@ -894,11 +937,15 @@ async function readWikiGraphPage(
       };
     }
     case "triple": {
-      const links = await document.mentionLinks.listByTriple({
-        objectQid: reference.objectQid,
-        predicate: reference.predicate,
-        subjectQid: reference.subjectQid,
-      });
+      const links = await filterMentionLinksByChapter(
+        document,
+        await document.mentionLinks.listByTriple({
+          objectQid: reference.objectQid,
+          predicate: reference.predicate,
+          subjectQid: reference.subjectQid,
+        }),
+        reference.chapterId,
+      );
 
       if (links.length === 0) {
         throw new Error(`Triple ${uri} was not found in this archive.`);
@@ -914,8 +961,16 @@ async function readWikiGraphPage(
         type: "triple",
       };
     }
-    case "chunk":
+    case "chunk": {
+      if (reference.chapterId !== undefined) {
+        const { chapterId } = await requireNode(document, reference.id);
+
+        if (chapterId !== reference.chapterId) {
+          throw new Error(`Chunk ${uri} was not found in this archive.`);
+        }
+      }
       return await readArchivePage(document, formatNodeId(reference.id));
+    }
     case "source":
       return {
         fragment: await createSourceRangeFragment(document, reference),
@@ -964,8 +1019,11 @@ export async function listRelatedArchiveObjects(
   document: ReadonlyDocument,
   id: string,
 ): Promise<readonly ArchiveListItem[]> {
-  const reference = parseArchiveReference(id);
+  if (id.startsWith("wikigraph://")) {
+    return await listRelatedWikiGraphObjects(document, id);
+  }
 
+  const reference = parseArchiveReference(id);
   if (reference.type !== "node") {
     return [];
   }
@@ -982,6 +1040,169 @@ export async function listRelatedArchiveObjects(
   );
 }
 
+async function listRelatedWikiGraphObjects(
+  document: ReadonlyDocument,
+  uri: string,
+): Promise<readonly ArchiveListItem[]> {
+  const reference = parseWikiGraphReference(uri);
+
+  switch (reference.type) {
+    case "chapter": {
+      const chapter = await requireChapter(document, reference.chapterId);
+      const items: ArchiveListItem[] = [
+        {
+          id: `fragment:${reference.chapterId}:0`,
+          label: "Source",
+          summary: `${chapter.fragmentCount} fragments`,
+          type: "fragment",
+        },
+      ];
+      const summary = await document.readSummary(reference.chapterId);
+
+      if (summary !== undefined) {
+        items.push({
+          id: formatSummaryId(reference.chapterId),
+          label: "Summary",
+          summary: createSnippet(summary),
+          type: "summary",
+        });
+      }
+
+      return items;
+    }
+    case "chunk": {
+      const { chapterId } = await requireNode(document, reference.id);
+
+      if (
+        reference.chapterId !== undefined &&
+        reference.chapterId !== chapterId
+      ) {
+        throw new Error(`Chunk ${uri} was not found in this archive.`);
+      }
+
+      return (await listGraphNeighbors(document, chapterId, reference.id)).map(
+        (neighbor) => ({
+          id: formatNodeId(neighbor.node.id),
+          label: neighbor.node.label,
+          summary: neighbor.node.content,
+          type: "node",
+        }),
+      );
+    }
+    case "source":
+    case "summary": {
+      const chapter = await requireChapter(document, reference.chapterId);
+
+      return [
+        {
+          id: formatChapterId(reference.chapterId),
+          label: chapter.title ?? `[chapter ${reference.chapterId}]`,
+          summary: `${chapter.stage}; ${chapter.fragmentCount} fragments`,
+          type: "chapter",
+        },
+      ];
+    }
+    case "entity":
+      return await listRelatedEntityObjects(document, reference);
+    case "triple":
+      return await listRelatedTripleObjects(document, reference);
+    case "chapter-tree":
+      return [];
+  }
+}
+
+async function listRelatedEntityObjects(
+  document: ReadonlyDocument,
+  reference: Extract<WikiGraphReference, { readonly type: "entity" }>,
+): Promise<readonly ArchiveListItem[]> {
+  const mentions = filterMentionsByChapter(
+    await document.mentions.listByQid(reference.qid),
+    reference.chapterId,
+  );
+
+  if (mentions.length === 0) {
+    throw new Error(
+      `Entity ${formatEntityUri(reference.qid)} was not found in this archive.`,
+    );
+  }
+
+  const chapters = [
+    ...new Set(mentions.map((mention) => mention.chapterId)),
+  ].sort(compareNumbers);
+  const triplesById = new Map<string, ArchiveListItem>();
+
+  for (const chapterId of chapters) {
+    for (const link of await document.mentionLinks.listByChapter(chapterId)) {
+      const [source, target] = await Promise.all([
+        document.mentions.getById(link.sourceMentionId),
+        document.mentions.getById(link.targetMentionId),
+      ]);
+
+      if (source === undefined || target === undefined) {
+        continue;
+      }
+      if (source.qid !== reference.qid && target.qid !== reference.qid) {
+        continue;
+      }
+
+      const id = formatTripleUri(source.qid, link.predicate, target.qid);
+
+      if (triplesById.has(id)) {
+        continue;
+      }
+
+      triplesById.set(id, {
+        id,
+        label: `${source.surface} ${link.predicate} ${target.surface}`,
+        summary: `${source.qid} ${link.predicate} ${target.qid}`,
+        type: "triple",
+      });
+    }
+  }
+
+  return [...triplesById.values()];
+}
+
+async function listRelatedTripleObjects(
+  document: ReadonlyDocument,
+  reference: Extract<WikiGraphReference, { readonly type: "triple" }>,
+): Promise<readonly ArchiveListItem[]> {
+  const links = await filterMentionLinksByChapter(
+    document,
+    await document.mentionLinks.listByTriple({
+      objectQid: reference.objectQid,
+      predicate: reference.predicate,
+      subjectQid: reference.subjectQid,
+    }),
+    reference.chapterId,
+  );
+
+  if (links.length === 0) {
+    throw new Error(
+      `Triple ${formatTripleUri(reference.subjectQid, reference.predicate, reference.objectQid)} was not found in this archive.`,
+    );
+  }
+
+  return await Promise.all([
+    createRelatedEntityItem(document, reference.subjectQid),
+    createRelatedEntityItem(document, reference.objectQid),
+  ]);
+}
+
+async function createRelatedEntityItem(
+  document: ReadonlyDocument,
+  qid: string,
+): Promise<ArchiveListItem> {
+  const mentions = await document.mentions.listByQid(qid);
+
+  return {
+    id: formatEntityUri(qid),
+    label: mentions.length === 0 ? qid : selectEntityLabel(mentions),
+    summary: `${mentions.length} mentions`,
+    type: "entity",
+  };
+}
+
 export async function listArchiveEvidence(
   document: ReadonlyDocument,
   uri: string,
@@ -990,8 +1211,19 @@ export async function listArchiveEvidence(
   const reference = parseWikiGraphReference(uri);
 
   switch (reference.type) {
+    case "chapter":
+    case "chapter-tree":
+    case "source":
+      throw new Error(`Evidence is not available for ${uri}.`);
     case "chunk": {
-      const { node } = await requireNode(document, reference.id);
+      const { chapterId, node } = await requireNode(document, reference.id);
+
+      if (
+        reference.chapterId !== undefined &&
+        reference.chapterId !== chapterId
+      ) {
+        throw new Error(`Chunk ${uri} was not found in this archive.`);
+      }
 
       return await createSourceEvidencePage(
         document,
@@ -1004,24 +1236,13 @@ export async function listArchiveEvidence(
         document,
         await createMentionEvidenceRanges(
           document,
-          await document.mentions.listByQid(reference.qid),
+          filterMentionsByChapter(
+            await document.mentions.listByQid(reference.qid),
+            reference.chapterId,
+          ),
         ),
         options,
       );
-    case "source":
-      return {
-        items: [
-          await createSourceEvidenceItem(
-            document,
-            reference.chapterId,
-            reference.startSentenceIndex,
-            reference.endSentenceIndex,
-            reference.fragmentId,
-          ),
-        ],
-        limit: options.limit ?? DEFAULT_FIND_LIMIT,
-        nextCursor: null,
-      };
     case "summary":
       return {
         items: [
@@ -1040,11 +1261,15 @@ export async function listArchiveEvidence(
         document,
         await createMentionLinkEvidenceRanges(
           document,
-          await document.mentionLinks.listByTriple({
-            objectQid: reference.objectQid,
-            predicate: reference.predicate,
-            subjectQid: reference.subjectQid,
-          }),
+          await filterMentionLinksByChapter(
+            document,
+            await document.mentionLinks.listByTriple({
+              objectQid: reference.objectQid,
+              predicate: reference.predicate,
+              subjectQid: reference.subjectQid,
+            }),
+            reference.chapterId,
+          ),
         ),
         options,
       );
@@ -1269,6 +1494,105 @@ async function findTriples(
   return [...hitsByTriple.values()];
 }
 
+async function listAllMentions(
+  document: ReadonlyDocument,
+): Promise<readonly MentionRecord[]> {
+  return (
+    await Promise.all(
+      (await listChapters(document)).map(
+        async (chapter) =>
+          await document.mentions.listByChapter(chapter.chapterId),
+      ),
+    )
+  ).flat();
+}
+
+function listEntityCollection(
+  mentions: readonly MentionRecord[],
+): readonly ArchiveFindHit[] {
+  const mentionsByQid = new Map<string, MentionRecord[]>();
+
+  for (const mention of mentions) {
+    const values = mentionsByQid.get(mention.qid) ?? [];
+
+    values.push(mention);
+    mentionsByQid.set(mention.qid, values);
+  }
+
+  return [...mentionsByQid.entries()].map(([qid, qidMentions]) => {
+    const [first] = qidMentions.sort(compareMentions);
+
+    if (first === undefined) {
+      throw new Error("Internal error: entity collection candidate is empty.");
+    }
+
+    return {
+      chapter: first.chapterId,
+      evidenceMentions: qidMentions,
+      field: "title",
+      id: `wikigraph://entity/${qid}`,
+      position: {
+        chapter: first.chapterId,
+        fragment: first.fragmentId,
+      },
+      snippet: `${qidMentions.length} mentions`,
+      title: selectEntityLabel(qidMentions),
+      type: "entity",
+    };
+  });
+}
+
+async function listTripleCollection(
+  document: ReadonlyDocument,
+): Promise<readonly ArchiveFindHit[]> {
+  const hitsById = new Map<string, ArchiveFindHit>();
+
+  for (const chapter of await listChapters(document)) {
+    for (const link of await document.mentionLinks.listByChapter(
+      chapter.chapterId,
+    )) {
+      const [source, target] = await Promise.all([
+        document.mentions.getById(link.sourceMentionId),
+        document.mentions.getById(link.targetMentionId),
+      ]);
+
+      if (source === undefined || target === undefined) {
+        continue;
+      }
+
+      const id = formatTripleUri(source.qid, link.predicate, target.qid);
+
+      if (hitsById.has(id)) {
+        continue;
+      }
+
+      hitsById.set(id, {
+        chapter: source.chapterId,
+        field: "title",
+        id,
+        position: {
+          chapter: source.chapterId,
+          fragment: source.fragmentId,
+        },
+        snippet: `${source.surface} ${link.predicate} ${target.surface}`,
+        title: `${source.qid} ${link.predicate} ${target.qid}`,
+        type: "triple",
+      });
+    }
+  }
+
+  return [...hitsById.values()];
+}
+
+function compareMentions(left: MentionRecord, right: MentionRecord): number {
+  return (
+    compareNumbers(left.chapterId, right.chapterId) ||
+    compareNumbers(left.fragmentId, right.fragmentId) ||
+    compareNumbers(left.sentenceIndex ?? 0, right.sentenceIndex ?? 0) ||
+    left.id.localeCompare(right.id)
+  );
+}
+
 async function getMentionForTripleSearch(
   document: ReadonlyDocument,
   cache: Map<string, MentionRecord>,
@@ -1377,6 +1701,10 @@ function formatTripleUri(
   objectQid: string,
 ): string {
   return `wikigraph://triple/${subjectQid}/${encodeURIComponent(predicate)}/${objectQid}`;
+}
+
+function formatEntityUri(qid: string): string {
+  return `wikigraph://entity/${qid}`;
 }
 
 function isEntityOnlySearch(options: ArchiveFindOptions): boolean {
@@ -2277,6 +2605,37 @@ async function createMentionLinkEvidenceRanges(
   ).filter(isDefined);
 }
 
+function filterMentionsByChapter(
+  mentions: readonly MentionRecord[],
+  chapterId: number | undefined,
+): readonly MentionRecord[] {
+  return chapterId === undefined
+    ? mentions
+    : mentions.filter((mention) => mention.chapterId === chapterId);
+}
+
+async function filterMentionLinksByChapter(
+  document: ReadonlyDocument,
+  links: readonly MentionLinkRecord[],
+  chapterId: number | undefined,
+): Promise<readonly MentionLinkRecord[]> {
+  if (chapterId === undefined) {
+    return links;
+  }
+
+  const filtered: MentionLinkRecord[] = [];
+
+  for (const link of links) {
+    const source = await document.mentions.getById(link.sourceMentionId);
+
+    if (source?.chapterId === chapterId) {
+      filtered.push(link);
+    }
+  }
+
+  return filtered;
+}
+
 async function createSourceEvidencePage(
   document: ReadonlyDocument,
   ranges: readonly {
@@ -2458,7 +2817,7 @@ function formatSourceRangeUri(
   startSentenceIndex: number,
   endSentenceIndex: number,
 ): string {
-  return `wikigraph://source/chapter/${chapterId}/fragment/${fragmentId}#${startSentenceIndex}..${endSentenceIndex}`;
+  return `wikigraph://chapter/${chapterId}/source/${fragmentId}#${startSentenceIndex}..${endSentenceIndex}`;
 }
 
 function mergeEvidenceRanges(
@@ -2505,6 +2864,14 @@ function clampInteger(value: number, min: number, max: number): number {
 
 type WikiGraphReference =
   | {
+      readonly chapterId: number;
+      readonly type: "chapter";
+    }
+  | {
+      readonly type: "chapter-tree";
+    }
+  | {
+      readonly chapterId?: number;
       readonly id: number;
       readonly type: "chunk";
     }
@@ -2522,10 +2889,12 @@ type WikiGraphReference =
       readonly type: "summary";
     }
   | {
+      readonly chapterId?: number;
       readonly qid: string;
       readonly type: "entity";
     }
   | {
+      readonly chapterId?: number;
       readonly objectQid: string;
       readonly predicate: string;
       readonly subjectQid: string;
@@ -2540,12 +2909,7 @@ function parseWikiGraphReference(uri: string): WikiGraphReference {
       case "node":
         return { id: archiveReference.id, type: "chunk" };
       case "chapter":
-        return {
-          chapterId: archiveReference.id,
-          endSentenceIndex: Number.POSITIVE_INFINITY,
-          startSentenceIndex: 0,
-          type: "source",
-        };
+        return { chapterId: archiveReference.id, type: "chapter" };
       case "summary":
         return {
           chapterId: archiveReference.id,
@@ -2560,52 +2924,106 @@ function parseWikiGraphReference(uri: string): WikiGraphReference {
   }
 
   const parsed = new URL(uri);
-  const pathParts = parsed.pathname.split("/").filter((part) => part !== "");
+  const pathParts = [parsed.hostname, ...parsed.pathname.split("/")].filter(
+    (part) => part !== "",
+  );
 
-  switch (parsed.hostname) {
+  if (pathParts[0] === "chapter-tree" && pathParts.length === 1) {
+    return { type: "chapter-tree" };
+  }
+
+  switch (pathParts[0]) {
+    case "chapter":
+      if (pathParts.length === 2) {
+        return {
+          chapterId: parsePositiveInteger(pathParts[1], uri),
+          type: "chapter",
+        };
+      }
+      if (pathParts[1] !== undefined) {
+        const chapterId = parsePositiveInteger(pathParts[1], uri);
+
+        switch (pathParts[2]) {
+          case "chunk":
+            if (pathParts.length === 4) {
+              return {
+                chapterId,
+                id: parsePositiveInteger(pathParts[3], uri),
+                type: "chunk",
+              };
+            }
+            break;
+          case "entity":
+            if (pathParts.length === 4) {
+              return {
+                chapterId,
+                qid: parseQid(pathParts[3], uri),
+                type: "entity",
+              };
+            }
+            break;
+          case "source":
+            if (pathParts.length === 3 || pathParts.length === 4) {
+              const [start, end] = parseSentenceRange(parsed.hash);
+              const fragmentId =
+                pathParts[3] === undefined
+                  ? undefined
+                  : parseNonNegativeInteger(pathParts[3], uri);
+
+              return {
+                chapterId,
+                endSentenceIndex: end,
+                ...(fragmentId === undefined ? {} : { fragmentId }),
+                startSentenceIndex: start,
+                type: "source",
+              };
+            }
+            break;
+          case "summary":
+            if (pathParts.length === 3) {
+              return {
+                chapterId,
+                endSentenceIndex: Number.POSITIVE_INFINITY,
+                startSentenceIndex: 0,
+                type: "summary",
+              };
+            }
+            break;
+          case "tree":
+            if (pathParts.length === 3) {
+              return { chapterId, type: "chapter" };
+            }
+            break;
+          case "triple":
+            if (pathParts.length === 6) {
+              return {
+                chapterId,
+                objectQid: parseQid(pathParts[5], uri),
+                predicate: decodeURIComponent(pathParts[4] ?? ""),
+                subjectQid: parseQid(pathParts[3], uri),
+                type: "triple",
+              };
+            }
+            break;
+        }
+      }
+      break;
     case "chunk":
       return {
-        id: parsePositiveInteger(pathParts[0], uri),
+        id: parsePositiveInteger(pathParts[1], uri),
         type: "chunk",
       };
     case "entity":
       return {
-        qid: parseQid(pathParts[0], uri),
+        qid: parseQid(pathParts[1], uri),
         type: "entity",
       };
-    case "source":
-      if (pathParts[0] === "chapter" && pathParts[1] !== undefined) {
-        const [start, end] = parseSentenceRange(parsed.hash);
-        const fragmentId =
-          pathParts[2] === "fragment" && pathParts[3] !== undefined
-            ? parseNonNegativeInteger(pathParts[3], uri)
-            : undefined;
-
-        return {
-          chapterId: parsePositiveInteger(pathParts[1], uri),
-          endSentenceIndex: end,
-          ...(fragmentId === undefined ? {} : { fragmentId }),
-          startSentenceIndex: start,
-          type: "source",
-        };
-      }
-      break;
-    case "summary":
-      if (pathParts[0] === "chapter" && pathParts[1] !== undefined) {
-        return {
-          chapterId: parsePositiveInteger(pathParts[1], uri),
-          endSentenceIndex: Number.POSITIVE_INFINITY,
-          startSentenceIndex: 0,
-          type: "summary",
-        };
-      }
-      break;
     case "triple":
-      if (pathParts.length === 3) {
+      if (pathParts.length === 4) {
         return {
-          objectQid: parseQid(pathParts[2], uri),
-          predicate: decodeURIComponent(pathParts[1] ?? ""),
-          subjectQid: parseQid(pathParts[0], uri),
+          objectQid: parseQid(pathParts[3], uri),
+          predicate: decodeURIComponent(pathParts[2] ?? ""),
+          subjectQid: parseQid(pathParts[1], uri),
           type: "triple",
         };
       }
@@ -2736,12 +3154,13 @@ const PAGE_SUMMARY_LIMIT = 1600;
 
 const BROAD_FIND_LENS_HINT = {
   lenses: {
+    chapter: "book outline and chapter titles",
     fragment: "original source wording",
     node: "topology / LLM Wiki structure",
     summary: "quick overview",
   },
   message:
-    "Choose --type node, --type summary, or --type fragment as a search lens.",
+    "Choose --type chapter, --type chunk, --type summary, or --type source as a search lens.",
 } satisfies ArchiveFindLensHint;
 
 function createPhraseSearch(query: string): ArchiveTextSearch | undefined {
@@ -2983,18 +3402,20 @@ function getTypeOrder(type: ArchiveFindObjectType): number {
   switch (type) {
     case "chapter":
       return 0;
-    case "entity":
+    case "chapter-tree":
       return 1;
-    case "triple":
+    case "entity":
       return 2;
-    case "summary":
+    case "triple":
       return 3;
-    case "node":
+    case "summary":
       return 4;
-    case "fragment":
+    case "node":
       return 5;
-    case "meta":
+    case "fragment":
       return 6;
+    case "meta":
+      return 7;
   }
 }
 
@@ -3039,6 +3460,7 @@ function isFindFilterType(
   type: ArchiveFindObjectType,
 ): type is ArchiveFindFilterType {
   return (
+    type === "chapter" ||
     type === "entity" ||
     type === "fragment" ||
     type === "node" ||
@@ -3052,10 +3474,12 @@ function isCollectionType(
 ): type is ArchiveCollectionType {
   return (
     type === "chapter" ||
+    type === "entity" ||
     type === "fragment" ||
     type === "meta" ||
     type === "node" ||
-    type === "summary"
+    type === "summary" ||
+    type === "triple"
   );
 }
 

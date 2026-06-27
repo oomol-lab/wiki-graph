@@ -12,8 +12,9 @@ Generate:
   wikigraph queue add book.sdpub --chapter 3 --task knowledge-graph --accept-cost
 
 Explore:
-  wikigraph search book.sdpub "keyword"
-  wikigraph get book.sdpub <uri>
-  wikigraph related book.sdpub <uri>
-  wikigraph evidence book.sdpub <uri>
-  wikigraph pack book.sdpub <uri> --budget 5000
+  wikigraph search wikigraph:///Users/me/book.sdpub "keyword"
+  wikigraph list wikigraph:///Users/me/book.sdpub/chapter/3 --type entity
+  wikigraph get wikigraph:///Users/me/book.sdpub/<object-path>
+  wikigraph related wikigraph:///Users/me/book.sdpub/<object-path>
+  wikigraph evidence wikigraph:///Users/me/book.sdpub/<object-path>
+  wikigraph pack wikigraph:///Users/me/book.sdpub/<object-path> --budget 5000

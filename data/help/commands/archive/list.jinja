@@ -1,0 +1,24 @@
+Help Type: command
+Command: wikigraph list
+
+list
+
+Purpose:
+  Enumerate Wiki Graph objects from an archive or scoped collection URI.
+
+Use when:
+  - You need objects of a kind without a text query, such as all chapters or all entities.
+
+Usage:
+  wikigraph list <archive-or-scope-uri> [--type <chapter|entity|triple|source|summary|chunk[,kind...]>] [--limit <n>] [--cursor <token>] [--json|--jsonl] [--help|-h]
+
+Returns:
+  - URI-addressable objects in document order.
+
+Notes:
+  - Use `search` when you have query text.
+  - Use `wikigraph help uri` before constructing archive or scope URIs.
+
+Examples:
+  wikigraph list wikigraph:///books/book.sdpub --type chapter
+  wikigraph list wikigraph:///books/book.sdpub/chapter/3 --type entity --json

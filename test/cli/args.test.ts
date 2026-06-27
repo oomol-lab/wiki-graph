@@ -320,18 +320,18 @@ describe("cli/args", () => {
     expect(
       parseCLIArguments([
         "search",
-        "book.sdpub",
+        "wikigraph://book.sdpub",
         "RAG",
         "--type",
-        "chunk",
+        "chapter,chunk",
         "--json",
       ]),
     ).toStrictEqual({
       args: {
         action: "search",
-        archivePath: "book.sdpub",
+        archivePath: "wikigraph://book.sdpub",
         format: "json",
-        kinds: ["chunk"],
+        kinds: ["chapter", "chunk"],
         query: "RAG",
       },
       help: false,
@@ -341,10 +341,8 @@ describe("cli/args", () => {
     expect(
       parseCLIArguments([
         "search",
-        "book.sdpub",
+        "wikigraph://book.sdpub/chapter/11",
         "exact phrase",
-        "--chapter",
-        "11,12",
         "--type",
         "summary,source",
         "--limit",
@@ -356,8 +354,7 @@ describe("cli/args", () => {
     ).toStrictEqual({
       args: {
         action: "search",
-        archivePath: "book.sdpub",
-        chapters: [11, 12],
+        archivePath: "wikigraph://book.sdpub/chapter/11",
         cursor: "cursor-token",
         format: "jsonl",
         kinds: ["summary", "source"],
@@ -369,26 +366,39 @@ describe("cli/args", () => {
     });
 
     expect(
-      parseCLIArguments(["get", "book.sdpub", "wikigraph://chunk/1"]),
+      parseCLIArguments(["list", "wikigraph://book.sdpub", "--type", "entity"]),
     ).toStrictEqual({
       args: {
-        action: "get",
-        archivePath: "book.sdpub",
+        action: "list",
+        archivePath: "wikigraph://book.sdpub",
         format: "text",
-        objectId: "wikigraph://chunk/1",
+        kinds: ["entity"],
       },
       help: false,
       kind: "archive",
     });
 
     expect(
-      parseCLIArguments(["related", "book.sdpub", "wikigraph://chunk/1"]),
+      parseCLIArguments(["get", "wikigraph://book.sdpub/chunk/1"]),
+    ).toStrictEqual({
+      args: {
+        action: "get",
+        archivePath: "wikigraph://book.sdpub/chunk/1",
+        format: "text",
+        objectId: "wikigraph://book.sdpub/chunk/1",
+      },
+      help: false,
+      kind: "archive",
+    });
+
+    expect(
+      parseCLIArguments(["related", "wikigraph://book.sdpub/chunk/1"]),
     ).toStrictEqual({
       args: {
         action: "related",
-        archivePath: "book.sdpub",
+        archivePath: "wikigraph://book.sdpub/chunk/1",
         format: "text",
-        objectId: "wikigraph://chunk/1",
+        objectId: "wikigraph://book.sdpub/chunk/1",
       },
       help: false,
       kind: "archive",
@@ -397,16 +407,15 @@ describe("cli/args", () => {
     expect(
       parseCLIArguments([
         "evidence",
-        "book.sdpub",
-        "wikigraph://triple/Q1/mentions/Q2",
+        "wikigraph://book.sdpub/triple/Q1/mentions/Q2",
         "--jsonl",
       ]),
     ).toStrictEqual({
       args: {
         action: "evidence",
-        archivePath: "book.sdpub",
+        archivePath: "wikigraph://book.sdpub/triple/Q1/mentions/Q2",
         format: "jsonl",
-        objectId: "wikigraph://triple/Q1/mentions/Q2",
+        objectId: "wikigraph://book.sdpub/triple/Q1/mentions/Q2",
       },
       help: false,
       kind: "archive",
@@ -415,18 +424,17 @@ describe("cli/args", () => {
     expect(
       parseCLIArguments([
         "pack",
-        "book.sdpub",
-        "wikigraph://chunk/1",
+        "wikigraph://book.sdpub/chunk/1",
         "--budget",
         "2000",
       ]),
     ).toStrictEqual({
       args: {
         action: "pack",
-        archivePath: "book.sdpub",
+        archivePath: "wikigraph://book.sdpub/chunk/1",
         budget: 2000,
         format: "text",
-        objectId: "wikigraph://chunk/1",
+        objectId: "wikigraph://book.sdpub/chunk/1",
       },
       help: false,
       kind: "archive",
@@ -435,17 +443,22 @@ describe("cli/args", () => {
     expect(() => parseCLIArguments(["find", "book.sdpub", "RAG"])).toThrow(
       "Unknown command: find.",
     );
-    expect(() => parseCLIArguments(["search", "book.sdpub"])).toThrow(
-      "`wikigraph search` requires a search query.",
-    );
     expect(() =>
-      parseCLIArguments(["search", "book.sdpub", "RAG", "--order", "doc-desc"]),
-    ).toThrow("The `search` command does not support --order.");
+      parseCLIArguments(["search", "wikigraph://book.sdpub"]),
+    ).toThrow("`wikigraph search` requires a search query.");
+    expect(() =>
+      parseCLIArguments([
+        "search",
+        "wikigraph://book.sdpub",
+        "RAG",
+        "--order",
+        "doc-desc",
+      ]),
+    ).toThrow("Unknown option '--order'.");
     expect(() =>
       parseCLIArguments([
         "related",
-        "book.sdpub",
-        "wikigraph://chunk/1",
+        "wikigraph://book.sdpub/chunk/1",
         "--type",
         "source",
       ]),
@@ -453,12 +466,11 @@ describe("cli/args", () => {
     expect(() =>
       parseCLIArguments([
         "evidence",
-        "book.sdpub",
-        "wikigraph://entity/Q1",
-        "--fragment",
-        "1:0",
+        "wikigraph://book.sdpub/entity/Q1",
+        "--type",
+        "entity",
       ]),
-    ).toThrow("The `evidence` command does not support --fragment.");
+    ).toThrow("The `evidence` command does not support --type.");
   });
 
   it("parses archive metadata and cover commands", () => {
@@ -886,7 +898,7 @@ describe("cli/args", () => {
 
   it("rejects invalid help usage", () => {
     expect(() => parseCLIArguments(["help", "unknown"])).toThrow(
-      "Invalid help topic: unknown. Expected one of overview, task, command, format, config, env, config-file, runtime, recipe, troubleshoot, ai.\nSee: wikigraph --help",
+      "Invalid help topic: unknown. Expected one of overview, task, command, format, config, env, config-file, runtime, uri, recipe, troubleshoot, ai.\nSee: wikigraph --help",
     );
     expect(() =>
       parseCLIArguments(["help", "task", "--input", "book.epub"]),
@@ -916,8 +928,10 @@ describe("cli/args", () => {
     const commandHelpText = renderHelpTopicText("command");
 
     expect(rootHelpText).toContain("wikigraph help [topic]");
-    expect(rootHelpText).toContain("wikigraph search <archive.sdpub>");
+    expect(rootHelpText).toContain("wikigraph search <archive-or-scope-uri>");
+    expect(rootHelpText).toContain("wikigraph list <archive-or-scope-uri>");
     expect(rootHelpText).toContain("wikigraph help overview");
+    expect(rootHelpText).toContain("wikigraph help uri");
     expect(rootHelpText).toContain("wikigraph help env");
     expect(rootHelpText).toContain("wikigraph help config-file");
     expect(rootHelpText).toContain("wikigraph meta <archive.sdpub>");
@@ -943,7 +957,25 @@ describe("cli/args", () => {
       "Use Wiki Graph URIs as stable object handles",
     );
     expect(renderHelpTopicText("ai")).toContain(
-      "wikigraph search <archive.sdpub> <query>",
+      "Never pass a bare filesystem path to `search`, `list`, `get`, `related`, `evidence`, or `pack`.",
+    );
+    expect(renderHelpTopicText("ai")).toContain(
+      "/Users/me/book.sdpub -> wikigraph:///Users/me/book.sdpub",
+    );
+    expect(renderHelpTopicText("ai")).toContain(
+      "wikigraph search wikigraph:///Users/me/book.sdpub",
+    );
+    expect(renderHelpTopicText("uri")).toContain(
+      "Do not pass a bare filesystem path to object commands.",
+    );
+    expect(renderHelpTopicText("uri")).toContain(
+      "wikigraph search wikigraph:///Users/me/book.sdpub",
+    );
+    expect(renderHelpTopicText("task")).toContain(
+      "wikigraph search wikigraph:///Users/me/book.sdpub",
+    );
+    expect(renderHelpTopicText("recipe")).toContain(
+      "wikigraph search wikigraph:///Users/me/book.sdpub",
     );
     expect(commandHelpText).toContain("Object commands:");
     expect(commandHelpText).toContain("wikigraph create <archive.sdpub>");

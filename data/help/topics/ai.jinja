@@ -6,16 +6,26 @@ AI Agent Contract
 Primary contract:
   Use Wiki Graph URIs as stable object handles.
 
+Object command inputs:
+  Never pass a bare filesystem path to `search`, `list`, `get`, `related`, `evidence`, or `pack`.
+  Convert archive paths into Wiki Graph URIs first:
+    /Users/me/book.sdpub -> wikigraph:///Users/me/book.sdpub
+    ./book.sdpub -> wikigraph://book.sdpub
+
 Treat every search result as a Wiki Graph URI.
 
 Default exploration loop:
-  1. `wikigraph search <archive.sdpub> <query>`
-  2. `wikigraph get <archive.sdpub> <uri>`
-  3. `wikigraph related <archive.sdpub> <uri>`
-  4. `wikigraph evidence <archive.sdpub> <uri>`
-  5. `wikigraph pack <archive.sdpub> <uri> --budget <chars>`
+  1. `wikigraph help uri`
+  2. `wikigraph search wikigraph:///absolute/path/book.sdpub <query>`
+  3. `wikigraph get <object-uri>`
+  4. `wikigraph related <object-uri>`
+  5. `wikigraph evidence <object-uri>`
+  6. `wikigraph pack <object-uri> --budget <chars>`
+
+Example:
+  wikigraph search wikigraph:///Users/me/book.sdpub "朱元璋" --type entity,triple --limit 20 --json
 
 Use `--type` on search to filter currently searchable object kinds:
-  source, summary, chunk, entity, triple
+  chapter, source, summary, chunk, entity, triple
 
 Use `--json` or `--jsonl` when a stable machine-readable result is needed.

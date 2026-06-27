@@ -10,7 +10,7 @@ Use when:
   - You have words, names, phrases, or concepts and need candidate object URIs.
 
 Usage:
-  wikigraph search <archive.sdpub> <query> [--type <entity|triple|source|summary|chunk[,kind...]>] [--chapter <ids>] [--limit <n>] [--cursor <token>] [--json|--jsonl] [--help|-h]
+  wikigraph search <archive-or-scope-uri> <query> [--type <chapter|entity|triple|source|summary|chunk[,kind...]>] [--limit <n>] [--cursor <token>] [--json|--jsonl] [--help|-h]
 
 Returns:
   - In text output, a ranked list of full `wikigraph://...` URIs.
@@ -19,8 +19,9 @@ Returns:
 Notes:
   - Search results are leads, not source evidence.
   - Without `--type`, search first looks for entity objects and falls back to text objects when no entity matches.
-  - Use `--type source|summary|chunk` to choose a text lens.
-  - Use `--chapter <ids>` to keep retrieval local.
+  - Use `--type chapter|source|summary|chunk` to choose a text lens.
+  - Use a chapter scope URI to keep retrieval local.
+  - Read `wikigraph help uri` before constructing archive or scope URIs.
 
 Next steps:
   - Use `get` to inspect a readable returned URI.
@@ -28,5 +29,5 @@ Next steps:
   - Use `pack` after selecting a useful readable URI.
 
 Examples:
-  wikigraph search book.sdpub "恩典 婴儿洗礼"
-  wikigraph search book.sdpub "infant baptism" --type entity --json
+  wikigraph search wikigraph:///books/book.sdpub "恩典 婴儿洗礼"
+  wikigraph search wikigraph:///books/book.sdpub/chapter/3 "infant baptism" --type entity --json

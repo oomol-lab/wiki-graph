@@ -19,6 +19,7 @@ export const HELP_TOPICS = [
   "env",
   "config-file",
   "runtime",
+  "uri",
   "recipe",
   "troubleshoot",
   "ai",
@@ -29,6 +30,7 @@ export type HelpTopic = (typeof HELP_TOPICS)[number];
 export const ARCHIVE_COMMANDS = [
   "create",
   "search",
+  "list",
   "get",
   "related",
   "evidence",
@@ -81,6 +83,10 @@ const HELP_TOPIC_METADATA: readonly {
     summary: "Exit behavior, streams, progress, and digest workspace rules.",
   },
   {
+    name: "uri",
+    summary: "Wiki Graph URI grammar, archive locators, scopes, and objects.",
+  },
+  {
     name: "recipe",
     summary: "Short copyable command examples.",
   },
@@ -121,6 +127,7 @@ const HELP_TOPIC_TEMPLATE_NAMES: Readonly<Record<HelpTopic, string>> = {
   env: "help/topics/env",
   "config-file": "help/topics/config-file",
   runtime: "help/topics/runtime",
+  uri: "help/topics/uri",
   recipe: "help/topics/recipe",
   troubleshoot: "help/topics/troubleshoot",
   ai: "help/topics/ai",

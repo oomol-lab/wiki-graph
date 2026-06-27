@@ -12,11 +12,12 @@ Queue derived data:
   wikigraph queue add book.sdpub --chapter 3 --task reading-summary --accept-cost
 
 Search and open objects:
-  wikigraph search book.sdpub "恩典 婴儿洗礼"
-  wikigraph get book.sdpub wikigraph://chunk/123
-  wikigraph related book.sdpub wikigraph://chunk/123
-  wikigraph evidence book.sdpub wikigraph://triple/Q162593/discusses/Q9476
-  wikigraph pack book.sdpub wikigraph://entity/Q162593 --budget 5000
+  wikigraph search wikigraph:///Users/me/book.sdpub "恩典 婴儿洗礼"
+  wikigraph list wikigraph:///Users/me/book.sdpub/chapter/3 --type entity
+  wikigraph get wikigraph:///Users/me/book.sdpub/chunk/123
+  wikigraph related wikigraph:///Users/me/book.sdpub/chunk/123
+  wikigraph evidence wikigraph:///Users/me/book.sdpub/triple/Q162593/discusses/Q9476
+  wikigraph pack wikigraph:///Users/me/book.sdpub/entity/Q162593 --budget 5000
 
 Export:
   wikigraph export book.sdpub --output-format markdown --output out.md
