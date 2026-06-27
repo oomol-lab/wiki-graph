@@ -197,6 +197,121 @@ describe("facade/archive-view", () => {
     });
   });
 
+  it("continues entity search cursors without repeating --type", async () => {
+    await withTempDir("spinedigest-archive-view-", async (path) => {
+      process.env.WIKIGRAPH_STATE_DIR = `${path}/state`;
+      const document = await DirectoryDocument.open(`${path}/document`);
+
+      try {
+        await seedSourcedDocument(document);
+        await document.openSession(async (openedDocument) => {
+          await openedDocument.mentions.saveMany([
+            {
+              chapterId: 1,
+              fragmentId: 0,
+              id: "entity-wiki",
+              qid: "Q1",
+              rangeEnd: 11,
+              rangeStart: 7,
+              sentenceIndex: 0,
+              surface: "Wiki",
+            },
+            {
+              chapterId: 1,
+              fragmentId: 0,
+              id: "entity-source",
+              qid: "Q2",
+              rangeEnd: 44,
+              rangeStart: 38,
+              sentenceIndex: 2,
+              surface: "Source",
+            },
+          ]);
+        });
+
+        const firstPage = await findArchiveObjects(document, "Wiki Source", {
+          limit: 1,
+          types: ["entity"],
+        });
+        const secondPage = await findArchiveObjects(document, "ignored", {
+          ...(firstPage.nextCursor === null
+            ? {}
+            : { cursor: firstPage.nextCursor }),
+          limit: 1,
+        });
+
+        await expect(
+          findArchiveObjects(document, "ignored", {
+            ...(firstPage.nextCursor === null
+              ? {}
+              : { cursor: firstPage.nextCursor }),
+            limit: 1,
+            types: ["summary"],
+          }),
+        ).rejects.toThrow("Search cursor does not match");
+        expect(secondPage.types).toStrictEqual(["entity"]);
+        expect(secondPage.items[0]).toMatchObject({ type: "entity" });
+      } finally {
+        await document.release();
+      }
+    });
+  });
+
+  it("finds triples when only one endpoint matches the query", async () => {
+    await withTempDir("spinedigest-archive-view-", async (path) => {
+      process.env.WIKIGRAPH_STATE_DIR = `${path}/state`;
+      const document = await DirectoryDocument.open(`${path}/document`);
+
+      try {
+        await seedSourcedDocument(document);
+        await document.openSession(async (openedDocument) => {
+          await openedDocument.mentions.saveMany([
+            {
+              chapterId: 1,
+              fragmentId: 0,
+              id: "triple-source",
+              qid: "Q1",
+              rangeEnd: 11,
+              rangeStart: 7,
+              sentenceIndex: 0,
+              surface: "Wiki",
+            },
+            {
+              chapterId: 1,
+              fragmentId: 0,
+              id: "triple-target",
+              qid: "Q2",
+              rangeEnd: 44,
+              rangeStart: 38,
+              sentenceIndex: 2,
+              surface: "Source",
+            },
+          ]);
+          await openedDocument.mentionLinks.save({
+            id: "triple-link",
+            predicate: "mentions",
+            sourceMentionId: "triple-source",
+            targetMentionId: "triple-target",
+          });
+        });
+
+        const result = await findArchiveObjects(document, "Wiki", {
+          types: ["triple"],
+        });
+
+        expect(result.items).toContainEqual(
+          expect.objectContaining({
+            id: "wikigraph://triple/Q1/mentions/Q2",
+            title: "Wiki mentions Source",
+            type: "triple",
+          }),
+        );
+      } finally {
+        await document.release();
+      }
+    });
+  });
+
   it("falls back to lexical source scan with session cursors", async () => {
     await withTempDir("spinedigest-archive-view-", async (path) => {
       process.env.WIKIGRAPH_STATE_DIR = `${path}/state`;

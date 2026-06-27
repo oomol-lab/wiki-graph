@@ -76,6 +76,16 @@ export interface EntitySearchSessionPage {
   readonly types: readonly string[] | null;
 }
 
+export interface SearchSessionDescriptor {
+  readonly chapters: readonly number[] | null;
+  readonly lens: string;
+  readonly match: string;
+  readonly query: string;
+  readonly sessionId: string;
+  readonly terms: readonly string[];
+  readonly types: readonly string[] | null;
+}
+
 const SEARCH_SESSION_SCHEMA_SQL = `
 CREATE TABLE IF NOT EXISTS search_sessions (
   session_id TEXT PRIMARY KEY,
@@ -381,6 +391,36 @@ export async function readEntitySearchSessionPage(
         rows.length > limit
           ? encodeSearchSessionCursor(sessionId, nextOffset)
           : null,
+      query: session.query,
+      sessionId,
+      terms: session.terms,
+      types: session.options.types,
+    };
+  } finally {
+    await database.close();
+  }
+}
+
+export async function readSearchSessionDescriptor(
+  sessionId: string,
+  expectedArchiveKey?: string,
+): Promise<SearchSessionDescriptor> {
+  const database = await openSearchSessionDatabase();
+
+  try {
+    await cleanExpiredSearchSessions(database);
+    const session = await readSearchSessionMetadata(
+      database,
+      sessionId,
+      expectedArchiveKey,
+    );
+
+    await touchSearchSession(database, sessionId);
+
+    return {
+      chapters: session.options.chapters,
+      lens: session.lens,
+      match: session.match,
       query: session.query,
       sessionId,
       terms: session.terms,

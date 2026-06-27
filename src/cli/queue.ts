@@ -224,7 +224,6 @@ async function executeBuildJob(
       assertJobStillRunning(await getBuildJob(job.jobId));
       await commitChapterKnowledgeGraphArtifact(document, artifact);
     });
-    await reporter.updateWords({ graphWords: details.words });
     await reporter.stepCompleted("knowledge-graph");
     assertJobStillRunning(await getBuildJob(job.jobId));
     return;

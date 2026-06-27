@@ -60,7 +60,7 @@ export async function narrowWikimatchCandidateOptions(
       continue;
     }
 
-    for (const qid of listKeptQids(result.candidate)) {
+    for (const qid of listCandidateSelectableQids(result.candidate)) {
       keptQids.add(qid);
     }
   }
@@ -183,10 +183,6 @@ export function validateNarrowingResponse(
   }
 
   return issues;
-}
-
-function listKeptQids(candidate: WikimatchCandidate): readonly string[] {
-  return listCandidateSelectableQids(candidate);
 }
 
 function buildNarrowingMessages(

@@ -29,6 +29,7 @@ import {
   decodeSearchSessionCursor,
   readEntitySearchEvidenceMentions,
   readEntitySearchSessionPage,
+  readSearchSessionDescriptor,
   readSearchSessionPage,
   type EntitySearchMentionHit,
 } from "./search-cache.js";
@@ -529,7 +530,14 @@ export async function findArchiveObjects(
 
   if (options.cursor !== undefined) {
     const cursor = decodeSearchSessionCursor(options.cursor);
-    const page = isEntityOnlySearch(options)
+    const descriptor = await readSearchSessionDescriptor(
+      cursor.sessionId,
+      options.archiveKey ?? "archive",
+    );
+
+    assertSearchCursorTypesMatch(options.types, descriptor.types);
+
+    const page = isEntitySearchTypes(descriptor.types)
       ? await readEntitySearchSessionPage(
           cursor.sessionId,
           cursor.offset,
@@ -556,7 +564,7 @@ export async function findArchiveObjects(
       order: options.order ?? "doc-asc",
       query: page.query,
       terms: page.terms,
-      types: parseFindTypes(page.types),
+      types: parseFindTypes(descriptor.types),
     };
   }
 
@@ -1217,8 +1225,10 @@ async function findTriples(
     for (const link of await document.mentionLinks.listByChapter(
       chapter.chapterId,
     )) {
-      const source = mentionsById.get(link.sourceMentionId);
-      const target = mentionsById.get(link.targetMentionId);
+      const [source, target] = await Promise.all([
+        getMentionForTripleSearch(document, mentionsById, link.sourceMentionId),
+        getMentionForTripleSearch(document, mentionsById, link.targetMentionId),
+      ]);
 
       if (source === undefined || target === undefined) {
         continue;
@@ -1257,6 +1267,26 @@ async function findTriples(
   }
 
   return [...hitsByTriple.values()];
+}
+
+async function getMentionForTripleSearch(
+  document: ReadonlyDocument,
+  cache: Map<string, MentionRecord>,
+  mentionId: string,
+): Promise<MentionRecord | undefined> {
+  const cached = cache.get(mentionId);
+
+  if (cached !== undefined) {
+    return cached;
+  }
+
+  const mention = await document.mentions.getById(mentionId);
+
+  if (mention !== undefined) {
+    cache.set(mentionId, mention);
+  }
+
+  return mention;
 }
 
 async function hydrateFindHitEvidence(
@@ -1350,11 +1380,28 @@ function formatTripleUri(
 }
 
 function isEntityOnlySearch(options: ArchiveFindOptions): boolean {
-  return (
-    options.types !== undefined &&
-    options.types.length === 1 &&
-    options.types[0] === "entity"
-  );
+  return isEntitySearchTypes(options.types ?? null);
+}
+
+function isEntitySearchTypes(types: readonly string[] | null): boolean {
+  return types !== null && types.length === 1 && types[0] === "entity";
+}
+
+function assertSearchCursorTypesMatch(
+  requestedTypes: readonly string[] | undefined,
+  sessionTypes: readonly string[] | null,
+): void {
+  if (requestedTypes === undefined) {
+    return;
+  }
+  if (requestedTypes.length !== (sessionTypes?.length ?? 0)) {
+    throw new Error("Search cursor does not match the requested result types.");
+  }
+  const sessionTypeSet = new Set(sessionTypes ?? []);
+
+  if (requestedTypes.some((type) => !sessionTypeSet.has(type))) {
+    throw new Error("Search cursor does not match the requested result types.");
+  }
 }
 
 function createEntitySearchMentionHits(

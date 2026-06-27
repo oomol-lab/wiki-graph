@@ -408,7 +408,7 @@ async function writeFindHits(
     return;
   }
   if (format === "jsonl") {
-    await writeJSONL(objects);
+    await writeJSONL([...objects, createPageCursorObject(result.nextCursor)]);
     return;
   }
 
@@ -433,7 +433,10 @@ async function writeEvidence(
     return;
   }
   if (format === "jsonl") {
-    await writeJSONL(evidence.items);
+    await writeJSONL([
+      ...evidence.items,
+      createPageCursorObject(evidence.nextCursor),
+    ]);
     return;
   }
 
@@ -451,6 +454,16 @@ function formatEvidenceNextCursor(evidence: ArchiveEvidence): string {
   return evidence.nextCursor === null
     ? ""
     : `\n\nNext page: add --cursor ${evidence.nextCursor}`;
+}
+
+function createPageCursorObject(nextCursor: string | null): {
+  readonly nextCursor: string | null;
+  readonly type: "page";
+} {
+  return {
+    nextCursor,
+    type: "page",
+  };
 }
 
 function formatEvidenceItem(item: ArchiveEvidenceItem): string {

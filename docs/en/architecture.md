@@ -36,6 +36,7 @@ User-facing stages describe how much knowledge has been built into the archive:
 - `source`: normalized source data and metadata are present
 - `reading-graph`: reading-oriented chunks, links, and source-backed knowledge units are present
 - `reading-summary`: readable chapter summaries and export projections are available
+- `knowledge-graph`: entity mentions and relationships are available for URI-based search and evidence tracing
 
 `source` is cheap and does not require LLM access. Reading Graph, Reading Summary, and Knowledge Graph queue tasks may call an LLM provider and should be estimated before full-archive builds.
 

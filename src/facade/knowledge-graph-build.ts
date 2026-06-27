@@ -344,9 +344,11 @@ async function judgeCandidates(input: {
     }),
   );
 
+  const sentenceLocations = buildSentenceLocations(input.fragments);
+
   for (const result of results) {
     for (const mention of result.mentions) {
-      const location = locateMention(input.fragments, mention.range.start);
+      const location = locateMention(sentenceLocations, mention.range.start);
 
       mentions.push(
         toMentionRecord(input.chapterId, mention, location, mentionIndex),
@@ -455,59 +457,61 @@ function toMentionRecord(
   };
 }
 
-function locateMention(
-  fragments: readonly FragmentRecord[],
-  absoluteOffset: number,
-): {
+interface SentenceLocation {
+  readonly absoluteStart: number;
   readonly fragmentId: number;
-  readonly rangeStart: number;
+  readonly length: number;
   readonly sentenceIndex: number;
-} {
+}
+
+function buildSentenceLocations(
+  fragments: readonly FragmentRecord[],
+): readonly SentenceLocation[] {
+  const locations: SentenceLocation[] = [];
+  let offset = 0;
+
   for (const fragment of fragments) {
     for (
       let sentenceIndex = 0;
       sentenceIndex < fragment.sentences.length;
       sentenceIndex += 1
     ) {
-      const sentence = fragment.sentences[sentenceIndex]!;
-      const rangeStart = getSentenceAbsoluteStart(
-        fragments,
-        fragment.fragmentId,
-        sentenceIndex,
-      );
-      const rangeEnd = rangeStart + sentence.text.length;
+      const length = fragment.sentences[sentenceIndex]!.text.length;
 
-      if (absoluteOffset >= rangeStart && absoluteOffset < rangeEnd) {
-        return {
-          fragmentId: fragment.fragmentId,
-          rangeStart: absoluteOffset - rangeStart,
-          sentenceIndex,
-        };
-      }
+      locations.push({
+        absoluteStart: offset,
+        fragmentId: fragment.fragmentId,
+        length,
+        sentenceIndex,
+      });
+      offset += length + 1;
+    }
+  }
+
+  return locations;
+}
+
+function locateMention(
+  locations: readonly SentenceLocation[],
+  absoluteOffset: number,
+): {
+  readonly fragmentId: number;
+  readonly rangeStart: number;
+  readonly sentenceIndex: number;
+} {
+  for (const location of locations) {
+    const rangeEnd = location.absoluteStart + location.length;
+
+    if (absoluteOffset >= location.absoluteStart && absoluteOffset < rangeEnd) {
+      return {
+        fragmentId: location.fragmentId,
+        rangeStart: absoluteOffset - location.absoluteStart,
+        sentenceIndex: location.sentenceIndex,
+      };
     }
   }
 
   throw new Error(`Mention offset ${absoluteOffset} is outside chapter text.`);
-}
-
-function getSentenceAbsoluteStart(
-  fragments: readonly FragmentRecord[],
-  fragmentId: number,
-  sentenceIndex: number,
-): number {
-  let offset = 0;
-
-  for (const fragment of fragments) {
-    for (let index = 0; index < fragment.sentences.length; index += 1) {
-      if (fragment.fragmentId === fragmentId && index === sentenceIndex) {
-        return offset;
-      }
-
-      offset += fragment.sentences[index]!.text.length + 1;
-    }
-  }
-
-  throw new Error(`Sentence ${fragmentId}:${sentenceIndex} does not exist.`);
 }
 
 async function readChapterFragments(

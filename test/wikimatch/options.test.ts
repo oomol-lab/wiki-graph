@@ -10,7 +10,7 @@ describe("wikimatch/options", () => {
   it("counts disambiguation meanings as selectable options", () => {
     const candidate = disambiguationCandidate(5);
 
-    expect(countWikimatchCandidateOptions(candidate)).toBe(5);
+    expect(countWikimatchCandidateOptions(candidate)).toBe(6);
   });
 
   it("splits oversized disambiguation options horizontally", () => {
@@ -20,17 +20,24 @@ describe("wikimatch/options", () => {
     expect(chunks.map((chunk) => listChunkQids(chunk))).toStrictEqual([
       ["Q1", "Q2"],
       ["Q3", "Q4"],
-      ["Q5"],
+      ["Q5", "Q-linked"],
     ]);
+  });
+
+  it("rejects non-positive option budgets", () => {
+    expect(() =>
+      splitCandidateByOptionBudget(disambiguationCandidate(1), 0),
+    ).toThrow("Wikimatch option budget must be positive.");
   });
 });
 
 function listChunkQids(candidate: WikimatchCandidate): readonly string[] {
-  return candidate.qidOptions.flatMap(
-    (option) =>
-      option.disambiguation?.profile?.meanings.map((meaning) => meaning.qid) ??
-      [],
-  );
+  return candidate.qidOptions.flatMap((option) => [
+    ...(option.disambiguation?.profile?.meanings.map(
+      (meaning) => meaning.qid,
+    ) ?? []),
+    ...(option.disambiguation?.linkedQids.map((item) => item.qid) ?? []),
+  ]);
 }
 
 function disambiguationCandidate(count: number): WikimatchCandidate {
@@ -41,10 +48,7 @@ function disambiguationCandidate(count: number): WikimatchCandidate {
         disambiguation: {
           checkedAt: "2026-06-27T00:00:00.000Z",
           disambiguationQid: "Q100",
-          linkedQids: Array.from({ length: count }, (_, index) => ({
-            qid: `Q${index + 1}`,
-            title: `Meaning ${index + 1}`,
-          })),
+          linkedQids: [{ qid: "Q-linked", title: "Linked only" }],
           pages: [],
           profile: {
             meanings: Array.from({ length: count }, (_, index) => ({

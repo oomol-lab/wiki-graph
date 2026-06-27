@@ -349,7 +349,7 @@ async function assertResetAllowed(
       await assertNoActiveBuildJobs({
         archivePath,
         chapterIds: [chapterId],
-        operation: "Resetting chapter graph",
+        operation: "Resetting chapter summary",
         requiresTarget: "reading-summary",
       });
       return;

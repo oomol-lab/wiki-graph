@@ -36,6 +36,7 @@ SpineDigest 围绕一个主对象构建：`.sdpub` 知识库归档。EPUB、Mark
 - `source`：已有规范化源数据和 metadata
 - `reading-graph`：已有面向阅读的 chunk、link 和 source-backed knowledge unit
 - `reading-summary`：已有可读章节 summary 和 export projection 所需数据
+- `knowledge-graph`：已有 entity mention 和 relation，可用于 URI 化搜索与证据追踪
 
 `source` 便宜，不需要 LLM 访问。Reading Graph、Reading Summary 和 Knowledge Graph queue task 可能调用 LLM provider，整份归档构建前应先 estimate。
 

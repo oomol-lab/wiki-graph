@@ -138,6 +138,16 @@ const archiveMockState = vi.hoisted(() => ({
   textWrites: [] as string[],
 }));
 
+function parseJSONLLastLine(text: string | undefined): unknown {
+  const line = text?.trim().split("\n").at(-1);
+
+  if (line === undefined) {
+    return undefined;
+  }
+
+  return JSON.parse(line) as unknown;
+}
+
 vi.mock("../../src/facade/spine-digest-file.js", () => ({
   SpineDigestFile: class {
     readonly #path: string;
@@ -325,6 +335,24 @@ describe("cli/archive", () => {
     });
   });
 
+  it("prints search cursor metadata as JSONL", async () => {
+    await runArchiveCommand({
+      action: "search",
+      archivePath: "/tmp/book.sdpub",
+      format: "jsonl",
+      kinds: ["entity"],
+      query: "RAG",
+    });
+
+    expect(archiveMockState.textWrites[0]).toContain(
+      '"uri":"wikigraph://entity/Q1"',
+    );
+    expect(parseJSONLLastLine(archiveMockState.textWrites[0])).toStrictEqual({
+      nextCursor: null,
+      type: "page",
+    });
+  });
+
   it("gets an object by Wiki Graph URI", async () => {
     await runArchiveCommand({
       action: "get",
@@ -420,6 +448,10 @@ describe("cli/archive", () => {
     expect(archiveMockState.textWrites[0]).toContain(
       '"id":"wikigraph://source/chapter/2/fragment/0#0..1"',
     );
+    expect(parseJSONLLastLine(archiveMockState.textWrites[0])).toStrictEqual({
+      nextCursor: null,
+      type: "page",
+    });
   });
 
   it("prints a context pack", async () => {

@@ -18,7 +18,8 @@ Behavior:
   - `reading-summary` is not supported because reset is a backward operation.
   - Reset is destructive and may discard work.
   - Does not call an LLM provider.
-  - After reset, use `queue add` to generate reading-graph, reading-summary, or knowledge-graph again.
+  - After resetting to `source` or `reading-graph`, use `queue add` to generate reading-graph, reading-summary, or knowledge-graph again.
+  - After resetting to `planned`, restore source text before queueing generated tasks.
 
 See also:
   - wikigraph queue --help

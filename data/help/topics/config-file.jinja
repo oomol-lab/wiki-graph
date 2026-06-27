@@ -129,7 +129,8 @@ Minimum LLM-backed operation config:
   }
 
 Applicability:
-  - `llm.*`, `prompt`, `paths.cacheDir`, and `request.*` matter for source digest runs and queue reading-graph, reading-summary, and knowledge-graph jobs.
+  - `llm.*`, `paths.cacheDir`, and `request.*` matter for source digest runs and queue reading-graph, reading-summary, and knowledge-graph jobs.
+  - `prompt` is the default extraction prompt for reading-graph generation; knowledge-graph policy text is supplied by the knowledge graph build path.
   - `.sdpub` re-export through the main convert command does not require LLM settings.
   - `meta`, `cover`, and non-generating `chapter` maintenance commands do not require LLM settings.
   - `paths.debugLogDir` can still matter outside source digest runs when the app emits debug logs.

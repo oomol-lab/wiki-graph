@@ -107,8 +107,8 @@ wikigraph export ./book.sdpub --output-format epub --output ./digest.epub
 
 ```text
 Create 便宜。
-Queue graph 或 summary 任务之前先 estimate。
-只有成本和等待时间可接受时，才 queue graph 或 summary 任务。
+Queue reading-graph、reading-summary 或 knowledge-graph 任务之前先 estimate。
+只有成本和等待时间可接受时，才 queue reading-graph、reading-summary 或 knowledge-graph 任务。
 完成构建后，搜索、阅读、导航、打包和导出都便宜。
 ```
 

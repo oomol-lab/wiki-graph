@@ -2,6 +2,7 @@ import { WikipageResolver } from "../wikipage/index.js";
 
 import type {
   QidResolution,
+  WikipageResolverOptions,
   WikipageResolveProgressReporter,
 } from "../wikipage/index.js";
 import type { WikimatchCandidate, WikimatchQidOption } from "./types.js";
@@ -10,6 +11,7 @@ export async function enrichWikimatchCandidates(
   candidates: readonly WikimatchCandidate[],
   options: {
     readonly progress?: WikipageResolveProgressReporter;
+    readonly resolverOptions?: Omit<WikipageResolverOptions, "progress">;
   } = {},
 ): Promise<readonly WikimatchCandidate[]> {
   if (candidates.length === 0) {
@@ -17,6 +19,7 @@ export async function enrichWikimatchCandidates(
   }
 
   const resolver = await WikipageResolver.open({
+    ...(options.resolverOptions ?? {}),
     ...(options.progress === undefined ? {} : { progress: options.progress }),
   });
 

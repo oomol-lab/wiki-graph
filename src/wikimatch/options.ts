@@ -47,6 +47,10 @@ export function splitCandidateByOptionBudget(
   candidate: WikimatchCandidate,
   optionBudget: number,
 ): readonly WikimatchCandidate[] {
+  if (!Number.isFinite(optionBudget) || optionBudget <= 0) {
+    throw new Error("Wikimatch option budget must be positive.");
+  }
+
   const chunks: WikimatchCandidate[] = [];
   let pendingOptions: WikimatchQidOption[] = [];
   let pendingCost = 0;
@@ -89,18 +93,16 @@ function splitQidOptionByBudget(
     return [option];
   }
 
-  const meanings = option.disambiguation.profile?.meanings;
+  const selectableQids = listSelectableQids(option);
 
-  if (meanings === undefined || meanings.length <= optionBudget) {
+  if (selectableQids.length <= optionBudget) {
     return [option];
   }
 
   const chunks: WikimatchQidOption[] = [];
 
-  for (let index = 0; index < meanings.length; index += optionBudget) {
-    const qids = new Set(
-      meanings.slice(index, index + optionBudget).map((meaning) => meaning.qid),
-    );
+  for (let index = 0; index < selectableQids.length; index += optionBudget) {
+    const qids = new Set(selectableQids.slice(index, index + optionBudget));
     const filtered = filterQidOption(option, qids);
 
     if (filtered !== undefined) {
