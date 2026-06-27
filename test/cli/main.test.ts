@@ -143,7 +143,7 @@ describe("cli/main", () => {
     mainMockState.archiveCoverRunError = undefined;
     mainMockState.archiveMetaRunError = undefined;
     process.exitCode = 0;
-    process.argv = ["node", "spinedigest"];
+    process.argv = ["node", "wikigraph"];
     setStdinTTY(false);
     stdoutChunks = [];
     stderrChunks = [];

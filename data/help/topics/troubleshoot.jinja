@@ -4,12 +4,12 @@ Topic: troubleshoot
 Troubleshooting
 
 No search results:
-  Try fewer keywords, remove restrictive `--type` filters, or inspect the archive with `spinedigest index <archive.sdpub>`.
+  Try fewer keywords, remove restrictive `--type` filters, or inspect the archive with `wikigraph index <archive.sdpub>`.
 
 Missing generated objects:
   Queue the relevant generation task for the chapter:
-    spinedigest queue add <archive.sdpub> --chapter <id> --task reading-graph --accept-cost
-    spinedigest queue add <archive.sdpub> --chapter <id> --task summary --accept-cost
+    wikigraph queue add <archive.sdpub> --chapter <id> --task reading-graph --accept-cost
+    wikigraph queue add <archive.sdpub> --chapter <id> --task summary --accept-cost
 
 Need machine-readable output:
   Use `--json` or `--jsonl` on object commands.

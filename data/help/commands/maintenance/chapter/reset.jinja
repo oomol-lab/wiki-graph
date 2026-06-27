@@ -1,5 +1,5 @@
 Help Type: command
-Command: spinedigest chapter reset
+Command: wikigraph chapter reset
 
 chapter reset
 
@@ -7,7 +7,7 @@ Purpose:
   Move a chapter backward by deleting later-stage artifacts.
 
 Usage:
-  spinedigest chapter reset <path> --chapter <id> --to <planned|source|graph> [--llm <json>] [--help|-h]
+  wikigraph chapter reset <path> --chapter <id> --to <planned|source|graph> [--llm <json>] [--help|-h]
 
 Targets:
   planned     Delete source text, graph data, and summary.
@@ -21,6 +21,6 @@ Behavior:
   - After reset, use `queue add` to generate graph or summary again.
 
 See also:
-  - spinedigest queue --help
-  - spinedigest chapter status --help
-  - spinedigest help command
+  - wikigraph queue --help
+  - wikigraph chapter status --help
+  - wikigraph help command

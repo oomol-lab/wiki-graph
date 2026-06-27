@@ -43,7 +43,7 @@ describe("cli/config", () => {
   });
 
   it("loads file config and lets env vars override it", async () => {
-    await withTempDir("spinedigest-config-", async (path) => {
+    await withTempDir("wikigraph-config-", async (path) => {
       const configPath = `${path}/nested/config.json`;
 
       await mkdir(`${path}/nested`, { recursive: true });
@@ -119,7 +119,7 @@ describe("cli/config", () => {
   });
 
   it("resolves relative config paths from the config file directory", async () => {
-    await withTempDir("spinedigest-config-", async (path) => {
+    await withTempDir("wikigraph-config-", async (path) => {
       const configPath = `${path}/settings/config.json`;
 
       await mkdir(`${path}/settings`, { recursive: true });
@@ -146,7 +146,7 @@ describe("cli/config", () => {
   });
 
   it("lets inline llm json override env and file llm values", async () => {
-    await withTempDir("spinedigest-config-", async (path) => {
+    await withTempDir("wikigraph-config-", async (path) => {
       const configPath = `${path}/config.json`;
 
       await writeFile(
@@ -188,7 +188,7 @@ describe("cli/config", () => {
   });
 
   it("accepts nested inline llm json and chat completions urls", async () => {
-    await withTempDir("spinedigest-config-", async (path) => {
+    await withTempDir("wikigraph-config-", async (path) => {
       process.env.SPINEDIGEST_CONFIG = `${path}/missing.json`;
 
       await expect(
@@ -213,7 +213,7 @@ describe("cli/config", () => {
   });
 
   it("returns an empty config when no config file exists", async () => {
-    await withTempDir("spinedigest-config-", async (path) => {
+    await withTempDir("wikigraph-config-", async (path) => {
       process.env.SPINEDIGEST_CONFIG = `${path}/missing.json`;
 
       await expect(loadCLIConfig()).resolves.toStrictEqual({});
@@ -221,7 +221,7 @@ describe("cli/config", () => {
   });
 
   it("rejects invalid config json and invalid env values", async () => {
-    await withTempDir("spinedigest-config-", async (path) => {
+    await withTempDir("wikigraph-config-", async (path) => {
       const configPath = `${path}/broken.json`;
 
       await writeFile(configPath, "{not json", "utf8");
@@ -231,35 +231,35 @@ describe("cli/config", () => {
         `Invalid CLI config JSON at ${configPath}:`,
       );
       await expect(loadCLIConfig()).rejects.toThrow(
-        "See: spinedigest help config-file",
+        "See: wikigraph help config-file",
       );
     });
 
     process.env.SPINEDIGEST_LLM_PROVIDER = "bad-provider";
 
     await expect(loadCLIConfig()).rejects.toThrow(
-      "Invalid SPINEDIGEST_LLM_PROVIDER: bad-provider. Expected one of anthropic, google, openai, openai-compatible.\nSee: spinedigest help env",
+      "Invalid SPINEDIGEST_LLM_PROVIDER: bad-provider. Expected one of anthropic, google, openai, openai-compatible.\nSee: wikigraph help env",
     );
 
     delete process.env.SPINEDIGEST_LLM_PROVIDER;
     process.env.SPINEDIGEST_REQUEST_CONCURRENT = "1.5";
 
     await expect(loadCLIConfig()).rejects.toThrow(
-      "SPINEDIGEST_REQUEST_CONCURRENT must be an integer.\nSee: spinedigest help env",
+      "SPINEDIGEST_REQUEST_CONCURRENT must be an integer.\nSee: wikigraph help env",
     );
 
     delete process.env.SPINEDIGEST_REQUEST_CONCURRENT;
     process.env.SPINEDIGEST_REQUEST_TEMPERATURE = '[1,"bad"]';
 
     await expect(loadCLIConfig()).rejects.toThrow(
-      "SPINEDIGEST_REQUEST_TEMPERATURE must be a number or JSON number array.\nSee: spinedigest help env",
+      "SPINEDIGEST_REQUEST_TEMPERATURE must be a number or JSON number array.\nSee: wikigraph help env",
     );
 
     delete process.env.SPINEDIGEST_REQUEST_TEMPERATURE;
     process.env.SPINEDIGEST_REQUEST_STREAM = "maybe";
 
     await expect(loadCLIConfig()).rejects.toThrow(
-      "SPINEDIGEST_REQUEST_STREAM must be true/false or 1/0.\nSee: spinedigest help env",
+      "SPINEDIGEST_REQUEST_STREAM must be true/false or 1/0.\nSee: wikigraph help env",
     );
 
     delete process.env.SPINEDIGEST_REQUEST_STREAM;
@@ -269,7 +269,7 @@ describe("cli/config", () => {
     );
 
     await expect(loadCLIConfig({ llmJSON: "{}" })).rejects.toThrow(
-      "--llm must contain at least one supported LLM field.\nSee: spinedigest help config",
+      "--llm must contain at least one supported LLM field.\nSee: wikigraph help config",
     );
 
     await expect(
@@ -279,7 +279,7 @@ describe("cli/config", () => {
         }),
       }),
     ).rejects.toThrow(
-      "--llm chatCompletionsUrl must end with /chat/completions when baseURL is not provided.\nSee: spinedigest help config",
+      "--llm chatCompletionsUrl must end with /chat/completions when baseURL is not provided.\nSee: wikigraph help config",
     );
 
     await expect(
@@ -291,7 +291,7 @@ describe("cli/config", () => {
         }),
       }),
     ).rejects.toThrow(
-      "--llm chatCompletionsUrl must end with /chat/completions when baseURL is not provided.\nSee: spinedigest help config",
+      "--llm chatCompletionsUrl must end with /chat/completions when baseURL is not provided.\nSee: wikigraph help config",
     );
   });
 });

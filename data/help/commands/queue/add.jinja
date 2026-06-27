@@ -1,11 +1,11 @@
 Help Type: command
-Command: spinedigest queue add
+Command: wikigraph queue add
 
 Purpose:
   Create one generation task for one `.sdpub` chapter.
 
 Usage:
-  spinedigest queue add <archive.sdpub> --chapter <id> --task <reading-graph|summary> --accept-cost [--boost] [--llm <json>] [--prompt <text>]
+  wikigraph queue add <archive.sdpub> --chapter <id> --task <reading-graph|summary> --accept-cost [--boost] [--llm <json>] [--prompt <text>]
 
 Options:
   --chapter <id>       Required chapter id.
@@ -16,5 +16,5 @@ Options:
   --prompt <text>      Override extraction prompt for this job.
 
 Examples:
-  spinedigest queue add book.sdpub --chapter 3 --task reading-graph --accept-cost
-  spinedigest queue add book.sdpub --chapter 3 --task summary --accept-cost --boost
+  wikigraph queue add book.sdpub --chapter 3 --task reading-graph --accept-cost
+  wikigraph queue add book.sdpub --chapter 3 --task summary --accept-cost --boost

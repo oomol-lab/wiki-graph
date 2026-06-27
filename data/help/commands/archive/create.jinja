@@ -1,11 +1,11 @@
 Help Type: command
-Command: spinedigest create
+Command: wikigraph create
 
 Purpose:
   Create an LLM Wiki archive from source material at source stage.
 
 Usage:
-  spinedigest create <archive.sdpub> [source] [--input-format <format>] [--llm <json>] [--prompt <text>]
+  wikigraph create <archive.sdpub> [source] [--input-format <format>] [--llm <json>] [--prompt <text>]
 
 Contract:
   - Mutates: yes, writes the archive path.
@@ -14,5 +14,5 @@ Contract:
   - JSON: no.
 
 Examples:
-  spinedigest create book.sdpub ./book.md --input-format markdown
-  cat article.md | spinedigest create article.sdpub --input-format markdown
+  wikigraph create book.sdpub ./book.md --input-format markdown
+  cat article.md | wikigraph create article.sdpub --input-format markdown

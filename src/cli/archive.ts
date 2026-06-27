@@ -151,7 +151,7 @@ async function createArchive(args: CLIArchiveArguments): Promise<void> {
   }
 
   const temporaryDirectoryPath = await mkdtemp(
-    join(tmpdir(), "spinedigest-url-create-"),
+    join(tmpdir(), "wikigraph-url-create-"),
   );
   const sourcePath = join(temporaryDirectoryPath, "source.md");
 
@@ -195,7 +195,7 @@ async function createArchiveFromStdin(
   }
 
   const temporaryDirectoryPath = await mkdtemp(
-    join(tmpdir(), "spinedigest-stdin-create-"),
+    join(tmpdir(), "wikigraph-stdin-create-"),
   );
   const extension = args.inputFormat === "markdown" ? ".md" : ".txt";
   const sourcePath = join(temporaryDirectoryPath, `source${extension}`);
@@ -270,14 +270,14 @@ async function writeIndex(
       "",
       "Reading Graph:",
       "  No reading chunks are currently available. If a reading-graph queue task already ran, the source may be too short or sparse.",
-      "  Next: inspect source with `spinedigest get <archive.sdpub> wikigraph://source/chapter/<id>` or queue `--task reading-graph`.",
+      "  Next: inspect source with `wikigraph get <archive.sdpub> wikigraph://source/chapter/<id>` or queue `--task reading-graph`.",
     );
   } else if (index.edgeCount === 0) {
     lines.push(
       "",
       "Reading Graph:",
       "  Reading chunks exist, but no chunk edges are currently available. This can be valid when extracted chunks have no stable relationships.",
-      "  Next: inspect chunks with `spinedigest search <archive.sdpub> <query> --type chunk`.",
+      "  Next: inspect chunks with `wikigraph search <archive.sdpub> <query> --type chunk`.",
     );
   }
 
@@ -291,9 +291,9 @@ async function writeIndex(
     lines.push(
       "",
       "Next:",
-      "  spinedigest search <archive.sdpub> <term>",
-      "  spinedigest get <archive.sdpub> wikigraph://source/chapter/<id>",
-      "  spinedigest related <archive.sdpub> <uri>",
+      "  wikigraph search <archive.sdpub> <term>",
+      "  wikigraph get <archive.sdpub> wikigraph://source/chapter/<id>",
+      "  wikigraph related <archive.sdpub> <uri>",
     );
   }
 
@@ -534,7 +534,7 @@ function formatNextCursor(result: ArchiveFindResult): string {
 
 function formatNoMatches(result: ArchiveFindResult): string {
   if (result.match === "all" && result.terms.length > 1) {
-    return `No matches. Try: spinedigest search <archive.sdpub> "${result.query}" --type ${formatFindTypes(result)}${formatFindLensHint(result)}\n`;
+    return `No matches. Try: wikigraph search <archive.sdpub> "${result.query}" --type ${formatFindTypes(result)}${formatFindLensHint(result)}\n`;
   }
 
   const lines = [
@@ -704,8 +704,8 @@ function formatChapterNextSteps(
 ): string {
   return [
     "Next:",
-    `  spinedigest search <archive.sdpub> <keyword> --type chunk --chapter ${page.chapter.chapterId}`,
-    `  spinedigest get <archive.sdpub> wikigraph://source/chapter/${page.chapter.chapterId}`,
+    `  wikigraph search <archive.sdpub> <keyword> --type chunk --chapter ${page.chapter.chapterId}`,
+    `  wikigraph get <archive.sdpub> wikigraph://source/chapter/${page.chapter.chapterId}`,
   ].join("\n");
 }
 

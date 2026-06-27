@@ -1,5 +1,5 @@
 Help Type: command
-Command: spinedigest chapter set-source
+Command: wikigraph chapter set-source
 
 chapter set-source
 
@@ -7,7 +7,7 @@ Purpose:
   Fill a planned chapter with normalized source text.
 
 Usage:
-  spinedigest chapter set-source <path> --chapter <id> [--input <path>] --input-format <format> [--llm <json>] [--help|-h]
+  wikigraph chapter set-source <path> --chapter <id> [--input <path>] --input-format <format> [--llm <json>] [--help|-h]
 
 Input:
   - `--input-format` must be `txt` or `markdown`.
@@ -25,9 +25,9 @@ Behavior:
   - Does not call an LLM provider.
 
 Typical next step:
-  spinedigest queue add <path> --chapter <id> --task reading-graph --accept-cost
+  wikigraph queue add <path> --chapter <id> --task reading-graph --accept-cost
 
 See also:
-  - spinedigest chapter reset --help
-  - spinedigest queue --help
-  - spinedigest help command
+  - wikigraph chapter reset --help
+  - wikigraph queue --help
+  - wikigraph help command

@@ -1,5 +1,5 @@
 Help Type: command
-Command: spinedigest chapter move
+Command: wikigraph chapter move
 
 chapter move
 
@@ -7,12 +7,12 @@ Purpose:
   Move one existing chapter to a new parent or sibling position.
 
 Usage:
-  spinedigest chapter move <path> --chapter <id> --parent <id> [--first|--last] [--llm <json>] [--help|-h]
-  spinedigest chapter move <path> --chapter <id> --root [--first|--last] [--llm <json>] [--help|-h]
-  spinedigest chapter move <path> --chapter <id> --before <id> [--llm <json>] [--help|-h]
-  spinedigest chapter move <path> --chapter <id> --after <id> [--llm <json>] [--help|-h]
-  spinedigest chapter move <path> --chapter <id> --first [--llm <json>] [--help|-h]
-  spinedigest chapter move <path> --chapter <id> --last [--llm <json>] [--help|-h]
+  wikigraph chapter move <path> --chapter <id> --parent <id> [--first|--last] [--llm <json>] [--help|-h]
+  wikigraph chapter move <path> --chapter <id> --root [--first|--last] [--llm <json>] [--help|-h]
+  wikigraph chapter move <path> --chapter <id> --before <id> [--llm <json>] [--help|-h]
+  wikigraph chapter move <path> --chapter <id> --after <id> [--llm <json>] [--help|-h]
+  wikigraph chapter move <path> --chapter <id> --first [--llm <json>] [--help|-h]
+  wikigraph chapter move <path> --chapter <id> --last [--llm <json>] [--help|-h]
 
 Behavior:
   - Moves only the chapter tree node. Source text, graph data, and summary stay attached to the same chapter id.
@@ -25,11 +25,11 @@ Behavior:
   - Does not call an LLM provider.
 
 Examples:
-  spinedigest chapter move book.sdpub --chapter 8 --parent 3 --first
-  spinedigest chapter move book.sdpub --chapter 8 --root --last
-  spinedigest chapter move book.sdpub --chapter 8 --before 9
+  wikigraph chapter move book.sdpub --chapter 8 --parent 3 --first
+  wikigraph chapter move book.sdpub --chapter 8 --root --last
+  wikigraph chapter move book.sdpub --chapter 8 --before 9
 
 See also:
-  - spinedigest chapter list --help
-  - spinedigest chapter tree --help
-  - spinedigest help command
+  - wikigraph chapter list --help
+  - wikigraph chapter tree --help
+  - wikigraph help command

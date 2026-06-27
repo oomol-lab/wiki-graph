@@ -1,5 +1,5 @@
 Help Type: command
-Command: spinedigest chapter set-summary
+Command: wikigraph chapter set-summary
 
 chapter set-summary
 
@@ -7,7 +7,7 @@ Purpose:
   Fill a graph-stage chapter with a manual final summary.
 
 Usage:
-  spinedigest chapter set-summary <path> --chapter <id> [--input <path>] [--llm <json>] [--help|-h]
+  wikigraph chapter set-summary <path> --chapter <id> [--input <path>] [--llm <json>] [--help|-h]
 
 Input:
   - If `--input` is omitted, summary text is read from stdin.
@@ -17,7 +17,7 @@ Input:
 Preconditions:
   - The chapter must be `graph`.
   - If the chapter is `source`, run:
-    spinedigest queue add <path> --chapter <id> --task reading-graph --accept-cost
+    wikigraph queue add <path> --chapter <id> --task reading-graph --accept-cost
 
 Behavior:
   - Moves the chapter to `summary`.
@@ -25,6 +25,6 @@ Behavior:
   - Does not call an LLM provider.
 
 See also:
-  - spinedigest queue --help
-  - spinedigest chapter status --help
-  - spinedigest help command
+  - wikigraph queue --help
+  - wikigraph chapter status --help
+  - wikigraph help command

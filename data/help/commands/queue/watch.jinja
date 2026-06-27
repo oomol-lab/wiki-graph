@@ -1,11 +1,11 @@
 Help Type: command
-Command: spinedigest queue watch
+Command: wikigraph queue watch
 
 Purpose:
   Follow durable events and progress for one queue job.
 
 Usage:
-  spinedigest queue watch <job-id> [--jsonl] [--from beginning|now]
+  wikigraph queue watch <job-id> [--jsonl] [--from beginning|now]
 
 Arguments:
   <job-id>              Full job id or an unambiguous prefix.
@@ -21,5 +21,5 @@ Progress:
   - Token progress is throttled and approximate.
 
 Examples:
-  spinedigest queue watch 75d12f7e
-  spinedigest queue watch 75d12f7e --jsonl --from beginning
+  wikigraph queue watch 75d12f7e
+  wikigraph queue watch 75d12f7e --jsonl --from beginning

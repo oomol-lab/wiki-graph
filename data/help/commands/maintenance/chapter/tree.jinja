@@ -1,5 +1,5 @@
 Help Type: command
-Command: spinedigest chapter tree
+Command: wikigraph chapter tree
 
 chapter tree
 
@@ -7,8 +7,8 @@ Purpose:
   Print or apply the complete chapter tree as a stable JSON structure.
 
 Usage:
-  spinedigest chapter tree <path> [--json] [--llm <json>] [--help|-h]
-  spinedigest chapter tree apply <path> [--input <path>] [--dry-run] [--llm <json>] [--help|-h]
+  wikigraph chapter tree <path> [--json] [--llm <json>] [--help|-h]
+  wikigraph chapter tree apply <path> [--input <path>] [--dry-run] [--llm <json>] [--help|-h]
 
 Tree JSON shape:
   {
@@ -38,11 +38,11 @@ Dry run:
   `--dry-run` validates the input and prints moved, renamed, and unchanged counts without changing the archive.
 
 Examples:
-  spinedigest chapter tree book.sdpub --json > tree.json
-  spinedigest chapter tree apply book.sdpub --input tree.json --dry-run
-  spinedigest chapter tree apply book.sdpub --input tree.json
+  wikigraph chapter tree book.sdpub --json > tree.json
+  wikigraph chapter tree apply book.sdpub --input tree.json --dry-run
+  wikigraph chapter tree apply book.sdpub --input tree.json
 
 See also:
-  - spinedigest chapter move --help
-  - spinedigest chapter set-title --help
-  - spinedigest help command
+  - wikigraph chapter move --help
+  - wikigraph chapter set-title --help
+  - wikigraph help command

@@ -4,12 +4,12 @@ Topic: runtime
 Runtime Behavior
 
 Archive-first streams:
-  - `spinedigest create <archive.sdpub> --input-format markdown|txt` reads source text from stdin.
-  - `spinedigest export <archive.sdpub> --output-format markdown|txt` can write text projections to stdout.
-  - `spinedigest transform --input-format markdown|txt --output-format markdown|txt` runs direct one-shot stream digest/export.
+  - `wikigraph create <archive.sdpub> --input-format markdown|txt` reads source text from stdin.
+  - `wikigraph export <archive.sdpub> --output-format markdown|txt` can write text projections to stdout.
+  - `wikigraph transform --input-format markdown|txt --output-format markdown|txt` runs direct one-shot stream digest/export.
   - Retrieval commands print human-readable text by default and support `--json` where documented.
-  - A bare `spinedigest` in an interactive terminal prints root help.
-  - A bare non-interactive `spinedigest` invocation is not a transform shortcut; use `spinedigest transform`.
+  - A bare `wikigraph` in an interactive terminal prints root help.
+  - A bare non-interactive `wikigraph` invocation is not a transform shortcut; use `wikigraph transform`.
 
 Exit behavior:
   - Success returns exit code 0.
@@ -44,8 +44,8 @@ In-place archive edits:
 
 Where to go next:
   - Need legal format combinations:
-    spinedigest help format
+    wikigraph help format
   - Need command forms:
-    spinedigest help command
+    wikigraph help command
   - Need failure recovery:
-    spinedigest help troubleshoot
+    wikigraph help troubleshoot

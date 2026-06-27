@@ -1,11 +1,11 @@
 Help Type: command
-Command: spinedigest queue list
+Command: wikigraph queue list
 
 Purpose:
   Show queue jobs. By default this shows active jobs: `queued`, `running`, and `paused`.
 
 Usage:
-  spinedigest queue list [--all] [--active] [--input <archive.sdpub>] [--json]
+  wikigraph queue list [--all] [--active] [--input <archive.sdpub>] [--json]
 
 Options:
   --all                 Include terminal history: `succeeded`, `failed`, and `canceled`.
@@ -27,6 +27,6 @@ Agent use:
   - Use `queue watch <job-id> --jsonl` for durable event history and progress.
 
 Examples:
-  spinedigest queue list
-  spinedigest queue list --input book.sdpub --json
-  spinedigest queue list --all
+  wikigraph queue list
+  wikigraph queue list --input book.sdpub --json
+  wikigraph queue list --all

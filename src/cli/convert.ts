@@ -272,7 +272,7 @@ async function writeDigestOutput(
   }
 
   const temporaryOutput = await createTemporaryOutputPath(
-    "spinedigest-cli-output-",
+    "wikigraph-cli-output-",
     extensionForFormat(output.format),
   );
 

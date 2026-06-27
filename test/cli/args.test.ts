@@ -47,7 +47,7 @@ describe("cli/args", () => {
     if (!helpTopic.help || helpTopic.kind !== "help") {
       throw new Error("Expected help topic");
     }
-    expect(createHelp.helpText).toContain("Command: spinedigest create");
+    expect(createHelp.helpText).toContain("Command: wikigraph create");
     expect(createHelp.helpText).toContain("stdin: supported");
   });
 
@@ -60,10 +60,10 @@ describe("cli/args", () => {
       throw new Error("Expected recipe help");
     }
     expect(recipeHelp.helpText).toContain(
-      "cat article.md | spinedigest create article.sdpub --input-format markdown",
+      "cat article.md | wikigraph create article.sdpub --input-format markdown",
     );
     expect(recipeHelp.helpText).toContain(
-      "cat chapter.txt | spinedigest transform --input-format txt --output-format markdown",
+      "cat chapter.txt | wikigraph transform --input-format txt --output-format markdown",
     );
   });
 
@@ -130,7 +130,7 @@ describe("cli/args", () => {
     });
     expect(() =>
       parseCLIArguments(["status", "book.sdpub", "--accept-cost"]),
-    ).toThrow("only valid for `spinedigest queue add`");
+    ).toThrow("only valid for `wikigraph queue add`");
     expect(() =>
       parseCLIArguments([
         "queue",
@@ -141,7 +141,7 @@ describe("cli/args", () => {
         "--stage",
         "graph",
       ]),
-    ).toThrow("`spinedigest queue add` does not support --stage.");
+    ).toThrow("`wikigraph queue add` does not support --stage.");
     expect(() =>
       parseCLIArguments([
         "queue",
@@ -427,7 +427,7 @@ describe("cli/args", () => {
       "Unknown command: find.",
     );
     expect(() => parseCLIArguments(["search", "book.sdpub"])).toThrow(
-      "`spinedigest search` requires a search query.",
+      "`wikigraph search` requires a search query.",
     );
     expect(() =>
       parseCLIArguments(["search", "book.sdpub", "RAG", "--order", "doc-desc"]),
@@ -788,7 +788,7 @@ describe("cli/args", () => {
 
   it("rejects positional arguments", () => {
     expect(() => parseCLIArguments(["book.epub"])).toThrow(
-      "Unknown command: book.epub.\nSee: spinedigest help command",
+      "Unknown command: book.epub.\nSee: wikigraph help command",
     );
   });
 
@@ -802,24 +802,24 @@ describe("cli/args", () => {
         "pdf",
       ]),
     ).toThrow(
-      "Invalid --input-format: pdf. Expected one of sdpub, epub, txt, markdown.\nSee: spinedigest help format",
+      "Invalid --input-format: pdf. Expected one of sdpub, epub, txt, markdown.\nSee: wikigraph help format",
     );
     expect(() =>
       parseCLIArguments(["export", "book.sdpub", "--output-format", "pdf"]),
     ).toThrow(
-      "Invalid --output-format: pdf. Expected one of sdpub, epub, txt, markdown.\nSee: spinedigest help format",
+      "Invalid --output-format: pdf. Expected one of sdpub, epub, txt, markdown.\nSee: wikigraph help format",
     );
   });
 
   it("rejects removed command families and invalid maintenance usage", () => {
     expect(() => parseCLIArguments([])).toThrow(
-      "Missing command.\nSee: spinedigest help command",
+      "Missing command.\nSee: wikigraph help command",
     );
     expect(() => parseCLIArguments(["import", "--help"])).toThrow(
-      "Unknown command: import.\nSee: spinedigest help command",
+      "Unknown command: import.\nSee: wikigraph help command",
     );
     expect(() => parseCLIArguments(["ls", "book.sdpub"])).toThrow(
-      "Unknown command: ls.\nSee: spinedigest help command",
+      "Unknown command: ls.\nSee: wikigraph help command",
     );
     expect(() => parseCLIArguments(["sdpub"])).toThrow(
       "Unknown command: sdpub.",
@@ -828,7 +828,7 @@ describe("cli/args", () => {
       "Unknown command: sdpub.",
     );
     expect(() => parseCLIArguments(["meta"])).toThrow(
-      "Missing archive path. Use `spinedigest meta <archive.sdpub>`.",
+      "Missing archive path. Use `wikigraph meta <archive.sdpub>`.",
     );
     expect(() =>
       parseCLIArguments(["meta", "book.sdpub", "--json", "--title", "Updated"]),
@@ -847,7 +847,7 @@ describe("cli/args", () => {
         "x",
       ]),
     ).toThrow(
-      "Invalid --chapter: x. Expected a non-negative integer.\nSee: spinedigest chapter --help",
+      "Invalid --chapter: x. Expected a non-negative integer.\nSee: wikigraph chapter --help",
     );
     expect(() =>
       parseCLIArguments([
@@ -858,7 +858,7 @@ describe("cli/args", () => {
         "1",
       ]),
     ).toThrow(
-      "Missing --input-format. `chapter set-source` requires txt or markdown.\nSee: spinedigest chapter --help",
+      "Missing --input-format. `chapter set-source` requires txt or markdown.\nSee: wikigraph chapter --help",
     );
     expect(() =>
       parseCLIArguments([
@@ -871,23 +871,23 @@ describe("cli/args", () => {
         "summarized",
       ]),
     ).toThrow(
-      "Invalid --to: summarized. Expected planned, source, or graph.\nSee: spinedigest chapter --help",
+      "Invalid --to: summarized. Expected planned, source, or graph.\nSee: wikigraph chapter --help",
     );
   });
 
   it("rejects invalid help usage", () => {
     expect(() => parseCLIArguments(["help", "unknown"])).toThrow(
-      "Invalid help topic: unknown. Expected one of overview, task, command, format, config, env, config-file, runtime, recipe, troubleshoot, ai.\nSee: spinedigest --help",
+      "Invalid help topic: unknown. Expected one of overview, task, command, format, config, env, config-file, runtime, recipe, troubleshoot, ai.\nSee: wikigraph --help",
     );
     expect(() =>
       parseCLIArguments(["help", "task", "--input", "book.epub"]),
     ).toThrow(
-      "The `help` command does not support --input.\nSee: spinedigest --help",
+      "The `help` command does not support --input.\nSee: wikigraph --help",
     );
     expect(() =>
       parseCLIArguments(["help", "overview", "--llm", '{"model":"cli-model"}']),
     ).toThrow(
-      "The `help` command does not support --llm.\nSee: spinedigest --help",
+      "The `help` command does not support --llm.\nSee: wikigraph --help",
     );
   });
 
@@ -895,7 +895,7 @@ describe("cli/args", () => {
     expect(() =>
       parseCLIArguments(["config", "status", "--input", "book.epub"]),
     ).toThrow(
-      "The `config status` command does not support --input.\nSee: spinedigest config status --help",
+      "The `config status` command does not support --input.\nSee: wikigraph config status --help",
     );
     expect(() => parseCLIArguments(["status", "book.sdpub"])).toThrow(
       "Unknown command: status.",
@@ -906,42 +906,42 @@ describe("cli/args", () => {
     const rootHelpText = renderMainHelpText();
     const commandHelpText = renderHelpTopicText("command");
 
-    expect(rootHelpText).toContain("spinedigest help [topic]");
-    expect(rootHelpText).toContain("spinedigest search <archive.sdpub>");
-    expect(rootHelpText).toContain("spinedigest help overview");
-    expect(rootHelpText).toContain("spinedigest help env");
-    expect(rootHelpText).toContain("spinedigest help config-file");
-    expect(rootHelpText).toContain("spinedigest meta <archive.sdpub>");
+    expect(rootHelpText).toContain("wikigraph help [topic]");
+    expect(rootHelpText).toContain("wikigraph search <archive.sdpub>");
+    expect(rootHelpText).toContain("wikigraph help overview");
+    expect(rootHelpText).toContain("wikigraph help env");
+    expect(rootHelpText).toContain("wikigraph help config-file");
+    expect(rootHelpText).toContain("wikigraph meta <archive.sdpub>");
     expect(rootHelpText).toContain(
-      "spinedigest chapter <action> <archive.sdpub>",
+      "wikigraph chapter <action> <archive.sdpub>",
     );
-    expect(rootHelpText).toContain("spinedigest transform");
-    expect(rootHelpText).not.toContain("spinedigest import");
+    expect(rootHelpText).toContain("wikigraph transform");
+    expect(rootHelpText).not.toContain("wikigraph import");
     expect(rootHelpText).toContain("--chapter <id>");
     expect(rootHelpText).toContain(
       "Append `--help` to commands and subcommands",
     );
-    expect(rootHelpText).toContain("Treat `spinedigest --help` as the root");
+    expect(rootHelpText).toContain("Treat `wikigraph --help` as the root");
     expect(rootHelpText).toContain(
-      "Read `spinedigest help overview` for the archive-first mental model.",
+      "Read `wikigraph help overview` for the archive-first mental model.",
     );
     expect(rootHelpText).toContain("Queue generation tasks call an LLM");
     expect(renderHelpTopicText("runtime")).toContain("Runtime Behavior");
     expect(renderHelpTopicText("config")).toContain("Configuration Overview");
-    expect(renderHelpTopicText("command")).toContain("spinedigest search");
+    expect(renderHelpTopicText("command")).toContain("wikigraph search");
     expect(renderHelpTopicText("ai")).toContain("Primary contract:");
     expect(renderHelpTopicText("ai")).toContain(
       "Use Wiki Graph URIs as stable object handles",
     );
     expect(renderHelpTopicText("ai")).toContain(
-      "spinedigest search <archive.sdpub> <query>",
+      "wikigraph search <archive.sdpub> <query>",
     );
     expect(commandHelpText).toContain("Object commands:");
-    expect(commandHelpText).toContain("spinedigest create <archive.sdpub>");
-    expect(commandHelpText).toContain("spinedigest export <archive.sdpub>");
-    expect(commandHelpText).toContain("spinedigest transform");
-    expect(commandHelpText).not.toContain("spinedigest ls");
-    expect(renderHelpTopicText("config")).toContain("spinedigest help env");
+    expect(commandHelpText).toContain("wikigraph create <archive.sdpub>");
+    expect(commandHelpText).toContain("wikigraph export <archive.sdpub>");
+    expect(commandHelpText).toContain("wikigraph transform");
+    expect(commandHelpText).not.toContain("wikigraph ls");
+    expect(renderHelpTopicText("config")).toContain("wikigraph help env");
     expect(renderHelpTopicText("config")).toContain("Inline LLM JSON");
     expect(renderHelpTopicText("config")).toContain("baseUrl");
     expect(renderHelpTopicText("env")).toContain("SPINEDIGEST_LLM_MODEL");
@@ -982,8 +982,8 @@ describe("cli/args", () => {
   it("supports a first-contact recovery chain from root help to parse failures", () => {
     const rootHelpText = renderMainHelpText();
 
-    expect(rootHelpText).toContain("spinedigest help overview");
-    expect(rootHelpText).toContain("spinedigest help command");
+    expect(rootHelpText).toContain("wikigraph help overview");
+    expect(rootHelpText).toContain("wikigraph help command");
     expect(() =>
       parseCLIArguments([
         "create",
@@ -992,12 +992,12 @@ describe("cli/args", () => {
         "--input-format",
         "pdf",
       ]),
-    ).toThrow("See: spinedigest help format");
+    ).toThrow("See: wikigraph help format");
     expect(() => parseCLIArguments(["sdpub", "inspect"])).toThrow(
-      "See: spinedigest help command",
+      "See: wikigraph help command",
     );
     expect(() => parseCLIArguments(["book.epub"])).toThrow(
-      "See: spinedigest help command",
+      "See: wikigraph help command",
     );
   });
 });

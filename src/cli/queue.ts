@@ -147,7 +147,7 @@ function assertBuildCostAccepted(args: CLIQueueArguments): void {
   }
 
   throw new Error(
-    "Queue generation tasks can call an LLM, consume tokens, incur provider charges, and run for minutes to hours on large archives. Run `spinedigest estimate <archive.sdpub> --stage summary`, then rerun `queue add` with --accept-cost if the cost and wait time are acceptable.",
+    "Queue generation tasks can call an LLM, consume tokens, incur provider charges, and run for minutes to hours on large archives. Run `wikigraph estimate <archive.sdpub> --stage summary`, then rerun `queue add` with --accept-cost if the cost and wait time are acceptable.",
   );
 }
 

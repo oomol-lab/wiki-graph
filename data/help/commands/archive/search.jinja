@@ -1,5 +1,5 @@
 Help Type: command
-Command: spinedigest search
+Command: wikigraph search
 
 search
 
@@ -7,7 +7,7 @@ Purpose:
   Search a Wiki Graph archive for URI-addressable objects.
 
 Usage:
-  spinedigest search <archive.sdpub> <query> [--type <entity|triple|source|summary|chunk[,kind...]>] [--chapter <ids>] [--limit <n>] [--cursor <token>] [--json|--jsonl] [--help|-h]
+  wikigraph search <archive.sdpub> <query> [--type <entity|triple|source|summary|chunk[,kind...]>] [--chapter <ids>] [--limit <n>] [--cursor <token>] [--json|--jsonl] [--help|-h]
 
 Notes:
   - Results are returned as a linear list of Wiki Graph URIs.
@@ -15,5 +15,5 @@ Notes:
   - `--type` filters result objects.
 
 Examples:
-  spinedigest search book.sdpub "恩典 婴儿洗礼"
-  spinedigest search book.sdpub "infant baptism" --type entity --json
+  wikigraph search book.sdpub "恩典 婴儿洗礼"
+  wikigraph search book.sdpub "infant baptism" --type entity --json

@@ -1,5 +1,5 @@
 Help Type: command
-Command: spinedigest meta
+Command: wikigraph meta
 
 meta
 
@@ -7,9 +7,9 @@ Purpose:
   Read or edit book metadata stored in an existing `.sdpub` archive.
 
 Usage:
-  spinedigest meta <archive.sdpub> [--llm <json>] [--help|-h]
-  spinedigest meta <archive.sdpub> --json [--llm <json>] [--help|-h]
-  spinedigest meta <archive.sdpub> [metadata options] [--llm <json>] [--help|-h]
+  wikigraph meta <archive.sdpub> [--llm <json>] [--help|-h]
+  wikigraph meta <archive.sdpub> --json [--llm <json>] [--help|-h]
+  wikigraph meta <archive.sdpub> [metadata options] [--llm <json>] [--help|-h]
 
 Metadata options:
   --title <text>             Set the book title.
@@ -38,14 +38,14 @@ Behavior:
   - This command does not call an LLM provider.
 
 Examples:
-  spinedigest meta ./book.sdpub
-  spinedigest meta ./book.sdpub --json
-  spinedigest meta ./book.sdpub --title "New Title"
-  spinedigest meta ./book.sdpub --author "Author One" --author "Author Two"
-  spinedigest meta ./book.sdpub --clear-title --clear-description
+  wikigraph meta ./book.sdpub
+  wikigraph meta ./book.sdpub --json
+  wikigraph meta ./book.sdpub --title "New Title"
+  wikigraph meta ./book.sdpub --author "Author One" --author "Author Two"
+  wikigraph meta ./book.sdpub --clear-title --clear-description
 
 Where to go next:
   - Need chapter tree editing:
-    spinedigest chapter --help
+    wikigraph chapter --help
   - Need archive-vs-source mental model:
-    spinedigest help command
+    wikigraph help command

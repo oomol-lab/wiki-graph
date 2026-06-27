@@ -55,7 +55,7 @@ describe("cli/status", () => {
   });
 
   it("prints {} when the config file does not exist", async () => {
-    await withTempDir("spinedigest-status-", async (path) => {
+    await withTempDir("wikigraph-status-", async (path) => {
       process.env.SPINEDIGEST_CONFIG = `${path}/missing.json`;
       await runStatusCommand({});
 
@@ -64,7 +64,7 @@ describe("cli/status", () => {
   });
 
   it("prints masked config json when the config file is valid", async () => {
-    await withTempDir("spinedigest-status-", async (path) => {
+    await withTempDir("wikigraph-status-", async (path) => {
       const configPath = `${path}/nested/config.json`;
 
       await mkdir(`${path}/nested`, { recursive: true });
@@ -106,7 +106,7 @@ describe("cli/status", () => {
   });
 
   it("masks short api keys without exposing the full secret", async () => {
-    await withTempDir("spinedigest-status-", async (path) => {
+    await withTempDir("wikigraph-status-", async (path) => {
       const configPath = `${path}/config.json`;
 
       await writeFile(
@@ -141,7 +141,7 @@ describe("cli/status", () => {
   });
 
   it("throws when the config file is invalid", async () => {
-    await withTempDir("spinedigest-status-", async (path) => {
+    await withTempDir("wikigraph-status-", async (path) => {
       const configPath = `${path}/broken.json`;
 
       await writeFile(configPath, "{not json", "utf8");
@@ -154,7 +154,7 @@ describe("cli/status", () => {
   });
 
   it("prints masked merged config when inline llm json is provided", async () => {
-    await withTempDir("spinedigest-status-", async (path) => {
+    await withTempDir("wikigraph-status-", async (path) => {
       process.env.SPINEDIGEST_CONFIG = `${path}/missing.json`;
 
       await runStatusCommand({

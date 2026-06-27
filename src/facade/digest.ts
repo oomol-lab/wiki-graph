@@ -234,7 +234,7 @@ async function withTemporaryDocumentSession<T>(
 ): Promise<T> {
   const directoryPath =
     documentDirPath === undefined
-      ? await mkdtemp(join(tmpdir(), "spinedigest-digest-"))
+      ? await mkdtemp(join(tmpdir(), "wikigraph-digest-"))
       : resolve(documentDirPath);
   const document = await DirectoryDocument.open(directoryPath);
 

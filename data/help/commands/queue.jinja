@@ -1,20 +1,20 @@
 Help Type: command
-Command: spinedigest queue
+Command: wikigraph queue
 
 Purpose:
   Manage device-local generation tasks for `.sdpub` chapters.
 
 Usage:
-  spinedigest queue add <archive.sdpub> --chapter <id> --task <reading-graph|summary> --accept-cost [--boost] [--llm <json>] [--prompt <text>]
-  spinedigest queue list [--all] [--active] [--input <archive.sdpub>]
-  spinedigest queue status <job-id>
-  spinedigest queue watch <job-id> [--jsonl] [--from beginning|now]
-  spinedigest queue pause <job-id>
-  spinedigest queue resume <job-id>
-  spinedigest queue cancel <job-id>
-  spinedigest queue boost <job-id>
-  spinedigest queue target <job-id> --task <reading-graph|summary>
-  spinedigest queue clean
+  wikigraph queue add <archive.sdpub> --chapter <id> --task <reading-graph|summary> --accept-cost [--boost] [--llm <json>] [--prompt <text>]
+  wikigraph queue list [--all] [--active] [--input <archive.sdpub>]
+  wikigraph queue status <job-id>
+  wikigraph queue watch <job-id> [--jsonl] [--from beginning|now]
+  wikigraph queue pause <job-id>
+  wikigraph queue resume <job-id>
+  wikigraph queue cancel <job-id>
+  wikigraph queue boost <job-id>
+  wikigraph queue target <job-id> --task <reading-graph|summary>
+  wikigraph queue clean
 
 Tasks:
   - reading-graph builds the reading-oriented chunk graph.
@@ -25,6 +25,6 @@ Cost:
   `queue add` requires `--accept-cost`.
 
 Examples:
-  spinedigest queue add book.sdpub --chapter 3 --task reading-graph --accept-cost
-  spinedigest queue add book.sdpub --chapter 3 --task summary --accept-cost
-  spinedigest queue watch <job-id> --jsonl
+  wikigraph queue add book.sdpub --chapter 3 --task reading-graph --accept-cost
+  wikigraph queue add book.sdpub --chapter 3 --task summary --accept-cost
+  wikigraph queue watch <job-id> --jsonl
