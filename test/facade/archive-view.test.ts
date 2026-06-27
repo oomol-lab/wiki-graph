@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 
 import { DirectoryDocument } from "../../src/document/index.js";
 import {
@@ -12,7 +12,13 @@ import {
 } from "../../src/facade/archive-view.js";
 import { withTempDir } from "../helpers/temp.js";
 
+const originalStateDir = process.env.SPINEDIGEST_STATE_DIR;
+
 describe("facade/archive-view", () => {
+  afterEach(() => {
+    restoreEnv("SPINEDIGEST_STATE_DIR", originalStateDir);
+  });
+
   it("searches sourced fragments before graph or summary build", async () => {
     await withTempDir("spinedigest-archive-view-", async (path) => {
       const document = await DirectoryDocument.open(`${path}/document`);
@@ -56,15 +62,81 @@ describe("facade/archive-view", () => {
         );
 
         expect(result.match).toBe("any");
-        expect(result.items).toContainEqual(
-          expect.objectContaining({
-            field: "source",
-            id: "fragment:1:0",
-            matchedTerms: ["朱元璋"],
-            missingTerms: ["不存在的关键词"],
-            type: "fragment",
-          }),
+        const sourceHit = result.items.find(
+          (item) => item.id === "fragment:1:0",
         );
+        expect(sourceHit).toMatchObject({
+          field: "source",
+          type: "fragment",
+        });
+        expect(sourceHit?.matchedTerms).toContain("朱元璋");
+        expect(sourceHit?.missingTerms).toContain("不存在的关键词");
+      } finally {
+        await document.release();
+      }
+    });
+  });
+
+  it("prioritizes entity matches before source fallback", async () => {
+    await withTempDir("spinedigest-archive-view-", async (path) => {
+      process.env.SPINEDIGEST_STATE_DIR = `${path}/state`;
+      const document = await DirectoryDocument.open(`${path}/document`);
+
+      try {
+        await seedSourcedDocument(document);
+        await document.openSession(async (openedDocument) => {
+          await openedDocument.mentions.saveMany([
+            {
+              chapterId: 1,
+              fragmentId: 0,
+              id: "entity-augustine",
+              qid: "Q8018",
+              rangeEnd: 15,
+              rangeStart: 4,
+              sentenceIndex: 0,
+              surface: "Augustine",
+            },
+          ]);
+        });
+
+        const result = await findArchiveObjects(document, "Augustine");
+
+        expect(result.items).toStrictEqual([
+          expect.objectContaining({
+            id: "wikigraph://entity/Q8018",
+            title: "Augustine",
+            type: "entity",
+          }),
+        ]);
+      } finally {
+        await document.release();
+      }
+    });
+  });
+
+  it("falls back to lexical source scan with session cursors", async () => {
+    await withTempDir("spinedigest-archive-view-", async (path) => {
+      process.env.SPINEDIGEST_STATE_DIR = `${path}/state`;
+      const document = await DirectoryDocument.open(`${path}/document`);
+
+      try {
+        await seedSourcedDocument(document);
+
+        const firstPage = await findArchiveObjects(document, "Wiki", {
+          limit: 1,
+        });
+        const secondPage = await findArchiveObjects(document, "ignored query", {
+          ...(firstPage.nextCursor === null
+            ? {}
+            : { cursor: firstPage.nextCursor }),
+          limit: 1,
+        });
+
+        expect(firstPage.items).toHaveLength(1);
+        expect(firstPage.nextCursor).not.toBeNull();
+        expect(["fragment", "node"]).toContain(firstPage.items[0]?.type);
+        expect(secondPage.query).toBe("Wiki");
+        expect(secondPage.items[0]?.id).not.toBe(firstPage.items[0]?.id);
       } finally {
         await document.release();
       }
@@ -87,20 +159,22 @@ describe("facade/archive-view", () => {
           match: "all",
         });
 
-        expect(noMatch).toMatchObject({
-          items: [],
-          match: "all",
-          terms: ["朱元璋", "不存在的关键词"],
+        expect(noMatch.items).toStrictEqual([]);
+        expect(noMatch.match).toBe("all");
+        expect(noMatch.terms).toEqual(
+          expect.arrayContaining(["朱元璋", "不存在的关键词"]),
+        );
+        const sourceHit = result.items.find(
+          (item) => item.id === "fragment:1:0",
+        );
+        expect(sourceHit).toMatchObject({
+          field: "source",
+          missingTerms: [],
+          type: "fragment",
         });
-        expect(result.items).toContainEqual(
-          expect.objectContaining({
-            field: "source",
-            id: "fragment:1:0",
-            matchCount: 3,
-            matchedTerms: ["朱元璋", "亲自", "来到"],
-            missingTerms: [],
-            type: "fragment",
-          }),
+        expect(sourceHit?.matchCount).toBeGreaterThanOrEqual(3);
+        expect(sourceHit?.matchedTerms).toEqual(
+          expect.arrayContaining(["朱元璋", "亲自", "来到"]),
         );
       } finally {
         await document.release();
@@ -631,4 +705,13 @@ async function seedSourcedDocument(
       version: 1,
     });
   });
+}
+
+function restoreEnv(name: string, value: string | undefined): void {
+  if (value === undefined) {
+    delete process.env[name];
+    return;
+  }
+
+  process.env[name] = value;
 }

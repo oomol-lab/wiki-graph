@@ -1,5 +1,5 @@
 import { mkdtemp, rm, writeFile } from "fs/promises";
-import { join } from "path";
+import { join, resolve } from "path";
 import { tmpdir } from "os";
 
 import {
@@ -230,6 +230,7 @@ function createFindOptions(args: CLIArchiveArguments): ArchiveFindOptions {
   });
 
   return {
+    archiveKey: resolve(args.archivePath),
     ...(args.chapters === undefined ? {} : { chapters: args.chapters }),
     ...(args.cursor === undefined ? {} : { cursor: args.cursor }),
     ...(args.limit === undefined ? {} : { limit: args.limit }),
@@ -780,8 +781,9 @@ function toArchiveFindType(
     case "summary":
       return "summary";
     case "entity":
+      return "entity";
     case "triple":
-      return undefined;
+      return "triple";
   }
 }
 

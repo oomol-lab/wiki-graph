@@ -194,20 +194,24 @@ describe("cli/archive", () => {
     expect(archiveMockState.textWrites[0]).toContain("wikigraph://chunk/9");
     expect(archiveMockState.textWrites[0]).toContain("Matched: rag");
     expect(findArchiveObjects).toHaveBeenCalledWith({}, "RAG", {
+      archiveKey: "/tmp/book.sdpub",
       types: ["node"],
     });
   });
 
-  it("rejects search kinds that are not implemented yet", async () => {
-    await expect(
-      runArchiveCommand({
-        action: "search",
-        archivePath: "/tmp/book.sdpub",
-        format: "text",
-        kinds: ["entity"],
-        query: "RAG",
-      }),
-    ).rejects.toThrow("Unsupported archive search type: entity");
+  it("passes entity search kinds to archive search", async () => {
+    await runArchiveCommand({
+      action: "search",
+      archivePath: "/tmp/book.sdpub",
+      format: "text",
+      kinds: ["entity"],
+      query: "RAG",
+    });
+
+    expect(findArchiveObjects).toHaveBeenCalledWith({}, "RAG", {
+      archiveKey: "/tmp/book.sdpub",
+      types: ["entity"],
+    });
   });
 
   it("gets an object by Wiki Graph URI", async () => {
