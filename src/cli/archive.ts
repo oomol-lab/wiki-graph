@@ -136,7 +136,10 @@ export async function runArchiveCommand(
     case "evidence":
       await readArchiveDocument(args.archivePath, async (document) => {
         await writeEvidence(
-          await listArchiveEvidence(document, args.objectId!),
+          await listArchiveEvidence(document, args.objectId!, {
+            ...(args.cursor === undefined ? {} : { cursor: args.cursor }),
+            ...(args.limit === undefined ? {} : { limit: args.limit }),
+          }),
           args.format ?? "text",
         );
       });
@@ -440,8 +443,14 @@ async function writeEvidence(
   }
 
   await writeTextToStdout(
-    `${evidence.items.map(formatEvidenceItem).join("\n\n")}\n`,
+    `${evidence.items.map(formatEvidenceItem).join("\n\n")}${formatEvidenceNextCursor(evidence)}\n`,
   );
+}
+
+function formatEvidenceNextCursor(evidence: ArchiveEvidence): string {
+  return evidence.nextCursor === null
+    ? ""
+    : `\n\nNext page: add --cursor ${evidence.nextCursor}`;
 }
 
 function formatEvidenceItem(item: ArchiveEvidenceItem): string {
@@ -534,7 +543,7 @@ async function writePage(
           `Mentions: ${page.mentionCount}`,
           "",
           "Evidence:",
-          ...formatEvidenceBlocks(page.evidence),
+          ...formatEvidencePreviewBlocks(page.evidence),
         ].join("\n") + "\n",
       );
       return;
@@ -545,7 +554,7 @@ async function writePage(
           page.label,
           "",
           "Evidence:",
-          ...formatEvidenceBlocks(page.evidence),
+          ...formatEvidencePreviewBlocks(page.evidence),
         ].join("\n") + "\n",
       );
       return;
@@ -757,17 +766,24 @@ function formatSourceFragmentLines(
   ]);
 }
 
-function formatEvidenceBlocks(
-  evidence: readonly ArchiveEvidenceItem[],
+function formatEvidencePreviewBlocks(
+  evidence: ArchiveFindEvidencePreview,
 ): string[] {
-  if (evidence.length === 0) {
+  if (evidence.sources.length === 0) {
     return ["[none]"];
   }
 
-  return evidence.flatMap((item, index) => [
-    `-- evidence ${index + 1}/${evidence.length}`,
+  const lines = evidence.sources.flatMap((item, index) => [
+    `-- evidence ${index + 1}/${evidence.shown}`,
     formatEvidenceItem(item),
   ]);
+  const hiddenEvidenceCount = evidence.total - evidence.shown;
+
+  if (hiddenEvidenceCount > 0) {
+    lines.push(`${hiddenEvidenceCount} evidence more...`);
+  }
+
+  return lines;
 }
 
 function formatPosition(
@@ -833,7 +849,7 @@ function formatPackAnchor(anchor: ArchivePage): string {
         `Mentions: ${anchor.mentionCount}`,
         "",
         "Evidence:",
-        ...formatEvidenceBlocks(anchor.evidence),
+        ...formatEvidencePreviewBlocks(anchor.evidence),
       ].join("\n");
     case "triple":
       return [
@@ -841,7 +857,7 @@ function formatPackAnchor(anchor: ArchivePage): string {
         anchor.label,
         "",
         "Evidence:",
-        ...formatEvidenceBlocks(anchor.evidence),
+        ...formatEvidencePreviewBlocks(anchor.evidence),
       ].join("\n");
   }
 }

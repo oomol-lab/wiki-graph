@@ -688,6 +688,18 @@ class EmptySnapshotMentionStore implements ReadonlyMentionStore {
     return Promise.resolve([]);
   }
 
+  public listBySurfaceTerms(
+    _terms: readonly string[],
+  ): Promise<MentionRecord[]> {
+    return Promise.resolve([]);
+  }
+
+  public listBySurfaces(
+    _surfaces: readonly string[],
+  ): Promise<MentionRecord[]> {
+    return Promise.resolve([]);
+  }
+
   public listByChapter(_chapterId: number): Promise<MentionRecord[]> {
     return Promise.resolve([]);
   }

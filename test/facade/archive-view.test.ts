@@ -125,6 +125,78 @@ describe("facade/archive-view", () => {
     });
   });
 
+  it("hydrates entity evidence after reading a search session page", async () => {
+    await withTempDir("spinedigest-archive-view-", async (path) => {
+      process.env.WIKIGRAPH_STATE_DIR = `${path}/state`;
+      const document = await DirectoryDocument.open(`${path}/document`);
+
+      try {
+        await seedSourcedDocument(document);
+        await document.openSession(async (openedDocument) => {
+          await openedDocument.mentions.saveMany([
+            {
+              chapterId: 1,
+              fragmentId: 0,
+              id: "entity-wiki",
+              qid: "Q1",
+              rangeEnd: 11,
+              rangeStart: 7,
+              sentenceIndex: 0,
+              surface: "Wiki",
+            },
+            {
+              chapterId: 1,
+              fragmentId: 0,
+              id: "entity-source",
+              qid: "Q2",
+              rangeEnd: 44,
+              rangeStart: 38,
+              sentenceIndex: 2,
+              surface: "Source",
+            },
+          ]);
+        });
+
+        const firstPage = await findArchiveObjects(document, "Wiki Source", {
+          limit: 1,
+          types: ["entity"],
+        });
+        const secondPage = await findArchiveObjects(document, "ignored", {
+          ...(firstPage.nextCursor === null
+            ? {}
+            : { cursor: firstPage.nextCursor }),
+          limit: 1,
+          types: ["entity"],
+        });
+
+        expect(firstPage.items[0]).toMatchObject({
+          evidence: {
+            shown: 1,
+            sources: [expect.objectContaining({ type: "source" })],
+            total: 1,
+          },
+          type: "entity",
+        });
+        expect(secondPage.items[0]).toMatchObject({
+          evidence: {
+            shown: 1,
+            sources: [expect.objectContaining({ type: "source" })],
+            total: 1,
+          },
+          type: "entity",
+        });
+        expect(JSON.stringify(firstPage.items)).not.toContain(
+          "evidenceMentions",
+        );
+        expect(JSON.stringify(secondPage.items)).not.toContain(
+          "evidenceMentions",
+        );
+      } finally {
+        await document.release();
+      }
+    });
+  });
+
   it("falls back to lexical source scan with session cursors", async () => {
     await withTempDir("spinedigest-archive-view-", async (path) => {
       process.env.WIKIGRAPH_STATE_DIR = `${path}/state`;
@@ -597,12 +669,16 @@ describe("facade/archive-view", () => {
         await expect(
           readArchivePage(document, "wikigraph://entity/Q1"),
         ).resolves.toMatchObject({
-          evidence: [
-            {
-              id: "wikigraph://source/chapter/1/fragment/0#0..0",
-              type: "source",
-            },
-          ],
+          evidence: {
+            shown: 1,
+            sources: [
+              {
+                id: "wikigraph://source/chapter/1/fragment/0#0..0",
+                type: "source",
+              },
+            ],
+            total: 1,
+          },
           id: "wikigraph://entity/Q1",
           label: "LLM Wiki",
           mentionCount: 1,
@@ -612,12 +688,16 @@ describe("facade/archive-view", () => {
         await expect(
           readArchivePage(document, "wikigraph://triple/Q1/mentions/Q2"),
         ).resolves.toMatchObject({
-          evidence: [
-            {
-              id: "wikigraph://source/chapter/1/fragment/0#0..0",
-              type: "source",
-            },
-          ],
+          evidence: {
+            shown: 1,
+            sources: [
+              {
+                id: "wikigraph://source/chapter/1/fragment/0#0..0",
+                type: "source",
+              },
+            ],
+            total: 1,
+          },
           id: "wikigraph://triple/Q1/mentions/Q2",
           objectQid: "Q2",
           predicate: "mentions",

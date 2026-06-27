@@ -5,7 +5,7 @@ import type * as Sqlite3Namespace from "sqlite3";
 
 type Sqlite3Module = typeof Sqlite3Namespace;
 type SqliteDatabase = Sqlite3Namespace.Database;
-type SqlBindValue = Buffer | Uint8Array | number | string | null;
+export type SqlBindValue = Buffer | Uint8Array | number | string | null;
 type SqlBindParams = readonly SqlBindValue[];
 type SqlRowValue = SqlBindValue;
 

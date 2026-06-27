@@ -103,6 +103,9 @@ export const SCHEMA_SQL = `
   CREATE INDEX IF NOT EXISTS idx_mentions_qid
   ON mentions(qid);
 
+  CREATE INDEX IF NOT EXISTS idx_mentions_surface
+  ON mentions(surface);
+
   CREATE INDEX IF NOT EXISTS idx_mentions_fragment
   ON mentions(fragment_id);
 

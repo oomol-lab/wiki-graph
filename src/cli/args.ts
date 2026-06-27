@@ -1322,8 +1322,7 @@ function parseArchiveArguments(
         kind: "archive",
       };
     }
-    case "related":
-    case "evidence": {
+    case "related": {
       const uri = positionals[1];
 
       if (uri === undefined) {
@@ -1350,6 +1349,47 @@ function parseArchiveArguments(
           action,
           archivePath,
           format: parseResultFormat(values),
+          objectId: uri,
+        },
+        help: false,
+        kind: "archive",
+      };
+    }
+    case "evidence": {
+      const uri = positionals[1];
+
+      if (uri === undefined) {
+        throw new Error(
+          withHelpRoute(`\`wikigraph ${action}\` requires <uri>.`, helpRoute),
+        );
+      }
+      rejectArchiveExtraPositionals(action, positionals, 2, helpRoute);
+      rejectArchiveNonReadFlags(action, values, helpRoute);
+      rejectArchiveFlag(action, "--budget", values.budget, helpRoute);
+      rejectArchiveFlag(action, "--id", values.id, helpRoute);
+      rejectArchiveFlag(action, "--chapter", values.chapter, helpRoute);
+      rejectArchiveFlag(action, "--order", values.order, helpRoute);
+      rejectArchiveFlag(action, "--from", values.from, helpRoute);
+      rejectArchiveFlag(action, "--to", values.to, helpRoute);
+      rejectArchiveFlag(action, "--predicate", values.predicate, helpRoute);
+      rejectArchiveFlag(action, "--type", values.type, helpRoute);
+      rejectArchiveSelectorFlags(action, values, helpRoute);
+      rejectArchiveBooleanFlag(action, "--confirm", values.confirm, helpRoute);
+      return {
+        args: {
+          action,
+          archivePath,
+          ...(values.cursor === undefined ? {} : { cursor: values.cursor }),
+          format: parseResultFormat(values),
+          ...(values.limit === undefined
+            ? {}
+            : {
+                limit: parsePositiveIntegerFlag(
+                  values.limit,
+                  "--limit",
+                  helpRoute,
+                ),
+              }),
           objectId: uri,
         },
         help: false,

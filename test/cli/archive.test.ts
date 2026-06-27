@@ -83,6 +83,8 @@ const archiveMockState = vi.hoisted(() => ({
         type: "source",
       },
     ],
+    limit: 20,
+    nextCursor: null,
   },
   listItems: [
     {
@@ -110,18 +112,22 @@ const archiveMockState = vi.hoisted(() => ({
     type: "node",
   },
   entityPage: {
-    evidence: [
-      {
-        chapterId: 2,
-        endSentenceIndex: 1,
-        fragmentId: 0,
-        id: "wikigraph://source/chapter/2/fragment/0#0..1",
-        source: "RAG original source fragment.",
-        startSentenceIndex: 0,
-        title: "Chapter 2",
-        type: "source",
-      },
-    ],
+    evidence: {
+      shown: 1,
+      sources: [
+        {
+          chapterId: 2,
+          endSentenceIndex: 1,
+          fragmentId: 0,
+          id: "wikigraph://source/chapter/2/fragment/0#0..1",
+          source: "RAG original source fragment.",
+          startSentenceIndex: 0,
+          title: "Chapter 2",
+          type: "source",
+        },
+      ],
+      total: 1,
+    },
     id: "wikigraph://entity/Q1",
     label: "RAG",
     mentionCount: 1,
@@ -370,6 +376,7 @@ describe("cli/archive", () => {
     expect(listArchiveEvidence).toHaveBeenCalledWith(
       {},
       "wikigraph://triple/Q1/mentions/Q2",
+      {},
     );
     expect(archiveMockState.textWrites[0]).toContain(
       "wikigraph://source/chapter/2/fragment/0#0..1",
@@ -379,6 +386,26 @@ describe("cli/archive", () => {
     );
     expect(archiveMockState.textWrites[0]).toContain(
       "RAG original source fragment.",
+    );
+  });
+
+  it("passes evidence pagination options", async () => {
+    await runArchiveCommand({
+      action: "evidence",
+      archivePath: "/tmp/book.sdpub",
+      cursor: "cursor-1",
+      format: "json",
+      limit: 3,
+      objectId: "wikigraph://entity/Q1",
+    });
+
+    expect(listArchiveEvidence).toHaveBeenCalledWith(
+      {},
+      "wikigraph://entity/Q1",
+      {
+        cursor: "cursor-1",
+        limit: 3,
+      },
     );
   });
 

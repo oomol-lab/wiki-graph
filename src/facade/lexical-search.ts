@@ -67,6 +67,20 @@ export function createLexicalQuery(
   };
 }
 
+export function listLexicalQueryCandidateTerms(
+  query: string,
+): readonly string[] {
+  const normalizedQuery = query.trim();
+
+  return dedupeStrings([
+    ...splitQueryPhrases(normalizedQuery),
+    ...normalizeLatinTokens(normalizedQuery),
+    ...[...normalizedQuery]
+      .filter((character) => HAN_RE.test(character))
+      .map((character) => character.toLowerCase()),
+  ]);
+}
+
 export function scoreLexicalText(
   value: string,
   query: LexicalQuery,

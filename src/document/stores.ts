@@ -46,6 +46,8 @@ export interface ReadonlyReadingEdgeStore {
 
 export interface ReadonlyMentionStore {
   getById(mentionId: string): Promise<MentionRecord | undefined>;
+  listBySurfaceTerms(terms: readonly string[]): Promise<MentionRecord[]>;
+  listBySurfaces(surfaces: readonly string[]): Promise<MentionRecord[]>;
   listByQid(qid: string): Promise<MentionRecord[]>;
   listByChapter(chapterId: number): Promise<MentionRecord[]>;
 }
@@ -825,6 +827,76 @@ export class MentionStore implements ReadonlyMentionStore {
     );
   }
 
+  public async listBySurfaces(
+    surfaces: readonly string[],
+  ): Promise<MentionRecord[]> {
+    const normalizedSurfaces = [
+      ...new Set(surfaces.map((surface) => surface.trim())),
+    ].filter((surface) => surface !== "");
+
+    if (normalizedSurfaces.length === 0) {
+      return [];
+    }
+
+    return await this.#database.queryAll(
+      `
+        SELECT
+          id,
+          chapter_id,
+          fragment_id,
+          sentence_index,
+          range_start,
+          range_end,
+          surface,
+          qid,
+          confidence,
+          note
+        FROM mentions
+        WHERE surface IN (${normalizedSurfaces.map(() => "?").join(", ")})
+        ORDER BY chapter_id, fragment_id, sentence_index, range_start, range_end, id
+      `,
+      normalizedSurfaces,
+      mapMentionRow,
+    );
+  }
+
+  public async listBySurfaceTerms(
+    terms: readonly string[],
+  ): Promise<MentionRecord[]> {
+    const normalizedTerms = [
+      ...new Set(terms.map((term) => term.trim().toLowerCase())),
+    ].filter((term) => term !== "");
+
+    if (normalizedTerms.length === 0) {
+      return [];
+    }
+
+    const filters = normalizedTerms
+      .map(() => "lower(surface) LIKE ? ESCAPE '\\'")
+      .join(" OR ");
+
+    return await this.#database.queryAll(
+      `
+        SELECT
+          id,
+          chapter_id,
+          fragment_id,
+          sentence_index,
+          range_start,
+          range_end,
+          surface,
+          qid,
+          confidence,
+          note
+        FROM mentions
+        WHERE ${filters}
+        ORDER BY chapter_id, fragment_id, sentence_index, range_start, range_end, id
+      `,
+      normalizedTerms.map((term) => `%${escapeLikePattern(term)}%`),
+      mapMentionRow,
+    );
+  }
+
   public async listByChapter(chapterId: number): Promise<MentionRecord[]> {
     return await this.#database.queryAll(
       `
@@ -1279,6 +1351,10 @@ function getOptionalNumber(row: SqlRow, key: string): number | undefined {
   }
 
   return value;
+}
+
+function escapeLikePattern(value: string): string {
+  return value.replace(/[\\%_]/gu, (character) => `\\${character}`);
 }
 
 function parseChunkImportance(
