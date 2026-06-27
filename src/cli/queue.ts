@@ -214,6 +214,7 @@ async function executeBuildJob(
       async (document) =>
         await generateChapterKnowledgeGraphArtifact(document, job.chapterId, {
           policyPrompt: prompt,
+          progressTracker: reporter,
           request,
           workspacePath: job.workspacePath,
         }),
@@ -387,6 +388,14 @@ function formatWatchEventJSONL(event: BuildJobEvent): unknown {
     at: event.at,
     jobId: event.jobId,
     outputTokens: event.outputTokens,
+    ...(event.phase === undefined
+      ? {}
+      : {
+          phase: event.phase,
+          phaseDone: event.phaseDone ?? 0,
+          phaseTotal: event.phaseTotal ?? 0,
+          phaseUnit: event.phaseUnit,
+        }),
     seq: event.seq,
     ...(event.step === undefined ? {} : { step: event.step }),
     totalWords: progress.totalWords,
@@ -405,7 +414,7 @@ function formatProgressSnapshot(
     case "reading-graph":
       return `progress reading-graph ${formatWords(getProgressWords(event))} ${output}`;
     case "knowledge-graph":
-      return `progress knowledge-graph ${formatWords(getProgressWords(event))} ${output}`;
+      return `progress knowledge-graph${formatPhaseProgress(event)} ${output}`;
     case "reading-summary":
       return `progress reading-summary ${formatWords(getProgressWords(event))} ${output}`;
     case undefined:
@@ -413,6 +422,35 @@ function formatProgressSnapshot(
   }
 
   return `progress ${step} ${output}`;
+}
+
+function formatPhaseProgress(
+  event: Extract<BuildJobEvent, { readonly type: "progress_snapshot" }>,
+): string {
+  if (event.phase === undefined) {
+    return "";
+  }
+
+  return ` ${event.phase} ${event.phaseDone ?? 0}/${event.phaseTotal ?? 0} ${formatProgressUnit(event.phaseUnit)}`;
+}
+
+function formatProgressUnit(unit: string | undefined): string {
+  switch (unit) {
+    case "candidate":
+      return "candidates";
+    case "qid":
+      return "qids";
+    case "record":
+      return "records";
+    case "sentence":
+      return "sentences";
+    case "window":
+      return "windows";
+    case undefined:
+      return "items";
+    default:
+      return unit;
+  }
 }
 
 function getProgressWords(

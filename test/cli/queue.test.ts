@@ -475,6 +475,7 @@ describe("cli/queue", () => {
       setTotals: vi.fn(() => Promise.resolve()),
       stepCompleted: vi.fn(() => Promise.resolve()),
       stepStarted: vi.fn(() => Promise.resolve()),
+      updatePhase: vi.fn(() => Promise.resolve()),
       updateWords: vi.fn(() => Promise.resolve()),
     };
 
@@ -531,6 +532,7 @@ describe("cli/queue", () => {
       setTotals: vi.fn(() => Promise.resolve()),
       stepCompleted: vi.fn(() => Promise.resolve()),
       stepStarted: vi.fn(() => Promise.resolve()),
+      updatePhase: vi.fn(() => Promise.resolve()),
       updateWords: vi.fn(() => Promise.resolve()),
     };
 
@@ -552,6 +554,7 @@ describe("cli/queue", () => {
     expect(queueMockState.buildKnowledgeGraphCalls).toHaveLength(1);
     expect(queueMockState.buildKnowledgeGraphCalls[0]).toMatchObject({
       policyPrompt: "Keep key beats",
+      progressTracker: reporter,
       workspacePath: "/tmp/job-workspace",
     });
     expect(queueMockState.commitKnowledgeGraphCalls).toStrictEqual([
@@ -702,5 +705,101 @@ describe("cli/queue", () => {
       "progress reading-summary 4520/4520 output ~200 tokens\n",
       "succeeded\n",
     ]);
+  });
+
+  it("prints knowledge graph phase progress without word counters", async () => {
+    queueMockState.events = [
+      {
+        at: 1,
+        graphWords: 0,
+        jobId: "job-1",
+        outputTokens: 6500,
+        phase: "grounding",
+        phaseDone: 5,
+        phaseTotal: 19,
+        phaseUnit: "window",
+        readingSummaryWords: 0,
+        seq: 1,
+        step: "knowledge-graph",
+        totalGraphWords: 0,
+        totalReadingSummaryWords: 4520,
+        totalWords: 0,
+        type: "progress_snapshot",
+        words: 0,
+      },
+      {
+        at: 2,
+        jobId: "job-1",
+        seq: 2,
+        state: "succeeded",
+        type: "succeeded",
+      },
+    ];
+
+    await runQueueCommand({
+      action: "watch",
+      from: "beginning",
+      jobId: "job-1",
+      jsonl: false,
+    });
+
+    expect(queueMockState.textWrites).toStrictEqual([
+      "progress knowledge-graph grounding 5/19 windows output ~6500 tokens\n",
+      "succeeded\n",
+    ]);
+  });
+
+  it("includes knowledge graph phase progress in jsonl watch output", async () => {
+    queueMockState.events = [
+      {
+        at: 1,
+        graphWords: 0,
+        jobId: "job-1",
+        outputTokens: 6500,
+        phase: "grounding",
+        phaseDone: 5,
+        phaseTotal: 19,
+        phaseUnit: "window",
+        readingSummaryWords: 0,
+        seq: 1,
+        step: "knowledge-graph",
+        totalGraphWords: 0,
+        totalReadingSummaryWords: 4520,
+        totalWords: 0,
+        type: "progress_snapshot",
+        words: 0,
+      },
+      {
+        at: 2,
+        jobId: "job-1",
+        seq: 2,
+        state: "succeeded",
+        type: "succeeded",
+      },
+    ];
+
+    await runQueueCommand({
+      action: "watch",
+      from: "beginning",
+      jobId: "job-1",
+      jsonl: true,
+    });
+
+    expect(queueMockState.textWrites[0]).toBe(
+      `${JSON.stringify({
+        at: 1,
+        jobId: "job-1",
+        outputTokens: 6500,
+        phase: "grounding",
+        phaseDone: 5,
+        phaseTotal: 19,
+        phaseUnit: "window",
+        seq: 1,
+        step: "knowledge-graph",
+        totalWords: 0,
+        type: "progress_snapshot",
+        words: 0,
+      })}\n`,
+    );
   });
 });

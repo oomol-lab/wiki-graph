@@ -28,6 +28,7 @@ import {
 } from "../wikimatch/index.js";
 
 import { getChapterDetails } from "./chapter.js";
+import type { BuildJobProgressReporter } from "./build-queue.js";
 
 export interface ChapterKnowledgeGraphBuildArtifact {
   readonly chapterId: number;
@@ -46,6 +47,7 @@ export interface BuildChapterKnowledgeGraphArtifactOptions {
 
 export interface GenerateChapterKnowledgeGraphArtifactOptions {
   readonly policyPrompt: string;
+  readonly progressTracker?: Pick<BuildJobProgressReporter, "updatePhase">;
   readonly request: GuaranteedRequest;
   readonly workspacePath: string;
 }
@@ -92,9 +94,21 @@ export async function generateChapterKnowledgeGraphArtifact(
   const fragments = await readChapterFragments(document, chapterId);
   const text = joinFragmentText(fragments);
   const sentences = createWikimatchSentences(fragments);
+  await options.progressTracker?.updatePhase({
+    done: 0,
+    phase: "matching",
+    total: sentences.length,
+    unit: "sentence",
+  });
   const rawCandidates = await matchWikispineSentenceCandidates({
     includeDisambiguation: true,
     sentences,
+  });
+  await options.progressTracker?.updatePhase({
+    done: sentences.length,
+    phase: "matching",
+    total: sentences.length,
+    unit: "sentence",
   });
   const blocklist = await WikimatchSurfaceBlocklist.open();
 
@@ -103,25 +117,58 @@ export async function generateChapterKnowledgeGraphArtifact(
       blocklist,
       candidates: rawCandidates,
       policyPrompt: options.policyPrompt,
+      ...(options.progressTracker === undefined
+        ? {}
+        : { progressTracker: options.progressTracker }),
       request: options.request,
       text,
     });
+    const qidCount = countUniqueQids(screenedCandidates);
+    await options.progressTracker?.updatePhase({
+      done: 0,
+      phase: "enrichment",
+      total: qidCount,
+      unit: "qid",
+    });
     const enrichedCandidates =
       await enrichWikimatchCandidates(screenedCandidates);
+    await options.progressTracker?.updatePhase({
+      done: qidCount,
+      phase: "enrichment",
+      total: qidCount,
+      unit: "qid",
+    });
     const mentions = await judgeCandidates({
       candidates: enrichedCandidates,
       chapterId,
       fragments,
       policyPrompt: options.policyPrompt,
+      ...(options.progressTracker === undefined
+        ? {}
+        : { progressTracker: options.progressTracker }),
       request: options.request,
       text,
     });
+    await options.progressTracker?.updatePhase({
+      done: 0,
+      phase: "writing",
+      total: mentions.length,
+      unit: "record",
+    });
 
-    return await buildChapterKnowledgeGraphArtifact(chapterId, {
+    const artifact = await buildChapterKnowledgeGraphArtifact(chapterId, {
       mentionLinks: [],
       mentions,
       workspacePath: options.workspacePath,
     });
+    await options.progressTracker?.updatePhase({
+      done: mentions.length,
+      phase: "writing",
+      total: mentions.length,
+      unit: "record",
+    });
+
+    return artifact;
   } finally {
     await blocklist.close();
   }
@@ -160,6 +207,7 @@ async function screenCandidates(input: {
   readonly blocklist: WikimatchSurfaceBlocklist;
   readonly candidates: readonly WikimatchCandidate[];
   readonly policyPrompt: string;
+  readonly progressTracker?: Pick<BuildJobProgressReporter, "updatePhase">;
   readonly request: GuaranteedRequest;
   readonly text: string;
 }): Promise<readonly WikimatchCandidate[]> {
@@ -175,20 +223,38 @@ async function screenCandidates(input: {
   }
 
   const allowedSurfaces = new Set<string>();
+  const windows = buildWikimatchSurfaceWindows({
+    candidates,
+    contextWords: 180,
+    surfaceBudget: 60,
+    text: input.text,
+  });
+  let completedWindows = 0;
+
+  await input.progressTracker?.updatePhase({
+    done: 0,
+    phase: "screening",
+    total: windows.length,
+    unit: "window",
+  });
   const results = await Promise.all(
-    buildWikimatchSurfaceWindows({
-      candidates,
-      contextWords: 180,
-      surfaceBudget: 60,
-      text: input.text,
-    }).map(
-      async (window) =>
-        await judgeWikimatchSurfaceScreening({
+    windows.map(async (window) => {
+      try {
+        return await judgeWikimatchSurfaceScreening({
           policyPrompt: input.policyPrompt,
           request: input.request,
           window,
-        }),
-    ),
+        });
+      } finally {
+        completedWindows += 1;
+        await input.progressTracker?.updatePhase({
+          done: completedWindows,
+          phase: "screening",
+          total: windows.length,
+          unit: "window",
+        });
+      }
+    }),
   );
 
   for (const result of results) {
@@ -217,6 +283,7 @@ async function judgeCandidates(input: {
   readonly chapterId: number;
   readonly fragments: readonly FragmentRecord[];
   readonly policyPrompt: string;
+  readonly progressTracker?: Pick<BuildJobProgressReporter, "updatePhase">;
   readonly request: GuaranteedRequest;
   readonly text: string;
 }): Promise<readonly MentionRecord[]> {
@@ -229,16 +296,33 @@ async function judgeCandidates(input: {
     optionBudget: WIKIMATCH_GROUNDING_OPTION_BUDGET,
     text: input.text,
   });
+  let completedWindows = 0;
+
+  await input.progressTracker?.updatePhase({
+    done: 0,
+    phase: "grounding",
+    total: windows.length,
+    unit: "window",
+  });
   const results = await Promise.all(
-    windows.map(
-      async (window) =>
-        await judgeWikimatchPolicy({
+    windows.map(async (window) => {
+      try {
+        return await judgeWikimatchPolicy({
           candidates: window.candidates,
           policyPrompt: input.policyPrompt,
           request: input.request,
           window,
-        }),
-    ),
+        });
+      } finally {
+        completedWindows += 1;
+        await input.progressTracker?.updatePhase({
+          done: completedWindows,
+          phase: "grounding",
+          total: windows.length,
+          unit: "window",
+        });
+      }
+    }),
   );
 
   for (const result of results) {
@@ -258,9 +342,26 @@ async function judgeCandidates(input: {
 async function narrowOversizedCandidates(input: {
   readonly candidates: readonly WikimatchCandidate[];
   readonly policyPrompt: string;
+  readonly progressTracker?: Pick<BuildJobProgressReporter, "updatePhase">;
   readonly request: GuaranteedRequest;
   readonly text: string;
 }): Promise<readonly WikimatchCandidate[]> {
+  const oversizedCandidates = input.candidates.filter(
+    (candidate) =>
+      countWikimatchCandidateOptions(candidate) >
+      WIKIMATCH_GROUNDING_OPTION_BUDGET,
+  );
+  let completedCandidates = 0;
+
+  if (oversizedCandidates.length > 0) {
+    await input.progressTracker?.updatePhase({
+      done: 0,
+      phase: "narrowing",
+      total: oversizedCandidates.length,
+      unit: "candidate",
+    });
+  }
+
   return (
     await Promise.all(
       input.candidates.map(async (candidate) => {
@@ -271,13 +372,25 @@ async function narrowOversizedCandidates(input: {
           return candidate;
         }
 
-        const result = await narrowWikimatchCandidateOptions({
-          candidate,
-          optionBudget: WIKIMATCH_GROUNDING_OPTION_BUDGET,
-          policyPrompt: input.policyPrompt,
-          request: input.request,
-          text: input.text,
-        });
+        let result: Awaited<ReturnType<typeof narrowWikimatchCandidateOptions>>;
+
+        try {
+          result = await narrowWikimatchCandidateOptions({
+            candidate,
+            optionBudget: WIKIMATCH_GROUNDING_OPTION_BUDGET,
+            policyPrompt: input.policyPrompt,
+            request: input.request,
+            text: input.text,
+          });
+        } finally {
+          completedCandidates += 1;
+          await input.progressTracker?.updatePhase({
+            done: completedCandidates,
+            phase: "narrowing",
+            total: oversizedCandidates.length,
+            unit: "candidate",
+          });
+        }
 
         return result.candidate.qidOptions.length > 0
           ? result.candidate
@@ -287,6 +400,14 @@ async function narrowOversizedCandidates(input: {
   ).filter(
     (candidate): candidate is WikimatchCandidate => candidate !== undefined,
   );
+}
+
+function countUniqueQids(candidates: readonly WikimatchCandidate[]): number {
+  return new Set(
+    candidates.flatMap((candidate) =>
+      candidate.qidOptions.map((option) => option.qid),
+    ),
+  ).size;
 }
 
 function toMentionRecord(

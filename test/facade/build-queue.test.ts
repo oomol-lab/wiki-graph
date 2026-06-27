@@ -197,6 +197,44 @@ describe("facade/build-queue", () => {
     });
   });
 
+  it("records structured phase progress in snapshots", async () => {
+    await withTempDir("spinedigest-build-queue-", async (path) => {
+      useStateDir(`${path}/state`);
+      const job = await addBuildJob({
+        archivePath: `${path}/book.sdpub`,
+        chapterId: 1,
+        target: "knowledge-graph",
+      });
+
+      await runBuildJobWorker({
+        concurrency: 1,
+        executeJob: async (_job, reporter) => {
+          await reporter.stepStarted("knowledge-graph");
+          await reporter.updatePhase({
+            done: 3,
+            phase: "grounding",
+            total: 5,
+            unit: "window",
+          });
+        },
+        idleTimeoutMs: 0,
+      });
+
+      const snapshots = (await readBuildJobEvents(job)).filter(
+        (event) => event.type === "progress_snapshot",
+      );
+      const latest = snapshots.at(-1);
+
+      expect(latest).toMatchObject({
+        phase: "grounding",
+        phaseDone: 3,
+        phaseTotal: 5,
+        phaseUnit: "window",
+        step: "knowledge-graph",
+      });
+    });
+  });
+
   it("continues claiming queued jobs after one job fails", async () => {
     await withTempDir("spinedigest-build-queue-", async (path) => {
       useStateDir(`${path}/state`);

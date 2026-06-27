@@ -19,6 +19,19 @@ export type BuildJobTarget =
   | "knowledge-graph"
   | "reading-graph"
   | "reading-summary";
+export type BuildJobProgressPhase =
+  | "enrichment"
+  | "grounding"
+  | "matching"
+  | "narrowing"
+  | "screening"
+  | "writing";
+export type BuildJobProgressUnit =
+  | "candidate"
+  | "qid"
+  | "sentence"
+  | "window"
+  | "record";
 
 export interface BuildJob {
   readonly archiveKey: string;
@@ -84,6 +97,10 @@ export type BuildJobEvent =
       readonly graphWords: number;
       readonly jobId: string;
       readonly outputTokens: number;
+      readonly phase?: BuildJobProgressPhase;
+      readonly phaseDone?: number;
+      readonly phaseTotal?: number;
+      readonly phaseUnit?: BuildJobProgressUnit;
       readonly seq: number;
       readonly step?: BuildJobTarget;
       readonly readingSummaryWords: number;
@@ -138,6 +155,12 @@ export interface BuildJobProgressReporter {
   updateWords(input: {
     readonly graphWords?: number;
     readonly readingSummaryWords?: number;
+  }): Promise<void>;
+  updatePhase(input: {
+    readonly done: number;
+    readonly phase: BuildJobProgressPhase;
+    readonly total: number;
+    readonly unit: BuildJobProgressUnit;
   }): Promise<void>;
 }
 
@@ -1212,6 +1235,14 @@ class BuildJobProgressAccumulator implements BuildJobProgressReporter {
   #graphWords = 0;
   #lastSnapshotAt = 0;
   #outputCharacters = 0;
+  #phase:
+    | {
+        readonly done: number;
+        readonly phase: BuildJobProgressPhase;
+        readonly total: number;
+        readonly unit: BuildJobProgressUnit;
+      }
+    | undefined;
   #step: BuildJobTarget | undefined;
   #readingSummaryWords = 0;
   #totalGraphWords = 0;
@@ -1238,6 +1269,7 @@ class BuildJobProgressAccumulator implements BuildJobProgressReporter {
 
   public async stepStarted(step: BuildJobTarget): Promise<void> {
     this.#step = step;
+    this.#phase = undefined;
     await markBuildJobStep(this.#job.jobId, step);
     await appendBuildJobEvent(this.#job, {
       at: Date.now(),
@@ -1279,6 +1311,21 @@ class BuildJobProgressAccumulator implements BuildJobProgressReporter {
     await this.#snapshot();
   }
 
+  public async updatePhase(input: {
+    readonly done: number;
+    readonly phase: BuildJobProgressPhase;
+    readonly total: number;
+    readonly unit: BuildJobProgressUnit;
+  }): Promise<void> {
+    this.#phase = {
+      done: clampProgressWords(input.done, input.total),
+      phase: input.phase,
+      total: Math.max(0, input.total),
+      unit: input.unit,
+    };
+    await this.#snapshot(true);
+  }
+
   async #snapshot(force = false): Promise<void> {
     const now = Date.now();
 
@@ -1294,6 +1341,14 @@ class BuildJobProgressAccumulator implements BuildJobProgressReporter {
       outputTokens: Math.floor(
         this.#outputCharacters / this.#outputCharactersPerToken,
       ),
+      ...(this.#phase === undefined
+        ? {}
+        : {
+            phase: this.#phase.phase,
+            phaseDone: this.#phase.done,
+            phaseTotal: this.#phase.total,
+            phaseUnit: this.#phase.unit,
+          }),
       seq: 0,
       ...(this.#step === undefined ? {} : { step: this.#step }),
       readingSummaryWords: this.#readingSummaryWords,
