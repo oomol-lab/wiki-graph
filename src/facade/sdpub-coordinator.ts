@@ -4,7 +4,8 @@ import { tmpdir } from "os";
 import { basename, dirname, join, posix, resolve } from "path";
 
 import { resolveWikiGraphStateDirectoryPath } from "../common/wiki-graph-dir.js";
-import { Database } from "../document/index.js";
+import { openSharedStateDatabase } from "../document/index.js";
+import type { Database } from "../document/index.js";
 import type { DocumentFileStore } from "../document/document.js";
 import { AsyncSemaphore } from "../utils/async-semaphore.js";
 
@@ -887,11 +888,10 @@ async function withStateDatabase<T>(
 }
 
 async function openStateDatabase(): Promise<Database> {
-  const directoryPath = getCoordinatorStateDirectoryPath();
-  const databasePath = join(directoryPath, "sdpub-coordinator.sqlite");
-
-  await mkdir(directoryPath, { recursive: true });
-  return await Database.open(databasePath, STATE_SCHEMA_SQL);
+  return await openSharedStateDatabase(
+    join(getCoordinatorStateDirectoryPath(), "sdpub-coordinator.sqlite"),
+    STATE_SCHEMA_SQL,
+  );
 }
 
 async function createWorkspaceFilePath(

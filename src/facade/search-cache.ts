@@ -1,4 +1,3 @@
-import { mkdir } from "fs/promises";
 import { createHash } from "crypto";
 import { join, resolve } from "path";
 
@@ -9,7 +8,8 @@ import {
   getString,
 } from "../document/database.js";
 import type { SqlBindValue } from "../document/database.js";
-import { Database } from "../document/index.js";
+import { openSharedStateDatabase } from "../document/index.js";
+import type { Database } from "../document/index.js";
 
 import type { ArchiveFindHit } from "./archive-view.js";
 
@@ -511,11 +511,8 @@ export function decodeSearchSessionCursor(cursor: string): {
 }
 
 async function openSearchSessionDatabase(): Promise<Database> {
-  const stateDirectoryPath = getSearchSessionStateDirectoryPath();
-
-  await mkdir(stateDirectoryPath, { recursive: true });
-  return await Database.open(
-    join(stateDirectoryPath, "search-sessions.sqlite"),
+  return await openSharedStateDatabase(
+    join(getSearchSessionStateDirectoryPath(), "search-sessions.sqlite"),
     SEARCH_SESSION_SCHEMA_SQL,
   );
 }

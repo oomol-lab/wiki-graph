@@ -1,8 +1,6 @@
-import { dirname } from "path";
-import { mkdir } from "fs/promises";
-
 import { resolveWikiGraphCacheDatabasePath } from "../common/wiki-graph-dir.js";
-import { Database } from "../document/index.js";
+import { openSharedStateDatabase } from "../document/index.js";
+import type { Database } from "../document/index.js";
 
 import type {
   CachedDisambiguationRecord,
@@ -44,10 +42,8 @@ export class WikipageCache {
   public static async open(path?: string): Promise<WikipageCache> {
     const databasePath = path ?? resolveWikiGraphCacheDatabasePath();
 
-    await mkdir(dirname(databasePath), { recursive: true });
-
     return new WikipageCache(
-      await Database.open(databasePath, WIKIPAGE_CACHE_SCHEMA_SQL),
+      await openSharedStateDatabase(databasePath, WIKIPAGE_CACHE_SCHEMA_SQL),
     );
   }
 

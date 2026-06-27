@@ -29,7 +29,7 @@ export class Database {
 
   public static async open(
     databasePath: string,
-    schemaSql: string,
+    schemaSql = "",
     options: { readonly readonly?: boolean } = {},
   ): Promise<Database> {
     const resolvedDatabasePath = resolve(databasePath);
@@ -44,6 +44,21 @@ export class Database {
     }
 
     return openedDatabase;
+  }
+
+  public static async initialize(
+    databasePath: string,
+    schemaSql: string,
+  ): Promise<void> {
+    const database = await Database.open(databasePath);
+
+    try {
+      if (schemaSql.trim() !== "") {
+        await database.#executeSql(schemaSql);
+      }
+    } finally {
+      await database.close();
+    }
   }
 
   public async queryAll<T>(

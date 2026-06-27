@@ -1,4 +1,8 @@
 export { Database } from "./database.js";
+export {
+  ensureSharedStateDatabaseInitialized,
+  openSharedStateDatabase,
+} from "./shared-state-database.js";
 export { FragmentDraft, Fragments, SerialFragments } from "./fragments.js";
 export type {
   ReadonlyFragments,

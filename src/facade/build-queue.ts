@@ -3,7 +3,8 @@ import { appendFile, mkdir, mkdtemp, readFile, rm } from "fs/promises";
 import { join, resolve } from "path";
 
 import { resolveWikiGraphStateDirectoryPath } from "../common/wiki-graph-dir.js";
-import { Database } from "../document/index.js";
+import { openSharedStateDatabase } from "../document/index.js";
+import type { Database } from "../document/index.js";
 
 export const BUILD_JOB_STATES = [
   "queued",
@@ -323,6 +324,16 @@ export async function getBuildJob(jobId: string): Promise<BuildJob> {
 
   try {
     await recoverStaleBuildJobs(state);
+    return await requireBuildJobById(state, jobId);
+  } finally {
+    await state.close();
+  }
+}
+
+async function readBuildJobForStopCheck(jobId: string): Promise<BuildJob> {
+  const state = await openReadonlyBuildQueueDatabase();
+
+  try {
     return await requireBuildJobById(state, jobId);
   } finally {
     await state.close();
@@ -1158,11 +1169,22 @@ async function readMinQueueRank(state: Database): Promise<number> {
 }
 
 async function openBuildQueueDatabase(): Promise<Database> {
-  const directoryPath = getBuildQueueStateDirectoryPath();
-  const databasePath = join(directoryPath, "build-queue.sqlite");
+  return await openSharedStateDatabase(
+    getBuildQueueDatabasePath(),
+    BUILD_QUEUE_SCHEMA_SQL,
+  );
+}
 
-  await mkdir(directoryPath, { recursive: true });
-  return await Database.open(databasePath, BUILD_QUEUE_SCHEMA_SQL);
+async function openReadonlyBuildQueueDatabase(): Promise<Database> {
+  return await openSharedStateDatabase(
+    getBuildQueueDatabasePath(),
+    BUILD_QUEUE_SCHEMA_SQL,
+    { readonly: true },
+  );
+}
+
+function getBuildQueueDatabasePath(): string {
+  return join(getBuildQueueStateDirectoryPath(), "build-queue.sqlite");
 }
 
 async function createJobWorkspacePath(
@@ -1461,7 +1483,7 @@ class BuildJobProgressAccumulator implements BuildJobProgressReporter {
 
   public async throwIfStopped(): Promise<void> {
     const queued = this.#stopCheckQueue.then(async () => {
-      const job = await getBuildJob(this.#job.jobId);
+      const job = await readBuildJobForStopCheck(this.#job.jobId);
 
       if (job.state === "running" && job.ownerId === this.#ownerId) {
         return;
