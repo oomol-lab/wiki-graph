@@ -1,14 +1,14 @@
 Help Type: command
-Command: spinedigest config status
+Command: wikigraph config status
 
 Purpose:
   Validate and print the currently selected CLI config after supported overrides are applied.
 
 Usage:
-  spinedigest config status [--llm <json>] [--help|-h]
+  wikigraph config status [--llm <json>] [--help|-h]
 
 Behavior:
-  - Resolves the active config path using `SPINEDIGEST_CONFIG` when set, otherwise `~/.wikigraph/config.json`.
+  - Resolves the active config path using `WIKIGRAPH_CONFIG` when set, otherwise `~/.wikigraph/config.json`.
   - Merges environment variable overrides and optional `--llm <json>`.
   - If no config values are available, prints `{}` to stdout and exits 0.
   - If config values are valid, prints the merged JSON to stdout.
@@ -21,8 +21,8 @@ Notes:
 
 Where to go next:
   - Need config precedence and override rules:
-    spinedigest help config
+    wikigraph help config
   - Need the environment variable reference:
-    spinedigest help env
+    wikigraph help env
   - Need the JSON file schema:
-    spinedigest help config-file
+    wikigraph help config-file

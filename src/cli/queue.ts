@@ -1,5 +1,6 @@
 import { spawn } from "child_process";
 
+import { SpineDigestScope } from "../common/llm-scope.js";
 import {
   addBuildJob,
   assertNoActiveBuildJobs,
@@ -9,7 +10,9 @@ import {
   cancelBuildJob,
   cleanBuildJobs,
   commitChapterGraphArtifact,
+  commitChapterKnowledgeGraphArtifact,
   commitChapterSummaryArtifact,
+  generateChapterKnowledgeGraphArtifact,
   getBuildJob,
   listBuildJobs,
   pauseBuildJob,
@@ -54,7 +57,7 @@ export async function runQueueCommand(args: CLIQueueArguments): Promise<void> {
         chapterId: args.chapterId!,
         ...(args.llmJSON === undefined ? {} : { llmJSON: args.llmJSON }),
         ...(args.prompt === undefined ? {} : { prompt: args.prompt }),
-        target: args.target ?? "summary",
+        target: args.target ?? "reading-summary",
       });
 
       await writeJobSummary(job);
@@ -108,7 +111,7 @@ export async function runQueueCommand(args: CLIQueueArguments): Promise<void> {
       await writeJobSummary(
         await updateBuildJobTarget(
           await resolveQueueJobId(args),
-          args.target ?? "summary",
+          args.target ?? "reading-summary",
         ),
       );
       tryStartQueueWorker();
@@ -147,7 +150,7 @@ function assertBuildCostAccepted(args: CLIQueueArguments): void {
   }
 
   throw new Error(
-    "Queue generation tasks can call an LLM, consume tokens, incur provider charges, and run for minutes to hours on large archives. Run `spinedigest estimate <archive.sdpub> --stage summary`, then rerun `queue add` with --accept-cost if the cost and wait time are acceptable.",
+    "Queue generation tasks can call an LLM, consume tokens, incur provider charges, and run for minutes to hours on large archives. Run `wikigraph estimate <archive.sdpub> --stage reading-summary`, then rerun `queue add` with --accept-cost if the cost and wait time are acceptable.",
   );
 }
 
@@ -155,7 +158,7 @@ async function runQueueWorker(): Promise<void> {
   const config = await loadCLIConfig();
 
   await runBuildJobWorker({
-    concurrency: config.request?.concurrent ?? 1,
+    concurrency: config.queue?.concurrent ?? 1,
     executeJob: async (job, reporter) => {
       await executeBuildJob(job, reporter);
     },
@@ -175,6 +178,16 @@ async function executeBuildJob(
     },
   });
   const prompt = resolveExtractionPrompt(job.prompt ?? config.prompt);
+  const request = async (
+    messages: Parameters<typeof llm.request>[0],
+    index: number,
+    maxRetries: number,
+  ): Promise<string> =>
+    await llm.request(messages, {
+      retryIndex: index,
+      retryMax: maxRetries,
+      scope: SpineDigestScope.ReaderExtraction,
+    });
 
   const buildInput = await new SpineDigestFile(job.archivePath).readDocument(
     async (document) => await readChapterBuildInput(document, job.chapterId),
@@ -184,7 +197,7 @@ async function executeBuildJob(
 
   await reporter.setTotals({
     totalGraphWords: details.stage === "sourced" ? details.words : 0,
-    totalSummaryWords:
+    totalReadingSummaryWords:
       details.stage === "sourced" || details.stage === "graphed"
         ? details.words
         : 0,
@@ -195,10 +208,30 @@ async function executeBuildJob(
       `Chapter ${job.chapterId} is planned. Set source before queueing a build job.`,
     );
   }
+  if (job.target === "knowledge-graph") {
+    await reporter.stepStarted("knowledge-graph");
+    const artifact = await new SpineDigestFile(job.archivePath).readDocument(
+      async (document) =>
+        await generateChapterKnowledgeGraphArtifact(document, job.chapterId, {
+          policyPrompt: prompt,
+          progressTracker: reporter,
+          request,
+          workspacePath: job.workspacePath,
+        }),
+    );
+
+    await new SpineDigestFile(job.archivePath).write(async (document) => {
+      assertJobStillRunning(await getBuildJob(job.jobId));
+      await commitChapterKnowledgeGraphArtifact(document, artifact);
+    });
+    await reporter.stepCompleted("knowledge-graph");
+    assertJobStillRunning(await getBuildJob(job.jobId));
+    return;
+  }
   if (details.stage === "sourced") {
     let graphWords = 0;
 
-    await reporter.stepStarted("graph");
+    await reporter.stepStarted("reading-graph");
     const artifact = await buildChapterGraphArtifact(job.chapterId, {
       extractionPrompt: prompt,
       llm,
@@ -226,13 +259,13 @@ async function executeBuildJob(
       async (document) => await readChapterBuildInput(document, job.chapterId),
     ));
     await reporter.updateWords({ graphWords: details.words });
-    await reporter.stepCompleted("graph");
+    await reporter.stepCompleted("reading-graph");
   }
 
   const latestJob = await getBuildJob(job.jobId);
 
   assertJobStillRunning(latestJob);
-  if (latestJob.target === "graph" || details.stage === "summarized") {
+  if (latestJob.target === "reading-graph" || details.stage === "summarized") {
     return;
   }
   if (details.stage !== "graphed") {
@@ -246,7 +279,7 @@ async function executeBuildJob(
     );
   }
 
-  await reporter.stepStarted("summary");
+  await reporter.stepStarted("reading-summary");
   const summaryInput = await new SpineDigestFile(job.archivePath).readDocument(
     async (document) =>
       await snapshotChapterSummaryInput(
@@ -270,8 +303,8 @@ async function executeBuildJob(
       );
     },
   );
-  await reporter.updateWords({ summaryWords: details.words });
-  await reporter.stepCompleted("summary");
+  await reporter.updateWords({ readingSummaryWords: details.words });
+  await reporter.stepCompleted("reading-summary");
   assertJobStillRunning(await getBuildJob(job.jobId));
 }
 
@@ -354,6 +387,17 @@ function formatWatchEventJSONL(event: BuildJobEvent): unknown {
     at: event.at,
     jobId: event.jobId,
     outputTokens: event.outputTokens,
+    ...(event.phase === undefined
+      ? {}
+      : {
+          phase: event.phase,
+          ...(event.phaseDetail === undefined
+            ? {}
+            : { phaseDetail: event.phaseDetail }),
+          phaseDone: event.phaseDone ?? 0,
+          phaseTotal: event.phaseTotal ?? 0,
+          phaseUnit: event.phaseUnit,
+        }),
     seq: event.seq,
     ...(event.step === undefined ? {} : { step: event.step }),
     totalWords: progress.totalWords,
@@ -369,15 +413,48 @@ function formatProgressSnapshot(
   const output = `output ~${event.outputTokens} tokens`;
 
   switch (event.step) {
-    case "graph":
-      return `progress graph ${formatWords(getProgressWords(event))} ${output}`;
-    case "summary":
-      return `progress summary ${formatWords(getProgressWords(event))} ${output}`;
+    case "reading-graph":
+      return `progress reading-graph ${formatWords(getProgressWords(event))} ${output}`;
+    case "knowledge-graph":
+      return `progress knowledge-graph${formatPhaseProgress(event)} ${output}`;
+    case "reading-summary":
+      return `progress reading-summary ${formatWords(getProgressWords(event))} ${output}`;
     case undefined:
       return `progress ${step} ${output}`;
   }
 
   return `progress ${step} ${output}`;
+}
+
+function formatPhaseProgress(
+  event: Extract<BuildJobEvent, { readonly type: "progress_snapshot" }>,
+): string {
+  if (event.phase === undefined) {
+    return "";
+  }
+
+  return ` ${event.phase}${event.phaseDetail === undefined ? "" : ` ${event.phaseDetail}`} ${event.phaseDone ?? 0}/${event.phaseTotal ?? 0} ${formatProgressUnit(event.phaseUnit)}`;
+}
+
+function formatProgressUnit(unit: string | undefined): string {
+  switch (unit) {
+    case "candidate":
+      return "candidates";
+    case "page":
+      return "pages";
+    case "qid":
+      return "qids";
+    case "record":
+      return "records";
+    case "sentence":
+      return "sentences";
+    case "window":
+      return "windows";
+    case undefined:
+      return "items";
+    default:
+      return unit;
+  }
 }
 
 function getProgressWords(
@@ -402,15 +479,20 @@ function getProgressWords(
   }
 
   switch (event.step) {
-    case "graph":
+    case "reading-graph":
       return {
         totalWords: event.totalGraphWords,
         words: event.graphWords,
       };
-    case "summary":
+    case "knowledge-graph":
       return {
-        totalWords: event.totalSummaryWords,
-        words: event.summaryWords,
+        totalWords: event.totalGraphWords,
+        words: event.graphWords,
+      };
+    case "reading-summary":
+      return {
+        totalWords: event.totalReadingSummaryWords,
+        words: event.readingSummaryWords,
       };
     case undefined:
       return {
@@ -510,9 +592,9 @@ function formatJobJSON(job: BuildJob): unknown {
     ...(job.prompt === undefined ? {} : { prompt: job.prompt }),
     queueRank: job.queueRank,
     state: job.state,
-    ...(job.summaryStartedAt === undefined
+    ...(job.readingSummaryStartedAt === undefined
       ? {}
-      : { summaryStartedAt: job.summaryStartedAt }),
+      : { readingSummaryStartedAt: job.readingSummaryStartedAt }),
     target: job.target,
     updatedAt: job.updatedAt,
     workspacePath: job.workspacePath,
@@ -526,7 +608,7 @@ async function writeJobSummary(job: BuildJob): Promise<void> {
 }
 
 function tryStartQueueWorker(): void {
-  if (process.env.SPINEDIGEST_QUEUE_DISABLE_AUTOSTART === "1") {
+  if (process.env.WIKIGRAPH_QUEUE_DISABLE_AUTOSTART === "1") {
     return;
   }
 

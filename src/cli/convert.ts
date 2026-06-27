@@ -233,7 +233,7 @@ async function loadRequiredConfig(
   if (config.llm?.provider === undefined || config.llm.model === undefined) {
     throw new Error(
       withHelpRoute(
-        "Missing LLM configuration. Set --llm, `llm.provider` and `llm.model` in ~/.wikigraph/config.json, or the matching SPINEDIGEST_LLM_* environment variables.",
+        "Missing LLM configuration. Set --llm, `llm.provider` and `llm.model` in ~/.wikigraph/config.json, or the matching WIKIGRAPH_LLM_* environment variables.",
         CLI_HELP_ROUTES.config,
       ),
     );
@@ -272,7 +272,7 @@ async function writeDigestOutput(
   }
 
   const temporaryOutput = await createTemporaryOutputPath(
-    "spinedigest-cli-output-",
+    "wikigraph-cli-output-",
     extensionForFormat(output.format),
   );
 

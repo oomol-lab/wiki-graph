@@ -1,5 +1,5 @@
 import { mkdtemp, rm, writeFile } from "fs/promises";
-import { join } from "path";
+import { join, resolve } from "path";
 import { tmpdir } from "os";
 
 import {
@@ -13,8 +13,10 @@ import {
   type ArchiveEstimate,
   type ArchiveEvidence,
   type ArchiveEvidenceItem,
+  type ArchiveFindEvidencePreview,
   type ArchiveFindOptions,
   type ArchiveFindResult,
+  type ArchiveFindHit,
   type ArchiveIndex,
   type ArchiveListItem,
   type ArchivePack,
@@ -29,6 +31,33 @@ import { runConvertCommand } from "./convert.js";
 import { readTextStreamFromStdin, writeTextToStdout } from "./io.js";
 
 type ResultFormat = "json" | "jsonl" | "text";
+
+interface ArchiveOutputObject {
+  readonly evidence?: ArchiveOutputEvidencePreview;
+  readonly label?: string;
+  readonly score?: number;
+  readonly summary?: string;
+  readonly type: string;
+  readonly uri: string;
+}
+
+interface ArchiveOutputEvidencePreview {
+  readonly shown: number;
+  readonly sources: readonly ArchiveOutputSource[];
+  readonly total: number;
+}
+
+interface ArchiveOutputSource {
+  readonly chapter: number;
+  readonly fragment: number;
+  readonly range: {
+    readonly end: number;
+    readonly start: number;
+  };
+  readonly text: string;
+  readonly type: "source";
+  readonly uri: string;
+}
 
 export async function runArchiveCommand(
   args: CLIArchiveArguments,
@@ -88,7 +117,7 @@ export async function runArchiveCommand(
     case "get":
       await readArchiveDocument(args.archivePath, async (document) => {
         await writePage(
-          await readArchivePage(document, toArchiveObjectId(args.objectId!)),
+          await readArchivePage(document, args.objectId!),
           args.format ?? "text",
         );
       });
@@ -107,7 +136,10 @@ export async function runArchiveCommand(
     case "evidence":
       await readArchiveDocument(args.archivePath, async (document) => {
         await writeEvidence(
-          await listArchiveEvidence(document, args.objectId!),
+          await listArchiveEvidence(document, args.objectId!, {
+            ...(args.cursor === undefined ? {} : { cursor: args.cursor }),
+            ...(args.limit === undefined ? {} : { limit: args.limit }),
+          }),
           args.format ?? "text",
         );
       });
@@ -151,7 +183,7 @@ async function createArchive(args: CLIArchiveArguments): Promise<void> {
   }
 
   const temporaryDirectoryPath = await mkdtemp(
-    join(tmpdir(), "spinedigest-url-create-"),
+    join(tmpdir(), "wikigraph-url-create-"),
   );
   const sourcePath = join(temporaryDirectoryPath, "source.md");
 
@@ -195,7 +227,7 @@ async function createArchiveFromStdin(
   }
 
   const temporaryDirectoryPath = await mkdtemp(
-    join(tmpdir(), "spinedigest-stdin-create-"),
+    join(tmpdir(), "wikigraph-stdin-create-"),
   );
   const extension = args.inputFormat === "markdown" ? ".md" : ".txt";
   const sourcePath = join(temporaryDirectoryPath, `source${extension}`);
@@ -230,6 +262,7 @@ function createFindOptions(args: CLIArchiveArguments): ArchiveFindOptions {
   });
 
   return {
+    archiveKey: resolve(args.archivePath),
     ...(args.chapters === undefined ? {} : { chapters: args.chapters }),
     ...(args.cursor === undefined ? {} : { cursor: args.cursor }),
     ...(args.limit === undefined ? {} : { limit: args.limit }),
@@ -269,14 +302,14 @@ async function writeIndex(
       "",
       "Reading Graph:",
       "  No reading chunks are currently available. If a reading-graph queue task already ran, the source may be too short or sparse.",
-      "  Next: inspect source with `spinedigest get <archive.sdpub> wikigraph://source/chapter/<id>` or queue `--task reading-graph`.",
+      "  Next: inspect source with `wikigraph get <archive.sdpub> wikigraph://source/chapter/<id>` or queue `--task reading-graph`.",
     );
   } else if (index.edgeCount === 0) {
     lines.push(
       "",
       "Reading Graph:",
       "  Reading chunks exist, but no chunk edges are currently available. This can be valid when extracted chunks have no stable relationships.",
-      "  Next: inspect chunks with `spinedigest search <archive.sdpub> <query> --type chunk`.",
+      "  Next: inspect chunks with `wikigraph search <archive.sdpub> <query> --type chunk`.",
     );
   }
 
@@ -290,9 +323,9 @@ async function writeIndex(
     lines.push(
       "",
       "Next:",
-      "  spinedigest search <archive.sdpub> <term>",
-      "  spinedigest get <archive.sdpub> wikigraph://source/chapter/<id>",
-      "  spinedigest related <archive.sdpub> <uri>",
+      "  wikigraph search <archive.sdpub> <term>",
+      "  wikigraph get <archive.sdpub> wikigraph://source/chapter/<id>",
+      "  wikigraph related <archive.sdpub> <uri>",
     );
   }
 
@@ -327,30 +360,30 @@ async function writeList(
   items: readonly ArchiveListItem[],
   format: ResultFormat,
 ): Promise<void> {
-  const outputItems = items.map((item) => ({
-    ...item,
-    id: toWikiGraphUri(item.id),
+  const objects = items.map((item) => ({
+    label: item.label,
+    summary: item.summary,
+    type: item.type,
+    uri: toWikiGraphUri(item.id),
   }));
 
   if (format === "json") {
-    await writeTextToStdout(
-      `${JSON.stringify({ items: outputItems }, null, 2)}\n`,
-    );
+    await writeTextToStdout(`${JSON.stringify({ objects }, null, 2)}\n`);
     return;
   }
   if (format === "jsonl") {
-    await writeJSONL(outputItems);
+    await writeJSONL(objects);
     return;
   }
 
-  if (outputItems.length === 0) {
+  if (objects.length === 0) {
     await writeTextToStdout("No objects.\n");
     return;
   }
 
   await writeTextToStdout(
-    `${outputItems
-      .map((item) => `${item.id}  ${item.label}  ${item.summary}`)
+    `${objects
+      .map((item) => `${item.uri}\n${item.label}\n${item.summary}`)
       .join("\n")}\n`,
   );
 }
@@ -359,26 +392,34 @@ async function writeFindHits(
   result: ArchiveFindResult,
   format: ResultFormat,
 ): Promise<void> {
+  const objects = result.items.map(createFindObject);
+
   if (format === "json") {
-    await writeTextToStdout(`${JSON.stringify(result, null, 2)}\n`);
+    await writeTextToStdout(
+      `${JSON.stringify(
+        {
+          objects,
+          nextCursor: result.nextCursor,
+        },
+        null,
+        2,
+      )}\n`,
+    );
     return;
   }
   if (format === "jsonl") {
-    await writeJSONL(result.items);
+    await writeJSONL([...objects, createPageCursorObject(result.nextCursor)]);
     return;
   }
 
-  if (result.items.length === 0) {
+  if (objects.length === 0) {
     await writeTextToStdout(formatNoMatches(result));
     return;
   }
 
   await writeTextToStdout(
-    `${result.items
-      .map(
-        (hit) =>
-          `${toWikiGraphUri(hit.id)}\n${hit.title}\n${formatFindMatchLine(hit)}${hit.snippet}`,
-      )
+    `${objects
+      .map((object) => formatFindObject(object))
       .join("\n\n")}${formatNextCursor(result)}${formatFindLensHint(result)}\n`,
   );
 }
@@ -392,7 +433,10 @@ async function writeEvidence(
     return;
   }
   if (format === "jsonl") {
-    await writeJSONL(evidence.items);
+    await writeJSONL([
+      ...evidence.items,
+      createPageCursorObject(evidence.nextCursor),
+    ]);
     return;
   }
 
@@ -402,16 +446,28 @@ async function writeEvidence(
   }
 
   await writeTextToStdout(
-    `${evidence.items.map(formatEvidenceItem).join("\n\n")}\n`,
+    `${evidence.items.map(formatEvidenceItem).join("\n\n")}${formatEvidenceNextCursor(evidence)}\n`,
   );
 }
 
+function formatEvidenceNextCursor(evidence: ArchiveEvidence): string {
+  return evidence.nextCursor === null
+    ? ""
+    : `\n\nNext page: add --cursor ${evidence.nextCursor}`;
+}
+
+function createPageCursorObject(nextCursor: string | null): {
+  readonly nextCursor: string | null;
+  readonly type: "page";
+} {
+  return {
+    nextCursor,
+    type: "page",
+  };
+}
+
 function formatEvidenceItem(item: ArchiveEvidenceItem): string {
-  return [
-    item.id,
-    `@@ ${item.startSentenceIndex}..${item.endSentenceIndex} @@`,
-    item.source,
-  ].join("\n");
+  return [`@@ ${item.id} @@`, item.source].join("\n");
 }
 
 async function writePage(
@@ -492,6 +548,29 @@ async function writePage(
     case "summary":
       await writeTextToStdout(`${page.id}  ${page.title}\n\n${page.content}\n`);
       return;
+    case "entity":
+      await writeTextToStdout(
+        [
+          `${page.id}`,
+          page.label,
+          `Mentions: ${page.mentionCount}`,
+          "",
+          "Evidence:",
+          ...formatEvidencePreviewBlocks(page.evidence),
+        ].join("\n") + "\n",
+      );
+      return;
+    case "triple":
+      await writeTextToStdout(
+        [
+          `${page.id}`,
+          page.label,
+          "",
+          "Evidence:",
+          ...formatEvidencePreviewBlocks(page.evidence),
+        ].join("\n") + "\n",
+      );
+      return;
   }
 }
 
@@ -533,7 +612,7 @@ function formatNextCursor(result: ArchiveFindResult): string {
 
 function formatNoMatches(result: ArchiveFindResult): string {
   if (result.match === "all" && result.terms.length > 1) {
-    return `No matches. Try: spinedigest search <archive.sdpub> "${result.query}" --type ${formatFindTypes(result)}${formatFindLensHint(result)}\n`;
+    return `No matches. Try: wikigraph search <archive.sdpub> "${result.query}" --type ${formatFindTypes(result)}${formatFindLensHint(result)}\n`;
   }
 
   const lines = [
@@ -546,6 +625,77 @@ function formatNoMatches(result: ArchiveFindResult): string {
   }
 
   return `${lines.join("\n")}\n`;
+}
+
+function createFindObject(hit: ArchiveFindHit): ArchiveOutputObject {
+  return {
+    ...(hit.evidence === undefined
+      ? {}
+      : { evidence: createEvidencePreviewObject(hit.evidence) }),
+    label: hit.title,
+    ...(hit.score === undefined ? {} : { score: hit.score }),
+    summary: hit.snippet,
+    type: hit.type === "node" ? "chunk" : hit.type,
+    uri: toWikiGraphUri(hit.id),
+  };
+}
+
+function createEvidencePreviewObject(
+  evidence: ArchiveFindEvidencePreview,
+): ArchiveOutputEvidencePreview {
+  return {
+    shown: evidence.shown,
+    sources: evidence.sources.map(createSourceObject),
+    total: evidence.total,
+  };
+}
+
+function createSourceObject(item: ArchiveEvidenceItem): ArchiveOutputSource {
+  return {
+    chapter: item.chapterId,
+    fragment: item.fragmentId,
+    range: {
+      end: item.endSentenceIndex,
+      start: item.startSentenceIndex,
+    },
+    text: item.source,
+    type: item.type,
+    uri: item.id,
+  };
+}
+
+function formatFindObject(object: ArchiveOutputObject): string {
+  const lines = [
+    `${formatScorePrefix(object.score)}${object.uri}`,
+    object.label,
+    object.evidence === undefined ? object.summary : undefined,
+  ].filter((line): line is string => line !== undefined && line !== "");
+
+  if (object.evidence !== undefined && object.evidence.sources.length > 0) {
+    lines.push(
+      "",
+      ...object.evidence.sources.flatMap((source, index) => [
+        `-- evidence ${index + 1}/${object.evidence?.shown ?? object.evidence?.sources.length}`,
+        formatSourceObject(source),
+      ]),
+    );
+
+    const hiddenEvidenceCount = object.evidence.total - object.evidence.shown;
+
+    if (hiddenEvidenceCount > 0) {
+      lines.push("", `${hiddenEvidenceCount} evidence more...`);
+    }
+  }
+
+  return lines.join("\n");
+}
+
+function formatScorePrefix(score: number | undefined): string {
+  return score === undefined ? "" : `${Math.round(score * 100) / 100} `;
+}
+
+function formatSourceObject(source: ArchiveOutputSource): string {
+  return [`@@ ${source.uri} @@`, source.text].join("\n");
 }
 
 function formatFindLensHint(result: ArchiveFindResult): string {
@@ -564,16 +714,6 @@ function formatFindTypes(result: ArchiveFindResult): string {
           type === "node" ? "chunk" : type === "fragment" ? "source" : type,
         )
         .join(",");
-}
-
-function formatFindMatchLine(hit: {
-  readonly matchedTerms?: readonly string[];
-}): string {
-  if (hit.matchedTerms === undefined || hit.matchedTerms.length === 0) {
-    return "";
-  }
-
-  return `Matched: ${hit.matchedTerms.join(", ")}\n`;
 }
 
 function formatNeighborLines(
@@ -639,6 +779,26 @@ function formatSourceFragmentLines(
   ]);
 }
 
+function formatEvidencePreviewBlocks(
+  evidence: ArchiveFindEvidencePreview,
+): string[] {
+  if (evidence.sources.length === 0) {
+    return ["[none]"];
+  }
+
+  const lines = evidence.sources.flatMap((item, index) => [
+    `-- evidence ${index + 1}/${evidence.shown}`,
+    formatEvidenceItem(item),
+  ]);
+  const hiddenEvidenceCount = evidence.total - evidence.shown;
+
+  if (hiddenEvidenceCount > 0) {
+    lines.push(`${hiddenEvidenceCount} evidence more...`);
+  }
+
+  return lines;
+}
+
 function formatPosition(
   position:
     | {
@@ -695,6 +855,23 @@ function formatPackAnchor(anchor: ArchivePage): string {
       ].join("\n");
     case "summary":
       return `${anchor.id} ${anchor.title}\n${anchor.content}`;
+    case "entity":
+      return [
+        `${anchor.id}`,
+        anchor.label,
+        `Mentions: ${anchor.mentionCount}`,
+        "",
+        "Evidence:",
+        ...formatEvidencePreviewBlocks(anchor.evidence),
+      ].join("\n");
+    case "triple":
+      return [
+        `${anchor.id}`,
+        anchor.label,
+        "",
+        "Evidence:",
+        ...formatEvidencePreviewBlocks(anchor.evidence),
+      ].join("\n");
   }
 }
 
@@ -703,8 +880,8 @@ function formatChapterNextSteps(
 ): string {
   return [
     "Next:",
-    `  spinedigest search <archive.sdpub> <keyword> --type chunk --chapter ${page.chapter.chapterId}`,
-    `  spinedigest get <archive.sdpub> wikigraph://source/chapter/${page.chapter.chapterId}`,
+    `  wikigraph search <archive.sdpub> <keyword> --type chunk --chapter ${page.chapter.chapterId}`,
+    `  wikigraph get <archive.sdpub> wikigraph://source/chapter/${page.chapter.chapterId}`,
   ].join("\n");
 }
 
@@ -780,8 +957,9 @@ function toArchiveFindType(
     case "summary":
       return "summary";
     case "entity":
+      return "entity";
     case "triple":
-      return undefined;
+      return "triple";
   }
 }
 
@@ -806,9 +984,9 @@ function formatStage(stage: ChapterStage): string {
     case "sourced":
       return "source";
     case "graphed":
-      return "graph";
+      return "reading-graph";
     case "summarized":
-      return "summary";
+      return "reading-summary";
   }
 }
 
@@ -819,12 +997,10 @@ function formatEstimateStage(stage: ArchiveEstimate["targetStage"]): string {
     case "source":
     case "sourced":
       return "source";
-    case "graph":
     case "graphed":
-      return "graph";
-    case "summary":
+      return "reading-graph";
     case "summarized":
-      return "summary";
+      return "reading-summary";
     default:
       return stage;
   }

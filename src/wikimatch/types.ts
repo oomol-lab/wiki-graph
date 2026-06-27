@@ -53,9 +53,34 @@ export interface WikimatchConflictGroup {
 
 export interface BuildWikimatchWindowsOptions {
   readonly candidates: readonly WikimatchCandidate[];
-  readonly candidateBudget: number;
   readonly contextWords: number;
+  readonly optionBudget: number;
   readonly text: string;
+}
+
+export interface NarrowWikimatchCandidateOptionsInput {
+  readonly candidate: WikimatchCandidate;
+  readonly policyPrompt: string;
+  readonly text: string;
+}
+
+export interface WikimatchCandidateOptionNarrowingResult {
+  readonly candidate: WikimatchCandidate;
+  readonly fallback?: WikimatchCandidateOptionNarrowingFallback;
+}
+
+export interface WikimatchCandidateOptionNarrowingFallback {
+  readonly issues: readonly string[];
+  readonly reason: "guaranteed_json_failed";
+}
+
+export interface WikimatchCandidateOptionNarrowingResponse {
+  readonly qids: readonly WikimatchCandidateOptionNarrowingItemOutput[];
+}
+
+export interface WikimatchCandidateOptionNarrowingItemOutput {
+  readonly decision: "keep" | "reject";
+  readonly qid: string;
 }
 
 export interface BuildWikimatchSurfaceWindowsOptions {

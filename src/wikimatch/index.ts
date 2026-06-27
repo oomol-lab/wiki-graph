@@ -1,9 +1,27 @@
 export {
   judgeWikimatchPolicy,
+  formatCandidateForPrompt,
   parsePolicyResponse,
   validatePolicyResponse,
   type JudgeWikimatchPolicyOptions,
 } from "./policy-judge.js";
+export {
+  narrowWikimatchCandidateOptions,
+  parseNarrowingResponse,
+  validateNarrowingResponse,
+  type NarrowWikimatchCandidateOptionsOptions,
+} from "./option-narrowing.js";
+export {
+  countWikimatchCandidateOptions,
+  countWikimatchQidOption,
+  filterCandidateQidOptions,
+  listCandidateSelectableQids,
+  splitCandidateByOptionBudget,
+} from "./options.js";
+export {
+  applyQidResolutions,
+  enrichWikimatchCandidates,
+} from "./enrichment.js";
 export {
   judgeWikimatchSurfaceScreening,
   parseSurfaceScreeningResponse,
@@ -26,7 +44,12 @@ export type {
   BuildWikimatchSurfaceWindowsOptions,
   WikimatchAcceptedMention,
   WikimatchCandidate,
+  WikimatchCandidateOptionNarrowingFallback,
+  WikimatchCandidateOptionNarrowingItemOutput,
+  WikimatchCandidateOptionNarrowingResponse,
+  WikimatchCandidateOptionNarrowingResult,
   WikimatchConflictGroup,
+  NarrowWikimatchCandidateOptionsInput,
   WikimatchPolicyDecision,
   WikimatchPolicyDecisionOutput,
   WikimatchPolicyFallback,

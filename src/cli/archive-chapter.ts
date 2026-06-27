@@ -137,7 +137,7 @@ export async function runArchiveChapterCommand(
           archivePath: args.path,
           chapterIds: [args.chapterId!],
           operation: "Setting chapter summary",
-          requiresTarget: "summary",
+          requiresTarget: "reading-summary",
         });
         const details = await setChapterSummary(
           document,
@@ -320,9 +320,9 @@ function formatStage(stage: ChapterEntry["stage"]): string {
     case "sourced":
       return "source";
     case "graphed":
-      return "graph";
+      return "reading-graph";
     case "summarized":
-      return "summary";
+      return "reading-summary";
   }
 }
 
@@ -344,13 +344,13 @@ async function assertResetAllowed(
         archivePath,
         chapterIds: [chapterId],
         operation: "Resetting chapter graph",
-        requiresTarget: "graph",
+        requiresTarget: "reading-graph",
       });
       await assertNoActiveBuildJobs({
         archivePath,
         chapterIds: [chapterId],
-        operation: "Resetting chapter graph",
-        requiresTarget: "summary",
+        operation: "Resetting chapter summary",
+        requiresTarget: "reading-summary",
       });
       return;
     case "graphed":
@@ -358,7 +358,7 @@ async function assertResetAllowed(
         archivePath,
         chapterIds: [chapterId],
         operation: "Resetting chapter summary",
-        requiresTarget: "summary",
+        requiresTarget: "reading-summary",
       });
       return;
   }

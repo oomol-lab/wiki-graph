@@ -2,8 +2,8 @@ import { existsSync, statSync } from "fs";
 import { dirname, join, parse } from "path";
 
 export function resolveDataDirPath(): string {
-  const injectedPath = (globalThis as { __SPINEDIGEST_DATA_DIR__?: unknown })
-    .__SPINEDIGEST_DATA_DIR__;
+  const injectedPath = (globalThis as { __WIKIGRAPH_DATA_DIR__?: unknown })
+    .__WIKIGRAPH_DATA_DIR__;
 
   if (typeof injectedPath === "string" && injectedPath !== "") {
     return injectedPath;

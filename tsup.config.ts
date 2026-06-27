@@ -1,7 +1,7 @@
 import { defineConfig } from "tsup";
 
 const CJS_DATA_DIR_BANNER = [
-  'globalThis.__SPINEDIGEST_DATA_DIR__ ??= require("node:path").resolve(',
+  'globalThis.__WIKIGRAPH_DATA_DIR__ ??= require("node:path").resolve(',
   "  __dirname,",
   '  "../data",',
   ");",

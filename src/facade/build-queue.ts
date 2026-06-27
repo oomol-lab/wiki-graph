@@ -15,7 +15,24 @@ export const BUILD_JOB_STATES = [
 ] as const;
 
 export type BuildJobState = (typeof BUILD_JOB_STATES)[number];
-export type BuildJobTarget = "graph" | "summary";
+export type BuildJobTarget =
+  | "knowledge-graph"
+  | "reading-graph"
+  | "reading-summary";
+export type BuildJobProgressPhase =
+  | "enrichment"
+  | "grounding"
+  | "matching"
+  | "narrowing"
+  | "screening"
+  | "writing";
+export type BuildJobProgressUnit =
+  | "candidate"
+  | "page"
+  | "qid"
+  | "sentence"
+  | "window"
+  | "record";
 
 export interface BuildJob {
   readonly archiveKey: string;
@@ -33,7 +50,7 @@ export interface BuildJob {
   readonly prompt?: string;
   readonly queueRank: number;
   readonly state: BuildJobState;
-  readonly summaryStartedAt?: number;
+  readonly readingSummaryStartedAt?: number;
   readonly target: BuildJobTarget;
   readonly updatedAt: number;
   readonly workspacePath: string;
@@ -81,11 +98,16 @@ export type BuildJobEvent =
       readonly graphWords: number;
       readonly jobId: string;
       readonly outputTokens: number;
+      readonly phase?: BuildJobProgressPhase;
+      readonly phaseDetail?: string;
+      readonly phaseDone?: number;
+      readonly phaseTotal?: number;
+      readonly phaseUnit?: BuildJobProgressUnit;
       readonly seq: number;
       readonly step?: BuildJobTarget;
-      readonly summaryWords: number;
+      readonly readingSummaryWords: number;
       readonly totalGraphWords: number;
-      readonly totalSummaryWords: number;
+      readonly totalReadingSummaryWords: number;
       readonly totalWords: number;
       readonly type: "progress_snapshot";
       readonly words: number;
@@ -128,13 +150,20 @@ export interface BuildJobProgressReporter {
   addOutputCharacters(characters: number): Promise<void>;
   setTotals(input: {
     readonly totalGraphWords?: number;
-    readonly totalSummaryWords?: number;
+    readonly totalReadingSummaryWords?: number;
   }): Promise<void>;
   stepCompleted(step: BuildJobTarget): Promise<void>;
   stepStarted(step: BuildJobTarget): Promise<void>;
   updateWords(input: {
     readonly graphWords?: number;
-    readonly summaryWords?: number;
+    readonly readingSummaryWords?: number;
+  }): Promise<void>;
+  updatePhase(input: {
+    readonly done: number;
+    readonly phase: BuildJobProgressPhase;
+    readonly phaseDetail?: string;
+    readonly total: number;
+    readonly unit: BuildJobProgressUnit;
   }): Promise<void>;
 }
 
@@ -154,7 +183,7 @@ CREATE TABLE IF NOT EXISTS build_jobs (
   prompt TEXT,
   owner_id TEXT,
   owner_pid INTEGER,
-  summary_started_at INTEGER,
+  reading_summary_started_at INTEGER,
   created_at INTEGER NOT NULL,
   updated_at INTEGER NOT NULL,
   finished_at INTEGER,
@@ -383,10 +412,10 @@ export async function updateBuildJobTarget(
       if (job.target === target) {
         return job;
       }
-      if (job.target === "summary" && target === "graph") {
+      if (job.target === "reading-summary" && target === "reading-graph") {
         if (
-          job.summaryStartedAt !== undefined ||
-          job.currentStep === "summary"
+          job.readingSummaryStartedAt !== undefined ||
+          job.currentStep === "reading-summary"
         ) {
           throw new Error(
             `Cannot downgrade job ${jobId} after summary has started. Cancel it explicitly instead.`,
@@ -1055,7 +1084,7 @@ async function createJobEventsPath(jobId: string): Promise<string> {
 }
 
 function getBuildQueueStateDirectoryPath(): string {
-  const stateDirectoryPath = process.env.SPINEDIGEST_STATE_DIR;
+  const stateDirectoryPath = process.env.WIKIGRAPH_STATE_DIR;
 
   if (stateDirectoryPath !== undefined && stateDirectoryPath.trim() !== "") {
     return resolve(stateDirectoryPath);
@@ -1072,10 +1101,10 @@ function mapBuildJob(row: Record<string, unknown>): BuildJob {
   const ownerId = getOptionalString(row, "owner_id");
   const ownerPid =
     row.owner_pid === null ? undefined : getNumber(row, "owner_pid");
-  const summaryStartedAt =
-    row.summary_started_at === null
+  const readingSummaryStartedAt =
+    row.reading_summary_started_at === null
       ? undefined
-      : getNumber(row, "summary_started_at");
+      : getNumber(row, "reading_summary_started_at");
   const finishedAt =
     row.finished_at === null ? undefined : getNumber(row, "finished_at");
   const errorJSON = getOptionalString(row, "error_json");
@@ -1098,7 +1127,9 @@ function mapBuildJob(row: Record<string, unknown>): BuildJob {
     ...(prompt === undefined ? {} : { prompt }),
     queueRank: getNumber(row, "queue_rank"),
     state: parseBuildJobState(getString(row, "state")),
-    ...(summaryStartedAt === undefined ? {} : { summaryStartedAt }),
+    ...(readingSummaryStartedAt === undefined
+      ? {}
+      : { readingSummaryStartedAt }),
     target: parseBuildJobTarget(getString(row, "target"), "target"),
     updatedAt: getNumber(row, "updated_at"),
     workspacePath: getString(row, "workspace_path"),
@@ -1114,7 +1145,11 @@ function parseBuildJobState(value: string): BuildJobState {
 }
 
 function parseBuildJobTarget(value: string, field: string): BuildJobTarget {
-  if (value === "graph" || value === "summary") {
+  if (
+    value === "reading-graph" ||
+    value === "knowledge-graph" ||
+    value === "reading-summary"
+  ) {
     return value;
   }
 
@@ -1203,68 +1238,120 @@ class BuildJobProgressAccumulator implements BuildJobProgressReporter {
   #graphWords = 0;
   #lastSnapshotAt = 0;
   #outputCharacters = 0;
+  #phase:
+    | {
+        readonly done: number;
+        readonly phase: BuildJobProgressPhase;
+        readonly phaseDetail?: string;
+        readonly total: number;
+        readonly unit: BuildJobProgressUnit;
+      }
+    | undefined;
   #step: BuildJobTarget | undefined;
-  #summaryWords = 0;
+  #readingSummaryWords = 0;
   #totalGraphWords = 0;
-  #totalSummaryWords = 0;
+  #totalReadingSummaryWords = 0;
+  #writeQueue: Promise<void> = Promise.resolve();
 
   public constructor(job: BuildJob) {
     this.#job = job;
   }
 
   public async addOutputCharacters(characters: number): Promise<void> {
-    this.#outputCharacters += characters;
-    await this.#snapshot();
+    await this.#enqueue(async () => {
+      this.#outputCharacters += characters;
+      await this.#snapshot();
+    });
   }
 
   public async setTotals(input: {
     readonly totalGraphWords?: number;
-    readonly totalSummaryWords?: number;
+    readonly totalReadingSummaryWords?: number;
   }): Promise<void> {
-    this.#totalGraphWords = input.totalGraphWords ?? this.#totalGraphWords;
-    this.#totalSummaryWords =
-      input.totalSummaryWords ?? this.#totalSummaryWords;
-    await this.#snapshot(true);
+    await this.#enqueue(async () => {
+      this.#totalGraphWords = input.totalGraphWords ?? this.#totalGraphWords;
+      this.#totalReadingSummaryWords =
+        input.totalReadingSummaryWords ?? this.#totalReadingSummaryWords;
+      await this.#snapshot(true);
+    });
   }
 
   public async stepStarted(step: BuildJobTarget): Promise<void> {
-    this.#step = step;
-    await markBuildJobStep(this.#job.jobId, step);
-    await appendBuildJobEvent(this.#job, {
-      at: Date.now(),
-      jobId: this.#job.jobId,
-      seq: 0,
-      step,
-      type: "step_started",
+    await this.#enqueue(async () => {
+      this.#step = step;
+      this.#phase = undefined;
+      await markBuildJobStep(this.#job.jobId, step);
+      await appendBuildJobEvent(this.#job, {
+        at: Date.now(),
+        jobId: this.#job.jobId,
+        seq: 0,
+        step,
+        type: "step_started",
+      });
+      await this.#snapshot(true);
     });
-    await this.#snapshot(true);
   }
 
   public async stepCompleted(step: BuildJobTarget): Promise<void> {
-    this.#step = step;
-    await appendBuildJobEvent(this.#job, {
-      at: Date.now(),
-      jobId: this.#job.jobId,
-      seq: 0,
-      step,
-      type: "step_completed",
+    await this.#enqueue(async () => {
+      this.#step = step;
+      await appendBuildJobEvent(this.#job, {
+        at: Date.now(),
+        jobId: this.#job.jobId,
+        seq: 0,
+        step,
+        type: "step_completed",
+      });
+      await this.#snapshot(true);
     });
-    await this.#snapshot(true);
   }
 
   public async updateWords(input: {
     readonly graphWords?: number;
-    readonly summaryWords?: number;
+    readonly readingSummaryWords?: number;
   }): Promise<void> {
-    this.#graphWords =
-      input.graphWords === undefined
-        ? this.#graphWords
-        : clampProgressWords(input.graphWords, this.#totalGraphWords);
-    this.#summaryWords =
-      input.summaryWords === undefined
-        ? this.#summaryWords
-        : clampProgressWords(input.summaryWords, this.#totalSummaryWords);
-    await this.#snapshot();
+    await this.#enqueue(async () => {
+      this.#graphWords =
+        input.graphWords === undefined
+          ? this.#graphWords
+          : clampProgressWords(input.graphWords, this.#totalGraphWords);
+      this.#readingSummaryWords =
+        input.readingSummaryWords === undefined
+          ? this.#readingSummaryWords
+          : clampProgressWords(
+              input.readingSummaryWords,
+              this.#totalReadingSummaryWords,
+            );
+      await this.#snapshot();
+    });
+  }
+
+  public async updatePhase(input: {
+    readonly done: number;
+    readonly phase: BuildJobProgressPhase;
+    readonly phaseDetail?: string;
+    readonly total: number;
+    readonly unit: BuildJobProgressUnit;
+  }): Promise<void> {
+    await this.#enqueue(async () => {
+      this.#phase = {
+        done: clampProgressWords(input.done, input.total),
+        phase: input.phase,
+        ...(input.phaseDetail === undefined
+          ? {}
+          : { phaseDetail: input.phaseDetail }),
+        total: Math.max(0, input.total),
+        unit: input.unit,
+      };
+      await this.#snapshot(true);
+    });
+  }
+
+  async #enqueue(operation: () => Promise<void>): Promise<void> {
+    const queued = this.#writeQueue.then(operation, operation);
+
+    this.#writeQueue = queued.catch(() => undefined);
+    await queued;
   }
 
   async #snapshot(force = false): Promise<void> {
@@ -1282,11 +1369,22 @@ class BuildJobProgressAccumulator implements BuildJobProgressReporter {
       outputTokens: Math.floor(
         this.#outputCharacters / this.#outputCharactersPerToken,
       ),
+      ...(this.#phase === undefined
+        ? {}
+        : {
+            phase: this.#phase.phase,
+            ...(this.#phase.phaseDetail === undefined
+              ? {}
+              : { phaseDetail: this.#phase.phaseDetail }),
+            phaseDone: this.#phase.done,
+            phaseTotal: this.#phase.total,
+            phaseUnit: this.#phase.unit,
+          }),
       seq: 0,
       ...(this.#step === undefined ? {} : { step: this.#step }),
-      summaryWords: this.#summaryWords,
+      readingSummaryWords: this.#readingSummaryWords,
       totalGraphWords: this.#totalGraphWords,
-      totalSummaryWords: this.#totalSummaryWords,
+      totalReadingSummaryWords: this.#totalReadingSummaryWords,
       totalWords: this.#getCurrentTotalWords(),
       type: "progress_snapshot",
       words: this.#getCurrentWords(),
@@ -1295,10 +1393,11 @@ class BuildJobProgressAccumulator implements BuildJobProgressReporter {
 
   #getCurrentTotalWords(): number {
     switch (this.#step) {
-      case "graph":
+      case "reading-graph":
+      case "knowledge-graph":
         return this.#totalGraphWords;
-      case "summary":
-        return this.#totalSummaryWords;
+      case "reading-summary":
+        return this.#totalReadingSummaryWords;
       case undefined:
         return 0;
     }
@@ -1306,10 +1405,11 @@ class BuildJobProgressAccumulator implements BuildJobProgressReporter {
 
   #getCurrentWords(): number {
     switch (this.#step) {
-      case "graph":
+      case "reading-graph":
+      case "knowledge-graph":
         return this.#graphWords;
-      case "summary":
-        return this.#summaryWords;
+      case "reading-summary":
+        return this.#readingSummaryWords;
       case undefined:
         return 0;
     }
@@ -1335,9 +1435,9 @@ async function markBuildJobStep(
       `
 UPDATE build_jobs
 SET current_step = ?,
-    summary_started_at = CASE
-      WHEN ? = 'summary' AND summary_started_at IS NULL THEN ?
-      ELSE summary_started_at
+    reading_summary_started_at = CASE
+      WHEN ? = 'reading-summary' AND reading_summary_started_at IS NULL THEN ?
+      ELSE reading_summary_started_at
     END,
     updated_at = ?
 WHERE job_id = ?

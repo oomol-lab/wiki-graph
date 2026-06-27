@@ -1,5 +1,5 @@
-import type { ChunkRecord, KnowledgeEdgeRecord } from "../document/index.js";
-import { getKnowledgeEdgeKey } from "./weights.js";
+import type { ChunkRecord, ReadingEdgeRecord } from "../document/index.js";
+import { getReadingEdgeKey } from "./weights.js";
 
 const ATTRIBUTE_BONUS_WEIGHT = 3;
 const DEFAULT_LINK_STRENGTH_WEIGHT = 1;
@@ -9,13 +9,13 @@ const MIN_EDGE_WEIGHT = 0.1;
 
 interface DetectorGraph {
   readonly chunksById: Readonly<Record<string, ChunkRecord | undefined>>;
-  readonly edgeByKey: Readonly<Record<string, KnowledgeEdgeRecord | undefined>>;
+  readonly edgeByKey: Readonly<Record<string, ReadingEdgeRecord | undefined>>;
   readonly fingerprintEdgeWeightsByKey: Readonly<Record<string, number>>;
   readonly incomingEdgesByChunkId: Readonly<
-    Record<string, readonly KnowledgeEdgeRecord[] | undefined>
+    Record<string, readonly ReadingEdgeRecord[] | undefined>
   >;
   readonly outgoingEdgesByChunkId: Readonly<
-    Record<string, readonly KnowledgeEdgeRecord[] | undefined>
+    Record<string, readonly ReadingEdgeRecord[] | undefined>
   >;
   readonly sortedChunkIds: readonly number[];
   readonly undirectedAdjacentChunkIdsByChunkId: Readonly<
@@ -30,7 +30,7 @@ interface MergeConfig {
 
 export function splitConnectedComponents(input: {
   chunkIds: readonly number[];
-  edges: readonly KnowledgeEdgeRecord[];
+  edges: readonly ReadingEdgeRecord[];
 }): number[][] {
   const sortedChunkIds = [...input.chunkIds].sort(compareNumber);
   const chunkIdRecord = createBooleanRecord();
@@ -100,7 +100,7 @@ export function splitConnectedComponents(input: {
 
 export function detectSnakesInComponent(input: {
   chunks: readonly ChunkRecord[];
-  edges: readonly KnowledgeEdgeRecord[];
+  edges: readonly ReadingEdgeRecord[];
   snakeWordsCount?: number;
 }): number[][] {
   if (input.chunks.length === 0) {
@@ -189,9 +189,9 @@ function clustersConnected(
   for (const leftChunkId of leftCluster) {
     for (const rightChunkId of rightCluster) {
       if (
-        graph.edgeByKey[getKnowledgeEdgeKey(leftChunkId, rightChunkId)] !==
+        graph.edgeByKey[getReadingEdgeKey(leftChunkId, rightChunkId)] !==
           undefined ||
-        graph.edgeByKey[getKnowledgeEdgeKey(rightChunkId, leftChunkId)] !==
+        graph.edgeByKey[getReadingEdgeKey(rightChunkId, leftChunkId)] !==
           undefined
       ) {
         return true;
@@ -271,10 +271,10 @@ function computeAllFingerprints(
 
           const weight =
             graph.fingerprintEdgeWeightsByKey[
-              getKnowledgeEdgeKey(edge.fromId, currentChunkId)
+              getReadingEdgeKey(edge.fromId, currentChunkId)
             ] ??
             graph.fingerprintEdgeWeightsByKey[
-              getKnowledgeEdgeKey(currentChunkId, edge.fromId)
+              getReadingEdgeKey(currentChunkId, edge.fromId)
             ] ??
             DEFAULT_LINK_STRENGTH_WEIGHT;
 
@@ -291,10 +291,10 @@ function computeAllFingerprints(
 
           const weight =
             graph.fingerprintEdgeWeightsByKey[
-              getKnowledgeEdgeKey(currentChunkId, edge.toId)
+              getReadingEdgeKey(currentChunkId, edge.toId)
             ] ??
             graph.fingerprintEdgeWeightsByKey[
-              getKnowledgeEdgeKey(edge.toId, currentChunkId)
+              getReadingEdgeKey(edge.toId, currentChunkId)
             ] ??
             DEFAULT_LINK_STRENGTH_WEIGHT;
 
@@ -364,8 +364,8 @@ function computeMergeValue(
   for (const leftChunkId of leftCluster) {
     for (const rightChunkId of rightCluster) {
       const edge =
-        graph.edgeByKey[getKnowledgeEdgeKey(leftChunkId, rightChunkId)] ??
-        graph.edgeByKey[getKnowledgeEdgeKey(rightChunkId, leftChunkId)];
+        graph.edgeByKey[getReadingEdgeKey(leftChunkId, rightChunkId)] ??
+        graph.edgeByKey[getReadingEdgeKey(rightChunkId, leftChunkId)];
 
       if (edge === undefined) {
         continue;
@@ -422,12 +422,12 @@ function createBooleanRecord(): Record<string, boolean | undefined> {
 
 function createDetectorGraph(
   chunks: readonly ChunkRecord[],
-  edges: readonly KnowledgeEdgeRecord[],
+  edges: readonly ReadingEdgeRecord[],
 ): DetectorGraph {
   const chunksById = createChunkRecord();
   const edgeByKey = createEdgeRecord();
-  const incomingEdgesByChunkId = createKnowledgeEdgeListRecord();
-  const outgoingEdgesByChunkId = createKnowledgeEdgeListRecord();
+  const incomingEdgesByChunkId = createReadingEdgeListRecord();
+  const outgoingEdgesByChunkId = createReadingEdgeListRecord();
   const sortedChunkIds = [...chunks]
     .map((chunk) => chunk.id)
     .sort(compareNumber);
@@ -445,7 +445,7 @@ function createDetectorGraph(
       continue;
     }
 
-    const edgeKey = getKnowledgeEdgeKey(edge.fromId, edge.toId);
+    const edgeKey = getReadingEdgeKey(edge.fromId, edge.toId);
 
     edgeByKey[edgeKey] = edge;
     if (incomingEdgesByChunkId[String(edge.toId)] === undefined) {
@@ -499,18 +499,15 @@ function createEdgeQueueEntry(
   };
 }
 
-function createEdgeRecord(): Record<string, KnowledgeEdgeRecord | undefined> {
-  return Object.create(null) as Record<string, KnowledgeEdgeRecord | undefined>;
+function createEdgeRecord(): Record<string, ReadingEdgeRecord | undefined> {
+  return Object.create(null) as Record<string, ReadingEdgeRecord | undefined>;
 }
 
-function createKnowledgeEdgeListRecord(): Record<
+function createReadingEdgeListRecord(): Record<
   string,
-  KnowledgeEdgeRecord[] | undefined
+  ReadingEdgeRecord[] | undefined
 > {
-  return Object.create(null) as Record<
-    string,
-    KnowledgeEdgeRecord[] | undefined
-  >;
+  return Object.create(null) as Record<string, ReadingEdgeRecord[] | undefined>;
 }
 
 function createNumberMatrixRecord(): Record<string, Record<string, number>> {
@@ -534,8 +531,8 @@ function getClusterPairKey(
   rightClusterId: number,
 ): string {
   return leftClusterId < rightClusterId
-    ? getKnowledgeEdgeKey(leftClusterId, rightClusterId)
-    : getKnowledgeEdgeKey(rightClusterId, leftClusterId);
+    ? getReadingEdgeKey(leftClusterId, rightClusterId)
+    : getReadingEdgeKey(rightClusterId, leftClusterId);
 }
 
 function getLinkStrengthWeight(strength: string | undefined): number {
@@ -774,7 +771,7 @@ function validateFingerprints(
 
 function computeFingerprintEdgeWeights(
   chunksById: Readonly<Record<string, ChunkRecord | undefined>>,
-  edges: readonly KnowledgeEdgeRecord[],
+  edges: readonly ReadingEdgeRecord[],
 ): Readonly<Record<string, number>> {
   const totalStrengthsByChunkId = createNumberRecord();
 
@@ -820,8 +817,8 @@ function computeFingerprintEdgeWeights(
       MIN_EDGE_WEIGHT,
     );
 
-    edgeWeightsByKey[getKnowledgeEdgeKey(edge.fromId, edge.toId)] = finalWeight;
-    edgeWeightsByKey[getKnowledgeEdgeKey(edge.toId, edge.fromId)] = finalWeight;
+    edgeWeightsByKey[getReadingEdgeKey(edge.fromId, edge.toId)] = finalWeight;
+    edgeWeightsByKey[getReadingEdgeKey(edge.toId, edge.fromId)] = finalWeight;
   }
 
   return edgeWeightsByKey;

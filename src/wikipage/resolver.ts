@@ -15,6 +15,7 @@ import type {
   DisambiguationPageText,
   DisambiguationProfileNormalizer,
   QidResolution,
+  WikipageResolveProgressReporter,
   WikipageResolverOptions,
 } from "./types.js";
 
@@ -22,6 +23,8 @@ const DEFAULT_CONCURRENCY = 3;
 const DEFAULT_LANGUAGE = "zh";
 const DEFAULT_MAX_BATCH_SIZE = 50;
 const DEFAULT_MIN_REQUEST_INTERVAL_MS = 100;
+const DEFAULT_RETRY_BASE_DELAY_MS = 1_000;
+const DEFAULT_RETRY_TIMES = 3;
 const DEFAULT_USER_AGENT =
   "WikiGraph/0.3 (https://github.com/oomol-lab/spinedigest)";
 
@@ -31,6 +34,7 @@ export class WikipageResolver {
   readonly #maxBatchSize: number;
   readonly #normalizer: DisambiguationProfileNormalizer | undefined;
   readonly #ownsCache: boolean;
+  readonly #progress: WikipageResolveProgressReporter | undefined;
   readonly #wiki: string;
 
   public constructor(input: {
@@ -39,6 +43,7 @@ export class WikipageResolver {
     readonly maxBatchSize: number;
     readonly normalizer: DisambiguationProfileNormalizer | undefined;
     readonly ownsCache: boolean;
+    readonly progress: WikipageResolveProgressReporter | undefined;
     readonly wiki: string;
   }) {
     this.#cache = input.cache;
@@ -46,6 +51,7 @@ export class WikipageResolver {
     this.#maxBatchSize = input.maxBatchSize;
     this.#normalizer = input.normalizer;
     this.#ownsCache = input.ownsCache;
+    this.#progress = input.progress;
     this.#wiki = input.wiki;
   }
 
@@ -63,6 +69,9 @@ export class WikipageResolver {
         language,
         minRequestIntervalMs:
           options.minRequestIntervalMs ?? DEFAULT_MIN_REQUEST_INTERVAL_MS,
+        retryBaseDelayMs:
+          options.retryBaseDelayMs ?? DEFAULT_RETRY_BASE_DELAY_MS,
+        retryTimes: options.retryTimes ?? DEFAULT_RETRY_TIMES,
         userAgent: options.userAgent ?? DEFAULT_USER_AGENT,
         wiki,
         ...(options.fetch === undefined ? {} : { fetch: options.fetch }),
@@ -70,6 +79,7 @@ export class WikipageResolver {
       maxBatchSize: normalizeBatchSize(options.maxBatchSize),
       normalizer: options.normalizer,
       ownsCache: true,
+      progress: options.progress,
       wiki,
     });
   }
@@ -127,9 +137,15 @@ export class WikipageResolver {
   ): Promise<ReadonlyMap<string, CachedQidRecord>> {
     const cached = new Map(await this.#cache.getQids(qids));
     const missing = qids.filter((qid) => !cached.has(qid));
+    let resolvedQids = cached.size;
+    let resolvedEntities = 0;
+
+    await this.#reportProgress("qid", resolvedQids, qids.length);
 
     for (const batch of chunk(missing, this.#maxBatchSize)) {
       const entityInfos = await this.#client.getEntities(batch);
+      resolvedEntities += batch.length;
+      await this.#reportProgress("entity", resolvedEntities, missing.length);
       const pageInfos = await this.#fetchPageInfos(entityInfos);
       const now = new Date().toISOString();
       const records = batch.map((qid) =>
@@ -140,6 +156,8 @@ export class WikipageResolver {
       for (const record of records) {
         cached.set(record.qid, record);
       }
+      resolvedQids += batch.length;
+      await this.#reportProgress("qid", resolvedQids, qids.length);
     }
 
     return cached;
@@ -168,6 +186,11 @@ export class WikipageResolver {
         )) {
           results.set(pageKey(wiki, title), page);
         }
+        await this.#reportProgress(
+          "page",
+          results.size,
+          countTitleSetItems(titlesByWiki),
+        );
       }
     }
 
@@ -180,12 +203,25 @@ export class WikipageResolver {
     const qids = records.map((record) => record.qid);
     const cached = new Map(await this.#cache.getDisambiguations(qids));
     const missing = records.filter((record) => !cached.has(record.qid));
+    let resolvedPages = cached.size;
+
+    await this.#reportProgress(
+      "disambiguation-page",
+      resolvedPages,
+      qids.length,
+    );
 
     for (const record of missing) {
       const expansion = await this.#expandDisambiguation(record);
 
       await this.#cache.putDisambiguations([expansion]);
       cached.set(record.qid, expansion);
+      resolvedPages += 1;
+      await this.#reportProgress(
+        "disambiguation-page",
+        resolvedPages,
+        qids.length,
+      );
     }
 
     return cached;
@@ -212,6 +248,11 @@ export class WikipageResolver {
         )) {
           linkedPageInfos.set(title, linkedPage);
         }
+        await this.#reportProgress(
+          "linked-page",
+          linkedPageInfos.size,
+          parsedPage.linkedTitles.length,
+        );
       }
 
       const titleToQid = new Map<string, string>();
@@ -256,6 +297,18 @@ export class WikipageResolver {
       pages,
       ...(profile === undefined ? {} : { profile }),
     };
+  }
+
+  async #reportProgress(
+    detail: Parameters<WikipageResolveProgressReporter>[0]["detail"],
+    done: number,
+    total: number,
+  ): Promise<void> {
+    await this.#progress?.({
+      detail,
+      done: Math.min(Math.max(0, done), Math.max(0, total)),
+      total: Math.max(0, total),
+    });
   }
 }
 
@@ -317,6 +370,18 @@ function mergeLinkedQids(
   }
 
   return [...results.values()];
+}
+
+function countTitleSetItems(
+  input: ReadonlyMap<SupportedWiki, Set<string>>,
+): number {
+  let count = 0;
+
+  for (const titles of input.values()) {
+    count += titles.size;
+  }
+
+  return count;
 }
 
 function hasDisambiguationPage(record: CachedQidRecord): boolean {

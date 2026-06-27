@@ -1,6 +1,6 @@
 import type {
   ChunkRecord,
-  KnowledgeEdgeRecord,
+  ReadingEdgeRecord,
   ReadonlySerialFragments,
 } from "../document/index.js";
 
@@ -13,7 +13,7 @@ export interface FragmentInfo {
 
 export async function computeNormalizedFragmentIncisions(input: {
   chunks: readonly ChunkRecord[];
-  edges: readonly KnowledgeEdgeRecord[];
+  edges: readonly ReadingEdgeRecord[];
   fragments: ReadonlySerialFragments;
 }): Promise<FragmentInfo[]> {
   const fragmentWordsCounts = await loadFragmentWordsCounts(input.fragments);
@@ -47,12 +47,12 @@ async function loadFragmentWordsCounts(
 
 function computeFragmentIncisions(input: {
   chunks: readonly ChunkRecord[];
-  edges: readonly KnowledgeEdgeRecord[];
+  edges: readonly ReadingEdgeRecord[];
   fragmentWordsCounts: Readonly<Record<string, number>>;
 }): FragmentInfo[] {
   const chunkIdsByFragmentId = createNumberListRecord();
   const chunkWeightsById = createNumberRecord();
-  const edgesByChunkId = createKnowledgeEdgeListRecord();
+  const edgesByChunkId = createReadingEdgeListRecord();
 
   for (const chunk of input.chunks) {
     const fragmentKey = String(chunk.sentenceId[1]);
@@ -242,14 +242,11 @@ function createChunkRecord(): Record<string, ChunkRecord | undefined> {
   return Object.create(null) as Record<string, ChunkRecord | undefined>;
 }
 
-function createKnowledgeEdgeListRecord(): Record<
+function createReadingEdgeListRecord(): Record<
   string,
-  KnowledgeEdgeRecord[] | undefined
+  ReadingEdgeRecord[] | undefined
 > {
-  return Object.create(null) as Record<
-    string,
-    KnowledgeEdgeRecord[] | undefined
-  >;
+  return Object.create(null) as Record<string, ReadingEdgeRecord[] | undefined>;
 }
 
 function createNumberListRecord(): Record<string, number[] | undefined> {

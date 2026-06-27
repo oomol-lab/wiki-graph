@@ -54,6 +54,18 @@ export async function main(): Promise<void> {
         return;
     }
   } catch (error) {
+    if (shouldWriteJSONError(process.argv.slice(2))) {
+      process.stdout.write(
+        `${JSON.stringify(createCLIErrorObject(error), null, 2)}\n`,
+      );
+      process.exitCode = 1;
+      return;
+    }
+    if (shouldWriteJSONLError(process.argv.slice(2))) {
+      process.stdout.write(`${JSON.stringify(createCLIErrorObject(error))}\n`);
+      process.exitCode = 1;
+      return;
+    }
     process.stderr.write(`${formatCLIError(error)}\n`);
     process.exitCode = 1;
   }
@@ -69,4 +81,29 @@ function formatCLIError(error: unknown): string {
   }
 
   return formatError(error);
+}
+
+function createCLIErrorObject(error: unknown): {
+  readonly error: {
+    readonly message: string;
+    readonly type: string;
+  };
+} {
+  return {
+    error: {
+      message: formatCLIError(error),
+      type:
+        error instanceof LLMPaymentRequiredError
+          ? "llm_payment_required"
+          : "error",
+    },
+  };
+}
+
+function shouldWriteJSONError(argv: readonly string[]): boolean {
+  return argv.includes("--json");
+}
+
+function shouldWriteJSONLError(argv: readonly string[]): boolean {
+  return argv.includes("--jsonl");
 }

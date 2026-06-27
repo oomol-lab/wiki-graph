@@ -66,7 +66,7 @@ async function renderTocItem(
 
     if (summary === undefined) {
       throw new Error(
-        `Chapter ${item.serialId} summary is missing. Run \`spinedigest queue add <archive.sdpub> --chapter ${item.serialId} --to summary --accept-cost\` before export, or inspect the chapter with \`spinedigest page <archive.sdpub> --chapter ${item.serialId}\`.`,
+        `Chapter ${item.serialId} summary is missing. Run \`wikigraph queue add <archive.sdpub> --chapter ${item.serialId} --task reading-summary --accept-cost\` before export, or inspect the archive with \`wikigraph index <archive.sdpub>\`.`,
       );
     }
     if (summary.trim() !== "") {

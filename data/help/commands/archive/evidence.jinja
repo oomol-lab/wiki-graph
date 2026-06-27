@@ -1,14 +1,29 @@
 Help Type: command
-Command: spinedigest evidence
+Command: wikigraph evidence
 
 evidence
 
 Purpose:
   Return source-backed evidence for one Wiki Graph object.
 
+Use when:
+  - A chunk, entity, triple, source range, or summary needs grounding in source material.
+  - You need support before quoting, verifying, or answering from a claim.
+
 Usage:
-  spinedigest evidence <archive.sdpub> <uri> [--json|--jsonl] [--help|-h]
+  wikigraph evidence <archive.sdpub> <uri> [--json|--jsonl] [--help|-h]
+
+Returns:
+  - Evidence items anchored to source text.
+
+Notes:
+  - `evidence` is for verification, not broad context assembly.
+  - Use `pack` when the goal is bounded context around a selected object.
+
+Next steps:
+  - Use `get` to inspect readable objects mentioned by evidence output.
+  - Use `pack` when evidence confirms the object is a useful answer anchor.
 
 Examples:
-  spinedigest evidence book.sdpub wikigraph://entity/Q162593
-  spinedigest evidence book.sdpub wikigraph://triple/Q162593/discusses/Q9476
+  wikigraph evidence book.sdpub wikigraph://entity/Q162593
+  wikigraph evidence book.sdpub wikigraph://triple/Q162593/discusses/Q9476

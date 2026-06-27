@@ -66,7 +66,7 @@ export interface ChunkRecord {
 
 export type CreateChunkRecord = Omit<ChunkRecord, "id">;
 
-export interface KnowledgeEdgeRecord {
+export interface ReadingEdgeRecord {
   readonly fromId: number;
   readonly toId: number;
   readonly strength?: string;

@@ -1,5 +1,5 @@
 Help Type: command
-Command: spinedigest chapter set-title
+Command: wikigraph chapter set-title
 
 chapter set-title
 
@@ -7,8 +7,8 @@ Purpose:
   Rename an existing chapter in the archive TOC.
 
 Usage:
-  spinedigest chapter set-title <path> --chapter <id> --title <title> [--llm <json>] [--help|-h]
-  spinedigest chapter set-title <path> --chapter <id> --clear [--llm <json>] [--help|-h]
+  wikigraph chapter set-title <path> --chapter <id> --title <title> [--llm <json>] [--help|-h]
+  wikigraph chapter set-title <path> --chapter <id> --clear [--llm <json>] [--help|-h]
 
 Behavior:
   - Updates only the chapter title stored in the TOC.
@@ -22,10 +22,10 @@ Output shape:
   Prints the updated chapter status.
 
 Examples:
-  spinedigest chapter set-title book.sdpub --chapter 12 --title "New Chapter Title"
-  spinedigest chapter set-title book.sdpub --chapter 12 --clear
+  wikigraph chapter set-title book.sdpub --chapter 12 --title "New Chapter Title"
+  wikigraph chapter set-title book.sdpub --chapter 12 --clear
 
 See also:
-  - spinedigest chapter list --help
-  - spinedigest chapter status --help
-  - spinedigest help command
+  - wikigraph chapter list --help
+  - wikigraph chapter status --help
+  - wikigraph help command

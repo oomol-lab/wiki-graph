@@ -55,6 +55,11 @@ const cliConfigSchema = z.object({
     })
     .optional(),
   prompt: z.string().min(1).optional(),
+  queue: z
+    .object({
+      concurrent: z.number().int().positive().optional(),
+    })
+    .optional(),
   request: z
     .object({
       concurrent: z.number().int().positive().optional(),
@@ -84,6 +89,9 @@ export interface CLIConfig {
     readonly debugLogDir?: string;
   };
   readonly prompt?: string;
+  readonly queue?: {
+    readonly concurrent?: number;
+  };
   readonly request?: {
     readonly concurrent?: number;
     readonly retryIntervalSeconds?: number;
@@ -111,105 +119,114 @@ export async function loadCLIConfig(options?: {
       : parseInlineLLMConfig(options.llmJSON);
 
   const prompt = firstDefined(
-    normalizeString(process.env.SPINEDIGEST_PROMPT),
+    normalizeString(process.env.WIKIGRAPH_PROMPT),
     fileConfig.prompt,
   );
   const llm = createLLMConfig({
     apiKey: firstDefined(
       inlineLLMConfig?.apiKey,
       firstDefined(
-        normalizeString(process.env.SPINEDIGEST_LLM_API_KEY),
+        normalizeString(process.env.WIKIGRAPH_LLM_API_KEY),
         fileConfig.llm?.apiKey,
       ),
     ),
     baseURL: firstDefined(
       inlineLLMConfig?.baseURL,
       firstDefined(
-        normalizeString(process.env.SPINEDIGEST_LLM_BASE_URL),
+        normalizeString(process.env.WIKIGRAPH_LLM_BASE_URL),
         fileConfig.llm?.baseURL,
       ),
     ),
     model: firstDefined(
       inlineLLMConfig?.model,
       firstDefined(
-        normalizeString(process.env.SPINEDIGEST_LLM_MODEL),
+        normalizeString(process.env.WIKIGRAPH_LLM_MODEL),
         fileConfig.llm?.model,
       ),
     ),
     name: firstDefined(
       inlineLLMConfig?.name,
       firstDefined(
-        normalizeString(process.env.SPINEDIGEST_LLM_NAME),
+        normalizeString(process.env.WIKIGRAPH_LLM_NAME),
         fileConfig.llm?.name,
       ),
     ),
     provider: firstDefined(
       inlineLLMConfig?.provider,
       firstDefined(
-        parseOptionalProvider(process.env.SPINEDIGEST_LLM_PROVIDER),
+        parseOptionalProvider(process.env.WIKIGRAPH_LLM_PROVIDER),
         fileConfig.llm?.provider,
       ),
     ),
   });
   const paths = createPathsConfig({
     cacheDir: firstDefined(
-      resolveEnvPath(process.env.SPINEDIGEST_CACHE_DIR),
+      resolveEnvPath(process.env.WIKIGRAPH_CACHE_DIR),
       resolveConfigPath(fileConfig.paths?.cacheDir, configDirectoryPath),
     ),
     debugLogDir: firstDefined(
-      resolveEnvPath(process.env.SPINEDIGEST_DEBUG_LOG_DIR),
+      resolveEnvPath(process.env.WIKIGRAPH_DEBUG_LOG_DIR),
       resolveConfigPath(fileConfig.paths?.debugLogDir, configDirectoryPath),
     ),
   });
   const request = createRequestConfig({
     concurrent: firstDefined(
       parseOptionalPositiveInteger(
-        process.env.SPINEDIGEST_REQUEST_CONCURRENT,
-        "SPINEDIGEST_REQUEST_CONCURRENT",
+        process.env.WIKIGRAPH_REQUEST_CONCURRENT,
+        "WIKIGRAPH_REQUEST_CONCURRENT",
       ),
       fileConfig.request?.concurrent,
     ),
     retryIntervalSeconds: firstDefined(
       parseOptionalPositiveNumber(
-        process.env.SPINEDIGEST_REQUEST_RETRY_INTERVAL_SECONDS,
-        "SPINEDIGEST_REQUEST_RETRY_INTERVAL_SECONDS",
+        process.env.WIKIGRAPH_REQUEST_RETRY_INTERVAL_SECONDS,
+        "WIKIGRAPH_REQUEST_RETRY_INTERVAL_SECONDS",
       ),
       fileConfig.request?.retryIntervalSeconds,
     ),
     retryTimes: firstDefined(
       parseOptionalNonNegativeInteger(
-        process.env.SPINEDIGEST_REQUEST_RETRY_TIMES,
-        "SPINEDIGEST_REQUEST_RETRY_TIMES",
+        process.env.WIKIGRAPH_REQUEST_RETRY_TIMES,
+        "WIKIGRAPH_REQUEST_RETRY_TIMES",
       ),
       fileConfig.request?.retryTimes,
     ),
     stream: firstDefined(
       parseOptionalBoolean(
-        process.env.SPINEDIGEST_REQUEST_STREAM,
-        "SPINEDIGEST_REQUEST_STREAM",
+        process.env.WIKIGRAPH_REQUEST_STREAM,
+        "WIKIGRAPH_REQUEST_STREAM",
       ),
       fileConfig.request?.stream,
     ),
     temperature: firstDefined(
       parseOptionalSamplingSetting(
-        process.env.SPINEDIGEST_REQUEST_TEMPERATURE,
-        "SPINEDIGEST_REQUEST_TEMPERATURE",
+        process.env.WIKIGRAPH_REQUEST_TEMPERATURE,
+        "WIKIGRAPH_REQUEST_TEMPERATURE",
       ),
       fileConfig.request?.temperature,
     ),
     timeout: firstDefined(
       parseOptionalPositiveNumber(
-        process.env.SPINEDIGEST_REQUEST_TIMEOUT,
-        "SPINEDIGEST_REQUEST_TIMEOUT",
+        process.env.WIKIGRAPH_REQUEST_TIMEOUT,
+        "WIKIGRAPH_REQUEST_TIMEOUT",
       ),
       fileConfig.request?.timeout,
     ),
     topP: firstDefined(
       parseOptionalSamplingSetting(
-        process.env.SPINEDIGEST_REQUEST_TOP_P,
-        "SPINEDIGEST_REQUEST_TOP_P",
+        process.env.WIKIGRAPH_REQUEST_TOP_P,
+        "WIKIGRAPH_REQUEST_TOP_P",
       ),
       fileConfig.request?.topP,
+    ),
+  });
+  const queue = createQueueConfig({
+    concurrent: firstDefined(
+      parseOptionalPositiveInteger(
+        process.env.WIKIGRAPH_QUEUE_CONCURRENT,
+        "WIKIGRAPH_QUEUE_CONCURRENT",
+      ),
+      fileConfig.queue?.concurrent,
     ),
   });
 
@@ -218,12 +235,13 @@ export async function loadCLIConfig(options?: {
     ...(prompt === undefined ? {} : { prompt }),
     ...(llm === undefined ? {} : { llm }),
     ...(paths === undefined ? {} : { paths }),
+    ...(queue === undefined ? {} : { queue }),
     ...(request === undefined ? {} : { request }),
   };
 }
 
 export function resolveCLIConfigFilePath(): string {
-  return resolveConfigFilePath(process.env.SPINEDIGEST_CONFIG);
+  return resolveConfigFilePath(process.env.WIKIGRAPH_CONFIG);
 }
 
 export async function readCLIConfigFile(path: string): Promise<CLIConfigFile> {
@@ -433,7 +451,7 @@ function parseOptionalProvider(
   if (!parsed.success) {
     throw new Error(
       withHelpRoute(
-        `Invalid SPINEDIGEST_LLM_PROVIDER: ${value}. Expected one of ${CLI_PROVIDER_VALUES.join(", ")}.`,
+        `Invalid WIKIGRAPH_LLM_PROVIDER: ${value}. Expected one of ${CLI_PROVIDER_VALUES.join(", ")}.`,
         CLI_HELP_ROUTES.env,
       ),
     );
@@ -651,6 +669,18 @@ function createRequestConfig(input: {
       : { temperature: input.temperature }),
     ...(input.timeout === undefined ? {} : { timeout: input.timeout }),
     ...(input.topP === undefined ? {} : { topP: input.topP }),
+  };
+}
+
+function createQueueConfig(input: {
+  readonly concurrent: number | undefined;
+}): CLIConfig["queue"] {
+  if (input.concurrent === undefined) {
+    return undefined;
+  }
+
+  return {
+    concurrent: input.concurrent,
   };
 }
 

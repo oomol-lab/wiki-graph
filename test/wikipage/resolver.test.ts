@@ -9,6 +9,11 @@ describe("wikipage/resolver", () => {
       const calls: string[] = [];
       const fetch = createMockFetch(calls);
       const normalizerCalls: string[] = [];
+      const progressEvents: Array<{
+        readonly detail: string;
+        readonly done: number;
+        readonly total: number;
+      }> = [];
       const resolver = await WikipageResolver.open({
         cacheDatabasePath: `${path}/cache.sqlite`,
         fetch,
@@ -31,6 +36,10 @@ describe("wikipage/resolver", () => {
             ...(input.surface === undefined ? {} : { surface: input.surface }),
           });
         },
+        progress: (event) => {
+          progressEvents.push(event);
+        },
+        retryBaseDelayMs: 0,
       });
 
       try {
@@ -97,6 +106,53 @@ describe("wikipage/resolver", () => {
         expect(second).toStrictEqual(first);
         expect(calls).toHaveLength(firstCallCount);
         expect(normalizerCalls).toStrictEqual(["Q48397"]);
+        expect(progressEvents).toEqual(
+          expect.arrayContaining([
+            { detail: "qid", done: 0, total: 2 },
+            { detail: "qid", done: 2, total: 2 },
+            { detail: "disambiguation-page", done: 1, total: 1 },
+          ]),
+        );
+      } finally {
+        await resolver.close();
+      }
+    });
+  });
+
+  it("retries transient wikimedia responses", async () => {
+    await withTempDir("spinedigest-wikipage-", async (path) => {
+      let failedOnce = false;
+      const calls: string[] = [];
+      const resolver = await WikipageResolver.open({
+        cacheDatabasePath: `${path}/cache.sqlite`,
+        fetch: ((input: string | URL | Request) => {
+          const url = new URL(input instanceof Request ? input.url : input);
+          calls.push(url.toString());
+
+          if (!failedOnce && url.hostname === "www.wikidata.org") {
+            failedOnce = true;
+            return Promise.resolve(jsonResponse({ error: "busy" }, 503));
+          }
+
+          return createMockFetch([])(input);
+        }) as typeof fetch,
+        language: "en",
+        minRequestIntervalMs: 0,
+        retryBaseDelayMs: 0,
+        retryTimes: 1,
+      });
+
+      try {
+        await expect(resolver.resolveQids(["Q1"])).resolves.toMatchObject([
+          {
+            description: "totality of space and time",
+            label: "Universe",
+            qid: "Q1",
+          },
+        ]);
+        expect(
+          calls.filter((call) => call.includes("wbgetentities")),
+        ).toHaveLength(2);
       } finally {
         await resolver.close();
       }

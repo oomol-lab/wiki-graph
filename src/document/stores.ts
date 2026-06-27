@@ -9,7 +9,7 @@ import {
   type CreateChunkRecord,
   type CreateSnakeRecord,
   type FragmentGroupRecord,
-  type KnowledgeEdgeRecord,
+  type ReadingEdgeRecord,
   type MentionLinkRecord,
   type MentionRecord,
   type SerialRecord,
@@ -37,15 +37,17 @@ export interface ReadonlyChunkStore {
   listFragmentPairs(): Promise<ReadonlyArray<readonly [number, number]>>;
 }
 
-export interface ReadonlyKnowledgeEdgeStore {
-  listAll(): Promise<KnowledgeEdgeRecord[]>;
-  listBySerial(serialId: number): Promise<KnowledgeEdgeRecord[]>;
-  listIncoming(chunkId: number): Promise<KnowledgeEdgeRecord[]>;
-  listOutgoing(chunkId: number): Promise<KnowledgeEdgeRecord[]>;
+export interface ReadonlyReadingEdgeStore {
+  listAll(): Promise<ReadingEdgeRecord[]>;
+  listBySerial(serialId: number): Promise<ReadingEdgeRecord[]>;
+  listIncoming(chunkId: number): Promise<ReadingEdgeRecord[]>;
+  listOutgoing(chunkId: number): Promise<ReadingEdgeRecord[]>;
 }
 
 export interface ReadonlyMentionStore {
   getById(mentionId: string): Promise<MentionRecord | undefined>;
+  listBySurfaceTerms(terms: readonly string[]): Promise<MentionRecord[]>;
+  listBySurfaces(surfaces: readonly string[]): Promise<MentionRecord[]>;
   listByQid(qid: string): Promise<MentionRecord[]>;
   listByChapter(chapterId: number): Promise<MentionRecord[]>;
 }
@@ -541,77 +543,77 @@ export class ChunkStore implements ReadonlyChunkStore {
   }
 }
 
-export class KnowledgeEdgeStore implements ReadonlyKnowledgeEdgeStore {
+export class ReadingEdgeStore implements ReadonlyReadingEdgeStore {
   readonly #database: Database;
 
   public constructor(database: Database) {
     this.#database = database;
   }
 
-  public async save(record: KnowledgeEdgeRecord): Promise<void> {
+  public async save(record: ReadingEdgeRecord): Promise<void> {
     await this.#database.run(
       `
-        INSERT OR REPLACE INTO knowledge_edges (from_id, to_id, strength, weight)
+        INSERT OR REPLACE INTO reading_edges (from_id, to_id, strength, weight)
         VALUES (?, ?, ?, ?)
       `,
       [record.fromId, record.toId, record.strength ?? null, record.weight],
     );
   }
 
-  public async listAll(): Promise<KnowledgeEdgeRecord[]> {
+  public async listAll(): Promise<ReadingEdgeRecord[]> {
     return await this.#database.queryAll(
       `
         SELECT from_id, to_id, strength, weight
-        FROM knowledge_edges
+        FROM reading_edges
         ORDER BY from_id, to_id
       `,
       undefined,
-      (row) => mapKnowledgeEdgeRow(row),
+      (row) => mapReadingEdgeRow(row),
     );
   }
 
-  public async listBySerial(serialId: number): Promise<KnowledgeEdgeRecord[]> {
+  public async listBySerial(serialId: number): Promise<ReadingEdgeRecord[]> {
     return await this.#database.queryAll(
       `
         SELECT
-          knowledge_edges.from_id AS from_id,
-          knowledge_edges.to_id AS to_id,
-          knowledge_edges.strength AS strength,
-          knowledge_edges.weight AS weight
-        FROM knowledge_edges
+          reading_edges.from_id AS from_id,
+          reading_edges.to_id AS to_id,
+          reading_edges.strength AS strength,
+          reading_edges.weight AS weight
+        FROM reading_edges
         INNER JOIN chunks AS from_chunks
-          ON from_chunks.id = knowledge_edges.from_id
+          ON from_chunks.id = reading_edges.from_id
         INNER JOIN chunks AS to_chunks
-          ON to_chunks.id = knowledge_edges.to_id
+          ON to_chunks.id = reading_edges.to_id
         WHERE from_chunks.serial_id = ? AND to_chunks.serial_id = ?
-        ORDER BY knowledge_edges.from_id, knowledge_edges.to_id
+        ORDER BY reading_edges.from_id, reading_edges.to_id
       `,
       [serialId, serialId],
-      (row) => mapKnowledgeEdgeRow(row),
+      (row) => mapReadingEdgeRow(row),
     );
   }
 
-  public async listIncoming(chunkId: number): Promise<KnowledgeEdgeRecord[]> {
+  public async listIncoming(chunkId: number): Promise<ReadingEdgeRecord[]> {
     return await this.#listByDirection("to_id", chunkId);
   }
 
-  public async listOutgoing(chunkId: number): Promise<KnowledgeEdgeRecord[]> {
+  public async listOutgoing(chunkId: number): Promise<ReadingEdgeRecord[]> {
     return await this.#listByDirection("from_id", chunkId);
   }
 
   async #listByDirection(
     column: "from_id" | "to_id",
     chunkId: number,
-  ): Promise<KnowledgeEdgeRecord[]> {
+  ): Promise<ReadingEdgeRecord[]> {
     return await this.#database.queryAll(
       `
         SELECT from_id, to_id, strength, weight
-        FROM knowledge_edges
+        FROM reading_edges
         WHERE ${column} = ?
         ORDER BY from_id, to_id
       `,
       [chunkId],
-      (row) => mapKnowledgeEdgeRow(row),
+      (row) => mapReadingEdgeRow(row),
     );
   }
 }
@@ -821,6 +823,76 @@ export class MentionStore implements ReadonlyMentionStore {
         ORDER BY chapter_id, fragment_id, sentence_index, range_start, range_end, id
       `,
       [qid],
+      mapMentionRow,
+    );
+  }
+
+  public async listBySurfaces(
+    surfaces: readonly string[],
+  ): Promise<MentionRecord[]> {
+    const normalizedSurfaces = [
+      ...new Set(surfaces.map((surface) => surface.trim())),
+    ].filter((surface) => surface !== "");
+
+    if (normalizedSurfaces.length === 0) {
+      return [];
+    }
+
+    return await this.#database.queryAll(
+      `
+        SELECT
+          id,
+          chapter_id,
+          fragment_id,
+          sentence_index,
+          range_start,
+          range_end,
+          surface,
+          qid,
+          confidence,
+          note
+        FROM mentions
+        WHERE surface IN (${normalizedSurfaces.map(() => "?").join(", ")})
+        ORDER BY chapter_id, fragment_id, sentence_index, range_start, range_end, id
+      `,
+      normalizedSurfaces,
+      mapMentionRow,
+    );
+  }
+
+  public async listBySurfaceTerms(
+    terms: readonly string[],
+  ): Promise<MentionRecord[]> {
+    const normalizedTerms = [
+      ...new Set(terms.map((term) => term.trim().toLowerCase())),
+    ].filter((term) => term !== "");
+
+    if (normalizedTerms.length === 0) {
+      return [];
+    }
+
+    const filters = normalizedTerms
+      .map(() => "lower(surface) LIKE ? ESCAPE '\\'")
+      .join(" OR ");
+
+    return await this.#database.queryAll(
+      `
+        SELECT
+          id,
+          chapter_id,
+          fragment_id,
+          sentence_index,
+          range_start,
+          range_end,
+          surface,
+          qid,
+          confidence,
+          note
+        FROM mentions
+        WHERE ${filters}
+        ORDER BY chapter_id, fragment_id, sentence_index, range_start, range_end, id
+      `,
+      normalizedTerms.map((term) => `%${escapeLikePattern(term)}%`),
       mapMentionRow,
     );
   }
@@ -1219,7 +1291,7 @@ export class FragmentGroupStore implements ReadonlyFragmentGroupStore {
   }
 }
 
-function mapKnowledgeEdgeRow(row: SqlRow): KnowledgeEdgeRecord {
+function mapReadingEdgeRow(row: SqlRow): ReadingEdgeRecord {
   const strength = getOptionalString(row, "strength");
 
   return {
@@ -1279,6 +1351,10 @@ function getOptionalNumber(row: SqlRow, key: string): number | undefined {
   }
 
   return value;
+}
+
+function escapeLikePattern(value: string): string {
+  return value.replace(/[\\%_]/gu, (character) => `\\${character}`);
 }
 
 function parseChunkImportance(

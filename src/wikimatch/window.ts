@@ -1,4 +1,5 @@
 import { expandRangeByWords } from "./words.js";
+import { countWikimatchCandidateOptions } from "./options.js";
 import type {
   BuildWikimatchWindowsOptions,
   WikimatchCandidate,
@@ -21,20 +22,22 @@ export function buildWikimatchWindows(
   );
   const windows: WikimatchWindow[] = [];
   let pendingGroups: CandidateGroup[] = [];
-  let pendingCandidateCount = 0;
+  let pendingOptionCount = 0;
 
   for (const group of groups) {
+    const groupOptionCount = countGroupOptions(group);
+
     if (
       pendingGroups.length > 0 &&
-      pendingCandidateCount + group.candidates.length > options.candidateBudget
+      pendingOptionCount + groupOptionCount > options.optionBudget
     ) {
       windows.push(createWindow(options.text, pendingGroups, options));
       pendingGroups = [];
-      pendingCandidateCount = 0;
+      pendingOptionCount = 0;
     }
 
     pendingGroups.push(group);
-    pendingCandidateCount += group.candidates.length;
+    pendingOptionCount += groupOptionCount;
   }
 
   if (pendingGroups.length > 0) {
@@ -42,6 +45,13 @@ export function buildWikimatchWindows(
   }
 
   return windows;
+}
+
+function countGroupOptions(group: CandidateGroup): number {
+  return group.candidates.reduce(
+    (total, candidate) => total + countWikimatchCandidateOptions(candidate),
+    0,
+  );
 }
 
 function createWindow(

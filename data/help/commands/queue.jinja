@@ -1,30 +1,37 @@
 Help Type: command
-Command: spinedigest queue
+Command: wikigraph queue
 
 Purpose:
   Manage device-local generation tasks for `.sdpub` chapters.
 
 Usage:
-  spinedigest queue add <archive.sdpub> --chapter <id> --task <reading-graph|summary> --accept-cost [--boost] [--llm <json>] [--prompt <text>]
-  spinedigest queue list [--all] [--active] [--input <archive.sdpub>]
-  spinedigest queue status <job-id>
-  spinedigest queue watch <job-id> [--jsonl] [--from beginning|now]
-  spinedigest queue pause <job-id>
-  spinedigest queue resume <job-id>
-  spinedigest queue cancel <job-id>
-  spinedigest queue boost <job-id>
-  spinedigest queue target <job-id> --task <reading-graph|summary>
-  spinedigest queue clean
+  wikigraph queue add <archive.sdpub> --chapter <id> --task <reading-graph|reading-summary|knowledge-graph> --accept-cost [--boost] [--llm <json>] [--prompt <text>]
+  wikigraph queue list [--all] [--active] [--input <archive.sdpub>]
+  wikigraph queue status <job-id>
+  wikigraph queue watch <job-id> [--jsonl] [--from beginning|now]
+  wikigraph queue pause <job-id>
+  wikigraph queue resume <job-id>
+  wikigraph queue cancel <job-id>
+  wikigraph queue boost <job-id>
+  wikigraph queue target <job-id> --task <reading-graph|reading-summary|knowledge-graph>
+  wikigraph queue clean
 
 Tasks:
-  - reading-graph builds the reading-oriented chunk graph.
-  - summary builds the summary path.
+  - reading-graph builds the reading-oriented chunk graph from sourced text.
+  - reading-summary builds summaries from the Reading Graph. It builds reading-graph first when needed.
+  - knowledge-graph builds entity mentions from sourced text. Use this before searching `--type entity`.
+
+Task shape:
+  - reading-graph -> reading-summary is the Reading Graph line.
+  - knowledge-graph is separate and does not build summaries.
+  - Queue one task per chapter. Add both reading-summary and knowledge-graph when you need both outputs.
 
 Cost:
   Queue tasks may call an LLM, consume tokens, and incur provider charges.
   `queue add` requires `--accept-cost`.
 
 Examples:
-  spinedigest queue add book.sdpub --chapter 3 --task reading-graph --accept-cost
-  spinedigest queue add book.sdpub --chapter 3 --task summary --accept-cost
-  spinedigest queue watch <job-id> --jsonl
+  wikigraph queue add book.sdpub --chapter 3 --task reading-graph --accept-cost
+  wikigraph queue add book.sdpub --chapter 3 --task reading-summary --accept-cost
+  wikigraph queue add book.sdpub --chapter 3 --task knowledge-graph --accept-cost
+  wikigraph queue watch <job-id> --jsonl

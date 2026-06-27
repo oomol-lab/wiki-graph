@@ -1,13 +1,28 @@
 Help Type: command
-Command: spinedigest related
+Command: wikigraph related
 
 related
 
 Purpose:
-  Move from one Wiki Graph object to related objects.
+  Expand from one readable Wiki Graph URI to nearby objects.
+
+Use when:
+  - You have a selected readable object and need adjacent graph context.
 
 Usage:
-  spinedigest related <archive.sdpub> <uri> [--json|--jsonl] [--help|-h]
+  wikigraph related <archive.sdpub> <uri> [--json|--jsonl] [--help|-h]
+
+Returns:
+  - Related full `wikigraph://...` URIs with labels or summaries.
+
+Notes:
+  - `related` starts from a known URI; `search` starts from query text.
+  - Returned URIs can be inspected or verified with other object commands.
+
+Next steps:
+  - Use `get` to inspect a readable returned URI.
+  - Use `evidence` to verify a returned URI.
+  - Use `pack` when one related object becomes the answer anchor.
 
 Examples:
-  spinedigest related book.sdpub wikigraph://chunk/123
+  wikigraph related book.sdpub wikigraph://chunk/123

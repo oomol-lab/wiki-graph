@@ -3,8 +3,8 @@ import { describe, expect, it } from "vitest";
 import { ChunkImportance, ChunkRetention } from "../../src/document/index.js";
 import {
   computeChunkWeights,
-  computeKnowledgeEdgeWeights,
-  getKnowledgeEdgeKey,
+  computeReadingEdgeWeights,
+  getReadingEdgeKey,
 } from "../../src/topology/weights.js";
 
 describe("topology/weights", () => {
@@ -41,7 +41,7 @@ describe("topology/weights", () => {
   });
 
   it("distributes edge weights by endpoint strength", () => {
-    const edgeWeights = computeKnowledgeEdgeWeights({
+    const edgeWeights = computeReadingEdgeWeights({
       chunkWeights: {
         "1": 10,
         "2": 6,
@@ -62,10 +62,10 @@ describe("topology/weights", () => {
       ],
     });
 
-    expect(edgeWeights[getKnowledgeEdgeKey(1, 2)] ?? 0).toBeGreaterThan(
-      edgeWeights[getKnowledgeEdgeKey(1, 3)] ?? 0,
+    expect(edgeWeights[getReadingEdgeKey(1, 2)] ?? 0).toBeGreaterThan(
+      edgeWeights[getReadingEdgeKey(1, 3)] ?? 0,
     );
-    expect(edgeWeights[getKnowledgeEdgeKey(1, 3)] ?? 0).toBeGreaterThanOrEqual(
+    expect(edgeWeights[getReadingEdgeKey(1, 3)] ?? 0).toBeGreaterThanOrEqual(
       0.1,
     );
   });

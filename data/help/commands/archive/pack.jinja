@@ -1,14 +1,28 @@
 Help Type: command
-Command: spinedigest pack
+Command: wikigraph pack
 
 pack
 
 Purpose:
-  Pack a bounded Agent-readable context around one Wiki Graph object.
+  Build bounded Agent-readable context around one readable Wiki Graph object.
+
+Use when:
+  - You already selected a useful readable URI and need compact context for an answer.
 
 Usage:
-  spinedigest pack <archive.sdpub> <uri> [--budget <chars>] [--json|--jsonl] [--help|-h]
+  wikigraph pack <archive.sdpub> <uri> [--budget <chars>] [--json|--jsonl] [--help|-h]
+
+Returns:
+  - A context package constrained by `--budget`.
+
+Notes:
+  - Default budget is 5000 characters.
+  - `pack` assembles context after object selection; it is not a search command.
+  - Use `evidence` first when source verification is the main requirement.
+
+Next steps:
+  - Use the packed context to answer, or continue with `related` if context is too narrow.
 
 Examples:
-  spinedigest pack book.sdpub wikigraph://entity/Q162593 --budget 5000
-  spinedigest pack book.sdpub wikigraph://chunk/123
+  wikigraph pack book.sdpub wikigraph://summary/chapter/1 --budget 5000
+  wikigraph pack book.sdpub wikigraph://chunk/123

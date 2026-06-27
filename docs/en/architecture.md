@@ -11,7 +11,7 @@ SpineDigest is built around one primary object: the `.sdpub` knowledge-base arch
 At a high level, SpineDigest has four layers:
 
 1. Source layer: read EPUB, Markdown, plain text, or stdin and normalize it into source-backed chapter data.
-2. Knowledge layer: use LLM-backed extraction plus graph algorithms to build chunks, graph nodes, links, summaries, and source fragment pointers.
+2. Knowledge layer: build Reading Graph chunks and summaries, and build Knowledge Graph entity mentions and relationships from source fragments.
 3. Retrieval layer: expose existing archive data through CLI primitives such as `index`, `list`, `find`, `grep`, `page`, `read`, `links`, `backlinks`, `related`, and `pack`.
 4. Projection layer: export portable views such as Markdown, txt, EPUB, JSON-style command output, or one-shot `transform` results.
 
@@ -34,10 +34,11 @@ The archive is the durable object. Projections are useful views, but they do not
 User-facing stages describe how much knowledge has been built into the archive:
 
 - `source`: normalized source data and metadata are present
-- `graph`: graph nodes, links, and source-backed knowledge units are present
-- `summary`: readable chapter summaries and export projections are available
+- `reading-graph`: reading-oriented chunks, links, and source-backed knowledge units are present
+- `reading-summary`: readable chapter summaries and export projections are available
+- `knowledge-graph`: entity mentions and relationships are available for URI-based search and evidence tracing
 
-`source` is cheap and does not require LLM access. `graph` and `summary` may call an LLM provider and should be estimated before full-archive builds.
+`source` is cheap and does not require LLM access. Reading Graph, Reading Summary, and Knowledge Graph queue tasks may call an LLM provider and should be estimated before full-archive builds.
 
 ## Why `.sdpub` Exists
 

@@ -12,7 +12,7 @@ import { ChunkImportance, ChunkRetention } from "../../src/document/index.js";
 import type {
   ChunkRecord,
   Document,
-  KnowledgeEdgeRecord,
+  ReadingEdgeRecord,
   ReadonlySerialFragments,
 } from "../../src/document/index.js";
 import { Topology } from "../../src/topology/topology.js";
@@ -86,7 +86,7 @@ describe("topology/topology", () => {
     const createdChunks = saveChunk.mock.calls as Array<
       [Omit<ChunkRecord, "id">]
     >;
-    const savedEdges = saveEdge.mock.calls as Array<[KnowledgeEdgeRecord]>;
+    const savedEdges = saveEdge.mock.calls as Array<[ReadingEdgeRecord]>;
 
     expect(ensureSerial).toHaveBeenCalledWith(7);
     expect(createdChunks.map(([record]) => record)).toStrictEqual([
@@ -469,7 +469,7 @@ function createDocumentStub(): {
         saveMany: saveFragmentGroups,
       },
       getSerialFragments,
-      knowledgeEdges: {
+      readingEdges: {
         save: saveEdge,
       },
       serials: {

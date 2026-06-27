@@ -4,15 +4,16 @@ Topic: task
 Task Routing
 
 Create:
-  spinedigest create book.sdpub ./book.md
+  wikigraph create book.sdpub ./book.md
 
 Generate:
-  spinedigest queue add book.sdpub --chapter 3 --task reading-graph --accept-cost
-  spinedigest queue add book.sdpub --chapter 3 --task summary --accept-cost
+  wikigraph queue add book.sdpub --chapter 3 --task reading-graph --accept-cost
+  wikigraph queue add book.sdpub --chapter 3 --task reading-summary --accept-cost
+  wikigraph queue add book.sdpub --chapter 3 --task knowledge-graph --accept-cost
 
 Explore:
-  spinedigest search book.sdpub "keyword"
-  spinedigest get book.sdpub <uri>
-  spinedigest related book.sdpub <uri>
-  spinedigest evidence book.sdpub <uri>
-  spinedigest pack book.sdpub <uri> --budget 5000
+  wikigraph search book.sdpub "keyword"
+  wikigraph get book.sdpub <uri>
+  wikigraph related book.sdpub <uri>
+  wikigraph evidence book.sdpub <uri>
+  wikigraph pack book.sdpub <uri> --budget 5000

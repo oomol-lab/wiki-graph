@@ -1,11 +1,11 @@
 Help Type: command
-Command: spinedigest queue target
+Command: wikigraph queue target
 
 Purpose:
   Change the task of an existing active job.
 
 Usage:
-  spinedigest queue target <job-id> --task <reading-graph|summary>
+  wikigraph queue target <job-id> --task <reading-graph|reading-summary|knowledge-graph>
 
 Arguments:
   <job-id>              Full job id or an unambiguous prefix.
@@ -13,5 +13,11 @@ Arguments:
 Options:
   --task <task>         New task.
 
-Example:
-  spinedigest queue target 75d12f7e --task summary
+Task choices:
+  reading-graph         Build only the Reading Graph.
+  reading-summary       Build the Reading Graph summary path.
+  knowledge-graph       Build entity mentions for entity search.
+
+Examples:
+  wikigraph queue target 75d12f7e --task reading-summary
+  wikigraph queue target 75d12f7e --task knowledge-graph

@@ -1,20 +1,26 @@
 Help Type: command
-Command: spinedigest queue add
+Command: wikigraph queue add
 
 Purpose:
   Create one generation task for one `.sdpub` chapter.
 
 Usage:
-  spinedigest queue add <archive.sdpub> --chapter <id> --task <reading-graph|summary> --accept-cost [--boost] [--llm <json>] [--prompt <text>]
+  wikigraph queue add <archive.sdpub> --chapter <id> --task <reading-graph|reading-summary|knowledge-graph> --accept-cost [--boost] [--llm <json>] [--prompt <text>]
 
 Options:
   --chapter <id>       Required chapter id.
-  --task <task>        Required task: reading-graph or summary.
+  --task <task>        Required task: reading-graph, reading-summary, or knowledge-graph.
   --accept-cost        Explicitly acknowledge LLM cost and wait time.
   --boost              Insert the new job at the front of the queued jobs.
   --llm <json>         Override LLM configuration for this job.
   --prompt <text>      Override extraction prompt for this job.
 
+Task choices:
+  reading-graph        Build the reading-oriented chunk graph from sourced text.
+  reading-summary      Build summaries from the Reading Graph. Builds reading-graph first when needed.
+  knowledge-graph      Build entity mentions from sourced text. Required before entity search can return results.
+
 Examples:
-  spinedigest queue add book.sdpub --chapter 3 --task reading-graph --accept-cost
-  spinedigest queue add book.sdpub --chapter 3 --task summary --accept-cost --boost
+  wikigraph queue add book.sdpub --chapter 3 --task reading-graph --accept-cost
+  wikigraph queue add book.sdpub --chapter 3 --task reading-summary --accept-cost --boost
+  wikigraph queue add book.sdpub --chapter 3 --task knowledge-graph --accept-cost

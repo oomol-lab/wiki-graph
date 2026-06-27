@@ -1,5 +1,5 @@
 Help Type: command
-Command: spinedigest chapter status
+Command: wikigraph chapter status
 
 chapter status
 
@@ -7,12 +7,12 @@ Purpose:
   Print one chapter's current stage and stored artifacts.
 
 Usage:
-  spinedigest chapter status <path> --chapter <id> [--llm <json>] [--help|-h]
+  wikigraph chapter status <path> --chapter <id> [--llm <json>] [--help|-h]
 
 Output shape:
   Chapter: <id>
   Title: <title-or-[untitled]>
-  Stage: <planned|source|graph|summary>
+  Stage: <planned|source|reading-graph|reading-summary>
   Source Units: <count>
   Children: <count>
   Graph: yes|no
@@ -22,10 +22,10 @@ Behavior:
   - Does not call an LLM provider.
   - Does not mutate the archive.
   - `Source Units` is the number of stored source records for that chapter.
-  - `Graph` reports whether chapter graph data is present.
+  - `Graph` reports whether chapter Reading Graph data is present.
   - `Summary` reports whether the final chapter summary is present.
 
 See also:
-  - spinedigest chapter list --help
-  - spinedigest queue --help
-  - spinedigest help command
+  - wikigraph chapter list --help
+  - wikigraph queue --help
+  - wikigraph help command

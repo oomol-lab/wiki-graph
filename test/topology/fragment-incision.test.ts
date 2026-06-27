@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import type {
   ChunkRecord,
-  KnowledgeEdgeRecord,
+  ReadingEdgeRecord,
   ReadonlySerialFragments,
 } from "../../src/document/index.js";
 import { computeNormalizedFragmentIncisions } from "../../src/topology/fragment-incision.js";
@@ -43,7 +43,7 @@ describe("topology/fragment-incision", () => {
           toId: 2,
           weight: 2,
         },
-      ] satisfies KnowledgeEdgeRecord[],
+      ] satisfies ReadingEdgeRecord[],
       fragments: createSerialFragments({
         1: 10,
         2: 20,
@@ -84,7 +84,7 @@ describe("topology/fragment-incision", () => {
           toId: 3,
           weight: 8,
         },
-      ] satisfies KnowledgeEdgeRecord[],
+      ] satisfies ReadingEdgeRecord[],
       fragments: createSerialFragments({
         1: 10,
         2: 20,

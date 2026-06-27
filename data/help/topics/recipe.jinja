@@ -4,22 +4,22 @@ Topic: recipe
 Recipes
 
 Create an archive from Markdown:
-  spinedigest create book.sdpub ./book.md
-  cat article.md | spinedigest create article.sdpub --input-format markdown
+  wikigraph create book.sdpub ./book.md
+  cat article.md | wikigraph create article.sdpub --input-format markdown
 
 Queue derived data:
-  spinedigest queue add book.sdpub --chapter 3 --task reading-graph --accept-cost
-  spinedigest queue add book.sdpub --chapter 3 --task summary --accept-cost
+  wikigraph queue add book.sdpub --chapter 3 --task reading-graph --accept-cost
+  wikigraph queue add book.sdpub --chapter 3 --task reading-summary --accept-cost
 
 Search and open objects:
-  spinedigest search book.sdpub "恩典 婴儿洗礼"
-  spinedigest get book.sdpub wikigraph://chunk/123
-  spinedigest related book.sdpub wikigraph://chunk/123
-  spinedigest evidence book.sdpub wikigraph://triple/Q162593/discusses/Q9476
-  spinedigest pack book.sdpub wikigraph://entity/Q162593 --budget 5000
+  wikigraph search book.sdpub "恩典 婴儿洗礼"
+  wikigraph get book.sdpub wikigraph://chunk/123
+  wikigraph related book.sdpub wikigraph://chunk/123
+  wikigraph evidence book.sdpub wikigraph://triple/Q162593/discusses/Q9476
+  wikigraph pack book.sdpub wikigraph://entity/Q162593 --budget 5000
 
 Export:
-  spinedigest export book.sdpub --output-format markdown --output out.md
+  wikigraph export book.sdpub --output-format markdown --output out.md
 
 Transform without an archive:
-  cat chapter.txt | spinedigest transform --input-format txt --output-format markdown
+  cat chapter.txt | wikigraph transform --input-format txt --output-format markdown

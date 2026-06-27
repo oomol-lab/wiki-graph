@@ -29,7 +29,7 @@
     "LICENSE"
   ],
   "bin": {
-    "spinedigest": "dist/cli.js"
+    "wikigraph": "dist/cli.js"
   },
   "exports": {
     ".": {

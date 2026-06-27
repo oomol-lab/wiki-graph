@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 
 import { DirectoryDocument } from "../../src/document/index.js";
 import {
@@ -12,7 +12,13 @@ import {
 } from "../../src/facade/archive-view.js";
 import { withTempDir } from "../helpers/temp.js";
 
+const originalStateDir = process.env.WIKIGRAPH_STATE_DIR;
+
 describe("facade/archive-view", () => {
+  afterEach(() => {
+    restoreEnv("WIKIGRAPH_STATE_DIR", originalStateDir);
+  });
+
   it("searches sourced fragments before graph or summary build", async () => {
     await withTempDir("spinedigest-archive-view-", async (path) => {
       const document = await DirectoryDocument.open(`${path}/document`);
@@ -56,15 +62,279 @@ describe("facade/archive-view", () => {
         );
 
         expect(result.match).toBe("any");
+        const sourceHit = result.items.find(
+          (item) => item.id === "fragment:1:0",
+        );
+        expect(sourceHit).toMatchObject({
+          field: "source",
+          type: "fragment",
+        });
+        expect(sourceHit?.matchedTerms).toContain("朱元璋");
+        expect(sourceHit?.missingTerms).toContain("不存在的关键词");
+      } finally {
+        await document.release();
+      }
+    });
+  });
+
+  it("prioritizes entity matches before source fallback", async () => {
+    await withTempDir("spinedigest-archive-view-", async (path) => {
+      process.env.WIKIGRAPH_STATE_DIR = `${path}/state`;
+      const document = await DirectoryDocument.open(`${path}/document`);
+
+      try {
+        await seedSourcedDocument(document);
+        await document.openSession(async (openedDocument) => {
+          await openedDocument.mentions.saveMany([
+            {
+              chapterId: 1,
+              fragmentId: 0,
+              id: "entity-augustine",
+              qid: "Q8018",
+              rangeEnd: 15,
+              rangeStart: 4,
+              sentenceIndex: 0,
+              surface: "Augustine",
+            },
+          ]);
+        });
+
+        const result = await findArchiveObjects(document, "Augustine");
+
+        expect(result.items).toStrictEqual([
+          expect.objectContaining({
+            evidence: {
+              shown: 1,
+              sources: [
+                expect.objectContaining({
+                  id: "wikigraph://source/chapter/1/fragment/0#0..0",
+                  source:
+                    "An LLM Wiki exposes pages, links, and source fragments to agents.",
+                }),
+              ],
+              total: 1,
+            },
+            id: "wikigraph://entity/Q8018",
+            title: "Augustine",
+            type: "entity",
+          }),
+        ]);
+      } finally {
+        await document.release();
+      }
+    });
+  });
+
+  it("hydrates entity evidence after reading a search session page", async () => {
+    await withTempDir("spinedigest-archive-view-", async (path) => {
+      process.env.WIKIGRAPH_STATE_DIR = `${path}/state`;
+      const document = await DirectoryDocument.open(`${path}/document`);
+
+      try {
+        await seedSourcedDocument(document);
+        await document.openSession(async (openedDocument) => {
+          await openedDocument.mentions.saveMany([
+            {
+              chapterId: 1,
+              fragmentId: 0,
+              id: "entity-wiki",
+              qid: "Q1",
+              rangeEnd: 11,
+              rangeStart: 7,
+              sentenceIndex: 0,
+              surface: "Wiki",
+            },
+            {
+              chapterId: 1,
+              fragmentId: 0,
+              id: "entity-source",
+              qid: "Q2",
+              rangeEnd: 44,
+              rangeStart: 38,
+              sentenceIndex: 2,
+              surface: "Source",
+            },
+          ]);
+        });
+
+        const firstPage = await findArchiveObjects(document, "Wiki Source", {
+          limit: 1,
+          types: ["entity"],
+        });
+        const secondPage = await findArchiveObjects(document, "ignored", {
+          ...(firstPage.nextCursor === null
+            ? {}
+            : { cursor: firstPage.nextCursor }),
+          limit: 1,
+          types: ["entity"],
+        });
+
+        expect(firstPage.items[0]).toMatchObject({
+          evidence: {
+            shown: 1,
+            sources: [expect.objectContaining({ type: "source" })],
+            total: 1,
+          },
+          type: "entity",
+        });
+        expect(secondPage.items[0]).toMatchObject({
+          evidence: {
+            shown: 1,
+            sources: [expect.objectContaining({ type: "source" })],
+            total: 1,
+          },
+          type: "entity",
+        });
+        expect(JSON.stringify(firstPage.items)).not.toContain(
+          "evidenceMentions",
+        );
+        expect(JSON.stringify(secondPage.items)).not.toContain(
+          "evidenceMentions",
+        );
+      } finally {
+        await document.release();
+      }
+    });
+  });
+
+  it("continues entity search cursors without repeating --type", async () => {
+    await withTempDir("spinedigest-archive-view-", async (path) => {
+      process.env.WIKIGRAPH_STATE_DIR = `${path}/state`;
+      const document = await DirectoryDocument.open(`${path}/document`);
+
+      try {
+        await seedSourcedDocument(document);
+        await document.openSession(async (openedDocument) => {
+          await openedDocument.mentions.saveMany([
+            {
+              chapterId: 1,
+              fragmentId: 0,
+              id: "entity-wiki",
+              qid: "Q1",
+              rangeEnd: 11,
+              rangeStart: 7,
+              sentenceIndex: 0,
+              surface: "Wiki",
+            },
+            {
+              chapterId: 1,
+              fragmentId: 0,
+              id: "entity-source",
+              qid: "Q2",
+              rangeEnd: 44,
+              rangeStart: 38,
+              sentenceIndex: 2,
+              surface: "Source",
+            },
+          ]);
+        });
+
+        const firstPage = await findArchiveObjects(document, "Wiki Source", {
+          limit: 1,
+          types: ["entity"],
+        });
+        const secondPage = await findArchiveObjects(document, "ignored", {
+          ...(firstPage.nextCursor === null
+            ? {}
+            : { cursor: firstPage.nextCursor }),
+          limit: 1,
+        });
+
+        await expect(
+          findArchiveObjects(document, "ignored", {
+            ...(firstPage.nextCursor === null
+              ? {}
+              : { cursor: firstPage.nextCursor }),
+            limit: 1,
+            types: ["summary"],
+          }),
+        ).rejects.toThrow("Search cursor does not match");
+        expect(secondPage.types).toStrictEqual(["entity"]);
+        expect(secondPage.items[0]).toMatchObject({ type: "entity" });
+      } finally {
+        await document.release();
+      }
+    });
+  });
+
+  it("finds triples when only one endpoint matches the query", async () => {
+    await withTempDir("spinedigest-archive-view-", async (path) => {
+      process.env.WIKIGRAPH_STATE_DIR = `${path}/state`;
+      const document = await DirectoryDocument.open(`${path}/document`);
+
+      try {
+        await seedSourcedDocument(document);
+        await document.openSession(async (openedDocument) => {
+          await openedDocument.mentions.saveMany([
+            {
+              chapterId: 1,
+              fragmentId: 0,
+              id: "triple-source",
+              qid: "Q1",
+              rangeEnd: 11,
+              rangeStart: 7,
+              sentenceIndex: 0,
+              surface: "Wiki",
+            },
+            {
+              chapterId: 1,
+              fragmentId: 0,
+              id: "triple-target",
+              qid: "Q2",
+              rangeEnd: 44,
+              rangeStart: 38,
+              sentenceIndex: 2,
+              surface: "Source",
+            },
+          ]);
+          await openedDocument.mentionLinks.save({
+            id: "triple-link",
+            predicate: "mentions",
+            sourceMentionId: "triple-source",
+            targetMentionId: "triple-target",
+          });
+        });
+
+        const result = await findArchiveObjects(document, "Wiki", {
+          types: ["triple"],
+        });
+
         expect(result.items).toContainEqual(
           expect.objectContaining({
-            field: "source",
-            id: "fragment:1:0",
-            matchedTerms: ["朱元璋"],
-            missingTerms: ["不存在的关键词"],
-            type: "fragment",
+            id: "wikigraph://triple/Q1/mentions/Q2",
+            title: "Wiki mentions Source",
+            type: "triple",
           }),
         );
+      } finally {
+        await document.release();
+      }
+    });
+  });
+
+  it("falls back to lexical source scan with session cursors", async () => {
+    await withTempDir("spinedigest-archive-view-", async (path) => {
+      process.env.WIKIGRAPH_STATE_DIR = `${path}/state`;
+      const document = await DirectoryDocument.open(`${path}/document`);
+
+      try {
+        await seedSourcedDocument(document);
+
+        const firstPage = await findArchiveObjects(document, "Wiki", {
+          limit: 1,
+        });
+        const secondPage = await findArchiveObjects(document, "ignored query", {
+          ...(firstPage.nextCursor === null
+            ? {}
+            : { cursor: firstPage.nextCursor }),
+          limit: 1,
+        });
+
+        expect(firstPage.items).toHaveLength(1);
+        expect(firstPage.nextCursor).not.toBeNull();
+        expect(["fragment", "node"]).toContain(firstPage.items[0]?.type);
+        expect(secondPage.query).toBe("Wiki");
+        expect(secondPage.items[0]?.id).not.toBe(firstPage.items[0]?.id);
       } finally {
         await document.release();
       }
@@ -87,20 +357,22 @@ describe("facade/archive-view", () => {
           match: "all",
         });
 
-        expect(noMatch).toMatchObject({
-          items: [],
-          match: "all",
-          terms: ["朱元璋", "不存在的关键词"],
+        expect(noMatch.items).toStrictEqual([]);
+        expect(noMatch.match).toBe("all");
+        expect(noMatch.terms).toEqual(
+          expect.arrayContaining(["朱元璋", "不存在的关键词"]),
+        );
+        const sourceHit = result.items.find(
+          (item) => item.id === "fragment:1:0",
+        );
+        expect(sourceHit).toMatchObject({
+          field: "source",
+          missingTerms: [],
+          type: "fragment",
         });
-        expect(result.items).toContainEqual(
-          expect.objectContaining({
-            field: "source",
-            id: "fragment:1:0",
-            matchCount: 3,
-            matchedTerms: ["朱元璋", "亲自", "来到"],
-            missingTerms: [],
-            type: "fragment",
-          }),
+        expect(sourceHit?.matchCount).toBeGreaterThanOrEqual(3);
+        expect(sourceHit?.matchedTerms).toEqual(
+          expect.arrayContaining(["朱元璋", "亲自", "来到"]),
         );
       } finally {
         await document.release();
@@ -510,6 +782,44 @@ describe("facade/archive-view", () => {
           ],
         });
         await expect(
+          readArchivePage(document, "wikigraph://entity/Q1"),
+        ).resolves.toMatchObject({
+          evidence: {
+            shown: 1,
+            sources: [
+              {
+                id: "wikigraph://source/chapter/1/fragment/0#0..0",
+                type: "source",
+              },
+            ],
+            total: 1,
+          },
+          id: "wikigraph://entity/Q1",
+          label: "LLM Wiki",
+          mentionCount: 1,
+          qid: "Q1",
+          type: "entity",
+        });
+        await expect(
+          readArchivePage(document, "wikigraph://triple/Q1/mentions/Q2"),
+        ).resolves.toMatchObject({
+          evidence: {
+            shown: 1,
+            sources: [
+              {
+                id: "wikigraph://source/chapter/1/fragment/0#0..0",
+                type: "source",
+              },
+            ],
+            total: 1,
+          },
+          id: "wikigraph://triple/Q1/mentions/Q2",
+          objectQid: "Q2",
+          predicate: "mentions",
+          subjectQid: "Q1",
+          type: "triple",
+        });
+        await expect(
           listArchiveEvidence(document, "wikigraph://entity/Q3"),
         ).resolves.toMatchObject({
           items: [
@@ -631,4 +941,13 @@ async function seedSourcedDocument(
       version: 1,
     });
   });
+}
+
+function restoreEnv(name: string, value: string | undefined): void {
+  if (value === undefined) {
+    delete process.env[name];
+    return;
+  }
+
+  process.env[name] = value;
 }

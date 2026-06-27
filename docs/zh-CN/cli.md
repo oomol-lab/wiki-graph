@@ -5,35 +5,35 @@
 SpineDigest 采用 archive-first CLI。主对象是 `.sdpub` 知识库归档，主命令形态是：
 
 ```bash
-spinedigest <action> <archive.sdpub> ...
+wikigraph <action> <archive.sdpub> ...
 ```
 
 ## 归档命令
 
 ```bash
-spinedigest create <archive.sdpub> [source] [--input-format <format>] [--llm <json>] [--prompt <text>] [--confirm]
-spinedigest estimate <archive.sdpub> [--stage <source|graph|summary>] [--json]
-spinedigest status <archive.sdpub> [--json]
-spinedigest index <archive.sdpub> [--json]
-spinedigest list <archive.sdpub> --type <types> [--id <ids>] [--chapter <ids>] [--order <doc-asc|doc-desc>] [--limit <n>] [--cursor <token>] [--json]
-spinedigest find <archive.sdpub> <query> --type <types> [--match <any|all>] [--chapter <ids>] [--order <doc-asc|doc-desc>] [--limit <n>] [--cursor <token>] [--json]
-spinedigest grep <archive.sdpub> <query> --type <types> [--chapter <ids>] [--order <doc-asc|doc-desc>] [--limit <n>] [--cursor <token>] [--json]
-spinedigest page <archive.sdpub> <selector> [--json]
-spinedigest read <archive.sdpub> <selector>
-spinedigest links <archive.sdpub> --node <id> [--json]
-spinedigest backlinks <archive.sdpub> --node <id> [--json]
-spinedigest related <archive.sdpub> --node <id> [--json]
-spinedigest path <archive.sdpub> --from <id> --to <id> --chapter <id>
-spinedigest map <archive.sdpub> [--json]
-spinedigest pack <archive.sdpub> <selector> [--budget <chars>] [--json]
-spinedigest export <archive.sdpub> --output-format <format> [--output <path>]
-spinedigest queue add <archive.sdpub> --chapter <id> [--to graph|summary] --accept-cost [--boost] [--llm <json>] [--prompt <text>]
-spinedigest queue list [--all] [--active] [--input <archive.sdpub>] [--json]
-spinedigest queue status <job-id> [--json]
-spinedigest queue watch <job-id> [--jsonl] [--from beginning|now]
-spinedigest queue pause|resume|cancel|boost <job-id>
-spinedigest queue target <job-id> --to graph|summary
-spinedigest queue clean
+wikigraph create <archive.sdpub> [source] [--input-format <format>] [--llm <json>] [--prompt <text>] [--confirm]
+wikigraph estimate <archive.sdpub> [--stage <source|reading-graph|reading-summary>] [--json]
+wikigraph status <archive.sdpub> [--json]
+wikigraph index <archive.sdpub> [--json]
+wikigraph list <archive.sdpub> --type <types> [--id <ids>] [--chapter <ids>] [--order <doc-asc|doc-desc>] [--limit <n>] [--cursor <token>] [--json]
+wikigraph find <archive.sdpub> <query> --type <types> [--match <any|all>] [--chapter <ids>] [--order <doc-asc|doc-desc>] [--limit <n>] [--cursor <token>] [--json]
+wikigraph grep <archive.sdpub> <query> --type <types> [--chapter <ids>] [--order <doc-asc|doc-desc>] [--limit <n>] [--cursor <token>] [--json]
+wikigraph page <archive.sdpub> <selector> [--json]
+wikigraph read <archive.sdpub> <selector>
+wikigraph links <archive.sdpub> --node <id> [--json]
+wikigraph backlinks <archive.sdpub> --node <id> [--json]
+wikigraph related <archive.sdpub> --node <id> [--json]
+wikigraph path <archive.sdpub> --from <id> --to <id> --chapter <id>
+wikigraph map <archive.sdpub> [--json]
+wikigraph pack <archive.sdpub> <selector> [--budget <chars>] [--json]
+wikigraph export <archive.sdpub> --output-format <format> [--output <path>]
+wikigraph queue add <archive.sdpub> --chapter <id> [--task reading-graph|reading-summary|knowledge-graph] --accept-cost [--boost] [--llm <json>] [--prompt <text>]
+wikigraph queue list [--all] [--active] [--input <archive.sdpub>] [--json]
+wikigraph queue status <job-id> [--json]
+wikigraph queue watch <job-id> [--jsonl] [--from beginning|now]
+wikigraph queue pause|resume|cancel|boost <job-id>
+wikigraph queue target <job-id> --task reading-graph|reading-summary|knowledge-graph
+wikigraph queue clean
 ```
 
 探索模式：
@@ -67,10 +67,10 @@ spinedigest queue clean
 面向用户的阶段：
 
 - `source`：已导入的规范化源数据
-- `graph`：graph node、edge 和 source-backed knowledge unit
-- `summary`：可读的章节 summary
+- `reading-graph`：面向阅读的 chunk、edge 和 source-backed knowledge unit
+- `reading-summary`：可读的章节 summary
 
-`source` 便宜。`graph` 和 `summary` 可能调用 LLM provider。先运行 `estimate`，再用 `queue add` 为需要生成的 chapter id 排队。
+`source` 便宜。Reading Graph、Reading Summary 和 Knowledge Graph queue task 可能调用 LLM provider。先运行 `estimate`，再用 `queue add` 为需要生成的 chapter id 排队。
 
 Queue 行为：
 
@@ -99,8 +99,8 @@ Queue 行为：
 读取、搜索和导航命令支持 `--json`：
 
 ```bash
-spinedigest find book.sdpub "RAG" --type node --json
-spinedigest page book.sdpub --chapter 3 --json
+wikigraph find book.sdpub "RAG" --type node --json
+wikigraph page book.sdpub --chapter 3 --json
 ```
 
 默认 stdout 是适合人和 Agent 阅读的 Markdown-like 文本，包含稳定 ID 和下一步命令提示。
@@ -110,37 +110,37 @@ spinedigest page book.sdpub --chapter 3 --json
 `transform` 运行一次性的 direct digest/export，不创建可复用的 `.sdpub` 知识库归档：
 
 ```bash
-spinedigest transform [--input <path>] [--output <path>] [--input-format <format>] [--output-format <format>] [--digest-dir <path>] [--llm <json>] [--prompt <text>] [--stage <planned|source|graph|summary>] [--verbose]
+wikigraph transform [--input <path>] [--output <path>] [--input-format <format>] [--output-format <format>] [--digest-dir <path>] [--llm <json>] [--prompt <text>] [--stage <planned|source|reading-graph|reading-summary>] [--verbose]
 ```
 
-不存在裸 transform shortcut。需要显式使用 `spinedigest transform ...`。
+不存在裸 transform shortcut。需要显式使用 `wikigraph transform ...`。
 
 ## 维护命令
 
 归档维护命令以一级命令暴露：
 
 ```bash
-spinedigest meta <archive.sdpub> [metadata options] [--json]
-spinedigest cover <archive.sdpub>
-spinedigest chapter <list|status|add|move|remove|reset|set-source|set-summary|set-title|tree> <path> [options]
+wikigraph meta <archive.sdpub> [metadata options] [--json]
+wikigraph cover <archive.sdpub>
+wikigraph chapter <list|status|add|move|remove|reset|set-source|set-summary|set-title|tree> <path> [options]
 ```
 
 常规探索请使用 archive-first commands。无 `apply` 的 `chapter tree` 是只读结构检查，会输出稳定 JSON tree，未命名章节显示为 `title: null`。维护命令用于 metadata 编辑、cover 提取和会修改 chapter tree 的编辑；`chapter tree apply` 可以重排章节，并在节点包含 `title` 时修改标题。
 
-`spinedigest config status` 输出配置状态。`spinedigest status <archive.sdpub>` 输出归档状态。
+`wikigraph config status` 输出配置状态。`wikigraph status <archive.sdpub>` 输出归档状态。
 
 ## 标准流规则
 
 archive-first `create` 命令用于写入 `.sdpub`。传入 `--input-format` 时，它可以从 stdin 读取 Markdown 或纯文本：
 
 ```bash
-cat ./chapter.txt | spinedigest create ./chapter.sdpub --input-format txt
+cat ./chapter.txt | wikigraph create ./chapter.sdpub --input-format txt
 ```
 
 直接流式 digest/export 需要显式使用 `transform`：
 
 ```bash
-cat ./chapter.txt | spinedigest transform --input-format txt --output-format markdown
+cat ./chapter.txt | wikigraph transform --input-format txt --output-format markdown
 ```
 
 ## 相关文档

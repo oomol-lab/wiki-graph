@@ -55,7 +55,7 @@ describe("cli/io", () => {
   });
 
   it("pipes a utf8 file into stdout", async () => {
-    await withTempDir("spinedigest-io-", async (path) => {
+    await withTempDir("wikigraph-io-", async (path) => {
       const filePath = `${path}/result.txt`;
 
       await writeFile(filePath, "hello stdout", "utf8");
@@ -82,7 +82,7 @@ describe("cli/io", () => {
 
   it("creates temporary output paths inside a new directory", async () => {
     const output = await createTemporaryOutputPath(
-      "spinedigest-io-output-",
+      "wikigraph-io-output-",
       ".md",
     );
 
@@ -95,7 +95,7 @@ describe("cli/io", () => {
   });
 
   it("removes temporary directories recursively", async () => {
-    await withTempDir("spinedigest-io-", async (path) => {
+    await withTempDir("wikigraph-io-", async (path) => {
       const directoryPath = `${path}/to-remove`;
 
       await mkdir(`${directoryPath}/nested`, { recursive: true });

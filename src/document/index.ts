@@ -14,7 +14,7 @@ export { SCHEMA_SQL } from "./schema.js";
 export {
   ChunkStore,
   FragmentGroupStore,
-  KnowledgeEdgeStore,
+  ReadingEdgeStore,
   MentionLinkStore,
   MentionStore,
   SerialStore,
@@ -25,7 +25,7 @@ export {
 export type {
   ReadonlyChunkStore,
   ReadonlyFragmentGroupStore,
-  ReadonlyKnowledgeEdgeStore,
+  ReadonlyReadingEdgeStore,
   ReadonlyMentionLinkStore,
   ReadonlyMentionStore,
   ReadonlySerialStore,
@@ -46,7 +46,7 @@ export type {
   CreateSnakeRecord,
   FragmentGroupRecord,
   FragmentRecord,
-  KnowledgeEdgeRecord,
+  ReadingEdgeRecord,
   MentionLinkRecord,
   MentionRecord,
   SerialRecord,

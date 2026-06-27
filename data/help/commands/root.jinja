@@ -1,5 +1,5 @@
 Help Type: command
-Command: spinedigest
+Command: wikigraph
 
 SpineDigest CLI
 
@@ -11,41 +11,48 @@ Object model:
   Search and navigation return URI-addressable objects. Common object kinds are:
     entity, triple, source, summary, chunk
 
+Object workflow:
+  - `search` returns candidate Wiki Graph URIs from query text.
+  - `get` opens one readable URI.
+  - `related` expands from one URI to nearby URIs.
+  - `evidence` traces a URI to source-backed evidence.
+  - `pack` builds bounded Agent-readable context around one readable URI.
+
 Object commands:
-  spinedigest search <archive.sdpub> <query> [--type <chunk|source|summary[,kind...]>] [--chapter <ids>] [--limit <n>] [--cursor <token>] [--json|--jsonl]
-  spinedigest get <archive.sdpub> <uri> [--json|--jsonl]
-  spinedigest related <archive.sdpub> <uri> [--json|--jsonl]
-  spinedigest evidence <archive.sdpub> <uri> [--json|--jsonl]
-  spinedigest pack <archive.sdpub> <uri> [--budget <chars>] [--json|--jsonl]
+  wikigraph search <archive.sdpub> <query> [--type <entity|triple|source|summary|chunk[,kind...]>] [--chapter <ids>] [--limit <n>] [--cursor <token>] [--json|--jsonl]
+  wikigraph get <archive.sdpub> <uri> [--json|--jsonl]
+  wikigraph related <archive.sdpub> <uri> [--json|--jsonl]
+  wikigraph evidence <archive.sdpub> <uri> [--json|--jsonl]
+  wikigraph pack <archive.sdpub> <uri> [--budget <chars>] [--json|--jsonl]
 
 Archive commands:
-  spinedigest create <archive.sdpub> [source] [--input-format <format>] [--llm <json>] [--prompt <text>]
-  spinedigest export <archive.sdpub> --output-format <format> [--output <path>]
-  spinedigest estimate <archive.sdpub> [--stage <source|graph|summary>] [--json]
-  spinedigest index <archive.sdpub> [--json]
-  spinedigest transform [--input <path>] [--output <path>] [--input-format <format>] [--output-format <format>] [--digest-dir <path>] [--llm <json>] [--prompt <text>] [--stage <stage>] [--verbose|-v]
+  wikigraph create <archive.sdpub> [source] [--input-format <format>] [--llm <json>] [--prompt <text>]
+  wikigraph export <archive.sdpub> --output-format <format> [--output <path>]
+  wikigraph estimate <archive.sdpub> [--stage <source|reading-graph|reading-summary>] [--json]
+  wikigraph index <archive.sdpub> [--json]
+  wikigraph transform [--input <path>] [--output <path>] [--input-format <format>] [--output-format <format>] [--digest-dir <path>] [--llm <json>] [--prompt <text>] [--stage <stage>] [--verbose|-v]
 
 Generation queue:
-  spinedigest queue add <archive.sdpub> --chapter <id> --task <reading-graph|summary> --accept-cost [--boost] [--llm <json>] [--prompt <text>]
-  spinedigest queue list [--all] [--active]
-  spinedigest queue watch <job-id> [--jsonl] [--from beginning|now]
+  wikigraph queue add <archive.sdpub> --chapter <id> --task <reading-graph|reading-summary|knowledge-graph> --accept-cost [--boost] [--llm <json>] [--prompt <text>]
+  wikigraph queue list [--all] [--active]
+  wikigraph queue watch <job-id> [--jsonl] [--from beginning|now]
   Queue generation tasks call an LLM, consume tokens, and may incur provider charges.
 
 Maintenance:
-  spinedigest meta <archive.sdpub> [metadata options] [--json] [--llm <json>] [--help|-h]
-  spinedigest cover <archive.sdpub> [--llm <json>] [--help|-h]
-  spinedigest chapter <action> <archive.sdpub> [options] [--llm <json>] [--help|-h]
-  spinedigest config status [--llm <json>] [--help|-h]
-  spinedigest help [topic] [--help|-h]
+  wikigraph meta <archive.sdpub> [metadata options] [--json] [--llm <json>] [--help|-h]
+  wikigraph cover <archive.sdpub> [--llm <json>] [--help|-h]
+  wikigraph chapter <action> <archive.sdpub> [options] [--llm <json>] [--help|-h]
+  wikigraph config status [--llm <json>] [--help|-h]
+  wikigraph help [topic] [--help|-h]
 
 Help contract:
   - Append `--help` to commands and subcommands to see command-specific usage.
-  - Use `spinedigest help <topic>` for cross-command concepts, constraints, and runtime behavior.
-  - Treat `spinedigest --help` as the root page of the same help system.
+  - Use `wikigraph help <topic>` for cross-command concepts, constraints, and runtime behavior.
+  - Treat `wikigraph --help` as the root page of the same help system.
 
 Help topics:
 {% for topic in helpTopics %}
-  - spinedigest help {{ topic.name }}
+  - wikigraph help {{ topic.name }}
     {{ topic.summary }}
 {% endfor %}
 
@@ -53,6 +60,6 @@ Formats:
   {{ formats | join(", ") }}
 
 Start here:
-  - Read `spinedigest help overview` for the archive-first mental model.
-  - Read `spinedigest help ai` for the agent operating contract.
-  - Read `spinedigest help command` for command shapes.
+  - Read `wikigraph help overview` for the archive-first mental model.
+  - Read `wikigraph help ai` for the agent operating contract.
+  - Read `wikigraph help command` for command shapes.

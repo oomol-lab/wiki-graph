@@ -1,5 +1,5 @@
 Help Type: command
-Command: spinedigest chapter remove
+Command: wikigraph chapter remove
 
 chapter remove
 
@@ -7,11 +7,11 @@ Purpose:
   Remove a chapter from the `.sdpub` chapter tree.
 
 Usage:
-  spinedigest chapter remove <path> --chapter <id> [--recursive] [--llm <json>] [--help|-h]
+  wikigraph chapter remove <path> --chapter <id> [--recursive] [--llm <json>] [--help|-h]
 
 Behavior:
   - Removes the target chapter from the TOC tree.
-  - Removes that chapter's source text, graph data, and summary.
+  - Removes that chapter's source text, Reading Graph data, and summary.
   - Fails when the chapter has children unless `--recursive` is provided.
   - With `--recursive`, removes the whole selected subtree and its stored data.
   - Does not call an LLM provider.
@@ -20,6 +20,6 @@ Safety:
   This is a destructive in-place edit. Use `chapter list` first and keep your own copy if the archive is important.
 
 See also:
-  - spinedigest chapter list --help
-  - spinedigest chapter reset --help
-  - spinedigest help command
+  - wikigraph chapter list --help
+  - wikigraph chapter reset --help
+  - wikigraph help command

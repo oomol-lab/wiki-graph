@@ -11,11 +11,11 @@ import type {
   Document,
   FragmentGroupRecord,
   FragmentGroupStore,
-  KnowledgeEdgeRecord,
+  ReadingEdgeRecord,
   ReadonlyChunkStore,
   ReadonlyDocument,
   ReadonlyFragmentGroupStore,
-  ReadonlyKnowledgeEdgeStore,
+  ReadonlyReadingEdgeStore,
   ReadonlySerialFragments,
   ReadonlySnakeChunkStore,
   ReadonlySnakeEdgeStore,
@@ -494,7 +494,7 @@ export class Serial {
 export class SerialTopology {
   readonly #chunks: ReadonlyChunkStore;
   readonly #fragmentGroups: ReadonlyFragmentGroupStore;
-  readonly #knowledgeEdges: ReadonlyKnowledgeEdgeStore;
+  readonly #readingEdges: ReadonlyReadingEdgeStore;
   readonly #serialId: number;
   readonly #snakeChunks: ReadonlySnakeChunkStore;
   readonly #snakeEdges: ReadonlySnakeEdgeStore;
@@ -503,7 +503,7 @@ export class SerialTopology {
   public constructor(document: ReadonlyDocument, serialId: number) {
     this.#chunks = document.chunks;
     this.#fragmentGroups = document.fragmentGroups;
-    this.#knowledgeEdges = document.knowledgeEdges;
+    this.#readingEdges = document.readingEdges;
     this.#serialId = serialId;
     this.#snakeChunks = document.snakeChunks;
     this.#snakeEdges = document.snakeEdges;
@@ -514,8 +514,8 @@ export class SerialTopology {
     return await this.#chunks.listBySerial(this.#serialId);
   }
 
-  public async listEdges(): Promise<readonly KnowledgeEdgeRecord[]> {
-    return await this.#knowledgeEdges.listBySerial(this.#serialId);
+  public async listEdges(): Promise<readonly ReadingEdgeRecord[]> {
+    return await this.#readingEdges.listBySerial(this.#serialId);
   }
 
   public async listGroups(): Promise<readonly FragmentGroupRecord[]> {
@@ -579,7 +579,7 @@ export async function readSerial(
 
   if (summary === undefined) {
     throw new Error(
-      `Chapter ${serialId} summary is missing. Run \`spinedigest queue add <archive.sdpub> --chapter ${serialId} --to summary --accept-cost\` before export, or inspect the chapter with \`spinedigest page <archive.sdpub> --chapter ${serialId}\`.`,
+      `Chapter ${serialId} summary is missing. Run \`wikigraph queue add <archive.sdpub> --chapter ${serialId} --task reading-summary --accept-cost\` before export, or inspect the chapter with \`wikigraph get <archive.sdpub> wikigraph://source/chapter/${serialId}\`.`,
     );
   }
 
@@ -604,7 +604,7 @@ async function getSerialRecord(
 
   if (record === undefined) {
     throw new Error(
-      `Chapter ${serialId} does not exist. Use \`spinedigest list <archive.sdpub> --type chapter\` to discover chapter ids.`,
+      `Chapter ${serialId} does not exist. Use \`wikigraph chapter list <archive.sdpub>\` to discover chapter ids.`,
     );
   }
 

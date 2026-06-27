@@ -9,6 +9,8 @@ export interface WikimediaClientOptions {
   readonly fetch?: typeof fetch;
   readonly language: string;
   readonly minRequestIntervalMs: number;
+  readonly retryBaseDelayMs: number;
+  readonly retryTimes: number;
   readonly userAgent?: string;
   readonly wiki: string;
 }
@@ -64,6 +66,8 @@ export class WikimediaClient {
   readonly #fetch: typeof fetch;
   readonly #language: string;
   readonly #limiter: RateLimiter;
+  readonly #retryBaseDelayMs: number;
+  readonly #retryTimes: number;
   readonly #userAgent: string | undefined;
   readonly #wiki: string;
 
@@ -72,6 +76,8 @@ export class WikimediaClient {
     this.#language = options.language;
     this.#wiki = options.wiki;
     this.#userAgent = options.userAgent;
+    this.#retryBaseDelayMs = Math.max(0, Math.floor(options.retryBaseDelayMs));
+    this.#retryTimes = Math.max(0, Math.floor(options.retryTimes));
     this.#limiter = new RateLimiter({
       concurrency: options.concurrency,
       minRequestIntervalMs: options.minRequestIntervalMs,
@@ -195,33 +201,66 @@ export class WikimediaClient {
   }
 
   async #fetchJson(url: URL): Promise<Record<string, unknown>> {
-    return await this.#limiter.use(async () => {
-      const response = await this.#fetch(
-        url,
-        this.#userAgent === undefined
-          ? undefined
-          : {
-              headers: {
-                "User-Agent": this.#userAgent,
-              },
-            },
-      );
+    let lastError: unknown;
 
-      const retryAfterMs = parseRetryAfterMs(
-        response.headers.get("retry-after"),
-      );
-
-      if (retryAfterMs !== undefined) {
-        this.#limiter.blockFor(retryAfterMs);
-      }
-      if (!response.ok) {
-        throw new Error(
-          `Wikimedia request failed with ${response.status}: ${url.toString()}`,
+    for (let attempt = 0; attempt <= this.#retryTimes; attempt += 1) {
+      try {
+        return await this.#limiter.use(
+          async () => await this.#fetchJsonOnce(url),
         );
-      }
+      } catch (error) {
+        lastError = error;
 
-      return asRecord(await response.json());
-    });
+        if (!isRetryableError(error) || attempt >= this.#retryTimes) {
+          throw error;
+        }
+
+        await delay(getRetryDelayMs(error, attempt, this.#retryBaseDelayMs));
+      }
+    }
+
+    throw lastError instanceof Error ? lastError : new Error(String(lastError));
+  }
+
+  async #fetchJsonOnce(url: URL): Promise<Record<string, unknown>> {
+    const response = await this.#fetch(
+      url,
+      this.#userAgent === undefined
+        ? undefined
+        : {
+            headers: {
+              "User-Agent": this.#userAgent,
+            },
+          },
+    );
+
+    const retryAfterMs = parseRetryAfterMs(response.headers.get("retry-after"));
+
+    if (retryAfterMs !== undefined) {
+      this.#limiter.blockFor(retryAfterMs);
+    }
+    if (!response.ok) {
+      throw new WikimediaRequestError(url, response.status, retryAfterMs);
+    }
+
+    return asRecord(await response.json());
+  }
+}
+
+class WikimediaRequestError extends Error {
+  public readonly retryAfterMs: number | undefined;
+  public readonly status: number;
+  public readonly url: URL;
+
+  public constructor(
+    url: URL,
+    status: number,
+    retryAfterMs: number | undefined,
+  ) {
+    super(`Wikimedia request failed with ${status}: ${url.toString()}`);
+    this.retryAfterMs = retryAfterMs;
+    this.status = status;
+    this.url = url;
   }
 }
 
@@ -430,6 +469,52 @@ function wikiApiBaseURL(wiki: SupportedWiki): string {
 
 function normalizeWiki(value: string): SupportedWiki | undefined {
   return value === "zhwiki" || value === "enwiki" ? value : undefined;
+}
+
+function isRetryableError(error: unknown): boolean {
+  if (error instanceof WikimediaRequestError) {
+    return (
+      error.status === 429 ||
+      error.status === 500 ||
+      error.status === 502 ||
+      error.status === 503 ||
+      error.status === 504
+    );
+  }
+
+  return error instanceof TypeError;
+}
+
+function getRetryDelayMs(
+  error: unknown,
+  attempt: number,
+  baseDelayMs: number,
+): number {
+  if (
+    error instanceof WikimediaRequestError &&
+    error.retryAfterMs !== undefined
+  ) {
+    return error.retryAfterMs;
+  }
+
+  if (baseDelayMs <= 0) {
+    return 0;
+  }
+
+  const exponentialDelayMs = baseDelayMs * 2 ** attempt;
+  const jitterMs = Math.floor(Math.random() * Math.min(baseDelayMs, 250));
+
+  return exponentialDelayMs + jitterMs;
+}
+
+async function delay(ms: number): Promise<void> {
+  if (ms <= 0) {
+    return;
+  }
+
+  await new Promise<void>((resolveDelay) => {
+    setTimeout(resolveDelay, ms);
+  });
 }
 
 function asRecord(value: unknown): Record<string, unknown> {

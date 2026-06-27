@@ -2,7 +2,7 @@ import {
   ChunkImportance,
   ChunkRetention,
   type ChunkRecord,
-  type KnowledgeEdgeRecord,
+  type ReadingEdgeRecord,
 } from "../document/index.js";
 
 const MIN_EDGE_WEIGHT = 0.1;
@@ -38,9 +38,9 @@ export function computeChunkWeights(
   return weights;
 }
 
-export function computeKnowledgeEdgeWeights(input: {
+export function computeReadingEdgeWeights(input: {
   chunkWeights: Readonly<Record<string, number>>;
-  edges: readonly KnowledgeEdgeRecord[];
+  edges: readonly ReadingEdgeRecord[];
 }): Readonly<Record<string, number>> {
   const strengthsByChunkId = createNumberRecord();
 
@@ -70,7 +70,7 @@ export function computeKnowledgeEdgeWeights(input: {
         ? 0
         : toChunkWeight * (strengthWeight / toTotalStrength);
 
-    edgeWeights[getKnowledgeEdgeKey(edge.fromId, edge.toId)] = Math.max(
+    edgeWeights[getReadingEdgeKey(edge.fromId, edge.toId)] = Math.max(
       fromHalfWeight + toHalfWeight,
       MIN_EDGE_WEIGHT,
     );
@@ -79,7 +79,7 @@ export function computeKnowledgeEdgeWeights(input: {
   return edgeWeights;
 }
 
-export function getKnowledgeEdgeKey(fromId: number, toId: number): string {
+export function getReadingEdgeKey(fromId: number, toId: number): string {
   return `${fromId}:${toId}`;
 }
 

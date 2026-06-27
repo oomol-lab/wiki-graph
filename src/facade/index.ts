@@ -71,6 +71,7 @@ export {
   buildChapterKnowledgeGraphArtifact,
   clearChapterKnowledgeGraph,
   commitChapterKnowledgeGraphArtifact,
+  generateChapterKnowledgeGraphArtifact,
 } from "./knowledge-graph-build.js";
 export type {
   BuildChapterGraphArtifactOptions,
@@ -112,6 +113,7 @@ export type {
   ArchiveEstimate,
   ArchiveEvidence,
   ArchiveEvidenceItem,
+  ArchiveFindEvidencePreview,
   ArchiveCollectionOptions,
   ArchiveCollectionResult,
   ArchiveCollectionType,

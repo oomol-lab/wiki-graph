@@ -271,9 +271,9 @@ function createInput(): {
     },
   ];
   const [window] = buildWikimatchWindows({
-    candidateBudget: 10,
     candidates,
     contextWords: 30,
+    optionBudget: 10,
     text,
   });
 

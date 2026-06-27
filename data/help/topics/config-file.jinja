@@ -7,7 +7,7 @@ Location:
   Default file:
     ~/.wikigraph/config.json
   Override mechanism:
-    SPINEDIGEST_CONFIG
+    WIKIGRAPH_CONFIG
 
 Scope:
   This file defines persistent machine defaults.
@@ -34,6 +34,9 @@ Top-level structure:
       "cacheDir": "...",
       "debugLogDir": "..."
     },
+    "queue": {
+      "concurrent": 1
+    },
     "request": {
       "concurrent": 4,
       "timeout": 120,
@@ -47,7 +50,7 @@ Top-level structure:
 
 Fields:
   `prompt`
-    Default extraction prompt for graph generation.
+    Default extraction prompt for reading-graph generation.
     Type: non-empty string.
 
   `llm.provider`
@@ -81,6 +84,13 @@ Fields:
   `paths.debugLogDir`
     Debug log directory.
     Type: path string.
+
+  `queue.concurrent`
+    Simultaneous queue job limit.
+    Type: positive integer.
+    Notes:
+      This controls how many build jobs the worker may run at once.
+      It is separate from `request.concurrent`, which controls concurrent LLM requests inside those jobs.
 
   `request.concurrent`
     Concurrent LLM request limit.
@@ -119,7 +129,8 @@ Minimum LLM-backed operation config:
   }
 
 Applicability:
-  - `llm.*`, `prompt`, `paths.cacheDir`, and `request.*` matter for source digest runs and queue graph/summary jobs.
+  - `llm.*`, `paths.cacheDir`, and `request.*` matter for source digest runs and queue reading-graph, reading-summary, and knowledge-graph jobs.
+  - `prompt` is the default extraction prompt for reading-graph generation; knowledge-graph policy text is supplied by the knowledge graph build path.
   - `.sdpub` re-export through the main convert command does not require LLM settings.
   - `meta`, `cover`, and non-generating `chapter` maintenance commands do not require LLM settings.
   - `paths.debugLogDir` can still matter outside source digest runs when the app emits debug logs.
@@ -136,10 +147,10 @@ Common failures:
 
 Where to go next:
   - Need the overview and precedence model:
-    spinedigest help config
+    wikigraph help config
   - Need one-shot shell overrides:
-    spinedigest help env
+    wikigraph help env
   - Need runtime context for retries, logs, and streams:
-    spinedigest help runtime
+    wikigraph help runtime
   - Need troubleshooting:
-    spinedigest help troubleshoot
+    wikigraph help troubleshoot

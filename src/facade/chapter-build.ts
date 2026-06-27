@@ -7,13 +7,13 @@ import type {
   Document,
   FragmentGroupRecord,
   FragmentRecord,
-  KnowledgeEdgeRecord,
+  ReadingEdgeRecord,
   MentionLinkRecord,
   MentionRecord,
   ReadonlyChunkStore,
   ReadonlyDocument,
   ReadonlyFragmentGroupStore,
-  ReadonlyKnowledgeEdgeStore,
+  ReadonlyReadingEdgeStore,
   ReadonlyMentionLinkStore,
   ReadonlyMentionStore,
   ReadonlySerialFragments,
@@ -132,7 +132,7 @@ const summaryInputSnapshotSchema = z.object({
   chunks: z.array(chunkRecordSchema),
   fragmentGroups: z.array(fragmentGroupRecordSchema),
   fragments: z.array(fragmentRecordSchema),
-  knowledgeEdges: z.array(knowledgeEdgeRecordSchema),
+  readingEdges: z.array(knowledgeEdgeRecordSchema),
   serial: serialRecordSchema,
   snakeChunks: z.array(snakeChunkRecordSchema),
   snakeEdges: z.array(snakeEdgeRecordSchema),
@@ -143,7 +143,7 @@ interface SummaryInputSnapshotData {
   readonly chunks: readonly ChunkRecord[];
   readonly fragmentGroups: readonly FragmentGroupRecord[];
   readonly fragments: readonly FragmentRecord[];
-  readonly knowledgeEdges: readonly KnowledgeEdgeRecord[];
+  readonly readingEdges: readonly ReadingEdgeRecord[];
   readonly serial: SerialRecord;
   readonly snakeChunks: readonly SnakeChunkRecord[];
   readonly snakeEdges: readonly SnakeEdgeRecord[];
@@ -225,7 +225,7 @@ export async function commitChapterGraphArtifact(
         artifact.chapterId,
       );
 
-      for (const edge of await sourceDocument.knowledgeEdges.listBySerial(
+      for (const edge of await sourceDocument.readingEdges.listBySerial(
         artifact.chapterId,
       )) {
         const fromId = chunkIdMap.get(edge.fromId);
@@ -235,7 +235,7 @@ export async function commitChapterGraphArtifact(
           continue;
         }
 
-        await openedDocument.knowledgeEdges.save({
+        await openedDocument.readingEdges.save({
           ...edge,
           fromId,
           toId,
@@ -378,7 +378,7 @@ export async function snapshotChapterSummaryInput(
     chunks: await document.chunks.listBySerial(chapterId),
     fragmentGroups: await document.fragmentGroups.listBySerial(chapterId),
     fragments,
-    knowledgeEdges: await document.knowledgeEdges.listBySerial(chapterId),
+    readingEdges: await document.readingEdges.listBySerial(chapterId),
     serial: { id: chapterId, topologyReady: true },
     snakeChunks,
     snakeEdges: await document.snakeEdges.listBySerial(chapterId),
@@ -450,7 +450,7 @@ async function buildSummaryFromDocument(
 
   if (serial === undefined) {
     throw new Error(
-      `Chapter ${chapterId} does not exist. Use \`spinedigest list <archive.sdpub> --type chapter\` to discover chapter ids.`,
+      `Chapter ${chapterId} does not exist. Use \`wikigraph chapter list <archive.sdpub>\` to discover chapter ids.`,
     );
   }
   if (!serial.topologyReady) {
@@ -558,7 +558,7 @@ async function readSummaryInputSnapshot(
   return {
     ...snapshot,
     chunks: snapshot.chunks.map(toChunkRecord),
-    knowledgeEdges: snapshot.knowledgeEdges.map(toKnowledgeEdgeRecord),
+    readingEdges: snapshot.readingEdges.map(toReadingEdgeRecord),
   };
 }
 
@@ -579,9 +579,9 @@ function toChunkRecord(record: z.infer<typeof chunkRecordSchema>): ChunkRecord {
   };
 }
 
-function toKnowledgeEdgeRecord(
+function toReadingEdgeRecord(
   record: z.infer<typeof knowledgeEdgeRecordSchema>,
-): KnowledgeEdgeRecord {
+): ReadingEdgeRecord {
   return {
     fromId: record.fromId,
     toId: record.toId,
@@ -600,7 +600,7 @@ async function writeSummaryInputSnapshot(
 class SummaryInputSnapshotDocument implements ReadonlyDocument {
   public readonly chunks: ReadonlyChunkStore;
   public readonly fragmentGroups: ReadonlyFragmentGroupStore;
-  public readonly knowledgeEdges: ReadonlyKnowledgeEdgeStore;
+  public readonly readingEdges: ReadonlyReadingEdgeStore;
   public readonly mentionLinks: ReadonlyMentionLinkStore;
   public readonly mentions: ReadonlyMentionStore;
   public readonly serials: ReadonlySerialStore;
@@ -616,8 +616,8 @@ class SummaryInputSnapshotDocument implements ReadonlyDocument {
     this.fragmentGroups = new SnapshotFragmentGroupStore(
       snapshot.fragmentGroups,
     );
-    this.knowledgeEdges = new SnapshotKnowledgeEdgeStore(
-      snapshot.knowledgeEdges,
+    this.readingEdges = new SnapshotReadingEdgeStore(
+      snapshot.readingEdges,
       snapshot.chunks,
     );
     this.mentionLinks = new EmptySnapshotMentionLinkStore();
@@ -685,6 +685,18 @@ class EmptySnapshotMentionStore implements ReadonlyMentionStore {
   }
 
   public listByQid(_qid: string): Promise<MentionRecord[]> {
+    return Promise.resolve([]);
+  }
+
+  public listBySurfaceTerms(
+    _terms: readonly string[],
+  ): Promise<MentionRecord[]> {
+    return Promise.resolve([]);
+  }
+
+  public listBySurfaces(
+    _surfaces: readonly string[],
+  ): Promise<MentionRecord[]> {
     return Promise.resolve([]);
   }
 
@@ -824,25 +836,25 @@ class SnapshotChunkStore implements ReadonlyChunkStore {
   }
 }
 
-class SnapshotKnowledgeEdgeStore implements ReadonlyKnowledgeEdgeStore {
-  readonly #edges: readonly KnowledgeEdgeRecord[];
+class SnapshotReadingEdgeStore implements ReadonlyReadingEdgeStore {
+  readonly #edges: readonly ReadingEdgeRecord[];
   readonly #serialIdByChunkId: Map<number, number>;
 
   public constructor(
-    edges: readonly KnowledgeEdgeRecord[],
+    edges: readonly ReadingEdgeRecord[],
     chunks: readonly ChunkRecord[],
   ) {
-    this.#edges = [...edges].sort(compareKnowledgeEdge);
+    this.#edges = [...edges].sort(compareReadingEdge);
     this.#serialIdByChunkId = new Map(
       chunks.map((chunk) => [chunk.id, chunk.sentenceId[0]]),
     );
   }
 
-  public listAll(): Promise<KnowledgeEdgeRecord[]> {
+  public listAll(): Promise<ReadingEdgeRecord[]> {
     return Promise.resolve([...this.#edges]);
   }
 
-  public listBySerial(serialId: number): Promise<KnowledgeEdgeRecord[]> {
+  public listBySerial(serialId: number): Promise<ReadingEdgeRecord[]> {
     return Promise.resolve(
       this.#edges.filter(
         (edge) =>
@@ -852,11 +864,11 @@ class SnapshotKnowledgeEdgeStore implements ReadonlyKnowledgeEdgeStore {
     );
   }
 
-  public listIncoming(chunkId: number): Promise<KnowledgeEdgeRecord[]> {
+  public listIncoming(chunkId: number): Promise<ReadingEdgeRecord[]> {
     return Promise.resolve(this.#edges.filter((edge) => edge.toId === chunkId));
   }
 
-  public listOutgoing(chunkId: number): Promise<KnowledgeEdgeRecord[]> {
+  public listOutgoing(chunkId: number): Promise<ReadingEdgeRecord[]> {
     return Promise.resolve(
       this.#edges.filter((edge) => edge.fromId === chunkId),
     );
@@ -1156,9 +1168,9 @@ function compareFragmentGroup(
   );
 }
 
-function compareKnowledgeEdge(
-  left: KnowledgeEdgeRecord,
-  right: KnowledgeEdgeRecord,
+function compareReadingEdge(
+  left: ReadingEdgeRecord,
+  right: ReadingEdgeRecord,
 ): number {
   return left.fromId - right.fromId || left.toId - right.toId;
 }

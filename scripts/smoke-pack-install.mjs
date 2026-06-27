@@ -4,7 +4,7 @@ import { tmpdir } from "os";
 import { join, resolve } from "path";
 
 const packageRoot = resolve(import.meta.dirname, "..");
-const tempRoot = mkdtempSync(join(tmpdir(), "spinedigest-pack-"));
+const tempRoot = mkdtempSync(join(tmpdir(), "wikigraph-pack-"));
 let tarballName;
 
 try {
@@ -16,7 +16,7 @@ try {
 
   writeFileSync(
     join(tempRoot, "package.json"),
-    JSON.stringify({ name: "spinedigest-pack-smoke", private: true }),
+    JSON.stringify({ name: "wikigraph-pack-smoke", private: true }),
   );
 
   const tarballPath = join(packageRoot, tarballName);

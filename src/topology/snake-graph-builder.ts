@@ -1,5 +1,5 @@
-import type { ChunkRecord, KnowledgeEdgeRecord } from "../document/index.js";
-import { getKnowledgeEdgeKey } from "./weights.js";
+import type { ChunkRecord, ReadingEdgeRecord } from "../document/index.js";
+import { getReadingEdgeKey } from "./weights.js";
 
 export interface SnakeGraphEdge {
   readonly fromSnakeIndex: number;
@@ -9,7 +9,7 @@ export interface SnakeGraphEdge {
 
 export function buildSnakeGraph(input: {
   chunksById: Readonly<Record<string, ChunkRecord | undefined>>;
-  edges: readonly KnowledgeEdgeRecord[];
+  edges: readonly ReadingEdgeRecord[];
   snakes: readonly (readonly number[])[];
 }): SnakeGraphEdge[] {
   const chunkIdToSnakeIndex = createOptionalNumberRecord();
@@ -33,7 +33,7 @@ export function buildSnakeGraph(input: {
       continue;
     }
 
-    const edgeKey = getKnowledgeEdgeKey(fromSnakeIndex, toSnakeIndex);
+    const edgeKey = getReadingEdgeKey(fromSnakeIndex, toSnakeIndex);
 
     interSnakeWeightByKey[edgeKey] =
       (interSnakeWeightByKey[edgeKey] ?? 0) + edge.weight;
@@ -64,8 +64,8 @@ export function buildSnakeGraph(input: {
 
     const normalizedEdgeKey =
       compareChunkBySentence(fromChunk, toChunk) < 0
-        ? getKnowledgeEdgeKey(fromSnakeIndex, toSnakeIndex)
-        : getKnowledgeEdgeKey(toSnakeIndex, fromSnakeIndex);
+        ? getReadingEdgeKey(fromSnakeIndex, toSnakeIndex)
+        : getReadingEdgeKey(toSnakeIndex, fromSnakeIndex);
 
     normalizedSnakeWeightByKey[normalizedEdgeKey] =
       (normalizedSnakeWeightByKey[normalizedEdgeKey] ?? 0) + weight;

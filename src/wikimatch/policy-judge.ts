@@ -8,6 +8,7 @@ import {
 } from "../guaranteed/index.js";
 import type { LLMessage } from "../llm/index.js";
 
+import { listCandidateSelectableQids } from "./options.js";
 import type {
   WikimatchAcceptedMention,
   WikimatchCandidate,
@@ -290,14 +291,7 @@ function isDisambiguationQid(
 }
 
 function listAllowedQids(candidate: WikimatchCandidate): readonly string[] {
-  return [
-    ...new Set(
-      candidate.qidOptions.flatMap((option) => [
-        ...(option.disambiguation === undefined ? [option.qid] : []),
-        ...(option.disambiguation?.linkedQids.map((item) => item.qid) ?? []),
-      ]),
-    ),
-  ];
+  return listCandidateSelectableQids(candidate);
 }
 
 function formatIllegalQidIssue(
@@ -464,7 +458,7 @@ function formatGroupsForPrompt(input: WikimatchPolicyJudgeInput): object[] {
   }));
 }
 
-function formatCandidateForPrompt(
+export function formatCandidateForPrompt(
   candidate: WikimatchCandidate,
   group: WikimatchConflictGroup,
 ): object {

@@ -9,13 +9,13 @@ Primary contract:
 Treat every search result as a Wiki Graph URI.
 
 Default exploration loop:
-  1. `spinedigest search <archive.sdpub> <query>`
-  2. `spinedigest get <archive.sdpub> <uri>`
-  3. `spinedigest related <archive.sdpub> <uri>`
-  4. `spinedigest evidence <archive.sdpub> <uri>`
-  5. `spinedigest pack <archive.sdpub> <uri> --budget <chars>`
+  1. `wikigraph search <archive.sdpub> <query>`
+  2. `wikigraph get <archive.sdpub> <uri>`
+  3. `wikigraph related <archive.sdpub> <uri>`
+  4. `wikigraph evidence <archive.sdpub> <uri>`
+  5. `wikigraph pack <archive.sdpub> <uri> --budget <chars>`
 
 Use `--type` on search to filter currently searchable object kinds:
-  source, summary, chunk
+  source, summary, chunk, entity, triple
 
 Use `--json` or `--jsonl` when a stable machine-readable result is needed.

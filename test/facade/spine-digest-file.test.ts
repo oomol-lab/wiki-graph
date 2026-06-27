@@ -8,9 +8,7 @@ import { SpineDigest } from "../../src/facade/spine-digest.js";
 import { SpineDigestFile } from "../../src/facade/spine-digest-file.js";
 import { withTempDir } from "../helpers/temp.js";
 
-const originalStateDir = process.env.SPINEDIGEST_STATE_DIR;
-const originalFlushQuietPeriod = process.env.SPINEDIGEST_FLUSH_QUIET_PERIOD_MS;
-const originalFlushIdleTimeout = process.env.SPINEDIGEST_FLUSH_IDLE_TIMEOUT_MS;
+const originalStateDir = process.env.WIKIGRAPH_STATE_DIR;
 
 describe("facade/spine-digest-file", () => {
   afterEach(() => {
@@ -222,10 +220,7 @@ describe("facade/spine-digest-file", () => {
 
   it("reads materialized workspace state while flush is pending", async () => {
     await withTempDir("spinedigest-facade-file-", async (path) => {
-      useCoordinatorStateDir(`${path}/state`, {
-        idleTimeoutMs: 1_000,
-        quietPeriodMs: 60_000,
-      });
+      useCoordinatorStateDir(`${path}/state`);
       const archivePath = await createSeedArchive(path);
 
       await new SpineDigestFile(archivePath).write(async (document) => {
@@ -254,10 +249,7 @@ describe("facade/spine-digest-file", () => {
 
   it("runs concurrent writes to different archive entries", async () => {
     await withTempDir("spinedigest-facade-file-", async (path) => {
-      useCoordinatorStateDir(`${path}/state`, {
-        idleTimeoutMs: 1_000,
-        quietPeriodMs: 60_000,
-      });
+      useCoordinatorStateDir(`${path}/state`);
       const archivePath = await createSeedArchive(path);
       await Promise.all([
         new SpineDigestFile(archivePath).write(async (document) => {
@@ -467,26 +459,12 @@ INSERT INTO entry_overlays (
   }
 }
 
-function useCoordinatorStateDir(
-  path: string,
-  options: {
-    readonly idleTimeoutMs?: number;
-    readonly quietPeriodMs?: number;
-  } = {},
-): void {
-  process.env.SPINEDIGEST_STATE_DIR = path;
-  process.env.SPINEDIGEST_FLUSH_QUIET_PERIOD_MS = String(
-    options.quietPeriodMs ?? 0,
-  );
-  process.env.SPINEDIGEST_FLUSH_IDLE_TIMEOUT_MS = String(
-    options.idleTimeoutMs ?? 0,
-  );
+function useCoordinatorStateDir(path: string): void {
+  process.env.WIKIGRAPH_STATE_DIR = path;
 }
 
 function restoreCoordinatorEnv(): void {
-  restoreEnv("SPINEDIGEST_STATE_DIR", originalStateDir);
-  restoreEnv("SPINEDIGEST_FLUSH_QUIET_PERIOD_MS", originalFlushQuietPeriod);
-  restoreEnv("SPINEDIGEST_FLUSH_IDLE_TIMEOUT_MS", originalFlushIdleTimeout);
+  restoreEnv("WIKIGRAPH_STATE_DIR", originalStateDir);
 }
 
 function restoreEnv(key: string, value: string | undefined): void {

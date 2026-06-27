@@ -1,19 +1,32 @@
 Help Type: command
-Command: spinedigest search
+Command: wikigraph search
 
 search
 
 Purpose:
-  Search a Wiki Graph archive for URI-addressable objects.
+  Find Wiki Graph objects from query text.
+
+Use when:
+  - You have words, names, phrases, or concepts and need candidate object URIs.
 
 Usage:
-  spinedigest search <archive.sdpub> <query> [--type <chunk|source|summary[,kind...]>] [--chapter <ids>] [--limit <n>] [--cursor <token>] [--json|--jsonl] [--help|-h]
+  wikigraph search <archive.sdpub> <query> [--type <entity|triple|source|summary|chunk[,kind...]>] [--chapter <ids>] [--limit <n>] [--cursor <token>] [--json|--jsonl] [--help|-h]
+
+Returns:
+  - In text output, a ranked list of full `wikigraph://...` URIs.
+  - With `--json` or `--jsonl`, machine-readable search result items.
 
 Notes:
-  - Results are returned as a linear list of Wiki Graph URIs.
+  - Search results are leads, not source evidence.
   - Without `--type`, search first looks for entity objects and falls back to text objects when no entity matches.
-  - `--type` filters result objects.
+  - Use `--type source|summary|chunk` to choose a text lens.
+  - Use `--chapter <ids>` to keep retrieval local.
+
+Next steps:
+  - Use `get` to inspect a readable returned URI.
+  - Use `evidence` when source-backed verification is needed.
+  - Use `pack` after selecting a useful readable URI.
 
 Examples:
-  spinedigest search book.sdpub "恩典 婴儿洗礼"
-  spinedigest search book.sdpub "infant baptism" --type entity --json
+  wikigraph search book.sdpub "恩典 婴儿洗礼"
+  wikigraph search book.sdpub "infant baptism" --type entity --json

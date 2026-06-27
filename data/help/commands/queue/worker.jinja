@@ -1,13 +1,14 @@
 Help Type: command
-Command: spinedigest queue worker
+Command: wikigraph queue worker
 
 Purpose:
   Internal transient worker entry point for running queue jobs.
 
 Usage:
-  spinedigest queue worker [--llm <json>]
+  wikigraph queue worker [--llm <json>]
 
 Notes:
   - Users normally do not run this directly.
   - Queue mutating commands start the worker when needed.
-  - Worker concurrency follows `request.concurrent` from configuration.
+  - Worker job concurrency follows `queue.concurrent` from configuration.
+  - LLM request concurrency inside jobs follows `request.concurrent`.

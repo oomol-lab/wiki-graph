@@ -2,7 +2,7 @@
   <h1>SpineDigest</h1>
   <p>English | <a href="./README_zh-CN.md">中文</a></p>
   <p>
-    <a href="https://www.npmjs.com/package/spinedigest"><img alt="npm version" src="https://img.shields.io/npm/v/spinedigest"></a>
+    <a href="https://www.npmjs.com/package/wikigraph"><img alt="npm version" src="https://img.shields.io/npm/v/wikigraph"></a>
     <a href="https://opensource.org/licenses/Apache-2.0"><img alt="License: Apache 2.0" src="https://img.shields.io/badge/License-Apache%202.0-blue.svg"></a>
     <a href="https://nodejs.org/"><img alt="Node >=22.12.0" src="https://img.shields.io/badge/node-%3E%3D22.12.0-brightgreen"></a>
   </p>
@@ -33,7 +33,7 @@ Together, these modes let long documents behave like navigable knowledge bases: 
 Requirements:
 
 - Node `>=22.12.0`
-- For LLM-backed graph or summary jobs: a supported LLM provider plus credentials
+- For LLM-backed Reading Graph, Reading Summary, or Knowledge Graph jobs: a supported LLM provider plus credentials
 - For `.sdpub` search, reading, navigation, and export: no LLM access required
 
 Try it without a global install:
@@ -51,9 +51,9 @@ npm install -g spinedigest
 To explore the CLI surface first, start with:
 
 ```bash
-spinedigest --help
-spinedigest help overview
-spinedigest help ai
+wikigraph --help
+wikigraph help overview
+wikigraph help ai
 ```
 
 ## Quick Start
@@ -63,52 +63,52 @@ SpineDigest's primary object is `.sdpub`: a CLI-managed knowledge-base archive, 
 Create a knowledge base from source material:
 
 ```bash
-spinedigest create ./book.sdpub ./book.epub
-cat ./article.md | spinedigest create ./article.sdpub --input-format markdown
+wikigraph create ./book.sdpub ./book.epub
+cat ./article.md | wikigraph create ./article.sdpub --input-format markdown
 ```
 
 Inspect and estimate before expensive work:
 
 ```bash
-spinedigest status ./book.sdpub
-spinedigest index ./book.sdpub
-spinedigest estimate ./book.sdpub --stage summary
+wikigraph status ./book.sdpub
+wikigraph index ./book.sdpub
+wikigraph estimate ./book.sdpub --stage reading-summary
 ```
 
 Build derived knowledge when you intend to spend LLM time:
 
 ```bash
-spinedigest queue add ./book.sdpub --chapter 12 --to graph --accept-cost
-spinedigest queue watch <job-id> --jsonl
+wikigraph queue add ./book.sdpub --chapter 12 --task reading-graph --accept-cost
+wikigraph queue watch <job-id> --jsonl
 ```
 
 Search, browse, and read through the knowledge-base interface:
 
 ```bash
-spinedigest list ./book.sdpub --type chapter
-spinedigest page ./book.sdpub --chapter 12
-spinedigest find ./book.sdpub "RAG" --type node
-spinedigest grep ./book.sdpub "exact source phrase" --type fragment
-spinedigest page ./book.sdpub --node 84
-spinedigest read ./book.sdpub --chapter 12
-spinedigest links ./book.sdpub --node 84
-spinedigest related ./book.sdpub --node 84
-spinedigest pack ./book.sdpub --node 84 --budget 5000
+wikigraph list ./book.sdpub --type chapter
+wikigraph page ./book.sdpub --chapter 12
+wikigraph find ./book.sdpub "RAG" --type node
+wikigraph grep ./book.sdpub "exact source phrase" --type fragment
+wikigraph page ./book.sdpub --node 84
+wikigraph read ./book.sdpub --chapter 12
+wikigraph links ./book.sdpub --node 84
+wikigraph related ./book.sdpub --node 84
+wikigraph pack ./book.sdpub --node 84 --budget 5000
 ```
 
 Output a projection only when you need a portable view. For example, read one chapter into Markdown text, or export the full archive as an EPUB:
 
 ```bash
-spinedigest read ./book.sdpub --chapter 12 > ./chapter-12.md
-spinedigest export ./book.sdpub --output-format epub --output ./digest.epub
+wikigraph read ./book.sdpub --chapter 12 > ./chapter-12.md
+wikigraph export ./book.sdpub --output-format epub --output ./digest.epub
 ```
 
 Cost rule:
 
 ```text
 Create is cheap.
-Estimate before queueing graph or summary jobs.
-Queue graph or summary jobs only when the cost and wait time are acceptable.
+Estimate before queueing Reading Graph, Reading Summary, or Knowledge Graph jobs.
+Queue Reading Graph, Reading Summary, or Knowledge Graph jobs only when the cost and wait time are acceptable.
 Search, read, navigate, pack, and export are cheap after build.
 ```
 
@@ -147,12 +147,12 @@ Your intent still runs through the whole process. During build, the prompt influ
 With that archive on hand, you can search and navigate the knowledge structure directly:
 
 ```bash
-spinedigest index ./book.sdpub
-spinedigest list ./book.sdpub --type chapter
-spinedigest list ./book.sdpub --type node --chapter 12
-spinedigest find ./book.sdpub "central argument" --type node
-spinedigest page ./book.sdpub --chapter 12
-spinedigest read ./book.sdpub --chapter 12
+wikigraph index ./book.sdpub
+wikigraph list ./book.sdpub --type chapter
+wikigraph list ./book.sdpub --type node --chapter 12
+wikigraph find ./book.sdpub "central argument" --type node
+wikigraph page ./book.sdpub --chapter 12
+wikigraph read ./book.sdpub --chapter 12
 ```
 
 Markdown, EPUB, txt, and JSON-style outputs are projections of the archive. They are useful for portability and reading, but they do not replace the `.sdpub` object when graph links and source fragments matter.
@@ -166,8 +166,8 @@ For the internal layout and parser guidance, see the [format spec](./docs/sdpub.
 If you only need a one-shot digest or format conversion, use `transform`. It does not leave a reusable `.sdpub` knowledge base unless you explicitly choose `--output-format sdpub`.
 
 ```bash
-cat chapter.txt | spinedigest transform --input-format txt --output-format markdown
-spinedigest transform --input book.epub --output digest.md --output-format markdown
+cat chapter.txt | wikigraph transform --input-format txt --output-format markdown
+wikigraph transform --input book.epub --output digest.md --output-format markdown
 ```
 
 This mode is for pure conversion tasks. If the material will later be searched, navigated, traced to evidence, or built further, create a `.sdpub` archive first.
@@ -187,22 +187,22 @@ SpineDigest's CLI-first design exposes `.sdpub` as a managed LLM Wiki archive.
 
 - **Treat `.sdpub` as the primary object.** Use archive commands before unpacking or inspecting internals.
 - **Choose an exploration mode first.** For synthesis and structural understanding, start with `list/page`; use `find/grep` for candidate discovery and exact wording; use `read` for continuous prose after selecting the relevant object.
-- **Use help as the discovery surface.** Start with `spinedigest --help` as the root page, then follow `spinedigest help overview`, `spinedigest help ai`, topic pages, or command-specific `--help` before guessing behavior.
+- **Use help as the discovery surface.** Start with `wikigraph --help` as the root page, then follow `wikigraph help overview`, `wikigraph help ai`, topic pages, or command-specific `--help` before guessing behavior.
 - **Prefer `--json`.** Use it when composing with tools.
-- **Estimate before queueing jobs.** Do not queue broad graph or summary work without `spinedigest estimate`.
+- **Estimate before queueing jobs.** Do not queue broad Reading Graph, Reading Summary, or Knowledge Graph work without `wikigraph estimate`.
 - **Check exit codes.** Success returns `0`; failure returns non-zero with a plain-text error on `stderr`.
 - **Do not inspect `database.db` routinely.** Use `list`, `page`, `read`, and graph navigation commands instead.
 
 Useful help entry points:
 
 ```bash
-spinedigest help overview
-spinedigest help ai
-spinedigest help task
-spinedigest help config
-spinedigest help env
-spinedigest help config-file
-spinedigest help command
+wikigraph help overview
+wikigraph help ai
+wikigraph help task
+wikigraph help config
+wikigraph help env
+wikigraph help config-file
+wikigraph help command
 ```
 
 Full agent guidance: [AI Agent Guide](./docs/en/ai-agents.md).

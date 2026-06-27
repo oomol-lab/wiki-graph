@@ -9,7 +9,7 @@ render, or interoperate with `.sdpub` files outside the SpineDigest runtime.
 This is not the recommended guide for routine archive editing. `.sdpub`
 is physically a ZIP file, but automation that wants to add chapters,
 change metadata, set source text, reset stages, or advance generation
-should use `spinedigest meta`, `spinedigest chapter`, or `spinedigest build`.
+should use `wikigraph meta`, `wikigraph chapter`, or `wikigraph build`.
 Direct ZIP mutation is for external readers, validators, recovery tooling, or
 format experiments that intentionally take responsibility for preserving every
 invariant.
@@ -101,14 +101,14 @@ Source-specific notes:
   source fragments, graph data, and summaries are omitted.
 - When the CLI is run with `--stage source`, source fragments are
   written but graph data and summaries are omitted.
-- When the CLI is run with `--stage graph`, graph data is written but
+- When the CLI is run with `--stage reading-graph`, graph data is written but
   summaries are omitted.
 
 For readers and validators:
 
 - `toc.json` plus `summaries/` is the minimum useful set for ordered summary
   projection rendering of completed archives. Staged archives may require
-  `spinedigest build` before summary projection is complete.
+  `wikigraph build` before summary projection is complete.
 - `book-meta.json` is optional for plain rendering, but required if
   metadata is part of the target feature set.
 - `cover/info.json` and `cover/data.bin` are optional as a pair.
@@ -198,7 +198,7 @@ metadata. It is not a promise that the current public CLI necessarily
 accepts that source type as direct input.
 
 The public CLI can inspect and edit these fields with
-`spinedigest meta <archive.sdpub>`. The command preserves `version`
+`wikigraph meta <archive.sdpub>`. The command preserves `version`
 and `sourceFormat`.
 
 ### `toc.json`
@@ -321,7 +321,7 @@ The current schema includes these tables:
 - `serial_states`
 - `chunks`
 - `chunk_sentences`
-- `knowledge_edges`
+- `reading_edges`
 - `snakes`
 - `snake_chunks`
 - `snake_edges`

@@ -513,8 +513,8 @@ export function parseCLIArguments(
   ) {
     throw new Error(
       withHelpRoute(
-        "`--accept-cost` is only valid for `spinedigest queue add`.",
-        "spinedigest queue --help",
+        "`--accept-cost` is only valid for `wikigraph queue add`.",
+        "wikigraph queue --help",
       ),
     );
   }
@@ -561,7 +561,7 @@ function parseTransformArguments(
   positionals: readonly string[],
   values: ArchiveArgumentValues,
 ): ParsedCLIArguments {
-  const helpRoute = "spinedigest transform --help";
+  const helpRoute = "wikigraph transform --help";
 
   if (positionals.length > 0) {
     throw new Error(
@@ -652,7 +652,7 @@ function parseConfigArguments(
         action === undefined
           ? "Missing config action. Expected status."
           : `Invalid config action: ${action}. Expected status.`,
-        "spinedigest config status --help",
+        "wikigraph config status --help",
       ),
     );
   }
@@ -665,7 +665,7 @@ function parseQueueArguments(
   values: ArchiveArgumentValues,
 ): ParsedCLIArguments {
   const action = positionals[0];
-  const helpRoute = "spinedigest queue --help";
+  const helpRoute = "wikigraph queue --help";
 
   if (values.help === true) {
     if (isQueueAction(action)) {
@@ -711,7 +711,7 @@ function parseQueueArguments(
       if (archivePath === undefined || archivePath === "-") {
         throw new Error(
           withHelpRoute(
-            "`spinedigest queue add` requires <archive.sdpub>.",
+            "`wikigraph queue add` requires <archive.sdpub>.",
             helpRoute,
           ),
         );
@@ -725,7 +725,7 @@ function parseQueueArguments(
       if (chapterId === undefined) {
         throw new Error(
           withHelpRoute(
-            "`spinedigest queue add` requires --chapter <id>.",
+            "`wikigraph queue add` requires --chapter <id>.",
             helpRoute,
           ),
         );
@@ -768,7 +768,7 @@ function parseQueueArguments(
       if (jobId === undefined) {
         throw new Error(
           withHelpRoute(
-            "`spinedigest queue status` requires <job-id>.",
+            "`wikigraph queue status` requires <job-id>.",
             helpRoute,
           ),
         );
@@ -792,7 +792,7 @@ function parseQueueArguments(
       if (jobId === undefined) {
         throw new Error(
           withHelpRoute(
-            "`spinedigest queue watch` requires <job-id>.",
+            "`wikigraph queue watch` requires <job-id>.",
             helpRoute,
           ),
         );
@@ -822,7 +822,7 @@ function parseQueueArguments(
       if (jobId === undefined) {
         throw new Error(
           withHelpRoute(
-            `\`spinedigest queue ${action}\` requires <job-id>.`,
+            `\`wikigraph queue ${action}\` requires <job-id>.`,
             helpRoute,
           ),
         );
@@ -848,7 +848,7 @@ function parseQueueArguments(
       if (jobId === undefined) {
         throw new Error(
           withHelpRoute(
-            "`spinedigest queue target` requires <job-id>.",
+            "`wikigraph queue target` requires <job-id>.",
             helpRoute,
           ),
         );
@@ -891,7 +891,7 @@ function rejectQueueJSONFlag(
 
   throw new Error(
     withHelpRoute(
-      `\`spinedigest queue ${action}\` does not support --json.`,
+      `\`wikigraph queue ${action}\` does not support --json.`,
       helpRoute,
     ),
   );
@@ -908,7 +908,7 @@ function rejectQueueJSONLFlag(
 
   throw new Error(
     withHelpRoute(
-      `\`spinedigest queue ${action}\` does not support --jsonl.`,
+      `\`wikigraph queue ${action}\` does not support --jsonl.`,
       helpRoute,
     ),
   );
@@ -926,7 +926,7 @@ function rejectQueueFlag(
 
   throw new Error(
     withHelpRoute(
-      `\`spinedigest queue ${action}\` does not support ${name}.`,
+      `\`wikigraph queue ${action}\` does not support ${name}.`,
       helpRoute,
     ),
   );
@@ -951,7 +951,7 @@ function parseArchiveMetaArguments(
   positionals: readonly string[],
   values: ArchiveArgumentValues,
 ): ParsedCLIArguments {
-  const helpRoute = "spinedigest meta --help";
+  const helpRoute = "wikigraph meta --help";
 
   if (values.help === true) {
     return {
@@ -965,7 +965,7 @@ function parseArchiveMetaArguments(
   if (archivePath === undefined || archivePath === "-") {
     throw new Error(
       withHelpRoute(
-        "Missing archive path. Use `spinedigest meta <archive.sdpub>`.",
+        "Missing archive path. Use `wikigraph meta <archive.sdpub>`.",
         helpRoute,
       ),
     );
@@ -1023,7 +1023,7 @@ function parseArchiveCoverArguments(
   positionals: readonly string[],
   values: ArchiveArgumentValues,
 ): ParsedCLIArguments {
-  const helpRoute = "spinedigest cover --help";
+  const helpRoute = "wikigraph cover --help";
 
   if (values.help === true) {
     return {
@@ -1037,7 +1037,7 @@ function parseArchiveCoverArguments(
   if (archivePath === undefined || archivePath === "-") {
     throw new Error(
       withHelpRoute(
-        "Missing archive path. Use `spinedigest cover <archive.sdpub>`.",
+        "Missing archive path. Use `wikigraph cover <archive.sdpub>`.",
         helpRoute,
       ),
     );
@@ -1092,7 +1092,7 @@ function parseArchiveArguments(
   values = normalized.values;
 
   const archivePath = positionals[0];
-  const helpRoute = `spinedigest ${action} --help`;
+  const helpRoute = `wikigraph ${action} --help`;
 
   if (values.help === true) {
     return {
@@ -1105,7 +1105,7 @@ function parseArchiveArguments(
   if (archivePath === undefined || archivePath === "-") {
     throw new Error(
       withHelpRoute(
-        `Missing archive path. Use \`spinedigest ${action} <archive.sdpub>\`.`,
+        `Missing archive path. Use \`wikigraph ${action} <archive.sdpub>\`.`,
         helpRoute,
       ),
     );
@@ -1132,7 +1132,7 @@ function parseArchiveArguments(
       if (sourcePath === undefined && inputFormat === undefined) {
         throw new Error(
           withHelpRoute(
-            "`spinedigest create` requires a source path, or --input-format when reading source text from stdin.",
+            "`wikigraph create` requires a source path, or --input-format when reading source text from stdin.",
             helpRoute,
           ),
         );
@@ -1249,7 +1249,7 @@ function parseArchiveArguments(
       if (query === undefined) {
         throw new Error(
           withHelpRoute(
-            "`spinedigest search` requires a search query.",
+            "`wikigraph search` requires a search query.",
             helpRoute,
           ),
         );
@@ -1296,7 +1296,7 @@ function parseArchiveArguments(
 
       if (uri === undefined) {
         throw new Error(
-          withHelpRoute("`spinedigest get` requires <uri>.", helpRoute),
+          withHelpRoute("`wikigraph get` requires <uri>.", helpRoute),
         );
       }
       rejectArchiveExtraPositionals(action, positionals, 2, helpRoute);
@@ -1322,13 +1322,12 @@ function parseArchiveArguments(
         kind: "archive",
       };
     }
-    case "related":
-    case "evidence": {
+    case "related": {
       const uri = positionals[1];
 
       if (uri === undefined) {
         throw new Error(
-          withHelpRoute(`\`spinedigest ${action}\` requires <uri>.`, helpRoute),
+          withHelpRoute(`\`wikigraph ${action}\` requires <uri>.`, helpRoute),
         );
       }
       rejectArchiveExtraPositionals(action, positionals, 2, helpRoute);
@@ -1356,12 +1355,53 @@ function parseArchiveArguments(
         kind: "archive",
       };
     }
+    case "evidence": {
+      const uri = positionals[1];
+
+      if (uri === undefined) {
+        throw new Error(
+          withHelpRoute(`\`wikigraph ${action}\` requires <uri>.`, helpRoute),
+        );
+      }
+      rejectArchiveExtraPositionals(action, positionals, 2, helpRoute);
+      rejectArchiveNonReadFlags(action, values, helpRoute);
+      rejectArchiveFlag(action, "--budget", values.budget, helpRoute);
+      rejectArchiveFlag(action, "--id", values.id, helpRoute);
+      rejectArchiveFlag(action, "--chapter", values.chapter, helpRoute);
+      rejectArchiveFlag(action, "--order", values.order, helpRoute);
+      rejectArchiveFlag(action, "--from", values.from, helpRoute);
+      rejectArchiveFlag(action, "--to", values.to, helpRoute);
+      rejectArchiveFlag(action, "--predicate", values.predicate, helpRoute);
+      rejectArchiveFlag(action, "--type", values.type, helpRoute);
+      rejectArchiveSelectorFlags(action, values, helpRoute);
+      rejectArchiveBooleanFlag(action, "--confirm", values.confirm, helpRoute);
+      return {
+        args: {
+          action,
+          archivePath,
+          ...(values.cursor === undefined ? {} : { cursor: values.cursor }),
+          format: parseResultFormat(values),
+          ...(values.limit === undefined
+            ? {}
+            : {
+                limit: parsePositiveIntegerFlag(
+                  values.limit,
+                  "--limit",
+                  helpRoute,
+                ),
+              }),
+          objectId: uri,
+        },
+        help: false,
+        kind: "archive",
+      };
+    }
     case "pack": {
       const uri = positionals[1];
 
       if (uri === undefined) {
         throw new Error(
-          withHelpRoute("`spinedigest pack` requires <uri>.", helpRoute),
+          withHelpRoute("`wikigraph pack` requires <uri>.", helpRoute),
         );
       }
       rejectArchiveExtraPositionals(action, positionals, 2, helpRoute);
@@ -1439,7 +1479,7 @@ function parseArchiveChapterArguments(
   const treeAction =
     action === "tree" && positionals[1] === "apply" ? "apply" : undefined;
   const path = treeAction === "apply" ? positionals[2] : positionals[1];
-  const helpRoute = "spinedigest chapter --help";
+  const helpRoute = "wikigraph chapter --help";
 
   rejectArchiveChapterFlag("digest-dir", values["digest-dir"]);
   rejectArchiveChapterFlag("limit", values.limit);
@@ -1484,7 +1524,7 @@ function parseArchiveChapterArguments(
   if (path === undefined || path === "-") {
     throw new Error(
       withHelpRoute(
-        "`spinedigest chapter` requires a .sdpub path positional argument.",
+        "`wikigraph chapter` requires a .sdpub path positional argument.",
         helpRoute,
       ),
     );
@@ -1730,7 +1770,7 @@ function normalizeArchiveChapterArguments(
       if (resetStage === undefined) {
         throw new Error(
           withHelpRoute(
-            "Missing --to. `chapter reset` requires planned, source, or graph.",
+            "Missing --to. `chapter reset` requires planned, source, or reading-graph.",
             helpRoute,
           ),
         );
@@ -2129,7 +2169,7 @@ function parseConfigStatusArguments(
     throw new Error(
       withHelpRoute(
         "The `config status` command does not support --verbose.",
-        "spinedigest config status --help",
+        "wikigraph config status --help",
       ),
     );
   }
@@ -2138,7 +2178,7 @@ function parseConfigStatusArguments(
     throw new Error(
       withHelpRoute(
         `Unexpected positional arguments: ${positionals.join(" ")}.`,
-        "spinedigest config status --help",
+        "wikigraph config status --help",
       ),
     );
   }
@@ -2214,7 +2254,7 @@ function parseChapterStage(
 
   throw new Error(
     withHelpRoute(
-      `Invalid ${flag}: ${value}. Expected planned, source, graph, or summary.`,
+      `Invalid ${flag}: ${value}. Expected planned, source, reading-graph, or reading-summary.`,
       helpRoute,
     ),
   );
@@ -2268,7 +2308,7 @@ function parseResetStage(
   if (stage !== undefined) {
     throw new Error(
       withHelpRoute(
-        "`chapter reset` does not support --to summary.",
+        "`chapter reset` does not support --to reading-summary.",
         helpRoute,
       ),
     );
@@ -2276,7 +2316,7 @@ function parseResetStage(
 
   throw new Error(
     withHelpRoute(
-      `Invalid --to: ${value}. Expected planned, source, or graph.`,
+      `Invalid --to: ${value}. Expected planned, source, or reading-graph.`,
       helpRoute,
     ),
   );
@@ -2288,9 +2328,9 @@ function parseExternalChapterStage(value: string): ChapterStage | undefined {
       return "planned";
     case "source":
       return "sourced";
-    case "graph":
+    case "reading-graph":
       return "graphed";
-    case "summary":
+    case "reading-summary":
       return "summarized";
     default:
       return undefined;
@@ -2523,7 +2563,7 @@ function rejectArchiveChapterFlag(
     throw new Error(
       withHelpRoute(
         `The \`chapter\` command does not support --${name}.`,
-        "spinedigest chapter --help",
+        "wikigraph chapter --help",
       ),
     );
   }
@@ -2534,7 +2574,7 @@ function rejectArchiveChapterMetaFlags(values: ArchiveMetaFlagValues): void {
     throw new Error(
       withHelpRoute(
         `The \`chapter\` command does not support ${flag}.`,
-        "spinedigest chapter --help",
+        "wikigraph chapter --help",
       ),
     );
   }
@@ -2556,7 +2596,7 @@ function rejectStatusMetaFlags(values: ArchiveMetaFlagValues): void {
     throw new Error(
       withHelpRoute(
         `The \`config status\` command does not support ${flag}.`,
-        "spinedigest config status --help",
+        "wikigraph config status --help",
       ),
     );
   }
@@ -2582,7 +2622,7 @@ function rejectTransformMetaFlags(values: ArchiveMetaFlagValues): void {
     throw new Error(
       withHelpRoute(
         `The \`transform\` command does not support ${flag}.`,
-        "spinedigest transform --help",
+        "wikigraph transform --help",
       ),
     );
   }
@@ -2658,7 +2698,7 @@ function rejectStatusFlag(
     throw new Error(
       withHelpRoute(
         `The \`config status\` command does not support --${name}.`,
-        "spinedigest config status --help",
+        "wikigraph config status --help",
       ),
     );
   }
@@ -2697,15 +2737,17 @@ function isQueueAction(value: string | undefined): value is CLIQueueAction {
 function parseBuildJobTarget(value: string | undefined): BuildJobTarget {
   switch (value) {
     case undefined:
-    case "summary":
-      return "summary";
+    case "reading-summary":
+      return "reading-summary";
     case "reading-graph":
-      return "graph";
+      return "reading-graph";
+    case "knowledge-graph":
+      return "knowledge-graph";
     default:
       throw new Error(
         withHelpRoute(
-          `Invalid queue task: ${value}. Expected reading-graph or summary.`,
-          "spinedigest queue --help",
+          `Invalid queue task: ${value}. Expected reading-graph, reading-summary, or knowledge-graph.`,
+          "wikigraph queue --help",
         ),
       );
   }
@@ -3009,7 +3051,7 @@ function rejectCoverMetaFlags(values: ArchiveMetaFlagValues): void {
     throw new Error(
       withHelpRoute(
         `The \`cover\` command does not support ${flag}.`,
-        "spinedigest cover --help",
+        "wikigraph cover --help",
       ),
     );
   }

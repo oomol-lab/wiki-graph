@@ -14,9 +14,9 @@ describe("wikimatch/window", () => {
       candidate("c3", "北京", 14, 16, "Q2"),
     ];
     const windows = buildWikimatchWindows({
-      candidateBudget: 2,
       candidates,
       contextWords: 8,
+      optionBudget: 2,
       text,
     });
 
@@ -33,6 +33,24 @@ describe("wikimatch/window", () => {
     ]);
     expect(windows[1]?.candidates.map((item) => item.id)).toStrictEqual(["c3"]);
   });
+
+  it("counts selectable qid options rather than candidate records", () => {
+    const text = "张三去了华盛顿，又去了巴黎。";
+    const candidates: WikimatchCandidate[] = [
+      candidate("c1", "华盛顿", 4, 7, "Q1", "Q2", "Q3"),
+      candidate("c2", "巴黎", 11, 13, "Q4"),
+    ];
+    const windows = buildWikimatchWindows({
+      candidates,
+      contextWords: 8,
+      optionBudget: 3,
+      text,
+    });
+
+    expect(windows).toHaveLength(2);
+    expect(windows[0]?.candidates.map((item) => item.id)).toStrictEqual(["c1"]);
+    expect(windows[1]?.candidates.map((item) => item.id)).toStrictEqual(["c2"]);
+  });
 });
 
 function candidate(
@@ -40,11 +58,11 @@ function candidate(
   surface: string,
   start: number,
   end: number,
-  qid: string,
+  ...qids: string[]
 ): WikimatchCandidate {
   return {
     id,
-    qidOptions: [{ qid }],
+    qidOptions: qids.map((qid) => ({ qid })),
     range: { end, start },
     surface,
   };

@@ -364,24 +364,24 @@ describe("document/stores", () => {
           await openedDocument.chunks.save(chunk);
         }
 
-        await openedDocument.knowledgeEdges.save({
+        await openedDocument.readingEdges.save({
           fromId: 100,
           strength: "strong",
           toId: 101,
           weight: 0.9,
         });
-        await openedDocument.knowledgeEdges.save({
+        await openedDocument.readingEdges.save({
           fromId: 101,
           toId: 100,
           weight: 0.7,
         });
-        await openedDocument.knowledgeEdges.save({
+        await openedDocument.readingEdges.save({
           fromId: 100,
           toId: 200,
           weight: 0.4,
         });
 
-        expect(await openedDocument.knowledgeEdges.listAll()).toStrictEqual([
+        expect(await openedDocument.readingEdges.listAll()).toStrictEqual([
           {
             fromId: 100,
             strength: "strong",
@@ -400,10 +400,10 @@ describe("document/stores", () => {
           },
         ]);
         expect(
-          await openedDocument.knowledgeEdges.listIncoming(100),
+          await openedDocument.readingEdges.listIncoming(100),
         ).toStrictEqual([{ fromId: 101, toId: 100, weight: 0.7 }]);
         expect(
-          await openedDocument.knowledgeEdges.listOutgoing(100),
+          await openedDocument.readingEdges.listOutgoing(100),
         ).toStrictEqual([
           {
             fromId: 100,
@@ -417,21 +417,21 @@ describe("document/stores", () => {
             weight: 0.4,
           },
         ]);
-        expect(
-          await openedDocument.knowledgeEdges.listBySerial(1),
-        ).toStrictEqual([
-          {
-            fromId: 100,
-            strength: "strong",
-            toId: 101,
-            weight: 0.9,
-          },
-          {
-            fromId: 101,
-            toId: 100,
-            weight: 0.7,
-          },
-        ]);
+        expect(await openedDocument.readingEdges.listBySerial(1)).toStrictEqual(
+          [
+            {
+              fromId: 100,
+              strength: "strong",
+              toId: 101,
+              weight: 0.9,
+            },
+            {
+              fromId: 101,
+              toId: 100,
+              weight: 0.7,
+            },
+          ],
+        );
       });
     });
   });

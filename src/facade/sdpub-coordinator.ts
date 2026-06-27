@@ -81,7 +81,7 @@ export class SdpubCoordinator {
   ): Promise<T> {
     const directoryPath =
       options.documentDirPath === undefined
-        ? await mkdtemp(join(tmpdir(), "spinedigest-open-"))
+        ? await mkdtemp(join(tmpdir(), "wikigraph-open-"))
         : resolve(options.documentDirPath);
 
     try {
@@ -98,7 +98,7 @@ export class SdpubCoordinator {
     archivePath: string,
     operation: (documentDirectoryPath: string) => Promise<T> | T,
   ): Promise<T> {
-    const directoryPath = await mkdtemp(join(tmpdir(), "spinedigest-write-"));
+    const directoryPath = await mkdtemp(join(tmpdir(), "wikigraph-write-"));
 
     try {
       await extractSdpubArchive(resolve(archivePath), directoryPath);
@@ -417,7 +417,7 @@ async function flushArchiveOverlays(archiveKey: string): Promise<void> {
 
     try {
       const temporaryDirectoryPath = await mkdtemp(
-        join(tmpdir(), "spinedigest-flush-"),
+        join(tmpdir(), "wikigraph-flush-"),
       );
       const temporaryArchivePath = join(
         temporaryDirectoryPath,
@@ -932,7 +932,7 @@ function normalizeEntryPath(path: string): string {
 }
 
 function getCoordinatorStateDirectoryPath(): string {
-  const stateDirectoryPath = process.env.SPINEDIGEST_STATE_DIR;
+  const stateDirectoryPath = process.env.WIKIGRAPH_STATE_DIR;
 
   if (stateDirectoryPath !== undefined && stateDirectoryPath.trim() !== "") {
     return resolve(stateDirectoryPath);

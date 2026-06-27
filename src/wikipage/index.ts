@@ -19,6 +19,9 @@ export type {
   DisambiguationProfileNormalizer,
   DisambiguationProfileNormalizerInput,
   QidResolution,
+  WikipageResolveProgress,
+  WikipageResolveProgressDetail,
+  WikipageResolveProgressReporter,
   WikipageResolverOptions,
   WikipageSitelink,
 } from "./types.js";

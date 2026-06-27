@@ -2,7 +2,7 @@ import type {
   ChunkRecord,
   Document,
   FragmentGroupRecord,
-  KnowledgeEdgeRecord,
+  ReadingEdgeRecord,
 } from "../document/index.js";
 import type { ReaderChunk, ReaderGraphDelta } from "../reader/index.js";
 import { groupFragments } from "./grouping.js";
@@ -13,8 +13,8 @@ import {
 } from "./snake-detector.js";
 import {
   computeChunkWeights,
-  computeKnowledgeEdgeWeights,
-  getKnowledgeEdgeKey,
+  computeReadingEdgeWeights,
+  getReadingEdgeKey,
 } from "./weights.js";
 
 const DEFAULT_SNAKE_WORDS_COUNT = 280;
@@ -67,7 +67,7 @@ export class Topology {
     const chunks = this.#listChunks();
     const edges = this.#listEdges();
     const chunkWeights = computeChunkWeights(chunks);
-    const edgeWeights = computeKnowledgeEdgeWeights({
+    const edgeWeights = computeReadingEdgeWeights({
       chunkWeights,
       edges,
     });
@@ -77,7 +77,7 @@ export class Topology {
     }));
     const weightedEdges = edges.map((edge) => ({
       ...edge,
-      weight: edgeWeights[getKnowledgeEdgeKey(edge.fromId, edge.toId)] ?? 0,
+      weight: edgeWeights[getReadingEdgeKey(edge.fromId, edge.toId)] ?? 0,
     }));
     const fragmentGroups = await groupFragments({
       chunks: weightedChunks,
@@ -125,7 +125,7 @@ export class Topology {
         continue;
       }
 
-      await this.#document.knowledgeEdges.save({
+      await this.#document.readingEdges.save({
         ...edge,
         fromId,
         toId,
@@ -188,11 +188,11 @@ export class Topology {
       .filter((chunk): chunk is ChunkRecord => chunk !== undefined);
   }
 
-  #listEdges(): KnowledgeEdgeRecord[] {
+  #listEdges(): ReadingEdgeRecord[] {
     return [...this.#edgeKeys]
       .sort(compareEdgeKey)
       .map((edgeKey) => this.#edgesByKey[edgeKey])
-      .filter((edge): edge is KnowledgeEdgeRecord => edge !== undefined);
+      .filter((edge): edge is ReadingEdgeRecord => edge !== undefined);
   }
 
   #saveChunk(chunk: ReaderChunk): void {
@@ -220,7 +220,7 @@ export class Topology {
   }
 
   #saveEdge(edge: ReaderGraphDelta["edges"][number]): void {
-    const edgeKey = getKnowledgeEdgeKey(edge.fromId, edge.toId);
+    const edgeKey = getReadingEdgeKey(edge.fromId, edge.toId);
 
     if (this.#edgesByKey[edgeKey] === undefined) {
       this.#edgeKeys.push(edgeKey);
@@ -258,8 +258,8 @@ function createChunkRecord(): Record<string, ChunkRecord | undefined> {
   return Object.create(null) as Record<string, ChunkRecord | undefined>;
 }
 
-function createEdgeRecord(): Record<string, KnowledgeEdgeRecord | undefined> {
-  return Object.create(null) as Record<string, KnowledgeEdgeRecord | undefined>;
+function createEdgeRecord(): Record<string, ReadingEdgeRecord | undefined> {
+  return Object.create(null) as Record<string, ReadingEdgeRecord | undefined>;
 }
 
 interface SnakeDraft {
@@ -286,7 +286,7 @@ interface SnakeEdgeDraft {
 
 function buildSnakeTopology(input: {
   chunks: readonly ChunkRecord[];
-  edges: readonly KnowledgeEdgeRecord[];
+  edges: readonly ReadingEdgeRecord[];
   fragmentGroups: readonly FragmentGroupRecord[];
   serialId: number;
 }): {
@@ -296,7 +296,7 @@ function buildSnakeTopology(input: {
 } {
   const chunksById = createChunkRecord();
   const chunkIdsByGroupId = createNumberListRecord();
-  const edgesByGroupId = createKnowledgeEdgeListRecord();
+  const edgesByGroupId = createReadingEdgeListRecord();
   const groupIdByFragmentId = createOptionalNumberRecord();
 
   for (const fragmentGroup of input.fragmentGroups) {
@@ -450,14 +450,11 @@ function createNumberListRecord(): Record<string, number[] | undefined> {
   return Object.create(null) as Record<string, number[] | undefined>;
 }
 
-function createKnowledgeEdgeListRecord(): Record<
+function createReadingEdgeListRecord(): Record<
   string,
-  KnowledgeEdgeRecord[] | undefined
+  ReadingEdgeRecord[] | undefined
 > {
-  return Object.create(null) as Record<
-    string,
-    KnowledgeEdgeRecord[] | undefined
-  >;
+  return Object.create(null) as Record<string, ReadingEdgeRecord[] | undefined>;
 }
 
 function createOptionalNumberRecord(): Record<string, number | undefined> {

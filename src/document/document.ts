@@ -17,12 +17,12 @@ import { SCHEMA_SQL } from "./schema.js";
 import {
   ChunkStore,
   FragmentGroupStore,
-  KnowledgeEdgeStore,
+  ReadingEdgeStore,
   MentionLinkStore,
   MentionStore,
   type ReadonlyChunkStore,
   type ReadonlyFragmentGroupStore,
-  type ReadonlyKnowledgeEdgeStore,
+  type ReadonlyReadingEdgeStore,
   type ReadonlyMentionLinkStore,
   type ReadonlyMentionStore,
   type ReadonlySerialStore,
@@ -105,7 +105,7 @@ const coverFileSchema = z.object({
 export interface ReadonlyDocument {
   readonly chunks: ReadonlyChunkStore;
   readonly fragmentGroups: ReadonlyFragmentGroupStore;
-  readonly knowledgeEdges: ReadonlyKnowledgeEdgeStore;
+  readonly readingEdges: ReadonlyReadingEdgeStore;
   readonly mentionLinks: ReadonlyMentionLinkStore;
   readonly mentions: ReadonlyMentionStore;
   readonly serials: ReadonlySerialStore;
@@ -135,7 +135,7 @@ export interface DocumentContext {
 export interface Document extends ReadonlyDocument {
   readonly chunks: ChunkStore;
   readonly fragmentGroups: FragmentGroupStore;
-  readonly knowledgeEdges: KnowledgeEdgeStore;
+  readonly readingEdges: ReadingEdgeStore;
   readonly mentionLinks: MentionLinkStore;
   readonly mentions: MentionStore;
   readonly serials: SerialStore;
@@ -164,7 +164,7 @@ export interface Document extends ReadonlyDocument {
 export class DirectoryDocument implements Document {
   public readonly chunks: ChunkStore;
   public readonly fragmentGroups: FragmentGroupStore;
-  public readonly knowledgeEdges: KnowledgeEdgeStore;
+  public readonly readingEdges: ReadingEdgeStore;
   public readonly mentionLinks: MentionLinkStore;
   public readonly mentions: MentionStore;
   public readonly path: string;
@@ -189,7 +189,7 @@ export class DirectoryDocument implements Document {
     this.#fragments = fragments;
     this.chunks = new ChunkStore(database);
     this.fragmentGroups = new FragmentGroupStore(database);
-    this.knowledgeEdges = new KnowledgeEdgeStore(database);
+    this.readingEdges = new ReadingEdgeStore(database);
     this.mentionLinks = new MentionLinkStore(database);
     this.mentions = new MentionStore(database);
     this.path = path;
@@ -538,7 +538,7 @@ export class DirectoryDocument implements Document {
       );
       await this.#database.run(
         `
-          DELETE FROM knowledge_edges
+          DELETE FROM reading_edges
           WHERE from_id IN (
             SELECT id
             FROM chunks

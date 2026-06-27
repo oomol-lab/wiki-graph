@@ -6,9 +6,29 @@ export interface WikipageResolverOptions {
   readonly maxBatchSize?: number;
   readonly minRequestIntervalMs?: number;
   readonly normalizer?: DisambiguationProfileNormalizer;
+  readonly progress?: WikipageResolveProgressReporter;
+  readonly retryBaseDelayMs?: number;
+  readonly retryTimes?: number;
   readonly userAgent?: string;
   readonly wiki?: string;
 }
+
+export type WikipageResolveProgressDetail =
+  | "disambiguation-page"
+  | "entity"
+  | "linked-page"
+  | "page"
+  | "qid";
+
+export interface WikipageResolveProgress {
+  readonly detail: WikipageResolveProgressDetail;
+  readonly done: number;
+  readonly total: number;
+}
+
+export type WikipageResolveProgressReporter = (
+  event: WikipageResolveProgress,
+) => Promise<void> | void;
 
 export interface QidResolution {
   readonly description?: string;

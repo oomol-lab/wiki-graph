@@ -4,15 +4,15 @@ This note tracks how the CLI help system is expected to recover from common user
 
 ## Error Routing Coverage
 
-| Problem family    | Representative failures                                                               | Expected help landing                                                                  |
-| ----------------- | ------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------- |
-| Command shape     | unexpected positional args, unsupported `help` flags                                  | `spinedigest help command` or `spinedigest --help`                                     |
-| Maintenance usage | missing archive path, unsupported `meta`/`cover`/`chapter` flags, missing `--chapter` | `spinedigest meta --help`, `spinedigest cover --help`, or `spinedigest chapter --help` |
-| Format rules      | unsupported `stdin`/`stdout` formats, missing format inference                        | `spinedigest help format`                                                              |
-| Runtime rules     | interactive stdin refusal, `--verbose` with stdout output                             | `spinedigest help runtime`                                                             |
-| LLM config        | missing provider/model, unsupported provider/baseURL combinations                     | `spinedigest help config`                                                              |
-| Env overrides     | invalid provider values, invalid numeric/boolean/sampling env values                  | `spinedigest help env`                                                                 |
-| Config file       | invalid JSON, invalid schema fields                                                   | `spinedigest help config-file`                                                         |
+| Problem family    | Representative failures                                                               | Expected help landing                                                            |
+| ----------------- | ------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------- |
+| Command shape     | unexpected positional args, unsupported `help` flags                                  | `wikigraph help command` or `wikigraph --help`                                   |
+| Maintenance usage | missing archive path, unsupported `meta`/`cover`/`chapter` flags, missing `--chapter` | `wikigraph meta --help`, `wikigraph cover --help`, or `wikigraph chapter --help` |
+| Format rules      | unsupported `stdin`/`stdout` formats, missing format inference                        | `wikigraph help format`                                                          |
+| Runtime rules     | interactive stdin refusal, `--verbose` with stdout output                             | `wikigraph help runtime`                                                         |
+| LLM config        | missing provider/model, unsupported provider/baseURL combinations                     | `wikigraph help config`                                                          |
+| Env overrides     | invalid provider values, invalid numeric/boolean/sampling env values                  | `wikigraph help env`                                                             |
+| Config file       | invalid JSON, invalid schema fields                                                   | `wikigraph help config-file`                                                     |
 
 ## Current Test Coverage
 

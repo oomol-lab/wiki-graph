@@ -11,7 +11,7 @@ SpineDigest 围绕一个主对象构建：`.sdpub` 知识库归档。EPUB、Mark
 从高层看，SpineDigest 有四层：
 
 1. Source layer：读取 EPUB、Markdown、纯文本或 stdin，并规范化成带来源的章节数据。
-2. Knowledge layer：使用 LLM-backed extraction 和图算法构建 chunk、graph node、link、summary 和 source fragment pointer。
+2. Knowledge layer：从 source fragment 构建 Reading Graph chunk 和 summary，并构建 Knowledge Graph entity mention 与关系。
 3. Retrieval layer：通过 `index`、`list`、`find`、`grep`、`page`、`read`、`links`、`backlinks`、`related`、`pack` 等 CLI primitive 暴露已有归档数据。
 4. Projection layer：导出 Markdown、txt、EPUB、JSON 风格命令输出，或一次性的 `transform` 结果。
 
@@ -34,10 +34,11 @@ SpineDigest 围绕一个主对象构建：`.sdpub` 知识库归档。EPUB、Mark
 面向用户的 stage 描述归档中已经构建了多少知识：
 
 - `source`：已有规范化源数据和 metadata
-- `graph`：已有 graph node、link 和 source-backed knowledge unit
-- `summary`：已有可读章节 summary 和 export projection 所需数据
+- `reading-graph`：已有面向阅读的 chunk、link 和 source-backed knowledge unit
+- `reading-summary`：已有可读章节 summary 和 export projection 所需数据
+- `knowledge-graph`：已有 entity mention 和 relation，可用于 URI 化搜索与证据追踪
 
-`source` 便宜，不需要 LLM 访问。`graph` 和 `summary` 可能调用 LLM provider，整份归档构建前应先 estimate。
+`source` 便宜，不需要 LLM 访问。Reading Graph、Reading Summary 和 Knowledge Graph queue task 可能调用 LLM provider，整份归档构建前应先 estimate。
 
 ## 为什么需要 `.sdpub`
 

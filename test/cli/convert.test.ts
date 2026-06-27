@@ -41,8 +41,8 @@ const mockLLMOptions = {
 };
 
 const mockTemporaryOutput = {
-  directoryPath: "/tmp/spinedigest-cli-output-temp",
-  filePath: "/tmp/spinedigest-cli-output-temp/output.txt",
+  directoryPath: "/tmp/wikigraph-cli-output-temp",
+  filePath: "/tmp/wikigraph-cli-output-temp/output.txt",
 };
 
 const mockStdinStream = ["from stdin"];
@@ -249,7 +249,7 @@ describe("cli/convert", () => {
     expect(cliMockState.createTemporaryOutputPathCalls).toStrictEqual([
       {
         extension: ".md",
-        prefix: "spinedigest-cli-output-",
+        prefix: "wikigraph-cli-output-",
       },
     ]);
     expect(cliMockState.exportCalls).toStrictEqual([
@@ -353,7 +353,7 @@ describe("cli/convert", () => {
         verbose: false,
       }),
     ).rejects.toThrow(
-      "Missing --input. Refusing to read from interactive stdin. Use --input <path> or pipe text into stdin.\nSee: spinedigest help runtime",
+      "Missing --input. Refusing to read from interactive stdin. Use --input <path> or pipe text into stdin.\nSee: wikigraph help runtime",
     );
 
     expect(cliMockState.digestCalls.textStream).toHaveLength(0);
@@ -409,7 +409,7 @@ describe("cli/convert", () => {
         verbose: false,
       }),
     ).rejects.toThrow(
-      "Missing LLM configuration. Set --llm, `llm.provider` and `llm.model` in ~/.wikigraph/config.json, or the matching SPINEDIGEST_LLM_* environment variables.\nSee: spinedigest help config",
+      "Missing LLM configuration. Set --llm, `llm.provider` and `llm.model` in ~/.wikigraph/config.json, or the matching WIKIGRAPH_LLM_* environment variables.\nSee: wikigraph help config",
     );
 
     expect(cliMockState.appConstructorOptions).toHaveLength(0);
@@ -453,7 +453,7 @@ describe("cli/convert", () => {
         verbose: false,
       }),
     ).rejects.toThrow(
-      "--stage is only supported when output format is sdpub.\nSee: spinedigest help command",
+      "--stage is only supported when output format is sdpub.\nSee: wikigraph help command",
     );
 
     await expect(
@@ -465,7 +465,7 @@ describe("cli/convert", () => {
         verbose: false,
       }),
     ).rejects.toThrow(
-      "--stage is only supported when creating .sdpub from source input.\nSee: spinedigest help command",
+      "--stage is only supported when creating .sdpub from source input.\nSee: wikigraph help command",
     );
   });
 
@@ -477,7 +477,7 @@ describe("cli/convert", () => {
         verbose: false,
       }),
     ).rejects.toThrow(
-      "Cannot infer input format from stdin. Set --input-format.\nSee: spinedigest help format",
+      "Cannot infer input format from stdin. Set --input-format.\nSee: wikigraph help format",
     );
 
     expect(cliMockState.appConstructorOptions).toHaveLength(0);
@@ -492,7 +492,7 @@ describe("cli/convert", () => {
         verbose: false,
       }),
     ).rejects.toThrow(
-      "stdout only supports txt or markdown, but got sdpub.\nSee: spinedigest help format",
+      "stdout only supports txt or markdown, but got sdpub.\nSee: wikigraph help format",
     );
 
     expect(cliMockState.appConstructorOptions).toHaveLength(0);
@@ -515,7 +515,7 @@ describe("cli/convert", () => {
         verbose: true,
       }),
     ).rejects.toThrow(
-      "Cannot use --verbose when writing digest output to stdout. Use --output <path> or disable --verbose.\nSee: spinedigest help runtime",
+      "Cannot use --verbose when writing digest output to stdout. Use --output <path> or disable --verbose.\nSee: wikigraph help runtime",
     );
 
     expect(cliMockState.appConstructorOptions).toHaveLength(0);
@@ -555,7 +555,7 @@ describe("cli/convert", () => {
         outputPath: "/tmp/output.txt",
         verbose: false,
       }),
-    ).rejects.toThrow("See: spinedigest help config");
+    ).rejects.toThrow("See: wikigraph help config");
 
     cliMockState.config = {
       llm: {
@@ -571,7 +571,7 @@ describe("cli/convert", () => {
         outputFormat: "txt",
         verbose: true,
       }),
-    ).rejects.toThrow("See: spinedigest help runtime");
+    ).rejects.toThrow("See: wikigraph help runtime");
   });
 
   it("renders digest progress to stderr for interactive file output", async () => {
