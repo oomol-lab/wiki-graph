@@ -257,11 +257,10 @@ export function validatePolicyResponse(
         continue;
       }
 
-      if (
-        decision.qid !== undefined &&
-        !isAllowedQid(candidate, decision.qid)
-      ) {
-        issues.push(formatIllegalQidIssue(candidate, decision.qid));
+      if (decision.qid !== undefined) {
+        issues.push(
+          `Candidate ${candidate.id} uses decision "${decision.decision}" but includes qid. Include qid only when decision is "recall".`,
+        );
       }
     }
   }

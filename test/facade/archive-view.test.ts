@@ -648,16 +648,144 @@ describe("facade/archive-view", () => {
 
       try {
         await seedSourcedDocument(document);
+        await document.openSession(async (openedDocument) => {
+          await openedDocument.createSerial();
+          const draft = await openedDocument
+            .getSerialFragments(2)
+            .createDraft();
+
+          draft.addSentence("Second chapter repeats LLM Wiki.", 5);
+          await draft.commit();
+          await openedDocument.chunks.save({
+            content: "Second chapter chunk.",
+            generation: 0,
+            id: 200,
+            label: "Second chunk",
+            sentenceId: [2, 0, 0],
+            sentenceIds: [[2, 0, 0]],
+            wordsCount: 3,
+            weight: 1,
+          });
+          await openedDocument.writeSummary(2, "Second summary.");
+          await openedDocument.mentions.saveMany([
+            {
+              chapterId: 1,
+              fragmentId: 0,
+              id: "m1",
+              qid: "Q1",
+              rangeEnd: 11,
+              rangeStart: 0,
+              sentenceIndex: 0,
+              surface: "LLM Wiki",
+            },
+            {
+              chapterId: 2,
+              fragmentId: 0,
+              id: "m2",
+              qid: "Q1",
+              rangeEnd: 26,
+              rangeStart: 15,
+              sentenceIndex: 0,
+              surface: "LLM Wiki",
+            },
+            {
+              chapterId: 2,
+              fragmentId: 0,
+              id: "m3",
+              qid: "Q2",
+              rangeEnd: 14,
+              rangeStart: 7,
+              sentenceIndex: 0,
+              surface: "chapter",
+            },
+          ]);
+          await openedDocument.mentionLinks.save({
+            evidenceEnd: 32,
+            evidenceStart: 0,
+            id: "l1",
+            predicate: "mentions",
+            sourceMentionId: "m2",
+            targetMentionId: "m3",
+          });
+          await openedDocument.replaceToc({
+            items: [
+              {
+                children: [],
+                serialId: 1,
+                title: "Introduction",
+              },
+              {
+                children: [],
+                serialId: 2,
+                title: "Second",
+              },
+            ],
+            version: 1,
+          });
+        });
 
         const result = await listArchiveCollection(document, {
           chapters: [1],
-          types: ["node"],
+          types: ["chapter", "entity", "fragment", "node", "summary", "triple"],
         });
 
-        expect(result.items).toStrictEqual([
-          expect.objectContaining({ id: "node:100", type: "node" }),
-          expect.objectContaining({ id: "node:101", type: "node" }),
-        ]);
+        expect(result.items.map((item) => item.id)).toEqual(
+          expect.arrayContaining([
+            "chapter:1",
+            "wikigraph://entity/Q1",
+            "fragment:1:0",
+            "node:100",
+            "node:101",
+            "summary:1",
+          ]),
+        );
+        expect(result.items.map((item) => item.id)).not.toEqual(
+          expect.arrayContaining([
+            "chapter:2",
+            "node:200",
+            "summary:2",
+            "wikigraph://triple/Q1/mentions/Q2",
+          ]),
+        );
+
+        const scopedSecond = await listArchiveCollection(document, {
+          chapters: [2],
+          types: ["entity", "triple"],
+        });
+
+        expect(scopedSecond.items).toEqual(
+          expect.arrayContaining([
+            expect.objectContaining({
+              chapter: 2,
+              id: "wikigraph://entity/Q1",
+              type: "entity",
+            }),
+            expect.objectContaining({
+              chapter: 2,
+              id: "wikigraph://triple/Q1/mentions/Q2",
+              type: "triple",
+            }),
+          ]),
+        );
+      } finally {
+        await document.release();
+      }
+    });
+  });
+
+  it("rejects malformed top-level chunk and entity URIs", async () => {
+    await withTempDir("spinedigest-archive-view-", async (path) => {
+      const document = await DirectoryDocument.open(`${path}/document`);
+
+      try {
+        await seedSourcedDocument(document);
+
+        await expect(
+          readArchivePage(document, "wikigraph://chunk/100/extra"),
+        ).rejects.toThrow("Invalid Wiki Graph URI");
+        await expect(
+          readArchivePage(document, "wikigraph://entity/Q1/extra"),
+        ).rejects.toThrow("Invalid Wiki Graph URI");
       } finally {
         await document.release();
       }

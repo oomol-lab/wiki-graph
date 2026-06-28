@@ -43,6 +43,28 @@ describe("wikimatch/surface-window", () => {
       "北京",
     ]);
   });
+
+  it("filters suspicious surfaces by source range text", () => {
+    const text = "北京北京上海";
+    const result = buildWikimatchSurfaceProtectionInput({
+      candidates: [
+        candidate("c1", "stale", 0, 2),
+        candidate("c2", "stale", 2, 4),
+        candidate("c3", "上海", 4, 6),
+      ],
+      percentile: 0.5,
+      text,
+    });
+
+    expect(result.suspiciousSurfaces).toStrictEqual([
+      {
+        count: 2,
+        id: "s1",
+        text: "北京",
+      },
+    ]);
+    expect(result.candidates.map((item) => item.id)).toStrictEqual(["c3"]);
+  });
 });
 
 function candidate(

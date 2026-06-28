@@ -9,6 +9,12 @@ import { Database } from "./database.js";
 
 const INIT_LOCK_RETRY_MS = 50;
 const INIT_LOCK_STALE_MS = 5 * 60 * 1000;
+const INIT_LOCK_HEARTBEAT_MS = Math.floor(INIT_LOCK_STALE_MS / 2);
+
+interface InitLockOwner {
+  readonly at: number;
+  readonly pid: number;
+}
 
 export async function openSharedStateDatabase(
   databasePath: string,
@@ -74,30 +80,49 @@ async function withInitLock<T>(
   }
 
   try {
-    await writeFile(
-      `${lockPath}/owner.json`,
-      `${JSON.stringify(
-        {
-          at: Date.now(),
-          pid: process.pid,
-        },
-        null,
-        2,
-      )}\n`,
-      "utf8",
-    );
+    await writeInitLockOwner(lockPath);
+    const heartbeat = setInterval(() => {
+      void writeInitLockOwner(lockPath).catch(() => undefined);
+    }, INIT_LOCK_HEARTBEAT_MS);
 
-    return await operation();
+    try {
+      return await operation();
+    } finally {
+      clearInterval(heartbeat);
+    }
   } finally {
     await rm(lockPath, { force: true, recursive: true });
   }
 }
 
+async function writeInitLockOwner(lockPath: string): Promise<void> {
+  await writeFile(
+    `${lockPath}/owner.json`,
+    `${JSON.stringify(
+      {
+        at: Date.now(),
+        pid: process.pid,
+      },
+      null,
+      2,
+    )}\n`,
+    "utf8",
+  );
+}
+
 async function removeStaleInitLock(lockPath: string): Promise<void> {
   try {
-    const lockStat = await stat(lockPath);
+    const owner = await readInitLockOwner(lockPath);
 
-    if (Date.now() - lockStat.mtimeMs < INIT_LOCK_STALE_MS) {
+    if (owner !== undefined) {
+      if (isProcessAlive(owner.pid)) {
+        return;
+      }
+
+      if (Date.now() - owner.at < INIT_LOCK_STALE_MS) {
+        return;
+      }
+    } else if (!(await isPathOlderThan(lockPath, INIT_LOCK_STALE_MS))) {
       return;
     }
 
@@ -108,6 +133,66 @@ async function removeStaleInitLock(lockPath: string): Promise<void> {
     }
 
     throw error;
+  }
+}
+
+async function readInitLockOwner(
+  lockPath: string,
+): Promise<InitLockOwner | undefined> {
+  try {
+    const parsed = JSON.parse(
+      await readFile(`${lockPath}/owner.json`, "utf8"),
+    ) as unknown;
+
+    if (isInitLockOwner(parsed)) {
+      return parsed;
+    }
+
+    return undefined;
+  } catch (error) {
+    if (isNodeError(error) && error.code === "ENOENT") {
+      return undefined;
+    }
+
+    if (error instanceof SyntaxError) {
+      return undefined;
+    }
+
+    throw error;
+  }
+}
+
+function isInitLockOwner(value: unknown): value is InitLockOwner {
+  if (typeof value !== "object" || value === null) {
+    return false;
+  }
+
+  const record = value as Record<string, unknown>;
+
+  return (
+    typeof record.pid === "number" &&
+    Number.isInteger(record.pid) &&
+    record.pid > 0 &&
+    typeof record.at === "number"
+  );
+}
+
+async function isPathOlderThan(path: string, ms: number): Promise<boolean> {
+  const pathStat = await stat(path);
+
+  return Date.now() - pathStat.mtimeMs >= ms;
+}
+
+function isProcessAlive(pid: number): boolean {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (error) {
+    if (isNodeError(error) && error.code === "ESRCH") {
+      return false;
+    }
+
+    return true;
   }
 }
 

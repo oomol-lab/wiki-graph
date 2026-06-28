@@ -1065,10 +1065,7 @@ function parseArchiveArguments(
 
   if (archivePath === undefined || archivePath === "-") {
     throw new Error(
-      withHelpRoute(
-        `Missing archive URI. Use \`wikigraph ${action} wikigraph://<path>.sdpub\`.`,
-        helpRoute,
-      ),
+      withHelpRoute(formatMissingArchiveInputMessage(action), helpRoute),
     );
   }
 
@@ -1372,6 +1369,28 @@ function parseArchiveArguments(
         kind: "archive",
       };
     }
+  }
+}
+
+function formatMissingArchiveInputMessage(action: CLIArchiveAction): string {
+  switch (action) {
+    case "create":
+      return "Missing archive path. Use `wikigraph create <archive.sdpub> [source]`.";
+    case "export":
+      return "Missing archive path. Use `wikigraph export <archive.sdpub> --output-format <format>`.";
+    case "estimate":
+      return "Missing archive path. Use `wikigraph estimate <archive.sdpub>`.";
+    case "index":
+      return "Missing archive path. Use `wikigraph index <archive.sdpub>`.";
+    case "search":
+      return "Missing archive or scope URI. Use `wikigraph search wikigraph://<archive.sdpub> <query>`.";
+    case "list":
+      return "Missing archive or scope URI. Use `wikigraph list wikigraph://<archive.sdpub>`.";
+    case "get":
+    case "related":
+    case "evidence":
+    case "pack":
+      return `Missing object URI. Use \`wikigraph ${action} wikigraph://<archive.sdpub>/<object>\`.`;
   }
 }
 

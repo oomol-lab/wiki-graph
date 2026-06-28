@@ -9,7 +9,7 @@ Purpose:
 
 Object model:
   Search and navigation return URI-addressable objects. Common object kinds are:
-    chapter, entity, triple, source, summary, chunk
+    chapter, chapter-tree, entity, triple, source, summary, chunk
 
 Object workflow:
   - `search` returns candidate Wiki Graph URIs from query text.
@@ -24,7 +24,7 @@ Object commands:
   wikigraph list <archive-or-scope-uri> [--type <chapter|entity|triple|source|summary|chunk[,kind...]>] [--limit <n>] [--cursor <token>] [--json|--jsonl]
   wikigraph get <object-uri> [--json|--jsonl]
   wikigraph related <object-uri> [--json|--jsonl]
-  wikigraph evidence <object-uri> [--limit <n>] [--cursor <token>] [--json|--jsonl]
+  wikigraph evidence <entity|triple|summary|chunk-uri> [--limit <n>] [--cursor <token>] [--json|--jsonl]
   wikigraph pack <object-uri> [--budget <chars>] [--json|--jsonl]
 
 Archive commands:

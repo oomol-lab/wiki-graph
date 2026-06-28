@@ -94,6 +94,25 @@ const archiveMockState = vi.hoisted(() => ({
       type: "node",
     },
   ],
+  collection: {
+    chapters: [2],
+    ids: null,
+    items: [
+      {
+        chapter: 2,
+        field: "title",
+        id: "wikigraph://entity/Q1",
+        position: { chapter: 2, fragment: 0 },
+        snippet: "1 mentions",
+        title: "RAG",
+        type: "entity",
+      },
+    ],
+    limit: 20,
+    nextCursor: null,
+    order: "doc-asc",
+    types: ["entity"],
+  },
   page: {
     generatedNodeSummary: "RAG appears in this chunk.",
     id: "node:9",
@@ -203,6 +222,9 @@ vi.mock("../../src/facade/index.js", () => ({
       }),
   ),
   listArchiveEvidence: vi.fn(() => Promise.resolve(archiveMockState.evidence)),
+  listArchiveCollection: vi.fn(() =>
+    Promise.resolve(archiveMockState.collection),
+  ),
   getArchiveIndex: vi.fn(() => Promise.resolve(archiveMockState.index)),
   listRelatedArchiveObjects: vi.fn(() =>
     Promise.resolve(archiveMockState.listItems),
@@ -238,6 +260,7 @@ import { runArchiveCommand } from "../../src/cli/archive.js";
 import {
   findArchiveObjects,
   listArchiveEvidence,
+  listArchiveCollection,
   listRelatedArchiveObjects,
   readArchivePage,
 } from "../../src/facade/index.js";
@@ -296,6 +319,25 @@ describe("cli/archive", () => {
       "@@ wikigraph://chapter/2/source/0#0..1 @@",
     );
     expect(archiveMockState.textWrites[0]).toContain("2 evidence more...");
+  });
+
+  it("prints listed archive objects as Wiki Graph URI objects", async () => {
+    await runArchiveCommand({
+      action: "list",
+      archivePath: "wikigraph:///tmp/book.sdpub/chapter/2",
+      format: "text",
+      kinds: ["entity"],
+    });
+
+    expect(listArchiveCollection).toHaveBeenCalledWith(
+      {},
+      {
+        chapters: [2],
+        types: ["entity"],
+      },
+    );
+    expect(archiveMockState.textWrites[0]).toContain("wikigraph://entity/Q1");
+    expect(archiveMockState.textWrites[0]).toContain("RAG");
   });
 
   it("prints search objects as JSON", async () => {

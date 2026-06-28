@@ -17,10 +17,11 @@ import {
   buildWikimatchSurfaceProtectionInput,
   buildWikimatchWindows,
   enrichWikimatchCandidates,
+  filterCandidateQidOptions,
   judgeWikimatchPolicy,
   judgeWikimatchSurfaceProtection,
+  listCandidateSelectableQids,
   matchWikispineSentenceCandidates,
-  sliceCandidateByOptionBudget,
   type WikimatchAcceptedMention,
   type WikimatchCandidate,
   type WikimatchSentence,
@@ -425,7 +426,9 @@ function createGroundingCandidatePages(
   const candidatesById = new Map(
     candidates.map((candidate) => [candidate.id, candidate]),
   );
-  const cursors = new Map(candidates.map((candidate) => [candidate.id, 0]));
+  const shownQidsByCandidateId = new Map(
+    candidates.map((candidate) => [candidate.id, new Set<string>()]),
+  );
   const closedCandidateIds = new Set<string>();
   const recallCounts = new Map<string, number>();
 
@@ -454,9 +457,9 @@ function createGroundingCandidatePages(
         }
 
         const candidate = candidatesById.get(candidateId);
-        const cursor = cursors.get(candidateId);
+        const shownQids = shownQidsByCandidateId.get(candidateId);
 
-        if (candidate === undefined || cursor === undefined) {
+        if (candidate === undefined || shownQids === undefined) {
           continue;
         }
 
@@ -464,23 +467,35 @@ function createGroundingCandidatePages(
           candidate,
           recallCounts,
         );
-        const page = sliceCandidateByOptionBudget(
-          sortedCandidate,
-          WIKIMATCH_GROUNDING_OPTION_BUDGET,
-          cursor,
-        );
+        const selectableQids = listCandidateSelectableQids(sortedCandidate);
+        const selectedQids = selectableQids
+          .filter((qid) => !shownQids.has(qid))
+          .slice(0, WIKIMATCH_GROUNDING_OPTION_BUDGET);
 
-        if (page.candidate.qidOptions.length === 0) {
+        if (selectedQids.length === 0) {
           closedCandidateIds.add(candidateId);
           continue;
         }
 
-        if (page.nextOffset === undefined) {
-          closedCandidateIds.add(candidateId);
-        } else {
-          cursors.set(candidateId, page.nextOffset);
+        for (const qid of selectedQids) {
+          shownQids.add(qid);
         }
-        pageCandidates.push(page.candidate);
+
+        const hasMoreOptions = selectableQids.some(
+          (qid) => !shownQids.has(qid),
+        );
+        const pageCandidate = filterCandidateQidOptions(
+          sortedCandidate,
+          new Set(selectedQids),
+        );
+
+        if (!hasMoreOptions) {
+          closedCandidateIds.add(candidateId);
+        }
+        pageCandidates.push({
+          ...pageCandidate,
+          ...(hasMoreOptions ? { hasMoreOptions: true } : {}),
+        });
       }
 
       return pageCandidates;

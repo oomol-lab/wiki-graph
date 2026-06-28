@@ -18,7 +18,10 @@ export function buildWikimatchSurfaceProtectionInput(
 
   return {
     candidates: suppressedCandidates.filter(
-      (candidate) => !suspiciousTexts.has(candidate.surface),
+      (candidate) =>
+        !suspiciousTexts.has(
+          options.text.slice(candidate.range.start, candidate.range.end),
+        ),
     ),
     suppressedCandidates,
     suspiciousSurfaces,

@@ -441,6 +441,8 @@ export async function listArchiveCollection(
   options: ArchiveCollectionOptions = {},
 ): Promise<ArchiveCollectionResult> {
   const items: ArchiveFindHit[] = [];
+  const chapterFilter =
+    options.chapters === undefined ? undefined : new Set(options.chapters);
   const types = options.types ?? [
     "chapter",
     "entity",
@@ -465,7 +467,10 @@ export async function listArchiveCollection(
   }
 
   if (types.includes("chapter") || types.includes("summary")) {
-    for (const chapter of await listChapters(document)) {
+    for (const chapter of filterChapters(
+      await listChapters(document),
+      chapterFilter,
+    )) {
       const title = chapter.title ?? `[chapter ${chapter.chapterId}]`;
 
       if (types.includes("chapter")) {
@@ -499,7 +504,10 @@ export async function listArchiveCollection(
   }
 
   if (types.includes("fragment")) {
-    for (const chapter of await listChapters(document)) {
+    for (const chapter of filterChapters(
+      await listChapters(document),
+      chapterFilter,
+    )) {
       const title = chapter.title ?? formatChapterId(chapter.chapterId);
 
       for (const fragment of await listChapterSourceFragments(
@@ -524,6 +532,10 @@ export async function listArchiveCollection(
 
   if (types.includes("node")) {
     for (const node of await document.chunks.listAll()) {
+      if (!isChapterAllowed(chapterFilter, node.sentenceId[0])) {
+        continue;
+      }
+
       const position = createNodePosition(node.sentenceIds);
 
       items.push({
@@ -539,14 +551,37 @@ export async function listArchiveCollection(
   }
 
   if (types.includes("entity")) {
-    items.push(...listEntityCollection(await listAllMentions(document)));
+    items.push(
+      ...listEntityCollection(
+        filterMentionsByChapterSet(
+          await listAllMentions(document),
+          chapterFilter,
+        ),
+      ),
+    );
   }
 
   if (types.includes("triple")) {
-    items.push(...(await listTripleCollection(document)));
+    items.push(...(await listTripleCollection(document, chapterFilter)));
   }
 
   return createCollectionResult(items, options);
+}
+
+function filterChapters<T extends { readonly chapterId: number }>(
+  chapters: readonly T[],
+  chapterFilter: ReadonlySet<number> | undefined,
+): readonly T[] {
+  return chapterFilter === undefined
+    ? chapters
+    : chapters.filter((chapter) => chapterFilter.has(chapter.chapterId));
+}
+
+function isChapterAllowed(
+  chapterFilter: ReadonlySet<number> | undefined,
+  chapterId: number,
+): boolean {
+  return chapterFilter === undefined || chapterFilter.has(chapterId);
 }
 
 export async function findArchiveObjects(
@@ -1544,10 +1579,14 @@ function listEntityCollection(
 
 async function listTripleCollection(
   document: ReadonlyDocument,
+  chapterFilter?: ReadonlySet<number>,
 ): Promise<readonly ArchiveFindHit[]> {
   const hitsById = new Map<string, ArchiveFindHit>();
 
-  for (const chapter of await listChapters(document)) {
+  for (const chapter of filterChapters(
+    await listChapters(document),
+    chapterFilter,
+  )) {
     for (const link of await document.mentionLinks.listByChapter(
       chapter.chapterId,
     )) {
@@ -2614,6 +2653,15 @@ function filterMentionsByChapter(
     : mentions.filter((mention) => mention.chapterId === chapterId);
 }
 
+function filterMentionsByChapterSet(
+  mentions: readonly MentionRecord[],
+  chapterFilter: ReadonlySet<number> | undefined,
+): readonly MentionRecord[] {
+  return chapterFilter === undefined
+    ? mentions
+    : mentions.filter((mention) => chapterFilter.has(mention.chapterId));
+}
+
 async function filterMentionLinksByChapter(
   document: ReadonlyDocument,
   links: readonly MentionLinkRecord[],
@@ -3009,15 +3057,21 @@ function parseWikiGraphReference(uri: string): WikiGraphReference {
       }
       break;
     case "chunk":
-      return {
-        id: parsePositiveInteger(pathParts[1], uri),
-        type: "chunk",
-      };
+      if (pathParts.length === 2) {
+        return {
+          id: parsePositiveInteger(pathParts[1], uri),
+          type: "chunk",
+        };
+      }
+      break;
     case "entity":
-      return {
-        qid: parseQid(pathParts[1], uri),
-        type: "entity",
-      };
+      if (pathParts.length === 2) {
+        return {
+          qid: parseQid(pathParts[1], uri),
+          type: "entity",
+        };
+      }
+      break;
     case "triple":
       if (pathParts.length === 4) {
         return {

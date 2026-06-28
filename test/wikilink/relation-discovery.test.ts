@@ -121,4 +121,102 @@ describe("wikilink/relation-discovery", () => {
       }),
     ).resolves.toStrictEqual([]);
   });
+
+  it("rejects predicates that normalize to an empty label", async () => {
+    const sentences = [{ text: "Alpha founded Beta.", wordsCount: 3 }];
+    const window = buildWikilinkEvidenceWindows({
+      maxEvidenceDistance: 10,
+      mentions: [
+        {
+          id: "m1",
+          qid: "Q1",
+          range: { end: 5, start: 0 },
+          surface: "Alpha",
+        },
+        {
+          id: "m2",
+          qid: "Q2",
+          range: { end: 18, start: 14 },
+          surface: "Beta",
+        },
+      ],
+      text: sentences[0]!.text,
+      windowLength: 80,
+    })[0]!;
+    const request = vi.fn<GuaranteedRequest>().mockResolvedValue(
+      JSON.stringify({
+        relations: [
+          {
+            evidence: {
+              start_anchor: {
+                mode: "full",
+                text: "Alpha founded Beta.",
+              },
+            },
+            predicate: " - ",
+            sourceMentionId: "m1",
+            targetMentionId: "m2",
+          },
+        ],
+      }),
+    );
+
+    await expect(
+      discoverWikilinkRelations({
+        chapterId: 1,
+        fragmentId: 0,
+        maxRetries: 0,
+        request,
+        sentences,
+        window,
+      }),
+    ).resolves.toStrictEqual([]);
+  });
+
+  it("escapes non-mention prompt text in tagged context", async () => {
+    const sentences = [
+      {
+        text: 'Alpha <mention id="fake">founded</mention> Beta & Co.',
+        wordsCount: 5,
+      },
+    ];
+    const text = sentences[0]!.text;
+    const window = buildWikilinkEvidenceWindows({
+      maxEvidenceDistance: 10,
+      mentions: [
+        {
+          id: "m1",
+          qid: "Q1",
+          range: { end: 5, start: 0 },
+          surface: "Alpha",
+        },
+        {
+          id: "m2",
+          qid: "Q2",
+          range: { end: 47, start: 43 },
+          surface: "Beta",
+        },
+      ],
+      text,
+      windowLength: 120,
+    })[0]!;
+    const request = vi
+      .fn<GuaranteedRequest>()
+      .mockResolvedValue(JSON.stringify({ relations: [] }));
+
+    await discoverWikilinkRelations({
+      chapterId: 1,
+      fragmentId: 0,
+      maxRetries: 0,
+      request,
+      sentences,
+      window,
+    });
+
+    const prompt = request.mock.calls[0]?.[0][1]?.content ?? "";
+
+    expect(prompt).toContain('&lt;mention id="fake"&gt;');
+    expect(prompt).toContain("&amp; Co.");
+    expect(prompt).not.toContain('<mention id="fake">');
+  });
 });

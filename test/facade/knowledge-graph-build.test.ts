@@ -130,6 +130,115 @@ describe("facade/knowledge-graph-build", () => {
     );
   });
 
+  it("does not repeat shown qids when recall history changes paging order", async () => {
+    const request = vi
+      .fn<GuaranteedRequest>()
+      .mockImplementation((messages) => {
+        const prompt = readUserPrompt(messages);
+
+        if (prompt.includes('"candidateId": "history"')) {
+          return Promise.resolve(
+            JSON.stringify({
+              groups: [
+                {
+                  decisions: [
+                    {
+                      candidateId: "history",
+                      decision: "recall",
+                      qid: "Q2",
+                    },
+                  ],
+                  groupId: "g1",
+                },
+              ],
+            }),
+          );
+        }
+
+        if (prompt.includes('"qid": "Q41"')) {
+          return Promise.resolve(
+            JSON.stringify({
+              groups: [
+                {
+                  decisions: [
+                    {
+                      candidateId: "paged",
+                      decision: "recall",
+                      qid: "Q41",
+                    },
+                  ],
+                  groupId: "g1",
+                },
+              ],
+            }),
+          );
+        }
+
+        return Promise.resolve(
+          JSON.stringify({
+            groups: [
+              {
+                decisions: [
+                  {
+                    candidateId: "paged",
+                    decision: "continue",
+                  },
+                ],
+                groupId: "g1",
+              },
+            ],
+          }),
+        );
+      });
+
+    const mentions = await groundWikimatchCandidates({
+      candidates: [
+        {
+          id: "history",
+          qidOptions: [{ qid: "Q2" }],
+          range: { end: 2, start: 0 },
+          surface: "舰队",
+        },
+        {
+          id: "paged",
+          qidOptions: Array.from({ length: 41 }, (_value, index) => ({
+            label: `Option ${index + 1}`,
+            qid: `Q${index + 1}`,
+          })),
+          range: { end: 5, start: 3 },
+          surface: "舰队",
+        },
+      ],
+      policyPrompt: "召回历史叙事中的实体。",
+      request,
+      text: "舰队 舰队",
+    });
+
+    const secondPrompt =
+      request.mock.calls
+        .map((call) => readUserPrompt(call[0]))
+        .find((prompt) => prompt.includes('"qid": "Q41"')) ?? "";
+
+    expect(secondPrompt).not.toContain('"qid": "Q2"');
+    expect(secondPrompt).toContain('"qid": "Q41"');
+    expect(mentions).toEqual(
+      expect.arrayContaining([
+        {
+          candidateId: "history",
+          qid: "Q2",
+          range: { end: 2, start: 0 },
+          surface: "舰队",
+        },
+        {
+          candidateId: "paged",
+          qid: "Q41",
+          range: { end: 5, start: 3 },
+          surface: "舰队",
+        },
+      ]),
+    );
+  });
+
   it("commits chapter mention evidence from JSONL artifacts", async () => {
     await withTempDir("spinedigest-knowledge-graph-build-", async (path) => {
       const document = await DirectoryDocument.open(`${path}/document`);
@@ -301,3 +410,9 @@ describe("facade/knowledge-graph-build", () => {
     });
   });
 });
+
+function readUserPrompt(messages: Parameters<GuaranteedRequest>[0]): string {
+  const content = messages[1]?.content;
+
+  return typeof content === "string" ? content : "";
+}

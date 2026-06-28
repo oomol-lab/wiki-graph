@@ -211,6 +211,11 @@ function parseRelationResponse(
 
     const predicate = normalizePredicate(relation.predicate);
 
+    if (predicate === "") {
+      issues.push(`${prefix}.predicate normalizes to an empty label.`);
+      continue;
+    }
+
     if (predicate === "mentions") {
       issues.push(
         `${prefix}.predicate must be semantic; "mentions" is not a relation predicate.`,
@@ -369,9 +374,11 @@ function formatTaggedContext(window: WikilinkEvidenceWindow): string {
 
   for (const mention of mentions) {
     parts.push(
-      window.text.slice(
-        cursor - window.range.start,
-        mention.range.start - window.range.start,
+      escapeXmlText(
+        window.text.slice(
+          cursor - window.range.start,
+          mention.range.start - window.range.start,
+        ),
       ),
     );
     parts.push(
@@ -387,7 +394,7 @@ function formatTaggedContext(window: WikilinkEvidenceWindow): string {
     cursor = mention.range.end;
   }
 
-  parts.push(window.text.slice(cursor - window.range.start));
+  parts.push(escapeXmlText(window.text.slice(cursor - window.range.start)));
 
   return parts.join("");
 }

@@ -1032,7 +1032,7 @@ function toWikiGraphUri(id: string): string {
     case "chapter":
       return `wikigraph://chapter/${first ?? ""}`;
     case "fragment":
-      return `wikigraph://chapter/${first ?? ""}/source/${second ?? "0"}#0..0`;
+      return `wikigraph://chapter/${first ?? ""}/source/${second ?? "0"}`;
     case "node":
       return `wikigraph://chunk/${first ?? ""}`;
     case "summary":
