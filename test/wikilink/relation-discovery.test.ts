@@ -215,6 +215,8 @@ describe("wikilink/relation-discovery", () => {
 
     const prompt = request.mock.calls[0]?.[0][1]?.content ?? "";
 
+    expect(prompt).not.toContain("Mentions:");
+    expect(prompt).toContain('<mention id="m1" qid="Q1">Alpha</mention>');
     expect(prompt).toContain('&lt;mention id="fake"&gt;');
     expect(prompt).toContain("&amp; Co.");
     expect(prompt).not.toContain('<mention id="fake">');

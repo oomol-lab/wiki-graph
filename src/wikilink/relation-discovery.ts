@@ -302,7 +302,7 @@ function formatRelationSystemPrompt(): string {
     "Rules:",
     "- Return JSON only.",
     "- Return only relations that are directly supported by the source text.",
-    "- Every relation must connect two provided mention IDs from this window.",
+    '- Every relation must connect two mention IDs from the <mention id="..." qid="..."> tags.',
     "- Do not create a relation just because two mentions are nearby.",
     "- Prefer the suggested predicates when one fits.",
     "- If none fits, create one short snake_case predicate.",
@@ -322,17 +322,6 @@ function formatRelationUserPrompt(
   return [
     "Tagged source context:",
     formatTaggedContext(input.window),
-    "",
-    "Mentions:",
-    JSON.stringify(
-      input.window.mentions.map((mention) => ({
-        id: mention.id,
-        qid: mention.qid,
-        surface: mention.surface,
-      })),
-      null,
-      2,
-    ),
     "",
     "Return this JSON shape:",
     JSON.stringify(
