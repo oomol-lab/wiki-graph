@@ -34,7 +34,6 @@ import {
   type WikilinkMention,
   type WikilinkSentence,
 } from "../wikilink/index.js";
-import { AsyncSemaphore } from "../utils/async-semaphore.js";
 
 import { getChapterDetails } from "./chapter.js";
 import type { BuildJobProgressReporter } from "./build-queue.js";
@@ -90,7 +89,6 @@ const mentionLinkRecordSchema = z.object({
 });
 
 const WIKIMATCH_GROUNDING_OPTION_BUDGET = 35;
-const WIKIMATCH_GROUNDING_CONCURRENCY = 4;
 const WIKIMATCH_SURFACE_PROTECTION_PERCENTILE = 0.1;
 const WIKILINK_EVIDENCE_DISTANCE = 700;
 const WIKILINK_WINDOW_LENGTH = 1800;
@@ -349,7 +347,6 @@ export async function groundWikimatchCandidates(input: {
   let completedWindows = 0;
   let totalWindows = 0;
 
-  const limiter = new AsyncSemaphore(WIKIMATCH_GROUNDING_CONCURRENCY);
   let activeCandidates = candidatePages.nextPage();
 
   while (activeCandidates.length > 0) {
@@ -373,25 +370,23 @@ export async function groundWikimatchCandidates(input: {
 
     const results = await Promise.all(
       windows.map(async (window) => {
-        return await limiter.use(async () => {
-          try {
-            await input.progressTracker?.throwIfStopped();
-            return await judgeWikimatchPolicy({
-              candidates: window.candidates,
-              policyPrompt: input.policyPrompt,
-              request: input.request,
-              window,
-            });
-          } finally {
-            completedWindows += 1;
-            await input.progressTracker?.updatePhase({
-              done: completedWindows,
-              phase: "grounding",
-              total: totalWindows,
-              unit: "window",
-            });
-          }
-        });
+        try {
+          await input.progressTracker?.throwIfStopped();
+          return await judgeWikimatchPolicy({
+            candidates: window.candidates,
+            policyPrompt: input.policyPrompt,
+            request: input.request,
+            window,
+          });
+        } finally {
+          completedWindows += 1;
+          await input.progressTracker?.updatePhase({
+            done: completedWindows,
+            phase: "grounding",
+            total: totalWindows,
+            unit: "window",
+          });
+        }
       }),
     );
 
