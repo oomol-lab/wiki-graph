@@ -102,9 +102,9 @@ function normalizePolicyResponse(
   };
 }
 
-function normalizeDecisionQid(
-  qid: string | undefined,
-): { readonly qid?: string } {
+function normalizeDecisionQid(qid: string | undefined): {
+  readonly qid?: string;
+} {
   const normalized = qid?.trim();
 
   return normalized === undefined || normalized === ""

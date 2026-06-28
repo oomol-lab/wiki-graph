@@ -1,12 +1,5 @@
 import { createHash } from "crypto";
-import {
-  mkdir,
-  readFile,
-  rename,
-  rm,
-  stat,
-  writeFile,
-} from "fs/promises";
+import { mkdir, readFile, rename, rm, stat, writeFile } from "fs/promises";
 import { dirname, resolve } from "path";
 import { setTimeout as sleep } from "timers/promises";
 
