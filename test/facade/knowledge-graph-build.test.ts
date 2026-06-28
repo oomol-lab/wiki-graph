@@ -49,7 +49,7 @@ describe("facade/knowledge-graph-build", () => {
           groups: [
             {
               decisions: [
-                readUserPrompt(messages).includes('"qid": "Q40"')
+                readUserPrompt(messages).includes('"qid":"Q40"')
                   ? {
                       candidateId: "c1",
                       decision: "recall",
@@ -105,10 +105,10 @@ describe("facade/knowledge-graph-build", () => {
 
     expect(request).toHaveBeenCalledTimes(4);
     expect(request.mock.calls[0]?.[0][1]?.content).toContain(
-      '"hasMoreOptions": true',
+      '"hasMoreOptions":true',
     );
     expect(request.mock.calls[0]?.[0][1]?.content).not.toContain(
-      '"qid": "Q6"',
+      '"qid":"Q6"',
     );
     expect(mentions).toStrictEqual([
       {
@@ -136,7 +136,7 @@ describe("facade/knowledge-graph-build", () => {
         const prompt = readUserPrompt(messages);
         const groups = readCandidateGroups(prompt);
 
-        if (prompt.includes('"candidateId": "history"')) {
+        if (prompt.includes('"candidateId":"history"')) {
           return Promise.resolve(
             JSON.stringify({
               groups: groups.map((group) => ({
@@ -158,7 +158,7 @@ describe("facade/knowledge-graph-build", () => {
           );
         }
 
-        if (prompt.includes('"qid": "Q41"')) {
+        if (prompt.includes('"qid":"Q41"')) {
           return Promise.resolve(
             JSON.stringify({
               groups: groups.map((group) => ({
@@ -215,10 +215,10 @@ describe("facade/knowledge-graph-build", () => {
     const secondPrompt =
       request.mock.calls
         .map((call) => readUserPrompt(call[0]))
-        .find((prompt) => prompt.includes('"qid": "Q41"')) ?? "";
+        .find((prompt) => prompt.includes('"qid":"Q41"')) ?? "";
 
-    expect(secondPrompt).not.toContain('"qid": "Q2"');
-    expect(secondPrompt).toContain('"qid": "Q41"');
+    expect(secondPrompt).not.toContain('"qid":"Q2"');
+    expect(secondPrompt).toContain('"qid":"Q41"');
     expect(mentions).toEqual(
       expect.arrayContaining([
         {
@@ -246,7 +246,7 @@ describe("facade/knowledge-graph-build", () => {
         JSON.stringify({
           groups: groups.map((group) => ({
             decisions: group.candidates.map((candidate) => {
-              if (prompt.includes('"qid": "Q6"')) {
+              if (prompt.includes('"qid":"Q6"')) {
                 return {
                   candidateId: candidate.candidateId,
                   decision: "recall",
@@ -307,9 +307,9 @@ describe("facade/knowledge-graph-build", () => {
 
     const prompt = readUserPrompt(request.mock.calls[1]![0]);
 
-    expect(prompt).toContain('"candidateId": "c4"');
-    expect(prompt).toContain('"qid": "Q10"');
-    expect(prompt).not.toContain('"qid": "Q11"');
+    expect(prompt).toContain('"candidateId":"c4"');
+    expect(prompt).toContain('"qid":"Q10"');
+    expect(prompt).not.toContain('"qid":"Q11"');
   });
 
   it("commits chapter mention evidence from JSONL artifacts", async () => {
@@ -504,7 +504,16 @@ function readCandidateGroups(prompt: string): Array<{
     throw new Error("Missing candidate groups in prompt.");
   }
 
-  return JSON.parse(groupsJson) as Array<{
+  return groupsJson
+    .split("\n")
+    .filter((line) => line.trim() !== "")
+    .map(
+      (line) =>
+        JSON.parse(line) as {
+          readonly candidates: Array<{ readonly candidateId: string }>;
+          readonly groupId: string;
+        },
+    ) as Array<{
     readonly candidates: Array<{ readonly candidateId: string }>;
     readonly groupId: string;
   }>;

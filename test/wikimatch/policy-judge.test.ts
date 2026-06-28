@@ -125,13 +125,20 @@ describe("wikimatch/policy-judge", () => {
     expect(request.mock.calls[0]?.[0][1]?.content).toContain(
       '<group id="g2">Mercury</group>',
     );
-    expect(request.mock.calls[0]?.[0][1]?.content).toContain('"id": "DIS1"');
-    expect(request.mock.calls[0]?.[0][1]?.content).toContain('"qid": "Q308"');
+    expect(request.mock.calls[0]?.[0][1]?.content).not.toContain(
+      '"id":"DIS1"',
+    );
+    expect(request.mock.calls[0]?.[0][1]?.content).toContain('"qid":"Q308"');
     expect(request.mock.calls[0]?.[0][1]?.content).not.toContain("sourceQid");
     expect(request.mock.calls[0]?.[0][1]?.content).not.toContain(
       "isDisambiguation",
     );
     expect(request.mock.calls[0]?.[0][1]?.content).not.toContain('"range"');
+    expect(request.mock.calls[0]?.[0][1]?.content).not.toContain('"offset"');
+    expect(request.mock.calls[0]?.[0][1]?.content).not.toContain('"surface"');
+    expect(request.mock.calls[0]?.[0][1]?.content).not.toContain(
+      '"confidence"',
+    );
     expect(request.mock.calls[0]?.[0][1]?.content).not.toContain('"note"');
     expect(result).toMatchObject({
       fallback: {

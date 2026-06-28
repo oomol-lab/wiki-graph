@@ -25,7 +25,6 @@ import type {
 const policyDecisionSchema = z
   .object({
     candidateId: z.string().min(1),
-    confidence: z.number().min(0).max(1).optional(),
     decision: z.enum(["continue", "recall", "skip_this_time", "never_recall"]),
     qid: z.string().optional(),
   })
@@ -89,9 +88,6 @@ function normalizePolicyResponse(
     groups: response.groups.map((group) => ({
       decisions: group.decisions.map((decision) => ({
         candidateId: decision.candidateId,
-        ...(decision.confidence === undefined
-          ? {}
-          : { confidence: decision.confidence }),
         decision: decision.decision,
         ...normalizeDecisionQid(decision.qid),
       })),
@@ -148,9 +144,6 @@ export function parsePolicyResponse(
       if (decision.decision === "recall") {
         mentions.push({
           candidateId: candidate.id,
-          ...(decision.confidence === undefined
-            ? {}
-            : { confidence: decision.confidence }),
           qid: decision.qid!,
           range: candidate.range,
           surface: candidate.surface,
@@ -432,28 +425,25 @@ function formatPolicyPrompt(input: WikimatchPolicyJudgeInput): string {
     formatTaggedContext(input),
     "",
     "Candidate groups:",
-    JSON.stringify(formatGroupsForPrompt(input), null, 2),
+    formatGroupsForPrompt(input)
+      .map((group) => JSON.stringify(group))
+      .join("\n"),
     "",
     "Return this JSON shape:",
-    JSON.stringify(
-      {
-        groups: [
-          {
-            decisions: [
-              {
-                candidateId: "candidate id from this group",
-                confidence: 0.9,
-                decision: "recall | continue | skip_this_time | never_recall",
-                qid: "required only when decision is recall",
-              },
-            ],
-            groupId: "group id from the input",
-          },
-        ],
-      },
-      null,
-      2,
-    ),
+    JSON.stringify({
+      groups: [
+        {
+          decisions: [
+            {
+              candidateId: "candidate id from this group",
+              decision: "recall | continue | skip_this_time | never_recall",
+              qid: "required only when decision is recall",
+            },
+          ],
+          groupId: "group id from the input",
+        },
+      ],
+    }),
   ].join("\n");
 }
 
@@ -496,19 +486,15 @@ function formatGroupsForPrompt(input: WikimatchPolicyJudgeInput): object[] {
 
       return candidate === undefined
         ? []
-        : [formatCandidateForPrompt(candidate, group)];
+        : [formatCandidateForPrompt(candidate)];
     }),
     groupId: group.id,
-    text: input.window.text.slice(
-      group.range.start - input.window.baseOffset,
-      group.range.end - input.window.baseOffset,
-    ),
   }));
 }
 
 export function formatCandidateForPrompt(
   candidate: WikimatchCandidate,
-  group: WikimatchConflictGroup,
+  _group?: WikimatchConflictGroup,
 ): object {
   const formattedOptions = formatQidOptions(candidate.qidOptions);
 
@@ -521,8 +507,6 @@ export function formatCandidateForPrompt(
     ...(formattedOptions.entityOptions.length === 0
       ? {}
       : { entityOptions: formattedOptions.entityOptions }),
-    offset: candidate.range.start - group.range.start,
-    surface: candidate.surface,
   };
 }
 
@@ -536,14 +520,11 @@ function formatQidOptions(options: readonly WikimatchQidOption[]): {
   for (const option of options) {
     if (option.disambiguation !== undefined) {
       disambiguationOptions.push({
-        id: `DIS${disambiguationOptions.length + 1}`,
         ...(option.label === undefined ? {} : { label: option.label }),
         meanings:
-          option.disambiguation.profile?.meanings ??
+          option.disambiguation.profile?.meanings.map(formatMeaningForPrompt) ??
           option.disambiguation.linkedQids.map((item) => ({
-            information: "",
             name: item.title,
-            priority: "other",
             qid: item.qid,
           })),
       });
@@ -562,6 +543,18 @@ function formatQidOptions(options: readonly WikimatchQidOption[]): {
   return {
     disambiguationOptions,
     entityOptions,
+  };
+}
+
+function formatMeaningForPrompt(
+  meaning: NonNullable<
+    NonNullable<WikimatchQidOption["disambiguation"]>["profile"]
+  >["meanings"][number],
+): object {
+  return {
+    ...(meaning.information === "" ? {} : { information: meaning.information }),
+    name: meaning.name,
+    qid: meaning.qid,
   };
 }
 
