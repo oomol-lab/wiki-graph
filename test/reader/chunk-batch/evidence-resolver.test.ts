@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 
-import { EvidenceResolver } from "../../../src/reader/chunk-batch/evidence-resolver.js";
+import { EvidenceResolver } from "../../../src/evidence-selection/index.js";
 
-describe("reader/chunk-batch/evidence-resolver", () => {
+describe("evidence-selection/anchor-resolver", () => {
   it("normalizes multi-sentence anchors to the boundary sentence", () => {
     const resolver = new EvidenceResolver();
 

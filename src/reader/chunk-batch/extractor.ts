@@ -8,6 +8,7 @@ import {
   requestGuaranteedJson,
 } from "../../guaranteed/index.js";
 import type { Language } from "../../common/language.js";
+import { EVIDENCE_SELECTION_PROMPT_FRAGMENT } from "../../evidence-selection/index.js";
 import type { LLMessage, LLM } from "../../llm/index.js";
 import {
   bookCoherenceResponseSchema,
@@ -89,10 +90,11 @@ export class ChunkExtractor<S extends string> {
       promptTemplateName: USER_FOCUSED_PROMPT_TEMPLATE,
       templateContext: {
         extraction_guidance: this.#extractionGuidance,
+        evidence_selection_prompt: EVIDENCE_SELECTION_PROMPT_FRAGMENT,
         user_language: this.#userLanguage,
         working_memory: input.workingMemoryPrompt,
       },
-      text: projection.projectedText,
+      text: formatEvidenceSelectionSourceText(projection),
     });
     const extraction = await this.#extractChunks({
       emptyChunkBatch: {
@@ -130,10 +132,11 @@ export class ChunkExtractor<S extends string> {
           id: chunk.id,
           label: chunk.label,
         })),
+        evidence_selection_prompt: EVIDENCE_SELECTION_PROMPT_FRAGMENT,
         user_language: this.#userLanguage,
         working_memory: input.workingMemoryPrompt,
       },
-      text: projection.projectedText,
+      text: formatEvidenceSelectionSourceText(projection),
     });
     const extraction = await this.#extractChunks({
       emptyChunkBatch: {
@@ -363,6 +366,14 @@ export class ChunkExtractor<S extends string> {
         }),
     });
   }
+}
+
+function formatEvidenceSelectionSourceText(
+  projection: FragmentProjection,
+): string {
+  return projection.sentences
+    .map((sentence, index) => `S${index + 1}: ${sentence.projectedText}`)
+    .join("\n");
 }
 
 function isParsedJsonValidationFailure(error: unknown): boolean {

@@ -1,9 +1,9 @@
-import type { SentenceId } from "../../document/index.js";
+import type { SentenceId } from "../document/index.js";
 import type {
   EvidenceResolutionFailure,
   EvidenceResolutionResult,
   RankedSentenceCandidate,
-} from "./evidence-types.js";
+} from "./anchor-types.js";
 import { normalizeText, splitTextIntoSentences } from "./text.js";
 
 const MIN_AUTO_RESOLVE_GAP = 0.07;

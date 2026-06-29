@@ -37,6 +37,68 @@ describe("wikilink/relation-discovery", () => {
           {
             confidence: 0.91,
             evidence: {
+              quote: "Alpha founded Beta",
+              sentence_id: "S1",
+            },
+            predicate: "Founded By",
+            sourceMentionId: "m2",
+            targetMentionId: "m1",
+          },
+        ],
+      }),
+    );
+
+    await expect(
+      discoverWikilinkRelations({
+        chapterId: 1,
+        fragmentId: 0,
+        maxRetries: 0,
+        request,
+        sentences,
+        window,
+      }),
+    ).resolves.toStrictEqual([
+      {
+        confidence: 0.91,
+        evidenceEnd: 19,
+        evidenceStart: 0,
+        predicate: "founded_by",
+        sourceMentionId: "m2",
+        targetMentionId: "m1",
+      },
+    ]);
+  });
+
+  it("still resolves old anchor evidence for existing retry responses", async () => {
+    const sentences = [
+      { text: "Alpha founded Beta.", wordsCount: 3 },
+      { text: "Gamma watched them.", wordsCount: 3 },
+    ];
+    const window = buildWikilinkEvidenceWindows({
+      maxEvidenceDistance: 10,
+      mentions: [
+        {
+          id: "m1",
+          qid: "Q1",
+          range: { end: 5, start: 0 },
+          surface: "Alpha",
+        },
+        {
+          id: "m2",
+          qid: "Q2",
+          range: { end: 18, start: 14 },
+          surface: "Beta",
+        },
+      ],
+      text: sentences.map((sentence) => sentence.text).join(" "),
+      windowLength: 80,
+    })[0]!;
+    const request = vi.fn<GuaranteedRequest>().mockResolvedValue(
+      JSON.stringify({
+        relations: [
+          {
+            confidence: 0.91,
+            evidence: {
               start_anchor: {
                 mode: "full",
                 text: "Alpha founded Beta.",
@@ -69,6 +131,53 @@ describe("wikilink/relation-discovery", () => {
         targetMentionId: "m1",
       },
     ]);
+  });
+
+  it("uses untagged sentence IDs and quote evidence in the relation prompt", async () => {
+    const sentences = [{ text: "Alpha founded Beta.", wordsCount: 3 }];
+    const window = buildWikilinkEvidenceWindows({
+      maxEvidenceDistance: 10,
+      mentions: [
+        {
+          id: "m1",
+          qid: "Q1",
+          range: { end: 5, start: 0 },
+          surface: "Alpha",
+        },
+        {
+          id: "m2",
+          qid: "Q2",
+          range: { end: 18, start: 14 },
+          surface: "Beta",
+        },
+      ],
+      text: sentences[0]!.text,
+      windowLength: 80,
+    })[0]!;
+    const request = vi
+      .fn<GuaranteedRequest>()
+      .mockResolvedValue(JSON.stringify({ relations: [] }));
+
+    await discoverWikilinkRelations({
+      chapterId: 1,
+      fragmentId: 0,
+      maxRetries: 0,
+      request,
+      sentences,
+      window,
+    });
+
+    const systemPrompt = request.mock.calls[0]?.[0][0]?.content ?? "";
+    const userPrompt = request.mock.calls[0]?.[0][1]?.content ?? "";
+
+    expect(systemPrompt).toContain("Evidence selection:");
+    expect(systemPrompt).toContain("do not copy the tags into quote");
+    expect(userPrompt).toContain(
+      "Untagged source sentences for evidence quotes:",
+    );
+    expect(userPrompt).toContain("S1: Alpha founded Beta.");
+    expect(userPrompt).toContain('"sentence_id"');
+    expect(userPrompt).toContain('"quote"');
   });
 
   it("does not create a relation when the model uses non-semantic mentions predicate", async () => {
@@ -218,6 +327,7 @@ describe("wikilink/relation-discovery", () => {
     expect(prompt).not.toContain("Mentions:");
     expect(prompt).toContain('<mention id="m1" qid="Q1">Alpha</mention>');
     expect(prompt).toContain('&lt;mention id="fake"&gt;');
+    expect(prompt).toContain("S1: Alpha founded Beta & Co.");
     expect(prompt).toContain("&amp; Co.");
     expect(prompt).not.toContain('<mention id="fake">');
   });

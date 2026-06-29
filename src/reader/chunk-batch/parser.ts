@@ -13,11 +13,13 @@ import {
   expectChunkRetention,
   type SentenceId,
 } from "../../document/index.js";
-import type {
-  EvidenceResolutionFailure,
-  RankedSentenceCandidate,
-} from "./evidence-types.js";
-import { EvidenceResolver } from "./evidence-resolver.js";
+import {
+  resolveEvidenceSelection,
+  type EvidenceSelectionCandidate,
+  EvidenceResolver,
+  type EvidenceResolutionFailure,
+  type RankedSentenceCandidate,
+} from "../../evidence-selection/index.js";
 import type {
   ChunkBatch,
   ChunkExtractionSentence,
@@ -98,7 +100,7 @@ export type BookCoherenceResponseData = z.infer<
 >;
 type ExtractedChunkData = UserFocusedChunkData | BookCoherenceChunkData;
 type RawChunkLink = z.infer<typeof chunkLinkSchema>;
-type ChoiceFieldName = "start_anchor" | "end_anchor";
+type ChoiceFieldName = "evidence" | "start_anchor" | "end_anchor";
 
 export enum ChunkMetadataField {
   Retention = "retention",
@@ -368,6 +370,25 @@ export class ChunkBatchParser<
     const candidateSentenceIds = projectedSentences.map(
       (sentence) => sentence.sentenceId,
     );
+    const selectionSentences = projectedSentences.map((sentence, index) => ({
+      id: `S${index + 1}`,
+      sentenceId: sentence.sentenceId,
+      text: sentence.projectedText,
+    }));
+    const hasSelectionEvidence =
+      typeof evidence.quote === "string" ||
+      typeof evidence.sentence_id === "string";
+    const [selectionResolution, selectionFailure] = hasSelectionEvidence
+      ? resolveEvidenceSelection({
+          evidence: createEvidenceSelection(evidence),
+          sentences: selectionSentences,
+        })
+      : [undefined, undefined];
+
+    if (selectionResolution !== undefined) {
+      return [selectionResolution.sentenceIds, undefined];
+    }
+
     const exactMatchSentenceIds =
       this.#resolveExactProjectionEvidence(evidence);
 
@@ -388,29 +409,34 @@ export class ChunkBatchParser<
       return [resolution.sentenceIds, undefined];
     }
 
-    if (failure === undefined) {
+    const fallbackFailure =
+      selectionFailure === undefined
+        ? failure
+        : toEvidenceResolutionFailure(selectionFailure, "evidence");
+
+    if (fallbackFailure === undefined) {
       return [[], undefined];
     }
 
     const shouldUseChoice =
-      failure.code.startsWith("ambiguous") ||
-      (failure.code === "low_confidence" &&
+      fallbackFailure.code.startsWith("ambiguous") ||
+      (fallbackFailure.code === "low_confidence" &&
         input.isLastGenerationAttempt &&
-        failure.candidates.length > 0);
+        fallbackFailure.candidates.length > 0);
 
     if (!shouldUseChoice) {
-      return [[], failure];
+      return [[], fallbackFailure];
     }
 
-    const choiceFieldName = toChoiceFieldName(failure.fieldName);
+    const choiceFieldName = toChoiceFieldName(fallbackFailure.fieldName);
 
     if (choiceFieldName === undefined) {
-      return [[], failure];
+      return [[], fallbackFailure];
     }
 
     const [choiceCandidate, choiceFailure] =
       await this.#chooseAmbiguousCandidate({
-        candidates: failure.candidates,
+        candidates: fallbackFailure.candidates,
         chunkData: input.data,
         chunkIndex: input.chunkIndex,
         chunkLabel: input.chunkLabel,
@@ -429,12 +455,16 @@ export class ChunkBatchParser<
       return [
         [],
         {
-          candidates: failure.candidates,
+          candidates: fallbackFailure.candidates,
           code: "choice_failed",
-          fieldName: failure.fieldName,
-          message: `Second-stage choice failed for ${failure.fieldName}: no candidate returned.`,
+          fieldName: fallbackFailure.fieldName,
+          message: `Second-stage choice failed for ${fallbackFailure.fieldName}: no candidate returned.`,
         },
       ];
+    }
+
+    if (choiceFieldName === "evidence") {
+      return [[choiceCandidate.sentenceId], undefined];
     }
 
     if (input.isLastGenerationAttempt) {
@@ -764,7 +794,11 @@ function formatChoiceText(text: string): string {
 }
 
 function toChoiceFieldName(value: string): ChoiceFieldName | undefined {
-  return value === "start_anchor" || value === "end_anchor" ? value : undefined;
+  return value === "evidence" ||
+    value === "start_anchor" ||
+    value === "end_anchor"
+    ? value
+    : undefined;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -822,4 +856,49 @@ function createEmptyRecord<TValue>(): Record<string, TValue> {
 
 function expectSingleSpan(spans: readonly TextSpan[]): TextSpan | undefined {
   return spans.length === 1 ? spans[0] : undefined;
+}
+
+function createEvidenceSelection(evidence: Record<string, unknown>): {
+  readonly quote?: string;
+  readonly sentence_id?: string;
+} {
+  return {
+    ...(typeof evidence.quote === "string" ? { quote: evidence.quote } : {}),
+    ...(typeof evidence.sentence_id === "string"
+      ? { sentence_id: evidence.sentence_id }
+      : {}),
+  };
+}
+
+function toEvidenceResolutionFailure(
+  failure: {
+    readonly candidates: readonly EvidenceSelectionCandidate[];
+    readonly code: string;
+    readonly message: string;
+  },
+  fieldName: string,
+): EvidenceResolutionFailure {
+  return {
+    candidates: failure.candidates.map(toRankedSentenceCandidate),
+    code: failure.code,
+    fieldName,
+    message: failure.message,
+  };
+}
+
+function toRankedSentenceCandidate(
+  candidate: EvidenceSelectionCandidate,
+): RankedSentenceCandidate {
+  return {
+    exactNormalized: candidate.exactNormalized,
+    exactRaw: candidate.exactRaw,
+    exactSubstring: candidate.exactSubstring,
+    index: candidate.index,
+    nextText: candidate.nextText,
+    occurrenceId: candidate.occurrenceId,
+    prevText: candidate.prevText,
+    score: candidate.score,
+    sentenceId: candidate.sentence.sentenceId,
+    text: candidate.sentence.text,
+  };
 }

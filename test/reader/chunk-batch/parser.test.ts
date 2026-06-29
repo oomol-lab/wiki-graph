@@ -11,6 +11,7 @@ import {
 } from "../../../src/reader/chunk-batch/parser.js";
 import { FragmentProjection } from "../../../src/reader/chunk-batch/fragment-projection.js";
 import type { ChunkExtractionSentence } from "../../../src/reader/chunk-batch/types.js";
+import type { LLMessage } from "../../../src/llm/index.js";
 
 describe("reader/chunk-batch/parser", () => {
   it("parses valid chunks from contiguous source sentences", async () => {
@@ -76,7 +77,10 @@ describe("reader/chunk-batch/parser", () => {
   });
 
   it("uses second-stage choice to resolve ambiguous evidence on the last attempt", async () => {
-    const requestChoice = vi.fn(() => Promise.resolve('{"choice":"S2"}'));
+    const requestChoice = vi.fn(
+      (_messages: readonly LLMessage[], _index: number, _maxRetries: number) =>
+        Promise.resolve('{"choice":"S2"}'),
+    );
     const sentences = [
       {
         sentenceId: [1, 0, 0],
@@ -124,6 +128,156 @@ describe("reader/chunk-batch/parser", () => {
     );
 
     expect(requestChoice).toHaveBeenCalledTimes(1);
+    expect(result.chunkBatch.chunks[0]).toMatchObject({
+      sentenceId: [1, 0, 1],
+      sentenceIds: [[1, 0, 1]],
+      wordsCount: 3,
+    });
+  });
+
+  it("resolves sentence-id quote evidence without anchor fields", async () => {
+    const sentences = createSentences();
+    const parser = new ChunkBatchParser({
+      choiceSystemPrompt: "choice prompt",
+      metadataField: ChunkMetadataField.Retention,
+      projection: new FragmentProjection(sentences),
+      responseIntentClassifierPrompt: "classifier prompt",
+      requestChoice: () => Promise.resolve('{"choice":"S1"}'),
+      sentenceTextSource: {
+        getSentence: (sentenceId) => Promise.resolve(sentenceId.join(":")),
+      },
+      sentences,
+      visibleChunkIds: [],
+    });
+
+    const result = await parser.parse(
+      {
+        chunks: [
+          {
+            content: "Quote content",
+            evidence: {
+              quote: "Beta continues",
+              sentence_id: "S2",
+            },
+            label: "Quote label",
+            retention: ChunkRetention.Focused,
+            temp_id: "temp-1",
+          },
+        ],
+        fragment_summary: "",
+        links: [],
+      },
+      {
+        isLastGenerationAttempt: false,
+      },
+    );
+
+    expect(result.chunkBatch.chunks[0]).toMatchObject({
+      sentenceId: [1, 0, 1],
+      sentenceIds: [[1, 0, 1]],
+    });
+  });
+
+  it("recovers drifted sentence-id evidence when the quote has a clear match", async () => {
+    const sentences = createSentences();
+    const parser = new ChunkBatchParser({
+      choiceSystemPrompt: "choice prompt",
+      metadataField: ChunkMetadataField.Retention,
+      projection: new FragmentProjection(sentences),
+      responseIntentClassifierPrompt: "classifier prompt",
+      requestChoice: () => Promise.resolve('{"choice":"S1"}'),
+      sentenceTextSource: {
+        getSentence: (sentenceId) => Promise.resolve(sentenceId.join(":")),
+      },
+      sentences,
+      visibleChunkIds: [],
+    });
+
+    const result = await parser.parse(
+      {
+        chunks: [
+          {
+            content: "Recovered content",
+            evidence: {
+              quote: "Gamma ends",
+              sentence_id: "S1",
+            },
+            label: "Recovered label",
+            retention: ChunkRetention.Focused,
+            temp_id: "temp-1",
+          },
+        ],
+        fragment_summary: "",
+        links: [],
+      },
+      {
+        isLastGenerationAttempt: false,
+      },
+    );
+
+    expect(result.chunkBatch.chunks[0]).toMatchObject({
+      sentenceId: [1, 0, 2],
+      sentenceIds: [[1, 0, 2]],
+    });
+  });
+
+  it("uses second-stage choice for ambiguous sentence-id quote evidence", async () => {
+    const requestChoice = vi.fn(
+      (_messages: readonly LLMessage[], _index: number, _maxRetries: number) =>
+        Promise.resolve('{"choice":"S2"}'),
+    );
+    const sentences = [
+      {
+        sentenceId: [1, 0, 0],
+        text: "Echo",
+        wordsCount: 2,
+      },
+      {
+        sentenceId: [1, 0, 1],
+        text: "Echo",
+        wordsCount: 3,
+      },
+    ] satisfies ChunkExtractionSentence[];
+    const parser = new ChunkBatchParser({
+      choiceSystemPrompt: "choice prompt",
+      metadataField: ChunkMetadataField.Retention,
+      projection: new FragmentProjection(sentences),
+      responseIntentClassifierPrompt: "classifier prompt",
+      requestChoice,
+      sentenceTextSource: {
+        getSentence: (sentenceId) => Promise.resolve(sentenceId.join(":")),
+      },
+      sentences,
+      visibleChunkIds: [],
+    });
+
+    const result = await parser.parse(
+      {
+        chunks: [
+          {
+            content: "Chosen content",
+            evidence: {
+              quote: "Echo",
+            },
+            label: "Chosen label",
+            retention: ChunkRetention.Relevant,
+            temp_id: "temp-1",
+          },
+        ],
+        fragment_summary: "",
+        links: [],
+      },
+      {
+        isLastGenerationAttempt: true,
+      },
+    );
+
+    expect(requestChoice).toHaveBeenCalledTimes(1);
+    const choiceMessages = requestChoice.mock.calls[0]?.[0];
+
+    expect(choiceMessages?.[1]?.content).toContain(
+      'Resolve only this field: "evidence"',
+    );
     expect(result.chunkBatch.chunks[0]).toMatchObject({
       sentenceId: [1, 0, 1],
       sentenceIds: [[1, 0, 1]],

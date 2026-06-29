@@ -1,4 +1,4 @@
-import type { SentenceId } from "../../document/index.js";
+import type { SentenceId } from "../document/index.js";
 
 export interface RankedSentenceCandidate {
   readonly occurrenceId: string;

@@ -5,7 +5,7 @@ import { segmentTextStream } from "../../src/reader/segment/segment.js";
 import {
   normalizeText,
   splitTextIntoSentences,
-} from "../../src/reader/chunk-batch/text.js";
+} from "../../src/evidence-selection/index.js";
 
 describe("reader/text-processing", () => {
   it("splits text into sentences and normalizes comparison text", () => {

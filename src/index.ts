@@ -10,10 +10,21 @@ export {
 } from "./context/index.js";
 export { LLMPaymentRequiredError } from "./llm/index.js";
 export {
+  EVIDENCE_SELECTION_JSON_SHAPE,
+  EVIDENCE_SELECTION_PROMPT_FRAGMENT,
+  formatEvidenceSelectionChoicePrompt,
   normalizeEvidenceText,
+  rankEvidenceQuote,
+  resolveEvidenceSelection,
   scoreEvidenceQuote,
   type EvidenceQuoteMatchStrategy,
   type EvidenceQuoteScore,
+  type EvidenceSelection,
+  type EvidenceSelectionCandidate,
+  type EvidenceSelectionFailure,
+  type EvidenceSelectionResolution,
+  type EvidenceSelectionSentence,
+  type EvidenceSentenceId,
 } from "./evidence-selection/index.js";
 export {
   RateLimiter,

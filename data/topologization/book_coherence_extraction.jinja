@@ -9,15 +9,15 @@ You are reading a long text and need to extract essential connective tissue for 
 
 **Output Requirements:**
 - **label** and **content** fields: Must be in **{{ user_language }}** (translate from source text if needed)
-- **evidence**: Use structured source anchors in the **original language(s)** (NEVER translate)
-- Use **evidence** anchors to identify the supporting source text.
+- **evidence**: Use the evidence selection protocol below in the **original language(s)** (NEVER translate)
+- Use **evidence** to identify the supporting source sentence.
 
 **Important Notes:**
 - The source text may be in any language or mix of languages
 - Your job is to:
   1. Understand the text in whatever language(s) it uses
   2. Translate only **label** and **content** to {{ user_language }} for user understanding
-  3. Keep **evidence** anchors in exact original language(s) - never translate them
+  3. Keep **evidence** quotes in exact original language(s) - never translate them
 
 Example output structure:
 ```json
@@ -31,7 +31,8 @@ Example output structure:
       "label": "{{ user_language }} translated label",
       "content": "{{ user_language }} translated description",
       "evidence": {
-        "start_anchor": {"mode": "full", "text": "Exact original-language anchor"}
+        "sentence_id": "S1",
+        "quote": "Exact short original-language quote"
       },
       "importance": "critical"
     }
@@ -44,7 +45,7 @@ Example output structure:
 
 **Output Requirements:**
 - **label**, **content**, and **evidence**: All in the source text's original language(s)
-- Use **evidence** anchors to identify the supporting source text.
+- Use **evidence** to identify the supporting source sentence.
 - If the source text contains multiple languages, preserve them as they appear
 {% endif %}
 
@@ -152,7 +153,8 @@ CRITICAL: You MUST output in this EXACT structure with "importance_annotations" 
       "label": "brief topic label (5-15 chars)",
       "content": "full description of the connective information",
       "evidence": {
-        "start_anchor": {"mode": "full", "text": "original anchor"}
+        "sentence_id": "S1",
+        "quote": "exact short original-language quote"
       },
       "importance": "critical"
     }
@@ -190,15 +192,10 @@ This is a VALID successful result.
   - "type": MUST be "book_coherence"
   - "label": 5-15 character summary
   - "content": Full one-sentence description
-  - "evidence": Structured source anchors for this chunk
-    - Preferred format:
-      - `"start_anchor": {"mode": "full", "text": "..."}` for an exact anchor snippet
-      - `"start_anchor": {"mode": "head_tail", "head": "...", "tail": "..."}` if you want to omit the middle of a long sentence
-      - Add `"end_anchor"` only when the chunk spans multiple consecutive sentences
-    - `start_anchor` must identify the FIRST supporting sentence
-    - `end_anchor` must identify the LAST supporting sentence when needed
-    - Keep anchors in the original source language(s)
-    - Do NOT translate anchors
+  - "evidence": Evidence selection for this chunk
+{{ evidence_selection_prompt }}
+    - Keep quote in the original source language(s)
+    - Do NOT translate quote
   - "importance": One of "critical", "important", or "helpful"
   - **Process this SECOND**: After annotating existing chunks, extract only missing book-critical information
 

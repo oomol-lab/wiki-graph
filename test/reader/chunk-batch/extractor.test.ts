@@ -42,7 +42,8 @@ describe("reader/chunk-batch/extractor", () => {
           {
             content: "Alpha summary",
             evidence: {
-              start_anchor: "Alpha begins.",
+              quote: "Alpha begins",
+              sentence_id: "S1",
             },
             label: "Alpha label",
             retention: "focused",
@@ -102,7 +103,13 @@ describe("reader/chunk-batch/extractor", () => {
     expect(llm.prompts.map((prompt) => prompt.templateName)).toContain(
       EVIDENCE_CHOICE_PROMPT_TEMPLATE,
     );
+    expect(
+      llm.prompts.find(
+        (prompt) => prompt.templateName === USER_FOCUSED_PROMPT_TEMPLATE,
+      )?.templateContext.evidence_selection_prompt,
+    ).toContain('{"sentence_id":"S1","quote":"exact short source quote"}');
     expect(llm.calls).toHaveLength(1);
+    expect(llm.calls[0]?.messages[1]?.content).toBe("S1: Alpha begins.");
     expect(llm.calls[0]?.options.scope).toBe(SpineDigestScope.ReaderExtraction);
     expect(llm.calls[0]?.viaContext).toBe(true);
   });
@@ -114,7 +121,8 @@ describe("reader/chunk-batch/extractor", () => {
           {
             content: "Bridge summary",
             evidence: {
-              start_anchor: "Bridge sentence.",
+              quote: "Bridge sentence",
+              sentence_id: "S1",
             },
             importance: "important",
             label: "Bridge label",
@@ -525,7 +533,7 @@ describe("reader/chunk-batch/extractor", () => {
     });
 
     expect(llm.calls[0]?.messages[1]).toMatchObject({
-      content: "He said ＂hi＂ and saved to ＼tmp＼log.",
+      content: "S1: He said ＂hi＂ and saved to ＼tmp＼log.",
       role: "user",
     });
     expect(result.chunkBatch.chunks[0]).toMatchObject({
