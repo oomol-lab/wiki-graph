@@ -4,6 +4,9 @@ const aiMockState = vi.hoisted(() => ({
   generateTextResponse: "generated response",
   generateTextCalls: [] as unknown[],
   generateTextError: undefined as Error | undefined,
+  generateTextHandler: undefined as
+    | ((input: unknown) => Promise<{ readonly text: string }>)
+    | undefined,
   streamTextCalls: [] as unknown[],
   streamTextError: undefined as Error | undefined,
 }));
@@ -33,6 +36,10 @@ vi.mock("ai", () => ({
   },
   generateText: vi.fn((input: unknown) => {
     aiMockState.generateTextCalls.push(input);
+
+    if (aiMockState.generateTextHandler !== undefined) {
+      return aiMockState.generateTextHandler(input);
+    }
 
     if (aiMockState.generateTextError !== undefined) {
       return Promise.reject(aiMockState.generateTextError);
@@ -102,6 +109,7 @@ describe("llm/client", () => {
     aiMockState.generateTextResponse = "generated response";
     aiMockState.generateTextCalls.length = 0;
     aiMockState.generateTextError = undefined;
+    aiMockState.generateTextHandler = undefined;
     aiMockState.streamTextCalls.length = 0;
     aiMockState.streamTextError = undefined;
   });
@@ -305,6 +313,81 @@ describe("llm/client", () => {
     expect(llm.config.stream).toBe(true);
     expect(aiMockState.generateTextCalls).toHaveLength(0);
     expect(aiMockState.streamTextCalls).toHaveLength(1);
+  });
+
+  it("starts lazy request callbacks only when a request slot is available", async () => {
+    const resolvers: Array<() => void> = [];
+    let activeProviderRequests = 0;
+    let maxActiveProviderRequests = 0;
+
+    aiMockState.generateTextHandler = async () => {
+      activeProviderRequests += 1;
+      maxActiveProviderRequests = Math.max(
+        maxActiveProviderRequests,
+        activeProviderRequests,
+      );
+
+      await new Promise<void>((resolve) => {
+        resolvers.push(resolve);
+      });
+      activeProviderRequests -= 1;
+      return { text: "done" };
+    };
+
+    const llm = new LLM({
+      concurrent: 2,
+      dataDirPath: process.cwd(),
+      model: {
+        modelId: "test-model",
+        provider: "test-provider",
+      } as never,
+    });
+    let preparedTasks = 0;
+    const requests = Array.from({ length: 5 }, (_value, index) =>
+      llm.request(async (request) => {
+        preparedTasks += 1;
+        return await request([
+          {
+            content: `hello ${index}`,
+            role: "user",
+          },
+        ]);
+      }),
+    );
+
+    await vi.waitFor(() => {
+      expect(preparedTasks).toBe(2);
+      expect(aiMockState.generateTextCalls).toHaveLength(2);
+    });
+    expect(maxActiveProviderRequests).toBe(2);
+
+    resolvers.splice(0, 2).forEach((resolve) => {
+      resolve();
+    });
+    await vi.waitFor(() => {
+      expect(preparedTasks).toBe(4);
+      expect(aiMockState.generateTextCalls).toHaveLength(4);
+    });
+
+    resolvers.splice(0, 2).forEach((resolve) => {
+      resolve();
+    });
+    await vi.waitFor(() => {
+      expect(preparedTasks).toBe(5);
+      expect(aiMockState.generateTextCalls).toHaveLength(5);
+    });
+
+    resolvers.splice(0).forEach((resolve) => {
+      resolve();
+    });
+    await expect(Promise.all(requests)).resolves.toStrictEqual([
+      "done",
+      "done",
+      "done",
+      "done",
+      "done",
+    ]);
+    expect(maxActiveProviderRequests).toBe(2);
   });
 
   it("uses explicit scoped sampling defaults provided by the caller", async () => {

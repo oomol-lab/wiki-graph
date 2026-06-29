@@ -7,6 +7,14 @@ export type GuaranteedRequest = (
   maxRetries: number,
 ) => Promise<string | undefined>;
 
+export type GuaranteedLazyRequest = <T>(
+  operation: (request: GuaranteedRequest) => Promise<T>,
+) => Promise<T>;
+
+export type GuaranteedRequestController = GuaranteedRequest & {
+  lazy?: GuaranteedLazyRequest;
+};
+
 export type GuaranteedParser<TData, TResult> = (
   data: TData,
   index: number,

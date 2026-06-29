@@ -1,4 +1,9 @@
-import type { LLMessage, LLMRequestOptions } from "../../src/llm/index.js";
+import type {
+  LLMessage,
+  LLMLazyRequestOperation,
+  LLMRequestFunction,
+  LLMRequestOptions,
+} from "../../src/llm/index.js";
 
 export interface ScriptedLLMCall<S extends string> {
   readonly messages: readonly LLMessage[];
@@ -43,10 +48,26 @@ export class ScriptedLLM<S extends string> {
 
   public async request(
     messages: readonly LLMessage[],
+    options?: LLMRequestOptions<S>,
+  ): Promise<string>;
+  public async request<T>(
+    operation: LLMLazyRequestOperation<S, T>,
+  ): Promise<T>;
+  public async request<T>(
+    input: readonly LLMessage[] | LLMLazyRequestOperation<S, T>,
     options: LLMRequestOptions<S> = {},
-  ): Promise<string> {
-    return await this.#consume(messages, options, false);
+  ): Promise<string | T> {
+    if (typeof input === "function") {
+      return await input(this.#requestOnce);
+    }
+
+    return await this.#requestOnce(input, options);
   }
+
+  readonly #requestOnce: LLMRequestFunction<S> = async (
+    messages,
+    options = {},
+  ) => await this.#consume(messages, options, false);
 
   public async withContext<T>(
     operation: (context: {

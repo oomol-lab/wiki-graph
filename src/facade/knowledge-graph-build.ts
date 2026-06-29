@@ -4,7 +4,10 @@ import { createInterface } from "readline";
 import { join } from "path";
 import { z } from "zod";
 
-import type { GuaranteedRequest } from "../guaranteed/index.js";
+import type {
+  GuaranteedRequest,
+  GuaranteedRequestController,
+} from "../guaranteed/index.js";
 import type {
   Document,
   FragmentRecord,
@@ -30,7 +33,6 @@ import type { WikipageResolverOptions } from "../wikipage/index.js";
 import {
   buildWikilinkEvidenceWindows,
   discoverWikilinkRelations,
-  type WikilinkDiscoveredRelation,
   type WikilinkEvidenceWindow,
   type WikilinkMention,
   type WikilinkSentence,
@@ -60,7 +62,7 @@ export interface GenerateChapterKnowledgeGraphArtifactOptions {
     BuildJobProgressReporter,
     "throwIfStopped" | "updatePhase"
   >;
-  readonly request: GuaranteedRequest;
+  readonly request: GuaranteedRequestController;
   readonly resolverOptions?: Omit<WikipageResolverOptions, "progress">;
   readonly workspacePath: string;
 }
@@ -246,7 +248,7 @@ async function screenCandidates(input: {
     BuildJobProgressReporter,
     "throwIfStopped" | "updatePhase"
   >;
-  readonly request: GuaranteedRequest;
+  readonly request: GuaranteedRequestController;
   readonly text: string;
 }): Promise<readonly WikimatchCandidate[]> {
   if (input.candidates.length === 0) {
@@ -308,7 +310,7 @@ async function judgeCandidates(input: {
     BuildJobProgressReporter,
     "throwIfStopped" | "updatePhase"
   >;
-  readonly request: GuaranteedRequest;
+  readonly request: GuaranteedRequestController;
   readonly text: string;
 }): Promise<readonly MentionRecord[]> {
   const mentions: MentionRecord[] = [];
@@ -343,7 +345,7 @@ export async function groundWikimatchCandidates(input: {
     BuildJobProgressReporter,
     "throwIfStopped" | "updatePhase"
   >;
-  readonly request: GuaranteedRequest;
+  readonly request: GuaranteedRequestController;
   readonly text: string;
 }): Promise<readonly WikimatchAcceptedMention[]> {
   const mentions: WikimatchAcceptedMention[] = [];
@@ -373,25 +375,28 @@ export async function groundWikimatchCandidates(input: {
     });
 
     const results = await Promise.all(
-      windows.map(async (window) => {
-        try {
-          await input.progressTracker?.throwIfStopped();
-          return await judgeWikimatchPolicy({
-            candidates: window.candidates,
-            policyPrompt: input.policyPrompt,
-            request: input.request,
-            window,
-          });
-        } finally {
-          completedWindows += 1;
-          await input.progressTracker?.updatePhase({
-            done: completedWindows,
-            phase: "grounding",
-            total: totalWindows,
-            unit: "window",
-          });
-        }
-      }),
+      windows.map(
+        async (window) =>
+          await runLazyGuaranteedRequest(input.request, async (request) => {
+            try {
+              await input.progressTracker?.throwIfStopped();
+              return await judgeWikimatchPolicy({
+                candidates: window.candidates,
+                policyPrompt: input.policyPrompt,
+                request,
+                window,
+              });
+            } finally {
+              completedWindows += 1;
+              await input.progressTracker?.updatePhase({
+                done: completedWindows,
+                phase: "grounding",
+                total: totalWindows,
+                unit: "window",
+              });
+            }
+          }),
+      ),
     );
 
     const continuedCandidateIds = new Set<string>();
@@ -721,6 +726,15 @@ function formatEnrichmentProgressPhase(event: WikipageResolveProgress): {
   }
 }
 
+async function runLazyGuaranteedRequest<T>(
+  request: GuaranteedRequestController,
+  operation: (request: GuaranteedRequest) => Promise<T>,
+): Promise<T> {
+  return request.lazy === undefined
+    ? await operation(request)
+    : await request.lazy(operation);
+}
+
 async function discoverMentionLinks(input: {
   readonly fragments: readonly FragmentRecord[];
   readonly mentions: readonly MentionRecord[];
@@ -728,13 +742,12 @@ async function discoverMentionLinks(input: {
     BuildJobProgressReporter,
     "throwIfStopped" | "updatePhase"
   >;
-  readonly request: GuaranteedRequest;
+  readonly request: GuaranteedRequestController;
 }): Promise<readonly MentionLinkRecord[]> {
   const fragmentWindows = buildMentionLinkWindows(
     input.fragments,
     input.mentions,
   );
-  const discoveredLinks: WikilinkDiscoveredRelation[] = [];
   let completedWindows = 0;
 
   await input.progressTracker?.updatePhase({
@@ -744,28 +757,33 @@ async function discoverMentionLinks(input: {
     unit: "window",
   });
 
-  for (const item of fragmentWindows) {
-    try {
-      await input.progressTracker?.throwIfStopped();
-      discoveredLinks.push(
-        ...(await discoverWikilinkRelations({
-          chapterId: item.fragment.serialId,
-          fragmentId: item.fragment.fragmentId,
-          request: input.request,
-          sentences: item.fragment.sentences,
-          window: item.window,
-        })),
-      );
-    } finally {
-      completedWindows += 1;
-      await input.progressTracker?.updatePhase({
-        done: completedWindows,
-        phase: "relation-discovery",
-        total: fragmentWindows.length,
-        unit: "window",
-      });
-    }
-  }
+  const discoveredLinks = (
+    await Promise.all(
+      fragmentWindows.map(
+        async (item) =>
+          await runLazyGuaranteedRequest(input.request, async (request) => {
+            try {
+              await input.progressTracker?.throwIfStopped();
+              return await discoverWikilinkRelations({
+                chapterId: item.fragment.serialId,
+                fragmentId: item.fragment.fragmentId,
+                request,
+                sentences: item.fragment.sentences,
+                window: item.window,
+              });
+            } finally {
+              completedWindows += 1;
+              await input.progressTracker?.updatePhase({
+                done: completedWindows,
+                phase: "relation-discovery",
+                total: fragmentWindows.length,
+                unit: "window",
+              });
+            }
+          }),
+      ),
+    )
+  ).flat();
 
   return discoveredLinks.map((link, index) => ({
     ...(link.confidence === undefined ? {} : { confidence: link.confidence }),

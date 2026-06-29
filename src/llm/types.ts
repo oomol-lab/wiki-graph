@@ -23,6 +23,15 @@ export interface LLMRequestOptions<S extends string> {
   readonly retryMax?: number;
 }
 
+export type LLMRequestFunction<S extends string> = (
+  messages: readonly LLMessage[],
+  options?: LLMRequestOptions<S>,
+) => Promise<string>;
+
+export type LLMLazyRequestOperation<S extends string, T> = (
+  request: LLMRequestFunction<S>,
+) => Promise<T>;
+
 export type LLMStreamProgressCallback = (event: {
   readonly outputCharacters: number;
 }) => void | Promise<void>;

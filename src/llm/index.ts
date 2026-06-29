@@ -8,8 +8,10 @@ export {
 } from "./sampling.js";
 export type {
   LLMessage,
+  LLMLazyRequestOperation,
   LLMModel,
   LLMOptions,
+  LLMRequestFunction,
   LLMRequestOptions,
   LLMStreamProgressCallback,
   SamplingProfile,

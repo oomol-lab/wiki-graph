@@ -26,7 +26,9 @@ import type {
   LLMessage,
   LLMModel,
   LLMOptions,
+  LLMLazyRequestOperation,
   LLMRequestOptions,
+  LLMRequestFunction,
   LLMStreamProgressCallback,
   SamplingScopeConfig,
   TemperatureSetting,
@@ -82,6 +84,7 @@ type LLMRequestSessionInput<S extends string> = Omit<
 
 export class LLM<S extends string> {
   readonly #cache: LLMCache | undefined;
+  readonly #lazyRequestLimiter: AsyncSemaphore;
   readonly #logDirPath: string | undefined;
   readonly #model: LLMModel;
   readonly #modelProvider: string | undefined;
@@ -131,6 +134,7 @@ export class LLM<S extends string> {
       ...(sampling === undefined ? {} : { sampling }),
     });
     this.#cache = createCache(options.cacheDirPath);
+    this.#lazyRequestLimiter = new AsyncSemaphore(concurrent);
     this.#logDirPath = ensureDirectoryPath(options.logDirPath);
     this.#model = options.model;
     this.#modelProvider = modelInfo.provider;
@@ -176,13 +180,29 @@ export class LLM<S extends string> {
 
   public async request(
     messages: readonly LLMessage[],
+    options?: LLMRequestOptions<S>,
+  ): Promise<string>;
+  public async request<T>(
+    operation: LLMLazyRequestOperation<S, T>,
+  ): Promise<T>;
+  public async request<T>(
+    input: readonly LLMessage[] | LLMLazyRequestOperation<S, T>,
     options: LLMRequestOptions<S> = {},
-  ): Promise<string> {
-    return await this.#requestWithSession({
+  ): Promise<string | T> {
+    if (typeof input === "function") {
+      return await this.#lazyRequestLimiter.use(
+        async () => await input(this.#requestOnce),
+      );
+    }
+
+    return await this.#requestOnce(input, options);
+  }
+
+  readonly #requestOnce: LLMRequestFunction<S> = async (messages, options = {}) =>
+    await this.#requestWithSession({
       messages,
       ...options,
     });
-  }
 
   public loadSystemPrompt(
     templateName: string,

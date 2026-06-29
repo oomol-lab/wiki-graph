@@ -29,6 +29,11 @@ import {
   type BuildJobState,
 } from "../facade/index.js";
 import { SpineDigestFile } from "../facade/spine-digest-file.js";
+import type {
+  GuaranteedRequest,
+  GuaranteedRequestController,
+} from "../guaranteed/index.js";
+import type { LLMessage } from "../llm/index.js";
 
 import type { CLIQueueArguments } from "./args.js";
 import { loadCLIConfig } from "./config.js";
@@ -182,8 +187,8 @@ async function executeBuildJob(
   const extractionPrompt = resolveExtractionPrompt(promptSource);
   const knowledgeGraphRecallPrompt =
     resolveKnowledgeGraphRecallPrompt(promptSource);
-  const request = async (
-    messages: Parameters<typeof llm.request>[0],
+  const request: GuaranteedRequestController = async (
+    messages: readonly LLMessage[],
     index: number,
     maxRetries: number,
   ): Promise<string> =>
@@ -192,6 +197,9 @@ async function executeBuildJob(
       retryMax: maxRetries,
       scope: SpineDigestScope.ReaderExtraction,
     });
+  request.lazy = async <T>(
+    operation: (request: GuaranteedRequest) => Promise<T>,
+  ): Promise<T> => await llm.request(async () => await operation(request));
 
   const buildInput = await new SpineDigestFile(job.archivePath).readDocument(
     async (document) => await readChapterBuildInput(document, job.chapterId),

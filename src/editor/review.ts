@@ -69,35 +69,38 @@ export class CompressionReviewer<S extends string> {
     clues: readonly Clue[],
   ): Promise<readonly ClueReviewerInfo[]> {
     return await Promise.all(
-      clues.map(async (clue) => {
-        const clueText = await formatClueAsBook({
-          chunks: clue.chunks,
-          fullMarkup: true,
-          serialFragments: this.#serialFragments,
-        });
-        const messages: LLMessage[] = [
-          {
-            content: this.#llm.loadSystemPrompt(
-              CLUE_REVIEWER_GENERATOR_PROMPT_TEMPLATE,
-            ),
-            role: "system",
-          },
-          {
-            content: clueText,
-            role: "user",
-          },
-        ];
-        const reviewerInfo = await this.#llm.request(messages, {
-          scope: this.#reviewGuideScope,
-        });
+      clues.map(
+        async (clue) =>
+          await this.#llm.request(async (request) => {
+            const clueText = await formatClueAsBook({
+              chunks: clue.chunks,
+              fullMarkup: true,
+              serialFragments: this.#serialFragments,
+            });
+            const messages: LLMessage[] = [
+              {
+                content: this.#llm.loadSystemPrompt(
+                  CLUE_REVIEWER_GENERATOR_PROMPT_TEMPLATE,
+                ),
+                role: "system",
+              },
+              {
+                content: clueText,
+                role: "user",
+              },
+            ];
+            const reviewerInfo = await request(messages, {
+              scope: this.#reviewGuideScope,
+            });
 
-        return {
-          clueId: clue.clueId,
-          label: clue.label,
-          reviewerInfo: reviewerInfo.trim(),
-          weight: clue.weight,
-        };
-      }),
+            return {
+              clueId: clue.clueId,
+              label: clue.label,
+              reviewerInfo: reviewerInfo.trim(),
+              weight: clue.weight,
+            };
+          }),
+      ),
     );
   }
 
@@ -110,72 +113,76 @@ export class CompressionReviewer<S extends string> {
     readonly reviews: readonly ReviewResult[];
   }> {
     const results = await Promise.all(
-      clueReviewers.map(async (clueReviewer) => {
-        const systemPrompt = this.#llm.loadSystemPrompt(
-          CLUE_REVIEWER_PROMPT_TEMPLATE,
-          {
-            thread_info: clueReviewer.reviewerInfo,
-            user_language: this.#userLanguage,
-          },
-        );
-        const previousHistory = reviewerHistories[String(clueReviewer.clueId)];
-        const messages = buildReviewMessages(
-          {
-            compressedText,
-            systemPrompt,
-          },
-          previousHistory,
-        );
-
-        try {
-          return await requestGuaranteedJson({
-            messages,
-            parse: (data) => ({
-              rawResponse: JSON.stringify(data),
-              review: {
-                clueId: clueReviewer.clueId,
-                issues: data.issues.map((issue) => ({
-                  ...issue,
-                  severity: expectReviewSeverity(issue.severity),
-                })),
-                weight: clueReviewer.weight,
+      clueReviewers.map(
+        async (clueReviewer) =>
+          await this.#llm.request(async (request) => {
+            const systemPrompt = this.#llm.loadSystemPrompt(
+              CLUE_REVIEWER_PROMPT_TEMPLATE,
+              {
+                thread_info: clueReviewer.reviewerInfo,
+                user_language: this.#userLanguage,
               },
-            }),
-            responseIntentClassifierPrompt: this.#llm.loadSystemPrompt(
-              RESPONSE_INTENT_CLASSIFIER_PROMPT_TEMPLATE,
-            ),
-            request: async (retryMessages, retryIndex, retryMax) =>
-              await this.#llm.request(retryMessages, {
-                retryIndex,
-                retryMax,
-                scope: this.#reviewScope,
-                useCache: false,
-              }),
-            schema: reviewResponseSchema,
-          });
-        } catch (error) {
-          if (!(error instanceof GuaranteedRequestFailureError)) {
-            throw error;
-          }
+            );
+            const previousHistory =
+              reviewerHistories[String(clueReviewer.clueId)];
+            const messages = buildReviewMessages(
+              {
+                compressedText,
+                systemPrompt,
+              },
+              previousHistory,
+            );
 
-          getLogger({
-            clueId: clueReviewer.clueId,
-            component: "editor-review",
-          }).warn(
-            { error },
-            "Compression reviewer failed to produce valid JSON; treating it as no issues.",
-          );
+            try {
+              return await requestGuaranteedJson({
+                messages,
+                parse: (data) => ({
+                  rawResponse: JSON.stringify(data),
+                  review: {
+                    clueId: clueReviewer.clueId,
+                    issues: data.issues.map((issue) => ({
+                      ...issue,
+                      severity: expectReviewSeverity(issue.severity),
+                    })),
+                    weight: clueReviewer.weight,
+                  },
+                }),
+                responseIntentClassifierPrompt: this.#llm.loadSystemPrompt(
+                  RESPONSE_INTENT_CLASSIFIER_PROMPT_TEMPLATE,
+                ),
+                request: async (retryMessages, retryIndex, retryMax) =>
+                  await request(retryMessages, {
+                    retryIndex,
+                    retryMax,
+                    scope: this.#reviewScope,
+                    useCache: false,
+                  }),
+                schema: reviewResponseSchema,
+              });
+            } catch (error) {
+              if (!(error instanceof GuaranteedRequestFailureError)) {
+                throw error;
+              }
 
-          return {
-            rawResponse: undefined,
-            review: {
-              clueId: clueReviewer.clueId,
-              issues: [],
-              weight: clueReviewer.weight,
-            },
-          };
-        }
-      }),
+              getLogger({
+                clueId: clueReviewer.clueId,
+                component: "editor-review",
+              }).warn(
+                { error },
+                "Compression reviewer failed to produce valid JSON; treating it as no issues.",
+              );
+
+              return {
+                rawResponse: undefined,
+                review: {
+                  clueId: clueReviewer.clueId,
+                  issues: [],
+                  weight: clueReviewer.weight,
+                },
+              };
+            }
+          }),
+      ),
     );
     const rawResponses = Object.create(null) as Record<
       string,
