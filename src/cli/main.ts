@@ -11,6 +11,7 @@ import { runQueueCommand } from "./queue.js";
 import { runStatusCommand } from "./status.js";
 import { LLMPaymentRequiredError } from "../llm/index.js";
 import { formatError } from "../utils/node-error.js";
+import { formatCLIJSON, formatCLIJSONLine } from "./json.js";
 import { readCLIVersion } from "./version.js";
 
 export async function main(): Promise<void> {
@@ -55,14 +56,12 @@ export async function main(): Promise<void> {
     }
   } catch (error) {
     if (shouldWriteJSONError(process.argv.slice(2))) {
-      process.stdout.write(
-        `${JSON.stringify(createCLIErrorObject(error), null, 2)}\n`,
-      );
+      process.stdout.write(formatCLIJSON(createCLIErrorObject(error)));
       process.exitCode = 1;
       return;
     }
     if (shouldWriteJSONLError(process.argv.slice(2))) {
-      process.stdout.write(`${JSON.stringify(createCLIErrorObject(error))}\n`);
+      process.stdout.write(formatCLIJSONLine(createCLIErrorObject(error)));
       process.exitCode = 1;
       return;
     }

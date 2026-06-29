@@ -36,6 +36,7 @@ import type { ReadonlyDocument } from "../document/index.js";
 import type { CLIArchiveArguments } from "./args.js";
 import { runConvertCommand } from "./convert.js";
 import { readTextStreamFromStdin, writeTextToStdout } from "./io.js";
+import { formatCLIJSON, formatCLIJSONLine } from "./json.js";
 
 type ResultFormat = "json" | "jsonl" | "text";
 
@@ -406,7 +407,7 @@ async function writeIndex(
   json: boolean,
 ): Promise<void> {
   if (json) {
-    await writeTextToStdout(`${JSON.stringify(index, null, 2)}\n`);
+    await writeTextToStdout(formatCLIJSON(index));
     return;
   }
 
@@ -460,7 +461,7 @@ async function writeEstimate(
   json: boolean,
 ): Promise<void> {
   if (json) {
-    await writeTextToStdout(`${JSON.stringify(estimate, null, 2)}\n`);
+    await writeTextToStdout(formatCLIJSON(estimate));
     return;
   }
 
@@ -491,7 +492,7 @@ async function writeList(
   }));
 
   if (format === "json") {
-    await writeTextToStdout(`${JSON.stringify({ objects }, null, 2)}\n`);
+    await writeTextToStdout(formatCLIJSON({ objects }));
     return;
   }
   if (format === "jsonl") {
@@ -519,14 +520,10 @@ async function writeFindHits(
 
   if (format === "json") {
     await writeTextToStdout(
-      `${JSON.stringify(
-        {
-          objects,
-          nextCursor: result.nextCursor,
-        },
-        null,
-        2,
-      )}\n`,
+      formatCLIJSON({
+        objects,
+        nextCursor: result.nextCursor,
+      }),
     );
     return;
   }
@@ -552,7 +549,7 @@ async function writeEvidence(
   format: ResultFormat,
 ): Promise<void> {
   if (format === "json") {
-    await writeTextToStdout(`${JSON.stringify(evidence, null, 2)}\n`);
+    await writeTextToStdout(formatCLIJSON(evidence));
     return;
   }
   if (format === "jsonl") {
@@ -598,7 +595,7 @@ async function writePage(
   format: ResultFormat,
 ): Promise<void> {
   if (format === "json") {
-    await writeTextToStdout(`${JSON.stringify(page, null, 2)}\n`);
+    await writeTextToStdout(formatCLIJSON(page));
     return;
   }
   if (format === "jsonl") {
@@ -629,7 +626,7 @@ async function writePage(
       await writeTextToStdout(
         page.meta === undefined
           ? "No metadata.\n"
-          : `${JSON.stringify(page.meta, null, 2)}\n`,
+          : formatCLIJSON(page.meta),
       );
       return;
     case "fragment":
@@ -702,7 +699,7 @@ async function writePack(
   format: ResultFormat,
 ): Promise<void> {
   if (format === "json") {
-    await writeTextToStdout(`${JSON.stringify(pack, null, 2)}\n`);
+    await writeTextToStdout(formatCLIJSON(pack));
     return;
   }
   if (format === "jsonl") {
@@ -963,11 +960,11 @@ function formatPackAnchor(anchor: ArchivePage): string {
     case "chapter":
       return `${anchor.id} ${anchor.title}\n${anchor.summary ?? "[summary missing]"}`;
     case "chapter-tree":
-      return `${anchor.id} ${anchor.title}\n${JSON.stringify(anchor.tree, null, 2)}`;
+      return `${anchor.id} ${anchor.title}\n${formatCLIJSON(anchor.tree).trimEnd()}`;
     case "fragment":
       return `${anchor.id}\n${anchor.fragment.text}`;
     case "meta":
-      return `${anchor.id}\n${JSON.stringify(anchor.meta, null, 2)}`;
+      return `${anchor.id}\n${formatCLIJSON(anchor.meta).trimEnd()}`;
     case "node":
       return [
         `${anchor.id} ${anchor.title}`,
@@ -1020,8 +1017,8 @@ function truncateToBudget(text: string, budget: number): string {
 
 async function writeJSONL(items: readonly unknown[]): Promise<void> {
   await writeTextToStdout(
-    items.map((item) => JSON.stringify(item)).join("\n") +
-      (items.length === 0 ? "" : "\n"),
+    items.map((item) => formatCLIJSONLine(item)).join("") +
+      (items.length === 0 ? "" : ""),
   );
 }
 

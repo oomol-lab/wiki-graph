@@ -1,6 +1,7 @@
 import type { CLIStatusArguments } from "./args.js";
 import { loadCLIConfig } from "./config.js";
 import { writeTextToStdout } from "./io.js";
+import { formatCLIJSON } from "./json.js";
 
 export async function runStatusCommand(
   args: CLIStatusArguments,
@@ -11,7 +12,7 @@ export async function runStatusCommand(
     }),
   );
 
-  await writeTextToStdout(`${JSON.stringify(masked, null, 2)}\n`);
+  await writeTextToStdout(formatCLIJSON(masked));
 }
 
 type JSONLike =

@@ -26,6 +26,7 @@ import { SpineDigestFile } from "../facade/spine-digest-file.js";
 
 import type { CLIArchiveChapterArguments } from "./args.js";
 import { readTextStreamFromStdin, writeTextToStdout } from "./io.js";
+import { formatCLIJSON } from "./json.js";
 
 export async function runArchiveChapterCommand(
   args: CLIArchiveChapterArguments,
@@ -272,7 +273,7 @@ async function writeChapterList(
 }
 
 async function writeChapterTree(tree: ChapterTree): Promise<void> {
-  await writeTextToStdout(`${JSON.stringify(tree, null, 2)}\n`);
+  await writeTextToStdout(formatCLIJSON(tree));
 }
 
 async function writeChapterTreeApplyResult(

@@ -38,6 +38,7 @@ import type { LLMessage } from "../llm/index.js";
 import type { CLIQueueArguments } from "./args.js";
 import { loadCLIConfig } from "./config.js";
 import { writeTextToStdout } from "./io.js";
+import { formatCLIJSON, formatCLIJSONLine } from "./json.js";
 import {
   createStageLLM,
   loadRequiredStageConfig,
@@ -366,9 +367,7 @@ async function writeWatchEvent(
   jsonl: boolean,
 ): Promise<void> {
   if (jsonl) {
-    await writeTextToStdout(
-      `${JSON.stringify(formatWatchEventJSONL(event))}\n`,
-    );
+    await writeTextToStdout(formatCLIJSONLine(formatWatchEventJSONL(event)));
     return;
   }
 
@@ -540,7 +539,7 @@ async function writeJobList(
 ): Promise<void> {
   if (options.json) {
     await writeTextToStdout(
-      `${JSON.stringify({ items: jobs.map(formatJobJSON) }, null, 2)}\n`,
+      formatCLIJSON({ items: jobs.map(formatJobJSON) }),
     );
     return;
   }
@@ -569,7 +568,7 @@ async function writeJobStatus(
   options: { readonly json: boolean },
 ): Promise<void> {
   if (options.json) {
-    await writeTextToStdout(`${JSON.stringify(formatJobJSON(job), null, 2)}\n`);
+    await writeTextToStdout(formatCLIJSON(formatJobJSON(job)));
     return;
   }
 

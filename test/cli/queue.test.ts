@@ -609,8 +609,8 @@ describe("cli/queue", () => {
     });
 
     expect(queueMockState.textWrites).toStrictEqual([
-      `${JSON.stringify(queueMockState.events[0])}\n`,
-      `${JSON.stringify(queueMockState.events[1])}\n`,
+      '{"at":1,"seq":1,"jobId":"job-1","type":"created","state":"queued"}\n',
+      '{"at":2,"seq":2,"jobId":"job-1","type":"succeeded","state":"succeeded"}\n',
     ]);
   });
 
@@ -667,21 +667,12 @@ describe("cli/queue", () => {
     });
 
     expect(queueMockState.textWrites[0]).toBe(
-      `${JSON.stringify({
-        at: 1,
-        jobId: "job-1",
-        outputTokens: 200,
-        seq: 1,
-        step: "reading-summary",
-        totalWords: 4520,
-        type: "progress_snapshot",
-        words: 4520,
-      })}\n`,
+      '{"at":1,"seq":1,"jobId":"job-1","type":"progress_snapshot","step":"reading-summary","words":4520,"totalWords":4520,"outputTokens":200}\n',
     );
     expect(queueMockState.textWrites[0]).not.toContain("graphWords");
     expect(queueMockState.textWrites[0]).not.toContain("readingSummaryWords");
     expect(queueMockState.textWrites[1]).toBe(
-      `${JSON.stringify(queueMockState.events[1])}\n`,
+      '{"at":2,"seq":2,"jobId":"job-1","type":"succeeded","state":"succeeded"}\n',
     );
   });
 
@@ -836,21 +827,7 @@ describe("cli/queue", () => {
     });
 
     expect(queueMockState.textWrites[0]).toBe(
-      `${JSON.stringify({
-        at: 1,
-        jobId: "job-1",
-        outputTokens: 6500,
-        phase: "grounding",
-        phaseDetail: "window",
-        phaseDone: 5,
-        phaseTotal: 19,
-        phaseUnit: "window",
-        seq: 1,
-        step: "knowledge-graph",
-        totalWords: 0,
-        type: "progress_snapshot",
-        words: 0,
-      })}\n`,
+      '{"at":1,"seq":1,"jobId":"job-1","type":"progress_snapshot","step":"knowledge-graph","phase":"grounding","phaseDetail":"window","phaseDone":5,"phaseTotal":19,"phaseUnit":"window","words":0,"totalWords":0,"outputTokens":6500}\n',
     );
   });
 });

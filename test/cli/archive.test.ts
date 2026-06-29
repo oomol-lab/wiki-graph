@@ -375,6 +375,16 @@ describe("cli/archive", () => {
         },
       ],
     });
+    expect(archiveMockState.textWrites[0]).toContain(
+      [
+        '      "uri": "wikigraph://entity/Q1"',
+        '      "type": "entity"',
+        '      "label": "RAG"',
+        '      "score": 1',
+        '      "summary": "RAG original source fragment."',
+        '      "evidence": {',
+      ].join(",\n"),
+    );
   });
 
   it("prints search cursor metadata as JSONL", async () => {

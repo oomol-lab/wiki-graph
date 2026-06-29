@@ -8,6 +8,7 @@ import type {
   CLIArchiveMetadataArguments,
 } from "./args.js";
 import { writeBinaryToStdout, writeTextToStdout } from "./io.js";
+import { formatCLIJSON } from "./json.js";
 
 export async function runArchiveMetaCommand(
   args: CLIArchiveMetadataArguments,
@@ -69,9 +70,7 @@ async function writeArchiveMeta(
   options: { readonly json: boolean },
 ): Promise<void> {
   if (options.json) {
-    await writeTextToStdout(
-      `${JSON.stringify(formatMetaJSON(meta), null, 2)}\n`,
-    );
+    await writeTextToStdout(formatCLIJSON(formatMetaJSON(meta)));
     return;
   }
 
