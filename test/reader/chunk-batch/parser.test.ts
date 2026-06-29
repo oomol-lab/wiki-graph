@@ -337,6 +337,67 @@ describe("reader/chunk-batch/parser", () => {
     });
   });
 
+  it("uses second-stage choice for ambiguous evidence arrays", async () => {
+    const requestChoice = vi.fn(
+      (_messages: readonly LLMessage[], _index: number, _maxRetries: number) =>
+        Promise.resolve('{"choice":"S2"}'),
+    );
+    const sentences = [
+      {
+        sentenceId: [1, 0, 0],
+        text: "Echo",
+        wordsCount: 2,
+      },
+      {
+        sentenceId: [1, 0, 1],
+        text: "Echo",
+        wordsCount: 3,
+      },
+    ] satisfies ChunkExtractionSentence[];
+    const parser = new ChunkBatchParser({
+      choiceSystemPrompt: "choice prompt",
+      metadataField: ChunkMetadataField.Retention,
+      projection: new FragmentProjection(sentences),
+      responseIntentClassifierPrompt: "classifier prompt",
+      requestChoice,
+      sentenceTextSource: {
+        getSentence: (sentenceId) => Promise.resolve(sentenceId.join(":")),
+      },
+      sentences,
+      visibleChunkIds: [],
+    });
+
+    const result = await parser.parse(
+      {
+        chunks: [
+          {
+            content: "Chosen content",
+            evidence: [
+              {
+                quote: "Echo",
+              },
+            ],
+            label: "Chosen label",
+            retention: ChunkRetention.Relevant,
+            temp_id: "temp-1",
+          },
+        ],
+        fragment_summary: "",
+        links: [],
+      },
+      {
+        isLastGenerationAttempt: true,
+      },
+    );
+
+    expect(requestChoice).toHaveBeenCalledTimes(1);
+    expect(result.chunkBatch.chunks[0]).toMatchObject({
+      sentenceId: [1, 0, 1],
+      sentenceIds: [[1, 0, 1]],
+      wordsCount: 3,
+    });
+  });
+
   it("rejects invalid links and importance annotations", async () => {
     const parser = new ChunkBatchParser({
       choiceSystemPrompt: "choice prompt",

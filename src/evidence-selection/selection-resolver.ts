@@ -40,14 +40,18 @@ export function resolveEvidenceSelection(input: {
     ];
   }
 
+  const candidates = rankEvidenceQuote(quote, input.sentences);
+
   if (sentenceId !== undefined) {
-    const directCandidate = rankEvidenceQuote(quote, input.sentences).find(
+    const directCandidate = candidates.find(
       (candidate) => candidate.occurrenceId === sentenceId,
     );
+    const topCandidate = candidates[0];
 
     if (
       directCandidate !== undefined &&
-      isDirectCandidateTrusted(directCandidate)
+      topCandidate !== undefined &&
+      isDirectCandidateTrusted(directCandidate, topCandidate)
     ) {
       return [
         {
@@ -61,7 +65,6 @@ export function resolveEvidenceSelection(input: {
     }
   }
 
-  const candidates = rankEvidenceQuote(quote, input.sentences);
   const topCandidate = candidates[0];
 
   if (topCandidate === undefined) {
@@ -268,11 +271,17 @@ function compareCandidates(
 
 function isDirectCandidateTrusted(
   candidate: EvidenceSelectionCandidate,
+  topCandidate: EvidenceSelectionCandidate,
 ): boolean {
-  return (
+  const trustedScore =
     candidate.score >= DIRECT_ID_MIN_SCORE ||
     (candidate.exactSubstring &&
-      candidate.score >= DIRECT_ID_SUBSTRING_MIN_SCORE)
+      candidate.score >= DIRECT_ID_SUBSTRING_MIN_SCORE);
+
+  return (
+    trustedScore &&
+    (candidate.occurrenceId === topCandidate.occurrenceId ||
+      topCandidate.score - candidate.score < AUTO_TOP_MIN_GAP)
   );
 }
 

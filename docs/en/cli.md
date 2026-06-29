@@ -33,9 +33,9 @@ wikigraph queue clean
 
 Exploration modes:
 
-- Search mode: `find` discovers objects by deterministic keywords; `grep` checks exact continuous text.
-- Structure mode: `chapter tree --json` shows table-of-contents hierarchy; `list` shows chapter and knowledge-node collections; `page` opens one page and exposes related nodes, source fragments, and links.
-- Reading mode: `read` prints continuous text for a selected chapter, knowledge node, summary, source fragment, or metadata object.
+- Search mode: `search` discovers URI-addressable objects from query text.
+- Structure mode: `chapter tree --json` shows table-of-contents hierarchy; `list` enumerates object collections from an archive or scoped URI.
+- Reading mode: `get` opens one selected URI; `related`, `evidence`, and `pack` expand or verify it after selection.
 
 Search and collection behavior:
 

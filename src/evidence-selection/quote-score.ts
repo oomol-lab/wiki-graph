@@ -240,7 +240,7 @@ function isSeparator(char: string): boolean {
 }
 
 function stripMarkup(text: string): string {
-  return text.replace(/<[^>]*>/gu, "");
+  return text.replace(/<\/?(?:mention|quote)\b[^>]*>/giu, "");
 }
 
 function createEmptyScore(

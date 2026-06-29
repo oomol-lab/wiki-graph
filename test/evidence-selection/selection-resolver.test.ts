@@ -58,6 +58,22 @@ describe("evidence-selection/selection-resolver", () => {
     });
   });
 
+  it("does not let a decent stale sentence id override a clear quote match", () => {
+    const [resolution, failure] = resolveEvidenceSelection({
+      evidence: {
+        quote: "Alpha later wrote about Beta",
+        sentence_id: "S1",
+      },
+      sentences: SENTENCES,
+    });
+
+    expect(failure).toBeUndefined();
+    expect(resolution).toMatchObject({
+      sentenceIds: [[1, 0, 2]],
+    });
+    expect(resolution?.strategy).toMatch(/^quote_auto_top1:/u);
+  });
+
   it("resolves multiple evidence selections into ordered unique sentence IDs", () => {
     const [resolution, failure] = resolveEvidenceSelectionList({
       evidence: [

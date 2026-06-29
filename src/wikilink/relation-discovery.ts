@@ -203,6 +203,26 @@ function parseRelationResponse(
     })),
   );
   const sentenceOffsets = buildSentenceOffsets(options.sentences);
+  const evidenceSentences = projection.sentences.flatMap(
+    (sentence, sentenceIndex) => {
+      const offset = sentenceOffsets[sentenceIndex];
+
+      if (
+        offset === undefined ||
+        !rangesOverlap(offset, options.window.range)
+      ) {
+        return [];
+      }
+
+      return [
+        {
+          id: `S${sentenceIndex + 1}`,
+          sentenceId: sentence.sentenceId,
+          text: sentence.projectedText,
+        },
+      ];
+    },
+  );
   const issues: string[] = [];
   const links: WikilinkDiscoveredRelation[] = [];
   const seenKeys = new Set<string>();
@@ -239,22 +259,13 @@ function parseRelationResponse(
       continue;
     }
 
-    const sentenceIds = projection.sentences.map(
+    const sentenceIds = evidenceSentences.map(
       (sentence) => sentence.sentenceId,
     );
-    const sentenceTexts = projection.sentences.map(
-      (sentence) => sentence.projectedText,
-    );
-    const selectionSentences = projection.sentences.map(
-      (sentence, sentenceIndex) => ({
-        id: `S${sentenceIndex + 1}`,
-        sentenceId: sentence.sentenceId,
-        text: sentence.projectedText,
-      }),
-    );
+    const sentenceTexts = evidenceSentences.map((sentence) => sentence.text);
     const [selectionResolution, selectionFailure] = resolveRelationEvidence({
       evidence: createRelationEvidenceSelection(relation.evidence),
-      sentences: selectionSentences,
+      sentences: evidenceSentences,
     });
     const [anchorResolution, anchorFailure] =
       !Array.isArray(relation.evidence) &&
@@ -277,16 +288,17 @@ function parseRelationResponse(
       continue;
     }
 
-    const firstSentence = effectiveResolution.sentenceIds[0];
-    const lastSentence = effectiveResolution.sentenceIds.at(-1);
+    const resolvedIndexes = effectiveResolution.sentenceIds.map(
+      (sentenceId) => sentenceId[2],
+    );
 
-    if (firstSentence === undefined || lastSentence === undefined) {
+    if (resolvedIndexes.length === 0) {
       issues.push(`${prefix}.evidence resolved to no sentences.`);
       continue;
     }
 
-    const startIndex = firstSentence[2];
-    const endIndex = lastSentence[2];
+    const startIndex = Math.min(...resolvedIndexes);
+    const endIndex = Math.max(...resolvedIndexes);
     const startOffset = sentenceOffsets[startIndex]?.start;
     const endOffset = sentenceOffsets[endIndex]?.end;
 

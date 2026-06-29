@@ -253,6 +253,22 @@ describe("evidence-selection/quote-score", () => {
     ).toBeGreaterThan(0.95);
   });
 
+  it("keeps non-synthetic angle-bracket text visible while scoring", () => {
+    expect(
+      scoreEvidenceQuote({
+        quote: "vector<int>",
+        sentence: "The parser keeps vector<int> as source text.",
+      }).score,
+    ).toBeGreaterThan(0.95);
+
+    expect(
+      scoreEvidenceQuote({
+        quote: "x < y > z",
+        sentence: "The note says x < y > z in plain text.",
+      }).score,
+    ).toBeGreaterThan(0.95);
+  });
+
   it("keeps fuzzy omissions high but penalizes reordered excerpts", () => {
     const sentence = FREUD_SENTENCES[8];
     const omitted = "梦解释为愿望的满足提供了对症状形成和压抑的临床分析模型";

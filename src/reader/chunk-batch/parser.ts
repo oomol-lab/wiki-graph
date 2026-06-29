@@ -400,25 +400,9 @@ export class ChunkBatchParser<
       return [selectionResolution.sentenceIds, undefined];
     }
 
-    if (Array.isArray(evidence)) {
-      const fallbackFailure =
-        selectionFailure === undefined
-          ? undefined
-          : toEvidenceResolutionFailure(selectionFailure, "evidence");
-
-      return [
-        [],
-        fallbackFailure ?? {
-          candidates: [],
-          code: "invalid",
-          fieldName: "evidence",
-          message: `Chunk #${input.chunkIndex} ("${input.chunkLabel}"): evidence array could not be resolved`,
-        },
-      ];
-    }
-
-    const exactMatchSentenceIds =
-      this.#resolveExactProjectionEvidence(evidence);
+    const exactMatchSentenceIds = Array.isArray(evidence)
+      ? []
+      : this.#resolveExactProjectionEvidence(evidence);
 
     if (exactMatchSentenceIds.length > 0) {
       return [exactMatchSentenceIds, undefined];
@@ -427,11 +411,13 @@ export class ChunkBatchParser<
     const candidateTexts = projectedSentences.map(
       (sentence) => sentence.projectedText,
     );
-    const [resolution, failure] = this.#evidenceResolver.resolve(
-      evidence,
-      candidateSentenceIds,
-      candidateTexts,
-    );
+    const [resolution, failure] = Array.isArray(evidence)
+      ? [undefined, undefined]
+      : this.#evidenceResolver.resolve(
+          evidence,
+          candidateSentenceIds,
+          candidateTexts,
+        );
 
     if (resolution !== undefined) {
       return [resolution.sentenceIds, undefined];
@@ -493,6 +479,10 @@ export class ChunkBatchParser<
 
     if (choiceFieldName === "evidence") {
       return [[choiceCandidate.sentenceId], undefined];
+    }
+
+    if (Array.isArray(evidence)) {
+      return [[], fallbackFailure];
     }
 
     if (input.isLastGenerationAttempt) {

@@ -33,9 +33,9 @@ wikigraph queue clean
 
 探索模式：
 
-- 搜索模式：`find` 用确定性关键词发现对象；`grep` 检查连续精确文本。
-- 结构模式：`chapter tree --json` 查看目录层级；`list` 查看章节和知识点集合；`page` 打开具体页面并暴露相关节点、来源片段和链接。
-- 阅读模式：`read` 输出选定章节、知识点、summary、原文片段或 metadata object 的连续文本。
+- 搜索模式：`search` 根据 query text 发现可 URI 寻址的对象。
+- 结构模式：`chapter tree --json` 查看目录层级；`list` 从 archive 或 scoped URI 枚举对象集合。
+- 阅读模式：`get` 打开选定 URI；`related`、`evidence` 和 `pack` 在选定对象后扩展或验证它。
 
 搜索与集合行为：
 

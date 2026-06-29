@@ -136,6 +136,59 @@ describe("wikilink/relation-discovery", () => {
     ]);
   });
 
+  it("rejects relation evidence outside the displayed sentence window", async () => {
+    const sentences = [
+      { text: "Alpha founded Beta.", wordsCount: 3 },
+      { text: "Gamma watched them.", wordsCount: 3 },
+    ];
+    const text = sentences.map((sentence) => sentence.text).join(" ");
+    const window = buildWikilinkEvidenceWindows({
+      maxEvidenceDistance: 1,
+      mentions: [
+        {
+          id: "m1",
+          qid: "Q1",
+          range: { end: 5, start: 0 },
+          surface: "Alpha",
+        },
+        {
+          id: "m2",
+          qid: "Q2",
+          range: { end: 18, start: 14 },
+          surface: "Beta",
+        },
+      ],
+      text,
+      windowLength: 20,
+    })[0]!;
+    const request = vi.fn<GuaranteedRequest>().mockResolvedValue(
+      JSON.stringify({
+        relations: [
+          {
+            evidence: {
+              quote: "Gamma watched them",
+              sentence_id: "S2",
+            },
+            predicate: "watched_by",
+            sourceMentionId: "m1",
+            targetMentionId: "m2",
+          },
+        ],
+      }),
+    );
+
+    await expect(
+      discoverWikilinkRelations({
+        chapterId: 1,
+        fragmentId: 0,
+        maxRetries: 0,
+        request,
+        sentences,
+        window,
+      }),
+    ).resolves.toStrictEqual([]);
+  });
+
   it("still resolves old anchor evidence for existing retry responses", async () => {
     const sentences = [
       { text: "Alpha founded Beta.", wordsCount: 3 },
@@ -436,7 +489,7 @@ describe("wikilink/relation-discovery", () => {
         {
           id: "m2",
           qid: "Q2",
-          range: { end: 50, start: 46 },
+          range: { end: 48, start: 44 },
           surface: "Beta",
         },
       ],
