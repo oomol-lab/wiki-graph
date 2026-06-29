@@ -81,6 +81,7 @@ describe("facade/archive-view", () => {
 
   it("caches empty search results for repeated queries", async () => {
     await withTempDir("spinedigest-archive-view-", async (path) => {
+      const previousStateDir = process.env.WIKIGRAPH_STATE_DIR;
       process.env.WIKIGRAPH_STATE_DIR = `${path}/state`;
       const document = await DirectoryDocument.open(`${path}/document`);
 
@@ -111,6 +112,7 @@ describe("facade/archive-view", () => {
         expect(first.items).toStrictEqual([]);
         expect(second.items).toStrictEqual([]);
       } finally {
+        restoreEnv("WIKIGRAPH_STATE_DIR", previousStateDir);
         await document.release();
       }
     });
@@ -118,6 +120,7 @@ describe("facade/archive-view", () => {
 
   it("keeps search caches isolated by type and chapter filters", async () => {
     await withTempDir("spinedigest-archive-view-", async (path) => {
+      const previousStateDir = process.env.WIKIGRAPH_STATE_DIR;
       process.env.WIKIGRAPH_STATE_DIR = `${path}/state`;
       const document = await DirectoryDocument.open(`${path}/document`);
 
@@ -197,6 +200,7 @@ describe("facade/archive-view", () => {
           "fragment",
         ]);
       } finally {
+        restoreEnv("WIKIGRAPH_STATE_DIR", previousStateDir);
         await document.release();
       }
     });
@@ -204,6 +208,7 @@ describe("facade/archive-view", () => {
 
   it("groups field-level hits into one object search result", async () => {
     await withTempDir("spinedigest-archive-view-", async (path) => {
+      const previousStateDir = process.env.WIKIGRAPH_STATE_DIR;
       process.env.WIKIGRAPH_STATE_DIR = `${path}/state`;
       const document = await DirectoryDocument.open(`${path}/document`);
 
@@ -234,6 +239,7 @@ describe("facade/archive-view", () => {
           }),
         ]);
       } finally {
+        restoreEnv("WIKIGRAPH_STATE_DIR", previousStateDir);
         await document.release();
       }
     });
@@ -241,6 +247,7 @@ describe("facade/archive-view", () => {
 
   it("refreshes cached search results after archive cache invalidation", async () => {
     await withTempDir("spinedigest-archive-view-", async (path) => {
+      const previousStateDir = process.env.WIKIGRAPH_STATE_DIR;
       process.env.WIKIGRAPH_STATE_DIR = `${path}/state`;
       const document = await DirectoryDocument.open(`${path}/document`);
 
@@ -279,6 +286,7 @@ describe("facade/archive-view", () => {
           }),
         ]);
       } finally {
+        restoreEnv("WIKIGRAPH_STATE_DIR", previousStateDir);
         await document.release();
       }
     });
@@ -286,6 +294,7 @@ describe("facade/archive-view", () => {
 
   it("prioritizes entity matches before source fallback", async () => {
     await withTempDir("spinedigest-archive-view-", async (path) => {
+      const previousStateDir = process.env.WIKIGRAPH_STATE_DIR;
       process.env.WIKIGRAPH_STATE_DIR = `${path}/state`;
       const document = await DirectoryDocument.open(`${path}/document`);
 
@@ -330,6 +339,7 @@ describe("facade/archive-view", () => {
           },
         ]);
       } finally {
+        restoreEnv("WIKIGRAPH_STATE_DIR", previousStateDir);
         await document.release();
       }
     });
@@ -337,6 +347,7 @@ describe("facade/archive-view", () => {
 
   it("hydrates entity evidence after reading a search session page", async () => {
     await withTempDir("spinedigest-archive-view-", async (path) => {
+      const previousStateDir = process.env.WIKIGRAPH_STATE_DIR;
       process.env.WIKIGRAPH_STATE_DIR = `${path}/state`;
       const document = await DirectoryDocument.open(`${path}/document`);
 
@@ -404,6 +415,7 @@ describe("facade/archive-view", () => {
           "evidenceMentions",
         );
       } finally {
+        restoreEnv("WIKIGRAPH_STATE_DIR", previousStateDir);
         await document.release();
       }
     });
@@ -411,6 +423,7 @@ describe("facade/archive-view", () => {
 
   it("continues entity search cursors without repeating --type", async () => {
     await withTempDir("spinedigest-archive-view-", async (path) => {
+      const previousStateDir = process.env.WIKIGRAPH_STATE_DIR;
       process.env.WIKIGRAPH_STATE_DIR = `${path}/state`;
       const document = await DirectoryDocument.open(`${path}/document`);
 
@@ -464,6 +477,7 @@ describe("facade/archive-view", () => {
         expect(secondPage.types).toStrictEqual(["entity"]);
         expect(secondPage.items[0]).toMatchObject({ type: "entity" });
       } finally {
+        restoreEnv("WIKIGRAPH_STATE_DIR", previousStateDir);
         await document.release();
       }
     });
@@ -471,6 +485,7 @@ describe("facade/archive-view", () => {
 
   it("keeps exact entity surfaces ahead of weaker same-qid mentions", async () => {
     await withTempDir("spinedigest-archive-view-", async (path) => {
+      const previousStateDir = process.env.WIKIGRAPH_STATE_DIR;
       process.env.WIKIGRAPH_STATE_DIR = `${path}/state`;
       const document = await DirectoryDocument.open(`${path}/document`);
 
@@ -522,6 +537,7 @@ describe("facade/archive-view", () => {
           type: "entity",
         });
       } finally {
+        restoreEnv("WIKIGRAPH_STATE_DIR", previousStateDir);
         await document.release();
       }
     });
@@ -529,6 +545,7 @@ describe("facade/archive-view", () => {
 
   it("does not expand entity matches through qid aliases", async () => {
     await withTempDir("spinedigest-archive-view-", async (path) => {
+      const previousStateDir = process.env.WIKIGRAPH_STATE_DIR;
       process.env.WIKIGRAPH_STATE_DIR = `${path}/state`;
       const document = await DirectoryDocument.open(`${path}/document`);
 
@@ -575,6 +592,7 @@ describe("facade/archive-view", () => {
           type: "entity",
         });
       } finally {
+        restoreEnv("WIKIGRAPH_STATE_DIR", previousStateDir);
         await document.release();
       }
     });
@@ -582,6 +600,7 @@ describe("facade/archive-view", () => {
 
   it("adds only a small bonus for repeated entity evidence", async () => {
     await withTempDir("spinedigest-archive-view-", async (path) => {
+      const previousStateDir = process.env.WIKIGRAPH_STATE_DIR;
       process.env.WIKIGRAPH_STATE_DIR = `${path}/state`;
       const document = await DirectoryDocument.open(`${path}/document`);
 
@@ -624,6 +643,7 @@ describe("facade/archive-view", () => {
 
         expect(multi?.score).toBeCloseTo((single?.score ?? 0) * 1.3, 10);
       } finally {
+        restoreEnv("WIKIGRAPH_STATE_DIR", previousStateDir);
         await document.release();
       }
     });
@@ -631,6 +651,7 @@ describe("facade/archive-view", () => {
 
   it("finds triples when only one endpoint matches the query", async () => {
     await withTempDir("spinedigest-archive-view-", async (path) => {
+      const previousStateDir = process.env.WIKIGRAPH_STATE_DIR;
       process.env.WIKIGRAPH_STATE_DIR = `${path}/state`;
       const document = await DirectoryDocument.open(`${path}/document`);
 
@@ -679,6 +700,7 @@ describe("facade/archive-view", () => {
           }),
         );
       } finally {
+        restoreEnv("WIKIGRAPH_STATE_DIR", previousStateDir);
         await document.release();
       }
     });
@@ -686,6 +708,7 @@ describe("facade/archive-view", () => {
 
   it("adds only a small bonus for repeated triple evidence", async () => {
     await withTempDir("spinedigest-archive-view-", async (path) => {
+      const previousStateDir = process.env.WIKIGRAPH_STATE_DIR;
       process.env.WIKIGRAPH_STATE_DIR = `${path}/state`;
       const document = await DirectoryDocument.open(`${path}/document`);
 
@@ -736,6 +759,7 @@ describe("facade/archive-view", () => {
 
         expect(multi?.score).toBeCloseTo((single?.score ?? 0) * 1.3, 10);
       } finally {
+        restoreEnv("WIKIGRAPH_STATE_DIR", previousStateDir);
         await document.release();
       }
     });
@@ -743,6 +767,7 @@ describe("facade/archive-view", () => {
 
   it("falls back to lexical source scan with session cursors", async () => {
     await withTempDir("spinedigest-archive-view-", async (path) => {
+      const previousStateDir = process.env.WIKIGRAPH_STATE_DIR;
       process.env.WIKIGRAPH_STATE_DIR = `${path}/state`;
       const document = await DirectoryDocument.open(`${path}/document`);
 
@@ -765,6 +790,7 @@ describe("facade/archive-view", () => {
         expect(secondPage.query).toBe("Wiki");
         expect(secondPage.items[0]?.id).not.toBe(firstPage.items[0]?.id);
       } finally {
+        restoreEnv("WIKIGRAPH_STATE_DIR", previousStateDir);
         await document.release();
       }
     });
