@@ -12,8 +12,9 @@ import {
   EVIDENCE_SELECTION_PROMPT_FRAGMENT,
   EvidenceResolver,
   normalizeEvidenceDisplayText,
-  resolveEvidenceSelection,
+  resolveEvidenceSelectionList,
   type EvidenceSelectionCandidate,
+  type EvidenceSelectionList,
   type EvidenceSelectionSentence,
   type EvidenceResolutionFailure,
 } from "../evidence-selection/index.js";
@@ -52,18 +53,28 @@ const evidenceAnchorSchema = z
     text: z.string().optional(),
   })
   .strict();
+const evidenceSelectionItemSchema = z
+  .object({
+    quote: z.string().optional(),
+    sentence_id: z.string().optional(),
+  })
+  .strict();
+const relationEvidenceSchema = z.union([
+  z
+    .object({
+      end_anchor: z.union([z.string(), evidenceAnchorSchema]).optional(),
+      quote: z.string().optional(),
+      sentence_id: z.string().optional(),
+      start_anchor: z.union([z.string(), evidenceAnchorSchema]).optional(),
+    })
+    .strict(),
+  z.array(evidenceSelectionItemSchema),
+]);
 
 const relationSchema = z
   .object({
     confidence: z.number().min(0).max(1).optional(),
-    evidence: z
-      .object({
-        end_anchor: z.union([z.string(), evidenceAnchorSchema]).optional(),
-        quote: z.string().optional(),
-        sentence_id: z.string().optional(),
-        start_anchor: z.union([z.string(), evidenceAnchorSchema]).optional(),
-      })
-      .strict(),
+    evidence: relationEvidenceSchema,
     predicate: z.string().min(1).max(64),
     sourceMentionId: z.string().min(1),
     targetMentionId: z.string().min(1),
@@ -75,6 +86,8 @@ const relationResponseSchema = z
     relations: z.array(relationSchema),
   })
   .strict();
+
+type RelationEvidenceData = z.infer<typeof relationEvidenceSchema>;
 
 const SUGGESTED_PREDICATES = [
   "instance_of",
@@ -248,7 +261,9 @@ function parseRelationResponse(
       sentences: selectionSentences,
     });
     const [anchorResolution, anchorFailure] =
-      selectionResolution === undefined && selectionFailure === undefined
+      !Array.isArray(relation.evidence) &&
+      selectionResolution === undefined &&
+      selectionFailure === undefined
         ? resolver.resolve(relation.evidence, sentenceIds, sentenceTexts)
         : [undefined, undefined];
     const effectiveResolution = selectionResolution ?? anchorResolution;
@@ -361,9 +376,7 @@ function formatRelationUserPrompt(
         relations: [
           {
             confidence: 0.86,
-            evidence: {
-              ...EVIDENCE_SELECTION_JSON_SHAPE,
-            },
+            evidence: EVIDENCE_SELECTION_JSON_SHAPE,
             predicate: "predicate_name",
             sourceMentionId: "source mention id",
             targetMentionId: "target mention id",
@@ -393,10 +406,7 @@ function formatEvidenceSentences(
 }
 
 function resolveRelationEvidence(input: {
-  readonly evidence: {
-    readonly quote?: string;
-    readonly sentence_id?: string;
-  };
+  readonly evidence: EvidenceSelectionList | undefined;
   readonly sentences: readonly EvidenceSelectionSentence[];
 }): readonly [
   resolution:
@@ -412,27 +422,36 @@ function resolveRelationEvidence(input: {
       }
     | undefined,
 ] {
-  if (
-    typeof input.evidence.quote !== "string" &&
-    typeof input.evidence.sentence_id !== "string"
-  ) {
+  if (input.evidence === undefined) {
     return [undefined, undefined];
   }
 
-  return resolveEvidenceSelection({
-    evidence: {
-      ...(typeof input.evidence.quote === "string"
-        ? { quote: input.evidence.quote }
-        : {}),
-      ...(typeof input.evidence.sentence_id === "string"
-        ? { sentence_id: input.evidence.sentence_id }
-        : {}),
-    },
+  return resolveEvidenceSelectionList({
+    evidence: input.evidence,
     sentences: input.sentences,
   });
 }
 
-function createRelationEvidenceSelection(evidence: Record<string, unknown>): {
+function createRelationEvidenceSelection(
+  evidence: RelationEvidenceData,
+): EvidenceSelectionList | undefined {
+  if (Array.isArray(evidence)) {
+    return evidence.map(createRelationEvidenceSelectionItem);
+  }
+
+  const hasSelectionEvidence =
+    typeof evidence.quote === "string" ||
+    typeof evidence.sentence_id === "string";
+
+  return hasSelectionEvidence
+    ? createRelationEvidenceSelectionItem(evidence)
+    : undefined;
+}
+
+function createRelationEvidenceSelectionItem(evidence: {
+  readonly quote?: unknown;
+  readonly sentence_id?: unknown;
+}): {
   readonly quote?: string;
   readonly sentence_id?: string;
 } {

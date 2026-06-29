@@ -178,6 +178,58 @@ describe("reader/chunk-batch/parser", () => {
     });
   });
 
+  it("resolves multiple sentence-id quote evidence items", async () => {
+    const sentences = createSentences();
+    const parser = new ChunkBatchParser({
+      choiceSystemPrompt: "choice prompt",
+      metadataField: ChunkMetadataField.Retention,
+      projection: new FragmentProjection(sentences),
+      responseIntentClassifierPrompt: "classifier prompt",
+      requestChoice: () => Promise.resolve('{"choice":"S1"}'),
+      sentenceTextSource: {
+        getSentence: (sentenceId) => Promise.resolve(sentenceId.join(":")),
+      },
+      sentences,
+      visibleChunkIds: [],
+    });
+
+    const result = await parser.parse(
+      {
+        chunks: [
+          {
+            content: "Multi evidence content",
+            evidence: [
+              {
+                quote: "Alpha begins",
+                sentence_id: "S1",
+              },
+              {
+                quote: "Beta continues",
+                sentence_id: "S2",
+              },
+            ],
+            label: "Multi evidence",
+            retention: ChunkRetention.Focused,
+            temp_id: "temp-1",
+          },
+        ],
+        fragment_summary: "",
+        links: [],
+      },
+      {
+        isLastGenerationAttempt: false,
+      },
+    );
+
+    expect(result.chunkBatch.chunks[0]).toMatchObject({
+      sentenceId: [1, 0, 0],
+      sentenceIds: [
+        [1, 0, 0],
+        [1, 0, 1],
+      ],
+    });
+  });
+
   it("recovers drifted sentence-id evidence when the quote has a clear match", async () => {
     const sentences = createSentences();
     const parser = new ChunkBatchParser({

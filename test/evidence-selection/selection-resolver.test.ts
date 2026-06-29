@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   rankEvidenceQuote,
   resolveEvidenceSelection,
+  resolveEvidenceSelectionList,
   type EvidenceSelectionSentence,
 } from "../../src/evidence-selection/index.js";
 
@@ -54,6 +55,30 @@ describe("evidence-selection/selection-resolver", () => {
     expect(resolution).toMatchObject({
       sentenceIds: [[1, 0, 1]],
       strategy: "quote_auto_top1:normalized_substring",
+    });
+  });
+
+  it("resolves multiple evidence selections into ordered unique sentence IDs", () => {
+    const [resolution, failure] = resolveEvidenceSelectionList({
+      evidence: [
+        {
+          quote: "founded Beta",
+          sentence_id: "S1",
+        },
+        {
+          quote: "watched the ceremony",
+          sentence_id: "S2",
+        },
+      ],
+      sentences: SENTENCES,
+    });
+
+    expect(failure).toBeUndefined();
+    expect(resolution).toMatchObject({
+      sentenceIds: [
+        [1, 0, 0],
+        [1, 0, 1],
+      ],
     });
   });
 

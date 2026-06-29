@@ -13,16 +13,19 @@ archives, or WikiGraph URIs.
 New prompts should ask the model to return:
 
 ```json
-{
-  "sentence_id": "S1",
-  "quote": "exact short source quote"
-}
+[
+  {
+    "sentence_id": "S1",
+    "quote": "exact short source quote"
+  }
+]
 ```
 
-`sentence_id` is the model's primary selection. `quote` is copied from the
-visible source text and is used to validate or correct sentence drift. Callers
-are responsible for mapping external sentence labels such as `S1` back to their
-own sentence IDs.
+Each item points to one source sentence. Use multiple items when a claim needs
+multiple source sentences. `sentence_id` is the model's primary selection.
+`quote` is copied from the visible source text and is used to validate or
+correct sentence drift. Callers are responsible for mapping external sentence
+labels such as `S1` back to their own sentence IDs.
 
 The module also retains the older anchor resolver because existing retry
 responses and tests still exercise that shape. New prompts should prefer the
@@ -33,7 +36,7 @@ selection protocol above.
 - Normalize evidence text according to the shared surface-normalization
   contract.
 - Score exact, normalized, and fuzzy quote matches against candidate sentences.
-- Resolve `sentence_id + quote` selections to sentence IDs.
+- Resolve one or more `sentence_id + quote` selections to sentence IDs.
 - Return ranked candidates when a quote is ambiguous or low confidence.
 - Provide prompt fragments and JSON-shape snippets that callers can embed.
 

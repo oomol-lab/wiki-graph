@@ -82,13 +82,17 @@ export class Reader<S extends string> {
     const context = this.#attention.createChunkBatchContext({
       includeCurrentFragment: false,
     });
+    const linkableChunkIds = [
+      ...context.visibleChunkIds,
+      ...input.userFocusedChunks.map((chunk) => chunk.id),
+    ];
     const chunkBatch = await extractBookCoherenceChunkBatch(
       this.#chunkBatchOptions,
       {
         sentences: input.sentences,
         text: input.text,
         userFocusedChunks: input.userFocusedChunks,
-        visibleChunkIds: context.visibleChunkIds,
+        visibleChunkIds: linkableChunkIds,
         workingMemoryPrompt: context.workingMemoryPrompt,
       },
     );

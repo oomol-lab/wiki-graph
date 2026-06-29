@@ -19,12 +19,14 @@ export {
 export {
   rankEvidenceQuote,
   resolveEvidenceSelection,
+  resolveEvidenceSelectionList,
 } from "./selection-resolver.js";
 export { normalizeText, splitTextIntoSentences } from "./text.js";
 export type {
   EvidenceSelection,
   EvidenceSelectionCandidate,
   EvidenceSelectionFailure,
+  EvidenceSelectionList,
   EvidenceSelectionResolution,
   EvidenceSelectionSentence,
   EvidenceSentenceId,

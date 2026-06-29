@@ -69,6 +69,73 @@ describe("wikilink/relation-discovery", () => {
     ]);
   });
 
+  it("resolves relation evidence from multiple sentence quote items", async () => {
+    const sentences = [
+      { text: "Alpha prepared the attack.", wordsCount: 4 },
+      { text: "Beta was defeated afterward.", wordsCount: 4 },
+    ];
+    const text = sentences.map((sentence) => sentence.text).join(" ");
+    const window = buildWikilinkEvidenceWindows({
+      maxEvidenceDistance: 20,
+      mentions: [
+        {
+          id: "m1",
+          qid: "Q1",
+          range: { end: 5, start: 0 },
+          surface: "Alpha",
+        },
+        {
+          id: "m2",
+          qid: "Q2",
+          range: { end: 31, start: 27 },
+          surface: "Beta",
+        },
+      ],
+      text,
+      windowLength: 120,
+    })[0]!;
+    const request = vi.fn<GuaranteedRequest>().mockResolvedValue(
+      JSON.stringify({
+        relations: [
+          {
+            evidence: [
+              {
+                quote: "prepared the attack",
+                sentence_id: "S1",
+              },
+              {
+                quote: "was defeated afterward",
+                sentence_id: "S2",
+              },
+            ],
+            predicate: "opposes",
+            sourceMentionId: "m1",
+            targetMentionId: "m2",
+          },
+        ],
+      }),
+    );
+
+    await expect(
+      discoverWikilinkRelations({
+        chapterId: 1,
+        fragmentId: 0,
+        maxRetries: 0,
+        request,
+        sentences,
+        window,
+      }),
+    ).resolves.toStrictEqual([
+      {
+        evidenceEnd: text.length,
+        evidenceStart: 0,
+        predicate: "opposes",
+        sourceMentionId: "m1",
+        targetMentionId: "m2",
+      },
+    ]);
+  });
+
   it("still resolves old anchor evidence for existing retry responses", async () => {
     const sentences = [
       { text: "Alpha founded Beta.", wordsCount: 3 },

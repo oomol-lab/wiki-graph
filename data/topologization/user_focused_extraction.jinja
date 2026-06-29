@@ -30,10 +30,12 @@ Example output structure:
     {
       "label": "{{ user_language }} translated label",
       "content": "{{ user_language }} translated description",
-      "evidence": {
-        "sentence_id": "S1",
-        "quote": "Exact short original-language quote"
-      },
+      "evidence": [
+        {
+          "sentence_id": "S1",
+          "quote": "Exact short original-language quote"
+        }
+      ],
       "retention": "focused"
     }
   ]
@@ -307,20 +309,24 @@ CRITICAL: You MUST output in this EXACT structure with "fragment_summary" FIRST,
       "temp_id": "A",
       "label": "brief topic label (5-15 chars)",
       "content": "full description of the key information",
-      "evidence": {
-        "sentence_id": "S1",
-        "quote": "原文短引文"
-      },
+      "evidence": [
+        {
+          "sentence_id": "S1",
+          "quote": "原文短引文"
+        }
+      ],
       "retention": "focused"
     },
     {
       "temp_id": "B",
       "label": "another topic label",
       "content": "another description",
-      "evidence": {
-        "sentence_id": "S2",
-        "quote": "另一段原文短引文"
-      },
+      "evidence": [
+        {
+          "sentence_id": "S2",
+          "quote": "另一段原文短引文"
+        }
+      ],
       "retention": "detailed"
     }
   ],

@@ -107,7 +107,7 @@ describe("reader/chunk-batch/extractor", () => {
       llm.prompts.find(
         (prompt) => prompt.templateName === USER_FOCUSED_PROMPT_TEMPLATE,
       )?.templateContext.evidence_selection_prompt,
-    ).toContain('{"sentence_id":"S1","quote":"exact short source quote"}');
+    ).toContain('[{"sentence_id":"S1","quote":"exact short source quote"}]');
     expect(llm.calls).toHaveLength(1);
     expect(llm.calls[0]?.messages[1]?.content).toBe("S1: Alpha begins.");
     expect(llm.calls[0]?.options.scope).toBe(SpineDigestScope.ReaderExtraction);
@@ -245,6 +245,79 @@ describe("reader/chunk-batch/extractor", () => {
     );
     expect(llm.calls).toHaveLength(1);
     expect(llm.calls[0]?.viaContext).toBe(true);
+  });
+
+  it("allows book-coherence links to current user-focused chunks", async () => {
+    const llm = new ScriptedLLM<SpineDigestScope>([
+      JSON.stringify({
+        chunks: [
+          {
+            content: "Bridge summary",
+            evidence: {
+              quote: "Bridge sentence",
+              sentence_id: "S1",
+            },
+            importance: "important",
+            label: "Bridge label",
+            temp_id: "temp-1",
+          },
+        ],
+        importance_annotations: [
+          {
+            chunk_id: 9,
+            importance: "critical",
+          },
+        ],
+        links: [
+          {
+            from: 9,
+            strength: "important",
+            to: "temp-1",
+          },
+        ],
+      }),
+    ]);
+    const extractor = new ChunkExtractor<SpineDigestScope>({
+      extractionGuidance: "Focus on plot",
+      llm: llm as never,
+      scopes: SPINE_DIGEST_READER_SCOPES,
+      sentenceTextSource: {
+        getSentence: (sentenceId) => Promise.resolve(sentenceId.join(":")),
+      },
+    });
+
+    const result = await extractor.extractBookCoherence({
+      sentences: [
+        {
+          sentenceId: [1, 0, 0],
+          text: "Bridge sentence.",
+          wordsCount: 3,
+        },
+      ],
+      text: "Bridge sentence.",
+      userFocusedChunks: [
+        {
+          content: "Existing clue",
+          generation: 0,
+          id: 9,
+          label: "Existing label",
+          links: [],
+          sentenceId: [1, 0, 0],
+          sentenceIds: [[1, 0, 0]],
+          wordsCount: 2,
+        },
+      ],
+      visibleChunkIds: [9],
+      workingMemoryPrompt: "(empty)",
+    });
+
+    expect(result.links).toStrictEqual([
+      {
+        from: 9,
+        strength: "important",
+        to: "temp-1",
+      },
+    ]);
   });
 
   it("returns an empty chunk batch when parse validation keeps failing", async () => {

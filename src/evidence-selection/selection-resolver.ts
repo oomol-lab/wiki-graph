@@ -7,6 +7,7 @@ import type {
   EvidenceSelection,
   EvidenceSelectionCandidate,
   EvidenceSelectionFailure,
+  EvidenceSelectionList,
   EvidenceSelectionResolution,
   EvidenceSelectionSentence,
 } from "./types.js";
@@ -114,6 +115,82 @@ export function resolveEvidenceSelection(input: {
   ];
 }
 
+export function resolveEvidenceSelectionList(input: {
+  readonly evidence: EvidenceSelectionList;
+  readonly sentences: readonly EvidenceSelectionSentence[];
+}): readonly [
+  resolution: EvidenceSelectionResolution | undefined,
+  failure: EvidenceSelectionFailure | undefined,
+] {
+  const selections = Array.isArray(input.evidence)
+    ? input.evidence
+    : [input.evidence];
+
+  if (selections.length === 0) {
+    return [
+      undefined,
+      {
+        candidates: [],
+        code: "invalid",
+        message: "Evidence selection list is empty.",
+      },
+    ];
+  }
+
+  const sentenceIds: EvidenceSelectionResolution["sentenceIds"][number][] = [];
+  const strategies: string[] = [];
+  let confidence = 1;
+  let candidate: EvidenceSelectionCandidate | undefined;
+
+  for (const selection of selections) {
+    const [resolution, failure] = resolveEvidenceSelection({
+      evidence: selection,
+      sentences: input.sentences,
+    });
+
+    if (failure !== undefined) {
+      return [undefined, failure];
+    }
+
+    if (resolution === undefined) {
+      return [
+        undefined,
+        {
+          candidates: [],
+          code: "none",
+          message: "Evidence selection could not be resolved.",
+        },
+      ];
+    }
+
+    candidate ??= resolution.candidate;
+    confidence = Math.min(confidence, resolution.confidence);
+    sentenceIds.push(...resolution.sentenceIds);
+    strategies.push(resolution.strategy);
+  }
+
+  if (candidate === undefined) {
+    return [
+      undefined,
+      {
+        candidates: [],
+        code: "none",
+        message: "Evidence selection could not be resolved.",
+      },
+    ];
+  }
+
+  return [
+    {
+      candidate,
+      confidence,
+      sentenceIds: uniqueSentenceIds(sentenceIds),
+      strategy: `list:${strategies.join(",")}`,
+    },
+    undefined,
+  ];
+}
+
 export function rankEvidenceQuote(
   quote: string,
   sentences: readonly EvidenceSelectionSentence[],
@@ -193,4 +270,24 @@ function normalizeSentenceId(value: string | undefined): string | undefined {
   const normalized = value?.trim();
 
   return normalized === "" ? undefined : normalized;
+}
+
+function uniqueSentenceIds(
+  sentenceIds: EvidenceSelectionResolution["sentenceIds"],
+): EvidenceSelectionResolution["sentenceIds"] {
+  const seen = new Set<string>();
+  const unique: EvidenceSelectionResolution["sentenceIds"][number][] = [];
+
+  for (const sentenceId of sentenceIds) {
+    const key = sentenceId.join(":");
+
+    if (seen.has(key)) {
+      continue;
+    }
+
+    seen.add(key);
+    unique.push(sentenceId);
+  }
+
+  return unique;
 }

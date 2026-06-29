@@ -11,6 +11,10 @@ export interface EvidenceSelection {
   readonly sentence_id?: string;
 }
 
+export type EvidenceSelectionList =
+  | EvidenceSelection
+  | readonly EvidenceSelection[];
+
 export interface EvidenceSelectionCandidate {
   readonly exactNormalized: boolean;
   readonly exactRaw: boolean;

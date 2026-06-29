@@ -183,7 +183,7 @@ describe("reader/reader", () => {
         ],
         text: "Beta sentence.",
         userFocusedChunks: userFocused.delta.chunks,
-        visibleChunkIds: [],
+        visibleChunkIds: [1],
         workingMemoryPrompt: "(empty)",
       },
     );

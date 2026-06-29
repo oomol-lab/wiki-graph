@@ -14,8 +14,9 @@ import {
   type SentenceId,
 } from "../../document/index.js";
 import {
-  resolveEvidenceSelection,
+  resolveEvidenceSelectionList,
   type EvidenceSelectionCandidate,
+  type EvidenceSelectionList,
   EvidenceResolver,
   type EvidenceResolutionFailure,
   type RankedSentenceCandidate,
@@ -37,11 +38,21 @@ const chunkLinkSchema = z.object({
   strength: z.string().optional(),
   to: z.union([z.number().int(), z.string()]),
 });
+const evidenceSelectionItemSchema = z
+  .object({
+    quote: z.string().optional(),
+    sentence_id: z.string().optional(),
+  })
+  .passthrough();
+const chunkEvidenceSchema = z.union([
+  z.record(z.string(), z.unknown()),
+  z.array(evidenceSelectionItemSchema),
+]);
 
 const userFocusedChunkSchema = z
   .object({
     content: z.string(),
-    evidence: z.record(z.string(), z.unknown()).nullish(),
+    evidence: chunkEvidenceSchema.nullish(),
     label: z.string(),
     retention: z.enum([
       ChunkRetention.Verbatim,
@@ -62,7 +73,7 @@ export const userFocusedResponseSchema = z.object({
 const bookCoherenceChunkSchema = z
   .object({
     content: z.string(),
-    evidence: z.record(z.string(), z.unknown()).nullish(),
+    evidence: chunkEvidenceSchema.nullish(),
     importance: z.enum([
       ChunkImportance.Critical,
       ChunkImportance.Important,
@@ -100,6 +111,7 @@ export type BookCoherenceResponseData = z.infer<
 >;
 type ExtractedChunkData = UserFocusedChunkData | BookCoherenceChunkData;
 type RawChunkLink = z.infer<typeof chunkLinkSchema>;
+type RawChunkEvidence = z.infer<typeof chunkEvidenceSchema>;
 type ChoiceFieldName = "evidence" | "start_anchor" | "end_anchor";
 
 export enum ChunkMetadataField {
@@ -354,14 +366,14 @@ export class ChunkBatchParser<
       return [[], undefined];
     }
 
-    if (!isRecord(evidence)) {
+    if (!isRecord(evidence) && !Array.isArray(evidence)) {
       return [
         [],
         {
           candidates: [],
           code: "invalid_evidence",
           fieldName: "evidence",
-          message: `Chunk #${input.chunkIndex} ("${input.chunkLabel}"): evidence must be an object`,
+          message: `Chunk #${input.chunkIndex} ("${input.chunkLabel}"): evidence must be an object or array`,
         },
       ];
     }
@@ -375,18 +387,34 @@ export class ChunkBatchParser<
       sentenceId: sentence.sentenceId,
       text: sentence.projectedText,
     }));
-    const hasSelectionEvidence =
-      typeof evidence.quote === "string" ||
-      typeof evidence.sentence_id === "string";
-    const [selectionResolution, selectionFailure] = hasSelectionEvidence
-      ? resolveEvidenceSelection({
-          evidence: createEvidenceSelection(evidence),
-          sentences: selectionSentences,
-        })
-      : [undefined, undefined];
+    const selectionEvidence = createEvidenceSelectionList(evidence);
+    const [selectionResolution, selectionFailure] =
+      selectionEvidence === undefined
+        ? [undefined, undefined]
+        : resolveEvidenceSelectionList({
+            evidence: selectionEvidence,
+            sentences: selectionSentences,
+          });
 
     if (selectionResolution !== undefined) {
       return [selectionResolution.sentenceIds, undefined];
+    }
+
+    if (Array.isArray(evidence)) {
+      const fallbackFailure =
+        selectionFailure === undefined
+          ? undefined
+          : toEvidenceResolutionFailure(selectionFailure, "evidence");
+
+      return [
+        [],
+        fallbackFailure ?? {
+          candidates: [],
+          code: "invalid",
+          fieldName: "evidence",
+          message: `Chunk #${input.chunkIndex} ("${input.chunkLabel}"): evidence array could not be resolved`,
+        },
+      ];
     }
 
     const exactMatchSentenceIds =
@@ -858,7 +886,24 @@ function expectSingleSpan(spans: readonly TextSpan[]): TextSpan | undefined {
   return spans.length === 1 ? spans[0] : undefined;
 }
 
-function createEvidenceSelection(evidence: Record<string, unknown>): {
+function createEvidenceSelectionList(
+  evidence: RawChunkEvidence,
+): EvidenceSelectionList | undefined {
+  if (Array.isArray(evidence)) {
+    return evidence.map(createEvidenceSelection);
+  }
+
+  const hasSelectionEvidence =
+    typeof evidence.quote === "string" ||
+    typeof evidence.sentence_id === "string";
+
+  return hasSelectionEvidence ? createEvidenceSelection(evidence) : undefined;
+}
+
+function createEvidenceSelection(evidence: {
+  readonly quote?: unknown;
+  readonly sentence_id?: unknown;
+}): {
   readonly quote?: string;
   readonly sentence_id?: string;
 } {

@@ -1,16 +1,20 @@
 export const EVIDENCE_SELECTION_PROMPT_FRAGMENT = [
   "Evidence selection:",
-  '- Return evidence as {"sentence_id":"S1","quote":"exact short source quote"}.',
+  '- Return evidence as [{"sentence_id":"S1","quote":"exact short source quote"}].',
+  "- evidence is an array. Use multiple items when the claim needs multiple source sentences.",
+  "- Each evidence item must point to exactly one source sentence.",
   "- sentence_id must be one of the sentence IDs shown in the source context.",
   "- quote must be copied from the untagged original source sentence.",
   "- If the source context contains XML-like tags, do not copy the tags into quote; copy only the visible text.",
   "- Use the shortest exact quote that identifies the evidence inside the selected sentence.",
 ].join("\n");
 
-export const EVIDENCE_SELECTION_JSON_SHAPE = {
-  quote: "exact short source quote copied from the selected sentence",
-  sentence_id: "sentence id from the source context, such as S1",
-} as const;
+export const EVIDENCE_SELECTION_JSON_SHAPE = [
+  {
+    quote: "exact short source quote copied from the selected sentence",
+    sentence_id: "sentence id from the source context, such as S1",
+  },
+] as const;
 
 export function formatEvidenceSelectionChoicePrompt(input: {
   readonly evidenceLabel: string;
