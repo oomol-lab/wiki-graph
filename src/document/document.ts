@@ -476,6 +476,22 @@ export class DirectoryDocument implements Document {
     await this.#database.transaction(async () => {
       await this.#database.run(
         `
+          DELETE FROM mention_link_evidence_sentences
+          WHERE link_id IN (
+            SELECT mention_links.id
+            FROM mention_links
+            INNER JOIN mentions AS source_mentions
+              ON source_mentions.id = mention_links.source_mention_id
+            INNER JOIN mentions AS target_mentions
+              ON target_mentions.id = mention_links.target_mention_id
+            WHERE source_mentions.chapter_id = ?
+              OR target_mentions.chapter_id = ?
+          )
+        `,
+        [serialId, serialId],
+      );
+      await this.#database.run(
+        `
           DELETE FROM mention_links
           WHERE source_mention_id IN (
             SELECT id

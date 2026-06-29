@@ -145,8 +145,17 @@ ON search_mention_hits(session_id, qid, score DESC, chapter_id, fragment_id, sen
 CREATE INDEX IF NOT EXISTS idx_search_mention_hits_session_rank
 ON search_mention_hits(session_id, score DESC, chapter_id, fragment_id, sentence_index, range_start);
 
+CREATE INDEX IF NOT EXISTS idx_search_mention_hits_result_rank
+ON search_mention_hits(session_id, result_score DESC, score DESC, match_count DESC, chapter_id, fragment_id, qid);
+
+CREATE INDEX IF NOT EXISTS idx_search_sessions_archive
+ON search_sessions(archive_key, session_id);
+
 CREATE INDEX IF NOT EXISTS idx_search_sessions_expires
 ON search_sessions(expires_at);
+
+CREATE INDEX IF NOT EXISTS idx_search_sessions_prune
+ON search_sessions(accessed_at DESC, created_at DESC, session_id);
 `;
 
 const SEARCH_SESSION_MIGRATION_SQL = `

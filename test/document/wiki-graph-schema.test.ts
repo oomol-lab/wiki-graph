@@ -67,14 +67,26 @@ describe("document/wiki-graph-schema", () => {
         );
         await expect(listObjectNames(database, "index")).resolves.toEqual(
           expect.arrayContaining([
+            "idx_chunks_sentence",
+            "idx_chunks_serial_fragment_id",
+            "idx_chunks_serial_id",
             "idx_mentions_chapter",
+            "idx_mentions_chapter_position",
+            "idx_mentions_chapter_qid",
             "idx_mentions_fragment",
             "idx_mentions_qid",
+            "idx_mentions_qid_position",
             "idx_mentions_sentence",
+            "idx_mentions_surface",
+            "idx_mentions_surface_position",
+            "idx_mention_link_evidence_sentences_sentence",
             "idx_mention_links_predicate",
+            "idx_mention_links_predicate_source_target",
+            "idx_mention_links_predicate_target_source",
             "idx_mention_links_source",
             "idx_mention_links_target",
-            "idx_mention_link_evidence_sentences_sentence",
+            "idx_reading_edges_target",
+            "idx_snake_edges_target",
           ]),
         );
         await expect(listObjectNames(database, "view")).resolves.toEqual(

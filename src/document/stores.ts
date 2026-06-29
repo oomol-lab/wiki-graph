@@ -19,6 +19,8 @@ import {
   type SnakeRecord,
 } from "./types.js";
 
+const MAX_SQL_BIND_PARAMS = 900;
+
 export interface ReadonlySerialStore {
   getById(serialId: number): Promise<SerialRecord | undefined>;
   getMaxId(): Promise<number>;
@@ -1123,13 +1125,45 @@ export class MentionLinkStore implements ReadonlyMentionLinkStore {
   async #hydrateEvidenceMany(
     records: readonly MentionLinkRecord[],
   ): Promise<MentionLinkRecord[]> {
-    const hydrated: MentionLinkRecord[] = [];
-
-    for (const record of records) {
-      hydrated.push(await this.#hydrateEvidence(record));
+    if (records.length === 0) {
+      return [];
     }
 
-    return hydrated;
+    const sentenceIdsByLinkId = new Map<string, SentenceId[]>();
+    const linkIds = [...new Set(records.map((record) => record.id))];
+
+    for (const linkIdBatch of chunkArray(linkIds, MAX_SQL_BIND_PARAMS)) {
+      const placeholders = linkIdBatch.map(() => "?").join(", ");
+      const rows = await this.#database.queryAll(
+        `
+          SELECT link_id, chapter_id, fragment_id, sentence_index
+          FROM mention_link_evidence_sentences
+          WHERE link_id IN (${placeholders})
+          ORDER BY link_id, chapter_id, fragment_id, sentence_index
+        `,
+        linkIdBatch,
+        (row) => ({
+          linkId: getString(row, "link_id"),
+          sentenceId: [
+            getNumber(row, "chapter_id"),
+            getNumber(row, "fragment_id"),
+            getNumber(row, "sentence_index"),
+          ] as SentenceId,
+        }),
+      );
+
+      for (const row of rows) {
+        const sentenceIds = sentenceIdsByLinkId.get(row.linkId) ?? [];
+
+        sentenceIds.push(row.sentenceId);
+        sentenceIdsByLinkId.set(row.linkId, sentenceIds);
+      }
+    }
+
+    return records.map((record) => ({
+      ...record,
+      evidenceSentenceIds: sentenceIdsByLinkId.get(record.id) ?? [],
+    }));
   }
 
   async #hydrateEvidence(
@@ -1155,6 +1189,16 @@ export class MentionLinkStore implements ReadonlyMentionLinkStore {
       evidenceSentenceIds,
     };
   }
+}
+
+function chunkArray<T>(items: readonly T[], size: number): T[][] {
+  const chunks: T[][] = [];
+
+  for (let index = 0; index < items.length; index += size) {
+    chunks.push(items.slice(index, index + size));
+  }
+
+  return chunks;
 }
 
 export class SnakeChunkStore implements ReadonlySnakeChunkStore {
