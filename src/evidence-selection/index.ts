@@ -10,6 +10,7 @@ export {
   formatEvidenceSelectionChoicePrompt,
 } from "./prompt.js";
 export {
+  normalizeEvidenceDisplayText,
   normalizeEvidenceText,
   scoreEvidenceQuote,
   type EvidenceQuoteMatchStrategy,

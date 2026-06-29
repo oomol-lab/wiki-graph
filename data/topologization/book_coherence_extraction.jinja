@@ -193,7 +193,7 @@ This is a VALID successful result.
   - "label": 5-15 character summary
   - "content": Full one-sentence description
   - "evidence": Evidence selection for this chunk
-{{ evidence_selection_prompt }}
+{{ evidence_selection_prompt | safe }}
     - Keep quote in the original source language(s)
     - Do NOT translate quote
   - "importance": One of "critical", "important", or "helpful"

@@ -114,6 +114,50 @@ describe("reader/chunk-batch/extractor", () => {
     expect(llm.calls[0]?.viaContext).toBe(true);
   });
 
+  it("normalizes source sentences for evidence selection prompts", async () => {
+    const llm = new ScriptedLLM<SpineDigestScope>([
+      JSON.stringify({
+        chunks: [
+          {
+            content: "Alpha summary",
+            evidence: {
+              quote: "Alpha Beta C++!",
+              sentence_id: "S1",
+            },
+            label: "Alpha label",
+            retention: "focused",
+            temp_id: "temp-1",
+          },
+        ],
+        fragment_summary: "Fragment summary",
+        links: [],
+      }),
+    ]);
+    const extractor = new ChunkExtractor<SpineDigestScope>({
+      extractionGuidance: "Focus on plot",
+      llm: llm as never,
+      scopes: SPINE_DIGEST_READER_SCOPES,
+      sentenceTextSource: {
+        getSentence: (sentenceId) => Promise.resolve(sentenceId.join(":")),
+      },
+    });
+
+    await extractor.extractUserFocused({
+      sentences: [
+        {
+          sentenceId: [1, 0, 0],
+          text: "Alpha\n\tBeta\u200b  C++！",
+          wordsCount: 4,
+        },
+      ],
+      text: "Alpha\n\tBeta\u200b  C++！",
+      visibleChunkIds: [],
+      workingMemoryPrompt: "memory",
+    });
+
+    expect(llm.calls[0]?.messages[1]?.content).toBe("S1: Alpha Beta C++!");
+  });
+
   it("extracts book-coherence chunks with valid importance annotations", async () => {
     const llm = new ScriptedLLM<SpineDigestScope>([
       JSON.stringify({

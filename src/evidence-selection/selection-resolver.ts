@@ -1,4 +1,8 @@
-import { type EvidenceQuoteScore, scoreEvidenceQuote } from "./quote-score.js";
+import {
+  normalizeEvidenceDisplayText,
+  type EvidenceQuoteScore,
+  scoreEvidenceQuote,
+} from "./quote-score.js";
 import type {
   EvidenceSelection,
   EvidenceSelectionCandidate,
@@ -182,7 +186,7 @@ function isDirectCandidateTrusted(
 }
 
 function normalizeQuote(value: string | undefined): string {
-  return value?.trim() ?? "";
+  return normalizeEvidenceDisplayText(value ?? "");
 }
 
 function normalizeSentenceId(value: string | undefined): string | undefined {

@@ -32,6 +32,14 @@ export interface EvidenceQuoteScore {
   readonly strategy: EvidenceQuoteMatchStrategy;
 }
 
+export function normalizeEvidenceDisplayText(text: string): string {
+  return text
+    .replace(/\p{Default_Ignorable_Code_Point}/gu, "")
+    .normalize("NFKC")
+    .replace(/\s+/gu, " ")
+    .trim();
+}
+
 export function normalizeEvidenceText(text: string): string {
   const separated = replaceSeparatorsWithSpace(text);
   const stripped = separated.replace(/\p{Default_Ignorable_Code_Point}/gu, "");

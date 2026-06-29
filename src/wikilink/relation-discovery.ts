@@ -11,6 +11,7 @@ import {
   EVIDENCE_SELECTION_JSON_SHAPE,
   EVIDENCE_SELECTION_PROMPT_FRAGMENT,
   EvidenceResolver,
+  normalizeEvidenceDisplayText,
   resolveEvidenceSelection,
   type EvidenceSelectionCandidate,
   type EvidenceSelectionSentence,
@@ -383,7 +384,10 @@ function formatEvidenceSentences(
 ): string {
   return input.sentences
     .map(
-      (sentence, index) => `S${index + 1}: ${stripXmlLikeTags(sentence.text)}`,
+      (sentence, index) =>
+        `S${index + 1}: ${normalizeEvidenceDisplayText(
+          stripXmlLikeTags(sentence.text),
+        )}`,
     )
     .join("\n");
 }

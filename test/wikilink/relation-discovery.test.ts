@@ -285,7 +285,7 @@ describe("wikilink/relation-discovery", () => {
   it("escapes non-mention prompt text in tagged context", async () => {
     const sentences = [
       {
-        text: 'Alpha <mention id="fake">founded</mention> Beta & Co.',
+        text: 'Alpha <mention id="fake">founded</mention>\n\tBeta\u200b & Co.',
         wordsCount: 5,
       },
     ];
@@ -302,7 +302,7 @@ describe("wikilink/relation-discovery", () => {
         {
           id: "m2",
           qid: "Q2",
-          range: { end: 47, start: 43 },
+          range: { end: 50, start: 46 },
           surface: "Beta",
         },
       ],

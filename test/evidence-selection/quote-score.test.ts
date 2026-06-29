@@ -5,6 +5,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   type EvidenceQuoteScore,
+  normalizeEvidenceDisplayText,
   normalizeEvidenceText,
   scoreEvidenceQuote,
 } from "../../src/evidence-selection/index.js";
@@ -193,6 +194,15 @@ const REPORT_CASES: readonly ReportCase[] = [
 ] as const;
 
 describe("evidence-selection/quote-score", () => {
+  it("normalizes display text without stripping visible punctuation", () => {
+    expect(normalizeEvidenceDisplayText("  Alpha\n\tBeta\u200b  C++！ ")).toBe(
+      "Alpha Beta C++!",
+    );
+    expect(normalizeEvidenceDisplayText("Ｈｅ said “hi”。")).toBe(
+      "He said “hi”。",
+    );
+  });
+
   it("normalizes text with the wikispine surface-normalization contract", () => {
     expect(normalizeEvidenceText("Wikipedia_Title")).toBe("wikipedia title");
     expect(normalizeEvidenceText("Ｗｉｋｉｐｅｄｉａ")).toBe("wikipedia");

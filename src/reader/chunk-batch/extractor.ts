@@ -8,7 +8,10 @@ import {
   requestGuaranteedJson,
 } from "../../guaranteed/index.js";
 import type { Language } from "../../common/language.js";
-import { EVIDENCE_SELECTION_PROMPT_FRAGMENT } from "../../evidence-selection/index.js";
+import {
+  EVIDENCE_SELECTION_PROMPT_FRAGMENT,
+  normalizeEvidenceDisplayText,
+} from "../../evidence-selection/index.js";
 import type { LLMessage, LLM } from "../../llm/index.js";
 import {
   bookCoherenceResponseSchema,
@@ -20,6 +23,7 @@ import {
   userFocusedResponseSchema,
 } from "./parser.js";
 import { FragmentProjection } from "./fragment-projection.js";
+import { projectFragmentText } from "./fragment-projection.js";
 import { needsTranslation } from "./language.js";
 import {
   BOOK_COHERENCE_PROMPT_TEMPLATE,
@@ -372,7 +376,12 @@ function formatEvidenceSelectionSourceText(
   projection: FragmentProjection,
 ): string {
   return projection.sentences
-    .map((sentence, index) => `S${index + 1}: ${sentence.projectedText}`)
+    .map(
+      (sentence, index) =>
+        `S${index + 1}: ${projectFragmentText(
+          normalizeEvidenceDisplayText(sentence.rawText),
+        )}`,
+    )
     .join("\n");
 }
 
