@@ -10,6 +10,12 @@ export {
 } from "./context/index.js";
 export { LLMPaymentRequiredError } from "./llm/index.js";
 export {
+  normalizeEvidenceText,
+  scoreEvidenceQuote,
+  type EvidenceQuoteMatchStrategy,
+  type EvidenceQuoteScore,
+} from "./evidence-selection/index.js";
+export {
   RateLimiter,
   parseRetryAfterMs,
   WikimediaClient,

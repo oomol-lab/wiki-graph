@@ -235,6 +235,44 @@ describe("wikimatch/policy-judge", () => {
     expect(request).toHaveBeenCalledTimes(1);
   });
 
+  it("ignores null qid values on non-recall decisions", async () => {
+    const input = createInput();
+    const request = vi.fn<GuaranteedRequest>().mockResolvedValue(
+      JSON.stringify({
+        groups: [
+          {
+            decisions: [
+              {
+                candidateId: "c1",
+                decision: "never_recall",
+                qid: null,
+              },
+            ],
+            groupId: "g1",
+          },
+          {
+            decisions: [],
+            groupId: "g2",
+          },
+        ],
+      }),
+    );
+
+    const result = await judgeWikimatchPolicy({
+      ...input,
+      request,
+    });
+
+    expect(result.policyUpdates).toStrictEqual([
+      {
+        candidateId: "c1",
+        decision: "never_recall",
+        surface: "北京大学",
+      },
+    ]);
+    expect(request).toHaveBeenCalledTimes(1);
+  });
+
   it("normalizes continue on the last candidate page to skip this time", () => {
     const input = createInput();
 

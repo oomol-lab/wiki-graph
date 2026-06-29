@@ -26,7 +26,7 @@ const policyDecisionSchema = z
   .object({
     candidateId: z.string().min(1),
     decision: z.enum(["continue", "recall", "skip_this_time", "never_recall"]),
-    qid: z.string().optional(),
+    qid: z.string().nullable().optional(),
   })
   .strict();
 
@@ -96,7 +96,7 @@ function normalizePolicyResponse(
   };
 }
 
-function normalizeDecisionQid(qid: string | undefined): {
+function normalizeDecisionQid(qid: string | null | undefined): {
   readonly qid?: string;
 } {
   const normalized = qid?.trim();
