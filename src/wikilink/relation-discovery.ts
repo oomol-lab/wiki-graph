@@ -344,6 +344,7 @@ function formatRelationSystemPrompt(): string {
     "- Return JSON only.",
     "- Return only relations that are directly supported by the source text.",
     '- Every relation must connect two mention IDs from the <mention id="..." qid="..."> tags.',
+    "- sourceMentionId and targetMentionId must be different mention IDs; never link a mention to itself.",
     "- Do not create a relation just because two mentions are nearby.",
     "- Prefer the suggested predicates when one fits.",
     "- If none fits, create one short snake_case predicate.",
