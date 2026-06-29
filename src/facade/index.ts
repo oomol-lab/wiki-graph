@@ -75,6 +75,11 @@ export {
   generateChapterKnowledgeGraphArtifact,
   groundWikimatchCandidates,
 } from "./knowledge-graph-build.js";
+export {
+  createContinuationCursor,
+  readContinuationCursor,
+} from "./continuation-cursor.js";
+export type { ContinuationCursor } from "./continuation-cursor.js";
 export type {
   BuildChapterGraphArtifactOptions,
   BuildChapterSummaryArtifactOptions,

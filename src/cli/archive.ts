@@ -11,6 +11,8 @@ import {
   readArchivePage,
   estimateArchiveBuild,
   findArchiveObjects,
+  createContinuationCursor,
+  readContinuationCursor,
   type ArchiveEstimate,
   type ArchiveEvidence,
   type ArchiveEvidenceItem,
@@ -25,6 +27,7 @@ import {
   type ArchivePack,
   type ArchivePage,
   type ChapterStage,
+  type ContinuationCursor,
 } from "../facade/index.js";
 import {
   parseLocatedWikiGraphUri,
@@ -40,31 +43,38 @@ import { formatCLIJSON, formatCLIJSONLine } from "./json.js";
 
 type ResultFormat = "json" | "jsonl" | "text";
 
+const DEFAULT_OUTPUT_LIMIT = 20;
+
 interface ArchiveOutputObject {
   readonly evidence?: ArchiveOutputEvidencePreview;
   readonly label?: string;
   readonly score?: number;
   readonly summary?: string;
-  readonly type: string;
+  readonly type?: string;
   readonly uri: string;
 }
 
 interface ArchiveOutputEvidencePreview {
+  readonly nextCursor: string | null;
   readonly shown: number;
   readonly sources: readonly ArchiveOutputSource[];
   readonly total: number;
 }
 
 interface ArchiveOutputSource {
-  readonly chapter: number;
-  readonly fragment: number;
-  readonly range: {
-    readonly end: number;
-    readonly start: number;
-  };
   readonly text: string;
-  readonly type: "source";
   readonly uri: string;
+}
+
+interface ArchiveOutputContext {
+  readonly archiveKey: string;
+  readonly archivePath: string;
+  readonly continuationKind?: "evidence" | "search";
+  readonly evidenceLimit?: number;
+  readonly format: ResultFormat;
+  readonly limit: number;
+  readonly targetUri?: string;
+  readonly types: readonly string[] | null;
 }
 
 export async function runArchiveCommand(
@@ -120,6 +130,7 @@ export async function runArchiveCommand(
               args.query!,
               createFindOptions(args),
             ),
+            createArchiveOutputContext(args),
             args.format ?? "text",
           );
         },
@@ -136,6 +147,7 @@ export async function runArchiveCommand(
                 createCollectionOptions(args),
               ),
             ),
+            createArchiveOutputContext(args),
             args.format ?? "text",
           );
         },
@@ -147,6 +159,7 @@ export async function runArchiveCommand(
         async (document) => {
           await writePage(
             await readArchivePage(document, getObjectUri(args.objectId!)),
+            createArchiveOutputContext(args),
             args.format ?? "text",
           );
         },
@@ -161,6 +174,7 @@ export async function runArchiveCommand(
               document,
               getObjectUri(args.objectId!),
             ),
+            createArchiveOutputContext(args),
             args.format ?? "text",
           );
         },
@@ -175,10 +189,17 @@ export async function runArchiveCommand(
               ...(args.cursor === undefined ? {} : { cursor: args.cursor }),
               ...(args.limit === undefined ? {} : { limit: args.limit }),
             }),
+            createArchiveOutputContext(args, {
+              continuationKind: "evidence",
+              targetUri: getObjectUri(args.objectId!),
+            }),
             args.format ?? "text",
           );
         },
       );
+      return;
+    case "next":
+      await runNextArchivePage(args);
       return;
     case "pack":
       await readArchiveDocument(
@@ -190,6 +211,7 @@ export async function runArchiveCommand(
               getObjectUri(args.objectId!),
               args.budget ?? 5000,
             ),
+            createArchiveOutputContext(args),
             args.format ?? "text",
           );
         },
@@ -253,6 +275,80 @@ async function createArchive(args: CLIArchiveArguments): Promise<void> {
   }
 }
 
+async function runNextArchivePage(args: CLIArchiveArguments): Promise<void> {
+  const cursorId = args.cursor ?? args.archivePath;
+  const explicitArchivePath = args.cursor === undefined ? undefined : args.archivePath;
+  const cursor = await readContinuationCursor(cursorId);
+
+  if (explicitArchivePath !== undefined) {
+    const archivePath = getArchivePath(explicitArchivePath);
+
+    if (archivePath !== cursor.archivePath) {
+      throw new Error(
+        `Continuation cursor ${cursorId} belongs to ${cursor.archivePath}, not ${archivePath}.`,
+      );
+    }
+  }
+
+  await readArchiveDocument(cursor.archivePath, async (document) => {
+    const format = args.format ?? cursor.format;
+    const limit = args.limit ?? cursor.limit;
+
+    switch (cursor.kind) {
+      case "search": {
+        const findOptions: ArchiveFindOptions = {
+          archiveKey: cursor.archiveKey,
+          cursor: cursor.cursor,
+          ...(cursor.evidenceLimit === undefined
+            ? {}
+            : { evidenceLimit: cursor.evidenceLimit }),
+          limit,
+        };
+
+        if (cursor.types !== null) {
+          Object.assign(findOptions, {
+            types: cursor.types as ArchiveFindOptions["types"],
+          });
+        }
+
+        await writeFindHits(
+          await findArchiveObjects(document, "", findOptions),
+          {
+            archiveKey: cursor.archiveKey,
+            archivePath: cursor.archivePath,
+            ...(cursor.evidenceLimit === undefined
+              ? {}
+              : { evidenceLimit: cursor.evidenceLimit }),
+            format,
+            limit,
+            types: cursor.types,
+          },
+          format,
+        );
+        return;
+      }
+      case "evidence":
+        await writeEvidence(
+          await listArchiveEvidence(document, cursor.targetUri, {
+            cursor: cursor.cursor,
+            limit,
+          }),
+          {
+            archiveKey: cursor.archiveKey,
+            archivePath: cursor.archivePath,
+            continuationKind: "evidence",
+            format,
+            limit,
+            targetUri: cursor.targetUri,
+            types: null,
+          },
+          format,
+        );
+        return;
+    }
+  });
+}
+
 async function createArchiveFromStdin(
   args: CLIArchiveArguments,
 ): Promise<void> {
@@ -304,9 +400,75 @@ function createFindOptions(args: CLIArchiveArguments): ArchiveFindOptions {
     archiveKey: getArchivePath(args.archivePath),
     ...createScopeOptions(args.archivePath),
     ...(args.cursor === undefined ? {} : { cursor: args.cursor }),
+    ...(args.evidenceLimit === undefined
+      ? {}
+      : { evidenceLimit: args.evidenceLimit }),
     ...(args.limit === undefined ? {} : { limit: args.limit }),
     ...(types === undefined ? {} : { types }),
   };
+}
+
+function createArchiveOutputContext(
+  args: CLIArchiveArguments,
+  options: {
+    readonly continuationKind?: "evidence" | "search";
+    readonly targetUri?: string;
+  } = {},
+): ArchiveOutputContext {
+  return {
+    archiveKey: getArchivePath(args.archivePath),
+    archivePath: getArchivePath(args.archivePath),
+    ...(options.continuationKind === undefined
+      ? {}
+      : { continuationKind: options.continuationKind }),
+    ...(args.evidenceLimit === undefined
+      ? {}
+      : { evidenceLimit: args.evidenceLimit }),
+    format: args.format ?? "text",
+    limit: args.limit ?? DEFAULT_OUTPUT_LIMIT,
+    ...(options.targetUri === undefined ? {} : { targetUri: options.targetUri }),
+    types:
+      args.kinds === undefined
+        ? null
+        : args.kinds
+            .map((kind) => toArchiveFindType(kind))
+            .filter((type): type is NonNullable<typeof type> => type !== undefined),
+  };
+}
+
+async function createOutputContinuationCursor(
+  context: ArchiveOutputContext,
+  cursor: string | null | undefined,
+): Promise<string | null> {
+  if (cursor === null || cursor === undefined) {
+    return null;
+  }
+
+  const input: ContinuationCursor =
+    context.continuationKind === "evidence"
+      ? {
+          archiveKey: context.archiveKey,
+          archivePath: context.archivePath,
+          cursor,
+          ...(context.evidenceLimit === undefined
+            ? {}
+            : { evidenceLimit: context.evidenceLimit }),
+          format: context.format,
+          kind: "evidence",
+          limit: context.limit,
+          targetUri: context.targetUri ?? "",
+        }
+      : {
+          archiveKey: context.archiveKey,
+          archivePath: context.archivePath,
+          cursor,
+          format: context.format,
+          kind: "search",
+          limit: context.limit,
+          types: context.types,
+        };
+
+  return await createContinuationCursor(input);
 }
 
 function createCollectionOptions(
@@ -482,17 +644,15 @@ async function writeEstimate(
 
 async function writeList(
   items: readonly ArchiveListItem[],
+  context: ArchiveOutputContext,
   format: ResultFormat,
 ): Promise<void> {
-  const objects = items.map((item) => ({
-    label: item.label,
-    summary: item.summary,
-    type: item.type,
-    uri: toWikiGraphUri(item.id),
-  }));
+  const objects = items.map(createListObject);
 
   if (format === "json") {
-    await writeTextToStdout(formatCLIJSON({ objects }));
+    await writeTextToStdout(
+      formatCLIJSON(createObjectResultPage(objects, null, items.length)),
+    );
     return;
   }
   if (format === "jsonl") {
@@ -506,29 +666,84 @@ async function writeList(
   }
 
   await writeTextToStdout(
-    `${objects
-      .map((item) => `${item.uri}\n${item.label}\n${item.summary}`)
-      .join("\n")}\n`,
+    `${items.map(formatListItem).join("\n\n")}\n`,
   );
+}
+
+function formatListItem(item: ArchiveListItem): string {
+  if (item.type === "triple") {
+    return [
+      toWikiGraphUri(item.id),
+      `${item.subjectLabel}(${item.subjectQid}) ${item.predicate} ${item.objectLabel}(${item.objectQid})`,
+    ].join("\n");
+  }
+
+  return [toWikiGraphUri(item.id), item.label, item.summary].join("\n");
+}
+
+function createListObject(item: ArchiveListItem): {
+  readonly label?: string;
+  readonly objectLabel?: string;
+  readonly predicate?: string;
+  readonly subjectLabel?: string;
+  readonly summary?: string;
+  readonly type?: ArchiveListItem["type"];
+  readonly uri: string;
+} {
+  if (item.type === "triple") {
+    return {
+      objectLabel: item.objectLabel,
+      predicate: item.predicate,
+      subjectLabel: item.subjectLabel,
+      uri: toWikiGraphUri(item.id),
+    };
+  }
+
+  return {
+    label: item.label,
+    summary: item.summary,
+    type: item.type,
+    uri: toWikiGraphUri(item.id),
+  };
+}
+
+function createObjectResultPage(
+  objects: readonly unknown[],
+  nextCursor: string | null,
+  limit: number,
+): {
+  readonly limit: number;
+  readonly nextCursor: string | null;
+  readonly objects: readonly unknown[];
+} {
+  return {
+    limit,
+    nextCursor,
+    objects,
+  };
 }
 
 async function writeFindHits(
   result: ArchiveFindResult,
+  context: ArchiveOutputContext,
   format: ResultFormat,
 ): Promise<void> {
-  const objects = result.items.map(createFindObject);
+  const objects = await Promise.all(
+    result.items.map(async (item) => await createFindObject(item, context)),
+  );
+  const nextCursor = await createOutputContinuationCursor(
+    context,
+    result.nextCursor,
+  );
 
   if (format === "json") {
     await writeTextToStdout(
-      formatCLIJSON({
-        objects,
-        nextCursor: result.nextCursor,
-      }),
+      formatCLIJSON(createObjectResultPage(objects, nextCursor, result.limit)),
     );
     return;
   }
   if (format === "jsonl") {
-    await writeJSONL([...objects, createPageCursorObject(result.nextCursor)]);
+    await writeJSONL([...objects, createPageCursorObject(nextCursor)]);
     return;
   }
 
@@ -540,23 +755,29 @@ async function writeFindHits(
   await writeTextToStdout(
     `${objects
       .map((object) => formatFindObject(object))
-      .join("\n\n")}${formatNextCursor(result)}${formatFindLensHint(result)}\n`,
+      .join("\n\n")}${formatNextCursor(nextCursor)}${formatFindLensHint(result)}\n`,
   );
 }
 
 async function writeEvidence(
   evidence: ArchiveEvidence,
+  context: ArchiveOutputContext,
   format: ResultFormat,
 ): Promise<void> {
+  const nextCursor = await createOutputContinuationCursor(
+    context,
+    evidence.nextCursor,
+  );
+  const objects = evidence.items.map(createSourceObject);
+
   if (format === "json") {
-    await writeTextToStdout(formatCLIJSON(evidence));
+    await writeTextToStdout(
+      formatCLIJSON(createObjectResultPage(objects, nextCursor, evidence.limit)),
+    );
     return;
   }
   if (format === "jsonl") {
-    await writeJSONL([
-      ...evidence.items,
-      createPageCursorObject(evidence.nextCursor),
-    ]);
+    await writeJSONL([...objects, createPageCursorObject(nextCursor)]);
     return;
   }
 
@@ -566,14 +787,14 @@ async function writeEvidence(
   }
 
   await writeTextToStdout(
-    `${evidence.items.map(formatEvidenceItem).join("\n\n")}${formatEvidenceNextCursor(evidence)}\n`,
+    `${evidence.items.map(formatEvidenceItem).join("\n\n")}${formatEvidenceNextCursor(nextCursor)}\n`,
   );
 }
 
-function formatEvidenceNextCursor(evidence: ArchiveEvidence): string {
-  return evidence.nextCursor === null
+function formatEvidenceNextCursor(nextCursor: string | null): string {
+  return nextCursor === null
     ? ""
-    : `\n\nNext page: add --cursor ${evidence.nextCursor}`;
+    : `\n\nNext page: wikigraph next ${nextCursor}`;
 }
 
 function createPageCursorObject(nextCursor: string | null): {
@@ -587,19 +808,20 @@ function createPageCursorObject(nextCursor: string | null): {
 }
 
 function formatEvidenceItem(item: ArchiveEvidenceItem): string {
-  return [`@@ ${item.id} @@`, item.source].join("\n");
+  return [`@@ ${item.id} @@`, normalizeSourceText(item.source)].join("\n");
 }
 
 async function writePage(
   page: ArchivePage,
+  context: ArchiveOutputContext,
   format: ResultFormat,
 ): Promise<void> {
   if (format === "json") {
-    await writeTextToStdout(formatCLIJSON(page));
+    await writeTextToStdout(formatCLIJSON(await createPageObject(page, context)));
     return;
   }
   if (format === "jsonl") {
-    await writeJSONL([page]);
+    await writeJSONL([await createPageObject(page, context)]);
     return;
   }
 
@@ -696,14 +918,15 @@ async function writePage(
 
 async function writePack(
   pack: ArchivePack,
+  context: ArchiveOutputContext,
   format: ResultFormat,
 ): Promise<void> {
   if (format === "json") {
-    await writeTextToStdout(formatCLIJSON(pack));
+    await writeTextToStdout(formatCLIJSON(await createPackObject(pack, context)));
     return;
   }
   if (format === "jsonl") {
-    await writeJSONL([pack]);
+    await writeJSONL([await createPackObject(pack, context)]);
     return;
   }
 
@@ -722,12 +945,12 @@ async function writePack(
   );
 }
 
-function formatNextCursor(result: ArchiveFindResult): string {
-  if (result.nextCursor === null) {
+function formatNextCursor(nextCursor: string | null): string {
+  if (nextCursor === null) {
     return "";
   }
 
-  return `\n\nNext page: add --cursor ${result.nextCursor}`;
+  return `\n\nNext page: wikigraph next ${nextCursor}`;
 }
 
 function formatNoMatches(result: ArchiveFindResult): string {
@@ -747,23 +970,39 @@ function formatNoMatches(result: ArchiveFindResult): string {
   return `${lines.join("\n")}\n`;
 }
 
-function createFindObject(hit: ArchiveFindHit): ArchiveOutputObject {
+async function createFindObject(
+  hit: ArchiveFindHit,
+  context: ArchiveOutputContext,
+): Promise<ArchiveOutputObject> {
+  const uri = toWikiGraphUri(hit.id);
+
   return {
-    ...(hit.evidence === undefined
+    ...(context.evidenceLimit === undefined || hit.evidence === undefined
       ? {}
-      : { evidence: createEvidencePreviewObject(hit.evidence) }),
+      : {
+          evidence: await createEvidencePreviewObject(hit.evidence, {
+            ...context,
+            continuationKind: "evidence",
+            targetUri: uri,
+          }),
+        }),
     label: hit.title,
     ...(hit.score === undefined ? {} : { score: hit.score }),
     summary: hit.snippet,
     type: hit.type === "node" ? "chunk" : hit.type,
-    uri: toWikiGraphUri(hit.id),
+    uri,
   };
 }
 
-function createEvidencePreviewObject(
+async function createEvidencePreviewObject(
   evidence: ArchiveFindEvidencePreview,
-): ArchiveOutputEvidencePreview {
+  context: ArchiveOutputContext,
+): Promise<ArchiveOutputEvidencePreview> {
   return {
+    nextCursor: await createOutputContinuationCursor(
+      context,
+      evidence.nextCursor,
+    ),
     shown: evidence.shown,
     sources: evidence.sources.map(createSourceObject),
     total: evidence.total,
@@ -772,15 +1011,99 @@ function createEvidencePreviewObject(
 
 function createSourceObject(item: ArchiveEvidenceItem): ArchiveOutputSource {
   return {
-    chapter: item.chapterId,
-    fragment: item.fragmentId,
-    range: {
-      end: item.endSentenceIndex,
-      start: item.startSentenceIndex,
-    },
     text: item.source,
-    type: item.type,
     uri: item.id,
+  };
+}
+
+async function createPageObject(
+  page: ArchivePage,
+  context: ArchiveOutputContext,
+): Promise<unknown> {
+  switch (page.type) {
+    case "entity":
+      return {
+        labels: page.labels.slice(0, 7),
+        qid: page.qid,
+        ...(context.evidenceLimit === undefined
+          ? {}
+          : {
+              evidence: await createEvidencePreviewObject(page.evidence, {
+                ...context,
+                continuationKind: "evidence",
+                targetUri: page.id,
+              }),
+            }),
+        uri: page.id,
+      };
+    case "triple":
+      return {
+        label: page.label,
+        ...(context.evidenceLimit === undefined
+          ? {}
+          : {
+              evidence: await createEvidencePreviewObject(page.evidence, {
+                ...context,
+                continuationKind: "evidence",
+                targetUri: page.id,
+              }),
+            }),
+        uri: page.id,
+      };
+    case "chapter": {
+      const { id: _id, ...rest } = page;
+
+      return { ...rest, uri: toWikiGraphUri(page.id) };
+    }
+    case "chapter-tree": {
+      const { id: _id, ...rest } = page;
+
+      return { ...rest, uri: toWikiGraphUri(page.id) };
+    }
+    case "fragment": {
+      const { id: _id, nextFragmentId, previousFragmentId, ...rest } = page;
+
+      return {
+        ...rest,
+        ...(nextFragmentId === undefined
+          ? {}
+          : { nextUri: toWikiGraphUri(nextFragmentId) }),
+        ...(previousFragmentId === undefined
+          ? {}
+          : { previousUri: toWikiGraphUri(previousFragmentId) }),
+        uri: toWikiGraphUri(page.id),
+      };
+    }
+    case "meta": {
+      const { id: _id, ...rest } = page;
+
+      return { ...rest, uri: toWikiGraphUri(page.id) };
+    }
+    case "node": {
+      const { id: _id, ...rest } = page;
+
+      return { ...rest, uri: toWikiGraphUri(page.id) };
+    }
+    case "summary": {
+      const { id: _id, ...rest } = page;
+
+      return { ...rest, uri: toWikiGraphUri(page.id) };
+    }
+  }
+}
+
+async function createPackObject(
+  pack: ArchivePack,
+  context: ArchiveOutputContext,
+): Promise<{
+  readonly anchor: unknown;
+  readonly budget: number;
+  readonly links: ArchivePack["links"];
+}> {
+  return {
+    anchor: await createPageObject(pack.anchor, context),
+    budget: pack.budget,
+    links: pack.links,
   };
 }
 
@@ -795,6 +1118,7 @@ function formatFindObject(object: ArchiveOutputObject): string {
     lines.push(
       "",
       ...object.evidence.sources.flatMap((source, index) => [
+        ...(index === 0 ? [] : [""]),
         `-- evidence ${index + 1}/${object.evidence?.shown ?? object.evidence?.sources.length}`,
         formatSourceObject(source),
       ]),
@@ -815,7 +1139,7 @@ function formatScorePrefix(score: number | undefined): string {
 }
 
 function formatSourceObject(source: ArchiveOutputSource): string {
-  return [`@@ ${source.uri} @@`, source.text].join("\n");
+  return [`@@ ${source.uri} @@`, normalizeSourceText(source.text)].join("\n");
 }
 
 function formatFindLensHint(result: ArchiveFindResult): string {
@@ -907,6 +1231,7 @@ function formatEvidencePreviewBlocks(
   }
 
   const lines = evidence.sources.flatMap((item, index) => [
+    ...(index === 0 ? [] : [""]),
     `-- evidence ${index + 1}/${evidence.shown}`,
     formatEvidenceItem(item),
   ]);
@@ -917,6 +1242,35 @@ function formatEvidencePreviewBlocks(
   }
 
   return lines;
+}
+
+function normalizeSourceText(text: string): string {
+  const lines = text.replace(/\r\n?/g, "\n").split("\n");
+
+  while (lines.length > 0 && lines[0]?.trim() === "") {
+    lines.shift();
+  }
+  while (lines.length > 0 && lines.at(-1)?.trim() === "") {
+    lines.pop();
+  }
+
+  const normalizedLines: string[] = [];
+  let previousLineWasBlank = false;
+
+  for (const line of lines) {
+    if (line.trim() === "") {
+      if (!previousLineWasBlank) {
+        normalizedLines.push("");
+      }
+      previousLineWasBlank = true;
+      continue;
+    }
+
+    normalizedLines.push(line);
+    previousLineWasBlank = false;
+  }
+
+  return normalizedLines.join("\n");
 }
 
 function formatPosition(

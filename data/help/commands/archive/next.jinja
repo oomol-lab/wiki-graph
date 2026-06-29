@@ -1,0 +1,27 @@
+Help Type: command
+Command: wikigraph next
+
+next
+
+Purpose:
+  Continue any paged Wiki Graph result from its `nextCursor`.
+
+Use when:
+  - A JSON or text result prints `nextCursor` or `Next page: wikigraph next <cursor>`.
+  - You do not want to know whether the cursor came from search, list, or evidence.
+
+Usage:
+  wikigraph next <cursor> [--limit <n>] [--json|--jsonl] [--help|-h]
+  wikigraph next <archive-uri> <cursor> [--limit <n>] [--json|--jsonl] [--help|-h]
+
+Returns:
+  - The next result page for the cursor.
+
+Notes:
+  - Cursors are opaque short tokens stored in local Wiki Graph state.
+  - Passing `<archive-uri>` is optional; when provided, it must match the archive stored in the cursor.
+  - Use `--limit` to override the next page size.
+
+Examples:
+  wikigraph next c_7Kp9x2aQ
+  wikigraph next wikigraph:///books/book.sdpub c_7Kp9x2aQ --json

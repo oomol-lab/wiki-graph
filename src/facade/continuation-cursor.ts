@@ -1,0 +1,294 @@
+import { randomBytes } from "crypto";
+import { join, resolve } from "path";
+
+import { resolveWikiGraphStateDirectoryPath } from "../common/wiki-graph-dir.js";
+import {
+  getNumber,
+  getOptionalString,
+  getString,
+} from "../document/database.js";
+import { openSharedStateDatabase } from "../document/index.js";
+import type { Database } from "../document/index.js";
+
+export type ContinuationCursor =
+  | {
+      readonly archiveKey: string;
+      readonly archivePath: string;
+      readonly cursor: string;
+      readonly evidenceLimit?: number;
+      readonly format: "json" | "jsonl" | "text";
+      readonly kind: "search";
+      readonly limit: number;
+      readonly types: readonly string[] | null;
+    }
+  | {
+      readonly archiveKey: string;
+      readonly archivePath: string;
+      readonly cursor: string;
+      readonly format: "json" | "jsonl" | "text";
+      readonly kind: "evidence";
+      readonly limit: number;
+      readonly targetUri: string;
+    };
+
+const CONTINUATION_CURSOR_SCHEMA_SQL = `
+CREATE TABLE IF NOT EXISTS continuation_cursors (
+  cursor_id TEXT PRIMARY KEY,
+  archive_key TEXT NOT NULL,
+  archive_path TEXT NOT NULL,
+  kind TEXT NOT NULL,
+  payload_json TEXT NOT NULL,
+  format TEXT NOT NULL,
+  limit_value INTEGER NOT NULL,
+  created_at INTEGER NOT NULL,
+  expires_at INTEGER NOT NULL,
+  accessed_at INTEGER NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_continuation_cursors_expires
+ON continuation_cursors(expires_at);
+`;
+
+const CURSOR_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+
+export async function createContinuationCursor(
+  input: ContinuationCursor,
+): Promise<string> {
+  const database = await openContinuationCursorDatabase();
+
+  try {
+    await cleanExpiredContinuationCursors(database);
+
+    const now = Date.now();
+    const cursorId = await createUniqueCursorId(database);
+
+    await database.run(
+      `
+        INSERT INTO continuation_cursors (
+          cursor_id, archive_key, archive_path, kind, payload_json, format,
+          limit_value, created_at, expires_at, accessed_at
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `,
+      [
+        cursorId,
+        input.archiveKey,
+        input.archivePath,
+        input.kind,
+        JSON.stringify(createCursorPayload(input)),
+        input.format,
+        input.limit,
+        now,
+        now + CURSOR_TTL_MS,
+        now,
+      ],
+    );
+
+    return cursorId;
+  } finally {
+    await database.close();
+  }
+}
+
+export async function readContinuationCursor(
+  cursorId: string,
+): Promise<ContinuationCursor> {
+  const database = await openContinuationCursorDatabase();
+
+  try {
+    await cleanExpiredContinuationCursors(database);
+
+    const record = await database.queryOne(
+      `
+        SELECT archive_key, archive_path, kind, payload_json, format, limit_value
+        FROM continuation_cursors
+        WHERE cursor_id = ?
+      `,
+      [cursorId],
+      (row) => ({
+        archiveKey: getString(row, "archive_key"),
+        archivePath: getString(row, "archive_path"),
+        format: parseCursorFormat(getString(row, "format")),
+        kind: getString(row, "kind"),
+        limit: getNumber(row, "limit_value"),
+        payloadJSON: getString(row, "payload_json"),
+      }),
+    );
+
+    if (record === undefined) {
+      throw new Error(
+        `Continuation cursor ${cursorId} was not found or has expired.`,
+      );
+    }
+
+    await database.run(
+      "UPDATE continuation_cursors SET accessed_at = ? WHERE cursor_id = ?",
+      [Date.now(), cursorId],
+    );
+
+    return parseContinuationCursorRecord(record);
+  } finally {
+    await database.close();
+  }
+}
+
+function createCursorPayload(input: ContinuationCursor): object {
+  switch (input.kind) {
+    case "search":
+      return {
+        cursor: input.cursor,
+        ...(input.evidenceLimit === undefined
+          ? {}
+          : { evidenceLimit: input.evidenceLimit }),
+        types: input.types,
+      };
+    case "evidence":
+      return {
+        cursor: input.cursor,
+        targetUri: input.targetUri,
+      };
+  }
+}
+
+function parseContinuationCursorRecord(record: {
+  readonly archiveKey: string;
+  readonly archivePath: string;
+  readonly format: "json" | "jsonl" | "text";
+  readonly kind: string;
+  readonly limit: number;
+  readonly payloadJSON: string;
+}): ContinuationCursor {
+  const payload = parsePayload(record.payloadJSON);
+
+  if (record.kind === "search") {
+    return {
+      archiveKey: record.archiveKey,
+      archivePath: record.archivePath,
+      cursor: getPayloadString(payload, "cursor"),
+      ...getPayloadOptionalPositiveInteger(payload, "evidenceLimit"),
+      format: record.format,
+      kind: "search",
+      limit: record.limit,
+      types: getPayloadStringArrayOrNull(payload, "types"),
+    };
+  }
+
+  if (record.kind === "evidence") {
+    return {
+      archiveKey: record.archiveKey,
+      archivePath: record.archivePath,
+      cursor: getPayloadString(payload, "cursor"),
+      format: record.format,
+      kind: "evidence",
+      limit: record.limit,
+      targetUri: getPayloadString(payload, "targetUri"),
+    };
+  }
+
+  throw new Error(`Invalid continuation cursor kind: ${record.kind}.`);
+}
+
+function parsePayload(value: string): Record<string, unknown> {
+  const parsed: unknown = JSON.parse(value);
+
+  if (typeof parsed === "object" && parsed !== null && !Array.isArray(parsed)) {
+    return parsed as Record<string, unknown>;
+  }
+
+  throw new Error("Invalid continuation cursor payload.");
+}
+
+function getPayloadString(
+  payload: Readonly<Record<string, unknown>>,
+  key: string,
+): string {
+  const value = payload[key];
+
+  if (typeof value === "string") {
+    return value;
+  }
+
+  throw new Error("Invalid continuation cursor payload.");
+}
+
+function getPayloadStringArrayOrNull(
+  payload: Readonly<Record<string, unknown>>,
+  key: string,
+): readonly string[] | null {
+  const value = payload[key];
+
+  if (value === null) {
+    return null;
+  }
+  if (Array.isArray(value) && value.every((item) => typeof item === "string")) {
+    return value;
+  }
+
+  throw new Error("Invalid continuation cursor payload.");
+}
+
+function getPayloadOptionalPositiveInteger(
+  payload: Readonly<Record<string, unknown>>,
+  key: string,
+): { readonly evidenceLimit?: number } {
+  const value = payload[key];
+
+  if (value === undefined) {
+    return {};
+  }
+  if (typeof value === "number" && Number.isInteger(value) && value > 0) {
+    return { evidenceLimit: value };
+  }
+
+  throw new Error("Invalid continuation cursor payload.");
+}
+
+async function createUniqueCursorId(database: Database): Promise<string> {
+  for (let attempt = 0; attempt < 10; attempt += 1) {
+    const cursorId = `c_${randomBytes(6).toString("base64url")}`;
+    const existing = await database.queryOne(
+      "SELECT cursor_id FROM continuation_cursors WHERE cursor_id = ?",
+      [cursorId],
+      (row) => getOptionalString(row, "cursor_id"),
+    );
+
+    if (existing === undefined) {
+      return cursorId;
+    }
+  }
+
+  throw new Error("Failed to create a unique continuation cursor.");
+}
+
+async function cleanExpiredContinuationCursors(
+  database: Database,
+): Promise<void> {
+  await database.run("DELETE FROM continuation_cursors WHERE expires_at < ?", [
+    Date.now(),
+  ]);
+}
+
+async function openContinuationCursorDatabase(): Promise<Database> {
+  return await openSharedStateDatabase(
+    join(getContinuationStateDirectoryPath(), "continuation-cursors.sqlite"),
+    CONTINUATION_CURSOR_SCHEMA_SQL,
+  );
+}
+
+function getContinuationStateDirectoryPath(): string {
+  const stateDirectoryPath = process.env.WIKIGRAPH_STATE_DIR;
+
+  if (stateDirectoryPath !== undefined && stateDirectoryPath.trim() !== "") {
+    return resolve(stateDirectoryPath);
+  }
+
+  return resolveWikiGraphStateDirectoryPath();
+}
+
+function parseCursorFormat(value: string): "json" | "jsonl" | "text" {
+  if (value === "json" || value === "jsonl" || value === "text") {
+    return value;
+  }
+
+  throw new Error(`Invalid continuation cursor format: ${value}.`);
+}

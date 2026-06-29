@@ -306,11 +306,14 @@ describe("facade/archive-view", () => {
           ]);
         });
 
-        const result = await findArchiveObjects(document, "Augustine");
+        const result = await findArchiveObjects(document, "Augustine", {
+          evidenceLimit: 3,
+        });
 
-        expect(result.items).toStrictEqual([
-          expect.objectContaining({
+        expect(result.items).toMatchObject([
+          {
             evidence: {
+              nextCursor: null,
               shown: 1,
               sources: [
                 expect.objectContaining({
@@ -324,7 +327,7 @@ describe("facade/archive-view", () => {
             id: "wikigraph://entity/Q8018",
             title: "Augustine",
             type: "entity",
-          }),
+          },
         ]);
       } finally {
         await document.release();
@@ -365,6 +368,7 @@ describe("facade/archive-view", () => {
         });
 
         const firstPage = await findArchiveObjects(document, "Wiki Source", {
+          evidenceLimit: 3,
           limit: 1,
           types: ["entity"],
         });
@@ -372,6 +376,7 @@ describe("facade/archive-view", () => {
           ...(firstPage.nextCursor === null
             ? {}
             : { cursor: firstPage.nextCursor }),
+          evidenceLimit: 3,
           limit: 1,
           types: ["entity"],
         });
@@ -507,6 +512,7 @@ describe("facade/archive-view", () => {
         });
 
         const result = await findArchiveObjects(document, "战舰", {
+          evidenceLimit: 3,
           types: ["entity"],
         });
 
@@ -554,12 +560,14 @@ describe("facade/archive-view", () => {
         });
 
         const result = await findArchiveObjects(document, "战舰", {
+          evidenceLimit: 3,
           types: ["entity"],
         });
 
         expect(result.items).toHaveLength(1);
         expect(result.items[0]).toMatchObject({
           evidence: {
+            nextCursor: null,
             total: 1,
           },
           id: "wikigraph://entity/Q1",
@@ -1345,6 +1353,7 @@ describe("facade/archive-view", () => {
           },
           id: "wikigraph://entity/Q1",
           label: "LLM Wiki",
+          labels: ["LLM Wiki"],
           mentionCount: 1,
           qid: "Q1",
           type: "entity",
@@ -1374,6 +1383,11 @@ describe("facade/archive-view", () => {
           {
             id: "wikigraph://triple/Q1/mentions/Q2",
             label: "LLM Wiki mentions agents",
+            objectLabel: "agents",
+            objectQid: "Q2",
+            predicate: "mentions",
+            subjectLabel: "LLM Wiki",
+            subjectQid: "Q1",
             summary: "Q1 mentions Q2",
             type: "triple",
           },

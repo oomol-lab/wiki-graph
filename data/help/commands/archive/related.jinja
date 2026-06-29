@@ -10,13 +10,14 @@ Use when:
   - You have a selected readable object and need adjacent graph context.
 
 Usage:
-  wikigraph related <object-uri> [--json|--jsonl] [--help|-h]
+  wikigraph related <object-uri> [--evidence [n]] [--json|--jsonl] [--help|-h]
 
 Returns:
   - Related full `wikigraph://...` URIs with labels or summaries.
 
 Notes:
   - `related` starts from a known URI; `search` starts from query text.
+  - Add `--evidence` or `--evidence <n>` to include source evidence previews where available.
   - Returned URIs can be inspected or verified with other object commands.
   - Read `wikigraph help uri` before constructing object URIs.
 

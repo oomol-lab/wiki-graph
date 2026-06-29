@@ -112,6 +112,7 @@ interface EntityEvidenceMention {
 }
 
 export interface ArchiveFindEvidencePreview {
+  readonly nextCursor: string | null;
   readonly shown: number;
   readonly sources: readonly ArchiveEvidenceItem[];
   readonly total: number;
@@ -128,6 +129,7 @@ export interface ArchiveFindOptions {
   readonly archiveKey?: string;
   readonly chapters?: readonly number[];
   readonly cursor?: string;
+  readonly evidenceLimit?: number;
   readonly ids?: readonly string[];
   readonly limit?: number;
   readonly match?: ArchiveFindMatch;
@@ -196,12 +198,24 @@ export type ArchiveListKind =
   | "nodes"
   | "summaries";
 
-export interface ArchiveListItem {
-  readonly id: string;
-  readonly label: string;
-  readonly summary: string;
-  readonly type: ArchiveObjectType;
-}
+export type ArchiveListItem =
+  | {
+      readonly id: string;
+      readonly label: string;
+      readonly summary: string;
+      readonly type: Exclude<ArchiveObjectType, "triple">;
+    }
+  | {
+      readonly id: string;
+      readonly label: string;
+      readonly objectLabel: string;
+      readonly objectQid: string;
+      readonly predicate: string;
+      readonly subjectLabel: string;
+      readonly subjectQid: string;
+      readonly summary: string;
+      readonly type: "triple";
+    };
 
 export type ArchivePage =
   | {
@@ -250,6 +264,7 @@ export type ArchivePage =
       readonly evidence: ArchiveFindEvidencePreview;
       readonly id: string;
       readonly label: string;
+      readonly labels: readonly string[];
       readonly mentionCount: number;
       readonly qid: string;
       readonly type: "entity";
@@ -626,9 +641,11 @@ export async function findArchiveObjects(
 
     return {
       chapters: page.chapters,
-      items: await hydrateFindHitEvidence(document, page.items, {
-        sessionId: cursor.sessionId,
-      }),
+      items: await hydrateFindHitEvidence(
+        document,
+        page.items,
+        createFindEvidenceHydrationOptions(options, cursor.sessionId),
+      ),
       lens: parseFindLens(page.lens),
       lensHint: page.lens === "broad" ? BROAD_FIND_LENS_HINT : null,
       limit,
@@ -673,9 +690,11 @@ export async function findArchiveObjects(
     if (cachedPage !== undefined) {
       return {
         chapters: cachedPage.chapters,
-        items: await hydrateFindHitEvidence(document, cachedPage.items, {
-          sessionId: cachedPage.sessionId,
-        }),
+        items: await hydrateFindHitEvidence(
+          document,
+          cachedPage.items,
+          createFindEvidenceHydrationOptions(options, cachedPage.sessionId),
+        ),
         lens: parseFindLens(cachedPage.lens),
         lensHint:
           cachedPage.lens === "broad" ? BROAD_FIND_LENS_HINT : null,
@@ -694,7 +713,11 @@ export async function findArchiveObjects(
     if (cachedPage !== undefined) {
       return {
         chapters: cachedPage.chapters,
-        items: await hydrateFindHitEvidence(document, cachedPage.items),
+        items: await hydrateFindHitEvidence(
+          document,
+          cachedPage.items,
+          createFindEvidenceHydrationOptions(options),
+        ),
         lens: parseFindLens(cachedPage.lens),
         lensHint:
           cachedPage.lens === "broad" ? BROAD_FIND_LENS_HINT : null,
@@ -739,9 +762,11 @@ export async function findArchiveObjects(
 
     return {
       ...ranked,
-      items: await hydrateFindHitEvidence(document, firstPage.items, {
-        sessionId,
-      }),
+      items: await hydrateFindHitEvidence(
+        document,
+        firstPage.items,
+        createFindEvidenceHydrationOptions(options, sessionId),
+      ),
       nextCursor: firstPage.nextCursor,
     };
   }
@@ -768,7 +793,11 @@ export async function findArchiveObjects(
 
   return {
     ...ranked,
-    items: await hydrateFindHitEvidence(document, firstPage.items),
+    items: await hydrateFindHitEvidence(
+      document,
+      firstPage.items,
+      createFindEvidenceHydrationOptions(options),
+    ),
     nextCursor: firstPage.nextCursor,
   };
 }
@@ -1035,6 +1064,7 @@ async function readWikiGraphPage(
         evidence: await createMentionEvidencePreview(document, mentions),
         id: uri,
         label: selectEntityLabel(mentions),
+        labels: selectEntityLabels(mentions),
         mentionCount: mentions.length,
         qid: reference.qid,
         type: "entity",
@@ -1058,7 +1088,7 @@ async function readWikiGraphPage(
       return {
         evidence: await createMentionLinkEvidencePreview(document, links),
         id: uri,
-        label: `${reference.subjectQid} ${reference.predicate} ${reference.objectQid}`,
+        label: await createTriplePageLabel(document, reference),
         objectQid: reference.objectQid,
         predicate: reference.predicate,
         subjectQid: reference.subjectQid,
@@ -1258,6 +1288,11 @@ async function listRelatedEntityObjects(
       triplesById.set(id, {
         id,
         label: `${source.surface} ${link.predicate} ${target.surface}`,
+        objectLabel: target.surface,
+        objectQid: target.qid,
+        predicate: link.predicate,
+        subjectLabel: source.surface,
+        subjectQid: source.qid,
         summary: `${source.qid} ${link.predicate} ${target.qid}`,
         type: "triple",
       });
@@ -1752,6 +1787,7 @@ async function hydrateFindHitEvidence(
   document: ReadonlyDocument,
   hits: readonly ArchiveFindHit[],
   options: {
+    readonly evidenceLimit?: number;
     readonly sessionId?: string;
   } = {},
 ): Promise<readonly ArchiveFindHit[]> {
@@ -1769,15 +1805,22 @@ async function hydrateFindHitEvidence(
           document,
           hit,
           options.sessionId,
+          options.evidenceLimit,
         );
       }
       if (hit.evidenceMentions === undefined) {
         return hit;
       }
+      if (options.evidenceLimit === undefined) {
+        const { evidenceMentions: _evidenceMentions, ...publicHit } = hit;
+
+        return publicHit;
+      }
 
       const evidence = await createMentionEvidencePreview(
         document,
         hit.evidenceMentions.map((item) => item.mention),
+        options.evidenceLimit,
       );
       const { evidenceMentions: _evidenceMentions, ...publicHit } = hit;
 
@@ -1787,6 +1830,21 @@ async function hydrateFindHitEvidence(
       };
     }),
   );
+}
+
+function createFindEvidenceHydrationOptions(
+  options: ArchiveFindOptions,
+  sessionId?: string,
+): {
+  readonly evidenceLimit?: number;
+  readonly sessionId?: string;
+} {
+  return {
+    ...(options.evidenceLimit === undefined
+      ? {}
+      : { evidenceLimit: options.evidenceLimit }),
+    ...(sessionId === undefined ? {} : { sessionId }),
+  };
 }
 
 function createUnscoredEntityEvidenceMention(
@@ -1807,7 +1865,14 @@ async function hydrateEntitySessionHitEvidence(
   document: ReadonlyDocument,
   hit: ArchiveFindHit,
   sessionId: string,
+  evidenceLimit: number | undefined,
 ): Promise<ArchiveFindHit> {
+  if (evidenceLimit === undefined) {
+    const { evidence: _evidence, ...publicHit } = hit;
+
+    return publicHit;
+  }
+
   const qid = parseEntityQid(hit.id);
 
   if (qid === undefined) {
@@ -1821,7 +1886,7 @@ async function hydrateEntitySessionHitEvidence(
   const mergedRanges = mergeSourceEvidenceRanges(ranges);
   const sources = await Promise.all(
     mergedRanges
-      .slice(0, 3)
+      .slice(0, evidenceLimit)
       .map(
         async (range) =>
           await createSourceEvidenceItem(
@@ -1837,6 +1902,10 @@ async function hydrateEntitySessionHitEvidence(
   return {
     ...hit,
     evidence: {
+      nextCursor:
+        sources.length < mergedRanges.length
+          ? encodeFindCursor(sources.length)
+          : null,
       shown: sources.length,
       sources,
       total: mergedRanges.length,
@@ -2257,21 +2326,51 @@ async function createSourceRangeFragment(
 }
 
 function selectEntityLabel(mentions: readonly MentionRecord[]): string {
+  return selectEntityLabels(mentions)[0] ?? mentions[0]?.qid ?? "[entity]";
+}
+
+function selectEntityLabels(mentions: readonly MentionRecord[]): readonly string[] {
   const counts = new Map<string, number>();
 
   for (const mention of mentions) {
     counts.set(mention.surface, (counts.get(mention.surface) ?? 0) + 1);
   }
 
-  const [label] = [...counts.entries()].sort((left, right) => {
+  return [...counts.entries()].sort((left, right) => {
     const countComparison = right[1] - left[1];
 
     return countComparison === 0
       ? left[0].localeCompare(right[0])
       : countComparison;
-  })[0] ?? [mentions[0]?.qid ?? "[entity]", 0];
+  }).map(([label]) => label);
+}
 
-  return label;
+async function createTriplePageLabel(
+  document: ReadonlyDocument,
+  reference: Extract<WikiGraphReference, { readonly type: "triple" }>,
+): Promise<string> {
+  const [subjectMentions, objectMentions] = await Promise.all([
+    document.mentions.listByQid(reference.subjectQid),
+    document.mentions.listByQid(reference.objectQid),
+  ]);
+  const scopedSubjectMentions = filterMentionsByChapter(
+    subjectMentions,
+    reference.chapterId,
+  );
+  const scopedObjectMentions = filterMentionsByChapter(
+    objectMentions,
+    reference.chapterId,
+  );
+  const subjectLabel =
+    scopedSubjectMentions.length === 0
+      ? reference.subjectQid
+      : selectEntityLabel(scopedSubjectMentions);
+  const objectLabel =
+    scopedObjectMentions.length === 0
+      ? reference.objectQid
+      : selectEntityLabel(scopedObjectMentions);
+
+  return `${subjectLabel}(${reference.subjectQid}) ${reference.predicate} ${objectLabel}(${reference.objectQid})`;
 }
 
 function countWords(text: string): number {
@@ -2624,10 +2723,12 @@ function createNodeEvidenceRanges(node: Pick<GraphNode, "sentenceIds">): Array<{
 async function createMentionEvidencePreview(
   document: ReadonlyDocument,
   mentions: readonly MentionRecord[],
+  limit = 3,
 ): Promise<ArchiveFindEvidencePreview> {
   return await createSourceEvidencePreview(
     document,
     await createMentionEvidenceRanges(document, mentions),
+    limit,
   );
 }
 
@@ -2674,10 +2775,12 @@ async function createMentionEvidenceRanges(
 async function createMentionLinkEvidencePreview(
   document: ReadonlyDocument,
   links: readonly MentionLinkRecord[],
+  limit = 3,
 ): Promise<ArchiveFindEvidencePreview> {
   return await createSourceEvidencePreview(
     document,
     await createMentionLinkEvidenceRanges(document, links),
+    limit,
   );
 }
 
@@ -2840,11 +2943,12 @@ async function createSourceEvidencePreview(
     readonly fragmentId: number;
     readonly startSentenceIndex: number;
   }[],
+  limit: number,
 ): Promise<ArchiveFindEvidencePreview> {
   const mergedRanges = mergeSourceEvidenceRanges(ranges);
   const sources = await Promise.all(
     mergedRanges
-      .slice(0, 3)
+      .slice(0, limit)
       .map(
         async (range) =>
           await createSourceEvidenceItem(
@@ -2858,6 +2962,10 @@ async function createSourceEvidencePreview(
   );
 
   return {
+    nextCursor:
+      sources.length < mergedRanges.length
+        ? encodeFindCursor(sources.length)
+        : null,
     shown: sources.length,
     sources,
     total: mergedRanges.length,

@@ -10,13 +10,15 @@ Use when:
   - You need objects of a kind without a text query, such as all chapters or all entities.
 
 Usage:
-  wikigraph list <wikigraph-uri-with-sdpub-locator> [--type <chapter|entity|triple|source|summary|chunk[,kind...]>] [--limit <n>] [--cursor <token>] [--json|--jsonl] [--help|-h]
+  wikigraph list <wikigraph-uri-with-sdpub-locator> [--type <chapter|entity|triple|source|summary|chunk[,kind...]>] [--limit <n>] [--evidence [n]] [--cursor <token>] [--json|--jsonl] [--help|-h]
 
 Returns:
   - URI-addressable objects in document order.
 
 Notes:
   - Use `search` when you have query text.
+  - Add `--evidence` or `--evidence <n>` to include source evidence previews on entity and triple results.
+  - Use `wikigraph next <cursor>` for any returned `nextCursor`.
   - Use `wikigraph help uri` before constructing Wiki Graph URIs; bare filesystem paths are not valid object command inputs.
 
 Examples:

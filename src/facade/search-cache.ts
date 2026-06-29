@@ -820,6 +820,7 @@ function mapEntitySearchObjectRow(
   return {
     chapter: chapterId,
     evidence: {
+      nextCursor: null,
       shown: 0,
       sources: [],
       total: getNumber(row, "evidence_count"),
