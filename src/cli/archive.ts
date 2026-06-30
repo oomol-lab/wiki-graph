@@ -1126,7 +1126,10 @@ async function createEvidencePreviewObject(
 ): Promise<ArchiveOutputEvidencePreview> {
   return {
     nextCursor: await createOutputContinuationCursor(
-      context,
+      {
+        ...context,
+        continuationKind: "evidence",
+      },
       evidence.nextCursor,
     ),
     shown: evidence.shown,

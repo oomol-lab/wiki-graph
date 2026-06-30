@@ -599,6 +599,62 @@ describe("cli/archive", () => {
     });
   });
 
+  it("keeps nested evidence cursors separate from collection cursors", async () => {
+    const entityFindHit = archiveMockState.entityFindHits[0]!;
+
+    vi.mocked(createContinuationCursor)
+      .mockResolvedValueOnce("c_evidence")
+      .mockResolvedValueOnce("c_collection");
+    vi.mocked(listArchiveCollection).mockResolvedValueOnce({
+      ...archiveMockState.collection,
+      items: [
+        {
+          ...entityFindHit,
+          evidence: {
+            ...entityFindHit.evidence,
+            nextCursor: "raw-evidence-cursor",
+          },
+        },
+      ],
+      nextCursor: "raw-collection-cursor",
+    });
+
+    await runArchiveCommand({
+      action: "list",
+      archivePath: "wikigraph:///tmp/book.sdpub/chapter/2",
+      evidenceLimit: 1,
+      format: "json",
+      kinds: ["entity"],
+    });
+
+    expect(createContinuationCursor).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({
+        cursor: "raw-evidence-cursor",
+        kind: "evidence",
+        targetUri: "wikigraph://entity/Q1",
+      }),
+    );
+    expect(createContinuationCursor).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({
+        chapters: [2],
+        cursor: "raw-collection-cursor",
+        kind: "collection",
+      }),
+    );
+    expect(JSON.parse(archiveMockState.textWrites[0] ?? "")).toMatchObject({
+      nextCursor: "c_collection",
+      objects: [
+        {
+          evidence: {
+            nextCursor: "c_evidence",
+          },
+        },
+      ],
+    });
+  });
+
   it("prints listed triple evidence as structured JSON when requested", async () => {
     vi.mocked(listArchiveCollection).mockResolvedValueOnce({
       ...archiveMockState.collection,
