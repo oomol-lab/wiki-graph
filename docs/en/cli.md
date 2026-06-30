@@ -19,8 +19,8 @@ wikigraph index <archive.sdpub> [--json]
 wikigraph <archive-or-scope-uri> search <query> [--type <chapter|entity|triple|source|summary|chunk[,kind...]>] [--limit <n>] [--cursor <token>] [--json|--jsonl]
 wikigraph <archive-or-scope-uri> list [--type <chapter|entity|triple|source|summary|chunk[,kind...]>] [--limit <n>] [--cursor <token>] [--json|--jsonl]
 wikigraph <object-uri> get [--json|--jsonl]
-wikigraph <object-uri> related [--json|--jsonl]
-wikigraph <object-uri> evidence [--limit <n>] [--cursor <token>] [--json|--jsonl]
+wikigraph <object-uri> related [--evidence [n]] [--json|--jsonl]
+wikigraph <entity|triple|summary|chunk-uri> evidence [--limit <n>] [--cursor <token>] [--json|--jsonl]
 wikigraph <object-uri> pack [--budget <chars>] [--json|--jsonl]
 wikigraph export <archive.sdpub> --output-format <format> [--output <path>]
 wikigraph queue add <archive.sdpub> --chapter <id> [--task reading-graph|reading-summary|knowledge-graph] --accept-cost [--boost] [--llm <json>] [--prompt <text>]
@@ -42,7 +42,7 @@ Search and collection behavior:
 
 - `search` finds URI-addressable objects from query text. Search results are leads, not source evidence.
 - `list` enumerates URI-addressable objects without query text.
-- Object commands use Wiki Graph URIs. Convert archive paths to archive URIs such as `wkg:///Users/me/book.sdpub` before using `search`, `list`, `get`, `related`, `evidence`, or `pack`.
+- Object commands use Wiki Graph URIs. Use an archive or scope URI such as `wkg:///Users/me/book.sdpub` for `search` and `list`; use a concrete object URI such as `wkg:///Users/me/book.sdpub/chapter/12` for `get`, `related`, `evidence`, or `pack`.
 - For content understanding, choose a search lens: `--type chunk` for Reading Graph structure, `--type summary` for quick overview, `--type source` for original source wording, or `--type entity,triple` for Knowledge Graph objects.
 - Use a chapter scope URI such as `wkg:///Users/me/book.sdpub/chapter/12` to keep search or list local to one chapter.
 - `--limit` defaults to `20`; pass returned `nextCursor` back through `--cursor` for the next page.

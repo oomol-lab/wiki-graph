@@ -13,14 +13,16 @@ Object command inputs:
     ./book.sdpub -> wkg://book.sdpub
 
 Treat every search result as a Wiki Graph URI.
+Search results may use short object URIs such as `wkg://entity/Q8018`; prepend the archive locator before passing them back to object commands:
+  wkg:///absolute/path/book.sdpub/entity/Q8018
 
 Default exploration loop:
   1. `wikigraph help uri`
   2. `wikigraph wkg:///absolute/path/book.sdpub search <query>`
-  3. `wikigraph <object-uri> get`
-  4. `wikigraph <object-uri> related`
-  5. `wikigraph <object-uri> evidence`
-  6. `wikigraph <object-uri> pack --budget <chars>`
+  3. `wikigraph <located-object-uri> get`
+  4. `wikigraph <located-object-uri> related`
+  5. `wikigraph <located-object-uri> evidence`
+  6. `wikigraph <located-object-uri> pack --budget <chars>`
 
 Example:
   wikigraph wkg:///Users/me/book.sdpub search "朱元璋" --type entity,triple --limit 20 --json

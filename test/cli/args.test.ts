@@ -991,6 +991,9 @@ describe("cli/args", () => {
     expect(renderHelpTopicText("command")).toContain(
       "wikigraph <wikigraph-uri-with-sdpub-locator> search",
     );
+    expect(renderHelpTopicText("command")).toContain(
+      "wikigraph <entity|triple|summary|chunk-uri> evidence",
+    );
     expect(renderHelpTopicText("ai")).toContain("Primary contract:");
     expect(renderHelpTopicText("ai")).toContain(
       "Use Wiki Graph URIs as stable object handles",
@@ -1003,6 +1006,9 @@ describe("cli/args", () => {
     );
     expect(renderHelpTopicText("ai")).toContain(
       "wikigraph wkg:///Users/me/book.sdpub search",
+    );
+    expect(renderHelpTopicText("ai")).toContain(
+      "wkg:///absolute/path/book.sdpub/entity/Q8018",
     );
     expect(renderHelpTopicText("uri")).toContain(
       "Do not pass a bare filesystem path to object commands.",

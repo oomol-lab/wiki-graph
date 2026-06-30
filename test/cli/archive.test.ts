@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type {
   ArchiveCollectionResult,
+  ArchiveEvidence,
   ArchiveFindHit,
   ArchivePage,
 } from "../../src/facade/archive-view.js";
@@ -135,7 +136,7 @@ const archiveMockState = vi.hoisted(() => ({
     ],
     limit: 20,
     nextCursor: null,
-  },
+  } satisfies ArchiveEvidence,
   listItems: [
     {
       id: "node:11",
@@ -1226,6 +1227,29 @@ describe("cli/archive", () => {
     expect(listArchiveEvidence).toHaveBeenCalledWith({}, "wkg://entity/Q1", {
       cursor: "cursor-1",
       limit: 3,
+    });
+  });
+
+  it("creates evidence continuation cursors with the target URI", async () => {
+    vi.mocked(listArchiveEvidence).mockResolvedValueOnce({
+      ...archiveMockState.evidence,
+      nextCursor: "raw-next-evidence-cursor",
+    });
+
+    await runArchiveCommand({
+      action: "evidence",
+      archivePath: "wkg:///tmp/book.sdpub",
+      format: "json",
+      objectId: "wkg:///tmp/book.sdpub/entity/Q1",
+    });
+
+    expect(createContinuationCursor).toHaveBeenCalledWith({
+      archiveKey: "/tmp/book.sdpub",
+      archivePath: "/tmp/book.sdpub",
+      cursor: "raw-next-evidence-cursor",
+      format: "json",
+      kind: "evidence",
+      targetUri: "wkg://entity/Q1",
     });
   });
 

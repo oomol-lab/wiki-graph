@@ -25,6 +25,7 @@ wikigraph index book.sdpub --json
 ```
 
 Use three exploration modes. For synthesis, timelines, relationship analysis, process reconstruction, or concept-structure tasks, start with Structure mode: `chapter tree --json` for a compact table-of-contents map, then choose likely chapter ids and expand them with scoped URI search or `wkg://... get`. Search mode uses `wkg://... search --type <kind>` for candidate discovery and falls back to source/summary/chunk text when structured objects do not match. Reading mode uses `wkg://... get` after the relevant source URI has been selected.
+Search results may display short object URIs such as `wkg://entity/Q9957`; prepend the archive locator before reusing them in object commands, for example `wkg://book.sdpub/entity/Q9957`.
 
 Choose a search lens explicitly: `--type chunk` for Reading Graph structure, `--type summary` for quick overview, `--type source` for original wording, or `--type entity,triple` for Knowledge Graph objects. Use scoped chapter URIs, `--limit`, and `--cursor` to keep retrieval bounded.
 

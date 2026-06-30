@@ -19,8 +19,8 @@ wikigraph index <archive.sdpub> [--json]
 wikigraph <archive-or-scope-uri> search <query> [--type <chapter|entity|triple|source|summary|chunk[,kind...]>] [--limit <n>] [--cursor <token>] [--json|--jsonl]
 wikigraph <archive-or-scope-uri> list [--type <chapter|entity|triple|source|summary|chunk[,kind...]>] [--limit <n>] [--cursor <token>] [--json|--jsonl]
 wikigraph <object-uri> get [--json|--jsonl]
-wikigraph <object-uri> related [--json|--jsonl]
-wikigraph <object-uri> evidence [--limit <n>] [--cursor <token>] [--json|--jsonl]
+wikigraph <object-uri> related [--evidence [n]] [--json|--jsonl]
+wikigraph <entity|triple|summary|chunk-uri> evidence [--limit <n>] [--cursor <token>] [--json|--jsonl]
 wikigraph <object-uri> pack [--budget <chars>] [--json|--jsonl]
 wikigraph export <archive.sdpub> --output-format <format> [--output <path>]
 wikigraph queue add <archive.sdpub> --chapter <id> [--task reading-graph|reading-summary|knowledge-graph] --accept-cost [--boost] [--llm <json>] [--prompt <text>]
@@ -42,7 +42,7 @@ wikigraph queue clean
 
 - `search` 根据 query text 查找可 URI 寻址的对象。Search result 是线索，不等于 source evidence。
 - `list` 在没有 query text 时枚举可 URI 寻址的对象。
-- Object command 使用 Wiki Graph URI。使用 `search`、`list`、`get`、`related`、`evidence` 或 `pack` 前，先把 archive path 转为 archive URI，例如 `wkg:///Users/me/book.sdpub`。
+- Object command 使用 Wiki Graph URI。`search` 和 `list` 使用 archive 或 scope URI，例如 `wkg:///Users/me/book.sdpub`；`get`、`related`、`evidence` 和 `pack` 使用具体 object URI，例如 `wkg:///Users/me/book.sdpub/chapter/12`。
 - 做内容理解时，选择一个 search lens：`--type chunk` 用于 Reading Graph 结构，`--type summary` 用于快速概览，`--type source` 用于原文措辞，`--type entity,triple` 用于 Knowledge Graph 对象。
 - 使用 chapter scope URI，例如 `wkg:///Users/me/book.sdpub/chapter/12`，把 search 或 list 限定在一个章节内。
 - `--limit` 默认 `20`；下一页把返回的 `nextCursor` 传给 `--cursor`。

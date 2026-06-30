@@ -522,13 +522,17 @@ async function createOutputContinuationCursor(
   let input: ContinuationCursor;
 
   if (context.continuationKind === "evidence") {
+    if (context.targetUri === undefined) {
+      throw new Error("Evidence continuation cursors require a target URI.");
+    }
+
     input = {
       archiveKey: context.archiveKey,
       archivePath: context.archivePath,
       cursor,
       format: context.format,
       kind: "evidence",
-      targetUri: context.targetUri ?? "",
+      targetUri: context.targetUri,
     };
   } else if (context.continuationKind === "collection") {
     input = {
