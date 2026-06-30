@@ -221,7 +221,7 @@ describe("facade/chapter graph", () => {
     });
   });
 
-  it("builds summary from a snapshot file without sdpub-shaped temp documents", async () => {
+  it("builds summary from a snapshot file without wikg-shaped temp documents", async () => {
     await withTempDir("spinedigest-chapter-summary-", async (path) => {
       const document = await DirectoryDocument.open(`${path}/archive`);
 

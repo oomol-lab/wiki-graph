@@ -119,11 +119,11 @@ describe("cli/archive maintenance", () => {
 
   it("renders book metadata", async () => {
     await runArchiveMetaCommand({
-      inputPath: "/tmp/book.sdpub",
+      inputPath: "/tmp/book.wikg",
     });
 
     expect(archiveMaintenanceMockState.openCalls).toStrictEqual([
-      "/tmp/book.sdpub",
+      "/tmp/book.wikg",
     ]);
     expect(archiveMaintenanceMockState.textWrites).toStrictEqual([
       [
@@ -142,7 +142,7 @@ describe("cli/archive maintenance", () => {
 
   it("renders book metadata as JSON", async () => {
     await runArchiveMetaCommand({
-      inputPath: "/tmp/book.sdpub",
+      inputPath: "/tmp/book.wikg",
       json: true,
     });
 
@@ -162,7 +162,7 @@ describe("cli/archive maintenance", () => {
 
   it("updates book metadata in place and prints the result", async () => {
     await runArchiveMetaCommand({
-      inputPath: "/tmp/book.sdpub",
+      inputPath: "/tmp/book.wikg",
       metaPatch: {
         authors: ["Cy Lake"],
         clearDescription: true,
@@ -171,7 +171,7 @@ describe("cli/archive maintenance", () => {
     });
 
     expect(archiveMaintenanceMockState.writeCalls).toStrictEqual([
-      "/tmp/book.sdpub",
+      "/tmp/book.wikg",
     ]);
     expect(archiveMaintenanceMockState.replacedMeta).toStrictEqual([
       {
@@ -203,7 +203,7 @@ describe("cli/archive maintenance", () => {
 
   it("writes raw cover bytes", async () => {
     await runArchiveCoverCommand({
-      inputPath: "/tmp/book.sdpub",
+      inputPath: "/tmp/book.wikg",
     });
 
     expect(archiveMaintenanceMockState.binaryWrites).toHaveLength(1);
@@ -217,7 +217,7 @@ describe("cli/archive maintenance", () => {
 
     await expect(
       runArchiveCoverCommand({
-        inputPath: "/tmp/book.sdpub",
+        inputPath: "/tmp/book.wikg",
       }),
     ).rejects.toThrow(
       "Refusing to write binary cover data to an interactive terminal. Redirect stdout or pipe it.",
@@ -231,7 +231,7 @@ describe("cli/archive maintenance", () => {
 
     await expect(
       runArchiveCoverCommand({
-        inputPath: "/tmp/book.sdpub",
+        inputPath: "/tmp/book.wikg",
       }),
     ).rejects.toThrow("Document cover is missing.");
   });

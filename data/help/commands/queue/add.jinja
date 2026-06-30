@@ -2,7 +2,7 @@ Help Type: command
 Command: wikigraph <chapter-uri> queue add
 
 Purpose:
-  Create one generation task for one `.sdpub` chapter.
+  Create one generation task for one `.wikg` chapter.
 
 Usage:
   wikigraph <chapter-uri> queue add --task <reading-graph|reading-summary|knowledge-graph> --accept-cost [--boost] [--llm <json>] [--prompt <text>]
@@ -26,6 +26,6 @@ Merge rules:
   - knowledge-graph uses a separate lane and can run alongside the Reading Graph line for the same chapter.
 
 Examples:
-  wikigraph wkg://book.sdpub/chapter/3 queue add --task reading-graph --accept-cost
-  wikigraph wkg://book.sdpub/chapter/3 queue add --task reading-summary --accept-cost --boost
-  wikigraph wkg://book.sdpub/chapter/3 queue add --task knowledge-graph --accept-cost
+  wikigraph wkg://book.wikg/chapter/3 queue add --task reading-graph --accept-cost
+  wikigraph wkg://book.wikg/chapter/3 queue add --task reading-summary --accept-cost --boost
+  wikigraph wkg://book.wikg/chapter/3 queue add --task knowledge-graph --accept-cost

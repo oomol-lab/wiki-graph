@@ -180,17 +180,17 @@ describe("cli/convert", () => {
     stderrWriteSpy.mockRestore();
   });
 
-  it("opens sdpub input without requiring llm configuration", async () => {
+  it("opens wikg input without requiring llm configuration", async () => {
     await runConvertCommand({
       digestDirPath: "/tmp/kept-digest",
       help: false,
-      inputPath: "/tmp/book.sdpub",
+      inputPath: "/tmp/book.wikg",
       outputPath: "/tmp/output.txt",
       verbose: false,
     });
 
     expect(cliMockState.appConstructorOptions).toStrictEqual([{}]);
-    expect(cliMockState.openCalls).toStrictEqual(["/tmp/book.sdpub"]);
+    expect(cliMockState.openCalls).toStrictEqual(["/tmp/book.wikg"]);
     expect(cliMockState.resetDigestDirCalls).toStrictEqual([]);
     expect(cliMockState.exportCalls).toStrictEqual([
       {
@@ -318,10 +318,10 @@ describe("cli/convert", () => {
     ]);
   });
 
-  it("accepts inline llm json while reopening sdpub without building llm options", async () => {
+  it("accepts inline llm json while reopening wikg without building llm options", async () => {
     await runConvertCommand({
       help: false,
-      inputPath: "/tmp/book.sdpub",
+      inputPath: "/tmp/book.wikg",
       llmJSON: '{"model":"inline-model"}',
       outputPath: "/tmp/output.txt",
       verbose: false,
@@ -333,7 +333,7 @@ describe("cli/convert", () => {
       },
     ]);
     expect(cliMockState.buildLLMOptionsConfig).toHaveLength(0);
-    expect(cliMockState.openCalls).toStrictEqual(["/tmp/book.sdpub"]);
+    expect(cliMockState.openCalls).toStrictEqual(["/tmp/book.wikg"]);
   });
 
   it("refuses to read interactive stdin when input is omitted", async () => {
@@ -359,7 +359,7 @@ describe("cli/convert", () => {
     expect(cliMockState.digestCalls.textStream).toHaveLength(0);
   });
 
-  it("routes epub inputs through digestEpubSession and saves sdpub output", async () => {
+  it("routes epub inputs through digestEpubSession and saves wikg output", async () => {
     cliMockState.config = {
       llm: {
         model: "gpt-test",
@@ -375,7 +375,7 @@ describe("cli/convert", () => {
       digestDirPath: "/tmp/kept-digest",
       help: false,
       inputPath: "/tmp/book.epub",
-      outputPath: "/tmp/output.sdpub",
+      outputPath: "/tmp/output.wikg",
       verbose: false,
     });
 
@@ -393,7 +393,7 @@ describe("cli/convert", () => {
     expect(cliMockState.exportCalls).toStrictEqual([
       {
         method: "saveAs",
-        path: "/tmp/output.sdpub",
+        path: "/tmp/output.wikg",
       },
     ]);
   });
@@ -416,13 +416,13 @@ describe("cli/convert", () => {
     expect(cliMockState.digestCalls.txt).toHaveLength(0);
   });
 
-  it("creates sourced sdpub output without llm configuration", async () => {
+  it("creates sourced wikg output without llm configuration", async () => {
     cliMockState.config = {};
 
     await runConvertCommand({
       help: false,
       inputPath: "/tmp/book.txt",
-      outputPath: "/tmp/output.sdpub",
+      outputPath: "/tmp/output.wikg",
       targetStage: "sourced",
       verbose: false,
     });
@@ -438,12 +438,12 @@ describe("cli/convert", () => {
     expect(cliMockState.exportCalls).toStrictEqual([
       {
         method: "saveAs",
-        path: "/tmp/output.sdpub",
+        path: "/tmp/output.wikg",
       },
     ]);
   });
 
-  it("rejects --stage outside source-to-sdpub conversion", async () => {
+  it("rejects --stage outside source-to-wikg conversion", async () => {
     await expect(
       runConvertCommand({
         help: false,
@@ -453,19 +453,19 @@ describe("cli/convert", () => {
         verbose: false,
       }),
     ).rejects.toThrow(
-      "--stage is only supported when output format is sdpub.\nSee: wikigraph help command",
+      "--stage is only supported when output format is wikg.\nSee: wikigraph help command",
     );
 
     await expect(
       runConvertCommand({
         help: false,
-        inputPath: "/tmp/book.sdpub",
-        outputPath: "/tmp/output.sdpub",
+        inputPath: "/tmp/book.wikg",
+        outputPath: "/tmp/output.wikg",
         targetStage: "sourced",
         verbose: false,
       }),
     ).rejects.toThrow(
-      "--stage is only supported when creating .sdpub from source input.\nSee: wikigraph help command",
+      "--stage is only supported when creating .wikg from source input.\nSee: wikigraph help command",
     );
   });
 
@@ -487,12 +487,12 @@ describe("cli/convert", () => {
     await expect(
       runConvertCommand({
         help: false,
-        inputPath: "/tmp/book.sdpub",
-        outputFormat: "sdpub",
+        inputPath: "/tmp/book.wikg",
+        outputFormat: "wikg",
         verbose: false,
       }),
     ).rejects.toThrow(
-      "stdout only supports txt or markdown, but got sdpub.\nSee: wikigraph help format",
+      "stdout only supports txt or markdown, but got wikg.\nSee: wikigraph help format",
     );
 
     expect(cliMockState.appConstructorOptions).toHaveLength(0);

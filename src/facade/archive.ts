@@ -11,13 +11,13 @@ import {
 } from "yauzl";
 import { ZipFile as YazlZipFile } from "yazl";
 
-export const SDPUB_FORMAT_VERSION = 1;
-const SDPUB_MANIFEST_PATH = "manifest.json";
-const SDPUB_MANIFEST_CONTENT = `${JSON.stringify({
-  formatVersion: SDPUB_FORMAT_VERSION,
+export const WIKG_FORMAT_VERSION = 1;
+const WIKG_MANIFEST_PATH = "manifest.json";
+const WIKG_MANIFEST_CONTENT = `${JSON.stringify({
+  formatVersion: WIKG_FORMAT_VERSION,
 })}\n`;
 
-const SDPUB_ARCHIVE_PATTERNS = [
+const WIKG_ARCHIVE_PATTERNS = [
   /^manifest\.json$/u,
   /^database\.db$/u,
   /^book-meta\.json$/u,
@@ -27,11 +27,11 @@ const SDPUB_ARCHIVE_PATTERNS = [
   /^fragments\/serial-\d+\/fragment_\d+\.json$/u,
 ] as const;
 
-const sdpubManifestSchema = z.object({
-  formatVersion: z.literal(SDPUB_FORMAT_VERSION),
+const wikgManifestSchema = z.object({
+  formatVersion: z.literal(WIKG_FORMAT_VERSION),
 });
 
-export type SdpubArchiveOverlay =
+export type WikgArchiveOverlay =
   | {
       readonly entryPath: string;
       readonly kind: "deleted";
@@ -42,7 +42,7 @@ export type SdpubArchiveOverlay =
       readonly workspacePath: string;
     };
 
-export class SdpubArchiveReader {
+export class WikgArchiveReader {
   readonly #entryByPath: Map<string, Entry>;
   readonly #entries: readonly string[];
   readonly #zipFile: YauzlZipFile;
@@ -53,20 +53,20 @@ export class SdpubArchiveReader {
       entries
         .map((entry) => [normalizeArchivePath(entry.fileName), entry] as const)
         .filter(([entryPath]) => entryPath !== "")
-        .filter(([entryPath]) => isSdpubArchivePath(entryPath)),
+        .filter(([entryPath]) => isWikgArchivePath(entryPath)),
     );
     this.#entries = [...this.#entryByPath.keys()].sort((left, right) =>
       left.localeCompare(right),
     );
   }
 
-  public static async open(inputPath: string): Promise<SdpubArchiveReader> {
+  public static async open(inputPath: string): Promise<WikgArchiveReader> {
     const zipFile = await openArchive(inputPath);
     const entries = await indexArchiveEntries(zipFile);
 
     try {
       await validateArchiveManifest(zipFile, entries);
-      return new SdpubArchiveReader(zipFile, entries);
+      return new WikgArchiveReader(zipFile, entries);
     } catch (error) {
       zipFile.close();
       throw error;
@@ -92,7 +92,7 @@ export class SdpubArchiveReader {
   }
 }
 
-export async function extractSdpubArchive(
+export async function extractWikgArchive(
   inputPath: string,
   outputDirectoryPath: string,
 ): Promise<void> {
@@ -123,7 +123,7 @@ export async function extractSdpubArchive(
   }
 }
 
-export async function writeSdpubArchive(
+export async function writeWikgArchive(
   documentDirectoryPath: string,
   outputPath: string,
 ): Promise<void> {
@@ -132,10 +132,10 @@ export async function writeSdpubArchive(
   const zipFile = new YazlZipFile();
   const files = await listDocumentFiles(documentDirectoryPath);
   const entries = [
-    ...files.filter((file) => file.archivePath !== SDPUB_MANIFEST_PATH),
+    ...files.filter((file) => file.archivePath !== WIKG_MANIFEST_PATH),
     {
-      archivePath: SDPUB_MANIFEST_PATH,
-      content: Buffer.from(SDPUB_MANIFEST_CONTENT, "utf8"),
+      archivePath: WIKG_MANIFEST_PATH,
+      content: Buffer.from(WIKG_MANIFEST_CONTENT, "utf8"),
     },
   ].sort((left, right) => left.archivePath.localeCompare(right.archivePath));
 
@@ -157,10 +157,10 @@ export async function writeSdpubArchive(
   await Promise.all([outputDone, zipDone]);
 }
 
-export async function listSdpubArchiveEntries(
+export async function listWikgArchiveEntries(
   inputPath: string,
 ): Promise<readonly string[]> {
-  const reader = await SdpubArchiveReader.open(inputPath);
+  const reader = await WikgArchiveReader.open(inputPath);
 
   try {
     return reader.listEntries();
@@ -169,11 +169,11 @@ export async function listSdpubArchiveEntries(
   }
 }
 
-export async function readSdpubArchiveEntry(
+export async function readWikgArchiveEntry(
   inputPath: string,
   entryPath: string,
 ): Promise<Buffer | undefined> {
-  const reader = await SdpubArchiveReader.open(inputPath);
+  const reader = await WikgArchiveReader.open(inputPath);
 
   try {
     return await reader.readEntry(entryPath);
@@ -182,10 +182,10 @@ export async function readSdpubArchiveEntry(
   }
 }
 
-export async function writeSdpubArchiveWithOverlays(
+export async function writeWikgArchiveWithOverlays(
   inputPath: string,
   outputPath: string,
-  overlays: readonly SdpubArchiveOverlay[],
+  overlays: readonly WikgArchiveOverlay[],
 ): Promise<void> {
   await mkdir(dirname(outputPath), { recursive: true });
 
@@ -202,18 +202,18 @@ export async function writeSdpubArchiveWithOverlays(
   for (const entry of sourceEntries) {
     const archivePath = normalizeArchivePath(entry.fileName);
 
-    if (archivePath !== "" && isSdpubArchivePath(archivePath)) {
+    if (archivePath !== "" && isWikgArchivePath(archivePath)) {
       entryPaths.add(archivePath);
     }
   }
   for (const overlay of overlayByPath.values()) {
     const archivePath = normalizeArchivePath(overlay.entryPath);
 
-    if (archivePath !== "" && isSdpubArchivePath(archivePath)) {
+    if (archivePath !== "" && isWikgArchivePath(archivePath)) {
       entryPaths.add(archivePath);
     }
   }
-  entryPaths.add(SDPUB_MANIFEST_PATH);
+  entryPaths.add(WIKG_MANIFEST_PATH);
 
   const outputZipFile = new YazlZipFile();
 
@@ -228,9 +228,9 @@ export async function writeSdpubArchiveWithOverlays(
       if (overlay?.kind === "deleted") {
         continue;
       }
-      if (entryPath === SDPUB_MANIFEST_PATH) {
+      if (entryPath === WIKG_MANIFEST_PATH) {
         outputZipFile.addBuffer(
-          Buffer.from(SDPUB_MANIFEST_CONTENT, "utf8"),
+          Buffer.from(WIKG_MANIFEST_CONTENT, "utf8"),
           entryPath,
         );
         continue;
@@ -267,11 +267,11 @@ export async function writeSdpubArchiveWithOverlays(
   await Promise.all([outputDone, zipDone]);
 }
 
-export async function readSdpubArchiveFormatVersion(
+export async function readWikgArchiveFormatVersion(
   documentDirectoryPath: string,
 ): Promise<number> {
-  return parseSdpubManifest(
-    await readFile(join(documentDirectoryPath, SDPUB_MANIFEST_PATH), "utf8"),
+  return parseWikgManifest(
+    await readFile(join(documentDirectoryPath, WIKG_MANIFEST_PATH), "utf8"),
   ).formatVersion;
 }
 
@@ -301,7 +301,7 @@ async function listDocumentFiles(
     });
   }
 
-  return files.filter((file) => isSdpubArchivePath(file.archivePath));
+  return files.filter((file) => isWikgArchivePath(file.archivePath));
 }
 
 async function indexArchiveEntries(
@@ -337,8 +337,8 @@ function compareDirEntryName(
   return left.name.localeCompare(right.name);
 }
 
-function isSdpubArchivePath(archivePath: string): boolean {
-  return SDPUB_ARCHIVE_PATTERNS.some((pattern) => pattern.test(archivePath));
+function isWikgArchivePath(archivePath: string): boolean {
+  return WIKG_ARCHIVE_PATTERNS.some((pattern) => pattern.test(archivePath));
 }
 
 async function validateArchiveManifest(
@@ -347,32 +347,32 @@ async function validateArchiveManifest(
 ): Promise<void> {
   const entry = entries.find(
     (candidate) =>
-      normalizeArchivePath(candidate.fileName) === SDPUB_MANIFEST_PATH,
+      normalizeArchivePath(candidate.fileName) === WIKG_MANIFEST_PATH,
   );
 
   if (entry === undefined) {
-    throw new Error(`Missing SDPUB manifest: ${SDPUB_MANIFEST_PATH}.`);
+    throw new Error(`Missing WIKG manifest: ${WIKG_MANIFEST_PATH}.`);
   }
 
-  parseSdpubManifest(await readArchiveEntryText(zipFile, entry));
+  parseWikgManifest(await readArchiveEntryText(zipFile, entry));
 }
 
-function parseSdpubManifest(
+function parseWikgManifest(
   content: string,
-): z.infer<typeof sdpubManifestSchema> {
+): z.infer<typeof wikgManifestSchema> {
   let parsed: unknown;
 
   try {
     parsed = JSON.parse(content);
   } catch {
-    throw new Error(`Invalid SDPUB manifest: ${SDPUB_MANIFEST_PATH}.`);
+    throw new Error(`Invalid WIKG manifest: ${WIKG_MANIFEST_PATH}.`);
   }
 
-  const result = sdpubManifestSchema.safeParse(parsed);
+  const result = wikgManifestSchema.safeParse(parsed);
 
   if (!result.success) {
     throw new Error(
-      `Unsupported SDPUB format version in ${SDPUB_MANIFEST_PATH}.`,
+      `Unsupported WIKG format version in ${WIKG_MANIFEST_PATH}.`,
     );
   }
 

@@ -10,11 +10,11 @@
 
 ![SpineDigest Terminal Demo](./docs/images/terminal-en.png)
 
-**SpineDigest is a knowledge-base CLI optimized for AI agents.** It imports EPUB, Markdown, and plain text into `.sdpub`, can use LLMs to extract knowledge graphs and summaries, then exposes the archive as a searchable, browsable, readable, source-backed, graph-navigable, context-packable [LLM Wiki](https://gist.github.com/karpathy/442a6bf555914893e9891c11519de94f).
+**SpineDigest is a knowledge-base CLI optimized for AI agents.** It imports EPUB, Markdown, and plain text into `.wikg`, can use LLMs to extract knowledge graphs and summaries, then exposes the archive as a searchable, browsable, readable, source-backed, graph-navigable, context-packable [LLM Wiki](https://gist.github.com/karpathy/442a6bf555914893e9891c11519de94f).
 
-It is not a one-shot book-to-summary converter. Summaries, EPUB, Markdown, and JSON output are projections of the `.sdpub` knowledge archive. The primary object is `.sdpub` itself: a portable knowledge archive that can be built, maintained, searched, and reused.
+It is not a one-shot book-to-summary converter. Summaries, EPUB, Markdown, and JSON output are projections of the `.wikg` knowledge archive. The primary object is `.wikg` itself: a portable knowledge archive that can be built, maintained, searched, and reused.
 
-There are three main ways to explore a `.sdpub` archive:
+There are three main ways to explore a `.wikg` archive:
 
 - **Search mode:** use `search` to discover URI-addressable source, summary, chunk, entity, and triple objects.
 - **Structure mode:** use `wkg://.../chapter/tree get --json` for the table-of-contents hierarchy, then `list` or scoped `search` to inspect local object collections.
@@ -25,7 +25,7 @@ Together, these modes let long documents behave like navigable knowledge bases: 
 ![Inkora screenshot](./docs/images/app-screenshot-en.png)
 
 <div align=center>
-  <sub><a href="http://inkora.oomol.com/download/sdpub">Inkora</a> opening a .sdpub file</sub>
+  <sub><a href="http://inkora.oomol.com/download/wikg">Inkora</a> opening a .wikg file</sub>
 </div>
 
 ## Install
@@ -34,7 +34,7 @@ Requirements:
 
 - Node `>=22.12.0`
 - For LLM-backed Reading Graph, Reading Summary, or Knowledge Graph jobs: a supported LLM provider plus credentials
-- For `.sdpub` search, reading, navigation, and export: no LLM access required
+- For `.wikg` search, reading, navigation, and export: no LLM access required
 
 Try it without a global install:
 
@@ -58,48 +58,48 @@ wikigraph help ai
 
 ## Quick Start
 
-SpineDigest's primary object is `.sdpub`: a CLI-managed knowledge-base archive, not a one-off export result.
+SpineDigest's primary object is `.wikg`: a CLI-managed knowledge-base archive, not a one-off export result.
 
 Create a knowledge base from source material:
 
 ```bash
-wikigraph wkg://book.sdpub create ./book.epub
-cat ./article.md | wikigraph wkg://article.sdpub create --input-format markdown
+wikigraph wkg://book.wikg create ./book.epub
+cat ./article.md | wikigraph wkg://article.wikg create --input-format markdown
 ```
 
 Inspect and estimate before expensive work:
 
 ```bash
-wikigraph wkg://book.sdpub/state get
-wikigraph wkg://book.sdpub/chapter/tree get --json
-wikigraph wkg://book.sdpub estimate --stage reading-summary
+wikigraph wkg://book.wikg/state get
+wikigraph wkg://book.wikg/chapter/tree get --json
+wikigraph wkg://book.wikg estimate --stage reading-summary
 ```
 
 Build derived knowledge when you intend to spend LLM time:
 
 ```bash
-wikigraph wkg://book.sdpub/chapter/12 queue add --task reading-graph --accept-cost
+wikigraph wkg://book.wikg/chapter/12 queue add --task reading-graph --accept-cost
 wikigraph wkg-job://<job-id> watch --jsonl
 ```
 
 Search, browse, and read through the knowledge-base interface:
 
 ```bash
-wikigraph wkg://book.sdpub/chapter/tree get --json
-wikigraph wkg://book.sdpub/chunk search "RAG"
-wikigraph wkg://book.sdpub/chapter/12/source search "exact source phrase"
-wikigraph wkg://book.sdpub/chapter/12 get
-wikigraph wkg://book.sdpub/chunk/84 get
-wikigraph wkg://book.sdpub/chunk/84 related
-wikigraph wkg://book.sdpub/chunk/84 evidence
-wikigraph wkg://book.sdpub/chunk/84 pack --budget 5000
+wikigraph wkg://book.wikg/chapter/tree get --json
+wikigraph wkg://book.wikg/chunk search "RAG"
+wikigraph wkg://book.wikg/chapter/12/source search "exact source phrase"
+wikigraph wkg://book.wikg/chapter/12 get
+wikigraph wkg://book.wikg/chunk/84 get
+wikigraph wkg://book.wikg/chunk/84 related
+wikigraph wkg://book.wikg/chunk/84 evidence
+wikigraph wkg://book.wikg/chunk/84 pack --budget 5000
 ```
 
 Output a projection only when you need a portable view. For example, read one chapter into Markdown text, or export the full archive as an EPUB:
 
 ```bash
-wikigraph wkg://book.sdpub/chapter/12/source get > ./chapter-12.md
-wikigraph wkg://book.sdpub export --output-format epub --output ./digest.epub
+wikigraph wkg://book.wikg/chapter/12/source get > ./chapter-12.md
+wikigraph wkg://book.wikg export --output-format epub --output ./digest.epub
 ```
 
 Cost rule:
@@ -129,7 +129,7 @@ First, an LLM reads the source text section by section, simulating how human att
 
 Next, a classical algorithm takes over. I build a knowledge graph with chunks as nodes, connect them by conceptual relevance, then use graph traversal and community detection to cluster semantically related chunks. Each cluster is serialized in original reading order into what I call a snake: a knowledge chain that moves through the source text and links dispersed but related ideas.
 
-Finally, the LLM returns to work on that structure. The old use case compressed those structures into a summary; the more important use now is to save them into `.sdpub`. Later, you can use it like a Wiki: open chapter and chunk objects, trace source evidence, follow related objects, and pack an evidence-bounded context before answering.
+Finally, the LLM returns to work on that structure. The old use case compressed those structures into a summary; the more important use now is to save them into `.wikg`. Later, you can use it like a Wiki: open chapter and chunk objects, trace source evidence, follow related objects, and pack an evidence-bounded context before answering.
 
 **Every professor holds a snake.**
 
@@ -137,38 +137,38 @@ Picture a dissertation defense. The respondent stands at the front. The professo
 
 ![SpineDigest architecture](./docs/images/flowchart.svg)
 
-Your intent still runs through the whole process. During build, the prompt influences which knowledge units receive attention. During retrieval, the task decides whether to inspect structure first, search keywords first, or read source fragments first. The same `.sdpub` can serve different questions: a timeline today, a concept map tomorrow, a writing context pack later. The knowledge base is not a one-shot answer. It is an interface for repeated reading, locating, and reuse.
+Your intent still runs through the whole process. During build, the prompt influences which knowledge units receive attention. During retrieval, the task decides whether to inspect structure first, search keywords first, or read source fragments first. The same `.wikg` can serve different questions: a timeline today, a concept map tomorrow, a writing context pack later. The knowledge base is not a one-shot answer. It is an interface for repeated reading, locating, and reuse.
 
-## The `.sdpub` Format
+## The `.wikg` Format
 
-`.sdpub` is the core SpineDigest knowledge-base archive. It holds source-derived chapter pages, graph nodes, evidence pointers, summaries, and metadata, then exposes them through the CLI as an LLM Wiki.
+`.wikg` is the core SpineDigest knowledge-base archive. It holds source-derived chapter pages, graph nodes, evidence pointers, summaries, and metadata, then exposes them through the CLI as an LLM Wiki.
 
 With that archive on hand, you can search and navigate the knowledge structure directly:
 
 ```bash
-wikigraph wkg://book.sdpub/chapter/tree get --json
-wikigraph wkg://book.sdpub/chapter/12/chunk list
-wikigraph wkg://book.sdpub/chunk search "central argument"
-wikigraph wkg://book.sdpub/chapter/12 get
-wikigraph wkg://book.sdpub/chapter/12/source get
+wikigraph wkg://book.wikg/chapter/tree get --json
+wikigraph wkg://book.wikg/chapter/12/chunk list
+wikigraph wkg://book.wikg/chunk search "central argument"
+wikigraph wkg://book.wikg/chapter/12 get
+wikigraph wkg://book.wikg/chapter/12/source get
 ```
 
-Markdown, EPUB, txt, and JSON-style outputs are projections of the archive. They are useful for portability and reading, but they do not replace the `.sdpub` object when graph links and source fragments matter.
+Markdown, EPUB, txt, and JSON-style outputs are projections of the archive. They are useful for portability and reading, but they do not replace the `.wikg` object when graph links and source fragments matter.
 
-To open a `.sdpub` file, use **[Inkora](http://inkora.oomol.com/download/sdpub)**. It is a free app built specifically for `.sdpub`, with chapter topology and knowledge graph views.
+To open a `.wikg` file, use **[Inkora](http://inkora.oomol.com/download/wikg)**. It is a free app built specifically for `.wikg`, with chapter topology and knowledge graph views.
 
-For the internal layout and parser guidance, see the [format spec](./docs/sdpub.md).
+The internal layout and parser guidance live in the format spec.
 
 ## Direct Transform
 
-If you only need a one-shot digest or format conversion, use `transform`. It does not leave a reusable `.sdpub` knowledge base unless you explicitly choose `--output-format sdpub`.
+If you only need a one-shot digest or format conversion, use `transform`. It does not leave a reusable `.wikg` knowledge base unless you explicitly choose `--output-format wikg`.
 
 ```bash
 cat chapter.txt | wikigraph transform --input-format txt --output-format markdown
 wikigraph transform --input book.epub --output digest.md --output-format markdown
 ```
 
-This mode is for pure conversion tasks. If the material will later be searched, navigated, traced to evidence, or built further, create a `.sdpub` archive first.
+This mode is for pure conversion tasks. If the material will later be searched, navigated, traced to evidence, or built further, create a `.wikg` archive first.
 
 ## Library Usage
 
@@ -181,9 +181,9 @@ SpineDigest also exposes a programmatic API for embedding lower-level import, bu
 
 ## For AI Agents
 
-SpineDigest's CLI-first design exposes `.sdpub` as a managed LLM Wiki archive.
+SpineDigest's CLI-first design exposes `.wikg` as a managed LLM Wiki archive.
 
-- **Treat `.sdpub` as the primary object.** Use archive commands before unpacking or inspecting internals.
+- **Treat `.wikg` as the primary object.** Use archive commands before unpacking or inspecting internals.
 - **Choose an exploration mode first.** For synthesis and structural understanding, start with `wkg://.../chapter/tree get --json`; use `search` for candidate discovery and exact wording; use `get` for continuous prose after selecting the relevant URI.
 - **Use help as the discovery surface.** Start with `wikigraph --help` as the root page, then follow `wikigraph help overview`, `wikigraph help ai`, topic pages, or command-specific `--help` before guessing behavior.
 - **Prefer `--json`.** Use it when composing with tools.

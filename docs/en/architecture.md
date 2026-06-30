@@ -6,7 +6,7 @@ This document explains SpineDigest at the system level. It is intentionally seco
 
 ## System Model
 
-SpineDigest is built around one primary object: the `.sdpub` knowledge-base archive. EPUB, Markdown, plain text, direct transform output, and exported EPUB/Markdown files are all inputs or projections around that archive.
+SpineDigest is built around one primary object: the `.wikg` knowledge-base archive. EPUB, Markdown, plain text, direct transform output, and exported EPUB/Markdown files are all inputs or projections around that archive.
 
 At a high level, SpineDigest has four layers:
 
@@ -15,7 +15,7 @@ At a high level, SpineDigest has four layers:
 3. Retrieval layer: expose existing archive data through CLI primitives such as `state get`, `chapter tree`, `search`, `list`, `get`, `related`, `evidence`, and `pack`.
 4. Projection layer: export portable views such as Markdown, txt, EPUB, JSON-style command output, or one-shot `transform` results.
 
-The archive is the durable object. Projections are useful views, but they do not replace the `.sdpub` when graph links, source fragments, and repeatable retrieval matter.
+The archive is the durable object. Projections are useful views, but they do not replace the `.wikg` when graph links, source fragments, and repeatable retrieval matter.
 
 ## Main Modules
 
@@ -48,9 +48,9 @@ User-facing stages describe how much knowledge has been built into the archive:
 
 Knowledge Graph construction is source-first. It screens source text for mention candidates, grounds those mentions to QIDs, then asks the model to discover relations between grounded mention IDs. Relation evidence is resolved through the shared evidence-selection protocol, which uses sentence IDs plus short source quotes so both Reading Graph and Knowledge Graph builders can correct sentence drift without owning each other's business objects.
 
-## Why `.sdpub` Exists
+## Why `.wikg` Exists
 
-`.sdpub` exists so long documents can become reusable knowledge bases rather than one-time outputs.
+`.wikg` exists so long documents can become reusable knowledge bases rather than one-time outputs.
 
 It preserves:
 
@@ -80,7 +80,7 @@ SpineDigest is optimized for:
 
 - CLI-first knowledge-base usage
 - long-form reading material
-- portable `.sdpub` archives
+- portable `.wikg` archives
 - deterministic retrieval primitives for humans and agents
 - small public entry points with richer internal structure
 

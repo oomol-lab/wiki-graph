@@ -36,7 +36,7 @@ Inline LLM JSON:
 
 Execution paths:
   - Source digest runs use prompt, LLM, cache, and request settings.
-  - `.sdpub` re-export through the main convert command does not require LLM settings.
+  - `.wikg` re-export through the main convert command does not require LLM settings.
   - `meta`, `cover`, and non-generating `chapter` maintenance commands accept but do not use these LLM settings.
   - `queue` uses LLM settings when reading-graph, reading-summary, or knowledge-graph generation is needed.
   - `paths.debugLogDir` may still matter when the app emits debug logs.

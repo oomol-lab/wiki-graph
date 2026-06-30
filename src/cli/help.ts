@@ -109,48 +109,48 @@ export type HelpMatrixPage =
 
 const HELP_OBJECTS: readonly HelpObjectEntry[] = [
   {
-    description: "The whole `.sdpub` archive addressed by its archive URI.",
+    description: "The whole `.wikg` archive addressed by its archive URI.",
     name: "archive",
     title: "Archive",
-    uriForms: ["wkg://book.sdpub", "wkg:///Users/me/book.sdpub"],
+    uriForms: ["wkg://book.wikg", "wkg:///Users/me/book.wikg"],
     verbs: [
       {
-        command: "wikigraph wkg://book.sdpub get --json",
+        command: "wikigraph wkg://book.wikg get --json",
         note: "Read archive metadata as an object.",
         verb: "get",
       },
       {
-        command: 'wikigraph wkg://book.sdpub set --title "New Title"',
+        command: 'wikigraph wkg://book.wikg set --title "New Title"',
         note: "Edit archive metadata fields.",
         verb: "set",
       },
       {
-        command: "wikigraph wkg://book.sdpub create ./book.md",
+        command: "wikigraph wkg://book.wikg create ./book.md",
         note: "Create or replace the archive from source material.",
         verb: "create",
       },
       {
-        command: "wikigraph wkg://book.sdpub/state get --json",
+        command: "wikigraph wkg://book.wikg/state get --json",
         note: "Inspect readiness and high-level counts.",
         verb: "get",
       },
       {
-        command: "wikigraph wkg://book.sdpub estimate --stage reading-summary",
+        command: "wikigraph wkg://book.wikg estimate --stage reading-summary",
         note: "Estimate generated work before queueing it.",
         verb: "estimate",
       },
       {
-        command: "wikigraph wkg://book.sdpub export --output-format markdown",
+        command: "wikigraph wkg://book.wikg export --output-format markdown",
         note: "Export a projection from the archive.",
         verb: "export",
       },
       {
-        command: 'wikigraph wkg://book.sdpub search "keyword"',
+        command: 'wikigraph wkg://book.wikg search "keyword"',
         note: "Search the whole archive.",
         verb: "search",
       },
       {
-        command: "wikigraph wkg://book.sdpub/chapter list",
+        command: "wikigraph wkg://book.wikg/chapter list",
         note: "List archive-level object collections.",
         verb: "list",
       },
@@ -160,10 +160,10 @@ const HELP_OBJECTS: readonly HelpObjectEntry[] = [
     description: "The raw cover resource stored in an archive.",
     name: "cover",
     title: "Cover",
-    uriForms: ["wkg://book.sdpub/cover"],
+    uriForms: ["wkg://book.wikg/cover"],
     verbs: [
       {
-        command: "wikigraph wkg://book.sdpub/cover get > cover.bin",
+        command: "wikigraph wkg://book.wikg/cover get > cover.bin",
         note: "Write cover bytes to stdout.",
         verb: "get",
       },
@@ -174,57 +174,57 @@ const HELP_OBJECTS: readonly HelpObjectEntry[] = [
     description: "The chapter collection under one archive.",
     name: "chapter",
     title: "Chapter Collection And Chapter",
-    uriForms: ["wkg://book.sdpub/chapter", "wkg://book.sdpub/chapter/12"],
+    uriForms: ["wkg://book.wikg/chapter", "wkg://book.wikg/chapter/12"],
     verbs: [
       {
-        command: "wikigraph wkg://book.sdpub/chapter list",
+        command: "wikigraph wkg://book.wikg/chapter list",
         note: "List chapters in tree order.",
         verb: "list",
       },
       {
-        command: "wikigraph wkg://book.sdpub/chapter add --stage planned",
+        command: "wikigraph wkg://book.wikg/chapter add --stage planned",
         note: "Create a new chapter.",
         verb: "add",
       },
       {
-        command: "wikigraph wkg://book.sdpub/chapter/12 get",
+        command: "wikigraph wkg://book.wikg/chapter/12 get",
         note: "Read a chapter object.",
         verb: "get",
       },
       {
-        command: 'wikigraph wkg://book.sdpub/chapter/12 search "keyword"',
+        command: 'wikigraph wkg://book.wikg/chapter/12 search "keyword"',
         note: "Search within one chapter scope.",
         verb: "search",
       },
       {
-        command: "wikigraph wkg://book.sdpub/chapter/12/entity list",
+        command: "wikigraph wkg://book.wikg/chapter/12/entity list",
         note: "List entity objects scoped to one chapter.",
         verb: "list",
       },
       {
-        command: "wikigraph wkg://book.sdpub/chapter/12/state get",
+        command: "wikigraph wkg://book.wikg/chapter/12/state get",
         note: "Inspect one chapter stage and artifacts.",
         verb: "get",
       },
       {
         command:
-          "wikigraph wkg://book.sdpub/chapter/12 move --parent wkg://book.sdpub/chapter/3",
+          "wikigraph wkg://book.wikg/chapter/12 move --parent wkg://book.wikg/chapter/3",
         note: "Move a chapter in the TOC tree.",
         verb: "move",
       },
       {
-        command: "wikigraph wkg://book.sdpub/chapter/12 remove",
+        command: "wikigraph wkg://book.wikg/chapter/12 remove",
         note: "Delete a chapter.",
         verb: "remove",
       },
       {
-        command: "wikigraph wkg://book.sdpub/chapter/12 reset --to source",
+        command: "wikigraph wkg://book.wikg/chapter/12 reset --to source",
         note: "Delete later-stage artifacts.",
         verb: "reset",
       },
       {
         command:
-          "wikigraph wkg://book.sdpub/chapter/12 queue add --task reading-graph --accept-cost",
+          "wikigraph wkg://book.wikg/chapter/12 queue add --task reading-graph --accept-cost",
         note: "Queue generated work for the chapter.",
         verb: "queue",
       },
@@ -234,10 +234,10 @@ const HELP_OBJECTS: readonly HelpObjectEntry[] = [
     description: "Archive readiness and high-level counts.",
     name: "archive-state",
     title: "Archive State",
-    uriForms: ["wkg://book.sdpub/state"],
+    uriForms: ["wkg://book.wikg/state"],
     verbs: [
       {
-        command: "wikigraph wkg://book.sdpub/state get --json",
+        command: "wikigraph wkg://book.wikg/state get --json",
         note: "Inspect archive readiness and high-level counts.",
         verb: "get",
       },
@@ -248,18 +248,18 @@ const HELP_OBJECTS: readonly HelpObjectEntry[] = [
     name: "chapter-state",
     title: "Chapter State",
     uriForms: [
-      "wkg://book.sdpub/chapter/12/state",
-      "wkg://book.sdpub/chapter/12/state/knowledge-graph",
+      "wkg://book.wikg/chapter/12/state",
+      "wkg://book.wikg/chapter/12/state/knowledge-graph",
     ],
     verbs: [
       {
-        command: "wikigraph wkg://book.sdpub/chapter/12/state get --json",
+        command: "wikigraph wkg://book.wikg/chapter/12/state get --json",
         note: "Inspect aggregate chapter state.",
         verb: "get",
       },
       {
         command:
-          "wikigraph wkg://book.sdpub/chapter/12/state/reading-graph get --json",
+          "wikigraph wkg://book.wikg/chapter/12/state/reading-graph get --json",
         note: "Inspect one chapter state target.",
         verb: "get",
       },
@@ -269,16 +269,15 @@ const HELP_OBJECTS: readonly HelpObjectEntry[] = [
     description: "The complete chapter tree resource.",
     name: "chapter-tree",
     title: "Chapter Tree",
-    uriForms: ["wkg://book.sdpub/chapter/tree"],
+    uriForms: ["wkg://book.wikg/chapter/tree"],
     verbs: [
       {
-        command: "wikigraph wkg://book.sdpub/chapter/tree get",
+        command: "wikigraph wkg://book.wikg/chapter/tree get",
         note: "Read the full chapter tree.",
         verb: "get",
       },
       {
-        command:
-          "wikigraph wkg://book.sdpub/chapter/tree set --input tree.json",
+        command: "wikigraph wkg://book.wikg/chapter/tree set --input tree.json",
         note: "Replace chapter order and titles from a full tree JSON.",
         verb: "set",
       },
@@ -288,16 +287,16 @@ const HELP_OBJECTS: readonly HelpObjectEntry[] = [
     description: "A chapter's source text resource.",
     name: "chapter-source",
     title: "Chapter Source",
-    uriForms: ["wkg://book.sdpub/chapter/12/source"],
+    uriForms: ["wkg://book.wikg/chapter/12/source"],
     verbs: [
       {
-        command: "wikigraph wkg://book.sdpub/chapter/12/source get",
+        command: "wikigraph wkg://book.wikg/chapter/12/source get",
         note: "Read chapter source text.",
         verb: "get",
       },
       {
         command:
-          "wikigraph wkg://book.sdpub/chapter/12/source set --input chapter.md --input-format markdown",
+          "wikigraph wkg://book.wikg/chapter/12/source set --input chapter.md --input-format markdown",
         note: "Fill a planned chapter with source text.",
         verb: "set",
       },
@@ -307,16 +306,16 @@ const HELP_OBJECTS: readonly HelpObjectEntry[] = [
     description: "A chapter's final summary resource.",
     name: "chapter-summary",
     title: "Chapter Summary",
-    uriForms: ["wkg://book.sdpub/chapter/12/summary"],
+    uriForms: ["wkg://book.wikg/chapter/12/summary"],
     verbs: [
       {
-        command: "wikigraph wkg://book.sdpub/chapter/12/summary get",
+        command: "wikigraph wkg://book.wikg/chapter/12/summary get",
         note: "Read a chapter summary.",
         verb: "get",
       },
       {
         command:
-          "wikigraph wkg://book.sdpub/chapter/12/summary set --input summary.md",
+          "wikigraph wkg://book.wikg/chapter/12/summary set --input summary.md",
         note: "Write a manual summary for a graphed chapter.",
         verb: "set",
       },
@@ -326,11 +325,11 @@ const HELP_OBJECTS: readonly HelpObjectEntry[] = [
     description: "A chapter's TOC title resource.",
     name: "chapter-title",
     title: "Chapter Title",
-    uriForms: ["wkg://book.sdpub/chapter/12/title"],
+    uriForms: ["wkg://book.wikg/chapter/12/title"],
     verbs: [
       {
         command:
-          'wikigraph wkg://book.sdpub/chapter/12/title set --title "New Title"',
+          'wikigraph wkg://book.wikg/chapter/12/title set --title "New Title"',
         note: "Set or clear the chapter title.",
         verb: "set",
       },
@@ -341,23 +340,23 @@ const HELP_OBJECTS: readonly HelpObjectEntry[] = [
     name: "source",
     title: "Source",
     uriForms: [
-      "wkg://book.sdpub/source",
-      "wkg://book.sdpub/chapter/12/source",
-      "wkg://book.sdpub/chapter/12/source#4..8",
+      "wkg://book.wikg/source",
+      "wkg://book.wikg/chapter/12/source",
+      "wkg://book.wikg/chapter/12/source#4..8",
     ],
     verbs: [
       {
-        command: 'wikigraph wkg://book.sdpub/source search "keyword"',
+        command: 'wikigraph wkg://book.wikg/source search "keyword"',
         note: "Search source text across the archive.",
         verb: "search",
       },
       {
-        command: "wikigraph wkg://book.sdpub/chapter/12/source list",
+        command: "wikigraph wkg://book.wikg/chapter/12/source list",
         note: "List source ranges within a chapter.",
         verb: "list",
       },
       {
-        command: "wikigraph wkg://book.sdpub/chapter/12/source#4..8 get",
+        command: "wikigraph wkg://book.wikg/chapter/12/source#4..8 get",
         note: "Read source text or a source range.",
         verb: "get",
       },
@@ -367,28 +366,25 @@ const HELP_OBJECTS: readonly HelpObjectEntry[] = [
     description: "Readable chapter summary text as a searchable object.",
     name: "summary",
     title: "Summary",
-    uriForms: [
-      "wkg://book.sdpub/summary",
-      "wkg://book.sdpub/chapter/12/summary",
-    ],
+    uriForms: ["wkg://book.wikg/summary", "wkg://book.wikg/chapter/12/summary"],
     verbs: [
       {
-        command: 'wikigraph wkg://book.sdpub/summary search "keyword"',
+        command: 'wikigraph wkg://book.wikg/summary search "keyword"',
         note: "Search summary text across the archive.",
         verb: "search",
       },
       {
-        command: "wikigraph wkg://book.sdpub/summary list",
+        command: "wikigraph wkg://book.wikg/summary list",
         note: "List summary objects.",
         verb: "list",
       },
       {
-        command: "wikigraph wkg://book.sdpub/chapter/12/summary get",
+        command: "wikigraph wkg://book.wikg/chapter/12/summary get",
         note: "Read summary text.",
         verb: "get",
       },
       {
-        command: "wikigraph wkg://book.sdpub/chapter/12/summary evidence",
+        command: "wikigraph wkg://book.wikg/chapter/12/summary evidence",
         note: "Trace summary support back to source.",
         verb: "evidence",
       },
@@ -398,35 +394,35 @@ const HELP_OBJECTS: readonly HelpObjectEntry[] = [
     description: "A Reading Graph chunk.",
     name: "chunk",
     title: "Chunk",
-    uriForms: ["wkg://book.sdpub/chunk", "wkg://book.sdpub/chunk/123"],
+    uriForms: ["wkg://book.wikg/chunk", "wkg://book.wikg/chunk/123"],
     verbs: [
       {
-        command: 'wikigraph wkg://book.sdpub/chunk search "keyword"',
+        command: 'wikigraph wkg://book.wikg/chunk search "keyword"',
         note: "Search Reading Graph chunks.",
         verb: "search",
       },
       {
-        command: "wikigraph wkg://book.sdpub/chunk list",
+        command: "wikigraph wkg://book.wikg/chunk list",
         note: "List Reading Graph chunks.",
         verb: "list",
       },
       {
-        command: "wikigraph wkg://book.sdpub/chunk/123 get",
+        command: "wikigraph wkg://book.wikg/chunk/123 get",
         note: "Read one chunk.",
         verb: "get",
       },
       {
-        command: "wikigraph wkg://book.sdpub/chunk/123 related",
+        command: "wikigraph wkg://book.wikg/chunk/123 related",
         note: "Expand to nearby Reading Graph chunks.",
         verb: "related",
       },
       {
-        command: "wikigraph wkg://book.sdpub/chunk/123 evidence",
+        command: "wikigraph wkg://book.wikg/chunk/123 evidence",
         note: "Trace chunk support back to source.",
         verb: "evidence",
       },
       {
-        command: "wikigraph wkg://book.sdpub/chunk/123 pack --budget 5000",
+        command: "wikigraph wkg://book.wikg/chunk/123 pack --budget 5000",
         note: "Assemble bounded context around the chunk.",
         verb: "pack",
       },
@@ -436,36 +432,36 @@ const HELP_OBJECTS: readonly HelpObjectEntry[] = [
     description: "A Knowledge Graph entity grouped from mentions.",
     name: "entity",
     title: "Entity",
-    uriForms: ["wkg://book.sdpub/entity", "wkg://book.sdpub/entity/Q9957"],
+    uriForms: ["wkg://book.wikg/entity", "wkg://book.wikg/entity/Q9957"],
     verbs: [
       {
-        command: 'wikigraph wkg://book.sdpub/entity search "keyword"',
+        command: 'wikigraph wkg://book.wikg/entity search "keyword"',
         note: "Search entities.",
         verb: "search",
       },
       {
-        command: "wikigraph wkg://book.sdpub/chapter/12/entity list",
+        command: "wikigraph wkg://book.wikg/chapter/12/entity list",
         note: "List entities, optionally scoped to a chapter.",
         verb: "list",
       },
       {
-        command: "wikigraph wkg://book.sdpub/entity/Q9957 get",
+        command: "wikigraph wkg://book.wikg/entity/Q9957 get",
         note: "Read one entity.",
         verb: "get",
       },
       {
         command:
-          "wikigraph wkg://book.sdpub/entity/Q9957 related --role subject",
+          "wikigraph wkg://book.wikg/entity/Q9957 related --role subject",
         note: "List triples related to the entity.",
         verb: "related",
       },
       {
-        command: "wikigraph wkg://book.sdpub/entity/Q9957 evidence",
+        command: "wikigraph wkg://book.wikg/entity/Q9957 evidence",
         note: "Trace entity mentions back to source.",
         verb: "evidence",
       },
       {
-        command: "wikigraph wkg://book.sdpub/entity/Q9957 pack --budget 5000",
+        command: "wikigraph wkg://book.wikg/entity/Q9957 pack --budget 5000",
         note: "Pack bounded source-backed context.",
         verb: "pack",
       },
@@ -476,29 +472,29 @@ const HELP_OBJECTS: readonly HelpObjectEntry[] = [
     name: "triple",
     title: "Triple",
     uriForms: [
-      "wkg://book.sdpub/triple",
-      "wkg://book.sdpub/triple/Q9957/participant_in/Q178561",
+      "wkg://book.wikg/triple",
+      "wkg://book.wikg/triple/Q9957/participant_in/Q178561",
     ],
     verbs: [
       {
-        command: 'wikigraph wkg://book.sdpub/triple search "keyword"',
+        command: 'wikigraph wkg://book.wikg/triple search "keyword"',
         note: "Search triples.",
         verb: "search",
       },
       {
-        command: "wikigraph wkg://book.sdpub/triple list",
+        command: "wikigraph wkg://book.wikg/triple list",
         note: "List triples.",
         verb: "list",
       },
       {
         command:
-          "wikigraph wkg://book.sdpub/triple/Q9957/participant_in/Q178561 get",
+          "wikigraph wkg://book.wikg/triple/Q9957/participant_in/Q178561 get",
         note: "Read one triple.",
         verb: "get",
       },
       {
         command:
-          "wikigraph wkg://book.sdpub/triple/Q9957/participant_in/Q178561 evidence",
+          "wikigraph wkg://book.wikg/triple/Q9957/participant_in/Q178561 evidence",
         note: "Trace relation evidence back to source.",
         verb: "evidence",
       },

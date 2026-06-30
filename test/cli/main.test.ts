@@ -5,7 +5,7 @@ const mainMockState = vi.hoisted(() => ({
   argsResult: {
     args: {
       action: "status",
-      archivePath: "/tmp/book.sdpub",
+      archivePath: "/tmp/book.wikg",
     },
     help: false,
     kind: "archive" as const,
@@ -123,7 +123,7 @@ describe("cli/main", () => {
     mainMockState.argsResult = {
       args: {
         action: "status",
-        archivePath: "/tmp/book.sdpub",
+        archivePath: "/tmp/book.wikg",
       },
       help: false,
       kind: "archive",
@@ -203,7 +203,7 @@ describe("cli/main", () => {
     mainMockState.argsResult = {
       args: {
         action: "status",
-        archivePath: "/tmp/book.sdpub",
+        archivePath: "/tmp/book.wikg",
       },
       help: false,
       kind: "archive",
@@ -214,7 +214,7 @@ describe("cli/main", () => {
     expect(mainMockState.archiveRunCalls).toStrictEqual([
       {
         action: "status",
-        archivePath: "/tmp/book.sdpub",
+        archivePath: "/tmp/book.wikg",
       },
     ]);
     expect(mainMockState.archiveMetaRunCalls).toHaveLength(0);
@@ -296,7 +296,7 @@ describe("cli/main", () => {
   it("runs the archive meta command", async () => {
     mainMockState.argsResult = {
       args: {
-        inputPath: "/tmp/book.sdpub",
+        inputPath: "/tmp/book.wikg",
         json: true,
       },
       help: false,
@@ -308,7 +308,7 @@ describe("cli/main", () => {
     expect(mainMockState.archiveRunCalls).toHaveLength(0);
     expect(mainMockState.archiveMetaRunCalls).toStrictEqual([
       {
-        inputPath: "/tmp/book.sdpub",
+        inputPath: "/tmp/book.wikg",
         json: true,
       },
     ]);
@@ -318,7 +318,7 @@ describe("cli/main", () => {
   it("runs the archive cover command", async () => {
     mainMockState.argsResult = {
       args: {
-        inputPath: "/tmp/book.sdpub",
+        inputPath: "/tmp/book.wikg",
       },
       help: false,
       kind: "cover",
@@ -329,7 +329,7 @@ describe("cli/main", () => {
     expect(mainMockState.archiveRunCalls).toHaveLength(0);
     expect(mainMockState.archiveCoverRunCalls).toStrictEqual([
       {
-        inputPath: "/tmp/book.sdpub",
+        inputPath: "/tmp/book.wikg",
       },
     ]);
     expect(process.exitCode).toBe(0);
@@ -339,7 +339,7 @@ describe("cli/main", () => {
     mainMockState.argsResult = {
       args: {
         action: "list",
-        path: "/tmp/book.sdpub",
+        path: "/tmp/book.wikg",
       },
       help: false,
       kind: "chapter",
@@ -351,7 +351,7 @@ describe("cli/main", () => {
     expect(mainMockState.archiveChapterRunCalls).toStrictEqual([
       {
         action: "list",
-        path: "/tmp/book.sdpub",
+        path: "/tmp/book.wikg",
       },
     ]);
     expect(process.exitCode).toBe(0);
@@ -372,7 +372,7 @@ describe("cli/main", () => {
     mainMockState.argsResult = {
       args: {
         action: "status",
-        archivePath: "/tmp/book.sdpub",
+        archivePath: "/tmp/book.wikg",
       },
       help: false,
       kind: "archive",
@@ -385,7 +385,7 @@ describe("cli/main", () => {
     expect(mainMockState.archiveRunCalls).toStrictEqual([
       {
         action: "status",
-        archivePath: "/tmp/book.sdpub",
+        archivePath: "/tmp/book.wikg",
       },
     ]);
     expect(process.exitCode).toBe(1);
@@ -396,14 +396,14 @@ describe("cli/main", () => {
       "node",
       "wikigraph",
       "get",
-      "/tmp/book.sdpub",
+      "/tmp/book.wikg",
       "wkg://entity/Q1",
       "--json",
     ];
     mainMockState.argsResult = {
       args: {
         action: "get",
-        archivePath: "/tmp/book.sdpub",
+        archivePath: "/tmp/book.wikg",
         format: "json",
         objectId: "wkg://entity/Q1",
       },
@@ -488,7 +488,7 @@ describe("cli/main", () => {
   it("writes archive maintenance command failures to stderr and sets a non-zero exit code", async () => {
     mainMockState.argsResult = {
       args: {
-        inputPath: "/tmp/book.sdpub",
+        inputPath: "/tmp/book.wikg",
       },
       help: false,
       kind: "meta",
@@ -500,7 +500,7 @@ describe("cli/main", () => {
     expect(stderrChunks).toStrictEqual(["metadata failed\n"]);
     expect(mainMockState.archiveMetaRunCalls).toStrictEqual([
       {
-        inputPath: "/tmp/book.sdpub",
+        inputPath: "/tmp/book.wikg",
       },
     ]);
     expect(process.exitCode).toBe(1);
@@ -510,7 +510,7 @@ describe("cli/main", () => {
     mainMockState.argsResult = {
       args: {
         action: "status",
-        archivePath: "/tmp/book.sdpub",
+        archivePath: "/tmp/book.wikg",
       },
       help: false,
       kind: "archive",
@@ -529,7 +529,7 @@ describe("cli/main", () => {
     mainMockState.argsResult = {
       args: {
         action: "status",
-        archivePath: "/tmp/book.sdpub",
+        archivePath: "/tmp/book.wikg",
       },
       help: false,
       kind: "archive",

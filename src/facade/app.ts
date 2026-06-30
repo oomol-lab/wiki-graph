@@ -183,7 +183,7 @@ export class SpineDigestApp {
     options: SpineDigestOpenSessionOptions = {},
   ): Promise<T> {
     return await this.#withLogging(
-      "open-sdpub",
+      "open-wikg",
       async () =>
         await new SpineDigestFile(path).read(operation, {
           ...(options.documentDirPath === undefined

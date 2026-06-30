@@ -7,17 +7,17 @@ Purpose:
   Wiki Graph commands use URIs as their address format. A URI can point to an archive, a scoped collection, or one object inside an archive.
 
 Archive locator:
-  - Archive/object command URIs must contain a `.sdpub` locator.
+  - Archive/object command URIs must contain a `.wikg` locator.
   - Do not pass a bare filesystem path as a command target.
     Use a Wiki Graph URI instead:
-    /Users/me/book.sdpub -> wkg:///Users/me/book.sdpub
-    ./book.sdpub -> wkg://book.sdpub
+    /Users/me/book.wikg -> wkg:///Users/me/book.wikg
+    ./book.wikg -> wkg://book.wikg
   - Absolute archive locators use `wkg:///`:
-    wkg:///books/book.sdpub
+    wkg:///books/book.wikg
   - Relative archive locators use `wkg://`:
-    wkg://book.sdpub
-    wkg://books/book.sdpub
-  - The first path segment ending in `.sdpub` is the archive/object boundary.
+    wkg://book.wikg
+    wkg://books/book.wikg
+  - The first path segment ending in `.wikg` is the archive/object boundary.
 
 Short object URIs:
   Commands return short object URIs without local file paths:
@@ -32,47 +32,47 @@ Short object URIs:
 
 Located object URIs:
   Add an archive locator before the object path when passing a URI to a command:
-    wkg:///books/book.sdpub/chapter/3
-    wkg:///books/book.sdpub/chapter/3/source#4..8
-    wkg://book.sdpub/entity/Q8018
+    wkg:///books/book.wikg/chapter/3
+    wkg:///books/book.wikg/chapter/3/source#4..8
+    wkg://book.wikg/entity/Q8018
   Returned short URIs are archive-relative handles, not complete command targets. Prepend the archive locator before passing them back to object commands.
   Located readable object URIs can omit the `get` verb:
-    wikigraph wkg://book.sdpub/entity/Q8018
+    wikigraph wkg://book.wikg/entity/Q8018
   Collection and lens URIs still require an explicit verb such as `list` or `search`.
 
 Triple pattern lenses:
   Use `_` as an any-value placeholder for subject, predicate, or object:
-    wkg://book.sdpub/triple/Q8018/_/Q123
-    wkg://book.sdpub/triple/_/_/Q123
+    wkg://book.wikg/triple/Q8018/_/Q123
+    wkg://book.wikg/triple/_/_/Q123
   Trailing placeholders may be omitted:
-    wkg://book.sdpub/triple/Q8018
-    wkg://book.sdpub/triple/Q8018/discusses
+    wkg://book.wikg/triple/Q8018
+    wkg://book.wikg/triple/Q8018/discusses
   A complete triple URI without `_` is a concrete object, not a collection lens.
 
 Object command examples:
   Search an absolute local archive:
-    wikigraph wkg:///Users/me/book.sdpub/entity search "keyword" --limit 20 --json
+    wikigraph wkg:///Users/me/book.wikg/entity search "keyword" --limit 20 --json
   Open an object inside an absolute local archive:
-    wikigraph wkg:///Users/me/book.sdpub/entity/Q8018 get
+    wikigraph wkg:///Users/me/book.wikg/entity/Q8018 get
 
 Archive command examples:
   Create or inspect an archive:
-    wikigraph wkg://book.sdpub create ./book.md
-    wikigraph wkg://book.sdpub/state get --json
-    wikigraph wkg://book.sdpub/chapter/tree get --json
+    wikigraph wkg://book.wikg create ./book.md
+    wikigraph wkg://book.wikg/state get --json
+    wikigraph wkg://book.wikg/chapter/tree get --json
 
 Job URIs:
-  Queue jobs use the `wkg-job://` scheme and do not contain `.sdpub` locators:
+  Queue jobs use the `wkg-job://` scheme and do not contain `.wikg` locators:
     wikigraph wkg-job:// list
     wikigraph wkg-job://<job-id> get --json
     wikigraph wkg-job://<job-id> watch --jsonl
 
 Scopes:
-  - `wkg:///book.sdpub` addresses the whole archive.
-  - `wkg:///book.sdpub/` is the same archive target; a trailing slash does not create a separate object.
-  - `wkg:///book.sdpub/chapter/3` scopes search and list to chapter 3.
-  - `wkg:///book.sdpub/entity` searches or lists archive-level entities.
-  - `wkg:///book.sdpub/chapter/3/entity` searches or lists entities scoped to chapter 3.
+  - `wkg:///book.wikg` addresses the whole archive.
+  - `wkg:///book.wikg/` is the same archive target; a trailing slash does not create a separate object.
+  - `wkg:///book.wikg/chapter/3` scopes search and list to chapter 3.
+  - `wkg:///book.wikg/entity` searches or lists archive-level entities.
+  - `wkg:///book.wikg/chapter/3/entity` searches or lists entities scoped to chapter 3.
   - `wkg://chapter/3/entity/Q8018` is the entity view whose evidence must appear in chapter 3.
 
 Object boundaries:

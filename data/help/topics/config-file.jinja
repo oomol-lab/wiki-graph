@@ -131,7 +131,7 @@ Minimum LLM-backed operation config:
 Applicability:
   - `llm.*`, `paths.cacheDir`, and `request.*` matter for source digest runs and queue reading-graph, reading-summary, and knowledge-graph jobs.
   - `prompt` is the default extraction prompt for reading-graph generation; knowledge-graph policy text is supplied by the knowledge graph build path.
-  - `.sdpub` re-export through the main convert command does not require LLM settings.
+  - `.wikg` re-export through the main convert command does not require LLM settings.
   - `meta`, `cover`, and non-generating `chapter` maintenance commands do not require LLM settings.
   - `paths.debugLogDir` can still matter outside source digest runs when the app emits debug logs.
 
@@ -143,7 +143,7 @@ Inline LLM note:
 Common failures:
   - Invalid JSON fails before execution starts.
   - Schema mismatches are reported with field paths.
-  - Missing `llm.provider` or `llm.model` breaks LLM-backed operations but not `.sdpub` re-export.
+  - Missing `llm.provider` or `llm.model` breaks LLM-backed operations but not `.wikg` re-export.
 
 Where to go next:
   - Need the overview and precedence model:

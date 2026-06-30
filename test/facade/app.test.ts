@@ -253,7 +253,7 @@ describe("facade/app", () => {
           });
         });
 
-        const archivePath = `${path}/fixture/book.sdpub`;
+        const archivePath = `${path}/fixture/book.wikg`;
         await new SpineDigest(document, document.path).saveAs(archivePath);
 
         const app = new SpineDigestApp({});

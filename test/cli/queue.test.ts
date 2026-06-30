@@ -20,7 +20,7 @@ const queueMockState = vi.hoisted(() => ({
     | "graphed"
     | "summarized",
   job: {
-    archivePath: "book.sdpub",
+    archivePath: "book.wikg",
     chapterId: 12,
     eventsPath: "events.ndjson",
     jobId: "job-1",
@@ -96,7 +96,7 @@ vi.mock("../../src/facade/index.js", () => ({
   addBuildJob: vi.fn((options: unknown) => {
     queueMockState.addCalls.push(options);
     return Promise.resolve({
-      archivePath: "book.sdpub",
+      archivePath: "book.wikg",
       chapterId: 12,
       jobId: "job-1",
       state: "queued",
@@ -261,7 +261,7 @@ describe("cli/queue", () => {
     queueMockState.jobs = [];
     queueMockState.job = {
       archiveKey: "archive-key",
-      archivePath: "book.sdpub",
+      archivePath: "book.wikg",
       chapterId: 12,
       createdAt: 1,
       eventsPath: "events.ndjson",
@@ -296,13 +296,13 @@ describe("cli/queue", () => {
     await expect(
       runQueueCommand({
         action: "add",
-        archivePath: "book.sdpub",
+        archivePath: "book.wikg",
         chapterId: 12,
         target: "reading-summary",
       }),
     ).rejects.toThrow("consume tokens");
 
-    expect(queueMockState.openPaths).toStrictEqual(["book.sdpub"]);
+    expect(queueMockState.openPaths).toStrictEqual(["book.wikg"]);
     expect(queueMockState.activeJobChecks).toStrictEqual([]);
     expect(queueMockState.addCalls).toStrictEqual([]);
   });
@@ -315,7 +315,7 @@ describe("cli/queue", () => {
     await expect(
       runQueueCommand({
         action: "add",
-        archivePath: "book.sdpub",
+        archivePath: "book.wikg",
         chapterId: 12,
         target: "reading-summary",
       }),
@@ -331,7 +331,7 @@ describe("cli/queue", () => {
     await expect(
       runQueueCommand({
         action: "add",
-        archivePath: "book.sdpub",
+        archivePath: "book.wikg",
         chapterId: 12,
         target: "reading-summary",
       }),
@@ -345,7 +345,7 @@ describe("cli/queue", () => {
     await runQueueCommand({
       acceptCost: true,
       action: "add",
-      archivePath: "book.sdpub",
+      archivePath: "book.wikg",
       boost: true,
       chapterId: 12,
       target: "reading-graph",
@@ -353,7 +353,7 @@ describe("cli/queue", () => {
 
     expect(queueMockState.addCalls).toStrictEqual([
       {
-        archivePath: "book.sdpub",
+        archivePath: "book.wikg",
         boost: true,
         chapterId: 12,
         target: "reading-graph",
@@ -366,7 +366,7 @@ describe("cli/queue", () => {
     queueMockState.jobs = [
       {
         archiveKey: "archive-key",
-        archivePath: "/books/book.sdpub",
+        archivePath: "/books/book.wikg",
         chapterId: 12,
         createdAt: 1,
         currentStep: "reading-summary",
@@ -385,7 +385,7 @@ describe("cli/queue", () => {
     });
 
     expect(queueMockState.textWrites).toStrictEqual([
-      "JOB      STATE     STEP    TARGET  CHAPTER ARCHIVE\njob-1-fu running   reading-summary reading-summary      12 book.sdpub\n",
+      "JOB      STATE     STEP    TARGET  CHAPTER ARCHIVE\njob-1-fu running   reading-summary reading-summary      12 book.wikg\n",
     ]);
   });
 
@@ -393,7 +393,7 @@ describe("cli/queue", () => {
     queueMockState.jobs = [
       {
         archiveKey: "archive-key",
-        archivePath: "/books/book.sdpub",
+        archivePath: "/books/book.wikg",
         chapterId: 12,
         createdAt: 1,
         eventsPath: "events.ndjson",
@@ -415,7 +415,7 @@ describe("cli/queue", () => {
       items: [
         {
           archiveKey: "archive-key",
-          archivePath: "/books/book.sdpub",
+          archivePath: "/books/book.wikg",
           chapterId: 12,
           createdAt: 1,
           eventsPath: "events.ndjson",
@@ -486,10 +486,7 @@ describe("cli/queue", () => {
       "commit-summary",
       "write:end",
     ]);
-    expect(queueMockState.writeCalls).toStrictEqual([
-      "book.sdpub",
-      "book.sdpub",
-    ]);
+    expect(queueMockState.writeCalls).toStrictEqual(["book.wikg", "book.wikg"]);
     expect(queueMockState.buildGraphCalls).toHaveLength(1);
     expect(queueMockState.buildSummaryCalls).toHaveLength(1);
     expect(queueMockState.buildSummaryCalls[0]).toMatchObject({

@@ -10,11 +10,11 @@ import type { DocumentFileStore } from "../document/document.js";
 import { AsyncSemaphore } from "../utils/async-semaphore.js";
 
 import {
-  extractSdpubArchive,
-  readSdpubArchiveEntry,
-  SdpubArchiveReader,
-  writeSdpubArchiveWithOverlays,
-  type SdpubArchiveOverlay,
+  extractWikgArchive,
+  readWikgArchiveEntry,
+  WikgArchiveReader,
+  writeWikgArchiveWithOverlays,
+  type WikgArchiveOverlay,
 } from "./archive.js";
 
 const STATE_SCHEMA_SQL = `
@@ -65,12 +65,12 @@ const STATE_DATABASE_SEMAPHORE = new AsyncSemaphore(1);
 
 type EntryLockMode = "read" | "state" | "write";
 
-export class SdpubCoordinator {
+export class WikgCoordinator {
   public createFileStore(
     archivePath: string,
     options: { readonly readonlyDatabase?: boolean } = {},
   ): DocumentFileStore {
-    return new SdpubDocumentFileStore(resolve(archivePath), options);
+    return new WikgDocumentFileStore(resolve(archivePath), options);
   }
 
   public async withReadWorkspace<T>(
@@ -86,7 +86,7 @@ export class SdpubCoordinator {
         : resolve(options.documentDirPath);
 
     try {
-      await extractSdpubArchive(resolve(archivePath), directoryPath);
+      await extractWikgArchive(resolve(archivePath), directoryPath);
       return await operation(directoryPath);
     } finally {
       if (options.documentDirPath === undefined) {
@@ -102,7 +102,7 @@ export class SdpubCoordinator {
     const directoryPath = await mkdtemp(join(tmpdir(), "wikigraph-write-"));
 
     try {
-      await extractSdpubArchive(resolve(archivePath), directoryPath);
+      await extractWikgArchive(resolve(archivePath), directoryPath);
       return await operation(directoryPath);
     } finally {
       await rm(directoryPath, { force: true, recursive: true });
@@ -110,9 +110,7 @@ export class SdpubCoordinator {
   }
 }
 
-export async function tryStartSdpubFlusher(
-  archivePath?: string,
-): Promise<void> {
+export async function tryStartWikgFlusher(archivePath?: string): Promise<void> {
   if (archivePath !== undefined) {
     await flushArchiveOverlays(createArchiveKey(resolve(archivePath)));
     return;
@@ -136,10 +134,10 @@ ORDER BY archive_key
   }
 }
 
-class SdpubDocumentFileStore implements DocumentFileStore {
+class WikgDocumentFileStore implements DocumentFileStore {
   readonly #archiveKey: string;
   readonly #archivePath: string;
-  #archiveReader: Promise<SdpubArchiveReader> | undefined;
+  #archiveReader: Promise<WikgArchiveReader> | undefined;
   readonly #readonlyDatabase: boolean;
   readonly #sqliteLeaseOwnerId = createOwnerId();
 
@@ -274,7 +272,7 @@ class SdpubDocumentFileStore implements DocumentFileStore {
             this.#archiveKey,
             DATABASE_ENTRY_PATH,
           );
-          const content = await readSdpubArchiveEntry(
+          const content = await readWikgArchiveEntry(
             this.#archivePath,
             DATABASE_ENTRY_PATH,
           );
@@ -374,8 +372,8 @@ class SdpubDocumentFileStore implements DocumentFileStore {
     return await (await this.#getArchiveReader()).readEntry(entryPath);
   }
 
-  async #getArchiveReader(): Promise<SdpubArchiveReader> {
-    this.#archiveReader ??= SdpubArchiveReader.open(this.#archivePath);
+  async #getArchiveReader(): Promise<WikgArchiveReader> {
+    this.#archiveReader ??= WikgArchiveReader.open(this.#archivePath);
     return await this.#archiveReader;
   }
 }
@@ -426,7 +424,7 @@ async function flushArchiveOverlays(archiveKey: string): Promise<void> {
       );
 
       try {
-        await writeSdpubArchiveWithOverlays(
+        await writeWikgArchiveWithOverlays(
           archivePath,
           temporaryArchivePath,
           currentOverlays.map(toArchiveOverlay),
@@ -889,7 +887,7 @@ async function withStateDatabase<T>(
 
 async function openStateDatabase(): Promise<Database> {
   return await openSharedStateDatabase(
-    join(getCoordinatorStateDirectoryPath(), "sdpub-coordinator.sqlite"),
+    join(getCoordinatorStateDirectoryPath(), "wikg-coordinator.sqlite"),
     STATE_SCHEMA_SQL,
   );
 }
@@ -909,7 +907,7 @@ async function createWorkspaceFilePath(
   return join(directoryPath, `${basename(entryPath)}.${randomUUID()}`);
 }
 
-function toArchiveOverlay(overlay: EntryOverlay): SdpubArchiveOverlay {
+function toArchiveOverlay(overlay: EntryOverlay): WikgArchiveOverlay {
   if (overlay.kind === "deleted") {
     return {
       entryPath: overlay.entryPath,

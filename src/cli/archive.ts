@@ -130,7 +130,7 @@ export async function runArchiveCommand(
       }
       await runConvertCommand({
         help: false,
-        inputFormat: "sdpub",
+        inputFormat: "wikg",
         inputPath: args.archivePath,
         ...(args.outputPath === undefined
           ? {}
@@ -290,7 +290,7 @@ async function createArchive(args: CLIArchiveArguments): Promise<void> {
         ? {}
         : { inputFormat: args.inputFormat }),
       ...(args.llmJSON === undefined ? {} : { llmJSON: args.llmJSON }),
-      outputFormat: "sdpub",
+      outputFormat: "wikg",
       ...(args.prompt === undefined ? {} : { prompt: args.prompt }),
       targetStage: "sourced",
       verbose: false,
@@ -319,7 +319,7 @@ async function createArchive(args: CLIArchiveArguments): Promise<void> {
       inputFormat: args.inputFormat ?? "markdown",
       inputPath: sourcePath,
       ...(args.llmJSON === undefined ? {} : { llmJSON: args.llmJSON }),
-      outputFormat: "sdpub",
+      outputFormat: "wikg",
       outputPath: args.archivePath,
       ...(args.prompt === undefined ? {} : { prompt: args.prompt }),
       targetStage: "sourced",
@@ -496,7 +496,7 @@ async function createArchiveFromStdin(
       inputFormat: args.inputFormat,
       inputPath: sourcePath,
       ...(args.llmJSON === undefined ? {} : { llmJSON: args.llmJSON }),
-      outputFormat: "sdpub",
+      outputFormat: "wikg",
       outputPath: args.archivePath,
       ...(args.prompt === undefined ? {} : { prompt: args.prompt }),
       targetStage: "sourced",

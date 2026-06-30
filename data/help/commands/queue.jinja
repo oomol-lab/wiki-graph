@@ -2,7 +2,7 @@ Help Type: command
 Command: wikigraph queue
 
 Purpose:
-  Manage device-local generation tasks for `.sdpub` chapters.
+  Manage device-local generation tasks for `.wikg` chapters.
 
 Usage:
   wikigraph <chapter-uri> queue add --task <reading-graph|reading-summary|knowledge-graph> --accept-cost [--boost] [--llm <json>] [--prompt <text>]
@@ -33,8 +33,8 @@ Cost:
   `queue add` requires `--accept-cost`.
 
 Examples:
-  wikigraph wkg://book.sdpub/chapter/3 queue add --task reading-graph --accept-cost
-  wikigraph wkg://book.sdpub/chapter/3 queue add --task reading-summary --accept-cost
-  wikigraph wkg://book.sdpub/chapter/3 queue add --task knowledge-graph --accept-cost
-  wikigraph wkg-job:// list --input wkg://book.sdpub --json
+  wikigraph wkg://book.wikg/chapter/3 queue add --task reading-graph --accept-cost
+  wikigraph wkg://book.wikg/chapter/3 queue add --task reading-summary --accept-cost
+  wikigraph wkg://book.wikg/chapter/3 queue add --task knowledge-graph --accept-cost
+  wikigraph wkg-job:// list --input wkg://book.wikg --json
   wikigraph wkg-job://<job-id> watch --jsonl

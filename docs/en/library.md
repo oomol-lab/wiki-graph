@@ -4,7 +4,7 @@
 
 SpineDigest exposes a programmatic API for Node and TypeScript environments.
 
-The CLI is the primary and most complete interface for working with `.sdpub` as a knowledge base. The library API is lower-level: it is useful when a surrounding Node application needs to run import, build, export, or archive-opening flows in process.
+The CLI is the primary and most complete interface for working with `.wikg` as a knowledge base. The library API is lower-level: it is useful when a surrounding Node application needs to run import, build, export, or archive-opening flows in process.
 
 ## Requirements
 
@@ -29,7 +29,7 @@ The current public library API still reflects the underlying digest session mode
 Typical flow:
 
 1. Construct `SpineDigestApp` with an LLM model.
-2. Open a digest session for a source file or text stream, or open an existing `.sdpub`.
+2. Open a digest session for a source file or text stream, or open an existing `.wikg`.
 3. Use the provided `SpineDigest` object to inspect metadata, export projections, or save the archive.
 
 ## Example
@@ -54,7 +54,7 @@ await app.digestEpubSession(
   },
   async (digest) => {
     await digest.exportText("./digest.txt");
-    await digest.saveAs("./book.sdpub");
+    await digest.saveAs("./book.wikg");
   },
 );
 ```
@@ -74,7 +74,7 @@ const { SpineDigestApp } = require("spinedigest");
 - `digestTextStreamSession`
 - `openSession`
 
-`openSession` is for existing `.sdpub` archives and does not require a fresh source digest run.
+`openSession` is for existing `.wikg` archives and does not require a fresh source digest run.
 
 ## Progress Callbacks
 
@@ -100,7 +100,7 @@ The callback reports three event shapes during LLM-backed generation:
 ## Notes
 
 - LLM-backed digest and build work requires an LLM configuration.
-- Existing `.sdpub` archives can be reopened without re-running source import.
+- Existing `.wikg` archives can be reopened without re-running source import.
 - If you are evaluating the project for direct use, start with the CLI docs instead.
 
 ## Related Docs

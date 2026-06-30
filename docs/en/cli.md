@@ -2,7 +2,7 @@
 
 # CLI Reference
 
-SpineDigest is URI-first. The primary object is a `.sdpub` knowledge-base archive, and CLI targets are Wiki Graph URIs.
+SpineDigest is URI-first. The primary object is a `.wikg` knowledge-base archive, and CLI targets are Wiki Graph URIs.
 
 ```bash
 wikigraph <wkg-uri> <action> ...
@@ -43,9 +43,9 @@ Search and collection behavior:
 
 - `search` finds URI-addressable objects from query text. Search results are leads, not source evidence.
 - `list` enumerates URI-addressable objects without query text.
-- Object commands use Wiki Graph URIs. Use an archive or scope URI such as `wkg:///Users/me/book.sdpub` for `search` and `list`; use a concrete object URI such as `wkg:///Users/me/book.sdpub/chapter/12` for `get` or `evidence`. `related` and `pack` are limited to chunk and entity objects.
+- Object commands use Wiki Graph URIs. Use an archive or scope URI such as `wkg:///Users/me/book.wikg` for `search` and `list`; use a concrete object URI such as `wkg:///Users/me/book.wikg/chapter/12` for `get` or `evidence`. `related` and `pack` are limited to chunk and entity objects.
 - For content understanding, choose a search lens in the URI: `<archive-uri>/chunk` for Reading Graph structure, `<archive-uri>/summary` for quick overview, `<archive-uri>/source` for original source wording, or `<archive-uri>/entity` and `<archive-uri>/triple` for Knowledge Graph objects.
-- Use a chapter scope URI such as `wkg:///Users/me/book.sdpub/chapter/12` to keep search or list local to one chapter.
+- Use a chapter scope URI such as `wkg:///Users/me/book.wikg/chapter/12` to keep search or list local to one chapter.
 - `--limit` defaults to `20`; pass returned `nextCursor` back through `--cursor` for the next page.
 - Search does not do semantic expansion, stemming, or vector search.
 - Read `wikigraph help uri` for the URI grammar and object boundary rules.
@@ -71,14 +71,14 @@ Queue behavior:
 
 Supported formats:
 
-- `sdpub`
+- `wikg`
 - `epub`
 - `txt`
 - `markdown`
 
 Extension mapping:
 
-- `.sdpub` -> `sdpub`
+- `.wikg` -> `wikg`
 - `.epub` -> `epub`
 - `.txt` -> `txt`
 - `.md` or `.markdown` -> `markdown`
@@ -88,15 +88,15 @@ Extension mapping:
 Read/search/navigation commands support `--json` for machine consumption:
 
 ```bash
-wikigraph wkg:///Users/me/book.sdpub/chunk search "RAG" --json
-wikigraph wkg:///Users/me/book.sdpub/chapter/3 get --json
+wikigraph wkg:///Users/me/book.wikg/chunk search "RAG" --json
+wikigraph wkg:///Users/me/book.wikg/chapter/3 get --json
 ```
 
 Human-readable stdout is Markdown-like text with stable ids and suggested next commands.
 
 ## Direct Transform
 
-`transform` runs a direct one-shot digest/export without creating a reusable `.sdpub` knowledge-base archive:
+`transform` runs a direct one-shot digest/export without creating a reusable `.wikg` knowledge-base archive:
 
 ```bash
 wikigraph transform [--input <path>] [--output <path>] [--input-format <format>] [--output-format <format>] [--digest-dir <path>] [--llm <json>] [--prompt <text>] [--stage <planned|source|reading-graph|reading-summary>] [--verbose]
@@ -126,10 +126,10 @@ Use URI-first commands for routine exploration. `<archive-uri>/chapter/tree get`
 
 ## Standard Stream Rules
 
-The URI-first `create` command writes `.sdpub` archives. It reads Markdown or plain text from stdin when `--input-format` is provided:
+The URI-first `create` command writes `.wikg` archives. It reads Markdown or plain text from stdin when `--input-format` is provided:
 
 ```bash
-cat ./chapter.txt | wikigraph wkg://chapter.sdpub create --input-format txt
+cat ./chapter.txt | wikigraph wkg://chapter.wikg create --input-format txt
 ```
 
 For direct stream digest/export, use `transform` explicitly:

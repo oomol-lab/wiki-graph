@@ -11,7 +11,7 @@ describe("cli/formats", () => {
     expect(inferCLIFormatFromPath("book.epub")).toBe("epub");
     expect(inferCLIFormatFromPath("notes.md")).toBe("markdown");
     expect(inferCLIFormatFromPath("notes.markdown")).toBe("markdown");
-    expect(inferCLIFormatFromPath("draft.sdpub")).toBe("sdpub");
+    expect(inferCLIFormatFromPath("draft.wikg")).toBe("wikg");
     expect(inferCLIFormatFromPath("plain.txt")).toBe("txt");
     expect(inferCLIFormatFromPath("plain.unknown")).toBeUndefined();
   });
@@ -25,7 +25,7 @@ describe("cli/formats", () => {
   it("parses and normalizes format flags", () => {
     expect(parseCLIFormat("  EPUB ", "--format")).toBe("epub");
     expect(() => parseCLIFormat("pdf", "--format")).toThrow(
-      "Invalid --format: pdf. Expected one of sdpub, epub, txt, markdown.",
+      "Invalid --format: pdf. Expected one of wikg, epub, txt, markdown.",
     );
   });
 });

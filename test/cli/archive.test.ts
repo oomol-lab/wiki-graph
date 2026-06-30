@@ -497,8 +497,8 @@ vi.mock("../../src/facade/index.js", () => ({
   ),
   readContinuationCursor: vi.fn(() =>
     Promise.resolve({
-      archiveKey: "/tmp/book.sdpub",
-      archivePath: "/tmp/book.sdpub",
+      archiveKey: "/tmp/book.wikg",
+      archivePath: "/tmp/book.wikg",
       cursor: "raw-search-cursor",
       format: "json",
       kind: "search",
@@ -558,19 +558,19 @@ describe("cli/archive", () => {
   it("gets archive state", async () => {
     await runArchiveCommand({
       action: "get",
-      archivePath: "wkg:///tmp/book.sdpub/state",
+      archivePath: "wkg:///tmp/book.wikg/state",
       format: "json",
-      objectId: "wkg:///tmp/book.sdpub/state",
+      objectId: "wkg:///tmp/book.wikg/state",
     });
 
-    expect(archiveMockState.readCalls).toStrictEqual(["/tmp/book.sdpub"]);
+    expect(archiveMockState.readCalls).toStrictEqual(["/tmp/book.wikg"]);
     expect(readArchivePage).toHaveBeenCalledWith({}, "wkg://state", {});
   });
 
   it("prints search hits as Wiki Graph URI objects", async () => {
     await runArchiveCommand({
       action: "search",
-      archivePath: "wkg:///tmp/book.sdpub",
+      archivePath: "wkg:///tmp/book.wikg",
       format: "text",
       kinds: ["chunk"],
       query: "RAG",
@@ -579,7 +579,7 @@ describe("cli/archive", () => {
     expect(archiveMockState.textWrites[0]).toContain("wkg://chunk/9");
     expect(archiveMockState.textWrites[0]).toContain("Retrieval design");
     expect(findArchiveObjects).toHaveBeenCalledWith({}, "RAG", {
-      archiveKey: "/tmp/book.sdpub",
+      archiveKey: "/tmp/book.wikg",
       types: ["node"],
     });
   });
@@ -587,14 +587,14 @@ describe("cli/archive", () => {
   it("prints source search hits as citation blocks", async () => {
     await runArchiveCommand({
       action: "search",
-      archivePath: "wkg:///tmp/book.sdpub",
+      archivePath: "wkg:///tmp/book.wikg",
       format: "text",
       kinds: ["source"],
       query: "RAG",
     });
 
     expect(findArchiveObjects).toHaveBeenCalledWith({}, "RAG", {
-      archiveKey: "/tmp/book.sdpub",
+      archiveKey: "/tmp/book.wikg",
       types: ["source"],
     });
     expect(archiveMockState.textWrites[0]).toContain(
@@ -611,7 +611,7 @@ describe("cli/archive", () => {
   it("passes entity search kinds to archive search", async () => {
     await runArchiveCommand({
       action: "search",
-      archivePath: "wkg:///tmp/book.sdpub",
+      archivePath: "wkg:///tmp/book.wikg",
       evidenceLimit: 3,
       format: "text",
       kinds: ["entity"],
@@ -619,7 +619,7 @@ describe("cli/archive", () => {
     });
 
     expect(findArchiveObjects).toHaveBeenCalledWith({}, "RAG", {
-      archiveKey: "/tmp/book.sdpub",
+      archiveKey: "/tmp/book.wikg",
       evidenceLimit: 3,
       types: ["entity"],
     });
@@ -666,7 +666,7 @@ describe("cli/archive", () => {
 
     await runArchiveCommand({
       action: "search",
-      archivePath: "wkg:///tmp/book.sdpub",
+      archivePath: "wkg:///tmp/book.wikg",
       evidenceLimit: 1,
       format: "text",
       kinds: ["entity"],
@@ -684,7 +684,7 @@ describe("cli/archive", () => {
   it("prints listed archive objects as Wiki Graph URI objects", async () => {
     await runArchiveCommand({
       action: "list",
-      archivePath: "wkg:///tmp/book.sdpub/chapter/2",
+      archivePath: "wkg:///tmp/book.wikg/chapter/2",
       format: "text",
       kinds: ["entity"],
     });
@@ -713,7 +713,7 @@ describe("cli/archive", () => {
 
     await runArchiveCommand({
       action: "list",
-      archivePath: "wkg:///tmp/book.sdpub/source",
+      archivePath: "wkg:///tmp/book.wikg/source",
       backlinks: true,
       format: "json",
       kinds: ["source"],
@@ -749,15 +749,15 @@ describe("cli/archive", () => {
 
     await runArchiveCommand({
       action: "list",
-      archivePath: "wkg:///tmp/book.sdpub/chapter/2",
+      archivePath: "wkg:///tmp/book.wikg/chapter/2",
       evidenceLimit: 3,
       format: "json",
       kinds: ["entity"],
     });
 
     expect(createContinuationCursor).toHaveBeenCalledWith({
-      archiveKey: "/tmp/book.sdpub",
-      archivePath: "/tmp/book.sdpub",
+      archiveKey: "/tmp/book.wikg",
+      archivePath: "/tmp/book.wikg",
       chapters: [2],
       cursor: "raw-collection-cursor",
       evidenceLimit: 3,
@@ -777,15 +777,15 @@ describe("cli/archive", () => {
 
     await runArchiveCommand({
       action: "list",
-      archivePath: "wkg:///tmp/book.sdpub/source",
+      archivePath: "wkg:///tmp/book.wikg/source",
       backlinks: true,
       format: "json",
       kinds: ["source"],
     });
 
     expect(createContinuationCursor).toHaveBeenCalledWith({
-      archiveKey: "/tmp/book.sdpub",
-      archivePath: "/tmp/book.sdpub",
+      archiveKey: "/tmp/book.wikg",
+      archivePath: "/tmp/book.wikg",
       backlinks: true,
       chapters: null,
       cursor: "raw-collection-cursor",
@@ -799,8 +799,8 @@ describe("cli/archive", () => {
 
   it("continues a listed archive page from a short cursor", async () => {
     vi.mocked(readContinuationCursor).mockResolvedValueOnce({
-      archiveKey: "/tmp/book.sdpub",
-      archivePath: "/tmp/book.sdpub",
+      archiveKey: "/tmp/book.wikg",
+      archivePath: "/tmp/book.wikg",
       chapters: [2],
       cursor: "raw-collection-cursor",
       format: "json",
@@ -846,7 +846,7 @@ describe("cli/archive", () => {
 
     await runArchiveCommand({
       action: "list",
-      archivePath: "wkg:///tmp/book.sdpub/chapter/2",
+      archivePath: "wkg:///tmp/book.wikg/chapter/2",
       evidenceLimit: 3,
       format: "json",
       kinds: ["entity"],
@@ -887,7 +887,7 @@ describe("cli/archive", () => {
   it("keeps listed object evidence disabled with evidence zero", async () => {
     await runArchiveCommand({
       action: "list",
-      archivePath: "wkg:///tmp/book.sdpub/chapter/2",
+      archivePath: "wkg:///tmp/book.wikg/chapter/2",
       evidenceLimit: 0,
       format: "json",
       kinds: ["entity"],
@@ -935,7 +935,7 @@ describe("cli/archive", () => {
 
     await runArchiveCommand({
       action: "list",
-      archivePath: "wkg:///tmp/book.sdpub/chapter/2",
+      archivePath: "wkg:///tmp/book.wikg/chapter/2",
       evidenceLimit: 1,
       format: "json",
       kinds: ["entity"],
@@ -977,7 +977,7 @@ describe("cli/archive", () => {
 
     await runArchiveCommand({
       action: "list",
-      archivePath: "wkg:///tmp/book.sdpub/chapter/2",
+      archivePath: "wkg:///tmp/book.wikg/chapter/2",
       evidenceLimit: 3,
       format: "json",
       kinds: ["triple"],
@@ -1022,7 +1022,7 @@ describe("cli/archive", () => {
   it("prints search objects as JSON", async () => {
     await runArchiveCommand({
       action: "search",
-      archivePath: "wkg:///tmp/book.sdpub",
+      archivePath: "wkg:///tmp/book.wikg",
       format: "json",
       kinds: ["entity"],
       query: "RAG",
@@ -1069,7 +1069,7 @@ describe("cli/archive", () => {
 
     await runArchiveCommand({
       action: "search",
-      archivePath: "wkg:///tmp/book.sdpub",
+      archivePath: "wkg:///tmp/book.wikg",
       evidenceLimit: 3,
       format: "json",
       kinds: ["triple"],
@@ -1077,7 +1077,7 @@ describe("cli/archive", () => {
     });
 
     expect(findArchiveObjects).toHaveBeenCalledWith({}, "RAG", {
-      archiveKey: "/tmp/book.sdpub",
+      archiveKey: "/tmp/book.wikg",
       evidenceLimit: 3,
       types: ["triple"],
     });
@@ -1128,7 +1128,7 @@ describe("cli/archive", () => {
 
     await runArchiveCommand({
       action: "search",
-      archivePath: "wkg:///tmp/book.sdpub/source",
+      archivePath: "wkg:///tmp/book.wikg/source",
       backlinks: true,
       format: "json",
       kinds: ["source"],
@@ -1136,7 +1136,7 @@ describe("cli/archive", () => {
     });
 
     expect(findArchiveObjects).toHaveBeenCalledWith({}, "RAG", {
-      archiveKey: "/tmp/book.sdpub",
+      archiveKey: "/tmp/book.wikg",
       backlinks: true,
       types: ["source"],
     });
@@ -1158,7 +1158,7 @@ describe("cli/archive", () => {
   it("prints search cursor metadata as JSONL", async () => {
     await runArchiveCommand({
       action: "search",
-      archivePath: "wkg:///tmp/book.sdpub",
+      archivePath: "wkg:///tmp/book.wikg",
       format: "jsonl",
       kinds: ["entity"],
       query: "RAG",
@@ -1179,9 +1179,9 @@ describe("cli/archive", () => {
     });
 
     expect(readContinuationCursor).toHaveBeenCalledWith("c_next");
-    expect(archiveMockState.readCalls).toStrictEqual(["/tmp/book.sdpub"]);
+    expect(archiveMockState.readCalls).toStrictEqual(["/tmp/book.wikg"]);
     expect(findArchiveObjects).toHaveBeenCalledWith({}, "", {
-      archiveKey: "/tmp/book.sdpub",
+      archiveKey: "/tmp/book.wikg",
       cursor: "raw-search-cursor",
       limit: 20,
       types: ["entity"],
@@ -1206,7 +1206,7 @@ describe("cli/archive", () => {
     });
 
     expect(findArchiveObjects).toHaveBeenCalledWith({}, "", {
-      archiveKey: "/tmp/book.sdpub",
+      archiveKey: "/tmp/book.wikg",
       cursor: "raw-search-cursor",
       limit: 7,
       types: ["entity"],
@@ -1230,7 +1230,7 @@ describe("cli/archive", () => {
 
     await runArchiveCommand({
       action: "search",
-      archivePath: "wkg:///tmp/book.sdpub",
+      archivePath: "wkg:///tmp/book.wikg",
       evidenceLimit: 4,
       format: "json",
       kinds: ["entity"],
@@ -1238,8 +1238,8 @@ describe("cli/archive", () => {
     });
 
     expect(createContinuationCursor).toHaveBeenCalledWith({
-      archiveKey: "/tmp/book.sdpub",
-      archivePath: "/tmp/book.sdpub",
+      archiveKey: "/tmp/book.wikg",
+      archivePath: "/tmp/book.wikg",
       cursor: "raw-next-search-cursor",
       evidenceLimit: 4,
       format: "json",
@@ -1279,7 +1279,7 @@ describe("cli/archive", () => {
 
     await runArchiveCommand({
       action: "search",
-      archivePath: "wkg:///tmp/book.sdpub",
+      archivePath: "wkg:///tmp/book.wikg",
       evidenceLimit: 4,
       format: "json",
       kinds: ["entity"],
@@ -1287,8 +1287,8 @@ describe("cli/archive", () => {
     });
 
     expect(createContinuationCursor).toHaveBeenCalledWith({
-      archiveKey: "/tmp/book.sdpub",
-      archivePath: "/tmp/book.sdpub",
+      archiveKey: "/tmp/book.wikg",
+      archivePath: "/tmp/book.wikg",
       cursor: "raw-next-evidence-cursor",
       format: "json",
       kind: "evidence",
@@ -1299,9 +1299,9 @@ describe("cli/archive", () => {
   it("gets an object by Wiki Graph URI", async () => {
     await runArchiveCommand({
       action: "get",
-      archivePath: "wkg:///tmp/book.sdpub",
+      archivePath: "wkg:///tmp/book.wikg",
       format: "text",
-      objectId: "wkg:///tmp/book.sdpub/chunk/9",
+      objectId: "wkg:///tmp/book.wikg/chunk/9",
     });
 
     expect(readArchivePage).toHaveBeenCalledWith({}, "wkg://chunk/9", {});
@@ -1312,9 +1312,9 @@ describe("cli/archive", () => {
   it("gets a chapter as a minimal object", async () => {
     await runArchiveCommand({
       action: "get",
-      archivePath: "wkg:///tmp/book.sdpub",
+      archivePath: "wkg:///tmp/book.wikg",
       format: "json",
-      objectId: "wkg:///tmp/book.sdpub/chapter/2",
+      objectId: "wkg:///tmp/book.wikg/chapter/2",
     });
 
     expect(readArchivePage).toHaveBeenCalledWith({}, "wkg://chapter/2", {});
@@ -1328,9 +1328,9 @@ describe("cli/archive", () => {
   it("gets a source range as a citation block", async () => {
     await runArchiveCommand({
       action: "get",
-      archivePath: "wkg:///tmp/book.sdpub",
+      archivePath: "wkg:///tmp/book.wikg",
       format: "text",
-      objectId: "wkg:///tmp/book.sdpub/chapter/2/source#0..1",
+      objectId: "wkg:///tmp/book.wikg/chapter/2/source#0..1",
     });
 
     expect(readArchivePage).toHaveBeenCalledWith(
@@ -1361,10 +1361,10 @@ describe("cli/archive", () => {
 
     await runArchiveCommand({
       action: "get",
-      archivePath: "wkg:///tmp/book.sdpub",
+      archivePath: "wkg:///tmp/book.wikg",
       backlinks: true,
       format: "json",
-      objectId: "wkg:///tmp/book.sdpub/chapter/2/source#0..1",
+      objectId: "wkg:///tmp/book.wikg/chapter/2/source#0..1",
     });
 
     expect(readArchivePage).toHaveBeenCalledWith(
@@ -1402,10 +1402,10 @@ describe("cli/archive", () => {
 
     await runArchiveCommand({
       action: "get",
-      archivePath: "wkg:///tmp/book.sdpub",
+      archivePath: "wkg:///tmp/book.wikg",
       backlinks: true,
       format: "text",
-      objectId: "wkg:///tmp/book.sdpub/chapter/2/source#0..1",
+      objectId: "wkg:///tmp/book.wikg/chapter/2/source#0..1",
     });
 
     expect(archiveMockState.textWrites[0]).toContain("Backlinks:");
@@ -1427,9 +1427,9 @@ describe("cli/archive", () => {
   it("gets archive metadata from a root object URI", async () => {
     await runArchiveCommand({
       action: "get",
-      archivePath: "wkg:///tmp/book.sdpub",
+      archivePath: "wkg:///tmp/book.wikg",
       format: "text",
-      objectId: "wkg:///tmp/book.sdpub/",
+      objectId: "wkg:///tmp/book.wikg/",
     });
 
     expect(readArchivePage).toHaveBeenCalledWith({}, "wkg://", {});
@@ -1448,9 +1448,9 @@ describe("cli/archive", () => {
   it("gets an entity by Wiki Graph URI", async () => {
     await runArchiveCommand({
       action: "get",
-      archivePath: "wkg:///tmp/book.sdpub",
+      archivePath: "wkg:///tmp/book.wikg",
       format: "json",
-      objectId: "wkg:///tmp/book.sdpub/entity/Q1",
+      objectId: "wkg:///tmp/book.wikg/entity/Q1",
     });
 
     expect(readArchivePage).toHaveBeenCalledWith({}, "wkg://entity/Q1", {
@@ -1488,9 +1488,9 @@ describe("cli/archive", () => {
   it("gets an entity wikipage by Wiki Graph URI", async () => {
     await runArchiveCommand({
       action: "get",
-      archivePath: "wkg:///tmp/book.sdpub",
+      archivePath: "wkg:///tmp/book.wikg",
       format: "json",
-      objectId: "wkg:///tmp/book.sdpub/entity/Q1/wikipage",
+      objectId: "wkg:///tmp/book.wikg/entity/Q1/wikipage",
     });
 
     expect(readArchivePage).toHaveBeenCalledWith(
@@ -1517,9 +1517,9 @@ describe("cli/archive", () => {
   it("prints text entity wikipage pages with the URI first", async () => {
     await runArchiveCommand({
       action: "get",
-      archivePath: "wkg:///tmp/book.sdpub",
+      archivePath: "wkg:///tmp/book.wikg",
       format: "text",
-      objectId: "wkg:///tmp/book.sdpub/entity/Q1/wikipage",
+      objectId: "wkg:///tmp/book.wikg/entity/Q1/wikipage",
     });
 
     expect(archiveMockState.textWrites[0]).toBe(
@@ -1539,10 +1539,10 @@ describe("cli/archive", () => {
   it("disables single-object evidence with evidence zero", async () => {
     await runArchiveCommand({
       action: "get",
-      archivePath: "wkg:///tmp/book.sdpub",
+      archivePath: "wkg:///tmp/book.wikg",
       evidenceLimit: 0,
       format: "json",
-      objectId: "wkg:///tmp/book.sdpub/entity/Q1",
+      objectId: "wkg:///tmp/book.wikg/entity/Q1",
     });
 
     expect(readArchivePage).toHaveBeenCalledWith({}, "wkg://entity/Q1", {});
@@ -1564,10 +1564,10 @@ describe("cli/archive", () => {
   it("hides text get evidence with evidence zero", async () => {
     await runArchiveCommand({
       action: "get",
-      archivePath: "wkg:///tmp/book.sdpub",
+      archivePath: "wkg:///tmp/book.wikg",
       evidenceLimit: 0,
       format: "text",
-      objectId: "wkg:///tmp/book.sdpub/entity/Q1",
+      objectId: "wkg:///tmp/book.wikg/entity/Q1",
     });
 
     expect(readArchivePage).toHaveBeenCalledWith({}, "wkg://entity/Q1", {});
@@ -1577,9 +1577,9 @@ describe("cli/archive", () => {
   it("defaults evidence for chapter-scoped entity pages", async () => {
     await runArchiveCommand({
       action: "get",
-      archivePath: "wkg:///tmp/book.sdpub",
+      archivePath: "wkg:///tmp/book.wikg",
       format: "json",
-      objectId: "wkg:///tmp/book.sdpub/chapter/2/entity/Q1",
+      objectId: "wkg:///tmp/book.wikg/chapter/2/entity/Q1",
     });
 
     expect(readArchivePage).toHaveBeenCalledWith(
@@ -1603,10 +1603,10 @@ describe("cli/archive", () => {
 
     await runArchiveCommand({
       action: "get",
-      archivePath: "wkg:///tmp/book.sdpub",
+      archivePath: "wkg:///tmp/book.wikg",
       evidenceLimit: 1,
       format: "text",
-      objectId: "wkg:///tmp/book.sdpub/entity/Q1",
+      objectId: "wkg:///tmp/book.wikg/entity/Q1",
     });
 
     expect(archiveMockState.textWrites[0]).toContain(
@@ -1619,10 +1619,10 @@ describe("cli/archive", () => {
   it("gets a triple as concise JSON", async () => {
     await runArchiveCommand({
       action: "get",
-      archivePath: "wkg:///tmp/book.sdpub",
+      archivePath: "wkg:///tmp/book.wikg",
       evidenceLimit: 3,
       format: "json",
-      objectId: "wkg:///tmp/book.sdpub/triple/Q1/mentions/Q2",
+      objectId: "wkg:///tmp/book.wikg/triple/Q1/mentions/Q2",
     });
 
     const output = JSON.parse(archiveMockState.textWrites[0] ?? "") as Record<
@@ -1663,9 +1663,9 @@ describe("cli/archive", () => {
   it("prints related objects", async () => {
     await runArchiveCommand({
       action: "related",
-      archivePath: "wkg:///tmp/book.sdpub",
+      archivePath: "wkg:///tmp/book.wikg",
       format: "text",
-      objectId: "wkg:///tmp/book.sdpub/chunk/9",
+      objectId: "wkg:///tmp/book.wikg/chunk/9",
       query: "agent",
     });
 
@@ -1693,9 +1693,9 @@ describe("cli/archive", () => {
   it("prints related triples as structured JSON", async () => {
     await runArchiveCommand({
       action: "related",
-      archivePath: "wkg:///tmp/book.sdpub",
+      archivePath: "wkg:///tmp/book.wikg",
       format: "json",
-      objectId: "wkg:///tmp/book.sdpub/entity/Q1",
+      objectId: "wkg:///tmp/book.wikg/entity/Q1",
     });
 
     expect(JSON.parse(archiveMockState.textWrites[0] ?? "")).toStrictEqual({
@@ -1734,10 +1734,10 @@ describe("cli/archive", () => {
   it("passes related role and prints related triple evidence", async () => {
     await runArchiveCommand({
       action: "related",
-      archivePath: "wkg:///tmp/book.sdpub",
+      archivePath: "wkg:///tmp/book.wikg",
       evidenceLimit: 3,
       format: "json",
-      objectId: "wkg:///tmp/book.sdpub/entity/Q1",
+      objectId: "wkg:///tmp/book.wikg/entity/Q1",
       role: "subject",
     });
 
@@ -1773,9 +1773,9 @@ describe("cli/archive", () => {
   it("prints evidence source ranges", async () => {
     await runArchiveCommand({
       action: "evidence",
-      archivePath: "wkg:///tmp/book.sdpub",
+      archivePath: "wkg:///tmp/book.wikg",
       format: "text",
-      objectId: "wkg:///tmp/book.sdpub/triple/Q1/mentions/Q2",
+      objectId: "wkg:///tmp/book.wikg/triple/Q1/mentions/Q2",
     });
 
     expect(listArchiveEvidence).toHaveBeenCalledWith(
@@ -1811,9 +1811,9 @@ describe("cli/archive", () => {
   it("separates get evidence blocks with blank lines", async () => {
     await runArchiveCommand({
       action: "get",
-      archivePath: "wkg:///tmp/book.sdpub",
+      archivePath: "wkg:///tmp/book.wikg",
       format: "text",
-      objectId: "wkg:///tmp/book.sdpub/triple/Q1/mentions/Q2",
+      objectId: "wkg:///tmp/book.wikg/triple/Q1/mentions/Q2",
     });
 
     expect(archiveMockState.textWrites[0]).toContain(
@@ -1834,11 +1834,11 @@ describe("cli/archive", () => {
   it("passes evidence pagination options", async () => {
     await runArchiveCommand({
       action: "evidence",
-      archivePath: "wkg:///tmp/book.sdpub",
+      archivePath: "wkg:///tmp/book.wikg",
       cursor: "cursor-1",
       format: "json",
       limit: 3,
-      objectId: "wkg:///tmp/book.sdpub/entity/Q1",
+      objectId: "wkg:///tmp/book.wikg/entity/Q1",
       query: "paragraph",
     });
 
@@ -1858,15 +1858,15 @@ describe("cli/archive", () => {
 
     await runArchiveCommand({
       action: "evidence",
-      archivePath: "wkg:///tmp/book.sdpub",
+      archivePath: "wkg:///tmp/book.wikg",
       format: "json",
-      objectId: "wkg:///tmp/book.sdpub/entity/Q1",
+      objectId: "wkg:///tmp/book.wikg/entity/Q1",
       query: "paragraph",
     });
 
     expect(createContinuationCursor).toHaveBeenCalledWith({
-      archiveKey: "/tmp/book.sdpub",
-      archivePath: "/tmp/book.sdpub",
+      archiveKey: "/tmp/book.wikg",
+      archivePath: "/tmp/book.wikg",
       cursor: "raw-next-evidence-cursor",
       format: "json",
       kind: "evidence",
@@ -1878,9 +1878,9 @@ describe("cli/archive", () => {
   it("prints evidence as JSONL", async () => {
     await runArchiveCommand({
       action: "evidence",
-      archivePath: "wkg:///tmp/book.sdpub",
+      archivePath: "wkg:///tmp/book.wikg",
       format: "jsonl",
-      objectId: "wkg:///tmp/book.sdpub/entity/Q1",
+      objectId: "wkg:///tmp/book.wikg/entity/Q1",
     });
 
     expect(archiveMockState.textWrites[0]).toContain(
@@ -1897,10 +1897,10 @@ describe("cli/archive", () => {
   it("prints a context pack", async () => {
     await runArchiveCommand({
       action: "pack",
-      archivePath: "wkg:///tmp/book.sdpub",
+      archivePath: "wkg:///tmp/book.wikg",
       budget: 1000,
       format: "text",
-      objectId: "wkg:///tmp/book.sdpub/chunk/9",
+      objectId: "wkg:///tmp/book.wikg/chunk/9",
     });
 
     expect(archiveMockState.textWrites[0]).toContain("Pack Budget: 1000");
@@ -1924,11 +1924,11 @@ describe("cli/archive", () => {
   it("preserves evidence zero for pack output", async () => {
     await runArchiveCommand({
       action: "pack",
-      archivePath: "wkg:///tmp/book.sdpub",
+      archivePath: "wkg:///tmp/book.wikg",
       budget: 1000,
       evidenceLimit: 0,
       format: "json",
-      objectId: "wkg:///tmp/book.sdpub/chunk/9",
+      objectId: "wkg:///tmp/book.wikg/chunk/9",
     });
 
     expect(archiveMockState.textWrites[0]).not.toContain('"evidence"');
@@ -1937,10 +1937,10 @@ describe("cli/archive", () => {
   it("prints a context pack as anchor plus related JSON", async () => {
     await runArchiveCommand({
       action: "pack",
-      archivePath: "wkg:///tmp/book.sdpub",
+      archivePath: "wkg:///tmp/book.wikg",
       budget: 1000,
       format: "json",
-      objectId: "wkg:///tmp/book.sdpub/chunk/9",
+      objectId: "wkg:///tmp/book.wikg/chunk/9",
     });
 
     const output = JSON.parse(archiveMockState.textWrites[0] ?? "") as Record<
@@ -1976,12 +1976,10 @@ describe("cli/archive", () => {
     await expect(
       runArchiveCommand({
         action: "search",
-        archivePath: "/tmp/book.sdpub",
+        archivePath: "/tmp/book.wikg",
         format: "json",
         query: "RAG",
       }),
-    ).rejects.toThrow(
-      "Example: wkg:///tmp/book.sdpub\nSee: wikigraph help uri",
-    );
+    ).rejects.toThrow("Example: wkg:///tmp/book.wikg\nSee: wikigraph help uri");
   });
 });

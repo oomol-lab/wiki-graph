@@ -2,7 +2,7 @@ import { resolve } from "path";
 
 export const WIKI_GRAPH_URI_PREFIX = "wkg://";
 export const WIKI_GRAPH_JOB_URI_PREFIX = "wkg-job://";
-export const WIKI_GRAPH_ARCHIVE_EXTENSION = ".sdpub";
+export const WIKI_GRAPH_ARCHIVE_EXTENSION = ".wikg";
 
 export interface LocatedWikiGraphUri {
   readonly archivePath?: string;
@@ -114,7 +114,7 @@ export function requireArchiveUri(uri: string): string {
 
   if (parsed.archivePath === undefined || parsed.objectUri !== undefined) {
     throw new Error(
-      `${formatWikiGraphUriExpectedError(uri)} Expected an archive URI ending in .sdpub.`,
+      `${formatWikiGraphUriExpectedError(uri)} Expected an archive URI ending in .wikg.`,
     );
   }
 
@@ -129,7 +129,7 @@ export function requireLocatedObjectUri(uri: string): {
 
   if (parsed.archivePath === undefined || parsed.objectUri === undefined) {
     throw new Error(
-      `${formatWikiGraphUriExpectedError(uri)} Expected an object URI with a .sdpub archive locator.`,
+      `${formatWikiGraphUriExpectedError(uri)} Expected an object URI with a .wikg archive locator.`,
     );
   }
 
@@ -159,10 +159,10 @@ export function formatWikiGraphUriExpectedError(value: string): string {
   const example =
     value.endsWith(WIKI_GRAPH_ARCHIVE_EXTENSION) && value.startsWith("/")
       ? `${WIKI_GRAPH_URI_PREFIX}${value}`
-      : "wkg:///absolute/path/book.sdpub";
+      : "wkg:///absolute/path/book.wikg";
 
   return [
-    `Expected a Wiki Graph URI with a .sdpub archive locator: ${value}`,
+    `Expected a Wiki Graph URI with a .wikg archive locator: ${value}`,
     `Example: ${example}`,
     "See: wikigraph help uri",
   ].join("\n");

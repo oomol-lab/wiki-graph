@@ -28,13 +28,13 @@ describe("facade/build-queue", () => {
       useStateDir(`${path}/state`);
 
       const job = await addBuildJob({
-        archivePath: `${path}/book.sdpub`,
+        archivePath: `${path}/book.wikg`,
         chapterId: 1,
         target: "reading-graph",
       });
 
       const merged = await addBuildJob({
-        archivePath: `${path}/book.sdpub`,
+        archivePath: `${path}/book.wikg`,
         chapterId: 1,
         target: "reading-summary",
       });
@@ -55,12 +55,12 @@ describe("facade/build-queue", () => {
       useStateDir(`${path}/state`);
 
       const reading = await addBuildJob({
-        archivePath: `${path}/book.sdpub`,
+        archivePath: `${path}/book.wikg`,
         chapterId: 1,
         target: "reading-summary",
       });
       const knowledge = await addBuildJob({
-        archivePath: `${path}/book.sdpub`,
+        archivePath: `${path}/book.wikg`,
         chapterId: 1,
         target: "knowledge-graph",
       });
@@ -76,12 +76,12 @@ describe("facade/build-queue", () => {
     await withTempDir("spinedigest-build-queue-", async (path) => {
       useStateDir(`${path}/state`);
       const first = await addBuildJob({
-        archivePath: `${path}/book.sdpub`,
+        archivePath: `${path}/book.wikg`,
         chapterId: 1,
         target: "reading-summary",
       });
       const second = await addBuildJob({
-        archivePath: `${path}/book.sdpub`,
+        archivePath: `${path}/book.wikg`,
         chapterId: 2,
         target: "reading-summary",
       });
@@ -99,13 +99,13 @@ describe("facade/build-queue", () => {
     await withTempDir("spinedigest-build-queue-", async (path) => {
       useStateDir(`${path}/state`);
       const first = await addBuildJob({
-        archivePath: `${path}/book.sdpub`,
+        archivePath: `${path}/book.wikg`,
         chapterId: 1,
         jobId: "aaaaaaaa-1111-4111-8111-111111111111",
         target: "reading-summary",
       });
       const second = await addBuildJob({
-        archivePath: `${path}/book.sdpub`,
+        archivePath: `${path}/book.wikg`,
         chapterId: 2,
         jobId: "aaaaaaaa-2222-4222-8222-222222222222",
         target: "reading-summary",
@@ -125,7 +125,7 @@ describe("facade/build-queue", () => {
     await withTempDir("spinedigest-build-queue-", async (path) => {
       useStateDir(`${path}/state`);
       const job = await addBuildJob({
-        archivePath: `${path}/book.sdpub`,
+        archivePath: `${path}/book.wikg`,
         chapterId: 1,
         target: "reading-summary",
       });
@@ -162,12 +162,12 @@ describe("facade/build-queue", () => {
     await withTempDir("spinedigest-build-queue-", async (path) => {
       useStateDir(`${path}/state`);
       const reading = await addBuildJob({
-        archivePath: `${path}/book.sdpub`,
+        archivePath: `${path}/book.wikg`,
         chapterId: 1,
         target: "reading-summary",
       });
       await addBuildJob({
-        archivePath: `${path}/book.sdpub`,
+        archivePath: `${path}/book.wikg`,
         chapterId: 1,
         target: "knowledge-graph",
       });
@@ -182,7 +182,7 @@ describe("facade/build-queue", () => {
     await withTempDir("spinedigest-build-queue-", async (path) => {
       useStateDir(`${path}/state`);
       const job = await addBuildJob({
-        archivePath: `${path}/book.sdpub`,
+        archivePath: `${path}/book.wikg`,
         chapterId: 1,
         target: "reading-graph",
       });
@@ -212,7 +212,7 @@ describe("facade/build-queue", () => {
     await withTempDir("spinedigest-build-queue-", async (path) => {
       useStateDir(`${path}/state`);
       const job = await addBuildJob({
-        archivePath: `${path}/book.sdpub`,
+        archivePath: `${path}/book.wikg`,
         chapterId: 1,
         target: "reading-summary",
       });
@@ -251,7 +251,7 @@ describe("facade/build-queue", () => {
     await withTempDir("spinedigest-build-queue-", async (path) => {
       useStateDir(`${path}/state`);
       const job = await addBuildJob({
-        archivePath: `${path}/book.sdpub`,
+        archivePath: `${path}/book.wikg`,
         chapterId: 1,
         target: "knowledge-graph",
       });
@@ -289,12 +289,12 @@ describe("facade/build-queue", () => {
     await withTempDir("spinedigest-build-queue-", async (path) => {
       useStateDir(`${path}/state`);
       const first = await addBuildJob({
-        archivePath: `${path}/book.sdpub`,
+        archivePath: `${path}/book.wikg`,
         chapterId: 1,
         target: "knowledge-graph",
       });
       const second = await addBuildJob({
-        archivePath: `${path}/book.sdpub`,
+        archivePath: `${path}/book.wikg`,
         chapterId: 2,
         target: "knowledge-graph",
       });
@@ -356,7 +356,7 @@ describe("facade/build-queue", () => {
     await withTempDir("spinedigest-build-queue-", async (path) => {
       useStateDir(`${path}/state`);
       const job = await addBuildJob({
-        archivePath: `${path}/book.sdpub`,
+        archivePath: `${path}/book.wikg`,
         chapterId: 1,
         target: "knowledge-graph",
       });
@@ -391,12 +391,12 @@ describe("facade/build-queue", () => {
     await withTempDir("spinedigest-build-queue-", async (path) => {
       useStateDir(`${path}/state`);
       const failedJob = await addBuildJob({
-        archivePath: `${path}/book.sdpub`,
+        archivePath: `${path}/book.wikg`,
         chapterId: 1,
         target: "reading-summary",
       });
       const succeededJob = await addBuildJob({
-        archivePath: `${path}/book.sdpub`,
+        archivePath: `${path}/book.wikg`,
         chapterId: 2,
         target: "reading-summary",
       });
@@ -426,7 +426,7 @@ describe("facade/build-queue", () => {
     await withTempDir("spinedigest-build-queue-", async (path) => {
       useStateDir(`${path}/state`);
       const job = await addBuildJob({
-        archivePath: `${path}/book.sdpub`,
+        archivePath: `${path}/book.wikg`,
         chapterId: 1,
         target: "reading-summary",
       });
@@ -455,7 +455,7 @@ describe("facade/build-queue", () => {
     await withTempDir("spinedigest-build-queue-", async (path) => {
       useStateDir(`${path}/state`);
       const job = await addBuildJob({
-        archivePath: `${path}/book.sdpub`,
+        archivePath: `${path}/book.wikg`,
         chapterId: 1,
         target: "reading-graph",
       });
@@ -486,7 +486,7 @@ describe("facade/build-queue", () => {
     await withTempDir("spinedigest-build-queue-", async (path) => {
       useStateDir(`${path}/state`);
       await addBuildJob({
-        archivePath: `${path}/book.sdpub`,
+        archivePath: `${path}/book.wikg`,
         chapterId: 1,
         target: "reading-graph",
       });
@@ -525,7 +525,7 @@ describe("facade/build-queue", () => {
 
       await firstStartedSignal;
       await addBuildJob({
-        archivePath: `${path}/other-book.sdpub`,
+        archivePath: `${path}/other-book.wikg`,
         chapterId: 2,
         target: "reading-graph",
       });
@@ -544,12 +544,12 @@ describe("facade/build-queue", () => {
     await withTempDir("spinedigest-build-queue-", async (path) => {
       useStateDir(`${path}/state`);
       await addBuildJob({
-        archivePath: `${path}/book.sdpub`,
+        archivePath: `${path}/book.wikg`,
         chapterId: 1,
         target: "reading-graph",
       });
       await addBuildJob({
-        archivePath: `${path}/book.sdpub`,
+        archivePath: `${path}/book.wikg`,
         chapterId: 2,
         target: "reading-graph",
       });
@@ -606,7 +606,7 @@ describe("facade/build-queue", () => {
     await withTempDir("spinedigest-build-queue-", async (path) => {
       useStateDir(`${path}/state`);
       await addBuildJob({
-        archivePath: `${path}/book.sdpub`,
+        archivePath: `${path}/book.wikg`,
         chapterId: 1,
         target: "reading-graph",
       });
@@ -667,12 +667,12 @@ describe("facade/build-queue", () => {
     await withTempDir("spinedigest-build-queue-", async (path) => {
       useStateDir(`${path}/state`);
       await addBuildJob({
-        archivePath: `${path}/book.sdpub`,
+        archivePath: `${path}/book.wikg`,
         chapterId: 1,
         target: "reading-graph",
       });
       await addBuildJob({
-        archivePath: `${path}/other-book.sdpub`,
+        archivePath: `${path}/other-book.wikg`,
         chapterId: 2,
         target: "reading-graph",
       });

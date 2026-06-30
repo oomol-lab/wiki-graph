@@ -60,25 +60,25 @@ export async function runConvertCommand(args: CLIArguments): Promise<void> {
       ),
     );
   }
-  if (args.targetStage !== undefined && output.format !== "sdpub") {
+  if (args.targetStage !== undefined && output.format !== "wikg") {
     throw new Error(
       withHelpRoute(
-        "--stage is only supported when output format is sdpub.",
+        "--stage is only supported when output format is wikg.",
         CLI_HELP_ROUTES.command,
       ),
     );
   }
 
   const inputFormat = input.format;
-  if (args.targetStage !== undefined && inputFormat === "sdpub") {
+  if (args.targetStage !== undefined && inputFormat === "wikg") {
     throw new Error(
       withHelpRoute(
-        "--stage is only supported when creating .sdpub from source input.",
+        "--stage is only supported when creating .wikg from source input.",
         CLI_HELP_ROUTES.command,
       ),
     );
   }
-  const requiresDigest = inputFormat !== "sdpub";
+  const requiresDigest = inputFormat !== "wikg";
   const requiresLLM =
     requiresDigest && targetStage !== "planned" && targetStage !== "sourced";
   const digestDirPath = await prepareDigestDirPath(args, requiresDigest);
@@ -92,9 +92,9 @@ export async function runConvertCommand(args: CLIArguments): Promise<void> {
       !args.verbose,
   });
 
-  if (inputFormat === "sdpub") {
+  if (inputFormat === "wikg") {
     if (input.path === undefined) {
-      throw new Error("Internal error: sdpub input requires a file path.");
+      throw new Error("Internal error: wikg input requires a file path.");
     }
 
     try {
@@ -297,7 +297,7 @@ async function writeDigestToFile(
     case "txt":
       await digest.exportText(path);
       return;
-    case "sdpub":
+    case "wikg":
       await digest.saveAs(path);
       return;
   }
@@ -401,8 +401,8 @@ function extensionForFormat(format: CLIFormat): string {
       return ".epub";
     case "markdown":
       return ".md";
-    case "sdpub":
-      return ".sdpub";
+    case "wikg":
+      return ".wikg";
     case "txt":
       return ".txt";
   }

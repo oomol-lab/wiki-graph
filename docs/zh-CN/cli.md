@@ -2,7 +2,7 @@
 
 # CLI Reference
 
-SpineDigest 采用 URI-first CLI。主对象是 `.sdpub` 知识库归档，CLI target 使用 Wiki Graph URI。
+SpineDigest 采用 URI-first CLI。主对象是 `.wikg` 知识库归档，CLI target 使用 Wiki Graph URI。
 
 ```bash
 wikigraph <wkg-uri> <action> ...
@@ -43,9 +43,9 @@ wikigraph queue clean
 
 - `search` 根据 query text 查找可 URI 寻址的对象。Search result 是线索，不等于 source evidence。
 - `list` 在没有 query text 时枚举可 URI 寻址的对象。
-- Object command 使用 Wiki Graph URI。`search` 和 `list` 使用 archive 或 scope URI，例如 `wkg:///Users/me/book.sdpub`；`get`、`related`、`evidence` 和 `pack` 使用具体 object URI，例如 `wkg:///Users/me/book.sdpub/chapter/12`。
+- Object command 使用 Wiki Graph URI。`search` 和 `list` 使用 archive 或 scope URI，例如 `wkg:///Users/me/book.wikg`；`get`、`related`、`evidence` 和 `pack` 使用具体 object URI，例如 `wkg:///Users/me/book.wikg/chapter/12`。
 - 做内容理解时，在 URI 中选择 search lens：`<archive-uri>/chunk` 用于 Reading Graph 结构，`<archive-uri>/summary` 用于快速概览，`<archive-uri>/source` 用于原文措辞，`<archive-uri>/entity` 和 `<archive-uri>/triple` 用于 Knowledge Graph 对象。
-- 使用 chapter scope URI，例如 `wkg:///Users/me/book.sdpub/chapter/12`，把 search 或 list 限定在一个章节内。
+- 使用 chapter scope URI，例如 `wkg:///Users/me/book.wikg/chapter/12`，把 search 或 list 限定在一个章节内。
 - `--limit` 默认 `20`；下一页把返回的 `nextCursor` 传给 `--cursor`。
 - Search 不做语义扩展、词干匹配或向量搜索。
 - URI 语法和 object boundary 规则见 `wikigraph help uri`。
@@ -71,14 +71,14 @@ Queue 行为：
 
 支持格式：
 
-- `sdpub`
+- `wikg`
 - `epub`
 - `txt`
 - `markdown`
 
 扩展名映射：
 
-- `.sdpub` -> `sdpub`
+- `.wikg` -> `wikg`
 - `.epub` -> `epub`
 - `.txt` -> `txt`
 - `.md` 或 `.markdown` -> `markdown`
@@ -88,15 +88,15 @@ Queue 行为：
 读取、搜索和导航命令支持 `--json`：
 
 ```bash
-wikigraph wkg:///Users/me/book.sdpub/chunk search "RAG" --json
-wikigraph wkg:///Users/me/book.sdpub/chapter/3 get --json
+wikigraph wkg:///Users/me/book.wikg/chunk search "RAG" --json
+wikigraph wkg:///Users/me/book.wikg/chapter/3 get --json
 ```
 
 默认 stdout 是适合人和 Agent 阅读的 Markdown-like 文本，包含稳定 ID 和下一步命令提示。
 
 ## 直接 Transform
 
-`transform` 运行一次性的 direct digest/export，不创建可复用的 `.sdpub` 知识库归档：
+`transform` 运行一次性的 direct digest/export，不创建可复用的 `.wikg` 知识库归档：
 
 ```bash
 wikigraph transform [--input <path>] [--output <path>] [--input-format <format>] [--output-format <format>] [--digest-dir <path>] [--llm <json>] [--prompt <text>] [--stage <planned|source|reading-graph|reading-summary>] [--verbose]
@@ -126,10 +126,10 @@ wikigraph <archive-uri>/chapter/tree get|set [options]
 
 ## 标准流规则
 
-URI-first `create` 命令用于写入 `.sdpub`。传入 `--input-format` 时，它可以从 stdin 读取 Markdown 或纯文本：
+URI-first `create` 命令用于写入 `.wikg`。传入 `--input-format` 时，它可以从 stdin 读取 Markdown 或纯文本：
 
 ```bash
-cat ./chapter.txt | wikigraph wkg://chapter.sdpub create --input-format txt
+cat ./chapter.txt | wikigraph wkg://chapter.wikg create --input-format txt
 ```
 
 直接流式 digest/export 需要显式使用 `transform`：

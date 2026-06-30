@@ -5,7 +5,7 @@ Reading Graph and Knowledge Graph builders.
 
 The module accepts plain source sentence candidates and model-generated
 evidence selections, then resolves them to sentence IDs. It does not know about
-reader chunks, wikilink relations, entities, mentions, triples, `.sdpub`
+reader chunks, wikilink relations, entities, mentions, triples, `.wikg`
 archives, or WikiGraph URIs.
 
 ## Public Protocol

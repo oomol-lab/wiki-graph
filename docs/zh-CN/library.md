@@ -4,7 +4,7 @@
 
 SpineDigest 提供面向 Node 和 TypeScript 环境的程序化 API。
 
-CLI 是当前处理 `.sdpub` 知识库的主要、也是最完整的接口。Library API 更低层：当外围 Node 应用需要在进程内运行导入、构建、导出或打开归档流程时，再使用它。
+CLI 是当前处理 `.wikg` 知识库的主要、也是最完整的接口。Library API 更低层：当外围 Node 应用需要在进程内运行导入、构建、导出或打开归档流程时，再使用它。
 
 ## 环境要求
 
@@ -29,7 +29,7 @@ npm install spinedigest
 典型流程：
 
 1. 用一个 LLM model 构造 `SpineDigestApp`。
-2. 针对源文件或文本流打开 digest session，或打开已有 `.sdpub`。
+2. 针对源文件或文本流打开 digest session，或打开已有 `.wikg`。
 3. 使用提供的 `SpineDigest` 对象检查 metadata、导出 projection，或保存归档。
 
 ## 示例
@@ -54,7 +54,7 @@ await app.digestEpubSession(
   },
   async (digest) => {
     await digest.exportText("./digest.txt");
-    await digest.saveAs("./book.sdpub");
+    await digest.saveAs("./book.wikg");
   },
 );
 ```
@@ -74,7 +74,7 @@ const { SpineDigestApp } = require("spinedigest");
 - `digestTextStreamSession`
 - `openSession`
 
-`openSession` 面向已有的 `.sdpub` 归档，不需要重新执行一轮新的 source digest。
+`openSession` 面向已有的 `.wikg` 归档，不需要重新执行一轮新的 source digest。
 
 ## 进度回调
 
@@ -100,7 +100,7 @@ digest session 的 option 可以传入可选的 `onProgress` 回调。
 ## 补充说明
 
 - LLM-backed digest 和 build 工作需要提供 LLM 配置。
-- 已有 `.sdpub` 可以在不重新导入源文件的情况下重新打开。
+- 已有 `.wikg` 可以在不重新导入源文件的情况下重新打开。
 - 如果你是在评估项目是否可以直接使用，请先从 CLI 文档开始。
 
 ## 相关文档

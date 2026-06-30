@@ -2,7 +2,7 @@ Help Type: command
 Command: wikigraph transform
 
 Purpose:
-  Run a direct one-shot digest/export without creating a reusable `.sdpub` archive.
+  Run a direct one-shot digest/export without creating a reusable `.wikg` archive.
 
 Usage:
   wikigraph transform [--input <path>] [--output <path>] [--input-format <format>] [--output-format <format>] [--digest-dir <path>] [--llm <json>] [--prompt <text>] [--stage <planned|source|reading-graph|reading-summary>] [--verbose|-v]
@@ -11,7 +11,7 @@ Behavior:
   - Reads from `--input <path>`, or from stdin when `--input` is omitted.
   - Writes to `--output <path>`, or to stdout when `--output` is omitted.
   - May call an LLM depending on output format, target stage, and source state.
-  - Does not leave a managed archive unless `--output-format sdpub` is selected.
+  - Does not leave a managed archive unless `--output-format wikg` is selected.
 
 Examples:
   cat chapter.txt | wikigraph transform --input-format txt --output-format markdown
@@ -19,6 +19,6 @@ Examples:
 
 Where to go next:
   - Prefer reusable archives:
-    wikigraph wkg://book.sdpub create <source>
+    wikigraph wkg://book.wikg create <source>
   - Check active configuration:
     wikigraph config status

@@ -6,7 +6,7 @@ import {
   DirectoryDocument,
   type ReadonlyDocument,
 } from "../../src/document/index.js";
-import { extractSdpubArchive } from "../../src/facade/archive.js";
+import { extractWikgArchive } from "../../src/facade/archive.js";
 import { SpineDigest } from "../../src/facade/spine-digest.js";
 import { EPUB_SOURCE_ADAPTER } from "../../src/source/index.js";
 import { collectSectionTitles, readStreamText } from "../helpers/fixtures.js";
@@ -95,10 +95,10 @@ describe("facade/spine-digest", () => {
     });
   });
 
-  it("flushes flushable documents before saving an sdpub archive", async () => {
+  it("flushes flushable documents before saving an wikg archive", async () => {
     await withTempDir("spinedigest-facade-", async (path) => {
       const sourceDir = `${path}/document`;
-      const archivePath = `${path}/saved/book.sdpub`;
+      const archivePath = `${path}/saved/book.wikg`;
       const flush = vi.fn(async () => {});
 
       await mkdir(sourceDir, { recursive: true });
@@ -117,7 +117,7 @@ describe("facade/spine-digest", () => {
       expect(flush).toHaveBeenCalledTimes(1);
 
       const extractDir = `${path}/extract`;
-      await extractSdpubArchive(archivePath, extractDir);
+      await extractWikgArchive(archivePath, extractDir);
       expect(await readFile(`${extractDir}/database.db`, "utf8")).toBe("saved");
       await expect(
         readFile(`${extractDir}/database.db-journal`, "utf8"),

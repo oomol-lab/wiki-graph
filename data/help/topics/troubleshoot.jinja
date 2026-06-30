@@ -19,11 +19,11 @@ Need machine-readable output:
 
 URI rejected:
   Do not pass a bare filesystem path to object commands. Convert it first:
-    /Users/me/book.sdpub -> wkg:///Users/me/book.sdpub
+    /Users/me/book.wikg -> wkg:///Users/me/book.wikg
   If you copied a short URI such as `wkg://entity/Q8018` from output, prepend the archive locator:
-    wkg:///Users/me/book.sdpub/entity/Q8018
+    wkg:///Users/me/book.wikg/entity/Q8018
 
 Help did not appear:
   Append `--help` after the verb you are trying to inspect:
-    wikigraph wkg://book.sdpub/chapter list --help
-    wikigraph wkg://book.sdpub/entity/Q8018 get --help
+    wikigraph wkg://book.wikg/chapter list --help
+    wikigraph wkg://book.wikg/entity/Q8018 get --help

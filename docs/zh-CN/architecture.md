@@ -6,7 +6,7 @@
 
 ## 系统模型
 
-SpineDigest 围绕一个主对象构建：`.sdpub` 知识库归档。EPUB、Markdown、纯文本、直接 transform 输出，以及导出的 EPUB/Markdown 文件，都是围绕这份归档的输入或投影视图。
+SpineDigest 围绕一个主对象构建：`.wikg` 知识库归档。EPUB、Markdown、纯文本、直接 transform 输出，以及导出的 EPUB/Markdown 文件，都是围绕这份归档的输入或投影视图。
 
 从高层看，SpineDigest 有四层：
 
@@ -15,7 +15,7 @@ SpineDigest 围绕一个主对象构建：`.sdpub` 知识库归档。EPUB、Mark
 3. Retrieval layer：通过 `state get`、`chapter tree`、`search`、`list`、`get`、`related`、`evidence`、`pack` 等 CLI primitive 暴露已有归档数据。
 4. Projection layer：导出 Markdown、txt、EPUB、JSON 风格命令输出，或一次性的 `transform` 结果。
 
-归档是持久对象。Projection 是有用的视图，但当你需要图链接、来源片段和可重复检索时，它们不能替代 `.sdpub`。
+归档是持久对象。Projection 是有用的视图，但当你需要图链接、来源片段和可重复检索时，它们不能替代 `.wikg`。
 
 ## 主要模块
 
@@ -48,9 +48,9 @@ SpineDigest 围绕一个主对象构建：`.sdpub` 知识库归档。EPUB、Mark
 
 Knowledge Graph 构建以 source 为基础。它先从源文本筛选 mention candidate，把 mention grounding 到 QID，再让模型在 grounded mention ID 之间发现 relation。Relation evidence 通过共享的 evidence-selection 协议定位：模型返回 sentence ID 和简短原文 quote，程序用 quote 校正 sentence 漂移；因此 Reading Graph 和 Knowledge Graph 可以复用同一套证据定位逻辑，而不需要互相持有对方的业务对象。
 
-## 为什么需要 `.sdpub`
+## 为什么需要 `.wikg`
 
-`.sdpub` 的作用，是让长文档变成可复用的知识库，而不是一次性输出。
+`.wikg` 的作用，是让长文档变成可复用的知识库，而不是一次性输出。
 
 它保存：
 
@@ -80,7 +80,7 @@ SpineDigest 优先优化的是：
 
 - CLI-first 的知识库使用方式
 - 长篇阅读材料
-- 可携带的 `.sdpub` 归档
+- 可携带的 `.wikg` 归档
 - 面向人和 Agent 的确定性检索 primitive
 - 小而稳定的公开入口，以及更丰富的内部结构
 

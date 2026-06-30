@@ -7,16 +7,16 @@ import { ZipFile } from "yazl";
 import { describe, expect, it } from "vitest";
 
 import {
-  extractSdpubArchive,
-  writeSdpubArchive,
+  extractWikgArchive,
+  writeWikgArchive,
 } from "../../src/facade/archive.js";
 import { withTempDir } from "../helpers/temp.js";
 
 describe("facade/archive", () => {
-  it("writes and extracts only whitelisted sdpub document files", async () => {
+  it("writes and extracts only whitelisted wikg document files", async () => {
     await withTempDir("spinedigest-archive-", async (path) => {
       const sourceDir = `${path}/source`;
-      const archivePath = `${path}/result/book.sdpub`;
+      const archivePath = `${path}/result/book.wikg`;
       const extractDir = `${path}/extract`;
 
       await mkdir(`${sourceDir}/cover`, { recursive: true });
@@ -53,8 +53,8 @@ describe("facade/archive", () => {
       );
       await writeFile(`${sourceDir}/alpha.txt`, "ignored", "utf8");
 
-      await writeSdpubArchive(sourceDir, archivePath);
-      await extractSdpubArchive(archivePath, extractDir);
+      await writeWikgArchive(sourceDir, archivePath);
+      await extractWikgArchive(archivePath, extractDir);
 
       expect(
         JSON.parse(await readFile(`${extractDir}/manifest.json`, "utf8")),
@@ -98,14 +98,14 @@ describe("facade/archive", () => {
   it("creates parent directories for the output archive path", async () => {
     await withTempDir("spinedigest-archive-", async (path) => {
       const sourceDir = `${path}/source`;
-      const archivePath = `${path}/deep/output/book.sdpub`;
+      const archivePath = `${path}/deep/output/book.wikg`;
 
       await mkdir(sourceDir, { recursive: true });
       await writeFile(`${sourceDir}/database.db`, "chapter", "utf8");
-      await writeSdpubArchive(sourceDir, archivePath);
+      await writeWikgArchive(sourceDir, archivePath);
 
       await expect(readFile(archivePath)).resolves.toBeInstanceOf(Uint8Array);
-      await extractSdpubArchive(archivePath, `${path}/unpacked`);
+      await extractWikgArchive(archivePath, `${path}/unpacked`);
       expect(await readFile(`${path}/unpacked/database.db`, "utf8")).toBe(
         "chapter",
       );
@@ -114,22 +114,22 @@ describe("facade/archive", () => {
 
   it("rejects archives that omit the manifest", async () => {
     await withTempDir("spinedigest-archive-", async (path) => {
-      const archivePath = `${path}/missing-manifest.sdpub`;
+      const archivePath = `${path}/missing-manifest.wikg`;
       const extractDir = `${path}/extract`;
       const zipFile = new ZipFile();
 
       zipFile.addBuffer(Buffer.from("sqlite", "utf8"), "database.db");
       await writeZipFile(zipFile, archivePath);
 
-      await expect(
-        extractSdpubArchive(archivePath, extractDir),
-      ).rejects.toThrow("Missing SDPUB manifest: manifest.json.");
+      await expect(extractWikgArchive(archivePath, extractDir)).rejects.toThrow(
+        "Missing WIKG manifest: manifest.json.",
+      );
     });
   });
 
   it("rejects archives with unsupported manifest versions", async () => {
     await withTempDir("spinedigest-archive-", async (path) => {
-      const archivePath = `${path}/future.sdpub`;
+      const archivePath = `${path}/future.wikg`;
       const zipFile = new ZipFile();
 
       zipFile.addBuffer(
@@ -140,14 +140,14 @@ describe("facade/archive", () => {
       await writeZipFile(zipFile, archivePath);
 
       await expect(
-        extractSdpubArchive(archivePath, `${path}/extract`),
-      ).rejects.toThrow("Unsupported SDPUB format version in manifest.json.");
+        extractWikgArchive(archivePath, `${path}/extract`),
+      ).rejects.toThrow("Unsupported WIKG format version in manifest.json.");
     });
   });
 
   it("rejects archives with malformed manifest files", async () => {
     await withTempDir("spinedigest-archive-", async (path) => {
-      const archivePath = `${path}/malformed.sdpub`;
+      const archivePath = `${path}/malformed.wikg`;
       const zipFile = new ZipFile();
 
       zipFile.addBuffer(Buffer.from("not json", "utf8"), "manifest.json");
@@ -155,7 +155,7 @@ describe("facade/archive", () => {
       await writeZipFile(zipFile, archivePath);
 
       await expect(
-        extractSdpubArchive(archivePath, `${path}/extract`),
+        extractWikgArchive(archivePath, `${path}/extract`),
       ).rejects.toThrow();
     });
   });

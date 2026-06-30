@@ -5,7 +5,7 @@ SpineDigest CLI
 
 Purpose:
   Create and operate portable Wiki Graph archives for AI agents.
-  Treat `.sdpub` as the managed archive. Use commands to mutate or inspect it; do not edit archive internals directly.
+  Treat `.wikg` as the managed archive. Use commands to mutate or inspect it; do not edit archive internals directly.
 
 Object model:
   Search and navigation return URI-addressable objects. Common object kinds are:
@@ -29,7 +29,7 @@ Object commands:
   wikigraph <chunk-uri|entity-uri> related [query] [--role <any|subject|object|self>] [--evidence [n]] [--json|--jsonl]
   wikigraph <entity|triple|summary|chunk-uri> evidence [query] [--limit <n>] [--cursor <token>] [--json|--jsonl]
   wikigraph next <cursor> [--limit <n>] [--json|--jsonl]
-  wikigraph next <wikigraph-uri-with-sdpub-locator> <cursor> [--limit <n>] [--json|--jsonl]
+  wikigraph next <wikigraph-uri-with-wikg-locator> <cursor> [--limit <n>] [--json|--jsonl]
   wikigraph <located-chunk-uri|located-entity-uri> pack [--budget <chars>] [--json|--jsonl]
 
 URI requirement:

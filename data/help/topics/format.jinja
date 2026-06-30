@@ -3,27 +3,27 @@ Topic: format
 
 Format Rules
 
-`.sdpub` is the managed Wiki Graph archive format.
+`.wikg` is the managed Wiki Graph archive format.
 
 Source formats for archive creation:
   epub, txt, markdown
 
 Managed archive format:
-  sdpub
+  wikg
 
 Export formats:
   txt, markdown
 
 Transform input/output formats:
-  input: sdpub, epub, txt, markdown
-  output: sdpub, txt, markdown
+  input: wikg, epub, txt, markdown
+  output: wikg, txt, markdown
 
 Inference rules:
   - File paths use their extension when the format flag is omitted.
   - Stdin requires an explicit `--input-format`.
   - Stdout text export requires an explicit or inferable output format.
 
-Object commands operate on `.sdpub` archives. `search` and `related` return URI-addressable objects, `get` opens one object, `evidence` returns source evidence items, and `pack` returns packed context for chunk and entity objects.
+Object commands operate on `.wikg` archives. `search` and `related` return URI-addressable objects, `get` opens one object, `evidence` returns source evidence items, and `pack` returns packed context for chunk and entity objects.
 
 Use `export` when a projection file is needed:
-  wikigraph wkg://book.sdpub export --output-format markdown --output out.md
+  wikigraph wkg://book.wikg export --output-format markdown --output out.md

@@ -269,10 +269,10 @@ describe("cli/archive-chapter", () => {
   it("prints chapter list with stages", async () => {
     await runArchiveChapterCommand({
       action: "list",
-      path: "/tmp/book.sdpub",
+      path: "/tmp/book.wikg",
     });
 
-    expect(chapterMockState.readCalls).toStrictEqual(["/tmp/book.sdpub"]);
+    expect(chapterMockState.readCalls).toStrictEqual(["/tmp/book.wikg"]);
     expect(chapterMockState.writeCalls).toStrictEqual([]);
     expect(chapterMockState.textWrites).toStrictEqual([
       "[1] planned  Part I\n  [2] source   Chapter 1\n",
@@ -283,7 +283,7 @@ describe("cli/archive-chapter", () => {
     await runArchiveChapterCommand({
       action: "list",
       json: true,
-      path: "/tmp/book.sdpub",
+      path: "/tmp/book.wikg",
     });
 
     expect(JSON.parse(chapterMockState.textWrites[0] ?? "")).toStrictEqual({
@@ -307,7 +307,7 @@ describe("cli/archive-chapter", () => {
       action: "add",
       addStage: "planned",
       parentChapterId: 1,
-      path: "/tmp/book.sdpub",
+      path: "/tmp/book.wikg",
       title: "New Chapter",
     });
 
@@ -326,7 +326,7 @@ describe("cli/archive-chapter", () => {
       addStage: "sourced",
       inputFormat: "markdown",
       inputPath: "/tmp/chapter.md",
-      path: "/tmp/book.sdpub",
+      path: "/tmp/book.wikg",
       title: "New Chapter",
     });
 
@@ -350,7 +350,7 @@ describe("cli/archive-chapter", () => {
       chapterId: 2,
       inputFormat: "markdown",
       inputPath: "/tmp/chapter.md",
-      path: "/tmp/book.sdpub",
+      path: "/tmp/book.wikg",
     });
 
     expect(chapterMockState.setSourceCalls).toStrictEqual([
@@ -366,7 +366,7 @@ describe("cli/archive-chapter", () => {
       action: "set-summary",
       chapterId: 2,
       inputPath: "/tmp/summary.txt",
-      path: "/tmp/book.sdpub",
+      path: "/tmp/book.wikg",
     });
 
     expect(chapterMockState.setSummaryCalls).toStrictEqual([
@@ -381,7 +381,7 @@ describe("cli/archive-chapter", () => {
     await runArchiveChapterCommand({
       action: "set-title",
       chapterId: 2,
-      path: "/tmp/book.sdpub",
+      path: "/tmp/book.wikg",
       title: "Renamed Chapter",
     });
 
@@ -399,7 +399,7 @@ describe("cli/archive-chapter", () => {
       action: "set-title",
       chapterId: 2,
       clearTitle: true,
-      path: "/tmp/book.sdpub",
+      path: "/tmp/book.wikg",
     });
 
     expect(chapterMockState.setTitleCalls).toStrictEqual([
@@ -416,7 +416,7 @@ describe("cli/archive-chapter", () => {
       chapterId: 2,
       first: true,
       parentChapterId: 1,
-      path: "/tmp/book.sdpub",
+      path: "/tmp/book.wikg",
     });
 
     expect(chapterMockState.moveCalls).toStrictEqual([
@@ -434,7 +434,7 @@ describe("cli/archive-chapter", () => {
   it("prints and applies chapter trees", async () => {
     await runArchiveChapterCommand({
       action: "tree",
-      path: "/tmp/book.sdpub",
+      path: "/tmp/book.wikg",
       treeAction: "show",
     });
 
@@ -449,7 +449,7 @@ describe("cli/archive-chapter", () => {
     await runArchiveChapterCommand({
       action: "tree",
       json: true,
-      path: "/tmp/book.sdpub",
+      path: "/tmp/book.wikg",
       treeAction: "show",
     });
 
@@ -472,7 +472,7 @@ describe("cli/archive-chapter", () => {
       action: "tree",
       dryRun: true,
       inputPath: "/tmp/tree.json",
-      path: "/tmp/book.sdpub",
+      path: "/tmp/book.wikg",
       treeAction: "apply",
     });
 
@@ -505,7 +505,7 @@ describe("cli/archive-chapter", () => {
     await runArchiveChapterCommand({
       action: "remove",
       chapterId: 1,
-      path: "/tmp/book.sdpub",
+      path: "/tmp/book.wikg",
       recursive: true,
     });
 

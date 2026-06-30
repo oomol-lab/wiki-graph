@@ -3,7 +3,7 @@ import { access, mkdir, readFile } from "fs/promises";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { DirectoryDocument } from "../../src/document/index.js";
-import { extractSdpubArchive } from "../../src/facade/archive.js";
+import { extractWikgArchive } from "../../src/facade/archive.js";
 import { findArchiveObjects } from "../../src/facade/archive-view.js";
 import { SpineDigest } from "../../src/facade/spine-digest.js";
 import { SpineDigestFile } from "../../src/facade/spine-digest-file.js";
@@ -25,7 +25,7 @@ describe("facade/spine-digest-file", () => {
         try {
           await seedDocument(document);
 
-          const archivePath = `${path}/fixture/book.sdpub`;
+          const archivePath = `${path}/fixture/book.wikg`;
           await new SpineDigest(document, document.path).saveAs(archivePath);
 
           const digestFile = new SpineDigestFile(archivePath);
@@ -65,7 +65,7 @@ describe("facade/spine-digest-file", () => {
       try {
         await seedDocument(document);
 
-        const archivePath = `${path}/fixture/book.sdpub`;
+        const archivePath = `${path}/fixture/book.wikg`;
         const readDir = `${path}/opened-read`;
 
         await new SpineDigest(document, document.path).saveAs(archivePath);
@@ -242,7 +242,7 @@ describe("facade/spine-digest-file", () => {
         );
         await expect(readCoordinatorOverlays(path)).resolves.toContainEqual(
           expect.objectContaining({
-            archivePath: `${path}/missing/book.sdpub`,
+            archivePath: `${path}/missing/book.wikg`,
             entryPath: "database.db",
             kind: "file",
           }),
@@ -440,7 +440,7 @@ async function createSeedArchive(path: string): Promise<string> {
   try {
     await seedDocument(document);
 
-    const archivePath = `${path}/fixture/book.sdpub`;
+    const archivePath = `${path}/fixture/book.wikg`;
 
     await new SpineDigest(document, document.path).saveAs(archivePath);
     return archivePath;
@@ -455,7 +455,7 @@ async function readArchivedTitle(
 ): Promise<string | null> {
   const extractPath = `${path}/extract-${Math.random().toString(16).slice(2)}`;
 
-  await extractSdpubArchive(archivePath, extractPath);
+  await extractWikgArchive(archivePath, extractPath);
   const meta = JSON.parse(
     await readFile(`${extractPath}/book-meta.json`, "utf8"),
   ) as { readonly title: string | null };
@@ -471,14 +471,14 @@ async function readCoordinatorOverlays(path: string): Promise<
   }>
 > {
   try {
-    await access(`${path}/state/sdpub-coordinator.sqlite`);
+    await access(`${path}/state/wikg-coordinator.sqlite`);
   } catch {
     return [];
   }
 
   const { Database } = await import("../../src/document/index.js");
   const database = await Database.open(
-    `${path}/state/sdpub-coordinator.sqlite`,
+    `${path}/state/wikg-coordinator.sqlite`,
     "",
     { readonly: true },
   );
@@ -507,7 +507,7 @@ async function createStaleOverlay(path: string): Promise<void> {
 
   await mkdir(`${path}/state`, { recursive: true });
   const database = await Database.open(
-    `${path}/state/sdpub-coordinator.sqlite`,
+    `${path}/state/wikg-coordinator.sqlite`,
     `
 CREATE TABLE IF NOT EXISTS entry_overlays (
   archive_key TEXT NOT NULL,
@@ -530,7 +530,7 @@ INSERT INTO entry_overlays (
 `,
       [
         "missing-archive-key",
-        `${path}/missing/book.sdpub`,
+        `${path}/missing/book.wikg`,
         "database.db",
         "file",
         `${path}/missing/database.db`,

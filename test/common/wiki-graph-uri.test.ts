@@ -9,9 +9,9 @@ describe("wiki graph URI helpers", () => {
   it("formats located URIs with URL path separators", () => {
     expect(
       formatLocatedWikiGraphUri(
-        String.raw`C:\books\book.sdpub`,
+        String.raw`C:\books\book.wikg`,
         formatWikiGraphObjectUri("entity/Q9957"),
       ),
-    ).toBe("wkg://C:/books/book.sdpub/entity/Q9957");
+    ).toBe("wkg://C:/books/book.wikg/entity/Q9957");
   });
 });

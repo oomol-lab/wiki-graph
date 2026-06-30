@@ -109,7 +109,7 @@ describe("facade/archive-view", () => {
         await seedSourcedDocument(document);
 
         const first = await findArchiveObjects(document, "缓存空结果", {
-          archiveKey: `${path}/book.sdpub`,
+          archiveKey: `${path}/book.wikg`,
           types: ["entity"],
         });
         await document.openSession(async (openedDocument) => {
@@ -125,7 +125,7 @@ describe("facade/archive-view", () => {
           });
         });
         const second = await findArchiveObjects(document, "缓存空结果", {
-          archiveKey: `${path}/book.sdpub`,
+          archiveKey: `${path}/book.wikg`,
           types: ["entity"],
         });
 
@@ -193,7 +193,7 @@ describe("facade/archive-view", () => {
           });
         });
 
-        const archiveKey = `${path}/book.sdpub`;
+        const archiveKey = `${path}/book.wikg`;
         const chapterOne = await findArchiveObjects(document, "Cache Split", {
           archiveKey,
           chapters: [1],
@@ -248,7 +248,7 @@ describe("facade/archive-view", () => {
         });
 
         const result = await findArchiveObjects(document, "SharedTerm", {
-          archiveKey: `${path}/book.sdpub`,
+          archiveKey: `${path}/book.wikg`,
           types: ["node"],
         });
 
@@ -273,7 +273,7 @@ describe("facade/archive-view", () => {
 
       try {
         await seedSourcedDocument(document);
-        const archiveKey = `${path}/book.sdpub`;
+        const archiveKey = `${path}/book.wikg`;
 
         const first = await findArchiveObjects(document, "Invalidate Me", {
           archiveKey,
@@ -1156,7 +1156,7 @@ describe("facade/archive-view", () => {
 
         await expect(
           findArchiveObjects(document, "Visible Publisher", {
-            archiveKey: `${path}/book.sdpub`,
+            archiveKey: `${path}/book.wikg`,
             types: ["meta"],
           }),
         ).resolves.toMatchObject({
@@ -1169,7 +1169,7 @@ describe("facade/archive-view", () => {
         });
         await expect(
           findArchiveObjects(document, "Hidden Identifier", {
-            archiveKey: `${path}/book.sdpub`,
+            archiveKey: `${path}/book.wikg`,
             types: ["meta"],
           }),
         ).resolves.toMatchObject({ items: [] });
@@ -1190,7 +1190,7 @@ describe("facade/archive-view", () => {
         await seedSourcedDocument(document);
 
         const result = await findArchiveObjects(document, "Summary", {
-          archiveKey: `${path}/book.sdpub`,
+          archiveKey: `${path}/book.wikg`,
           types: ["chapter", "summary"],
         });
 

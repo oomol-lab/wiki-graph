@@ -2,7 +2,7 @@
 
 # Quick Start
 
-This guide shows the primary SpineDigest workflow: create a `.sdpub` knowledge-base archive, build derived knowledge when needed, then search, browse, read, and export projections from that archive.
+This guide shows the primary SpineDigest workflow: create a `.wikg` knowledge-base archive, build derived knowledge when needed, then search, browse, read, and export projections from that archive.
 
 ## 1. Requirements
 
@@ -31,18 +31,18 @@ npx spinedigest --help
 ## 3. Create A Knowledge Base
 
 ```bash
-wikigraph wkg://book.sdpub create ./book.epub
-cat ./article.md | wikigraph wkg://article.sdpub create --input-format markdown
+wikigraph wkg://book.wikg create ./book.epub
+cat ./article.md | wikigraph wkg://article.wikg create --input-format markdown
 ```
 
-Create creates or replaces a `.sdpub` archive at source stage. The archive now contains normalized source data, but generated Reading Graph, Reading Summary, and Knowledge Graph data are still absent.
+Create creates or replaces a `.wikg` archive at source stage. The archive now contains normalized source data, but generated Reading Graph, Reading Summary, and Knowledge Graph data are still absent.
 
 ## 4. Inspect And Estimate
 
 ```bash
-wikigraph wkg://book.sdpub/state get
-wikigraph wkg://book.sdpub/chapter/tree get
-wikigraph wkg://book.sdpub estimate --stage reading-summary
+wikigraph wkg://book.wikg/state get
+wikigraph wkg://book.wikg/chapter/tree get
+wikigraph wkg://book.wikg estimate --stage reading-summary
 ```
 
 Use the estimate before queueing broad Reading Graph, Reading Summary, or Knowledge Graph work.
@@ -50,27 +50,27 @@ Use the estimate before queueing broad Reading Graph, Reading Summary, or Knowle
 ## 5. Build Knowledge
 
 ```bash
-wikigraph wkg://book.sdpub/chapter/3 queue add --task reading-graph --accept-cost
+wikigraph wkg://book.wikg/chapter/3 queue add --task reading-graph --accept-cost
 wikigraph wkg-job://<job-id> watch --jsonl
 ```
 
 For Reading Summary work:
 
 ```bash
-wikigraph wkg://book.sdpub/chapter/3 queue add --task reading-summary --accept-cost
-wikigraph wkg-job:// list --input wkg://book.sdpub
+wikigraph wkg://book.wikg/chapter/3 queue add --task reading-summary --accept-cost
+wikigraph wkg-job:// list --input wkg://book.wikg
 ```
 
 ## 6. Search, Browse, And Read
 
 ```bash
-wikigraph wkg://book.sdpub/chapter/tree get --json
-wikigraph wkg://book.sdpub/chunk search "central argument"
-wikigraph wkg://book.sdpub/chapter/3 get
-wikigraph wkg://book.sdpub/chunk/84 get
-wikigraph wkg://book.sdpub/chunk/84 related
-wikigraph wkg://book.sdpub/chunk/84 evidence
-wikigraph wkg://book.sdpub/chunk/84 pack --budget 5000
+wikigraph wkg://book.wikg/chapter/tree get --json
+wikigraph wkg://book.wikg/chunk search "central argument"
+wikigraph wkg://book.wikg/chapter/3 get
+wikigraph wkg://book.wikg/chunk/84 get
+wikigraph wkg://book.wikg/chunk/84 related
+wikigraph wkg://book.wikg/chunk/84 evidence
+wikigraph wkg://book.wikg/chunk/84 pack --budget 5000
 ```
 
 Use URI lenses to choose a search target: `<archive-uri>/chunk` for Reading Graph structure, `<archive-uri>/summary` for quick overview, `<archive-uri>/source` for original source wording, or `<archive-uri>/entity` and `<archive-uri>/triple` for Knowledge Graph objects.
@@ -84,8 +84,8 @@ Use `--json` when another tool will consume the output.
 Use projections when you need a portable view. For example, read one chapter into Markdown text, or export the full archive as an EPUB:
 
 ```bash
-wikigraph wkg://book.sdpub/chapter/3/source get > ./chapter-3.md
-wikigraph wkg://book.sdpub export --output-format epub --output ./digest.epub
+wikigraph wkg://book.wikg/chapter/3/source get > ./chapter-3.md
+wikigraph wkg://book.wikg export --output-format epub --output ./digest.epub
 ```
 
 ## 8. Configure LLM Builds

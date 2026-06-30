@@ -2,7 +2,7 @@ import { extname } from "path";
 
 import { CLI_HELP_ROUTES, withHelpRoute } from "./errors.js";
 
-export const CLI_FORMATS = ["sdpub", "epub", "txt", "markdown"] as const;
+export const CLI_FORMATS = ["wikg", "epub", "txt", "markdown"] as const;
 
 export type CLIFormat = (typeof CLI_FORMATS)[number];
 
@@ -13,8 +13,8 @@ export function inferCLIFormatFromPath(path: string): CLIFormat | undefined {
     case ".markdown":
     case ".md":
       return "markdown";
-    case ".sdpub":
-      return "sdpub";
+    case ".wikg":
+      return "wikg";
     case ".txt":
       return "txt";
     default:

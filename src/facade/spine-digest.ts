@@ -7,7 +7,7 @@ import type {
   TocItem,
 } from "../source/index.js";
 
-import { readSdpubArchiveFormatVersion, writeSdpubArchive } from "./archive.js";
+import { readWikgArchiveFormatVersion, writeWikgArchive } from "./archive.js";
 import type { ChapterStage } from "./chapter.js";
 import type { SpineDigestSerialEntry } from "./types.js";
 
@@ -50,7 +50,7 @@ export class SpineDigest {
   }
 
   public async readArchiveFormatVersion(): Promise<number> {
-    return await readSdpubArchiveFormatVersion(this.#documentDirectoryPath);
+    return await readWikgArchiveFormatVersion(this.#documentDirectoryPath);
   }
 
   public async readChapterStage(serialId: number): Promise<ChapterStage> {
@@ -106,7 +106,7 @@ export class SpineDigest {
 
       if (record === undefined) {
         throw new Error(
-          `No completed summary exists for id ${serialId}. Use \`wikigraph wkg://<archive.sdpub>/chapter list\` to discover chapter ids, then \`wikigraph wkg://<archive.sdpub>/chapter/${serialId}/summary get\` after summary is ready.`,
+          `No completed summary exists for id ${serialId}. Use \`wikigraph wkg://<archive.wikg>/chapter list\` to discover chapter ids, then \`wikigraph wkg://<archive.wikg>/chapter/${serialId}/summary get\` after summary is ready.`,
         );
       }
 
@@ -124,7 +124,7 @@ export class SpineDigest {
 
   public async saveAs(path: string): Promise<void> {
     await flushDocument(this.#document);
-    await writeSdpubArchive(this.#documentDirectoryPath, path);
+    await writeWikgArchive(this.#documentDirectoryPath, path);
   }
 }
 
