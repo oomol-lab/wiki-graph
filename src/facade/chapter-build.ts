@@ -81,6 +81,7 @@ const fragmentRecordSchema = z.object({
 }) satisfies z.ZodType<FragmentRecord>;
 const serialRecordSchema = z.object({
   id: z.number(),
+  knowledgeGraphReady: z.boolean(),
   topologyReady: z.boolean(),
 }) satisfies z.ZodType<SerialRecord>;
 const chunkRecordSchema = z.object({
@@ -379,7 +380,7 @@ export async function snapshotChapterSummaryInput(
     fragmentGroups: await document.fragmentGroups.listBySerial(chapterId),
     fragments,
     readingEdges: await document.readingEdges.listBySerial(chapterId),
-    serial: { id: chapterId, topologyReady: true },
+    serial: { id: chapterId, knowledgeGraphReady: false, topologyReady: true },
     snakeChunks,
     snakeEdges: await document.snakeEdges.listBySerial(chapterId),
     snakes,

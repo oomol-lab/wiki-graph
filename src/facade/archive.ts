@@ -61,16 +61,9 @@ export class WikgArchiveReader {
   }
 
   public static async open(inputPath: string): Promise<WikgArchiveReader> {
-    const zipFile = await openArchive(inputPath);
-    const entries = await indexArchiveEntries(zipFile);
+    const { entries, zipFile } = await openIndexedArchive(inputPath);
 
-    try {
-      await validateArchiveManifest(zipFile, entries);
-      return new WikgArchiveReader(zipFile, entries);
-    } catch (error) {
-      zipFile.close();
-      throw error;
-    }
+    return new WikgArchiveReader(zipFile, entries);
   }
 
   public close(): void {
@@ -96,12 +89,9 @@ export async function extractWikgArchive(
   inputPath: string,
   outputDirectoryPath: string,
 ): Promise<void> {
-  const zipFile = await openArchive(inputPath);
-  const entries = await indexArchiveEntries(zipFile);
+  const { entries, zipFile } = await openIndexedArchive(inputPath);
 
   try {
-    await validateArchiveManifest(zipFile, entries);
-
     for (const entry of entries) {
       const archivePath = normalizeArchivePath(entry.fileName);
 
@@ -189,8 +179,8 @@ export async function writeWikgArchiveWithOverlays(
 ): Promise<void> {
   await mkdir(dirname(outputPath), { recursive: true });
 
-  const zipFile = await openArchive(inputPath);
-  const sourceEntries = await indexArchiveEntries(zipFile);
+  const { entries: sourceEntries, zipFile } =
+    await openIndexedArchive(inputPath);
   const overlayByPath = new Map(
     overlays.map((overlay) => [
       normalizeArchivePath(overlay.entryPath),
@@ -218,21 +208,19 @@ export async function writeWikgArchiveWithOverlays(
   const outputZipFile = new YazlZipFile();
 
   try {
-    await validateArchiveManifest(zipFile, sourceEntries);
-
     for (const entryPath of [...entryPaths].sort((left, right) =>
       left.localeCompare(right),
     )) {
       const overlay = overlayByPath.get(entryPath);
 
-      if (overlay?.kind === "deleted") {
-        continue;
-      }
       if (entryPath === WIKG_MANIFEST_PATH) {
         outputZipFile.addBuffer(
           Buffer.from(WIKG_MANIFEST_CONTENT, "utf8"),
           entryPath,
         );
+        continue;
+      }
+      if (overlay?.kind === "deleted") {
         continue;
       }
       if (overlay?.kind === "file") {
@@ -302,6 +290,23 @@ async function listDocumentFiles(
   }
 
   return files.filter((file) => isWikgArchivePath(file.archivePath));
+}
+
+async function openIndexedArchive(inputPath: string): Promise<{
+  readonly entries: readonly Entry[];
+  readonly zipFile: YauzlZipFile;
+}> {
+  const zipFile = await openArchive(inputPath);
+
+  try {
+    const entries = await indexArchiveEntries(zipFile);
+
+    await validateArchiveManifest(zipFile, entries);
+    return { entries, zipFile };
+  } catch (error) {
+    zipFile.close();
+    throw error;
+  }
 }
 
 async function indexArchiveEntries(

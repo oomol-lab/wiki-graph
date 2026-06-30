@@ -21,9 +21,9 @@ Task choices:
 
 Merge rules:
   - Source is required first; queue add does not create or import source text.
-  - reading-graph and reading-summary share one Reading Graph-line job per chapter.
+  - reading-graph and reading-summary share one Reading Graph lane job per chapter.
   - Adding reading-summary upgrades an active reading-graph job for the same chapter.
-  - knowledge-graph uses a separate lane and can run alongside the Reading Graph line for the same chapter.
+  - knowledge-graph uses a separate lane and can run alongside the Reading Graph lane for the same chapter.
 
 Examples:
   wikigraph wkg://book.wikg/chapter/3 queue add --task reading-graph --accept-cost

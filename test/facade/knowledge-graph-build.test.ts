@@ -432,6 +432,9 @@ describe("facade/knowledge-graph-build", () => {
 
         await commitChapterKnowledgeGraphArtifact(document, artifact);
 
+        expect((await document.serials.getById(1))?.knowledgeGraphReady).toBe(
+          true,
+        );
         expect(await document.mentions.listByChapter(1)).toHaveLength(2);
         expect(await document.mentionLinks.listByChapter(1)).toStrictEqual([
           {
@@ -483,7 +486,34 @@ describe("facade/knowledge-graph-build", () => {
 
         await clearChapterKnowledgeGraph(document, 1);
 
+        expect((await document.serials.getById(1))?.knowledgeGraphReady).toBe(
+          false,
+        );
         expect(await document.mentions.listByChapter(1)).toStrictEqual([]);
+      } finally {
+        await document.release();
+      }
+    });
+  });
+
+  it("marks knowledge graph ready for empty first-pass artifacts", async () => {
+    await withTempDir("spinedigest-knowledge-graph-build-", async (path) => {
+      const document = await DirectoryDocument.open(`${path}/document`);
+
+      try {
+        const artifact = await buildChapterKnowledgeGraphArtifact(1, {
+          mentionLinks: [],
+          mentions: [],
+          workspacePath: `${path}/workspace`,
+        });
+
+        await commitChapterKnowledgeGraphArtifact(document, artifact);
+
+        expect(await document.mentions.listByChapter(1)).toStrictEqual([]);
+        expect(await document.mentionLinks.listByChapter(1)).toStrictEqual([]);
+        expect((await document.serials.getById(1))?.knowledgeGraphReady).toBe(
+          true,
+        );
       } finally {
         await document.release();
       }

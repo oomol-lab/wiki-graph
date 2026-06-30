@@ -33,12 +33,14 @@ describe("document/stores", () => {
         expect(serialId).toBe(1);
         expect(await openedDocument.serials.getById(1)).toStrictEqual({
           id: 1,
+          knowledgeGraphReady: false,
           topologyReady: false,
         });
 
         await openedDocument.serials.createWithId(5);
         await openedDocument.serials.ensure(3);
         await openedDocument.serials.ensure(5);
+        await openedDocument.serials.setKnowledgeGraphReady(3);
         await openedDocument.serials.setTopologyReady(3);
         await openedDocument.serials.setTopologyReady(5);
 
@@ -48,10 +50,12 @@ describe("document/stores", () => {
 
         expect(await openedDocument.serials.getById(3)).toStrictEqual({
           id: 3,
+          knowledgeGraphReady: true,
           topologyReady: true,
         });
         expect(await openedDocument.serials.getById(5)).toStrictEqual({
           id: 5,
+          knowledgeGraphReady: false,
           topologyReady: true,
         });
         expect(await openedDocument.serials.getById(99)).toBeUndefined();

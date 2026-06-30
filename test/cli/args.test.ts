@@ -1259,6 +1259,11 @@ describe("cli/args", () => {
     ).toThrow(
       "Expected a Wiki Graph URI, not a filesystem path: /Users/me/book.wikg/chapter/12\nUse: wkg:///Users/me/book.wikg/chapter/12\nSee: wikigraph help uri",
     );
+    expect(() =>
+      parseCLIArguments(["C:\\books\\book.wikg\\chapter\\12", "get"]),
+    ).toThrow(
+      "Expected a Wiki Graph URI, not a filesystem path: C:\\books\\book.wikg\\chapter\\12\nUse: wkg://C:/books/book.wikg/chapter/12\nSee: wikigraph help uri",
+    );
   });
 
   it("rejects invalid format flags", () => {

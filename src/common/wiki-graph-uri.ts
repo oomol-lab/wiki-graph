@@ -114,7 +114,7 @@ export function requireArchiveUri(uri: string): string {
 
   if (parsed.archivePath === undefined || parsed.objectUri !== undefined) {
     throw new Error(
-      `${formatWikiGraphUriExpectedError(uri)} Expected an archive URI ending in .wikg.`,
+      `${formatWikiGraphUriExpectedError(uri)} Expected a .wikg archive locator.`,
     );
   }
 

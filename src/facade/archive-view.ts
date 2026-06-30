@@ -3579,9 +3579,7 @@ async function createChapterStateTargets(
   document: ReadonlyDocument,
   chapter: ChapterEntry,
 ): Promise<Record<ChapterStateTarget, ChapterStateValue>> {
-  const knowledgeGraphReady =
-    (await document.mentions.listByChapter(chapter.chapterId)).length > 0 ||
-    (await document.mentionLinks.listByChapter(chapter.chapterId)).length > 0;
+  const serial = await document.serials.getById(chapter.chapterId);
 
   return {
     source: chapter.stage === "planned" ? "missing" : "ready",
@@ -3590,7 +3588,8 @@ async function createChapterStateTargets(
         ? "ready"
         : "missing",
     "reading-summary": chapter.stage === "summarized" ? "ready" : "missing",
-    "knowledge-graph": knowledgeGraphReady ? "ready" : "missing",
+    "knowledge-graph":
+      serial?.knowledgeGraphReady === true ? "ready" : "missing",
   };
 }
 

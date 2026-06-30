@@ -1070,6 +1070,7 @@ export async function commitChapterKnowledgeGraphArtifact(
     await openedDocument.mentions.deleteByChapter(artifact.chapterId);
     await openedDocument.mentions.saveMany(mentions);
     await openedDocument.mentionLinks.saveMany(mentionLinks);
+    await openedDocument.serials.setKnowledgeGraphReady(artifact.chapterId);
   });
 }
 
@@ -1080,6 +1081,7 @@ export async function clearChapterKnowledgeGraph(
   await document.openSession(async (openedDocument) => {
     await openedDocument.mentionLinks.deleteByChapter(chapterId);
     await openedDocument.mentions.deleteByChapter(chapterId);
+    await openedDocument.serials.setKnowledgeGraphReady(chapterId, false);
   });
 }
 

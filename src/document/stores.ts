@@ -107,10 +107,12 @@ export class SerialStore implements ReadonlySerialStore {
 
       await this.#database.run(
         `
-          INSERT INTO serial_states (serial_id, topology_ready)
-          VALUES (?, ?)
+          INSERT INTO serial_states (
+            serial_id, topology_ready, knowledge_graph_ready
+          )
+          VALUES (?, ?, ?)
         `,
-        [serialId, 0],
+        [serialId, 0, 0],
       );
 
       return serialId;
@@ -130,10 +132,12 @@ export class SerialStore implements ReadonlySerialStore {
 
         await this.#database.run(
           `
-            INSERT INTO serial_states (serial_id, topology_ready)
-            VALUES (?, ?)
+            INSERT INTO serial_states (
+              serial_id, topology_ready, knowledge_graph_ready
+            )
+            VALUES (?, ?, ?)
           `,
-          [serialId, 0],
+          [serialId, 0, 0],
         );
       });
     } catch (error) {
@@ -157,10 +161,12 @@ export class SerialStore implements ReadonlySerialStore {
 
       await this.#database.run(
         `
-          INSERT OR IGNORE INTO serial_states (serial_id, topology_ready)
-          VALUES (?, ?)
+          INSERT OR IGNORE INTO serial_states (
+            serial_id, topology_ready, knowledge_graph_ready
+          )
+          VALUES (?, ?, ?)
         `,
-        [serialId, 0],
+        [serialId, 0, 0],
       );
     });
   }
@@ -170,7 +176,8 @@ export class SerialStore implements ReadonlySerialStore {
       `
         SELECT
           serials.id AS id,
-          COALESCE(serial_states.topology_ready, 0) AS topology_ready
+          COALESCE(serial_states.topology_ready, 0) AS topology_ready,
+          COALESCE(serial_states.knowledge_graph_ready, 0) AS knowledge_graph_ready
         FROM serials
         LEFT JOIN serial_states
           ON serial_states.serial_id = serials.id
@@ -179,6 +186,7 @@ export class SerialStore implements ReadonlySerialStore {
       [serialId],
       (row) => ({
         id: getNumber(row, "id"),
+        knowledgeGraphReady: getNumber(row, "knowledge_graph_ready") !== 0,
         topologyReady: getNumber(row, "topology_ready") !== 0,
       }),
     );
@@ -203,6 +211,21 @@ export class SerialStore implements ReadonlySerialStore {
       `
         UPDATE serial_states
         SET topology_ready = ?
+        WHERE serial_id = ?
+      `,
+      [ready ? 1 : 0, serialId],
+    );
+  }
+
+  public async setKnowledgeGraphReady(
+    serialId: number,
+    ready = true,
+  ): Promise<void> {
+    await this.ensure(serialId);
+    await this.#database.run(
+      `
+        UPDATE serial_states
+        SET knowledge_graph_ready = ?
         WHERE serial_id = ?
       `,
       [ready ? 1 : 0, serialId],

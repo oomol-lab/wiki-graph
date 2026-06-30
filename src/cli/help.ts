@@ -249,6 +249,7 @@ const HELP_OBJECTS: readonly HelpObjectEntry[] = [
     title: "Chapter State",
     uriForms: [
       "wkg://book.wikg/chapter/12/state",
+      "wkg://book.wikg/chapter/12/state/reading-graph",
       "wkg://book.wikg/chapter/12/state/knowledge-graph",
     ],
     verbs: [
@@ -260,7 +261,13 @@ const HELP_OBJECTS: readonly HelpObjectEntry[] = [
       {
         command:
           "wikigraph wkg://book.wikg/chapter/12/state/reading-graph get --json",
-        note: "Inspect one chapter state target.",
+        note: "Inspect one Reading Graph target state.",
+        verb: "get",
+      },
+      {
+        command:
+          "wikigraph wkg://book.wikg/chapter/12/state/knowledge-graph get --json",
+        note: "Inspect one Knowledge Graph target state.",
         verb: "get",
       },
     ],

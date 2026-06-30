@@ -1051,6 +1051,8 @@ WHERE job_id = ? AND state = 'queued'
 }
 
 async function recoverStaleBuildJobs(state: Database): Promise<void> {
+  const workspacePathsToDelete: string[] = [];
+
   await state.transaction(async () => {
     const jobs = await state.queryAll(
       `
@@ -1077,9 +1079,13 @@ WHERE state IN ('running', 'canceling')
         message: "Build worker process disappeared before finishing the job.",
         name: "BuildJobWorkerLost",
       });
-      await rm(job.workspacePath, { force: true, recursive: true });
+      workspacePathsToDelete.push(job.workspacePath);
     }
   });
+
+  for (const workspacePath of workspacePathsToDelete) {
+    await rm(workspacePath, { force: true, recursive: true });
+  }
 }
 
 async function acquireBuildWorkerLease(

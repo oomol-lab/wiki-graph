@@ -47,6 +47,7 @@ export interface FragmentRecord {
 }
 
 export interface SerialRecord {
+  readonly knowledgeGraphReady: boolean;
   readonly id: number;
   readonly topologyReady: boolean;
 }

@@ -2643,15 +2643,18 @@ function formatUnknownCommandMessage(command: string): string {
 }
 
 function looksLikeWikgPath(value: string): boolean {
+  const normalized = normalizeWikgPathSeparators(value);
+
   return (
-    value.endsWith(".wikg") ||
-    value.includes(".wikg/") ||
-    value.includes(".wikg#")
+    normalized.endsWith(".wikg") ||
+    normalized.includes(".wikg/") ||
+    normalized.includes(".wikg#")
   );
 }
 
 function formatPathAsUriMessage(path: string): string {
-  const [archivePath = path, suffix = ""] = splitWikgPath(path);
+  const normalized = normalizeWikgPathSeparators(path);
+  const [archivePath = normalized, suffix = ""] = splitWikgPath(normalized);
   const uri = archivePath.startsWith("/")
     ? `wkg://${archivePath}${suffix}`
     : `wkg://${archivePath.replace(/^\.\/+/u, "")}${suffix}`;
@@ -2667,6 +2670,10 @@ function splitWikgPath(path: string): readonly [string, string] {
   const archiveEnd = path.indexOf(".wikg") + ".wikg".length;
 
   return [path.slice(0, archiveEnd), path.slice(archiveEnd)];
+}
+
+function normalizeWikgPathSeparators(path: string): string {
+  return path.replace(/\\/gu, "/");
 }
 
 function formatMissingArchiveLocatorMessage(uri: string): string {

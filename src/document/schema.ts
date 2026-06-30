@@ -6,6 +6,7 @@ export const SCHEMA_SQL = `
   CREATE TABLE IF NOT EXISTS serial_states (
     serial_id INTEGER PRIMARY KEY,
     topology_ready INTEGER NOT NULL DEFAULT 0,
+    knowledge_graph_ready INTEGER NOT NULL DEFAULT 0,
     FOREIGN KEY (serial_id) REFERENCES serials(id)
   );
 

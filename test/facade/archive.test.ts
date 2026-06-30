@@ -9,6 +9,7 @@ import { describe, expect, it } from "vitest";
 import {
   extractWikgArchive,
   writeWikgArchive,
+  writeWikgArchiveWithOverlays,
 } from "../../src/facade/archive.js";
 import { withTempDir } from "../helpers/temp.js";
 
@@ -109,6 +110,27 @@ describe("facade/archive", () => {
       expect(await readFile(`${path}/unpacked/database.db`, "utf8")).toBe(
         "chapter",
       );
+    });
+  });
+
+  it("keeps the manifest when overlays delete it", async () => {
+    await withTempDir("spinedigest-archive-", async (path) => {
+      const sourceDir = `${path}/source`;
+      const archivePath = `${path}/book.wikg`;
+      const rewrittenPath = `${path}/rewritten.wikg`;
+      const extractDir = `${path}/extract`;
+
+      await mkdir(sourceDir, { recursive: true });
+      await writeFile(`${sourceDir}/database.db`, "sqlite", "utf8");
+      await writeWikgArchive(sourceDir, archivePath);
+      await writeWikgArchiveWithOverlays(archivePath, rewrittenPath, [
+        { entryPath: "manifest.json", kind: "deleted" },
+      ]);
+      await extractWikgArchive(rewrittenPath, extractDir);
+
+      expect(
+        JSON.parse(await readFile(`${extractDir}/manifest.json`, "utf8")),
+      ).toEqual({ formatVersion: 1 });
     });
   });
 
