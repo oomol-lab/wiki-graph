@@ -1,14 +1,13 @@
 Help Type: command
-Command: wikigraph queue add
+Command: wikigraph <chapter-uri> queue add
 
 Purpose:
   Create one generation task for one `.sdpub` chapter.
 
 Usage:
-  wikigraph queue add <archive.sdpub> --chapter <id> --task <reading-graph|reading-summary|knowledge-graph> --accept-cost [--boost] [--llm <json>] [--prompt <text>]
+  wikigraph <chapter-uri> queue add --task <reading-graph|reading-summary|knowledge-graph> --accept-cost [--boost] [--llm <json>] [--prompt <text>]
 
 Options:
-  --chapter <id>       Required chapter id.
   --task <task>        Required task: reading-graph, reading-summary, or knowledge-graph.
   --accept-cost        Explicitly acknowledge LLM cost and wait time.
   --boost              Insert the new job at the front of the queued jobs.
@@ -21,6 +20,6 @@ Task choices:
   knowledge-graph      Build entity mentions from sourced text. Required before entity search can return results.
 
 Examples:
-  wikigraph queue add book.sdpub --chapter 3 --task reading-graph --accept-cost
-  wikigraph queue add book.sdpub --chapter 3 --task reading-summary --accept-cost --boost
-  wikigraph queue add book.sdpub --chapter 3 --task knowledge-graph --accept-cost
+  wikigraph wkg://book.sdpub/chapter/3 queue add --task reading-graph --accept-cost
+  wikigraph wkg://book.sdpub/chapter/3 queue add --task reading-summary --accept-cost --boost
+  wikigraph wkg://book.sdpub/chapter/3 queue add --task knowledge-graph --accept-cost

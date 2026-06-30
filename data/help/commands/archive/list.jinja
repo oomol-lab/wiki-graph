@@ -10,17 +10,20 @@ Use when:
   - You need objects of a kind without a text query, such as all chapters or all entities.
 
 Usage:
-  wikigraph <wikigraph-uri-with-sdpub-locator> list [--type <meta|chapter|entity|triple|source|summary|chunk[,kind...]>] [--limit <n>] [--evidence [n]] [--cursor <token>] [--json|--jsonl] [--help|-h]
+  wikigraph <located-wkg-uri>/<chapter|entity|triple|source|summary|chunk> list [--limit <n>] [--evidence [n]] [--cursor <token>] [--json|--jsonl] [--help|-h]
 
 Returns:
   - URI-addressable objects in document order.
 
 Notes:
+  - Conceptually, `list` is `search` without query text, scoped by a URI lens.
+  - Use `<located-wkg-uri>/chapter`, `<located-wkg-uri>/entity`, `<located-wkg-uri>/triple`, `<located-wkg-uri>/source`, `<located-wkg-uri>/summary`, or `<located-wkg-uri>/chunk` to choose the collection.
+  - Put the lens after a chapter URI, such as `<chapter-uri>/entity`, to list within one chapter.
   - Use `search` when you have query text.
   - Add `--evidence` or `--evidence <n>` to include source evidence previews on entity and triple results.
   - Use `wikigraph next <cursor>` for any returned `nextCursor`.
   - Use `wikigraph help uri` before constructing Wiki Graph URIs; bare filesystem paths are not valid object command inputs.
 
 Examples:
-  wikigraph wkg:///books/book.sdpub list --type chapter
-  wikigraph wkg:///books/book.sdpub/chapter/3 list --type entity --json
+  wikigraph wkg:///books/book.sdpub/chapter list
+  wikigraph wkg:///books/book.sdpub/chapter/3/entity list --json

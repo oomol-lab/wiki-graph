@@ -1,5 +1,5 @@
 Help Type: command
-Command: wikigraph chapter set-summary
+Command: wikigraph <chapter-uri>/summary set
 
 chapter set-summary
 
@@ -7,7 +7,7 @@ Purpose:
   Fill a Reading Graph-stage chapter with a manual final summary.
 
 Usage:
-  wikigraph chapter set-summary <path> --chapter <id> [--input <path>] [--llm <json>] [--help|-h]
+  wikigraph <chapter-uri>/summary set [--input <path>] [--llm <json>] [--help|-h]
 
 Input:
   - If `--input` is omitted, summary text is read from stdin.
@@ -17,7 +17,7 @@ Input:
 Preconditions:
   - The chapter must be `reading-graph`.
   - If the chapter is `source`, run:
-    wikigraph queue add <path> --chapter <id> --task reading-graph --accept-cost
+    wikigraph <chapter-uri> queue add --task reading-graph --accept-cost
 
 Behavior:
   - Moves the chapter to `reading-summary`.
@@ -26,5 +26,5 @@ Behavior:
 
 See also:
   - wikigraph queue --help
-  - wikigraph chapter status --help
+  - wikigraph wkg://book.sdpub/chapter/3/state get --help
   - wikigraph help command

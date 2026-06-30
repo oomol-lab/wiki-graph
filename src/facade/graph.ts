@@ -286,7 +286,7 @@ async function requireChapter(
 
   if (serial === undefined) {
     throw new Error(
-      `Chapter ${chapterId} does not exist. Use \`wikigraph chapter list <archive.sdpub>\` to discover chapter ids.`,
+      `Chapter ${chapterId} does not exist. Use \`wikigraph <archive-uri>/chapter list\` to discover chapter ids.`,
     );
   }
 }
@@ -300,7 +300,7 @@ async function requireChapterNode(
 
   if (chunk === undefined || chunk.sentenceId[0] !== chapterId) {
     throw new Error(
-      `Graph node ${nodeId} does not exist in chapter ${chapterId}. Use \`wikigraph index <archive.sdpub>\` to discover object ids.`,
+      `Graph node ${nodeId} does not exist in chapter ${chapterId}. Use \`wikigraph <archive-uri>/chapter/${chapterId}/chunk list\` to discover chunk ids.`,
     );
   }
 

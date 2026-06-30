@@ -9,7 +9,9 @@ render, or interoperate with `.sdpub` files outside the SpineDigest runtime.
 This is not the recommended guide for routine archive editing. `.sdpub`
 is physically a ZIP file, but automation that wants to add chapters,
 change metadata, set source text, reset stages, or advance generation
-should use `wikigraph meta`, `wikigraph chapter`, or `wikigraph build`.
+should use URI-first CLI commands such as `wikigraph wkg://book.sdpub/ set`,
+`wikigraph wkg://book.sdpub/chapter add`, and
+`wikigraph wkg://book.sdpub/chapter/3 queue add`.
 Direct ZIP mutation is for external readers, validators, recovery tooling, or
 format experiments that intentionally take responsibility for preserving every
 invariant.
@@ -108,7 +110,7 @@ For readers and validators:
 
 - `toc.json` plus `summaries/` is the minimum useful set for ordered summary
   projection rendering of completed archives. Staged archives may require
-  `wikigraph build` before summary projection is complete.
+  queued Reading Summary generation before summary projection is complete.
 - `book-meta.json` is optional for plain rendering, but required if
   metadata is part of the target feature set.
 - `cover/info.json` and `cover/data.bin` are optional as a pair.
@@ -197,9 +199,10 @@ Field contract:
 metadata. It is not a promise that the current public CLI necessarily
 accepts that source type as direct input.
 
-The public CLI can inspect and edit these fields with
-`wikigraph meta <archive.sdpub>`. The command preserves `version`
-and `sourceFormat`.
+The public CLI can inspect and edit these fields with the archive root object,
+for example `wikigraph wkg://book.sdpub/ get --json` and
+`wikigraph wkg://book.sdpub/ set --title "New Title"`. The command preserves
+`version` and `sourceFormat`.
 
 ### `toc.json`
 

@@ -62,7 +62,7 @@ export class SpineDigest {
       }
       if (!toc.items.some((item) => hasSerialId(item, serialId))) {
         throw new Error(
-          `Chapter ${serialId} does not exist. Use \`wikigraph chapter list <archive.sdpub>\` to discover chapter ids.`,
+          `Chapter ${serialId} does not exist. Use \`wikigraph <archive-uri>/chapter list\` to discover chapter ids.`,
         );
       }
 
@@ -106,7 +106,7 @@ export class SpineDigest {
 
       if (record === undefined) {
         throw new Error(
-          `No completed summary exists for id ${serialId}. Use \`wikigraph wkg://<archive.sdpub> list --type chapter\` to discover chapter ids, then \`wikigraph wkg://<archive.sdpub>/chapter/${serialId}/summary/ get\` after summary is ready.`,
+          `No completed summary exists for id ${serialId}. Use \`wikigraph wkg://<archive.sdpub>/chapter list\` to discover chapter ids, then \`wikigraph wkg://<archive.sdpub>/chapter/${serialId}/summary get\` after summary is ready.`,
         );
       }
 
@@ -114,7 +114,7 @@ export class SpineDigest {
 
       if (summary === undefined) {
         throw new Error(
-          `Chapter ${serialId} summary is missing. Run \`wikigraph queue add <archive.sdpub> --chapter ${serialId} --task reading-summary --accept-cost\` before export, or inspect the archive with \`wikigraph index <archive.sdpub>\`.`,
+          `Chapter ${serialId} summary is missing. Run \`wikigraph <chapter-uri> queue add --task reading-summary --accept-cost\` before export, or inspect the archive with \`wikigraph <archive-uri>/chapter/tree get\`.`,
         );
       }
 

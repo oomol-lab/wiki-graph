@@ -1,5 +1,5 @@
 Help Type: command
-Command: wikigraph chapter list
+Command: wikigraph <archive-uri>/chapter list
 
 chapter list
 
@@ -7,23 +7,24 @@ Purpose:
   List every chapter in the `.sdpub` chapter tree.
 
 Usage:
-  wikigraph chapter list <path> [--llm <json>] [--help|-h]
+  wikigraph <archive-uri>/chapter list [--json] [--llm <json>] [--help|-h]
 
 Output shape:
   [<chapterId>] <stage> <title-or-[untitled]>
+  With `--json`, prints `{ "chapters": [...] }`.
 
 Behavior:
   - Includes summary-stage and unfinished chapters.
   - Indents child chapters under their parent.
-  - The bracketed number is the chapter id used by `chapter` and `queue add --chapter`.
+  - The bracketed number is the chapter id used in chapter URIs.
   - Does not call an LLM provider.
   - Does not mutate chapter content or summaries.
 
 Use this before mutation:
   Discover ids with:
-    wikigraph chapter list <path>
+    wikigraph <archive-uri>/chapter list
 
 See also:
-  - wikigraph index --help
-  - wikigraph chapter status --help
+  - wikigraph wkg://book.sdpub/state get --help
+  - wikigraph wkg://book.sdpub/chapter/3/state get --help
   - wikigraph help command

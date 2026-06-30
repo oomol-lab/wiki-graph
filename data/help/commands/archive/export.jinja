@@ -1,11 +1,11 @@
 Help Type: command
-Command: wikigraph export
+Command: wikigraph <archive-uri> export
 
 Purpose:
   Export a projection from the archive.
 
 Usage:
-  wikigraph export <archive.sdpub> --output-format <format> [--output <path>]
+  wikigraph <archive-uri> export --output-format <format> [--output <path>]
 
 Contract:
   - Mutates: no.
@@ -14,4 +14,4 @@ Contract:
   - Formats: markdown, txt, epub, sdpub.
 
 Examples:
-  wikigraph export book.sdpub --output-format markdown --output digest.md
+  wikigraph wkg://book.sdpub export --output-format markdown --output digest.md

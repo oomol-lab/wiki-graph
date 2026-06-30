@@ -1,5 +1,5 @@
 Help Type: command
-Command: wikigraph chapter reset
+Command: wikigraph <chapter-uri> reset
 
 chapter reset
 
@@ -7,7 +7,7 @@ Purpose:
   Move a chapter backward by deleting later-stage artifacts.
 
 Usage:
-  wikigraph chapter reset <path> --chapter <id> --to <planned|source|reading-graph> [--llm <json>] [--help|-h]
+  wikigraph <chapter-uri> reset --to <planned|source|reading-graph> [--llm <json>] [--help|-h]
 
 Targets:
   planned     Delete source text, Reading Graph data, and summary.
@@ -18,10 +18,10 @@ Behavior:
   - `reading-summary` is not supported because reset is a backward operation.
   - Reset is destructive and may discard work.
   - Does not call an LLM provider.
-  - After resetting to `source` or `reading-graph`, use `queue add` to generate reading-graph, reading-summary, or knowledge-graph again.
+  - After resetting to `source` or `reading-graph`, use `wikigraph <chapter-uri> queue add --task <reading-graph|reading-summary|knowledge-graph> --accept-cost` to generate again.
   - After resetting to `planned`, restore source text before queueing generated tasks.
 
 See also:
   - wikigraph queue --help
-  - wikigraph chapter status --help
+  - wikigraph wkg://book.sdpub/chapter/3/state get --help
   - wikigraph help command

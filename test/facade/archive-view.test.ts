@@ -11,6 +11,7 @@ import {
   listArchiveCollection,
   listArchiveEvidence,
   listArchiveObjects,
+  packArchiveContext,
   listRelatedArchiveObjects,
   readArchiveText,
   readArchivePage,
@@ -1666,6 +1667,21 @@ describe("facade/archive-view", () => {
           subjectQid: "Q1",
           type: "triple",
         });
+        await expect(
+          packArchiveContext(document, "wkg://entity/Q1", 1000),
+        ).resolves.toMatchObject({
+          anchor: {
+            id: "wkg://entity/Q1",
+            type: "entity",
+          },
+          budget: 1000,
+          links: [],
+        });
+        await expect(
+          packArchiveContext(document, "wkg://chapter/1/source/0#0..0", 1000),
+        ).rejects.toThrow(
+          "Pack is only available for chunk, entity, and triple objects",
+        );
         await expect(
           listRelatedArchiveObjects(document, "wkg://entity/Q1"),
         ).resolves.toStrictEqual([

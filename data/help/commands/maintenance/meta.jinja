@@ -1,15 +1,14 @@
 Help Type: command
-Command: wikigraph meta
+Command: wikigraph <archive-uri> get|set
 
 meta
 
 Purpose:
-  Read or edit book metadata stored in an existing `.sdpub` archive.
+  Read or edit book metadata stored on the archive object.
 
 Usage:
-  wikigraph meta <archive.sdpub> [--llm <json>] [--help|-h]
-  wikigraph meta <archive.sdpub> --json [--llm <json>] [--help|-h]
-  wikigraph meta <archive.sdpub> [metadata options] [--llm <json>] [--help|-h]
+  wikigraph <archive-uri> get [--json|--jsonl] [--help|-h]
+  wikigraph <archive-uri> set [metadata options] [--llm <json>] [--help|-h]
 
 Metadata options:
   --title <text>             Set the book title.
@@ -28,9 +27,10 @@ Metadata options:
   --clear-description        Clear the description metadata.
 
 Behavior:
-  - Without metadata options, this command prints the current metadata.
-  - `--json` prints read-only structured metadata and cannot be combined with metadata options.
-  - With metadata options, this command edits the archive in place and then prints the updated metadata.
+  - The archive URI is the `.sdpub` locator itself, for example `wkg://book.sdpub`.
+  - A trailing slash is accepted but does not identify a different object.
+  - `get --json` prints read-only structured metadata through the archive object.
+  - `set` with metadata options edits the archive in place and then prints the updated metadata.
   - `--author` replaces the entire author list; pass it once per author.
   - `version` and `sourceFormat` are preserved and cannot be edited by this command.
   - Empty string metadata values are rejected. Use the matching `--clear-*` flag instead.
@@ -38,14 +38,14 @@ Behavior:
   - This command does not call an LLM provider.
 
 Examples:
-  wikigraph meta ./book.sdpub
-  wikigraph meta ./book.sdpub --json
-  wikigraph meta ./book.sdpub --title "New Title"
-  wikigraph meta ./book.sdpub --author "Author One" --author "Author Two"
-  wikigraph meta ./book.sdpub --clear-title --clear-description
+  wikigraph wkg://book.sdpub get
+  wikigraph wkg://book.sdpub get --json
+  wikigraph wkg://book.sdpub set --title "New Title"
+  wikigraph wkg://book.sdpub set --author "Author One" --author "Author Two"
+  wikigraph wkg://book.sdpub set --clear-title --clear-description
 
 Where to go next:
   - Need chapter tree editing:
-    wikigraph chapter --help
+    wikigraph wkg://book.sdpub/chapter/tree get --help
   - Need archive-vs-source mental model:
     wikigraph help command

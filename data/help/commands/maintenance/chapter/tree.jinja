@@ -1,14 +1,14 @@
 Help Type: command
-Command: wikigraph chapter tree
+Command: wikigraph <archive-uri>/chapter/tree
 
 chapter tree
 
 Purpose:
-  Print or apply the complete chapter tree as a stable JSON structure.
+  Get or set the complete chapter tree as a stable JSON structure.
 
 Usage:
-  wikigraph chapter tree <path> [--json] [--llm <json>] [--help|-h]
-  wikigraph chapter tree apply <path> [--input <path>] [--dry-run] [--llm <json>] [--help|-h]
+  wikigraph <archive-uri>/chapter/tree get [--json] [--llm <json>] [--help|-h]
+  wikigraph <archive-uri>/chapter/tree set [--input <path>] [--dry-run] [--llm <json>] [--help|-h]
 
 Tree JSON shape:
   {
@@ -27,7 +27,7 @@ Apply rules:
   - Every existing chapter id must appear exactly once.
   - Unknown, duplicated, or missing chapter ids are rejected.
   - `children` is required on every node.
-  - `title` is optional when applying.
+  - `title` is optional when setting the tree.
   - Omitted `title` means keep the current title.
   - `title: "text"` sets or replaces the chapter title.
   - `title: null` clears the chapter title.
@@ -38,11 +38,11 @@ Dry run:
   `--dry-run` validates the input and prints moved, renamed, and unchanged counts without changing the archive.
 
 Examples:
-  wikigraph chapter tree book.sdpub --json > tree.json
-  wikigraph chapter tree apply book.sdpub --input tree.json --dry-run
-  wikigraph chapter tree apply book.sdpub --input tree.json
+  wikigraph wkg://book.sdpub/chapter/tree get --json > tree.json
+  wikigraph wkg://book.sdpub/chapter/tree set --input tree.json --dry-run
+  wikigraph wkg://book.sdpub/chapter/tree set --input tree.json
 
 See also:
-  - wikigraph chapter move --help
-  - wikigraph chapter set-title --help
+  - wikigraph wkg://book.sdpub/chapter/3 move --help
+  - wikigraph wkg://book.sdpub/chapter/3/title set --help
   - wikigraph help command

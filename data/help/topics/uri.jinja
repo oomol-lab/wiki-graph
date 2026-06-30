@@ -4,11 +4,11 @@ Topic: uri
 Wiki Graph URIs
 
 Purpose:
-  Object commands use Wiki Graph URIs as their address format. A URI can point to an archive, a scoped collection, or one object inside an archive.
+  Wiki Graph commands use URIs as their address format. A URI can point to an archive, a scoped collection, or one object inside an archive.
 
 Archive locator:
-  - A command URI must contain a `.sdpub` locator.
-  - Do not pass a bare filesystem path to object commands.
+  - Archive/object command URIs must contain a `.sdpub` locator.
+  - Do not pass a bare filesystem path as a command target.
     Use a Wiki Graph URI instead:
     /Users/me/book.sdpub -> wkg:///Users/me/book.sdpub
     ./book.sdpub -> wkg://book.sdpub
@@ -24,7 +24,7 @@ Short object URIs:
     wkg://chapter/3
     wkg://chapter/3/source/
     wkg://chapter/3/source/0#4..8
-    wkg://chapter/3/summary/
+    wkg://chapter/3/summary
     wkg://chunk/12
     wkg://entity/Q8018
     wkg://triple/Q8018/discusses/Q123
@@ -34,16 +34,32 @@ Located object URIs:
     wkg:///books/book.sdpub/chapter/3
     wkg:///books/book.sdpub/chapter/3/source/0#4..8
     wkg://book.sdpub/entity/Q8018
+  Returned short URIs are archive-relative handles, not complete command targets. Prepend the archive locator before passing them back to object commands.
 
 Object command examples:
   Search an absolute local archive:
-    wikigraph wkg:///Users/me/book.sdpub search "keyword" --type entity,triple --limit 20 --json
+    wikigraph wkg:///Users/me/book.sdpub/entity search "keyword" --limit 20 --json
   Open an object inside an absolute local archive:
     wikigraph wkg:///Users/me/book.sdpub/entity/Q8018 get
 
+Archive command examples:
+  Create or inspect an archive:
+    wikigraph wkg://book.sdpub create ./book.md
+    wikigraph wkg://book.sdpub/state get --json
+    wikigraph wkg://book.sdpub/chapter/tree get --json
+
+Job URIs:
+  Queue jobs use the `wkg-job://` scheme and do not contain `.sdpub` locators:
+    wikigraph wkg-job:// list
+    wikigraph wkg-job://<job-id> get --json
+    wikigraph wkg-job://<job-id> watch --jsonl
+
 Scopes:
   - `wkg:///book.sdpub` addresses the whole archive.
+  - `wkg:///book.sdpub/` is the same archive target; a trailing slash does not create a separate object.
   - `wkg:///book.sdpub/chapter/3` scopes search and list to chapter 3.
+  - `wkg:///book.sdpub/entity` searches or lists archive-level entities.
+  - `wkg:///book.sdpub/chapter/3/entity` searches or lists entities scoped to chapter 3.
   - `wkg://chapter/3/entity/Q8018` is the entity view whose evidence must appear in chapter 3.
 
 Object boundaries:

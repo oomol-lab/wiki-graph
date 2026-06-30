@@ -1,11 +1,11 @@
 Help Type: command
-Command: wikigraph queue watch
+Command: wikigraph wkg-job://<job-id> watch
 
 Purpose:
   Follow durable events and progress for one queue job.
 
 Usage:
-  wikigraph queue watch <job-id> [--jsonl] [--from beginning|now]
+  wikigraph wkg-job://<job-id> watch [--jsonl] [--from beginning|now]
 
 Arguments:
   <job-id>              Full job id or an unambiguous prefix.
@@ -21,5 +21,5 @@ Progress:
   - Token progress is throttled and approximate.
 
 Examples:
-  wikigraph queue watch 75d12f7e
-  wikigraph queue watch 75d12f7e --jsonl --from beginning
+  wikigraph wkg-job://75d12f7e watch
+  wikigraph wkg-job://75d12f7e watch --jsonl --from beginning

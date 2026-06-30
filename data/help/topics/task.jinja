@@ -4,16 +4,16 @@ Topic: task
 Task Routing
 
 Create:
-  wikigraph create book.sdpub ./book.md
+  wikigraph wkg://book.sdpub create ./book.md
 
 Generate:
-  wikigraph queue add book.sdpub --chapter 3 --task reading-graph --accept-cost
-  wikigraph queue add book.sdpub --chapter 3 --task reading-summary --accept-cost
-  wikigraph queue add book.sdpub --chapter 3 --task knowledge-graph --accept-cost
+  wikigraph wkg://book.sdpub/chapter/3 queue add --task reading-graph --accept-cost
+  wikigraph wkg://book.sdpub/chapter/3 queue add --task reading-summary --accept-cost
+  wikigraph wkg://book.sdpub/chapter/3 queue add --task knowledge-graph --accept-cost
 
 Explore:
   wikigraph wkg:///Users/me/book.sdpub search "keyword"
-  wikigraph wkg:///Users/me/book.sdpub/chapter/3 list --type entity
+  wikigraph wkg:///Users/me/book.sdpub/chapter/3/entity list
   wikigraph wkg:///Users/me/book.sdpub/<object-path> get
   wikigraph wkg:///Users/me/book.sdpub/<object-path> related
   wikigraph wkg:///Users/me/book.sdpub/<object-path> evidence

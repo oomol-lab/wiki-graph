@@ -1,11 +1,11 @@
 Help Type: command
-Command: wikigraph estimate
+Command: wikigraph <archive-uri> estimate
 
 Purpose:
   Estimate queue job cost, calls, tokens, time, and risk.
 
 Usage:
-  wikigraph estimate <archive.sdpub> [--stage <source|reading-graph|reading-summary>] [--json]
+  wikigraph <archive-uri> estimate [--stage <source|reading-graph|reading-summary>] [--json]
 
 Contract:
   - Mutates: no.
@@ -13,5 +13,5 @@ Contract:
   - JSON: yes.
 
 Examples:
-  wikigraph estimate book.sdpub --stage reading-summary
-  wikigraph estimate book.sdpub --stage reading-graph --json
+  wikigraph wkg://book.sdpub estimate --stage reading-summary
+  wikigraph wkg://book.sdpub estimate --stage reading-graph --json

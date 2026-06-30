@@ -13,44 +13,54 @@ Object model:
 
 Object workflow:
   - `search` returns candidate Wiki Graph URIs from query text.
-  - `list` enumerates objects from a located Wiki Graph URI.
+  - `list` is search without query text: it enumerates objects from a located Wiki Graph URI or lens URI.
   - `get` opens one readable URI.
   - `related` expands from one URI to nearby URIs.
   - `evidence` traces a URI to source-backed evidence.
-  - `pack` builds bounded Agent-readable context around one readable URI.
+  - `pack` builds bounded Agent-readable context around one graph object URI.
 
 Object commands:
-  wikigraph <wikigraph-uri-with-sdpub-locator> search <query> [--type <meta|chapter|entity|triple|source|summary|chunk[,kind...]>] [--limit <n>] [--cursor <token>] [--evidence [n]] [--json|--jsonl]
-  wikigraph <wikigraph-uri-with-sdpub-locator> list [--type <meta|chapter|entity|triple|source|summary|chunk[,kind...]>] [--limit <n>] [--cursor <token>] [--evidence [n]] [--json|--jsonl]
+  wikigraph <located-wkg-uri> search <query> [--limit <n>] [--cursor <token>] [--evidence [n]] [--json|--jsonl]
+  wikigraph <located-wkg-uri>/<chapter|entity|triple|source|summary|chunk> search <query> [--limit <n>] [--cursor <token>] [--evidence [n]] [--json|--jsonl]
+  wikigraph <located-wkg-uri>/<chapter|entity|triple|source|summary|chunk> list [--limit <n>] [--cursor <token>] [--evidence [n]] [--json|--jsonl]
   wikigraph <object-uri> get [--evidence [n]] [--json|--jsonl]
   wikigraph <object-uri> related [--evidence [n]] [--json|--jsonl]
   wikigraph <entity|triple|summary|chunk-uri> evidence [--limit <n>] [--cursor <token>] [--json|--jsonl]
   wikigraph next <cursor> [--limit <n>] [--json|--jsonl]
   wikigraph next <wikigraph-uri-with-sdpub-locator> <cursor> [--limit <n>] [--json|--jsonl]
-  wikigraph <object-uri> pack [--budget <chars>] [--json|--jsonl]
+  wikigraph <located-chunk-uri|located-entity-uri|located-triple-uri> pack [--budget <chars>] [--json|--jsonl]
 
 URI requirement:
   `search`, `list`, `get`, `related`, `evidence`, and `pack` use Wiki Graph URIs, not bare filesystem paths.
   Read `wikigraph help uri` before using these commands; skipping the URI rules commonly leads to invalid commands.
 
 Archive commands:
-  wikigraph create <archive.sdpub> [source] [--input-format <format>] [--llm <json>] [--prompt <text>]
-  wikigraph export <archive.sdpub> --output-format <format> [--output <path>]
-  wikigraph estimate <archive.sdpub> [--stage <source|reading-graph|reading-summary>] [--json]
-  wikigraph index <archive.sdpub> [--json]
+  wikigraph <archive-uri> create [source] [--input-format <format>] [--llm <json>] [--prompt <text>]
+  wikigraph <archive-uri> export --output-format <format> [--output <path>]
+  wikigraph <archive-uri> estimate [--stage <source|reading-graph|reading-summary>] [--json]
+  wikigraph <archive-uri>/state get [--json]
   wikigraph transform [--input <path>] [--output <path>] [--input-format <format>] [--output-format <format>] [--digest-dir <path>] [--llm <json>] [--prompt <text>] [--stage <stage>] [--verbose|-v]
 
 Generation queue:
-  wikigraph queue add <archive.sdpub> --chapter <id> --task <reading-graph|reading-summary|knowledge-graph> --accept-cost [--boost] [--llm <json>] [--prompt <text>]
-  wikigraph queue list [--all] [--active]
-  wikigraph queue watch <job-id> [--jsonl] [--from beginning|now]
+  wikigraph <chapter-uri> queue add --task <reading-graph|reading-summary|knowledge-graph> --accept-cost [--boost] [--llm <json>] [--prompt <text>]
+  wikigraph wkg-job:// list [--all] [--active]
+  wikigraph wkg-job://<job-id> get [--json]
+  wikigraph wkg-job://<job-id> watch [--jsonl] [--from beginning|now]
   Queue generation tasks call an LLM, consume tokens, and may incur provider charges.
 
 Maintenance:
-  wikigraph meta <archive.sdpub> [metadata options] [--json] [--llm <json>] [--help|-h]
-  wikigraph cover <archive.sdpub> [--llm <json>] [--help|-h]
-  wikigraph chapter <action> <archive.sdpub> [options] [--llm <json>] [--help|-h]
+  wikigraph <archive-uri> get [--json|--jsonl]
+  wikigraph <archive-uri> set [metadata options] [--llm <json>]
+  wikigraph <cover-uri> get
+  wikigraph <chapter-collection-uri> add|list [options]
+  wikigraph <chapter-uri>/state get [--json]
+  wikigraph <chapter-uri> move|remove|reset [options]
+  wikigraph <chapter-uri>/source set [--input <path>] --input-format <format>
+  wikigraph <chapter-uri>/summary set [--input <path>]
+  wikigraph <chapter-uri>/title set (--title <title>|--clear)
+  wikigraph <archive-uri>/chapter/tree get|set [options]
   wikigraph config status [--llm <json>] [--help|-h]
+    Prints JSON by default and does not accept `--json`.
   wikigraph help [topic] [--help|-h]
 
 Help contract:
@@ -68,7 +78,9 @@ Formats:
   {{ formats | join(", ") }}
 
 Start here:
-  - Read `wikigraph help overview` for the archive-first mental model.
-  - Read `wikigraph help uri` before using object commands: search, list, get, related, evidence, pack.
+  - Read `wikigraph help overview` for the URI-first archive mental model.
+  - Read `wikigraph help uri` before using object commands.
+  - Read `wikigraph help object` when you have a URI and need valid verbs.
+  - Read `wikigraph help verb` when you know an operation and need valid targets.
   - Read `wikigraph help ai` for the agent operating contract.
   - Read `wikigraph help command` for command shapes.

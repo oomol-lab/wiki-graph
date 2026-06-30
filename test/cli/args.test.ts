@@ -1,3 +1,5 @@
+import { resolve } from "path";
+
 import { describe, expect, it } from "vitest";
 
 import { parseCLIArguments } from "../../src/cli/args.js";
@@ -5,6 +7,7 @@ import {
   renderArchiveCommandHelpText,
   renderArchiveMaintenanceChapterActionHelpText,
   renderArchiveMaintenanceCommandHelpText,
+  renderHelpMatrixText,
   renderHelpTopicText,
   renderMainHelpText,
   renderQueueCommandHelpText,
@@ -13,6 +16,8 @@ import {
 } from "../../src/cli/help.js";
 
 describe("cli/args", () => {
+  const archivePath = resolve("book.sdpub");
+
   it("parses --version", () => {
     expect(parseCLIArguments(["--version"])).toStrictEqual({
       help: false,
@@ -47,7 +52,9 @@ describe("cli/args", () => {
     if (!helpTopic.help || helpTopic.kind !== "help") {
       throw new Error("Expected help topic");
     }
-    expect(createHelp.helpText).toContain("Command: wikigraph create");
+    expect(createHelp.helpText).toContain(
+      "Command: wikigraph <archive-uri> create",
+    );
     expect(createHelp.helpText).toContain("stdin: supported");
   });
 
@@ -60,7 +67,7 @@ describe("cli/args", () => {
       throw new Error("Expected recipe help");
     }
     expect(recipeHelp.helpText).toContain(
-      "cat article.md | wikigraph create article.sdpub --input-format markdown",
+      "cat article.md | wikigraph wkg://article.sdpub create --input-format markdown",
     );
     expect(recipeHelp.helpText).toContain(
       "cat chapter.txt | wikigraph transform --input-format txt --output-format markdown",
@@ -82,11 +89,9 @@ describe("cli/args", () => {
   it("parses queue commands", () => {
     expect(
       parseCLIArguments([
+        "wkg://book.sdpub/chapter/12",
         "queue",
         "add",
-        "book.sdpub",
-        "--chapter",
-        "12",
         "--task",
         "reading-summary",
         "--boost",
@@ -98,7 +103,7 @@ describe("cli/args", () => {
       args: {
         acceptCost: true,
         action: "add",
-        archivePath: "book.sdpub",
+        archivePath: archivePath,
         boost: true,
         chapterId: 12,
         llmJSON: '{"model":"cli-model"}',
@@ -110,18 +115,16 @@ describe("cli/args", () => {
 
     expect(
       parseCLIArguments([
+        "wkg://book.sdpub/chapter/12",
         "queue",
         "add",
-        "book.sdpub",
-        "--chapter",
-        "12",
         "--task",
         "reading-summary",
       ]),
     ).toStrictEqual({
       args: {
         action: "add",
-        archivePath: "book.sdpub",
+        archivePath: archivePath,
         chapterId: 12,
         target: "reading-summary",
       },
@@ -129,33 +132,29 @@ describe("cli/args", () => {
       kind: "queue",
     });
     expect(() =>
-      parseCLIArguments(["status", "book.sdpub", "--accept-cost"]),
+      parseCLIArguments(["wkg://book.sdpub", "status", "--accept-cost"]),
     ).toThrow("only valid for `wikigraph queue add`");
     expect(() =>
       parseCLIArguments([
+        "wkg://book.sdpub/chapter/12",
         "queue",
         "add",
-        "book.sdpub",
-        "--chapter",
-        "12",
         "--stage",
         "graph",
       ]),
     ).toThrow("`wikigraph queue add` does not support --stage.");
     expect(
       parseCLIArguments([
+        "wkg://book.sdpub/chapter/12",
         "queue",
         "add",
-        "book.sdpub",
-        "--chapter",
-        "12",
         "--task",
         "knowledge-graph",
       ]),
     ).toStrictEqual({
       args: {
         action: "add",
-        archivePath: "book.sdpub",
+        archivePath: archivePath,
         chapterId: 12,
         target: "knowledge-graph",
       },
@@ -191,13 +190,49 @@ describe("cli/args", () => {
       help: false,
       kind: "queue",
     });
+    expect(
+      parseCLIArguments(["wkg-job://", "list", "--input", "wkg://book.sdpub"]),
+    ).toStrictEqual({
+      args: {
+        action: "list",
+        archivePath,
+      },
+      help: false,
+      kind: "queue",
+    });
 
     expect(
-      parseCLIArguments(["queue", "status", "job-1", "--json"]),
+      parseCLIArguments(["wkg-job://job-1", "get", "--json"]),
     ).toStrictEqual({
       args: {
         action: "status",
         jobId: "job-1",
+        json: true,
+      },
+      help: false,
+      kind: "queue",
+    });
+    expect(
+      parseCLIArguments([
+        "wkg-job://job-1",
+        "watch",
+        "--jsonl",
+        "--from",
+        "now",
+      ]),
+    ).toStrictEqual({
+      args: {
+        action: "watch",
+        from: "now",
+        jobId: "job-1",
+        jsonl: true,
+      },
+      help: false,
+      kind: "queue",
+    });
+    expect(parseCLIArguments(["wkg-job://", "list", "--json"])).toStrictEqual({
+      args: {
+        action: "list",
         json: true,
       },
       help: false,
@@ -284,8 +319,8 @@ describe("cli/args", () => {
   it("parses archive-first commands", () => {
     expect(
       parseCLIArguments([
+        "wkg://book.sdpub",
         "create",
-        "book.sdpub",
         "book.md",
         "--input-format",
         "markdown",
@@ -293,7 +328,7 @@ describe("cli/args", () => {
     ).toStrictEqual({
       args: {
         action: "create",
-        archivePath: "book.sdpub",
+        archivePath: archivePath,
         inputFormat: "markdown",
         sourcePath: "book.md",
       },
@@ -302,12 +337,25 @@ describe("cli/args", () => {
     });
 
     expect(
-      parseCLIArguments(["create", "book.sdpub", "--input-format", "markdown"]),
+      parseCLIArguments([
+        "wkg://book.sdpub",
+        "create",
+        "--input-format",
+        "markdown",
+      ]),
     ).toStrictEqual({
       args: {
         action: "create",
-        archivePath: "book.sdpub",
+        archivePath: archivePath,
         inputFormat: "markdown",
+      },
+      help: false,
+      kind: "archive",
+    });
+    expect(parseCLIArguments(["wkg://book.sdpub", "create"])).toStrictEqual({
+      args: {
+        action: "create",
+        archivePath: archivePath,
       },
       help: false,
       kind: "archive",
@@ -318,20 +366,13 @@ describe("cli/args", () => {
     );
 
     expect(
-      parseCLIArguments([
-        "wkg://book.sdpub",
-        "search",
-        "RAG",
-        "--type",
-        "meta,chapter,chunk",
-        "--json",
-      ]),
+      parseCLIArguments(["wkg://book.sdpub/chunk", "search", "RAG", "--json"]),
     ).toStrictEqual({
       args: {
         action: "search",
-        archivePath: "wkg://book.sdpub",
+        archivePath: "wkg://book.sdpub/chunk",
         format: "json",
-        kinds: ["meta", "chapter", "chunk"],
+        kinds: ["chunk"],
         query: "RAG",
       },
       help: false,
@@ -340,11 +381,9 @@ describe("cli/args", () => {
 
     expect(
       parseCLIArguments([
-        "wkg://book.sdpub/chapter/11",
+        "wkg://book.sdpub/chapter/11/source",
         "search",
         "exact phrase",
-        "--type",
-        "summary,source",
         "--limit",
         "10",
         "--cursor",
@@ -354,10 +393,10 @@ describe("cli/args", () => {
     ).toStrictEqual({
       args: {
         action: "search",
-        archivePath: "wkg://book.sdpub/chapter/11",
+        archivePath: `wkg://${archivePath}/chapter/11`,
         cursor: "cursor-token",
         format: "jsonl",
-        kinds: ["summary", "source"],
+        kinds: ["source"],
         limit: 10,
         query: "exact phrase",
       },
@@ -366,13 +405,53 @@ describe("cli/args", () => {
     });
 
     expect(
-      parseCLIArguments(["wkg://book.sdpub", "list", "--type", "entity"]),
+      parseCLIArguments(["wkg://book.sdpub/entity", "list"]),
     ).toStrictEqual({
       args: {
         action: "list",
-        archivePath: "wkg://book.sdpub",
+        archivePath: "wkg://book.sdpub/entity",
         format: "text",
         kinds: ["entity"],
+      },
+      help: false,
+      kind: "archive",
+    });
+
+    expect(
+      parseCLIArguments([
+        "wkg:///Users/me/book.sdpub",
+        "search",
+        "RAG",
+        "--limit",
+        "3",
+        "--json",
+      ]),
+    ).toStrictEqual({
+      args: {
+        action: "search",
+        archivePath: "wkg:///Users/me/book.sdpub",
+        format: "json",
+        limit: 3,
+        query: "RAG",
+      },
+      help: false,
+      kind: "archive",
+    });
+
+    expect(
+      parseCLIArguments([
+        "wkg:///Users/me/book.sdpub",
+        "list",
+        "--limit",
+        "10",
+        "--json",
+      ]),
+    ).toStrictEqual({
+      args: {
+        action: "list",
+        archivePath: "wkg:///Users/me/book.sdpub",
+        format: "json",
+        limit: 10,
       },
       help: false,
       kind: "archive",
@@ -439,19 +518,37 @@ describe("cli/args", () => {
       help: false,
       kind: "archive",
     });
+    expect(
+      parseCLIArguments(["next", "c_next", "--limit", "7", "--json"]),
+    ).toStrictEqual({
+      args: {
+        action: "next",
+        archivePath: "c_next",
+        format: "json",
+        limit: 7,
+      },
+      help: false,
+      kind: "archive",
+    });
+    expect(
+      parseCLIArguments(["next", "wkg://book.sdpub", "c_next", "--jsonl"]),
+    ).toStrictEqual({
+      args: {
+        action: "next",
+        archivePath: "wkg://book.sdpub",
+        cursor: "c_next",
+        format: "jsonl",
+      },
+      help: false,
+      kind: "archive",
+    });
 
     expect(() => parseCLIArguments(["find", "book.sdpub", "RAG"])).toThrow(
       "Unknown command: find.",
     );
-    expect(
+    expect(() =>
       parseCLIArguments(["search", "wkg://book.sdpub", "RAG"]),
-    ).toMatchObject({
-      args: {
-        action: "search",
-        archivePath: "wkg://book.sdpub",
-        query: "RAG",
-      },
-    });
+    ).toThrow("Unknown command: search.");
     expect(() => parseCLIArguments(["wkg://book.sdpub", "search"])).toThrow(
       "`wikigraph search` requires a search query.",
     );
@@ -466,39 +563,43 @@ describe("cli/args", () => {
     ).toThrow("Unknown option '--order'.");
     expect(() =>
       parseCLIArguments([
-        "wkg://book.sdpub/chunk/1",
-        "related",
-        "--type",
-        "source",
+        "wkg://book.sdpub",
+        "create",
+        "source.md",
+        "--evidence",
       ]),
-    ).toThrow("The `related` command does not support --type.");
-    expect(() =>
-      parseCLIArguments([
-        "wkg://book.sdpub/entity/Q1",
-        "evidence",
-        "--type",
-        "entity",
-      ]),
-    ).toThrow("The `evidence` command does not support --type.");
-    expect(() =>
-      parseCLIArguments(["create", "book.sdpub", "source.md", "--evidence"]),
     ).toThrow("The `create` command does not support --evidence.");
     expect(() =>
-      parseCLIArguments(["export", "book.sdpub", "--evidence"]),
+      parseCLIArguments(["wkg://book.sdpub", "export", "--evidence"]),
     ).toThrow("The `export` command does not support --evidence.");
     expect(() =>
-      parseCLIArguments(["estimate", "book.sdpub", "--evidence"]),
+      parseCLIArguments(["wkg://book.sdpub", "estimate", "--evidence"]),
     ).toThrow("The `estimate` command does not support --evidence.");
     expect(() =>
-      parseCLIArguments(["index", "book.sdpub", "--evidence"]),
-    ).toThrow("The `index` command does not support --evidence.");
+      parseCLIArguments(["wkg://book.sdpub", "index", "--evidence"]),
+    ).toThrow("The URI-first form does not support `index`.");
+    expect(() => parseCLIArguments(["wkg://book.sdpub", "status"])).toThrow(
+      "The URI-first form does not support `status`.",
+    );
+    expect(() =>
+      parseCLIArguments([
+        "wkg://book.sdpub",
+        "search",
+        "RAG",
+        "--type",
+        "chunk",
+      ]),
+    ).toThrow("Unknown option '--type'.");
+    expect(() =>
+      parseCLIArguments(["wkg://book.sdpub/chapter/1/summary", "pack"]),
+    ).toThrow("The chapter summary resource does not support `pack`.");
   });
 
   it("keeps explicit negative evidence values for validation", () => {
     expect(() =>
       parseCLIArguments([
-        "search",
         "wkg://book.sdpub",
+        "search",
         "RAG",
         "--evidence",
         "-1",
@@ -507,18 +608,22 @@ describe("cli/args", () => {
   });
 
   it("parses archive metadata and cover commands", () => {
-    expect(parseCLIArguments(["meta", "book.sdpub", "--json"])).toStrictEqual({
+    expect(
+      parseCLIArguments(["wkg://book.sdpub/", "get", "--json"]),
+    ).toStrictEqual({
       args: {
-        inputPath: "book.sdpub",
-        json: true,
+        action: "get",
+        archivePath: "wkg://book.sdpub/",
+        format: "json",
+        objectId: "wkg://book.sdpub/",
       },
       help: false,
-      kind: "meta",
+      kind: "archive",
     });
     expect(
       parseCLIArguments([
-        "meta",
-        "book.sdpub",
+        "wkg://book.sdpub/",
+        "set",
         "--title",
         "  Updated Book  ",
         "--author",
@@ -529,7 +634,7 @@ describe("cli/args", () => {
       ]),
     ).toStrictEqual({
       args: {
-        inputPath: "book.sdpub",
+        inputPath: archivePath,
         metaPatch: {
           authors: ["Ari Lantern", "Bea North"],
           clearDescription: true,
@@ -539,23 +644,39 @@ describe("cli/args", () => {
       help: false,
       kind: "meta",
     });
-    expect(parseCLIArguments(["cover", "book.sdpub"])).toStrictEqual({
+    expect(parseCLIArguments(["wkg://book.sdpub/cover", "get"])).toStrictEqual({
       args: {
-        inputPath: "book.sdpub",
+        inputPath: archivePath,
       },
       help: false,
       kind: "cover",
+    });
+    expect(
+      parseCLIArguments(["wkg://book.sdpub/state", "get", "--json"]),
+    ).toStrictEqual({
+      args: {
+        action: "get",
+        archivePath: "wkg://book.sdpub/state",
+        format: "json",
+        objectId: "wkg://book.sdpub/state",
+      },
+      help: false,
+      kind: "archive",
+    });
+
+    expect(
+      parseCLIArguments(["wkg://book.sdpub/", "set", "--help"]),
+    ).toMatchObject({
+      help: true,
+      kind: "maintenance",
     });
   });
 
   it("parses archive chapter edit actions", () => {
     expect(
       parseCLIArguments([
-        "chapter",
-        "set-source",
-        "book.sdpub",
-        "--chapter",
-        "12",
+        "wkg://book.sdpub/chapter/12/source",
+        "set",
         "--input",
         "chapter.md",
         "--input-format",
@@ -567,16 +688,15 @@ describe("cli/args", () => {
         chapterId: 12,
         inputFormat: "markdown",
         inputPath: "chapter.md",
-        path: "book.sdpub",
+        path: archivePath,
       },
       help: false,
       kind: "chapter",
     });
     expect(
       parseCLIArguments([
-        "chapter",
+        "wkg://book.sdpub/chapter",
         "add",
-        "book.sdpub",
         "--stage",
         "planned",
         "--title",
@@ -589,7 +709,7 @@ describe("cli/args", () => {
         action: "add",
         addStage: "planned",
         parentChapterId: 3,
-        path: "book.sdpub",
+        path: archivePath,
         title: "Chapter 1",
       },
       help: false,
@@ -597,11 +717,8 @@ describe("cli/args", () => {
     });
     expect(
       parseCLIArguments([
-        "chapter",
+        "wkg://book.sdpub/chapter/8",
         "move",
-        "book.sdpub",
-        "--chapter",
-        "8",
         "--parent",
         "3",
         "--first",
@@ -612,18 +729,15 @@ describe("cli/args", () => {
         chapterId: 8,
         first: true,
         parentChapterId: 3,
-        path: "book.sdpub",
+        path: archivePath,
       },
       help: false,
       kind: "chapter",
     });
     expect(
       parseCLIArguments([
-        "chapter",
+        "wkg://book.sdpub/chapter/8",
         "move",
-        "book.sdpub",
-        "--chapter",
-        "8",
         "--root",
         "--last",
       ]),
@@ -633,18 +747,15 @@ describe("cli/args", () => {
         chapterId: 8,
         last: true,
         moveToRoot: true,
-        path: "book.sdpub",
+        path: archivePath,
       },
       help: false,
       kind: "chapter",
     });
     expect(
       parseCLIArguments([
-        "chapter",
+        "wkg://book.sdpub/chapter/12",
         "reset",
-        "book.sdpub",
-        "--chapter",
-        "12",
         "--to",
         "source",
       ]),
@@ -652,7 +763,7 @@ describe("cli/args", () => {
       args: {
         action: "reset",
         chapterId: 12,
-        path: "book.sdpub",
+        path: archivePath,
         resetStage: "sourced",
       },
       help: false,
@@ -660,11 +771,8 @@ describe("cli/args", () => {
     });
     expect(
       parseCLIArguments([
-        "chapter",
-        "set-title",
-        "book.sdpub",
-        "--chapter",
-        "12",
+        "wkg://book.sdpub/chapter/12/title",
+        "set",
         "--clear",
       ]),
     ).toStrictEqual({
@@ -672,29 +780,78 @@ describe("cli/args", () => {
         action: "set-title",
         chapterId: 12,
         clearTitle: true,
-        path: "book.sdpub",
+        path: archivePath,
       },
       help: false,
       kind: "chapter",
     });
     expect(
-      parseCLIArguments(["chapter", "tree", "book.sdpub", "--json"]),
+      parseCLIArguments(["wkg://book.sdpub/chapter/tree", "get", "--json"]),
     ).toStrictEqual({
       args: {
         action: "tree",
         json: true,
-        path: "book.sdpub",
+        path: archivePath,
         treeAction: "show",
       },
       help: false,
       kind: "chapter",
     });
     expect(
+      parseCLIArguments(["wkg://book.sdpub/chapter", "list", "--help"]),
+    ).toMatchObject({
+      help: true,
+      kind: "help",
+    });
+    expect(
+      parseCLIArguments(["wkg://book.sdpub/chapter", "list", "--json"]),
+    ).toStrictEqual({
+      args: {
+        action: "list",
+        archivePath: "wkg://book.sdpub/chapter",
+        format: "json",
+        kinds: ["chapter"],
+      },
+      help: false,
+      kind: "archive",
+    });
+    expect(
+      parseCLIArguments(["wkg://book.sdpub/chapter/12/state", "get"]),
+    ).toStrictEqual({
+      args: {
+        action: "get",
+        archivePath: "wkg://book.sdpub/chapter/12/state",
+        format: "text",
+        objectId: "wkg://book.sdpub/chapter/12/state",
+      },
+      help: false,
+      kind: "archive",
+    });
+    expect(
+      parseCLIArguments(["wkg://book.sdpub/chapter/12/entity", "list"]),
+    ).toStrictEqual({
+      args: {
+        action: "list",
+        archivePath: `wkg://${archivePath}/chapter/12`,
+        format: "text",
+        kinds: ["entity"],
+      },
+      help: false,
+      kind: "archive",
+    });
+    expect(() =>
+      parseCLIArguments(["wkg://book.sdpub/chapter/12", "status"]),
+    ).toThrow("The URI-first form does not support `status`.");
+    expect(
+      parseCLIArguments(["wkg://book.sdpub/chapter/12/title", "set", "--help"]),
+    ).toMatchObject({
+      help: true,
+      kind: "chapter",
+    });
+    expect(
       parseCLIArguments([
-        "chapter",
-        "tree",
-        "apply",
-        "book.sdpub",
+        "wkg://book.sdpub/chapter/tree",
+        "set",
         "--input",
         "tree.json",
         "--dry-run",
@@ -704,25 +861,19 @@ describe("cli/args", () => {
         action: "tree",
         dryRun: true,
         inputPath: "tree.json",
-        path: "book.sdpub",
+        path: archivePath,
         treeAction: "apply",
       },
       help: false,
       kind: "chapter",
     });
     expect(
-      parseCLIArguments([
-        "chapter",
-        "tree",
-        "apply",
-        "book.sdpub",
-        "--dry-run",
-      ]),
+      parseCLIArguments(["wkg://book.sdpub/chapter/tree", "set", "--dry-run"]),
     ).toStrictEqual({
       args: {
         action: "tree",
         dryRun: true,
-        path: "book.sdpub",
+        path: archivePath,
         treeAction: "apply",
       },
       help: false,
@@ -730,11 +881,8 @@ describe("cli/args", () => {
     });
     expect(
       parseCLIArguments([
-        "chapter",
-        "set-title",
-        "book.sdpub",
-        "--chapter",
-        "12",
+        "wkg://book.sdpub/chapter/12/title",
+        "set",
         "--title",
         "Renamed Chapter",
       ]),
@@ -742,7 +890,7 @@ describe("cli/args", () => {
       args: {
         action: "set-title",
         chapterId: 12,
-        path: "book.sdpub",
+        path: archivePath,
         title: "Renamed Chapter",
       },
       help: false,
@@ -750,11 +898,8 @@ describe("cli/args", () => {
     });
     expect(() =>
       parseCLIArguments([
-        "chapter",
+        "wkg://book.sdpub/chapter/8",
         "move",
-        "book.sdpub",
-        "--chapter",
-        "8",
         "--parent",
         "3",
         "--root",
@@ -762,11 +907,8 @@ describe("cli/args", () => {
     ).toThrow("Choose only one parent target");
     expect(() =>
       parseCLIArguments([
-        "chapter",
-        "set-title",
-        "book.sdpub",
-        "--chapter",
-        "12",
+        "wkg://book.sdpub/chapter/12/title",
+        "set",
         "--title",
         "Title",
         "--clear",
@@ -838,19 +980,57 @@ describe("cli/args", () => {
       helpText: renderHelpTopicText("config-file"),
       kind: "help",
     });
+    expect(parseCLIArguments(["help", "object"])).toStrictEqual({
+      help: true,
+      helpText: renderHelpMatrixText({ kind: "object" }),
+      kind: "help",
+    });
+    expect(parseCLIArguments(["help", "object", "entity"])).toStrictEqual({
+      help: true,
+      helpText: renderHelpMatrixText({ kind: "object", object: "entity" }),
+      kind: "help",
+    });
+    expect(parseCLIArguments(["help", "entity"])).toStrictEqual({
+      help: true,
+      helpText: renderHelpMatrixText({ kind: "object", object: "entity" }),
+      kind: "help",
+    });
+    expect(parseCLIArguments(["help", "verb", "get"])).toStrictEqual({
+      help: true,
+      helpText: renderHelpMatrixText({ kind: "verb", verb: "get" }),
+      kind: "help",
+    });
+    expect(parseCLIArguments(["help", "get"])).toStrictEqual({
+      help: true,
+      helpText: renderHelpMatrixText({ kind: "verb", verb: "get" }),
+      kind: "help",
+    });
+    expect(parseCLIArguments(["help", "matrix"])).toStrictEqual({
+      help: true,
+      helpText: renderHelpMatrixText({ kind: "matrix" }),
+      kind: "help",
+    });
   });
 
   it("rejects positional arguments", () => {
     expect(() => parseCLIArguments(["book.epub"])).toThrow(
       "Unknown command: book.epub.\nSee: wikigraph help command",
     );
+    expect(() => parseCLIArguments(["book.sdpub", "search", "RAG"])).toThrow(
+      "Expected a Wiki Graph URI, not a filesystem path: book.sdpub\nUse: wkg://book.sdpub\nSee: wikigraph help uri",
+    );
+    expect(() =>
+      parseCLIArguments(["/Users/me/book.sdpub/chapter/12", "get"]),
+    ).toThrow(
+      "Expected a Wiki Graph URI, not a filesystem path: /Users/me/book.sdpub/chapter/12\nUse: wkg:///Users/me/book.sdpub/chapter/12\nSee: wikigraph help uri",
+    );
   });
 
   it("rejects invalid format flags", () => {
     expect(() =>
       parseCLIArguments([
+        "wkg://book.sdpub",
         "create",
-        "book.sdpub",
         "book.md",
         "--input-format",
         "pdf",
@@ -859,7 +1039,12 @@ describe("cli/args", () => {
       "Invalid --input-format: pdf. Expected one of sdpub, epub, txt, markdown.\nSee: wikigraph help format",
     );
     expect(() =>
-      parseCLIArguments(["export", "book.sdpub", "--output-format", "pdf"]),
+      parseCLIArguments([
+        "wkg://book.sdpub",
+        "export",
+        "--output-format",
+        "pdf",
+      ]),
     ).toThrow(
       "Invalid --output-format: pdf. Expected one of sdpub, epub, txt, markdown.\nSee: wikigraph help format",
     );
@@ -881,57 +1066,65 @@ describe("cli/args", () => {
     expect(() => parseCLIArguments(["sdpub", "toc"])).toThrow(
       "Unknown command: sdpub.",
     );
-    expect(() => parseCLIArguments(["meta"])).toThrow(
-      "Missing archive path. Use `wikigraph meta <archive.sdpub>`.",
-    );
-    expect(() =>
-      parseCLIArguments(["meta", "book.sdpub", "--json", "--title", "Updated"]),
-    ).toThrow(
-      "`meta --json` is read-only and cannot be combined with metadata edit flags.",
-    );
-    expect(() => parseCLIArguments(["cover", "book.sdpub", "--json"])).toThrow(
-      "The `cover` command does not support --json.",
+    expect(() => parseCLIArguments(["meta"])).toThrow("Unknown command: meta.");
+    expect(() => parseCLIArguments(["chapter", "set", "--help"])).toThrow(
+      "Use concrete chapter resource URIs such as /source, /summary, or /title for set operations.",
     );
     expect(() =>
       parseCLIArguments([
-        "chapter",
-        "set-source",
-        "book.sdpub",
-        "--chapter",
-        "x",
+        "wkg://book.sdpub/",
+        "set",
+        "--json",
+        "--title",
+        "Updated",
+      ]),
+    ).toThrow("The `meta` command does not support --json.");
+    expect(() =>
+      parseCLIArguments(["wkg://book.sdpub/cover", "get", "--json"]),
+    ).toThrow("The `cover` command does not support --json.");
+    expect(() =>
+      parseCLIArguments(["wkg://book.sdpub/chapter/x/source", "set"]),
+    ).toThrow(
+      "Use `wikigraph help object` to inspect valid object/verb pairs.",
+    );
+    expect(() => parseCLIArguments(["wkg://entity/Q9957", "get"])).toThrow(
+      "Short object URIs from output are archive-relative handles.",
+    );
+    expect(() =>
+      parseCLIArguments(["wkg://book.sdpub/chapter/1/source", "set"]),
+    ).toThrow(
+      "Missing --input-format. `chapter set-source` requires txt or markdown.\nSee: wikigraph wkg://book.sdpub/chapter/1/source set --help",
+    );
+    expect(() =>
+      parseCLIArguments([
+        "wkg://book.sdpub/chapter/1/source",
+        "set",
+        "--jsonl",
       ]),
     ).toThrow(
-      "Invalid --chapter: x. Expected a non-negative integer.\nSee: wikigraph chapter --help",
+      "The `chapter` command does not support --jsonl.\nSee: wikigraph wkg://book.sdpub/chapter/1/source set --help",
     );
     expect(() =>
       parseCLIArguments([
-        "chapter",
-        "set-source",
-        "book.sdpub",
-        "--chapter",
-        "1",
-      ]),
-    ).toThrow(
-      "Missing --input-format. `chapter set-source` requires txt or markdown.\nSee: wikigraph chapter --help",
-    );
-    expect(() =>
-      parseCLIArguments([
-        "chapter",
+        "wkg://book.sdpub/chapter/1",
         "reset",
-        "book.sdpub",
-        "--chapter",
-        "1",
         "--to",
         "summarized",
       ]),
     ).toThrow(
-      "Invalid --to: summarized. Expected planned, source, or reading-graph.\nSee: wikigraph chapter --help",
+      "Invalid --to: summarized. Expected planned, source, or reading-graph.\nSee: wikigraph wkg://book.sdpub/chapter/1 reset --help",
     );
   });
 
   it("rejects invalid help usage", () => {
     expect(() => parseCLIArguments(["help", "unknown"])).toThrow(
-      "Invalid help topic: unknown. Expected one of overview, task, command, format, config, env, config-file, runtime, uri, recipe, troubleshoot, ai.\nSee: wikigraph --help",
+      "Invalid help topic: unknown. Expected one of overview, task, command, object, verb, matrix, format, config, env, config-file, runtime, uri, recipe, troubleshoot, ai.\nSee: wikigraph --help",
+    );
+    expect(() =>
+      parseCLIArguments(["help", "object", "entity", "extra"]),
+    ).toThrow("Unexpected positional arguments: extra.");
+    expect(() => parseCLIArguments(["help", "verb", "get", "extra"])).toThrow(
+      "Unexpected positional arguments: extra.",
     );
     expect(() =>
       parseCLIArguments(["help", "task", "--input", "book.epub"]),
@@ -961,35 +1154,36 @@ describe("cli/args", () => {
     const commandHelpText = renderHelpTopicText("command");
 
     expect(rootHelpText).toContain("wikigraph help [topic]");
+    expect(rootHelpText).toContain("wikigraph <located-wkg-uri> search");
     expect(rootHelpText).toContain(
-      "wikigraph <wikigraph-uri-with-sdpub-locator> search",
-    );
-    expect(rootHelpText).toContain(
-      "wikigraph <wikigraph-uri-with-sdpub-locator> list",
+      "wikigraph <located-wkg-uri>/<chapter|entity|triple|source|summary|chunk> list",
     );
     expect(rootHelpText).toContain("wikigraph help overview");
     expect(rootHelpText).toContain("wikigraph help uri");
     expect(rootHelpText).toContain("wikigraph help env");
     expect(rootHelpText).toContain("wikigraph help config-file");
-    expect(rootHelpText).toContain("wikigraph meta <archive.sdpub>");
+    expect(rootHelpText).toContain("wikigraph <archive-uri> get");
     expect(rootHelpText).toContain(
-      "wikigraph chapter <action> <archive.sdpub>",
+      "wikigraph <archive-uri>/chapter/tree get|set",
     );
     expect(rootHelpText).toContain("wikigraph transform");
     expect(rootHelpText).not.toContain("wikigraph import");
-    expect(rootHelpText).toContain("--chapter <id>");
+    expect(rootHelpText).toContain("wikigraph <chapter-uri> queue add");
     expect(rootHelpText).toContain(
       "Append `--help` to commands and subcommands",
     );
     expect(rootHelpText).toContain("Treat `wikigraph --help` as the root");
     expect(rootHelpText).toContain(
-      "Read `wikigraph help overview` for the archive-first mental model.",
+      "Read `wikigraph help overview` for the URI-first archive mental model.",
     );
+    expect(rootHelpText).toContain("wikigraph help object");
+    expect(rootHelpText).toContain("wikigraph help verb");
+    expect(rootHelpText).toContain("wikigraph help matrix");
     expect(rootHelpText).toContain("Queue generation tasks call an LLM");
     expect(renderHelpTopicText("runtime")).toContain("Runtime Behavior");
     expect(renderHelpTopicText("config")).toContain("Configuration Overview");
     expect(renderHelpTopicText("command")).toContain(
-      "wikigraph <wikigraph-uri-with-sdpub-locator> search",
+      "wikigraph <located-wkg-uri> search",
     );
     expect(renderHelpTopicText("command")).toContain(
       "wikigraph <entity|triple|summary|chunk-uri> evidence",
@@ -999,22 +1193,22 @@ describe("cli/args", () => {
       "Use Wiki Graph URIs as stable object handles",
     );
     expect(renderHelpTopicText("ai")).toContain(
-      "Never pass a bare filesystem path to `search`, `list`, `get`, `related`, `evidence`, or `pack`.",
+      "Never pass a bare filesystem path to URI-targeted commands.",
     );
     expect(renderHelpTopicText("ai")).toContain(
       "/Users/me/book.sdpub -> wkg:///Users/me/book.sdpub",
     );
     expect(renderHelpTopicText("ai")).toContain(
-      "wikigraph wkg:///Users/me/book.sdpub search",
+      "wikigraph wkg:///Users/me/book.sdpub/entity search",
     );
     expect(renderHelpTopicText("ai")).toContain(
       "wkg:///absolute/path/book.sdpub/entity/Q8018",
     );
     expect(renderHelpTopicText("uri")).toContain(
-      "Do not pass a bare filesystem path to object commands.",
+      "Do not pass a bare filesystem path as a command target.",
     );
     expect(renderHelpTopicText("uri")).toContain(
-      "wikigraph wkg:///Users/me/book.sdpub search",
+      "wikigraph wkg:///Users/me/book.sdpub/entity search",
     );
     expect(renderHelpTopicText("task")).toContain(
       "wikigraph wkg:///Users/me/book.sdpub search",
@@ -1023,8 +1217,8 @@ describe("cli/args", () => {
       "wikigraph wkg:///Users/me/book.sdpub search",
     );
     expect(commandHelpText).toContain("Object commands:");
-    expect(commandHelpText).toContain("wikigraph create <archive.sdpub>");
-    expect(commandHelpText).toContain("wikigraph export <archive.sdpub>");
+    expect(commandHelpText).toContain("wikigraph <archive-uri> create");
+    expect(commandHelpText).toContain("wikigraph <archive-uri> export");
     expect(commandHelpText).toContain("wikigraph transform");
     expect(commandHelpText).not.toContain("wikigraph ls");
     expect(renderHelpTopicText("config")).toContain("wikigraph help env");
@@ -1072,8 +1266,8 @@ describe("cli/args", () => {
     expect(rootHelpText).toContain("wikigraph help command");
     expect(() =>
       parseCLIArguments([
+        "wkg://book.sdpub",
         "create",
-        "book.sdpub",
         "book.md",
         "--input-format",
         "pdf",

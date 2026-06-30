@@ -279,6 +279,29 @@ describe("cli/archive-chapter", () => {
     ]);
   });
 
+  it("prints chapter list as JSON", async () => {
+    await runArchiveChapterCommand({
+      action: "list",
+      json: true,
+      path: "/tmp/book.sdpub",
+    });
+
+    expect(JSON.parse(chapterMockState.textWrites[0] ?? "")).toStrictEqual({
+      chapters: [
+        {
+          stage: "planned",
+          title: "Part I",
+          uri: "wkg://chapter/1",
+        },
+        {
+          stage: "source",
+          title: "Chapter 1",
+          uri: "wkg://chapter/2",
+        },
+      ],
+    });
+  });
+
   it("adds a chapter and prints the new chapter id", async () => {
     await runArchiveChapterCommand({
       action: "add",

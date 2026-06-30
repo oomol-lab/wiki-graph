@@ -1,5 +1,5 @@
 Help Type: command
-Command: wikigraph chapter set-title
+Command: wikigraph <chapter-uri>/title set
 
 chapter set-title
 
@@ -7,8 +7,8 @@ Purpose:
   Rename an existing chapter in the archive TOC.
 
 Usage:
-  wikigraph chapter set-title <path> --chapter <id> --title <title> [--llm <json>] [--help|-h]
-  wikigraph chapter set-title <path> --chapter <id> --clear [--llm <json>] [--help|-h]
+  wikigraph <chapter-uri>/title set --title <title> [--llm <json>] [--help|-h]
+  wikigraph <chapter-uri>/title set --clear [--llm <json>] [--help|-h]
 
 Behavior:
   - Updates only the chapter title stored in the TOC.
@@ -19,13 +19,13 @@ Behavior:
   - Does not call an LLM provider.
 
 Output shape:
-  Prints the updated chapter status.
+  Prints the updated chapter object.
 
 Examples:
-  wikigraph chapter set-title book.sdpub --chapter 12 --title "New Chapter Title"
-  wikigraph chapter set-title book.sdpub --chapter 12 --clear
+  wikigraph wkg://book.sdpub/chapter/12/title set --title "New Chapter Title"
+  wikigraph wkg://book.sdpub/chapter/12/title set --clear
 
 See also:
-  - wikigraph chapter list --help
-  - wikigraph chapter status --help
+  - wikigraph wkg://book.sdpub/chapter list --help
+  - wikigraph wkg://book.sdpub/chapter/12/state get --help
   - wikigraph help command

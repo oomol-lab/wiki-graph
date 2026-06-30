@@ -4,13 +4,13 @@ Command: wikigraph pack
 pack
 
 Purpose:
-  Build bounded Agent-readable context around one readable Wiki Graph object.
+  Build bounded Agent-readable context around one graph object.
 
 Use when:
-  - You already selected a useful readable URI and need compact context for an answer.
+  - You already selected a useful chunk, entity, or triple URI and need compact context for an answer.
 
 Usage:
-  wikigraph <object-uri> pack [--budget <chars>] [--json|--jsonl] [--help|-h]
+  wikigraph <located-chunk-uri|located-entity-uri|located-triple-uri> pack [--budget <chars>] [--json|--jsonl] [--help|-h]
 
 Returns:
   - A context package constrained by `--budget`.
@@ -18,6 +18,7 @@ Returns:
 Notes:
   - Default budget is 5000 characters.
   - `pack` assembles context after object selection; it is not a search command.
+  - `pack` is only available for graph objects: chunk, entity, and triple.
   - Use `evidence` first when source verification is the main requirement.
   - Read `wikigraph help uri` before constructing object URIs.
 
@@ -25,5 +26,6 @@ Next steps:
   - Use the packed context to answer, or continue with `related` if context is too narrow.
 
 Examples:
-  wikigraph wkg:///books/book.sdpub/chapter/1/summary/ pack --budget 5000
   wikigraph wkg:///books/book.sdpub/chunk/123 pack
+  wikigraph wkg:///books/book.sdpub/entity/Q162593 pack --budget 5000
+  wikigraph wkg:///books/book.sdpub/triple/Q162593/discusses/Q9476 pack

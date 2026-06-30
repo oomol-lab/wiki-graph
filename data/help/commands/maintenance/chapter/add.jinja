@@ -1,5 +1,5 @@
 Help Type: command
-Command: wikigraph chapter add
+Command: wikigraph <archive-uri>/chapter add
 
 chapter add
 
@@ -7,8 +7,8 @@ Purpose:
   Insert a new chapter into an existing `.sdpub` chapter tree.
 
 Usage:
-  wikigraph chapter add <path> --stage planned [--title <title>] [--parent <id>] [--llm <json>] [--help|-h]
-  wikigraph chapter add <path> --stage source [--title <title>] [--parent <id>] [--input <path>] --input-format <format> [--llm <json>] [--help|-h]
+  wikigraph <archive-uri>/chapter add --stage planned [--title <title>] [--parent <id>] [--llm <json>] [--help|-h]
+  wikigraph <archive-uri>/chapter add --stage source [--title <title>] [--parent <id>] [--input <path>] --input-format <format> [--llm <json>] [--help|-h]
 
 Behavior:
   - `--stage planned` creates an empty chapter with no source, graph, or summary.
@@ -27,13 +27,13 @@ Output shape:
   The `Chapter: <id>` line is the new chapter id for later commands.
 
 Typical next step:
-  wikigraph queue add <path> --chapter <id> --task reading-graph --accept-cost
+  wikigraph <chapter-uri> queue add --task reading-graph --accept-cost
 
 Examples:
-  wikigraph chapter add book.sdpub --stage planned --title "Part I"
-  wikigraph chapter add book.sdpub --stage source --title "Chapter 1" --input ./chapter.md --input-format markdown --parent 3
+  wikigraph wkg://book.sdpub/chapter add --stage planned --title "Part I"
+  wikigraph wkg://book.sdpub/chapter add --stage source --title "Chapter 1" --input ./chapter.md --input-format markdown --parent 3
 
 See also:
-  - wikigraph chapter list --help
-  - wikigraph chapter set-source --help
+  - wikigraph wkg://book.sdpub/chapter list --help
+  - wikigraph wkg://book.sdpub/chapter/3/source set --help
   - wikigraph help command

@@ -5,9 +5,11 @@ AI Agent Contract
 
 Primary contract:
   Use Wiki Graph URIs as stable object handles.
+  When you have a URI and need valid operations, read `wikigraph help object`.
+  When you know an operation and need valid targets, read `wikigraph help verb`.
 
 Object command inputs:
-  Never pass a bare filesystem path to `search`, `list`, `get`, `related`, `evidence`, or `pack`.
+  Never pass a bare filesystem path to URI-targeted commands.
   Convert archive paths into Wiki Graph URIs first:
     /Users/me/book.sdpub -> wkg:///Users/me/book.sdpub
     ./book.sdpub -> wkg://book.sdpub
@@ -18,16 +20,30 @@ Search results may use short object URIs such as `wkg://entity/Q8018`; prepend t
 
 Default exploration loop:
   1. `wikigraph help uri`
-  2. `wikigraph wkg:///absolute/path/book.sdpub search <query>`
-  3. `wikigraph <located-object-uri> get`
-  4. `wikigraph <located-object-uri> related`
-  5. `wikigraph <located-object-uri> evidence`
-  6. `wikigraph <located-object-uri> pack --budget <chars>`
+  2. `wikigraph help object`
+  3. `wikigraph wkg:///absolute/path/book.sdpub search <query>`
+  4. `wikigraph <located-object-uri> get`
+  5. `wikigraph <located-object-uri> related`
+  6. `wikigraph <located-object-uri> evidence`
+  7. Pick a located chunk, entity, or triple URI before `wikigraph <located-graph-object-uri> pack --budget <chars>`
+
+Archive and job commands also use URI targets:
+  wikigraph wkg://book.sdpub create ./book.md
+  wikigraph wkg://book.sdpub/state get --json
+  wikigraph wkg://book.sdpub/chapter/3 queue add --task reading-graph --accept-cost
+  wikigraph wkg-job:// list
+  wikigraph wkg-job://<job-id> watch --jsonl
 
 Example:
-  wikigraph wkg:///Users/me/book.sdpub search "朱元璋" --type entity,triple --limit 20 --json
+  wikigraph wkg:///Users/me/book.sdpub/entity search "朱元璋" --limit 20 --json
 
-Use `--type` on search to filter currently searchable object kinds:
-  meta, chapter, source, summary, chunk, entity, triple
+Use URI lenses to select searchable object kinds:
+  wkg://book.sdpub/chapter
+  wkg://book.sdpub/source
+  wkg://book.sdpub/summary
+  wkg://book.sdpub/chunk
+  wkg://book.sdpub/entity
+  wkg://book.sdpub/triple
+  wkg://book.sdpub/chapter/3/entity
 
 Use `--json` or `--jsonl` when a stable machine-readable result is needed.

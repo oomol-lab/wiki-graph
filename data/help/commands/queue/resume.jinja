@@ -1,11 +1,11 @@
 Help Type: command
-Command: wikigraph queue resume
+Command: wikigraph wkg-job://<job-id> resume
 
 Purpose:
   Requeue one paused job.
 
 Usage:
-  wikigraph queue resume <job-id>
+  wikigraph wkg-job://<job-id> resume
 
 Arguments:
   <job-id>              Full job id or an unambiguous prefix.
@@ -15,4 +15,4 @@ Behavior:
   - The transient worker is started if needed.
 
 Example:
-  wikigraph queue resume 75d12f7e
+  wikigraph wkg-job://75d12f7e resume

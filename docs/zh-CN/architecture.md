@@ -12,7 +12,7 @@ SpineDigest 围绕一个主对象构建：`.sdpub` 知识库归档。EPUB、Mark
 
 1. Source layer：读取 EPUB、Markdown、纯文本或 stdin，并规范化成带来源的章节数据。
 2. Knowledge layer：从 source fragment 构建 Reading Graph chunk 和 summary，并构建 Knowledge Graph entity mention、mention link 和 entity-level relation。
-3. Retrieval layer：通过 `index`、`chapter tree`、`search`、`list`、`get`、`related`、`evidence`、`pack` 等 CLI primitive 暴露已有归档数据。
+3. Retrieval layer：通过 `state get`、`chapter tree`、`search`、`list`、`get`、`related`、`evidence`、`pack` 等 CLI primitive 暴露已有归档数据。
 4. Projection layer：导出 Markdown、txt、EPUB、JSON 风格命令输出，或一次性的 `transform` 结果。
 
 归档是持久对象。Projection 是有用的视图，但当你需要图链接、来源片段和可重复检索时，它们不能替代 `.sdpub`。

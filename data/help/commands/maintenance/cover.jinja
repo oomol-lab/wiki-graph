@@ -1,5 +1,5 @@
 Help Type: command
-Command: wikigraph cover
+Command: wikigraph <cover-uri> get
 
 cover
 
@@ -7,7 +7,7 @@ Purpose:
   Write the raw cover bytes stored in the archive.
 
 Usage:
-  wikigraph cover <archive.sdpub> [--llm <json>] [--help|-h]
+  wikigraph <cover-uri> get [--llm <json>] [--help|-h]
 
 Output shape:
   - Raw binary bytes on stdout
@@ -16,9 +16,9 @@ Notes:
   - Redirect or pipe stdout.
   - The command refuses to write binary data to an interactive terminal.
   - The command fails if the archive has no cover.
-  - Use `wikigraph meta <archive.sdpub>` first when you need stored metadata.
+  - Use `wikigraph <archive-uri> get` first when you need stored metadata.
   - For multimodal agents, project the cover to a normal image file, then inspect that file with image/OCR tools.
 
 Examples:
-  wikigraph meta ./book.sdpub
-  wikigraph cover ./book.sdpub > /tmp/cover.bin
+  wikigraph wkg://book.sdpub/cover get > /tmp/cover.bin
+  wikigraph wkg:///books/book.sdpub/cover get > ./cover.bin

@@ -206,6 +206,21 @@ const archiveMockState = vi.hoisted(() => ({
     title: "Archive Fixture",
     type: "meta",
   },
+  statePage: {
+    id: "wkg://state",
+    state: {
+      archive: {
+        chapters: [],
+        edgeCount: 1,
+        meta: undefined,
+        nodeCount: 2,
+        summaryCount: 0,
+      },
+      kind: "archive",
+    },
+    title: "Archive state",
+    type: "state",
+  },
   entityPage: {
     evidence: {
       nextCursor: null,
@@ -380,7 +395,9 @@ vi.mock("../../src/facade/index.js", () => ({
             ? archiveMockState.chapterPage
             : id === "wkg://"
               ? archiveMockState.metaPage
-              : archiveMockState.page,
+              : id === "wkg://state"
+                ? archiveMockState.statePage
+                : archiveMockState.page,
     ),
   ),
 }));
@@ -414,15 +431,16 @@ describe("cli/archive", () => {
     archiveMockState.textWrites.length = 0;
   });
 
-  it("prints an archive index", async () => {
+  it("gets archive state", async () => {
     await runArchiveCommand({
-      action: "index",
-      archivePath: "/tmp/book.sdpub",
+      action: "get",
+      archivePath: "wkg:///tmp/book.sdpub/state",
+      format: "json",
+      objectId: "wkg:///tmp/book.sdpub/state",
     });
 
     expect(archiveMockState.readCalls).toStrictEqual(["/tmp/book.sdpub"]);
-    expect(archiveMockState.textWrites[0]).toContain("Archive Type: LLM Wiki");
-    expect(archiveMockState.textWrites[0]).toContain("chapter:2");
+    expect(readArchivePage).toHaveBeenCalledWith({}, "wkg://state", {});
   });
 
   it("prints search hits as Wiki Graph URI objects", async () => {
