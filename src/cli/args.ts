@@ -9,8 +9,10 @@ import {
 import { type BuildJobTarget, type ChapterStage } from "../facade/index.js";
 import {
   parseHelpTopic,
+  parseHelpMatrixPage,
   renderArchiveCommandHelpText,
   renderArchiveMaintenanceCommandHelpText,
+  renderHelpMatrixText,
   renderHelpTopicText,
   renderMainHelpText,
   renderQueueCommandHelpText,
@@ -577,8 +579,8 @@ function parseArchiveUriFirstArguments(
       withHelpRoute(
         action === undefined
           ? `Missing action after ${uri}.`
-          : `The URI-first form does not support \`${action}\`.`,
-        CLI_HELP_ROUTES.command,
+          : `The URI-first form does not support \`${action}\`. Use \`wikigraph help object\` to inspect valid object/verb pairs.`,
+        "wikigraph help object",
       ),
     );
   }
@@ -667,8 +669,8 @@ function parseArchiveUriTargetArguments(
   if (!isUriFirstArchiveAction(action)) {
     throw new Error(
       withHelpRoute(
-        `The URI target ${uri} does not support \`${action}\`.`,
-        CLI_HELP_ROUTES.command,
+        `The URI target ${uri} does not support \`${action}\`. Use \`wikigraph help object\` to inspect valid object/verb pairs.`,
+        "wikigraph help object",
       ),
     );
   }
@@ -687,8 +689,8 @@ function parseArchiveUriArchiveArguments(
   if (!isArchiveAction(action)) {
     throw new Error(
       withHelpRoute(
-        `The archive URI form does not support \`${action}\`.`,
-        CLI_HELP_ROUTES.command,
+        `The archive URI form does not support \`${action}\`. Use \`wikigraph help object archive\` to inspect valid verbs.`,
+        "wikigraph help object archive",
       ),
     );
   }
@@ -704,8 +706,8 @@ function parseArchiveUriArchiveArguments(
   ) {
     throw new Error(
       withHelpRoute(
-        `The archive URI ${uri} cannot be used with \`${action}\`; use a concrete object URI.`,
-        helpRoute,
+        `The archive URI ${uri} cannot be used with \`${action}\`; use a concrete object URI. Use \`wikigraph help object archive\` to inspect valid archive verbs.`,
+        "wikigraph help object archive",
       ),
     );
   }
@@ -736,7 +738,7 @@ function parseArchiveRootObjectArguments(
       throw new Error(
         withHelpRoute(
           `The archive root object does not support \`${action}\`. Expected get or set.`,
-          helpRoute,
+          "wikigraph help object archive-root",
         ),
       );
   }
@@ -808,7 +810,7 @@ function parseArchiveCoverUriArguments(
     throw new Error(
       withHelpRoute(
         `The cover object does not support \`${action}\`. Expected get.`,
-        helpRoute,
+        "wikigraph help object cover",
       ),
     );
   }
@@ -943,7 +945,7 @@ function parseChapterCollectionUriArguments(
     throw new Error(
       withHelpRoute(
         `The chapter collection does not support \`${action}\`. Expected list or add.`,
-        helpRoute,
+        "wikigraph help object chapter",
       ),
     );
   }
@@ -968,7 +970,7 @@ function parseChapterTreeUriArguments(
     throw new Error(
       withHelpRoute(
         `The chapter tree does not support \`${action}\`. Expected get or set.`,
-        helpRoute,
+        "wikigraph help object chapter-tree",
       ),
     );
   }
@@ -1037,7 +1039,7 @@ function parseSingleChapterUriArguments(
       throw new Error(
         withHelpRoute(
           `The chapter object does not support \`${action}\`.`,
-          helpRoute,
+          "wikigraph help object chapter",
         ),
       );
   }
@@ -1056,7 +1058,7 @@ function parseChapterResourceUriArguments(
     throw new Error(
       withHelpRoute(
         `The chapter ${resource} resource does not support \`${action}\`. Expected get or set.`,
-        helpRoute,
+        `wikigraph help object chapter-${resource}`,
       ),
     );
   }
@@ -2627,7 +2629,11 @@ function parseHelpArguments(
     );
   }
 
-  if (positionals.length > 1) {
+  if (
+    positionals.length > 1 &&
+    positionals[0] !== "object" &&
+    positionals[0] !== "verb"
+  ) {
     throw new Error(
       withHelpRoute(
         `Unexpected positional arguments: ${positionals.slice(1).join(" ")}.`,
@@ -2640,6 +2646,15 @@ function parseHelpArguments(
     return {
       help: true,
       helpText: renderMainHelpText(),
+      kind: "help",
+    };
+  }
+
+  const matrixPage = parseHelpMatrixPage(positionals);
+  if (matrixPage !== undefined) {
+    return {
+      help: true,
+      helpText: renderHelpMatrixText(matrixPage),
       kind: "help",
     };
   }

@@ -24,6 +24,8 @@ wikigraph <uri> pack --budget 5000
 wikigraph wkg://book.sdpub index --json
 ```
 
+When an agent has a URI and needs to know which operations are valid, use `wikigraph help object` or `wikigraph help object <object>`. When the operation is known but the valid targets are unclear, use `wikigraph help verb <verb>`. `wikigraph help matrix` provides the full object/verb cross-reference.
+
 Use three exploration modes. For synthesis, timelines, relationship analysis, process reconstruction, or concept-structure tasks, start with Structure mode: `wkg://.../chapter/tree get --json` for a compact table-of-contents map, then choose likely chapter ids and expand them with scoped URI search or `wkg://... get`. Search mode uses `wkg://... search --type <kind>` for candidate discovery and falls back to source/summary/chunk text when structured objects do not match. Reading mode uses `wkg://... get` after the relevant source URI has been selected.
 Search results may display short object URIs such as `wkg://entity/Q9957`; prepend the archive locator before reusing them in object commands, for example `wkg://book.sdpub/entity/Q9957`.
 

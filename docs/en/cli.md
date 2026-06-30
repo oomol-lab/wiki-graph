@@ -124,7 +124,7 @@ Use URI-first commands for routine exploration. `<archive-uri>/chapter/tree get`
 
 ## Standard Stream Rules
 
-The archive-first `create` command writes `.sdpub` archives. It reads Markdown or plain text from stdin when `--input-format` is provided:
+The URI-first `create` command writes `.sdpub` archives. It reads Markdown or plain text from stdin when `--input-format` is provided:
 
 ```bash
 cat ./chapter.txt | wikigraph wkg://chapter.sdpub create --input-format txt

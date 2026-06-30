@@ -1,0 +1,39 @@
+Help Type: topic
+Topic: verb
+
+Verbs
+
+Purpose:
+  Verbs are operations applied to URI-addressed objects.
+
+{% if selectedVerb %}
+Verb: {{ selectedVerb.name }}
+
+Purpose:
+  {{ selectedVerb.description }}
+
+Supported objects:
+{% for group in selectedVerb.objects %}
+  {{ group.object.name }}:
+{% for item in group.rows %}
+    {{ item.command }}
+    {{ item.note }}
+{% endfor %}
+{% endfor %}
+
+Where to go next:
+  - wikigraph help object
+  - wikigraph help matrix
+{% else %}
+Verb index:
+{% for verb in helpVerbs %}
+  - {{ verb.name }}
+    {{ verb.description }}
+    Help: wikigraph help verb {{ verb.name }}
+{% endfor %}
+
+Use:
+  wikigraph help verb <verb>
+  wikigraph help <verb>
+  wikigraph help matrix
+{% endif %}

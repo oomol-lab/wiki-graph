@@ -24,6 +24,8 @@ wikigraph <uri> pack --budget 5000
 wikigraph wkg://book.sdpub index --json
 ```
 
+当 Agent 已经拿到 URI，但不确定它支持哪些操作时，使用 `wikigraph help object` 或 `wikigraph help object <object>`。当已经知道要执行的操作，但不确定它能作用于哪些对象时，使用 `wikigraph help verb <verb>`。`wikigraph help matrix` 提供完整 object/verb 交叉引用。
+
 优先先选择三种探索模式之一。对于综合理解、时间线、关系分析、过程梳理或概念结构任务，先走结构模式：用 `wkg://.../chapter/tree get --json` 查看压缩后的目录地图，再选择可能相关的 chapter id，并用 scoped URI search 或 `wkg://... get` 展开局部。搜索模式用 `wkg://... search --type <kind>` 做候选定位；结构化对象没有命中时，会退回 source / summary / chunk 文本。阅读模式适合在选定 source URI 后用 `wkg://... get` 输出连续文本。
 Search result 可能显示短 object URI，例如 `wkg://entity/Q9957`；把它继续传给 object command 前，需要补上 archive locator，例如 `wkg://book.sdpub/entity/Q9957`。
 

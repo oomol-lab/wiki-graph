@@ -1,0 +1,33 @@
+Help Type: topic
+Topic: matrix
+
+Object / Verb Matrix
+
+Purpose:
+  Use this page to choose a valid object and verb pair. The CLI shape is:
+    wikigraph <object-uri> <verb> [options]
+
+Objects and supported verbs:
+{% for object in helpObjects %}
+  {{ object.name }}:
+    URI:
+{% for uri in object.uriForms %}
+      {{ uri }}
+{% endfor %}
+    Verbs:
+{% for item in object.verbs %}
+      {{ item.verb }} - {{ item.note }}
+{% endfor %}
+{% endfor %}
+
+Verb cross-reference:
+{% for verb in helpVerbRows %}
+  {{ verb.name }}:
+{% for group in verb.objects %}
+    {{ group.object.name }}
+{% endfor %}
+{% endfor %}
+
+Use:
+  wikigraph help object <object>
+  wikigraph help verb <verb>

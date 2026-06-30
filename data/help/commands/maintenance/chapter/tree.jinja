@@ -4,7 +4,7 @@ Command: wikigraph <archive-uri>/chapter/tree
 chapter tree
 
 Purpose:
-  Print or apply the complete chapter tree as a stable JSON structure.
+  Get or set the complete chapter tree as a stable JSON structure.
 
 Usage:
   wikigraph <archive-uri>/chapter/tree get [--json] [--llm <json>] [--help|-h]
@@ -27,7 +27,7 @@ Apply rules:
   - Every existing chapter id must appear exactly once.
   - Unknown, duplicated, or missing chapter ids are rejected.
   - `children` is required on every node.
-  - `title` is optional when applying.
+  - `title` is optional when setting the tree.
   - Omitted `title` means keep the current title.
   - `title: "text"` sets or replaces the chapter title.
   - `title: null` clears the chapter title.

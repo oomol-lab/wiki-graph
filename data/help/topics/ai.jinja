@@ -5,6 +5,8 @@ AI Agent Contract
 
 Primary contract:
   Use Wiki Graph URIs as stable object handles.
+  When you have a URI and need valid operations, read `wikigraph help object`.
+  When you know an operation and need valid targets, read `wikigraph help verb`.
 
 Object command inputs:
   Never pass a bare filesystem path to URI-targeted commands.
@@ -18,11 +20,12 @@ Search results may use short object URIs such as `wkg://entity/Q8018`; prepend t
 
 Default exploration loop:
   1. `wikigraph help uri`
-  2. `wikigraph wkg:///absolute/path/book.sdpub search <query>`
-  3. `wikigraph <located-object-uri> get`
-  4. `wikigraph <located-object-uri> related`
-  5. `wikigraph <located-object-uri> evidence`
-  6. `wikigraph <located-object-uri> pack --budget <chars>`
+  2. `wikigraph help object`
+  3. `wikigraph wkg:///absolute/path/book.sdpub search <query>`
+  4. `wikigraph <located-object-uri> get`
+  5. `wikigraph <located-object-uri> related`
+  6. `wikigraph <located-object-uri> evidence`
+  7. `wikigraph <located-object-uri> pack --budget <chars>`
 
 Archive and job commands also use URI targets:
   wikigraph wkg://book.sdpub create ./book.md

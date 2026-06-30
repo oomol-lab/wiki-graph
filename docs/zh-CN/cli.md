@@ -124,7 +124,7 @@ wikigraph <archive-uri>/chapter/tree get|set [options]
 
 ## 标准流规则
 
-archive-first `create` 命令用于写入 `.sdpub`。传入 `--input-format` 时，它可以从 stdin 读取 Markdown 或纯文本：
+URI-first `create` 命令用于写入 `.sdpub`。传入 `--input-format` 时，它可以从 stdin 读取 Markdown 或纯文本：
 
 ```bash
 cat ./chapter.txt | wikigraph wkg://chapter.sdpub create --input-format txt

@@ -7,6 +7,7 @@ import {
   renderArchiveCommandHelpText,
   renderArchiveMaintenanceChapterActionHelpText,
   renderArchiveMaintenanceCommandHelpText,
+  renderHelpMatrixText,
   renderHelpTopicText,
   renderMainHelpText,
   renderQueueCommandHelpText,
@@ -855,6 +856,36 @@ describe("cli/args", () => {
       helpText: renderHelpTopicText("config-file"),
       kind: "help",
     });
+    expect(parseCLIArguments(["help", "object"])).toStrictEqual({
+      help: true,
+      helpText: renderHelpMatrixText({ kind: "object" }),
+      kind: "help",
+    });
+    expect(parseCLIArguments(["help", "object", "entity"])).toStrictEqual({
+      help: true,
+      helpText: renderHelpMatrixText({ kind: "object", object: "entity" }),
+      kind: "help",
+    });
+    expect(parseCLIArguments(["help", "entity"])).toStrictEqual({
+      help: true,
+      helpText: renderHelpMatrixText({ kind: "object", object: "entity" }),
+      kind: "help",
+    });
+    expect(parseCLIArguments(["help", "verb", "get"])).toStrictEqual({
+      help: true,
+      helpText: renderHelpMatrixText({ kind: "verb", verb: "get" }),
+      kind: "help",
+    });
+    expect(parseCLIArguments(["help", "get"])).toStrictEqual({
+      help: true,
+      helpText: renderHelpMatrixText({ kind: "verb", verb: "get" }),
+      kind: "help",
+    });
+    expect(parseCLIArguments(["help", "matrix"])).toStrictEqual({
+      help: true,
+      helpText: renderHelpMatrixText({ kind: "matrix" }),
+      kind: "help",
+    });
   });
 
   it("rejects positional arguments", () => {
@@ -918,9 +949,7 @@ describe("cli/args", () => {
     ).toThrow("The `cover` command does not support --json.");
     expect(() =>
       parseCLIArguments(["wkg://book.sdpub/chapter/x/source", "set"]),
-    ).toThrow(
-      "The URI target wkg://book.sdpub/chapter/x/source does not support `set`.",
-    );
+    ).toThrow("See: wikigraph help object");
     expect(() =>
       parseCLIArguments(["wkg://book.sdpub/chapter/1/source", "set"]),
     ).toThrow(
@@ -940,7 +969,7 @@ describe("cli/args", () => {
 
   it("rejects invalid help usage", () => {
     expect(() => parseCLIArguments(["help", "unknown"])).toThrow(
-      "Invalid help topic: unknown. Expected one of overview, task, command, format, config, env, config-file, runtime, uri, recipe, troubleshoot, ai.\nSee: wikigraph --help",
+      "Invalid help topic: unknown. Expected one of overview, task, command, object, verb, matrix, format, config, env, config-file, runtime, uri, recipe, troubleshoot, ai.\nSee: wikigraph --help",
     );
     expect(() =>
       parseCLIArguments(["help", "task", "--input", "book.epub"]),
@@ -992,8 +1021,11 @@ describe("cli/args", () => {
     );
     expect(rootHelpText).toContain("Treat `wikigraph --help` as the root");
     expect(rootHelpText).toContain(
-      "Read `wikigraph help overview` for the archive-first mental model.",
+      "Read `wikigraph help overview` for the URI-first archive mental model.",
     );
+    expect(rootHelpText).toContain("wikigraph help object");
+    expect(rootHelpText).toContain("wikigraph help verb");
+    expect(rootHelpText).toContain("wikigraph help matrix");
     expect(rootHelpText).toContain("Queue generation tasks call an LLM");
     expect(renderHelpTopicText("runtime")).toContain("Runtime Behavior");
     expect(renderHelpTopicText("config")).toContain("Configuration Overview");
