@@ -806,7 +806,7 @@ describe("cli/archive", () => {
         {
           label: "RAG",
           score: 1,
-          summary: "RAG original source fragment.",
+          snippet: "RAG original source fragment.",
           type: "entity",
           uri: "wkg://entity/Q1",
         },
@@ -818,9 +818,10 @@ describe("cli/archive", () => {
         '      "type": "entity"',
         '      "label": "RAG"',
         '      "score": 1',
-        '      "summary": "RAG original source fragment."',
+        '      "snippet": "RAG original source fragment."',
       ].join(",\n"),
     );
+    expect(archiveMockState.textWrites[0]).not.toContain('"summary"');
     expect(archiveMockState.textWrites[0]).not.toContain('"evidence"');
   });
 
@@ -1222,7 +1223,7 @@ describe("cli/archive", () => {
       objects: [
         {
           label: "Related",
-          summary: "Related chunk",
+          snippet: "Related chunk",
           type: "node",
           uri: "wkg://chunk/11",
         },

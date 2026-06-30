@@ -64,7 +64,7 @@ interface ArchiveOutputObject {
   readonly score?: number;
   readonly stage?: string;
   readonly subjectLabel?: string;
-  readonly summary?: string;
+  readonly snippet?: string;
   readonly title?: string;
   readonly type?: string;
   readonly uri: string;
@@ -731,7 +731,7 @@ async function createListObject(
           }),
         }),
     label: item.label,
-    ...(item.evidence === undefined ? { summary: item.summary } : {}),
+    ...(item.evidence === undefined ? { snippet: item.summary } : {}),
     type: item.type,
     uri: toWikiGraphUri(item.id),
   };
@@ -1072,7 +1072,7 @@ async function createFindObject(
     ...(hit.score === undefined ? {} : { score: hit.score }),
     ...(context.evidenceLimit !== undefined && hit.type === "entity"
       ? {}
-      : { summary: hit.snippet }),
+      : { snippet: hit.snippet }),
     type: hit.type === "node" ? "chunk" : hit.type,
     uri,
   };
@@ -1248,7 +1248,7 @@ function formatObjectSummaryLines(object: ArchiveOutputObject): string[] {
     object.title,
     object.label,
     object.stage === undefined ? undefined : `stage: ${object.stage}`,
-    object.evidence === undefined ? object.summary : undefined,
+    object.evidence === undefined ? object.snippet : undefined,
   ].filter((line): line is string => line !== undefined && line !== "");
 }
 
