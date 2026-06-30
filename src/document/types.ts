@@ -91,8 +91,7 @@ export interface MentionLinkRecord {
   readonly sourceMentionId: string;
   readonly targetMentionId: string;
   readonly predicate: string;
-  readonly evidenceStart?: number;
-  readonly evidenceEnd?: number;
+  readonly evidenceSentenceIds: readonly SentenceId[];
   readonly confidence?: number;
   readonly note?: string;
 }

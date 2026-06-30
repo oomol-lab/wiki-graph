@@ -10,7 +10,7 @@ Use when:
   - You have words, names, phrases, or concepts and need candidate object URIs.
 
 Usage:
-  wikigraph search <wikigraph-uri-with-sdpub-locator> <query> [--type <chapter|entity|triple|source|summary|chunk[,kind...]>] [--limit <n>] [--evidence [n]] [--cursor <token>] [--json|--jsonl] [--help|-h]
+  wikigraph search <wikigraph-uri-with-sdpub-locator> <query> [--type <meta|chapter|entity|triple|source|summary|chunk[,kind...]>] [--limit <n>] [--evidence [n]] [--cursor <token>] [--json|--jsonl] [--help|-h]
 
 Returns:
   - In text output, a ranked list of full `wikigraph://...` URIs.
@@ -19,7 +19,7 @@ Returns:
 Notes:
   - Search results are leads, not source evidence.
   - Without `--type`, search first looks for entity objects and falls back to text objects when no entity matches.
-  - Use `--type chapter|source|summary|chunk` to choose a text lens.
+  - Use `--type meta|chapter|source|summary|chunk` to choose a text lens.
   - Add `--evidence` or `--evidence <n>` to include source evidence previews on entity and triple results.
   - Use `wikigraph next <cursor>` for any returned `nextCursor`.
   - Use a located chapter URI to keep retrieval local.

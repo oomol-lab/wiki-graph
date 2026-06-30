@@ -14,6 +14,7 @@ import type {
   MentionLinkRecord,
   MentionRecord,
   ReadonlyDocument,
+  SentenceId,
 } from "../document/index.js";
 import type { WikipageResolveProgress } from "../wikipage/index.js";
 import {
@@ -80,13 +81,20 @@ const mentionRecordSchema = z.object({
   note: z.string().optional(),
 });
 
+const sentenceIdSchema = z
+  .tuple([
+    z.number().int().nonnegative(),
+    z.number().int().nonnegative(),
+    z.number().int().nonnegative(),
+  ])
+  .readonly();
+
 const mentionLinkRecordSchema = z.object({
   id: z.string().min(1),
   sourceMentionId: z.string().min(1),
   targetMentionId: z.string().min(1),
   predicate: z.string().min(1),
-  evidenceStart: z.number().int().nonnegative().optional(),
-  evidenceEnd: z.number().int().nonnegative().optional(),
+  evidenceSentenceIds: z.array(sentenceIdSchema).min(1),
   confidence: z.number().min(0).max(1).optional(),
   note: z.string().optional(),
 });
@@ -801,8 +809,7 @@ async function discoverMentionLinks(input: {
 
   return discoveredLinks.map((link, index) => ({
     ...(link.confidence === undefined ? {} : { confidence: link.confidence }),
-    evidenceEnd: link.evidenceEnd,
-    evidenceStart: link.evidenceStart,
+    evidenceSentenceIds: link.evidenceSentenceIds,
     id: `l${input.fragments[0]?.serialId ?? 0}-${index + 1}`,
     predicate: link.predicate,
     sourceMentionId: link.sourceMentionId,
@@ -1119,18 +1126,24 @@ function validateChapterKnowledgeGraphArtifact(
         `Mention link ${link.id} references unknown target mention ${link.targetMentionId}.`,
       );
     }
-    if (
-      link.evidenceStart !== undefined &&
-      link.evidenceEnd !== undefined &&
-      link.evidenceEnd <= link.evidenceStart
-    ) {
-      throw new Error(
-        `Mention link ${link.id} has invalid evidence range [${link.evidenceStart}, ${link.evidenceEnd}).`,
-      );
+    if (link.evidenceSentenceIds.length === 0) {
+      throw new Error(`Mention link ${link.id} has no evidence sentences.`);
+    }
+
+    for (const sentenceId of link.evidenceSentenceIds) {
+      if (sentenceId[0] !== chapterId) {
+        throw new Error(
+          `Mention link ${link.id} evidence sentence ${formatSentenceId(sentenceId)} is outside chapter ${chapterId}.`,
+        );
+      }
     }
 
     linkIds.add(link.id);
   }
+}
+
+function formatSentenceId(sentenceId: SentenceId): string {
+  return sentenceId.join(":");
 }
 
 async function writeJsonl<T>(
@@ -1206,12 +1219,7 @@ function parseMentionLinkRecord(record: unknown): MentionLinkRecord {
     ...(parsed.confidence === undefined
       ? {}
       : { confidence: parsed.confidence }),
-    ...(parsed.evidenceEnd === undefined
-      ? {}
-      : { evidenceEnd: parsed.evidenceEnd }),
-    ...(parsed.evidenceStart === undefined
-      ? {}
-      : { evidenceStart: parsed.evidenceStart }),
+    evidenceSentenceIds: parsed.evidenceSentenceIds,
     id: parsed.id,
     ...(parsed.note === undefined ? {} : { note: parsed.note }),
     predicate: parsed.predicate,

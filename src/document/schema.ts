@@ -26,6 +26,12 @@ export const SCHEMA_SQL = `
   CREATE INDEX IF NOT EXISTS idx_chunks_sentence
   ON chunks(serial_id, fragment_id, sentence_index);
 
+  CREATE INDEX IF NOT EXISTS idx_chunks_serial_id
+  ON chunks(serial_id, id);
+
+  CREATE INDEX IF NOT EXISTS idx_chunks_serial_fragment_id
+  ON chunks(serial_id, fragment_id, id);
+
   CREATE TABLE IF NOT EXISTS chunk_sentences (
     chunk_id INTEGER NOT NULL,
     serial_id INTEGER NOT NULL,
@@ -100,11 +106,23 @@ export const SCHEMA_SQL = `
   CREATE INDEX IF NOT EXISTS idx_mentions_chapter
   ON mentions(chapter_id);
 
+  CREATE INDEX IF NOT EXISTS idx_mentions_chapter_position
+  ON mentions(chapter_id, fragment_id, sentence_index, range_start, range_end, id);
+
+  CREATE INDEX IF NOT EXISTS idx_mentions_chapter_qid
+  ON mentions(chapter_id, qid);
+
   CREATE INDEX IF NOT EXISTS idx_mentions_qid
   ON mentions(qid);
 
+  CREATE INDEX IF NOT EXISTS idx_mentions_qid_position
+  ON mentions(qid, chapter_id, fragment_id, sentence_index, range_start, range_end, id);
+
   CREATE INDEX IF NOT EXISTS idx_mentions_surface
   ON mentions(surface);
+
+  CREATE INDEX IF NOT EXISTS idx_mentions_surface_position
+  ON mentions(surface, chapter_id, fragment_id, sentence_index, range_start, range_end, id);
 
   CREATE INDEX IF NOT EXISTS idx_mentions_fragment
   ON mentions(fragment_id);
@@ -117,13 +135,23 @@ export const SCHEMA_SQL = `
     source_mention_id TEXT NOT NULL,
     target_mention_id TEXT NOT NULL,
     predicate TEXT NOT NULL,
-    evidence_start INTEGER,
-    evidence_end INTEGER,
     confidence REAL,
     note TEXT,
     FOREIGN KEY (source_mention_id) REFERENCES mentions(id),
     FOREIGN KEY (target_mention_id) REFERENCES mentions(id)
   );
+
+  CREATE TABLE IF NOT EXISTS mention_link_evidence_sentences (
+    link_id TEXT NOT NULL,
+    chapter_id INTEGER NOT NULL,
+    fragment_id INTEGER NOT NULL,
+    sentence_index INTEGER NOT NULL,
+    FOREIGN KEY (link_id) REFERENCES mention_links(id),
+    PRIMARY KEY (link_id, chapter_id, fragment_id, sentence_index)
+  );
+
+  CREATE INDEX IF NOT EXISTS idx_mention_link_evidence_sentences_sentence
+  ON mention_link_evidence_sentences(chapter_id, fragment_id, sentence_index);
 
   CREATE INDEX IF NOT EXISTS idx_mention_links_source
   ON mention_links(source_mention_id);
@@ -133,6 +161,18 @@ export const SCHEMA_SQL = `
 
   CREATE INDEX IF NOT EXISTS idx_mention_links_predicate
   ON mention_links(predicate);
+
+  CREATE INDEX IF NOT EXISTS idx_mention_links_predicate_source_target
+  ON mention_links(predicate, source_mention_id, target_mention_id);
+
+  CREATE INDEX IF NOT EXISTS idx_mention_links_predicate_target_source
+  ON mention_links(predicate, target_mention_id, source_mention_id);
+
+  CREATE INDEX IF NOT EXISTS idx_reading_edges_target
+  ON reading_edges(to_id, from_id);
+
+  CREATE INDEX IF NOT EXISTS idx_snake_edges_target
+  ON snake_edges(to_snake_id, from_snake_id);
 
   CREATE VIEW IF NOT EXISTS chapter_entities AS
   SELECT

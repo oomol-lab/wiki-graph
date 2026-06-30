@@ -103,14 +103,14 @@ describe("document/stores", () => {
         await openedDocument.mentionLinks.saveMany([
           {
             confidence: 0.8,
-            evidenceEnd: 16,
-            evidenceStart: 0,
+            evidenceSentenceIds: [[1, 10, 0]],
             id: "l1",
             predicate: "discusses",
             sourceMentionId: "m1",
             targetMentionId: "m2",
           },
           {
+            evidenceSentenceIds: [[2, 20, 0]],
             id: "l2",
             note: "cross chapter evidence is removed with either endpoint",
             predicate: "mentions",

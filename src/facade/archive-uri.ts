@@ -32,7 +32,7 @@ export function parseLocatedWikiGraphUri(uri: string): LocatedWikiGraphUri {
 
   return {
     archivePath: resolve(archivePath),
-    ...(objectPath === ""
+    ...(objectPath === "" && !path.endsWith("/")
       ? {}
       : {
           objectUri: `wikigraph://${objectPath}${hash === "" ? "" : `#${hash}`}`,

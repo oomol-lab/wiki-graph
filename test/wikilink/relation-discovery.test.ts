@@ -60,8 +60,7 @@ describe("wikilink/relation-discovery", () => {
     ).resolves.toStrictEqual([
       {
         confidence: 0.91,
-        evidenceEnd: 19,
-        evidenceStart: 0,
+        evidenceSentenceIds: [[1, 0, 0]],
         predicate: "founded_by",
         sourceMentionId: "m2",
         targetMentionId: "m1",
@@ -127,8 +126,10 @@ describe("wikilink/relation-discovery", () => {
       }),
     ).resolves.toStrictEqual([
       {
-        evidenceEnd: text.length,
-        evidenceStart: 0,
+        evidenceSentenceIds: [
+          [1, 0, 0],
+          [1, 0, 1],
+        ],
         predicate: "opposes",
         sourceMentionId: "m1",
         targetMentionId: "m2",
@@ -244,8 +245,7 @@ describe("wikilink/relation-discovery", () => {
     ).resolves.toStrictEqual([
       {
         confidence: 0.91,
-        evidenceEnd: 19,
-        evidenceStart: 0,
+        evidenceSentenceIds: [[1, 0, 0]],
         predicate: "founded_by",
         sourceMentionId: "m2",
         targetMentionId: "m1",
@@ -409,8 +409,7 @@ describe("wikilink/relation-discovery", () => {
       }),
     ).resolves.toStrictEqual([
       {
-        evidenceEnd: sentences[0]!.text.length,
-        evidenceStart: 0,
+        evidenceSentenceIds: [[1, 0, 0]],
         predicate: "changed_after",
         sourceMentionId: "m1",
         targetMentionId: "m2",

@@ -118,6 +118,7 @@ export type CLIObjectKind =
   | "chunk"
   | "chapter"
   | "entity"
+  | "meta"
   | "source"
   | "summary"
   | "triple";
@@ -2816,6 +2817,7 @@ function parseObjectKind(value: string): CLIObjectKind {
     value === "chapter" ||
     value === "chunk" ||
     value === "entity" ||
+    value === "meta" ||
     value === "source" ||
     value === "summary" ||
     value === "triple"
@@ -2825,7 +2827,7 @@ function parseObjectKind(value: string): CLIObjectKind {
 
   throw new Error(
     withHelpRoute(
-      `Invalid --type: ${value}. Expected chapter, entity, triple, source, summary, or chunk.`,
+      `Invalid --type: ${value}. Expected meta, chapter, entity, triple, source, summary, or chunk.`,
       CLI_HELP_ROUTES.command,
     ),
   );

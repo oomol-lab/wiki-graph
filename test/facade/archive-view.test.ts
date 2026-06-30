@@ -1,4 +1,8 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { mkdtemp, rm } from "fs/promises";
+import { tmpdir } from "os";
+import { join } from "path";
+
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { DirectoryDocument } from "../../src/document/index.js";
 import {
@@ -15,10 +19,20 @@ import { deleteArchiveSearchSessions } from "../../src/facade/search-cache.js";
 import { withTempDir } from "../helpers/temp.js";
 
 const originalStateDir = process.env.WIKIGRAPH_STATE_DIR;
+let testStateDir: string | undefined;
 
 describe("facade/archive-view", () => {
-  afterEach(() => {
+  beforeEach(async () => {
+    testStateDir = await mkdtemp(join(tmpdir(), "spinedigest-state-"));
+    process.env.WIKIGRAPH_STATE_DIR = testStateDir;
+  });
+
+  afterEach(async () => {
     restoreEnv("WIKIGRAPH_STATE_DIR", originalStateDir);
+    if (testStateDir !== undefined) {
+      await rm(testStateDir, { force: true, recursive: true });
+      testStateDir = undefined;
+    }
   });
 
   it("searches sourced fragments before graph or summary build", async () => {
@@ -301,6 +315,13 @@ describe("facade/archive-view", () => {
       try {
         await seedSourcedDocument(document);
         await document.openSession(async (openedDocument) => {
+          await openedDocument.createSerial();
+          const draft = await openedDocument
+            .getSerialFragments(2)
+            .createDraft();
+
+          draft.addSentence("Limited Entity appears later.", 5);
+          await draft.commit();
           await openedDocument.mentions.saveMany([
             {
               chapterId: 1,
@@ -340,6 +361,46 @@ describe("facade/archive-view", () => {
         ]);
       } finally {
         restoreEnv("WIKIGRAPH_STATE_DIR", previousStateDir);
+        await document.release();
+      }
+    });
+  });
+
+  it("keeps entity results ahead of high-frequency source matches", async () => {
+    await withTempDir("spinedigest-archive-view-", async (path) => {
+      const document = await DirectoryDocument.open(`${path}/document`);
+
+      try {
+        await document.openSession(async (openedDocument) => {
+          await openedDocument.createSerial();
+          const draft = await openedDocument
+            .getSerialFragments(1)
+            .createDraft();
+
+          draft.addSentence("陈友谅 陈友谅 陈友谅 陈友谅 陈友谅。", 5);
+          await draft.commit();
+          await openedDocument.mentions.save({
+            chapterId: 1,
+            fragmentId: 0,
+            id: "mention-chen",
+            qid: "Q1336609",
+            rangeEnd: 3,
+            rangeStart: 0,
+            sentenceIndex: 0,
+            surface: "陈友谅",
+          });
+        });
+
+        const result = await findArchiveObjects(document, "陈友谅", {
+          limit: 3,
+        });
+
+        expect(result.items[0]).toMatchObject({
+          id: "wikigraph://entity/Q1336609",
+          title: "陈友谅",
+          type: "entity",
+        });
+      } finally {
         await document.release();
       }
     });
@@ -681,6 +742,7 @@ describe("facade/archive-view", () => {
             },
           ]);
           await openedDocument.mentionLinks.save({
+            evidenceSentenceIds: [[1, 0, 2]],
             id: "triple-link",
             predicate: "mentions",
             sourceMentionId: "triple-source",
@@ -689,16 +751,26 @@ describe("facade/archive-view", () => {
         });
 
         const result = await findArchiveObjects(document, "Wiki", {
+          evidenceLimit: 3,
           types: ["triple"],
         });
 
-        expect(result.items).toContainEqual(
-          expect.objectContaining({
-            id: "wikigraph://triple/Q1/mentions/Q2",
-            title: "Wiki mentions Source",
-            type: "triple",
-          }),
+        const triple = result.items.find(
+          (item) => item.id === "wikigraph://triple/Q1/mentions/Q2",
         );
+
+        expect(triple).toMatchObject({
+          id: "wikigraph://triple/Q1/mentions/Q2",
+          title: "Wiki mentions Source",
+          type: "triple",
+        });
+        expect(triple?.evidence?.total).toBe(1);
+        expect(triple?.evidence?.sources).toStrictEqual([
+          expect.objectContaining({
+            id: "wikigraph://chapter/1/source/0#2..2",
+            source: "Source-only archives should be searchable.",
+          }),
+        ]);
       } finally {
         restoreEnv("WIKIGRAPH_STATE_DIR", previousStateDir);
         await document.release();
@@ -739,6 +811,7 @@ describe("facade/archive-view", () => {
           ]);
           await openedDocument.mentionLinks.saveMany(
             Array.from({ length: 11 }, (_, index) => ({
+              evidenceSentenceIds: [[1, 0, index]],
               id: `link-${index}`,
               predicate: "supports",
               sourceMentionId: `source-${index}`,
@@ -776,12 +849,14 @@ describe("facade/archive-view", () => {
 
         const firstPage = await findArchiveObjects(document, "Wiki", {
           limit: 1,
+          types: ["fragment", "node"],
         });
         const secondPage = await findArchiveObjects(document, "ignored query", {
           ...(firstPage.nextCursor === null
             ? {}
             : { cursor: firstPage.nextCursor }),
           limit: 1,
+          types: ["fragment", "node"],
         });
 
         expect(firstPage.items).toHaveLength(1);
@@ -953,14 +1028,182 @@ describe("facade/archive-view", () => {
         if (page.type !== "chapter") {
           throw new Error("Expected chapter page");
         }
-        expect(page.summary).toContain("Summary");
-        expect(page.summaryTruncated).toBe(true);
+        expect(page).toStrictEqual({
+          id: "chapter:1",
+          stage: "summarized",
+          title: "Introduction",
+          type: "chapter",
+        });
         expect(JSON.stringify(page)).not.toContain("sourcePreview");
         expect(JSON.stringify(page)).not.toContain("fragments");
         expect(JSON.stringify(page)).not.toContain("position");
         expect(JSON.stringify(page)).not.toContain("span");
         expect(JSON.stringify(page)).not.toContain("weight");
         expect(JSON.stringify(page)).not.toContain("wordsCount");
+      } finally {
+        await document.release();
+      }
+    });
+  });
+
+  it("reads archive metadata as the Wiki Graph root object", async () => {
+    await withTempDir("spinedigest-archive-view-", async (path) => {
+      const document = await DirectoryDocument.open(`${path}/document`);
+
+      try {
+        await seedSourcedDocument(document);
+        await document.openSession(async (openedDocument) => {
+          await openedDocument.replaceBookMeta({
+            authors: ["Author One", "Author Two"],
+            description: "A searchable description.",
+            identifier: "hidden-id",
+            language: "en",
+            publishedAt: null,
+            publisher: "Example Press",
+            sourceFormat: "markdown",
+            title: "Root Metadata",
+            version: 1,
+          });
+        });
+
+        await expect(
+          readArchivePage(document, "wikigraph://"),
+        ).resolves.toStrictEqual({
+          authors: ["Author One", "Author Two"],
+          description: "A searchable description.",
+          id: "meta:root",
+          publisher: "Example Press",
+          title: "Root Metadata",
+          type: "meta",
+        });
+      } finally {
+        await document.release();
+      }
+    });
+  });
+
+  it("searches only whitelisted metadata fields", async () => {
+    await withTempDir("spinedigest-archive-view-", async (path) => {
+      const previousStateDir = process.env.WIKIGRAPH_STATE_DIR;
+      process.env.WIKIGRAPH_STATE_DIR = `${path}/state`;
+      const document = await DirectoryDocument.open(`${path}/document`);
+
+      try {
+        await seedSourcedDocument(document);
+        await document.openSession(async (openedDocument) => {
+          await openedDocument.replaceBookMeta({
+            authors: ["Visible Author"],
+            description: "Visible Description",
+            identifier: "Hidden Identifier",
+            language: "Hidden Language",
+            publishedAt: "Hidden Date",
+            publisher: "Visible Publisher",
+            sourceFormat: "markdown",
+            title: "Visible Title",
+            version: 1,
+          });
+        });
+
+        await expect(
+          findArchiveObjects(document, "Visible Publisher", {
+            archiveKey: `${path}/book.sdpub`,
+            types: ["meta"],
+          }),
+        ).resolves.toMatchObject({
+          items: [
+            expect.objectContaining({
+              id: "meta:root",
+              type: "meta",
+            }),
+          ],
+        });
+        await expect(
+          findArchiveObjects(document, "Hidden Identifier", {
+            archiveKey: `${path}/book.sdpub`,
+            types: ["meta"],
+          }),
+        ).resolves.toMatchObject({ items: [] });
+      } finally {
+        restoreEnv("WIKIGRAPH_STATE_DIR", previousStateDir);
+        await document.release();
+      }
+    });
+  });
+
+  it("treats chapter search results as title hits only", async () => {
+    await withTempDir("spinedigest-archive-view-", async (path) => {
+      const previousStateDir = process.env.WIKIGRAPH_STATE_DIR;
+      process.env.WIKIGRAPH_STATE_DIR = `${path}/state`;
+      const document = await DirectoryDocument.open(`${path}/document`);
+
+      try {
+        await seedSourcedDocument(document);
+
+        const result = await findArchiveObjects(document, "Summary", {
+          archiveKey: `${path}/book.sdpub`,
+          types: ["chapter", "summary"],
+        });
+
+        expect(result.items).toContainEqual(
+          expect.objectContaining({
+            id: "summary:1",
+            type: "summary",
+          }),
+        );
+        expect(result.items).not.toContainEqual(
+          expect.objectContaining({
+            id: "chapter:1",
+            type: "chapter",
+          }),
+        );
+      } finally {
+        restoreEnv("WIKIGRAPH_STATE_DIR", previousStateDir);
+        await document.release();
+      }
+    });
+  });
+
+  it("hydrates collection evidence only after pagination", async () => {
+    await withTempDir("spinedigest-archive-view-", async (path) => {
+      const document = await DirectoryDocument.open(`${path}/document`);
+
+      try {
+        await seedSourcedDocument(document);
+        await document.openSession(async (openedDocument) => {
+          await openedDocument.mentions.saveMany([
+            {
+              chapterId: 1,
+              fragmentId: 0,
+              id: "paged-valid",
+              qid: "Q1",
+              rangeEnd: 10,
+              rangeStart: 0,
+              sentenceIndex: 0,
+              surface: "Paged Valid",
+            },
+            {
+              chapterId: 1,
+              fragmentId: 99,
+              id: "paged-not-on-first-page",
+              qid: "Q2",
+              rangeEnd: 10,
+              rangeStart: 0,
+              sentenceIndex: 0,
+              surface: "Paged Later",
+            },
+          ]);
+        });
+
+        const result = await listArchiveCollection(document, {
+          evidenceLimit: 1,
+          limit: 1,
+          types: ["entity"],
+        });
+        const [first] = result.items;
+
+        expect(first?.id).toBe("wikigraph://entity/Q1");
+        expect(first?.evidence?.shown).toBe(1);
+        expect(result.nextCursor).not.toBeNull();
       } finally {
         await document.release();
       }
@@ -989,36 +1232,15 @@ describe("facade/archive-view", () => {
     });
   });
 
-  it("shows chapter node groups and fragment related nodes", async () => {
+  it("shows fragment related nodes", async () => {
     await withTempDir("spinedigest-archive-view-", async (path) => {
       const document = await DirectoryDocument.open(`${path}/document`);
 
       try {
         await seedSourcedDocument(document);
 
-        const chapterPage = await readArchivePage(document, "chapter:1");
         const fragmentPage = await readArchivePage(document, "fragment:1:0");
 
-        expect(chapterPage).toMatchObject({
-          nodeCount: 2,
-          nodeGroups: [
-            expect.objectContaining({
-              groupId: 0,
-              nodeCount: 2,
-              nodes: [
-                expect.objectContaining({
-                  id: "node:100",
-                  title: "Wiki pages",
-                }),
-                expect.objectContaining({
-                  id: "node:101",
-                  title: "Source search",
-                }),
-              ],
-            }),
-          ],
-          type: "chapter",
-        });
         expect(fragmentPage).toMatchObject({
           nodes: [
             expect.objectContaining({ id: "node:100", title: "Wiki pages" }),
@@ -1055,41 +1277,6 @@ describe("facade/archive-view", () => {
         );
         expect(page.title).toBe("Wiki pages");
         expect(JSON.stringify(page)).not.toContain("sentence:");
-      } finally {
-        await document.release();
-      }
-    });
-  });
-
-  it("groups chapter nodes by fragment when topology groups are absent", async () => {
-    await withTempDir("spinedigest-archive-view-", async (path) => {
-      const document = await DirectoryDocument.open(`${path}/document`);
-
-      try {
-        await seedSourcedDocument(document, { withSnake: false });
-
-        const chapterPage = await readArchivePage(document, "chapter:1");
-
-        expect(chapterPage).toMatchObject({
-          nodeCount: 2,
-          nodeGroups: [
-            expect.objectContaining({
-              groupId: 0,
-              nodeCount: 2,
-              nodes: [
-                expect.objectContaining({
-                  id: "node:100",
-                  title: "Wiki pages",
-                }),
-                expect.objectContaining({
-                  id: "node:101",
-                  title: "Source search",
-                }),
-              ],
-            }),
-          ],
-          type: "chapter",
-        });
       } finally {
         await document.release();
       }
@@ -1154,8 +1341,7 @@ describe("facade/archive-view", () => {
             },
           ]);
           await openedDocument.mentionLinks.save({
-            evidenceEnd: 32,
-            evidenceStart: 0,
+            evidenceSentenceIds: [[2, 0, 0]],
             id: "l1",
             predicate: "mentions",
             sourceMentionId: "m2",
@@ -1221,6 +1407,21 @@ describe("facade/archive-view", () => {
             }),
           ]),
         );
+
+        const scopedSecondWithEvidence = await listArchiveCollection(document, {
+          chapters: [2],
+          evidenceLimit: 1,
+          types: ["entity"],
+        });
+        const entityWithEvidence = scopedSecondWithEvidence.items.find(
+          (item) => item.id === "wikigraph://entity/Q1",
+        );
+
+        expect(entityWithEvidence?.type).toBe("entity");
+        expect(entityWithEvidence?.evidence?.shown).toBe(1);
+        expect(entityWithEvidence?.evidence?.sources[0]?.id).toBe(
+          "wikigraph://chapter/2/source/0#0..0",
+        );
       } finally {
         await document.release();
       }
@@ -1240,6 +1441,69 @@ describe("facade/archive-view", () => {
         await expect(
           readArchivePage(document, "wikigraph://entity/Q1/extra"),
         ).rejects.toThrow("Invalid Wiki Graph URI");
+      } finally {
+        await document.release();
+      }
+    });
+  });
+
+  it("applies evidence limits when reading entity pages", async () => {
+    await withTempDir("spinedigest-archive-view-", async (path) => {
+      const document = await DirectoryDocument.open(`${path}/document`);
+
+      try {
+        await seedSourcedDocument(document);
+        await document.openSession(async (openedDocument) => {
+          await openedDocument.mentions.saveMany([
+            {
+              chapterId: 1,
+              fragmentId: 0,
+              id: "limited-one",
+              qid: "Q1",
+              rangeEnd: 11,
+              rangeStart: 0,
+              sentenceIndex: 0,
+              surface: "Limited Entity",
+            },
+            {
+              chapterId: 2,
+              fragmentId: 0,
+              id: "limited-two",
+              qid: "Q1",
+              rangeEnd: 12,
+              rangeStart: 0,
+              sentenceIndex: 1,
+              surface: "Limited Entity",
+            },
+          ]);
+          await openedDocument.replaceToc({
+            items: [
+              {
+                children: [],
+                serialId: 1,
+                title: "Introduction",
+              },
+              {
+                children: [],
+                serialId: 2,
+                title: "Second",
+              },
+            ],
+            version: 1,
+          });
+        });
+
+        const page = await readArchivePage(document, "wikigraph://entity/Q1", {
+          evidenceLimit: 1,
+        });
+
+        expect(page.type).toBe("entity");
+        if (page.type !== "entity") {
+          throw new Error("Expected entity page.");
+        }
+        expect(page.evidence.shown).toBe(1);
+        expect(page.evidence.total).toBe(2);
+        expect(page.evidence.nextCursor).not.toBeNull();
       } finally {
         await document.release();
       }
@@ -1323,8 +1587,7 @@ describe("facade/archive-view", () => {
             },
           ]);
           await openedDocument.mentionLinks.save({
-            evidenceEnd: 65,
-            evidenceStart: 0,
+            evidenceSentenceIds: [[1, 0, 0]],
             id: "l1",
             predicate: "mentions",
             sourceMentionId: "m1",

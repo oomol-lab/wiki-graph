@@ -19,6 +19,8 @@ import {
   type SnakeRecord,
 } from "./types.js";
 
+const MAX_SQL_BIND_PARAMS = 900;
+
 export interface ReadonlySerialStore {
   getById(serialId: number): Promise<SerialRecord | undefined>;
   getMaxId(): Promise<number>;
@@ -939,6 +941,12 @@ export class MentionLinkStore implements ReadonlyMentionLinkStore {
   }
 
   public async save(record: MentionLinkRecord): Promise<void> {
+    await this.#database.transaction(async () => {
+      await this.#saveRecord(record);
+    });
+  }
+
+  async #saveRecord(record: MentionLinkRecord): Promise<void> {
     await this.#database.run(
       `
         INSERT OR REPLACE INTO mention_links (
@@ -946,44 +954,64 @@ export class MentionLinkStore implements ReadonlyMentionLinkStore {
           source_mention_id,
           target_mention_id,
           predicate,
-          evidence_start,
-          evidence_end,
           confidence,
           note
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?)
       `,
       [
         record.id,
         record.sourceMentionId,
         record.targetMentionId,
         record.predicate,
-        record.evidenceStart ?? null,
-        record.evidenceEnd ?? null,
         record.confidence ?? null,
         record.note ?? null,
       ],
     );
+    await this.#database.run(
+      `
+        DELETE FROM mention_link_evidence_sentences
+        WHERE link_id = ?
+      `,
+      [record.id],
+    );
+
+    for (const [
+      chapterId,
+      fragmentId,
+      sentenceIndex,
+    ] of record.evidenceSentenceIds) {
+      await this.#database.run(
+        `
+          INSERT INTO mention_link_evidence_sentences (
+            link_id,
+            chapter_id,
+            fragment_id,
+            sentence_index
+          )
+          VALUES (?, ?, ?, ?)
+        `,
+        [record.id, chapterId, fragmentId, sentenceIndex],
+      );
+    }
   }
 
   public async saveMany(records: readonly MentionLinkRecord[]): Promise<void> {
     await this.#database.transaction(async () => {
       for (const record of records) {
-        await this.save(record);
+        await this.#saveRecord(record);
       }
     });
   }
 
   public async getById(linkId: string): Promise<MentionLinkRecord | undefined> {
-    return await this.#database.queryOne(
+    const row = await this.#database.queryOne(
       `
         SELECT
           id,
           source_mention_id,
           target_mention_id,
           predicate,
-          evidence_start,
-          evidence_end,
           confidence,
           note
         FROM mention_links
@@ -992,6 +1020,8 @@ export class MentionLinkStore implements ReadonlyMentionLinkStore {
       [linkId],
       mapMentionLinkRow,
     );
+
+    return row === undefined ? undefined : await this.#hydrateEvidence(row);
   }
 
   public async listByTriple(input: {
@@ -999,15 +1029,13 @@ export class MentionLinkStore implements ReadonlyMentionLinkStore {
     readonly predicate: string;
     readonly subjectQid: string;
   }): Promise<MentionLinkRecord[]> {
-    return await this.#database.queryAll(
+    const rows = await this.#database.queryAll(
       `
         SELECT
           mention_links.id AS id,
           mention_links.source_mention_id AS source_mention_id,
           mention_links.target_mention_id AS target_mention_id,
           mention_links.predicate AS predicate,
-          mention_links.evidence_start AS evidence_start,
-          mention_links.evidence_end AS evidence_end,
           mention_links.confidence AS confidence,
           mention_links.note AS note
         FROM mention_links
@@ -1022,25 +1050,23 @@ export class MentionLinkStore implements ReadonlyMentionLinkStore {
           source_mentions.chapter_id,
           source_mentions.fragment_id,
           source_mentions.sentence_index,
-          mention_links.evidence_start,
-          mention_links.evidence_end,
           mention_links.id
       `,
       [input.subjectQid, input.predicate, input.objectQid],
       mapMentionLinkRow,
     );
+
+    return await this.#hydrateEvidenceMany(rows);
   }
 
   public async listByChapter(chapterId: number): Promise<MentionLinkRecord[]> {
-    return await this.#database.queryAll(
+    const rows = await this.#database.queryAll(
       `
         SELECT
           mention_links.id AS id,
           mention_links.source_mention_id AS source_mention_id,
           mention_links.target_mention_id AS target_mention_id,
           mention_links.predicate AS predicate,
-          mention_links.evidence_start AS evidence_start,
-          mention_links.evidence_end AS evidence_end,
           mention_links.confidence AS confidence,
           mention_links.note AS note
         FROM mention_links
@@ -1055,11 +1081,30 @@ export class MentionLinkStore implements ReadonlyMentionLinkStore {
       [chapterId, chapterId],
       mapMentionLinkRow,
     );
+
+    return await this.#hydrateEvidenceMany(rows);
   }
 
   public async deleteByChapter(chapterId: number): Promise<void> {
-    await this.#database.run(
-      `
+    await this.#database.transaction(async () => {
+      await this.#database.run(
+        `
+          DELETE FROM mention_link_evidence_sentences
+          WHERE link_id IN (
+            SELECT mention_links.id
+            FROM mention_links
+            INNER JOIN mentions AS source_mentions
+              ON source_mentions.id = mention_links.source_mention_id
+            INNER JOIN mentions AS target_mentions
+              ON target_mentions.id = mention_links.target_mention_id
+            WHERE source_mentions.chapter_id = ?
+              OR target_mentions.chapter_id = ?
+          )
+        `,
+        [chapterId, chapterId],
+      );
+      await this.#database.run(
+        `
         DELETE FROM mention_links
         WHERE source_mention_id IN (
           SELECT id
@@ -1072,9 +1117,88 @@ export class MentionLinkStore implements ReadonlyMentionLinkStore {
           WHERE chapter_id = ?
         )
       `,
-      [chapterId, chapterId],
-    );
+        [chapterId, chapterId],
+      );
+    });
   }
+
+  async #hydrateEvidenceMany(
+    records: readonly MentionLinkRecord[],
+  ): Promise<MentionLinkRecord[]> {
+    if (records.length === 0) {
+      return [];
+    }
+
+    const sentenceIdsByLinkId = new Map<string, SentenceId[]>();
+    const linkIds = [...new Set(records.map((record) => record.id))];
+
+    for (const linkIdBatch of chunkArray(linkIds, MAX_SQL_BIND_PARAMS)) {
+      const placeholders = linkIdBatch.map(() => "?").join(", ");
+      const rows = await this.#database.queryAll(
+        `
+          SELECT link_id, chapter_id, fragment_id, sentence_index
+          FROM mention_link_evidence_sentences
+          WHERE link_id IN (${placeholders})
+          ORDER BY link_id, chapter_id, fragment_id, sentence_index
+        `,
+        linkIdBatch,
+        (row) => ({
+          linkId: getString(row, "link_id"),
+          sentenceId: [
+            getNumber(row, "chapter_id"),
+            getNumber(row, "fragment_id"),
+            getNumber(row, "sentence_index"),
+          ] as SentenceId,
+        }),
+      );
+
+      for (const row of rows) {
+        const sentenceIds = sentenceIdsByLinkId.get(row.linkId) ?? [];
+
+        sentenceIds.push(row.sentenceId);
+        sentenceIdsByLinkId.set(row.linkId, sentenceIds);
+      }
+    }
+
+    return records.map((record) => ({
+      ...record,
+      evidenceSentenceIds: sentenceIdsByLinkId.get(record.id) ?? [],
+    }));
+  }
+
+  async #hydrateEvidence(
+    record: MentionLinkRecord,
+  ): Promise<MentionLinkRecord> {
+    const evidenceSentenceIds = await this.#database.queryAll(
+      `
+        SELECT chapter_id, fragment_id, sentence_index
+        FROM mention_link_evidence_sentences
+        WHERE link_id = ?
+        ORDER BY chapter_id, fragment_id, sentence_index
+      `,
+      [record.id],
+      (row): SentenceId => [
+        getNumber(row, "chapter_id"),
+        getNumber(row, "fragment_id"),
+        getNumber(row, "sentence_index"),
+      ],
+    );
+
+    return {
+      ...record,
+      evidenceSentenceIds,
+    };
+  }
+}
+
+function chunkArray<T>(items: readonly T[], size: number): T[][] {
+  const chunks: T[][] = [];
+
+  for (let index = 0; index < items.length; index += size) {
+    chunks.push(items.slice(index, index + size));
+  }
+
+  return chunks;
 }
 
 export class SnakeChunkStore implements ReadonlySnakeChunkStore {
@@ -1323,14 +1447,11 @@ function mapMentionRow(row: SqlRow): MentionRecord {
 
 function mapMentionLinkRow(row: SqlRow): MentionLinkRecord {
   const confidence = getOptionalNumber(row, "confidence");
-  const evidenceEnd = getOptionalNumber(row, "evidence_end");
-  const evidenceStart = getOptionalNumber(row, "evidence_start");
   const note = getOptionalString(row, "note");
 
   return {
     ...(confidence === undefined ? {} : { confidence }),
-    ...(evidenceEnd === undefined ? {} : { evidenceEnd }),
-    ...(evidenceStart === undefined ? {} : { evidenceStart }),
+    evidenceSentenceIds: [],
     id: getString(row, "id"),
     ...(note === undefined ? {} : { note }),
     predicate: getString(row, "predicate"),

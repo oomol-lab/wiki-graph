@@ -44,12 +44,30 @@ import { formatCLIJSON, formatCLIJSONLine } from "./json.js";
 type ResultFormat = "json" | "jsonl" | "text";
 
 const DEFAULT_OUTPUT_LIMIT = 20;
+const PLAIN_OBJECT_KEY_PRIORITY = [
+  "uri",
+  "title",
+  "label",
+  "labels",
+  "stage",
+  "authors",
+  "publisher",
+  "description",
+] as const;
 
 interface ArchiveOutputObject {
+  readonly authors?: readonly string[];
+  readonly description?: string;
   readonly evidence?: ArchiveOutputEvidencePreview;
   readonly label?: string;
+  readonly objectLabel?: string;
+  readonly predicate?: string;
+  readonly publisher?: string;
   readonly score?: number;
+  readonly stage?: string;
+  readonly subjectLabel?: string;
   readonly summary?: string;
+  readonly title?: string;
   readonly type?: string;
   readonly uri: string;
 }
@@ -69,10 +87,13 @@ interface ArchiveOutputSource {
 interface ArchiveOutputContext {
   readonly archiveKey: string;
   readonly archivePath: string;
-  readonly continuationKind?: "evidence" | "search";
+  readonly chapters?: readonly number[];
+  readonly continuationKind?: "collection" | "evidence" | "search";
   readonly evidenceLimit?: number;
   readonly format: ResultFormat;
+  readonly ids?: readonly string[];
   readonly limit: number;
+  readonly order?: ArchiveCollectionResult["order"];
   readonly targetUri?: string;
   readonly types: readonly string[] | null;
 }
@@ -147,7 +168,9 @@ export async function runArchiveCommand(
                 createCollectionOptions(args),
               ),
             ),
-            createArchiveOutputContext(args),
+            createArchiveOutputContext(args, {
+              continuationKind: "collection",
+            }),
             args.format ?? "text",
           );
         },
@@ -158,7 +181,11 @@ export async function runArchiveCommand(
         getArchivePath(args.archivePath),
         async (document) => {
           await writePage(
-            await readArchivePage(document, getObjectUri(args.objectId!)),
+            await readArchivePage(document, getObjectUri(args.objectId!), {
+              ...(args.evidenceLimit === undefined
+                ? {}
+                : { evidenceLimit: args.evidenceLimit }),
+            }),
             createArchiveOutputContext(args),
             args.format ?? "text",
           );
@@ -296,6 +323,46 @@ async function runNextArchivePage(args: CLIArchiveArguments): Promise<void> {
     const limit = args.limit ?? cursor.limit;
 
     switch (cursor.kind) {
+      case "collection": {
+        const collectionOptions: ArchiveCollectionOptions = {
+          ...(cursor.chapters === null ? {} : { chapters: cursor.chapters }),
+          cursor: cursor.cursor,
+          ...(cursor.evidenceLimit === undefined
+            ? {}
+            : { evidenceLimit: cursor.evidenceLimit }),
+          ...(cursor.ids === null ? {} : { ids: cursor.ids }),
+          limit,
+          order: cursor.order,
+        };
+
+        if (cursor.types !== null) {
+          Object.assign(collectionOptions, {
+            types: cursor.types as ArchiveCollectionOptions["types"],
+          });
+        }
+
+        await writeFindHits(
+          createCollectionFindResult(
+            await listArchiveCollection(document, collectionOptions),
+          ),
+          {
+            archiveKey: cursor.archiveKey,
+            archivePath: cursor.archivePath,
+            ...(cursor.chapters === null ? {} : { chapters: cursor.chapters }),
+            continuationKind: "collection",
+            ...(cursor.evidenceLimit === undefined
+              ? {}
+              : { evidenceLimit: cursor.evidenceLimit }),
+            format,
+            ...(cursor.ids === null ? {} : { ids: cursor.ids }),
+            limit,
+            order: cursor.order,
+            types: cursor.types,
+          },
+          format,
+        );
+        return;
+      }
       case "search": {
         const findOptions: ArchiveFindOptions = {
           archiveKey: cursor.archiveKey,
@@ -412,7 +479,7 @@ function createFindOptions(args: CLIArchiveArguments): ArchiveFindOptions {
 function createArchiveOutputContext(
   args: CLIArchiveArguments,
   options: {
-    readonly continuationKind?: "evidence" | "search";
+    readonly continuationKind?: "collection" | "evidence" | "search";
     readonly targetUri?: string;
   } = {},
 ): ArchiveOutputContext {
@@ -427,6 +494,9 @@ function createArchiveOutputContext(
       : { evidenceLimit: args.evidenceLimit }),
     format: args.format ?? "text",
     limit: args.limit ?? DEFAULT_OUTPUT_LIMIT,
+    ...(options.continuationKind === "collection"
+      ? createScopeOptions(args.archivePath)
+      : {}),
     ...(options.targetUri === undefined
       ? {}
       : { targetUri: options.targetUri }),
@@ -449,29 +519,48 @@ async function createOutputContinuationCursor(
     return null;
   }
 
-  const input: ContinuationCursor =
-    context.continuationKind === "evidence"
-      ? {
-          archiveKey: context.archiveKey,
-          archivePath: context.archivePath,
-          cursor,
-          format: context.format,
-          kind: "evidence",
-          limit: context.evidenceLimit ?? context.limit,
-          targetUri: context.targetUri ?? "",
-        }
-      : {
-          archiveKey: context.archiveKey,
-          archivePath: context.archivePath,
-          cursor,
-          ...(context.evidenceLimit === undefined
-            ? {}
-            : { evidenceLimit: context.evidenceLimit }),
-          format: context.format,
-          kind: "search",
-          limit: context.limit,
-          types: context.types,
-        };
+  let input: ContinuationCursor;
+
+  if (context.continuationKind === "evidence") {
+    input = {
+      archiveKey: context.archiveKey,
+      archivePath: context.archivePath,
+      cursor,
+      format: context.format,
+      kind: "evidence",
+      limit: context.evidenceLimit ?? context.limit,
+      targetUri: context.targetUri ?? "",
+    };
+  } else if (context.continuationKind === "collection") {
+    input = {
+      archiveKey: context.archiveKey,
+      archivePath: context.archivePath,
+      chapters: context.chapters ?? null,
+      cursor,
+      ...(context.evidenceLimit === undefined
+        ? {}
+        : { evidenceLimit: context.evidenceLimit }),
+      format: context.format,
+      ids: context.ids ?? null,
+      kind: "collection",
+      limit: context.limit,
+      order: context.order ?? "doc-asc",
+      types: context.types,
+    };
+  } else {
+    input = {
+      archiveKey: context.archiveKey,
+      archivePath: context.archivePath,
+      cursor,
+      ...(context.evidenceLimit === undefined
+        ? {}
+        : { evidenceLimit: context.evidenceLimit }),
+      format: context.format,
+      kind: "search",
+      limit: context.limit,
+      types: context.types,
+    };
+  }
 
   return await createContinuationCursor(input);
 }
@@ -492,6 +581,9 @@ function createCollectionOptions(
   return {
     ...createScopeOptions(args.archivePath),
     ...(args.cursor === undefined ? {} : { cursor: args.cursor }),
+    ...(args.evidenceLimit === undefined
+      ? {}
+      : { evidenceLimit: args.evidenceLimit }),
     ...(args.limit === undefined ? {} : { limit: args.limit }),
     ...(types === undefined ? {} : { types }),
   };
@@ -837,25 +929,12 @@ async function writePage(
   switch (page.type) {
     case "chapter":
       await writeTextToStdout(
-        [
-          `${page.id}  ${page.title}`,
-          `Stage: ${formatStage(page.chapter.stage)}`,
-          `Fragments: ${page.chapter.fragmentCount}`,
-          `Nodes: ${page.nodeCount}`,
-          "",
-          "Node Groups:",
-          ...formatNodeGroups(page.nodeGroups),
-          "",
-          "Summary:",
-          `${page.summary ?? "[summary missing]"}${page.summaryTruncated ? "\n[summary truncated]" : ""}`,
-          "",
-          formatChapterNextSteps(page),
-        ].join("\n") + "\n",
+        `${formatPlainObject(await createPageObject(page, context))}\n`,
       );
       return;
     case "meta":
       await writeTextToStdout(
-        page.meta === undefined ? "No metadata.\n" : formatCLIJSON(page.meta),
+        `${formatPlainObject(await createPageObject(page, context))}\n`,
       );
       return;
     case "fragment":
@@ -943,7 +1022,7 @@ async function writePack(
     `Pack Budget: ${pack.budget}`,
     "",
     "# Anchor",
-    formatPackAnchor(pack.anchor),
+    await formatPackAnchor(pack.anchor, context),
     "",
     "# Links",
     ...formatNeighborLines(pack.links),
@@ -985,6 +1064,42 @@ async function createFindObject(
 ): Promise<ArchiveOutputObject> {
   const uri = toWikiGraphUri(hit.id);
 
+  if (hit.type === "chapter") {
+    return {
+      ...(hit.score === undefined ? {} : { score: hit.score }),
+      ...(hit.stage === undefined ? {} : { stage: formatStage(hit.stage) }),
+      title: hit.title,
+      uri,
+    };
+  }
+  if (hit.type === "meta") {
+    return {
+      ...(hit.score === undefined ? {} : { score: hit.score }),
+      title: hit.title,
+      uri,
+    };
+  }
+  if (hit.type === "triple") {
+    const triple = hit.triple;
+
+    return {
+      ...(context.evidenceLimit === undefined || hit.evidence === undefined
+        ? {}
+        : {
+            evidence: await createEvidencePreviewObject(hit.evidence, {
+              ...context,
+              continuationKind: "evidence",
+              targetUri: uri,
+            }),
+          }),
+      objectLabel: triple?.objectLabel ?? "",
+      predicate: triple?.predicate ?? "",
+      ...(hit.score === undefined ? {} : { score: hit.score }),
+      subjectLabel: triple?.subjectLabel ?? "",
+      uri,
+    };
+  }
+
   return {
     ...(context.evidenceLimit === undefined || hit.evidence === undefined
       ? {}
@@ -997,7 +1112,9 @@ async function createFindObject(
         }),
     label: hit.title,
     ...(hit.score === undefined ? {} : { score: hit.score }),
-    summary: hit.snippet,
+    ...(context.evidenceLimit !== undefined && hit.type === "entity"
+      ? {}
+      : { summary: hit.snippet }),
     type: hit.type === "node" ? "chunk" : hit.type,
     uri,
   };
@@ -1009,7 +1126,10 @@ async function createEvidencePreviewObject(
 ): Promise<ArchiveOutputEvidencePreview> {
   return {
     nextCursor: await createOutputContinuationCursor(
-      context,
+      {
+        ...context,
+        continuationKind: "evidence",
+      },
       evidence.nextCursor,
     ),
     shown: evidence.shown,
@@ -1060,9 +1180,11 @@ async function createPageObject(
         uri: page.id,
       };
     case "chapter": {
-      const { id: _id, ...rest } = page;
-
-      return { ...rest, uri: toWikiGraphUri(page.id) };
+      return {
+        stage: formatStage(page.stage),
+        title: page.title,
+        uri: toWikiGraphUri(page.id),
+      };
     }
     case "chapter-tree": {
       const { id: _id, ...rest } = page;
@@ -1084,7 +1206,7 @@ async function createPageObject(
       };
     }
     case "meta": {
-      const { id: _id, ...rest } = page;
+      const { id: _id, type: _type, ...rest } = page;
 
       return { ...rest, uri: toWikiGraphUri(page.id) };
     }
@@ -1117,11 +1239,7 @@ async function createPackObject(
 }
 
 function formatFindObject(object: ArchiveOutputObject): string {
-  const lines = [
-    `${formatScorePrefix(object.score)}${object.uri}`,
-    object.label,
-    object.evidence === undefined ? object.summary : undefined,
-  ].filter((line): line is string => line !== undefined && line !== "");
+  const lines = formatObjectSummaryLines(object);
 
   if (object.evidence !== undefined && object.evidence.sources.length > 0) {
     lines.push(
@@ -1141,6 +1259,60 @@ function formatFindObject(object: ArchiveOutputObject): string {
   }
 
   return lines.join("\n");
+}
+
+function formatObjectSummaryLines(object: ArchiveOutputObject): string[] {
+  const uri = `${formatScorePrefix(object.score)}${object.uri}`;
+
+  if (object.predicate !== undefined) {
+    return [
+      uri,
+      `${object.subjectLabel ?? "[subject]"} ${object.predicate} ${object.objectLabel ?? "[object]"}`,
+    ];
+  }
+
+  return [
+    uri,
+    object.title,
+    object.label,
+    object.stage === undefined ? undefined : `stage: ${object.stage}`,
+    object.evidence === undefined ? object.summary : undefined,
+  ].filter((line): line is string => line !== undefined && line !== "");
+}
+
+function formatPlainObject(value: unknown): string {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    return String(value);
+  }
+
+  return Object.entries(value)
+    .filter(([, item]) => item !== undefined && item !== null)
+    .sort(([left], [right]) => comparePlainObjectKeys(left, right))
+    .map(([key, item]) => `${key}: ${formatPlainValue(item)}`)
+    .join("\n");
+}
+
+function comparePlainObjectKeys(left: string, right: string): number {
+  return getPlainObjectKeyOrder(left) - getPlainObjectKeyOrder(right);
+}
+
+function getPlainObjectKeyOrder(key: string): number {
+  const index = PLAIN_OBJECT_KEY_PRIORITY.indexOf(
+    key as (typeof PLAIN_OBJECT_KEY_PRIORITY)[number],
+  );
+
+  return index < 0 ? PLAIN_OBJECT_KEY_PRIORITY.length : index;
+}
+
+function formatPlainValue(value: unknown): string {
+  if (Array.isArray(value)) {
+    return value.map((item) => String(item)).join(", ");
+  }
+  if (typeof value === "object" && value !== null) {
+    return formatCLIJSON(value).trimEnd();
+  }
+
+  return String(value);
 }
 
 function formatScorePrefix(score: number | undefined): string {
@@ -1181,32 +1353,6 @@ function formatNeighborLines(
 
     return `  ${arrow} ${toWikiGraphUri(`node:${neighbor.node.id}`)}  ${neighbor.node.label}`;
   });
-}
-
-function formatNodeGroups(
-  groups: Extract<ArchivePage, { readonly type: "chapter" }>["nodeGroups"],
-): string[] {
-  if (groups.length === 0) {
-    return ["  [none]"];
-  }
-
-  const visibleGroups = groups.slice(0, 12);
-  const lines = visibleGroups.flatMap((group) => {
-    const visibleNodes = group.nodes.slice(0, 10);
-    const moreNodes = group.nodeCount - visibleNodes.length;
-
-    return [
-      `  Group ${group.groupId}  ${group.nodeCount} nodes`,
-      ...formatNodeLabels(visibleNodes).map((line) => `  ${line}`),
-      ...(moreNodes > 0 ? [`    ... ${moreNodes} more nodes`] : []),
-    ];
-  });
-
-  if (groups.length > visibleGroups.length) {
-    lines.push(`  ... ${groups.length - visibleGroups.length} more groups`);
-  }
-
-  return lines;
 }
 
 function formatNodeLabels(
@@ -1318,16 +1464,19 @@ function formatDuration(seconds: number): string {
   return `${Math.round(minutes / 60)}h`;
 }
 
-function formatPackAnchor(anchor: ArchivePage): string {
+async function formatPackAnchor(
+  anchor: ArchivePage,
+  context: ArchiveOutputContext,
+): Promise<string> {
   switch (anchor.type) {
     case "chapter":
-      return `${anchor.id} ${anchor.title}\n${anchor.summary ?? "[summary missing]"}`;
+      return formatPlainObject(await createPageObject(anchor, context));
     case "chapter-tree":
       return `${anchor.id} ${anchor.title}\n${formatCLIJSON(anchor.tree).trimEnd()}`;
     case "fragment":
       return `${anchor.id}\n${anchor.fragment.text}`;
     case "meta":
-      return `${anchor.id}\n${formatCLIJSON(anchor.meta).trimEnd()}`;
+      return formatPlainObject(await createPageObject(anchor, context));
     case "node":
       return [
         `${anchor.id} ${anchor.title}`,
@@ -1360,16 +1509,6 @@ function formatPackAnchor(anchor: ArchivePage): string {
   }
 }
 
-function formatChapterNextSteps(
-  page: Extract<ArchivePage, { readonly type: "chapter" }>,
-): string {
-  return [
-    "Next:",
-    `  wikigraph search wikigraph://<archive.sdpub>/chapter/${page.chapter.chapterId} <keyword> --type chunk`,
-    `  wikigraph get wikigraph://<archive.sdpub>/chapter/${page.chapter.chapterId}/source/`,
-  ].join("\n");
-}
-
 function truncateToBudget(text: string, budget: number): string {
   if (text.length <= budget) {
     return text;
@@ -1393,6 +1532,8 @@ function toWikiGraphUri(id: string): string {
       return `wikigraph://chapter/${first ?? ""}`;
     case "fragment":
       return `wikigraph://chapter/${first ?? ""}/source/${second ?? "0"}`;
+    case "meta":
+      return "wikigraph://";
     case "node":
       return `wikigraph://chunk/${first ?? ""}`;
     case "summary":
@@ -1416,6 +1557,8 @@ function toArchiveFindType(
       return "summary";
     case "entity":
       return "entity";
+    case "meta":
+      return "meta";
     case "triple":
       return "triple";
   }
@@ -1431,6 +1574,8 @@ function toArchiveCollectionType(
       return "node";
     case "entity":
       return "entity";
+    case "meta":
+      return "meta";
     case "source":
       return "fragment";
     case "summary":

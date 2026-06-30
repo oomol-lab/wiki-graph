@@ -397,8 +397,7 @@ describe("facade/knowledge-graph-build", () => {
           mentionLinks: [
             {
               confidence: 0.8,
-              evidenceEnd: 15,
-              evidenceStart: 0,
+              evidenceSentenceIds: [[1, 10, 0]],
               id: "l1",
               predicate: "discusses",
               sourceMentionId: "m1",
@@ -437,8 +436,7 @@ describe("facade/knowledge-graph-build", () => {
         expect(await document.mentionLinks.listByChapter(1)).toStrictEqual([
           {
             confidence: 0.8,
-            evidenceEnd: 15,
-            evidenceStart: 0,
+            evidenceSentenceIds: [[1, 10, 0]],
             id: "l1",
             predicate: "discusses",
             sourceMentionId: "m1",
@@ -475,8 +473,7 @@ describe("facade/knowledge-graph-build", () => {
         expect(await document.mentionLinks.listByChapter(1)).toStrictEqual([
           {
             confidence: 0.8,
-            evidenceEnd: 15,
-            evidenceStart: 0,
+            evidenceSentenceIds: [[1, 10, 0]],
             id: "l1",
             predicate: "discusses",
             sourceMentionId: "m1",
@@ -501,6 +498,7 @@ describe("facade/knowledge-graph-build", () => {
         const artifact = await buildChapterKnowledgeGraphArtifact(1, {
           mentionLinks: [
             {
+              evidenceSentenceIds: [[1, 10, 0]],
               id: "l1",
               predicate: "mentions",
               sourceMentionId: "m1",

@@ -130,7 +130,6 @@ export type {
   ArchiveIndex,
   ArchiveListItem,
   ArchiveListKind,
-  ArchiveNodeGroup,
   ArchiveNodeLabel,
   ArchiveNodeSourceFragment,
   ArchiveFindObjectType,

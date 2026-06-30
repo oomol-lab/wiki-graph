@@ -9,7 +9,7 @@ Purpose:
 
 Object model:
   Search and navigation return URI-addressable objects. Common object kinds are:
-    chapter, chapter-tree, entity, triple, source, summary, chunk
+    meta, chapter, chapter-tree, entity, triple, source, summary, chunk
 
 Object workflow:
   - `search` returns candidate Wiki Graph URIs from query text.
@@ -20,8 +20,8 @@ Object workflow:
   - `pack` builds bounded Agent-readable context around one readable URI.
 
 Object commands:
-  wikigraph search <wikigraph-uri-with-sdpub-locator> <query> [--type <chapter|entity|triple|source|summary|chunk[,kind...]>] [--limit <n>] [--cursor <token>] [--evidence [n]] [--json|--jsonl]
-  wikigraph list <wikigraph-uri-with-sdpub-locator> [--type <chapter|entity|triple|source|summary|chunk[,kind...]>] [--limit <n>] [--cursor <token>] [--evidence [n]] [--json|--jsonl]
+  wikigraph search <wikigraph-uri-with-sdpub-locator> <query> [--type <meta|chapter|entity|triple|source|summary|chunk[,kind...]>] [--limit <n>] [--cursor <token>] [--evidence [n]] [--json|--jsonl]
+  wikigraph list <wikigraph-uri-with-sdpub-locator> [--type <meta|chapter|entity|triple|source|summary|chunk[,kind...]>] [--limit <n>] [--cursor <token>] [--evidence [n]] [--json|--jsonl]
   wikigraph get <object-uri> [--evidence [n]] [--json|--jsonl]
   wikigraph related <object-uri> [--evidence [n]] [--json|--jsonl]
   wikigraph evidence <entity|triple|summary|chunk-uri> [--limit <n>] [--cursor <token>] [--json|--jsonl]

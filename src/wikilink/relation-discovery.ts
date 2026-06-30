@@ -19,6 +19,7 @@ import {
   type EvidenceResolutionFailure,
 } from "../evidence-selection/index.js";
 import { FragmentProjection } from "../reader/chunk-batch/index.js";
+import type { SentenceId } from "../document/index.js";
 
 import type { WikilinkEvidenceWindow, WikilinkMention } from "./types.js";
 
@@ -29,8 +30,7 @@ export interface WikilinkSentence {
 
 export interface WikilinkDiscoveredRelation {
   readonly confidence?: number;
-  readonly evidenceEnd: number;
-  readonly evidenceStart: number;
+  readonly evidenceSentenceIds: readonly SentenceId[];
   readonly predicate: string;
   readonly sourceMentionId: string;
   readonly targetMentionId: string;
@@ -288,26 +288,28 @@ function parseRelationResponse(
       continue;
     }
 
-    const resolvedIndexes = effectiveResolution.sentenceIds.map(
-      (sentenceId) => sentenceId[2],
+    const evidenceSentenceIds = dedupeSentenceIds(
+      effectiveResolution.sentenceIds,
     );
 
-    if (resolvedIndexes.length === 0) {
+    if (evidenceSentenceIds.length === 0) {
       issues.push(`${prefix}.evidence resolved to no sentences.`);
       continue;
     }
 
-    const startIndex = Math.min(...resolvedIndexes);
-    const endIndex = Math.max(...resolvedIndexes);
-    const startOffset = sentenceOffsets[startIndex]?.start;
-    const endOffset = sentenceOffsets[endIndex]?.end;
-
-    if (startOffset === undefined || endOffset === undefined) {
+    if (
+      evidenceSentenceIds.some(
+        ([chapterId, fragmentId, sentenceIndex]) =>
+          chapterId !== options.chapterId ||
+          fragmentId !== options.fragmentId ||
+          sentenceOffsets[sentenceIndex] === undefined,
+      )
+    ) {
       issues.push(`${prefix}.evidence resolved outside this fragment.`);
       continue;
     }
 
-    const key = `${source.id}\0${target.id}\0${predicate}\0${startOffset}\0${endOffset}`;
+    const key = `${source.id}\0${target.id}\0${predicate}\0${evidenceSentenceIds.map((sentenceId) => sentenceId.join(":")).join(",")}`;
 
     if (seenKeys.has(key)) {
       continue;
@@ -318,8 +320,7 @@ function parseRelationResponse(
       ...(relation.confidence === undefined
         ? {}
         : { confidence: relation.confidence }),
-      evidenceEnd: endOffset,
-      evidenceStart: startOffset,
+      evidenceSentenceIds,
       predicate,
       sourceMentionId: source.id,
       targetMentionId: target.id,
@@ -331,6 +332,34 @@ function parseRelationResponse(
   }
 
   return links;
+}
+
+function dedupeSentenceIds(
+  sentenceIds: readonly SentenceId[],
+): readonly SentenceId[] {
+  const seen = new Set<string>();
+  const deduped: SentenceId[] = [];
+
+  for (const sentenceId of sentenceIds) {
+    const key = sentenceId.join(":");
+
+    if (seen.has(key)) {
+      continue;
+    }
+
+    seen.add(key);
+    deduped.push(sentenceId);
+  }
+
+  return deduped.sort(
+    (
+      [leftChapter, leftFragment, leftSentence],
+      [rightChapter, rightFragment, rightSentence],
+    ) =>
+      leftChapter - rightChapter ||
+      leftFragment - rightFragment ||
+      leftSentence - rightSentence,
+  );
 }
 
 function buildRelationMessages(

@@ -323,7 +323,7 @@ describe("cli/args", () => {
         "wikigraph://book.sdpub",
         "RAG",
         "--type",
-        "chapter,chunk",
+        "meta,chapter,chunk",
         "--json",
       ]),
     ).toStrictEqual({
@@ -331,7 +331,7 @@ describe("cli/args", () => {
         action: "search",
         archivePath: "wikigraph://book.sdpub",
         format: "json",
-        kinds: ["chapter", "chunk"],
+        kinds: ["meta", "chapter", "chunk"],
         query: "RAG",
       },
       help: false,

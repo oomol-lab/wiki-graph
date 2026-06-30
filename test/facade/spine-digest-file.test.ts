@@ -207,7 +207,7 @@ describe("facade/spine-digest-file", () => {
                 archiveKey: archivePath,
               }),
             ).resolves.toMatchObject({
-              items: [expect.objectContaining({ id: "meta:book" })],
+              items: [expect.objectContaining({ id: "meta:root" })],
             });
           },
         );

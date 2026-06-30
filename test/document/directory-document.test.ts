@@ -209,6 +209,7 @@ describe("document/directory-document", () => {
             },
           ]);
           await document.mentionLinks.save({
+            evidenceSentenceIds: [[1, 0, 0]],
             id: "l1",
             predicate: "mentions",
             sourceMentionId: "m1",

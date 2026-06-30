@@ -36,29 +36,57 @@ describe("document/wiki-graph-schema", () => {
               source_mention_id,
               target_mention_id,
               predicate,
-              evidence_start,
-              evidence_end,
               confidence,
               note
             ) VALUES
-              ('l1', 'm3', 'm2', 'discusses', 0, 20, 0.8, '同段论述'),
-              ('l2', 'm3', 'm2', 'discusses', 21, 40, 0.75, NULL),
-              ('l3', 'm1', 'm2', 'requires', 0, 20, 0.7, NULL)
+              ('l1', 'm3', 'm2', 'discusses', 0.8, '同段论述'),
+              ('l2', 'm3', 'm2', 'discusses', 0.75, NULL),
+              ('l3', 'm1', 'm2', 'requires', 0.7, NULL)
+          `,
+        );
+        await database.run(
+          `
+            INSERT INTO mention_link_evidence_sentences (
+              link_id,
+              chapter_id,
+              fragment_id,
+              sentence_index
+            ) VALUES
+              ('l1', 1, 10, 0),
+              ('l2', 1, 10, 1),
+              ('l3', 1, 10, 0)
           `,
         );
 
         await expect(listObjectNames(database, "table")).resolves.toEqual(
-          expect.arrayContaining(["mentions", "mention_links"]),
+          expect.arrayContaining([
+            "mentions",
+            "mention_links",
+            "mention_link_evidence_sentences",
+          ]),
         );
         await expect(listObjectNames(database, "index")).resolves.toEqual(
           expect.arrayContaining([
+            "idx_chunks_sentence",
+            "idx_chunks_serial_fragment_id",
+            "idx_chunks_serial_id",
             "idx_mentions_chapter",
+            "idx_mentions_chapter_position",
+            "idx_mentions_chapter_qid",
             "idx_mentions_fragment",
             "idx_mentions_qid",
+            "idx_mentions_qid_position",
             "idx_mentions_sentence",
+            "idx_mentions_surface",
+            "idx_mentions_surface_position",
+            "idx_mention_link_evidence_sentences_sentence",
             "idx_mention_links_predicate",
+            "idx_mention_links_predicate_source_target",
+            "idx_mention_links_predicate_target_source",
             "idx_mention_links_source",
             "idx_mention_links_target",
+            "idx_reading_edges_target",
+            "idx_snake_edges_target",
           ]),
         );
         await expect(listObjectNames(database, "view")).resolves.toEqual(
