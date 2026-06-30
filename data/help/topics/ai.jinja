@@ -7,7 +7,7 @@ Primary contract:
   Use Wiki Graph URIs as stable object handles.
 
 Object command inputs:
-  Never pass a bare filesystem path to `search`, `list`, `get`, `related`, `evidence`, or `pack`.
+  Never pass a bare filesystem path to URI-targeted commands.
   Convert archive paths into Wiki Graph URIs first:
     /Users/me/book.sdpub -> wkg:///Users/me/book.sdpub
     ./book.sdpub -> wkg://book.sdpub
@@ -23,6 +23,13 @@ Default exploration loop:
   4. `wikigraph <located-object-uri> related`
   5. `wikigraph <located-object-uri> evidence`
   6. `wikigraph <located-object-uri> pack --budget <chars>`
+
+Archive and job commands also use URI targets:
+  wikigraph wkg://book.sdpub create ./book.md
+  wikigraph wkg://book.sdpub status --json
+  wikigraph wkg://book.sdpub/chapter/3 queue add --task reading-graph --accept-cost
+  wikigraph wkg-job:// list
+  wikigraph wkg-job://<job-id> watch --jsonl
 
 Example:
   wikigraph wkg:///Users/me/book.sdpub search "朱元璋" --type entity,triple --limit 20 --json

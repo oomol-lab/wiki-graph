@@ -4,12 +4,13 @@ Topic: troubleshoot
 Troubleshooting
 
 No search results:
-  Try fewer keywords, remove restrictive `--type` filters, or inspect the archive with `wikigraph index <archive.sdpub>`.
+  Try fewer keywords, remove restrictive `--type` filters, or inspect the archive with:
+    wikigraph <archive-uri> index
 
 Missing generated objects:
   Queue the relevant generation task for the chapter:
-    wikigraph queue add <archive.sdpub> --chapter <id> --task reading-graph --accept-cost
-    wikigraph queue add <archive.sdpub> --chapter <id> --task reading-summary --accept-cost
+    wikigraph <chapter-uri> queue add --task reading-graph --accept-cost
+    wikigraph <chapter-uri> queue add --task reading-summary --accept-cost
 
 Need machine-readable output:
   Use `--json` or `--jsonl` on object commands.

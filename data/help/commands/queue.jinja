@@ -5,15 +5,15 @@ Purpose:
   Manage device-local generation tasks for `.sdpub` chapters.
 
 Usage:
-  wikigraph queue add <archive.sdpub> --chapter <id> --task <reading-graph|reading-summary|knowledge-graph> --accept-cost [--boost] [--llm <json>] [--prompt <text>]
-  wikigraph queue list [--all] [--active] [--input <archive.sdpub>]
-  wikigraph queue status <job-id>
-  wikigraph queue watch <job-id> [--jsonl] [--from beginning|now]
-  wikigraph queue pause <job-id>
-  wikigraph queue resume <job-id>
-  wikigraph queue cancel <job-id>
-  wikigraph queue boost <job-id>
-  wikigraph queue target <job-id> --task <reading-graph|reading-summary|knowledge-graph>
+  wikigraph <chapter-uri> queue add --task <reading-graph|reading-summary|knowledge-graph> --accept-cost [--boost] [--llm <json>] [--prompt <text>]
+  wikigraph wkg-job:// list [--all] [--active] [--input <archive-uri>]
+  wikigraph wkg-job://<job-id> get [--json]
+  wikigraph wkg-job://<job-id> watch [--jsonl] [--from beginning|now]
+  wikigraph wkg-job://<job-id> pause
+  wikigraph wkg-job://<job-id> resume
+  wikigraph wkg-job://<job-id> cancel
+  wikigraph wkg-job://<job-id> boost
+  wikigraph wkg-job://<job-id> set --task <reading-graph|reading-summary|knowledge-graph>
   wikigraph queue clean
 
 Tasks:
@@ -31,7 +31,8 @@ Cost:
   `queue add` requires `--accept-cost`.
 
 Examples:
-  wikigraph queue add book.sdpub --chapter 3 --task reading-graph --accept-cost
-  wikigraph queue add book.sdpub --chapter 3 --task reading-summary --accept-cost
-  wikigraph queue add book.sdpub --chapter 3 --task knowledge-graph --accept-cost
-  wikigraph queue watch <job-id> --jsonl
+  wikigraph wkg://book.sdpub/chapter/3 queue add --task reading-graph --accept-cost
+  wikigraph wkg://book.sdpub/chapter/3 queue add --task reading-summary --accept-cost
+  wikigraph wkg://book.sdpub/chapter/3 queue add --task knowledge-graph --accept-cost
+  wikigraph wkg-job:// list --input wkg://book.sdpub --json
+  wikigraph wkg-job://<job-id> watch --jsonl

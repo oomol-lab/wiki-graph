@@ -4,8 +4,8 @@ Topic: runtime
 Runtime Behavior
 
 Archive-first streams:
-  - `wikigraph create <archive.sdpub> --input-format markdown|txt` reads source text from stdin.
-  - `wikigraph export <archive.sdpub> --output-format markdown|txt` can write text projections to stdout.
+  - `wikigraph <archive-uri> create --input-format markdown|txt` reads source text from stdin.
+  - `wikigraph <archive-uri> export --output-format markdown|txt` can write text projections to stdout.
   - `wikigraph transform --input-format markdown|txt --output-format markdown|txt` runs direct one-shot stream digest/export.
   - Retrieval commands print human-readable text by default and support `--json` where documented.
   - A bare `wikigraph` in an interactive terminal prints root help.
@@ -20,9 +20,9 @@ Queue behavior:
   - Queue generation jobs consume LLM tokens, may incur provider charges, and can run for minutes to hours on large archives.
   - `queue add` requires `--accept-cost` as an explicit cost/time acknowledgement.
   - The queue state lives under `~/.wikigraph/state`.
-  - `queue add`, `queue resume`, `queue boost`, and `queue target` try to start a transient worker.
+  - `queue add`, `wkg-job://<job-id> resume`, `wkg-job://<job-id> boost`, and `wkg-job://<job-id> set` try to start a transient worker.
   - The worker exits after idle time; it is not intended to be a permanent daemon.
-  - `queue watch --jsonl` is the stable agent-facing progress stream.
+  - `wkg-job://<job-id> watch --jsonl` is the stable agent-facing progress stream.
   - `request.concurrent` in `~/.wikigraph/config.json` controls the worker slot count.
 
 Progress and diagnostics:

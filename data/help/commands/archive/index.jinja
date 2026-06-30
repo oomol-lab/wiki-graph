@@ -1,5 +1,5 @@
 Help Type: command
-Command: wikigraph index
+Command: wikigraph <archive-uri> index
 
 Purpose:
   Show the archive home/index page and entry points.
@@ -7,7 +7,7 @@ Purpose:
   For content exploration after `chapter tree`, use scoped URIs such as `wkg:///book.sdpub/chapter/3`.
 
 Usage:
-  wikigraph index <archive.sdpub> [--json]
+  wikigraph <archive-uri> index [--json]
 
 Contract:
   - Mutates: no.
@@ -15,4 +15,5 @@ Contract:
   - JSON: yes.
 
 Examples:
-  wikigraph index book.sdpub
+  wikigraph wkg://book.sdpub index
+  wikigraph wkg://book.sdpub index --json

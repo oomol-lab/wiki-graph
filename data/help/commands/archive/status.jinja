@@ -1,0 +1,17 @@
+Help Type: command
+Command: wikigraph <archive-uri> status
+
+Purpose:
+  Show archive readiness and high-level counts.
+
+Usage:
+  wikigraph <archive-uri> status [--json]
+
+Contract:
+  - Mutates: no.
+  - LLM: no.
+  - JSON: yes.
+
+Examples:
+  wikigraph wkg://book.sdpub status
+  wikigraph wkg:///Users/me/book.sdpub status --json

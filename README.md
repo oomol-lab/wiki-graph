@@ -17,7 +17,7 @@ It is not a one-shot book-to-summary converter. Summaries, EPUB, Markdown, and J
 There are three main ways to explore a `.sdpub` archive:
 
 - **Search mode:** use `search` to discover URI-addressable source, summary, chunk, entity, and triple objects.
-- **Structure mode:** use `chapter tree --json` for the table-of-contents hierarchy, then `list` or scoped `search` to inspect local object collections.
+- **Structure mode:** use `wkg://.../chapter/tree get --json` for the table-of-contents hierarchy, then `list` or scoped `search` to inspect local object collections.
 - **Reading mode:** use `get` on source, chapter, summary, chunk, entity, or triple URIs after selecting the relevant object.
 
 Together, these modes let long documents behave like navigable knowledge bases: start with structure, locate relevant content, then return to source text and knowledge nodes for deeper reading.
@@ -63,29 +63,29 @@ SpineDigest's primary object is `.sdpub`: a CLI-managed knowledge-base archive, 
 Create a knowledge base from source material:
 
 ```bash
-wikigraph create ./book.sdpub ./book.epub
-cat ./article.md | wikigraph create ./article.sdpub --input-format markdown
+wikigraph wkg://book.sdpub create ./book.epub
+cat ./article.md | wikigraph wkg://article.sdpub create --input-format markdown
 ```
 
 Inspect and estimate before expensive work:
 
 ```bash
-wikigraph status ./book.sdpub
-wikigraph index ./book.sdpub
-wikigraph estimate ./book.sdpub --stage reading-summary
+wikigraph wkg://book.sdpub status
+wikigraph wkg://book.sdpub index
+wikigraph wkg://book.sdpub estimate --stage reading-summary
 ```
 
 Build derived knowledge when you intend to spend LLM time:
 
 ```bash
-wikigraph queue add ./book.sdpub --chapter 12 --task reading-graph --accept-cost
-wikigraph queue watch <job-id> --jsonl
+wikigraph wkg://book.sdpub/chapter/12 queue add --task reading-graph --accept-cost
+wikigraph wkg-job://<job-id> watch --jsonl
 ```
 
 Search, browse, and read through the knowledge-base interface:
 
 ```bash
-wikigraph chapter tree ./book.sdpub --json
+wikigraph wkg://book.sdpub/chapter/tree get --json
 wikigraph wkg://book.sdpub search "RAG" --type chunk
 wikigraph wkg://book.sdpub/chapter/12 search "exact source phrase" --type source
 wikigraph wkg://book.sdpub/chapter/12 get
@@ -99,7 +99,7 @@ Output a projection only when you need a portable view. For example, read one ch
 
 ```bash
 wikigraph wkg://book.sdpub/chapter/12/source/ get > ./chapter-12.md
-wikigraph export ./book.sdpub --output-format epub --output ./digest.epub
+wikigraph wkg://book.sdpub export --output-format epub --output ./digest.epub
 ```
 
 Cost rule:
@@ -146,8 +146,8 @@ Your intent still runs through the whole process. During build, the prompt influ
 With that archive on hand, you can search and navigate the knowledge structure directly:
 
 ```bash
-wikigraph index ./book.sdpub
-wikigraph chapter tree ./book.sdpub --json
+wikigraph wkg://book.sdpub index
+wikigraph wkg://book.sdpub/chapter/tree get --json
 wikigraph wkg://book.sdpub/chapter/12 list --type chunk
 wikigraph wkg://book.sdpub search "central argument" --type chunk
 wikigraph wkg://book.sdpub/chapter/12 get
@@ -185,10 +185,10 @@ SpineDigest also exposes a programmatic API for embedding lower-level import, bu
 SpineDigest's CLI-first design exposes `.sdpub` as a managed LLM Wiki archive.
 
 - **Treat `.sdpub` as the primary object.** Use archive commands before unpacking or inspecting internals.
-- **Choose an exploration mode first.** For synthesis and structural understanding, start with `chapter tree --json`; use `search` for candidate discovery and exact wording; use `get` for continuous prose after selecting the relevant URI.
+- **Choose an exploration mode first.** For synthesis and structural understanding, start with `wkg://.../chapter/tree get --json`; use `search` for candidate discovery and exact wording; use `get` for continuous prose after selecting the relevant URI.
 - **Use help as the discovery surface.** Start with `wikigraph --help` as the root page, then follow `wikigraph help overview`, `wikigraph help ai`, topic pages, or command-specific `--help` before guessing behavior.
 - **Prefer `--json`.** Use it when composing with tools.
-- **Estimate before queueing jobs.** Do not queue broad Reading Graph, Reading Summary, or Knowledge Graph work without `wikigraph estimate`.
+- **Estimate before queueing jobs.** Do not queue broad Reading Graph, Reading Summary, or Knowledge Graph work without `wikigraph <archive-uri> estimate`.
 - **Check exit codes.** Success returns `0`; failure returns non-zero with a plain-text error on `stderr`.
 - **Do not inspect `database.db` routinely.** Use `search`, `list`, `get`, and graph navigation commands instead.
 

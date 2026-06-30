@@ -15,16 +15,16 @@ Do not treat `.sdpub` as a ZIP payload for routine retrieval. Treat it as a mana
 Prefer archive commands for archive state and URI-first object commands for exploration:
 
 ```bash
-wikigraph chapter tree book.sdpub --json
+wikigraph wkg://book.sdpub/chapter/tree get --json
 wikigraph wkg://book.sdpub search "keyword" --type source,summary,chunk,entity,triple
 wikigraph wkg://book.sdpub/chapter/3/source/0#0..8 get
 wikigraph <uri> related
 wikigraph <uri> evidence
 wikigraph <uri> pack --budget 5000
-wikigraph index book.sdpub --json
+wikigraph wkg://book.sdpub index --json
 ```
 
-Use three exploration modes. For synthesis, timelines, relationship analysis, process reconstruction, or concept-structure tasks, start with Structure mode: `chapter tree --json` for a compact table-of-contents map, then choose likely chapter ids and expand them with scoped URI search or `wkg://... get`. Search mode uses `wkg://... search --type <kind>` for candidate discovery and falls back to source/summary/chunk text when structured objects do not match. Reading mode uses `wkg://... get` after the relevant source URI has been selected.
+Use three exploration modes. For synthesis, timelines, relationship analysis, process reconstruction, or concept-structure tasks, start with Structure mode: `wkg://.../chapter/tree get --json` for a compact table-of-contents map, then choose likely chapter ids and expand them with scoped URI search or `wkg://... get`. Search mode uses `wkg://... search --type <kind>` for candidate discovery and falls back to source/summary/chunk text when structured objects do not match. Reading mode uses `wkg://... get` after the relevant source URI has been selected.
 Search results may display short object URIs such as `wkg://entity/Q9957`; prepend the archive locator before reusing them in object commands, for example `wkg://book.sdpub/entity/Q9957`.
 
 Choose a search lens explicitly: `--type chunk` for Reading Graph structure, `--type summary` for quick overview, `--type source` for original wording, or `--type entity,triple` for Knowledge Graph objects. Use scoped chapter URIs, `--limit`, and `--cursor` to keep retrieval bounded.
@@ -42,12 +42,12 @@ Use the library API only when the surrounding system explicitly needs in-process
 - Read objects: Wiki Graph URIs such as `wkg://source/chapter/1#0..3`, `wkg://chunk/42`, `wkg://entity/Q9957`, and `wkg://triple/...`
 - Cheap operations: `index`, `search`, `get`, `related`, `evidence`, `pack`, `export`
 - Expensive operations: Reading Graph, Reading Summary, or Knowledge Graph `queue add`
-- Estimate first: `wikigraph estimate <archive.sdpub> --stage reading-summary`
+- Estimate first: `wikigraph <archive-uri> estimate --stage reading-summary`
 - JSON: pass `--json` when composing with tools
 
 ## Recommended Execution Strategy
 
-1. For content understanding, use `chapter tree --json` as the compact global map.
+1. For content understanding, use `<archive-uri>/chapter/tree get --json` as the compact global map.
 2. Select likely chapter ids from the tree, then search scoped chapter URIs before broad archive search.
 3. Use `wikigraph <uri> search` to locate source, summary, chunk, entity, or triple objects.
 4. Use `wikigraph <uri> get` to inspect one object.
@@ -61,11 +61,11 @@ Use the library API only when the surrounding system explicitly needs in-process
 ## Queue Workflow
 
 ```bash
-wikigraph create book.sdpub ./book.epub
-wikigraph index book.sdpub
-wikigraph estimate book.sdpub --stage reading-summary
-wikigraph queue add book.sdpub --chapter 3 --task reading-graph --accept-cost
-wikigraph queue watch <job-id> --jsonl
+wikigraph wkg://book.sdpub create ./book.epub
+wikigraph wkg://book.sdpub index
+wikigraph wkg://book.sdpub estimate --stage reading-summary
+wikigraph wkg://book.sdpub/chapter/3 queue add --task reading-graph --accept-cost
+wikigraph wkg-job://<job-id> watch --jsonl
 ```
 
 Create/source is the safe first step. Reading Graph, Reading Summary, and Knowledge Graph tasks may call an LLM provider.

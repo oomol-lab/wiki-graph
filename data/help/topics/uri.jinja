@@ -4,11 +4,11 @@ Topic: uri
 Wiki Graph URIs
 
 Purpose:
-  Object commands use Wiki Graph URIs as their address format. A URI can point to an archive, a scoped collection, or one object inside an archive.
+  Wiki Graph commands use URIs as their address format. A URI can point to an archive, a scoped collection, or one object inside an archive.
 
 Archive locator:
   - A command URI must contain a `.sdpub` locator.
-  - Do not pass a bare filesystem path to object commands.
+  - Do not pass a bare filesystem path as a command target.
     Use a Wiki Graph URI instead:
     /Users/me/book.sdpub -> wkg:///Users/me/book.sdpub
     ./book.sdpub -> wkg://book.sdpub
@@ -40,6 +40,18 @@ Object command examples:
     wikigraph wkg:///Users/me/book.sdpub search "keyword" --type entity,triple --limit 20 --json
   Open an object inside an absolute local archive:
     wikigraph wkg:///Users/me/book.sdpub/entity/Q8018 get
+
+Archive command examples:
+  Create or inspect an archive:
+    wikigraph wkg://book.sdpub create ./book.md
+    wikigraph wkg://book.sdpub status --json
+    wikigraph wkg://book.sdpub/chapter/tree get --json
+
+Job URIs:
+  Queue jobs use the `wkg-job://` scheme:
+    wikigraph wkg-job:// list
+    wikigraph wkg-job://<job-id> get --json
+    wikigraph wkg-job://<job-id> watch --jsonl
 
 Scopes:
   - `wkg:///book.sdpub` addresses the whole archive.

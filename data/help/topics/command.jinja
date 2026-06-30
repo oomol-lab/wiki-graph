@@ -17,17 +17,25 @@ URI routing:
   Read `wikigraph help uri` before using object commands; skipping the URI rules commonly leads to invalid commands.
 
 Archive commands:
-  wikigraph create <archive.sdpub>
-  wikigraph export <archive.sdpub>
-  wikigraph estimate <archive.sdpub>
-  wikigraph index <archive.sdpub>
+  wikigraph <archive-uri> create
+  wikigraph <archive-uri> export
+  wikigraph <archive-uri> estimate
+  wikigraph <archive-uri> status
+  wikigraph <archive-uri> index
   wikigraph transform [options]
 
 Generation:
-  wikigraph queue add <archive.sdpub> --chapter <id> --task <reading-graph|reading-summary|knowledge-graph> --accept-cost
+  wikigraph <chapter-uri> queue add --task <reading-graph|reading-summary|knowledge-graph> --accept-cost
+  wikigraph wkg-job:// list
+  wikigraph wkg-job://<job-id> get|watch|pause|resume|cancel|boost|set
 
 Maintenance:
-  wikigraph meta <archive.sdpub>
-  wikigraph cover <archive.sdpub>
-  wikigraph chapter <action> <archive.sdpub>
+  wikigraph <archive-root-uri> get|set
+  wikigraph <cover-uri> get
+  wikigraph <chapter-collection-uri> add|list
+  wikigraph <chapter-uri> status|move|remove|reset
+  wikigraph <chapter-uri>/source set
+  wikigraph <chapter-uri>/summary set
+  wikigraph <chapter-uri>/title set
+  wikigraph <archive-uri>/chapter/tree get|set
   wikigraph config status

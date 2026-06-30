@@ -1,20 +1,20 @@
 Help Type: command
-Command: wikigraph chapter
+Command: wikigraph <chapter-uri> / <archive-uri>/chapter
 
 Edit chapters inside an existing `.sdpub` archive.
 
 Usage:
-  wikigraph chapter list <path> [--llm <json>] [--help|-h]
-  wikigraph chapter status <path> --chapter <id> [--llm <json>] [--help|-h]
-  wikigraph chapter add <path> --stage <planned|source> [--title <title>] [--parent <id>] [--input <path>] [--input-format <format>] [--llm <json>] [--help|-h]
-  wikigraph chapter move <path> --chapter <id> (--parent <id>|--root|--before <id>|--after <id>|--first|--last) [--llm <json>] [--help|-h]
-  wikigraph chapter remove <path> --chapter <id> [--recursive] [--llm <json>] [--help|-h]
-  wikigraph chapter reset <path> --chapter <id> --to <planned|source|reading-graph> [--llm <json>] [--help|-h]
-  wikigraph chapter set-source <path> --chapter <id> [--input <path>] --input-format <format> [--llm <json>] [--help|-h]
-  wikigraph chapter set-summary <path> --chapter <id> [--input <path>] [--llm <json>] [--help|-h]
-  wikigraph chapter set-title <path> --chapter <id> (--title <title>|--clear) [--llm <json>] [--help|-h]
-  wikigraph chapter tree <path> [--json] [--llm <json>] [--help|-h]
-  wikigraph chapter tree apply <path> [--input <path>] [--dry-run] [--llm <json>] [--help|-h]
+  wikigraph <archive-uri>/chapter list [--llm <json>] [--help|-h]
+  wikigraph <chapter-uri> status [--llm <json>] [--help|-h]
+  wikigraph <archive-uri>/chapter add --stage <planned|source> [--title <title>] [--parent <id>] [--input <path>] [--input-format <format>] [--llm <json>] [--help|-h]
+  wikigraph <chapter-uri> move (--parent <id>|--root|--before <id>|--after <id>|--first|--last) [--llm <json>] [--help|-h]
+  wikigraph <chapter-uri> remove [--recursive] [--llm <json>] [--help|-h]
+  wikigraph <chapter-uri> reset --to <planned|source|reading-graph> [--llm <json>] [--help|-h]
+  wikigraph <chapter-uri>/source set [--input <path>] --input-format <format> [--llm <json>] [--help|-h]
+  wikigraph <chapter-uri>/summary set [--input <path>] [--llm <json>] [--help|-h]
+  wikigraph <chapter-uri>/title set (--title <title>|--clear) [--llm <json>] [--help|-h]
+  wikigraph <archive-uri>/chapter/tree get [--json] [--llm <json>] [--help|-h]
+  wikigraph <archive-uri>/chapter/tree set [--input <path>] [--dry-run] [--llm <json>] [--help|-h]
 
 Chapter stages:
   planned     TOC chapter exists, but no source is stored.
@@ -23,27 +23,26 @@ Chapter stages:
   reading-summary  Source, Reading Graph, and final summary are stored.
 
 Input rules:
-  - `<path>` is the `.sdpub` archive edited in place.
-  - `--chapter` is the numeric chapter id printed by `list` or `add`.
+  - Use Wiki Graph URIs; bare `.sdpub` filesystem paths are not accepted.
+  - `<chapter-uri>` includes the numeric chapter id printed by `list` or `add`.
   - `add --stage planned` creates an empty planned chapter. Use this for chapter directories, groups, and drafting placeholders.
   - `add --stage source` creates a chapter and fills it from `--input <path>` or stdin.
-  - `set-source` and `set-summary` read `--input <path>` when provided, otherwise stdin.
-  - `set-source` accepts only `txt` or `markdown` for `--input-format`.
-  - `set-title --title` renames a chapter in the tree; `set-title --clear` removes the explicit title.
+  - `<chapter-uri>/source set` and `<chapter-uri>/summary set` read `--input <path>` when provided, otherwise stdin.
+  - `<chapter-uri>/source set` accepts only `txt` or `markdown` for `--input-format`.
+  - `<chapter-uri>/title set --title` renames a chapter in the tree; `<chapter-uri>/title set --clear` removes the explicit title.
   - `move` changes parent/order only; it does not edit source, graph, or summary data.
   - `tree` prints the chapter tree as JSON with `title: null` for untitled chapters.
-  - `tree apply` applies a complete chapter tree JSON. It can reorder chapters and change titles when a node includes `title`.
+  - `<archive-uri>/chapter/tree set` applies a complete chapter tree JSON. It can reorder chapters and change titles when a node includes `title`.
   - `reset --to` accepts `planned`, `source`, or `reading-graph`.
   - Structure edits, `set-title`, `set-source`, `set-summary`, and `reset` do not call an LLM provider.
-  - To generate reading-graph, reading-summary, or knowledge-graph for a chapter, use `wikigraph queue add <path> --chapter <id> --task <reading-graph|reading-summary|knowledge-graph> --accept-cost`.
-  - Append `--help` after an action for action-specific details, for example `wikigraph chapter reset --help`.
+  - To generate reading-graph, reading-summary, or knowledge-graph for a chapter, use `wikigraph <chapter-uri> queue add --task <reading-graph|reading-summary|knowledge-graph> --accept-cost`.
+  - Append `--help` after an action for action-specific details, for example `wikigraph wkg://book.sdpub/chapter/3 reset --help`.
 
 See also:
-  - wikigraph chapter list <path>
-  - wikigraph chapter move --help
-  - wikigraph chapter tree --help
-  - wikigraph chapter set-title --help
-  - wikigraph chapter set-source --help
-  - wikigraph chapter set-summary --help
+  - wikigraph wkg://book.sdpub/chapter list
+  - wikigraph wkg://book.sdpub/chapter/tree get --json
+  - wikigraph wkg://book.sdpub/chapter/3/title set --title "New Title"
+  - wikigraph wkg://book.sdpub/chapter/3/source set --input chapter.md --input-format markdown
+  - wikigraph wkg://book.sdpub/chapter/3/summary set --input summary.md
   - wikigraph queue --help
   - wikigraph help command

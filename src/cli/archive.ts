@@ -141,6 +141,16 @@ export async function runArchiveCommand(
       });
       return;
     }
+    case "status": {
+      await readArchiveDocument(args.archivePath, async (document) => {
+        await writeIndex(
+          await getArchiveIndex(document),
+          "status",
+          args.json ?? false,
+        );
+      });
+      return;
+    }
     case "search":
       await readArchiveDocument(
         getArchivePath(args.archivePath),
@@ -249,6 +259,11 @@ export async function runArchiveCommand(
 
 async function createArchive(args: CLIArchiveArguments): Promise<void> {
   if (args.sourcePath === undefined) {
+    if (args.inputFormat === undefined) {
+      await new SpineDigestFile(args.archivePath).write(async () => {});
+      return;
+    }
+
     await createArchiveFromStdin(args);
     return;
   }
@@ -663,7 +678,7 @@ async function readArchiveDocument<T>(
 
 async function writeIndex(
   index: ArchiveIndex,
-  action: "index",
+  action: "index" | "status",
   json: boolean,
 ): Promise<void> {
   if (json) {

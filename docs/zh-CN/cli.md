@@ -2,40 +2,40 @@
 
 # CLI Reference
 
-SpineDigest 采用 archive-first CLI。主对象是 `.sdpub` 知识库归档。归档维护命令以 action 开头；对象探索命令以 Wiki Graph URI 开头：
+SpineDigest 采用 URI-first CLI。主对象是 `.sdpub` 知识库归档，CLI target 使用 Wiki Graph URI。
 
 ```bash
-wikigraph <action> <archive.sdpub> ...
 wikigraph <wkg-uri> <action> ...
+wikigraph wkg-job://<job-id> <action> ...
 ```
 
 ## 归档命令
 
 ```bash
-wikigraph create <archive.sdpub> [source] [--input-format <format>] [--llm <json>] [--prompt <text>] [--confirm]
-wikigraph estimate <archive.sdpub> [--stage <source|reading-graph|reading-summary>] [--json]
-wikigraph status <archive.sdpub> [--json]
-wikigraph index <archive.sdpub> [--json]
-wikigraph <archive-or-scope-uri> search <query> [--type <chapter|entity|triple|source|summary|chunk[,kind...]>] [--limit <n>] [--cursor <token>] [--json|--jsonl]
-wikigraph <archive-or-scope-uri> list [--type <chapter|entity|triple|source|summary|chunk[,kind...]>] [--limit <n>] [--cursor <token>] [--json|--jsonl]
+wikigraph <archive-uri> create [source] [--input-format <format>] [--llm <json>] [--prompt <text>]
+wikigraph <archive-uri> estimate [--stage <source|reading-graph|reading-summary>] [--json]
+wikigraph <archive-uri> status [--json]
+wikigraph <archive-uri> index [--json]
+wikigraph <wikigraph-uri-with-sdpub-locator> search <query> [--type <chapter|entity|triple|source|summary|chunk[,kind...]>] [--limit <n>] [--cursor <token>] [--json|--jsonl]
+wikigraph <wikigraph-uri-with-sdpub-locator> list [--type <chapter|entity|triple|source|summary|chunk[,kind...]>] [--limit <n>] [--cursor <token>] [--json|--jsonl]
 wikigraph <object-uri> get [--json|--jsonl]
 wikigraph <object-uri> related [--evidence [n]] [--json|--jsonl]
 wikigraph <entity|triple|summary|chunk-uri> evidence [--limit <n>] [--cursor <token>] [--json|--jsonl]
 wikigraph <object-uri> pack [--budget <chars>] [--json|--jsonl]
-wikigraph export <archive.sdpub> --output-format <format> [--output <path>]
-wikigraph queue add <archive.sdpub> --chapter <id> [--task reading-graph|reading-summary|knowledge-graph] --accept-cost [--boost] [--llm <json>] [--prompt <text>]
-wikigraph queue list [--all] [--active] [--input <archive.sdpub>] [--json]
-wikigraph queue status <job-id> [--json]
-wikigraph queue watch <job-id> [--jsonl] [--from beginning|now]
-wikigraph queue pause|resume|cancel|boost <job-id>
-wikigraph queue target <job-id> --task reading-graph|reading-summary|knowledge-graph
+wikigraph <archive-uri> export --output-format <format> [--output <path>]
+wikigraph <chapter-uri> queue add --task reading-graph|reading-summary|knowledge-graph --accept-cost [--boost] [--llm <json>] [--prompt <text>]
+wikigraph wkg-job:// list [--all] [--active] [--input <archive-uri>] [--json]
+wikigraph wkg-job://<job-id> get [--json]
+wikigraph wkg-job://<job-id> watch [--jsonl] [--from beginning|now]
+wikigraph wkg-job://<job-id> pause|resume|cancel|boost
+wikigraph wkg-job://<job-id> set --task reading-graph|reading-summary|knowledge-graph
 wikigraph queue clean
 ```
 
 探索模式：
 
 - 搜索模式：`search` 根据 query text 发现可 URI 寻址的对象。
-- 结构模式：`chapter tree --json` 查看目录层级；`list` 从 archive 或 scoped URI 枚举对象集合。
+- 结构模式：`<archive-uri>/chapter/tree get --json` 查看目录层级；`list` 从 archive 或 scoped URI 枚举对象集合。
 - 阅读模式：`get` 打开选定 URI；`related`、`evidence` 和 `pack` 在选定对象后扩展或验证它。
 
 搜索与集合行为：
@@ -63,8 +63,8 @@ wikigraph queue clean
 Queue 行为：
 
 - `queue add` 要求 `--accept-cost`。
-- `queue list --json` 输出机器可读快照。
-- `queue watch --jsonl` 输出持久化进度事件，是推荐的 Agent-facing 事件流。
+- `wkg-job:// list --json` 输出机器可读快照。
+- `wkg-job://<job-id> watch --jsonl` 输出持久化进度事件，是推荐的 Agent-facing 事件流。
 
 ## 格式
 
@@ -105,24 +105,29 @@ wikigraph transform [--input <path>] [--output <path>] [--input-format <format>]
 
 ## 维护命令
 
-归档维护命令以一级命令暴露：
+维护命令使用 URI target：
 
 ```bash
-wikigraph meta <archive.sdpub> [metadata options] [--json]
-wikigraph cover <archive.sdpub>
-wikigraph chapter <list|status|add|move|remove|reset|set-source|set-summary|set-title|tree> <path> [options]
+wikigraph <archive-root-uri> get|set [metadata options]
+wikigraph <cover-uri> get
+wikigraph <archive-uri>/chapter list|add [options]
+wikigraph <chapter-uri> status|move|remove|reset [options]
+wikigraph <chapter-uri>/source set [--input <path>] --input-format <format>
+wikigraph <chapter-uri>/summary set [--input <path>]
+wikigraph <chapter-uri>/title set (--title <title>|--clear)
+wikigraph <archive-uri>/chapter/tree get|set [options]
 ```
 
-常规探索请使用 archive-first commands。无 `apply` 的 `chapter tree` 是只读结构检查，会输出稳定 JSON tree，未命名章节显示为 `title: null`。维护命令用于 metadata 编辑、cover 提取和会修改 chapter tree 的编辑；`chapter tree apply` 可以重排章节，并在节点包含 `title` 时修改标题。
+常规探索请使用 URI-first commands。`<archive-uri>/chapter/tree get` 是只读结构检查，会输出稳定 JSON tree，未命名章节显示为 `title: null`。`<archive-uri>/chapter/tree set` 可以重排章节，并在节点包含 `title` 时修改标题。
 
-`wikigraph config status` 输出配置状态。`wikigraph status <archive.sdpub>` 输出归档状态。
+`wikigraph config status` 输出配置状态。`wikigraph <archive-uri> status` 输出归档状态。
 
 ## 标准流规则
 
 archive-first `create` 命令用于写入 `.sdpub`。传入 `--input-format` 时，它可以从 stdin 读取 Markdown 或纯文本：
 
 ```bash
-cat ./chapter.txt | wikigraph create ./chapter.sdpub --input-format txt
+cat ./chapter.txt | wikigraph wkg://chapter.sdpub create --input-format txt
 ```
 
 直接流式 digest/export 需要显式使用 `transform`：

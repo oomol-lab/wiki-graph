@@ -1,5 +1,5 @@
 Help Type: command
-Command: wikigraph chapter status
+Command: wikigraph <chapter-uri> status
 
 chapter status
 
@@ -7,7 +7,7 @@ Purpose:
   Print one chapter's current stage and stored artifacts.
 
 Usage:
-  wikigraph chapter status <path> --chapter <id> [--llm <json>] [--help|-h]
+  wikigraph <chapter-uri> status [--llm <json>] [--help|-h]
 
 Output shape:
   Chapter: <id>
@@ -26,6 +26,6 @@ Behavior:
   - `Summary` reports whether the final chapter summary is present.
 
 See also:
-  - wikigraph chapter list --help
+  - wikigraph wkg://book.sdpub/chapter list --help
   - wikigraph queue --help
   - wikigraph help command

@@ -579,7 +579,7 @@ export async function readSerial(
 
   if (summary === undefined) {
     throw new Error(
-      `Chapter ${serialId} summary is missing. Run \`wikigraph queue add <archive.sdpub> --chapter ${serialId} --task reading-summary --accept-cost\` before export, or inspect the chapter with \`wikigraph wkg://<archive.sdpub>/chapter/${serialId}/source/ get\`.`,
+      `Chapter ${serialId} summary is missing. Run \`wikigraph <chapter-uri> queue add --task reading-summary --accept-cost\` before export, or inspect the chapter with \`wikigraph <archive-uri>/chapter/${serialId}/source/ get\`.`,
     );
   }
 
@@ -604,7 +604,7 @@ async function getSerialRecord(
 
   if (record === undefined) {
     throw new Error(
-      `Chapter ${serialId} does not exist. Use \`wikigraph chapter list <archive.sdpub>\` to discover chapter ids.`,
+      `Chapter ${serialId} does not exist. Use \`wikigraph <archive-uri>/chapter list\` to discover chapter ids.`,
     );
   }
 

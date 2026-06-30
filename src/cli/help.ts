@@ -36,6 +36,7 @@ export const ARCHIVE_COMMANDS = [
   "evidence",
   "next",
   "pack",
+  "status",
   "estimate",
   "index",
   "export",

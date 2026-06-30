@@ -1,11 +1,11 @@
 Help Type: command
-Command: wikigraph create
+Command: wikigraph <archive-uri> create
 
 Purpose:
   Create an LLM Wiki archive from source material at source stage.
 
 Usage:
-  wikigraph create <archive.sdpub> [source] [--input-format <format>] [--llm <json>] [--prompt <text>]
+  wikigraph <archive-uri> create [source] [--input-format <format>] [--llm <json>] [--prompt <text>]
 
 Contract:
   - Mutates: yes, writes the archive path.
@@ -14,5 +14,6 @@ Contract:
   - JSON: no.
 
 Examples:
-  wikigraph create book.sdpub ./book.md --input-format markdown
-  cat article.md | wikigraph create article.sdpub --input-format markdown
+  wikigraph wkg://book.sdpub create ./book.md --input-format markdown
+  wikigraph wkg://empty.sdpub create
+  cat article.md | wikigraph wkg://article.sdpub create --input-format markdown

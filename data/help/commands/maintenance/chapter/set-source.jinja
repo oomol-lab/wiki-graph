@@ -1,5 +1,5 @@
 Help Type: command
-Command: wikigraph chapter set-source
+Command: wikigraph <chapter-uri>/source set
 
 chapter set-source
 
@@ -7,7 +7,7 @@ Purpose:
   Fill a planned chapter with normalized source text.
 
 Usage:
-  wikigraph chapter set-source <path> --chapter <id> [--input <path>] --input-format <format> [--llm <json>] [--help|-h]
+  wikigraph <chapter-uri>/source set [--input <path>] --input-format <format> [--llm <json>] [--help|-h]
 
 Input:
   - `--input-format` must be `txt` or `markdown`.
@@ -25,9 +25,9 @@ Behavior:
   - Does not call an LLM provider.
 
 Typical next step:
-  wikigraph queue add <path> --chapter <id> --task reading-graph --accept-cost
+  wikigraph <chapter-uri> queue add --task reading-graph --accept-cost
 
 See also:
-  - wikigraph chapter reset --help
+  - wikigraph wkg://book.sdpub/chapter/3 reset --help
   - wikigraph queue --help
   - wikigraph help command
