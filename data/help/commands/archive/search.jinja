@@ -10,8 +10,10 @@ Use when:
   - You have words, names, phrases, or concepts and need candidate object URIs.
 
 Usage:
-  wikigraph <located-wkg-uri> search <query> [--limit <n>] [--evidence [n]] [--cursor <token>] [--json|--jsonl] [--help|-h]
-  wikigraph <located-wkg-uri>/<chapter|entity|triple|source|summary|chunk> search <query> [--limit <n>] [--evidence [n]] [--cursor <token>] [--json|--jsonl] [--help|-h]
+  wikigraph <archive-uri> search <query> [--limit <n>] [--evidence [n]] [--cursor <token>] [--json|--jsonl] [--help|-h]
+  wikigraph <chapter-uri> search <query> [--limit <n>] [--evidence [n]] [--cursor <token>] [--json|--jsonl] [--help|-h]
+  wikigraph <archive-uri>/<entity|triple|source|summary|chunk> search <query> [--limit <n>] [--evidence [n]] [--cursor <token>] [--json|--jsonl] [--help|-h]
+  wikigraph <chapter-uri>/<entity|triple|source|summary|chunk> search <query> [--limit <n>] [--evidence [n]] [--cursor <token>] [--json|--jsonl] [--help|-h]
 
 Returns:
   - In text output, a ranked list of full `wkg://...` URIs.

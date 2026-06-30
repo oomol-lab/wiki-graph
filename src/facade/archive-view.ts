@@ -3529,7 +3529,7 @@ const BROAD_FIND_LENS_HINT = {
     summary: "quick overview",
   },
   message:
-    "Choose --type chapter, --type chunk, --type summary, or --type source as a search lens.",
+    "Choose URI lenses such as /chapter, /chunk, /summary, or /source for broad search.",
 } satisfies ArchiveFindLensHint;
 
 function createPhraseSearch(query: string): ArchiveTextSearch | undefined {

@@ -84,7 +84,7 @@ Use `--json` when another tool will consume the output.
 Use projections when you need a portable view. For example, read one chapter into Markdown text, or export the full archive as an EPUB:
 
 ```bash
-wikigraph wkg://book.sdpub/chapter/3/source/ get > ./chapter-3.md
+wikigraph wkg://book.sdpub/chapter/3/source get > ./chapter-3.md
 wikigraph wkg://book.sdpub export --output-format epub --output ./digest.epub
 ```
 

@@ -330,8 +330,22 @@ const HELP_OBJECTS: readonly HelpObjectEntry[] = [
     description: "Original source text or source ranges.",
     name: "source",
     title: "Source",
-    uriForms: ["wkg://book.sdpub/chapter/12/source/0#4..8"],
+    uriForms: [
+      "wkg://book.sdpub/source",
+      "wkg://book.sdpub/chapter/12/source",
+      "wkg://book.sdpub/chapter/12/source/0#4..8",
+    ],
     verbs: [
+      {
+        command: 'wikigraph wkg://book.sdpub/source search "keyword"',
+        note: "Search source text across the archive.",
+        verb: "search",
+      },
+      {
+        command: "wikigraph wkg://book.sdpub/chapter/12/source list",
+        note: "List source ranges within a chapter.",
+        verb: "list",
+      },
       {
         command: "wikigraph wkg://book.sdpub/chapter/12/source/0#4..8 get",
         note: "Read source text or a source range.",
@@ -343,8 +357,21 @@ const HELP_OBJECTS: readonly HelpObjectEntry[] = [
     description: "Readable chapter summary text as a searchable object.",
     name: "summary",
     title: "Summary",
-    uriForms: ["wkg://book.sdpub/chapter/12/summary"],
+    uriForms: [
+      "wkg://book.sdpub/summary",
+      "wkg://book.sdpub/chapter/12/summary",
+    ],
     verbs: [
+      {
+        command: 'wikigraph wkg://book.sdpub/summary search "keyword"',
+        note: "Search summary text across the archive.",
+        verb: "search",
+      },
+      {
+        command: "wikigraph wkg://book.sdpub/summary list",
+        note: "List summary objects.",
+        verb: "list",
+      },
       {
         command: "wikigraph wkg://book.sdpub/chapter/12/summary get",
         note: "Read summary text.",
@@ -361,8 +388,18 @@ const HELP_OBJECTS: readonly HelpObjectEntry[] = [
     description: "A Reading Graph chunk.",
     name: "chunk",
     title: "Chunk",
-    uriForms: ["wkg://book.sdpub/chunk/123"],
+    uriForms: ["wkg://book.sdpub/chunk", "wkg://book.sdpub/chunk/123"],
     verbs: [
+      {
+        command: 'wikigraph wkg://book.sdpub/chunk search "keyword"',
+        note: "Search Reading Graph chunks.",
+        verb: "search",
+      },
+      {
+        command: "wikigraph wkg://book.sdpub/chunk list",
+        note: "List Reading Graph chunks.",
+        verb: "list",
+      },
       {
         command: "wikigraph wkg://book.sdpub/chunk/123 get",
         note: "Read one chunk.",
@@ -389,8 +426,18 @@ const HELP_OBJECTS: readonly HelpObjectEntry[] = [
     description: "A Knowledge Graph entity grouped from mentions.",
     name: "entity",
     title: "Entity",
-    uriForms: ["wkg://book.sdpub/entity/Q9957"],
+    uriForms: ["wkg://book.sdpub/entity", "wkg://book.sdpub/entity/Q9957"],
     verbs: [
+      {
+        command: 'wikigraph wkg://book.sdpub/entity search "keyword"',
+        note: "Search entities.",
+        verb: "search",
+      },
+      {
+        command: "wikigraph wkg://book.sdpub/chapter/12/entity list",
+        note: "List entities, optionally scoped to a chapter.",
+        verb: "list",
+      },
       {
         command: "wikigraph wkg://book.sdpub/entity/Q9957 get",
         note: "Read one entity.",
@@ -417,8 +464,21 @@ const HELP_OBJECTS: readonly HelpObjectEntry[] = [
     description: "A Knowledge Graph relation between two entities.",
     name: "triple",
     title: "Triple",
-    uriForms: ["wkg://book.sdpub/triple/Q9957/participant_in/Q178561"],
+    uriForms: [
+      "wkg://book.sdpub/triple",
+      "wkg://book.sdpub/triple/Q9957/participant_in/Q178561",
+    ],
     verbs: [
+      {
+        command: 'wikigraph wkg://book.sdpub/triple search "keyword"',
+        note: "Search triples.",
+        verb: "search",
+      },
+      {
+        command: "wikigraph wkg://book.sdpub/triple list",
+        note: "List triples.",
+        verb: "list",
+      },
       {
         command:
           "wikigraph wkg://book.sdpub/triple/Q9957/participant_in/Q178561 get",
@@ -819,6 +879,14 @@ export function parseHelpMatrixPage(
   }
 
   if (kind === "object") {
+    if (positionals.length > 2) {
+      throw new Error(
+        withHelpRoute(
+          `Unexpected positional arguments: ${positionals.slice(2).join(" ")}.`,
+          CLI_HELP_ROUTES.root,
+        ),
+      );
+    }
     return {
       kind: "object",
       ...(target === undefined ? {} : { object: parseHelpObjectName(target) }),
@@ -826,6 +894,14 @@ export function parseHelpMatrixPage(
   }
 
   if (kind === "verb") {
+    if (positionals.length > 2) {
+      throw new Error(
+        withHelpRoute(
+          `Unexpected positional arguments: ${positionals.slice(2).join(" ")}.`,
+          CLI_HELP_ROUTES.root,
+        ),
+      );
+    }
     return {
       kind: "verb",
       ...(target === undefined ? {} : { verb: parseHelpVerbName(target) }),

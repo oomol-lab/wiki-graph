@@ -14,14 +14,14 @@ wikigraph wkg-job://<job-id> <action> ...
 ```bash
 wikigraph <archive-uri> create [source] [--input-format <format>] [--llm <json>] [--prompt <text>]
 wikigraph <archive-uri> estimate [--stage <source|reading-graph|reading-summary>] [--json]
-wikigraph <archive-uri>/state get [--json|--jsonl]
+wikigraph <archive-uri>/state get [--json]
 wikigraph <located-wkg-uri> search <query> [--limit <n>] [--cursor <token>] [--json|--jsonl]
 wikigraph <located-wkg-uri>/<chapter|entity|triple|source|summary|chunk> search <query> [--limit <n>] [--cursor <token>] [--json|--jsonl]
 wikigraph <located-wkg-uri>/<chapter|entity|triple|source|summary|chunk> list [--limit <n>] [--cursor <token>] [--json|--jsonl]
 wikigraph <object-uri> get [--json|--jsonl]
 wikigraph <object-uri> related [--evidence [n]] [--json|--jsonl]
 wikigraph <entity|triple|summary|chunk-uri> evidence [--limit <n>] [--cursor <token>] [--json|--jsonl]
-wikigraph <object-uri> pack [--budget <chars>] [--json|--jsonl]
+wikigraph <located-chunk-uri|located-entity-uri|located-triple-uri> pack [--budget <chars>] [--json|--jsonl]
 wikigraph <archive-uri> export --output-format <format> [--output <path>]
 wikigraph <chapter-uri> queue add --task reading-graph|reading-summary|knowledge-graph --accept-cost [--boost] [--llm <json>] [--prompt <text>]
 wikigraph wkg-job:// list [--all] [--active] [--input <archive-uri>] [--json]
@@ -42,7 +42,7 @@ Search and collection behavior:
 
 - `search` finds URI-addressable objects from query text. Search results are leads, not source evidence.
 - `list` enumerates URI-addressable objects without query text.
-- Object commands use Wiki Graph URIs. Use an archive or scope URI such as `wkg:///Users/me/book.sdpub` for `search` and `list`; use a concrete object URI such as `wkg:///Users/me/book.sdpub/chapter/12` for `get`, `related`, `evidence`, or `pack`.
+- Object commands use Wiki Graph URIs. Use an archive or scope URI such as `wkg:///Users/me/book.sdpub` for `search` and `list`; use a concrete object URI such as `wkg:///Users/me/book.sdpub/chapter/12` for `get`, `related`, or `evidence`. `pack` is limited to chunk, entity, and triple graph objects.
 - For content understanding, choose a search lens in the URI: `<archive-uri>/chunk` for Reading Graph structure, `<archive-uri>/summary` for quick overview, `<archive-uri>/source` for original source wording, or `<archive-uri>/entity` and `<archive-uri>/triple` for Knowledge Graph objects.
 - Use a chapter scope URI such as `wkg:///Users/me/book.sdpub/chapter/12` to keep search or list local to one chapter.
 - `--limit` defaults to `20`; pass returned `nextCursor` back through `--cursor` for the next page.
@@ -111,7 +111,7 @@ Maintenance commands use URI targets:
 wikigraph <archive-uri> get|set [metadata options]
 wikigraph <cover-uri> get
 wikigraph <archive-uri>/chapter list|add [options]
-wikigraph <chapter-uri>/state get [--json|--jsonl]
+wikigraph <chapter-uri>/state get [--json]
 wikigraph <chapter-uri> move|remove|reset [options]
 wikigraph <chapter-uri>/source set [--input <path>] --input-format <format>
 wikigraph <chapter-uri>/summary set [--input <path>]

@@ -7,7 +7,7 @@ Purpose:
   Wiki Graph commands use URIs as their address format. A URI can point to an archive, a scoped collection, or one object inside an archive.
 
 Archive locator:
-  - A command URI must contain a `.sdpub` locator.
+  - Archive/object command URIs must contain a `.sdpub` locator.
   - Do not pass a bare filesystem path as a command target.
     Use a Wiki Graph URI instead:
     /Users/me/book.sdpub -> wkg:///Users/me/book.sdpub
@@ -49,7 +49,7 @@ Archive command examples:
     wikigraph wkg://book.sdpub/chapter/tree get --json
 
 Job URIs:
-  Queue jobs use the `wkg-job://` scheme:
+  Queue jobs use the `wkg-job://` scheme and do not contain `.sdpub` locators:
     wikigraph wkg-job:// list
     wikigraph wkg-job://<job-id> get --json
     wikigraph wkg-job://<job-id> watch --jsonl

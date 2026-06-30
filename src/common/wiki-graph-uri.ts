@@ -59,11 +59,13 @@ export function formatLocatedWikiGraphUri(
   archivePath: string,
   objectUri?: string,
 ): string {
+  const uriArchivePath = archivePath.replace(/\\/gu, "/");
+
   if (objectUri === undefined || objectUri === WIKI_GRAPH_URI_PREFIX) {
-    return `${WIKI_GRAPH_URI_PREFIX}${archivePath}`;
+    return `${WIKI_GRAPH_URI_PREFIX}${uriArchivePath}`;
   }
 
-  return `${WIKI_GRAPH_URI_PREFIX}${archivePath}/${stripWikiGraphUriPrefix(
+  return `${WIKI_GRAPH_URI_PREFIX}${uriArchivePath}/${stripWikiGraphUriPrefix(
     objectUri,
   )}`;
 }

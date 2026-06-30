@@ -1300,6 +1300,7 @@ function parseArchiveChapterLikeArguments(
   }
 
   rejectArchiveChapterFlag("digest-dir", values["digest-dir"], helpRoute);
+  rejectArchiveChapterFlag("jsonl", values.jsonl, helpRoute);
   rejectArchiveChapterFlag("limit", values.limit, helpRoute);
   rejectArchiveChapterFlag("output", values.output, helpRoute);
   rejectArchiveChapterFlag("output-format", values["output-format"], helpRoute);
@@ -1867,7 +1868,7 @@ function parseArchiveMaintenanceArguments(
       if (!isArchiveChapterAction(action)) {
         throw new Error(
           withHelpRoute(
-            `Invalid chapter action: ${action}. Expected one of list, add, move, remove, reset, set-source, set-summary, set-title, tree.`,
+            `Invalid chapter action: ${action}. Expected one of list, add, move, remove, reset, set-source, set-summary, set-title, tree. Use concrete chapter resource URIs such as /source, /summary, or /title for set operations.`,
             CLI_HELP_ROUTES.command,
           ),
         );
@@ -2251,7 +2252,14 @@ function validateArchiveCommandUriInput(
     return;
   }
 
-  if (isWikiGraphUri(value) || !looksLikeSdpubPath(value)) {
+  if (isWikiGraphUri(value)) {
+    if (parseLocatedWikiGraphUri(value).archivePath === undefined) {
+      throw new Error(formatMissingArchiveLocatorMessage(value));
+    }
+    return;
+  }
+
+  if (!looksLikeSdpubPath(value)) {
     return;
   }
 

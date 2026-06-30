@@ -66,7 +66,7 @@ async function renderTocItem(
 
     if (summary === undefined) {
       throw new Error(
-        `Chapter ${item.serialId} summary is missing. Run \`wikigraph <chapter-uri> queue add --task reading-summary --accept-cost\` before export, or inspect the archive with \`wikigraph <archive-uri> index\`.`,
+        `Chapter ${item.serialId} summary is missing. Run \`wikigraph <chapter-uri> queue add --task reading-summary --accept-cost\` before export, or inspect the archive with \`wikigraph <archive-uri>/chapter/tree get\`.`,
       );
     }
     if (summary.trim() !== "") {

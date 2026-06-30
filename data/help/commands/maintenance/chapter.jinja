@@ -5,7 +5,7 @@ Edit chapters inside an existing `.sdpub` archive.
 
 Usage:
   wikigraph <archive-uri>/chapter list [--llm <json>] [--help|-h]
-  wikigraph <chapter-uri>/state get [--json|--jsonl] [--help|-h]
+  wikigraph <chapter-uri>/state get [--json] [--help|-h]
   wikigraph <archive-uri>/chapter add --stage <planned|source> [--title <title>] [--parent <id>] [--input <path>] [--input-format <format>] [--llm <json>] [--help|-h]
   wikigraph <chapter-uri> move (--parent <id>|--root|--before <id>|--after <id>|--first|--last) [--llm <json>] [--help|-h]
   wikigraph <chapter-uri> remove [--recursive] [--llm <json>] [--help|-h]
@@ -34,7 +34,7 @@ Input rules:
   - `tree` prints the chapter tree as JSON with `title: null` for untitled chapters.
   - `<archive-uri>/chapter/tree set` applies a complete chapter tree JSON. It can reorder chapters and change titles when a node includes `title`.
   - `reset --to` accepts `planned`, `source`, or `reading-graph`.
-  - Structure edits, `set-title`, `set-source`, `set-summary`, and `reset` do not call an LLM provider.
+  - Structure edits, `/title set`, `/source set`, `/summary set`, and `reset` do not call an LLM provider.
   - To generate reading-graph, reading-summary, or knowledge-graph for a chapter, use `wikigraph <chapter-uri> queue add --task <reading-graph|reading-summary|knowledge-graph> --accept-cost`.
   - Append `--help` after an action for action-specific details, for example `wikigraph wkg://book.sdpub/chapter/3 reset --help`.
 

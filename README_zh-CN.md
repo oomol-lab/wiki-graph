@@ -70,8 +70,8 @@ cat ./article.md | wikigraph wkg://article.sdpub create --input-format markdown
 在启动昂贵构建之前先查看和估算：
 
 ```bash
-wikigraph wkg://book.sdpub status
-wikigraph wkg://book.sdpub index
+wikigraph wkg://book.sdpub/state get
+wikigraph wkg://book.sdpub/chapter/tree get --json
 wikigraph wkg://book.sdpub estimate --stage reading-summary
 ```
 
@@ -86,8 +86,8 @@ wikigraph wkg-job://<job-id> watch --jsonl
 
 ```bash
 wikigraph wkg://book.sdpub/chapter/tree get --json
-wikigraph wkg://book.sdpub search "RAG" --type chunk
-wikigraph wkg://book.sdpub/chapter/12 search "exact source phrase" --type source
+wikigraph wkg://book.sdpub/chunk search "RAG"
+wikigraph wkg://book.sdpub/chapter/12/source search "exact source phrase"
 wikigraph wkg://book.sdpub/chapter/12 get
 wikigraph wkg://book.sdpub/chunk/84 get
 wikigraph wkg://book.sdpub/chunk/84 related
@@ -98,7 +98,7 @@ wikigraph wkg://book.sdpub/chunk/84 pack --budget 5000
 只有需要便携视图时再输出 projection。比如只需要某一章的 `.md` 文本，可以读取该章；需要完整电子书视图时再导出 EPUB：
 
 ```bash
-wikigraph wkg://book.sdpub/chapter/12/source/ get > ./chapter-12.md
+wikigraph wkg://book.sdpub/chapter/12/source get > ./chapter-12.md
 wikigraph wkg://book.sdpub export --output-format epub --output ./digest.epub
 ```
 
@@ -146,12 +146,11 @@ SpineDigest 的目标，是把长文档变成外部工作记忆。
 有了这份归档，就可以直接搜索和导航知识结构：
 
 ```bash
-wikigraph wkg://book.sdpub index
 wikigraph wkg://book.sdpub/chapter/tree get --json
-wikigraph wkg://book.sdpub/chapter/12 list --type chunk
-wikigraph wkg://book.sdpub search "central argument" --type chunk
+wikigraph wkg://book.sdpub/chapter/12/chunk list
+wikigraph wkg://book.sdpub/chunk search "central argument"
 wikigraph wkg://book.sdpub/chapter/12 get
-wikigraph wkg://book.sdpub/chapter/12/source/ get
+wikigraph wkg://book.sdpub/chapter/12/source get
 ```
 
 Markdown、EPUB、txt 和 JSON 风格输出都是归档的 projection。它们适合携带和阅读，但当你需要图链接和证据追溯时，不能替代 `.sdpub` 本身。

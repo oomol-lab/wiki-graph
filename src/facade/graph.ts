@@ -300,7 +300,7 @@ async function requireChapterNode(
 
   if (chunk === undefined || chunk.sentenceId[0] !== chapterId) {
     throw new Error(
-      `Graph node ${nodeId} does not exist in chapter ${chapterId}. Use \`wikigraph <archive-uri> index\` to discover object ids.`,
+      `Graph node ${nodeId} does not exist in chapter ${chapterId}. Use \`wikigraph <archive-uri>/chapter/${chapterId}/chunk list\` to discover chunk ids.`,
     );
   }
 

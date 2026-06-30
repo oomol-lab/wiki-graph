@@ -1094,6 +1094,15 @@ describe("cli/args", () => {
     );
     expect(() =>
       parseCLIArguments([
+        "wkg://book.sdpub/chapter/1/source",
+        "set",
+        "--jsonl",
+      ]),
+    ).toThrow(
+      "The `chapter` command does not support --jsonl.\nSee: wikigraph wkg://book.sdpub/chapter/1/source set --help",
+    );
+    expect(() =>
+      parseCLIArguments([
         "wkg://book.sdpub/chapter/1",
         "reset",
         "--to",
@@ -1107,6 +1116,12 @@ describe("cli/args", () => {
   it("rejects invalid help usage", () => {
     expect(() => parseCLIArguments(["help", "unknown"])).toThrow(
       "Invalid help topic: unknown. Expected one of overview, task, command, object, verb, matrix, format, config, env, config-file, runtime, uri, recipe, troubleshoot, ai.\nSee: wikigraph --help",
+    );
+    expect(() =>
+      parseCLIArguments(["help", "object", "entity", "extra"]),
+    ).toThrow("Unexpected positional arguments: extra.");
+    expect(() => parseCLIArguments(["help", "verb", "get", "extra"])).toThrow(
+      "Unexpected positional arguments: extra.",
     );
     expect(() =>
       parseCLIArguments(["help", "task", "--input", "book.epub"]),

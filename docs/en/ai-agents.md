@@ -21,7 +21,7 @@ wikigraph wkg://book.sdpub/entity search "keyword"
 wikigraph wkg://book.sdpub/chapter/3/source/0#0..8 get
 wikigraph <uri> related
 wikigraph <uri> evidence
-wikigraph <uri> pack --budget 5000
+wikigraph wkg://book.sdpub/entity/Q9957 pack --budget 5000
 wikigraph wkg://book.sdpub/state get --json
 ```
 
@@ -32,7 +32,7 @@ Search results may display short object URIs such as `wkg://entity/Q9957`; prepe
 
 Choose a search lens explicitly in the URI: `/chunk` for Reading Graph structure, `/summary` for quick overview, `/source` for original wording, or `/entity` and `/triple` for Knowledge Graph objects. Use scoped chapter lens URIs such as `wkg://book.sdpub/chapter/3/entity`, `--limit`, and `--cursor` to keep retrieval bounded.
 
-For evidence tracing, logic-chain reconstruction, or relationship analysis that starts from source text, use `wikigraph <uri> evidence` to return source ranges for a known object, then use `wikigraph <uri> related` or `wikigraph <uri> pack` to move back into nearby objects. Use source URIs when continuous prose is the goal.
+For evidence tracing, logic-chain reconstruction, or relationship analysis that starts from source text, use `wikigraph <uri> evidence` to return source ranges for a known object, then use `wikigraph <uri> related` or `wikigraph <graph-object-uri> pack` to move back into nearby graph objects. Use source URIs when continuous prose is the goal.
 
 `<archive-uri>/state get` is useful when archive-level readiness or metadata matters. For content exploration after `chapter tree`, selecting a small set of chapter ids and using scoped chapter URIs usually spends less context than returning to archive-level entry points.
 
@@ -56,7 +56,7 @@ Use the library API only when the surrounding system explicitly needs in-process
 4. Use `wikigraph <uri> get` to inspect one object.
 5. Use `wikigraph <uri> evidence` when an object should be grounded back to source text.
 6. Use `wikigraph <uri> related` to move to nearby peer objects.
-7. Use `wikigraph <uri> pack` when the user needs deterministic context around a known object.
+7. Use `wikigraph <graph-object-uri> pack` when the user needs deterministic context around a known chunk, entity, or triple.
 8. Use `export` only when the user needs a projection.
 9. Use `<archive-uri>/state get` when archive readiness, metadata, or build state is part of the task.
 10. Before `queue add`, run `estimate`; if the estimate is too large for the session, ask the user.

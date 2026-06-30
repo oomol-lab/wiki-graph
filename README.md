@@ -70,8 +70,8 @@ cat ./article.md | wikigraph wkg://article.sdpub create --input-format markdown
 Inspect and estimate before expensive work:
 
 ```bash
-wikigraph wkg://book.sdpub status
-wikigraph wkg://book.sdpub index
+wikigraph wkg://book.sdpub/state get
+wikigraph wkg://book.sdpub/chapter/tree get --json
 wikigraph wkg://book.sdpub estimate --stage reading-summary
 ```
 
@@ -86,8 +86,8 @@ Search, browse, and read through the knowledge-base interface:
 
 ```bash
 wikigraph wkg://book.sdpub/chapter/tree get --json
-wikigraph wkg://book.sdpub search "RAG" --type chunk
-wikigraph wkg://book.sdpub/chapter/12 search "exact source phrase" --type source
+wikigraph wkg://book.sdpub/chunk search "RAG"
+wikigraph wkg://book.sdpub/chapter/12/source search "exact source phrase"
 wikigraph wkg://book.sdpub/chapter/12 get
 wikigraph wkg://book.sdpub/chunk/84 get
 wikigraph wkg://book.sdpub/chunk/84 related
@@ -98,7 +98,7 @@ wikigraph wkg://book.sdpub/chunk/84 pack --budget 5000
 Output a projection only when you need a portable view. For example, read one chapter into Markdown text, or export the full archive as an EPUB:
 
 ```bash
-wikigraph wkg://book.sdpub/chapter/12/source/ get > ./chapter-12.md
+wikigraph wkg://book.sdpub/chapter/12/source get > ./chapter-12.md
 wikigraph wkg://book.sdpub export --output-format epub --output ./digest.epub
 ```
 
@@ -146,12 +146,11 @@ Your intent still runs through the whole process. During build, the prompt influ
 With that archive on hand, you can search and navigate the knowledge structure directly:
 
 ```bash
-wikigraph wkg://book.sdpub index
 wikigraph wkg://book.sdpub/chapter/tree get --json
-wikigraph wkg://book.sdpub/chapter/12 list --type chunk
-wikigraph wkg://book.sdpub search "central argument" --type chunk
+wikigraph wkg://book.sdpub/chapter/12/chunk list
+wikigraph wkg://book.sdpub/chunk search "central argument"
 wikigraph wkg://book.sdpub/chapter/12 get
-wikigraph wkg://book.sdpub/chapter/12/source/ get
+wikigraph wkg://book.sdpub/chapter/12/source get
 ```
 
 Markdown, EPUB, txt, and JSON-style outputs are projections of the archive. They are useful for portability and reading, but they do not replace the `.sdpub` object when graph links and source fragments matter.

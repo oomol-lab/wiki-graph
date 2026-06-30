@@ -84,7 +84,7 @@ Object command 使用 Wiki Graph URI。手动构造 URI 时，先读 `wikigraph 
 只有需要便携视图时再输出 projection。比如只需要某一章的 `.md` 文本，可以读取该章；需要完整电子书视图时再导出 EPUB：
 
 ```bash
-wikigraph wkg://book.sdpub/chapter/3/source/ get > ./chapter-3.md
+wikigraph wkg://book.sdpub/chapter/3/source get > ./chapter-3.md
 wikigraph wkg://book.sdpub export --output-format epub --output ./digest.epub
 ```
 
