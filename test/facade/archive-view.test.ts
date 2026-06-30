@@ -11,6 +11,7 @@ import {
   listArchiveCollection,
   listArchiveEvidence,
   listArchiveObjects,
+  packArchiveContext,
   listRelatedArchiveObjects,
   readArchiveText,
   readArchivePage,
@@ -1665,6 +1666,16 @@ describe("facade/archive-view", () => {
           predicate: "mentions",
           subjectQid: "Q1",
           type: "triple",
+        });
+        await expect(
+          packArchiveContext(document, "wkg://entity/Q1", 1000),
+        ).resolves.toMatchObject({
+          anchor: {
+            id: "wkg://entity/Q1",
+            type: "entity",
+          },
+          budget: 1000,
+          links: [],
         });
         await expect(
           listRelatedArchiveObjects(document, "wkg://entity/Q1"),

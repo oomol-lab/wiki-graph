@@ -1208,6 +1208,25 @@ export async function listAllArchiveLinks(
   document: ReadonlyDocument,
   id: string,
 ): Promise<readonly GraphNeighbor[]> {
+  if (id.startsWith("wkg://")) {
+    const reference = parseWikiGraphReference(id);
+
+    if (reference.type !== "chunk") {
+      return [];
+    }
+
+    const { chapterId } = await requireNode(document, reference.id);
+
+    if (
+      reference.chapterId !== undefined &&
+      reference.chapterId !== chapterId
+    ) {
+      throw new Error(`Chunk ${id} was not found in this archive.`);
+    }
+
+    return await listGraphNeighbors(document, chapterId, reference.id);
+  }
+
   const reference = parseArchiveReference(id);
 
   if (reference.type !== "node") {
