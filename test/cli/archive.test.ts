@@ -363,7 +363,6 @@ vi.mock("../../src/facade/index.js", () => ({
       cursor: "raw-search-cursor",
       format: "json",
       kind: "search",
-      limit: 20,
       types: ["entity"],
     }),
   ),
@@ -504,7 +503,6 @@ describe("cli/archive", () => {
       format: "json",
       ids: null,
       kind: "collection",
-      limit: 20,
       order: "doc-asc",
       types: ["entity"],
     });
@@ -519,7 +517,6 @@ describe("cli/archive", () => {
       format: "json",
       ids: null,
       kind: "collection",
-      limit: 20,
       order: "doc-asc",
       types: ["entity"],
     });
@@ -783,6 +780,22 @@ describe("cli/archive", () => {
     });
   });
 
+  it("uses the next command limit instead of cursor state", async () => {
+    await runArchiveCommand({
+      action: "next",
+      archivePath: "c_next",
+      format: "json",
+      limit: 7,
+    });
+
+    expect(findArchiveObjects).toHaveBeenCalledWith({}, "", {
+      archiveKey: "/tmp/book.sdpub",
+      cursor: "raw-search-cursor",
+      limit: 7,
+      types: ["entity"],
+    });
+  });
+
   it("preserves evidence preview limits on search continuation cursors", async () => {
     vi.mocked(findArchiveObjects).mockResolvedValueOnce({
       chapters: null,
@@ -814,7 +827,6 @@ describe("cli/archive", () => {
       evidenceLimit: 4,
       format: "json",
       kind: "search",
-      limit: 20,
       types: ["entity"],
     });
   });
@@ -863,7 +875,6 @@ describe("cli/archive", () => {
       cursor: "raw-next-evidence-cursor",
       format: "json",
       kind: "evidence",
-      limit: 4,
       targetUri: "wikigraph://entity/Q1",
     });
   });

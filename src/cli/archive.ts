@@ -320,7 +320,7 @@ async function runNextArchivePage(args: CLIArchiveArguments): Promise<void> {
 
   await readArchiveDocument(cursor.archivePath, async (document) => {
     const format = args.format ?? cursor.format;
-    const limit = args.limit ?? cursor.limit;
+    const limit = args.limit ?? DEFAULT_OUTPUT_LIMIT;
 
     switch (cursor.kind) {
       case "collection": {
@@ -528,7 +528,6 @@ async function createOutputContinuationCursor(
       cursor,
       format: context.format,
       kind: "evidence",
-      limit: context.evidenceLimit ?? context.limit,
       targetUri: context.targetUri ?? "",
     };
   } else if (context.continuationKind === "collection") {
@@ -543,7 +542,6 @@ async function createOutputContinuationCursor(
       format: context.format,
       ids: context.ids ?? null,
       kind: "collection",
-      limit: context.limit,
       order: context.order ?? "doc-asc",
       types: context.types,
     };
@@ -557,7 +555,6 @@ async function createOutputContinuationCursor(
         : { evidenceLimit: context.evidenceLimit }),
       format: context.format,
       kind: "search",
-      limit: context.limit,
       types: context.types,
     };
   }
