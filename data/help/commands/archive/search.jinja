@@ -10,10 +10,10 @@ Use when:
   - You have words, names, phrases, or concepts and need candidate object URIs.
 
 Usage:
-  wikigraph search <wikigraph-uri-with-sdpub-locator> <query> [--type <meta|chapter|entity|triple|source|summary|chunk[,kind...]>] [--limit <n>] [--evidence [n]] [--cursor <token>] [--json|--jsonl] [--help|-h]
+  wikigraph <wikigraph-uri-with-sdpub-locator> search <query> [--type <meta|chapter|entity|triple|source|summary|chunk[,kind...]>] [--limit <n>] [--evidence [n]] [--cursor <token>] [--json|--jsonl] [--help|-h]
 
 Returns:
-  - In text output, a ranked list of full `wikigraph://...` URIs.
+  - In text output, a ranked list of full `wkg://...` URIs.
   - With `--json` or `--jsonl`, machine-readable search result items.
 
 Notes:
@@ -31,5 +31,5 @@ Next steps:
   - Use `pack` after selecting a useful readable URI.
 
 Examples:
-  wikigraph search wikigraph:///books/book.sdpub "恩典 婴儿洗礼"
-  wikigraph search wikigraph:///books/book.sdpub/chapter/3 "infant baptism" --type entity --json
+  wikigraph wkg:///books/book.sdpub search "恩典 婴儿洗礼"
+  wikigraph wkg:///books/book.sdpub/chapter/3 search "infant baptism" --type entity --json

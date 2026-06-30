@@ -2,10 +2,11 @@
 
 # CLI Reference
 
-SpineDigest is archive-first. The primary object is a `.sdpub` knowledge-base archive, and the primary command shape is:
+SpineDigest is archive-first. The primary object is a `.sdpub` knowledge-base archive. Archive maintenance commands start with an action; object exploration commands start with a Wiki Graph URI:
 
 ```bash
 wikigraph <action> <archive.sdpub> ...
+wikigraph <wkg-uri> <action> ...
 ```
 
 ## Archive Commands
@@ -15,12 +16,12 @@ wikigraph create <archive.sdpub> [source] [--input-format <format>] [--llm <json
 wikigraph estimate <archive.sdpub> [--stage <source|reading-graph|reading-summary>] [--json]
 wikigraph status <archive.sdpub> [--json]
 wikigraph index <archive.sdpub> [--json]
-wikigraph search <archive-or-scope-uri> <query> [--type <chapter|entity|triple|source|summary|chunk[,kind...]>] [--limit <n>] [--cursor <token>] [--json|--jsonl]
-wikigraph list <archive-or-scope-uri> [--type <chapter|entity|triple|source|summary|chunk[,kind...]>] [--limit <n>] [--cursor <token>] [--json|--jsonl]
-wikigraph get <object-uri> [--json|--jsonl]
-wikigraph related <object-uri> [--json|--jsonl]
-wikigraph evidence <object-uri> [--limit <n>] [--cursor <token>] [--json|--jsonl]
-wikigraph pack <object-uri> [--budget <chars>] [--json|--jsonl]
+wikigraph <archive-or-scope-uri> search <query> [--type <chapter|entity|triple|source|summary|chunk[,kind...]>] [--limit <n>] [--cursor <token>] [--json|--jsonl]
+wikigraph <archive-or-scope-uri> list [--type <chapter|entity|triple|source|summary|chunk[,kind...]>] [--limit <n>] [--cursor <token>] [--json|--jsonl]
+wikigraph <object-uri> get [--json|--jsonl]
+wikigraph <object-uri> related [--evidence [n]] [--json|--jsonl]
+wikigraph <entity|triple|summary|chunk-uri> evidence [--limit <n>] [--cursor <token>] [--json|--jsonl]
+wikigraph <object-uri> pack [--budget <chars>] [--json|--jsonl]
 wikigraph export <archive.sdpub> --output-format <format> [--output <path>]
 wikigraph queue add <archive.sdpub> --chapter <id> [--task reading-graph|reading-summary|knowledge-graph] --accept-cost [--boost] [--llm <json>] [--prompt <text>]
 wikigraph queue list [--all] [--active] [--input <archive.sdpub>] [--json]
@@ -41,9 +42,9 @@ Search and collection behavior:
 
 - `search` finds URI-addressable objects from query text. Search results are leads, not source evidence.
 - `list` enumerates URI-addressable objects without query text.
-- Object commands use Wiki Graph URIs. Convert archive paths to archive URIs such as `wikigraph:///Users/me/book.sdpub` before using `search`, `list`, `get`, `related`, `evidence`, or `pack`.
+- Object commands use Wiki Graph URIs. Use an archive or scope URI such as `wkg:///Users/me/book.sdpub` for `search` and `list`; use a concrete object URI such as `wkg:///Users/me/book.sdpub/chapter/12` for `get`, `related`, `evidence`, or `pack`.
 - For content understanding, choose a search lens: `--type chunk` for Reading Graph structure, `--type summary` for quick overview, `--type source` for original source wording, or `--type entity,triple` for Knowledge Graph objects.
-- Use a chapter scope URI such as `wikigraph:///Users/me/book.sdpub/chapter/12` to keep search or list local to one chapter.
+- Use a chapter scope URI such as `wkg:///Users/me/book.sdpub/chapter/12` to keep search or list local to one chapter.
 - `--limit` defaults to `20`; pass returned `nextCursor` back through `--cursor` for the next page.
 - Search does not do semantic expansion, stemming, or vector search.
 - Read `wikigraph help uri` for the URI grammar and object boundary rules.
@@ -86,8 +87,8 @@ Extension mapping:
 Read/search/navigation commands support `--json` for machine consumption:
 
 ```bash
-wikigraph search wikigraph:///Users/me/book.sdpub "RAG" --type chunk --json
-wikigraph get wikigraph:///Users/me/book.sdpub/chapter/3 --json
+wikigraph wkg:///Users/me/book.sdpub search "RAG" --type chunk --json
+wikigraph wkg:///Users/me/book.sdpub/chapter/3 get --json
 ```
 
 Human-readable stdout is Markdown-like text with stable ids and suggested next commands.

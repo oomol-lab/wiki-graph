@@ -10,41 +10,41 @@ Archive locator:
   - A command URI must contain a `.sdpub` locator.
   - Do not pass a bare filesystem path to object commands.
     Use a Wiki Graph URI instead:
-    /Users/me/book.sdpub -> wikigraph:///Users/me/book.sdpub
-    ./book.sdpub -> wikigraph://book.sdpub
-  - Absolute archive locators use `wikigraph:///`:
-    wikigraph:///books/book.sdpub
-  - Relative archive locators use `wikigraph://`:
-    wikigraph://book.sdpub
-    wikigraph://books/book.sdpub
+    /Users/me/book.sdpub -> wkg:///Users/me/book.sdpub
+    ./book.sdpub -> wkg://book.sdpub
+  - Absolute archive locators use `wkg:///`:
+    wkg:///books/book.sdpub
+  - Relative archive locators use `wkg://`:
+    wkg://book.sdpub
+    wkg://books/book.sdpub
   - The first path segment ending in `.sdpub` is the archive/object boundary.
 
 Short object URIs:
   Commands return short object URIs without local file paths:
-    wikigraph://chapter/3
-    wikigraph://chapter/3/source/
-    wikigraph://chapter/3/source/0#4..8
-    wikigraph://chapter/3/summary/
-    wikigraph://chunk/12
-    wikigraph://entity/Q8018
-    wikigraph://triple/Q8018/discusses/Q123
+    wkg://chapter/3
+    wkg://chapter/3/source/
+    wkg://chapter/3/source/0#4..8
+    wkg://chapter/3/summary/
+    wkg://chunk/12
+    wkg://entity/Q8018
+    wkg://triple/Q8018/discusses/Q123
 
 Located object URIs:
   Add an archive locator before the object path when passing a URI to a command:
-    wikigraph:///books/book.sdpub/chapter/3
-    wikigraph:///books/book.sdpub/chapter/3/source/0#4..8
-    wikigraph://book.sdpub/entity/Q8018
+    wkg:///books/book.sdpub/chapter/3
+    wkg:///books/book.sdpub/chapter/3/source/0#4..8
+    wkg://book.sdpub/entity/Q8018
 
 Object command examples:
   Search an absolute local archive:
-    wikigraph search wikigraph:///Users/me/book.sdpub "keyword" --type entity,triple --limit 20 --json
+    wikigraph wkg:///Users/me/book.sdpub search "keyword" --type entity,triple --limit 20 --json
   Open an object inside an absolute local archive:
-    wikigraph get wikigraph:///Users/me/book.sdpub/entity/Q8018
+    wikigraph wkg:///Users/me/book.sdpub/entity/Q8018 get
 
 Scopes:
-  - `wikigraph:///book.sdpub` addresses the whole archive.
-  - `wikigraph:///book.sdpub/chapter/3` scopes search and list to chapter 3.
-  - `wikigraph://chapter/3/entity/Q8018` is the entity view whose evidence must appear in chapter 3.
+  - `wkg:///book.sdpub` addresses the whole archive.
+  - `wkg:///book.sdpub/chapter/3` scopes search and list to chapter 3.
+  - `wkg://chapter/3/entity/Q8018` is the entity view whose evidence must appear in chapter 3.
 
 Object boundaries:
   - `chapter` is a structural object; searching it uses chapter title and structure, not child source or summary text.

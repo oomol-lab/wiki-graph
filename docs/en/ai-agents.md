@@ -12,25 +12,26 @@ Do not treat `.sdpub` as a ZIP payload for routine retrieval. Treat it as a mana
 
 ## Preferred Interface
 
-Prefer archive-first CLI commands:
+Prefer archive commands for archive state and URI-first object commands for exploration:
 
 ```bash
 wikigraph chapter tree book.sdpub --json
-wikigraph search book.sdpub "keyword" --type source,summary,chunk,entity,triple --chapter 3,7,12
-wikigraph get book.sdpub wikigraph://source/chapter/3#0..8
-wikigraph related book.sdpub <uri>
-wikigraph evidence book.sdpub <uri>
-wikigraph pack book.sdpub <uri> --budget 5000
+wikigraph wkg://book.sdpub search "keyword" --type source,summary,chunk,entity,triple
+wikigraph wkg://book.sdpub/chapter/3/source/0#0..8 get
+wikigraph <uri> related
+wikigraph <uri> evidence
+wikigraph <uri> pack --budget 5000
 wikigraph index book.sdpub --json
 ```
 
-Use three exploration modes. For synthesis, timelines, relationship analysis, process reconstruction, or concept-structure tasks, start with Structure mode: `chapter tree --json` for a compact table-of-contents map, then choose likely chapter ids and expand them with scoped `search --chapter <ids>` or `get <uri>`. Search mode uses `search --type <kind>` for candidate discovery and falls back to source/summary/chunk text when structured objects do not match. Reading mode uses `get wikigraph://source/...` after the relevant source URI has been selected.
+Use three exploration modes. For synthesis, timelines, relationship analysis, process reconstruction, or concept-structure tasks, start with Structure mode: `chapter tree --json` for a compact table-of-contents map, then choose likely chapter ids and expand them with scoped URI search or `wkg://... get`. Search mode uses `wkg://... search --type <kind>` for candidate discovery and falls back to source/summary/chunk text when structured objects do not match. Reading mode uses `wkg://... get` after the relevant source URI has been selected.
+Search results may display short object URIs such as `wkg://entity/Q9957`; prepend the archive locator before reusing them in object commands, for example `wkg://book.sdpub/entity/Q9957`.
 
-Choose a search lens explicitly: `--type chunk` for Reading Graph structure, `--type summary` for quick overview, `--type source` for original wording, or `--type entity,triple` for Knowledge Graph objects. Use `--chapter`, `--limit`, and `--cursor` to keep retrieval bounded.
+Choose a search lens explicitly: `--type chunk` for Reading Graph structure, `--type summary` for quick overview, `--type source` for original wording, or `--type entity,triple` for Knowledge Graph objects. Use scoped chapter URIs, `--limit`, and `--cursor` to keep retrieval bounded.
 
-For evidence tracing, logic-chain reconstruction, or relationship analysis that starts from source text, use `evidence <uri>` to return source ranges for a known object, then use `related <uri>` or `pack <uri>` to move back into nearby objects. Use source URIs when continuous prose is the goal.
+For evidence tracing, logic-chain reconstruction, or relationship analysis that starts from source text, use `wikigraph <uri> evidence` to return source ranges for a known object, then use `wikigraph <uri> related` or `wikigraph <uri> pack` to move back into nearby objects. Use source URIs when continuous prose is the goal.
 
-`index` is useful when archive-level readiness or metadata matters: title, source format, chapter count, summary count, node count, and edge count. For content exploration after `chapter tree`, selecting a small set of chapter ids and using scoped `search --chapter <ids>` usually spends less context than returning to archive-level entry points.
+`index` is useful when archive-level readiness or metadata matters: title, source format, chapter count, summary count, node count, and edge count. For content exploration after `chapter tree`, selecting a small set of chapter ids and using scoped chapter URIs usually spends less context than returning to archive-level entry points.
 
 Use the library API only when the surrounding system explicitly needs in-process integration.
 
@@ -38,7 +39,7 @@ Use the library API only when the surrounding system explicitly needs in-process
 
 - Primary object: `.sdpub`
 - Creation sources: EPUB, Markdown, TXT, and text pipelines
-- Read objects: Wiki Graph URIs such as `wikigraph://source/chapter/1#0..3`, `wikigraph://chunk/42`, `wikigraph://entity/Q9957`, and `wikigraph://triple/...`
+- Read objects: Wiki Graph URIs such as `wkg://source/chapter/1#0..3`, `wkg://chunk/42`, `wkg://entity/Q9957`, and `wkg://triple/...`
 - Cheap operations: `index`, `search`, `get`, `related`, `evidence`, `pack`, `export`
 - Expensive operations: Reading Graph, Reading Summary, or Knowledge Graph `queue add`
 - Estimate first: `wikigraph estimate <archive.sdpub> --stage reading-summary`
@@ -47,12 +48,12 @@ Use the library API only when the surrounding system explicitly needs in-process
 ## Recommended Execution Strategy
 
 1. For content understanding, use `chapter tree --json` as the compact global map.
-2. Select likely chapter ids from the tree, then use scoped `search --chapter <ids>` before broad search.
-3. Use `search` to locate source, summary, chunk, entity, or triple objects.
-4. Use `get <uri>` to inspect one object.
-5. Use `evidence <uri>` when an object should be grounded back to source text.
-6. Use `related <uri>` to move to nearby peer objects.
-7. Use `pack <uri>` when the user needs deterministic context around a known object.
+2. Select likely chapter ids from the tree, then search scoped chapter URIs before broad archive search.
+3. Use `wikigraph <uri> search` to locate source, summary, chunk, entity, or triple objects.
+4. Use `wikigraph <uri> get` to inspect one object.
+5. Use `wikigraph <uri> evidence` when an object should be grounded back to source text.
+6. Use `wikigraph <uri> related` to move to nearby peer objects.
+7. Use `wikigraph <uri> pack` when the user needs deterministic context around a known object.
 8. Use `export` only when the user needs a projection.
 9. Use `index` when archive readiness, metadata, or build state is part of the task.
 10. Before `queue add`, run `estimate`; if the estimate is too large for the session, ask the user.

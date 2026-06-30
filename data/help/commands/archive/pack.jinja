@@ -10,7 +10,7 @@ Use when:
   - You already selected a useful readable URI and need compact context for an answer.
 
 Usage:
-  wikigraph pack <object-uri> [--budget <chars>] [--json|--jsonl] [--help|-h]
+  wikigraph <object-uri> pack [--budget <chars>] [--json|--jsonl] [--help|-h]
 
 Returns:
   - A context package constrained by `--budget`.
@@ -25,5 +25,5 @@ Next steps:
   - Use the packed context to answer, or continue with `related` if context is too narrow.
 
 Examples:
-  wikigraph pack wikigraph:///books/book.sdpub/chapter/1/summary/ --budget 5000
-  wikigraph pack wikigraph:///books/book.sdpub/chunk/123
+  wikigraph wkg:///books/book.sdpub/chapter/1/summary/ pack --budget 5000
+  wikigraph wkg:///books/book.sdpub/chunk/123 pack

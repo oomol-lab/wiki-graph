@@ -86,19 +86,19 @@ Search, browse, and read through the knowledge-base interface:
 
 ```bash
 wikigraph chapter tree ./book.sdpub --json
-wikigraph search wikigraph://book.sdpub "RAG" --type chunk
-wikigraph search wikigraph://book.sdpub/chapter/12 "exact source phrase" --type source
-wikigraph get wikigraph://book.sdpub/chapter/12
-wikigraph get wikigraph://book.sdpub/chunk/84
-wikigraph related wikigraph://book.sdpub/chunk/84
-wikigraph evidence wikigraph://book.sdpub/chunk/84
-wikigraph pack wikigraph://book.sdpub/chunk/84 --budget 5000
+wikigraph wkg://book.sdpub search "RAG" --type chunk
+wikigraph wkg://book.sdpub/chapter/12 search "exact source phrase" --type source
+wikigraph wkg://book.sdpub/chapter/12 get
+wikigraph wkg://book.sdpub/chunk/84 get
+wikigraph wkg://book.sdpub/chunk/84 related
+wikigraph wkg://book.sdpub/chunk/84 evidence
+wikigraph wkg://book.sdpub/chunk/84 pack --budget 5000
 ```
 
 Output a projection only when you need a portable view. For example, read one chapter into Markdown text, or export the full archive as an EPUB:
 
 ```bash
-wikigraph get wikigraph://book.sdpub/chapter/12/source/ > ./chapter-12.md
+wikigraph wkg://book.sdpub/chapter/12/source/ get > ./chapter-12.md
 wikigraph export ./book.sdpub --output-format epub --output ./digest.epub
 ```
 
@@ -148,10 +148,10 @@ With that archive on hand, you can search and navigate the knowledge structure d
 ```bash
 wikigraph index ./book.sdpub
 wikigraph chapter tree ./book.sdpub --json
-wikigraph list wikigraph://book.sdpub/chapter/12 --type chunk
-wikigraph search wikigraph://book.sdpub "central argument" --type chunk
-wikigraph get wikigraph://book.sdpub/chapter/12
-wikigraph get wikigraph://book.sdpub/chapter/12/source/
+wikigraph wkg://book.sdpub/chapter/12 list --type chunk
+wikigraph wkg://book.sdpub search "central argument" --type chunk
+wikigraph wkg://book.sdpub/chapter/12 get
+wikigraph wkg://book.sdpub/chapter/12/source/ get
 ```
 
 Markdown, EPUB, txt, and JSON-style outputs are projections of the archive. They are useful for portability and reading, but they do not replace the `.sdpub` object when graph links and source fragments matter.

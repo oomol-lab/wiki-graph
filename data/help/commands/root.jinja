@@ -20,14 +20,14 @@ Object workflow:
   - `pack` builds bounded Agent-readable context around one readable URI.
 
 Object commands:
-  wikigraph search <wikigraph-uri-with-sdpub-locator> <query> [--type <meta|chapter|entity|triple|source|summary|chunk[,kind...]>] [--limit <n>] [--cursor <token>] [--evidence [n]] [--json|--jsonl]
-  wikigraph list <wikigraph-uri-with-sdpub-locator> [--type <meta|chapter|entity|triple|source|summary|chunk[,kind...]>] [--limit <n>] [--cursor <token>] [--evidence [n]] [--json|--jsonl]
-  wikigraph get <object-uri> [--evidence [n]] [--json|--jsonl]
-  wikigraph related <object-uri> [--evidence [n]] [--json|--jsonl]
-  wikigraph evidence <entity|triple|summary|chunk-uri> [--limit <n>] [--cursor <token>] [--json|--jsonl]
+  wikigraph <wikigraph-uri-with-sdpub-locator> search <query> [--type <meta|chapter|entity|triple|source|summary|chunk[,kind...]>] [--limit <n>] [--cursor <token>] [--evidence [n]] [--json|--jsonl]
+  wikigraph <wikigraph-uri-with-sdpub-locator> list [--type <meta|chapter|entity|triple|source|summary|chunk[,kind...]>] [--limit <n>] [--cursor <token>] [--evidence [n]] [--json|--jsonl]
+  wikigraph <object-uri> get [--evidence [n]] [--json|--jsonl]
+  wikigraph <object-uri> related [--evidence [n]] [--json|--jsonl]
+  wikigraph <entity|triple|summary|chunk-uri> evidence [--limit <n>] [--cursor <token>] [--json|--jsonl]
   wikigraph next <cursor> [--limit <n>] [--json|--jsonl]
   wikigraph next <wikigraph-uri-with-sdpub-locator> <cursor> [--limit <n>] [--json|--jsonl]
-  wikigraph pack <object-uri> [--budget <chars>] [--json|--jsonl]
+  wikigraph <object-uri> pack [--budget <chars>] [--json|--jsonl]
 
 URI requirement:
   `search`, `list`, `get`, `related`, `evidence`, and `pack` use Wiki Graph URIs, not bare filesystem paths.

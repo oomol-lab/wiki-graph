@@ -11,7 +11,7 @@ Use when:
   - You need support before quoting, verifying, or answering from a claim.
 
 Usage:
-  wikigraph evidence <object-uri> [--limit <n>] [--cursor <token>] [--json|--jsonl] [--help|-h]
+  wikigraph <object-uri> evidence [--limit <n>] [--cursor <token>] [--json|--jsonl] [--help|-h]
 
 Returns:
   - Evidence items anchored to source text.
@@ -27,5 +27,5 @@ Next steps:
   - Use `pack` when evidence confirms the object is a useful answer anchor.
 
 Examples:
-  wikigraph evidence wikigraph:///books/book.sdpub/entity/Q162593
-  wikigraph evidence wikigraph:///books/book.sdpub/chapter/3/triple/Q162593/discusses/Q9476
+  wikigraph wkg:///books/book.sdpub/entity/Q162593 evidence
+  wikigraph wkg:///books/book.sdpub/chapter/3/triple/Q162593/discusses/Q9476 evidence

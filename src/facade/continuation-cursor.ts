@@ -2,11 +2,7 @@ import { randomBytes } from "crypto";
 import { join, resolve } from "path";
 
 import { resolveWikiGraphStateDirectoryPath } from "../common/wiki-graph-dir.js";
-import {
-  getNumber,
-  getOptionalString,
-  getString,
-} from "../document/database.js";
+import { getOptionalString, getString } from "../document/database.js";
 import { openSharedStateDatabase } from "../document/index.js";
 import type { Database } from "../document/index.js";
 
@@ -20,7 +16,6 @@ export type ContinuationCursor =
       readonly format: "json" | "jsonl" | "text";
       readonly ids: readonly string[] | null;
       readonly kind: "collection";
-      readonly limit: number;
       readonly order: "doc-asc" | "doc-desc";
       readonly types: readonly string[] | null;
     }
@@ -31,7 +26,6 @@ export type ContinuationCursor =
       readonly evidenceLimit?: number;
       readonly format: "json" | "jsonl" | "text";
       readonly kind: "search";
-      readonly limit: number;
       readonly types: readonly string[] | null;
     }
   | {
@@ -40,7 +34,6 @@ export type ContinuationCursor =
       readonly cursor: string;
       readonly format: "json" | "jsonl" | "text";
       readonly kind: "evidence";
-      readonly limit: number;
       readonly targetUri: string;
     };
 
@@ -90,7 +83,7 @@ export async function createContinuationCursor(
         input.kind,
         JSON.stringify(createCursorPayload(input)),
         input.format,
-        input.limit,
+        1,
         now,
         now + CURSOR_TTL_MS,
         now,
@@ -113,7 +106,7 @@ export async function readContinuationCursor(
 
     const record = await database.queryOne(
       `
-        SELECT archive_key, archive_path, kind, payload_json, format, limit_value
+        SELECT archive_key, archive_path, kind, payload_json, format
         FROM continuation_cursors
         WHERE cursor_id = ?
       `,
@@ -123,7 +116,6 @@ export async function readContinuationCursor(
         archivePath: getString(row, "archive_path"),
         format: parseCursorFormat(getString(row, "format")),
         kind: getString(row, "kind"),
-        limit: getNumber(row, "limit_value"),
         payloadJSON: getString(row, "payload_json"),
       }),
     );
@@ -179,7 +171,6 @@ function parseContinuationCursorRecord(record: {
   readonly archivePath: string;
   readonly format: "json" | "jsonl" | "text";
   readonly kind: string;
-  readonly limit: number;
   readonly payloadJSON: string;
 }): ContinuationCursor {
   const payload = parsePayload(record.payloadJSON);
@@ -194,7 +185,6 @@ function parseContinuationCursorRecord(record: {
       format: record.format,
       ids: getPayloadStringArrayOrNull(payload, "ids"),
       kind: "collection",
-      limit: record.limit,
       order: getPayloadOrder(payload),
       types: getPayloadStringArrayOrNull(payload, "types"),
     };
@@ -208,7 +198,6 @@ function parseContinuationCursorRecord(record: {
       ...getPayloadOptionalPositiveInteger(payload, "evidenceLimit"),
       format: record.format,
       kind: "search",
-      limit: record.limit,
       types: getPayloadStringArrayOrNull(payload, "types"),
     };
   }
@@ -220,7 +209,6 @@ function parseContinuationCursorRecord(record: {
       cursor: getPayloadString(payload, "cursor"),
       format: record.format,
       kind: "evidence",
-      limit: record.limit,
       targetUri: getPayloadString(payload, "targetUri"),
     };
   }

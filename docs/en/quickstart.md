@@ -65,12 +65,12 @@ wikigraph queue list --input ./book.sdpub
 
 ```bash
 wikigraph chapter tree ./book.sdpub --json
-wikigraph search wikigraph://book.sdpub "central argument" --type chunk
-wikigraph get wikigraph://book.sdpub/chapter/3
-wikigraph get wikigraph://book.sdpub/chunk/84
-wikigraph related wikigraph://book.sdpub/chunk/84
-wikigraph evidence wikigraph://book.sdpub/chunk/84
-wikigraph pack wikigraph://book.sdpub/chunk/84 --budget 5000
+wikigraph wkg://book.sdpub search "central argument" --type chunk
+wikigraph wkg://book.sdpub/chapter/3 get
+wikigraph wkg://book.sdpub/chunk/84 get
+wikigraph wkg://book.sdpub/chunk/84 related
+wikigraph wkg://book.sdpub/chunk/84 evidence
+wikigraph wkg://book.sdpub/chunk/84 pack --budget 5000
 ```
 
 Use `--type` to choose a search lens: `--type chunk` for Reading Graph structure, `--type summary` for quick overview, `--type source` for original source wording, or `--type entity,triple` for Knowledge Graph objects.
@@ -84,7 +84,7 @@ Use `--json` when another tool will consume the output.
 Use projections when you need a portable view. For example, read one chapter into Markdown text, or export the full archive as an EPUB:
 
 ```bash
-wikigraph get wikigraph://book.sdpub/chapter/3/source/ > ./chapter-3.md
+wikigraph wkg://book.sdpub/chapter/3/source/ get > ./chapter-3.md
 wikigraph export ./book.sdpub --output-format epub --output ./digest.epub
 ```
 

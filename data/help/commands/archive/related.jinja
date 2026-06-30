@@ -10,10 +10,10 @@ Use when:
   - You have a selected readable object and need adjacent graph context.
 
 Usage:
-  wikigraph related <object-uri> [--evidence [n]] [--json|--jsonl] [--help|-h]
+  wikigraph <object-uri> related [--evidence [n]] [--json|--jsonl] [--help|-h]
 
 Returns:
-  - Related full `wikigraph://...` URIs with labels or summaries.
+  - Related full `wkg://...` URIs with labels or summaries.
 
 Notes:
   - `related` starts from a known URI; `search` starts from query text.
@@ -27,4 +27,4 @@ Next steps:
   - Use `pack` when one related object becomes the answer anchor.
 
 Examples:
-  wikigraph related wikigraph:///books/book.sdpub/chunk/123
+  wikigraph wkg:///books/book.sdpub/chunk/123 related

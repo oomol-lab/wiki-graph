@@ -10,7 +10,7 @@ Use when:
   - You need objects of a kind without a text query, such as all chapters or all entities.
 
 Usage:
-  wikigraph list <wikigraph-uri-with-sdpub-locator> [--type <meta|chapter|entity|triple|source|summary|chunk[,kind...]>] [--limit <n>] [--evidence [n]] [--cursor <token>] [--json|--jsonl] [--help|-h]
+  wikigraph <wikigraph-uri-with-sdpub-locator> list [--type <meta|chapter|entity|triple|source|summary|chunk[,kind...]>] [--limit <n>] [--evidence [n]] [--cursor <token>] [--json|--jsonl] [--help|-h]
 
 Returns:
   - URI-addressable objects in document order.
@@ -22,5 +22,5 @@ Notes:
   - Use `wikigraph help uri` before constructing Wiki Graph URIs; bare filesystem paths are not valid object command inputs.
 
 Examples:
-  wikigraph list wikigraph:///books/book.sdpub --type chapter
-  wikigraph list wikigraph:///books/book.sdpub/chapter/3 --type entity --json
+  wikigraph wkg:///books/book.sdpub list --type chapter
+  wikigraph wkg:///books/book.sdpub/chapter/3 list --type entity --json

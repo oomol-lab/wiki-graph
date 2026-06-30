@@ -6,7 +6,7 @@ export interface LocatedWikiGraphUri {
 }
 
 export function parseLocatedWikiGraphUri(uri: string): LocatedWikiGraphUri {
-  const prefix = "wikigraph://";
+  const prefix = "wkg://";
 
   if (!uri.startsWith(prefix)) {
     throw new Error(formatWikiGraphUriExpectedError(uri));
@@ -35,7 +35,7 @@ export function parseLocatedWikiGraphUri(uri: string): LocatedWikiGraphUri {
     ...(objectPath === "" && !path.endsWith("/")
       ? {}
       : {
-          objectUri: `wikigraph://${objectPath}${hash === "" ? "" : `#${hash}`}`,
+          objectUri: `wkg://${objectPath}${hash === "" ? "" : `#${hash}`}`,
         }),
   };
 }
@@ -73,8 +73,8 @@ export function requireLocatedObjectUri(uri: string): {
 function formatWikiGraphUriExpectedError(value: string): string {
   const example =
     value.endsWith(".sdpub") && value.startsWith("/")
-      ? `wikigraph://${value}`
-      : "wikigraph:///absolute/path/book.sdpub";
+      ? `wkg://${value}`
+      : "wkg:///absolute/path/book.sdpub";
 
   return [
     `Expected a Wiki Graph URI with a .sdpub archive locator: ${value}`,

@@ -403,7 +403,7 @@ function createInput(): {
                     title: "Mercury (planet)",
                   },
                 ],
-                text: "* [[Mercury (planet)|wikigraph://qid=Q308]], the first planet from the Sun",
+                text: "* [[Mercury (planet)|wkg://qid=Q308]], the first planet from the Sun",
                 title: "Mercury",
                 wiki: "enwiki",
               },

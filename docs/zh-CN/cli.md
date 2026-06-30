@@ -2,10 +2,11 @@
 
 # CLI Reference
 
-SpineDigest 采用 archive-first CLI。主对象是 `.sdpub` 知识库归档，主命令形态是：
+SpineDigest 采用 archive-first CLI。主对象是 `.sdpub` 知识库归档。归档维护命令以 action 开头；对象探索命令以 Wiki Graph URI 开头：
 
 ```bash
 wikigraph <action> <archive.sdpub> ...
+wikigraph <wkg-uri> <action> ...
 ```
 
 ## 归档命令
@@ -15,12 +16,12 @@ wikigraph create <archive.sdpub> [source] [--input-format <format>] [--llm <json
 wikigraph estimate <archive.sdpub> [--stage <source|reading-graph|reading-summary>] [--json]
 wikigraph status <archive.sdpub> [--json]
 wikigraph index <archive.sdpub> [--json]
-wikigraph search <archive-or-scope-uri> <query> [--type <chapter|entity|triple|source|summary|chunk[,kind...]>] [--limit <n>] [--cursor <token>] [--json|--jsonl]
-wikigraph list <archive-or-scope-uri> [--type <chapter|entity|triple|source|summary|chunk[,kind...]>] [--limit <n>] [--cursor <token>] [--json|--jsonl]
-wikigraph get <object-uri> [--json|--jsonl]
-wikigraph related <object-uri> [--json|--jsonl]
-wikigraph evidence <object-uri> [--limit <n>] [--cursor <token>] [--json|--jsonl]
-wikigraph pack <object-uri> [--budget <chars>] [--json|--jsonl]
+wikigraph <archive-or-scope-uri> search <query> [--type <chapter|entity|triple|source|summary|chunk[,kind...]>] [--limit <n>] [--cursor <token>] [--json|--jsonl]
+wikigraph <archive-or-scope-uri> list [--type <chapter|entity|triple|source|summary|chunk[,kind...]>] [--limit <n>] [--cursor <token>] [--json|--jsonl]
+wikigraph <object-uri> get [--json|--jsonl]
+wikigraph <object-uri> related [--evidence [n]] [--json|--jsonl]
+wikigraph <entity|triple|summary|chunk-uri> evidence [--limit <n>] [--cursor <token>] [--json|--jsonl]
+wikigraph <object-uri> pack [--budget <chars>] [--json|--jsonl]
 wikigraph export <archive.sdpub> --output-format <format> [--output <path>]
 wikigraph queue add <archive.sdpub> --chapter <id> [--task reading-graph|reading-summary|knowledge-graph] --accept-cost [--boost] [--llm <json>] [--prompt <text>]
 wikigraph queue list [--all] [--active] [--input <archive.sdpub>] [--json]
@@ -41,9 +42,9 @@ wikigraph queue clean
 
 - `search` 根据 query text 查找可 URI 寻址的对象。Search result 是线索，不等于 source evidence。
 - `list` 在没有 query text 时枚举可 URI 寻址的对象。
-- Object command 使用 Wiki Graph URI。使用 `search`、`list`、`get`、`related`、`evidence` 或 `pack` 前，先把 archive path 转为 archive URI，例如 `wikigraph:///Users/me/book.sdpub`。
+- Object command 使用 Wiki Graph URI。`search` 和 `list` 使用 archive 或 scope URI，例如 `wkg:///Users/me/book.sdpub`；`get`、`related`、`evidence` 和 `pack` 使用具体 object URI，例如 `wkg:///Users/me/book.sdpub/chapter/12`。
 - 做内容理解时，选择一个 search lens：`--type chunk` 用于 Reading Graph 结构，`--type summary` 用于快速概览，`--type source` 用于原文措辞，`--type entity,triple` 用于 Knowledge Graph 对象。
-- 使用 chapter scope URI，例如 `wikigraph:///Users/me/book.sdpub/chapter/12`，把 search 或 list 限定在一个章节内。
+- 使用 chapter scope URI，例如 `wkg:///Users/me/book.sdpub/chapter/12`，把 search 或 list 限定在一个章节内。
 - `--limit` 默认 `20`；下一页把返回的 `nextCursor` 传给 `--cursor`。
 - Search 不做语义扩展、词干匹配或向量搜索。
 - URI 语法和 object boundary 规则见 `wikigraph help uri`。
@@ -86,8 +87,8 @@ Queue 行为：
 读取、搜索和导航命令支持 `--json`：
 
 ```bash
-wikigraph search wikigraph:///Users/me/book.sdpub "RAG" --type chunk --json
-wikigraph get wikigraph:///Users/me/book.sdpub/chapter/3 --json
+wikigraph wkg:///Users/me/book.sdpub search "RAG" --type chunk --json
+wikigraph wkg:///Users/me/book.sdpub/chapter/3 get --json
 ```
 
 默认 stdout 是适合人和 Agent 阅读的 Markdown-like 文本，包含稳定 ID 和下一步命令提示。

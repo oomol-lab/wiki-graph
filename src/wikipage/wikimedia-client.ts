@@ -274,7 +274,7 @@ export function replaceTitleUriWithQidUri(
       const title = decodeURIComponent(encodedTitle);
       const qid = titleToQid.get(title);
 
-      return qid === undefined ? label : `[[${label}|wikigraph://qid=${qid}]]`;
+      return qid === undefined ? label : `[[${label}|wkg://qid=${qid}]]`;
     },
   );
 }

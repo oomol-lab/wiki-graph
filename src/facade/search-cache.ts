@@ -884,7 +884,7 @@ function mapEntitySearchObjectRow(
       total: getNumber(row, "evidence_count"),
     },
     field: "title",
-    id: `wikigraph://entity/${qid}`,
+    id: `wkg://entity/${qid}`,
     matchCount: getNumber(row, "match_count"),
     matchedTerms,
     missingTerms,

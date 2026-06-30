@@ -955,7 +955,7 @@ export async function readArchivePage(
   id: string,
   options: ArchivePageOptions = {},
 ): Promise<ArchivePage> {
-  if (id.startsWith("wikigraph://")) {
+  if (id.startsWith("wkg://")) {
     return await readWikiGraphPage(document, id, options);
   }
 
@@ -1190,7 +1190,7 @@ export async function listRelatedArchiveObjects(
   document: ReadonlyDocument,
   id: string,
 ): Promise<readonly ArchiveListItem[]> {
-  if (id.startsWith("wikigraph://")) {
+  if (id.startsWith("wkg://")) {
     return await listRelatedWikiGraphObjects(document, id);
   }
 
@@ -1569,7 +1569,7 @@ function findEntities(
       hit: {
         chapter: mention.chapterId,
         field: "title" as const,
-        id: `wikigraph://entity/${mention.qid}`,
+        id: `wkg://entity/${mention.qid}`,
         ...createFindMatchFields(match),
         position: {
           chapter: mention.chapterId,
@@ -1740,7 +1740,7 @@ function listEntityCollection(
         createUnscoredEntityEvidenceMention(mention),
       ),
       field: "title",
-      id: `wikigraph://entity/${qid}`,
+      id: `wkg://entity/${qid}`,
       position: {
         chapter: first.chapterId,
         fragment: first.fragmentId,
@@ -1999,11 +1999,11 @@ function formatTripleUri(
   predicate: string,
   objectQid: string,
 ): string {
-  return `wikigraph://triple/${subjectQid}/${encodeURIComponent(predicate)}/${objectQid}`;
+  return `wkg://triple/${subjectQid}/${encodeURIComponent(predicate)}/${objectQid}`;
 }
 
 function formatEntityUri(qid: string): string {
-  return `wikigraph://entity/${qid}`;
+  return `wkg://entity/${qid}`;
 }
 
 function isEntityOnlySearch(options: ArchiveFindOptions): boolean {
@@ -2083,7 +2083,7 @@ function toMentionRecord(hit: EntitySearchMentionHit): MentionRecord {
 }
 
 function parseEntityQid(id: string): string | undefined {
-  const prefix = "wikigraph://entity/";
+  const prefix = "wkg://entity/";
 
   return id.startsWith(prefix) ? id.slice(prefix.length) : undefined;
 }
@@ -3075,7 +3075,7 @@ function formatSourceRangeUri(
   startSentenceIndex: number,
   endSentenceIndex: number,
 ): string {
-  return `wikigraph://chapter/${chapterId}/source/${fragmentId}#${startSentenceIndex}..${endSentenceIndex}`;
+  return `wkg://chapter/${chapterId}/source/${fragmentId}#${startSentenceIndex}..${endSentenceIndex}`;
 }
 
 function mergeEvidenceRanges(
@@ -3163,7 +3163,7 @@ type WikiGraphReference =
     };
 
 function parseWikiGraphReference(uri: string): WikiGraphReference {
-  if (!uri.startsWith("wikigraph://")) {
+  if (!uri.startsWith("wkg://")) {
     const archiveReference = parseArchiveReference(uri);
 
     switch (archiveReference.type) {
@@ -3184,14 +3184,12 @@ function parseWikiGraphReference(uri: string): WikiGraphReference {
     }
   }
 
-  if (uri === "wikigraph://") {
+  if (uri === "wkg://") {
     return { type: "meta" };
   }
 
-  const parsed = new URL(uri);
-  const pathParts = [parsed.hostname, ...parsed.pathname.split("/")].filter(
-    (part) => part !== "",
-  );
+  const [rawPath = "", hash = ""] = uri.slice("wkg://".length).split("#", 2);
+  const pathParts = rawPath.split("/").filter((part) => part !== "");
 
   if (pathParts.length === 0) {
     return { type: "meta" };
@@ -3233,7 +3231,7 @@ function parseWikiGraphReference(uri: string): WikiGraphReference {
             break;
           case "source":
             if (pathParts.length === 3 || pathParts.length === 4) {
-              const [start, end] = parseSentenceRange(parsed.hash);
+              const [start, end] = parseSentenceRange(hash);
               const fragmentId =
                 pathParts[3] === undefined
                   ? undefined

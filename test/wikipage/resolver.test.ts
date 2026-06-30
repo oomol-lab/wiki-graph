@@ -62,8 +62,8 @@ describe("wikipage/resolver", () => {
               pages: [
                 {
                   text:
-                    "* [[Mercury|wikigraph://qid=Q925]], a chemical element\n" +
-                    "* [[Mercury|wikigraph://qid=Q308]], the first planet from the Sun",
+                    "* [[Mercury|wkg://qid=Q925]], a chemical element\n" +
+                    "* [[Mercury|wkg://qid=Q308]], the first planet from the Sun",
                   title: "Mercury",
                   wiki: "enwiki",
                 },
@@ -82,8 +82,8 @@ describe("wikipage/resolver", () => {
             disambiguationPages: [
               {
                 text:
-                  "* [[Mercury|wikigraph://qid=Q925]], a chemical element\n" +
-                  "* [[Mercury|wikigraph://qid=Q308]], the first planet from the Sun",
+                  "* [[Mercury|wkg://qid=Q925]], a chemical element\n" +
+                  "* [[Mercury|wkg://qid=Q308]], the first planet from the Sun",
                 title: "Mercury",
                 wiki: "enwiki",
               },

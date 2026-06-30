@@ -7,10 +7,10 @@ Purpose:
   Read one readable Wiki Graph object by URI.
 
 Use when:
-  - You already have a `wikigraph://...` URI and need to inspect its object payload.
+  - You already have a `wkg://...` URI and need to inspect its object payload.
 
 Usage:
-  wikigraph get <object-uri> [--evidence [n]] [--json|--jsonl] [--help|-h]
+  wikigraph <object-uri> get [--evidence [n]] [--json|--jsonl] [--help|-h]
 
 Returns:
   - The selected object in human-readable text, JSON, or JSONL.
@@ -26,5 +26,5 @@ Next steps:
   - Use `pack` to assemble bounded context around the object.
 
 Examples:
-  wikigraph get wikigraph:///books/book.sdpub/chunk/123
-  wikigraph get wikigraph:///books/book.sdpub/chapter/1/source/0#42..60
+  wikigraph wkg:///books/book.sdpub/chunk/123 get
+  wikigraph wkg:///books/book.sdpub/chapter/1/source/0#42..60 get

@@ -4,13 +4,13 @@ Topic: command
 Command Overview
 
 Object commands:
-  wikigraph search <wikigraph-uri-with-sdpub-locator> <query>
-  wikigraph list <wikigraph-uri-with-sdpub-locator>
-  wikigraph get <object-uri>
-  wikigraph related <object-uri>
-  wikigraph evidence <object-uri>
+  wikigraph <wikigraph-uri-with-sdpub-locator> search <query>
+  wikigraph <wikigraph-uri-with-sdpub-locator> list
+  wikigraph <object-uri> get
+  wikigraph <object-uri> related
+  wikigraph <entity|triple|summary|chunk-uri> evidence
   wikigraph next <cursor>
-  wikigraph pack <object-uri>
+  wikigraph <object-uri> pack
 
 URI routing:
   `search`, `list`, `get`, `related`, `evidence`, and `pack` use Wiki Graph URIs, not bare filesystem paths.

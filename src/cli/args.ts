@@ -520,6 +520,10 @@ export function parseCLIArguments(
     );
   }
 
+  if (isWikiGraphUri(positionals[0])) {
+    return parseArchiveUriFirstArguments(positionals, values);
+  }
+
   if (isArchiveAction(positionals[0])) {
     return parseArchiveArguments(positionals[0], positionals.slice(1), values);
   }
@@ -531,6 +535,36 @@ export function parseCLIArguments(
         : `Unknown command: ${positionals[0]}.`,
       CLI_HELP_ROUTES.command,
     ),
+  );
+}
+
+function parseArchiveUriFirstArguments(
+  positionals: readonly string[],
+  values: ArchiveArgumentValues,
+): ParsedCLIArguments {
+  const uri = positionals[0];
+  const action = positionals[1];
+
+  if (uri === undefined) {
+    throw new Error("Internal error: missing URI-first archive URI.");
+  }
+
+  if (!isUriFirstArchiveAction(action)) {
+    throw new Error(
+      withHelpRoute(
+        action === undefined
+          ? `Missing action after ${uri}.`
+          : `The URI-first form does not support \`${action}\`.`,
+        CLI_HELP_ROUTES.command,
+      ),
+    );
+  }
+
+  return parseArchiveArguments(
+    action,
+    [uri, ...positionals.slice(2)],
+    values,
+    `wikigraph ${uri} ${action} --help`,
   );
 }
 
@@ -1054,6 +1088,7 @@ function parseArchiveArguments(
   action: CLIArchiveAction,
   positionals: readonly string[],
   values: ArchiveArgumentValues,
+  helpRoute = `wikigraph ${action} --help`,
 ): ParsedCLIArguments {
   const normalized = normalizeArchiveInlineOptions(positionals, values);
 
@@ -1061,7 +1096,6 @@ function parseArchiveArguments(
   values = normalized.values;
 
   const archivePath = positionals[0];
-  const helpRoute = `wikigraph ${action} --help`;
 
   if (values.help === true) {
     return {
@@ -1433,14 +1467,14 @@ function formatMissingArchiveInputMessage(action: CLIArchiveAction): string {
     case "index":
       return "Missing archive path. Use `wikigraph index <archive.sdpub>`.";
     case "search":
-      return "Missing Wiki Graph URI with .sdpub locator. Use `wikigraph search wikigraph://<archive.sdpub> <query>`.";
+      return "Missing Wiki Graph URI with .sdpub locator. Use `wikigraph wkg://<archive.sdpub> search <query>`.";
     case "list":
-      return "Missing Wiki Graph URI with .sdpub locator. Use `wikigraph list wikigraph://<archive.sdpub>`.";
+      return "Missing Wiki Graph URI with .sdpub locator. Use `wikigraph wkg://<archive.sdpub> list`.";
     case "get":
     case "related":
     case "evidence":
     case "pack":
-      return `Missing object URI. Use \`wikigraph ${action} wikigraph://<archive.sdpub>/<object>\`.`;
+      return `Missing object URI. Use \`wikigraph wkg://<archive.sdpub>/<object> ${action}\`.`;
     case "next":
       return "Missing continuation cursor. Use `wikigraph next <cursor>`.";
   }
@@ -2732,6 +2766,23 @@ function isArchiveAction(value: string | undefined): value is CLIArchiveAction {
     value === "related" ||
     value === "search"
   );
+}
+
+function isUriFirstArchiveAction(
+  value: string | undefined,
+): value is "evidence" | "get" | "list" | "pack" | "related" | "search" {
+  return (
+    value === "evidence" ||
+    value === "get" ||
+    value === "list" ||
+    value === "pack" ||
+    value === "related" ||
+    value === "search"
+  );
+}
+
+function isWikiGraphUri(value: string | undefined): boolean {
+  return value?.startsWith("wkg://") === true;
 }
 
 function isQueueAction(value: string | undefined): value is CLIQueueAction {

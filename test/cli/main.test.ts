@@ -397,7 +397,7 @@ describe("cli/main", () => {
       "wikigraph",
       "get",
       "/tmp/book.sdpub",
-      "wikigraph://entity/Q1",
+      "wkg://entity/Q1",
       "--json",
     ];
     mainMockState.argsResult = {
@@ -405,7 +405,7 @@ describe("cli/main", () => {
         action: "get",
         archivePath: "/tmp/book.sdpub",
         format: "json",
-        objectId: "wikigraph://entity/Q1",
+        objectId: "wkg://entity/Q1",
       },
       help: false,
       kind: "archive",
