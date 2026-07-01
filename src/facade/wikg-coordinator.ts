@@ -449,29 +449,36 @@ class WikgDocumentFileStore implements DocumentFileStore {
   ): Promise<ReadonlyMap<string, Uint8Array>> {
     const directoryEntryPath = this.#toEntryPath(path);
     const prefix = directoryEntryPath === "" ? "" : `${directoryEntryPath}/`;
-    const contents = new Map<string, Uint8Array>();
+    return await withEntryLock(
+      this.#archiveKey,
+      normalizeEntryDirectoryPrefix(prefix),
+      "read",
+      async () => {
+        const contents = new Map<string, Uint8Array>();
 
-    for (const [entryPath, source] of await this.#listDirectoryEntryPaths(
-      prefix,
-    )) {
-      const name = entryPath.slice(prefix.length);
+        for (const [entryPath, source] of await this.#listDirectoryEntryPaths(
+          prefix,
+        )) {
+          const name = entryPath.slice(prefix.length);
 
-      if (name.includes("/")) {
-        continue;
-      }
-      if (source.kind === "workspace") {
-        contents.set(name, await readFile(source.path));
-        continue;
-      }
+          if (name.includes("/")) {
+            continue;
+          }
+          if (source.kind === "workspace") {
+            contents.set(name, await readFile(source.path));
+            continue;
+          }
 
-      const content = await this.#readArchiveEntry(entryPath);
+          const content = await this.#readArchiveEntry(entryPath);
 
-      if (content !== undefined) {
-        contents.set(name, content);
-      }
-    }
+          if (content !== undefined) {
+            contents.set(name, content);
+          }
+        }
 
-    return contents;
+        return contents;
+      },
+    );
   }
 
   public async readFile(path: string): Promise<Uint8Array | undefined> {
@@ -951,16 +958,18 @@ async function acquireEntryLock(
           `
 SELECT *
 FROM entry_locks
-WHERE archive_key = ? AND entry_path = ?
+WHERE archive_key = ?
 `,
-          [archiveKey, entryPath],
+          [archiveKey],
           mapEntryLock,
         );
 
         if (
           conflicts.some(
             (lock) =>
-              lock.ownerId !== ownerId && locksConflict(mode, lock.mode),
+              lock.ownerId !== ownerId &&
+              lockPathsConflict(entryPath, lock.entryPath) &&
+              locksConflict(mode, lock.mode),
           )
         ) {
           return false;
@@ -1028,6 +1037,18 @@ function locksConflict(requested: EntryLockMode, existing: EntryLockMode) {
   }
 
   return true;
+}
+
+function lockPathsConflict(requested: string, existing: string): boolean {
+  return (
+    requested === existing ||
+    lockPathContains(requested, existing) ||
+    lockPathContains(existing, requested)
+  );
+}
+
+function lockPathContains(parent: string, child: string): boolean {
+  return parent.endsWith("/") && child.startsWith(parent);
 }
 
 async function acquireSqliteLease(input: {
@@ -1394,6 +1415,14 @@ function normalizeEntryPath(path: string): string {
   return path.replaceAll("\\", "/").replace(/^\/+/u, "");
 }
 
+function normalizeEntryDirectoryPrefix(path: string): string {
+  const entryPath = normalizeEntryPath(path);
+
+  return entryPath === "" || entryPath.endsWith("/")
+    ? entryPath
+    : `${entryPath}/`;
+}
+
 function getCoordinatorStateDirectoryPath(): string {
   const stateDirectoryPath = process.env.WIKIGRAPH_STATE_DIR;
 
@@ -1427,6 +1456,7 @@ interface EntryOverlay {
 }
 
 interface EntryLock {
+  readonly entryPath: string;
   readonly mode: EntryLockMode;
   readonly ownerId: string;
 }
@@ -1449,6 +1479,7 @@ function mapEntryOverlay(row: Record<string, unknown>): EntryOverlay {
 
 function mapEntryLock(row: Record<string, unknown>): EntryLock {
   return {
+    entryPath: getString(row, "entry_path"),
     mode: getEntryLockMode(row),
     ownerId: getString(row, "owner_id"),
   };
