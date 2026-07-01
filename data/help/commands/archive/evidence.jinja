@@ -11,14 +11,19 @@ Use when:
   - You need support before quoting, verifying, or answering from a claim.
 
 Usage:
-  wikigraph <object-uri> evidence [query] [--limit <n>] [--cursor <token>] [--json|--jsonl] [--help|-h]
+  wikigraph <object-uri> evidence [query] [--all] [--limit <n>] [--context <n>] [--cursor <token>] [--json|--jsonl] [--help|-h]
 
 Returns:
   - Evidence items anchored to source text.
 
 Notes:
   - `evidence` is for verification, not broad context assembly.
+  - When the user asks for source passages mentioning, grounding, or supporting a known entity, start from `<archive-uri>/entity/<qid> evidence`.
+  - Do not use source search by entity label as the primary method; labels may have aliases, translations, variants, and grounded mentions that do not match literal text. Use source search only as a secondary literal-text check.
+  - Do not infer Wikipedia URLs from entity labels or QIDs; use `<archive-uri>/entity/<qid>/wikipage get` for mapped pages.
   - Optional `query` filters and re-sorts only the evidence items that would otherwise be returned.
+  - Evidence source ranges include 2 nearby sentences before and after by default. Use `--context 0` for exact cited ranges, or `--context <n>` for a different nearby source window.
+  - Read `wikigraph help retrieval` before choosing `--limit`, `--all`, `--json`, or `--jsonl`.
   - Use `wikigraph next <cursor>` for any returned `nextCursor`.
   - Source, chapter, and chapter-tree objects are evidence endpoints or structure objects; `evidence` is not available for them.
   - Use `pack` when the goal is bounded context around a selected object.

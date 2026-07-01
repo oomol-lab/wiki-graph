@@ -10,8 +10,8 @@ Use when:
   - You already have a `wkg://...` URI and need to inspect its object payload.
 
 Usage:
-  wikigraph <object-uri> get [--evidence [n]] [--backlinks] [--json|--jsonl] [--help|-h]
-  wikigraph <object-uri> [--evidence [n]] [--backlinks] [--json|--jsonl]
+  wikigraph <object-uri> get [--evidence [n]] [--context <n>] [--backlinks] [--json|--jsonl] [--help|-h]
+  wikigraph <object-uri> [--evidence [n]] [--context <n>] [--backlinks] [--json|--jsonl]
 
 Returns:
   - The selected object in human-readable text, JSON, or JSONL.
@@ -21,15 +21,20 @@ Notes:
   - When a located readable object URI is passed without a verb, `get` is implied.
   - Collection and lens URIs still require an explicit verb such as `list` or `search`.
   - Entity and triple `get` output includes up to 3 evidence sources by default.
+  - For all source passages mentioning or grounding a known entity, prefer `<archive-uri>/entity/<qid> evidence` over source search by label.
+  - Do not infer Wikipedia URLs from entity labels or QIDs; use `<archive-uri>/entity/<qid>/wikipage get` for mapped pages.
   - Use `--evidence <n>` to choose a different evidence preview size, or `--evidence 0` to hide evidence.
+  - Evidence previews include 2 nearby sentences before and after by default. Use `--context 0` for exact cited ranges.
   - Add `--backlinks` on source sentence ranges to show chunks, entities, and triples supported by that source range.
   - Read `wikigraph help uri` before constructing object URIs.
 
 Next steps:
   - Use `related` to expand from this object.
-  - Use `evidence` to trace source-backed support.
+  - Use `evidence` to trace source-backed support for a known entity or triple.
+  - Use `<archive-uri>/entity/<qid>/wikipage get` to inspect mapped Wikipedia pages for a known entity.
   - Use `pack` to assemble bounded context around the object.
 
 Examples:
   wikigraph wkg:///books/book.wikg/chunk/123 get
+  wikigraph wkg:///books/book.wikg/entity/Q162593/wikipage get
   wikigraph wkg:///books/book.wikg/chapter/1/source#42..60 get

@@ -192,6 +192,7 @@ export interface CLIArchiveArguments {
   readonly chapters?: readonly number[];
   readonly chapterId?: number;
   readonly confirm?: boolean;
+  readonly context?: number;
   readonly cursor?: string;
   readonly evidenceLimit?: number;
   readonly format?: CLIResultFormat;
@@ -241,6 +242,7 @@ interface ArchiveArgumentValues extends ArchiveMetaFlagValues {
   readonly chapter?: string;
   readonly clear?: boolean;
   readonly confirm?: boolean;
+  readonly context?: string;
   readonly cursor?: string;
   readonly "digest-dir"?: string;
   readonly "dry-run"?: boolean;
@@ -347,7 +349,7 @@ export function parseCLIArguments(
 ): ParsedCLIArguments {
   const { positionals, values } = parseArgs({
     allowPositionals: true,
-    args: normalizeEvidenceFlagArgv(argv),
+    args: normalizeArchiveValueFlagArgv(argv),
     options: {
       author: {
         multiple: true,
@@ -464,6 +466,9 @@ export function parseCLIArguments(
       },
       confirm: {
         type: "boolean",
+      },
+      context: {
+        type: "string",
       },
       cursor: {
         type: "string",
@@ -2266,6 +2271,7 @@ function parseArchiveArguments(
       rejectArchiveFlag(action, "--stage", values.stage, helpRoute);
       rejectArchiveFlag(action, "--to", values.to, helpRoute);
       rejectArchiveFlag(action, "--chapter", values.chapter, helpRoute);
+      rejectArchiveFlag(action, "--context", values.context, helpRoute);
       rejectArchiveFlag(action, "--limit", values.limit, helpRoute);
       rejectArchiveFlag(action, "--evidence", values.evidence, helpRoute);
       rejectArchiveFlag(action, "--budget", values.budget, helpRoute);
@@ -2305,6 +2311,7 @@ function parseArchiveArguments(
       rejectArchiveFlag(action, "--stage", values.stage, helpRoute);
       rejectArchiveFlag(action, "--to", values.to, helpRoute);
       rejectArchiveFlag(action, "--chapter", values.chapter, helpRoute);
+      rejectArchiveFlag(action, "--context", values.context, helpRoute);
       rejectArchiveFlag(action, "--limit", values.limit, helpRoute);
       rejectArchiveFlag(action, "--evidence", values.evidence, helpRoute);
       rejectArchiveFlag(action, "--budget", values.budget, helpRoute);
@@ -2335,6 +2342,7 @@ function parseArchiveArguments(
       rejectArchiveExtraPositionals(action, positionals, 1, helpRoute);
       rejectArchiveNonReadFlags(action, values, helpRoute);
       rejectArchiveFlag(action, "--budget", values.budget, helpRoute);
+      rejectArchiveFlag(action, "--context", values.context, helpRoute);
       rejectArchiveFlag(action, "--to", values.to, helpRoute);
       rejectArchiveFlag(action, "--evidence", values.evidence, helpRoute);
       rejectArchiveBooleanFlag(action, "--all", values.all, helpRoute);
@@ -2378,6 +2386,7 @@ function parseArchiveArguments(
             ? {}
             : { backlinks: values.backlinks }),
           ...(values.cursor === undefined ? {} : { cursor: values.cursor }),
+          ...parseSourceContextFlag(values.context, helpRoute),
           ...parseEvidenceFlag(values.evidence, helpRoute),
           format: parseResultFormat(values),
           ...(values.limit === undefined
@@ -2419,6 +2428,7 @@ function parseArchiveArguments(
             ? {}
             : { backlinks: values.backlinks }),
           ...(values.cursor === undefined ? {} : { cursor: values.cursor }),
+          ...parseSourceContextFlag(values.context, helpRoute),
           ...parseEvidenceFlag(values.evidence, helpRoute),
           format: parseResultFormat(values),
           ...(values.limit === undefined
@@ -2460,6 +2470,7 @@ function parseArchiveArguments(
           ...(values.backlinks === undefined
             ? {}
             : { backlinks: values.backlinks }),
+          ...parseSourceContextFlag(values.context, helpRoute),
           ...parseEvidenceFlag(values.evidence, helpRoute),
           format: parseResultFormat(values),
           objectId: archivePath,
@@ -2479,22 +2490,31 @@ function parseArchiveArguments(
       );
       rejectArchiveFlag(action, "--budget", values.budget, helpRoute);
       rejectArchiveFlag(action, "--chapter", values.chapter, helpRoute);
-      rejectArchiveFlag(action, "--cursor", values.cursor, helpRoute);
-      rejectArchiveFlag(action, "--limit", values.limit, helpRoute);
       rejectArchiveFlag(action, "--from", values.from, helpRoute);
       const relatedTarget = validateRelatedTargetUri(archivePath, helpRoute);
       if (relatedTarget === "chunk") {
         rejectArchiveFlag(action, "--role", values.role, helpRoute);
       }
       rejectArchiveFlag(action, "--to", values.to, helpRoute);
-      rejectArchiveBooleanFlag(action, "--all", values.all, helpRoute);
       rejectArchiveBooleanFlag(action, "--confirm", values.confirm, helpRoute);
       return {
         args: {
           action,
+          ...(values.all === undefined ? {} : { all: values.all }),
           archivePath,
+          ...(values.cursor === undefined ? {} : { cursor: values.cursor }),
+          ...parseSourceContextFlag(values.context, helpRoute),
           ...parseEvidenceFlag(values.evidence, helpRoute),
           format: parseResultFormat(values),
+          ...(values.limit === undefined
+            ? {}
+            : {
+                limit: parsePositiveIntegerFlag(
+                  values.limit,
+                  "--limit",
+                  helpRoute,
+                ),
+              }),
           objectId: archivePath,
           ...(positionals[1] === undefined ? {} : { query: positionals[1] }),
           ...(relatedTarget === "entity"
@@ -2520,13 +2540,14 @@ function parseArchiveArguments(
       rejectArchiveFlag(action, "--role", values.role, helpRoute);
       rejectArchiveFlag(action, "--to", values.to, helpRoute);
       rejectArchiveFlag(action, "--evidence", values.evidence, helpRoute);
-      rejectArchiveBooleanFlag(action, "--all", values.all, helpRoute);
       rejectArchiveBooleanFlag(action, "--confirm", values.confirm, helpRoute);
       return {
         args: {
           action,
+          ...(values.all === undefined ? {} : { all: values.all }),
           archivePath,
           ...(values.cursor === undefined ? {} : { cursor: values.cursor }),
+          ...parseSourceContextFlag(values.context, helpRoute),
           format: parseResultFormat(values),
           ...(values.limit === undefined
             ? {}
@@ -2554,6 +2575,7 @@ function parseArchiveArguments(
         helpRoute,
       );
       rejectArchiveFlag(action, "--chapter", values.chapter, helpRoute);
+      rejectArchiveFlag(action, "--context", values.context, helpRoute);
       rejectArchiveFlag(action, "--from", values.from, helpRoute);
       rejectArchiveFlag(action, "--limit", values.limit, helpRoute);
       rejectArchiveFlag(action, "--cursor", values.cursor, helpRoute);
@@ -2582,6 +2604,7 @@ function parseArchiveArguments(
       rejectArchiveNonReadFlags(action, values, helpRoute);
       rejectArchiveFlag(action, "--budget", values.budget, helpRoute);
       rejectArchiveFlag(action, "--chapter", values.chapter, helpRoute);
+      rejectArchiveFlag(action, "--context", values.context, helpRoute);
       rejectArchiveFlag(action, "--cursor", values.cursor, helpRoute);
       rejectArchiveFlag(action, "--evidence", values.evidence, helpRoute);
       rejectArchiveFlag(action, "--from", values.from, helpRoute);
@@ -4193,6 +4216,19 @@ function parseEvidenceFlag(
   };
 }
 
+function parseSourceContextFlag(
+  value: string | undefined,
+  helpRoute: string,
+): { readonly context?: number } {
+  if (value === undefined) {
+    return {};
+  }
+
+  return {
+    context: parseNonNegativeIntegerFlag(value, "--context", helpRoute),
+  };
+}
+
 function parseRelatedRoleFlag(
   value: string | undefined,
   helpRoute: string,
@@ -4278,6 +4314,7 @@ function normalizeArchiveInlineOptions(
         continue;
       case "--budget":
       case "--chapter":
+      case "--context":
       case "--cursor":
       case "--input":
       case "--input-format":
@@ -4310,7 +4347,9 @@ function normalizeArchiveInlineOptions(
   };
 }
 
-function normalizeEvidenceFlagArgv(argv: readonly string[]): readonly string[] {
+function normalizeArchiveValueFlagArgv(
+  argv: readonly string[],
+): readonly string[] {
   const normalized: string[] = [];
   let stopped = false;
 
@@ -4332,7 +4371,7 @@ function normalizeEvidenceFlagArgv(argv: readonly string[]): readonly string[] {
       continue;
     }
 
-    if (item !== "--evidence") {
+    if (item !== "--evidence" && item !== "--context") {
       normalized.push(item);
       continue;
     }
@@ -4353,7 +4392,9 @@ function normalizeEvidenceFlagArgv(argv: readonly string[]): readonly string[] {
     }
 
     normalized.push(item);
-    normalized.push("3");
+    if (item === "--evidence") {
+      normalized.push("3");
+    }
   }
 
   return normalized;

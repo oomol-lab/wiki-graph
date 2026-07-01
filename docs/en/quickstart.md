@@ -40,7 +40,7 @@ Create creates or replaces a `.wikg` archive at source stage. The archive now co
 ## 4. Inspect And Estimate
 
 ```bash
-wikigraph wkg://book.wikg/state get
+wikigraph wkg://book.wikg/chapter list
 wikigraph wkg://book.wikg/chapter/tree get
 wikigraph wkg://book.wikg estimate --stage reading-summary
 ```
@@ -64,7 +64,7 @@ wikigraph wkg-job:// list --input wkg://book.wikg
 ## 6. Search, Browse, And Read
 
 ```bash
-wikigraph wkg://book.wikg/chapter/tree get --json
+wikigraph wkg://book.wikg/chapter/tree get
 wikigraph wkg://book.wikg/chunk search "central argument"
 wikigraph wkg://book.wikg/chapter/3 get
 wikigraph wkg://book.wikg/chunk/84 get
@@ -77,7 +77,7 @@ Use URI lenses to choose a search target: `<archive-uri>/chunk` for Reading Grap
 
 Object commands use Wiki Graph URIs. Read `wikigraph help uri` when constructing URIs manually.
 
-Use `--json` when another tool will consume the output.
+Read `wikigraph help retrieval` when choosing scope, pagination, or machine-readable output.
 
 ## 7. Output A Projection
 

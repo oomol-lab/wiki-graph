@@ -23,6 +23,7 @@ export const HELP_TOPICS = [
   "config-file",
   "runtime",
   "uri",
+  "retrieval",
   "recipe",
   "troubleshoot",
   "ai",
@@ -420,7 +421,11 @@ const HELP_OBJECTS: readonly HelpObjectEntry[] = [
     description: "A Knowledge Graph entity grouped from mentions.",
     name: "entity",
     title: "Entity",
-    uriForms: ["wkg://book.wikg/entity", "wkg://book.wikg/entity/Q9957"],
+    uriForms: [
+      "wkg://book.wikg/entity",
+      "wkg://book.wikg/entity/Q9957",
+      "wkg://book.wikg/entity/Q9957/wikipage",
+    ],
     verbs: [
       {
         command: 'wikigraph wkg://book.wikg/entity search "keyword"',
@@ -428,8 +433,8 @@ const HELP_OBJECTS: readonly HelpObjectEntry[] = [
         verb: "search",
       },
       {
-        command: "wikigraph wkg://book.wikg/chapter/12/entity list",
-        note: "List entities, optionally scoped to a chapter.",
+        command: "wikigraph wkg://book.wikg/entity list --all --jsonl",
+        note: "List archive-wide entities; use a chapter lens only for one chapter.",
         verb: "list",
       },
       {
@@ -438,14 +443,20 @@ const HELP_OBJECTS: readonly HelpObjectEntry[] = [
         verb: "get",
       },
       {
+        command: "wikigraph wkg://book.wikg/entity/Q9957/wikipage get",
+        note: "Read mapped Wikipedia pages for the entity.",
+        verb: "get",
+      },
+      {
         command:
-          "wikigraph wkg://book.wikg/entity/Q9957 related --role subject",
-        note: "List triples related to the entity.",
+          "wikigraph wkg://book.wikg/entity/Q9957 related --role subject --all --jsonl",
+        note: "Stream triples related to the entity.",
         verb: "related",
       },
       {
-        command: "wikigraph wkg://book.wikg/entity/Q9957 evidence",
-        note: "Trace entity mentions back to source.",
+        command:
+          "wikigraph wkg://book.wikg/entity/Q9957 evidence --all --jsonl",
+        note: "Trace known entity mentions back to source before literal source search by label.",
         verb: "evidence",
       },
       {
@@ -708,6 +719,10 @@ const HELP_TOPIC_METADATA: readonly {
     summary: "Wiki Graph URI grammar, archive locators, scopes, and objects.",
   },
   {
+    name: "retrieval",
+    summary: "Scope, lens, pagination, and output format choices.",
+  },
+  {
     name: "recipe",
     summary: "Short copyable command examples.",
   },
@@ -752,6 +767,7 @@ const HELP_TOPIC_TEMPLATE_NAMES: Readonly<Record<HelpTopic, string>> = {
   "config-file": "help/topics/config-file",
   runtime: "help/topics/runtime",
   uri: "help/topics/uri",
+  retrieval: "help/topics/retrieval",
   recipe: "help/topics/recipe",
   troubleshoot: "help/topics/troubleshoot",
   ai: "help/topics/ai",

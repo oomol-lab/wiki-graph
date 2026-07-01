@@ -12,7 +12,7 @@ At a high level, SpineDigest has four layers:
 
 1. Source layer: read EPUB, Markdown, plain text, or stdin and normalize it into source-backed chapter data.
 2. Knowledge layer: build Reading Graph chunks and summaries, and build Knowledge Graph entity mentions, mention links, and entity-level relations from source fragments.
-3. Retrieval layer: expose existing archive data through CLI primitives such as `state get`, `chapter tree`, `search`, `list`, `get`, `related`, `evidence`, and `pack`.
+3. Retrieval layer: expose existing archive data through CLI primitives such as `chapter list`, `chapter state`, `chapter tree`, `search`, `list`, `get`, `related`, `evidence`, and `pack`.
 4. Projection layer: export portable views such as Markdown, txt, EPUB, JSON-style command output, or one-shot `transform` results.
 
 The archive is the durable object. Projections are useful views, but they do not replace the `.wikg` when graph links, source fragments, and repeatable retrieval matter.

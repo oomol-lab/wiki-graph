@@ -4,6 +4,7 @@ import type {
   ArchiveCollectionResult,
   ArchiveEvidence,
   ArchiveFindHit,
+  ArchiveListItem,
   ArchivePage,
 } from "../../src/facade/archive-view.js";
 
@@ -243,7 +244,7 @@ const archiveMockState = vi.hoisted(() => ({
       summary: "Q1 mentions Q2",
       type: "triple",
     },
-  ],
+  ] satisfies ArchiveListItem[],
   collection: {
     chapters: [2],
     ids: null,
@@ -486,7 +487,11 @@ vi.mock("../../src/facade/index.js", () => ({
   ),
   getArchiveIndex: vi.fn(() => Promise.resolve(archiveMockState.index)),
   listRelatedArchiveObjects: vi.fn(() =>
-    Promise.resolve(archiveMockState.listItems),
+    Promise.resolve({
+      items: archiveMockState.listItems,
+      limit: 20,
+      nextCursor: null,
+    }),
   ),
   packArchiveContext: vi.fn(() =>
     Promise.resolve({
@@ -592,6 +597,7 @@ describe("cli/archive", () => {
     await runArchiveCommand({
       action: "search",
       archivePath: "wkg:///tmp/book.wikg",
+      context: 0,
       format: "text",
       kinds: ["source"],
       query: "RAG",
@@ -599,6 +605,7 @@ describe("cli/archive", () => {
 
     expect(findArchiveObjects).toHaveBeenCalledWith({}, "RAG", {
       archiveKey: "/tmp/book.wikg",
+      sourceContext: 0,
       types: ["source"],
     });
     expect(archiveMockState.textWrites[0]).toContain(
@@ -1672,7 +1679,18 @@ describe("cli/archive", () => {
     });
 
     expect(readArchivePage).toHaveBeenCalledWith({}, "wkg://entity/Q1", {});
-    expect(archiveMockState.textWrites[0]).toBe("wkg://entity/Q1\nRAG\n");
+    expect(archiveMockState.textWrites[0]).toBe(
+      [
+        "wkg://entity/Q1",
+        "RAG",
+        "",
+        "Next:",
+        "  wikigraph wkg:///tmp/book.wikg/entity/Q1 evidence",
+        "  wikigraph wkg:///tmp/book.wikg/entity/Q1 related",
+        "  wikigraph wkg:///tmp/book.wikg/entity/Q1/wikipage get",
+        "",
+      ].join("\n"),
+    );
   });
 
   it("defaults evidence for chapter-scoped entity pages", async () => {
@@ -1715,6 +1733,24 @@ describe("cli/archive", () => {
     );
     expect(archiveMockState.textWrites[0]).not.toContain("Mentions:");
     expect(archiveMockState.textWrites[0]).not.toContain("Next page:");
+  });
+
+  it("prints entity investigation next steps in text get output", async () => {
+    await runArchiveCommand({
+      action: "get",
+      archivePath: "wkg:///tmp/book.wikg",
+      format: "text",
+      objectId: "wkg:///tmp/book.wikg/entity/Q1",
+    });
+
+    expect(archiveMockState.textWrites[0]).toContain(
+      [
+        "Next:",
+        "  wikigraph wkg:///tmp/book.wikg/entity/Q1 evidence",
+        "  wikigraph wkg:///tmp/book.wikg/entity/Q1 related",
+        "  wikigraph wkg:///tmp/book.wikg/entity/Q1/wikipage get",
+      ].join("\n"),
+    );
   });
 
   it("gets a triple as concise JSON", async () => {
@@ -1800,7 +1836,7 @@ describe("cli/archive", () => {
     });
 
     expect(JSON.parse(archiveMockState.textWrites[0] ?? "")).toStrictEqual({
-      limit: 2,
+      limit: 20,
       nextCursor: null,
       objects: [
         {
@@ -1871,6 +1907,50 @@ describe("cli/archive", () => {
     });
   });
 
+  it("streams every related page with --all jsonl", async () => {
+    vi.mocked(listRelatedArchiveObjects)
+      .mockResolvedValueOnce({
+        items: [archiveMockState.listItems[0]!] satisfies ArchiveListItem[],
+        limit: 1,
+        nextCursor: "1",
+      })
+      .mockResolvedValueOnce({
+        items: [archiveMockState.listItems[1]!] satisfies ArchiveListItem[],
+        limit: 1,
+        nextCursor: null,
+      });
+
+    await runArchiveCommand({
+      action: "related",
+      all: true,
+      archivePath: "wkg:///tmp/book.wikg",
+      format: "jsonl",
+      limit: 1,
+      objectId: "wkg:///tmp/book.wikg/entity/Q1",
+      role: "subject",
+    });
+
+    expect(listRelatedArchiveObjects).toHaveBeenNthCalledWith(
+      1,
+      {},
+      "wkg://entity/Q1",
+      { limit: 1, role: "subject" },
+    );
+    expect(listRelatedArchiveObjects).toHaveBeenNthCalledWith(
+      2,
+      {},
+      "wkg://entity/Q1",
+      { cursor: "1", limit: 1, role: "subject" },
+    );
+    expect(createContinuationCursor).not.toHaveBeenCalled();
+    expect(archiveMockState.textWrites[0]).toContain('"uri":"wkg://chunk/11"');
+    expect(archiveMockState.textWrites[1]).toContain(
+      '"uri":"wkg://triple/Q1/mentions/Q2"',
+    );
+    expect(archiveMockState.textWrites[0]).not.toContain('"type":"page"');
+    expect(archiveMockState.textWrites[1]).not.toContain('"type":"page"');
+  });
+
   it("prints evidence source ranges", async () => {
     await runArchiveCommand({
       action: "evidence",
@@ -1936,6 +2016,7 @@ describe("cli/archive", () => {
     await runArchiveCommand({
       action: "evidence",
       archivePath: "wkg:///tmp/book.wikg",
+      context: 1,
       cursor: "cursor-1",
       format: "json",
       limit: 3,
@@ -1947,6 +2028,7 @@ describe("cli/archive", () => {
       cursor: "cursor-1",
       limit: 3,
       query: "paragraph",
+      sourceContext: 1,
     });
     expect(archiveMockState.textWrites[0]).toContain('"score": 2.5');
   });
@@ -1960,6 +2042,7 @@ describe("cli/archive", () => {
     await runArchiveCommand({
       action: "evidence",
       archivePath: "wkg:///tmp/book.wikg",
+      context: 0,
       format: "json",
       objectId: "wkg:///tmp/book.wikg/entity/Q1",
       query: "paragraph",
@@ -1972,6 +2055,7 @@ describe("cli/archive", () => {
       format: "json",
       kind: "evidence",
       query: "paragraph",
+      sourceContext: 0,
       targetUri: "wkg://entity/Q1",
     });
   });
@@ -1993,6 +2077,53 @@ describe("cli/archive", () => {
       nextCursor: null,
       type: "page",
     });
+  });
+
+  it("streams every evidence page with --all jsonl", async () => {
+    vi.mocked(listArchiveEvidence)
+      .mockResolvedValueOnce({
+        ...archiveMockState.evidence,
+        items: [archiveMockState.evidence.items[0]!],
+        limit: 1,
+        nextCursor: "raw-next-evidence-cursor",
+      })
+      .mockResolvedValueOnce({
+        ...archiveMockState.evidence,
+        items: [archiveMockState.evidence.items[1]!],
+        limit: 1,
+        nextCursor: null,
+      });
+
+    await runArchiveCommand({
+      action: "evidence",
+      all: true,
+      archivePath: "wkg:///tmp/book.wikg",
+      format: "jsonl",
+      limit: 1,
+      objectId: "wkg:///tmp/book.wikg/entity/Q1",
+    });
+
+    expect(listArchiveEvidence).toHaveBeenNthCalledWith(
+      1,
+      {},
+      "wkg://entity/Q1",
+      { limit: 1 },
+    );
+    expect(listArchiveEvidence).toHaveBeenNthCalledWith(
+      2,
+      {},
+      "wkg://entity/Q1",
+      { cursor: "raw-next-evidence-cursor", limit: 1 },
+    );
+    expect(createContinuationCursor).not.toHaveBeenCalled();
+    expect(archiveMockState.textWrites[0]).toContain(
+      '"uri":"wkg://chapter/2/source#0..1"',
+    );
+    expect(archiveMockState.textWrites[1]).toContain(
+      '"uri":"wkg://chapter/2/source#3"',
+    );
+    expect(archiveMockState.textWrites[0]).not.toContain('"type":"page"');
+    expect(archiveMockState.textWrites[1]).not.toContain('"type":"page"');
   });
 
   it("prints a context pack", async () => {

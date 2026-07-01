@@ -5,7 +5,7 @@ Troubleshooting
 
 No search results:
   Try fewer keywords, use a broader URI, or inspect chapter readiness and structure with:
-    wikigraph <archive-uri>/chapter list --all --jsonl
+    wikigraph <archive-uri>/chapter list
     wikigraph <archive-uri>/chapter/tree get
 
 Missing generated objects:
@@ -15,6 +15,7 @@ Missing generated objects:
 
 Need machine-readable output:
   Use `--json` or `--jsonl` on object commands.
+  Read `wikigraph help retrieval` for pagination and output format choices.
   `wikigraph config status` is the exception: it prints JSON by default and does not accept `--json`.
 
 URI rejected:

@@ -142,6 +142,7 @@ export type {
   ArchiveObjectType,
   ArchivePack,
   ArchivePage,
+  ArchiveRelatedResult,
   ArchiveTriplePattern,
 } from "./archive-view.js";
 export type {

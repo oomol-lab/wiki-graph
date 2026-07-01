@@ -436,6 +436,8 @@ describe("cli/args", () => {
         "10",
         "--cursor",
         "cursor-token",
+        "--context",
+        "2",
         "--jsonl",
       ]),
     ).toStrictEqual({
@@ -444,6 +446,7 @@ describe("cli/args", () => {
         all: true,
         archivePath: `wkg://${archivePath}/chapter/11`,
         cursor: "cursor-token",
+        context: 2,
         format: "jsonl",
         kinds: ["source"],
         limit: 10,
@@ -465,6 +468,59 @@ describe("cli/args", () => {
         kind: "archive",
       },
     );
+
+    expect(
+      parseCLIArguments([
+        "wkg://book.wikg/entity/Q1",
+        "evidence",
+        "--all",
+        "--limit",
+        "2",
+        "--context",
+        "0",
+        "--jsonl",
+      ]),
+    ).toStrictEqual({
+      args: {
+        action: "evidence",
+        all: true,
+        archivePath: "wkg://book.wikg/entity/Q1",
+        context: 0,
+        format: "jsonl",
+        limit: 2,
+        objectId: "wkg://book.wikg/entity/Q1",
+      },
+      help: false,
+      kind: "archive",
+    });
+
+    expect(
+      parseCLIArguments([
+        "wkg://book.wikg/entity/Q1",
+        "related",
+        "--all",
+        "--limit",
+        "2",
+        "--cursor",
+        "4",
+        "--context",
+        "1",
+        "--jsonl",
+      ]),
+    ).toStrictEqual({
+      args: {
+        action: "related",
+        all: true,
+        archivePath: "wkg://book.wikg/entity/Q1",
+        context: 1,
+        cursor: "4",
+        format: "jsonl",
+        limit: 2,
+        objectId: "wkg://book.wikg/entity/Q1",
+      },
+      help: false,
+      kind: "archive",
+    });
 
     expect(
       parseCLIArguments(["wkg://book.wikg/triple/Q1/_/Q2", "list"]),
@@ -790,6 +846,12 @@ describe("cli/args", () => {
       parseCLIArguments(["wkg://book.wikg/entity/Q1", "pack", "--backlinks"]),
     ).toThrow("The `pack` command does not support --backlinks.");
     expect(() =>
+      parseCLIArguments(["wkg://book.wikg", "create", "--context", "2"]),
+    ).toThrow("The `create` command does not support --context.");
+    expect(() =>
+      parseCLIArguments(["wkg://book.wikg/chunk/1", "pack", "--context", "2"]),
+    ).toThrow("The `pack` command does not support --context.");
+    expect(() =>
       parseCLIArguments(["wkg://book.wikg/triple/Q1/mentions/Q2", "related"]),
     ).toThrow("Related is only available for chunk and entity objects");
     expect(() =>
@@ -807,6 +869,15 @@ describe("cli/args", () => {
         "-1",
       ]),
     ).toThrow("--evidence must be a non-negative integer.");
+    expect(() =>
+      parseCLIArguments([
+        "wkg://book.wikg",
+        "search",
+        "RAG",
+        "--context",
+        "-1",
+      ]),
+    ).toThrow("--context must be a non-negative integer.");
     expect(
       parseCLIArguments([
         "wkg://book.wikg/entity/Q1",
@@ -1388,7 +1459,7 @@ describe("cli/args", () => {
 
   it("rejects invalid help usage", () => {
     expect(() => parseCLIArguments(["help", "unknown"])).toThrow(
-      "Invalid help topic: unknown. Expected one of overview, task, command, object, verb, matrix, format, config, env, config-file, runtime, uri, recipe, troubleshoot, ai.\nSee: wikigraph --help",
+      "Invalid help topic: unknown. Expected one of overview, task, command, object, verb, matrix, format, config, env, config-file, runtime, uri, retrieval, recipe, troubleshoot, ai.\nSee: wikigraph --help",
     );
     expect(() =>
       parseCLIArguments(["help", "object", "entity", "extra"]),
@@ -1446,6 +1517,7 @@ describe("cli/args", () => {
     expect(rootHelpText).toContain(
       "Read `wikigraph help overview` for the URI-first archive mental model.",
     );
+    expect(rootHelpText).toContain("wikigraph help retrieval");
     expect(rootHelpText).toContain("wikigraph help object");
     expect(rootHelpText).toContain("wikigraph help verb");
     expect(rootHelpText).toContain("wikigraph help matrix");
@@ -1479,6 +1551,13 @@ describe("cli/args", () => {
     );
     expect(renderHelpTopicText("uri")).toContain(
       "wikigraph wkg:///Users/me/book.wikg/entity search",
+    );
+    expect(renderHelpTopicText("uri")).toContain(
+      String.raw`C:\Users\me\book.wikg -> wkg://C:/Users/me/book.wikg`,
+    );
+    expect(renderHelpTopicText("retrieval")).toContain("Retrieval Strategy");
+    expect(renderHelpTopicText("retrieval")).toContain(
+      "Choose the right Wiki Graph scope, lens, pagination, and output format",
     );
     expect(renderHelpTopicText("task")).toContain(
       "wikigraph wkg:///Users/me/book.wikg search",
