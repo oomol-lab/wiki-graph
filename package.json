@@ -1,6 +1,6 @@
 {
   "name": "spinedigest",
-  "version": "0.2.2",
+  "version": "0.3.0",
   "description": "CLI-first tool for digesting long-form text and ebooks into compressed text, EPUB, or reusable .wikg archives.",
   "license": "Apache-2.0",
   "type": "module",

@@ -1,7 +1,23 @@
 import { createHash, randomUUID } from "crypto";
-import { mkdir, mkdtemp, readFile, rename, rm, writeFile } from "fs/promises";
+import {
+  mkdir,
+  mkdtemp,
+  readFile,
+  readdir,
+  rename,
+  rm,
+  writeFile,
+} from "fs/promises";
 import { tmpdir } from "os";
-import { basename, dirname, join, posix, resolve } from "path";
+import {
+  basename,
+  dirname,
+  isAbsolute,
+  join,
+  posix,
+  relative,
+  resolve,
+} from "path";
 
 import { resolveWikiGraphStateDirectoryPath } from "../common/wiki-graph-dir.js";
 import { openSharedStateDatabase } from "../document/index.js";
@@ -11,6 +27,7 @@ import { AsyncSemaphore } from "../utils/async-semaphore.js";
 
 import {
   extractWikgArchive,
+  listWikgArchiveEntries,
   readWikgArchiveEntry,
   WikgArchiveReader,
   writeWikgArchiveWithOverlays,
@@ -39,6 +56,15 @@ CREATE TABLE IF NOT EXISTS entry_locks (
   PRIMARY KEY (archive_key, entry_path, owner_id)
 );
 
+CREATE TABLE IF NOT EXISTS archive_owners (
+  archive_key TEXT NOT NULL,
+  owner_id TEXT NOT NULL,
+  owner_pid INTEGER NOT NULL,
+  heartbeat_at INTEGER NOT NULL,
+  created_at INTEGER NOT NULL,
+  PRIMARY KEY (archive_key, owner_id)
+);
+
 CREATE TABLE IF NOT EXISTS entry_sqlite_leases (
   archive_key TEXT NOT NULL,
   entry_path TEXT NOT NULL,
@@ -61,16 +87,36 @@ CREATE TABLE IF NOT EXISTS archive_commit_locks (
 const DATABASE_ENTRY_PATH = "database.db";
 const LOCK_POLL_INTERVAL_MS = 100;
 const LOCK_STALE_TIMEOUT_MS = 60_000;
+const OWNER_HEARTBEAT_INTERVAL_MS = 20_000;
 const STATE_DATABASE_SEMAPHORE = new AsyncSemaphore(1);
+const ARCHIVE_SESSION_CONSTRUCTOR_TOKEN = Symbol(
+  "WikgArchiveSession constructor token",
+);
 
 type EntryLockMode = "read" | "state" | "write";
 
 export class WikgCoordinator {
   public createFileStore(
     archivePath: string,
-    options: { readonly readonlyDatabase?: boolean } = {},
+    options: {
+      readonly readonlyDatabase?: boolean;
+      readonly session?: WikgArchiveSession;
+    } = {},
   ): DocumentFileStore {
     return new WikgDocumentFileStore(resolve(archivePath), options);
+  }
+
+  public async withArchiveSession<T>(
+    archivePath: string,
+    operation: (session: WikgArchiveSession) => Promise<T> | T,
+  ): Promise<T> {
+    const session = await WikgArchiveSession.open(resolve(archivePath));
+
+    try {
+      return await operation(session);
+    } finally {
+      await session.close();
+    }
   }
 
   public async withReadWorkspace<T>(
@@ -110,6 +156,163 @@ export class WikgCoordinator {
   }
 }
 
+export class WikgArchiveSession {
+  readonly #archiveKey: string;
+  readonly #archivePath: string;
+  readonly #ownerId = createOwnerId();
+  readonly #heartbeat: NodeJS.Timeout;
+  readonly #observedDirtyEntryPaths = new Set<string>();
+  readonly #modifiedEntryPaths = new Set<string>();
+  #closed = false;
+
+  public constructor(archivePath: string, token?: symbol) {
+    if (token !== ARCHIVE_SESSION_CONSTRUCTOR_TOKEN) {
+      throw new Error("Use WikgCoordinator.withArchiveSession().");
+    }
+
+    this.#archivePath = resolve(archivePath);
+    this.#archiveKey = createArchiveKey(this.#archivePath);
+    this.#heartbeat = setInterval(() => {
+      void heartbeatArchiveOwner({
+        archiveKey: this.#archiveKey,
+        ownerId: this.#ownerId,
+      }).catch(() => undefined);
+    }, OWNER_HEARTBEAT_INTERVAL_MS);
+  }
+
+  public static async open(archivePath: string): Promise<WikgArchiveSession> {
+    const session = new WikgArchiveSession(
+      archivePath,
+      ARCHIVE_SESSION_CONSTRUCTOR_TOKEN,
+    );
+
+    try {
+      await registerArchiveOwner({
+        archiveKey: session.#archiveKey,
+        ownerId: session.#ownerId,
+      });
+      return session;
+    } catch (error) {
+      clearInterval(session.#heartbeat);
+      throw error;
+    }
+  }
+
+  public get archiveKey(): string {
+    return this.#archiveKey;
+  }
+
+  public get archivePath(): string {
+    return this.#archivePath;
+  }
+
+  public get ownerId(): string {
+    return this.#ownerId;
+  }
+
+  public observeDirtyEntry(entryPath: string): void {
+    this.#observedDirtyEntryPaths.add(entryPath);
+  }
+
+  public modifyEntry(entryPath: string): void {
+    this.#modifiedEntryPaths.add(entryPath);
+  }
+
+  public createFileStore(
+    options: { readonly readonlyDatabase?: boolean } = {},
+  ): DocumentFileStore {
+    return new WikgDocumentFileStore(this.#archivePath, {
+      ...options,
+      session: this,
+    });
+  }
+
+  public async materializeReadWorkspace<T>(
+    directoryPath: string | undefined,
+    operation: (documentDirectoryPath: string) => Promise<T> | T,
+  ): Promise<T> {
+    const ownsDirectoryPath = directoryPath === undefined;
+    const resolvedDirectoryPath = ownsDirectoryPath
+      ? await mkdtemp(join(tmpdir(), "wikigraph-open-"))
+      : resolve(directoryPath);
+
+    if (!ownsDirectoryPath) {
+      await ensureEmptyDirectory(resolvedDirectoryPath);
+    }
+
+    const fileStore = this.createFileStore({ readonlyDatabase: true });
+    const entries = await listVisibleEntryPaths(
+      await listWikgArchiveEntries(this.#archivePath),
+      {
+        archiveKey: this.#archiveKey,
+        prefix: "",
+      },
+    );
+
+    try {
+      for (const entryPath of entries) {
+        const content = await fileStore.readFile(entryPath);
+
+        if (content === undefined) {
+          continue;
+        }
+
+        const targetPath = resolve(resolvedDirectoryPath, entryPath);
+        const relativeTargetPath = relative(resolvedDirectoryPath, targetPath);
+
+        if (
+          relativeTargetPath.startsWith("..") ||
+          isAbsolute(relativeTargetPath)
+        ) {
+          throw new Error(`Archive entry escapes read workspace: ${entryPath}`);
+        }
+
+        await mkdir(dirname(targetPath), { recursive: true });
+        await writeFile(targetPath, content);
+      }
+
+      return await operation(resolvedDirectoryPath);
+    } finally {
+      await fileStore.close();
+      if (ownsDirectoryPath) {
+        await rm(resolvedDirectoryPath, { force: true, recursive: true });
+      }
+    }
+  }
+
+  public async close(): Promise<void> {
+    if (this.#closed) {
+      return;
+    }
+
+    this.#closed = true;
+    clearInterval(this.#heartbeat);
+
+    try {
+      await this.#settle();
+      await reapArchive(this.#archiveKey);
+    } finally {
+      await unregisterArchiveOwner({
+        archiveKey: this.#archiveKey,
+        ownerId: this.#ownerId,
+      });
+    }
+  }
+
+  async #settle(): Promise<void> {
+    const entryPaths = new Set([
+      ...this.#observedDirtyEntryPaths,
+      ...this.#modifiedEntryPaths,
+    ]);
+
+    if (entryPaths.size === 0) {
+      return;
+    }
+
+    await flushArchiveOverlays(this.#archiveKey, entryPaths);
+  }
+}
+
 export async function tryStartWikgFlusher(archivePath?: string): Promise<void> {
   if (archivePath !== undefined) {
     await flushArchiveOverlays(createArchiveKey(resolve(archivePath)));
@@ -143,12 +346,18 @@ class WikgDocumentFileStore implements DocumentFileStore {
 
   public constructor(
     archivePath: string,
-    options: { readonly readonlyDatabase?: boolean },
+    options: {
+      readonly readonlyDatabase?: boolean;
+      readonly session?: WikgArchiveSession;
+    },
   ) {
     this.#archivePath = resolve(archivePath);
     this.#archiveKey = createArchiveKey(this.#archivePath);
     this.#readonlyDatabase = options.readonlyDatabase === true;
+    this.#session = options.session;
   }
+
+  readonly #session: WikgArchiveSession | undefined;
 
   public async close(): Promise<void> {
     if (this.#archiveReader !== undefined) {
@@ -158,7 +367,7 @@ class WikgDocumentFileStore implements DocumentFileStore {
     await releaseSqliteLease({
       archiveKey: this.#archiveKey,
       entryPath: DATABASE_ENTRY_PATH,
-      ownerId: this.#sqliteLeaseOwnerId,
+      ownerId: this.#session?.ownerId ?? this.#sqliteLeaseOwnerId,
     });
   }
 
@@ -169,16 +378,18 @@ class WikgDocumentFileStore implements DocumentFileStore {
       await withEntryLock(this.#archiveKey, entryPath, "state", async () => {
         const overlay = await readOverlay(this.#archiveKey, entryPath);
 
-        if (overlay?.workspacePath !== undefined) {
-          await rm(overlay.workspacePath, { force: true });
-        }
-
         await upsertOverlay({
           archiveKey: this.#archiveKey,
           archivePath: this.#archivePath,
           entryPath,
           kind: "deleted",
         });
+        if (overlay?.workspacePath !== undefined) {
+          await rm(overlay.workspacePath, { force: true }).catch(
+            () => undefined,
+          );
+        }
+        this.#session?.modifyEntry(entryPath);
       });
     });
   }
@@ -248,9 +459,11 @@ class WikgDocumentFileStore implements DocumentFileStore {
         );
 
         if (source.kind === "deleted") {
+          this.#session?.observeDirtyEntry(entryPath);
           return undefined;
         }
         if (source.kind === "workspace") {
+          this.#session?.observeDirtyEntry(entryPath);
           return await readFile(source.path);
         }
 
@@ -296,8 +509,9 @@ class WikgDocumentFileStore implements DocumentFileStore {
         await acquireSqliteLease({
           archiveKey: this.#archiveKey,
           entryPath: DATABASE_ENTRY_PATH,
-          ownerId: this.#sqliteLeaseOwnerId,
+          ownerId: this.#session?.ownerId ?? this.#sqliteLeaseOwnerId,
         });
+        this.#session?.observeDirtyEntry(DATABASE_ENTRY_PATH);
         return overlay.workspacePath;
       },
     );
@@ -333,13 +547,15 @@ class WikgDocumentFileStore implements DocumentFileStore {
       }
 
       await withEntryLock(this.#archiveKey, entryPath, "state", async () => {
-        const workspacePath =
-          source.kind === "workspace"
-            ? source.path
-            : await createWorkspaceFilePath(this.#archiveKey, entryPath);
+        const workspacePath = await createWorkspaceFilePath(
+          this.#archiveKey,
+          entryPath,
+        );
+        const temporaryWorkspacePath = `${workspacePath}.tmp`;
 
         await mkdir(dirname(workspacePath), { recursive: true });
-        await writeFile(workspacePath, content);
+        await writeFile(temporaryWorkspacePath, content);
+        await rename(temporaryWorkspacePath, workspacePath);
         await upsertOverlay({
           archiveKey: this.#archiveKey,
           archivePath: this.#archivePath,
@@ -347,6 +563,10 @@ class WikgDocumentFileStore implements DocumentFileStore {
           kind: "file",
           workspacePath,
         });
+        if (source.kind === "workspace" && source.path !== workspacePath) {
+          await rm(source.path, { force: true }).catch(() => undefined);
+        }
+        this.#session?.modifyEntry(entryPath);
       });
     });
   }
@@ -378,8 +598,15 @@ class WikgDocumentFileStore implements DocumentFileStore {
   }
 }
 
-async function flushArchiveOverlays(archiveKey: string): Promise<void> {
-  const overlays = await listOverlays(archiveKey);
+async function flushArchiveOverlays(
+  archiveKey: string,
+  requestedEntryPaths?: ReadonlySet<string>,
+): Promise<void> {
+  const overlays = (await listOverlays(archiveKey)).filter(
+    (overlay) =>
+      requestedEntryPaths === undefined ||
+      requestedEntryPaths.has(overlay.entryPath),
+  );
   const archivePath = await resolveArchivePathFromKey(archiveKey);
 
   if (overlays.length === 0 || archivePath === undefined) {
@@ -439,10 +666,10 @@ async function flushArchiveOverlays(archiveKey: string): Promise<void> {
     }
 
     for (const overlay of currentOverlays) {
+      await deleteOverlay(archiveKey, overlay.entryPath);
       if (overlay.workspacePath !== undefined) {
         await rm(overlay.workspacePath, { force: true });
       }
-      await deleteOverlay(archiveKey, overlay.entryPath);
     }
   } finally {
     for (const release of releaseLocks.reverse()) {
@@ -495,6 +722,104 @@ INSERT INTO archive_commit_locks (
 
     await delay(LOCK_POLL_INTERVAL_MS);
   }
+}
+
+async function registerArchiveOwner(input: {
+  readonly archiveKey: string;
+  readonly ownerId: string;
+}): Promise<void> {
+  await withStateDatabase(async (state) => {
+    await cleanupStaleState(state);
+    await state.run(
+      `
+INSERT OR REPLACE INTO archive_owners (
+  archive_key, owner_id, owner_pid, heartbeat_at, created_at
+) VALUES (?, ?, ?, ?, ?)
+`,
+      [input.archiveKey, input.ownerId, process.pid, Date.now(), Date.now()],
+    );
+  });
+}
+
+async function heartbeatArchiveOwner(input: {
+  readonly archiveKey: string;
+  readonly ownerId: string;
+}): Promise<void> {
+  await withStateDatabase(async (state) => {
+    await state.run(
+      `
+UPDATE archive_owners
+SET heartbeat_at = ?, owner_pid = ?
+WHERE archive_key = ? AND owner_id = ?
+`,
+      [Date.now(), process.pid, input.archiveKey, input.ownerId],
+    );
+  });
+}
+
+async function unregisterArchiveOwner(input: {
+  readonly archiveKey: string;
+  readonly ownerId: string;
+}): Promise<void> {
+  await withStateDatabase(async (state) => {
+    await state.transaction(async () => {
+      await state.run(
+        "DELETE FROM entry_sqlite_leases WHERE archive_key = ? AND owner_id = ?",
+        [input.archiveKey, input.ownerId],
+      );
+      await state.run(
+        "DELETE FROM archive_owners WHERE archive_key = ? AND owner_id = ?",
+        [input.archiveKey, input.ownerId],
+      );
+    });
+  });
+}
+
+async function reapArchive(archiveKey: string): Promise<void> {
+  await withStateDatabase(async (state) => {
+    await cleanupStaleState(state);
+  });
+
+  const staleOwnerIds = await withStateDatabase(
+    async (state) =>
+      await state.queryAll(
+        `
+SELECT owner_id
+FROM archive_owners
+WHERE archive_key = ?
+  AND heartbeat_at <= ?
+`,
+        [archiveKey, Date.now() - LOCK_STALE_TIMEOUT_MS],
+        (row) => getString(row, "owner_id"),
+      ),
+  );
+
+  if (staleOwnerIds.length === 0) {
+    return;
+  }
+
+  await withStateDatabase(async (state) => {
+    await state.transaction(async () => {
+      await state.run(
+        `
+DELETE FROM entry_sqlite_leases
+WHERE archive_key = ?
+  AND owner_id IN (${createPlaceholders(staleOwnerIds.length)})
+`,
+        [archiveKey, ...staleOwnerIds],
+      );
+      await state.run(
+        `
+DELETE FROM archive_owners
+WHERE archive_key = ?
+  AND owner_id IN (${createPlaceholders(staleOwnerIds.length)})
+`,
+        [archiveKey, ...staleOwnerIds],
+      );
+    });
+  });
+
+  await flushArchiveOverlays(archiveKey);
 }
 
 async function acquireEntryLock(
@@ -642,10 +967,18 @@ async function waitForSqliteLeasesToDrain(
       return await state.queryOne(
         `
 SELECT COUNT(*) AS count
-FROM entry_sqlite_leases
-WHERE archive_key = ? AND entry_path = ?
+FROM entry_sqlite_leases AS lease
+LEFT JOIN archive_owners AS owner
+  ON owner.archive_key = lease.archive_key
+ AND owner.owner_id = lease.owner_id
+WHERE lease.archive_key = ?
+  AND lease.entry_path = ?
+  AND (
+    owner.owner_id IS NULL
+    OR owner.heartbeat_at > ?
+  )
 `,
-        [archiveKey, entryPath],
+        [archiveKey, entryPath, Date.now() - LOCK_STALE_TIMEOUT_MS],
         (row) => getNumber(row, "count"),
       );
     });
@@ -805,6 +1138,7 @@ async function cleanupStaleState(state: Database): Promise<void> {
   const staleOwnerPids = new Set<number>();
 
   for (const tableName of [
+    "archive_owners",
     "entry_locks",
     "entry_sqlite_leases",
     "archive_commit_locks",
@@ -831,6 +1165,13 @@ WHERE owner_pid IS NOT NULL
     return;
   }
 
+  await state.run(
+    `
+DELETE FROM archive_owners
+WHERE owner_pid IN (${createPlaceholders(staleOwnerPids.size)})
+`,
+    [...staleOwnerPids],
+  );
   await state.run(
     `
 DELETE FROM entry_locks
@@ -905,6 +1246,16 @@ async function createWorkspaceFilePath(
 
   await mkdir(directoryPath, { recursive: true });
   return join(directoryPath, `${basename(entryPath)}.${randomUUID()}`);
+}
+
+async function ensureEmptyDirectory(directoryPath: string): Promise<void> {
+  await mkdir(directoryPath, { recursive: true });
+
+  const entries = await readdir(directoryPath);
+
+  if (entries.length > 0) {
+    throw new Error(`Read workspace directory is not empty: ${directoryPath}`);
+  }
 }
 
 function toArchiveOverlay(overlay: EntryOverlay): WikgArchiveOverlay {

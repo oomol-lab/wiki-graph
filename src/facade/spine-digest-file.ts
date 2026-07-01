@@ -2,7 +2,7 @@ import { resolve } from "path";
 
 import { DirectoryDocument } from "../document/index.js";
 
-import { WikgCoordinator, tryStartWikgFlusher } from "./wikg-coordinator.js";
+import { WikgCoordinator } from "./wikg-coordinator.js";
 import { deleteArchiveSearchSessions } from "./search-cache.js";
 import { SpineDigest } from "./spine-digest.js";
 
@@ -36,58 +36,44 @@ export class SpineDigestFile {
       readonly documentDirPath?: string;
     } = {},
   ): Promise<T> {
-    if (options.documentDirPath === undefined) {
-      const document = await DirectoryDocument.open(this.#path, {
-        fileStore: this.#coordinator.createFileStore(this.#path, {
-          readonlyDatabase: true,
-        }),
-      });
-
-      try {
-        return await operation(document, this.#path);
-      } finally {
-        await document.release();
-      }
-    }
-
-    return await this.#coordinator.withReadWorkspace(
+    return await this.#coordinator.withArchiveSession(
       this.#path,
-      async (directoryPath) => {
-        const document = await DirectoryDocument.open(directoryPath);
+      async (session) =>
+        await session.materializeReadWorkspace(
+          options.documentDirPath,
+          async (directoryPath) => {
+            const document = await DirectoryDocument.open(directoryPath);
 
-        try {
-          return await operation(document, directoryPath);
-        } finally {
-          await document.release();
-        }
-      },
-      options,
+            try {
+              return await operation(document, directoryPath);
+            } finally {
+              await document.release();
+            }
+          },
+        ),
     );
   }
 
   public async write<T>(
     operation: (document: DirectoryDocument) => Promise<T> | T,
   ): Promise<T> {
-    const document = await DirectoryDocument.open(this.#path, {
-      fileStore: this.#coordinator.createFileStore(this.#path),
-    });
-    let completed = false;
+    return await this.#coordinator.withArchiveSession(
+      this.#path,
+      async (session) => {
+        const document = await DirectoryDocument.open(this.#path, {
+          fileStore: session.createFileStore(),
+        });
 
-    try {
-      const result = await operation(document);
-
-      completed = true;
-      return result;
-    } finally {
-      await document.flush();
-      await document.release();
-      if (completed) {
         try {
-          await deleteArchiveSearchSessions(this.#path);
+          return await operation(document);
         } finally {
-          await tryStartWikgFlusher(this.#path);
+          try {
+            await document.release();
+          } finally {
+            await deleteArchiveSearchSessions(this.#path);
+          }
         }
-      }
-    }
+      },
+    );
   }
 }
