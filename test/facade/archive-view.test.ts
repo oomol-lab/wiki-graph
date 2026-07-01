@@ -2392,6 +2392,65 @@ describe("facade/archive-view", () => {
     });
   });
 
+  it("keeps query-ranked evidence order after context expansion", async () => {
+    await withTempDir("spinedigest-archive-view-", async (path) => {
+      const document = await DirectoryDocument.open(`${path}/document`);
+
+      try {
+        await document.openSession(async (openedDocument) => {
+          await openedDocument.createSerial();
+          const draft = await openedDocument
+            .getSerialFragments(1)
+            .createDraft();
+
+          draft.addSentence("Alpha appears once.", 3);
+          draft.addSentence("Filler sentence keeps ranges separate.", 5);
+          draft.addSentence("Alpha beta beta beta appears later.", 6);
+          await draft.commit();
+          await openedDocument.writeToc({
+            items: [{ children: [], serialId: 1, title: "Evidence" }],
+            version: 1,
+          });
+          await openedDocument.mentions.saveMany([
+            {
+              chapterId: 1,
+              fragmentId: 0,
+              id: "low-score-first",
+              qid: "Q1",
+              rangeEnd: 5,
+              rangeStart: 0,
+              sentenceIndex: 0,
+              surface: "Alpha",
+            },
+            {
+              chapterId: 1,
+              fragmentId: 0,
+              id: "high-score-second",
+              qid: "Q1",
+              rangeEnd: 10,
+              rangeStart: 0,
+              sentenceIndex: 2,
+              surface: "Alpha beta",
+            },
+          ]);
+        });
+
+        const evidence = await listArchiveEvidence(
+          document,
+          "wkg://entity/Q1",
+          { query: "Alpha beta", sourceContext: 0 },
+        );
+
+        expect(evidence.items.map((item) => item.id)).toStrictEqual([
+          "wkg://chapter/1/source#2",
+          "wkg://chapter/1/source#0",
+        ]);
+      } finally {
+        await document.release();
+      }
+    });
+  });
+
   it("returns backlinks for source sentence ranges", async () => {
     await withTempDir("spinedigest-archive-view-", async (path) => {
       const document = await DirectoryDocument.open(`${path}/document`);

@@ -1685,9 +1685,9 @@ describe("cli/archive", () => {
         "RAG",
         "",
         "Next:",
-        "  wkg://entity/Q1 evidence --all --jsonl",
-        "  wkg://entity/Q1 related --all --jsonl",
-        "  wkg://entity/Q1/wikipage get",
+        "  wikigraph wkg:///tmp/book.wikg/entity/Q1 evidence",
+        "  wikigraph wkg:///tmp/book.wikg/entity/Q1 related",
+        "  wikigraph wkg:///tmp/book.wikg/entity/Q1/wikipage get",
         "",
       ].join("\n"),
     );
@@ -1746,9 +1746,9 @@ describe("cli/archive", () => {
     expect(archiveMockState.textWrites[0]).toContain(
       [
         "Next:",
-        "  wkg://entity/Q1 evidence --all --jsonl",
-        "  wkg://entity/Q1 related --all --jsonl",
-        "  wkg://entity/Q1/wikipage get",
+        "  wikigraph wkg:///tmp/book.wikg/entity/Q1 evidence",
+        "  wikigraph wkg:///tmp/book.wikg/entity/Q1 related",
+        "  wikigraph wkg:///tmp/book.wikg/entity/Q1/wikipage get",
       ].join("\n"),
     );
   });

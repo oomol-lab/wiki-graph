@@ -30,6 +30,7 @@ import {
   type ContinuationCursor,
 } from "../facade/index.js";
 import {
+  formatLocatedWikiGraphUri,
   parseLocatedWikiGraphUri,
   requireLocatedObjectOrArchiveUri,
 } from "../facade/archive-uri.js";
@@ -1587,6 +1588,7 @@ async function writePage(
             context,
           ),
           page.id,
+          context.archivePath,
         )}\n`,
       );
       return;
@@ -1631,19 +1633,26 @@ async function formatEvidenceBackedPageText(
   ].join("\n");
 }
 
-function appendEntityNextSteps(text: string, uri: string): string {
+function appendEntityNextSteps(
+  text: string,
+  uri: string,
+  archivePath: string,
+): string {
   if (!isEntityOutputUri(uri)) {
     return text;
   }
-  const entityUri = uri.replace(/\/$/u, "");
+  const entityUri = formatLocatedWikiGraphUri(
+    archivePath,
+    uri.replace(/\/$/u, ""),
+  );
 
   return [
     text,
     "",
     "Next:",
-    `  ${entityUri} evidence --all --jsonl`,
-    `  ${entityUri} related --all --jsonl`,
-    `  ${entityUri}/wikipage get`,
+    `  wikigraph ${entityUri} evidence`,
+    `  wikigraph ${entityUri} related`,
+    `  wikigraph ${entityUri}/wikipage get`,
   ].join("\n");
 }
 

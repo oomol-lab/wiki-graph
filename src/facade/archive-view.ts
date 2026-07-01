@@ -4172,6 +4172,78 @@ function mergeSourceEvidenceRanges(
   });
 }
 
+function mergeSourceEvidenceRangesInInputOrder(
+  ranges: readonly SourceEvidenceRange[],
+): SourceEvidenceRange[] {
+  const merged: SourceEvidenceRange[] = [];
+
+  for (const range of ranges) {
+    const overlappingIndexes = merged
+      .map((existing, index) =>
+        areMergeableSourceEvidenceRanges(existing, range) ? index : -1,
+      )
+      .filter((index) => index >= 0);
+
+    if (overlappingIndexes.length === 0) {
+      merged.push(range);
+      continue;
+    }
+
+    const firstIndex = overlappingIndexes[0] ?? 0;
+    const overlapping = overlappingIndexes.flatMap((index) => {
+      const existing = merged[index];
+
+      return existing === undefined ? [] : [existing];
+    });
+    const mergedRange = mergeSourceEvidenceRangeGroup([...overlapping, range]);
+
+    merged[firstIndex] = mergedRange;
+    for (const index of overlappingIndexes.slice(1).reverse()) {
+      merged.splice(index, 1);
+    }
+  }
+
+  return merged;
+}
+
+function areMergeableSourceEvidenceRanges(
+  left: SourceEvidenceRange,
+  right: SourceEvidenceRange,
+): boolean {
+  return (
+    left.chapterId === right.chapterId &&
+    left.fragmentId === right.fragmentId &&
+    right.startSentenceIndex <= left.endSentenceIndex + 1 &&
+    left.startSentenceIndex <= right.endSentenceIndex + 1
+  );
+}
+
+function mergeSourceEvidenceRangeGroup(
+  ranges: readonly SourceEvidenceRange[],
+): SourceEvidenceRange {
+  const [first] = ranges;
+
+  if (first === undefined) {
+    throw new Error("Internal error: cannot merge empty evidence range group.");
+  }
+
+  const scores = ranges
+    .map((range) => range.score)
+    .filter((score): score is number => score !== undefined);
+
+  return {
+    chapterId: first.chapterId,
+    endSentenceIndex: Math.max(
+      ...ranges.map((range) => range.endSentenceIndex),
+    ),
+    fragmentId: first.fragmentId,
+    ...(scores.length === 0 ? {} : { score: Math.max(...scores) }),
+    startSentenceIndex: Math.min(
+      ...ranges.map((range) => range.startSentenceIndex),
+    ),
+  };
+}
+
 async function createExpandedSourceEvidenceRanges(
   document: ReadonlyDocument,
   ranges: readonly SourceEvidenceRange[],
@@ -4208,7 +4280,7 @@ async function createExpandedSourceEvidenceRanges(
     }),
   );
 
-  return mergeSourceEvidenceRanges(expanded);
+  return mergeSourceEvidenceRangesInInputOrder(expanded);
 }
 
 async function createSourceEvidenceItem(
