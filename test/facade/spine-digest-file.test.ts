@@ -1,4 +1,6 @@
-import { access, mkdir, readFile } from "fs/promises";
+import { createHash } from "crypto";
+import { access, mkdir, readFile, writeFile } from "fs/promises";
+import { resolve } from "path";
 
 import { afterEach, describe, expect, it } from "vitest";
 
@@ -440,6 +442,112 @@ describe("facade/spine-digest-file", () => {
       }
     });
   });
+
+  it("reaps stale owner file overlays through a later archive session", async () => {
+    await withTempDir("spinedigest-facade-file-", async (path) => {
+      const restoreStateDir = useCoordinatorStateDir(`${path}/state`);
+      try {
+        const archivePath = await createSeedArchive(path);
+
+        await seedStalePublishedFileOverlay({
+          archivePath,
+          entryPath: "book-meta.json",
+          ownerId: "stale-owner-file",
+          stateRootPath: `${path}/state`,
+          workspacePath: `${path}/state/workspaces/stale/book-meta.json`,
+          content: `${JSON.stringify({
+            authors: [],
+            description: null,
+            identifier: "urn:test:reaped-file",
+            language: "en",
+            publishedAt: null,
+            publisher: null,
+            sourceFormat: "txt",
+            title: "Reaped File Title",
+            version: 1,
+          })}\n`,
+        });
+
+        await new SpineDigestFile(archivePath).read(async (digest) => {
+          expect(await digest.readMeta()).toMatchObject({
+            title: "Reaped File Title",
+          });
+        });
+
+        await expect(readCoordinatorOverlays(path)).resolves.toStrictEqual([]);
+        await expect(readArchivedTitle(path, archivePath)).resolves.toBe(
+          "Reaped File Title",
+        );
+      } finally {
+        restoreStateDir();
+      }
+    });
+  });
+
+  it("reaps stale owner delete overlays through a later archive session", async () => {
+    await withTempDir("spinedigest-facade-file-", async (path) => {
+      const restoreStateDir = useCoordinatorStateDir(`${path}/state`);
+      try {
+        const archivePath = await createSeedArchive(path);
+
+        await seedStalePublishedDeleteOverlay({
+          archivePath,
+          entryPath: "book-meta.json",
+          ownerId: "stale-owner-delete",
+          stateRootPath: `${path}/state`,
+        });
+
+        await new SpineDigestFile(archivePath).read(async (digest) => {
+          expect(await digest.readMeta()).toBeUndefined();
+        });
+
+        await expect(readCoordinatorOverlays(path)).resolves.toStrictEqual([]);
+        await expect(
+          readArchivedEntry(archivePath, "book-meta.json"),
+        ).resolves.toBeUndefined();
+      } finally {
+        restoreStateDir();
+      }
+    });
+  });
+
+  it("does not reaper unpublished staging files into the archive", async () => {
+    await withTempDir("spinedigest-facade-file-", async (path) => {
+      const restoreStateDir = useCoordinatorStateDir(`${path}/state`);
+      try {
+        const archivePath = await createSeedArchive(path);
+        const stagingPath = `${path}/state/workspaces/stale/book-meta.json.tmp`;
+
+        await initializeCoordinatorState(archivePath);
+        await mkdir(`${path}/state/workspaces/stale`, { recursive: true });
+        await writeFile(
+          stagingPath,
+          `${JSON.stringify({
+            title: "Unpublished Staging Title",
+            version: 1,
+          })}\n`,
+          "utf8",
+        );
+        await insertStaleArchiveOwner({
+          archivePath,
+          ownerId: "stale-owner-staging",
+        });
+
+        await new SpineDigestFile(archivePath).read(async (digest) => {
+          expect(await digest.readMeta()).toMatchObject({
+            title: "Session Fixture",
+          });
+        });
+
+        await expect(readCoordinatorOverlays(path)).resolves.toStrictEqual([]);
+        await expect(readArchivedTitle(path, archivePath)).resolves.toBe(
+          "Session Fixture",
+        );
+      } finally {
+        restoreStateDir();
+      }
+    });
+  });
 });
 
 async function seedDocument(document: DirectoryDocument): Promise<void> {
@@ -497,6 +605,15 @@ async function readArchivedTitle(
   ) as { readonly title: string | null };
 
   return meta.title;
+}
+
+async function readArchivedEntry(
+  archivePath: string,
+  entryPath: string,
+): Promise<Uint8Array | undefined> {
+  const { readWikgArchiveEntry } = await import("../../src/facade/archive.js");
+
+  return await readWikgArchiveEntry(archivePath, entryPath);
 }
 
 async function readCoordinatorOverlays(path: string): Promise<
@@ -576,6 +693,125 @@ INSERT INTO entry_overlays (
   } finally {
     await database.close();
   }
+}
+
+async function initializeCoordinatorState(archivePath: string): Promise<void> {
+  await new WikgCoordinator().withArchiveSession(archivePath, () => {
+    return undefined;
+  });
+}
+
+async function seedStalePublishedFileOverlay(input: {
+  readonly archivePath: string;
+  readonly entryPath: string;
+  readonly ownerId: string;
+  readonly stateRootPath: string;
+  readonly workspacePath: string;
+  readonly content: string;
+}): Promise<void> {
+  await initializeCoordinatorState(input.archivePath);
+  await mkdir(`${input.stateRootPath}/workspaces/stale`, { recursive: true });
+  await writeFile(input.workspacePath, input.content, "utf8");
+  await insertStaleArchiveOwner({
+    archivePath: input.archivePath,
+    ownerId: input.ownerId,
+  });
+  await insertEntryOverlay({
+    archivePath: input.archivePath,
+    entryPath: input.entryPath,
+    kind: "file",
+    workspacePath: input.workspacePath,
+  });
+}
+
+async function seedStalePublishedDeleteOverlay(input: {
+  readonly archivePath: string;
+  readonly entryPath: string;
+  readonly ownerId: string;
+  readonly stateRootPath: string;
+}): Promise<void> {
+  await initializeCoordinatorState(input.archivePath);
+  await mkdir(`${input.stateRootPath}/workspaces/stale`, { recursive: true });
+  await insertStaleArchiveOwner({
+    archivePath: input.archivePath,
+    ownerId: input.ownerId,
+  });
+  await insertEntryOverlay({
+    archivePath: input.archivePath,
+    entryPath: input.entryPath,
+    kind: "deleted",
+  });
+}
+
+async function insertStaleArchiveOwner(input: {
+  readonly archivePath: string;
+  readonly ownerId: string;
+}): Promise<void> {
+  const { Database } = await import("../../src/document/index.js");
+  const database = await Database.open(resolveCoordinatorDatabasePath());
+
+  try {
+    await database.run(
+      `
+INSERT INTO archive_owners (
+  archive_key, owner_id, owner_pid, heartbeat_at, created_at
+) VALUES (?, ?, ?, ?, ?)
+`,
+      [
+        createArchiveKey(input.archivePath),
+        input.ownerId,
+        1,
+        Date.now() - 120_000,
+        Date.now() - 120_000,
+      ],
+    );
+  } finally {
+    await database.close();
+  }
+}
+
+async function insertEntryOverlay(input: {
+  readonly archivePath: string;
+  readonly entryPath: string;
+  readonly kind: "deleted" | "file";
+  readonly workspacePath?: string;
+}): Promise<void> {
+  const { Database } = await import("../../src/document/index.js");
+  const database = await Database.open(resolveCoordinatorDatabasePath());
+
+  try {
+    await database.run(
+      `
+INSERT INTO entry_overlays (
+  archive_key, archive_path, entry_path, kind, workspace_path, updated_at
+) VALUES (?, ?, ?, ?, ?, ?)
+`,
+      [
+        createArchiveKey(input.archivePath),
+        input.archivePath,
+        input.entryPath,
+        input.kind,
+        input.workspacePath ?? null,
+        Date.now(),
+      ],
+    );
+  } finally {
+    await database.close();
+  }
+}
+
+function resolveCoordinatorDatabasePath(): string {
+  const stateDir = process.env.WIKIGRAPH_STATE_DIR;
+
+  if (stateDir === undefined) {
+    throw new Error("WIKIGRAPH_STATE_DIR is not set.");
+  }
+
+  return `${stateDir}/wikg-coordinator.sqlite`;
+}
+
+function createArchiveKey(archivePath: string): string {
+  return createHash("sha256").update(resolve(archivePath)).digest("hex");
 }
 
 function useCoordinatorStateDir(path: string): () => void {
