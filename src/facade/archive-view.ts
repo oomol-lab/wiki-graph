@@ -486,15 +486,15 @@ export async function getArchiveIndex(
   const [chapters, meta, nodes, edges] = await Promise.all([
     listChapters(document),
     document.readBookMeta(),
-    document.chunks.listAll(),
-    document.readingEdges.listAll(),
+    document.chunks.countAll(),
+    document.readingEdges.countAll(),
   ]);
 
   return {
     chapters,
-    edgeCount: edges.length,
+    edgeCount: edges,
     meta,
-    nodeCount: nodes.length,
+    nodeCount: nodes,
     summaryCount: chapters.filter((chapter) => chapter.stage === "summarized")
       .length,
   };

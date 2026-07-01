@@ -1,7 +1,14 @@
 import { createWriteStream } from "fs";
-import { mkdir, readFile, readdir } from "fs/promises";
+import {
+  mkdir,
+  open as openFile,
+  readFile,
+  readdir,
+  type FileHandle,
+} from "fs/promises";
 import { dirname, join, posix, relative, resolve, sep } from "path";
 import { finished, pipeline } from "stream/promises";
+import { inflateRaw } from "zlib";
 
 import { z } from "zod";
 import {
@@ -45,9 +52,16 @@ export type WikgArchiveOverlay =
 export class WikgArchiveReader {
   readonly #entryByPath: Map<string, Entry>;
   readonly #entries: readonly string[];
+  #file: Promise<FileHandle> | undefined;
+  readonly #path: string;
   readonly #zipFile: YauzlZipFile;
 
-  public constructor(zipFile: YauzlZipFile, entries: readonly Entry[]) {
+  public constructor(
+    path: string,
+    zipFile: YauzlZipFile,
+    entries: readonly Entry[],
+  ) {
+    this.#path = path;
     this.#zipFile = zipFile;
     this.#entryByPath = new Map(
       entries
@@ -63,11 +77,17 @@ export class WikgArchiveReader {
   public static async open(inputPath: string): Promise<WikgArchiveReader> {
     const { entries, zipFile } = await openIndexedArchive(inputPath);
 
-    return new WikgArchiveReader(zipFile, entries);
+    return new WikgArchiveReader(inputPath, zipFile, entries);
   }
 
   public close(): void {
     this.#zipFile.close();
+    if (this.#file !== undefined) {
+      void this.#file.then(async (file) => {
+        await file.close();
+      });
+      this.#file = undefined;
+    }
   }
 
   public listEntries(): readonly string[] {
@@ -81,7 +101,12 @@ export class WikgArchiveReader {
       return undefined;
     }
 
-    return await readArchiveEntryBuffer(this.#zipFile, entry);
+    return await readArchiveEntryBufferFromFile(await this.#getFile(), entry);
+  }
+
+  async #getFile(): Promise<FileHandle> {
+    this.#file ??= openFile(this.#path, "r");
+    return await this.#file;
   }
 }
 
@@ -206,6 +231,7 @@ export async function writeWikgArchiveWithOverlays(
   entryPaths.add(WIKG_MANIFEST_PATH);
 
   const outputZipFile = new YazlZipFile();
+  const sourceFile = await openFile(inputPath, "r");
 
   try {
     for (const entryPath of [...entryPaths].sort((left, right) =>
@@ -237,11 +263,12 @@ export async function writeWikgArchiveWithOverlays(
       }
 
       outputZipFile.addBuffer(
-        await readArchiveEntryBuffer(zipFile, sourceEntry),
+        await readArchiveEntryBufferFromFile(sourceFile, sourceEntry),
         entryPath,
       );
     }
   } finally {
+    await sourceFile.close();
     zipFile.close();
   }
 
@@ -301,7 +328,7 @@ async function openIndexedArchive(inputPath: string): Promise<{
   try {
     const entries = await indexArchiveEntries(zipFile);
 
-    await validateArchiveManifest(zipFile, entries);
+    await validateArchiveManifest(inputPath, entries);
     return { entries, zipFile };
   } catch (error) {
     zipFile.close();
@@ -347,7 +374,7 @@ function isWikgArchivePath(archivePath: string): boolean {
 }
 
 async function validateArchiveManifest(
-  zipFile: YauzlZipFile,
+  inputPath: string,
   entries: readonly Entry[],
 ): Promise<void> {
   const entry = entries.find(
@@ -359,7 +386,7 @@ async function validateArchiveManifest(
     throw new Error(`Missing WIKG manifest: ${WIKG_MANIFEST_PATH}.`);
   }
 
-  parseWikgManifest(await readArchiveEntryText(zipFile, entry));
+  parseWikgManifest(await readArchiveEntryText(inputPath, entry));
 }
 
 function parseWikgManifest(
@@ -448,22 +475,71 @@ async function openArchiveEntryStream(
 }
 
 async function readArchiveEntryText(
-  zipFile: YauzlZipFile,
+  inputPath: string,
   entry: Entry,
 ): Promise<string> {
-  return (await readArchiveEntryBuffer(zipFile, entry)).toString("utf8");
+  return (await readArchiveEntryBuffer(inputPath, entry)).toString("utf8");
 }
 
 async function readArchiveEntryBuffer(
-  zipFile: YauzlZipFile,
+  inputPath: string,
   entry: Entry,
 ): Promise<Buffer> {
-  const chunks: Buffer[] = [];
-  const stream = await openArchiveEntryStream(zipFile, entry);
+  const file = await openFile(inputPath, "r");
 
-  for await (const chunk of stream) {
-    chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+  try {
+    return await readArchiveEntryBufferFromFile(file, entry);
+  } finally {
+    await file.close();
+  }
+}
+
+async function readArchiveEntryBufferFromFile(
+  file: FileHandle,
+  entry: Entry,
+): Promise<Buffer> {
+  const compressed = await readCompressedArchiveEntryBuffer(file, entry);
+
+  if (entry.compressionMethod === 0) {
+    return compressed;
+  }
+  if (entry.compressionMethod === 8) {
+    return await inflateRawBuffer(compressed);
   }
 
-  return Buffer.concat(chunks);
+  throw new Error(`Unsupported ZIP compression method: ${entry.fileName}`);
+}
+
+async function readCompressedArchiveEntryBuffer(
+  file: FileHandle,
+  entry: Entry,
+): Promise<Buffer> {
+  const header = Buffer.alloc(30);
+
+  await file.read(header, 0, header.length, entry.relativeOffsetOfLocalHeader);
+  if (header.readUInt32LE(0) !== 0x04034b50) {
+    throw new Error(`Invalid ZIP local file header: ${entry.fileName}`);
+  }
+
+  const fileNameLength = header.readUInt16LE(26);
+  const extraFieldLength = header.readUInt16LE(28);
+  const dataOffset =
+    entry.relativeOffsetOfLocalHeader + 30 + fileNameLength + extraFieldLength;
+  const compressed = Buffer.alloc(entry.compressedSize);
+
+  await file.read(compressed, 0, compressed.length, dataOffset);
+  return compressed;
+}
+
+async function inflateRawBuffer(input: Buffer): Promise<Buffer> {
+  return await new Promise((resolveInflate, rejectInflate) => {
+    inflateRaw(input, (error, output) => {
+      if (error !== null) {
+        rejectInflate(error);
+        return;
+      }
+
+      resolveInflate(output);
+    });
+  });
 }

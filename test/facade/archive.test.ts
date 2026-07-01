@@ -8,6 +8,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   extractWikgArchive,
+  readWikgArchiveEntry,
   writeWikgArchive,
   writeWikgArchiveWithOverlays,
 } from "../../src/facade/archive.js";
@@ -110,6 +111,22 @@ describe("facade/archive", () => {
       expect(await readFile(`${path}/unpacked/database.db`, "utf8")).toBe(
         "chapter",
       );
+    });
+  });
+
+  it("reads a deflated archive entry without extracting the archive", async () => {
+    await withTempDir("spinedigest-archive-", async (path) => {
+      const sourceDir = `${path}/source`;
+      const archivePath = `${path}/book.wikg`;
+      const databaseContent = "sqlite\n".repeat(2000);
+
+      await mkdir(sourceDir, { recursive: true });
+      await writeFile(`${sourceDir}/database.db`, databaseContent, "utf8");
+      await writeWikgArchive(sourceDir, archivePath);
+
+      await expect(
+        readWikgArchiveEntry(archivePath, "database.db"),
+      ).resolves.toEqual(Buffer.from(databaseContent, "utf8"));
     });
   });
 

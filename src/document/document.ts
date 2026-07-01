@@ -43,6 +43,7 @@ export interface DocumentFileStore {
   ensureDirectory(path: string): Promise<void>;
   initializeDatabaseSchema(): boolean;
   openDatabaseReadonly(): boolean;
+  listFileContents?(path: string): Promise<ReadonlyMap<string, Uint8Array>>;
   listFiles(path: string): Promise<readonly string[]>;
   readFile(path: string): Promise<Uint8Array | undefined>;
   resolveDatabasePath(documentPath: string): Promise<string>;
@@ -220,6 +221,12 @@ export class DirectoryDocument implements Document {
           await fileStore.ensureDirectory(path);
         },
         listFiles: async (path) => await fileStore.listFiles(path),
+        ...(fileStore.listFileContents === undefined
+          ? {}
+          : {
+              listFileContents: async (path) =>
+                await fileStore.listFileContents!(path),
+            }),
         readFile: async (path) => await fileStore.readFile(path),
       });
 

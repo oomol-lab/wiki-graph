@@ -684,9 +684,30 @@ async function createChapterEntry(
     readonly tocPath: readonly string[];
   },
 ): Promise<ChapterEntry> {
-  const serialFragments = document.getSerialFragments(serialId);
+  const sourceSummary = await summarizeSerialFragments(
+    document.getSerialFragments(serialId),
+  );
+
+  return {
+    chapterId: serialId,
+    childCount: item.children.length,
+    depth: input.depth,
+    fragmentCount: sourceSummary.fragmentCount,
+    stage: await resolveChapterStage(
+      document,
+      serialId,
+      sourceSummary.fragmentCount,
+    ),
+    title: input.title,
+    tocPath: input.tocPath,
+    words: sourceSummary.words,
+  };
+}
+
+async function summarizeSerialFragments(
+  serialFragments: ReturnType<ReadonlyDocument["getSerialFragments"]>,
+): Promise<{ readonly fragmentCount: number; readonly words: number }> {
   const fragmentIds = await serialFragments.listFragmentIds();
-  const fragmentCount = fragmentIds.length;
   let words = 0;
 
   for (const fragmentId of fragmentIds) {
@@ -699,13 +720,7 @@ async function createChapterEntry(
   }
 
   return {
-    chapterId: serialId,
-    childCount: item.children.length,
-    depth: input.depth,
-    fragmentCount,
-    stage: await resolveChapterStage(document, serialId, fragmentCount),
-    title: input.title,
-    tocPath: input.tocPath,
+    fragmentCount: fragmentIds.length,
     words,
   };
 }

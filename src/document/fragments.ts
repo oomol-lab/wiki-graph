@@ -19,6 +19,7 @@ interface FragmentWriter {
 
 interface FragmentFileAccess {
   ensureDirectory(path: string): Promise<void>;
+  listFileContents?(path: string): Promise<ReadonlyMap<string, Uint8Array>>;
   listFiles(path: string): Promise<readonly string[]>;
   readFile(path: string): Promise<Uint8Array | undefined>;
 }
@@ -150,6 +151,7 @@ export class SerialFragments implements ReadonlySerialFragments {
   #draftOpen = false;
   readonly #documentPath: string;
   readonly #fileAccess: FragmentFileAccess;
+  #fileContents: Promise<ReadonlyMap<string, Uint8Array>> | undefined;
   readonly #rootDirectoryName: string;
   #nextFragmentId: number | undefined;
   readonly #writer: FragmentWriter;
@@ -186,10 +188,16 @@ export class SerialFragments implements ReadonlySerialFragments {
   }
 
   public async getFragment(fragmentId: number): Promise<FragmentRecord> {
-    const fileContent = await readFragmentFile(
-      this.#getFragmentPath(fragmentId),
-      this.#fileAccess,
-    );
+    const fileContent =
+      this.#fileAccess.listFileContents === undefined
+        ? await readFragmentFile(
+            this.#getFragmentPath(fragmentId),
+            this.#fileAccess,
+          )
+        : parseFragmentFileContent(
+            this.#getFragmentPath(fragmentId),
+            (await this.#getFileContents()).get(`fragment_${fragmentId}.json`),
+          );
 
     return {
       serialId: this.#serialId,
@@ -201,7 +209,10 @@ export class SerialFragments implements ReadonlySerialFragments {
 
   public async listFragmentIds(): Promise<readonly number[]> {
     try {
-      const entries = await this.#fileAccess.listFiles(this.path);
+      const entries =
+        this.#fileAccess.listFileContents === undefined
+          ? await this.#fileAccess.listFiles(this.path)
+          : [...(await this.#getFileContents()).keys()];
 
       return entries
         .map((entry) => FRAGMENT_FILE_PATTERN.exec(entry))
@@ -330,6 +341,15 @@ export class SerialFragments implements ReadonlySerialFragments {
   #getFragmentPath(fragmentId: number): string {
     return join(this.path, `fragment_${fragmentId}.json`);
   }
+
+  async #getFileContents(): Promise<ReadonlyMap<string, Uint8Array>> {
+    if (this.#fileAccess.listFileContents === undefined) {
+      throw new Error("Fragment file access does not support batch reads.");
+    }
+
+    this.#fileContents ??= this.#fileAccess.listFileContents(this.path);
+    return await this.#fileContents;
+  }
 }
 
 function splitTextIntoSentences(text: string): readonly SentenceRecord[] {
@@ -429,8 +449,16 @@ async function readFragmentFile(
   fragmentPath: string,
   fileAccess: FragmentFileAccess = DEFAULT_FRAGMENT_FILE_ACCESS,
 ): Promise<FragmentFileContent> {
-  const content = await fileAccess.readFile(fragmentPath);
+  return parseFragmentFileContent(
+    fragmentPath,
+    await readFragmentFileContent(fragmentPath, fileAccess),
+  );
+}
 
+function parseFragmentFileContent(
+  fragmentPath: string,
+  content: Uint8Array | undefined,
+): FragmentFileContent {
   if (content === undefined) {
     throw new Error(`Fragment file does not exist: ${fragmentPath}`);
   }
@@ -454,6 +482,20 @@ async function readFragmentFile(
     sentences: rawContent.sentences.map(parseSentenceRecord),
     summary: rawContent.summary,
   };
+}
+
+async function readFragmentFileContent(
+  fragmentPath: string,
+  fileAccess: FragmentFileAccess,
+): Promise<Uint8Array | undefined> {
+  if (fileAccess.listFileContents === undefined) {
+    return await fileAccess.readFile(fragmentPath);
+  }
+
+  const directoryPath = resolve(join(fragmentPath, ".."));
+  const fileName = fragmentPath.slice(directoryPath.length + 1);
+
+  return (await fileAccess.listFileContents(directoryPath)).get(fileName);
 }
 
 function parseSentenceRecord(value: unknown): SentenceRecord {

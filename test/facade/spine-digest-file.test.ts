@@ -141,7 +141,7 @@ describe("facade/spine-digest-file", () => {
     });
   });
 
-  it("settles materialized sqlite state after plain archive reads", async () => {
+  it("keeps read-only sqlite materialization as coordinator cache", async () => {
     await withTempDir("spinedigest-facade-file-", async (path) => {
       const restoreStateDir = useCoordinatorStateDir(`${path}/state`);
       try {
@@ -153,7 +153,13 @@ describe("facade/spine-digest-file", () => {
           });
         });
 
-        await expect(readCoordinatorOverlays(path)).resolves.toStrictEqual([]);
+        await expect(readCoordinatorOverlays(path)).resolves.toStrictEqual([
+          expect.objectContaining({
+            archivePath,
+            entryPath: "database.db",
+            kind: "file",
+          }),
+        ]);
       } finally {
         restoreStateDir();
       }
