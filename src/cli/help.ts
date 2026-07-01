@@ -23,6 +23,7 @@ export const HELP_TOPICS = [
   "config-file",
   "runtime",
   "uri",
+  "retrieval",
   "recipe",
   "troubleshoot",
   "ai",
@@ -718,6 +719,10 @@ const HELP_TOPIC_METADATA: readonly {
     summary: "Wiki Graph URI grammar, archive locators, scopes, and objects.",
   },
   {
+    name: "retrieval",
+    summary: "Scope, lens, pagination, and output format choices.",
+  },
+  {
     name: "recipe",
     summary: "Short copyable command examples.",
   },
@@ -762,6 +767,7 @@ const HELP_TOPIC_TEMPLATE_NAMES: Readonly<Record<HelpTopic, string>> = {
   "config-file": "help/topics/config-file",
   runtime: "help/topics/runtime",
   uri: "help/topics/uri",
+  retrieval: "help/topics/retrieval",
   recipe: "help/topics/recipe",
   troubleshoot: "help/topics/troubleshoot",
   ai: "help/topics/ai",

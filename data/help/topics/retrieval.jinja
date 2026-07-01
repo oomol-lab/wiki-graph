@@ -1,0 +1,61 @@
+Help Type: topic
+Topic: retrieval
+
+Retrieval Strategy
+
+Purpose:
+  Choose the right Wiki Graph scope, lens, pagination, and output format for retrieval tasks.
+
+Core order:
+  1. Choose the narrowest URI scope that can answer the task.
+  2. Choose the object lens that matches the question.
+  3. Start with a bounded page.
+  4. Choose output format by how the result will be consumed.
+  5. Use `--all` only for an intentional full export or bounded inventory.
+
+Scope:
+  - Use `<archive-uri>` when the whole archive is the right search space.
+  - Use `<chapter-uri>` when a known chapter is enough.
+  - Use `<chapter-uri>/<lens>` when both chapter and object kind are known.
+  - If the first page is too broad, narrow the URI before increasing result volume.
+
+Lens:
+  - `/source` finds original source passages and returns source range URIs.
+  - `/summary` searches readable chapter summaries.
+  - `/chunk` searches Reading Graph chunks.
+  - `/entity` searches or lists grounded entities.
+  - `/triple` searches or lists Knowledge Graph relations.
+  - `chapter` is structural; searching chapters uses chapter titles and structure, not child source text.
+
+Literal source passages:
+  Use source search when the task is to find source wording or passages mentioning a literal term:
+    wikigraph <archive-uri>/source search "term"
+    wikigraph <archive-uri>/chapter/<id>/source search "term"
+    wikigraph <archive-uri>/chapter/<id>/source#20..30 get
+
+Entity-grounded evidence:
+  Use entity evidence when you already have an entity URI or QID and need grounded mentions, aliases, translations, variants, or source-backed support:
+    wikigraph <archive-uri>/entity/<qid> evidence
+    wikigraph <archive-uri>/entity/<qid> related "aspect" --evidence 2
+
+Pagination:
+  - Use default paging or `--limit <n>` while exploring.
+  - Use `wikigraph next <cursor>` to continue a paged result.
+  - Use `--all` only when you intentionally need every item from the selected scope.
+  - Prefer the narrowest scope before using `--all`.
+
+Output format:
+  - Default text is for reading and inspection.
+  - `--json` is for one stable machine-readable page.
+  - `--jsonl` is for streamed records, shell pipelines, or full exports.
+  - `--all --jsonl` is appropriate for deliberate full exports and bounded inventories.
+  - Avoid `--all` without `--jsonl` for large results because text and JSON output are buffered before printing.
+
+Archive internals:
+  Do not unzip `.wikg` or read internal SQLite for routine retrieval. Use URI commands such as `source`, `summary`, `chapter`, `entity`, `triple`, `evidence`, and `related`.
+
+See also:
+  - wikigraph help uri
+  - wikigraph help object
+  - wikigraph help verb
+  - wikigraph help ai

@@ -17,7 +17,7 @@ Usage:
 
 Returns:
   - In text output, a ranked list of full `wkg://...` URIs.
-  - With `--json` or `--jsonl`, machine-readable search result items.
+  - With a machine-readable format, search result items.
 
 Notes:
   - Search results are leads, not source evidence.
@@ -30,8 +30,7 @@ Notes:
   - Add `--evidence` or `--evidence <n>` to include source evidence previews on entity and triple results.
   - Source and summary search hits, plus evidence previews, include 2 nearby sentences before and after by default. Use `--context 0` for exact matched or cited ranges.
   - Add `--backlinks` to include reverse references on top-level source results; nested evidence sources are not expanded.
-  - Add `--all --jsonl` to stream every result page. With `--all`, `--limit` controls page size.
-  - Avoid `--all` without `--jsonl` for large results; it buffers all result objects before printing.
+  - Read `wikigraph help retrieval` before choosing `--limit`, `--all`, `--json`, or `--jsonl`.
   - Use `wikigraph next <cursor>` for any returned `nextCursor`.
   - Use a located chapter URI to keep retrieval local.
   - Read `wikigraph help uri` before constructing Wiki Graph URIs; bare filesystem paths are not valid object command inputs.
@@ -43,6 +42,8 @@ Next steps:
 
 Examples:
   wikigraph wkg:///books/book.wikg search "恩典 婴儿洗礼"
-  wikigraph wkg:///books/book.wikg/entity search "infant baptism" --json
-  wikigraph wkg:///books/book.wikg/chapter/3/entity search "infant baptism" --json
+  wikigraph wkg:///books/book.wikg/source search "infant baptism"
+  wikigraph wkg:///books/book.wikg/entity search "infant baptism"
+  wikigraph wkg:///books/book.wikg/chapter/3/source search "infant baptism"
+  wikigraph wkg:///books/book.wikg/chapter/3/entity search "infant baptism"
   wikigraph wkg:///books/book.wikg/triple/_/_/Q178561 search "battle"

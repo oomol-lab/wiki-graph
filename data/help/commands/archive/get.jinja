@@ -21,7 +21,7 @@ Notes:
   - When a located readable object URI is passed without a verb, `get` is implied.
   - Collection and lens URIs still require an explicit verb such as `list` or `search`.
   - Entity and triple `get` output includes up to 3 evidence sources by default.
-  - For all source passages mentioning or grounding a known entity, prefer `<archive-uri>/entity/<qid> evidence --all --jsonl` over source search by label.
+  - For all source passages mentioning or grounding a known entity, prefer `<archive-uri>/entity/<qid> evidence` over source search by label.
   - Do not infer Wikipedia URLs from entity labels or QIDs; use `<archive-uri>/entity/<qid>/wikipage get` for mapped pages.
   - Use `--evidence <n>` to choose a different evidence preview size, or `--evidence 0` to hide evidence.
   - Evidence previews include 2 nearby sentences before and after by default. Use `--context 0` for exact cited ranges.
@@ -30,7 +30,7 @@ Notes:
 
 Next steps:
   - Use `related` to expand from this object.
-  - Use `evidence --all --jsonl` to trace all source-backed support for a known entity or triple.
+  - Use `evidence` to trace source-backed support for a known entity or triple.
   - Use `<archive-uri>/entity/<qid>/wikipage get` to inspect mapped Wikipedia pages for a known entity.
   - Use `pack` to assemble bounded context around the object.
 

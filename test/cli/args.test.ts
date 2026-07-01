@@ -1459,7 +1459,7 @@ describe("cli/args", () => {
 
   it("rejects invalid help usage", () => {
     expect(() => parseCLIArguments(["help", "unknown"])).toThrow(
-      "Invalid help topic: unknown. Expected one of overview, task, command, object, verb, matrix, format, config, env, config-file, runtime, uri, recipe, troubleshoot, ai.\nSee: wikigraph --help",
+      "Invalid help topic: unknown. Expected one of overview, task, command, object, verb, matrix, format, config, env, config-file, runtime, uri, retrieval, recipe, troubleshoot, ai.\nSee: wikigraph --help",
     );
     expect(() =>
       parseCLIArguments(["help", "object", "entity", "extra"]),
@@ -1517,6 +1517,7 @@ describe("cli/args", () => {
     expect(rootHelpText).toContain(
       "Read `wikigraph help overview` for the URI-first archive mental model.",
     );
+    expect(rootHelpText).toContain("wikigraph help retrieval");
     expect(rootHelpText).toContain("wikigraph help object");
     expect(rootHelpText).toContain("wikigraph help verb");
     expect(rootHelpText).toContain("wikigraph help matrix");
@@ -1550,6 +1551,13 @@ describe("cli/args", () => {
     );
     expect(renderHelpTopicText("uri")).toContain(
       "wikigraph wkg:///Users/me/book.wikg/entity search",
+    );
+    expect(renderHelpTopicText("uri")).toContain(
+      String.raw`C:\Users\me\book.wikg -> wkg://C:/Users/me/book.wikg`,
+    );
+    expect(renderHelpTopicText("retrieval")).toContain("Retrieval Strategy");
+    expect(renderHelpTopicText("retrieval")).toContain(
+      "Choose the right Wiki Graph scope, lens, pagination, and output format",
     );
     expect(renderHelpTopicText("task")).toContain(
       "wikigraph wkg:///Users/me/book.wikg search",

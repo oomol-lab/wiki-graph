@@ -39,6 +39,9 @@ Apply rules:
 Dry run:
   `--dry-run` validates the input and prints moved, renamed, and unchanged counts without changing the archive.
 
+Structural chapters:
+  Some chapters are table-of-contents nodes that organize child chapters. Check this tree before treating a chapter with missing generated artifacts as abnormal.
+
 Examples:
   wikigraph wkg://book.wikg/chapter/tree get
   wikigraph wkg://book.wikg/chapter/tree get --json > tree.json

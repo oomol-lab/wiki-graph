@@ -20,14 +20,14 @@ Object workflow:
   - `pack` builds bounded Agent-readable context around one graph object URI.
 
 Object commands:
-  wikigraph <located-wkg-uri> search <query> [--all] [--limit <n>] [--cursor <token>] [--evidence [n]] [--backlinks] [--json|--jsonl]
-  wikigraph <located-wkg-uri>/<chapter|entity|triple|source|summary|chunk> search <query> [--all] [--limit <n>] [--cursor <token>] [--evidence [n]] [--backlinks] [--json|--jsonl]
-  wikigraph <located-wkg-uri>/triple/<subject|_>/<predicate|_>/<object|_> search <query> [--all] [--limit <n>] [--cursor <token>] [--evidence [n]] [--json|--jsonl]
-  wikigraph <located-wkg-uri>/<chapter|entity|triple|source|summary|chunk> list [--all] [--limit <n>] [--cursor <token>] [--evidence [n]] [--backlinks] [--json|--jsonl]
-  wikigraph <located-wkg-uri>/triple/<subject|_>/<predicate|_>/<object|_> list [--all] [--limit <n>] [--cursor <token>] [--evidence [n]] [--json|--jsonl]
-  wikigraph <object-uri> get [--evidence [n]] [--backlinks] [--json|--jsonl]
-  wikigraph <chunk-uri|entity-uri> related [query] [--all] [--limit <n>] [--cursor <token>] [--role <any|subject|object|self>] [--evidence [n]] [--json|--jsonl]
-  wikigraph <entity|triple|summary|chunk-uri> evidence [query] [--all] [--limit <n>] [--cursor <token>] [--json|--jsonl]
+  wikigraph <located-wkg-uri> search <query> [--all] [--limit <n>] [--context <n>] [--cursor <token>] [--evidence [n]] [--backlinks] [--json|--jsonl]
+  wikigraph <located-wkg-uri>/<chapter|entity|triple|source|summary|chunk> search <query> [--all] [--limit <n>] [--context <n>] [--cursor <token>] [--evidence [n]] [--backlinks] [--json|--jsonl]
+  wikigraph <located-wkg-uri>/triple/<subject|_>/<predicate|_>/<object|_> search <query> [--all] [--limit <n>] [--context <n>] [--cursor <token>] [--evidence [n]] [--json|--jsonl]
+  wikigraph <located-wkg-uri>/<chapter|entity|triple|source|summary|chunk> list [--all] [--limit <n>] [--context <n>] [--cursor <token>] [--evidence [n]] [--backlinks] [--json|--jsonl]
+  wikigraph <located-wkg-uri>/triple/<subject|_>/<predicate|_>/<object|_> list [--all] [--limit <n>] [--context <n>] [--cursor <token>] [--evidence [n]] [--json|--jsonl]
+  wikigraph <object-uri> get [--evidence [n]] [--context <n>] [--backlinks] [--json|--jsonl]
+  wikigraph <chunk-uri|entity-uri> related [query] [--all] [--limit <n>] [--context <n>] [--cursor <token>] [--role <any|subject|object|self>] [--evidence [n]] [--json|--jsonl]
+  wikigraph <entity|triple|summary|chunk-uri> evidence [query] [--all] [--limit <n>] [--context <n>] [--cursor <token>] [--json|--jsonl]
   wikigraph next <cursor> [--limit <n>] [--json|--jsonl]
   wikigraph next <wikigraph-uri-with-wikg-locator> <cursor> [--limit <n>] [--json|--jsonl]
   wikigraph <located-chunk-uri|located-entity-uri> pack [--budget <chars>] [--json|--jsonl]
@@ -82,6 +82,7 @@ Formats:
 Start here:
   - Read `wikigraph help overview` for the URI-first archive mental model.
   - Read `wikigraph help uri` before using object commands.
+  - Read `wikigraph help retrieval` before choosing scope, lens, pagination, or output format flags.
   - Read `wikigraph help object` when you have a URI and need valid verbs.
   - Read `wikigraph help verb` when you know an operation and need valid targets.
   - Read `wikigraph help ai` for the agent operating contract.

@@ -12,20 +12,19 @@ Usage:
 Output shape:
   wkg://chapter/<id>  <title-or-[untitled]>  source:<ready|missing> reading-graph:<ready|missing> reading-summary:<ready|missing> knowledge-graph:<ready|missing>
 
-  With `--jsonl`, each chapter is one JSON object with `uri`, `title`, and `state`.
+  With machine-readable output, each chapter object includes `uri`, `title`, and `state`.
 
 Behavior:
   - Includes sourced, generated, and unfinished chapters.
-  - Use `--all --jsonl` for grep/jq-style readiness checks across every chapter.
-  - With `--all`, `--limit` controls page size. Avoid `--all` without `--jsonl` for large results.
+  - Some chapters are structural table-of-contents nodes that organize child chapters; missing generated artifacts alone does not make them abnormal.
+  - Read `wikigraph help retrieval` before choosing `--limit`, `--all`, `--json`, or `--jsonl`.
   - Chapter ids are encoded in the returned `wkg://chapter/<id>` URIs.
   - Does not call an LLM provider.
   - Does not mutate chapter content or summaries.
 
 Use this before mutation:
   Discover ids and missing generated artifacts with:
-    wikigraph <archive-uri>/chapter list --all --jsonl
-    wikigraph <archive-uri>/chapter list --all --jsonl | jq 'select(.state["knowledge-graph"] == "missing")'
+    wikigraph <archive-uri>/chapter list
 
 See also:
   - wikigraph wkg://book.wikg/chapter/3/state get --help

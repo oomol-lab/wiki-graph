@@ -35,7 +35,7 @@ wikigraph queue clean
 Exploration modes:
 
 - Search mode: `search` discovers URI-addressable objects from query text.
-- Structure mode: `<archive-uri>/chapter/tree get --json` shows table-of-contents hierarchy; `list` enumerates object collections from an archive or scoped URI.
+- Structure mode: `<archive-uri>/chapter/tree get` shows table-of-contents hierarchy; `list` enumerates object collections from an archive or scoped URI.
 - Reading mode: `get` opens one selected URI; `related`, `evidence`, and `pack` expand or verify it after selection.
 
 Search and collection behavior:
@@ -44,15 +44,13 @@ Search and collection behavior:
 - `list` enumerates URI-addressable objects without query text.
 - Object commands use Wiki Graph URIs. Use an archive or scope URI such as `wkg:///Users/me/book.wikg` for `search` and `list`; use a concrete object URI such as `wkg:///Users/me/book.wikg/chapter/12` for `get` or `evidence`. `related` and `pack` are limited to chunk and entity objects.
 - For content understanding, choose a search lens in the URI: `<archive-uri>/chunk` for Reading Graph structure, `<archive-uri>/summary` for quick overview, `<archive-uri>/source` for original source wording, or `<archive-uri>/entity` and `<archive-uri>/triple` for Knowledge Graph objects.
-- Lens position controls scope: use `<archive-uri>/entity list --all --jsonl` for an archive-wide entity inventory, and use `<chapter-uri>/entity list --all --jsonl` only when you need one chapter.
-- For source passages mentioning or grounding a known entity, use `<archive-uri>/entity/<qid> evidence --all --jsonl` before literal source search by label.
+- Lens position controls scope: use `<archive-uri>/entity list` for an archive-wide entity inventory, and use `<chapter-uri>/entity list` only when you need one chapter.
+- For source passages mentioning or grounding a known entity, use `<archive-uri>/entity/<qid> evidence` before literal source search by label.
 - For mapped Wikipedia pages, use `<archive-uri>/entity/<qid>/wikipage get`; do not infer Wikipedia URLs from labels or QIDs.
 - Use a chapter scope URI such as `wkg:///Users/me/book.wikg/chapter/12` to keep search or list local to one chapter.
 - Source search hits and evidence previews include 2 nearby sentences before and after by default. Use `--context 0` for exact matched or cited ranges, or `--context <n>` for a different nearby source window.
 - Direct source reads such as `<chapter-uri>/source#23..25 get` remain exact.
-- `--limit` defaults to `20`; pass returned `nextCursor` back through `--cursor` for the next page.
-- Use `--all --jsonl` to stream every `search`, `list`, `related`, or `evidence` page. With `--all`, `--limit` controls page size.
-- Avoid `--all` without `--jsonl` for large results because it buffers all result objects before printing.
+- For scope, lens, pagination, and output format choices, read `wikigraph help retrieval`.
 - Search does not do semantic expansion, stemming, or vector search.
 - Read `wikigraph help uri` for the URI grammar and object boundary rules.
 
@@ -89,16 +87,16 @@ Extension mapping:
 - `.txt` -> `txt`
 - `.md` or `.markdown` -> `markdown`
 
-## JSON Contract
+## Output Formats
 
-Read/search/navigation commands support `--json` for machine consumption:
+Read/search/navigation commands support machine-readable output when the command usage lists `--json` or `--jsonl`:
 
 ```bash
-wikigraph wkg:///Users/me/book.wikg/chunk search "RAG" --json
-wikigraph wkg:///Users/me/book.wikg/chapter/3 get --json
+wikigraph wkg:///Users/me/book.wikg/chunk search "RAG"
+wikigraph wkg:///Users/me/book.wikg/chapter/3 get
 ```
 
-Human-readable stdout is Markdown-like text with stable ids and suggested next commands.
+Human-readable stdout is Markdown-like text with stable ids and suggested next commands. Read `wikigraph help retrieval` before choosing `--json`, `--jsonl`, `--limit`, or `--all`.
 
 ## Direct Transform
 

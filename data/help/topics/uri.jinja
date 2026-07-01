@@ -12,6 +12,8 @@ Archive locator:
     Use a Wiki Graph URI instead:
     /Users/me/book.wikg -> wkg:///Users/me/book.wikg
     ./book.wikg -> wkg://book.wikg
+    C:\Users\me\book.wikg -> wkg://C:/Users/me/book.wikg
+  - URI paths use `/` separators, including on Windows.
   - Absolute archive locators use `wkg:///`:
     wkg:///books/book.wikg
   - Relative archive locators use `wkg://`:
@@ -51,7 +53,7 @@ Triple pattern lenses:
 
 Object command examples:
   Search an absolute local archive:
-    wikigraph wkg:///Users/me/book.wikg/entity search "keyword" --limit 20 --json
+    wikigraph wkg:///Users/me/book.wikg/entity search "keyword"
   Open an object inside an absolute local archive:
     wikigraph wkg:///Users/me/book.wikg/entity/Q8018 get
   Open mapped Wikipedia pages for an entity:
@@ -60,8 +62,8 @@ Object command examples:
 Archive command examples:
   Create or inspect an archive:
     wikigraph wkg://book.wikg create ./book.md
-    wikigraph wkg://book.wikg/chapter list --all --jsonl
-    wikigraph wkg://book.wikg/chapter/tree get --json
+    wikigraph wkg://book.wikg/chapter list
+    wikigraph wkg://book.wikg/chapter/tree get
 
 Job URIs:
   Queue jobs use the `wkg-job://` scheme and do not contain `.wikg` locators:
@@ -73,7 +75,7 @@ Scopes:
   - `wkg:///book.wikg` addresses the whole archive.
   - `wkg:///book.wikg/` is the same archive target; a trailing slash does not create a separate object.
   - `wkg:///book.wikg/chapter/3` scopes search and list to chapter 3.
-  - `wkg:///book.wikg/entity` searches or lists archive-wide entities. Use `list --all --jsonl` for a full entity inventory.
+  - `wkg:///book.wikg/entity` searches or lists archive-wide entities.
   - `wkg:///book.wikg/chapter/3/entity` searches or lists entities scoped to chapter 3 only.
   - `wkg:///book.wikg/entity/Q8018/wikipage` returns mapped Wikipedia pages for the entity.
   - `wkg://chapter/3/entity/Q8018` is the entity view whose evidence must appear in chapter 3.
@@ -82,3 +84,6 @@ Object boundaries:
   - `chapter` is a structural object; searching it uses chapter title and structure, not child source or summary text.
   - `source` is the evidence endpoint. `evidence` is not available for source or chapter objects.
   - `summary`, `chunk`, `entity`, and `triple` can return source-backed evidence.
+
+Retrieval strategy:
+  Read `wikigraph help retrieval` before choosing scope, lens, pagination, or output format flags.
