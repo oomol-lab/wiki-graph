@@ -16,6 +16,10 @@ import type {
   ReadonlyDocument,
   SentenceId,
 } from "../document/index.js";
+import {
+  LanguageCode,
+  normalizeLanguageCode,
+} from "../common/language.js";
 import type { WikipageResolveProgress } from "../wikipage/index.js";
 import {
   buildWikimatchSurfaceProtectionInput,
@@ -46,7 +50,13 @@ export interface ChapterKnowledgeGraphBuildArtifact {
   readonly chapterId: number;
   readonly mentionLinksPath: string;
   readonly mentionsPath: string;
+  readonly parameter: GraphBuildParameterInput;
   readonly workspacePath: string;
+}
+
+export interface GraphBuildParameterInput {
+  readonly language?: string;
+  readonly prompt: string;
 }
 
 export interface BuildChapterKnowledgeGraphArtifactOptions {
@@ -54,6 +64,7 @@ export interface BuildChapterKnowledgeGraphArtifactOptions {
     | AsyncIterable<MentionLinkRecord>
     | Iterable<MentionLinkRecord>;
   readonly mentions: AsyncIterable<MentionRecord> | Iterable<MentionRecord>;
+  readonly parameter?: GraphBuildParameterInput;
   readonly workspacePath: string;
 }
 
@@ -208,6 +219,7 @@ export async function generateChapterKnowledgeGraphArtifact(
   const artifact = await buildChapterKnowledgeGraphArtifact(chapterId, {
     mentionLinks,
     mentions,
+    parameter: createKnowledgeGraphParameterInput(options),
     workspacePath: options.workspacePath,
   });
   await options.progressTracker?.updatePhase({
@@ -245,7 +257,25 @@ export async function buildChapterKnowledgeGraphArtifact(
     chapterId,
     mentionLinksPath,
     mentionsPath,
+    parameter: options.parameter ?? {
+      language: LanguageCode.Chinese,
+      prompt: "",
+    },
     workspacePath,
+  };
+}
+
+function createKnowledgeGraphParameterInput(
+  options: Pick<
+    GenerateChapterKnowledgeGraphArtifactOptions,
+    "policyPrompt" | "resolverOptions"
+  >,
+): GraphBuildParameterInput {
+  return {
+    language:
+      normalizeLanguageCode(options.resolverOptions?.language) ??
+      LanguageCode.Chinese,
+    prompt: options.policyPrompt,
   };
 }
 
@@ -1070,7 +1100,14 @@ export async function commitChapterKnowledgeGraphArtifact(
     await openedDocument.mentions.deleteByChapter(artifact.chapterId);
     await openedDocument.mentions.saveMany(mentions);
     await openedDocument.mentionLinks.saveMany(mentionLinks);
-    await openedDocument.serials.setKnowledgeGraphReady(artifact.chapterId);
+    const parameter = await openedDocument.graphBuildParameters.save(
+      artifact.parameter,
+    );
+    await openedDocument.serials.setKnowledgeGraphReady(
+      artifact.chapterId,
+      true,
+      parameter.hash,
+    );
   });
 }
 
@@ -1082,6 +1119,7 @@ export async function clearChapterKnowledgeGraph(
     await openedDocument.mentionLinks.deleteByChapter(chapterId);
     await openedDocument.mentions.deleteByChapter(chapterId);
     await openedDocument.serials.setKnowledgeGraphReady(chapterId, false);
+    await openedDocument.graphBuildParameters.deleteUnreferenced();
   });
 }
 

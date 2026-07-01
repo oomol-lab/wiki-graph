@@ -48,8 +48,17 @@ export interface FragmentRecord {
 
 export interface SerialRecord {
   readonly knowledgeGraphReady: boolean;
+  readonly knowledgeGraphParameterHash?: string;
   readonly id: number;
+  readonly topologyParameterHash?: string;
   readonly topologyReady: boolean;
+}
+
+export interface GraphBuildParameterRecord {
+  readonly createdAt: string;
+  readonly hash: string;
+  readonly language?: string;
+  readonly prompt: string;
 }
 
 export interface ChunkRecord {

@@ -45,11 +45,21 @@ describe("document/wiki-graph-schema", () => {
             topologyReady: true,
           });
 
-          await openedDocument.serials.setKnowledgeGraphReady(1);
+          const parameter = await openedDocument.graphBuildParameters.save({
+            language: "zh",
+            prompt: "抽取章节图谱",
+          });
+
+          await openedDocument.serials.setKnowledgeGraphReady(
+            1,
+            true,
+            parameter.hash,
+          );
           await expect(
             openedDocument.serials.getById(1),
           ).resolves.toStrictEqual({
             id: 1,
+            knowledgeGraphParameterHash: parameter.hash,
             knowledgeGraphReady: true,
             topologyReady: true,
           });
@@ -119,6 +129,7 @@ describe("document/wiki-graph-schema", () => {
             "mentions",
             "mention_links",
             "mention_link_evidence_sentences",
+            "graph_build_parameters",
           ]),
         );
         await expect(listObjectNames(database, "index")).resolves.toEqual(

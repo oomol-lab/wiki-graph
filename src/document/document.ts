@@ -17,11 +17,13 @@ import { initializeDocumentSchema, SCHEMA_SQL } from "./schema.js";
 import {
   ChunkStore,
   FragmentGroupStore,
+  GraphBuildParameterStore,
   ReadingEdgeStore,
   MentionLinkStore,
   MentionStore,
   type ReadonlyChunkStore,
   type ReadonlyFragmentGroupStore,
+  type ReadonlyGraphBuildParameterStore,
   type ReadonlyReadingEdgeStore,
   type ReadonlyMentionLinkStore,
   type ReadonlyMentionStore,
@@ -106,6 +108,7 @@ const coverFileSchema = z.object({
 export interface ReadonlyDocument {
   readonly chunks: ReadonlyChunkStore;
   readonly fragmentGroups: ReadonlyFragmentGroupStore;
+  readonly graphBuildParameters: ReadonlyGraphBuildParameterStore;
   readonly readingEdges: ReadonlyReadingEdgeStore;
   readonly mentionLinks: ReadonlyMentionLinkStore;
   readonly mentions: ReadonlyMentionStore;
@@ -137,6 +140,7 @@ export interface DocumentContext {
 export interface Document extends ReadonlyDocument {
   readonly chunks: ChunkStore;
   readonly fragmentGroups: FragmentGroupStore;
+  readonly graphBuildParameters: GraphBuildParameterStore;
   readonly readingEdges: ReadingEdgeStore;
   readonly mentionLinks: MentionLinkStore;
   readonly mentions: MentionStore;
@@ -167,6 +171,7 @@ export interface Document extends ReadonlyDocument {
 export class DirectoryDocument implements Document {
   public readonly chunks: ChunkStore;
   public readonly fragmentGroups: FragmentGroupStore;
+  public readonly graphBuildParameters: GraphBuildParameterStore;
   public readonly readingEdges: ReadingEdgeStore;
   public readonly mentionLinks: MentionLinkStore;
   public readonly mentions: MentionStore;
@@ -192,6 +197,7 @@ export class DirectoryDocument implements Document {
     this.#fragments = fragments;
     this.chunks = new ChunkStore(database);
     this.fragmentGroups = new FragmentGroupStore(database);
+    this.graphBuildParameters = new GraphBuildParameterStore(database);
     this.readingEdges = new ReadingEdgeStore(database);
     this.mentionLinks = new MentionLinkStore(database);
     this.mentions = new MentionStore(database);
@@ -298,6 +304,8 @@ export class DirectoryDocument implements Document {
     await this.deleteSummary(serialId);
     await this.#deleteSerialGraphRecords(serialId);
     await this.serials.setTopologyReady(serialId, false);
+    await this.serials.setKnowledgeGraphReady(serialId, false);
+    await this.graphBuildParameters.deleteUnreferenced();
   }
 
   public async clearSerialSource(serialId: number): Promise<void> {
@@ -499,6 +507,7 @@ export class DirectoryDocument implements Document {
 
     await this.#fileStore.deleteTree(this.#fragments.getSerial(serialId).path);
     await this.deleteSummary(serialId);
+    await this.graphBuildParameters.deleteUnreferenced();
   }
 
   async #deleteSerialGraphRecords(serialId: number): Promise<void> {

@@ -8,8 +8,17 @@ export const SCHEMA_SQL = `
   CREATE TABLE IF NOT EXISTS serial_states (
     serial_id INTEGER PRIMARY KEY,
     topology_ready INTEGER NOT NULL DEFAULT 0,
+    topology_parameter_hash TEXT,
     knowledge_graph_ready INTEGER NOT NULL DEFAULT 0,
+    knowledge_graph_parameter_hash TEXT,
     FOREIGN KEY (serial_id) REFERENCES serials(id)
+  );
+
+  CREATE TABLE IF NOT EXISTS graph_build_parameters (
+    hash TEXT PRIMARY KEY,
+    prompt TEXT NOT NULL,
+    language TEXT,
+    created_at TEXT NOT NULL
   );
 
   CREATE TABLE IF NOT EXISTS chunks (
@@ -233,7 +242,34 @@ export const SCHEMA_SQL = `
 export async function initializeDocumentSchema(
   database: Database,
 ): Promise<void> {
+  await ensureGraphBuildParameterTable(database);
   await migrateSerialStateKnowledgeGraphReady(database);
+  await migrateSerialStateGraphParameterHashes(database);
+  await ensureGraphBuildParameterIndexes(database);
+}
+
+async function ensureGraphBuildParameterTable(database: Database): Promise<void> {
+  await database.run(`
+    CREATE TABLE IF NOT EXISTS graph_build_parameters (
+      hash TEXT PRIMARY KEY,
+      prompt TEXT NOT NULL,
+      language TEXT,
+      created_at TEXT NOT NULL
+    )
+  `);
+}
+
+async function ensureGraphBuildParameterIndexes(
+  database: Database,
+): Promise<void> {
+  await database.run(`
+    CREATE INDEX IF NOT EXISTS idx_serial_states_topology_parameter_hash
+    ON serial_states(topology_parameter_hash)
+  `);
+  await database.run(`
+    CREATE INDEX IF NOT EXISTS idx_serial_states_knowledge_graph_parameter_hash
+    ON serial_states(knowledge_graph_parameter_hash)
+  `);
 }
 
 async function migrateSerialStateKnowledgeGraphReady(
@@ -259,6 +295,45 @@ async function migrateSerialStateKnowledgeGraphReady(
       ALTER TABLE serial_states
       ADD COLUMN knowledge_graph_ready INTEGER NOT NULL DEFAULT 0
     `);
+  });
+}
+
+async function migrateSerialStateGraphParameterHashes(
+  database: Database,
+): Promise<void> {
+  const columns = await listTableColumns(database, "serial_states");
+  const parameterColumns = [
+    ["topology_parameter_hash", "TEXT"],
+    ["knowledge_graph_parameter_hash", "TEXT"],
+  ] as const;
+  const missingColumns: Array<(typeof parameterColumns)[number]> = [];
+
+  for (const column of parameterColumns) {
+    if (!columns.has(column[0])) {
+      missingColumns.push(column);
+    }
+  }
+
+  if (missingColumns.length === 0) {
+    return;
+  }
+
+  await database.transaction(async () => {
+    const transactionColumns = await listTableColumns(
+      database,
+      "serial_states",
+    );
+
+    for (const [name, type] of missingColumns) {
+      if (transactionColumns.has(name)) {
+        continue;
+      }
+
+      await database.run(`
+        ALTER TABLE serial_states
+        ADD COLUMN ${name} ${type}
+      `);
+    }
   });
 }
 

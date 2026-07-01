@@ -1,4 +1,11 @@
-export { Language } from "./common/language.js";
+export {
+  formatLanguageForPrompt,
+  getLanguageCode,
+  getWikipageLanguageCode,
+  Language,
+  LanguageCode,
+  normalizeLanguageCode,
+} from "./common/language.js";
 export {
   createSpineDigestTaskId,
   SpineDigestTask,

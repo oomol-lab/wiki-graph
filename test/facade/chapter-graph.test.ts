@@ -104,6 +104,16 @@ describe("facade/chapter graph", () => {
           stage: "graphed",
           words: 4,
         });
+        const serial = await document.serials.getById(chapter.chapterId);
+
+        expect(serial?.topologyParameterHash).toBeDefined();
+        await expect(
+          document.graphBuildParameters.getByHash(
+            serial!.topologyParameterHash!,
+          ),
+        ).resolves.toMatchObject({
+          prompt: "Keep key beats",
+        });
       } finally {
         await document.release();
       }
@@ -390,6 +400,9 @@ async function createSingleChunkGraphArtifact(input: {
   return {
     chapterId: input.chapterId,
     documentPath: input.documentPath,
+    parameter: {
+      prompt: "test graph prompt",
+    },
   };
 }
 

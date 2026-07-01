@@ -1,5 +1,8 @@
 import type { Document, ReadonlyDocument } from "../document/index.js";
-import type { Language } from "../common/language.js";
+import {
+  normalizeLanguageCode,
+  type Language,
+} from "../common/language.js";
 import type { SpineDigestScope } from "../common/llm-scope.js";
 import type { LLM } from "../llm/index.js";
 import type { ReaderTextStream } from "../reader/index.js";
@@ -308,6 +311,16 @@ export async function generateChapterGraph(
       sourceText,
       createTopologyOptions(options),
       options.progressTracker,
+    );
+    const language = normalizeLanguageCode(options.userLanguage);
+    const parameter = await openedDocument.graphBuildParameters.save({
+      prompt: options.extractionPrompt,
+      ...(language === undefined ? {} : { language }),
+    });
+    await openedDocument.serials.setTopologyReady(
+      chapterId,
+      true,
+      parameter.hash,
     );
     return await getChapterDetails(openedDocument, chapterId);
   });

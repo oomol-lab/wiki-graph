@@ -65,6 +65,55 @@ describe("document/stores", () => {
     });
   });
 
+  it("stores graph build parameters by canonical hash and deletes unreferenced records", async () => {
+    await withDocument(async (document) => {
+      await document.openSession(async (openedDocument) => {
+        await openedDocument.serials.createWithId(1);
+        await openedDocument.serials.createWithId(2);
+
+        const parameter = await openedDocument.graphBuildParameters.save({
+          language: "zh",
+          prompt: "抽取章节图谱",
+        });
+        const sameParameter = await openedDocument.graphBuildParameters.save({
+          language: "zh",
+          prompt: "抽取章节图谱",
+        });
+
+        expect(sameParameter.hash).toBe(parameter.hash);
+        await openedDocument.serials.setTopologyReady(
+          1,
+          true,
+          parameter.hash,
+        );
+        await openedDocument.serials.setKnowledgeGraphReady(
+          2,
+          true,
+          parameter.hash,
+        );
+
+        expect(await openedDocument.serials.getById(1)).toMatchObject({
+          topologyParameterHash: parameter.hash,
+        });
+        expect(await openedDocument.serials.getById(2)).toMatchObject({
+          knowledgeGraphParameterHash: parameter.hash,
+        });
+
+        await openedDocument.serials.setTopologyReady(1, false);
+        await openedDocument.graphBuildParameters.deleteUnreferenced();
+        await expect(
+          openedDocument.graphBuildParameters.getByHash(parameter.hash),
+        ).resolves.toBeDefined();
+
+        await openedDocument.serials.setKnowledgeGraphReady(2, false);
+        await openedDocument.graphBuildParameters.deleteUnreferenced();
+        await expect(
+          openedDocument.graphBuildParameters.getByHash(parameter.hash),
+        ).resolves.toBeUndefined();
+      });
+    });
+  });
+
   it("saves and clears mention evidence by chapter", async () => {
     await withDocument(async (document) => {
       await document.openSession(async (openedDocument) => {

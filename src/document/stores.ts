@@ -9,6 +9,7 @@ import {
   type CreateChunkRecord,
   type CreateSnakeRecord,
   type FragmentGroupRecord,
+  type GraphBuildParameterRecord,
   type ReadingEdgeRecord,
   type MentionLinkRecord,
   type MentionRecord,
@@ -18,6 +19,7 @@ import {
   type SnakeEdgeRecord,
   type SnakeRecord,
 } from "./types.js";
+import { createHash } from "../utils/hash.js";
 
 const MAX_SQL_BIND_PARAMS = 900;
 
@@ -25,6 +27,10 @@ export interface ReadonlySerialStore {
   getById(serialId: number): Promise<SerialRecord | undefined>;
   getMaxId(): Promise<number>;
   listIds(): Promise<number[]>;
+}
+
+export interface ReadonlyGraphBuildParameterStore {
+  getByHash(hash: string): Promise<GraphBuildParameterRecord | undefined>;
 }
 
 export interface ReadonlyChunkStore {
@@ -179,18 +185,16 @@ export class SerialStore implements ReadonlySerialStore {
         SELECT
           serials.id AS id,
           COALESCE(serial_states.topology_ready, 0) AS topology_ready,
-          COALESCE(serial_states.knowledge_graph_ready, 0) AS knowledge_graph_ready
+          serial_states.topology_parameter_hash AS topology_parameter_hash,
+          COALESCE(serial_states.knowledge_graph_ready, 0) AS knowledge_graph_ready,
+          serial_states.knowledge_graph_parameter_hash AS knowledge_graph_parameter_hash
         FROM serials
         LEFT JOIN serial_states
           ON serial_states.serial_id = serials.id
         WHERE serials.id = ?
       `,
       [serialId],
-      (row) => ({
-        id: getNumber(row, "id"),
-        knowledgeGraphReady: getNumber(row, "knowledge_graph_ready") !== 0,
-        topologyReady: getNumber(row, "topology_ready") !== 0,
-      }),
+      mapSerialRow,
     );
   }
 
@@ -207,30 +211,69 @@ export class SerialStore implements ReadonlySerialStore {
     return maxId ?? 0;
   }
 
-  public async setTopologyReady(serialId: number, ready = true): Promise<void> {
+  public async setTopologyReady(
+    serialId: number,
+    ready = true,
+    parameterHash?: string,
+  ): Promise<void> {
     await this.ensure(serialId);
+
+    if (ready) {
+      await this.#database.run(
+        `
+          UPDATE serial_states
+          SET
+            topology_ready = ?,
+            topology_parameter_hash = COALESCE(?, topology_parameter_hash)
+          WHERE serial_id = ?
+        `,
+        [1, parameterHash ?? null, serialId],
+      );
+      return;
+    }
+
     await this.#database.run(
       `
         UPDATE serial_states
-        SET topology_ready = ?
+        SET
+          topology_ready = ?,
+          topology_parameter_hash = NULL
         WHERE serial_id = ?
       `,
-      [ready ? 1 : 0, serialId],
+      [0, serialId],
     );
   }
 
   public async setKnowledgeGraphReady(
     serialId: number,
     ready = true,
+    parameterHash?: string,
   ): Promise<void> {
     await this.ensure(serialId);
+
+    if (ready) {
+      await this.#database.run(
+        `
+          UPDATE serial_states
+          SET
+            knowledge_graph_ready = ?,
+            knowledge_graph_parameter_hash = COALESCE(?, knowledge_graph_parameter_hash)
+          WHERE serial_id = ?
+        `,
+        [1, parameterHash ?? null, serialId],
+      );
+      return;
+    }
+
     await this.#database.run(
       `
         UPDATE serial_states
-        SET knowledge_graph_ready = ?
+        SET
+          knowledge_graph_ready = ?,
+          knowledge_graph_parameter_hash = NULL
         WHERE serial_id = ?
       `,
-      [ready ? 1 : 0, serialId],
+      [0, serialId],
     );
   }
 
@@ -244,6 +287,98 @@ export class SerialStore implements ReadonlySerialStore {
       undefined,
       (row) => getNumber(row, "id"),
     );
+  }
+}
+
+function mapSerialRow(row: SqlRow): SerialRecord {
+  const topologyParameterHash = getOptionalString(
+    row,
+    "topology_parameter_hash",
+  );
+  const knowledgeGraphParameterHash = getOptionalString(
+    row,
+    "knowledge_graph_parameter_hash",
+  );
+
+  return {
+    id: getNumber(row, "id"),
+    knowledgeGraphReady: getNumber(row, "knowledge_graph_ready") !== 0,
+    ...(knowledgeGraphParameterHash === undefined
+      ? {}
+      : { knowledgeGraphParameterHash }),
+    topologyReady: getNumber(row, "topology_ready") !== 0,
+    ...(topologyParameterHash === undefined ? {} : { topologyParameterHash }),
+  };
+}
+
+export class GraphBuildParameterStore
+  implements ReadonlyGraphBuildParameterStore
+{
+  readonly #database: Database;
+
+  public constructor(database: Database) {
+    this.#database = database;
+  }
+
+  public async save(input: {
+    readonly language?: string;
+    readonly prompt: string;
+  }): Promise<GraphBuildParameterRecord> {
+    const hash = createHash({
+      language: input.language ?? null,
+      prompt: input.prompt,
+    });
+    const createdAt = new Date().toISOString();
+
+    await this.#database.run(
+      `
+        INSERT OR IGNORE INTO graph_build_parameters (
+          hash, prompt, language, created_at
+        )
+        VALUES (?, ?, ?, ?)
+      `,
+      [hash, input.prompt, input.language ?? null, createdAt],
+    );
+
+    return (await this.getByHash(hash))!;
+  }
+
+  public async getByHash(
+    hash: string,
+  ): Promise<GraphBuildParameterRecord | undefined> {
+    return await this.#database.queryOne(
+      `
+        SELECT hash, prompt, language, created_at
+        FROM graph_build_parameters
+        WHERE hash = ?
+      `,
+      [hash],
+      (row) => {
+        const language = getOptionalString(row, "language");
+
+        return {
+          createdAt: getString(row, "created_at"),
+          hash: getString(row, "hash"),
+          ...(language === undefined ? {} : { language }),
+          prompt: getString(row, "prompt"),
+        };
+      },
+    );
+  }
+
+  public async deleteUnreferenced(): Promise<void> {
+    await this.#database.run(`
+      DELETE FROM graph_build_parameters
+      WHERE hash NOT IN (
+        SELECT topology_parameter_hash
+        FROM serial_states
+        WHERE topology_parameter_hash IS NOT NULL
+        UNION
+        SELECT knowledge_graph_parameter_hash
+        FROM serial_states
+        WHERE knowledge_graph_parameter_hash IS NOT NULL
+      )
+    `);
   }
 }
 

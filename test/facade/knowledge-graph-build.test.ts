@@ -427,13 +427,27 @@ describe("facade/knowledge-graph-build", () => {
               surface: "自由意志",
             },
           ],
+          parameter: {
+            language: "zh",
+            prompt: "只保留神学实体",
+          },
           workspacePath: `${path}/workspace`,
         });
 
         await commitChapterKnowledgeGraphArtifact(document, artifact);
 
-        expect((await document.serials.getById(1))?.knowledgeGraphReady).toBe(
-          true,
+        const serial = await document.serials.getById(1);
+        expect(serial?.knowledgeGraphReady).toBe(true);
+        expect(serial?.knowledgeGraphParameterHash).toBeDefined();
+        await expect(
+          document.graphBuildParameters.getByHash(
+            serial!.knowledgeGraphParameterHash!,
+          ),
+        ).resolves.toMatchObject(
+          {
+            language: "zh",
+            prompt: "只保留神学实体",
+          },
         );
         expect(await document.mentions.listByChapter(1)).toHaveLength(2);
         expect(await document.mentionLinks.listByChapter(1)).toStrictEqual([
@@ -489,6 +503,14 @@ describe("facade/knowledge-graph-build", () => {
         expect((await document.serials.getById(1))?.knowledgeGraphReady).toBe(
           false,
         );
+        expect(
+          (await document.serials.getById(1))?.knowledgeGraphParameterHash,
+        ).toBeUndefined();
+        await expect(
+          document.graphBuildParameters.getByHash(
+            serial!.knowledgeGraphParameterHash!,
+          ),
+        ).resolves.toBeUndefined();
         expect(await document.mentions.listByChapter(1)).toStrictEqual([]);
       } finally {
         await document.release();

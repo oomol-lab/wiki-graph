@@ -13,6 +13,7 @@ import type {
   ReadonlyChunkStore,
   ReadonlyDocument,
   ReadonlyFragmentGroupStore,
+  ReadonlyGraphBuildParameterStore,
   ReadonlyReadingEdgeStore,
   ReadonlyMentionLinkStore,
   ReadonlyMentionStore,
@@ -29,6 +30,7 @@ import type {
 } from "../document/index.js";
 import { DirectoryDocument } from "../document/index.js";
 import { SPINE_DIGEST_EDITOR_SCOPES } from "../common/llm-scope.js";
+import { normalizeLanguageCode } from "../common/language.js";
 import { compressText } from "../editor/index.js";
 import type { ReaderTextStream } from "../reader/index.js";
 import {
@@ -47,6 +49,12 @@ import {
 export interface ChapterGraphBuildArtifact {
   readonly documentPath: string;
   readonly chapterId: number;
+  readonly parameter: GraphBuildParameterInput;
+}
+
+export interface GraphBuildParameterInput {
+  readonly language?: string;
+  readonly prompt: string;
 }
 
 export interface ChapterSummaryInputSnapshot {
@@ -82,8 +90,20 @@ const fragmentRecordSchema = z.object({
 const serialRecordSchema = z.object({
   id: z.number(),
   knowledgeGraphReady: z.boolean(),
+  knowledgeGraphParameterHash: z.string().optional(),
+  topologyParameterHash: z.string().optional(),
   topologyReady: z.boolean(),
-}) satisfies z.ZodType<SerialRecord>;
+}).transform((record) => ({
+  id: record.id,
+  knowledgeGraphReady: record.knowledgeGraphReady,
+  ...(record.knowledgeGraphParameterHash === undefined
+    ? {}
+    : { knowledgeGraphParameterHash: record.knowledgeGraphParameterHash }),
+  topologyReady: record.topologyReady,
+  ...(record.topologyParameterHash === undefined
+    ? {}
+    : { topologyParameterHash: record.topologyParameterHash }),
+})) satisfies z.ZodType<SerialRecord>;
 const chunkRecordSchema = z.object({
   id: z.number(),
   generation: z.number(),
@@ -200,6 +220,7 @@ export async function buildChapterGraphArtifact(
   return {
     chapterId,
     documentPath,
+    parameter: createGraphBuildParameterInput(options),
   };
 }
 
@@ -252,7 +273,14 @@ export async function commitChapterGraphArtifact(
         artifact.chapterId,
         chunkIdMap,
       );
-      await openedDocument.serials.setTopologyReady(artifact.chapterId);
+      const parameter = await openedDocument.graphBuildParameters.save(
+        artifact.parameter,
+      );
+      await openedDocument.serials.setTopologyReady(
+        artifact.chapterId,
+        true,
+        parameter.hash,
+      );
     });
 
     return await getChapterDetails(document, artifact.chapterId);
@@ -601,6 +629,7 @@ async function writeSummaryInputSnapshot(
 class SummaryInputSnapshotDocument implements ReadonlyDocument {
   public readonly chunks: ReadonlyChunkStore;
   public readonly fragmentGroups: ReadonlyFragmentGroupStore;
+  public readonly graphBuildParameters: ReadonlyGraphBuildParameterStore;
   public readonly readingEdges: ReadonlyReadingEdgeStore;
   public readonly mentionLinks: ReadonlyMentionLinkStore;
   public readonly mentions: ReadonlyMentionStore;
@@ -617,6 +646,7 @@ class SummaryInputSnapshotDocument implements ReadonlyDocument {
     this.fragmentGroups = new SnapshotFragmentGroupStore(
       snapshot.fragmentGroups,
     );
+    this.graphBuildParameters = new EmptySnapshotGraphBuildParameterStore();
     this.readingEdges = new SnapshotReadingEdgeStore(
       snapshot.readingEdges,
       snapshot.chunks,
@@ -725,6 +755,14 @@ class EmptySnapshotMentionLinkStore implements ReadonlyMentionLinkStore {
 
   public listByChapter(_chapterId: number): Promise<MentionLinkRecord[]> {
     return Promise.resolve([]);
+  }
+}
+
+class EmptySnapshotGraphBuildParameterStore
+  implements ReadonlyGraphBuildParameterStore
+{
+  public getByHash(_hash: string): Promise<undefined> {
+    return Promise.resolve(undefined);
   }
 }
 
@@ -1132,6 +1170,20 @@ function createTopologyOptions(
     ...(options.userLanguage === undefined
       ? {}
       : { userLanguage: options.userLanguage }),
+  };
+}
+
+function createGraphBuildParameterInput(
+  options: Pick<
+    BuildSerialTopologyOptions,
+    "extractionPrompt" | "userLanguage"
+  >,
+): GraphBuildParameterInput {
+  const language = normalizeLanguageCode(options.userLanguage);
+
+  return {
+    ...(language === undefined ? {} : { language }),
+    prompt: options.extractionPrompt,
   };
 }
 
