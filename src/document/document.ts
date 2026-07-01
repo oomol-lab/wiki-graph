@@ -13,7 +13,7 @@ import {
   type ReadonlySerialFragments,
   type SerialFragments,
 } from "./fragments.js";
-import { SCHEMA_SQL } from "./schema.js";
+import { initializeDocumentSchema, SCHEMA_SQL } from "./schema.js";
 import {
   ChunkStore,
   FragmentGroupStore,
@@ -226,11 +226,16 @@ export class DirectoryDocument implements Document {
       await fileStore.ensureDirectory(resolvedDocumentPath);
       await fragments.ensureCreated();
 
+      const shouldInitializeDatabaseSchema =
+        fileStore.initializeDatabaseSchema();
       const database = await Database.open(
         databasePath,
-        fileStore.initializeDatabaseSchema() ? SCHEMA_SQL : "",
+        shouldInitializeDatabaseSchema ? SCHEMA_SQL : "",
         { readonly: fileStore.openDatabaseReadonly() },
       );
+      if (shouldInitializeDatabaseSchema) {
+        await initializeDocumentSchema(database);
+      }
 
       const document = new DirectoryDocument(
         database,

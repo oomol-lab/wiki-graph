@@ -1,9 +1,65 @@
 import { describe, expect, it } from "vitest";
 
-import { Database, SCHEMA_SQL } from "../../src/document/index.js";
+import {
+  Database,
+  DirectoryDocument,
+  SCHEMA_SQL,
+} from "../../src/document/index.js";
 import { withTempDir } from "../helpers/temp.js";
 
 describe("document/wiki-graph-schema", () => {
+  it("migrates serial state knowledge graph readiness", async () => {
+    await withTempDir("spinedigest-wiki-graph-schema-", async (path) => {
+      const database = await Database.open(`${path}/database.db`);
+
+      try {
+        await database.run(`
+          CREATE TABLE serials (
+            id INTEGER PRIMARY KEY
+          )
+        `);
+        await database.run(`
+          CREATE TABLE serial_states (
+            serial_id INTEGER PRIMARY KEY,
+            topology_ready INTEGER NOT NULL DEFAULT 0,
+            FOREIGN KEY (serial_id) REFERENCES serials(id)
+          )
+        `);
+        await database.run("INSERT INTO serials (id) VALUES (1)");
+        await database.run(
+          "INSERT INTO serial_states (serial_id, topology_ready) VALUES (1, 1)",
+        );
+      } finally {
+        await database.close();
+      }
+
+      const document = await DirectoryDocument.open(path);
+
+      try {
+        await document.openSession(async (openedDocument) => {
+          await expect(
+            openedDocument.serials.getById(1),
+          ).resolves.toStrictEqual({
+            id: 1,
+            knowledgeGraphReady: false,
+            topologyReady: true,
+          });
+
+          await openedDocument.serials.setKnowledgeGraphReady(1);
+          await expect(
+            openedDocument.serials.getById(1),
+          ).resolves.toStrictEqual({
+            id: 1,
+            knowledgeGraphReady: true,
+            topologyReady: true,
+          });
+        });
+      } finally {
+        await document.release();
+      }
+    });
+  });
+
   it("creates mention evidence tables, indexes, and entity relation views", async () => {
     await withTempDir("spinedigest-wiki-graph-schema-", async (path) => {
       const database = await Database.open(`${path}/database.db`, SCHEMA_SQL);
