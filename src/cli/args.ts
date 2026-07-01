@@ -18,6 +18,7 @@ import {
   renderArchiveMaintenanceCommandHelpText,
   renderHelpMatrixText,
   renderHelpTopicText,
+  renderLegacyCommandHelpText,
   renderMainHelpText,
   renderQueueCommandHelpText,
   renderArchiveMaintenanceChapterActionHelpText,
@@ -111,6 +112,12 @@ export interface CLIArchiveChapterArguments {
 
 export interface CLIStatusArguments {
   readonly llmJSON?: string;
+}
+
+export interface CLILegacyArguments {
+  readonly action: "migrate";
+  readonly inputPath: string;
+  readonly outputPath?: string;
 }
 
 export type CLIQueueAction =
@@ -327,6 +334,11 @@ export type ParsedCLIArguments =
       readonly help: true;
       readonly helpText: string;
       readonly kind: "config-status";
+    }
+  | {
+      readonly args: CLILegacyArguments;
+      readonly help: false;
+      readonly kind: "legacy";
     };
 
 export function parseCLIArguments(
@@ -540,6 +552,10 @@ export function parseCLIArguments(
     return parseQueueArguments(positionals.slice(1), values);
   }
 
+  if (positionals[0] === "legacy") {
+    return parseLegacyArguments(positionals.slice(1), values);
+  }
+
   if (positionals[0] === "transform") {
     return parseTransformArguments(positionals.slice(1), values);
   }
@@ -578,6 +594,9 @@ export function parseCLIArguments(
 
   if (positionals.length === 0) {
     throw new Error(withHelpRoute("Missing command.", CLI_HELP_ROUTES.command));
+  }
+  if (positionals.some((positional) => looksLikeSdpubPath(positional))) {
+    throw new Error(formatLegacySdpubPathMessage());
   }
   throw new Error(formatUnknownCommandMessage(positionals[0]!));
 }
@@ -1765,6 +1784,97 @@ function parseConfigArguments(
   return parseConfigStatusArguments(positionals.slice(1), values);
 }
 
+function parseLegacyArguments(
+  positionals: readonly string[],
+  values: ArchiveArgumentValues,
+): ParsedCLIArguments {
+  const action = positionals[0];
+
+  if (values.help === true && action === undefined) {
+    return {
+      help: true,
+      helpText: renderLegacyCommandHelpText(),
+      kind: "help",
+    };
+  }
+  if (action === "migrate") {
+    if (values.help === true) {
+      return {
+        help: true,
+        helpText: renderLegacyCommandHelpText("migrate"),
+        kind: "help",
+      };
+    }
+
+    rejectLegacyFlag("--input", values.input);
+    rejectLegacyFlag("--input-format", values["input-format"]);
+    rejectLegacyFlag("--output-format", values["output-format"]);
+    rejectLegacyFlag("--llm", values.llm);
+    rejectLegacyFlag("--prompt", values.prompt);
+    rejectLegacyBooleanFlag("--json", values.json);
+    rejectLegacyBooleanFlag("--jsonl", values.jsonl);
+    rejectLegacyBooleanFlag("--verbose", values.verbose);
+
+    const inputPath = positionals[1];
+
+    if (inputPath === undefined) {
+      throw new Error(
+        withHelpRoute(
+          "Missing legacy input path.",
+          "wikigraph legacy migrate --help",
+        ),
+      );
+    }
+    if (positionals.length > 2) {
+      throw new Error(
+        withHelpRoute(
+          `Unexpected positional arguments: ${positionals.slice(2).join(" ")}.`,
+          "wikigraph legacy migrate --help",
+        ),
+      );
+    }
+
+    return {
+      args: {
+        action,
+        inputPath,
+        ...(values.output === undefined ? {} : { outputPath: values.output }),
+      },
+      help: false,
+      kind: "legacy",
+    };
+  }
+
+  throw new Error(
+    withHelpRoute(
+      action === undefined
+        ? "Missing legacy command."
+        : `Invalid legacy command: ${action}.`,
+      "wikigraph legacy --help",
+    ),
+  );
+}
+
+function rejectLegacyFlag(flag: string, value: unknown): void {
+  if (value !== undefined) {
+    throw new Error(
+      withHelpRoute(
+        `\`wikigraph legacy migrate\` does not support ${flag}.`,
+        "wikigraph legacy migrate --help",
+      ),
+    );
+  }
+}
+
+function rejectLegacyBooleanFlag(
+  flag: string,
+  value: boolean | undefined,
+): void {
+  if (value === true) {
+    rejectLegacyFlag(flag, value);
+  }
+}
+
 function parseQueueArguments(
   positionals: readonly string[],
   values: ArchiveArgumentValues,
@@ -2543,6 +2653,9 @@ function validateArchiveCommandUriInput(
     return;
   }
 
+  if (looksLikeSdpubPath(value)) {
+    throw new Error(formatLegacySdpubPathMessage());
+  }
   if (!looksLikeWikgPath(value)) {
     return;
   }
@@ -2635,11 +2748,31 @@ function getRelatedObjectUriType(
 }
 
 function formatUnknownCommandMessage(command: string): string {
+  if (looksLikeSdpubPath(command)) {
+    return formatLegacySdpubPathMessage();
+  }
   if (looksLikeWikgPath(command)) {
     return formatPathAsUriMessage(command);
   }
 
   return withHelpRoute(`Unknown command: ${command}.`, CLI_HELP_ROUTES.command);
+}
+
+function formatLegacySdpubPathMessage(): string {
+  return withHelpRoute(
+    "Legacy .sdpub archives must be migrated first.",
+    "wikigraph legacy migrate --help",
+  );
+}
+
+function looksLikeSdpubPath(value: string): boolean {
+  const normalized = normalizeWikgPathSeparators(value);
+
+  return (
+    normalized.endsWith(".sdpub") ||
+    normalized.includes(".sdpub/") ||
+    normalized.includes(".sdpub#")
+  );
 }
 
 function looksLikeWikgPath(value: string): boolean {

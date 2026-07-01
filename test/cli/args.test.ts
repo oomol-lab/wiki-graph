@@ -9,6 +9,7 @@ import {
   renderArchiveMaintenanceCommandHelpText,
   renderHelpMatrixText,
   renderHelpTopicText,
+  renderLegacyCommandHelpText,
   renderMainHelpText,
   renderQueueCommandHelpText,
   renderStatusHelpText,
@@ -56,6 +57,52 @@ describe("cli/args", () => {
       "Command: wikigraph <archive-uri> create",
     );
     expect(createHelp.helpText).toContain("stdin: supported");
+  });
+
+  it("parses legacy migration commands", () => {
+    expect(parseCLIArguments(["legacy", "--help"])).toStrictEqual({
+      help: true,
+      helpText: renderLegacyCommandHelpText(),
+      kind: "help",
+    });
+    expect(parseCLIArguments(["legacy", "migrate", "--help"])).toStrictEqual({
+      help: true,
+      helpText: renderLegacyCommandHelpText("migrate"),
+      kind: "help",
+    });
+    expect(
+      parseCLIArguments(["legacy", "migrate", "book.sdpub"]),
+    ).toStrictEqual({
+      args: {
+        action: "migrate",
+        inputPath: "book.sdpub",
+      },
+      help: false,
+      kind: "legacy",
+    });
+    expect(
+      parseCLIArguments([
+        "legacy",
+        "migrate",
+        "book.sdpub",
+        "--output",
+        "book.wikg",
+      ]),
+    ).toStrictEqual({
+      args: {
+        action: "migrate",
+        inputPath: "book.sdpub",
+        outputPath: "book.wikg",
+      },
+      help: false,
+      kind: "legacy",
+    });
+    expect(() => parseCLIArguments(["book.sdpub"])).toThrow(
+      "Legacy .sdpub archives must be migrated first.\nSee: wikigraph legacy migrate --help",
+    );
+    expect(() => parseCLIArguments(["search", "book.sdpub", "query"])).toThrow(
+      "Legacy .sdpub archives must be migrated first.\nSee: wikigraph legacy migrate --help",
+    );
   });
 
   it("renders archive-first stdin create recipes", () => {

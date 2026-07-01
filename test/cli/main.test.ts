@@ -18,12 +18,14 @@ const mainMockState = vi.hoisted(() => ({
   archiveChapterRunCalls: [] as unknown[],
   archiveCoverRunCalls: [] as unknown[],
   archiveMetaRunCalls: [] as unknown[],
+  legacyRunCalls: [] as unknown[],
   archiveRunError: undefined as Error | undefined,
   convertRunError: undefined as Error | undefined,
   statusRunError: undefined as Error | undefined,
   archiveChapterRunError: undefined as Error | undefined,
   archiveCoverRunError: undefined as Error | undefined,
   archiveMetaRunError: undefined as Error | undefined,
+  legacyRunError: undefined as Error | undefined,
 }));
 
 vi.mock("../../src/cli/args.js", () => ({
@@ -106,6 +108,18 @@ vi.mock("../../src/cli/archive-chapter.js", () => ({
   }),
 }));
 
+vi.mock("../../src/cli/legacy.js", () => ({
+  runLegacyCommand: vi.fn((args: unknown) => {
+    mainMockState.legacyRunCalls.push(args);
+
+    if (mainMockState.legacyRunError !== undefined) {
+      return Promise.reject(mainMockState.legacyRunError);
+    }
+
+    return Promise.resolve();
+  }),
+}));
+
 import { main } from "../../src/cli/main.js";
 import { renderMainHelpText } from "../../src/cli/help.js";
 import { LLMPaymentRequiredError } from "../../src/llm/index.js";
@@ -136,12 +150,14 @@ describe("cli/main", () => {
     mainMockState.archiveChapterRunCalls.length = 0;
     mainMockState.archiveCoverRunCalls.length = 0;
     mainMockState.archiveMetaRunCalls.length = 0;
+    mainMockState.legacyRunCalls.length = 0;
     mainMockState.archiveRunError = undefined;
     mainMockState.convertRunError = undefined;
     mainMockState.statusRunError = undefined;
     mainMockState.archiveChapterRunError = undefined;
     mainMockState.archiveCoverRunError = undefined;
     mainMockState.archiveMetaRunError = undefined;
+    mainMockState.legacyRunError = undefined;
     process.exitCode = 0;
     process.argv = ["node", "wikigraph"];
     setStdinTTY(false);
@@ -248,6 +264,32 @@ describe("cli/main", () => {
     ]);
     expect(mainMockState.archiveRunCalls).toHaveLength(0);
     expect(mainMockState.archiveMetaRunCalls).toHaveLength(0);
+    expect(stdoutChunks).toStrictEqual([]);
+    expect(stderrChunks).toStrictEqual([]);
+    expect(process.exitCode).toBe(0);
+  });
+
+  it("runs the legacy command for migration", async () => {
+    mainMockState.argsResult = {
+      args: {
+        action: "migrate",
+        inputPath: "/tmp/book.sdpub",
+        outputPath: "/tmp/book.wikg",
+      },
+      help: false,
+      kind: "legacy",
+    };
+
+    await main();
+
+    expect(mainMockState.legacyRunCalls).toStrictEqual([
+      {
+        action: "migrate",
+        inputPath: "/tmp/book.sdpub",
+        outputPath: "/tmp/book.wikg",
+      },
+    ]);
+    expect(mainMockState.archiveRunCalls).toHaveLength(0);
     expect(stdoutChunks).toStrictEqual([]);
     expect(stderrChunks).toStrictEqual([]);
     expect(process.exitCode).toBe(0);

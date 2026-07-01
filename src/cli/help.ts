@@ -801,6 +801,14 @@ export function renderTransformHelpText(): string {
   return renderHelpTemplate("help/commands/transform");
 }
 
+export function renderLegacyCommandHelpText(action?: "migrate"): string {
+  return renderHelpTemplate(
+    action === undefined
+      ? "help/commands/legacy"
+      : `help/commands/legacy/${action}`,
+  );
+}
+
 export function renderQueueCommandHelpText(action?: CLIQueueAction): string {
   return renderHelpTemplate(
     action === undefined

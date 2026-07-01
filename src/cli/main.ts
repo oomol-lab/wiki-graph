@@ -6,6 +6,7 @@ import {
   runArchiveMetaCommand,
 } from "./archive-maintenance.js";
 import { runConvertCommand } from "./convert.js";
+import { runLegacyCommand } from "./legacy.js";
 import { renderMainHelpText } from "./help.js";
 import { runQueueCommand } from "./queue.js";
 import { runStatusCommand } from "./status.js";
@@ -49,6 +50,9 @@ export async function main(): Promise<void> {
         return;
       case "queue":
         await runQueueCommand(parsed.args);
+        return;
+      case "legacy":
+        await runLegacyCommand(parsed.args);
         return;
       case "config-status":
         await runStatusCommand(parsed.args);
