@@ -26,7 +26,6 @@ import {
   type ArchiveListItem,
   type ArchivePack,
   type ArchivePage,
-  type ChapterStage,
   type ContinuationCursor,
 } from "../facade/index.js";
 import {
@@ -50,7 +49,8 @@ const PLAIN_OBJECT_KEY_PRIORITY = [
   "title",
   "label",
   "labels",
-  "stage",
+  "state",
+  "value",
   "authors",
   "publisher",
   "description",
@@ -66,12 +66,13 @@ interface ArchiveOutputObject {
   readonly predicate?: string;
   readonly publisher?: string;
   readonly score?: number;
-  readonly stage?: string;
+  readonly state?: Record<string, string>;
   readonly subjectLabel?: string;
   readonly text?: string;
   readonly title?: string;
   readonly type?: string;
   readonly uri: string;
+  readonly value?: string;
 }
 
 interface ArchiveOutputBacklinks {
@@ -154,13 +155,28 @@ export async function runArchiveCommand(
       await readArchiveDocument(
         getArchivePath(args.archivePath),
         async (document) => {
+          const context = createArchiveOutputContext(args);
+
+          if (args.all === true) {
+            await writeAllFindHits(
+              async (cursor) =>
+                await findArchiveObjects(document, args.query!, {
+                  ...createFindOptions(args),
+                  ...(cursor === undefined ? {} : { cursor }),
+                }),
+              context,
+              args.format ?? "text",
+            );
+            return;
+          }
+
           await writeFindHits(
             await findArchiveObjects(
               document,
               args.query!,
               createFindOptions(args),
             ),
-            createArchiveOutputContext(args),
+            context,
             args.format ?? "text",
           );
         },
@@ -170,6 +186,25 @@ export async function runArchiveCommand(
       await readArchiveDocument(
         getArchivePath(args.archivePath),
         async (document) => {
+          const context = createArchiveOutputContext(args, {
+            continuationKind: "collection",
+          });
+
+          if (args.all === true) {
+            await writeAllFindHits(
+              async (cursor) =>
+                createCollectionFindResult(
+                  await listArchiveCollection(document, {
+                    ...createCollectionOptions(args),
+                    ...(cursor === undefined ? {} : { cursor }),
+                  }),
+                ),
+              context,
+              args.format ?? "text",
+            );
+            return;
+          }
+
           await writeFindHits(
             createCollectionFindResult(
               await listArchiveCollection(
@@ -177,9 +212,7 @@ export async function runArchiveCommand(
                 createCollectionOptions(args),
               ),
             ),
-            createArchiveOutputContext(args, {
-              continuationKind: "collection",
-            }),
+            context,
             args.format ?? "text",
           );
         },
@@ -813,7 +846,9 @@ async function writeList(
     return;
   }
 
-  await writeTextToStdout(`${objects.map(formatFindObject).join("\n\n")}\n`);
+  await writeTextToStdout(
+    `${objects.map(formatFindObject).join(getListObjectSeparator(objects))}\n`,
+  );
 }
 
 async function createListObject(
@@ -903,13 +938,100 @@ async function writeFindHits(
     return;
   }
 
+  const outputObjects = coalesceTextStreamObjects(objects);
+
   await writeTextToStdout(
-    `${coalesceTextStreamObjects(objects)
+    `${outputObjects
       .map((object) => formatFindObject(object))
       .join(
-        "\n\n",
+        getListObjectSeparator(outputObjects),
       )}${formatNextCursor(nextCursor)}${formatFindLensHint(result)}\n`,
   );
+}
+
+async function writeAllFindHits(
+  readPage: (cursor: string | undefined) => Promise<ArchiveFindResult>,
+  context: ArchiveOutputContext,
+  format: ResultFormat,
+): Promise<void> {
+  const pages: ArchiveFindResult[] = [];
+  let cursor: string | undefined;
+
+  while (true) {
+    const page = await readPage(cursor);
+
+    if (format === "jsonl") {
+      await writeFindHitsWithoutContinuation(page, context, format);
+    } else {
+      pages.push(page);
+    }
+
+    if (page.nextCursor === null) {
+      break;
+    }
+
+    cursor = page.nextCursor;
+  }
+
+  if (format === "jsonl") {
+    return;
+  }
+
+  const merged = mergeFindResultPages(pages);
+  await writeFindHitsWithoutContinuation(merged, context, format);
+}
+
+async function writeFindHitsWithoutContinuation(
+  result: ArchiveFindResult,
+  context: ArchiveOutputContext,
+  format: ResultFormat,
+): Promise<void> {
+  const objects = await Promise.all(
+    result.items.map(async (item) => await createFindObject(item, context)),
+  );
+
+  if (format === "json") {
+    await writeTextToStdout(
+      formatCLIJSON(createObjectResultPage(objects, null, result.limit)),
+    );
+    return;
+  }
+  if (format === "jsonl") {
+    await writeJSONL(objects);
+    return;
+  }
+
+  if (objects.length === 0) {
+    await writeTextToStdout(formatNoMatches(result));
+    return;
+  }
+
+  const outputObjects = coalesceTextStreamObjects(objects);
+
+  await writeTextToStdout(
+    `${outputObjects
+      .map((object) => formatFindObject(object))
+      .join(
+        getListObjectSeparator(outputObjects),
+      )}${formatFindLensHint(result)}\n`,
+  );
+}
+
+function mergeFindResultPages(
+  pages: readonly ArchiveFindResult[],
+): ArchiveFindResult {
+  const [first] = pages;
+
+  if (first === undefined) {
+    throw new Error("Internal error: no result pages were loaded.");
+  }
+
+  return {
+    ...first,
+    items: pages.flatMap((page) => page.items),
+    limit: pages.reduce((total, page) => total + page.items.length, 0),
+    nextCursor: null,
+  };
 }
 
 function coalesceTextStreamObjects(
@@ -1080,7 +1202,9 @@ async function writePage(
   switch (page.type) {
     case "chapter":
       await writeTextToStdout(
-        `${formatPlainObject(await createPageObject(page, context))}\n`,
+        `${formatChapterObjectText(
+          (await createPageObject(page, context)) as ArchiveOutputObject,
+        )}\n`,
       );
       return;
     case "meta":
@@ -1090,7 +1214,7 @@ async function writePage(
       return;
     case "state":
       await writeTextToStdout(
-        `${formatPlainObject(await createPageObject(page, context))}\n`,
+        `${formatStatePageText(await createPageObject(page, context))}\n`,
       );
       return;
     case "fragment":
@@ -1305,7 +1429,7 @@ async function createFindObject(
 
   if (hit.type === "chapter") {
     return {
-      ...(hit.stage === undefined ? {} : { stage: formatStage(hit.stage) }),
+      ...(hit.state === undefined ? {} : { state: hit.state }),
       title: hit.title,
       uri,
     };
@@ -1456,7 +1580,7 @@ async function createPageObject(
       };
     case "chapter": {
       return {
-        stage: formatStage(page.stage),
+        state: page.state,
         title: page.title,
         uri: toWikiGraphUri(page.id),
       };
@@ -1506,9 +1630,11 @@ async function createPageObject(
       return { ...rest, uri: toWikiGraphUri(page.id) };
     }
     case "state": {
-      const { id: _id, ...rest } = page;
+      if ("state" in page) {
+        return { ...page.state, uri: toWikiGraphUri(page.id) };
+      }
 
-      return { ...rest, uri: toWikiGraphUri(page.id) };
+      return { uri: toWikiGraphUri(page.id), value: page.value };
     }
     case "node": {
       const { id: _id, ...rest } = page;
@@ -1616,13 +1742,39 @@ function formatObjectSummaryLines(object: ArchiveOutputObject): string[] {
     return [object.uri, formatTripleObjectLabel(object)];
   }
 
+  if (isChapterStateListObject(object)) {
+    return [
+      [object.uri, object.title, formatStateInline(object.state)]
+        .filter((part): part is string => part !== undefined && part !== "")
+        .join("  "),
+    ];
+  }
+
   return [
     object.uri,
     object.title,
     object.label,
-    object.stage === undefined ? undefined : `stage: ${object.stage}`,
+    object.state === undefined ? undefined : formatStateInline(object.state),
     object.evidence === undefined ? object.text : undefined,
   ].filter((line): line is string => line !== undefined && line !== "");
+}
+
+function getListObjectSeparator(
+  objects: readonly ArchiveOutputObject[],
+): string {
+  return objects.every(isChapterStateListObject) ? "\n" : "\n\n";
+}
+
+function isChapterStateListObject(
+  object: ArchiveOutputObject,
+): object is ArchiveOutputObject & {
+  readonly state: Record<string, string>;
+} {
+  return (
+    object.state !== undefined &&
+    object.uri.startsWith("wkg://chapter/") &&
+    !object.uri.includes("/state")
+  );
 }
 
 function formatTripleObjectLabel(object: ArchiveOutputObject): string {
@@ -1670,6 +1822,65 @@ function formatPlainObject(value: unknown): string {
     .sort(([left], [right]) => comparePlainObjectKeys(left, right))
     .map(([key, item]) => `${key}: ${formatPlainValue(item)}`)
     .join("\n");
+}
+
+function formatStatePageText(value: unknown): string {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    return String(value);
+  }
+
+  const object = value as {
+    readonly state?: Record<string, string>;
+    readonly uri?: string;
+    readonly value?: string;
+  };
+
+  if (object.value !== undefined) {
+    return `${object.uri ?? "state"} ${object.value}`;
+  }
+
+  if (object.state !== undefined) {
+    return [object.uri, formatStateBlock(object.state)]
+      .filter((line): line is string => line !== undefined && line !== "")
+      .join("\n");
+  }
+
+  return formatPlainObject(value);
+}
+
+function formatChapterObjectText(object: ArchiveOutputObject): string {
+  if (isChapterStateListObject(object)) {
+    return formatObjectSummaryLines(object).join("\n");
+  }
+
+  return formatPlainObject(object);
+}
+
+function formatStateBlock(state: Record<string, string>): string {
+  return formatStateEntries(state)
+    .map(([key, value]) => `${key}: ${value}`)
+    .join("\n");
+}
+
+function formatStateInline(state: Record<string, string>): string {
+  return formatStateEntries(state)
+    .map(([key, value]) => `${key}:${value}`)
+    .join(" ");
+}
+
+function formatStateEntries(
+  state: Record<string, string>,
+): readonly (readonly [string, string])[] {
+  const entries: readonly (readonly [string, string | undefined])[] = [
+    ["source", state.source],
+    ["reading-graph", state["reading-graph"]],
+    ["reading-summary", state["reading-summary"]],
+    ["knowledge-graph", state["knowledge-graph"]],
+  ];
+
+  return entries.filter(
+    (entry): entry is readonly [string, string] => entry[1] !== undefined,
+  );
 }
 
 function comparePlainObjectKeys(left: string, right: string): number {
@@ -1996,19 +2207,6 @@ function isUrl(value: string): boolean {
 
 function formatFetchedUrlSource(url: string, text: string): string {
   return [`# ${url}`, "", text].join("\n");
-}
-
-function formatStage(stage: ChapterStage): string {
-  switch (stage) {
-    case "planned":
-      return "planned";
-    case "sourced":
-      return "source";
-    case "graphed":
-      return "reading-graph";
-    case "summarized":
-      return "reading-summary";
-  }
 }
 
 function formatEstimateStage(stage: ArchiveEstimate["targetStage"]): string {

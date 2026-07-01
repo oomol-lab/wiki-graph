@@ -14,10 +14,9 @@ wikigraph wkg-job://<job-id> <action> ...
 ```bash
 wikigraph <archive-uri> create [source] [--input-format <format>] [--llm <json>] [--prompt <text>]
 wikigraph <archive-uri> estimate [--stage <source|reading-graph|reading-summary>] [--json]
-wikigraph <archive-uri>/state get [--json]
-wikigraph <located-wkg-uri> search <query> [--limit <n>] [--cursor <token>] [--json|--jsonl]
-wikigraph <located-wkg-uri>/<chapter|entity|triple|source|summary|chunk> search <query> [--limit <n>] [--cursor <token>] [--json|--jsonl]
-wikigraph <located-wkg-uri>/<chapter|entity|triple|source|summary|chunk> list [--limit <n>] [--cursor <token>] [--json|--jsonl]
+wikigraph <located-wkg-uri> search <query> [--all] [--limit <n>] [--cursor <token>] [--json|--jsonl]
+wikigraph <located-wkg-uri>/<chapter|entity|triple|source|summary|chunk> search <query> [--all] [--limit <n>] [--cursor <token>] [--json|--jsonl]
+wikigraph <located-wkg-uri>/<chapter|entity|triple|source|summary|chunk> list [--all] [--limit <n>] [--cursor <token>] [--json|--jsonl]
 wikigraph <object-uri> get [--json|--jsonl]
 wikigraph <chunk-uri> related [query] [--evidence [n]] [--json|--jsonl]
 wikigraph <entity-uri> related [query] [--role <any|subject|object|self>] [--evidence [n]] [--json|--jsonl]
@@ -47,6 +46,8 @@ Search and collection behavior:
 - For content understanding, choose a search lens in the URI: `<archive-uri>/chunk` for Reading Graph structure, `<archive-uri>/summary` for quick overview, `<archive-uri>/source` for original source wording, or `<archive-uri>/entity` and `<archive-uri>/triple` for Knowledge Graph objects.
 - Use a chapter scope URI such as `wkg:///Users/me/book.wikg/chapter/12` to keep search or list local to one chapter.
 - `--limit` defaults to `20`; pass returned `nextCursor` back through `--cursor` for the next page.
+- Use `--all --jsonl` to stream every `search` or `list` page. With `--all`, `--limit` controls page size.
+- Avoid `--all` without `--jsonl` for large results because it buffers all result objects before printing.
 - Search does not do semantic expansion, stemming, or vector search.
 - Read `wikigraph help uri` for the URI grammar and object boundary rules.
 
@@ -111,7 +112,8 @@ Maintenance commands use URI targets:
 ```bash
 wikigraph <archive-uri> get|set [metadata options]
 wikigraph <cover-uri> get
-wikigraph <archive-uri>/chapter list|add [options]
+wikigraph <archive-uri>/chapter list [--all] [--limit <n>] [--cursor <token>] [--json|--jsonl]
+wikigraph <archive-uri>/chapter add [options]
 wikigraph <chapter-uri>/state get [--json]
 wikigraph <chapter-uri> move|remove|reset [options]
 wikigraph <chapter-uri>/source set [--input <path>] --input-format <format>
@@ -122,7 +124,7 @@ wikigraph <archive-uri>/chapter/tree get|set [options]
 
 Use URI-first commands for routine exploration. `<archive-uri>/chapter/tree get` is read-only structure inspection and prints a stable JSON tree with `title: null` for untitled chapters. `<archive-uri>/chapter/tree set` can reorder chapters and change titles when `title` is present.
 
-`wikigraph config status` prints configuration status. `wikigraph <archive-uri>/state get` prints archive state.
+`wikigraph config status` prints configuration status.
 
 ## Standard Stream Rules
 

@@ -64,6 +64,7 @@ type ChapterStateTarget =
   | "reading-summary"
   | "source";
 type ChapterStateValue = "missing" | "ready";
+type ChapterState = Record<ChapterStateTarget, ChapterStateValue>;
 
 export type ArchiveCollectionType =
   | "chapter"
@@ -118,7 +119,7 @@ export interface ArchiveFindHit {
   readonly position?: ArchiveFindPosition;
   readonly score?: number;
   readonly snippet: string;
-  readonly stage?: ChapterEntry["stage"];
+  readonly state?: ChapterState;
   readonly title: string;
   readonly triple?: {
     readonly objectLabel: string;
@@ -259,6 +260,7 @@ export type ArchiveListItem =
       readonly id: string;
       readonly label: string;
       readonly score?: number;
+      readonly state?: ChapterState;
       readonly summary: string;
       readonly type: Exclude<ArchiveObjectType, "triple">;
     }
@@ -280,7 +282,7 @@ export type ArchiveListItem =
 export type ArchivePage =
   | {
       readonly id: string;
-      readonly stage: ChapterEntry["stage"];
+      readonly state: ChapterState;
       readonly title: string;
       readonly type: "chapter";
     }
@@ -351,24 +353,14 @@ export type ArchivePage =
     }
   | {
       readonly id: string;
-      readonly state:
-        | {
-            readonly archive: ArchiveIndex;
-            readonly kind: "archive";
-          }
-        | {
-            readonly chapter: ChapterEntry;
-            readonly kind: "chapter";
-            readonly targets: Record<ChapterStateTarget, ChapterStateValue>;
-          }
-        | {
-            readonly chapter: ChapterEntry;
-            readonly kind: "chapter-target";
-            readonly target: ChapterStateTarget;
-            readonly value: ChapterStateValue;
-          };
-      readonly title: string;
+      readonly state: ChapterState;
       readonly type: "state";
+    }
+  | {
+      readonly id: string;
+      readonly target: ChapterStateTarget;
+      readonly type: "state";
+      readonly value: ChapterStateValue;
     };
 
 export interface ArchiveEntityWikipageLocale {
@@ -486,15 +478,15 @@ export async function getArchiveIndex(
   const [chapters, meta, nodes, edges] = await Promise.all([
     listChapters(document),
     document.readBookMeta(),
-    document.chunks.listAll(),
-    document.readingEdges.listAll(),
+    document.chunks.countAll(),
+    document.readingEdges.countAll(),
   ]);
 
   return {
     chapters,
-    edgeCount: edges.length,
+    edgeCount: edges,
     meta,
-    nodeCount: nodes.length,
+    nodeCount: nodes,
     summaryCount: chapters.filter((chapter) => chapter.stage === "summarized")
       .length,
   };
@@ -506,12 +498,19 @@ export async function listArchiveObjects(
 ): Promise<readonly ArchiveListItem[]> {
   switch (kind) {
     case "chapters":
-      return (await listChapters(document)).map((chapter) => ({
-        id: formatChapterId(chapter.chapterId),
-        label: chapter.title ?? "[untitled]",
-        summary: chapter.stage,
-        type: "chapter",
-      }));
+      return await Promise.all(
+        (await listChapters(document)).map(async (chapter) => {
+          const state = await createChapterState(document, chapter);
+
+          return {
+            id: formatChapterId(chapter.chapterId),
+            label: chapter.title ?? "[untitled]",
+            state,
+            summary: formatChapterStateSummary(state),
+            type: "chapter" as const,
+          };
+        }),
+      );
     case "edges":
       return (await document.readingEdges.listAll()).map((edge) => ({
         id: formatEdgeId(edge),
@@ -629,7 +628,7 @@ export async function listArchiveCollection(
           id: formatChapterId(chapter.chapterId),
           position: { chapter: chapter.chapterId },
           snippet: title,
-          stage: chapter.stage,
+          state: await createChapterState(document, chapter),
           title,
           type: "chapter",
         });
@@ -1090,7 +1089,7 @@ export async function readArchivePage(
 
       return {
         id: formatChapterId(reference.id),
-        stage: chapter.stage,
+        state: await createChapterState(document, chapter),
         title: chapter.title ?? `[chapter ${reference.id}]`,
         type: "chapter",
       };
@@ -1188,13 +1187,6 @@ async function readWikiGraphPage(
   switch (reference.type) {
     case "meta":
       return await readArchivePage(document, ARCHIVE_ROOT_ID, options);
-    case "state":
-      return {
-        id: "wkg://state",
-        state: { archive: await getArchiveIndex(document), kind: "archive" },
-        title: "Archive state",
-        type: "state",
-      };
     case "chapter":
       return await readArchivePage(
         document,
@@ -1203,26 +1195,16 @@ async function readWikiGraphPage(
       );
     case "chapter-state": {
       const details = await requireChapter(document, reference.chapterId);
-      const targets = await createChapterStateTargets(document, details);
+      const targets = await createChapterState(document, details);
 
       return {
         id:
           reference.target === undefined
             ? `wkg://chapter/${reference.chapterId}/state`
             : `wkg://chapter/${reference.chapterId}/state/${reference.target}`,
-        state:
-          reference.target === undefined
-            ? { chapter: details, kind: "chapter", targets }
-            : {
-                chapter: details,
-                kind: "chapter-target",
-                target: reference.target,
-                value: targets[reference.target],
-              },
-        title:
-          reference.target === undefined
-            ? (details.title ?? `[chapter ${reference.chapterId}] state`)
-            : `${details.title ?? `[chapter ${reference.chapterId}]`} ${reference.target} state`,
+        ...(reference.target === undefined
+          ? { state: targets }
+          : { target: reference.target, value: targets[reference.target] }),
         type: "state",
       };
     }
@@ -1481,7 +1463,6 @@ async function listRelatedWikiGraphObjects(
     case "chapter-tree":
     case "entity-wikipage":
     case "meta":
-    case "state":
     case "chapter-state":
       rejectRelatedRole(options.role, uri);
       return [];
@@ -1899,7 +1880,6 @@ export async function listArchiveEvidence(
     case "chapter-tree":
     case "entity-wikipage":
     case "meta":
-    case "state":
     case "text-stream":
       throw new Error(`Evidence is not available for ${uri}.`);
     case "chunk": {
@@ -1981,7 +1961,6 @@ function validatePackReference(id: string): void {
     case "chapter-tree":
     case "entity-wikipage":
     case "meta":
-    case "state":
     case "text-stream":
       throw new Error(
         `Pack is only available for chunk and entity objects: ${id}`,
@@ -2967,7 +2946,7 @@ async function findChaptersLexical(
           chapter: chapter.chapterId,
         },
         snippet: title,
-        stage: chapter.stage,
+        state: await createChapterState(document, chapter),
         title,
         type: "chapter",
       });
@@ -3058,7 +3037,7 @@ async function findChapters(
           chapter: chapter.chapterId,
         },
         snippet: title,
-        stage: chapter.stage,
+        state: await createChapterState(document, chapter),
         title,
         type: "chapter",
       });
@@ -3575,10 +3554,10 @@ async function requireChapter(
   return chapter;
 }
 
-async function createChapterStateTargets(
+async function createChapterState(
   document: ReadonlyDocument,
   chapter: ChapterEntry,
-): Promise<Record<ChapterStateTarget, ChapterStateValue>> {
+): Promise<ChapterState> {
   const serial = await document.serials.getById(chapter.chapterId);
 
   return {
@@ -3591,6 +3570,15 @@ async function createChapterStateTargets(
     "knowledge-graph":
       serial?.knowledgeGraphReady === true ? "ready" : "missing",
   };
+}
+
+function formatChapterStateSummary(state: ChapterState): string {
+  return [
+    `source:${state.source}`,
+    `reading-graph:${state["reading-graph"]}`,
+    `reading-summary:${state["reading-summary"]}`,
+    `knowledge-graph:${state["knowledge-graph"]}`,
+  ].join(" ");
 }
 
 async function requireNode(
@@ -4302,9 +4290,6 @@ type WikiGraphReference =
       readonly type: "meta";
     }
   | {
-      readonly type: "state";
-    }
-  | {
       readonly chapterId: number;
       readonly type: "chapter";
     }
@@ -4377,10 +4362,6 @@ function parseWikiGraphReference(uri: string): WikiGraphReference {
 
   if (pathParts.length === 0) {
     return { type: "meta" };
-  }
-
-  if (pathParts[0] === "state" && pathParts.length === 1) {
-    return { type: "state" };
   }
 
   if (pathParts[0] === "chapter-tree" && pathParts.length === 1) {

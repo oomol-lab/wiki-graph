@@ -341,6 +341,14 @@ class WikgDocumentFileStore implements DocumentFileStore {
   readonly #archiveKey: string;
   readonly #archivePath: string;
   #archiveReader: Promise<WikgArchiveReader> | undefined;
+  #entrySourceByPath:
+    | Map<
+        string,
+        | { readonly kind: "archive" }
+        | { readonly kind: "deleted" }
+        | { readonly kind: "workspace"; readonly path: string }
+      >
+    | undefined;
   readonly #readonlyDatabase: boolean;
   readonly #sqliteLeaseOwnerId = createOwnerId();
 
@@ -367,7 +375,7 @@ class WikgDocumentFileStore implements DocumentFileStore {
     await releaseSqliteLease({
       archiveKey: this.#archiveKey,
       entryPath: DATABASE_ENTRY_PATH,
-      ownerId: this.#session?.ownerId ?? this.#sqliteLeaseOwnerId,
+      ownerId: this.#sqliteLeaseOwnerId,
     });
   }
 
@@ -389,6 +397,7 @@ class WikgDocumentFileStore implements DocumentFileStore {
             () => undefined,
           );
         }
+        this.#entrySourceByPath?.set(entryPath, { kind: "deleted" });
         this.#session?.modifyEntry(entryPath);
       });
     });
@@ -424,12 +433,8 @@ class WikgDocumentFileStore implements DocumentFileStore {
   public async listFiles(path: string): Promise<readonly string[]> {
     const directoryEntryPath = this.#toEntryPath(path);
     const prefix = directoryEntryPath === "" ? "" : `${directoryEntryPath}/`;
-    const entries = await listVisibleEntryPaths(
-      await this.#listArchiveEntries(),
-      {
-        archiveKey: this.#archiveKey,
-        prefix,
-      },
+    const entries = (await this.#listDirectoryEntryPaths(prefix)).map(
+      ([entryPath]) => entryPath,
     );
 
     return entries
@@ -437,6 +442,43 @@ class WikgDocumentFileStore implements DocumentFileStore {
       .filter((entryPath) => !entryPath.includes("/"))
       .map((entryPath) => posix.basename(entryPath))
       .sort((left, right) => left.localeCompare(right));
+  }
+
+  public async listFileContents(
+    path: string,
+  ): Promise<ReadonlyMap<string, Uint8Array>> {
+    const directoryEntryPath = this.#toEntryPath(path);
+    const prefix = directoryEntryPath === "" ? "" : `${directoryEntryPath}/`;
+    return await withEntryLock(
+      this.#archiveKey,
+      normalizeEntryDirectoryPrefix(prefix),
+      "read",
+      async () => {
+        const contents = new Map<string, Uint8Array>();
+
+        for (const [entryPath, source] of await this.#listDirectoryEntryPaths(
+          prefix,
+        )) {
+          const name = entryPath.slice(prefix.length);
+
+          if (name.includes("/")) {
+            continue;
+          }
+          if (source.kind === "workspace") {
+            contents.set(name, await readFile(source.path));
+            continue;
+          }
+
+          const content = await this.#readArchiveEntry(entryPath);
+
+          if (content !== undefined) {
+            contents.set(name, content);
+          }
+        }
+
+        return contents;
+      },
+    );
   }
 
   public async readFile(path: string): Promise<Uint8Array | undefined> {
@@ -447,16 +489,18 @@ class WikgDocumentFileStore implements DocumentFileStore {
       entryPath,
       "read",
       async () => {
-        const source = await withEntryLock(
-          this.#archiveKey,
-          entryPath,
-          "state",
-          async () =>
-            await resolveEntrySource({
-              archiveKey: this.#archiveKey,
-              entryPath,
-            }),
-        );
+        const source =
+          (await this.#getEntrySources()).get(entryPath) ??
+          (await withEntryLock(
+            this.#archiveKey,
+            entryPath,
+            "state",
+            async () =>
+              await resolveEntrySource({
+                archiveKey: this.#archiveKey,
+                entryPath,
+              }),
+          ));
 
         if (source.kind === "deleted") {
           this.#session?.observeDirtyEntry(entryPath);
@@ -509,9 +553,11 @@ class WikgDocumentFileStore implements DocumentFileStore {
         await acquireSqliteLease({
           archiveKey: this.#archiveKey,
           entryPath: DATABASE_ENTRY_PATH,
-          ownerId: this.#session?.ownerId ?? this.#sqliteLeaseOwnerId,
+          ownerId: this.#sqliteLeaseOwnerId,
         });
-        this.#session?.observeDirtyEntry(DATABASE_ENTRY_PATH);
+        if (!this.#readonlyDatabase) {
+          this.#session?.observeDirtyEntry(DATABASE_ENTRY_PATH);
+        }
         return overlay.workspacePath;
       },
     );
@@ -563,6 +609,10 @@ class WikgDocumentFileStore implements DocumentFileStore {
           kind: "file",
           workspacePath,
         });
+        this.#entrySourceByPath?.set(entryPath, {
+          kind: "workspace",
+          path: workspacePath,
+        });
         if (source.kind === "workspace" && source.path !== workspacePath) {
           await rm(source.path, { force: true }).catch(() => undefined);
         }
@@ -595,6 +645,77 @@ class WikgDocumentFileStore implements DocumentFileStore {
   async #getArchiveReader(): Promise<WikgArchiveReader> {
     this.#archiveReader ??= WikgArchiveReader.open(this.#archivePath);
     return await this.#archiveReader;
+  }
+
+  async #getEntrySources(): Promise<
+    Map<
+      string,
+      | { readonly kind: "archive" }
+      | { readonly kind: "deleted" }
+      | { readonly kind: "workspace"; readonly path: string }
+    >
+  > {
+    if (this.#entrySourceByPath !== undefined) {
+      return this.#entrySourceByPath;
+    }
+
+    const entries = new Map<
+      string,
+      | { readonly kind: "archive" }
+      | { readonly kind: "deleted" }
+      | { readonly kind: "workspace"; readonly path: string }
+    >();
+
+    for (const entryPath of await this.#listArchiveEntries()) {
+      entries.set(entryPath, { kind: "archive" });
+    }
+    for (const overlay of await listOverlays(this.#archiveKey)) {
+      if (overlay.kind === "deleted") {
+        entries.set(overlay.entryPath, { kind: "deleted" });
+      } else if (overlay.workspacePath !== undefined) {
+        entries.set(overlay.entryPath, {
+          kind: "workspace",
+          path: overlay.workspacePath,
+        });
+      }
+    }
+
+    this.#entrySourceByPath = entries;
+    return entries;
+  }
+
+  async #listDirectoryEntryPaths(
+    prefix: string,
+  ): Promise<
+    Array<
+      readonly [
+        string,
+        (
+          | { readonly kind: "archive" }
+          | { readonly kind: "workspace"; readonly path: string }
+        ),
+      ]
+    >
+  > {
+    const entries: Array<
+      readonly [
+        string,
+        (
+          | { readonly kind: "archive" }
+          | { readonly kind: "workspace"; readonly path: string }
+        ),
+      ]
+    > = [];
+
+    for (const [entryPath, source] of await this.#getEntrySources()) {
+      if (source.kind === "deleted" || !entryPath.startsWith(prefix)) {
+        continue;
+      }
+
+      entries.push([entryPath, source]);
+    }
+
+    return entries.sort(([left], [right]) => left.localeCompare(right));
   }
 }
 
@@ -837,16 +958,18 @@ async function acquireEntryLock(
           `
 SELECT *
 FROM entry_locks
-WHERE archive_key = ? AND entry_path = ?
+WHERE archive_key = ?
 `,
-          [archiveKey, entryPath],
+          [archiveKey],
           mapEntryLock,
         );
 
         if (
           conflicts.some(
             (lock) =>
-              lock.ownerId !== ownerId && locksConflict(mode, lock.mode),
+              lock.ownerId !== ownerId &&
+              lockPathsConflict(entryPath, lock.entryPath) &&
+              locksConflict(mode, lock.mode),
           )
         ) {
           return false;
@@ -914,6 +1037,18 @@ function locksConflict(requested: EntryLockMode, existing: EntryLockMode) {
   }
 
   return true;
+}
+
+function lockPathsConflict(requested: string, existing: string): boolean {
+  return (
+    requested === existing ||
+    lockPathContains(requested, existing) ||
+    lockPathContains(existing, requested)
+  );
+}
+
+function lockPathContains(parent: string, child: string): boolean {
+  return parent.endsWith("/") && child.startsWith(parent);
 }
 
 async function acquireSqliteLease(input: {
@@ -1280,6 +1415,14 @@ function normalizeEntryPath(path: string): string {
   return path.replaceAll("\\", "/").replace(/^\/+/u, "");
 }
 
+function normalizeEntryDirectoryPrefix(path: string): string {
+  const entryPath = normalizeEntryPath(path);
+
+  return entryPath === "" || entryPath.endsWith("/")
+    ? entryPath
+    : `${entryPath}/`;
+}
+
 function getCoordinatorStateDirectoryPath(): string {
   const stateDirectoryPath = process.env.WIKIGRAPH_STATE_DIR;
 
@@ -1313,6 +1456,7 @@ interface EntryOverlay {
 }
 
 interface EntryLock {
+  readonly entryPath: string;
   readonly mode: EntryLockMode;
   readonly ownerId: string;
 }
@@ -1335,6 +1479,7 @@ function mapEntryOverlay(row: Record<string, unknown>): EntryOverlay {
 
 function mapEntryLock(row: Record<string, unknown>): EntryLock {
   return {
+    entryPath: getString(row, "entry_path"),
     mode: getEntryLockMode(row),
     ownerId: getString(row, "owner_id"),
   };

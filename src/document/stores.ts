@@ -28,6 +28,7 @@ export interface ReadonlySerialStore {
 }
 
 export interface ReadonlyChunkStore {
+  countAll(): Promise<number>;
   getById(chunkId: number): Promise<ChunkRecord | undefined>;
   listAll(): Promise<ChunkRecord[]>;
   listByFragments(
@@ -40,6 +41,7 @@ export interface ReadonlyChunkStore {
 }
 
 export interface ReadonlyReadingEdgeStore {
+  countAll(): Promise<number>;
   listAll(): Promise<ReadingEdgeRecord[]>;
   listBySerial(serialId: number): Promise<ReadingEdgeRecord[]>;
   listIncoming(chunkId: number): Promise<ReadingEdgeRecord[]>;
@@ -262,6 +264,19 @@ export class ChunkStore implements ReadonlyChunkStore {
 
   public constructor(database: Database) {
     this.#database = database;
+  }
+
+  public async countAll(): Promise<number> {
+    return (
+      (await this.#database.queryOne(
+        `
+          SELECT COUNT(*) AS count
+          FROM chunks
+        `,
+        undefined,
+        (row) => getNumber(row, "count"),
+      )) ?? 0
+    );
   }
 
   public async create(record: CreateChunkRecord): Promise<ChunkRecord> {
@@ -573,6 +588,19 @@ export class ReadingEdgeStore implements ReadonlyReadingEdgeStore {
 
   public constructor(database: Database) {
     this.#database = database;
+  }
+
+  public async countAll(): Promise<number> {
+    return (
+      (await this.#database.queryOne(
+        `
+          SELECT COUNT(*) AS count
+          FROM reading_edges
+        `,
+        undefined,
+        (row) => getNumber(row, "count"),
+      )) ?? 0
+    );
   }
 
   public async save(record: ReadingEdgeRecord): Promise<void> {

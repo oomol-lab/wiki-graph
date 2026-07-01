@@ -14,10 +14,9 @@ wikigraph wkg-job://<job-id> <action> ...
 ```bash
 wikigraph <archive-uri> create [source] [--input-format <format>] [--llm <json>] [--prompt <text>]
 wikigraph <archive-uri> estimate [--stage <source|reading-graph|reading-summary>] [--json]
-wikigraph <archive-uri>/state get [--json]
-wikigraph <located-wkg-uri> search <query> [--limit <n>] [--cursor <token>] [--json|--jsonl]
-wikigraph <located-wkg-uri>/<chapter|entity|triple|source|summary|chunk> search <query> [--limit <n>] [--cursor <token>] [--json|--jsonl]
-wikigraph <located-wkg-uri>/<chapter|entity|triple|source|summary|chunk> list [--limit <n>] [--cursor <token>] [--json|--jsonl]
+wikigraph <located-wkg-uri> search <query> [--all] [--limit <n>] [--cursor <token>] [--json|--jsonl]
+wikigraph <located-wkg-uri>/<chapter|entity|triple|source|summary|chunk> search <query> [--all] [--limit <n>] [--cursor <token>] [--json|--jsonl]
+wikigraph <located-wkg-uri>/<chapter|entity|triple|source|summary|chunk> list [--all] [--limit <n>] [--cursor <token>] [--json|--jsonl]
 wikigraph <object-uri> get [--json|--jsonl]
 wikigraph <chunk-uri> related [query] [--evidence [n]] [--json|--jsonl]
 wikigraph <entity-uri> related [query] [--role <any|subject|object|self>] [--evidence [n]] [--json|--jsonl]
@@ -47,6 +46,8 @@ wikigraph queue clean
 - 做内容理解时，在 URI 中选择 search lens：`<archive-uri>/chunk` 用于 Reading Graph 结构，`<archive-uri>/summary` 用于快速概览，`<archive-uri>/source` 用于原文措辞，`<archive-uri>/entity` 和 `<archive-uri>/triple` 用于 Knowledge Graph 对象。
 - 使用 chapter scope URI，例如 `wkg:///Users/me/book.wikg/chapter/12`，把 search 或 list 限定在一个章节内。
 - `--limit` 默认 `20`；下一页把返回的 `nextCursor` 传给 `--cursor`。
+- 用 `--all --jsonl` 流式输出 `search` 或 `list` 的所有分页。使用 `--all` 时，`--limit` 控制每页大小。
+- 大结果避免使用不带 `--jsonl` 的 `--all`，因为它会先缓存所有 result object 再输出。
 - Search 不做语义扩展、词干匹配或向量搜索。
 - URI 语法和 object boundary 规则见 `wikigraph help uri`。
 
@@ -111,7 +112,8 @@ wikigraph transform [--input <path>] [--output <path>] [--input-format <format>]
 ```bash
 wikigraph <archive-uri> get|set [metadata options]
 wikigraph <cover-uri> get
-wikigraph <archive-uri>/chapter list|add [options]
+wikigraph <archive-uri>/chapter list [--all] [--limit <n>] [--cursor <token>] [--json|--jsonl]
+wikigraph <archive-uri>/chapter add [options]
 wikigraph <chapter-uri>/state get [--json]
 wikigraph <chapter-uri> move|remove|reset [options]
 wikigraph <chapter-uri>/source set [--input <path>] --input-format <format>
@@ -122,7 +124,7 @@ wikigraph <archive-uri>/chapter/tree get|set [options]
 
 常规探索请使用 URI-first commands。`<archive-uri>/chapter/tree get` 是只读结构检查，会输出稳定 JSON tree，未命名章节显示为 `title: null`。`<archive-uri>/chapter/tree set` 可以重排章节，并在节点包含 `title` 时修改标题。
 
-`wikigraph config status` 输出配置状态。`wikigraph <archive-uri>/state get` 输出归档状态。
+`wikigraph config status` 输出配置状态。
 
 ## 标准流规则
 

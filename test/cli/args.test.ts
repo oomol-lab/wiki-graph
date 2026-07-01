@@ -431,6 +431,7 @@ describe("cli/args", () => {
         "wkg://book.wikg/chapter/11/source",
         "search",
         "exact phrase",
+        "--all",
         "--limit",
         "10",
         "--cursor",
@@ -440,6 +441,7 @@ describe("cli/args", () => {
     ).toStrictEqual({
       args: {
         action: "search",
+        all: true,
         archivePath: `wkg://${archivePath}/chapter/11`,
         cursor: "cursor-token",
         format: "jsonl",
@@ -879,19 +881,6 @@ describe("cli/args", () => {
       help: false,
       kind: "cover",
     });
-    expect(
-      parseCLIArguments(["wkg://book.wikg/state", "get", "--json"]),
-    ).toStrictEqual({
-      args: {
-        action: "get",
-        archivePath: "wkg://book.wikg/state",
-        format: "json",
-        objectId: "wkg://book.wikg/state",
-      },
-      help: false,
-      kind: "archive",
-    });
-
     expect(
       parseCLIArguments(["wkg://book.wikg/", "set", "--help"]),
     ).toMatchObject({

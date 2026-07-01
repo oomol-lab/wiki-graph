@@ -42,10 +42,17 @@ async function writeChunkToStdout(chunk: string | Uint8Array): Promise<void> {
         resolve();
         return;
       }
+      if (isBrokenPipeError(error)) {
+        process.exit(0);
+      }
 
       reject(error);
     });
   });
+}
+
+function isBrokenPipeError(error: Error): boolean {
+  return (error as NodeJS.ErrnoException).code === "EPIPE";
 }
 
 export async function createTemporaryOutputPath(

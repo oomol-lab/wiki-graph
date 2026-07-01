@@ -792,6 +792,10 @@ class SnapshotChunkStore implements ReadonlyChunkStore {
     return Promise.resolve(this.#chunksById.get(chunkId));
   }
 
+  public countAll(): Promise<number> {
+    return Promise.resolve(this.#chunks.length);
+  }
+
   public listAll(): Promise<ChunkRecord[]> {
     return Promise.resolve([...this.#chunks]);
   }
@@ -857,6 +861,10 @@ class SnapshotReadingEdgeStore implements ReadonlyReadingEdgeStore {
 
   public listAll(): Promise<ReadingEdgeRecord[]> {
     return Promise.resolve([...this.#edges]);
+  }
+
+  public countAll(): Promise<number> {
+    return Promise.resolve(this.#edges.length);
   }
 
   public listBySerial(serialId: number): Promise<ReadingEdgeRecord[]> {

@@ -10,10 +10,10 @@ Use when:
   - You have words, names, phrases, or concepts and need candidate object URIs.
 
 Usage:
-  wikigraph <archive-uri> search <query> [--limit <n>] [--evidence [n]] [--backlinks] [--cursor <token>] [--json|--jsonl] [--help|-h]
-  wikigraph <chapter-uri> search <query> [--limit <n>] [--evidence [n]] [--backlinks] [--cursor <token>] [--json|--jsonl] [--help|-h]
-  wikigraph <archive-uri>/<entity|triple|source|summary|chunk> search <query> [--limit <n>] [--evidence [n]] [--backlinks] [--cursor <token>] [--json|--jsonl] [--help|-h]
-  wikigraph <chapter-uri>/<entity|triple|source|summary|chunk> search <query> [--limit <n>] [--evidence [n]] [--backlinks] [--cursor <token>] [--json|--jsonl] [--help|-h]
+  wikigraph <archive-uri> search <query> [--all] [--limit <n>] [--evidence [n]] [--backlinks] [--cursor <token>] [--json|--jsonl] [--help|-h]
+  wikigraph <chapter-uri> search <query> [--all] [--limit <n>] [--evidence [n]] [--backlinks] [--cursor <token>] [--json|--jsonl] [--help|-h]
+  wikigraph <archive-uri>/<entity|triple|source|summary|chunk> search <query> [--all] [--limit <n>] [--evidence [n]] [--backlinks] [--cursor <token>] [--json|--jsonl] [--help|-h]
+  wikigraph <chapter-uri>/<entity|triple|source|summary|chunk> search <query> [--all] [--limit <n>] [--evidence [n]] [--backlinks] [--cursor <token>] [--json|--jsonl] [--help|-h]
 
 Returns:
   - In text output, a ranked list of full `wkg://...` URIs.
@@ -28,6 +28,8 @@ Notes:
   - Put the lens after a chapter URI, such as `<chapter-uri>/entity`, to keep retrieval local to one chapter.
   - Add `--evidence` or `--evidence <n>` to include source evidence previews on entity and triple results.
   - Add `--backlinks` to include reverse references on top-level source results; nested evidence sources are not expanded.
+  - Add `--all --jsonl` to stream every result page. With `--all`, `--limit` controls page size.
+  - Avoid `--all` without `--jsonl` for large results; it buffers all result objects before printing.
   - Use `wikigraph next <cursor>` for any returned `nextCursor`.
   - Use a located chapter URI to keep retrieval local.
   - Read `wikigraph help uri` before constructing Wiki Graph URIs; bare filesystem paths are not valid object command inputs.

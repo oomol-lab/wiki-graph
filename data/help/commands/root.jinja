@@ -20,11 +20,11 @@ Object workflow:
   - `pack` builds bounded Agent-readable context around one graph object URI.
 
 Object commands:
-  wikigraph <located-wkg-uri> search <query> [--limit <n>] [--cursor <token>] [--evidence [n]] [--backlinks] [--json|--jsonl]
-  wikigraph <located-wkg-uri>/<chapter|entity|triple|source|summary|chunk> search <query> [--limit <n>] [--cursor <token>] [--evidence [n]] [--backlinks] [--json|--jsonl]
-  wikigraph <located-wkg-uri>/triple/<subject|_>/<predicate|_>/<object|_> search <query> [--limit <n>] [--cursor <token>] [--evidence [n]] [--json|--jsonl]
-  wikigraph <located-wkg-uri>/<chapter|entity|triple|source|summary|chunk> list [--limit <n>] [--cursor <token>] [--evidence [n]] [--backlinks] [--json|--jsonl]
-  wikigraph <located-wkg-uri>/triple/<subject|_>/<predicate|_>/<object|_> list [--limit <n>] [--cursor <token>] [--evidence [n]] [--json|--jsonl]
+  wikigraph <located-wkg-uri> search <query> [--all] [--limit <n>] [--cursor <token>] [--evidence [n]] [--backlinks] [--json|--jsonl]
+  wikigraph <located-wkg-uri>/<chapter|entity|triple|source|summary|chunk> search <query> [--all] [--limit <n>] [--cursor <token>] [--evidence [n]] [--backlinks] [--json|--jsonl]
+  wikigraph <located-wkg-uri>/triple/<subject|_>/<predicate|_>/<object|_> search <query> [--all] [--limit <n>] [--cursor <token>] [--evidence [n]] [--json|--jsonl]
+  wikigraph <located-wkg-uri>/<chapter|entity|triple|source|summary|chunk> list [--all] [--limit <n>] [--cursor <token>] [--evidence [n]] [--backlinks] [--json|--jsonl]
+  wikigraph <located-wkg-uri>/triple/<subject|_>/<predicate|_>/<object|_> list [--all] [--limit <n>] [--cursor <token>] [--evidence [n]] [--json|--jsonl]
   wikigraph <object-uri> get [--evidence [n]] [--backlinks] [--json|--jsonl]
   wikigraph <chunk-uri|entity-uri> related [query] [--role <any|subject|object|self>] [--evidence [n]] [--json|--jsonl]
   wikigraph <entity|triple|summary|chunk-uri> evidence [query] [--limit <n>] [--cursor <token>] [--json|--jsonl]
@@ -40,7 +40,6 @@ Archive commands:
   wikigraph <archive-uri> create [source] [--input-format <format>] [--llm <json>] [--prompt <text>]
   wikigraph <archive-uri> export --output-format <format> [--output <path>]
   wikigraph <archive-uri> estimate [--stage <source|reading-graph|reading-summary>] [--json]
-  wikigraph <archive-uri>/state get [--json]
   wikigraph transform [--input <path>] [--output <path>] [--input-format <format>] [--output-format <format>] [--digest-dir <path>] [--llm <json>] [--prompt <text>] [--stage <stage>] [--verbose|-v]
 
 Generation queue:

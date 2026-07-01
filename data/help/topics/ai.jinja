@@ -29,7 +29,7 @@ Default exploration loop:
 
 Archive and job commands also use URI targets:
   wikigraph wkg://book.wikg create ./book.md
-  wikigraph wkg://book.wikg/state get --json
+  wikigraph wkg://book.wikg/chapter list --all --jsonl
   wikigraph wkg://book.wikg/chapter/3 queue add --task reading-graph --accept-cost
   wikigraph wkg-job:// list
   wikigraph wkg-job://<job-id> watch --jsonl
@@ -46,4 +46,4 @@ Use URI lenses to select searchable object kinds:
   wkg://book.wikg/triple
   wkg://book.wikg/chapter/3/entity
 
-Use `--json` or `--jsonl` when a stable machine-readable result is needed.
+Use `--json` or `--jsonl` when a stable machine-readable result is needed. Use `--all --jsonl` for full streamed list/search exports.

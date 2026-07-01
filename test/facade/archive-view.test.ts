@@ -1044,7 +1044,12 @@ describe("facade/archive-view", () => {
         }
         expect(page).toStrictEqual({
           id: "chapter:1",
-          stage: "summarized",
+          state: {
+            "knowledge-graph": "missing",
+            "reading-graph": "ready",
+            "reading-summary": "ready",
+            source: "ready",
+          },
           title: "Introduction",
           type: "chapter",
         });

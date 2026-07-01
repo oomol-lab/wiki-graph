@@ -4,27 +4,29 @@ Command: wikigraph <archive-uri>/chapter list
 chapter list
 
 Purpose:
-  List every chapter in the `.wikg` chapter tree.
+  List every chapter and its stored artifact readiness.
 
 Usage:
-  wikigraph <archive-uri>/chapter list [--json] [--llm <json>] [--help|-h]
+  wikigraph <archive-uri>/chapter list [--all] [--limit <n>] [--cursor <token>] [--json|--jsonl] [--llm <json>] [--help|-h]
 
 Output shape:
-  [<chapterId>] <stage> <title-or-[untitled]>
-  With `--json`, prints `{ "chapters": [...] }`.
+  wkg://chapter/<id>  <title-or-[untitled]>  source:<ready|missing> reading-graph:<ready|missing> reading-summary:<ready|missing> knowledge-graph:<ready|missing>
+
+  With `--jsonl`, each chapter is one JSON object with `uri`, `title`, and `state`.
 
 Behavior:
-  - Includes summary-stage and unfinished chapters.
-  - Indents child chapters under their parent.
-  - The bracketed number is the chapter id used in chapter URIs.
+  - Includes sourced, generated, and unfinished chapters.
+  - Use `--all --jsonl` for grep/jq-style readiness checks across every chapter.
+  - With `--all`, `--limit` controls page size. Avoid `--all` without `--jsonl` for large results.
+  - Chapter ids are encoded in the returned `wkg://chapter/<id>` URIs.
   - Does not call an LLM provider.
   - Does not mutate chapter content or summaries.
 
 Use this before mutation:
-  Discover ids with:
-    wikigraph <archive-uri>/chapter list
+  Discover ids and missing generated artifacts with:
+    wikigraph <archive-uri>/chapter list --all --jsonl
+    wikigraph <archive-uri>/chapter list --all --jsonl | jq 'select(.state["knowledge-graph"] == "missing")'
 
 See also:
-  - wikigraph wkg://book.wikg/state get --help
   - wikigraph wkg://book.wikg/chapter/3/state get --help
   - wikigraph help command

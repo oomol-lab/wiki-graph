@@ -10,7 +10,7 @@ Use when:
   - You need objects of a kind without a text query, such as all chapters or all entities.
 
 Usage:
-  wikigraph <located-wkg-uri>/<chapter|entity|triple|source|summary|chunk> list [--limit <n>] [--evidence [n]] [--backlinks] [--cursor <token>] [--json|--jsonl] [--help|-h]
+  wikigraph <located-wkg-uri>/<chapter|entity|triple|source|summary|chunk> list [--all] [--limit <n>] [--evidence [n]] [--backlinks] [--cursor <token>] [--json|--jsonl] [--help|-h]
 
 Returns:
   - URI-addressable objects in document order.
@@ -24,10 +24,13 @@ Notes:
   - Use `search` when you have query text.
   - Add `--evidence` or `--evidence <n>` to include source evidence previews on entity and triple results.
   - Add `--backlinks` to include reverse references on top-level source results; nested evidence sources are not expanded.
+  - Add `--all --jsonl` to stream every result page. With `--all`, `--limit` controls page size.
+  - Avoid `--all` without `--jsonl` for large results; it buffers all result objects before printing.
   - Use `wikigraph next <cursor>` for any returned `nextCursor`.
   - Use `wikigraph help uri` before constructing Wiki Graph URIs; bare filesystem paths are not valid object command inputs.
 
 Examples:
   wikigraph wkg:///books/book.wikg/chapter list
+  wikigraph wkg:///books/book.wikg/chapter list --all --jsonl
   wikigraph wkg:///books/book.wikg/chapter/3/entity list --json
   wikigraph wkg:///books/book.wikg/triple/_/_/Q178561 list

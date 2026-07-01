@@ -37,7 +37,6 @@ export type HelpObjectName =
   | "chapter-summary"
   | "chapter-title"
   | "chapter-tree"
-  | "archive-state"
   | "chapter-state"
   | "chunk"
   | "cover"
@@ -128,11 +127,6 @@ const HELP_OBJECTS: readonly HelpObjectEntry[] = [
         command: "wikigraph wkg://book.wikg create ./book.md",
         note: "Create or replace the archive from source material.",
         verb: "create",
-      },
-      {
-        command: "wikigraph wkg://book.wikg/state get --json",
-        note: "Inspect readiness and high-level counts.",
-        verb: "get",
       },
       {
         command: "wikigraph wkg://book.wikg estimate --stage reading-summary",
@@ -231,20 +225,7 @@ const HELP_OBJECTS: readonly HelpObjectEntry[] = [
     ],
   },
   {
-    description: "Archive readiness and high-level counts.",
-    name: "archive-state",
-    title: "Archive State",
-    uriForms: ["wkg://book.wikg/state"],
-    verbs: [
-      {
-        command: "wikigraph wkg://book.wikg/state get --json",
-        note: "Inspect archive readiness and high-level counts.",
-        verb: "get",
-      },
-    ],
-  },
-  {
-    description: "One chapter's current stage and stored artifacts.",
+    description: "One chapter's stored artifact readiness.",
     name: "chapter-state",
     title: "Chapter State",
     uriForms: [

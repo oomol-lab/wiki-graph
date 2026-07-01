@@ -38,19 +38,32 @@ export class SpineDigestFile {
   ): Promise<T> {
     return await this.#coordinator.withArchiveSession(
       this.#path,
-      async (session) =>
-        await session.materializeReadWorkspace(
-          options.documentDirPath,
-          async (directoryPath) => {
-            const document = await DirectoryDocument.open(directoryPath);
+      async (session) => {
+        if (options.documentDirPath !== undefined) {
+          return await session.materializeReadWorkspace(
+            options.documentDirPath,
+            async (directoryPath) => {
+              const document = await DirectoryDocument.open(directoryPath);
 
-            try {
-              return await operation(document, directoryPath);
-            } finally {
-              await document.release();
-            }
-          },
-        ),
+              try {
+                return await operation(document, directoryPath);
+              } finally {
+                await document.release();
+              }
+            },
+          );
+        }
+
+        const document = await DirectoryDocument.open(this.#path, {
+          fileStore: session.createFileStore({ readonlyDatabase: true }),
+        });
+
+        try {
+          return await operation(document, this.#path);
+        } finally {
+          await document.release();
+        }
+      },
     );
   }
 
