@@ -1,5 +1,5 @@
 import { createWriteStream } from "fs";
-import { mkdir, readFile, writeFile } from "fs/promises";
+import { mkdir, readFile, readdir, writeFile } from "fs/promises";
 import { dirname } from "path";
 import { finished } from "stream/promises";
 
@@ -76,6 +76,57 @@ describe("legacy-sdpub/upgrade", () => {
         outputPath,
       });
       await expect(readFile(outputPath)).resolves.toBeInstanceOf(Uint8Array);
+    });
+  });
+
+  it("deduplicates duplicated legacy source fragment halves", async () => {
+    await withTempDir("spinedigest-legacy-sdpub-", async (path) => {
+      const documentPath = `${path}/legacy-document`;
+      const legacyArchivePath = `${path}/duplicated.sdpub`;
+      const migratedArchivePath = `${path}/duplicated.wikg`;
+      const extractedPath = `${path}/extracted`;
+
+      await seedLegacyDocument(documentPath);
+      await writeTextFile(
+        `${documentPath}/fragments/serial-1/fragment_1.json`,
+        JSON.stringify({
+          sentences: [{ text: "Source sentence.", wordsCount: 2 }],
+          summary: "Legacy fragment summary.",
+        }),
+      );
+      await pointLegacyDerivedDataAtFragment(documentPath, 1);
+      await writeLegacyArchive(documentPath, legacyArchivePath, {
+        manifest: false,
+      });
+
+      await migrateLegacySdpubToWikg(legacyArchivePath, migratedArchivePath);
+      await extractWikgArchive(migratedArchivePath, extractedPath);
+
+      const document = await DirectoryDocument.open(extractedPath);
+
+      try {
+        await expect(
+          document.getSerialFragments(1).listFragmentIds(),
+        ).resolves.toStrictEqual([0]);
+        await expect(
+          document.getSerialFragments(1).getFragment(0),
+        ).resolves.toMatchObject({
+          summary: "Legacy fragment summary.",
+          sentences: [{ text: "Source sentence.", wordsCount: 2 }],
+        });
+        await document.openSession(async (openedDocument) => {
+          await expect(openedDocument.chunks.getById(1)).resolves.toMatchObject(
+            {
+              sentenceId: [1, 0, 0],
+            },
+          );
+        });
+        await expect(readFragmentGroupIds(document)).resolves.toStrictEqual([
+          0,
+        ]);
+      } finally {
+        await document.release();
+      }
     });
   });
 
@@ -174,6 +225,14 @@ async function seedLegacyDocument(documentPath: string): Promise<void> {
         FOREIGN KEY (to_id) REFERENCES chunks(id)
       )
     `);
+    await database.run(`
+      CREATE TABLE fragment_groups (
+        serial_id INTEGER NOT NULL,
+        group_id INTEGER NOT NULL,
+        fragment_id INTEGER NOT NULL,
+        PRIMARY KEY (serial_id, group_id, fragment_id)
+      )
+    `);
     await database.run("INSERT INTO serials (id) VALUES (1)");
     await database.run(
       "INSERT INTO serial_states (serial_id, topology_ready) VALUES (1, 1)",
@@ -188,6 +247,27 @@ async function seedLegacyDocument(documentPath: string): Promise<void> {
     `);
     await database.run(
       "INSERT INTO knowledge_edges (from_id, to_id, strength, weight) VALUES (1, 2, 'strong', 0.8)",
+    );
+    await database.run(
+      "INSERT INTO fragment_groups (serial_id, group_id, fragment_id) VALUES (1, 0, 0)",
+    );
+  } finally {
+    await database.close();
+  }
+}
+
+async function pointLegacyDerivedDataAtFragment(
+  documentPath: string,
+  fragmentId: number,
+): Promise<void> {
+  const database = await Database.open(`${documentPath}/database.db`);
+
+  try {
+    await database.run("UPDATE chunks SET fragment_id = ?", [fragmentId]);
+    await database.run("DELETE FROM fragment_groups WHERE serial_id = 1");
+    await database.run(
+      "INSERT INTO fragment_groups (serial_id, group_id, fragment_id) VALUES (1, 0, ?)",
+      [fragmentId],
     );
   } finally {
     await database.close();
@@ -211,14 +291,37 @@ async function writeLegacyArchive(
   zipFile.addFile(`${documentPath}/book-meta.json`, "book-meta.json");
   zipFile.addFile(`${documentPath}/toc.json`, "toc.json");
   zipFile.addFile(
-    `${documentPath}/fragments/serial-1/fragment_0.json`,
-    "fragments/serial-1/fragment_0.json",
-  );
-  zipFile.addFile(
     `${documentPath}/summaries/serial-1.txt`,
     "summaries/serial-1.txt",
   );
+  const fragmentFiles = (await readdir(`${documentPath}/fragments/serial-1`))
+    .filter((entry) => /^fragment_\d+\.json$/u.test(entry))
+    .sort();
+
+  for (const fragmentFile of fragmentFiles) {
+    zipFile.addFile(
+      `${documentPath}/fragments/serial-1/${fragmentFile}`,
+      `fragments/serial-1/${fragmentFile}`,
+    );
+  }
   await writeZipFile(zipFile, archivePath);
+}
+
+async function readFragmentGroupIds(
+  document: DirectoryDocument,
+): Promise<readonly number[]> {
+  return await document.readDatabase(async (database) => {
+    return await database.queryAll(
+      `
+        SELECT fragment_id
+        FROM fragment_groups
+        WHERE serial_id = 1
+        ORDER BY fragment_id
+      `,
+      undefined,
+      (row) => Number(row.fragment_id),
+    );
+  });
 }
 
 async function countSearchIndexRecords(
