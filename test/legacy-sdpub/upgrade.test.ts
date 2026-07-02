@@ -229,7 +229,7 @@ async function countSearchIndexRecords(
       `
         SELECT
           (SELECT COUNT(*) FROM text_sentence_records) +
-          (SELECT COUNT(*) FROM search_object_records) AS count
+          (SELECT COUNT(*) FROM search_object_properties_records) AS count
       `,
       undefined,
       (value) => Number(value.count),

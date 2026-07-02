@@ -268,21 +268,21 @@ export const SCHEMA_SQL = `
     tokenize='ascii'
   );
 
-  CREATE TABLE IF NOT EXISTS search_object_records (
+  CREATE TABLE IF NOT EXISTS search_object_properties_records (
     id INTEGER PRIMARY KEY,
-    kind INTEGER NOT NULL,
-    ref_id INTEGER NOT NULL,
-    chapter_id INTEGER,
-    sentence_index INTEGER
+    owner_kind INTEGER NOT NULL,
+    owner_id TEXT NOT NULL,
+    property_kind INTEGER NOT NULL,
+    chapter_id INTEGER
   );
 
-  CREATE INDEX IF NOT EXISTS idx_search_object_records_ref
-  ON search_object_records(kind, ref_id);
+  CREATE INDEX IF NOT EXISTS idx_search_object_properties_records_owner
+  ON search_object_properties_records(owner_kind, owner_id);
 
-  CREATE INDEX IF NOT EXISTS idx_search_object_records_chapter
-  ON search_object_records(chapter_id, kind, ref_id);
+  CREATE INDEX IF NOT EXISTS idx_search_object_properties_records_chapter
+  ON search_object_properties_records(chapter_id, owner_kind, owner_id);
 
-  CREATE VIRTUAL TABLE IF NOT EXISTS search_object_fts USING fts5(
+  CREATE VIRTUAL TABLE IF NOT EXISTS search_object_properties_fts USING fts5(
     tier1,
     tier2,
     tier3,

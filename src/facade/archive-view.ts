@@ -43,12 +43,17 @@ import {
   readEntitySearchSessionPage,
   readSearchSessionDescriptor,
   readSearchSessionPage,
-  type EntitySearchMentionHit,
+  SEARCH_EVIDENCE_KIND,
+  type SearchChunkHitInput,
+  type SearchEntityHitInput,
+  type SearchEvidenceHitEventInput,
+  type SearchTripleHitInput,
 } from "./search-cache.js";
 import {
   ensureSearchIndex,
   querySearchIndex,
-  SEARCH_OBJECT_KIND,
+  SEARCH_OBJECT_PROPERTY_KIND,
+  SEARCH_OBJECT_PROPERTY_OWNER_KIND,
   TEXT_SENTENCE_KIND,
   type SearchIndexInput,
   type SearchIndexObjectHit,
@@ -922,7 +927,7 @@ export async function findArchiveObjects(
       ? await findArchiveObjectsUncached(document, search, options, {
           allMentions,
         })
-      : [...structuredHits, ...indexed];
+      : [...structuredHits, ...indexed.hits];
   if (isEntityOnlySearch(options)) {
     const ranked = createRankedFindResult(
       query,
@@ -930,16 +935,33 @@ export async function findArchiveObjects(
       options,
       search.terms,
     );
+    const entityCacheInput = createEntitySearchCacheInput(
+      ranked.items,
+      indexed?.result,
+    );
+    const sentenceCacheInput = await createSentenceEvidenceSearchCacheInput(
+      document,
+      indexed?.result,
+    );
     const sessionId = await createEntitySearchSession({
       archiveKey: options.archiveKey ?? "archive",
       chapters: ranked.chapters,
-      hits: createEntitySearchMentionHits(ranked.items),
+      chunkHits: sentenceCacheInput.chunkHits,
+      entityHits: [
+        ...entityCacheInput.entityHits,
+        ...sentenceCacheInput.entityHits,
+      ],
+      evidenceEvents: [
+        ...entityCacheInput.evidenceEvents,
+        ...sentenceCacheInput.evidenceEvents,
+      ],
       lens: ranked.lens,
       match: ranked.match,
       order: ranked.order,
       query,
       revisionScope,
       terms: ranked.terms,
+      tripleHits: sentenceCacheInput.tripleHits,
       types: ranked.types,
     });
     const firstPage = await readEntitySearchSessionPage(sessionId, 0, limit);
@@ -965,9 +987,26 @@ export async function findArchiveObjects(
     options,
     search.terms,
   );
+  const entityCacheInput = createEntitySearchCacheInput(
+    ranked.items,
+    indexed?.result,
+  );
+  const sentenceCacheInput = await createSentenceEvidenceSearchCacheInput(
+    document,
+    indexed?.result,
+  );
   const sessionId = await createSearchSession({
     archiveKey: options.archiveKey ?? "archive",
     chapters: ranked.chapters,
+    chunkHits: sentenceCacheInput.chunkHits,
+    entityHits: [
+      ...entityCacheInput.entityHits,
+      ...sentenceCacheInput.entityHits,
+    ],
+    evidenceEvents: [
+      ...entityCacheInput.evidenceEvents,
+      ...sentenceCacheInput.evidenceEvents,
+    ],
     items: ranked.items,
     lens: ranked.lens,
     match: ranked.match,
@@ -975,6 +1014,7 @@ export async function findArchiveObjects(
     query,
     revisionScope,
     terms: ranked.terms,
+    tripleHits: sentenceCacheInput.tripleHits,
     types: ranked.types,
   });
   const firstPage = await readSearchSessionPage(sessionId, 0, limit);
@@ -1112,7 +1152,13 @@ async function findArchiveObjectsIndexed(
   document: ReadonlyDocument,
   query: string,
   options: ArchiveFindOptions,
-): Promise<readonly ArchiveFindHit[] | undefined> {
+): Promise<
+  | {
+      readonly hits: readonly ArchiveFindHit[];
+      readonly result: SearchIndexQueryResult;
+    }
+  | undefined
+> {
   try {
     await ensureSearchIndex(document, await createSearchIndexRecords(document));
   } catch (error) {
@@ -1130,7 +1176,7 @@ async function findArchiveObjectsIndexed(
 
   return result === undefined
     ? undefined
-    : await hydrateSearchIndexHits(document, result);
+    : { hits: await hydrateSearchIndexHits(document, result), result };
 }
 
 function isReadonlySqliteError(error: unknown): boolean {
@@ -1189,9 +1235,10 @@ async function hydrateSearchObjectHit(
   chapters: ReadonlyMap<number, ChapterEntry>,
   hit: SearchIndexObjectHit,
 ): Promise<ArchiveFindHit | undefined> {
-  switch (hit.kind) {
-    case SEARCH_OBJECT_KIND.chapterTitle: {
-      const chapter = chapters.get(hit.refId);
+  switch (hit.ownerKind) {
+    case SEARCH_OBJECT_PROPERTY_OWNER_KIND.chapter: {
+      const chapterId = parseSearchPropertyIntegerOwnerId(hit.ownerId);
+      const chapter = chapters.get(chapterId);
 
       if (chapter === undefined) {
         return undefined;
@@ -1212,32 +1259,42 @@ async function hydrateSearchObjectHit(
         type: "chapter",
       };
     }
-    case SEARCH_OBJECT_KIND.nodeLabel:
-    case SEARCH_OBJECT_KIND.nodeContent: {
-      const node = await document.chunks.getById(hit.refId);
+    case SEARCH_OBJECT_PROPERTY_OWNER_KIND.chunk: {
+      const chunkId = parseSearchPropertyIntegerOwnerId(hit.ownerId);
+      const node = await document.chunks.getById(chunkId);
 
       if (node === undefined) {
         return undefined;
       }
 
       const position = createNodePosition(node.sentenceIds);
+      const isLabel = hit.propertyKind === SEARCH_OBJECT_PROPERTY_KIND.label;
 
       return {
         chapter: node.sentenceId[0],
-        field: hit.kind === SEARCH_OBJECT_KIND.nodeLabel ? "title" : "content",
+        field: isLabel ? "title" : "content",
         id: formatNodeId(node.id),
         matchCount: 1,
         ...(position === undefined ? {} : { position }),
         score: hit.score,
-        snippet:
-          hit.kind === SEARCH_OBJECT_KIND.nodeLabel
-            ? node.label
-            : createSnippet(node.content),
+        snippet: isLabel ? node.label : createSnippet(node.content),
         title: node.label,
         type: "node",
       };
     }
+    case SEARCH_OBJECT_PROPERTY_OWNER_KIND.entity:
+      return undefined;
   }
+}
+
+function parseSearchPropertyIntegerOwnerId(ownerId: string): number {
+  const value = Number(ownerId);
+
+  if (!Number.isSafeInteger(value)) {
+    throw new Error(`Invalid search property owner id: ${ownerId}`);
+  }
+
+  return value;
 }
 
 async function hydrateSearchTextHit(
@@ -1282,16 +1339,17 @@ async function hydrateSearchTextHit(
 async function createSearchIndexRecords(
   document: ReadonlyDocument,
 ): Promise<SearchIndexInput> {
-  const objects: SearchIndexInput["objects"][number][] = [];
+  const objectProperties: SearchIndexInput["objectProperties"][number][] = [];
   const textSentences: SearchIndexInput["textSentences"][number][] = [];
 
   for (const chapter of await listChapters(document)) {
     const title = chapter.title ?? `[chapter ${chapter.chapterId}]`;
 
-    objects.push({
+    objectProperties.push({
       chapterId: chapter.chapterId,
-      kind: SEARCH_OBJECT_KIND.chapterTitle,
-      refId: chapter.chapterId,
+      ownerId: String(chapter.chapterId),
+      ownerKind: SEARCH_OBJECT_PROPERTY_OWNER_KIND.chapter,
+      propertyKind: SEARCH_OBJECT_PROPERTY_KIND.title,
       text: title,
     });
 
@@ -1314,29 +1372,33 @@ async function createSearchIndexRecords(
   }
 
   for (const node of await document.chunks.listAll()) {
-    const position = createNodePosition(node.sentenceIds);
-
-    objects.push({
+    objectProperties.push({
       chapterId: node.sentenceId[0],
-      kind: SEARCH_OBJECT_KIND.nodeLabel,
-      refId: node.id,
-      ...(position?.sentence === undefined
-        ? {}
-        : { sentenceIndex: position.sentence }),
+      ownerId: String(node.id),
+      ownerKind: SEARCH_OBJECT_PROPERTY_OWNER_KIND.chunk,
+      propertyKind: SEARCH_OBJECT_PROPERTY_KIND.label,
       text: node.label,
     });
-    objects.push({
+    objectProperties.push({
       chapterId: node.sentenceId[0],
-      kind: SEARCH_OBJECT_KIND.nodeContent,
-      refId: node.id,
-      ...(position?.sentence === undefined
-        ? {}
-        : { sentenceIndex: position.sentence }),
+      ownerId: String(node.id),
+      ownerKind: SEARCH_OBJECT_PROPERTY_OWNER_KIND.chunk,
+      propertyKind: SEARCH_OBJECT_PROPERTY_KIND.content,
       text: node.content,
     });
   }
 
-  return { objects, textSentences };
+  for (const mention of await document.mentions.listAll()) {
+    objectProperties.push({
+      chapterId: mention.chapterId,
+      ownerId: mention.qid,
+      ownerKind: SEARCH_OBJECT_PROPERTY_OWNER_KIND.entity,
+      propertyKind: SEARCH_OBJECT_PROPERTY_KIND.surface,
+      text: mention.surface,
+    });
+  }
+
+  return { objectProperties, textSentences };
 }
 
 async function createTextStreamSearchIndexRecords(
@@ -2743,9 +2805,10 @@ async function hydrateFindHitEvidence(
 
   return await Promise.all(
     hits.map(async (rawHit) => {
+      const displayHit = await hydrateEntityDisplayHit(document, rawHit);
       const hit = await hydrateTextStreamHitContext(
         document,
-        rawHit,
+        displayHit,
         options.sourceContext ?? DEFAULT_SOURCE_CONTEXT,
         evidenceContext,
       );
@@ -2812,6 +2875,42 @@ async function hydrateFindHitEvidence(
       };
     }),
   );
+}
+
+async function hydrateEntityDisplayHit(
+  document: ReadonlyDocument,
+  hit: ArchiveFindHit,
+): Promise<ArchiveFindHit> {
+  if (hit.type !== "entity") {
+    return hit;
+  }
+
+  const qid = parseEntityQid(hit.id);
+
+  if (qid === undefined) {
+    return hit;
+  }
+  if (hit.title !== qid && hit.snippet !== qid) {
+    return hit;
+  }
+
+  const mentions = await document.mentions.listByQid(qid);
+  const [first] = mentions.sort(compareMentions);
+
+  if (first === undefined) {
+    return hit;
+  }
+
+  return {
+    ...hit,
+    chapter: first.chapterId,
+    position: {
+      chapter: first.chapterId,
+      fragment: first.fragmentId,
+    },
+    snippet: hit.snippet === qid ? (first.note ?? first.surface) : hit.snippet,
+    title: hit.title === qid ? selectEntityLabel(mentions) : hit.title,
+  };
 }
 
 async function hydrateTextStreamHitContext(
@@ -3175,9 +3274,21 @@ async function hydrateEntitySessionHitEvidence(
     return hit;
   }
 
+  const mentionsByQid = await document.mentions.listByQid(qid);
+  const mentionsById = new Map(
+    mentionsByQid.map((mention) => [mention.id, mention]),
+  );
   const allMentions = (
-    await readEntitySearchEvidenceMentions(sessionId, qid, 10_000)
-  ).map(toMentionRecord);
+    await readEntitySearchEvidenceMentions(
+      sessionId,
+      mentionsByQid.map((mention) => mention.id),
+      10_000,
+    )
+  ).flatMap((hit) => {
+    const mention = mentionsById.get(hit.mentionId);
+
+    return mention === undefined ? [] : [mention];
+  });
   const ranges = await createMentionEvidenceRanges(document, allMentions);
   const mergedRanges = await createExpandedSourceEvidenceRanges(
     document,
@@ -3203,6 +3314,17 @@ async function hydrateEntitySessionHitEvidence(
 
   return {
     ...hit,
+    ...(allMentions[0] === undefined
+      ? {}
+      : {
+          chapter: allMentions[0].chapterId,
+          position: {
+            chapter: allMentions[0].chapterId,
+            fragment: allMentions[0].fragmentId,
+          },
+          snippet: allMentions[0].note ?? allMentions[0].surface,
+          title: allMentions[0].surface,
+        }),
     evidence: {
       nextCursor:
         sources.length < mergedRanges.length
@@ -3252,55 +3374,259 @@ function assertSearchCursorTypesMatch(
   }
 }
 
-function createEntitySearchMentionHits(
+function createEntitySearchCacheInput(
   hits: readonly ArchiveFindHit[],
-): readonly EntitySearchMentionHit[] {
-  return hits.flatMap((hit) => {
-    if (hit.type !== "entity" || hit.evidenceMentions === undefined) {
-      return [];
+  indexResult?: SearchIndexQueryResult,
+): {
+  readonly entityHits: readonly SearchEntityHitInput[];
+  readonly evidenceEvents: readonly SearchEvidenceHitEventInput[];
+} {
+  const evidenceEvents: SearchEvidenceHitEventInput[] = [];
+  const evidenceScoresByQid = new Map<string, number[]>();
+  const propertyScoresByQid = new Map<string, number[]>();
+
+  for (const hit of indexResult?.objectHits ?? []) {
+    if (hit.ownerKind !== SEARCH_OBJECT_PROPERTY_OWNER_KIND.entity) {
+      continue;
     }
 
-    return hit.evidenceMentions.map((evidenceMention) => ({
-      chapterId: evidenceMention.mention.chapterId,
-      ...(evidenceMention.mention.confidence === undefined
-        ? {}
-        : { confidence: evidenceMention.mention.confidence }),
-      fragmentId: evidenceMention.mention.fragmentId,
-      matchCount: evidenceMention.match.matchCount ?? 0,
-      matchedTerms: evidenceMention.match.matchedTerms ?? [],
-      mentionId: evidenceMention.mention.id,
-      missingTerms: evidenceMention.match.missingTerms ?? [],
-      ...(evidenceMention.mention.note === undefined
-        ? {}
-        : { note: evidenceMention.mention.note }),
-      qid: evidenceMention.mention.qid,
-      rangeEnd: evidenceMention.mention.rangeEnd,
-      rangeStart: evidenceMention.mention.rangeStart,
-      resultScore: hit.score ?? 0,
-      score: evidenceMention.match.score ?? 0,
-      ...(evidenceMention.mention.sentenceIndex === undefined
-        ? {}
-        : { sentenceIndex: evidenceMention.mention.sentenceIndex }),
-      surface: evidenceMention.mention.surface,
-    }));
-  });
+    const scores = propertyScoresByQid.get(hit.ownerId) ?? [];
+
+    scores.push(hit.score);
+    propertyScoresByQid.set(hit.ownerId, scores);
+  }
+
+  for (const hit of hits) {
+    if (hit.type !== "entity" || hit.evidenceMentions === undefined) {
+      continue;
+    }
+
+    const qid = parseEntityQid(hit.id);
+
+    if (qid === undefined) {
+      continue;
+    }
+
+    const scores = evidenceScoresByQid.get(qid) ?? [];
+
+    for (const evidenceMention of hit.evidenceMentions) {
+      const sentenceIndex = evidenceMention.mention.sentenceIndex;
+
+      if (sentenceIndex === undefined) {
+        continue;
+      }
+
+      const score = evidenceMention.match.score ?? hit.score ?? 0;
+
+      evidenceEvents.push({
+        chapterId: evidenceMention.mention.chapterId,
+        evidenceId: evidenceMention.mention.id,
+        evidenceKind: SEARCH_EVIDENCE_KIND.mention,
+        score,
+        sentenceIndex,
+      });
+      scores.push(score);
+    }
+
+    evidenceScoresByQid.set(qid, scores);
+  }
+
+  const qids = new Set([
+    ...evidenceScoresByQid.keys(),
+    ...propertyScoresByQid.keys(),
+  ]);
+
+  return {
+    entityHits: [...qids].map((qid) => ({
+      evidenceTopScores: evidenceScoresByQid.get(qid) ?? [],
+      propertyTopScores: propertyScoresByQid.get(qid) ?? [],
+      qid,
+    })),
+    evidenceEvents,
+  };
 }
 
-function toMentionRecord(hit: EntitySearchMentionHit): MentionRecord {
+async function createSentenceEvidenceSearchCacheInput(
+  document: ReadonlyDocument,
+  indexResult: SearchIndexQueryResult | undefined,
+): Promise<{
+  readonly chunkHits: readonly SearchChunkHitInput[];
+  readonly entityHits: readonly SearchEntityHitInput[];
+  readonly evidenceEvents: readonly SearchEvidenceHitEventInput[];
+  readonly tripleHits: readonly SearchTripleHitInput[];
+}> {
+  if (indexResult === undefined) {
+    return {
+      chunkHits: [],
+      entityHits: [],
+      evidenceEvents: [],
+      tripleHits: [],
+    };
+  }
+
+  const sourceHits = indexResult.textHits.filter(
+    (hit) => hit.kind === TEXT_SENTENCE_KIND.source,
+  );
+
+  if (sourceHits.length === 0) {
+    return {
+      chunkHits: [],
+      entityHits: [],
+      evidenceEvents: [],
+      tripleHits: [],
+    };
+  }
+
+  const sourceHitScores = new Map<string, number>();
+  const chapterIds = new Set<number>();
+
+  for (const hit of sourceHits) {
+    sourceHitScores.set(
+      createSentenceHitKey(hit.chapterId, hit.sentenceIndex),
+      hit.score,
+    );
+    chapterIds.add(hit.chapterId);
+  }
+
+  const evidenceEvents: SearchEvidenceHitEventInput[] = [];
+  const entityEvidenceScoresByQid = new Map<string, number[]>();
+  const chunkEvidenceScoresById = new Map<number, number[]>();
+  const tripleEvidenceScoresByKey = new Map<
+    string,
+    {
+      readonly objectQid: string;
+      readonly predicate: string;
+      readonly scores: number[];
+      readonly subjectQid: string;
+    }
+  >();
+
+  for (const chapterId of chapterIds) {
+    for (const mention of await document.mentions.listByChapter(chapterId)) {
+      if (mention.sentenceIndex === undefined) {
+        continue;
+      }
+
+      const score = sourceHitScores.get(
+        createSentenceHitKey(chapterId, mention.sentenceIndex),
+      );
+
+      if (score === undefined) {
+        continue;
+      }
+
+      evidenceEvents.push({
+        chapterId,
+        evidenceId: mention.id,
+        evidenceKind: SEARCH_EVIDENCE_KIND.mention,
+        score,
+        sentenceIndex: mention.sentenceIndex,
+      });
+      const scores = entityEvidenceScoresByQid.get(mention.qid) ?? [];
+
+      scores.push(score);
+      entityEvidenceScoresByQid.set(mention.qid, scores);
+    }
+
+    for (const chunk of await document.chunks.listBySerial(chapterId)) {
+      for (const [, , sentenceIndex] of chunk.sentenceIds) {
+        const score = sourceHitScores.get(
+          createSentenceHitKey(chapterId, sentenceIndex),
+        );
+
+        if (score === undefined) {
+          continue;
+        }
+
+        evidenceEvents.push({
+          chapterId,
+          evidenceId: String(chunk.id),
+          evidenceKind: SEARCH_EVIDENCE_KIND.chunk,
+          score,
+          sentenceIndex,
+        });
+        const scores = chunkEvidenceScoresById.get(chunk.id) ?? [];
+
+        scores.push(score);
+        chunkEvidenceScoresById.set(chunk.id, scores);
+      }
+    }
+
+    const mentionCache = new Map<string, MentionRecord>();
+
+    for (const link of await document.mentionLinks.listByChapter(chapterId)) {
+      const [source, target] = await Promise.all([
+        getMentionForTripleSearch(document, mentionCache, link.sourceMentionId),
+        getMentionForTripleSearch(document, mentionCache, link.targetMentionId),
+      ]);
+
+      if (source === undefined || target === undefined) {
+        continue;
+      }
+
+      for (const [
+        evidenceChapterId,
+        ,
+        sentenceIndex,
+      ] of link.evidenceSentenceIds) {
+        const score = sourceHitScores.get(
+          createSentenceHitKey(evidenceChapterId, sentenceIndex),
+        );
+
+        if (score === undefined) {
+          continue;
+        }
+
+        evidenceEvents.push({
+          chapterId: evidenceChapterId,
+          evidenceId: link.id,
+          evidenceKind: SEARCH_EVIDENCE_KIND.mentionLink,
+          score,
+          sentenceIndex,
+        });
+
+        const key = formatTripleUri(source.qid, link.predicate, target.qid);
+        const current = tripleEvidenceScoresByKey.get(key) ?? {
+          objectQid: target.qid,
+          predicate: link.predicate,
+          scores: [],
+          subjectQid: source.qid,
+        };
+
+        current.scores.push(score);
+        tripleEvidenceScoresByKey.set(key, current);
+      }
+    }
+  }
+
   return {
-    chapterId: hit.chapterId,
-    ...(hit.confidence === undefined ? {} : { confidence: hit.confidence }),
-    fragmentId: hit.fragmentId,
-    id: hit.mentionId,
-    ...(hit.note === undefined ? {} : { note: hit.note }),
-    qid: hit.qid,
-    rangeEnd: hit.rangeEnd,
-    rangeStart: hit.rangeStart,
-    ...(hit.sentenceIndex === undefined
-      ? {}
-      : { sentenceIndex: hit.sentenceIndex }),
-    surface: hit.surface,
+    chunkHits: [...chunkEvidenceScoresById.entries()].map(
+      ([chunkId, scores]) => ({
+        chunkId,
+        evidenceTopScores: scores,
+      }),
+    ),
+    entityHits: [...entityEvidenceScoresByQid.entries()].map(
+      ([qid, scores]) => ({
+        evidenceTopScores: scores,
+        qid,
+      }),
+    ),
+    evidenceEvents,
+    tripleHits: [...tripleEvidenceScoresByKey.values()].map((hit) => ({
+      evidenceTopScores: hit.scores,
+      objectQid: hit.objectQid,
+      predicate: hit.predicate,
+      subjectQid: hit.subjectQid,
+    })),
   };
+}
+
+function createSentenceHitKey(
+  chapterId: number,
+  sentenceIndex: number,
+): string {
+  return `${chapterId}:${sentenceIndex}`;
 }
 
 function parseEntityQid(id: string): string | undefined {

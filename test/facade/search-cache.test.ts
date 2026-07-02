@@ -39,16 +39,27 @@ describe("facade/search-cache", () => {
       try {
         await expect(listIndexNames(database)).resolves.toEqual(
           expect.arrayContaining([
-            "idx_search_mention_hits_entity_rank",
-            "idx_search_mention_hits_result_rank",
-            "idx_search_mention_hits_session_rank",
+            "idx_search_chunk_hits_rank",
+            "idx_search_entity_hits_rank",
+            "idx_search_evidence_hit_events_evidence_rank",
+            "idx_search_evidence_hit_events_sentence",
             "idx_search_sessions_archive",
             "idx_search_sessions_expires",
             "idx_search_sessions_prune",
+            "idx_search_triple_hits_rank",
+          ]),
+        );
+        await expect(listTableNames(database)).resolves.toEqual(
+          expect.arrayContaining([
+            "predicate_dictionary",
+            "search_chunk_hits",
+            "search_entity_hits",
+            "search_evidence_hit_events",
+            "search_triple_hits",
           ]),
         );
         await expect(listTableNames(database)).resolves.not.toContain(
-          "search_record_hits",
+          "search_mention_hits",
         );
       } finally {
         await database.close();

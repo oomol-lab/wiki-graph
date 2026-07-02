@@ -27,14 +27,24 @@ export const TEXT_SENTENCE_KIND = {
 export type TextSentenceKind =
   (typeof TEXT_SENTENCE_KIND)[keyof typeof TEXT_SENTENCE_KIND];
 
-export const SEARCH_OBJECT_KIND = {
-  chapterTitle: 1,
-  nodeLabel: 2,
-  nodeContent: 3,
+export const SEARCH_OBJECT_PROPERTY_OWNER_KIND = {
+  chapter: 1,
+  chunk: 2,
+  entity: 3,
 } as const;
 
-export type SearchObjectKind =
-  (typeof SEARCH_OBJECT_KIND)[keyof typeof SEARCH_OBJECT_KIND];
+export type SearchObjectPropertyOwnerKind =
+  (typeof SEARCH_OBJECT_PROPERTY_OWNER_KIND)[keyof typeof SEARCH_OBJECT_PROPERTY_OWNER_KIND];
+
+export const SEARCH_OBJECT_PROPERTY_KIND = {
+  title: 1,
+  label: 1,
+  content: 2,
+  surface: 1,
+} as const;
+
+export type SearchObjectPropertyKind =
+  (typeof SEARCH_OBJECT_PROPERTY_KIND)[keyof typeof SEARCH_OBJECT_PROPERTY_KIND];
 
 export interface TextSentenceRecordInput {
   readonly chapterId: number;
@@ -44,16 +54,16 @@ export interface TextSentenceRecordInput {
   readonly wordsCount: number;
 }
 
-export interface SearchObjectRecordInput {
+export interface SearchObjectPropertyRecordInput {
   readonly chapterId?: number;
-  readonly kind: SearchObjectKind;
-  readonly refId: number;
-  readonly sentenceIndex?: number;
+  readonly ownerId: string;
+  readonly ownerKind: SearchObjectPropertyOwnerKind;
+  readonly propertyKind: SearchObjectPropertyKind;
   readonly text: string;
 }
 
 export interface SearchIndexInput {
-  readonly objects: readonly SearchObjectRecordInput[];
+  readonly objectProperties: readonly SearchObjectPropertyRecordInput[];
   readonly textSentences: readonly TextSentenceRecordInput[];
 }
 
@@ -67,10 +77,10 @@ export interface SearchIndexTextHit {
 
 export interface SearchIndexObjectHit {
   readonly chapterId?: number;
-  readonly kind: SearchObjectKind;
-  readonly refId: number;
+  readonly ownerId: string;
+  readonly ownerKind: SearchObjectPropertyOwnerKind;
+  readonly propertyKind: SearchObjectPropertyKind;
   readonly score: number;
-  readonly sentenceIndex?: number;
 }
 
 export interface SearchIndexQueryResult {
@@ -79,7 +89,7 @@ export interface SearchIndexQueryResult {
   readonly textHits: readonly SearchIndexTextHit[];
 }
 
-const SEARCH_INDEX_VERSION = "2";
+const SEARCH_INDEX_VERSION = "3";
 const SEARCH_INDEX_OBJECT_TARGET = 1;
 const TIER_WEIGHTS = [1, 0.45, 0.08] as const;
 
@@ -110,8 +120,8 @@ export async function ensureSearchIndex(
     await database.transaction(async () => {
       await database.run("DELETE FROM text_sentence_fts");
       await database.run("DELETE FROM text_sentence_records");
-      await database.run("DELETE FROM search_object_fts");
-      await database.run("DELETE FROM search_object_records");
+      await database.run("DELETE FROM search_object_properties_fts");
+      await database.run("DELETE FROM search_object_properties_records");
       await database.run("DELETE FROM search_index_state");
 
       for (const record of input.textSentences) {
@@ -121,11 +131,16 @@ export async function ensureSearchIndex(
         await insertFtsRecord(database, "text_sentence_fts", rowId, plan);
       }
 
-      for (const record of input.objects) {
+      for (const record of input.objectProperties) {
         const plan = createSearchTokenPlan(record.text);
-        const rowId = await insertSearchObjectRecord(database, record);
+        const rowId = await insertSearchObjectPropertyRecord(database, record);
 
-        await insertFtsRecord(database, "search_object_fts", rowId, plan);
+        await insertFtsRecord(
+          database,
+          "search_object_properties_fts",
+          rowId,
+          plan,
+        );
       }
 
       await database.run(
@@ -217,17 +232,17 @@ async function queryObjectRows(
   return await database.queryAll(
     `
       SELECT
-        r.kind AS kind,
-        r.ref_id AS ref_id,
+        r.owner_kind AS owner_kind,
+        r.owner_id AS owner_id,
+        r.property_kind AS property_kind,
         r.chapter_id AS chapter_id,
-        r.sentence_index AS sentence_index,
-        bm25(search_object_fts, ?, ?, ?) AS rank
-      FROM search_object_fts
-      JOIN search_object_records AS r
-        ON r.id = search_object_fts.rowid
-      WHERE search_object_fts MATCH ?
+        bm25(search_object_properties_fts, ?, ?, ?) AS rank
+      FROM search_object_properties_fts
+      JOIN search_object_properties_records AS r
+        ON r.id = search_object_properties_fts.rowid
+      WHERE search_object_properties_fts MATCH ?
         ${createChapterSql(options.chapters)}
-      ORDER BY rank ASC, r.chapter_id, r.sentence_index, r.kind, r.ref_id
+      ORDER BY rank ASC, r.chapter_id, r.owner_kind, r.owner_id, r.property_kind
     `,
     [
       ...TIER_WEIGHTS,
@@ -235,15 +250,13 @@ async function queryObjectRows(
       ...createChapterParams(options.chapters),
     ],
     (row) => ({
-      kind: getNumber(row, "kind") as SearchObjectKind,
-      refId: getNumber(row, "ref_id"),
+      ownerId: String(row.owner_id),
+      ownerKind: getNumber(row, "owner_kind") as SearchObjectPropertyOwnerKind,
+      propertyKind: getNumber(row, "property_kind") as SearchObjectPropertyKind,
       score: rankToScore(getNumber(row, "rank")),
       ...(row.chapter_id === null
         ? {}
         : { chapterId: getNumber(row, "chapter_id") }),
-      ...(row.sentence_index === null
-        ? {}
-        : { sentenceIndex: getNumber(row, "sentence_index") }),
     }),
   );
 }
@@ -419,22 +432,22 @@ async function insertTextSentenceRecord(
   return await database.getLastInsertRowId();
 }
 
-async function insertSearchObjectRecord(
+async function insertSearchObjectPropertyRecord(
   database: Database,
-  record: SearchObjectRecordInput,
+  record: SearchObjectPropertyRecordInput,
 ): Promise<number> {
   await database.run(
     `
-      INSERT INTO search_object_records (
-        kind, ref_id, chapter_id, sentence_index
+      INSERT INTO search_object_properties_records (
+        owner_kind, owner_id, property_kind, chapter_id
       )
       VALUES (?, ?, ?, ?)
     `,
     [
-      record.kind,
-      record.refId,
+      record.ownerKind,
+      record.ownerId,
+      record.propertyKind,
       record.chapterId ?? null,
-      record.sentenceIndex ?? null,
     ],
   );
 
@@ -443,7 +456,7 @@ async function insertSearchObjectRecord(
 
 async function insertFtsRecord(
   database: Database,
-  table: "search_object_fts" | "text_sentence_fts",
+  table: "search_object_properties_fts" | "text_sentence_fts",
   rowId: number,
   plan: SearchTokenPlan,
 ): Promise<void> {
@@ -477,12 +490,16 @@ function createSearchIndexFingerprint(input: SearchIndexInput): string {
     hash.update("\0");
   }
 
-  for (const record of input.objects) {
-    hash.update("object");
+  for (const record of input.objectProperties) {
+    hash.update("object-property");
     hash.update("\0");
-    hash.update(String(record.kind));
+    hash.update(String(record.ownerKind));
     hash.update("\0");
-    hash.update(String(record.refId));
+    hash.update(record.ownerId);
+    hash.update("\0");
+    hash.update(String(record.propertyKind));
+    hash.update("\0");
+    hash.update(String(record.chapterId ?? ""));
     hash.update("\0");
     hash.update(record.text);
     hash.update("\0");
@@ -518,7 +535,8 @@ function shouldQueryObjects(
     types === undefined ||
     types === null ||
     types.includes("chapter") ||
-    types.includes("node")
+    types.includes("node") ||
+    types.includes("entity")
   );
 }
 
@@ -547,10 +565,10 @@ function rankToScore(rank: number): number {
 
 function createObjectHitKey(hit: SearchIndexObjectHit): string {
   return [
-    hit.kind,
-    hit.refId,
+    hit.ownerKind,
+    hit.ownerId,
+    hit.propertyKind,
     hit.chapterId ?? "",
-    hit.sentenceIndex ?? "",
   ].join(":");
 }
 

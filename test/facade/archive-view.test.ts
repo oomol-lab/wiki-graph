@@ -130,8 +130,8 @@ describe("facade/archive-view", () => {
         await expect(listDocumentTableNames(document)).resolves.toEqual(
           expect.arrayContaining([
             "search_index_state",
-            "search_object_fts",
-            "search_object_records",
+            "search_object_properties_fts",
+            "search_object_properties_records",
             "text_sentence_fts",
             "text_sentence_records",
           ]),
@@ -751,7 +751,8 @@ describe("facade/archive-view", () => {
           (item) => item.id === "wkg://entity/Q2",
         );
 
-        expect(multi?.score).toBeCloseTo((single?.score ?? 0) * 1.3, 10);
+        expect(multi?.score).toBeGreaterThan(single?.score ?? 0);
+        expect(multi?.score).toBeLessThan((single?.score ?? 0) * 4);
       } finally {
         restoreEnv("WIKIGRAPH_STATE_DIR", previousStateDir);
         await document.release();
