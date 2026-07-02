@@ -79,7 +79,6 @@ export interface GenerateChapterKnowledgeGraphArtifactOptions {
 const mentionRecordSchema = z.object({
   id: z.string().min(1),
   chapterId: z.number().int(),
-  fragmentId: z.number().int(),
   sentenceIndex: z.number().int().nonnegative().optional(),
   rangeStart: z.number().int().nonnegative(),
   rangeEnd: z.number().int().nonnegative(),
@@ -90,11 +89,7 @@ const mentionRecordSchema = z.object({
 });
 
 const sentenceIdSchema = z
-  .tuple([
-    z.number().int().nonnegative(),
-    z.number().int().nonnegative(),
-    z.number().int().nonnegative(),
-  ])
+  .tuple([z.number().int().nonnegative(), z.number().int().nonnegative()])
   .readonly();
 
 const mentionLinkRecordSchema = z.object({
@@ -851,19 +846,18 @@ function buildMentionLinkWindows(
   readonly fragment: FragmentRecord;
   readonly window: WikilinkEvidenceWindow;
 }> {
-  const mentionsByFragment = new Map<number, MentionRecord[]>();
-
-  for (const mention of mentions) {
-    const list = mentionsByFragment.get(mention.fragmentId) ?? [];
-
-    list.push(mention);
-    mentionsByFragment.set(mention.fragmentId, list);
-  }
-
   return fragments.flatMap((fragment) => {
+    const startSentenceIndex = fragment.fragmentId;
+    const endSentenceIndex = startSentenceIndex + fragment.sentences.length - 1;
     const fragmentMentions = toWikilinkMentions(
       fragment.sentences,
-      mentionsByFragment.get(fragment.fragmentId) ?? [],
+      mentions.filter(
+        (mention) =>
+          mention.sentenceIndex !== undefined &&
+          mention.sentenceIndex >= startSentenceIndex &&
+          mention.sentenceIndex <= endSentenceIndex,
+      ),
+      startSentenceIndex,
     );
     const windows = buildWikilinkEvidenceWindows({
       maxEvidenceDistance: WIKILINK_EVIDENCE_DISTANCE,
@@ -882,6 +876,7 @@ function buildMentionLinkWindows(
 function toWikilinkMentions(
   sentences: readonly WikilinkSentence[],
   mentions: readonly MentionRecord[],
+  startSentenceIndex: number,
 ): readonly WikilinkMention[] {
   const sentenceOffsets = buildFragmentSentenceOffsets(sentences);
 
@@ -890,7 +885,8 @@ function toWikilinkMentions(
       return [];
     }
 
-    const sentenceOffset = sentenceOffsets[mention.sentenceIndex];
+    const sentenceOffset =
+      sentenceOffsets[mention.sentenceIndex - startSentenceIndex];
 
     if (sentenceOffset === undefined) {
       return [];
@@ -943,7 +939,6 @@ function toMentionRecord(
   chapterId: number,
   mention: WikimatchAcceptedMention,
   location: {
-    readonly fragmentId: number;
     readonly rangeStart: number;
     readonly sentenceIndex: number;
   },
@@ -954,7 +949,6 @@ function toMentionRecord(
     ...(mention.confidence === undefined
       ? {}
       : { confidence: mention.confidence }),
-    fragmentId: location.fragmentId,
     id: `m${chapterId}-${index}`,
     ...(mention.note === undefined ? {} : { note: mention.note }),
     qid: mention.qid,
@@ -967,7 +961,6 @@ function toMentionRecord(
 
 interface SentenceLocation {
   readonly absoluteStart: number;
-  readonly fragmentId: number;
   readonly length: number;
   readonly sentenceIndex: number;
 }
@@ -988,9 +981,8 @@ function buildSentenceLocations(
 
       locations.push({
         absoluteStart: offset,
-        fragmentId: fragment.fragmentId,
         length,
-        sentenceIndex,
+        sentenceIndex: fragment.fragmentId + sentenceIndex,
       });
       offset += length + 1;
     }
@@ -1003,7 +995,6 @@ function locateMention(
   locations: readonly SentenceLocation[],
   absoluteOffset: number,
 ): {
-  readonly fragmentId: number;
   readonly rangeStart: number;
   readonly sentenceIndex: number;
 } {
@@ -1012,7 +1003,6 @@ function locateMention(
 
     if (absoluteOffset >= location.absoluteStart && absoluteOffset < rangeEnd) {
       return {
-        fragmentId: location.fragmentId,
         rangeStart: absoluteOffset - location.absoluteStart,
         sentenceIndex: location.sentenceIndex,
       };
@@ -1052,7 +1042,7 @@ function createWikimatchSentences(
       const sentence = fragment.sentences[index]!;
 
       sentences.push({
-        id: `${fragment.serialId}:${fragment.fragmentId}:${index}`,
+        id: `${fragment.serialId}:${fragment.fragmentId + index}`,
         range: {
           end: offset + sentence.text.length,
           start: offset,
@@ -1236,7 +1226,6 @@ function parseMentionRecord(record: unknown): MentionRecord {
     ...(parsed.confidence === undefined
       ? {}
       : { confidence: parsed.confidence }),
-    fragmentId: parsed.fragmentId,
     id: parsed.id,
     ...(parsed.note === undefined ? {} : { note: parsed.note }),
     qid: parsed.qid,

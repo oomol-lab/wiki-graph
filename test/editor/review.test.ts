@@ -30,7 +30,7 @@ describe("editor/review", () => {
     );
 
     const reviewers = await reviewer.generateClueReviewers([
-      createClue(1, 0.6, createChunk(1, 0, "Alpha")),
+      createClue(1, 0.6, createChunk(0, "Alpha")),
     ]);
 
     expect(reviewers).toStrictEqual([
@@ -174,18 +174,14 @@ describe("editor/review", () => {
   });
 });
 
-function createChunk(
-  fragmentId: number,
-  sentenceIndex: number,
-  label: string,
-): ChunkRecord {
+function createChunk(sentenceIndex: number, label: string): ChunkRecord {
   return {
     content: `${label} content`,
     generation: 0,
-    id: fragmentId * 10 + sentenceIndex,
+    id: sentenceIndex,
     label,
-    sentenceId: [1, fragmentId, sentenceIndex],
-    sentenceIds: [[1, fragmentId, sentenceIndex]],
+    sentenceId: [1, sentenceIndex],
+    sentenceIds: [[1, sentenceIndex]],
     wordsCount: 3,
     weight: 1,
   };
@@ -211,7 +207,7 @@ function createClue(
 
 function createSerialFragments(): ReadonlySerialFragments {
   const fragment = {
-    fragmentId: 1,
+    fragmentId: 0,
     sentences: [
       {
         text: "Alpha fragment sentence.",

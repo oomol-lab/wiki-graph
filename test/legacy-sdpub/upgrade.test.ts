@@ -54,7 +54,10 @@ describe("legacy-sdpub/upgrade", () => {
       ).rejects.toThrow();
       await expect(
         readFile(`${extractedPath}/summaries/serial-1/fragment_0.json`, "utf8"),
-      ).resolves.toContain("Summary sentence one.");
+      ).rejects.toThrow();
+      await expect(
+        readFile(`${extractedPath}/texts/summary/1.txt`, "utf8"),
+      ).resolves.toBe("Summary sentence one.\nSummary sentence two.");
     });
   });
 
@@ -111,13 +114,13 @@ describe("legacy-sdpub/upgrade", () => {
         await expect(
           document.getSerialFragments(1).getFragment(0),
         ).resolves.toMatchObject({
-          summary: "Legacy fragment summary.",
+          summary: "",
           sentences: [{ text: "Source sentence.", wordsCount: 2 }],
         });
         await document.openSession(async (openedDocument) => {
           await expect(openedDocument.chunks.getById(1)).resolves.toMatchObject(
             {
-              sentenceId: [1, 0, 0],
+              sentenceId: [1, 0],
             },
           );
         });
@@ -313,13 +316,13 @@ async function readFragmentGroupIds(
   return await document.readDatabase(async (database) => {
     return await database.queryAll(
       `
-        SELECT fragment_id
-        FROM fragment_groups
+        SELECT start_sentence_index
+        FROM sentence_groups
         WHERE serial_id = 1
-        ORDER BY fragment_id
+        ORDER BY start_sentence_index
       `,
       undefined,
-      (row) => Number(row.fragment_id),
+      (row) => Number(row.start_sentence_index),
     );
   });
 }

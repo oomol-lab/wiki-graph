@@ -3,11 +3,14 @@ export {
   ensureSharedStateDatabaseInitialized,
   openSharedStateDatabase,
 } from "./shared-state-database.js";
+export { TextStreams, SerialTextStream } from "./text-streams.js";
 export { FragmentDraft, Fragments, SerialFragments } from "./fragments.js";
 export type {
-  ReadonlyFragments,
-  ReadonlySerialFragments,
-} from "./fragments.js";
+  ReadonlySerialTextStream,
+  ReadonlySerialTextStream as ReadonlySerialFragments,
+  ReadonlyTextStreams,
+  ReadonlyTextStreams as ReadonlyFragments,
+} from "./text-streams.js";
 export { DirectoryDocument } from "./document.js";
 export type {
   Document,
@@ -50,7 +53,6 @@ export {
 export type {
   ChunkRecord,
   CreateSnakeRecord,
-  FragmentGroupRecord,
   FragmentRecord,
   GraphBuildParameterRecord,
   ReadingEdgeRecord,
@@ -58,6 +60,7 @@ export type {
   MentionRecord,
   SerialRecord,
   SentenceId,
+  SentenceGroupRecord,
   SentenceRecord,
   SnakeChunkRecord,
   SnakeEdgeRecord,

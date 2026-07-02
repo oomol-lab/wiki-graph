@@ -18,20 +18,20 @@ describe("topology/resource-segmentation", () => {
       createFragmentGroups({
         fragmentInfos: [
           {
-            endIncision: 0,
             fragmentId: 1,
+            endIncision: 0,
             startIncision: 0,
             wordsCount: 40,
           },
           {
-            endIncision: 0,
             fragmentId: 2,
+            endIncision: 0,
             startIncision: 0,
             wordsCount: 40,
           },
           {
-            endIncision: 0,
             fragmentId: 3,
+            endIncision: 0,
             startIncision: 0,
             wordsCount: 40,
           },
@@ -40,9 +40,8 @@ describe("topology/resource-segmentation", () => {
         serialId: 1,
       }),
     ).toStrictEqual([
-      { fragmentId: 1, groupId: 0, serialId: 1 },
-      { fragmentId: 2, groupId: 0, serialId: 1 },
-      { fragmentId: 3, groupId: 1, serialId: 1 },
+      { endSentenceIndex: 2, groupId: 0, serialId: 1, startSentenceIndex: 1 },
+      { endSentenceIndex: 3, groupId: 1, serialId: 1, startSentenceIndex: 3 },
     ]);
   });
 
@@ -51,26 +50,26 @@ describe("topology/resource-segmentation", () => {
       createFragmentGroups({
         fragmentInfos: [
           {
-            endIncision: 1,
             fragmentId: 1,
+            endIncision: 1,
             startIncision: 0,
             wordsCount: 20,
           },
           {
-            endIncision: 9,
             fragmentId: 2,
+            endIncision: 9,
             startIncision: 1,
             wordsCount: 20,
           },
           {
-            endIncision: 1,
             fragmentId: 3,
+            endIncision: 1,
             startIncision: 9,
             wordsCount: 20,
           },
           {
-            endIncision: 0,
             fragmentId: 4,
+            endIncision: 0,
             startIncision: 1,
             wordsCount: 20,
           },
@@ -79,10 +78,8 @@ describe("topology/resource-segmentation", () => {
         serialId: 1,
       }),
     ).toStrictEqual([
-      { fragmentId: 1, groupId: 0, serialId: 1 },
-      { fragmentId: 2, groupId: 0, serialId: 1 },
-      { fragmentId: 3, groupId: 1, serialId: 1 },
-      { fragmentId: 4, groupId: 1, serialId: 1 },
+      { endSentenceIndex: 2, groupId: 0, serialId: 1, startSentenceIndex: 1 },
+      { endSentenceIndex: 4, groupId: 1, serialId: 1, startSentenceIndex: 3 },
     ]);
   });
 
@@ -91,20 +88,20 @@ describe("topology/resource-segmentation", () => {
       createFragmentGroups({
         fragmentInfos: [
           {
-            endIncision: 0,
             fragmentId: 1,
+            endIncision: 0,
             startIncision: 0,
             wordsCount: 70,
           },
           {
-            endIncision: 0,
             fragmentId: 2,
+            endIncision: 0,
             startIncision: 0,
             wordsCount: 70,
           },
           {
-            endIncision: 0,
             fragmentId: 3,
+            endIncision: 0,
             startIncision: 0,
             wordsCount: 70,
           },
@@ -113,9 +110,9 @@ describe("topology/resource-segmentation", () => {
         serialId: 1,
       }),
     ).toStrictEqual([
-      { fragmentId: 1, groupId: 0, serialId: 1 },
-      { fragmentId: 2, groupId: 1, serialId: 1 },
-      { fragmentId: 3, groupId: 2, serialId: 1 },
+      { startSentenceIndex: 1, endSentenceIndex: 1, groupId: 0, serialId: 1 },
+      { startSentenceIndex: 2, endSentenceIndex: 2, groupId: 1, serialId: 1 },
+      { startSentenceIndex: 3, endSentenceIndex: 3, groupId: 2, serialId: 1 },
     ]);
   });
 });

@@ -51,7 +51,6 @@ describe("wikilink/relation-discovery", () => {
     await expect(
       discoverWikilinkRelations({
         chapterId: 1,
-        fragmentId: 0,
         maxRetries: 0,
         request,
         sentences,
@@ -60,7 +59,7 @@ describe("wikilink/relation-discovery", () => {
     ).resolves.toStrictEqual([
       {
         confidence: 0.91,
-        evidenceSentenceIds: [[1, 0, 0]],
+        evidenceSentenceIds: [[1, 0]],
         predicate: "founded_by",
         sourceMentionId: "m2",
         targetMentionId: "m1",
@@ -118,7 +117,6 @@ describe("wikilink/relation-discovery", () => {
     await expect(
       discoverWikilinkRelations({
         chapterId: 1,
-        fragmentId: 0,
         maxRetries: 0,
         request,
         sentences,
@@ -127,8 +125,8 @@ describe("wikilink/relation-discovery", () => {
     ).resolves.toStrictEqual([
       {
         evidenceSentenceIds: [
-          [1, 0, 0],
-          [1, 0, 1],
+          [1, 0],
+          [1, 1],
         ],
         predicate: "opposes",
         sourceMentionId: "m1",
@@ -181,7 +179,6 @@ describe("wikilink/relation-discovery", () => {
     await expect(
       discoverWikilinkRelations({
         chapterId: 1,
-        fragmentId: 0,
         maxRetries: 0,
         request,
         sentences,
@@ -236,7 +233,6 @@ describe("wikilink/relation-discovery", () => {
     await expect(
       discoverWikilinkRelations({
         chapterId: 1,
-        fragmentId: 0,
         maxRetries: 0,
         request,
         sentences,
@@ -245,7 +241,7 @@ describe("wikilink/relation-discovery", () => {
     ).resolves.toStrictEqual([
       {
         confidence: 0.91,
-        evidenceSentenceIds: [[1, 0, 0]],
+        evidenceSentenceIds: [[1, 0]],
         predicate: "founded_by",
         sourceMentionId: "m2",
         targetMentionId: "m1",
@@ -280,7 +276,6 @@ describe("wikilink/relation-discovery", () => {
 
     await discoverWikilinkRelations({
       chapterId: 1,
-      fragmentId: 0,
       maxRetries: 0,
       request,
       sentences,
@@ -353,7 +348,6 @@ describe("wikilink/relation-discovery", () => {
     await expect(
       discoverWikilinkRelations({
         chapterId: 1,
-        fragmentId: 0,
         maxRetries: 0,
         request,
         sentences,
@@ -406,7 +400,6 @@ describe("wikilink/relation-discovery", () => {
     await expect(
       discoverWikilinkRelations({
         chapterId: 1,
-        fragmentId: 0,
         maxRetries: 0,
         request,
         sentences,
@@ -414,7 +407,7 @@ describe("wikilink/relation-discovery", () => {
       }),
     ).resolves.toStrictEqual([
       {
-        evidenceSentenceIds: [[1, 0, 0]],
+        evidenceSentenceIds: [[1, 0]],
         predicate: "changed_after",
         sourceMentionId: "m1",
         targetMentionId: "m2",
@@ -464,7 +457,6 @@ describe("wikilink/relation-discovery", () => {
     await expect(
       discoverWikilinkRelations({
         chapterId: 1,
-        fragmentId: 0,
         maxRetries: 0,
         request,
         sentences,
@@ -506,7 +498,6 @@ describe("wikilink/relation-discovery", () => {
 
     await discoverWikilinkRelations({
       chapterId: 1,
-      fragmentId: 0,
       maxRetries: 0,
       request,
       sentences,

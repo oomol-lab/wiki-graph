@@ -7,13 +7,13 @@ describe("reader/working-memory", () => {
     const memory = new WorkingMemory(3);
 
     memory.addChunks([
-      createChunk(7, 1, [1, 1, 0], "Later", "Later content"),
-      createChunk(3, 0, [1, 0, 1], "Earlier", "Earlier content"),
+      createChunk(7, 1, [1, 1], "Later", "Later content"),
+      createChunk(3, 0, [1, 1], "Earlier", "Earlier content"),
     ]);
     memory.setRetainedChunks({
-      extraChunks: [createChunk(5, 0, [1, 0, 0], "Extra", "Extra content")],
+      extraChunks: [createChunk(5, 0, [1, 0], "Extra", "Extra content")],
       previousFragmentChunks: [
-        createChunk(2, 0, [1, 0, 0], "Previous", "Previous content"),
+        createChunk(2, 0, [1, 0], "Previous", "Previous content"),
       ],
     });
 
@@ -39,11 +39,11 @@ describe("reader/working-memory", () => {
   it("finalizes fragments, increments generation, and clears all state", () => {
     const memory = new WorkingMemory(2);
 
-    memory.addChunks([createChunk(1, 0, [1, 0, 0], "Alpha", "Alpha content")]);
+    memory.addChunks([createChunk(1, 0, [1, 0], "Alpha", "Alpha content")]);
     memory.setRetainedChunks({
-      extraChunks: [createChunk(2, 1, [1, 1, 0], "Beta", "Beta content")],
+      extraChunks: [createChunk(2, 1, [1, 1], "Beta", "Beta content")],
       previousFragmentChunks: [
-        createChunk(3, 0, [1, 0, 2], "Gamma", "Gamma content"),
+        createChunk(3, 0, [1, 2], "Gamma", "Gamma content"),
       ],
     });
 
@@ -64,7 +64,7 @@ describe("reader/working-memory", () => {
 function createChunk(
   id: number,
   generation: number,
-  sentenceId: readonly [number, number, number],
+  sentenceId: readonly [number, number],
   label: string,
   content: string,
 ) {
@@ -74,8 +74,8 @@ function createChunk(
     id,
     label,
     links: [],
-    sentenceId: [...sentenceId] as [number, number, number],
-    sentenceIds: [[...sentenceId] as [number, number, number]],
+    sentenceId: [...sentenceId] as [number, number],
+    sentenceIds: [[...sentenceId] as [number, number]],
     wordsCount: 1,
   };
 }

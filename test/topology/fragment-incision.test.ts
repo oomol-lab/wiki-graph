@@ -117,7 +117,7 @@ describe("topology/fragment-incision", () => {
 
 function createChunk(
   id: number,
-  fragmentId: number,
+  sentenceIndex: number,
   weight: number,
 ): ChunkRecord {
   return {
@@ -125,8 +125,8 @@ function createChunk(
     generation: 0,
     id,
     label: `Chunk ${id}`,
-    sentenceId: [1, fragmentId, 0],
-    sentenceIds: [[1, fragmentId, 0]],
+    sentenceId: [1, sentenceIndex],
+    sentenceIds: [[1, sentenceIndex]],
     wordsCount: 5,
     weight,
   };

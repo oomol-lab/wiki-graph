@@ -1,4 +1,4 @@
-export type EvidenceSentenceId = readonly [number, number, number];
+export type EvidenceSentenceId = readonly [number, number];
 
 export interface EvidenceSelectionSentence {
   readonly id: string;

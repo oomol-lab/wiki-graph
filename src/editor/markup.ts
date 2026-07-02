@@ -115,8 +115,7 @@ function buildFragmentMarkup(input: {
 
     const sentenceId = createSentenceKey(
       fragment.serialId,
-      fragment.fragmentId,
-      sentenceIndex,
+      fragment.fragmentId + sentenceIndex,
     );
     const coveredChunks = input.chunkCoverage[sentenceId];
 
@@ -135,8 +134,7 @@ function buildFragmentMarkup(input: {
     while (endIndex < fragment.sentences.length) {
       const nextSentenceId = createSentenceKey(
         fragment.serialId,
-        fragment.fragmentId,
-        endIndex,
+        fragment.fragmentId + endIndex,
       );
       const nextCoveredChunks = input.chunkCoverage[nextSentenceId];
 
@@ -216,12 +214,8 @@ function createChunkCoverage(
   return coverage;
 }
 
-function createSentenceKey(
-  serialId: number,
-  fragmentId: number,
-  sentenceIndex: number,
-): string {
-  return `${serialId}:${fragmentId}:${sentenceIndex}`;
+function createSentenceKey(serialId: number, sentenceIndex: number): string {
+  return `${serialId}:${sentenceIndex}`;
 }
 
 function listFragmentIdsFromChunks(chunks: readonly ChunkRecord[]): number[] {

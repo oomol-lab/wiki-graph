@@ -10,17 +10,17 @@ import {
 const SENTENCES = [
   {
     id: "S1",
-    sentenceId: [1, 0, 0],
+    sentenceId: [1, 0],
     text: "Alpha founded Beta in Vienna.",
   },
   {
     id: "S2",
-    sentenceId: [1, 0, 1],
+    sentenceId: [1, 1],
     text: "Gamma watched the ceremony.",
   },
   {
     id: "S3",
-    sentenceId: [1, 0, 2],
+    sentenceId: [1, 2],
     text: "Alpha later wrote about Beta.",
   },
 ] satisfies EvidenceSelectionSentence[];
@@ -37,7 +37,7 @@ describe("evidence-selection/selection-resolver", () => {
 
     expect(failure).toBeUndefined();
     expect(resolution).toMatchObject({
-      sentenceIds: [[1, 0, 0]],
+      sentenceIds: [[1, 0]],
       strategy: "sentence_id+normalized_substring",
     });
   });
@@ -53,7 +53,7 @@ describe("evidence-selection/selection-resolver", () => {
 
     expect(failure).toBeUndefined();
     expect(resolution).toMatchObject({
-      sentenceIds: [[1, 0, 1]],
+      sentenceIds: [[1, 1]],
       strategy: "quote_auto_top1:normalized_substring",
     });
   });
@@ -69,7 +69,7 @@ describe("evidence-selection/selection-resolver", () => {
 
     expect(failure).toBeUndefined();
     expect(resolution).toMatchObject({
-      sentenceIds: [[1, 0, 2]],
+      sentenceIds: [[1, 2]],
     });
     expect(resolution?.strategy).toMatch(/^quote_auto_top1:/u);
   });
@@ -92,8 +92,8 @@ describe("evidence-selection/selection-resolver", () => {
     expect(failure).toBeUndefined();
     expect(resolution).toMatchObject({
       sentenceIds: [
-        [1, 0, 0],
-        [1, 0, 1],
+        [1, 0],
+        [1, 1],
       ],
     });
   });
@@ -135,7 +135,7 @@ describe("evidence-selection/selection-resolver", () => {
     expect(ranked[0]).toMatchObject({
       occurrenceId: "S1",
       sentence: {
-        sentenceId: [1, 0, 0],
+        sentenceId: [1, 0],
       },
       strategy: "normalized_substring",
     });

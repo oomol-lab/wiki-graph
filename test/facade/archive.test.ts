@@ -22,8 +22,8 @@ describe("facade/archive", () => {
       const extractDir = `${path}/extract`;
 
       await mkdir(`${sourceDir}/cover`, { recursive: true });
-      await mkdir(`${sourceDir}/fragments/serial-1`, { recursive: true });
-      await mkdir(`${sourceDir}/summaries/serial-1`, { recursive: true });
+      await mkdir(`${sourceDir}/texts/source`, { recursive: true });
+      await mkdir(`${sourceDir}/texts/summary`, { recursive: true });
       await writeFile(`${sourceDir}/database.db`, "sqlite", "utf8");
       await writeFile(`${sourceDir}/database.db-journal`, "journal", "utf8");
       await writeFile(
@@ -38,21 +38,9 @@ describe("facade/archive", () => {
         "utf8",
       );
       await writeFile(`${sourceDir}/cover/data.bin`, "cover-bytes", "utf8");
-      await writeFile(
-        `${sourceDir}/fragments/serial-1/fragment_0.json`,
-        '{"summary":"","sentences":[]}',
-        "utf8",
-      );
-      await writeFile(
-        `${sourceDir}/fragments/serial-1/note.txt`,
-        "ignored",
-        "utf8",
-      );
-      await writeFile(
-        `${sourceDir}/summaries/serial-1/fragment_0.json`,
-        '{"summary":"","sentences":[{"text":"summary","wordsCount":1}]}',
-        "utf8",
-      );
+      await writeFile(`${sourceDir}/texts/source/1.txt`, "source", "utf8");
+      await writeFile(`${sourceDir}/texts/source/note.txt`, "ignored", "utf8");
+      await writeFile(`${sourceDir}/texts/summary/1.txt`, "summary", "utf8");
       await writeFile(`${sourceDir}/alpha.txt`, "ignored", "utf8");
 
       await writeWikgArchive(sourceDir, archivePath);
@@ -70,18 +58,12 @@ describe("facade/archive", () => {
       expect(await readFile(`${extractDir}/toc.json`, "utf8")).toContain(
         '"items":[]',
       );
-      expect(
-        await readFile(
-          `${extractDir}/fragments/serial-1/fragment_0.json`,
-          "utf8",
-        ),
-      ).toContain('"sentences":[]');
-      expect(
-        await readFile(
-          `${extractDir}/summaries/serial-1/fragment_0.json`,
-          "utf8",
-        ),
-      ).toContain('"text":"summary"');
+      expect(await readFile(`${extractDir}/texts/source/1.txt`, "utf8")).toBe(
+        "source",
+      );
+      expect(await readFile(`${extractDir}/texts/summary/1.txt`, "utf8")).toBe(
+        "summary",
+      );
       expect(await readFile(`${extractDir}/cover/data.bin`, "utf8")).toBe(
         "cover-bytes",
       );
@@ -92,7 +74,7 @@ describe("facade/archive", () => {
         readFile(`${extractDir}/alpha.txt`, "utf8"),
       ).rejects.toThrow();
       await expect(
-        readFile(`${extractDir}/fragments/serial-1/note.txt`, "utf8"),
+        readFile(`${extractDir}/texts/source/note.txt`, "utf8"),
       ).rejects.toThrow();
     });
   });

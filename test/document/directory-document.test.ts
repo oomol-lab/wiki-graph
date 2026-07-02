@@ -191,7 +191,6 @@ describe("document/directory-document", () => {
           await document.mentions.saveMany([
             {
               chapterId: 1,
-              fragmentId: 0,
               id: "m1",
               qid: "Q1",
               rangeEnd: 1,
@@ -200,7 +199,6 @@ describe("document/directory-document", () => {
             },
             {
               chapterId: 1,
-              fragmentId: 0,
               id: "m2",
               qid: "Q2",
               rangeEnd: 3,
@@ -209,7 +207,7 @@ describe("document/directory-document", () => {
             },
           ]);
           await document.mentionLinks.save({
-            evidenceSentenceIds: [[1, 0, 0]],
+            evidenceSentenceIds: [[1, 0]],
             id: "l1",
             predicate: "mentions",
             sourceMentionId: "m1",

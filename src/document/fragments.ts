@@ -111,15 +111,22 @@ export class Fragments implements ReadonlyFragments {
   }
 
   public async getSentence(sentenceId: SentenceId): Promise<string> {
-    const [serialId, fragmentId, sentenceIndex] = sentenceId;
-    const fragment = await this.getSerial(serialId).getFragment(fragmentId);
-    const sentence = fragment.sentences[sentenceIndex];
+    const [serialId, sentenceIndex] = sentenceId;
+    const fragmentIds = await this.getSerial(serialId).listFragmentIds();
+    let remainingSentenceIndex = sentenceIndex;
 
-    if (sentence === undefined) {
-      throw new RangeError(`Sentence ${sentenceIndex} does not exist`);
+    for (const fragmentId of fragmentIds) {
+      const fragment = await this.getSerial(serialId).getFragment(fragmentId);
+      const sentence = fragment.sentences[remainingSentenceIndex];
+
+      if (sentence !== undefined) {
+        return sentence.text;
+      }
+
+      remainingSentenceIndex -= fragment.sentences.length;
     }
 
-    return sentence.text;
+    throw new RangeError(`Sentence ${sentenceIndex} does not exist`);
   }
 
   public async getSummary(
@@ -409,7 +416,7 @@ export class FragmentDraft {
       wordsCount,
     });
 
-    return [this.#serialId, this.#fragmentId, sentenceIndex];
+    return [this.#serialId, sentenceIndex];
   }
 
   public async commit(): Promise<FragmentRecord | undefined> {

@@ -9,8 +9,8 @@ describe("reader/attention", () => {
 
     const delta = await attention.acceptChunkBatch({
       chunks: [
-        createChunk(0, 0, [1, 0, 0], "Alpha", "Alpha content"),
-        createChunk(0, 0, [1, 0, 1], "Beta", "Beta content"),
+        createChunk(0, 0, [1, 0], "Alpha", "Alpha content"),
+        createChunk(0, 0, [1, 1], "Beta", "Beta content"),
       ],
       importanceAnnotations: [
         {
@@ -59,7 +59,7 @@ describe("reader/attention", () => {
     const attention = new Attention(2, 1, createIdGenerator([10, 11]));
 
     const firstDelta = await attention.acceptChunkBatch({
-      chunks: [createChunk(0, 0, [1, 0, 0], "Earlier", "Earlier content")],
+      chunks: [createChunk(0, 0, [1, 0], "Earlier", "Earlier content")],
       links: [],
       orderCorrect: true,
       tempIds: ["temp-a"],
@@ -71,7 +71,7 @@ describe("reader/attention", () => {
     });
 
     const secondDelta = await attention.acceptChunkBatch({
-      chunks: [createChunk(0, 0, [1, 1, 0], "Latest", "Latest content")],
+      chunks: [createChunk(0, 0, [1, 1], "Latest", "Latest content")],
       links: [],
       orderCorrect: true,
       tempIds: ["temp-b"],
@@ -103,9 +103,9 @@ describe("reader/attention", () => {
 
     const firstDelta = await attention.acceptChunkBatch({
       chunks: [
-        createChunk(0, 0, [1, 0, 0], "Alpha", "Alpha content"),
-        createChunk(0, 0, [1, 0, 1], "Beta", "Beta content"),
-        createChunk(0, 0, [1, 0, 2], "Gamma", "Gamma content"),
+        createChunk(0, 0, [1, 0], "Alpha", "Alpha content"),
+        createChunk(0, 0, [1, 1], "Beta", "Beta content"),
+        createChunk(0, 0, [1, 2], "Gamma", "Gamma content"),
       ],
       links: [],
       orderCorrect: true,
@@ -131,7 +131,7 @@ describe("reader/attention", () => {
 function createChunk(
   id: number,
   generation: number,
-  sentenceId: readonly [number, number, number],
+  sentenceId: readonly [number, number],
   label: string,
   content: string,
 ) {
@@ -141,8 +141,8 @@ function createChunk(
     id,
     label,
     links: [],
-    sentenceId: [...sentenceId] as [number, number, number],
-    sentenceIds: [[...sentenceId] as [number, number, number]],
+    sentenceId: [...sentenceId] as [number, number],
+    sentenceIds: [[...sentenceId] as [number, number]],
     wordsCount: 1,
   };
 }

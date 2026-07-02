@@ -28,11 +28,7 @@ export const expectChunkImportance = createEnumValueAsserter(
   "chunk importance",
 );
 
-export type SentenceId = readonly [
-  serialId: number,
-  fragmentId: number,
-  sentenceIndex: number,
-];
+export type SentenceId = readonly [chapterId: number, sentenceIndex: number];
 
 export interface SentenceRecord {
   readonly text: string;
@@ -87,7 +83,7 @@ export interface ReadingEdgeRecord {
 export interface MentionRecord {
   readonly id: string;
   readonly chapterId: number;
-  readonly fragmentId: number;
+  readonly fragmentId?: number;
   readonly sentenceIndex?: number;
   readonly rangeStart: number;
   readonly rangeEnd: number;
@@ -142,8 +138,12 @@ export interface SnakeEdgeRecord {
   readonly weight: number;
 }
 
-export interface FragmentGroupRecord {
+export interface SentenceGroupRecord {
   readonly serialId: number;
   readonly groupId: number;
-  readonly fragmentId: number;
+  readonly startSentenceIndex: number;
+  readonly endSentenceIndex: number;
+  readonly fragmentId?: number;
 }
+
+export type FragmentGroupRecord = SentenceGroupRecord;

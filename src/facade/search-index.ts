@@ -119,7 +119,6 @@ export async function ensureSearchIndex(
 
     await database.transaction(async () => {
       await database.run("DELETE FROM text_sentence_fts");
-      await database.run("DELETE FROM text_sentence_records");
       await database.run("DELETE FROM search_object_properties_fts");
       await database.run("DELETE FROM search_object_properties_records");
       await database.run("DELETE FROM search_index_state");
@@ -419,12 +418,26 @@ async function insertTextSentenceRecord(
   database: Database,
   record: TextSentenceRecordInput,
 ): Promise<number> {
+  const rowId = await database.queryOne(
+    `
+      SELECT id
+      FROM text_sentence_records
+      WHERE kind = ? AND chapter_id = ? AND sentence_index = ?
+    `,
+    [record.kind, record.chapterId, record.sentenceIndex],
+    (row) => getNumber(row, "id"),
+  );
+
+  if (rowId !== undefined) {
+    return rowId;
+  }
+
   await database.run(
     `
       INSERT INTO text_sentence_records (
-        kind, chapter_id, sentence_index, words_count
+        kind, chapter_id, sentence_index, words_count, byte_offset, byte_length
       )
-      VALUES (?, ?, ?, ?)
+      VALUES (?, ?, ?, ?, 0, 0)
     `,
     [record.kind, record.chapterId, record.sentenceIndex, record.wordsCount],
   );

@@ -158,7 +158,6 @@ describe("facade/archive-view", () => {
         await document.openSession(async (openedDocument) => {
           await openedDocument.mentions.save({
             chapterId: 1,
-            fragmentId: 0,
             id: "late-empty-cache-hit",
             qid: "Q1",
             rangeEnd: 5,
@@ -200,7 +199,6 @@ describe("facade/archive-view", () => {
           await openedDocument.mentions.saveMany([
             {
               chapterId: 1,
-              fragmentId: 0,
               id: "cache-split-one",
               qid: "Q1",
               rangeEnd: 11,
@@ -210,7 +208,6 @@ describe("facade/archive-view", () => {
             },
             {
               chapterId: 2,
-              fragmentId: 0,
               id: "cache-split-two",
               qid: "Q2",
               rangeEnd: 11,
@@ -283,8 +280,8 @@ describe("facade/archive-view", () => {
             generation: 0,
             id: 300,
             label: "SharedTerm label",
-            sentenceId: [1, 0, 0],
-            sentenceIds: [[1, 0, 0]],
+            sentenceId: [1, 0],
+            sentenceIds: [[1, 0]],
             wordsCount: 5,
             weight: 1,
           });
@@ -325,7 +322,6 @@ describe("facade/archive-view", () => {
         await document.openSession(async (openedDocument) => {
           await openedDocument.mentions.save({
             chapterId: 1,
-            fragmentId: 0,
             id: "invalidate-me",
             qid: "Q1",
             rangeEnd: 13,
@@ -374,7 +370,6 @@ describe("facade/archive-view", () => {
           await openedDocument.mentions.saveMany([
             {
               chapterId: 1,
-              fragmentId: 0,
               id: "entity-augustine",
               qid: "Q8018",
               rangeEnd: 15,
@@ -430,7 +425,6 @@ describe("facade/archive-view", () => {
           await draft.commit();
           await openedDocument.mentions.save({
             chapterId: 1,
-            fragmentId: 0,
             id: "mention-chen",
             qid: "Q1336609",
             rangeEnd: 3,
@@ -467,7 +461,6 @@ describe("facade/archive-view", () => {
           await openedDocument.mentions.saveMany([
             {
               chapterId: 1,
-              fragmentId: 0,
               id: "entity-wiki",
               qid: "Q1",
               rangeEnd: 11,
@@ -477,7 +470,6 @@ describe("facade/archive-view", () => {
             },
             {
               chapterId: 1,
-              fragmentId: 0,
               id: "entity-source",
               qid: "Q2",
               rangeEnd: 44,
@@ -543,7 +535,6 @@ describe("facade/archive-view", () => {
           await openedDocument.mentions.saveMany([
             {
               chapterId: 1,
-              fragmentId: 0,
               id: "entity-wiki",
               qid: "Q1",
               rangeEnd: 11,
@@ -553,7 +544,6 @@ describe("facade/archive-view", () => {
             },
             {
               chapterId: 1,
-              fragmentId: 0,
               id: "entity-source",
               qid: "Q2",
               rangeEnd: 44,
@@ -605,7 +595,6 @@ describe("facade/archive-view", () => {
           await openedDocument.mentions.saveMany([
             {
               chapterId: 1,
-              fragmentId: 0,
               id: "same-qid-weaker",
               qid: "Q1",
               rangeEnd: 1,
@@ -615,7 +604,6 @@ describe("facade/archive-view", () => {
             },
             {
               chapterId: 1,
-              fragmentId: 0,
               id: "exact-later",
               qid: "Q1",
               rangeEnd: 3,
@@ -625,7 +613,6 @@ describe("facade/archive-view", () => {
             },
             {
               chapterId: 1,
-              fragmentId: 0,
               id: "other-qid-weaker",
               qid: "Q2",
               rangeEnd: 5,
@@ -665,7 +652,6 @@ describe("facade/archive-view", () => {
           await openedDocument.mentions.saveMany([
             {
               chapterId: 1,
-              fragmentId: 0,
               id: "exact",
               qid: "Q1",
               rangeEnd: 2,
@@ -675,7 +661,6 @@ describe("facade/archive-view", () => {
             },
             {
               chapterId: 1,
-              fragmentId: 0,
               id: "same-qid-alias",
               qid: "Q1",
               rangeEnd: 5,
@@ -720,7 +705,6 @@ describe("facade/archive-view", () => {
           await openedDocument.mentions.saveMany([
             ...Array.from({ length: 10 }, (_, index) => ({
               chapterId: 1,
-              fragmentId: 0,
               id: `multi-${index}`,
               qid: "Q1",
               rangeEnd: index * 2 + 1,
@@ -730,7 +714,6 @@ describe("facade/archive-view", () => {
             })),
             {
               chapterId: 1,
-              fragmentId: 0,
               id: "single",
               qid: "Q2",
               rangeEnd: 31,
@@ -772,7 +755,6 @@ describe("facade/archive-view", () => {
           await openedDocument.mentions.saveMany([
             {
               chapterId: 1,
-              fragmentId: 0,
               id: "triple-source",
               qid: "Q1",
               rangeEnd: 11,
@@ -782,7 +764,6 @@ describe("facade/archive-view", () => {
             },
             {
               chapterId: 1,
-              fragmentId: 0,
               id: "triple-target",
               qid: "Q2",
               rangeEnd: 44,
@@ -792,7 +773,7 @@ describe("facade/archive-view", () => {
             },
           ]);
           await openedDocument.mentionLinks.save({
-            evidenceSentenceIds: [[1, 0, 2]],
+            evidenceSentenceIds: [[1, 2]],
             id: "triple-link",
             predicate: "mentions",
             sourceMentionId: "triple-source",
@@ -849,7 +830,6 @@ describe("facade/archive-view", () => {
           await openedDocument.mentions.saveMany([
             ...Array.from({ length: 11 }, (_, index) => ({
               chapterId: 1,
-              fragmentId: 0,
               id: `source-${index}`,
               qid: index < 10 ? "Q1" : "Q3",
               rangeEnd: index * 4 + 1,
@@ -859,7 +839,6 @@ describe("facade/archive-view", () => {
             })),
             ...Array.from({ length: 11 }, (_, index) => ({
               chapterId: 1,
-              fragmentId: 0,
               id: `target-${index}`,
               qid: index < 10 ? "Q2" : "Q4",
               rangeEnd: index * 4 + 3,
@@ -870,7 +849,7 @@ describe("facade/archive-view", () => {
           ]);
           await openedDocument.mentionLinks.saveMany(
             Array.from({ length: 11 }, (_, index) => ({
-              evidenceSentenceIds: [[1, 0, index]],
+              evidenceSentenceIds: [[1, 0]],
               id: `link-${index}`,
               predicate: "supports",
               sourceMentionId: `source-${index}`,
@@ -1266,7 +1245,6 @@ describe("facade/archive-view", () => {
           await openedDocument.mentions.saveMany([
             {
               chapterId: 1,
-              fragmentId: 0,
               id: "paged-valid",
               qid: "Q1",
               rangeEnd: 10,
@@ -1276,7 +1254,6 @@ describe("facade/archive-view", () => {
             },
             {
               chapterId: 1,
-              fragmentId: 99,
               id: "paged-not-on-first-page",
               qid: "Q2",
               rangeEnd: 10,
@@ -1454,8 +1431,8 @@ describe("facade/archive-view", () => {
             generation: 0,
             id: 200,
             label: "Second chunk",
-            sentenceId: [2, 0, 0],
-            sentenceIds: [[2, 0, 0]],
+            sentenceId: [2, 0],
+            sentenceIds: [[2, 0]],
             wordsCount: 3,
             weight: 1,
           });
@@ -1463,7 +1440,6 @@ describe("facade/archive-view", () => {
           await openedDocument.mentions.saveMany([
             {
               chapterId: 1,
-              fragmentId: 0,
               id: "m1",
               qid: "Q1",
               rangeEnd: 11,
@@ -1473,7 +1449,6 @@ describe("facade/archive-view", () => {
             },
             {
               chapterId: 2,
-              fragmentId: 0,
               id: "m2",
               qid: "Q1",
               rangeEnd: 26,
@@ -1483,7 +1458,6 @@ describe("facade/archive-view", () => {
             },
             {
               chapterId: 2,
-              fragmentId: 0,
               id: "m3",
               qid: "Q2",
               rangeEnd: 14,
@@ -1493,7 +1467,6 @@ describe("facade/archive-view", () => {
             },
             {
               chapterId: 2,
-              fragmentId: 0,
               id: "m4",
               qid: "Q3",
               rangeEnd: 6,
@@ -1504,21 +1477,21 @@ describe("facade/archive-view", () => {
           ]);
           await openedDocument.mentionLinks.saveMany([
             {
-              evidenceSentenceIds: [[2, 0, 0]],
+              evidenceSentenceIds: [[2, 0]],
               id: "l1",
               predicate: "mentions",
               sourceMentionId: "m2",
               targetMentionId: "m3",
             },
             {
-              evidenceSentenceIds: [[2, 0, 0]],
+              evidenceSentenceIds: [[2, 0]],
               id: "l2",
               predicate: "mentions",
               sourceMentionId: "m2",
               targetMentionId: "m3",
             },
             {
-              evidenceSentenceIds: [[2, 0, 0]],
+              evidenceSentenceIds: [[2, 0]],
               id: "l3",
               predicate: "before",
               sourceMentionId: "m4",
@@ -1631,7 +1604,6 @@ describe("facade/archive-view", () => {
           await openedDocument.mentions.saveMany([
             {
               chapterId: 1,
-              fragmentId: 0,
               id: "related-source-low",
               qid: "Q1",
               rangeEnd: 11,
@@ -1641,7 +1613,6 @@ describe("facade/archive-view", () => {
             },
             {
               chapterId: 1,
-              fragmentId: 0,
               id: "related-target-low",
               qid: "Q2",
               rangeEnd: 48,
@@ -1651,7 +1622,6 @@ describe("facade/archive-view", () => {
             },
             {
               chapterId: 1,
-              fragmentId: 0,
               id: "related-source-high-one",
               qid: "Q1",
               rangeEnd: 4,
@@ -1661,7 +1631,6 @@ describe("facade/archive-view", () => {
             },
             {
               chapterId: 1,
-              fragmentId: 0,
               id: "related-source-high-two",
               qid: "Q1",
               rangeEnd: 4,
@@ -1671,7 +1640,6 @@ describe("facade/archive-view", () => {
             },
             {
               chapterId: 1,
-              fragmentId: 0,
               id: "related-target-high",
               qid: "Q3",
               rangeEnd: 16,
@@ -1682,21 +1650,21 @@ describe("facade/archive-view", () => {
           ]);
           await openedDocument.mentionLinks.saveMany([
             {
-              evidenceSentenceIds: [[1, 0, 0]],
+              evidenceSentenceIds: [[1, 0]],
               id: "a-low-frequency-link",
               predicate: "mentions",
               sourceMentionId: "related-source-low",
               targetMentionId: "related-target-low",
             },
             {
-              evidenceSentenceIds: [[1, 0, 1]],
+              evidenceSentenceIds: [[1, 1]],
               id: "z-high-frequency-link-1",
               predicate: "mentions",
               sourceMentionId: "related-source-high-one",
               targetMentionId: "related-target-high",
             },
             {
-              evidenceSentenceIds: [[1, 0, 2]],
+              evidenceSentenceIds: [[1, 2]],
               id: "z-high-frequency-link-2",
               predicate: "mentions",
               sourceMentionId: "related-source-high-two",
@@ -1731,7 +1699,6 @@ describe("facade/archive-view", () => {
           await openedDocument.mentions.saveMany([
             {
               chapterId: 1,
-              fragmentId: 0,
               id: "tie-source-later",
               qid: "Q1",
               rangeEnd: 11,
@@ -1741,7 +1708,6 @@ describe("facade/archive-view", () => {
             },
             {
               chapterId: 1,
-              fragmentId: 0,
               id: "tie-target-later",
               qid: "Q2",
               rangeEnd: 48,
@@ -1751,7 +1717,6 @@ describe("facade/archive-view", () => {
             },
             {
               chapterId: 1,
-              fragmentId: 0,
               id: "tie-source-earlier",
               qid: "Q1",
               rangeEnd: 4,
@@ -1761,7 +1726,6 @@ describe("facade/archive-view", () => {
             },
             {
               chapterId: 1,
-              fragmentId: 0,
               id: "tie-target-earlier",
               qid: "Q3",
               rangeEnd: 16,
@@ -1772,14 +1736,14 @@ describe("facade/archive-view", () => {
           ]);
           await openedDocument.mentionLinks.saveMany([
             {
-              evidenceSentenceIds: [[1, 0, 2]],
+              evidenceSentenceIds: [[1, 2]],
               id: "a-later-sentence-link",
               predicate: "mentions",
               sourceMentionId: "tie-source-later",
               targetMentionId: "tie-target-later",
             },
             {
-              evidenceSentenceIds: [[1, 0, 1]],
+              evidenceSentenceIds: [[1, 1]],
               id: "z-earlier-sentence-link",
               predicate: "mentions",
               sourceMentionId: "tie-source-earlier",
@@ -1814,7 +1778,6 @@ describe("facade/archive-view", () => {
           await openedDocument.mentions.saveMany([
             {
               chapterId: 1,
-              fragmentId: 0,
               id: "query-source-early",
               qid: "Q1",
               rangeEnd: 4,
@@ -1824,7 +1787,6 @@ describe("facade/archive-view", () => {
             },
             {
               chapterId: 1,
-              fragmentId: 0,
               id: "query-target-weak",
               qid: "Q2",
               rangeEnd: 20,
@@ -1834,7 +1796,6 @@ describe("facade/archive-view", () => {
             },
             {
               chapterId: 1,
-              fragmentId: 0,
               id: "query-source-late",
               qid: "Q1",
               rangeEnd: 4,
@@ -1844,7 +1805,6 @@ describe("facade/archive-view", () => {
             },
             {
               chapterId: 1,
-              fragmentId: 0,
               id: "query-target-strong",
               qid: "Q3",
               rangeEnd: 24,
@@ -1854,7 +1814,6 @@ describe("facade/archive-view", () => {
             },
             {
               chapterId: 1,
-              fragmentId: 0,
               id: "query-source-unmatched",
               qid: "Q1",
               rangeEnd: 4,
@@ -1864,7 +1823,6 @@ describe("facade/archive-view", () => {
             },
             {
               chapterId: 1,
-              fragmentId: 0,
               id: "query-target-unmatched",
               qid: "Q4",
               rangeEnd: 24,
@@ -1875,21 +1833,21 @@ describe("facade/archive-view", () => {
           ]);
           await openedDocument.mentionLinks.saveMany([
             {
-              evidenceSentenceIds: [[1, 0, 0]],
+              evidenceSentenceIds: [[1, 0]],
               id: "query-link-weak",
               predicate: "mentions",
               sourceMentionId: "query-source-early",
               targetMentionId: "query-target-weak",
             },
             {
-              evidenceSentenceIds: [[1, 0, 1]],
+              evidenceSentenceIds: [[1, 1]],
               id: "query-link-strong",
               predicate: "mentions",
               sourceMentionId: "query-source-late",
               targetMentionId: "query-target-strong",
             },
             {
-              evidenceSentenceIds: [[1, 0, 2]],
+              evidenceSentenceIds: [[1, 2]],
               id: "query-link-unmatched",
               predicate: "mentions",
               sourceMentionId: "query-source-unmatched",
@@ -1924,7 +1882,6 @@ describe("facade/archive-view", () => {
           await openedDocument.mentions.saveMany([
             {
               chapterId: 1,
-              fragmentId: 0,
               id: "sentence-query-source",
               qid: "Q1",
               rangeEnd: 4,
@@ -1934,7 +1891,6 @@ describe("facade/archive-view", () => {
             },
             {
               chapterId: 1,
-              fragmentId: 0,
               id: "sentence-query-target",
               qid: "Q2",
               rangeEnd: 20,
@@ -1944,7 +1900,7 @@ describe("facade/archive-view", () => {
             },
           ]);
           await openedDocument.mentionLinks.save({
-            evidenceSentenceIds: [[1, 0, 1]],
+            evidenceSentenceIds: [[1, 1]],
             id: "sentence-query-link",
             predicate: "mentions",
             sourceMentionId: "sentence-query-source",
@@ -1980,7 +1936,6 @@ describe("facade/archive-view", () => {
           await openedDocument.mentions.saveMany([
             {
               chapterId: 1,
-              fragmentId: 0,
               id: "evidence-related-source",
               qid: "Q1",
               rangeEnd: 4,
@@ -1990,7 +1945,6 @@ describe("facade/archive-view", () => {
             },
             {
               chapterId: 1,
-              fragmentId: 0,
               id: "evidence-related-target",
               qid: "Q2",
               rangeEnd: 20,
@@ -2000,7 +1954,7 @@ describe("facade/archive-view", () => {
             },
           ]);
           await openedDocument.mentionLinks.save({
-            evidenceSentenceIds: [[1, 0, 1]],
+            evidenceSentenceIds: [[1, 1]],
             id: "evidence-related-link",
             predicate: "mentions",
             sourceMentionId: "evidence-related-source",
@@ -2053,7 +2007,6 @@ describe("facade/archive-view", () => {
           await openedDocument.mentions.saveMany([
             {
               chapterId: 1,
-              fragmentId: 0,
               id: "limited-one",
               qid: "Q1",
               rangeEnd: 11,
@@ -2063,7 +2016,6 @@ describe("facade/archive-view", () => {
             },
             {
               chapterId: 2,
-              fragmentId: 0,
               id: "limited-two",
               qid: "Q1",
               rangeEnd: 12,
@@ -2144,7 +2096,6 @@ describe("facade/archive-view", () => {
           await openedDocument.mentions.saveMany([
             {
               chapterId: 1,
-              fragmentId: 0,
               id: "m1",
               qid: "Q1",
               rangeEnd: 11,
@@ -2154,7 +2105,6 @@ describe("facade/archive-view", () => {
             },
             {
               chapterId: 1,
-              fragmentId: 0,
               id: "m2",
               qid: "Q2",
               rangeEnd: 48,
@@ -2164,16 +2114,15 @@ describe("facade/archive-view", () => {
             },
             {
               chapterId: 1,
-              fragmentId: 1,
               id: "m3",
               qid: "Q3",
               rangeEnd: 60,
               rangeStart: 35,
+              sentenceIndex: 4,
               surface: "Augustine",
             },
             {
               chapterId: 1,
-              fragmentId: 0,
               id: "m4",
               qid: "Q4",
               rangeEnd: 130,
@@ -2183,7 +2132,7 @@ describe("facade/archive-view", () => {
             },
           ]);
           await openedDocument.mentionLinks.save({
-            evidenceSentenceIds: [[1, 0, 0]],
+            evidenceSentenceIds: [[1, 0]],
             id: "l1",
             predicate: "mentions",
             sourceMentionId: "m1",
@@ -2356,9 +2305,9 @@ describe("facade/archive-view", () => {
         ).resolves.toMatchObject({
           items: [
             {
-              id: "wkg://chapter/1/source#3..5",
+              id: "wkg://chapter/1/source#2..5",
               source:
-                "First unrelated fragment sentence.\nSecond fragment mentions Augustine.\nThird unrelated fragment sentence.",
+                "Source-only archives should be searchable.\nFirst unrelated fragment sentence.\nSecond fragment mentions Augustine.\nThird unrelated fragment sentence.",
               type: "source",
             },
           ],
@@ -2371,7 +2320,7 @@ describe("facade/archive-view", () => {
         ).resolves.toMatchObject({
           items: [
             {
-              id: "wkg://chapter/1/source#0..2",
+              id: "wkg://chapter/1/source#0..4",
               type: "source",
             },
           ],
@@ -2392,7 +2341,6 @@ describe("facade/archive-view", () => {
           await openedDocument.mentions.saveMany([
             {
               chapterId: 1,
-              fragmentId: 0,
               id: "evidence-query-first",
               qid: "Q1",
               rangeEnd: 3,
@@ -2402,7 +2350,6 @@ describe("facade/archive-view", () => {
             },
             {
               chapterId: 1,
-              fragmentId: 0,
               id: "evidence-query-second",
               qid: "Q1",
               rangeEnd: 3,
@@ -2451,7 +2398,6 @@ describe("facade/archive-view", () => {
           await openedDocument.mentions.saveMany([
             {
               chapterId: 1,
-              fragmentId: 0,
               id: "low-score-first",
               qid: "Q1",
               rangeEnd: 5,
@@ -2461,7 +2407,6 @@ describe("facade/archive-view", () => {
             },
             {
               chapterId: 1,
-              fragmentId: 0,
               id: "high-score-second",
               qid: "Q1",
               rangeEnd: 10,
@@ -2499,7 +2444,6 @@ describe("facade/archive-view", () => {
           await openedDocument.mentions.saveMany([
             {
               chapterId: 1,
-              fragmentId: 0,
               id: "backlink-source",
               qid: "Q1",
               rangeEnd: 12,
@@ -2509,7 +2453,6 @@ describe("facade/archive-view", () => {
             },
             {
               chapterId: 1,
-              fragmentId: 0,
               id: "backlink-target",
               qid: "Q2",
               rangeEnd: 63,
@@ -2519,7 +2462,7 @@ describe("facade/archive-view", () => {
             },
           ]);
           await openedDocument.mentionLinks.save({
-            evidenceSentenceIds: [[1, 0, 0]],
+            evidenceSentenceIds: [[1, 0]],
             id: "backlink-link",
             predicate: "mentions",
             sourceMentionId: "backlink-source",
@@ -2624,8 +2567,8 @@ async function seedSourcedDocument(
       generation: 0,
       id: 100,
       label: "Wiki pages",
-      sentenceId: [1, 0, 0],
-      sentenceIds: [[1, 0, 0]],
+      sentenceId: [1, 0],
+      sentenceIds: [[1, 0]],
       wordsCount: 7,
       weight: 1,
     });
@@ -2634,8 +2577,8 @@ async function seedSourcedDocument(
       generation: 0,
       id: 101,
       label: "Source search",
-      sentenceId: [1, 0, 2],
-      sentenceIds: [[1, 0, 2]],
+      sentenceId: [1, 2],
+      sentenceIds: [[1, 2]],
       wordsCount: 7,
       weight: 1,
     });

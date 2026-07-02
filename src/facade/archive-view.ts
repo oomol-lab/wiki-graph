@@ -1,6 +1,5 @@
 import type {
   ChunkRecord,
-  FragmentRecord,
   MentionLinkRecord,
   MentionRecord,
   ReadonlyDocument,
@@ -154,7 +153,6 @@ interface EntityEvidenceMention {
 
 interface EvidenceReadContext {
   readonly chapters: Map<number, Promise<ChapterEntry>>;
-  readonly fragments: Map<string, Promise<FragmentRecord>>;
   readonly streamIndexes: Map<string, Promise<ArchiveTextStreamIndex>>;
 }
 
@@ -438,7 +436,7 @@ export interface ArchiveEvidence {
 export interface ArchiveEvidenceItem {
   readonly chapterId: number;
   readonly endSentenceIndex: number;
-  readonly fragmentId: number;
+  readonly fragmentId?: number;
   readonly id: string;
   readonly score?: number;
   readonly source: string;
@@ -458,7 +456,7 @@ interface PositionedNodeLabel {
 }
 
 export interface ArchiveSourceFragment {
-  readonly fragmentId: number;
+  readonly fragmentId?: number;
   readonly id: string;
   readonly preview: string;
   readonly sentenceCount: number;
@@ -470,7 +468,6 @@ type ArchiveTextStreamKind = "source" | "summary";
 type SourceEvidenceRange = {
   readonly chapterId: number;
   readonly endSentenceIndex: number;
-  readonly fragmentId: number;
   readonly score?: number;
   readonly startSentenceIndex: number;
 };
@@ -2084,7 +2081,6 @@ function getFirstGraphNodeSentenceId(node: GraphNode): SentenceId {
     [...node.sentenceIds].sort(compareSentenceIds)[0] ?? [
       Number.MAX_SAFE_INTEGER,
       Number.MAX_SAFE_INTEGER,
-      Number.MAX_SAFE_INTEGER,
     ]
   );
 }
@@ -2505,7 +2501,7 @@ function findEntities(
         ...createFindMatchFields(match),
         position: {
           chapter: mention.chapterId,
-          fragment: mention.fragmentId,
+          sentence: mention.sentenceIndex ?? 0,
         },
         snippet: mention.note ?? mention.surface,
         title: mention.surface,
@@ -2596,7 +2592,7 @@ async function findTriples(
         ...createFindMatchFields(match),
         position: {
           chapter: source.chapterId,
-          fragment: source.fragmentId,
+          sentence: source.sentenceIndex ?? 0,
         },
         snippet: link.note ?? text,
         title: text,
@@ -2668,7 +2664,7 @@ function listEntityCollection(
       id: `wkg://entity/${qid}`,
       position: {
         chapter: first.chapterId,
-        fragment: first.fragmentId,
+        sentence: first.sentenceIndex ?? 0,
       },
       score: qidMentions.length,
       snippet: `${qidMentions.length} mentions`,
@@ -2745,7 +2741,7 @@ async function listTripleCollection(
         id,
         position: {
           chapter: source.chapterId,
-          fragment: source.fragmentId,
+          sentence: source.sentenceIndex ?? 0,
         },
         score: 1,
         snippet: `${source.surface} ${link.predicate} ${target.surface}`,
@@ -2766,7 +2762,6 @@ async function listTripleCollection(
 function compareMentions(left: MentionRecord, right: MentionRecord): number {
   return (
     compareNumbers(left.chapterId, right.chapterId) ||
-    compareNumbers(left.fragmentId, right.fragmentId) ||
     compareNumbers(left.sentenceIndex ?? 0, right.sentenceIndex ?? 0) ||
     left.id.localeCompare(right.id)
   );
@@ -2906,7 +2901,7 @@ async function hydrateEntityDisplayHit(
     chapter: first.chapterId,
     position: {
       chapter: first.chapterId,
-      fragment: first.fragmentId,
+      sentence: first.sentenceIndex ?? 0,
     },
     snippet: hit.snippet === qid ? (first.note ?? first.surface) : hit.snippet,
     title: hit.title === qid ? selectEntityLabel(mentions) : hit.title,
@@ -3109,13 +3104,7 @@ async function createTextStreamRangeSentenceKeySet(
   const keys = new Set<string>();
 
   for (const sentence of index.sentences.slice(start, end + 1)) {
-    keys.add(
-      formatSentenceKey(
-        reference.chapterId,
-        sentence.fragmentId,
-        sentence.localIndex,
-      ),
-    );
+    keys.add(formatSentenceKey(reference.chapterId, sentence.globalIndex));
   }
 
   return keys;
@@ -3153,11 +3142,7 @@ async function createEntityBacklinkHits(
   return listEntityCollection(
     (await listAllMentions(document)).filter((mention) =>
       sentenceKeys.has(
-        formatSentenceKey(
-          mention.chapterId,
-          mention.fragmentId,
-          mention.sentenceIndex ?? 0,
-        ),
+        formatSentenceKey(mention.chapterId, mention.sentenceIndex ?? 0),
       ),
     ),
   );
@@ -3209,7 +3194,6 @@ async function createTripleBacklinkHits(
       position: createSentencePosition(
         [...evidenceSentenceIds].sort(compareSentenceIds)[0] ?? [
           source.chapterId,
-          source.fragmentId,
           source.sentenceIndex ?? 0,
         ],
       ),
@@ -3229,15 +3213,11 @@ async function createTripleBacklinkHits(
 }
 
 function formatSentenceIdKey(sentenceId: SentenceId): string {
-  return formatSentenceKey(sentenceId[0], sentenceId[1], sentenceId[2]);
+  return formatSentenceKey(sentenceId[0], sentenceId[1]);
 }
 
-function formatSentenceKey(
-  chapterId: number,
-  fragmentId: number,
-  sentenceIndex: number,
-): string {
-  return `${chapterId}:${fragmentId}:${sentenceIndex}`;
+function formatSentenceKey(chapterId: number, sentenceIndex: number): string {
+  return `${chapterId}:${sentenceIndex}`;
 }
 
 function createUnscoredEntityEvidenceMention(
@@ -3306,7 +3286,6 @@ async function hydrateEntitySessionHitEvidence(
             range.chapterId,
             range.startSentenceIndex,
             range.endSentenceIndex,
-            range.fragmentId,
             context,
           ),
       ),
@@ -3320,7 +3299,7 @@ async function hydrateEntitySessionHitEvidence(
           chapter: allMentions[0].chapterId,
           position: {
             chapter: allMentions[0].chapterId,
-            fragment: allMentions[0].fragmentId,
+            sentence: allMentions[0].sentenceIndex ?? 0,
           },
           snippet: allMentions[0].note ?? allMentions[0].surface,
           title: allMentions[0].surface,
@@ -3529,7 +3508,7 @@ async function createSentenceEvidenceSearchCacheInput(
     }
 
     for (const chunk of await document.chunks.listBySerial(chapterId)) {
-      for (const [, , sentenceIndex] of chunk.sentenceIds) {
+      for (const [, sentenceIndex] of chunk.sentenceIds) {
         const score = sourceHitScores.get(
           createSentenceHitKey(chapterId, sentenceIndex),
         );
@@ -3566,7 +3545,6 @@ async function createSentenceEvidenceSearchCacheInput(
 
       for (const [
         evidenceChapterId,
-        ,
         sentenceIndex,
       ] of link.evidenceSentenceIds) {
         const score = sourceHitScores.get(
@@ -3973,7 +3951,7 @@ async function createTextStreamRangeFragment(
   );
 
   return {
-    fragmentId: range.fragmentId,
+    fragmentId: range.startSentenceIndex,
     id: range.id,
     preview: createSnippet(range.text),
     sentenceCount: range.endSentenceIndex - range.startSentenceIndex + 1,
@@ -3991,7 +3969,6 @@ async function readTextStreamRange(
   context: EvidenceReadContext = createEvidenceReadContext(),
 ): Promise<{
   readonly endSentenceIndex: number;
-  readonly fragmentId: number;
   readonly id: string;
   readonly startSentenceIndex: number;
   readonly text: string;
@@ -4011,7 +3988,6 @@ async function readTextStreamRange(
 
   return {
     endSentenceIndex: end,
-    fragmentId: firstSentence.fragmentId,
     id: formatTextStreamRangeUri(chapterId, stream, start, end),
     startSentenceIndex: start,
     text: sentences.map((sentence) => sentence.text).join("\n"),
@@ -4425,13 +4401,12 @@ function truncateSourceExcerpt(text: string): string {
 function createNodeEvidenceRanges(node: Pick<GraphNode, "sentenceIds">): Array<{
   readonly chapterId: number;
   readonly endSentenceIndex: number;
-  readonly fragmentId: number;
   readonly startSentenceIndex: number;
 }> {
   const ranges = new Map<string, [number, number]>();
 
-  for (const [chapterId, fragmentId, sentenceIndex] of node.sentenceIds) {
-    const key = `${chapterId}:${fragmentId}`;
+  for (const [chapterId, sentenceIndex] of node.sentenceIds) {
+    const key = `${chapterId}`;
     const current = ranges.get(key);
 
     if (current === undefined) {
@@ -4445,11 +4420,10 @@ function createNodeEvidenceRanges(node: Pick<GraphNode, "sentenceIds">): Array<{
   }
 
   return [...ranges.entries()].map(([key, [start, end]]) => {
-    const { chapterId, fragmentId } = parseEvidenceRangeKey(key);
+    const chapterId = Number(key);
     return {
       chapterId,
       endSentenceIndex: end,
-      fragmentId,
       startSentenceIndex: start,
     };
   });
@@ -4478,7 +4452,6 @@ async function createMentionEvidenceRanges(
   Array<{
     readonly chapterId: number;
     readonly endSentenceIndex: number;
-    readonly fragmentId: number;
     readonly startSentenceIndex: number;
   }>
 > {
@@ -4489,7 +4462,6 @@ async function createMentionEvidenceRanges(
         (await findSentenceIndexAtOffset(
           document,
           mention.chapterId,
-          mention.fragmentId,
           mention.rangeStart,
         ));
       const endSentenceIndex =
@@ -4497,14 +4469,12 @@ async function createMentionEvidenceRanges(
         (await findSentenceIndexAtOffset(
           document,
           mention.chapterId,
-          mention.fragmentId,
           Math.max(0, mention.rangeEnd - 1),
         ));
 
       return {
         chapterId: mention.chapterId,
         endSentenceIndex,
-        fragmentId: mention.fragmentId,
         startSentenceIndex,
       };
     }),
@@ -4533,14 +4503,12 @@ function createMentionLinkEvidenceRanges(
 ): Array<{
   readonly chapterId: number;
   readonly endSentenceIndex: number;
-  readonly fragmentId: number;
   readonly startSentenceIndex: number;
 }> {
   return links.flatMap((link) =>
-    link.evidenceSentenceIds.map(([chapterId, fragmentId, sentenceIndex]) => ({
+    link.evidenceSentenceIds.map(([chapterId, sentenceIndex]) => ({
       chapterId,
       endSentenceIndex: sentenceIndex,
-      fragmentId,
       startSentenceIndex: sentenceIndex,
     })),
   );
@@ -4616,7 +4584,6 @@ async function createSourceEvidencePage(
           range.chapterId,
           range.startSentenceIndex,
           range.endSentenceIndex,
-          range.fragmentId,
           context,
           range.score,
         ),
@@ -4681,7 +4648,6 @@ function areSourceEvidenceRangesEqual(
 ): boolean {
   return (
     left.chapterId === right.chapterId &&
-    left.fragmentId === right.fragmentId &&
     left.startSentenceIndex === right.startSentenceIndex &&
     left.endSentenceIndex === right.endSentenceIndex
   );
@@ -4692,17 +4658,16 @@ async function readEvidenceRangeText(
   range: SourceEvidenceRange,
   context: EvidenceReadContext,
 ): Promise<string> {
-  const fragment = await getEvidenceFragment(
-    document,
-    range.chapterId,
-    range.fragmentId,
-    context,
-  );
-
-  return fragment.sentences
-    .slice(range.startSentenceIndex, range.endSentenceIndex + 1)
-    .map((sentence) => sentence.text)
-    .join("\n");
+  return (
+    await readTextStreamRange(
+      document,
+      range.chapterId,
+      "source",
+      range.startSentenceIndex,
+      range.endSentenceIndex,
+      context,
+    )
+  ).text;
 }
 
 function compareSourceEvidenceRanges(
@@ -4711,7 +4676,6 @@ function compareSourceEvidenceRanges(
 ): number {
   return (
     compareNumbers(left.chapterId, right.chapterId) ||
-    compareNumbers(left.fragmentId, right.fragmentId) ||
     compareNumbers(left.startSentenceIndex, right.startSentenceIndex) ||
     compareNumbers(left.endSentenceIndex, right.endSentenceIndex)
   );
@@ -4739,7 +4703,6 @@ async function createSourceEvidencePreview(
           range.chapterId,
           range.startSentenceIndex,
           range.endSentenceIndex,
-          range.fragmentId,
           context,
         ),
     ),
@@ -4769,7 +4732,7 @@ function mergeSourceEvidenceRanges(
   >();
 
   for (const range of ranges) {
-    const key = `${range.chapterId}:${range.fragmentId}`;
+    const key = `${range.chapterId}`;
     const sourceRanges = rangesBySource.get(key) ?? [];
 
     sourceRanges.push({
@@ -4781,14 +4744,13 @@ function mergeSourceEvidenceRanges(
   }
 
   return [...rangesBySource.entries()].flatMap(([key, ranges]) => {
-    const { chapterId, fragmentId } = parseEvidenceRangeKey(key);
+    const chapterId = Number(key);
 
     return mergeEvidenceRanges(ranges).map(
       ({ end, score, start }) =>
         ({
           chapterId,
           endSentenceIndex: end,
-          fragmentId,
           ...(score === undefined ? {} : { score }),
           startSentenceIndex: start,
         }) as const,
@@ -4836,7 +4798,6 @@ function areMergeableSourceEvidenceRanges(
 ): boolean {
   return (
     left.chapterId === right.chapterId &&
-    left.fragmentId === right.fragmentId &&
     right.startSentenceIndex <= left.endSentenceIndex + 1 &&
     left.startSentenceIndex <= right.endSentenceIndex + 1
   );
@@ -4860,7 +4821,6 @@ function mergeSourceEvidenceRangeGroup(
     endSentenceIndex: Math.max(
       ...ranges.map((range) => range.endSentenceIndex),
     ),
-    fragmentId: first.fragmentId,
     ...(scores.length === 0 ? {} : { score: Math.max(...scores) }),
     startSentenceIndex: Math.min(
       ...ranges.map((range) => range.startSentenceIndex),
@@ -4880,13 +4840,13 @@ async function createExpandedSourceEvidenceRanges(
         return range;
       }
 
-      const fragment = await getEvidenceFragment(
+      const sourceIndex = await getTextStreamIndex(
         document,
         range.chapterId,
-        range.fragmentId,
+        "source",
         context,
       );
-      const lastSentenceIndex = Math.max(0, fragment.sentences.length - 1);
+      const lastSentenceIndex = Math.max(0, sourceIndex.sentences.length - 1);
 
       return {
         ...range,
@@ -4912,97 +4872,40 @@ async function createSourceEvidenceItem(
   chapterId: number,
   startSentenceIndex: number,
   endSentenceIndex: number,
-  fragmentId?: number,
   context: EvidenceReadContext = createEvidenceReadContext(),
   score?: number,
 ): Promise<ArchiveEvidenceItem> {
   const chapter = await getEvidenceChapter(document, chapterId, context);
-  const resolvedFragmentId =
-    fragmentId ??
-    (await document.getSerialFragments(chapterId).listFragmentIds())[0];
-
-  if (resolvedFragmentId === undefined) {
-    throw new Error(`Chapter ${formatChapterId(chapterId)} has no source.`);
-  }
-
-  const fragment = await getEvidenceFragment(
-    document,
-    chapterId,
-    resolvedFragmentId,
-    context,
-  );
-  const lastSentenceIndex = Math.max(0, fragment.sentences.length - 1);
-  const start = clampInteger(startSentenceIndex, 0, lastSentenceIndex);
-  const end = clampInteger(endSentenceIndex, start, lastSentenceIndex);
-  const source = fragment.sentences
-    .slice(start, end + 1)
-    .map((sentence) => sentence.text)
-    .join("\n");
-  const streamRange = await convertSourceLocalRangeToStreamRange(
-    document,
-    chapterId,
-    resolvedFragmentId,
-    start,
-    end,
-    context,
-  );
-
-  return {
-    chapterId,
-    endSentenceIndex: streamRange.endSentenceIndex,
-    fragmentId: resolvedFragmentId,
-    id: formatTextStreamRangeUri(
-      chapterId,
-      "source",
-      streamRange.startSentenceIndex,
-      streamRange.endSentenceIndex,
-    ),
-    ...(score === undefined ? {} : { score }),
-    source,
-    startSentenceIndex: streamRange.startSentenceIndex,
-    title: chapter.title ?? `[chapter ${chapterId}]`,
-    type: "source",
-  };
-}
-
-async function convertSourceLocalRangeToStreamRange(
-  document: ReadonlyDocument,
-  chapterId: number,
-  fragmentId: number,
-  startSentenceIndex: number,
-  endSentenceIndex: number,
-  context: EvidenceReadContext,
-): Promise<{
-  readonly endSentenceIndex: number;
-  readonly startSentenceIndex: number;
-}> {
-  const index = await getTextStreamIndex(
+  const range = await readTextStreamRange(
     document,
     chapterId,
     "source",
+    startSentenceIndex,
+    endSentenceIndex,
     context,
-  );
-  const start = index.sentences.find(
-    (sentence) =>
-      sentence.fragmentId === fragmentId &&
-      sentence.localIndex === startSentenceIndex,
-  );
-  const end = index.sentences.find(
-    (sentence) =>
-      sentence.fragmentId === fragmentId &&
-      sentence.localIndex === endSentenceIndex,
   );
 
   return {
-    endSentenceIndex: end?.globalIndex ?? start?.globalIndex ?? 0,
-    startSentenceIndex: start?.globalIndex ?? 0,
+    chapterId,
+    endSentenceIndex: range.endSentenceIndex,
+    fragmentId: range.startSentenceIndex,
+    id: formatTextStreamRangeUri(
+      chapterId,
+      "source",
+      range.startSentenceIndex,
+      range.endSentenceIndex,
+    ),
+    ...(score === undefined ? {} : { score }),
+    source: range.text,
+    startSentenceIndex: range.startSentenceIndex,
+    title: chapter.title ?? `[chapter ${chapterId}]`,
+    type: "source",
   };
 }
 
 function createEvidenceReadContext(): EvidenceReadContext {
   return {
     chapters: new Map(),
-    fragments: new Map(),
     streamIndexes: new Map(),
   };
 }
@@ -5022,36 +4925,17 @@ async function getEvidenceChapter(
   return await chapter;
 }
 
-async function getEvidenceFragment(
-  document: ReadonlyDocument,
-  chapterId: number,
-  fragmentId: number,
-  context: EvidenceReadContext,
-): Promise<FragmentRecord> {
-  const key = `${chapterId}:${fragmentId}`;
-  let fragment = context.fragments.get(key);
-
-  if (fragment === undefined) {
-    fragment = document.getSerialFragments(chapterId).getFragment(fragmentId);
-    context.fragments.set(key, fragment);
-  }
-
-  return await fragment;
-}
-
 async function findSentenceIndexAtOffset(
   document: ReadonlyDocument,
   chapterId: number,
-  fragmentId: number,
   offset: number,
 ): Promise<number> {
-  const fragment = await document
-    .getSerialFragments(chapterId)
-    .getFragment(fragmentId);
+  const sentences =
+    await document.getSerialFragments(chapterId).listSentences!();
   let cursor = 0;
 
-  for (let index = 0; index < fragment.sentences.length; index += 1) {
-    const sentence = fragment.sentences[index];
+  for (let index = 0; index < sentences.length; index += 1) {
+    const sentence = sentences[index];
 
     if (sentence === undefined) {
       continue;
@@ -5066,7 +4950,7 @@ async function findSentenceIndexAtOffset(
     cursor = nextCursor + 1;
   }
 
-  return Math.max(0, fragment.sentences.length - 1);
+  return Math.max(0, sentences.length - 1);
 }
 
 function formatTextStreamRangeUri(
@@ -5129,19 +5013,6 @@ function mergeEvidenceRanges(
   }
 
   return mergedRanges;
-}
-
-function parseEvidenceRangeKey(key: string): {
-  readonly chapterId: number;
-  readonly fragmentId: number;
-} {
-  const [chapterId, fragmentId] = key.split(":").map(Number);
-
-  if (chapterId === undefined || fragmentId === undefined) {
-    throw new Error("Internal error: invalid source evidence range.");
-  }
-
-  return { chapterId, fragmentId };
 }
 
 function clampInteger(value: number, min: number, max: number): number {
@@ -5998,16 +5869,12 @@ function createSentencePosition(sentenceId: SentenceId): ArchiveFindPosition {
   return {
     chapter: sentenceId[0],
     fragment: sentenceId[1],
-    sentence: sentenceId[2],
+    sentence: sentenceId[1],
   };
 }
 
 function compareSentenceIds(left: SentenceId, right: SentenceId): number {
-  return (
-    compareNumbers(left[0], right[0]) ||
-    compareNumbers(left[1], right[1]) ||
-    compareNumbers(left[2], right[2])
-  );
+  return compareNumbers(left[0], right[0]) || compareNumbers(left[1], right[1]);
 }
 
 function compareArchivePositions(

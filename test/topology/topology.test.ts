@@ -21,14 +21,16 @@ describe("topology/topology", () => {
   it("merges deltas, applies annotations, and persists weighted topology output", async () => {
     groupFragmentsMock.mockResolvedValue([
       {
-        fragmentId: 1,
+        endSentenceIndex: 1,
         groupId: 0,
         serialId: 7,
+        startSentenceIndex: 1,
       },
       {
-        fragmentId: 2,
+        endSentenceIndex: 2,
         groupId: 0,
         serialId: 7,
+        startSentenceIndex: 2,
       },
     ]);
     const {
@@ -95,8 +97,8 @@ describe("topology/topology", () => {
         generation: 0,
         label: "Chunk 1",
         retention: ChunkRetention.Relevant,
-        sentenceId: [7, 1, 0],
-        sentenceIds: [[7, 1, 0]],
+        sentenceId: [7, 1],
+        sentenceIds: [[7, 1]],
         wordsCount: 5,
         weight: 1,
       },
@@ -106,8 +108,8 @@ describe("topology/topology", () => {
         importance: ChunkImportance.Critical,
         label: "Chunk 2",
         retention: ChunkRetention.Focused,
-        sentenceId: [7, 2, 0],
-        sentenceIds: [[7, 2, 0]],
+        sentenceId: [7, 2],
+        sentenceIds: [[7, 2]],
         wordsCount: 5,
         weight: 12,
       },
@@ -128,8 +130,8 @@ describe("topology/topology", () => {
           id: 1,
           label: "Chunk 1",
           retention: ChunkRetention.Relevant,
-          sentenceId: [7, 1, 0],
-          sentenceIds: [[7, 1, 0]],
+          sentenceId: [7, 1],
+          sentenceIds: [[7, 1]],
           wordsCount: 5,
           weight: 1,
         },
@@ -140,8 +142,8 @@ describe("topology/topology", () => {
           importance: ChunkImportance.Critical,
           label: "Chunk 2",
           retention: ChunkRetention.Focused,
-          sentenceId: [7, 2, 0],
-          sentenceIds: [[7, 2, 0]],
+          sentenceId: [7, 2],
+          sentenceIds: [[7, 2]],
           wordsCount: 5,
           weight: 12,
         },
@@ -160,14 +162,16 @@ describe("topology/topology", () => {
     });
     expect(saveFragmentGroups).toHaveBeenCalledWith([
       {
-        fragmentId: 1,
+        endSentenceIndex: 1,
         groupId: 0,
         serialId: 7,
+        startSentenceIndex: 1,
       },
       {
-        fragmentId: 2,
+        endSentenceIndex: 2,
         groupId: 0,
         serialId: 7,
+        startSentenceIndex: 2,
       },
     ]);
     expect(createSnake).toHaveBeenCalledTimes(1);
@@ -203,19 +207,16 @@ describe("topology/topology", () => {
   it("keeps cross-group relations out of persisted snake edges", async () => {
     groupFragmentsMock.mockResolvedValue([
       {
-        fragmentId: 1,
+        endSentenceIndex: 2,
         groupId: 0,
         serialId: 7,
+        startSentenceIndex: 1,
       },
       {
-        fragmentId: 2,
-        groupId: 0,
-        serialId: 7,
-      },
-      {
-        fragmentId: 3,
+        endSentenceIndex: 3,
         groupId: 1,
         serialId: 7,
+        startSentenceIndex: 3,
       },
     ]);
     const { document, createSnake, saveSnakeChunk, saveSnakeEdge } =
@@ -297,9 +298,10 @@ describe("topology/topology", () => {
   it("splits a connected component into multiple snakes and normalizes snake-edge direction", async () => {
     groupFragmentsMock.mockResolvedValue([
       {
-        fragmentId: 1,
+        endSentenceIndex: 1,
         groupId: 0,
         serialId: 7,
+        startSentenceIndex: 1,
       },
     ]);
     const { document, createSnake, saveSnakeChunk, saveSnakeEdge } =
@@ -497,7 +499,7 @@ function createDocumentStub(): {
 
 function createReaderChunk(
   id: number,
-  fragmentId: number,
+  sentenceIndex: number,
   extra: {
     readonly importance?: ChunkImportance;
     readonly retention?: ChunkRetention;
@@ -510,8 +512,8 @@ function createReaderChunk(
     id,
     label: `Chunk ${id}`,
     links: [],
-    sentenceId: [7, fragmentId, 0] as const,
-    sentenceIds: [[7, fragmentId, 0] as const],
+    sentenceId: [7, sentenceIndex] as const,
+    sentenceIds: [[7, sentenceIndex] as const],
     wordsCount: extra.wordsCount ?? 5,
     ...extra,
   };

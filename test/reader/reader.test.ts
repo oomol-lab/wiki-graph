@@ -73,7 +73,7 @@ describe("reader/reader", () => {
       .mockResolvedValueOnce({
         chunkBatch: {
           chunks: [
-            createChunk(0, 0, [1, 0, 0], "Alpha", "Alpha content", {
+            createChunk(0, 0, [1, 0], "Alpha", "Alpha content", {
               retention: ChunkRetention.Focused,
             }),
           ],
@@ -86,7 +86,7 @@ describe("reader/reader", () => {
       .mockResolvedValueOnce({
         chunkBatch: {
           chunks: [
-            createChunk(0, 0, [1, 1, 0], "Gamma", "Gamma content", {
+            createChunk(0, 0, [1, 1], "Gamma", "Gamma content", {
               retention: ChunkRetention.Relevant,
             }),
           ],
@@ -98,7 +98,7 @@ describe("reader/reader", () => {
       });
     extractBookCoherenceChunkBatchMock.mockResolvedValue({
       chunks: [
-        createChunk(0, 0, [1, 0, 1], "Beta", "Beta content", {
+        createChunk(0, 0, [1, 1], "Beta", "Beta content", {
           importance: ChunkImportance.Important,
         }),
       ],
@@ -123,7 +123,7 @@ describe("reader/reader", () => {
     const userFocused = await reader.extractUserFocused({
       sentences: [
         {
-          sentenceId: [1, 0, 0],
+          sentenceId: [1, 0],
           text: "Alpha sentence.",
           wordsCount: 2,
         },
@@ -148,7 +148,7 @@ describe("reader/reader", () => {
       {
         sentences: [
           {
-            sentenceId: [1, 0, 0],
+            sentenceId: [1, 0],
             text: "Alpha sentence.",
             wordsCount: 2,
           },
@@ -162,7 +162,7 @@ describe("reader/reader", () => {
     const coherenceDelta = await reader.extractBookCoherence({
       sentences: [
         {
-          sentenceId: [1, 0, 1],
+          sentenceId: [1, 1],
           text: "Beta sentence.",
           wordsCount: 3,
         },
@@ -176,7 +176,7 @@ describe("reader/reader", () => {
       {
         sentences: [
           {
-            sentenceId: [1, 0, 1],
+            sentenceId: [1, 1],
             text: "Beta sentence.",
             wordsCount: 3,
           },
@@ -212,7 +212,7 @@ describe("reader/reader", () => {
     const afterClear = await reader.extractUserFocused({
       sentences: [
         {
-          sentenceId: [1, 1, 0],
+          sentenceId: [1, 1],
           text: "Gamma sentence.",
           wordsCount: 4,
         },
@@ -226,7 +226,7 @@ describe("reader/reader", () => {
       {
         sentences: [
           {
-            sentenceId: [1, 1, 0],
+            sentenceId: [1, 1],
             text: "Gamma sentence.",
             wordsCount: 4,
           },
@@ -244,7 +244,7 @@ describe("reader/reader", () => {
       .mockResolvedValueOnce({
         chunkBatch: {
           chunks: [
-            createChunk(0, 0, [1, 0, 0], "Alpha", "Alpha content", {
+            createChunk(0, 0, [1, 0], "Alpha", "Alpha content", {
               retention: ChunkRetention.Focused,
             }),
           ],
@@ -257,7 +257,7 @@ describe("reader/reader", () => {
       .mockResolvedValueOnce({
         chunkBatch: {
           chunks: [
-            createChunk(0, 0, [1, 1, 0], "Gamma", "Gamma content", {
+            createChunk(0, 0, [1, 1], "Gamma", "Gamma content", {
               retention: ChunkRetention.Relevant,
             }),
           ],
@@ -270,7 +270,7 @@ describe("reader/reader", () => {
     extractBookCoherenceChunkBatchMock
       .mockResolvedValueOnce({
         chunks: [
-          createChunk(0, 0, [1, 0, 1], "Beta", "Beta content", {
+          createChunk(0, 0, [1, 1], "Beta", "Beta content", {
             importance: ChunkImportance.Important,
           }),
         ],
@@ -289,7 +289,7 @@ describe("reader/reader", () => {
     const firstUserFocused = await reader.extractUserFocused({
       sentences: [
         {
-          sentenceId: [1, 0, 0],
+          sentenceId: [1, 0],
           text: "Alpha sentence.",
           wordsCount: 2,
         },
@@ -299,7 +299,7 @@ describe("reader/reader", () => {
     const firstCoherence = await reader.extractBookCoherence({
       sentences: [
         {
-          sentenceId: [1, 0, 1],
+          sentenceId: [1, 1],
           text: "Beta sentence.",
           wordsCount: 3,
         },
@@ -316,7 +316,7 @@ describe("reader/reader", () => {
     await reader.extractUserFocused({
       sentences: [
         {
-          sentenceId: [1, 1, 0],
+          sentenceId: [1, 1],
           text: "Gamma sentence.",
           wordsCount: 4,
         },
@@ -330,7 +330,7 @@ describe("reader/reader", () => {
       {
         sentences: [
           {
-            sentenceId: [1, 1, 0],
+            sentenceId: [1, 1],
             text: "Gamma sentence.",
             wordsCount: 4,
           },
@@ -373,7 +373,7 @@ function createReader(input?: { readonly segmenter?: SentenceStreamAdapter }) {
 function createChunk(
   id: number,
   generation: number,
-  sentenceId: readonly [number, number, number],
+  sentenceId: readonly [number, number],
   label: string,
   content: string,
   extra: {
@@ -387,8 +387,8 @@ function createChunk(
     id,
     label,
     links: [],
-    sentenceId: [...sentenceId] as [number, number, number],
-    sentenceIds: [[...sentenceId] as [number, number, number]],
+    sentenceId: [...sentenceId] as [number, number],
+    sentenceIds: [[...sentenceId] as [number, number]],
     wordsCount: 1,
     ...extra,
   };

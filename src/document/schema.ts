@@ -31,7 +31,6 @@ export const SCHEMA_SQL = `
     id INTEGER PRIMARY KEY,
     generation INTEGER NOT NULL,
     serial_id INTEGER NOT NULL,
-    fragment_id INTEGER NOT NULL,
     sentence_index INTEGER NOT NULL,
     label TEXT NOT NULL,
     content TEXT NOT NULL,
@@ -42,21 +41,17 @@ export const SCHEMA_SQL = `
   );
 
   CREATE INDEX IF NOT EXISTS idx_chunks_sentence
-  ON chunks(serial_id, fragment_id, sentence_index);
+  ON chunks(serial_id, sentence_index);
 
   CREATE INDEX IF NOT EXISTS idx_chunks_serial_id
   ON chunks(serial_id, id);
 
-  CREATE INDEX IF NOT EXISTS idx_chunks_serial_fragment_id
-  ON chunks(serial_id, fragment_id, id);
-
   CREATE TABLE IF NOT EXISTS chunk_sentences (
     chunk_id INTEGER NOT NULL,
     serial_id INTEGER NOT NULL,
-    fragment_id INTEGER NOT NULL,
     sentence_index INTEGER NOT NULL,
     FOREIGN KEY (chunk_id) REFERENCES chunks(id),
-    PRIMARY KEY (chunk_id, serial_id, fragment_id, sentence_index)
+    PRIMARY KEY (chunk_id, serial_id, sentence_index)
   );
 
   CREATE TABLE IF NOT EXISTS reading_edges (
@@ -100,17 +95,17 @@ export const SCHEMA_SQL = `
     FOREIGN KEY (to_snake_id) REFERENCES snakes(id)
   );
 
-  CREATE TABLE IF NOT EXISTS fragment_groups (
+  CREATE TABLE IF NOT EXISTS sentence_groups (
     serial_id INTEGER NOT NULL,
     group_id INTEGER NOT NULL,
-    fragment_id INTEGER NOT NULL,
-    PRIMARY KEY (serial_id, group_id, fragment_id)
+    start_sentence_index INTEGER NOT NULL,
+    end_sentence_index INTEGER NOT NULL,
+    PRIMARY KEY (serial_id, group_id, start_sentence_index, end_sentence_index)
   );
 
   CREATE TABLE IF NOT EXISTS mentions (
     id TEXT PRIMARY KEY,
     chapter_id INTEGER NOT NULL,
-    fragment_id INTEGER NOT NULL,
     sentence_index INTEGER,
     range_start INTEGER NOT NULL,
     range_end INTEGER NOT NULL,
@@ -125,7 +120,7 @@ export const SCHEMA_SQL = `
   ON mentions(chapter_id);
 
   CREATE INDEX IF NOT EXISTS idx_mentions_chapter_position
-  ON mentions(chapter_id, fragment_id, sentence_index, range_start, range_end, id);
+  ON mentions(chapter_id, sentence_index, range_start, range_end, id);
 
   CREATE INDEX IF NOT EXISTS idx_mentions_chapter_qid
   ON mentions(chapter_id, qid);
@@ -134,19 +129,16 @@ export const SCHEMA_SQL = `
   ON mentions(qid);
 
   CREATE INDEX IF NOT EXISTS idx_mentions_qid_position
-  ON mentions(qid, chapter_id, fragment_id, sentence_index, range_start, range_end, id);
+  ON mentions(qid, chapter_id, sentence_index, range_start, range_end, id);
 
   CREATE INDEX IF NOT EXISTS idx_mentions_surface
   ON mentions(surface);
 
   CREATE INDEX IF NOT EXISTS idx_mentions_surface_position
-  ON mentions(surface, chapter_id, fragment_id, sentence_index, range_start, range_end, id);
-
-  CREATE INDEX IF NOT EXISTS idx_mentions_fragment
-  ON mentions(fragment_id);
+  ON mentions(surface, chapter_id, sentence_index, range_start, range_end, id);
 
   CREATE INDEX IF NOT EXISTS idx_mentions_sentence
-  ON mentions(chapter_id, fragment_id, sentence_index);
+  ON mentions(chapter_id, sentence_index);
 
   CREATE TABLE IF NOT EXISTS mention_links (
     id TEXT PRIMARY KEY,
@@ -162,14 +154,13 @@ export const SCHEMA_SQL = `
   CREATE TABLE IF NOT EXISTS mention_link_evidence_sentences (
     link_id TEXT NOT NULL,
     chapter_id INTEGER NOT NULL,
-    fragment_id INTEGER NOT NULL,
     sentence_index INTEGER NOT NULL,
     FOREIGN KEY (link_id) REFERENCES mention_links(id),
-    PRIMARY KEY (link_id, chapter_id, fragment_id, sentence_index)
+    PRIMARY KEY (link_id, chapter_id, sentence_index)
   );
 
   CREATE INDEX IF NOT EXISTS idx_mention_link_evidence_sentences_sentence
-  ON mention_link_evidence_sentences(chapter_id, fragment_id, sentence_index);
+  ON mention_link_evidence_sentences(chapter_id, sentence_index);
 
   CREATE INDEX IF NOT EXISTS idx_mention_links_source
   ON mention_links(source_mention_id);
@@ -255,6 +246,8 @@ export const SCHEMA_SQL = `
     chapter_id INTEGER NOT NULL,
     sentence_index INTEGER NOT NULL,
     words_count INTEGER NOT NULL DEFAULT 0,
+    byte_offset INTEGER NOT NULL DEFAULT 0,
+    byte_length INTEGER NOT NULL DEFAULT 0,
     UNIQUE(kind, chapter_id, sentence_index)
   );
 

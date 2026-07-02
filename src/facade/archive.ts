@@ -4,10 +4,11 @@ import {
   open as openFile,
   readFile,
   readdir,
+  writeFile,
   type FileHandle,
 } from "fs/promises";
 import { dirname, join, posix, relative, resolve, sep } from "path";
-import { finished, pipeline } from "stream/promises";
+import { finished } from "stream/promises";
 import { inflateRaw } from "zlib";
 
 import { z } from "zod";
@@ -30,8 +31,7 @@ const WIKG_ARCHIVE_PATTERNS = [
   /^book-meta\.json$/u,
   /^toc\.json$/u,
   /^cover\/(?:data\.bin|info\.json)$/u,
-  /^summaries\/serial-\d+\/fragment_\d+\.json$/u,
-  /^fragments\/serial-\d+\/fragment_\d+\.json$/u,
+  /^texts\/(?:source|summary)\/\d+\.txt$/u,
 ] as const;
 
 const wikgManifestSchema = z.object({
@@ -115,6 +115,7 @@ export async function extractWikgArchive(
   outputDirectoryPath: string,
 ): Promise<void> {
   const { entries, zipFile } = await openIndexedArchive(inputPath);
+  const file = await openFile(inputPath, "r");
 
   try {
     for (const entry of entries) {
@@ -123,17 +124,21 @@ export async function extractWikgArchive(
       if (archivePath === "") {
         throw new Error(`Invalid archive entry path: ${entry.fileName}`);
       }
+      if (!isWikgArchivePath(archivePath)) {
+        continue;
+      }
 
       const targetPath = resolve(outputDirectoryPath, archivePath);
 
       assertWithinDirectory(outputDirectoryPath, targetPath, archivePath);
       await mkdir(dirname(targetPath), { recursive: true });
-      await pipeline(
-        await openArchiveEntryStream(zipFile, entry),
-        createWriteStream(targetPath),
+      await writeFile(
+        targetPath,
+        await readArchiveEntryBufferFromFile(file, entry),
       );
     }
   } finally {
+    await file.close();
     zipFile.close();
   }
 }
@@ -156,9 +161,13 @@ export async function writeWikgArchive(
 
   for (const entry of entries) {
     if ("content" in entry) {
-      zipFile.addBuffer(entry.content, entry.archivePath);
+      zipFile.addBuffer(entry.content, entry.archivePath, {
+        compress: false,
+      });
     } else {
-      zipFile.addFile(entry.absolutePath, entry.archivePath);
+      zipFile.addFile(entry.absolutePath, entry.archivePath, {
+        compress: false,
+      });
     }
   }
 
@@ -243,6 +252,7 @@ export async function writeWikgArchiveWithOverlays(
         outputZipFile.addBuffer(
           Buffer.from(WIKG_MANIFEST_CONTENT, "utf8"),
           entryPath,
+          { compress: false },
         );
         continue;
       }
@@ -250,7 +260,9 @@ export async function writeWikgArchiveWithOverlays(
         continue;
       }
       if (overlay?.kind === "file") {
-        outputZipFile.addFile(overlay.workspacePath, entryPath);
+        outputZipFile.addFile(overlay.workspacePath, entryPath, {
+          compress: false,
+        });
         continue;
       }
 
@@ -265,6 +277,7 @@ export async function writeWikgArchiveWithOverlays(
       outputZipFile.addBuffer(
         await readArchiveEntryBufferFromFile(sourceFile, sourceEntry),
         entryPath,
+        { compress: false },
       );
     }
   } finally {
@@ -452,24 +465,6 @@ async function openArchive(path: string): Promise<YauzlZipFile> {
       }
 
       resolve(zipFile);
-    });
-  });
-}
-
-async function openArchiveEntryStream(
-  zipFile: YauzlZipFile,
-  entry: Entry,
-): Promise<NodeJS.ReadableStream> {
-  return await new Promise((resolve, reject) => {
-    zipFile.openReadStream(entry, (error, stream) => {
-      if (error !== null || stream === undefined) {
-        reject(
-          error ?? new Error(`Cannot open archive entry: ${entry.fileName}`),
-        );
-        return;
-      }
-
-      resolve(stream);
     });
   });
 }

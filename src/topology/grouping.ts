@@ -1,4 +1,4 @@
-import type { FragmentGroupRecord } from "../document/index.js";
+import type { SentenceGroupRecord } from "../document/index.js";
 import { computeNormalizedFragmentIncisions } from "./fragment-incision.js";
 import { createFragmentGroups } from "./resource-segmentation.js";
 
@@ -10,7 +10,7 @@ export async function groupFragments(input: {
   groupWordsCount: number;
   chunks: Parameters<typeof computeNormalizedFragmentIncisions>[0]["chunks"];
   serialId: number;
-}): Promise<FragmentGroupRecord[]> {
+}): Promise<SentenceGroupRecord[]> {
   const fragmentInfos = await computeNormalizedFragmentIncisions({
     chunks: input.chunks,
     edges: input.edges,

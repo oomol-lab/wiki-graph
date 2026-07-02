@@ -9,7 +9,6 @@ import type { LLM } from "./llm/index.js";
 import type {
   ChunkRecord,
   Document,
-  FragmentGroupRecord,
   FragmentGroupStore,
   ReadingEdgeRecord,
   ReadonlyChunkStore,
@@ -17,10 +16,11 @@ import type {
   ReadonlyFragmentGroupStore,
   ReadonlyReadingEdgeStore,
   ReadonlySerialFragments,
+  SentenceGroupRecord,
+  SerialTextStream,
   ReadonlySnakeChunkStore,
   ReadonlySnakeEdgeStore,
   ReadonlySnakeStore,
-  SerialFragments,
   SerialRecord,
   SerialStore,
   SnakeChunkRecord,
@@ -433,7 +433,7 @@ export class SerialGeneration {
     );
   }
 
-  #getSerialFragments(serialId: number): SerialFragments {
+  #getSerialFragments(serialId: number): SerialTextStream {
     return this.#document.getSerialFragments(serialId);
   }
 
@@ -520,7 +520,7 @@ export class SerialTopology {
     return await this.#readingEdges.listBySerial(this.#serialId);
   }
 
-  public async listGroups(): Promise<readonly FragmentGroupRecord[]> {
+  public async listGroups(): Promise<readonly SentenceGroupRecord[]> {
     return await this.#fragmentGroups.listBySerial(this.#serialId);
   }
 

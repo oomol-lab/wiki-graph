@@ -12,19 +12,18 @@ describe("document/fragments", () => {
       const draft = await fragments.getSerial(3).createDraft();
 
       expect(draft.fragmentId).toBe(0);
-      expect(draft.addSentence("Alpha", 2)).toStrictEqual([3, 0, 0]);
-      expect(draft.addSentence("Beta", 5)).toStrictEqual([3, 0, 1]);
+      expect(draft.addSentence("Alpha", 2)).toStrictEqual([3, 0]);
+      expect(draft.addSentence("Beta", 5)).toStrictEqual([3, 1]);
       draft.setSummary("Fragment summary");
 
       const fragment = await draft.commit();
 
       expect(fragment).toMatchObject({
         serialId: 3,
-        fragmentId: 0,
         summary: "Fragment summary",
       });
       expect(await fragments.getSerial(3).listFragmentIds()).toStrictEqual([0]);
-      expect(await fragments.getSentence([3, 0, 1])).toBe("Beta");
+      expect(await fragments.getSentence([3, 1])).toBe("Beta");
       expect(await fragments.getSummary(3, 0)).toBe("Fragment summary");
       expect(await fragments.getWordsCount(3, 0)).toBe(7);
     });
@@ -60,7 +59,7 @@ describe("document/fragments", () => {
       expect(() => nextDraft.addSentence("Delta", 1)).toThrow(
         "Fragment draft is already finalized",
       );
-      await expect(new Fragments(path).getSentence([5, 0, 4])).rejects.toThrow(
+      await expect(new Fragments(path).getSentence([5, 4])).rejects.toThrow(
         "Sentence 4 does not exist",
       );
     });

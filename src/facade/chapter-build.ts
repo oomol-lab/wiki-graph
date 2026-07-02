@@ -5,7 +5,6 @@ import { z } from "zod";
 import type {
   ChunkRecord,
   Document,
-  FragmentGroupRecord,
   FragmentRecord,
   ReadingEdgeRecord,
   MentionLinkRecord,
@@ -23,6 +22,7 @@ import type {
   ReadonlySnakeEdgeStore,
   ReadonlySnakeStore,
   SentenceId,
+  SentenceGroupRecord,
   SerialRecord,
   SnakeChunkRecord,
   SnakeEdgeRecord,
@@ -73,7 +73,6 @@ export interface BuildChapterSummaryArtifactOptions extends GenerateChapterSumma
 }
 
 const sentenceIdSchema = z.tuple([
-  z.number(),
   z.number(),
   z.number(),
 ]) satisfies z.ZodType<SentenceId>;
@@ -150,8 +149,9 @@ const snakeEdgeRecordSchema = z.object({
 const fragmentGroupRecordSchema = z.object({
   serialId: z.number(),
   groupId: z.number(),
-  fragmentId: z.number(),
-}) satisfies z.ZodType<FragmentGroupRecord>;
+  startSentenceIndex: z.number(),
+  endSentenceIndex: z.number(),
+}) satisfies z.ZodType<SentenceGroupRecord>;
 
 const summaryInputSnapshotSchema = z.object({
   chunks: z.array(chunkRecordSchema),
@@ -166,7 +166,7 @@ const summaryInputSnapshotSchema = z.object({
 
 interface SummaryInputSnapshotData {
   readonly chunks: readonly ChunkRecord[];
-  readonly fragmentGroups: readonly FragmentGroupRecord[];
+  readonly fragmentGroups: readonly SentenceGroupRecord[];
   readonly fragments: readonly FragmentRecord[];
   readonly readingEdges: readonly ReadingEdgeRecord[];
   readonly serial: SerialRecord;
@@ -673,10 +673,10 @@ class SummaryInputSnapshotDocument implements ReadonlyDocument {
   }
 
   public async getSentence(sentenceId: SentenceId): Promise<string> {
-    const [serialId, fragmentId, sentenceIndex] = sentenceId;
-    const fragment =
-      await this.getSerialFragments(serialId).getFragment(fragmentId);
-    const sentence = fragment.sentences[sentenceIndex];
+    const [serialId, sentenceIndex] = sentenceId;
+    const sentence = (await this.getSerialFragments(serialId).listSentences!())[
+      sentenceIndex
+    ];
 
     if (sentence === undefined) {
       throw new RangeError(`Sentence ${sentenceIndex} does not exist`);
@@ -854,6 +854,46 @@ class SnapshotSerialFragments implements ReadonlySerialFragments {
   public listFragmentIds(): Promise<readonly number[]> {
     return Promise.resolve([...this.#fragmentsById.keys()].sort(compareNumber));
   }
+
+  public async getSentence(sentenceIndex: number) {
+    const sentence = (await this.listSentences())[sentenceIndex];
+
+    if (sentence === undefined) {
+      throw new RangeError(`Sentence ${sentenceIndex} does not exist`);
+    }
+
+    return sentence;
+  }
+
+  public async listSentencesInRange(
+    startSentenceIndex: number,
+    endSentenceIndex: number,
+  ) {
+    return (await this.listSentences()).slice(
+      startSentenceIndex,
+      endSentenceIndex + 1,
+    );
+  }
+
+  public async listSentences() {
+    const fragments = await Promise.all(
+      (await this.listFragmentIds()).map(
+        async (fragmentId) => await this.getFragment(fragmentId),
+      ),
+    );
+
+    return fragments.flatMap((fragment) => fragment.sentences);
+  }
+
+  public async readText(): Promise<string | undefined> {
+    const sentences = await this.listSentences();
+
+    if (sentences.length === 0) {
+      return undefined;
+    }
+
+    return sentences.map((sentence) => sentence.text).join("");
+  }
 }
 
 class SnapshotChunkStore implements ReadonlyChunkStore {
@@ -888,6 +928,21 @@ class SnapshotChunkStore implements ReadonlyChunkStore {
         (chunk) =>
           chunk.sentenceId[0] === serialId &&
           fragmentIdSet.has(chunk.sentenceId[1]),
+      ),
+    );
+  }
+
+  public listBySentenceRange(
+    serialId: number,
+    startSentenceIndex: number,
+    endSentenceIndex: number,
+  ): Promise<ChunkRecord[]> {
+    return Promise.resolve(
+      this.#chunks.filter(
+        (chunk) =>
+          chunk.sentenceId[0] === serialId &&
+          chunk.sentenceId[1] >= startSentenceIndex &&
+          chunk.sentenceId[1] <= endSentenceIndex,
       ),
     );
   }
@@ -1067,13 +1122,13 @@ class SnapshotSnakeEdgeStore implements ReadonlySnakeEdgeStore {
 }
 
 class SnapshotFragmentGroupStore implements ReadonlyFragmentGroupStore {
-  readonly #groups: readonly FragmentGroupRecord[];
+  readonly #groups: readonly SentenceGroupRecord[];
 
-  public constructor(groups: readonly FragmentGroupRecord[]) {
+  public constructor(groups: readonly SentenceGroupRecord[]) {
     this.#groups = [...groups].sort(compareFragmentGroup);
   }
 
-  public listBySerial(serialId: number): Promise<FragmentGroupRecord[]> {
+  public listBySerial(serialId: number): Promise<SentenceGroupRecord[]> {
     return Promise.resolve(
       this.#groups.filter((group) => group.serialId === serialId),
     );
@@ -1262,13 +1317,14 @@ function compareChunkById(left: ChunkRecord, right: ChunkRecord): number {
 }
 
 function compareFragmentGroup(
-  left: FragmentGroupRecord,
-  right: FragmentGroupRecord,
+  left: SentenceGroupRecord,
+  right: SentenceGroupRecord,
 ): number {
   return (
     left.serialId - right.serialId ||
     left.groupId - right.groupId ||
-    left.fragmentId - right.fragmentId
+    left.startSentenceIndex - right.startSentenceIndex ||
+    left.endSentenceIndex - right.endSentenceIndex
   );
 }
 

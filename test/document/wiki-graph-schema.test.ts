@@ -83,7 +83,6 @@ describe("document/wiki-graph-schema", () => {
             INSERT INTO mentions (
               id,
               chapter_id,
-              fragment_id,
               sentence_index,
               range_start,
               range_end,
@@ -92,9 +91,9 @@ describe("document/wiki-graph-schema", () => {
               confidence,
               note
             ) VALUES
-              ('m1', 1, 10, 0, 0, 2, '恩典', 'Q205194', 0.95, '神学概念'),
-              ('m2', 1, 10, 0, 5, 9, '自由意志', 'Q9476', 0.9, NULL),
-              ('m3', 1, 11, 0, 0, 3, '伯拉纠', 'Q162593', 0.92, NULL)
+              ('m1', 1, 10, 0, 2, '恩典', 'Q205194', 0.95, '神学概念'),
+              ('m2', 1, 10, 5, 9, '自由意志', 'Q9476', 0.9, NULL),
+              ('m3', 1, 11, 0, 3, '伯拉纠', 'Q162593', 0.92, NULL)
           `,
         );
         await database.run(
@@ -117,12 +116,11 @@ describe("document/wiki-graph-schema", () => {
             INSERT INTO mention_link_evidence_sentences (
               link_id,
               chapter_id,
-              fragment_id,
               sentence_index
             ) VALUES
-              ('l1', 1, 10, 0),
-              ('l2', 1, 10, 1),
-              ('l3', 1, 10, 0)
+              ('l1', 1, 10),
+              ('l2', 1, 11),
+              ('l3', 1, 10)
           `,
         );
 
@@ -137,12 +135,10 @@ describe("document/wiki-graph-schema", () => {
         await expect(listObjectNames(database, "index")).resolves.toEqual(
           expect.arrayContaining([
             "idx_chunks_sentence",
-            "idx_chunks_serial_fragment_id",
             "idx_chunks_serial_id",
             "idx_mentions_chapter",
             "idx_mentions_chapter_position",
             "idx_mentions_chapter_qid",
-            "idx_mentions_fragment",
             "idx_mentions_qid",
             "idx_mentions_qid_position",
             "idx_mentions_sentence",
