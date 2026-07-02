@@ -1559,6 +1559,9 @@ describe("cli/args", () => {
     expect(renderHelpTopicText("retrieval")).toContain(
       "Choose the right Wiki Graph scope, lens, pagination, and output format",
     );
+    expect(renderHelpTopicText("retrieval")).toContain(
+      "Avoid `--all | head` as a preview pattern.",
+    );
     expect(renderHelpTopicText("task")).toContain(
       "wikigraph wkg:///Users/me/book.wikg search",
     );

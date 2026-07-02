@@ -48,8 +48,15 @@ Output format:
   - Default text is for reading and inspection.
   - `--json` is for one stable machine-readable page.
   - `--jsonl` is for streamed records, shell pipelines, or full exports.
+  - `--jsonl` is only an output format; it does not imply `--all`.
   - `--all --jsonl` is appropriate for deliberate full exports and bounded inventories.
   - Avoid `--all` without `--jsonl` for large results because text and JSON output are buffered before printing.
+
+Preview vs full export:
+  - For previews, use `--limit <n>` and omit `--all`:
+      wikigraph <uri>/<lens> list --limit 20 --jsonl
+  - Avoid `--all | head` as a preview pattern. `--all` still asks wikigraph to enumerate the full selected scope; shell truncation only limits what you read.
+  - Use `--all --jsonl` only for intentional full inventories, exports, or batch pipelines.
 
 Archive internals:
   Do not unzip `.wikg` or read internal SQLite for routine retrieval. Use URI commands such as `source`, `summary`, `chapter`, `entity`, `triple`, `evidence`, and `related`.
