@@ -1,8 +1,11 @@
 import { createHash, randomUUID } from "crypto";
-import { appendFileSync, mkdirSync } from "fs";
 import { appendFile, mkdir, mkdtemp, readFile, rm } from "fs/promises";
 import { join, resolve } from "path";
 
+import {
+  appendBuildWorkerDiagnosticLog,
+  getBuildWorkerMemorySnapshot,
+} from "../common/build-worker-diagnostic.js";
 import { resolveWikiGraphStateDirectoryPath } from "../common/wiki-graph-dir.js";
 import { openSharedStateDatabase } from "../document/index.js";
 import type { Database } from "../document/index.js";
@@ -661,35 +664,35 @@ export async function runBuildJobWorker(
 
   const stop = (signal: NodeJS.Signals): void => {
     stopping = true;
-    appendBuildWorkerLog({
+    appendBuildWorkerDiagnosticLog({
       event: "signal",
-      memory: getWorkerMemorySnapshot(),
+      memory: getBuildWorkerMemorySnapshot(),
       ownerId,
       signal,
     });
   };
   const logUncaughtException = (error: Error, origin: string): void => {
-    appendBuildWorkerLog({
+    appendBuildWorkerDiagnosticLog({
       error: formatErrorEvent(error),
       event: "uncaught_exception",
-      memory: getWorkerMemorySnapshot(),
+      memory: getBuildWorkerMemorySnapshot(),
       origin,
       ownerId,
     });
   };
   const logUnhandledRejection = (reason: unknown): void => {
-    appendBuildWorkerLog({
+    appendBuildWorkerDiagnosticLog({
       error: formatErrorEvent(reason),
       event: "unhandled_rejection",
-      memory: getWorkerMemorySnapshot(),
+      memory: getBuildWorkerMemorySnapshot(),
       ownerId,
     });
   };
   const logExit = (code: number): void => {
-    appendBuildWorkerLog({
+    appendBuildWorkerDiagnosticLog({
       code,
       event: "exit",
-      memory: getWorkerMemorySnapshot(),
+      memory: getBuildWorkerMemorySnapshot(),
       ownerId,
     });
   };
@@ -704,27 +707,27 @@ export async function runBuildJobWorker(
     void heartbeatBuildWorker(ownerId).catch(() => undefined);
   }, WORKER_HEARTBEAT_INTERVAL_MS);
   const memorySnapshot = setInterval(() => {
-    appendBuildWorkerLog({
+    appendBuildWorkerDiagnosticLog({
       busySlotCount,
       event: "memory_snapshot",
-      memory: getWorkerMemorySnapshot(),
+      memory: getBuildWorkerMemorySnapshot(),
       ownerId,
     });
   }, WORKER_MEMORY_SNAPSHOT_INTERVAL_MS);
 
   try {
-    appendBuildWorkerLog({
+    appendBuildWorkerDiagnosticLog({
       concurrency,
       event: "worker_started",
-      memory: getWorkerMemorySnapshot(),
+      memory: getBuildWorkerMemorySnapshot(),
       ownerId,
     });
     const acquired = await acquireBuildWorkerLease(state, ownerId);
 
     if (!acquired) {
-      appendBuildWorkerLog({
+      appendBuildWorkerDiagnosticLog({
         event: "worker_lease_skipped",
-        memory: getWorkerMemorySnapshot(),
+        memory: getBuildWorkerMemorySnapshot(),
         ownerId,
       });
       return;
@@ -780,9 +783,9 @@ export async function runBuildJobWorker(
     process.removeListener("exit", logExit);
     await releaseBuildWorkerLease(state, ownerId);
     await state.close();
-    appendBuildWorkerLog({
+    appendBuildWorkerDiagnosticLog({
       event: "worker_stopped",
-      memory: getWorkerMemorySnapshot(),
+      memory: getBuildWorkerMemorySnapshot(),
       ownerId,
     });
   }
@@ -802,10 +805,10 @@ async function executeClaimedBuildJob(
   }, 500);
 
   try {
-    appendBuildWorkerLog({
+    appendBuildWorkerDiagnosticLog({
       event: "job_started",
       jobId: job.jobId,
-      memory: getWorkerMemorySnapshot(),
+      memory: getBuildWorkerMemorySnapshot(),
       ownerId,
       target: job.target,
     });
@@ -821,10 +824,10 @@ async function executeClaimedBuildJob(
     });
     await reporter.throwIfStopped();
     await markBuildJobSucceeded(job.jobId, ownerId);
-    appendBuildWorkerLog({
+    appendBuildWorkerDiagnosticLog({
       event: "job_succeeded",
       jobId: job.jobId,
-      memory: getWorkerMemorySnapshot(),
+      memory: getBuildWorkerMemorySnapshot(),
       ownerId,
       target: job.target,
     });
@@ -834,10 +837,10 @@ async function executeClaimedBuildJob(
       abortController.signal.aborted
     ) {
       await markBuildJobStopped(job.jobId, ownerId);
-      appendBuildWorkerLog({
+      appendBuildWorkerDiagnosticLog({
         event: "job_stopped",
         jobId: job.jobId,
-        memory: getWorkerMemorySnapshot(),
+        memory: getBuildWorkerMemorySnapshot(),
         ownerId,
         target: job.target,
       });
@@ -845,11 +848,11 @@ async function executeClaimedBuildJob(
     }
 
     await markBuildJobFailed(job.jobId, ownerId, error);
-    appendBuildWorkerLog({
+    appendBuildWorkerDiagnosticLog({
       error: formatErrorEvent(error),
       event: "job_failed",
       jobId: job.jobId,
-      memory: getWorkerMemorySnapshot(),
+      memory: getBuildWorkerMemorySnapshot(),
       ownerId,
       target: job.target,
     });
@@ -1435,10 +1438,6 @@ function getBuildQueueDatabasePath(): string {
   return join(getBuildQueueStateDirectoryPath(), "build-queue.sqlite");
 }
 
-function getBuildWorkerLogPath(): string {
-  return join(getBuildQueueStateDirectoryPath(), "build-worker.ndjson");
-}
-
 async function createJobWorkspacePath(
   archiveKey: string,
   jobId: string,
@@ -1468,43 +1467,6 @@ function getBuildQueueStateDirectoryPath(): string {
   }
 
   return resolveWikiGraphStateDirectoryPath();
-}
-
-function appendBuildWorkerLog(
-  event: Record<string, unknown> & { readonly event: string },
-): void {
-  try {
-    mkdirSync(getBuildQueueStateDirectoryPath(), { recursive: true });
-    appendFileSync(
-      getBuildWorkerLogPath(),
-      `${JSON.stringify({
-        at: Date.now(),
-        pid: process.pid,
-        ...event,
-      })}\n`,
-      "utf8",
-    );
-  } catch {
-    return;
-  }
-}
-
-function getWorkerMemorySnapshot(): {
-  readonly arrayBuffers: number;
-  readonly external: number;
-  readonly heapTotal: number;
-  readonly heapUsed: number;
-  readonly rss: number;
-} {
-  const memory = process.memoryUsage();
-
-  return {
-    arrayBuffers: memory.arrayBuffers,
-    external: memory.external,
-    heapTotal: memory.heapTotal,
-    heapUsed: memory.heapUsed,
-    rss: memory.rss,
-  };
 }
 
 function mapBuildJob(row: Record<string, unknown>): BuildJob {

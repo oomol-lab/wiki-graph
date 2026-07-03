@@ -17,6 +17,10 @@ import type {
   SentenceId,
 } from "../document/index.js";
 import { LanguageCode, normalizeLanguageCode } from "../common/language.js";
+import {
+  appendBuildWorkerDiagnosticLog,
+  getBuildWorkerMemorySnapshot,
+} from "../common/build-worker-diagnostic.js";
 import type { WikipageResolveProgress } from "../wikipage/index.js";
 import {
   buildWikimatchSurfaceProtectionInput,
@@ -795,6 +799,14 @@ async function discoverMentionLinks(input: {
   );
   let completedWindows = 0;
 
+  appendBuildWorkerDiagnosticLog({
+    event: "knowledge_relation_windows_built",
+    fragmentCount: input.fragments.length,
+    memory: getBuildWorkerMemorySnapshot(),
+    mentionCount: input.mentions.length,
+    windowCount: fragmentWindows.length,
+  });
+
   await input.progressTracker?.updatePhase({
     done: 0,
     phase: "relation-discovery",
@@ -807,15 +819,56 @@ async function discoverMentionLinks(input: {
       input.request,
       fragmentWindows,
       async (item, request) => {
+        const startedAt = Date.now();
+        const windowIndex = fragmentWindows.indexOf(item);
+
+        appendBuildWorkerDiagnosticLog({
+          event: "knowledge_relation_window_started",
+          fragmentId: item.fragment.fragmentId,
+          memory: getBuildWorkerMemorySnapshot(),
+          sentenceCount: item.fragment.sentences.length,
+          textLength: item.window.text.length,
+          windowIndex,
+          windowMentionCount: item.window.mentions.length,
+        });
         try {
           await input.progressTracker?.throwIfStopped();
-          return await discoverWikilinkRelations({
+          const links = await discoverWikilinkRelations({
             chapterId: item.fragment.serialId,
             fragmentId: item.fragment.fragmentId,
             request,
             sentences: item.fragment.sentences,
             window: item.window,
           });
+
+          appendBuildWorkerDiagnosticLog({
+            durationMs: Date.now() - startedAt,
+            event: "knowledge_relation_window_succeeded",
+            fragmentId: item.fragment.fragmentId,
+            linkCount: links.length,
+            memory: getBuildWorkerMemorySnapshot(),
+            windowIndex,
+            windowMentionCount: item.window.mentions.length,
+          });
+          return links;
+        } catch (error) {
+          appendBuildWorkerDiagnosticLog({
+            durationMs: Date.now() - startedAt,
+            error:
+              error instanceof Error
+                ? {
+                    message: error.message,
+                    name: error.name,
+                    stack: error.stack,
+                  }
+                : error,
+            event: "knowledge_relation_window_failed",
+            fragmentId: item.fragment.fragmentId,
+            memory: getBuildWorkerMemorySnapshot(),
+            windowIndex,
+            windowMentionCount: item.window.mentions.length,
+          });
+          throw error;
         } finally {
           completedWindows += 1;
           await input.progressTracker?.updatePhase({
