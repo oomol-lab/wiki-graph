@@ -115,6 +115,22 @@ describe("evidence-selection/selection-resolver", () => {
     ).toEqual(["S1", "S3", "S2"]);
   });
 
+  it("uses a trusted sentence id to resolve repeated short quotes", () => {
+    const [resolution, failure] = resolveEvidenceSelection({
+      evidence: {
+        quote: "Alpha",
+        sentence_id: "S3",
+      },
+      sentences: SENTENCES,
+    });
+
+    expect(failure).toBeUndefined();
+    expect(resolution).toMatchObject({
+      sentenceIds: [[1, 2]],
+      strategy: "sentence_id+normalized_substring",
+    });
+  });
+
   it("returns low confidence when the quote does not resemble any sentence", () => {
     const [resolution, failure] = resolveEvidenceSelection({
       evidence: {

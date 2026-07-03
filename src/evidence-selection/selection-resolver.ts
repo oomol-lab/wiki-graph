@@ -1,7 +1,9 @@
 import {
   normalizeEvidenceDisplayText,
+  prepareEvidenceQuote,
+  scorePreparedEvidenceQuote,
+  type PreparedEvidenceQuote,
   type EvidenceQuoteScore,
-  scoreEvidenceQuote,
 } from "./quote-score.js";
 import type {
   EvidenceSelection,
@@ -28,6 +30,7 @@ export function resolveEvidenceSelection(input: {
 ] {
   const quote = normalizeQuote(input.evidence.quote);
   const sentenceId = normalizeSentenceId(input.evidence.sentence_id);
+  let directCandidateById: EvidenceSelectionCandidate | undefined;
 
   if (quote === "") {
     return [
@@ -40,12 +43,50 @@ export function resolveEvidenceSelection(input: {
     ];
   }
 
-  const candidates = rankEvidenceQuote(quote, input.sentences);
+  const preparedQuote = prepareEvidenceQuote(quote);
 
   if (sentenceId !== undefined) {
-    const directCandidate = candidates.find(
-      (candidate) => candidate.occurrenceId === sentenceId,
+    const directIndex = input.sentences.findIndex(
+      (sentence) => sentence.id === sentenceId,
     );
+    const directSentence = input.sentences[directIndex];
+
+    if (directSentence !== undefined) {
+      const directCandidate = createCandidate({
+        index: directIndex,
+        scored: scorePreparedEvidenceQuote({
+          preparedQuote,
+          sentence: directSentence.text,
+        }),
+        sentence: directSentence,
+        sentences: input.sentences,
+      });
+      directCandidateById = directCandidate;
+
+      if (isDirectExactCandidateTrusted(directCandidate)) {
+        return [
+          {
+            candidate: directCandidate,
+            confidence: directCandidate.score,
+            sentenceIds: [directCandidate.sentence.sentenceId],
+            strategy: `sentence_id+${directCandidate.strategy}`,
+          },
+          undefined,
+        ];
+      }
+    }
+  }
+
+  const candidates = rankTopEvidenceQuoteCandidates(
+    preparedQuote,
+    input.sentences,
+    MAX_CANDIDATES,
+  );
+
+  if (sentenceId !== undefined) {
+    const directCandidate =
+      candidates.find((candidate) => candidate.occurrenceId === sentenceId) ??
+      directCandidateById;
     const topCandidate = candidates[0];
 
     if (
@@ -212,10 +253,12 @@ export function rankEvidenceQuote(
   quote: string,
   sentences: readonly EvidenceSelectionSentence[],
 ): EvidenceSelectionCandidate[] {
+  const preparedQuote = prepareEvidenceQuote(quote);
+
   return sentences
     .map((sentence, index) => {
-      const scored = scoreEvidenceQuote({
-        quote,
+      const scored = scorePreparedEvidenceQuote({
+        preparedQuote,
         sentence: sentence.text,
       });
 
@@ -227,6 +270,54 @@ export function rankEvidenceQuote(
       });
     })
     .sort(compareCandidates);
+}
+
+function rankTopEvidenceQuoteCandidates(
+  preparedQuote: PreparedEvidenceQuote,
+  sentences: readonly EvidenceSelectionSentence[],
+  limit: number,
+): EvidenceSelectionCandidate[] {
+  const candidates: EvidenceSelectionCandidate[] = [];
+
+  for (const [index, sentence] of sentences.entries()) {
+    const scored = scorePreparedEvidenceQuote({
+      preparedQuote,
+      sentence: sentence.text,
+    });
+    const candidate = createCandidate({
+      index,
+      scored,
+      sentence,
+      sentences,
+    });
+
+    insertCandidate(candidates, candidate, limit);
+  }
+
+  return candidates;
+}
+
+function insertCandidate(
+  candidates: EvidenceSelectionCandidate[],
+  candidate: EvidenceSelectionCandidate,
+  limit: number,
+): void {
+  const insertAt = candidates.findIndex(
+    (item) => compareCandidates(candidate, item) < 0,
+  );
+
+  if (insertAt === -1) {
+    if (candidates.length < limit) {
+      candidates.push(candidate);
+    }
+    return;
+  }
+
+  candidates.splice(insertAt, 0, candidate);
+
+  if (candidates.length > limit) {
+    candidates.pop();
+  }
 }
 
 function createCandidate(input: {
@@ -282,6 +373,14 @@ function isDirectCandidateTrusted(
     trustedScore &&
     (candidate.occurrenceId === topCandidate.occurrenceId ||
       topCandidate.score - candidate.score < AUTO_TOP_MIN_GAP)
+  );
+}
+
+function isDirectExactCandidateTrusted(
+  candidate: EvidenceSelectionCandidate,
+): boolean {
+  return (
+    candidate.score >= DIRECT_ID_SUBSTRING_MIN_SCORE && candidate.exactSubstring
   );
 }
 

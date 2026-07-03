@@ -20,10 +20,6 @@ import {
 } from "../evidence-selection/index.js";
 import { FragmentProjection } from "../reader/chunk-batch/index.js";
 import type { SentenceId } from "../document/index.js";
-import {
-  appendBuildWorkerDiagnosticLog,
-  getBuildWorkerMemorySnapshot,
-} from "../common/build-worker-diagnostic.js";
 
 import type { WikilinkEvidenceWindow, WikilinkMention } from "./types.js";
 
@@ -186,35 +182,9 @@ export async function discoverWikilinkRelations(
   }
 
   try {
-    const startedAt = Date.now();
-    appendBuildWorkerDiagnosticLog({
-      event: "wikilink_relation_request_started",
-      memory: getBuildWorkerMemorySnapshot(),
-      sentenceCount: options.sentences.length,
-      textLength: options.window.text.length,
-      windowMentionCount: options.window.mentions.length,
-    });
     return await requestGuaranteedJson({
       messages: buildRelationMessages(options),
-      parse: (response) => {
-        appendBuildWorkerDiagnosticLog({
-          durationMs: Date.now() - startedAt,
-          event: "wikilink_relation_response_parsing",
-          memory: getBuildWorkerMemorySnapshot(),
-          relationCount: response.relations.length,
-          windowMentionCount: options.window.mentions.length,
-        });
-        const links = parseRelationResponse(options, response);
-        appendBuildWorkerDiagnosticLog({
-          durationMs: Date.now() - startedAt,
-          event: "wikilink_relation_response_parsed",
-          linkCount: links.length,
-          memory: getBuildWorkerMemorySnapshot(),
-          relationCount: response.relations.length,
-          windowMentionCount: options.window.mentions.length,
-        });
-        return links;
-      },
+      parse: (response) => parseRelationResponse(options, response),
       request: options.request,
       responseIntentClassifierPrompt:
         RESPONSE_INTENT_CLASSIFIER_PROMPT_TEMPLATE,
@@ -266,6 +236,8 @@ function parseRelationResponse(
   const issues: string[] = [];
   const links: WikilinkDiscoveredRelation[] = [];
   const seenKeys = new Set<string>();
+  const sentenceIds = evidenceSentences.map((sentence) => sentence.sentenceId);
+  const sentenceTexts = evidenceSentences.map((sentence) => sentence.text);
 
   for (const [index, relation] of response.relations.entries()) {
     const prefix = `relations[${index}]`;
@@ -299,10 +271,6 @@ function parseRelationResponse(
       continue;
     }
 
-    const sentenceIds = evidenceSentences.map(
-      (sentence) => sentence.sentenceId,
-    );
-    const sentenceTexts = evidenceSentences.map((sentence) => sentence.text);
     const [selectionResolution, selectionFailure] = resolveRelationEvidence({
       evidence: createRelationEvidenceSelection(relation.evidence),
       sentences: evidenceSentences,

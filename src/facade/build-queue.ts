@@ -2,10 +2,6 @@ import { createHash, randomUUID } from "crypto";
 import { appendFile, mkdir, mkdtemp, readFile, rm } from "fs/promises";
 import { join, resolve } from "path";
 
-import {
-  appendBuildWorkerDiagnosticLog,
-  getBuildWorkerMemorySnapshot,
-} from "../common/build-worker-diagnostic.js";
 import { resolveWikiGraphStateDirectoryPath } from "../common/wiki-graph-dir.js";
 import { openSharedStateDatabase } from "../document/index.js";
 import type { Database } from "../document/index.js";
@@ -235,7 +231,6 @@ const ACTIVE_JOB_STATES = new Set<BuildJobState>([
   "paused",
 ]);
 const WORKER_HEARTBEAT_INTERVAL_MS = 5_000;
-const WORKER_MEMORY_SNAPSHOT_INTERVAL_MS = 5_000;
 
 export async function addBuildJob(
   options: AddBuildJobOptions,
@@ -662,74 +657,21 @@ export async function runBuildJobWorker(
   let busySlotCount = 0;
   let idleSince = Date.now();
 
-  const stop = (signal: NodeJS.Signals): void => {
+  const stop = (_signal: NodeJS.Signals): void => {
     stopping = true;
-    appendBuildWorkerDiagnosticLog({
-      event: "signal",
-      memory: getBuildWorkerMemorySnapshot(),
-      ownerId,
-      signal,
-    });
-  };
-  const logUncaughtException = (error: Error, origin: string): void => {
-    appendBuildWorkerDiagnosticLog({
-      error: formatErrorEvent(error),
-      event: "uncaught_exception",
-      memory: getBuildWorkerMemorySnapshot(),
-      origin,
-      ownerId,
-    });
-  };
-  const logUnhandledRejection = (reason: unknown): void => {
-    appendBuildWorkerDiagnosticLog({
-      error: formatErrorEvent(reason),
-      event: "unhandled_rejection",
-      memory: getBuildWorkerMemorySnapshot(),
-      ownerId,
-    });
-  };
-  const logExit = (code: number): void => {
-    appendBuildWorkerDiagnosticLog({
-      code,
-      event: "exit",
-      memory: getBuildWorkerMemorySnapshot(),
-      ownerId,
-    });
   };
 
   process.once("SIGINT", stop);
   process.once("SIGTERM", stop);
-  process.on("uncaughtExceptionMonitor", logUncaughtException);
-  process.on("unhandledRejection", logUnhandledRejection);
-  process.once("exit", logExit);
 
   const heartbeat = setInterval(() => {
     void heartbeatBuildWorker(ownerId).catch(() => undefined);
   }, WORKER_HEARTBEAT_INTERVAL_MS);
-  const memorySnapshot = setInterval(() => {
-    appendBuildWorkerDiagnosticLog({
-      busySlotCount,
-      event: "memory_snapshot",
-      memory: getBuildWorkerMemorySnapshot(),
-      ownerId,
-    });
-  }, WORKER_MEMORY_SNAPSHOT_INTERVAL_MS);
 
   try {
-    appendBuildWorkerDiagnosticLog({
-      concurrency,
-      event: "worker_started",
-      memory: getBuildWorkerMemorySnapshot(),
-      ownerId,
-    });
     const acquired = await acquireBuildWorkerLease(state, ownerId);
 
     if (!acquired) {
-      appendBuildWorkerDiagnosticLog({
-        event: "worker_lease_skipped",
-        memory: getBuildWorkerMemorySnapshot(),
-        ownerId,
-      });
       return;
     }
 
@@ -775,19 +717,10 @@ export async function runBuildJobWorker(
     );
   } finally {
     clearInterval(heartbeat);
-    clearInterval(memorySnapshot);
     process.removeListener("SIGINT", stop);
     process.removeListener("SIGTERM", stop);
-    process.removeListener("uncaughtExceptionMonitor", logUncaughtException);
-    process.removeListener("unhandledRejection", logUnhandledRejection);
-    process.removeListener("exit", logExit);
     await releaseBuildWorkerLease(state, ownerId);
     await state.close();
-    appendBuildWorkerDiagnosticLog({
-      event: "worker_stopped",
-      memory: getBuildWorkerMemorySnapshot(),
-      ownerId,
-    });
   }
 }
 
@@ -805,13 +738,6 @@ async function executeClaimedBuildJob(
   }, 500);
 
   try {
-    appendBuildWorkerDiagnosticLog({
-      event: "job_started",
-      jobId: job.jobId,
-      memory: getBuildWorkerMemorySnapshot(),
-      ownerId,
-      target: job.target,
-    });
     await appendBuildJobEvent(job, {
       at: Date.now(),
       jobId: job.jobId,
@@ -824,38 +750,16 @@ async function executeClaimedBuildJob(
     });
     await reporter.throwIfStopped();
     await markBuildJobSucceeded(job.jobId, ownerId);
-    appendBuildWorkerDiagnosticLog({
-      event: "job_succeeded",
-      jobId: job.jobId,
-      memory: getBuildWorkerMemorySnapshot(),
-      ownerId,
-      target: job.target,
-    });
   } catch (error) {
     if (
       error instanceof BuildJobStoppedError ||
       abortController.signal.aborted
     ) {
       await markBuildJobStopped(job.jobId, ownerId);
-      appendBuildWorkerDiagnosticLog({
-        event: "job_stopped",
-        jobId: job.jobId,
-        memory: getBuildWorkerMemorySnapshot(),
-        ownerId,
-        target: job.target,
-      });
       return;
     }
 
     await markBuildJobFailed(job.jobId, ownerId, error);
-    appendBuildWorkerDiagnosticLog({
-      error: formatErrorEvent(error),
-      event: "job_failed",
-      jobId: job.jobId,
-      memory: getBuildWorkerMemorySnapshot(),
-      ownerId,
-      target: job.target,
-    });
   } finally {
     clearInterval(stopWatcher);
   }
