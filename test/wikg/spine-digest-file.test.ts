@@ -5,16 +5,16 @@ import { resolve } from "path";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { DirectoryDocument } from "../../src/document/index.js";
-import { extractWikgArchive } from "../../src/facade/archive.js";
-import { findArchiveObjects } from "../../src/facade/archive-view.js";
+import { extractWikgArchive } from "../../src/wikg/archive.js";
+import { findArchiveObjects } from "../../src/archive/query/archive-view.js";
 import { SpineDigest } from "../../src/facade/spine-digest.js";
-import { SpineDigestFile } from "../../src/facade/spine-digest-file.js";
-import { WikgCoordinator } from "../../src/facade/wikg-coordinator.js";
+import { SpineDigestFile } from "../../src/wikg/spine-digest-file.js";
+import { WikgCoordinator } from "../../src/wikg/wikg-coordinator.js";
 import { withTempDir } from "../helpers/temp.js";
 
 const originalStateDir = process.env.WIKIGRAPH_STATE_DIR;
 
-describe("facade/spine-digest-file", () => {
+describe("wikg/spine-digest-file", () => {
   afterEach(() => {
     restoreCoordinatorEnv();
   });
@@ -617,7 +617,7 @@ async function readArchivedEntry(
   archivePath: string,
   entryPath: string,
 ): Promise<Uint8Array | undefined> {
-  const { readWikgArchiveEntry } = await import("../../src/facade/archive.js");
+  const { readWikgArchiveEntry } = await import("../../src/wikg/archive.js");
 
   return await readWikgArchiveEntry(archivePath, entryPath);
 }

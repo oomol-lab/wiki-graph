@@ -1,10 +1,10 @@
 import { randomBytes } from "crypto";
 import { join, resolve } from "path";
 
-import { resolveWikiGraphStateDirectoryPath } from "../common/wiki-graph-dir.js";
-import { getOptionalString, getString } from "../document/database.js";
-import { openSharedStateDatabase } from "../document/index.js";
-import type { Database } from "../document/index.js";
+import { resolveWikiGraphStateDirectoryPath } from "../../common/wiki-graph-dir.js";
+import { getOptionalString, getString } from "../../document/database.js";
+import { openSharedStateDatabase } from "../../document/index.js";
+import type { Database } from "../../document/index.js";
 
 export type ContinuationCursor =
   | {

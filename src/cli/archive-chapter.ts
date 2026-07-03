@@ -21,7 +21,7 @@ import {
   type ChapterDetails,
   type ChapterEntry,
 } from "../facade/index.js";
-import { SpineDigestFile } from "../facade/spine-digest-file.js";
+import { SpineDigestFile } from "../wikg/index.js";
 
 import type { CLIArchiveChapterArguments } from "./args.js";
 import { readTextStreamFromStdin, writeTextToStdout } from "./io.js";
@@ -195,8 +195,14 @@ async function runEditableCommand(
 }
 
 function createContentStream(
-  args: Pick<CLIArchiveChapterArguments, "inputPath">,
+  args: Pick<CLIArchiveChapterArguments, "inputPath" | "inputValue">,
 ): AsyncIterable<string> {
+  if (args.inputValue !== undefined && args.inputPath !== undefined) {
+    throw new Error("Choose either a positional value or --input, not both.");
+  }
+  if (args.inputValue !== undefined) {
+    return Readable.from([args.inputValue]);
+  }
   if (args.inputPath !== undefined) {
     return createReadStream(args.inputPath, { encoding: "utf8" });
   }
@@ -210,8 +216,14 @@ function createContentStream(
 }
 
 async function readContentText(
-  args: Pick<CLIArchiveChapterArguments, "inputPath">,
+  args: Pick<CLIArchiveChapterArguments, "inputPath" | "inputValue">,
 ): Promise<string> {
+  if (args.inputValue !== undefined && args.inputPath !== undefined) {
+    throw new Error("Choose either a positional value or --input, not both.");
+  }
+  if (args.inputValue !== undefined) {
+    return args.inputValue;
+  }
   if (args.inputPath !== undefined) {
     return await readFile(args.inputPath, "utf8");
   }
@@ -225,7 +237,7 @@ async function readContentText(
 }
 
 async function readRequiredSourceText(
-  args: Pick<CLIArchiveChapterArguments, "inputPath">,
+  args: Pick<CLIArchiveChapterArguments, "inputPath" | "inputValue">,
 ): Promise<string> {
   const content = await readContentText(args);
 

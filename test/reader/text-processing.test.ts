@@ -47,8 +47,8 @@ describe("reader/wave-reflection", () => {
         id: 1,
         label: "one",
         links: [],
-        sentenceId: [1, 0, 0] as const,
-        sentenceIds: [[1, 0, 0] as const],
+        sentenceId: [1, 0] as const,
+        sentenceIds: [[1, 0] as const],
         wordsCount: 1,
       },
       {
@@ -57,8 +57,8 @@ describe("reader/wave-reflection", () => {
         id: 2,
         label: "two",
         links: [],
-        sentenceId: [1, 0, 1] as const,
-        sentenceIds: [[1, 0, 1] as const],
+        sentenceId: [1, 1] as const,
+        sentenceIds: [[1, 1] as const],
         wordsCount: 1,
       },
       {
@@ -67,8 +67,8 @@ describe("reader/wave-reflection", () => {
         id: 3,
         label: "three",
         links: [],
-        sentenceId: [1, 0, 2] as const,
-        sentenceIds: [[1, 0, 2] as const],
+        sentenceId: [1, 2] as const,
+        sentenceIds: [[1, 2] as const],
         wordsCount: 1,
       },
     ];

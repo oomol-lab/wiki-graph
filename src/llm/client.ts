@@ -297,6 +297,7 @@ export class LLM<S extends string> {
       try {
         response = await this.#requestLimiter.use(async () => {
           const generationInput: {
+            abortSignal?: AbortSignal;
             maxRetries: number;
             messages: ModelMessage[];
             model: LanguageModel;
@@ -310,6 +311,10 @@ export class LLM<S extends string> {
             model: this.#model,
             timeout: this.#timeoutMs,
           });
+
+          if (input.signal !== undefined) {
+            generationInput.abortSignal = input.signal;
+          }
 
           if (resolvedTemperature !== undefined) {
             generationInput.temperature = resolvedTemperature;
@@ -361,7 +366,9 @@ export class LLM<S extends string> {
         );
 
         if (attempt < this.#retryTimes && this.#retryIntervalSeconds > 0) {
-          await sleep(this.#retryIntervalSeconds * 1000);
+          await sleep(this.#retryIntervalSeconds * 1000, undefined, {
+            signal: input.signal,
+          });
         }
       }
     }

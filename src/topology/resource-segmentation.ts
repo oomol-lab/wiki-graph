@@ -1,4 +1,4 @@
-import type { FragmentGroupRecord } from "../document/index.js";
+import type { SentenceGroupRecord } from "../document/index.js";
 import type { FragmentInfo } from "./fragment-incision.js";
 
 interface FragmentResource {
@@ -12,7 +12,7 @@ export function createFragmentGroups(input: {
   fragmentInfos: readonly FragmentInfo[];
   groupWordsCount: number;
   serialId: number;
-}): FragmentGroupRecord[] {
+}): SentenceGroupRecord[] {
   if (input.fragmentInfos.length === 0) {
     return [];
   }
@@ -27,13 +27,12 @@ export function createFragmentGroups(input: {
   );
   const groups = allocateFragmentGroups(resources, input.groupWordsCount);
 
-  return groups.flatMap((fragmentIds, groupId) =>
-    fragmentIds.map((fragmentId) => ({
-      fragmentId,
-      groupId,
-      serialId: input.serialId,
-    })),
-  );
+  return groups.map((fragmentIds, groupId) => ({
+    endSentenceIndex: Math.max(...fragmentIds),
+    groupId,
+    serialId: input.serialId,
+    startSentenceIndex: Math.min(...fragmentIds),
+  }));
 }
 
 function allocateFragmentGroups(

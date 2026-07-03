@@ -6,7 +6,7 @@ import {
   DirectoryDocument,
   type ReadonlyDocument,
 } from "../../src/document/index.js";
-import { extractWikgArchive } from "../../src/facade/archive.js";
+import { extractWikgArchive } from "../../src/wikg/archive.js";
 import { SpineDigest } from "../../src/facade/spine-digest.js";
 import { EPUB_SOURCE_ADAPTER } from "../../src/source/index.js";
 import { collectSectionTitles, readStreamText } from "../helpers/fixtures.js";

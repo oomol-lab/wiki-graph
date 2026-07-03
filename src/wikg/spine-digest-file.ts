@@ -3,8 +3,8 @@ import { resolve } from "path";
 import { DirectoryDocument } from "../document/index.js";
 
 import { WikgCoordinator } from "./wikg-coordinator.js";
-import { deleteArchiveSearchSessions } from "./search-cache.js";
-import { SpineDigest } from "./spine-digest.js";
+import { deleteArchiveSearchSessions } from "../archive/query/index.js";
+import { SpineDigest } from "../facade/spine-digest.js";
 
 export class SpineDigestFile {
   readonly #path: string;

@@ -1,29 +1,26 @@
 Help Type: command
 Command: wikigraph <chapter-uri>/title set
 
-chapter set-title
-
 Purpose:
   Rename an existing chapter in the archive TOC.
 
 Usage:
-  wikigraph <chapter-uri>/title set --title <title> [--llm <json>] [--help|-h]
-  wikigraph <chapter-uri>/title set --clear [--llm <json>] [--help|-h]
+  wikigraph <chapter-uri>/title set <title> [--help|-h]
+  wikigraph <chapter-uri>/title clear [--help|-h]
 
 Behavior:
   - Updates only the chapter title stored in the TOC.
   - Does not change source text, graph nodes, summaries, or metadata.
-  - `--title <title>` sets the explicit title.
-  - `--clear` removes the explicit title and shows `[untitled]`.
-  - `--title` and `--clear` are mutually exclusive.
+  - `set <title>` sets the explicit title.
+  - `clear` removes the explicit title and shows `[untitled]`.
   - Does not call an LLM provider.
 
 Output shape:
   Prints the updated chapter object.
 
 Examples:
-  wikigraph wkg://book.wikg/chapter/12/title set --title "New Chapter Title"
-  wikigraph wkg://book.wikg/chapter/12/title set --clear
+  wikigraph wkg://book.wikg/chapter/12/title set "New Chapter Title"
+  wikigraph wkg://book.wikg/chapter/12/title clear
 
 See also:
   - wikigraph wkg://book.wikg/chapter list --help

@@ -1,5 +1,5 @@
 import type { Document, ReadonlyDocument } from "../document/index.js";
-import type { Language } from "../common/language.js";
+import { normalizeLanguageCode, type Language } from "../common/language.js";
 import type { SpineDigestScope } from "../common/llm-scope.js";
 import type { LLM } from "../llm/index.js";
 import type { ReaderTextStream } from "../reader/index.js";
@@ -308,6 +308,16 @@ export async function generateChapterGraph(
       sourceText,
       createTopologyOptions(options),
       options.progressTracker,
+    );
+    const language = normalizeLanguageCode(options.userLanguage);
+    const parameter = await openedDocument.graphBuildParameters.save({
+      prompt: options.extractionPrompt,
+      ...(language === undefined ? {} : { language }),
+    });
+    await openedDocument.serials.setTopologyReady(
+      chapterId,
+      true,
+      parameter.hash,
     );
     return await getChapterDetails(openedDocument, chapterId);
   });
@@ -684,9 +694,7 @@ async function createChapterEntry(
     readonly tocPath: readonly string[];
   },
 ): Promise<ChapterEntry> {
-  const sourceSummary = await summarizeSerialFragments(
-    document.getSerialFragments(serialId),
-  );
+  const sourceSummary = await summarizeSerialSource(document, serialId);
 
   return {
     chapterId: serialId,
@@ -704,23 +712,43 @@ async function createChapterEntry(
   };
 }
 
-async function summarizeSerialFragments(
-  serialFragments: ReturnType<ReadonlyDocument["getSerialFragments"]>,
+async function summarizeSerialSource(
+  document: ReadonlyDocument,
+  serialId: number,
 ): Promise<{ readonly fragmentCount: number; readonly words: number }> {
-  const fragmentIds = await serialFragments.listFragmentIds();
+  const sentenceWords = await document.readDatabase(
+    async (database) =>
+      await database.queryAll(
+        `
+        SELECT words_count
+        FROM text_sentence_records
+        WHERE kind = 1 AND chapter_id = ?
+        ORDER BY sentence_index
+      `,
+        [serialId],
+        (row) => Number(row.words_count),
+      ),
+  );
+  let fragmentCount = 0;
+  let fragmentWords = 0;
   let words = 0;
 
-  for (const fragmentId of fragmentIds) {
-    const fragment = await serialFragments.getFragment(fragmentId);
+  for (const sentenceWordCount of sentenceWords) {
+    if (fragmentWords > 0 && fragmentWords + sentenceWordCount > 600) {
+      fragmentCount += 1;
+      fragmentWords = 0;
+    }
 
-    words += fragment.sentences.reduce(
-      (total, sentence) => total + sentence.wordsCount,
-      0,
-    );
+    fragmentWords += sentenceWordCount;
+    words += sentenceWordCount;
+  }
+
+  if (fragmentWords > 0) {
+    fragmentCount += 1;
   }
 
   return {
-    fragmentCount: fragmentIds.length,
+    fragmentCount,
     words,
   };
 }
@@ -962,9 +990,20 @@ async function resolveChapterStage(
   chapterId: number,
   fragmentCount: number,
 ): Promise<ChapterStage> {
-  const summary = await document.readSummary(chapterId);
+  const summarySentenceCount = await document.readDatabase(
+    async (database) =>
+      (await database.queryOne(
+        `
+          SELECT COUNT(*) AS count
+          FROM text_sentence_records
+          WHERE kind = 2 AND chapter_id = ?
+        `,
+        [chapterId],
+        (row) => Number(row.count),
+      )) ?? 0,
+  );
 
-  if (summary !== undefined) {
+  if (summarySentenceCount > 0) {
     return "summarized";
   }
 

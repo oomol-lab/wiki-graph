@@ -1,16 +1,14 @@
 Help Type: command
 Command: wikigraph <chapter-uri>/summary set
 
-chapter set-summary
-
 Purpose:
   Fill a Reading Graph-stage chapter with a manual final summary.
 
 Usage:
-  wikigraph <chapter-uri>/summary set [--input <path>] [--llm <json>] [--help|-h]
+  wikigraph <chapter-uri>/summary set [text] [--input <path>] [--llm <json>] [--help|-h]
 
 Input:
-  - If `--input` is omitted, summary text is read from stdin.
+  - Summary text is read from a positional value, `--input <path>`, or stdin.
   - Summary text is stored as the chapter's final summary.
   - A common workflow is `read > /tmp/summary.md`, edit the file, then pass it back with `--input`.
 

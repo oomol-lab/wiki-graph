@@ -397,7 +397,7 @@ describe("facade/knowledge-graph-build", () => {
           mentionLinks: [
             {
               confidence: 0.8,
-              evidenceSentenceIds: [[1, 10, 0]],
+              evidenceSentenceIds: [[1, 10]],
               id: "l1",
               predicate: "discusses",
               sourceMentionId: "m1",
@@ -408,7 +408,6 @@ describe("facade/knowledge-graph-build", () => {
             {
               chapterId: 1,
               confidence: 0.95,
-              fragmentId: 10,
               id: "m1",
               qid: "Q205194",
               rangeEnd: 2,
@@ -418,7 +417,6 @@ describe("facade/knowledge-graph-build", () => {
             },
             {
               chapterId: 1,
-              fragmentId: 10,
               id: "m2",
               qid: "Q9476",
               rangeEnd: 7,
@@ -427,19 +425,31 @@ describe("facade/knowledge-graph-build", () => {
               surface: "自由意志",
             },
           ],
+          parameter: {
+            language: "zh",
+            prompt: "只保留神学实体",
+          },
           workspacePath: `${path}/workspace`,
         });
 
         await commitChapterKnowledgeGraphArtifact(document, artifact);
 
-        expect((await document.serials.getById(1))?.knowledgeGraphReady).toBe(
-          true,
-        );
+        const serial = await document.serials.getById(1);
+        expect(serial?.knowledgeGraphReady).toBe(true);
+        expect(serial?.knowledgeGraphParameterHash).toBeDefined();
+        await expect(
+          document.graphBuildParameters.getByHash(
+            serial!.knowledgeGraphParameterHash!,
+          ),
+        ).resolves.toMatchObject({
+          language: "zh",
+          prompt: "只保留神学实体",
+        });
         expect(await document.mentions.listByChapter(1)).toHaveLength(2);
         expect(await document.mentionLinks.listByChapter(1)).toStrictEqual([
           {
             confidence: 0.8,
-            evidenceSentenceIds: [[1, 10, 0]],
+            evidenceSentenceIds: [[1, 10]],
             id: "l1",
             predicate: "discusses",
             sourceMentionId: "m1",
@@ -454,7 +464,6 @@ describe("facade/knowledge-graph-build", () => {
             mentions: [
               {
                 chapterId: 1,
-                fragmentId: 20,
                 id: "m3",
                 qid: "Q162593",
                 rangeEnd: 3,
@@ -476,7 +485,7 @@ describe("facade/knowledge-graph-build", () => {
         expect(await document.mentionLinks.listByChapter(1)).toStrictEqual([
           {
             confidence: 0.8,
-            evidenceSentenceIds: [[1, 10, 0]],
+            evidenceSentenceIds: [[1, 10]],
             id: "l1",
             predicate: "discusses",
             sourceMentionId: "m1",
@@ -489,6 +498,14 @@ describe("facade/knowledge-graph-build", () => {
         expect((await document.serials.getById(1))?.knowledgeGraphReady).toBe(
           false,
         );
+        expect(
+          (await document.serials.getById(1))?.knowledgeGraphParameterHash,
+        ).toBeUndefined();
+        await expect(
+          document.graphBuildParameters.getByHash(
+            serial!.knowledgeGraphParameterHash!,
+          ),
+        ).resolves.toBeUndefined();
         expect(await document.mentions.listByChapter(1)).toStrictEqual([]);
       } finally {
         await document.release();
@@ -528,7 +545,7 @@ describe("facade/knowledge-graph-build", () => {
         const artifact = await buildChapterKnowledgeGraphArtifact(1, {
           mentionLinks: [
             {
-              evidenceSentenceIds: [[1, 10, 0]],
+              evidenceSentenceIds: [[1, 10]],
               id: "l1",
               predicate: "mentions",
               sourceMentionId: "m1",
@@ -538,7 +555,6 @@ describe("facade/knowledge-graph-build", () => {
           mentions: [
             {
               chapterId: 1,
-              fragmentId: 10,
               id: "m1",
               qid: "Q1",
               rangeEnd: 1,
@@ -568,7 +584,6 @@ describe("facade/knowledge-graph-build", () => {
           mentions: [
             {
               chapterId: 1,
-              fragmentId: 10,
               id: "m1",
               qid: "Q1",
               rangeEnd: 1,

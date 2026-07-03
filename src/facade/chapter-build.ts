@@ -5,7 +5,6 @@ import { z } from "zod";
 import type {
   ChunkRecord,
   Document,
-  FragmentGroupRecord,
   FragmentRecord,
   ReadingEdgeRecord,
   MentionLinkRecord,
@@ -13,15 +12,18 @@ import type {
   ReadonlyChunkStore,
   ReadonlyDocument,
   ReadonlyFragmentGroupStore,
+  ReadonlyGraphBuildParameterStore,
   ReadonlyReadingEdgeStore,
   ReadonlyMentionLinkStore,
   ReadonlyMentionStore,
+  ReadonlyObjectMetadataStore,
   ReadonlySerialFragments,
   ReadonlySerialStore,
   ReadonlySnakeChunkStore,
   ReadonlySnakeEdgeStore,
   ReadonlySnakeStore,
   SentenceId,
+  SentenceGroupRecord,
   SerialRecord,
   SnakeChunkRecord,
   SnakeEdgeRecord,
@@ -29,6 +31,7 @@ import type {
 } from "../document/index.js";
 import { DirectoryDocument } from "../document/index.js";
 import { SPINE_DIGEST_EDITOR_SCOPES } from "../common/llm-scope.js";
+import { normalizeLanguageCode } from "../common/language.js";
 import { compressText } from "../editor/index.js";
 import type { ReaderTextStream } from "../reader/index.js";
 import {
@@ -47,6 +50,12 @@ import {
 export interface ChapterGraphBuildArtifact {
   readonly documentPath: string;
   readonly chapterId: number;
+  readonly parameter: GraphBuildParameterInput;
+}
+
+export interface GraphBuildParameterInput {
+  readonly language?: string;
+  readonly prompt: string;
 }
 
 export interface ChapterSummaryInputSnapshot {
@@ -67,7 +76,6 @@ export interface BuildChapterSummaryArtifactOptions extends GenerateChapterSumma
 const sentenceIdSchema = z.tuple([
   z.number(),
   z.number(),
-  z.number(),
 ]) satisfies z.ZodType<SentenceId>;
 const sentenceRecordSchema = z.object({
   text: z.string(),
@@ -79,11 +87,27 @@ const fragmentRecordSchema = z.object({
   summary: z.string(),
   sentences: z.array(sentenceRecordSchema),
 }) satisfies z.ZodType<FragmentRecord>;
-const serialRecordSchema = z.object({
-  id: z.number(),
-  knowledgeGraphReady: z.boolean(),
-  topologyReady: z.boolean(),
-}) satisfies z.ZodType<SerialRecord>;
+const serialRecordSchema = z
+  .object({
+    id: z.number(),
+    knowledgeGraphReady: z.boolean(),
+    knowledgeGraphParameterHash: z.string().optional(),
+    revision: z.number().optional(),
+    topologyParameterHash: z.string().optional(),
+    topologyReady: z.boolean(),
+  })
+  .transform((record) => ({
+    id: record.id,
+    knowledgeGraphReady: record.knowledgeGraphReady,
+    ...(record.knowledgeGraphParameterHash === undefined
+      ? {}
+      : { knowledgeGraphParameterHash: record.knowledgeGraphParameterHash }),
+    revision: record.revision ?? 0,
+    topologyReady: record.topologyReady,
+    ...(record.topologyParameterHash === undefined
+      ? {}
+      : { topologyParameterHash: record.topologyParameterHash }),
+  })) satisfies z.ZodType<SerialRecord>;
 const chunkRecordSchema = z.object({
   id: z.number(),
   generation: z.number(),
@@ -126,8 +150,9 @@ const snakeEdgeRecordSchema = z.object({
 const fragmentGroupRecordSchema = z.object({
   serialId: z.number(),
   groupId: z.number(),
-  fragmentId: z.number(),
-}) satisfies z.ZodType<FragmentGroupRecord>;
+  startSentenceIndex: z.number(),
+  endSentenceIndex: z.number(),
+}) satisfies z.ZodType<SentenceGroupRecord>;
 
 const summaryInputSnapshotSchema = z.object({
   chunks: z.array(chunkRecordSchema),
@@ -142,7 +167,7 @@ const summaryInputSnapshotSchema = z.object({
 
 interface SummaryInputSnapshotData {
   readonly chunks: readonly ChunkRecord[];
-  readonly fragmentGroups: readonly FragmentGroupRecord[];
+  readonly fragmentGroups: readonly SentenceGroupRecord[];
   readonly fragments: readonly FragmentRecord[];
   readonly readingEdges: readonly ReadingEdgeRecord[];
   readonly serial: SerialRecord;
@@ -200,6 +225,7 @@ export async function buildChapterGraphArtifact(
   return {
     chapterId,
     documentPath,
+    parameter: createGraphBuildParameterInput(options),
   };
 }
 
@@ -252,7 +278,14 @@ export async function commitChapterGraphArtifact(
         artifact.chapterId,
         chunkIdMap,
       );
-      await openedDocument.serials.setTopologyReady(artifact.chapterId);
+      const parameter = await openedDocument.graphBuildParameters.save(
+        artifact.parameter,
+      );
+      await openedDocument.serials.setTopologyReady(
+        artifact.chapterId,
+        true,
+        parameter.hash,
+      );
     });
 
     return await getChapterDetails(document, artifact.chapterId);
@@ -380,7 +413,12 @@ export async function snapshotChapterSummaryInput(
     fragmentGroups: await document.fragmentGroups.listBySerial(chapterId),
     fragments,
     readingEdges: await document.readingEdges.listBySerial(chapterId),
-    serial: { id: chapterId, knowledgeGraphReady: false, topologyReady: true },
+    serial: {
+      id: chapterId,
+      knowledgeGraphReady: false,
+      revision: 0,
+      topologyReady: true,
+    },
     snakeChunks,
     snakeEdges: await document.snakeEdges.listBySerial(chapterId),
     snakes,
@@ -601,9 +639,11 @@ async function writeSummaryInputSnapshot(
 class SummaryInputSnapshotDocument implements ReadonlyDocument {
   public readonly chunks: ReadonlyChunkStore;
   public readonly fragmentGroups: ReadonlyFragmentGroupStore;
+  public readonly graphBuildParameters: ReadonlyGraphBuildParameterStore;
   public readonly readingEdges: ReadonlyReadingEdgeStore;
   public readonly mentionLinks: ReadonlyMentionLinkStore;
   public readonly mentions: ReadonlyMentionStore;
+  public readonly metadata: ReadonlyObjectMetadataStore;
   public readonly serials: ReadonlySerialStore;
   public readonly snakeChunks: ReadonlySnakeChunkStore;
   public readonly snakeEdges: ReadonlySnakeEdgeStore;
@@ -617,12 +657,14 @@ class SummaryInputSnapshotDocument implements ReadonlyDocument {
     this.fragmentGroups = new SnapshotFragmentGroupStore(
       snapshot.fragmentGroups,
     );
+    this.graphBuildParameters = new EmptySnapshotGraphBuildParameterStore();
     this.readingEdges = new SnapshotReadingEdgeStore(
       snapshot.readingEdges,
       snapshot.chunks,
     );
     this.mentionLinks = new EmptySnapshotMentionLinkStore();
     this.mentions = new EmptySnapshotMentionStore();
+    this.metadata = new EmptySnapshotObjectMetadataStore();
     this.serials = new SnapshotSerialStore(snapshot.serial);
     this.snakeChunks = new SnapshotSnakeChunkStore(snapshot.snakeChunks);
     this.snakeEdges = new SnapshotSnakeEdgeStore(
@@ -634,10 +676,10 @@ class SummaryInputSnapshotDocument implements ReadonlyDocument {
   }
 
   public async getSentence(sentenceId: SentenceId): Promise<string> {
-    const [serialId, fragmentId, sentenceIndex] = sentenceId;
-    const fragment =
-      await this.getSerialFragments(serialId).getFragment(fragmentId);
-    const sentence = fragment.sentences[sentenceIndex];
+    const [serialId, sentenceIndex] = sentenceId;
+    const sentence = (await this.getSerialFragments(serialId).listSentences!())[
+      sentenceIndex
+    ];
 
     if (sentence === undefined) {
       throw new RangeError(`Sentence ${sentenceIndex} does not exist`);
@@ -661,6 +703,12 @@ class SummaryInputSnapshotDocument implements ReadonlyDocument {
     operation: (document: ReadonlyDocument) => Promise<T> | T,
   ): Promise<T> {
     return await operation(this);
+  }
+
+  public readDatabase<T>(): Promise<T> {
+    return Promise.reject(
+      new Error("Summary input snapshots do not expose a SQLite database."),
+    );
   }
 
   public readBookMeta(): Promise<undefined> {
@@ -687,6 +735,10 @@ class SummaryInputSnapshotDocument implements ReadonlyDocument {
 class EmptySnapshotMentionStore implements ReadonlyMentionStore {
   public getById(_mentionId: string): Promise<undefined> {
     return Promise.resolve(undefined);
+  }
+
+  public listAll(): Promise<MentionRecord[]> {
+    return Promise.resolve([]);
   }
 
   public listByQid(_qid: string): Promise<MentionRecord[]> {
@@ -728,6 +780,20 @@ class EmptySnapshotMentionLinkStore implements ReadonlyMentionLinkStore {
   }
 }
 
+class EmptySnapshotObjectMetadataStore implements ReadonlyObjectMetadataStore {
+  public getMap(
+    _objectPath: string,
+  ): Promise<Readonly<Record<string, unknown>>> {
+    return Promise.resolve({});
+  }
+}
+
+class EmptySnapshotGraphBuildParameterStore implements ReadonlyGraphBuildParameterStore {
+  public getByHash(_hash: string): Promise<undefined> {
+    return Promise.resolve(undefined);
+  }
+}
+
 class SnapshotSerialStore implements ReadonlySerialStore {
   readonly #serial: SerialRecord;
 
@@ -739,6 +805,28 @@ class SnapshotSerialStore implements ReadonlySerialStore {
     return Promise.resolve(
       serialId === this.#serial.id ? this.#serial : undefined,
     );
+  }
+
+  public getRevision(serialId: number): Promise<number> {
+    return Promise.resolve(
+      serialId === this.#serial.id ? this.#serial.revision : 0,
+    );
+  }
+
+  public getRevisions(
+    serialIds: readonly number[],
+  ): Promise<ReadonlyMap<number, number>> {
+    return Promise.resolve(
+      new Map(
+        serialIds
+          .filter((serialId) => serialId === this.#serial.id)
+          .map((serialId) => [serialId, this.#serial.revision] as const),
+      ),
+    );
+  }
+
+  public getChaptersRevision(): Promise<number> {
+    return Promise.resolve(this.#serial.revision);
   }
 
   public getMaxId(): Promise<number> {
@@ -777,6 +865,46 @@ class SnapshotSerialFragments implements ReadonlySerialFragments {
   public listFragmentIds(): Promise<readonly number[]> {
     return Promise.resolve([...this.#fragmentsById.keys()].sort(compareNumber));
   }
+
+  public async getSentence(sentenceIndex: number) {
+    const sentence = (await this.listSentences())[sentenceIndex];
+
+    if (sentence === undefined) {
+      throw new RangeError(`Sentence ${sentenceIndex} does not exist`);
+    }
+
+    return sentence;
+  }
+
+  public async listSentencesInRange(
+    startSentenceIndex: number,
+    endSentenceIndex: number,
+  ) {
+    return (await this.listSentences()).slice(
+      startSentenceIndex,
+      endSentenceIndex + 1,
+    );
+  }
+
+  public async listSentences() {
+    const fragments = await Promise.all(
+      (await this.listFragmentIds()).map(
+        async (fragmentId) => await this.getFragment(fragmentId),
+      ),
+    );
+
+    return fragments.flatMap((fragment) => fragment.sentences);
+  }
+
+  public async readText(): Promise<string | undefined> {
+    const sentences = await this.listSentences();
+
+    if (sentences.length === 0) {
+      return undefined;
+    }
+
+    return sentences.map((sentence) => sentence.text).join("");
+  }
 }
 
 class SnapshotChunkStore implements ReadonlyChunkStore {
@@ -811,6 +939,21 @@ class SnapshotChunkStore implements ReadonlyChunkStore {
         (chunk) =>
           chunk.sentenceId[0] === serialId &&
           fragmentIdSet.has(chunk.sentenceId[1]),
+      ),
+    );
+  }
+
+  public listBySentenceRange(
+    serialId: number,
+    startSentenceIndex: number,
+    endSentenceIndex: number,
+  ): Promise<ChunkRecord[]> {
+    return Promise.resolve(
+      this.#chunks.filter(
+        (chunk) =>
+          chunk.sentenceId[0] === serialId &&
+          chunk.sentenceId[1] >= startSentenceIndex &&
+          chunk.sentenceId[1] <= endSentenceIndex,
       ),
     );
   }
@@ -990,13 +1133,13 @@ class SnapshotSnakeEdgeStore implements ReadonlySnakeEdgeStore {
 }
 
 class SnapshotFragmentGroupStore implements ReadonlyFragmentGroupStore {
-  readonly #groups: readonly FragmentGroupRecord[];
+  readonly #groups: readonly SentenceGroupRecord[];
 
-  public constructor(groups: readonly FragmentGroupRecord[]) {
+  public constructor(groups: readonly SentenceGroupRecord[]) {
     this.#groups = [...groups].sort(compareFragmentGroup);
   }
 
-  public listBySerial(serialId: number): Promise<FragmentGroupRecord[]> {
+  public listBySerial(serialId: number): Promise<SentenceGroupRecord[]> {
     return Promise.resolve(
       this.#groups.filter((group) => group.serialId === serialId),
     );
@@ -1135,6 +1278,20 @@ function createTopologyOptions(
   };
 }
 
+function createGraphBuildParameterInput(
+  options: Pick<
+    BuildSerialTopologyOptions,
+    "extractionPrompt" | "userLanguage"
+  >,
+): GraphBuildParameterInput {
+  const language = normalizeLanguageCode(options.userLanguage);
+
+  return {
+    ...(language === undefined ? {} : { language }),
+    prompt: options.extractionPrompt,
+  };
+}
+
 async function* readChapterSource(
   document: ReadonlyDocument,
   chapterId: number,
@@ -1171,13 +1328,14 @@ function compareChunkById(left: ChunkRecord, right: ChunkRecord): number {
 }
 
 function compareFragmentGroup(
-  left: FragmentGroupRecord,
-  right: FragmentGroupRecord,
+  left: SentenceGroupRecord,
+  right: SentenceGroupRecord,
 ): number {
   return (
     left.serialId - right.serialId ||
     left.groupId - right.groupId ||
-    left.fragmentId - right.fragmentId
+    left.startSentenceIndex - right.startSentenceIndex ||
+    left.endSentenceIndex - right.endSentenceIndex
   );
 }
 

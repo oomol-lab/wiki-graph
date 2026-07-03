@@ -8,6 +8,7 @@ import {
 import { runConvertCommand } from "./convert.js";
 import { runLegacyCommand } from "./legacy.js";
 import { renderMainHelpText } from "./help.js";
+import { runObjectMetadataCommand } from "./object-metadata.js";
 import { runQueueCommand } from "./queue.js";
 import { runStatusCommand } from "./status.js";
 import { LLMPaymentRequiredError } from "../llm/index.js";
@@ -41,6 +42,9 @@ export async function main(): Promise<void> {
         return;
       case "cover":
         await runArchiveCoverCommand(parsed.args);
+        return;
+      case "object-metadata":
+        await runObjectMetadataCommand(parsed.args);
         return;
       case "chapter":
         await runArchiveChapterCommand(parsed.args);

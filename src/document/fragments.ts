@@ -111,15 +111,22 @@ export class Fragments implements ReadonlyFragments {
   }
 
   public async getSentence(sentenceId: SentenceId): Promise<string> {
-    const [serialId, fragmentId, sentenceIndex] = sentenceId;
-    const fragment = await this.getSerial(serialId).getFragment(fragmentId);
-    const sentence = fragment.sentences[sentenceIndex];
+    const [serialId, sentenceIndex] = sentenceId;
+    const fragmentIds = await this.getSerial(serialId).listFragmentIds();
+    let remainingSentenceIndex = sentenceIndex;
 
-    if (sentence === undefined) {
-      throw new RangeError(`Sentence ${sentenceIndex} does not exist`);
+    for (const fragmentId of fragmentIds) {
+      const fragment = await this.getSerial(serialId).getFragment(fragmentId);
+      const sentence = fragment.sentences[remainingSentenceIndex];
+
+      if (sentence !== undefined) {
+        return sentence.text;
+      }
+
+      remainingSentenceIndex -= fragment.sentences.length;
     }
 
-    return sentence.text;
+    throw new RangeError(`Sentence ${sentenceIndex} does not exist`);
   }
 
   public async getSummary(
@@ -154,6 +161,7 @@ export class SerialFragments implements ReadonlySerialFragments {
   #fileContents: Promise<ReadonlyMap<string, Uint8Array>> | undefined;
   readonly #rootDirectoryName: string;
   #nextFragmentId: number | undefined;
+  #nextSentenceIndex: number | undefined;
   readonly #writer: FragmentWriter;
 
   public constructor(
@@ -178,13 +186,23 @@ export class SerialFragments implements ReadonlySerialFragments {
     await this.#fileAccess.ensureDirectory(this.path);
     this.#draftOpen = true;
 
-    return new FragmentDraft(this.#serialId, await this.#peekNextFragmentId(), {
-      discard: () => {
-        this.#discardDraft();
+    return new FragmentDraft(
+      this.#serialId,
+      await this.#peekNextFragmentId(),
+      await this.#peekNextSentenceIndex(),
+      {
+        discard: () => {
+          this.#discardDraft();
+        },
+        finalize: async (fragmentId, startSentenceIndex, summary, sentences) =>
+          await this.#commitDraft(
+            fragmentId,
+            startSentenceIndex,
+            summary,
+            sentences,
+          ),
       },
-      finalize: async (fragmentId, summary, sentences) =>
-        await this.#commitDraft(fragmentId, summary, sentences),
-    });
+    );
   }
 
   public async getFragment(fragmentId: number): Promise<FragmentRecord> {
@@ -288,6 +306,7 @@ export class SerialFragments implements ReadonlySerialFragments {
 
   async #commitDraft(
     fragmentId: number,
+    startSentenceIndex: number,
     summary: string,
     sentences: readonly SentenceRecord[],
   ): Promise<FragmentRecord | undefined> {
@@ -311,6 +330,7 @@ export class SerialFragments implements ReadonlySerialFragments {
     );
 
     this.#nextFragmentId = fragmentId + 1;
+    this.#nextSentenceIndex = startSentenceIndex + sentences.length;
 
     return {
       serialId: this.#serialId,
@@ -336,6 +356,22 @@ export class SerialFragments implements ReadonlySerialFragments {
       lastFragmentId === undefined ? 0 : lastFragmentId + 1;
 
     return this.#nextFragmentId;
+  }
+
+  async #peekNextSentenceIndex(): Promise<number> {
+    if (this.#nextSentenceIndex !== undefined) {
+      return this.#nextSentenceIndex;
+    }
+
+    let nextSentenceIndex = 0;
+
+    for (const fragmentId of await this.listFragmentIds()) {
+      nextSentenceIndex += (await this.getFragment(fragmentId)).sentences
+        .length;
+    }
+
+    this.#nextSentenceIndex = nextSentenceIndex;
+    return this.#nextSentenceIndex;
   }
 
   #getFragmentPath(fragmentId: number): string {
@@ -375,20 +411,24 @@ export class FragmentDraft {
   readonly #discard: () => void;
   readonly #finalize: (
     fragmentId: number,
+    startSentenceIndex: number,
     summary: string,
     sentences: readonly SentenceRecord[],
   ) => Promise<FragmentRecord | undefined>;
   readonly #fragmentId: number;
   readonly #sentences: SentenceRecord[] = [];
   #summary = "";
+  readonly #startSentenceIndex: number;
 
   public constructor(
     serialId: number,
     fragmentId: number,
+    startSentenceIndex: number,
     callbacks: {
       readonly discard: () => void;
       readonly finalize: (
         fragmentId: number,
+        startSentenceIndex: number,
         summary: string,
         sentences: readonly SentenceRecord[],
       ) => Promise<FragmentRecord | undefined>;
@@ -398,18 +438,19 @@ export class FragmentDraft {
     this.#discard = callbacks.discard;
     this.#finalize = callbacks.finalize;
     this.#fragmentId = fragmentId;
+    this.#startSentenceIndex = startSentenceIndex;
   }
 
   public addSentence(text: string, wordsCount: number): SentenceId {
     this.#assertActive();
-    const sentenceIndex = this.#sentences.length;
+    const sentenceIndex = this.#startSentenceIndex + this.#sentences.length;
 
     this.#sentences.push({
       text,
       wordsCount,
     });
 
-    return [this.#serialId, this.#fragmentId, sentenceIndex];
+    return [this.#serialId, sentenceIndex];
   }
 
   public async commit(): Promise<FragmentRecord | undefined> {
@@ -418,6 +459,7 @@ export class FragmentDraft {
 
     return await this.#finalize(
       this.#fragmentId,
+      this.#startSentenceIndex,
       this.#summary,
       this.#sentences,
     );

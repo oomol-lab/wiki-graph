@@ -100,17 +100,18 @@ describe("editor/editor", () => {
         1: [101],
       },
       chunksById: {
-        101: createChunkRecord(101, 1, 0, "Alpha"),
+        101: createChunkRecord(101, 0, "Alpha"),
       },
       fragmentGroups: [
         {
-          fragmentId: 1,
+          endSentenceIndex: 0,
           groupId: 1,
           serialId: 1,
+          startSentenceIndex: 0,
         },
       ],
       fragments: [
-        createFragmentRecord(1, [
+        createFragmentRecord(0, [
           {
             text: "Alpha begins.",
             wordsCount: 2,
@@ -214,7 +215,6 @@ function createDocument(input: {
 
 function createChunkRecord(
   chunkId: number,
-  fragmentId: number,
   sentenceIndex: number,
   label: string,
 ): ChunkRecord {
@@ -223,8 +223,8 @@ function createChunkRecord(
     generation: 0,
     id: chunkId,
     label,
-    sentenceId: [1, fragmentId, sentenceIndex],
-    sentenceIds: [[1, fragmentId, sentenceIndex]],
+    sentenceId: [1, sentenceIndex],
+    sentenceIds: [[1, sentenceIndex]],
     wordsCount: 5,
     weight: 1,
   };

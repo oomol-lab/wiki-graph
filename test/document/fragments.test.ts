@@ -12,19 +12,18 @@ describe("document/fragments", () => {
       const draft = await fragments.getSerial(3).createDraft();
 
       expect(draft.fragmentId).toBe(0);
-      expect(draft.addSentence("Alpha", 2)).toStrictEqual([3, 0, 0]);
-      expect(draft.addSentence("Beta", 5)).toStrictEqual([3, 0, 1]);
+      expect(draft.addSentence("Alpha", 2)).toStrictEqual([3, 0]);
+      expect(draft.addSentence("Beta", 5)).toStrictEqual([3, 1]);
       draft.setSummary("Fragment summary");
 
       const fragment = await draft.commit();
 
       expect(fragment).toMatchObject({
         serialId: 3,
-        fragmentId: 0,
         summary: "Fragment summary",
       });
       expect(await fragments.getSerial(3).listFragmentIds()).toStrictEqual([0]);
-      expect(await fragments.getSentence([3, 0, 1])).toBe("Beta");
+      expect(await fragments.getSentence([3, 1])).toBe("Beta");
       expect(await fragments.getSummary(3, 0)).toBe("Fragment summary");
       expect(await fragments.getWordsCount(3, 0)).toBe(7);
     });
@@ -60,9 +59,29 @@ describe("document/fragments", () => {
       expect(() => nextDraft.addSentence("Delta", 1)).toThrow(
         "Fragment draft is already finalized",
       );
-      await expect(new Fragments(path).getSentence([5, 0, 4])).rejects.toThrow(
+      await expect(new Fragments(path).getSentence([5, 4])).rejects.toThrow(
         "Sentence 4 does not exist",
       );
+    });
+  });
+
+  it("returns serial-wide sentence ids across multiple fragments", async () => {
+    await withTempDir("spinedigest-fragments-", async (path) => {
+      const serial = new Fragments(path).getSerial(7);
+      const first = await serial.createDraft();
+
+      expect(first.addSentence("Alpha", 1)).toStrictEqual([7, 0]);
+      expect(first.addSentence("Beta", 1)).toStrictEqual([7, 1]);
+      await first.commit();
+
+      const second = await serial.createDraft();
+
+      expect(second.addSentence("Gamma", 1)).toStrictEqual([7, 2]);
+      await second.commit();
+
+      const fragments = new Fragments(path);
+
+      await expect(fragments.getSentence([7, 2])).resolves.toBe("Gamma");
     });
   });
 });

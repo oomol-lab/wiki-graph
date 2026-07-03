@@ -1,31 +1,30 @@
 import type {
   ChunkRecord,
-  FragmentRecord,
   MentionLinkRecord,
   MentionRecord,
   ReadonlyDocument,
   ReadingEdgeRecord,
   SentenceId,
-} from "../document/index.js";
-import type { BookMeta } from "../source/index.js";
+} from "../../document/index.js";
+import type { BookMeta } from "../../source/index.js";
 import {
   WikipageResolver,
   type WikipageResolverOptions,
-} from "../wikipage/index.js";
-import type { QidResolution, WikipageSitelink } from "../wikipage/index.js";
+} from "../../wikipage/index.js";
+import type { QidResolution, WikipageSitelink } from "../../wikipage/index.js";
 
 import {
   getGraphNode,
   listGraphNeighbors,
   type GraphNeighbor,
   type GraphNode,
-} from "./graph.js";
+} from "../../facade/graph.js";
 import {
   getChapterTree,
   listChapters,
   type ChapterEntry,
   type ChapterTree,
-} from "./chapter.js";
+} from "../../facade/chapter.js";
 import {
   createLexicalQuery,
   listLexicalQueryCandidateTerms,
@@ -43,8 +42,24 @@ import {
   readEntitySearchSessionPage,
   readSearchSessionDescriptor,
   readSearchSessionPage,
-  type EntitySearchMentionHit,
+  SEARCH_EVIDENCE_KIND,
+  type SearchChunkHitInput,
+  type SearchEntityHitInput,
+  type SearchEvidenceHitEventInput,
+  type SearchTripleHitInput,
 } from "./search-cache.js";
+import {
+  ensureSearchIndex,
+  isSearchIndexCurrent,
+  querySearchIndex,
+  SEARCH_OBJECT_PROPERTY_KIND,
+  SEARCH_OBJECT_PROPERTY_OWNER_KIND,
+  TEXT_SENTENCE_KIND,
+  type SearchIndexInput,
+  type SearchIndexObjectHit,
+  type SearchIndexQueryResult,
+  type SearchIndexTextHit,
+} from "../search-index/search-index.js";
 
 export type ArchiveObjectType =
   | "chapter"
@@ -139,7 +154,6 @@ interface EntityEvidenceMention {
 
 interface EvidenceReadContext {
   readonly chapters: Map<number, Promise<ChapterEntry>>;
-  readonly fragments: Map<string, Promise<FragmentRecord>>;
   readonly streamIndexes: Map<string, Promise<ArchiveTextStreamIndex>>;
 }
 
@@ -423,7 +437,7 @@ export interface ArchiveEvidence {
 export interface ArchiveEvidenceItem {
   readonly chapterId: number;
   readonly endSentenceIndex: number;
-  readonly fragmentId: number;
+  readonly fragmentId?: number;
   readonly id: string;
   readonly score?: number;
   readonly source: string;
@@ -443,7 +457,7 @@ interface PositionedNodeLabel {
 }
 
 export interface ArchiveSourceFragment {
-  readonly fragmentId: number;
+  readonly fragmentId?: number;
   readonly id: string;
   readonly preview: string;
   readonly sentenceCount: number;
@@ -455,7 +469,6 @@ type ArchiveTextStreamKind = "source" | "summary";
 type SourceEvidenceRange = {
   readonly chapterId: number;
   readonly endSentenceIndex: number;
-  readonly fragmentId: number;
   readonly score?: number;
   readonly startSentenceIndex: number;
 };
@@ -820,6 +833,10 @@ export async function findArchiveObjects(
     return createFindResult(query, [], options);
   }
 
+  const revisionScope = await createSearchRevisionScope(
+    document,
+    options.chapters,
+  );
   const cacheInput = {
     archiveKey: options.archiveKey ?? "archive",
     chapters: options.chapters ?? null,
@@ -827,6 +844,7 @@ export async function findArchiveObjects(
     match: options.match ?? "any",
     order: options.order ?? "doc-asc",
     query,
+    revisionScope,
     terms: search.terms,
     types: options.types ?? null,
   };
@@ -895,9 +913,19 @@ export async function findArchiveObjects(
         listLexicalQueryCandidateTerms(query),
       )
     : [];
-  const hits = await findArchiveObjectsUncached(document, search, options, {
-    allMentions,
-  });
+  const indexed = await findArchiveObjectsIndexed(document, query, options);
+  const structuredHits = wantsStructuredSearch
+    ? [
+        ...findEntities(search, { mentions: allMentions }),
+        ...(await findTriples(document, search, { mentions: allMentions })),
+      ]
+    : [];
+  const hits =
+    indexed === undefined
+      ? await findArchiveObjectsUncached(document, search, options, {
+          allMentions,
+        })
+      : [...structuredHits, ...indexed.hits];
   if (isEntityOnlySearch(options)) {
     const ranked = createRankedFindResult(
       query,
@@ -905,15 +933,33 @@ export async function findArchiveObjects(
       options,
       search.terms,
     );
+    const entityCacheInput = createEntitySearchCacheInput(
+      ranked.items,
+      indexed?.result,
+    );
+    const sentenceCacheInput = await createSentenceEvidenceSearchCacheInput(
+      document,
+      indexed?.result,
+    );
     const sessionId = await createEntitySearchSession({
       archiveKey: options.archiveKey ?? "archive",
       chapters: ranked.chapters,
-      hits: createEntitySearchMentionHits(ranked.items),
+      chunkHits: sentenceCacheInput.chunkHits,
+      entityHits: [
+        ...entityCacheInput.entityHits,
+        ...sentenceCacheInput.entityHits,
+      ],
+      evidenceEvents: [
+        ...entityCacheInput.evidenceEvents,
+        ...sentenceCacheInput.evidenceEvents,
+      ],
       lens: ranked.lens,
       match: ranked.match,
       order: ranked.order,
       query,
+      revisionScope,
       terms: ranked.terms,
+      tripleHits: sentenceCacheInput.tripleHits,
       types: ranked.types,
     });
     const firstPage = await readEntitySearchSessionPage(sessionId, 0, limit);
@@ -939,16 +985,34 @@ export async function findArchiveObjects(
     options,
     search.terms,
   );
+  const entityCacheInput = createEntitySearchCacheInput(
+    ranked.items,
+    indexed?.result,
+  );
+  const sentenceCacheInput = await createSentenceEvidenceSearchCacheInput(
+    document,
+    indexed?.result,
+  );
   const sessionId = await createSearchSession({
     archiveKey: options.archiveKey ?? "archive",
     chapters: ranked.chapters,
+    chunkHits: sentenceCacheInput.chunkHits,
+    entityHits: [
+      ...entityCacheInput.entityHits,
+      ...sentenceCacheInput.entityHits,
+    ],
+    evidenceEvents: [
+      ...entityCacheInput.evidenceEvents,
+      ...sentenceCacheInput.evidenceEvents,
+    ],
     items: ranked.items,
     lens: ranked.lens,
     match: ranked.match,
     order: ranked.order,
     query,
-    records: hits,
+    revisionScope,
     terms: ranked.terms,
+    tripleHits: sentenceCacheInput.tripleHits,
     types: ranked.types,
   });
   const firstPage = await readSearchSessionPage(sessionId, 0, limit);
@@ -966,6 +1030,34 @@ export async function findArchiveObjects(
     },
     options,
   );
+}
+
+async function createSearchRevisionScope(
+  document: ReadonlyDocument,
+  chapters: readonly number[] | undefined,
+): Promise<string> {
+  if (chapters === undefined || chapters.length === 0) {
+    return JSON.stringify({
+      chaptersRevision: await document.serials.getChaptersRevision(),
+      scope: "all",
+    });
+  }
+
+  const uniqueChapters = [...new Set(chapters)].sort(compareNumbers);
+  const revisions = await document.serials.getRevisions(uniqueChapters);
+
+  return JSON.stringify({
+    chapters: uniqueChapters.map(
+      (chapterId) => [chapterId, revisions.get(chapterId) ?? 0] as const,
+    ),
+    scope: "chapters",
+  });
+}
+
+export async function rebuildArchiveSearchIndex(
+  document: ReadonlyDocument,
+): Promise<void> {
+  await ensureSearchIndex(document, await createSearchIndexRecords(document));
 }
 
 export async function grepArchiveObjects(
@@ -1052,6 +1144,329 @@ async function findArchiveObjectsUncached(
   hits.push(...(await findNodesLexical(document, search)));
 
   return [...structuredHits, ...hits];
+}
+
+async function findArchiveObjectsIndexed(
+  document: ReadonlyDocument,
+  query: string,
+  options: ArchiveFindOptions,
+): Promise<
+  | {
+      readonly hits: readonly ArchiveFindHit[];
+      readonly result: SearchIndexQueryResult;
+    }
+  | undefined
+> {
+  try {
+    if (!(await isSearchIndexCurrent(document))) {
+      await ensureSearchIndex(
+        document,
+        await createSearchIndexRecords(document),
+      );
+    }
+  } catch (error) {
+    if (isReadonlySqliteError(error)) {
+      return undefined;
+    }
+
+    throw error;
+  }
+  const result = await querySearchIndex(document, query, {
+    ...(options.chapters === undefined ? {} : { chapters: options.chapters }),
+    ...(options.match === undefined ? {} : { match: options.match }),
+    types: options.types ?? null,
+  });
+
+  return result === undefined
+    ? undefined
+    : {
+        hits: await hydrateSearchIndexHits(
+          document,
+          result,
+          createSearchIndexHydrationOptions(options),
+        ),
+        result,
+      };
+}
+
+function isReadonlySqliteError(error: unknown): boolean {
+  const code = getErrorCode(error);
+
+  if (code !== undefined && code.startsWith("SQLITE_READONLY")) {
+    return true;
+  }
+
+  return error instanceof Error && error.message.includes("readonly database");
+}
+
+function getErrorCode(error: unknown): string | undefined {
+  if (typeof error !== "object" || error === null || !("code" in error)) {
+    return undefined;
+  }
+
+  const code = error.code;
+
+  return typeof code === "string" ? code : undefined;
+}
+
+async function hydrateSearchIndexHits(
+  document: ReadonlyDocument,
+  result: SearchIndexQueryResult,
+  options: {
+    readonly textHitLimit?: number;
+  } = {},
+): Promise<readonly ArchiveFindHit[]> {
+  const chapters = new Map(
+    (await listChapters(document)).map((chapter) => [
+      chapter.chapterId,
+      chapter,
+    ]),
+  );
+  const hits: ArchiveFindHit[] = [];
+
+  for (const hit of result.objectHits) {
+    const hydrated = await hydrateSearchObjectHit(document, chapters, hit);
+
+    if (hydrated !== undefined) {
+      hits.push(withSearchTerms(hydrated, result.terms));
+    }
+  }
+
+  const textHits =
+    options.textHitLimit === undefined
+      ? result.textHits
+      : result.textHits.slice(0, options.textHitLimit);
+
+  for (const hit of textHits) {
+    const hydrated = await hydrateSearchTextHit(document, chapters, hit);
+
+    if (hydrated !== undefined) {
+      hits.push(withSearchTerms(hydrated, result.terms));
+    }
+  }
+
+  return hits;
+}
+
+function createSearchIndexHydrationOptions(options: ArchiveFindOptions): {
+  readonly textHitLimit?: number;
+} {
+  if (!isTextOnlySearch(options) || options.limit === undefined) {
+    return {};
+  }
+
+  return { textHitLimit: options.limit + 1 };
+}
+
+function isTextOnlySearch(options: ArchiveFindOptions): boolean {
+  return (
+    options.types !== undefined &&
+    options.types.length > 0 &&
+    options.types.every((type) => type === "source" || type === "summary")
+  );
+}
+
+function withSearchTerms(
+  hit: ArchiveFindHit,
+  terms: readonly string[],
+): ArchiveFindHit {
+  return {
+    ...hit,
+    matchCount: terms.length,
+    matchedTerms: terms,
+    missingTerms: [],
+  };
+}
+
+async function hydrateSearchObjectHit(
+  document: ReadonlyDocument,
+  chapters: ReadonlyMap<number, ChapterEntry>,
+  hit: SearchIndexObjectHit,
+): Promise<ArchiveFindHit | undefined> {
+  switch (hit.ownerKind) {
+    case SEARCH_OBJECT_PROPERTY_OWNER_KIND.chapter: {
+      const chapterId = parseSearchPropertyIntegerOwnerId(hit.ownerId);
+      const chapter = chapters.get(chapterId);
+
+      if (chapter === undefined) {
+        return undefined;
+      }
+
+      const title = chapter.title ?? `[chapter ${chapter.chapterId}]`;
+
+      return {
+        chapter: chapter.chapterId,
+        field: "title",
+        id: formatChapterId(chapter.chapterId),
+        matchCount: 1,
+        position: { chapter: chapter.chapterId },
+        score: hit.score,
+        snippet: title,
+        state: await createChapterState(document, chapter),
+        title,
+        type: "chapter",
+      };
+    }
+    case SEARCH_OBJECT_PROPERTY_OWNER_KIND.chunk: {
+      const chunkId = parseSearchPropertyIntegerOwnerId(hit.ownerId);
+      const node = await document.chunks.getById(chunkId);
+
+      if (node === undefined) {
+        return undefined;
+      }
+
+      const position = createNodePosition(node.sentenceIds);
+      const isLabel = hit.propertyKind === SEARCH_OBJECT_PROPERTY_KIND.label;
+
+      return {
+        chapter: node.sentenceId[0],
+        field: isLabel ? "title" : "content",
+        id: formatNodeId(node.id),
+        matchCount: 1,
+        ...(position === undefined ? {} : { position }),
+        score: hit.score,
+        snippet: isLabel ? node.label : createSnippet(node.content),
+        title: node.label,
+        type: "node",
+      };
+    }
+    case SEARCH_OBJECT_PROPERTY_OWNER_KIND.entity:
+      return undefined;
+  }
+}
+
+function parseSearchPropertyIntegerOwnerId(ownerId: string): number {
+  const value = Number(ownerId);
+
+  if (!Number.isSafeInteger(value)) {
+    throw new Error(`Invalid search property owner id: ${ownerId}`);
+  }
+
+  return value;
+}
+
+async function hydrateSearchTextHit(
+  document: ReadonlyDocument,
+  chapters: ReadonlyMap<number, ChapterEntry>,
+  hit: SearchIndexTextHit,
+): Promise<ArchiveFindHit | undefined> {
+  const stream =
+    hit.kind === TEXT_SENTENCE_KIND.source
+      ? ("source" as const)
+      : ("summary" as const);
+  const chapter = chapters.get(hit.chapterId);
+
+  if (chapter === undefined) {
+    return undefined;
+  }
+
+  const range = await readTextStreamRange(
+    document,
+    hit.chapterId,
+    stream,
+    hit.sentenceIndex,
+    hit.sentenceIndex,
+  );
+
+  return {
+    chapter: hit.chapterId,
+    field: stream,
+    id: range.id,
+    matchCount: 1,
+    position: {
+      chapter: hit.chapterId,
+      sentence: hit.sentenceIndex,
+    },
+    score: hit.score,
+    snippet: createSnippet(range.text),
+    title: chapter.title ?? `[chapter ${hit.chapterId}]`,
+    type: stream,
+  };
+}
+
+async function createSearchIndexRecords(
+  document: ReadonlyDocument,
+): Promise<SearchIndexInput> {
+  const objectProperties: SearchIndexInput["objectProperties"][number][] = [];
+  const textSentences: SearchIndexInput["textSentences"][number][] = [];
+
+  for (const chapter of await listChapters(document)) {
+    const title = chapter.title ?? `[chapter ${chapter.chapterId}]`;
+
+    objectProperties.push({
+      chapterId: chapter.chapterId,
+      ownerId: String(chapter.chapterId),
+      ownerKind: SEARCH_OBJECT_PROPERTY_OWNER_KIND.chapter,
+      propertyKind: SEARCH_OBJECT_PROPERTY_KIND.title,
+      text: title,
+    });
+
+    textSentences.push(
+      ...(await createTextStreamSearchIndexRecords(
+        document,
+        chapter.chapterId,
+        "summary",
+        title,
+      )),
+    );
+    textSentences.push(
+      ...(await createTextStreamSearchIndexRecords(
+        document,
+        chapter.chapterId,
+        "source",
+        title,
+      )),
+    );
+  }
+
+  for (const node of await document.chunks.listAll()) {
+    objectProperties.push({
+      chapterId: node.sentenceId[0],
+      ownerId: String(node.id),
+      ownerKind: SEARCH_OBJECT_PROPERTY_OWNER_KIND.chunk,
+      propertyKind: SEARCH_OBJECT_PROPERTY_KIND.label,
+      text: node.label,
+    });
+    objectProperties.push({
+      chapterId: node.sentenceId[0],
+      ownerId: String(node.id),
+      ownerKind: SEARCH_OBJECT_PROPERTY_OWNER_KIND.chunk,
+      propertyKind: SEARCH_OBJECT_PROPERTY_KIND.content,
+      text: node.content,
+    });
+  }
+
+  for (const mention of await document.mentions.listAll()) {
+    objectProperties.push({
+      chapterId: mention.chapterId,
+      ownerId: mention.qid,
+      ownerKind: SEARCH_OBJECT_PROPERTY_OWNER_KIND.entity,
+      propertyKind: SEARCH_OBJECT_PROPERTY_KIND.surface,
+      text: mention.surface,
+    });
+  }
+
+  return { objectProperties, textSentences };
+}
+
+async function createTextStreamSearchIndexRecords(
+  document: ReadonlyDocument,
+  chapterId: number,
+  stream: ArchiveTextStreamKind,
+  _title: string,
+): Promise<SearchIndexInput["textSentences"]> {
+  const index = await createTextStreamIndex(document, chapterId, stream);
+
+  return index.sentences.map((sentence) => ({
+    chapterId,
+    kind:
+      stream === "source"
+        ? TEXT_SENTENCE_KIND.source
+        : TEXT_SENTENCE_KIND.summary,
+    sentenceIndex: sentence.globalIndex,
+    text: sentence.text,
+    wordsCount: sentence.wordsCount,
+  }));
 }
 
 export async function readArchiveText(
@@ -1717,7 +2132,6 @@ function getFirstGraphNodeSentenceId(node: GraphNode): SentenceId {
     [...node.sentenceIds].sort(compareSentenceIds)[0] ?? [
       Number.MAX_SAFE_INTEGER,
       Number.MAX_SAFE_INTEGER,
-      Number.MAX_SAFE_INTEGER,
     ]
   );
 }
@@ -2039,7 +2453,7 @@ export async function estimateArchiveBuild(
   targetStage: string,
 ): Promise<ArchiveEstimate> {
   const chapters = await listChapters(document);
-  const words = await estimateSourceWords(document, chapters);
+  const words = chapters.reduce((total, chapter) => total + chapter.words, 0);
   const pendingGraph = chapters.filter(
     (chapter) => chapter.stage === "sourced",
   ).length;
@@ -2138,7 +2552,7 @@ function findEntities(
         ...createFindMatchFields(match),
         position: {
           chapter: mention.chapterId,
-          fragment: mention.fragmentId,
+          sentence: mention.sentenceIndex ?? 0,
         },
         snippet: mention.note ?? mention.surface,
         title: mention.surface,
@@ -2229,7 +2643,7 @@ async function findTriples(
         ...createFindMatchFields(match),
         position: {
           chapter: source.chapterId,
-          fragment: source.fragmentId,
+          sentence: source.sentenceIndex ?? 0,
         },
         snippet: link.note ?? text,
         title: text,
@@ -2253,14 +2667,7 @@ async function findTriples(
 async function listAllMentions(
   document: ReadonlyDocument,
 ): Promise<readonly MentionRecord[]> {
-  return (
-    await Promise.all(
-      (await listChapters(document)).map(
-        async (chapter) =>
-          await document.mentions.listByChapter(chapter.chapterId),
-      ),
-    )
-  ).flat();
+  return await document.mentions.listAll();
 }
 
 function groupTripleEvidenceHits(
@@ -2308,7 +2715,7 @@ function listEntityCollection(
       id: `wkg://entity/${qid}`,
       position: {
         chapter: first.chapterId,
-        fragment: first.fragmentId,
+        sentence: first.sentenceIndex ?? 0,
       },
       score: qidMentions.length,
       snippet: `${qidMentions.length} mentions`,
@@ -2385,7 +2792,7 @@ async function listTripleCollection(
         id,
         position: {
           chapter: source.chapterId,
-          fragment: source.fragmentId,
+          sentence: source.sentenceIndex ?? 0,
         },
         score: 1,
         snippet: `${source.surface} ${link.predicate} ${target.surface}`,
@@ -2406,7 +2813,6 @@ async function listTripleCollection(
 function compareMentions(left: MentionRecord, right: MentionRecord): number {
   return (
     compareNumbers(left.chapterId, right.chapterId) ||
-    compareNumbers(left.fragmentId, right.fragmentId) ||
     compareNumbers(left.sentenceIndex ?? 0, right.sentenceIndex ?? 0) ||
     left.id.localeCompare(right.id)
   );
@@ -2445,9 +2851,10 @@ async function hydrateFindHitEvidence(
 
   return await Promise.all(
     hits.map(async (rawHit) => {
+      const displayHit = await hydrateEntityDisplayHit(document, rawHit);
       const hit = await hydrateTextStreamHitContext(
         document,
-        rawHit,
+        displayHit,
         options.sourceContext ?? DEFAULT_SOURCE_CONTEXT,
         evidenceContext,
       );
@@ -2514,6 +2921,42 @@ async function hydrateFindHitEvidence(
       };
     }),
   );
+}
+
+async function hydrateEntityDisplayHit(
+  document: ReadonlyDocument,
+  hit: ArchiveFindHit,
+): Promise<ArchiveFindHit> {
+  if (hit.type !== "entity") {
+    return hit;
+  }
+
+  const qid = parseEntityQid(hit.id);
+
+  if (qid === undefined) {
+    return hit;
+  }
+  if (hit.title !== qid && hit.snippet !== qid) {
+    return hit;
+  }
+
+  const mentions = await document.mentions.listByQid(qid);
+  const [first] = mentions.sort(compareMentions);
+
+  if (first === undefined) {
+    return hit;
+  }
+
+  return {
+    ...hit,
+    chapter: first.chapterId,
+    position: {
+      chapter: first.chapterId,
+      sentence: first.sentenceIndex ?? 0,
+    },
+    snippet: hit.snippet === qid ? (first.note ?? first.surface) : hit.snippet,
+    title: hit.title === qid ? selectEntityLabel(mentions) : hit.title,
+  };
 }
 
 async function hydrateTextStreamHitContext(
@@ -2712,13 +3155,7 @@ async function createTextStreamRangeSentenceKeySet(
   const keys = new Set<string>();
 
   for (const sentence of index.sentences.slice(start, end + 1)) {
-    keys.add(
-      formatSentenceKey(
-        reference.chapterId,
-        sentence.fragmentId,
-        sentence.localIndex,
-      ),
-    );
+    keys.add(formatSentenceKey(reference.chapterId, sentence.globalIndex));
   }
 
   return keys;
@@ -2756,11 +3193,7 @@ async function createEntityBacklinkHits(
   return listEntityCollection(
     (await listAllMentions(document)).filter((mention) =>
       sentenceKeys.has(
-        formatSentenceKey(
-          mention.chapterId,
-          mention.fragmentId,
-          mention.sentenceIndex ?? 0,
-        ),
+        formatSentenceKey(mention.chapterId, mention.sentenceIndex ?? 0),
       ),
     ),
   );
@@ -2812,7 +3245,6 @@ async function createTripleBacklinkHits(
       position: createSentencePosition(
         [...evidenceSentenceIds].sort(compareSentenceIds)[0] ?? [
           source.chapterId,
-          source.fragmentId,
           source.sentenceIndex ?? 0,
         ],
       ),
@@ -2832,15 +3264,11 @@ async function createTripleBacklinkHits(
 }
 
 function formatSentenceIdKey(sentenceId: SentenceId): string {
-  return formatSentenceKey(sentenceId[0], sentenceId[1], sentenceId[2]);
+  return formatSentenceKey(sentenceId[0], sentenceId[1]);
 }
 
-function formatSentenceKey(
-  chapterId: number,
-  fragmentId: number,
-  sentenceIndex: number,
-): string {
-  return `${chapterId}:${fragmentId}:${sentenceIndex}`;
+function formatSentenceKey(chapterId: number, sentenceIndex: number): string {
+  return `${chapterId}:${sentenceIndex}`;
 }
 
 function createUnscoredEntityEvidenceMention(
@@ -2877,9 +3305,21 @@ async function hydrateEntitySessionHitEvidence(
     return hit;
   }
 
+  const mentionsByQid = await document.mentions.listByQid(qid);
+  const mentionsById = new Map(
+    mentionsByQid.map((mention) => [mention.id, mention]),
+  );
   const allMentions = (
-    await readEntitySearchEvidenceMentions(sessionId, qid, 10_000)
-  ).map(toMentionRecord);
+    await readEntitySearchEvidenceMentions(
+      sessionId,
+      mentionsByQid.map((mention) => mention.id),
+      10_000,
+    )
+  ).flatMap((hit) => {
+    const mention = mentionsById.get(hit.mentionId);
+
+    return mention === undefined ? [] : [mention];
+  });
   const ranges = await createMentionEvidenceRanges(document, allMentions);
   const mergedRanges = await createExpandedSourceEvidenceRanges(
     document,
@@ -2897,7 +3337,6 @@ async function hydrateEntitySessionHitEvidence(
             range.chapterId,
             range.startSentenceIndex,
             range.endSentenceIndex,
-            range.fragmentId,
             context,
           ),
       ),
@@ -2905,6 +3344,17 @@ async function hydrateEntitySessionHitEvidence(
 
   return {
     ...hit,
+    ...(allMentions[0] === undefined
+      ? {}
+      : {
+          chapter: allMentions[0].chapterId,
+          position: {
+            chapter: allMentions[0].chapterId,
+            sentence: allMentions[0].sentenceIndex ?? 0,
+          },
+          snippet: allMentions[0].note ?? allMentions[0].surface,
+          title: allMentions[0].surface,
+        }),
     evidence: {
       nextCursor:
         sources.length < mergedRanges.length
@@ -2954,55 +3404,258 @@ function assertSearchCursorTypesMatch(
   }
 }
 
-function createEntitySearchMentionHits(
+function createEntitySearchCacheInput(
   hits: readonly ArchiveFindHit[],
-): readonly EntitySearchMentionHit[] {
-  return hits.flatMap((hit) => {
-    if (hit.type !== "entity" || hit.evidenceMentions === undefined) {
-      return [];
+  indexResult?: SearchIndexQueryResult,
+): {
+  readonly entityHits: readonly SearchEntityHitInput[];
+  readonly evidenceEvents: readonly SearchEvidenceHitEventInput[];
+} {
+  const evidenceEvents: SearchEvidenceHitEventInput[] = [];
+  const evidenceScoresByQid = new Map<string, number[]>();
+  const propertyScoresByQid = new Map<string, number[]>();
+
+  for (const hit of indexResult?.objectHits ?? []) {
+    if (hit.ownerKind !== SEARCH_OBJECT_PROPERTY_OWNER_KIND.entity) {
+      continue;
     }
 
-    return hit.evidenceMentions.map((evidenceMention) => ({
-      chapterId: evidenceMention.mention.chapterId,
-      ...(evidenceMention.mention.confidence === undefined
-        ? {}
-        : { confidence: evidenceMention.mention.confidence }),
-      fragmentId: evidenceMention.mention.fragmentId,
-      matchCount: evidenceMention.match.matchCount ?? 0,
-      matchedTerms: evidenceMention.match.matchedTerms ?? [],
-      mentionId: evidenceMention.mention.id,
-      missingTerms: evidenceMention.match.missingTerms ?? [],
-      ...(evidenceMention.mention.note === undefined
-        ? {}
-        : { note: evidenceMention.mention.note }),
-      qid: evidenceMention.mention.qid,
-      rangeEnd: evidenceMention.mention.rangeEnd,
-      rangeStart: evidenceMention.mention.rangeStart,
-      resultScore: hit.score ?? 0,
-      score: evidenceMention.match.score ?? 0,
-      ...(evidenceMention.mention.sentenceIndex === undefined
-        ? {}
-        : { sentenceIndex: evidenceMention.mention.sentenceIndex }),
-      surface: evidenceMention.mention.surface,
-    }));
-  });
+    const scores = propertyScoresByQid.get(hit.ownerId) ?? [];
+
+    scores.push(hit.score);
+    propertyScoresByQid.set(hit.ownerId, scores);
+  }
+
+  for (const hit of hits) {
+    if (hit.type !== "entity" || hit.evidenceMentions === undefined) {
+      continue;
+    }
+
+    const qid = parseEntityQid(hit.id);
+
+    if (qid === undefined) {
+      continue;
+    }
+
+    const scores = evidenceScoresByQid.get(qid) ?? [];
+
+    for (const evidenceMention of hit.evidenceMentions) {
+      const sentenceIndex = evidenceMention.mention.sentenceIndex;
+
+      if (sentenceIndex === undefined) {
+        continue;
+      }
+
+      const score = evidenceMention.match.score ?? hit.score ?? 0;
+
+      evidenceEvents.push({
+        chapterId: evidenceMention.mention.chapterId,
+        evidenceId: evidenceMention.mention.id,
+        evidenceKind: SEARCH_EVIDENCE_KIND.mention,
+        score,
+        sentenceIndex,
+      });
+      scores.push(score);
+    }
+
+    evidenceScoresByQid.set(qid, scores);
+  }
+
+  const qids = new Set([
+    ...evidenceScoresByQid.keys(),
+    ...propertyScoresByQid.keys(),
+  ]);
+
+  return {
+    entityHits: [...qids].map((qid) => ({
+      evidenceTopScores: evidenceScoresByQid.get(qid) ?? [],
+      propertyTopScores: propertyScoresByQid.get(qid) ?? [],
+      qid,
+    })),
+    evidenceEvents,
+  };
 }
 
-function toMentionRecord(hit: EntitySearchMentionHit): MentionRecord {
+async function createSentenceEvidenceSearchCacheInput(
+  document: ReadonlyDocument,
+  indexResult: SearchIndexQueryResult | undefined,
+): Promise<{
+  readonly chunkHits: readonly SearchChunkHitInput[];
+  readonly entityHits: readonly SearchEntityHitInput[];
+  readonly evidenceEvents: readonly SearchEvidenceHitEventInput[];
+  readonly tripleHits: readonly SearchTripleHitInput[];
+}> {
+  if (indexResult === undefined) {
+    return {
+      chunkHits: [],
+      entityHits: [],
+      evidenceEvents: [],
+      tripleHits: [],
+    };
+  }
+
+  const sourceHits = indexResult.textHits.filter(
+    (hit) => hit.kind === TEXT_SENTENCE_KIND.source,
+  );
+
+  if (sourceHits.length === 0) {
+    return {
+      chunkHits: [],
+      entityHits: [],
+      evidenceEvents: [],
+      tripleHits: [],
+    };
+  }
+
+  const sourceHitScores = new Map<string, number>();
+  const chapterIds = new Set<number>();
+
+  for (const hit of sourceHits) {
+    sourceHitScores.set(
+      createSentenceHitKey(hit.chapterId, hit.sentenceIndex),
+      hit.score,
+    );
+    chapterIds.add(hit.chapterId);
+  }
+
+  const evidenceEvents: SearchEvidenceHitEventInput[] = [];
+  const entityEvidenceScoresByQid = new Map<string, number[]>();
+  const chunkEvidenceScoresById = new Map<number, number[]>();
+  const tripleEvidenceScoresByKey = new Map<
+    string,
+    {
+      readonly objectQid: string;
+      readonly predicate: string;
+      readonly scores: number[];
+      readonly subjectQid: string;
+    }
+  >();
+
+  for (const chapterId of chapterIds) {
+    for (const mention of await document.mentions.listByChapter(chapterId)) {
+      if (mention.sentenceIndex === undefined) {
+        continue;
+      }
+
+      const score = sourceHitScores.get(
+        createSentenceHitKey(chapterId, mention.sentenceIndex),
+      );
+
+      if (score === undefined) {
+        continue;
+      }
+
+      evidenceEvents.push({
+        chapterId,
+        evidenceId: mention.id,
+        evidenceKind: SEARCH_EVIDENCE_KIND.mention,
+        score,
+        sentenceIndex: mention.sentenceIndex,
+      });
+      const scores = entityEvidenceScoresByQid.get(mention.qid) ?? [];
+
+      scores.push(score);
+      entityEvidenceScoresByQid.set(mention.qid, scores);
+    }
+
+    for (const chunk of await document.chunks.listBySerial(chapterId)) {
+      for (const [, sentenceIndex] of chunk.sentenceIds) {
+        const score = sourceHitScores.get(
+          createSentenceHitKey(chapterId, sentenceIndex),
+        );
+
+        if (score === undefined) {
+          continue;
+        }
+
+        evidenceEvents.push({
+          chapterId,
+          evidenceId: String(chunk.id),
+          evidenceKind: SEARCH_EVIDENCE_KIND.chunk,
+          score,
+          sentenceIndex,
+        });
+        const scores = chunkEvidenceScoresById.get(chunk.id) ?? [];
+
+        scores.push(score);
+        chunkEvidenceScoresById.set(chunk.id, scores);
+      }
+    }
+
+    const mentionCache = new Map<string, MentionRecord>();
+
+    for (const link of await document.mentionLinks.listByChapter(chapterId)) {
+      const [source, target] = await Promise.all([
+        getMentionForTripleSearch(document, mentionCache, link.sourceMentionId),
+        getMentionForTripleSearch(document, mentionCache, link.targetMentionId),
+      ]);
+
+      if (source === undefined || target === undefined) {
+        continue;
+      }
+
+      for (const [
+        evidenceChapterId,
+        sentenceIndex,
+      ] of link.evidenceSentenceIds) {
+        const score = sourceHitScores.get(
+          createSentenceHitKey(evidenceChapterId, sentenceIndex),
+        );
+
+        if (score === undefined) {
+          continue;
+        }
+
+        evidenceEvents.push({
+          chapterId: evidenceChapterId,
+          evidenceId: link.id,
+          evidenceKind: SEARCH_EVIDENCE_KIND.mentionLink,
+          score,
+          sentenceIndex,
+        });
+
+        const key = formatTripleUri(source.qid, link.predicate, target.qid);
+        const current = tripleEvidenceScoresByKey.get(key) ?? {
+          objectQid: target.qid,
+          predicate: link.predicate,
+          scores: [],
+          subjectQid: source.qid,
+        };
+
+        current.scores.push(score);
+        tripleEvidenceScoresByKey.set(key, current);
+      }
+    }
+  }
+
   return {
-    chapterId: hit.chapterId,
-    ...(hit.confidence === undefined ? {} : { confidence: hit.confidence }),
-    fragmentId: hit.fragmentId,
-    id: hit.mentionId,
-    ...(hit.note === undefined ? {} : { note: hit.note }),
-    qid: hit.qid,
-    rangeEnd: hit.rangeEnd,
-    rangeStart: hit.rangeStart,
-    ...(hit.sentenceIndex === undefined
-      ? {}
-      : { sentenceIndex: hit.sentenceIndex }),
-    surface: hit.surface,
+    chunkHits: [...chunkEvidenceScoresById.entries()].map(
+      ([chunkId, scores]) => ({
+        chunkId,
+        evidenceTopScores: scores,
+      }),
+    ),
+    entityHits: [...entityEvidenceScoresByQid.entries()].map(
+      ([qid, scores]) => ({
+        evidenceTopScores: scores,
+        qid,
+      }),
+    ),
+    evidenceEvents,
+    tripleHits: [...tripleEvidenceScoresByKey.values()].map((hit) => ({
+      evidenceTopScores: hit.scores,
+      objectQid: hit.objectQid,
+      predicate: hit.predicate,
+      subjectQid: hit.subjectQid,
+    })),
   };
+}
+
+function createSentenceHitKey(
+  chapterId: number,
+  sentenceIndex: number,
+): string {
+  return `${chapterId}:${sentenceIndex}`;
 }
 
 function parseEntityQid(id: string): string | undefined {
@@ -3349,7 +4002,7 @@ async function createTextStreamRangeFragment(
   );
 
   return {
-    fragmentId: range.fragmentId,
+    fragmentId: range.startSentenceIndex,
     id: range.id,
     preview: createSnippet(range.text),
     sentenceCount: range.endSentenceIndex - range.startSentenceIndex + 1,
@@ -3367,7 +4020,6 @@ async function readTextStreamRange(
   context: EvidenceReadContext = createEvidenceReadContext(),
 ): Promise<{
   readonly endSentenceIndex: number;
-  readonly fragmentId: number;
   readonly id: string;
   readonly startSentenceIndex: number;
   readonly text: string;
@@ -3387,7 +4039,6 @@ async function readTextStreamRange(
 
   return {
     endSentenceIndex: end,
-    fragmentId: firstSentence.fragmentId,
     id: formatTextStreamRangeUri(chapterId, stream, start, end),
     startSentenceIndex: start,
     text: sentences.map((sentence) => sentence.text).join("\n"),
@@ -3655,28 +4306,6 @@ async function findNodes(
   return hits;
 }
 
-async function estimateSourceWords(
-  document: ReadonlyDocument,
-  chapters: readonly ChapterEntry[],
-): Promise<number> {
-  let words = 0;
-
-  for (const chapter of chapters) {
-    const fragments = document.getSerialFragments(chapter.chapterId);
-
-    for (const fragmentId of await fragments.listFragmentIds()) {
-      const fragment = await fragments.getFragment(fragmentId);
-
-      words += fragment.sentences.reduce(
-        (total, sentence) => total + sentence.wordsCount,
-        0,
-      );
-    }
-  }
-
-  return words;
-}
-
 async function requireChapter(
   document: ReadonlyDocument,
   chapterId: number,
@@ -3801,13 +4430,12 @@ function truncateSourceExcerpt(text: string): string {
 function createNodeEvidenceRanges(node: Pick<GraphNode, "sentenceIds">): Array<{
   readonly chapterId: number;
   readonly endSentenceIndex: number;
-  readonly fragmentId: number;
   readonly startSentenceIndex: number;
 }> {
   const ranges = new Map<string, [number, number]>();
 
-  for (const [chapterId, fragmentId, sentenceIndex] of node.sentenceIds) {
-    const key = `${chapterId}:${fragmentId}`;
+  for (const [chapterId, sentenceIndex] of node.sentenceIds) {
+    const key = `${chapterId}`;
     const current = ranges.get(key);
 
     if (current === undefined) {
@@ -3821,11 +4449,10 @@ function createNodeEvidenceRanges(node: Pick<GraphNode, "sentenceIds">): Array<{
   }
 
   return [...ranges.entries()].map(([key, [start, end]]) => {
-    const { chapterId, fragmentId } = parseEvidenceRangeKey(key);
+    const chapterId = Number(key);
     return {
       chapterId,
       endSentenceIndex: end,
-      fragmentId,
       startSentenceIndex: start,
     };
   });
@@ -3854,7 +4481,6 @@ async function createMentionEvidenceRanges(
   Array<{
     readonly chapterId: number;
     readonly endSentenceIndex: number;
-    readonly fragmentId: number;
     readonly startSentenceIndex: number;
   }>
 > {
@@ -3865,7 +4491,6 @@ async function createMentionEvidenceRanges(
         (await findSentenceIndexAtOffset(
           document,
           mention.chapterId,
-          mention.fragmentId,
           mention.rangeStart,
         ));
       const endSentenceIndex =
@@ -3873,14 +4498,12 @@ async function createMentionEvidenceRanges(
         (await findSentenceIndexAtOffset(
           document,
           mention.chapterId,
-          mention.fragmentId,
           Math.max(0, mention.rangeEnd - 1),
         ));
 
       return {
         chapterId: mention.chapterId,
         endSentenceIndex,
-        fragmentId: mention.fragmentId,
         startSentenceIndex,
       };
     }),
@@ -3909,14 +4532,12 @@ function createMentionLinkEvidenceRanges(
 ): Array<{
   readonly chapterId: number;
   readonly endSentenceIndex: number;
-  readonly fragmentId: number;
   readonly startSentenceIndex: number;
 }> {
   return links.flatMap((link) =>
-    link.evidenceSentenceIds.map(([chapterId, fragmentId, sentenceIndex]) => ({
+    link.evidenceSentenceIds.map(([chapterId, sentenceIndex]) => ({
       chapterId,
       endSentenceIndex: sentenceIndex,
-      fragmentId,
       startSentenceIndex: sentenceIndex,
     })),
   );
@@ -3992,7 +4613,6 @@ async function createSourceEvidencePage(
           range.chapterId,
           range.startSentenceIndex,
           range.endSentenceIndex,
-          range.fragmentId,
           context,
           range.score,
         ),
@@ -4057,7 +4677,6 @@ function areSourceEvidenceRangesEqual(
 ): boolean {
   return (
     left.chapterId === right.chapterId &&
-    left.fragmentId === right.fragmentId &&
     left.startSentenceIndex === right.startSentenceIndex &&
     left.endSentenceIndex === right.endSentenceIndex
   );
@@ -4068,17 +4687,16 @@ async function readEvidenceRangeText(
   range: SourceEvidenceRange,
   context: EvidenceReadContext,
 ): Promise<string> {
-  const fragment = await getEvidenceFragment(
-    document,
-    range.chapterId,
-    range.fragmentId,
-    context,
-  );
-
-  return fragment.sentences
-    .slice(range.startSentenceIndex, range.endSentenceIndex + 1)
-    .map((sentence) => sentence.text)
-    .join("\n");
+  return (
+    await readTextStreamRange(
+      document,
+      range.chapterId,
+      "source",
+      range.startSentenceIndex,
+      range.endSentenceIndex,
+      context,
+    )
+  ).text;
 }
 
 function compareSourceEvidenceRanges(
@@ -4087,7 +4705,6 @@ function compareSourceEvidenceRanges(
 ): number {
   return (
     compareNumbers(left.chapterId, right.chapterId) ||
-    compareNumbers(left.fragmentId, right.fragmentId) ||
     compareNumbers(left.startSentenceIndex, right.startSentenceIndex) ||
     compareNumbers(left.endSentenceIndex, right.endSentenceIndex)
   );
@@ -4115,7 +4732,6 @@ async function createSourceEvidencePreview(
           range.chapterId,
           range.startSentenceIndex,
           range.endSentenceIndex,
-          range.fragmentId,
           context,
         ),
     ),
@@ -4145,7 +4761,7 @@ function mergeSourceEvidenceRanges(
   >();
 
   for (const range of ranges) {
-    const key = `${range.chapterId}:${range.fragmentId}`;
+    const key = `${range.chapterId}`;
     const sourceRanges = rangesBySource.get(key) ?? [];
 
     sourceRanges.push({
@@ -4157,14 +4773,13 @@ function mergeSourceEvidenceRanges(
   }
 
   return [...rangesBySource.entries()].flatMap(([key, ranges]) => {
-    const { chapterId, fragmentId } = parseEvidenceRangeKey(key);
+    const chapterId = Number(key);
 
     return mergeEvidenceRanges(ranges).map(
       ({ end, score, start }) =>
         ({
           chapterId,
           endSentenceIndex: end,
-          fragmentId,
           ...(score === undefined ? {} : { score }),
           startSentenceIndex: start,
         }) as const,
@@ -4212,7 +4827,6 @@ function areMergeableSourceEvidenceRanges(
 ): boolean {
   return (
     left.chapterId === right.chapterId &&
-    left.fragmentId === right.fragmentId &&
     right.startSentenceIndex <= left.endSentenceIndex + 1 &&
     left.startSentenceIndex <= right.endSentenceIndex + 1
   );
@@ -4236,7 +4850,6 @@ function mergeSourceEvidenceRangeGroup(
     endSentenceIndex: Math.max(
       ...ranges.map((range) => range.endSentenceIndex),
     ),
-    fragmentId: first.fragmentId,
     ...(scores.length === 0 ? {} : { score: Math.max(...scores) }),
     startSentenceIndex: Math.min(
       ...ranges.map((range) => range.startSentenceIndex),
@@ -4256,13 +4869,13 @@ async function createExpandedSourceEvidenceRanges(
         return range;
       }
 
-      const fragment = await getEvidenceFragment(
+      const sourceIndex = await getTextStreamIndex(
         document,
         range.chapterId,
-        range.fragmentId,
+        "source",
         context,
       );
-      const lastSentenceIndex = Math.max(0, fragment.sentences.length - 1);
+      const lastSentenceIndex = Math.max(0, sourceIndex.sentences.length - 1);
 
       return {
         ...range,
@@ -4288,97 +4901,40 @@ async function createSourceEvidenceItem(
   chapterId: number,
   startSentenceIndex: number,
   endSentenceIndex: number,
-  fragmentId?: number,
   context: EvidenceReadContext = createEvidenceReadContext(),
   score?: number,
 ): Promise<ArchiveEvidenceItem> {
   const chapter = await getEvidenceChapter(document, chapterId, context);
-  const resolvedFragmentId =
-    fragmentId ??
-    (await document.getSerialFragments(chapterId).listFragmentIds())[0];
-
-  if (resolvedFragmentId === undefined) {
-    throw new Error(`Chapter ${formatChapterId(chapterId)} has no source.`);
-  }
-
-  const fragment = await getEvidenceFragment(
-    document,
-    chapterId,
-    resolvedFragmentId,
-    context,
-  );
-  const lastSentenceIndex = Math.max(0, fragment.sentences.length - 1);
-  const start = clampInteger(startSentenceIndex, 0, lastSentenceIndex);
-  const end = clampInteger(endSentenceIndex, start, lastSentenceIndex);
-  const source = fragment.sentences
-    .slice(start, end + 1)
-    .map((sentence) => sentence.text)
-    .join("\n");
-  const streamRange = await convertSourceLocalRangeToStreamRange(
-    document,
-    chapterId,
-    resolvedFragmentId,
-    start,
-    end,
-    context,
-  );
-
-  return {
-    chapterId,
-    endSentenceIndex: streamRange.endSentenceIndex,
-    fragmentId: resolvedFragmentId,
-    id: formatTextStreamRangeUri(
-      chapterId,
-      "source",
-      streamRange.startSentenceIndex,
-      streamRange.endSentenceIndex,
-    ),
-    ...(score === undefined ? {} : { score }),
-    source,
-    startSentenceIndex: streamRange.startSentenceIndex,
-    title: chapter.title ?? `[chapter ${chapterId}]`,
-    type: "source",
-  };
-}
-
-async function convertSourceLocalRangeToStreamRange(
-  document: ReadonlyDocument,
-  chapterId: number,
-  fragmentId: number,
-  startSentenceIndex: number,
-  endSentenceIndex: number,
-  context: EvidenceReadContext,
-): Promise<{
-  readonly endSentenceIndex: number;
-  readonly startSentenceIndex: number;
-}> {
-  const index = await getTextStreamIndex(
+  const range = await readTextStreamRange(
     document,
     chapterId,
     "source",
+    startSentenceIndex,
+    endSentenceIndex,
     context,
-  );
-  const start = index.sentences.find(
-    (sentence) =>
-      sentence.fragmentId === fragmentId &&
-      sentence.localIndex === startSentenceIndex,
-  );
-  const end = index.sentences.find(
-    (sentence) =>
-      sentence.fragmentId === fragmentId &&
-      sentence.localIndex === endSentenceIndex,
   );
 
   return {
-    endSentenceIndex: end?.globalIndex ?? start?.globalIndex ?? 0,
-    startSentenceIndex: start?.globalIndex ?? 0,
+    chapterId,
+    endSentenceIndex: range.endSentenceIndex,
+    fragmentId: range.startSentenceIndex,
+    id: formatTextStreamRangeUri(
+      chapterId,
+      "source",
+      range.startSentenceIndex,
+      range.endSentenceIndex,
+    ),
+    ...(score === undefined ? {} : { score }),
+    source: range.text,
+    startSentenceIndex: range.startSentenceIndex,
+    title: chapter.title ?? `[chapter ${chapterId}]`,
+    type: "source",
   };
 }
 
 function createEvidenceReadContext(): EvidenceReadContext {
   return {
     chapters: new Map(),
-    fragments: new Map(),
     streamIndexes: new Map(),
   };
 }
@@ -4398,36 +4954,22 @@ async function getEvidenceChapter(
   return await chapter;
 }
 
-async function getEvidenceFragment(
-  document: ReadonlyDocument,
-  chapterId: number,
-  fragmentId: number,
-  context: EvidenceReadContext,
-): Promise<FragmentRecord> {
-  const key = `${chapterId}:${fragmentId}`;
-  let fragment = context.fragments.get(key);
-
-  if (fragment === undefined) {
-    fragment = document.getSerialFragments(chapterId).getFragment(fragmentId);
-    context.fragments.set(key, fragment);
-  }
-
-  return await fragment;
-}
-
 async function findSentenceIndexAtOffset(
   document: ReadonlyDocument,
   chapterId: number,
-  fragmentId: number,
   offset: number,
 ): Promise<number> {
-  const fragment = await document
-    .getSerialFragments(chapterId)
-    .getFragment(fragmentId);
+  const serial = document.getSerialFragments(chapterId);
+  const sentences =
+    serial.listSentences === undefined ? [] : await serial.listSentences();
+
+  if (sentences.length === 0) {
+    return 0;
+  }
   let cursor = 0;
 
-  for (let index = 0; index < fragment.sentences.length; index += 1) {
-    const sentence = fragment.sentences[index];
+  for (let index = 0; index < sentences.length; index += 1) {
+    const sentence = sentences[index];
 
     if (sentence === undefined) {
       continue;
@@ -4442,7 +4984,7 @@ async function findSentenceIndexAtOffset(
     cursor = nextCursor + 1;
   }
 
-  return Math.max(0, fragment.sentences.length - 1);
+  return Math.max(0, sentences.length - 1);
 }
 
 function formatTextStreamRangeUri(
@@ -4505,19 +5047,6 @@ function mergeEvidenceRanges(
   }
 
   return mergedRanges;
-}
-
-function parseEvidenceRangeKey(key: string): {
-  readonly chapterId: number;
-  readonly fragmentId: number;
-} {
-  const [chapterId, fragmentId] = key.split(":").map(Number);
-
-  if (chapterId === undefined || fragmentId === undefined) {
-    throw new Error("Internal error: invalid source evidence range.");
-  }
-
-  return { chapterId, fragmentId };
 }
 
 function clampInteger(value: number, min: number, max: number): number {
@@ -5374,16 +5903,12 @@ function createSentencePosition(sentenceId: SentenceId): ArchiveFindPosition {
   return {
     chapter: sentenceId[0],
     fragment: sentenceId[1],
-    sentence: sentenceId[2],
+    sentence: sentenceId[1],
   };
 }
 
 function compareSentenceIds(left: SentenceId, right: SentenceId): number {
-  return (
-    compareNumbers(left[0], right[0]) ||
-    compareNumbers(left[1], right[1]) ||
-    compareNumbers(left[2], right[2])
-  );
+  return compareNumbers(left[0], right[0]) || compareNumbers(left[1], right[1]);
 }
 
 function compareArchivePositions(

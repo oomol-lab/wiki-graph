@@ -11,9 +11,10 @@ Usage:
   wikigraph <chapter-uri> move (--parent <id>|--root|--before <id>|--after <id>|--first|--last) [--llm <json>] [--help|-h]
   wikigraph <chapter-uri> remove [--recursive] [--llm <json>] [--help|-h]
   wikigraph <chapter-uri> reset --to <planned|source|reading-graph> [--llm <json>] [--help|-h]
-  wikigraph <chapter-uri>/source set [--input <path>] --input-format <format> [--llm <json>] [--help|-h]
-  wikigraph <chapter-uri>/summary set [--input <path>] [--llm <json>] [--help|-h]
-  wikigraph <chapter-uri>/title set (--title <title>|--clear) [--llm <json>] [--help|-h]
+  wikigraph <chapter-uri>/source set [text] [--input <path>] --input-format <format> [--llm <json>] [--help|-h]
+  wikigraph <chapter-uri>/summary set [text] [--input <path>] [--llm <json>] [--help|-h]
+  wikigraph <chapter-uri>/title set <title> [--llm <json>] [--help|-h]
+  wikigraph <chapter-uri>/title clear [--llm <json>] [--help|-h]
   wikigraph <archive-uri>/chapter/tree get [--json] [--llm <json>] [--help|-h]
   wikigraph <archive-uri>/chapter/tree set [--input <path>] [--dry-run] [--llm <json>] [--help|-h]
 
@@ -28,9 +29,9 @@ Input rules:
   - `<chapter-uri>` includes the numeric chapter id printed by `list` or `add`.
   - `add --stage planned` creates an empty planned chapter. Use this for chapter directories, groups, and drafting placeholders.
   - `add --stage source` creates a chapter and fills it from `--input <path>` or stdin.
-  - `<chapter-uri>/source set` and `<chapter-uri>/summary set` read `--input <path>` when provided, otherwise stdin.
+  - `<chapter-uri>/source set` and `<chapter-uri>/summary set` read a positional value, `--input <path>`, or stdin.
   - `<chapter-uri>/source set` accepts only `txt` or `markdown` for `--input-format`.
-  - `<chapter-uri>/title set --title` renames a chapter in the tree; `<chapter-uri>/title set --clear` removes the explicit title.
+  - `<chapter-uri>/title set <title>` renames a chapter in the tree; `<chapter-uri>/title clear` removes the explicit title.
   - `move` changes parent/order only; it does not edit source, graph, or summary data.
   - `tree` prints the chapter tree as JSON with `title: null` for untitled chapters.
   - `<archive-uri>/chapter/tree set` applies a complete chapter tree JSON. It can reorder chapters and change titles when a node includes `title`.
@@ -45,7 +46,8 @@ See also:
   - wikigraph wkg://book.wikg/chapter/3/state get
   - wikigraph wkg://book.wikg/chapter/3/state/knowledge-graph get
   - wikigraph wkg://book.wikg/chapter/tree get
-  - wikigraph wkg://book.wikg/chapter/3/title set --title "New Title"
+  - wikigraph wkg://book.wikg/chapter/3/title set "New Title"
+  - wikigraph wkg://book.wikg/chapter/3/title clear
   - wikigraph wkg://book.wikg/chapter/3/source set --input chapter.md --input-format markdown
   - wikigraph wkg://book.wikg/chapter/3/summary set --input summary.md
   - wikigraph queue --help

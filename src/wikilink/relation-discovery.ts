@@ -38,7 +38,7 @@ export interface WikilinkDiscoveredRelation {
 
 export interface DiscoverWikilinkRelationsOptions {
   readonly chapterId: number;
-  readonly fragmentId: number;
+  readonly fragmentId?: number;
   readonly maxRetries?: number;
   readonly request: GuaranteedRequest;
   readonly sentences: readonly WikilinkSentence[];
@@ -207,7 +207,7 @@ function parseRelationResponse(
   );
   const projection = new FragmentProjection(
     options.sentences.map((sentence, index) => ({
-      sentenceId: [options.chapterId, options.fragmentId, index],
+      sentenceId: [options.chapterId, (options.fragmentId ?? 0) + index],
       text: sentence.text,
       wordsCount: sentence.wordsCount,
     })),
@@ -236,6 +236,8 @@ function parseRelationResponse(
   const issues: string[] = [];
   const links: WikilinkDiscoveredRelation[] = [];
   const seenKeys = new Set<string>();
+  const sentenceIds = evidenceSentences.map((sentence) => sentence.sentenceId);
+  const sentenceTexts = evidenceSentences.map((sentence) => sentence.text);
 
   for (const [index, relation] of response.relations.entries()) {
     const prefix = `relations[${index}]`;
@@ -269,10 +271,6 @@ function parseRelationResponse(
       continue;
     }
 
-    const sentenceIds = evidenceSentences.map(
-      (sentence) => sentence.sentenceId,
-    );
-    const sentenceTexts = evidenceSentences.map((sentence) => sentence.text);
     const [selectionResolution, selectionFailure] = resolveRelationEvidence({
       evidence: createRelationEvidenceSelection(relation.evidence),
       sentences: evidenceSentences,
@@ -309,10 +307,10 @@ function parseRelationResponse(
 
     if (
       evidenceSentenceIds.some(
-        ([chapterId, fragmentId, sentenceIndex]) =>
+        ([chapterId, sentenceIndex]) =>
           chapterId !== options.chapterId ||
-          fragmentId !== options.fragmentId ||
-          sentenceOffsets[sentenceIndex] === undefined,
+          sentenceOffsets[sentenceIndex - (options.fragmentId ?? 0)] ===
+            undefined,
       )
     ) {
       issues.push(`${prefix}.evidence resolved outside this fragment.`);
@@ -362,13 +360,8 @@ function dedupeSentenceIds(
   }
 
   return deduped.sort(
-    (
-      [leftChapter, leftFragment, leftSentence],
-      [rightChapter, rightFragment, rightSentence],
-    ) =>
-      leftChapter - rightChapter ||
-      leftFragment - rightFragment ||
-      leftSentence - rightSentence,
+    ([leftChapter, leftSentence], [rightChapter, rightSentence]) =>
+      leftChapter - rightChapter || leftSentence - rightSentence,
   );
 }
 
@@ -525,7 +518,7 @@ function resolveRelationEvidence(input: {
 }): readonly [
   resolution:
     | {
-        readonly sentenceIds: readonly (readonly [number, number, number])[];
+        readonly sentenceIds: readonly (readonly [number, number])[];
       }
     | undefined,
   failure:

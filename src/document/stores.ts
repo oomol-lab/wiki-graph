@@ -8,23 +8,35 @@ import {
   type ChunkRetention,
   type CreateChunkRecord,
   type CreateSnakeRecord,
-  type FragmentGroupRecord,
+  type SentenceGroupRecord,
+  type GraphBuildParameterRecord,
   type ReadingEdgeRecord,
   type MentionLinkRecord,
   type MentionRecord,
+  type ObjectMetadataTarget,
   type SerialRecord,
   type SentenceId,
   type SnakeChunkRecord,
   type SnakeEdgeRecord,
   type SnakeRecord,
 } from "./types.js";
+import { createHash } from "../utils/hash.js";
 
 const MAX_SQL_BIND_PARAMS = 900;
 
 export interface ReadonlySerialStore {
   getById(serialId: number): Promise<SerialRecord | undefined>;
+  getRevision(serialId: number): Promise<number>;
+  getRevisions(
+    serialIds: readonly number[],
+  ): Promise<ReadonlyMap<number, number>>;
   getMaxId(): Promise<number>;
+  getChaptersRevision(): Promise<number>;
   listIds(): Promise<number[]>;
+}
+
+export interface ReadonlyGraphBuildParameterStore {
+  getByHash(hash: string): Promise<GraphBuildParameterRecord | undefined>;
 }
 
 export interface ReadonlyChunkStore {
@@ -34,6 +46,11 @@ export interface ReadonlyChunkStore {
   listByFragments(
     serialId: number,
     fragmentIds: readonly number[],
+  ): Promise<ChunkRecord[]>;
+  listBySentenceRange(
+    serialId: number,
+    startSentenceIndex: number,
+    endSentenceIndex: number,
   ): Promise<ChunkRecord[]>;
   listBySerial(serialId: number): Promise<ChunkRecord[]>;
   getMaxId(): Promise<number>;
@@ -50,6 +67,7 @@ export interface ReadonlyReadingEdgeStore {
 
 export interface ReadonlyMentionStore {
   getById(mentionId: string): Promise<MentionRecord | undefined>;
+  listAll(): Promise<MentionRecord[]>;
   listBySurfaceTerms(terms: readonly string[]): Promise<MentionRecord[]>;
   listBySurfaces(surfaces: readonly string[]): Promise<MentionRecord[]>;
   listByQid(qid: string): Promise<MentionRecord[]>;
@@ -85,9 +103,176 @@ export interface ReadonlySnakeEdgeStore {
 }
 
 export interface ReadonlyFragmentGroupStore {
-  listBySerial(serialId: number): Promise<FragmentGroupRecord[]>;
+  listBySerial(serialId: number): Promise<SentenceGroupRecord[]>;
   listSerialIds(): Promise<number[]>;
   listGroupIdsForSerial(serialId: number): Promise<number[]>;
+}
+
+export interface ReadonlyObjectMetadataStore {
+  getMap(objectPath: string): Promise<Readonly<Record<string, unknown>>>;
+}
+
+export class ObjectMetadataStore implements ReadonlyObjectMetadataStore {
+  readonly #database: Database;
+
+  public constructor(database: Database) {
+    this.#database = database;
+  }
+
+  public async getMap(
+    objectPath: string,
+  ): Promise<Readonly<Record<string, unknown>>> {
+    const rows = await this.#database.queryAll(
+      `
+        SELECT key, value_json
+        FROM object_metadata
+        WHERE object_path = ?
+        ORDER BY key
+      `,
+      [objectPath],
+      (row) => ({
+        key: getString(row, "key"),
+        value: parseMetadataValue(getString(row, "value_json")),
+      }),
+    );
+    const result: Record<string, unknown> = {};
+
+    for (const row of rows) {
+      result[row.key] = row.value;
+    }
+
+    return result;
+  }
+
+  public async replaceMap(
+    target: ObjectMetadataTarget,
+    map: Readonly<Record<string, unknown>>,
+  ): Promise<void> {
+    await this.#database.transaction(async () => {
+      await this.clear(target.objectPath);
+      for (const [key, value] of Object.entries(map)) {
+        await this.put(target, key, value);
+      }
+    });
+  }
+
+  public async put(
+    target: ObjectMetadataTarget,
+    key: string,
+    value: unknown,
+  ): Promise<void> {
+    await this.#database.run(
+      `
+        INSERT INTO object_metadata (
+          object_kind,
+          object_path,
+          key,
+          value_json,
+          updated_at,
+          chapter_id,
+          chunk_id,
+          entity_qid,
+          triple_subject_qid,
+          triple_predicate,
+          triple_object_qid
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(object_path, key) DO UPDATE SET
+          object_kind = excluded.object_kind,
+          value_json = excluded.value_json,
+          updated_at = excluded.updated_at,
+          chapter_id = excluded.chapter_id,
+          chunk_id = excluded.chunk_id,
+          entity_qid = excluded.entity_qid,
+          triple_subject_qid = excluded.triple_subject_qid,
+          triple_predicate = excluded.triple_predicate,
+          triple_object_qid = excluded.triple_object_qid
+      `,
+      [
+        target.kind,
+        target.objectPath,
+        key,
+        JSON.stringify(value),
+        new Date().toISOString(),
+        target.chapterId ?? null,
+        target.chunkId ?? null,
+        target.entityQid ?? null,
+        target.tripleSubjectQid ?? null,
+        target.triplePredicate ?? null,
+        target.tripleObjectQid ?? null,
+      ],
+    );
+  }
+
+  public async deleteKey(objectPath: string, key: string): Promise<void> {
+    await this.#database.run(
+      `
+        DELETE FROM object_metadata
+        WHERE object_path = ?
+          AND key = ?
+      `,
+      [objectPath, key],
+    );
+  }
+
+  public async clear(objectPath: string): Promise<void> {
+    await this.#database.run(
+      `
+        DELETE FROM object_metadata
+        WHERE object_path = ?
+      `,
+      [objectPath],
+    );
+  }
+
+  public async deleteChapterSubtree(chapterId: number): Promise<void> {
+    await this.#database.run(
+      `
+        DELETE FROM object_metadata
+        WHERE chapter_id = ?
+      `,
+      [chapterId],
+    );
+  }
+
+  public async deleteDeletedChunks(): Promise<void> {
+    await this.#database.run(`
+      DELETE FROM object_metadata
+      WHERE chunk_id IS NOT NULL
+        AND NOT EXISTS (
+          SELECT 1
+          FROM chunks
+          WHERE chunks.id = object_metadata.chunk_id
+        )
+    `);
+  }
+
+  public async deleteDeletedEntitiesAndTriples(): Promise<void> {
+    await this.#database.run(`
+      DELETE FROM object_metadata
+      WHERE entity_qid IS NOT NULL
+        AND NOT EXISTS (
+          SELECT 1
+          FROM mentions
+          WHERE mentions.qid = object_metadata.entity_qid
+        )
+    `);
+    await this.#database.run(`
+      DELETE FROM object_metadata
+      WHERE triple_subject_qid IS NOT NULL
+        AND NOT EXISTS (
+          SELECT 1
+          FROM mention_links
+          JOIN mentions AS source_mentions
+            ON source_mentions.id = mention_links.source_mention_id
+          JOIN mentions AS target_mentions
+            ON target_mentions.id = mention_links.target_mention_id
+          WHERE source_mentions.qid = object_metadata.triple_subject_qid
+            AND mention_links.predicate = object_metadata.triple_predicate
+            AND target_mentions.qid = object_metadata.triple_object_qid
+        )
+    `);
+  }
 }
 
 export class SerialStore implements ReadonlySerialStore {
@@ -110,11 +295,11 @@ export class SerialStore implements ReadonlySerialStore {
       await this.#database.run(
         `
           INSERT INTO serial_states (
-            serial_id, topology_ready, knowledge_graph_ready
+            serial_id, revision, topology_ready, knowledge_graph_ready
           )
-          VALUES (?, ?, ?)
+          VALUES (?, ?, ?, ?)
         `,
-        [serialId, 0, 0],
+        [serialId, 0, 0, 0],
       );
 
       return serialId;
@@ -135,11 +320,11 @@ export class SerialStore implements ReadonlySerialStore {
         await this.#database.run(
           `
             INSERT INTO serial_states (
-              serial_id, topology_ready, knowledge_graph_ready
-            )
-            VALUES (?, ?, ?)
-          `,
-          [serialId, 0, 0],
+            serial_id, revision, topology_ready, knowledge_graph_ready
+          )
+          VALUES (?, ?, ?, ?)
+        `,
+          [serialId, 0, 0, 0],
         );
       });
     } catch (error) {
@@ -164,11 +349,11 @@ export class SerialStore implements ReadonlySerialStore {
       await this.#database.run(
         `
           INSERT OR IGNORE INTO serial_states (
-            serial_id, topology_ready, knowledge_graph_ready
+            serial_id, revision, topology_ready, knowledge_graph_ready
           )
-          VALUES (?, ?, ?)
+          VALUES (?, ?, ?, ?)
         `,
-        [serialId, 0, 0],
+        [serialId, 0, 0, 0],
       );
     });
   }
@@ -178,19 +363,95 @@ export class SerialStore implements ReadonlySerialStore {
       `
         SELECT
           serials.id AS id,
+          COALESCE(serial_states.revision, 0) AS revision,
           COALESCE(serial_states.topology_ready, 0) AS topology_ready,
-          COALESCE(serial_states.knowledge_graph_ready, 0) AS knowledge_graph_ready
+          serial_states.topology_parameter_hash AS topology_parameter_hash,
+          COALESCE(serial_states.knowledge_graph_ready, 0) AS knowledge_graph_ready,
+          serial_states.knowledge_graph_parameter_hash AS knowledge_graph_parameter_hash
         FROM serials
         LEFT JOIN serial_states
           ON serial_states.serial_id = serials.id
         WHERE serials.id = ?
       `,
       [serialId],
-      (row) => ({
-        id: getNumber(row, "id"),
-        knowledgeGraphReady: getNumber(row, "knowledge_graph_ready") !== 0,
-        topologyReady: getNumber(row, "topology_ready") !== 0,
-      }),
+      mapSerialRow,
+    );
+  }
+
+  public async getRevision(serialId: number): Promise<number> {
+    return (
+      (await this.#database.queryOne(
+        `
+          SELECT COALESCE(revision, 0) AS revision
+          FROM serial_states
+          WHERE serial_id = ?
+        `,
+        [serialId],
+        (row) => getNumber(row, "revision"),
+      )) ?? 0
+    );
+  }
+
+  public async getRevisions(
+    serialIds: readonly number[],
+  ): Promise<ReadonlyMap<number, number>> {
+    const uniqueIds = [...new Set(serialIds)].sort(compareNumber);
+
+    if (uniqueIds.length === 0) {
+      return new Map();
+    }
+
+    const rows = await this.#database.queryAll(
+      `
+        SELECT serial_id, COALESCE(revision, 0) AS revision
+        FROM serial_states
+        WHERE serial_id IN (${uniqueIds.map(() => "?").join(", ")})
+        ORDER BY serial_id
+      `,
+      uniqueIds,
+      (row) =>
+        [getNumber(row, "serial_id"), getNumber(row, "revision")] as const,
+    );
+
+    return new Map(rows);
+  }
+
+  public async bumpRevision(serialId: number): Promise<void> {
+    await this.ensure(serialId);
+    await this.#database.transaction(async () => {
+      await this.#database.run(
+        `
+          UPDATE serial_states
+          SET revision = revision + 1
+          WHERE serial_id = ?
+        `,
+        [serialId],
+      );
+      await this.bumpChaptersRevision();
+    });
+  }
+
+  public async bumpChaptersRevision(): Promise<void> {
+    await this.#database.run(
+      `
+        INSERT INTO archive_revisions (key, value)
+        VALUES ('chapters', 1)
+        ON CONFLICT(key) DO UPDATE SET value = value + 1
+      `,
+    );
+  }
+
+  public async getChaptersRevision(): Promise<number> {
+    return (
+      (await this.#database.queryOne(
+        `
+          SELECT value
+          FROM archive_revisions
+          WHERE key = 'chapters'
+        `,
+        undefined,
+        (row) => getNumber(row, "value"),
+      )) ?? 0
     );
   }
 
@@ -207,30 +468,69 @@ export class SerialStore implements ReadonlySerialStore {
     return maxId ?? 0;
   }
 
-  public async setTopologyReady(serialId: number, ready = true): Promise<void> {
+  public async setTopologyReady(
+    serialId: number,
+    ready = true,
+    parameterHash?: string,
+  ): Promise<void> {
     await this.ensure(serialId);
+
+    if (ready) {
+      await this.#database.run(
+        `
+          UPDATE serial_states
+          SET
+            topology_ready = ?,
+            topology_parameter_hash = COALESCE(?, topology_parameter_hash)
+          WHERE serial_id = ?
+        `,
+        [1, parameterHash ?? null, serialId],
+      );
+      return;
+    }
+
     await this.#database.run(
       `
         UPDATE serial_states
-        SET topology_ready = ?
+        SET
+          topology_ready = ?,
+          topology_parameter_hash = NULL
         WHERE serial_id = ?
       `,
-      [ready ? 1 : 0, serialId],
+      [0, serialId],
     );
   }
 
   public async setKnowledgeGraphReady(
     serialId: number,
     ready = true,
+    parameterHash?: string,
   ): Promise<void> {
     await this.ensure(serialId);
+
+    if (ready) {
+      await this.#database.run(
+        `
+          UPDATE serial_states
+          SET
+            knowledge_graph_ready = ?,
+            knowledge_graph_parameter_hash = COALESCE(?, knowledge_graph_parameter_hash)
+          WHERE serial_id = ?
+        `,
+        [1, parameterHash ?? null, serialId],
+      );
+      return;
+    }
+
     await this.#database.run(
       `
         UPDATE serial_states
-        SET knowledge_graph_ready = ?
+        SET
+          knowledge_graph_ready = ?,
+          knowledge_graph_parameter_hash = NULL
         WHERE serial_id = ?
       `,
-      [ready ? 1 : 0, serialId],
+      [0, serialId],
     );
   }
 
@@ -244,6 +544,101 @@ export class SerialStore implements ReadonlySerialStore {
       undefined,
       (row) => getNumber(row, "id"),
     );
+  }
+}
+
+function mapSerialRow(row: SqlRow): SerialRecord {
+  const topologyParameterHash = getOptionalString(
+    row,
+    "topology_parameter_hash",
+  );
+  const knowledgeGraphParameterHash = getOptionalString(
+    row,
+    "knowledge_graph_parameter_hash",
+  );
+
+  return {
+    id: getNumber(row, "id"),
+    knowledgeGraphReady: getNumber(row, "knowledge_graph_ready") !== 0,
+    ...(knowledgeGraphParameterHash === undefined
+      ? {}
+      : { knowledgeGraphParameterHash }),
+    revision: getNumber(row, "revision"),
+    topologyReady: getNumber(row, "topology_ready") !== 0,
+    ...(topologyParameterHash === undefined ? {} : { topologyParameterHash }),
+  };
+}
+
+function compareNumber(left: number, right: number): number {
+  return left - right;
+}
+
+export class GraphBuildParameterStore implements ReadonlyGraphBuildParameterStore {
+  readonly #database: Database;
+
+  public constructor(database: Database) {
+    this.#database = database;
+  }
+
+  public async save(input: {
+    readonly language?: string;
+    readonly prompt: string;
+  }): Promise<GraphBuildParameterRecord> {
+    const hash = createHash({
+      language: input.language ?? null,
+      prompt: input.prompt,
+    });
+    const createdAt = new Date().toISOString();
+
+    await this.#database.run(
+      `
+        INSERT OR IGNORE INTO graph_build_parameters (
+          hash, prompt, language, created_at
+        )
+        VALUES (?, ?, ?, ?)
+      `,
+      [hash, input.prompt, input.language ?? null, createdAt],
+    );
+
+    return (await this.getByHash(hash))!;
+  }
+
+  public async getByHash(
+    hash: string,
+  ): Promise<GraphBuildParameterRecord | undefined> {
+    return await this.#database.queryOne(
+      `
+        SELECT hash, prompt, language, created_at
+        FROM graph_build_parameters
+        WHERE hash = ?
+      `,
+      [hash],
+      (row) => {
+        const language = getOptionalString(row, "language");
+
+        return {
+          createdAt: getString(row, "created_at"),
+          hash: getString(row, "hash"),
+          ...(language === undefined ? {} : { language }),
+          prompt: getString(row, "prompt"),
+        };
+      },
+    );
+  }
+
+  public async deleteUnreferenced(): Promise<void> {
+    await this.#database.run(`
+      DELETE FROM graph_build_parameters
+      WHERE hash NOT IN (
+        SELECT topology_parameter_hash
+        FROM serial_states
+        WHERE topology_parameter_hash IS NOT NULL
+        UNION
+        SELECT knowledge_graph_parameter_hash
+        FROM serial_states
+        WHERE knowledge_graph_parameter_hash IS NOT NULL
+      )
+    `);
   }
 }
 
@@ -286,7 +681,6 @@ export class ChunkStore implements ReadonlyChunkStore {
           INSERT INTO chunks (
             generation,
             serial_id,
-            fragment_id,
             sentence_index,
             label,
             content,
@@ -295,13 +689,12 @@ export class ChunkStore implements ReadonlyChunkStore {
             wordsCount,
             weight
           )
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
         `,
         [
           record.generation,
           record.sentenceId[0],
           record.sentenceId[1],
-          record.sentenceId[2],
           record.label,
           record.content,
           record.retention ?? null,
@@ -331,7 +724,6 @@ export class ChunkStore implements ReadonlyChunkStore {
             id,
             generation,
             serial_id,
-            fragment_id,
             sentence_index,
             label,
             content,
@@ -340,14 +732,13 @@ export class ChunkStore implements ReadonlyChunkStore {
             wordsCount,
             weight
           )
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `,
         [
           record.id,
           record.generation,
           record.sentenceId[0],
           record.sentenceId[1],
-          record.sentenceId[2],
           record.label,
           record.content,
           record.retention ?? null,
@@ -368,7 +759,6 @@ export class ChunkStore implements ReadonlyChunkStore {
           id,
           generation,
           serial_id,
-          fragment_id,
           sentence_index,
           label,
           content,
@@ -397,7 +787,6 @@ export class ChunkStore implements ReadonlyChunkStore {
             id,
             generation,
             serial_id,
-            fragment_id,
             sentence_index,
             label,
             content,
@@ -425,27 +814,40 @@ export class ChunkStore implements ReadonlyChunkStore {
       return [];
     }
 
-    const placeholders = fragmentIds.map(() => "?").join(", ");
+    const results = await Promise.all(
+      fragmentIds.map(
+        async (fragmentId) =>
+          await this.listBySentenceRange(serialId, fragmentId, fragmentId),
+      ),
+    );
 
+    return deduplicateById(results.flat());
+  }
+
+  public async listBySentenceRange(
+    serialId: number,
+    startSentenceIndex: number,
+    endSentenceIndex: number,
+  ): Promise<ChunkRecord[]> {
     const rows = await this.#database.queryAll(
       `
-          SELECT
-            id,
-            generation,
-            serial_id,
-            fragment_id,
-            sentence_index,
-            label,
-            content,
-            retention,
-            importance,
-            wordsCount,
-            weight
-          FROM chunks
-          WHERE serial_id = ? AND fragment_id IN (${placeholders})
-          ORDER BY id
-        `,
-      [serialId, ...fragmentIds],
+        SELECT
+          id,
+          generation,
+          serial_id,
+          sentence_index,
+          label,
+          content,
+          retention,
+          importance,
+          wordsCount,
+          weight
+        FROM chunks
+        WHERE serial_id = ?
+          AND sentence_index BETWEEN ? AND ?
+        ORDER BY id
+      `,
+      [serialId, startSentenceIndex, endSentenceIndex],
       (row) => row,
     );
 
@@ -461,7 +863,6 @@ export class ChunkStore implements ReadonlyChunkStore {
             id,
             generation,
             serial_id,
-            fragment_id,
             sentence_index,
             label,
             content,
@@ -504,29 +905,31 @@ export class ChunkStore implements ReadonlyChunkStore {
   > {
     return await this.#database.queryAll(
       `
-        SELECT DISTINCT serial_id, fragment_id
+        SELECT DISTINCT serial_id, sentence_index
         FROM chunks
-        ORDER BY serial_id, fragment_id
+        ORDER BY serial_id, sentence_index
       `,
       undefined,
       (row) =>
-        [getNumber(row, "serial_id"), getNumber(row, "fragment_id")] as const,
+        [
+          getNumber(row, "serial_id"),
+          getNumber(row, "sentence_index"),
+        ] as const,
     );
   }
 
   async #getSentenceIds(chunkId: number): Promise<SentenceId[]> {
     return await this.#database.queryAll(
       `
-        SELECT serial_id, fragment_id, sentence_index
+        SELECT serial_id, sentence_index
         FROM chunk_sentences
         WHERE chunk_id = ?
-        ORDER BY serial_id, fragment_id, sentence_index
+        ORDER BY serial_id, sentence_index
       `,
       [chunkId],
       (row) =>
         [
           getNumber(row, "serial_id"),
-          getNumber(row, "fragment_id"),
           getNumber(row, "sentence_index"),
         ] as const,
     );
@@ -547,12 +950,11 @@ export class ChunkStore implements ReadonlyChunkStore {
           INSERT INTO chunk_sentences (
             chunk_id,
             serial_id,
-            fragment_id,
             sentence_index
           )
-          VALUES (?, ?, ?, ?)
+          VALUES (?, ?, ?)
         `,
-        [record.id, sentenceId[0], sentenceId[1], sentenceId[2]],
+        [record.id, sentenceId[0], sentenceId[1]],
       );
     }
   }
@@ -571,7 +973,6 @@ export class ChunkStore implements ReadonlyChunkStore {
       label: getString(row, "label"),
       sentenceId: [
         getNumber(row, "serial_id"),
-        getNumber(row, "fragment_id"),
         getNumber(row, "sentence_index"),
       ] as const,
       sentenceIds: await this.#getSentenceIds(chunkId),
@@ -801,7 +1202,6 @@ export class MentionStore implements ReadonlyMentionStore {
         INSERT OR REPLACE INTO mentions (
           id,
           chapter_id,
-          fragment_id,
           sentence_index,
           range_start,
           range_end,
@@ -810,12 +1210,11 @@ export class MentionStore implements ReadonlyMentionStore {
           confidence,
           note
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
       `,
       [
         record.id,
         record.chapterId,
-        record.fragmentId,
         record.sentenceIndex ?? null,
         record.rangeStart,
         record.rangeEnd,
@@ -841,7 +1240,6 @@ export class MentionStore implements ReadonlyMentionStore {
         SELECT
           id,
           chapter_id,
-          fragment_id,
           sentence_index,
           range_start,
           range_end,
@@ -857,13 +1255,33 @@ export class MentionStore implements ReadonlyMentionStore {
     );
   }
 
+  public async listAll(): Promise<MentionRecord[]> {
+    return await this.#database.queryAll(
+      `
+        SELECT
+          id,
+          chapter_id,
+          sentence_index,
+          range_start,
+          range_end,
+          surface,
+          qid,
+          confidence,
+          note
+        FROM mentions
+        ORDER BY chapter_id, sentence_index, range_start, range_end, id
+      `,
+      undefined,
+      mapMentionRow,
+    );
+  }
+
   public async listByQid(qid: string): Promise<MentionRecord[]> {
     return await this.#database.queryAll(
       `
         SELECT
           id,
           chapter_id,
-          fragment_id,
           sentence_index,
           range_start,
           range_end,
@@ -873,7 +1291,7 @@ export class MentionStore implements ReadonlyMentionStore {
           note
         FROM mentions
         WHERE qid = ?
-        ORDER BY chapter_id, fragment_id, sentence_index, range_start, range_end, id
+        ORDER BY chapter_id, sentence_index, range_start, range_end, id
       `,
       [qid],
       mapMentionRow,
@@ -896,7 +1314,6 @@ export class MentionStore implements ReadonlyMentionStore {
         SELECT
           id,
           chapter_id,
-          fragment_id,
           sentence_index,
           range_start,
           range_end,
@@ -906,7 +1323,7 @@ export class MentionStore implements ReadonlyMentionStore {
           note
         FROM mentions
         WHERE surface IN (${normalizedSurfaces.map(() => "?").join(", ")})
-        ORDER BY chapter_id, fragment_id, sentence_index, range_start, range_end, id
+        ORDER BY chapter_id, sentence_index, range_start, range_end, id
       `,
       normalizedSurfaces,
       mapMentionRow,
@@ -933,7 +1350,6 @@ export class MentionStore implements ReadonlyMentionStore {
         SELECT
           id,
           chapter_id,
-          fragment_id,
           sentence_index,
           range_start,
           range_end,
@@ -943,7 +1359,7 @@ export class MentionStore implements ReadonlyMentionStore {
           note
         FROM mentions
         WHERE ${filters}
-        ORDER BY chapter_id, fragment_id, sentence_index, range_start, range_end, id
+        ORDER BY chapter_id, sentence_index, range_start, range_end, id
       `,
       normalizedTerms.map((term) => `%${escapeLikePattern(term)}%`),
       mapMentionRow,
@@ -956,7 +1372,6 @@ export class MentionStore implements ReadonlyMentionStore {
         SELECT
           id,
           chapter_id,
-          fragment_id,
           sentence_index,
           range_start,
           range_end,
@@ -966,7 +1381,7 @@ export class MentionStore implements ReadonlyMentionStore {
           note
         FROM mentions
         WHERE chapter_id = ?
-        ORDER BY fragment_id, sentence_index, range_start, range_end, id
+        ORDER BY sentence_index, range_start, range_end, id
       `,
       [chapterId],
       mapMentionRow,
@@ -1027,22 +1442,17 @@ export class MentionLinkStore implements ReadonlyMentionLinkStore {
       [record.id],
     );
 
-    for (const [
-      chapterId,
-      fragmentId,
-      sentenceIndex,
-    ] of record.evidenceSentenceIds) {
+    for (const [chapterId, sentenceIndex] of record.evidenceSentenceIds) {
       await this.#database.run(
         `
           INSERT INTO mention_link_evidence_sentences (
             link_id,
             chapter_id,
-            fragment_id,
             sentence_index
           )
-          VALUES (?, ?, ?, ?)
+          VALUES (?, ?, ?)
         `,
-        [record.id, chapterId, fragmentId, sentenceIndex],
+        [record.id, chapterId, sentenceIndex],
       );
     }
   }
@@ -1099,7 +1509,6 @@ export class MentionLinkStore implements ReadonlyMentionLinkStore {
           AND target_mentions.qid = ?
         ORDER BY
           source_mentions.chapter_id,
-          source_mentions.fragment_id,
           source_mentions.sentence_index,
           mention_links.id
       `,
@@ -1187,17 +1596,16 @@ export class MentionLinkStore implements ReadonlyMentionLinkStore {
       const placeholders = linkIdBatch.map(() => "?").join(", ");
       const rows = await this.#database.queryAll(
         `
-          SELECT link_id, chapter_id, fragment_id, sentence_index
+          SELECT link_id, chapter_id, sentence_index
           FROM mention_link_evidence_sentences
           WHERE link_id IN (${placeholders})
-          ORDER BY link_id, chapter_id, fragment_id, sentence_index
+          ORDER BY link_id, chapter_id, sentence_index
         `,
         linkIdBatch,
         (row) => ({
           linkId: getString(row, "link_id"),
           sentenceId: [
             getNumber(row, "chapter_id"),
-            getNumber(row, "fragment_id"),
             getNumber(row, "sentence_index"),
           ] as SentenceId,
         }),
@@ -1222,15 +1630,14 @@ export class MentionLinkStore implements ReadonlyMentionLinkStore {
   ): Promise<MentionLinkRecord> {
     const evidenceSentenceIds = await this.#database.queryAll(
       `
-        SELECT chapter_id, fragment_id, sentence_index
+        SELECT chapter_id, sentence_index
         FROM mention_link_evidence_sentences
         WHERE link_id = ?
-        ORDER BY chapter_id, fragment_id, sentence_index
+        ORDER BY chapter_id, sentence_index
       `,
       [record.id],
       (row): SentenceId => [
         getNumber(row, "chapter_id"),
-        getNumber(row, "fragment_id"),
         getNumber(row, "sentence_index"),
       ],
     );
@@ -1403,18 +1810,28 @@ export class FragmentGroupStore implements ReadonlyFragmentGroupStore {
     this.#database = database;
   }
 
-  public async save(record: FragmentGroupRecord): Promise<void> {
+  public async save(record: SentenceGroupRecord): Promise<void> {
     await this.#database.run(
       `
-        INSERT OR REPLACE INTO fragment_groups (serial_id, group_id, fragment_id)
-        VALUES (?, ?, ?)
+        INSERT OR REPLACE INTO sentence_groups (
+          serial_id,
+          group_id,
+          start_sentence_index,
+          end_sentence_index
+        )
+        VALUES (?, ?, ?, ?)
       `,
-      [record.serialId, record.groupId, record.fragmentId],
+      [
+        record.serialId,
+        record.groupId,
+        record.startSentenceIndex,
+        record.endSentenceIndex,
+      ],
     );
   }
 
   public async saveMany(
-    records: readonly FragmentGroupRecord[],
+    records: readonly SentenceGroupRecord[],
   ): Promise<void> {
     await this.#database.transaction(async () => {
       for (const record of records) {
@@ -1423,19 +1840,20 @@ export class FragmentGroupStore implements ReadonlyFragmentGroupStore {
     });
   }
 
-  public async listBySerial(serialId: number): Promise<FragmentGroupRecord[]> {
+  public async listBySerial(serialId: number): Promise<SentenceGroupRecord[]> {
     return await this.#database.queryAll(
       `
-        SELECT serial_id, group_id, fragment_id
-        FROM fragment_groups
+        SELECT serial_id, group_id, start_sentence_index, end_sentence_index
+        FROM sentence_groups
         WHERE serial_id = ?
-        ORDER BY group_id, fragment_id
+        ORDER BY group_id, start_sentence_index
       `,
       [serialId],
       (row) => ({
         serialId: getNumber(row, "serial_id"),
-        fragmentId: getNumber(row, "fragment_id"),
         groupId: getNumber(row, "group_id"),
+        startSentenceIndex: getNumber(row, "start_sentence_index"),
+        endSentenceIndex: getNumber(row, "end_sentence_index"),
       }),
     );
   }
@@ -1444,7 +1862,7 @@ export class FragmentGroupStore implements ReadonlyFragmentGroupStore {
     return await this.#database.queryAll(
       `
         SELECT DISTINCT serial_id
-        FROM fragment_groups
+        FROM sentence_groups
         ORDER BY serial_id
       `,
       undefined,
@@ -1456,7 +1874,7 @@ export class FragmentGroupStore implements ReadonlyFragmentGroupStore {
     return await this.#database.queryAll(
       `
         SELECT DISTINCT group_id
-        FROM fragment_groups
+        FROM sentence_groups
         WHERE serial_id = ?
         ORDER BY group_id
       `,
@@ -1485,7 +1903,6 @@ function mapMentionRow(row: SqlRow): MentionRecord {
   return {
     chapterId: getNumber(row, "chapter_id"),
     ...(confidence === undefined ? {} : { confidence }),
-    fragmentId: getNumber(row, "fragment_id"),
     id: getString(row, "id"),
     ...(note === undefined ? {} : { note }),
     qid: getString(row, "qid"),
@@ -1494,6 +1911,24 @@ function mapMentionRow(row: SqlRow): MentionRecord {
     ...(sentenceIndex === undefined ? {} : { sentenceIndex }),
     surface: getString(row, "surface"),
   };
+}
+
+function deduplicateById<T extends { readonly id: number }>(
+  records: readonly T[],
+): T[] {
+  const seen = new Set<number>();
+  const result: T[] = [];
+
+  for (const record of records) {
+    if (seen.has(record.id)) {
+      continue;
+    }
+
+    seen.add(record.id);
+    result.push(record);
+  }
+
+  return result;
 }
 
 function mapMentionLinkRow(row: SqlRow): MentionLinkRecord {
@@ -1511,6 +1946,16 @@ function mapMentionLinkRow(row: SqlRow): MentionLinkRecord {
   };
 }
 
+function parseMetadataValue(valueJson: string): unknown {
+  try {
+    return JSON.parse(valueJson);
+  } catch (error) {
+    throw new Error(
+      `Invalid object metadata JSON: ${formatUnknownError(error)}`,
+    );
+  }
+}
+
 function getOptionalNumber(row: SqlRow, key: string): number | undefined {
   const value = row[key];
 
@@ -1523,6 +1968,10 @@ function getOptionalNumber(row: SqlRow, key: string): number | undefined {
   }
 
   return value;
+}
+
+function formatUnknownError(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
 }
 
 function escapeLikePattern(value: string): string {

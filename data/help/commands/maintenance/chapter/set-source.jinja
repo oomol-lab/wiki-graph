@@ -1,17 +1,15 @@
 Help Type: command
 Command: wikigraph <chapter-uri>/source set
 
-chapter set-source
-
 Purpose:
   Fill a planned chapter with normalized source text.
 
 Usage:
-  wikigraph <chapter-uri>/source set [--input <path>] --input-format <format> [--llm <json>] [--help|-h]
+  wikigraph <chapter-uri>/source set [text] [--input <path>] --input-format <format> [--llm <json>] [--help|-h]
 
 Input:
   - `--input-format` must be `txt` or `markdown`.
-  - If `--input` is omitted, source text is read from stdin.
+  - Source text is read from a positional value, `--input <path>`, or stdin.
 
 Preconditions:
   - The chapter must be `planned`.

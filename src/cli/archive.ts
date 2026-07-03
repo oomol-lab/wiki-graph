@@ -33,8 +33,8 @@ import {
   formatLocatedWikiGraphUri,
   parseLocatedWikiGraphUri,
   requireLocatedObjectOrArchiveUri,
-} from "../facade/archive-uri.js";
-import { SpineDigestFile } from "../facade/spine-digest-file.js";
+  SpineDigestFile,
+} from "../wikg/index.js";
 import type { ReadonlyDocument } from "../document/index.js";
 
 import type { CLIArchiveArguments } from "./args.js";
@@ -46,6 +46,7 @@ type ResultFormat = "json" | "jsonl" | "text";
 
 const DEFAULT_OUTPUT_LIMIT = 20;
 const DEFAULT_GET_EVIDENCE_LIMIT = 3;
+const ALL_COLLECTION_OUTPUT_LIMIT = 1_000_000_000;
 const PLAIN_OBJECT_KEY_PRIORITY = [
   "uri",
   "title",
@@ -195,14 +196,28 @@ export async function runArchiveCommand(
           });
 
           if (args.all === true) {
-            await writeAllFindHits(
-              async (cursor) =>
-                createCollectionFindResult(
-                  await listArchiveCollection(document, {
-                    ...createCollectionOptions(args),
-                    ...(cursor === undefined ? {} : { cursor }),
-                  }),
-                ),
+            if (args.limit !== undefined) {
+              await writeAllFindHits(
+                async (cursor) =>
+                  createCollectionFindResult(
+                    await listArchiveCollection(document, {
+                      ...createCollectionOptions(args),
+                      ...(cursor === undefined ? {} : { cursor }),
+                    }),
+                  ),
+                context,
+                args.format ?? "text",
+              );
+              return;
+            }
+
+            await writeFindHitsWithoutContinuation(
+              createCollectionFindResult(
+                await listArchiveCollection(document, {
+                  ...createCollectionOptions(args),
+                  limit: ALL_COLLECTION_OUTPUT_LIMIT,
+                }),
+              ),
               context,
               args.format ?? "text",
             );

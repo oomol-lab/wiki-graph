@@ -236,16 +236,21 @@ class EditorOperation<S extends string> {
   async #getGroupFragmentIds(): Promise<number[]> {
     return (await this.#document.fragmentGroups.listBySerial(this.#serialId))
       .filter((record) => record.groupId === this.#groupId)
-      .map((record) => record.fragmentId)
+      .map((record) => record.startSentenceIndex)
       .sort(compareNumber);
   }
 
-  async #getFullText(fragmentIds: readonly number[]): Promise<string> {
+  async #getFullText(_fragmentIds: readonly number[]): Promise<string> {
+    const groups = (
+      await this.#document.fragmentGroups.listBySerial(this.#serialId)
+    ).filter((record) => record.groupId === this.#groupId);
     const fragments = await Promise.all(
-      fragmentIds.map(
-        async (fragmentId) =>
-          await this.#serialFragments.getFragment(fragmentId),
-      ),
+      groups.map(async (group) => ({
+        sentences: await this.#listGroupSentences(
+          group.startSentenceIndex,
+          group.endSentenceIndex,
+        ),
+      })),
     );
 
     return fragments
@@ -253,6 +258,27 @@ class EditorOperation<S extends string> {
         fragment.sentences.map((sentence) => sentence.text),
       )
       .join(" ");
+  }
+
+  async #listGroupSentences(
+    startSentenceIndex: number,
+    endSentenceIndex: number,
+  ): Promise<readonly { readonly text: string }[]> {
+    if (this.#serialFragments.listSentencesInRange !== undefined) {
+      return await this.#serialFragments.listSentencesInRange(
+        startSentenceIndex,
+        endSentenceIndex,
+      );
+    }
+
+    const fragments = await Promise.all(
+      createNumberRange(startSentenceIndex, endSentenceIndex).map(
+        async (fragmentId) =>
+          await this.#serialFragments.getFragment(fragmentId),
+      ),
+    );
+
+    return fragments.flatMap((fragment) => fragment.sentences);
   }
 }
 
@@ -262,6 +288,16 @@ function compareNumber(left: number, right: number): number {
 
 function listClueChunks(clues: readonly Clue[]): ChunkRecord[] {
   return clues.flatMap((clue) => clue.chunks);
+}
+
+function createNumberRange(start: number, end: number): number[] {
+  const range: number[] = [];
+
+  for (let value = start; value <= end; value += 1) {
+    range.push(value);
+  }
+
+  return range;
 }
 
 function resolveDocument<S extends string>(

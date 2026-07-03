@@ -7,7 +7,10 @@ import type {
   TocItem,
 } from "../source/index.js";
 
-import { readWikgArchiveFormatVersion, writeWikgArchive } from "./archive.js";
+import {
+  readWikgArchiveFormatVersion,
+  writeWikgArchive,
+} from "../wikg/index.js";
 import type { ChapterStage } from "./chapter.js";
 import type { SpineDigestSerialEntry } from "./types.js";
 

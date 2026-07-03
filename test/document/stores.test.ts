@@ -34,6 +34,7 @@ describe("document/stores", () => {
         expect(await openedDocument.serials.getById(1)).toStrictEqual({
           id: 1,
           knowledgeGraphReady: false,
+          revision: 0,
           topologyReady: false,
         });
 
@@ -51,16 +52,63 @@ describe("document/stores", () => {
         expect(await openedDocument.serials.getById(3)).toStrictEqual({
           id: 3,
           knowledgeGraphReady: true,
+          revision: 0,
           topologyReady: true,
         });
         expect(await openedDocument.serials.getById(5)).toStrictEqual({
           id: 5,
           knowledgeGraphReady: false,
+          revision: 0,
           topologyReady: true,
         });
         expect(await openedDocument.serials.getById(99)).toBeUndefined();
         expect(await openedDocument.serials.getMaxId()).toBe(5);
         expect(await openedDocument.serials.listIds()).toStrictEqual([1, 3, 5]);
+      });
+    });
+  });
+
+  it("stores graph build parameters by canonical hash and deletes unreferenced records", async () => {
+    await withDocument(async (document) => {
+      await document.openSession(async (openedDocument) => {
+        await openedDocument.serials.createWithId(1);
+        await openedDocument.serials.createWithId(2);
+
+        const parameter = await openedDocument.graphBuildParameters.save({
+          language: "zh",
+          prompt: "抽取章节图谱",
+        });
+        const sameParameter = await openedDocument.graphBuildParameters.save({
+          language: "zh",
+          prompt: "抽取章节图谱",
+        });
+
+        expect(sameParameter.hash).toBe(parameter.hash);
+        await openedDocument.serials.setTopologyReady(1, true, parameter.hash);
+        await openedDocument.serials.setKnowledgeGraphReady(
+          2,
+          true,
+          parameter.hash,
+        );
+
+        expect(await openedDocument.serials.getById(1)).toMatchObject({
+          topologyParameterHash: parameter.hash,
+        });
+        expect(await openedDocument.serials.getById(2)).toMatchObject({
+          knowledgeGraphParameterHash: parameter.hash,
+        });
+
+        await openedDocument.serials.setTopologyReady(1, false);
+        await openedDocument.graphBuildParameters.deleteUnreferenced();
+        await expect(
+          openedDocument.graphBuildParameters.getByHash(parameter.hash),
+        ).resolves.toBeDefined();
+
+        await openedDocument.serials.setKnowledgeGraphReady(2, false);
+        await openedDocument.graphBuildParameters.deleteUnreferenced();
+        await expect(
+          openedDocument.graphBuildParameters.getByHash(parameter.hash),
+        ).resolves.toBeUndefined();
       });
     });
   });
@@ -75,7 +123,6 @@ describe("document/stores", () => {
           {
             chapterId: 1,
             confidence: 0.9,
-            fragmentId: 10,
             id: "m1",
             qid: "Q1",
             rangeEnd: 2,
@@ -85,7 +132,6 @@ describe("document/stores", () => {
           },
           {
             chapterId: 1,
-            fragmentId: 10,
             id: "m2",
             note: "神学语境",
             qid: "Q2",
@@ -96,7 +142,6 @@ describe("document/stores", () => {
           },
           {
             chapterId: 2,
-            fragmentId: 20,
             id: "m3",
             qid: "Q3",
             rangeEnd: 3,
@@ -107,14 +152,14 @@ describe("document/stores", () => {
         await openedDocument.mentionLinks.saveMany([
           {
             confidence: 0.8,
-            evidenceSentenceIds: [[1, 10, 0]],
+            evidenceSentenceIds: [[1, 10]],
             id: "l1",
             predicate: "discusses",
             sourceMentionId: "m1",
             targetMentionId: "m2",
           },
           {
-            evidenceSentenceIds: [[2, 20, 0]],
+            evidenceSentenceIds: [[2, 20]],
             id: "l2",
             note: "cross chapter evidence is removed with either endpoint",
             predicate: "mentions",
@@ -126,7 +171,6 @@ describe("document/stores", () => {
         expect(await openedDocument.mentions.getById("m1")).toStrictEqual({
           chapterId: 1,
           confidence: 0.9,
-          fragmentId: 10,
           id: "m1",
           qid: "Q1",
           rangeEnd: 2,
@@ -150,7 +194,6 @@ describe("document/stores", () => {
         expect(await openedDocument.mentions.listByChapter(2)).toStrictEqual([
           {
             chapterId: 2,
-            fragmentId: 20,
             id: "m3",
             qid: "Q3",
             rangeEnd: 3,
@@ -175,8 +218,8 @@ describe("document/stores", () => {
           importance: ChunkImportance.Critical,
           label: "Chunk A2",
           retention: ChunkRetention.Focused,
-          sentenceId: [1, 10, 0],
-          sentenceIds: [[1, 10, 0]],
+          sentenceId: [1, 10],
+          sentenceIds: [[1, 10]],
           wordsCount: 13,
           weight: 1.25,
         });
@@ -185,10 +228,10 @@ describe("document/stores", () => {
           generation: 0,
           id: 101,
           label: "Chunk B",
-          sentenceId: [1, 20, 0],
+          sentenceId: [1, 20],
           sentenceIds: [
-            [1, 20, 0],
-            [1, 20, 1],
+            [1, 20],
+            [1, 21],
           ],
           wordsCount: 7,
           weight: 0.5,
@@ -200,8 +243,8 @@ describe("document/stores", () => {
           importance: ChunkImportance.Helpful,
           label: "Chunk C",
           retention: ChunkRetention.Relevant,
-          sentenceId: [2, 10, 0],
-          sentenceIds: [[2, 10, 0]],
+          sentenceId: [2, 10],
+          sentenceIds: [[2, 10]],
           wordsCount: 9,
           weight: 0.8,
         });
@@ -213,8 +256,8 @@ describe("document/stores", () => {
           importance: ChunkImportance.Critical,
           label: "Chunk A2",
           retention: ChunkRetention.Focused,
-          sentenceId: [1, 10, 0],
-          sentenceIds: [[1, 10, 0]],
+          sentenceId: [1, 10],
+          sentenceIds: [[1, 10]],
           wordsCount: 13,
           weight: 1.25,
         });
@@ -227,8 +270,8 @@ describe("document/stores", () => {
             importance: ChunkImportance.Critical,
             label: "Chunk A2",
             retention: ChunkRetention.Focused,
-            sentenceId: [1, 10, 0],
-            sentenceIds: [[1, 10, 0]],
+            sentenceId: [1, 10],
+            sentenceIds: [[1, 10]],
             wordsCount: 13,
             weight: 1.25,
           },
@@ -237,10 +280,10 @@ describe("document/stores", () => {
             generation: 0,
             id: 101,
             label: "Chunk B",
-            sentenceId: [1, 20, 0],
+            sentenceId: [1, 20],
             sentenceIds: [
-              [1, 20, 0],
-              [1, 20, 1],
+              [1, 20],
+              [1, 21],
             ],
             wordsCount: 7,
             weight: 0.5,
@@ -252,8 +295,8 @@ describe("document/stores", () => {
             importance: ChunkImportance.Helpful,
             label: "Chunk C",
             retention: ChunkRetention.Relevant,
-            sentenceId: [2, 10, 0],
-            sentenceIds: [[2, 10, 0]],
+            sentenceId: [2, 10],
+            sentenceIds: [[2, 10]],
             wordsCount: 9,
             weight: 0.8,
           },
@@ -265,29 +308,29 @@ describe("document/stores", () => {
           await openedDocument.chunks.listByFragments(1, [20, 10, 99]),
         ).toStrictEqual([
           {
+            content: "Beta",
+            generation: 0,
+            id: 101,
+            label: "Chunk B",
+            sentenceId: [1, 20],
+            sentenceIds: [
+              [1, 20],
+              [1, 21],
+            ],
+            wordsCount: 7,
+            weight: 0.5,
+          },
+          {
             content: "Alpha replacement",
             generation: 1,
             id: 100,
             importance: ChunkImportance.Critical,
             label: "Chunk A2",
             retention: ChunkRetention.Focused,
-            sentenceId: [1, 10, 0],
-            sentenceIds: [[1, 10, 0]],
+            sentenceId: [1, 10],
+            sentenceIds: [[1, 10]],
             wordsCount: 13,
             weight: 1.25,
-          },
-          {
-            content: "Beta",
-            generation: 0,
-            id: 101,
-            label: "Chunk B",
-            sentenceId: [1, 20, 0],
-            sentenceIds: [
-              [1, 20, 0],
-              [1, 20, 1],
-            ],
-            wordsCount: 7,
-            weight: 0.5,
           },
         ]);
         expect(await openedDocument.chunks.listBySerial(1)).toStrictEqual([
@@ -298,8 +341,8 @@ describe("document/stores", () => {
             importance: ChunkImportance.Critical,
             label: "Chunk A2",
             retention: ChunkRetention.Focused,
-            sentenceId: [1, 10, 0],
-            sentenceIds: [[1, 10, 0]],
+            sentenceId: [1, 10],
+            sentenceIds: [[1, 10]],
             wordsCount: 13,
             weight: 1.25,
           },
@@ -308,10 +351,10 @@ describe("document/stores", () => {
             generation: 0,
             id: 101,
             label: "Chunk B",
-            sentenceId: [1, 20, 0],
+            sentenceId: [1, 20],
             sentenceIds: [
-              [1, 20, 0],
-              [1, 20, 1],
+              [1, 20],
+              [1, 21],
             ],
             wordsCount: 7,
             weight: 0.5,
@@ -339,8 +382,8 @@ describe("document/stores", () => {
             generation: 0,
             id: 100,
             label: "Chunk A",
-            sentenceId: [1, 10, 0] as const,
-            sentenceIds: [[1, 10, 0]] as const,
+            sentenceId: [1, 10] as const,
+            sentenceIds: [[1, 10]] as const,
             wordsCount: 10,
             weight: 1,
           },
@@ -349,8 +392,8 @@ describe("document/stores", () => {
             generation: 0,
             id: 101,
             label: "Chunk B",
-            sentenceId: [1, 20, 0] as const,
-            sentenceIds: [[1, 20, 0]] as const,
+            sentenceId: [1, 20] as const,
+            sentenceIds: [[1, 20]] as const,
             wordsCount: 11,
             weight: 1.1,
           },
@@ -359,8 +402,8 @@ describe("document/stores", () => {
             generation: 0,
             id: 200,
             label: "Chunk C",
-            sentenceId: [2, 10, 0] as const,
-            sentenceIds: [[2, 10, 0]] as const,
+            sentenceId: [2, 10] as const,
+            sentenceIds: [[2, 10]] as const,
             wordsCount: 12,
             weight: 1.2,
           },
@@ -452,8 +495,8 @@ describe("document/stores", () => {
             generation: 0,
             id: 100,
             label: "Chunk A",
-            sentenceId: [1, 10, 0] as const,
-            sentenceIds: [[1, 10, 0]] as const,
+            sentenceId: [1, 10] as const,
+            sentenceIds: [[1, 10]] as const,
             wordsCount: 10,
             weight: 1,
           },
@@ -462,8 +505,8 @@ describe("document/stores", () => {
             generation: 0,
             id: 101,
             label: "Chunk B",
-            sentenceId: [1, 20, 0] as const,
-            sentenceIds: [[1, 20, 0]] as const,
+            sentenceId: [1, 20] as const,
+            sentenceIds: [[1, 20]] as const,
             wordsCount: 11,
             weight: 1.1,
           },
@@ -472,8 +515,8 @@ describe("document/stores", () => {
             generation: 0,
             id: 200,
             label: "Chunk C",
-            sentenceId: [2, 10, 0] as const,
-            sentenceIds: [[2, 10, 0]] as const,
+            sentenceId: [2, 10] as const,
+            sentenceIds: [[2, 10]] as const,
             wordsCount: 12,
             weight: 1.2,
           },
@@ -654,25 +697,29 @@ describe("document/stores", () => {
         ]);
 
         await openedDocument.fragmentGroups.save({
-          fragmentId: 10,
+          endSentenceIndex: 10,
           groupId: 1,
           serialId: 1,
+          startSentenceIndex: 10,
         });
         await openedDocument.fragmentGroups.saveMany([
           {
-            fragmentId: 20,
+            endSentenceIndex: 20,
             groupId: 2,
             serialId: 1,
+            startSentenceIndex: 20,
           },
           {
-            fragmentId: 21,
+            endSentenceIndex: 21,
             groupId: 2,
             serialId: 1,
+            startSentenceIndex: 21,
           },
           {
-            fragmentId: 10,
+            endSentenceIndex: 10,
             groupId: 1,
             serialId: 2,
+            startSentenceIndex: 10,
           },
         ]);
 
@@ -680,19 +727,22 @@ describe("document/stores", () => {
           await openedDocument.fragmentGroups.listBySerial(1),
         ).toStrictEqual([
           {
-            fragmentId: 10,
+            endSentenceIndex: 10,
             groupId: 1,
             serialId: 1,
+            startSentenceIndex: 10,
           },
           {
-            fragmentId: 20,
+            endSentenceIndex: 20,
             groupId: 2,
             serialId: 1,
+            startSentenceIndex: 20,
           },
           {
-            fragmentId: 21,
+            endSentenceIndex: 21,
             groupId: 2,
             serialId: 1,
+            startSentenceIndex: 21,
           },
         ]);
         expect(

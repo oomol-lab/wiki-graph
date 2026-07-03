@@ -15,6 +15,7 @@ export type SamplingScopeConfig<S extends string> = {
 };
 
 export interface LLMRequestOptions<S extends string> {
+  readonly signal?: AbortSignal;
   readonly temperature?: TemperatureSetting;
   readonly topP?: TemperatureSetting;
   readonly scope?: S;

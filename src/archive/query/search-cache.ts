@@ -1,58 +1,80 @@
 import { createHash } from "crypto";
 import { join, resolve } from "path";
 
-import { resolveWikiGraphStateDirectoryPath } from "../common/wiki-graph-dir.js";
-import {
-  getNumber,
-  getOptionalString,
-  getString,
-} from "../document/database.js";
-import type { SqlBindValue } from "../document/database.js";
-import { openSharedStateDatabase } from "../document/index.js";
-import type { Database } from "../document/index.js";
+import { resolveWikiGraphStateDirectoryPath } from "../../common/wiki-graph-dir.js";
+import { getNumber, getString } from "../../document/database.js";
+import type { SqlBindValue } from "../../document/database.js";
+import { openSharedStateDatabase } from "../../document/index.js";
+import type { Database } from "../../document/index.js";
 
 import type { ArchiveFindHit } from "./archive-view.js";
 
 export interface SearchSessionInput {
   readonly archiveKey: string;
   readonly chapters: readonly number[] | null;
+  readonly chunkHits?: readonly SearchChunkHitInput[];
+  readonly entityHits?: readonly SearchEntityHitInput[];
+  readonly evidenceEvents?: readonly SearchEvidenceHitEventInput[];
   readonly items: readonly ArchiveFindHit[];
   readonly lens: string;
   readonly match: string;
   readonly order: string;
   readonly query: string;
-  readonly records: readonly ArchiveFindHit[];
+  readonly revisionScope: string;
   readonly terms: readonly string[];
+  readonly tripleHits?: readonly SearchTripleHitInput[];
   readonly types: readonly string[] | null;
 }
 
-export interface EntitySearchMentionHit {
+export const SEARCH_EVIDENCE_KIND = {
+  mention: 1,
+  mentionLink: 2,
+  chunk: 3,
+} as const;
+
+export type SearchEvidenceKind =
+  (typeof SEARCH_EVIDENCE_KIND)[keyof typeof SEARCH_EVIDENCE_KIND];
+
+export interface SearchEvidenceHitEventInput {
   readonly chapterId: number;
-  readonly confidence?: number;
-  readonly fragmentId: number;
-  readonly matchCount: number;
-  readonly matchedTerms: readonly string[];
-  readonly mentionId: string;
-  readonly missingTerms: readonly string[];
-  readonly note?: string;
-  readonly qid: string;
-  readonly rangeEnd: number;
-  readonly rangeStart: number;
-  readonly resultScore: number;
+  readonly evidenceId: string;
+  readonly evidenceKind: SearchEvidenceKind;
   readonly score: number;
-  readonly sentenceIndex?: number;
-  readonly surface: string;
+  readonly sentenceIndex: number;
+}
+
+export interface SearchEntityHitInput {
+  readonly evidenceTopScores?: readonly number[];
+  readonly propertyTopScores?: readonly number[];
+  readonly qid: string;
+}
+
+export interface SearchTripleHitInput {
+  readonly evidenceTopScores: readonly number[];
+  readonly objectQid: string;
+  readonly predicate: string;
+  readonly subjectQid: string;
+}
+
+export interface SearchChunkHitInput {
+  readonly chunkId: number;
+  readonly evidenceTopScores?: readonly number[];
+  readonly propertyTopScores?: readonly number[];
 }
 
 export interface EntitySearchSessionInput {
   readonly archiveKey: string;
   readonly chapters: readonly number[] | null;
-  readonly hits: readonly EntitySearchMentionHit[];
+  readonly chunkHits?: readonly SearchChunkHitInput[];
+  readonly entityHits?: readonly SearchEntityHitInput[];
+  readonly evidenceEvents?: readonly SearchEvidenceHitEventInput[];
   readonly lens: string;
   readonly match: string;
   readonly order: string;
   readonly query: string;
+  readonly revisionScope: string;
   readonly terms: readonly string[];
+  readonly tripleHits?: readonly SearchTripleHitInput[];
   readonly types: readonly string[] | null;
 }
 
@@ -112,41 +134,74 @@ CREATE TABLE IF NOT EXISTS search_results (
   PRIMARY KEY (session_id, rank)
 );
 
-CREATE TABLE IF NOT EXISTS search_record_hits (
-  session_id TEXT NOT NULL,
-  rank INTEGER NOT NULL,
-  item_json TEXT NOT NULL,
-  PRIMARY KEY (session_id, rank)
+CREATE TABLE IF NOT EXISTS predicate_dictionary (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  value TEXT NOT NULL UNIQUE
 );
 
-CREATE TABLE IF NOT EXISTS search_mention_hits (
+CREATE TABLE IF NOT EXISTS search_evidence_hit_events (
   session_id TEXT NOT NULL,
-  mention_id TEXT NOT NULL,
-  qid TEXT NOT NULL,
+  evidence_kind INTEGER NOT NULL,
+  evidence_id TEXT NOT NULL,
   chapter_id INTEGER NOT NULL,
-  fragment_id INTEGER NOT NULL,
-  sentence_index INTEGER,
-  range_start INTEGER NOT NULL,
-  range_end INTEGER NOT NULL,
-  surface TEXT NOT NULL,
-  note TEXT,
-  confidence REAL,
+  sentence_index INTEGER NOT NULL,
   score REAL NOT NULL,
-  result_score REAL NOT NULL DEFAULT 0,
-  match_count INTEGER NOT NULL,
-  matched_terms_json TEXT NOT NULL,
-  missing_terms_json TEXT NOT NULL,
-  PRIMARY KEY (session_id, mention_id)
+  PRIMARY KEY (
+    session_id,
+    evidence_kind,
+    evidence_id,
+    chapter_id,
+    sentence_index
+  )
 );
 
-CREATE INDEX IF NOT EXISTS idx_search_mention_hits_entity_rank
-ON search_mention_hits(session_id, qid, score DESC, chapter_id, fragment_id, sentence_index, range_start);
+CREATE INDEX IF NOT EXISTS idx_search_evidence_hit_events_evidence_rank
+ON search_evidence_hit_events(session_id, evidence_kind, evidence_id, score DESC, chapter_id, sentence_index);
 
-CREATE INDEX IF NOT EXISTS idx_search_mention_hits_session_rank
-ON search_mention_hits(session_id, score DESC, chapter_id, fragment_id, sentence_index, range_start);
+CREATE INDEX IF NOT EXISTS idx_search_evidence_hit_events_sentence
+ON search_evidence_hit_events(session_id, chapter_id, sentence_index, evidence_kind, evidence_id);
 
-CREATE INDEX IF NOT EXISTS idx_search_mention_hits_result_rank
-ON search_mention_hits(session_id, result_score DESC, score DESC, match_count DESC, chapter_id, fragment_id, qid);
+CREATE TABLE IF NOT EXISTS search_entity_hits (
+  session_id TEXT NOT NULL,
+  qid TEXT NOT NULL,
+  property_top_scores_json TEXT NOT NULL DEFAULT '[]',
+  evidence_top_scores_json TEXT NOT NULL DEFAULT '[]',
+  property_score REAL NOT NULL DEFAULT 0,
+  evidence_score REAL NOT NULL DEFAULT 0,
+  result_score REAL NOT NULL DEFAULT 0,
+  PRIMARY KEY (session_id, qid)
+);
+
+CREATE INDEX IF NOT EXISTS idx_search_entity_hits_rank
+ON search_entity_hits(session_id, result_score DESC, qid);
+
+CREATE TABLE IF NOT EXISTS search_triple_hits (
+  session_id TEXT NOT NULL,
+  subject_qid TEXT NOT NULL,
+  predicate_id INTEGER NOT NULL,
+  object_qid TEXT NOT NULL,
+  evidence_top_scores_json TEXT NOT NULL DEFAULT '[]',
+  result_score REAL NOT NULL DEFAULT 0,
+  PRIMARY KEY (session_id, subject_qid, predicate_id, object_qid),
+  FOREIGN KEY (predicate_id) REFERENCES predicate_dictionary(id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_search_triple_hits_rank
+ON search_triple_hits(session_id, result_score DESC, subject_qid, predicate_id, object_qid);
+
+CREATE TABLE IF NOT EXISTS search_chunk_hits (
+  session_id TEXT NOT NULL,
+  chunk_id INTEGER NOT NULL,
+  property_top_scores_json TEXT NOT NULL DEFAULT '[]',
+  evidence_top_scores_json TEXT NOT NULL DEFAULT '[]',
+  property_score REAL NOT NULL DEFAULT 0,
+  evidence_score REAL NOT NULL DEFAULT 0,
+  result_score REAL NOT NULL DEFAULT 0,
+  PRIMARY KEY (session_id, chunk_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_search_chunk_hits_rank
+ON search_chunk_hits(session_id, result_score DESC, chunk_id);
 
 CREATE INDEX IF NOT EXISTS idx_search_sessions_archive
 ON search_sessions(archive_key, session_id);
@@ -158,17 +213,13 @@ CREATE INDEX IF NOT EXISTS idx_search_sessions_prune
 ON search_sessions(accessed_at DESC, created_at DESC, session_id);
 `;
 
-const SEARCH_SESSION_MIGRATION_SQL = `
-ALTER TABLE search_mention_hits
-ADD COLUMN result_score REAL NOT NULL DEFAULT 0;
-`;
-
-const SEARCH_RANKING_VERSION = 4;
+const SEARCH_RANKING_VERSION = 5;
 const SEARCH_SESSION_MAX_COUNT = 500;
 const SEARCH_SESSION_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+const SEARCH_TOP_SCORE_COUNT = 10;
 
-type SearchSessionCacheInput = Omit<SearchSessionInput, "items" | "records">;
-type EntitySearchSessionCacheInput = Omit<EntitySearchSessionInput, "hits">;
+type SearchSessionCacheInput = Omit<SearchSessionInput, "items">;
+type EntitySearchSessionCacheInput = EntitySearchSessionInput;
 
 export async function readCachedSearchSessionPage(
   input: SearchSessionCacheInput,
@@ -256,14 +307,17 @@ export async function createSearchSession(
           [sessionId, index, JSON.stringify(item)],
         );
       }
-      for (const [index, record] of input.records.entries()) {
-        await database.run(
-          `
-            INSERT INTO search_record_hits (session_id, rank, item_json)
-            VALUES (?, ?, ?)
-          `,
-          [sessionId, index, JSON.stringify(record)],
-        );
+      for (const event of input.evidenceEvents ?? []) {
+        await insertSearchEvidenceHitEvent(database, sessionId, event);
+      }
+      for (const hit of input.entityHits ?? []) {
+        await upsertSearchEntityHit(database, sessionId, hit);
+      }
+      for (const hit of input.tripleHits ?? []) {
+        await upsertSearchTripleHit(database, sessionId, hit);
+      }
+      for (const hit of input.chunkHits ?? []) {
+        await upsertSearchChunkHit(database, sessionId, hit);
       }
       await pruneSearchSessions(database);
     });
@@ -313,36 +367,17 @@ export async function createEntitySearchSession(
         ],
       );
 
-      for (const hit of input.hits) {
-        await database.run(
-          `
-            INSERT INTO search_mention_hits (
-              session_id, mention_id, qid, chapter_id, fragment_id,
-              sentence_index, range_start, range_end, surface, note,
-              confidence, score, result_score, match_count, matched_terms_json,
-              missing_terms_json
-            )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-          `,
-          [
-            sessionId,
-            hit.mentionId,
-            hit.qid,
-            hit.chapterId,
-            hit.fragmentId,
-            hit.sentenceIndex ?? null,
-            hit.rangeStart,
-            hit.rangeEnd,
-            hit.surface,
-            hit.note ?? null,
-            hit.confidence ?? null,
-            hit.score,
-            hit.resultScore,
-            hit.matchCount,
-            JSON.stringify(hit.matchedTerms),
-            JSON.stringify(hit.missingTerms),
-          ],
-        );
+      for (const event of input.evidenceEvents ?? []) {
+        await insertSearchEvidenceHitEvent(database, sessionId, event);
+      }
+      for (const hit of input.entityHits ?? []) {
+        await upsertSearchEntityHit(database, sessionId, hit);
+      }
+      for (const hit of input.tripleHits ?? []) {
+        await upsertSearchTripleHit(database, sessionId, hit);
+      }
+      for (const hit of input.chunkHits ?? []) {
+        await upsertSearchChunkHit(database, sessionId, hit);
       }
       await pruneSearchSessions(database);
     });
@@ -463,39 +498,10 @@ export async function readEntitySearchSessionPage(
       `
         SELECT
           qid,
-          surface,
-          note,
-          score,
-          result_score,
-          match_count,
-          matched_terms_json,
-          missing_terms_json,
-          chapter_id,
-          fragment_id,
-          evidence_count
-        FROM (
-          SELECT
-            qid,
-            surface,
-            note,
-            score,
-            result_score,
-            match_count,
-            matched_terms_json,
-            missing_terms_json,
-            chapter_id,
-            fragment_id,
-            COUNT(*) OVER (PARTITION BY qid) AS evidence_count,
-            ROW_NUMBER() OVER (
-              PARTITION BY qid
-              ORDER BY score DESC, chapter_id, fragment_id,
-                COALESCE(sentence_index, 2147483647), range_start, mention_id
-            ) AS entity_row_number
-          FROM search_mention_hits
-          WHERE session_id = ?
-        )
-        WHERE entity_row_number = 1
-        ORDER BY result_score DESC, score DESC, match_count DESC, chapter_id, fragment_id, qid
+          result_score
+        FROM search_entity_hits
+        WHERE session_id = ?
+        ORDER BY result_score DESC, qid
         LIMIT ? OFFSET ?
       `,
       [sessionId, limit + 1, offset],
@@ -556,38 +562,36 @@ export async function readSearchSessionDescriptor(
 
 export async function readEntitySearchEvidenceMentions(
   sessionId: string,
-  qid: string,
+  mentionIds: readonly string[],
   limit: number,
-): Promise<readonly EntitySearchMentionHit[]> {
+): Promise<readonly { readonly mentionId: string; readonly score: number }[]> {
+  if (mentionIds.length === 0) {
+    return [];
+  }
+
   const database = await openSearchSessionDatabase();
 
   try {
+    const placeholders = mentionIds.map(() => "?").join(", ");
+
     return await database.queryAll(
       `
         SELECT
-          mention_id,
-          qid,
-          chapter_id,
-          fragment_id,
-          sentence_index,
-          range_start,
-          range_end,
-          surface,
-          note,
-          confidence,
-          score,
-          result_score,
-          match_count,
-          matched_terms_json,
-          missing_terms_json
-        FROM search_mention_hits
-        WHERE session_id = ? AND qid = ?
-        ORDER BY score DESC, chapter_id, fragment_id,
-          COALESCE(sentence_index, 2147483647), range_start, mention_id
+          event.evidence_id AS mention_id,
+          event.score AS score
+        FROM search_evidence_hit_events AS event
+        WHERE event.session_id = ?
+          AND event.evidence_kind = ?
+          AND event.evidence_id IN (${placeholders})
+        ORDER BY event.score DESC, event.chapter_id, event.sentence_index,
+          event.evidence_id
         LIMIT ?
       `,
-      [sessionId, qid, limit],
-      mapEntitySearchMentionHitRow,
+      [sessionId, SEARCH_EVIDENCE_KIND.mention, ...mentionIds, limit],
+      (row) => ({
+        mentionId: getString(row, "mention_id"),
+        score: getNumber(row, "score"),
+      }),
     );
   } finally {
     await database.close();
@@ -660,29 +664,10 @@ export function decodeSearchSessionCursor(cursor: string): {
 }
 
 async function openSearchSessionDatabase(): Promise<Database> {
-  const database = await openSharedStateDatabase(
+  return await openSharedStateDatabase(
     join(getSearchSessionStateDirectoryPath(), "search-sessions.sqlite"),
     SEARCH_SESSION_SCHEMA_SQL,
   );
-
-  await runSearchSessionMigrations(database);
-
-  return database;
-}
-
-async function runSearchSessionMigrations(database: Database): Promise<void> {
-  try {
-    await database.run(SEARCH_SESSION_MIGRATION_SQL);
-  } catch (error) {
-    if (
-      error instanceof Error &&
-      error.message.includes("duplicate column name")
-    ) {
-      return;
-    }
-
-    throw error;
-  }
 }
 
 function getSearchSessionStateDirectoryPath(): string {
@@ -749,15 +734,261 @@ async function deleteSearchSession(
   await database.run("DELETE FROM search_results WHERE session_id = ?", [
     sessionId,
   ]);
-  await database.run("DELETE FROM search_record_hits WHERE session_id = ?", [
+  await database.run(
+    "DELETE FROM search_evidence_hit_events WHERE session_id = ?",
+    [sessionId],
+  );
+  await database.run("DELETE FROM search_entity_hits WHERE session_id = ?", [
     sessionId,
   ]);
-  await database.run("DELETE FROM search_mention_hits WHERE session_id = ?", [
+  await database.run("DELETE FROM search_triple_hits WHERE session_id = ?", [
+    sessionId,
+  ]);
+  await database.run("DELETE FROM search_chunk_hits WHERE session_id = ?", [
     sessionId,
   ]);
   await database.run("DELETE FROM search_sessions WHERE session_id = ?", [
     sessionId,
   ]);
+}
+
+async function insertSearchEvidenceHitEvent(
+  database: Database,
+  sessionId: string,
+  event: SearchEvidenceHitEventInput,
+): Promise<void> {
+  await database.run(
+    `
+      INSERT OR REPLACE INTO search_evidence_hit_events (
+        session_id,
+        evidence_kind,
+        evidence_id,
+        chapter_id,
+        sentence_index,
+        score
+      )
+      VALUES (?, ?, ?, ?, ?, ?)
+    `,
+    [
+      sessionId,
+      event.evidenceKind,
+      event.evidenceId,
+      event.chapterId,
+      event.sentenceIndex,
+      event.score,
+    ],
+  );
+}
+
+async function upsertSearchEntityHit(
+  database: Database,
+  sessionId: string,
+  hit: SearchEntityHitInput,
+): Promise<void> {
+  const current = await database.queryOne(
+    `
+      SELECT property_top_scores_json, evidence_top_scores_json
+      FROM search_entity_hits
+      WHERE session_id = ? AND qid = ?
+    `,
+    [sessionId, hit.qid],
+    (row) => ({
+      evidenceTopScores: parseNumberArray(
+        getString(row, "evidence_top_scores_json"),
+      ),
+      propertyTopScores: parseNumberArray(
+        getString(row, "property_top_scores_json"),
+      ),
+    }),
+  );
+  const propertyTopScores = mergeTopScores(
+    current?.propertyTopScores ?? [],
+    hit.propertyTopScores ?? [],
+  );
+  const evidenceTopScores = mergeTopScores(
+    current?.evidenceTopScores ?? [],
+    hit.evidenceTopScores ?? [],
+  );
+  const propertyScore = aggregateCachedScores(propertyTopScores);
+  const evidenceScore = aggregateCachedScores(evidenceTopScores);
+  const resultScore = propertyScore + evidenceScore;
+
+  await database.run(
+    `
+      INSERT INTO search_entity_hits (
+        session_id,
+        qid,
+        property_top_scores_json,
+        evidence_top_scores_json,
+        property_score,
+        evidence_score,
+        result_score
+      )
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(session_id, qid) DO UPDATE SET
+        property_top_scores_json = excluded.property_top_scores_json,
+        evidence_top_scores_json = excluded.evidence_top_scores_json,
+        property_score = excluded.property_score,
+        evidence_score = excluded.evidence_score,
+        result_score = excluded.result_score
+    `,
+    [
+      sessionId,
+      hit.qid,
+      JSON.stringify(propertyTopScores),
+      JSON.stringify(evidenceTopScores),
+      propertyScore,
+      evidenceScore,
+      resultScore,
+    ],
+  );
+}
+
+async function upsertSearchTripleHit(
+  database: Database,
+  sessionId: string,
+  hit: SearchTripleHitInput,
+): Promise<void> {
+  const predicateId = await getOrCreatePredicateId(database, hit.predicate);
+  const current = await database.queryOne(
+    `
+      SELECT evidence_top_scores_json
+      FROM search_triple_hits
+      WHERE session_id = ?
+        AND subject_qid = ?
+        AND predicate_id = ?
+        AND object_qid = ?
+    `,
+    [sessionId, hit.subjectQid, predicateId, hit.objectQid],
+    (row) => ({
+      evidenceTopScores: parseNumberArray(
+        getString(row, "evidence_top_scores_json"),
+      ),
+    }),
+  );
+  const evidenceTopScores = mergeTopScores(
+    current?.evidenceTopScores ?? [],
+    hit.evidenceTopScores,
+  );
+  const resultScore = aggregateCachedScores(evidenceTopScores);
+
+  await database.run(
+    `
+      INSERT INTO search_triple_hits (
+        session_id,
+        subject_qid,
+        predicate_id,
+        object_qid,
+        evidence_top_scores_json,
+        result_score
+      )
+      VALUES (?, ?, ?, ?, ?, ?)
+      ON CONFLICT(session_id, subject_qid, predicate_id, object_qid)
+      DO UPDATE SET
+        evidence_top_scores_json = excluded.evidence_top_scores_json,
+        result_score = excluded.result_score
+    `,
+    [
+      sessionId,
+      hit.subjectQid,
+      predicateId,
+      hit.objectQid,
+      JSON.stringify(evidenceTopScores),
+      resultScore,
+    ],
+  );
+}
+
+async function upsertSearchChunkHit(
+  database: Database,
+  sessionId: string,
+  hit: SearchChunkHitInput,
+): Promise<void> {
+  const current = await database.queryOne(
+    `
+      SELECT property_top_scores_json, evidence_top_scores_json
+      FROM search_chunk_hits
+      WHERE session_id = ? AND chunk_id = ?
+    `,
+    [sessionId, hit.chunkId],
+    (row) => ({
+      evidenceTopScores: parseNumberArray(
+        getString(row, "evidence_top_scores_json"),
+      ),
+      propertyTopScores: parseNumberArray(
+        getString(row, "property_top_scores_json"),
+      ),
+    }),
+  );
+  const propertyTopScores = mergeTopScores(
+    current?.propertyTopScores ?? [],
+    hit.propertyTopScores ?? [],
+  );
+  const evidenceTopScores = mergeTopScores(
+    current?.evidenceTopScores ?? [],
+    hit.evidenceTopScores ?? [],
+  );
+  const propertyScore = aggregateCachedScores(propertyTopScores);
+  const evidenceScore = aggregateCachedScores(evidenceTopScores);
+  const resultScore = propertyScore + evidenceScore;
+
+  await database.run(
+    `
+      INSERT INTO search_chunk_hits (
+        session_id,
+        chunk_id,
+        property_top_scores_json,
+        evidence_top_scores_json,
+        property_score,
+        evidence_score,
+        result_score
+      )
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(session_id, chunk_id) DO UPDATE SET
+        property_top_scores_json = excluded.property_top_scores_json,
+        evidence_top_scores_json = excluded.evidence_top_scores_json,
+        property_score = excluded.property_score,
+        evidence_score = excluded.evidence_score,
+        result_score = excluded.result_score
+    `,
+    [
+      sessionId,
+      hit.chunkId,
+      JSON.stringify(propertyTopScores),
+      JSON.stringify(evidenceTopScores),
+      propertyScore,
+      evidenceScore,
+      resultScore,
+    ],
+  );
+}
+
+async function getOrCreatePredicateId(
+  database: Database,
+  predicate: string,
+): Promise<number> {
+  await database.run(
+    `
+      INSERT OR IGNORE INTO predicate_dictionary(value)
+      VALUES (?)
+    `,
+    [predicate],
+  );
+  const id = await database.queryOne(
+    `
+      SELECT id
+      FROM predicate_dictionary
+      WHERE value = ?
+    `,
+    [predicate],
+    (row) => getNumber(row, "id"),
+  );
+
+  if (id === undefined) {
+    throw new Error("Failed to create predicate dictionary entry.");
+  }
+
+  return id;
 }
 
 async function pruneSearchSessions(database: Database): Promise<void> {
@@ -858,6 +1089,7 @@ function createEntitySearchSessionId(
         match: input.match,
         order: input.order,
         rankingVersion: SEARCH_RANKING_VERSION,
+        revisionScope: input.revisionScope,
         scope: normalizeSearchSessionScope(input.chapters),
         terms: input.terms,
         types: normalizeSearchSessionTypes(input.types),
@@ -870,60 +1102,20 @@ function mapEntitySearchObjectRow(
   row: Record<string, SqlBindValue>,
 ): ArchiveFindHit {
   const qid = getString(row, "qid");
-  const chapterId = getNumber(row, "chapter_id");
-  const fragmentId = getNumber(row, "fragment_id");
-  const matchedTerms = parseStringArray(getString(row, "matched_terms_json"));
-  const missingTerms = parseStringArray(getString(row, "missing_terms_json"));
 
   return {
-    chapter: chapterId,
     evidence: {
       nextCursor: null,
       shown: 0,
       sources: [],
-      total: getNumber(row, "evidence_count"),
+      total: 0,
     },
     field: "title",
     id: `wkg://entity/${qid}`,
-    matchCount: getNumber(row, "match_count"),
-    matchedTerms,
-    missingTerms,
-    position: {
-      chapter: chapterId,
-      fragment: fragmentId,
-    },
     score: getNumber(row, "result_score"),
-    snippet: getOptionalString(row, "note") ?? getString(row, "surface"),
-    title: getString(row, "surface"),
+    snippet: qid,
+    title: qid,
     type: "entity",
-  };
-}
-
-function mapEntitySearchMentionHitRow(
-  row: Record<string, SqlBindValue>,
-): EntitySearchMentionHit {
-  const sentenceIndex =
-    row.sentence_index === null ? undefined : getNumber(row, "sentence_index");
-  const confidence =
-    row.confidence === null ? undefined : getNumber(row, "confidence");
-  const note = getOptionalString(row, "note");
-
-  return {
-    chapterId: getNumber(row, "chapter_id"),
-    ...(confidence === undefined ? {} : { confidence }),
-    fragmentId: getNumber(row, "fragment_id"),
-    matchCount: getNumber(row, "match_count"),
-    matchedTerms: parseStringArray(getString(row, "matched_terms_json")),
-    mentionId: getString(row, "mention_id"),
-    missingTerms: parseStringArray(getString(row, "missing_terms_json")),
-    ...(note === undefined ? {} : { note }),
-    qid: getString(row, "qid"),
-    rangeEnd: getNumber(row, "range_end"),
-    rangeStart: getNumber(row, "range_start"),
-    resultScore: getNumber(row, "result_score"),
-    score: getNumber(row, "score"),
-    ...(sentenceIndex === undefined ? {} : { sentenceIndex }),
-    surface: getString(row, "surface"),
   };
 }
 
@@ -937,6 +1129,7 @@ function createSearchSessionId(input: SearchSessionCacheInput): string {
         match: input.match,
         order: input.order,
         rankingVersion: SEARCH_RANKING_VERSION,
+        revisionScope: input.revisionScope,
         scope: normalizeSearchSessionScope(input.chapters),
         terms: input.terms,
         types: normalizeSearchSessionTypes(input.types),
@@ -1009,4 +1202,33 @@ function parseStringArray(value: string): readonly string[] {
   }
 
   throw new Error("Invalid cached search session.");
+}
+
+function parseNumberArray(value: string): readonly number[] {
+  const parsed: unknown = JSON.parse(value);
+
+  if (
+    Array.isArray(parsed) &&
+    parsed.every((item) => typeof item === "number" && Number.isFinite(item))
+  ) {
+    return parsed.map((item) => Number(item));
+  }
+
+  return [];
+}
+
+function mergeTopScores(
+  current: readonly number[],
+  incoming: readonly number[],
+): readonly number[] {
+  return [...current, ...incoming]
+    .filter((score) => Number.isFinite(score))
+    .sort((left, right) => right - left)
+    .slice(0, SEARCH_TOP_SCORE_COUNT);
+}
+
+function aggregateCachedScores(scores: readonly number[]): number {
+  return scores
+    .slice(0, SEARCH_TOP_SCORE_COUNT)
+    .reduce((total, score, index) => total + score / Math.log2(index + 2), 0);
 }

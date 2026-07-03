@@ -67,7 +67,7 @@ const chapterDetails = {
   tocPath: ["Part I", "Chapter 1"],
 };
 
-vi.mock("../../src/facade/spine-digest-file.js", () => ({
+vi.mock("../../src/wikg/spine-digest-file.js", () => ({
   SpineDigestFile: class {
     readonly #path: string;
 
@@ -361,6 +361,23 @@ describe("cli/archive-chapter", () => {
     ]);
   });
 
+  it("reads source content from a positional value", async () => {
+    await runArchiveChapterCommand({
+      action: "set-source",
+      chapterId: 2,
+      inputFormat: "txt",
+      inputValue: "inline source",
+      path: "/tmp/book.wikg",
+    });
+
+    expect(chapterMockState.setSourceCalls).toStrictEqual([
+      {
+        chapterId: 2,
+        streamText: "inline source",
+      },
+    ]);
+  });
+
   it("reads summary content from --input", async () => {
     await runArchiveChapterCommand({
       action: "set-summary",
@@ -373,6 +390,22 @@ describe("cli/archive-chapter", () => {
       {
         chapterId: 2,
         summary: "file content",
+      },
+    ]);
+  });
+
+  it("reads summary content from a positional value", async () => {
+    await runArchiveChapterCommand({
+      action: "set-summary",
+      chapterId: 2,
+      inputValue: "inline summary",
+      path: "/tmp/book.wikg",
+    });
+
+    expect(chapterMockState.setSummaryCalls).toStrictEqual([
+      {
+        chapterId: 2,
+        summary: "inline summary",
       },
     ]);
   });

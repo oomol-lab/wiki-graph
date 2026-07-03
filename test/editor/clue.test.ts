@@ -12,8 +12,8 @@ describe("editor/clue", () => {
         2: [102],
       },
       chunksById: {
-        101: createChunkRecord(101, 1, 0, "Alpha"),
-        102: createChunkRecord(102, 1, 1, "Beta"),
+        101: createChunkRecord(101, 0, "Alpha"),
+        102: createChunkRecord(102, 1, "Beta"),
       },
       snakeIdsByGroup: [1, 2],
       snakesById: {
@@ -43,9 +43,9 @@ describe("editor/clue", () => {
         3: [103],
       },
       chunksById: {
-        101: createChunkRecord(101, 1, 0, "Major"),
-        102: createChunkRecord(102, 2, 0, "Minor A"),
-        103: createChunkRecord(103, 2, 1, "Minor B"),
+        101: createChunkRecord(101, 0, "Major"),
+        102: createChunkRecord(102, 0, "Minor A"),
+        103: createChunkRecord(103, 1, "Minor B"),
       },
       snakeIdsByGroup: [1, 2, 3],
       snakesById: {
@@ -96,7 +96,6 @@ function createClueDocument(input: {
 
 function createChunkRecord(
   chunkId: number,
-  fragmentId: number,
   sentenceIndex: number,
   label: string,
 ): ChunkRecord {
@@ -105,8 +104,8 @@ function createChunkRecord(
     generation: 0,
     id: chunkId,
     label,
-    sentenceId: [1, fragmentId, sentenceIndex],
-    sentenceIds: [[1, fragmentId, sentenceIndex]],
+    sentenceId: [1, sentenceIndex],
+    sentenceIds: [[1, sentenceIndex]],
     wordsCount: 5,
     weight: 1,
   };

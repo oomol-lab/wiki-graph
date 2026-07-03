@@ -352,6 +352,55 @@ describe("facade/build-queue", () => {
     });
   });
 
+  it("aborts the running job context when a job is canceled", async () => {
+    await withTempDir("spinedigest-build-queue-", async (path) => {
+      useStateDir(`${path}/state`);
+      const job = await addBuildJob({
+        archivePath: `${path}/book.wikg`,
+        chapterId: 1,
+        target: "knowledge-graph",
+      });
+      let started!: () => void;
+      const startedSignal = new Promise<void>((resolveStarted) => {
+        started = resolveStarted;
+      });
+      let aborted = false;
+
+      const worker = runBuildJobWorker({
+        concurrency: 1,
+        executeJob: async (_job, _reporter, context) => {
+          started();
+          await new Promise<void>((resolveAbort) => {
+            if (context.signal.aborted) {
+              resolveAbort();
+              return;
+            }
+
+            context.signal.addEventListener(
+              "abort",
+              () => {
+                aborted = true;
+                resolveAbort();
+              },
+              { once: true },
+            );
+          });
+        },
+        idleTimeoutMs: 0,
+      });
+
+      await startedSignal;
+      await cancelBuildJob(job.jobId);
+      await withTimeout(
+        worker,
+        "Timed out waiting for canceled job context to abort.",
+      );
+
+      expect(aborted).toBe(true);
+      expect((await getBuildJob(job.jobId)).state).toBe("canceled");
+    });
+  });
+
   it("serializes concurrent progress snapshots", async () => {
     await withTempDir("spinedigest-build-queue-", async (path) => {
       useStateDir(`${path}/state`);

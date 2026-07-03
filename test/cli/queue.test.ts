@@ -43,7 +43,7 @@ const queueMockState = vi.hoisted(() => ({
   writeCalls: [] as string[],
 }));
 
-vi.mock("../../src/facade/spine-digest-file.js", () => ({
+vi.mock("../../src/wikg/spine-digest-file.js", () => ({
   SpineDigestFile: class {
     readonly #path: string;
 

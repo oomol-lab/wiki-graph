@@ -203,15 +203,11 @@ function clustersConnected(
 }
 
 function compareChunkBySentence(left: ChunkRecord, right: ChunkRecord): number {
-  const [leftSerialId, leftFragmentId, leftSentenceIndex] = left.sentenceId;
-  const [rightSerialId, rightFragmentId, rightSentenceIndex] = right.sentenceId;
+  const [leftSerialId, leftSentenceIndex] = left.sentenceId;
+  const [rightSerialId, rightSentenceIndex] = right.sentenceId;
 
   if (leftSerialId !== rightSerialId) {
     return leftSerialId - rightSerialId;
-  }
-
-  if (leftFragmentId !== rightFragmentId) {
-    return leftFragmentId - rightFragmentId;
   }
 
   if (leftSentenceIndex !== rightSentenceIndex) {

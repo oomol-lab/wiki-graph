@@ -285,6 +285,25 @@ describe("cli/args", () => {
       help: false,
       kind: "queue",
     });
+    expect(
+      parseCLIArguments(["wkg-job://job-1/target", "set", "reading-summary"]),
+    ).toStrictEqual({
+      args: {
+        action: "target",
+        jobId: "job-1",
+        target: "reading-summary",
+      },
+      help: false,
+      kind: "queue",
+    });
+    expect(() =>
+      parseCLIArguments([
+        "wkg-job://job-1",
+        "set",
+        "--task",
+        "reading-summary",
+      ]),
+    ).toThrow("is not supported");
 
     expect(parseCLIArguments(["queue", "--help"])).toStrictEqual({
       help: true,
@@ -923,28 +942,67 @@ describe("cli/args", () => {
     });
     expect(
       parseCLIArguments([
-        "wkg://book.wikg/",
+        "wkg://book.wikg/meta",
         "set",
-        "--title",
-        "  Updated Book  ",
-        "--author",
-        "Ari Lantern",
-        "--author",
-        "Bea North",
-        "--clear-description",
+        "--json",
+        '{"title":"Updated Book","authors":["Ari Lantern","Bea North"]}',
       ]),
     ).toStrictEqual({
       args: {
-        inputPath: archivePath,
-        metaPatch: {
-          authors: ["Ari Lantern", "Bea North"],
-          clearDescription: true,
-          title: "Updated Book",
-        },
+        action: "set",
+        archivePath,
+        json: true,
+        jsonInputValue:
+          '{"title":"Updated Book","authors":["Ari Lantern","Bea North"]}',
+        objectPath: "",
       },
       help: false,
-      kind: "meta",
+      kind: "object-metadata",
     });
+    expect(
+      parseCLIArguments([
+        "wkg://book.wikg/entity/Q42/meta",
+        "put",
+        "note",
+        "x",
+      ]),
+    ).toStrictEqual({
+      args: {
+        action: "put",
+        archivePath,
+        inputValue: "x",
+        key: "note",
+        objectPath: "entity/Q42",
+      },
+      help: false,
+      kind: "object-metadata",
+    });
+    expect(
+      parseCLIArguments(["wkg://book.wikg/entity/Q42/meta", "delete", "note"]),
+    ).toStrictEqual({
+      args: {
+        action: "delete",
+        archivePath,
+        key: "note",
+        objectPath: "entity/Q42",
+      },
+      help: false,
+      kind: "object-metadata",
+    });
+    expect(
+      parseCLIArguments(["wkg://book.wikg/entity/Q42/meta", "clear"]),
+    ).toStrictEqual({
+      args: {
+        action: "clear",
+        archivePath,
+        objectPath: "entity/Q42",
+      },
+      help: false,
+      kind: "object-metadata",
+    });
+    expect(() =>
+      parseCLIArguments(["wkg://book.wikg/entity/Q42/meta/note", "get"]),
+    ).toThrow("Metadata keys are not addressed in the URI");
     expect(parseCLIArguments(["wkg://book.wikg/cover", "get"])).toStrictEqual({
       args: {
         inputPath: archivePath,
@@ -952,12 +1010,9 @@ describe("cli/args", () => {
       help: false,
       kind: "cover",
     });
-    expect(
-      parseCLIArguments(["wkg://book.wikg/", "set", "--help"]),
-    ).toMatchObject({
-      help: true,
-      kind: "maintenance",
-    });
+    expect(() =>
+      parseCLIArguments(["wkg://book.wikg/", "set", "--title", "Old"]),
+    ).toThrow("archive URI form does not support `set`");
   });
 
   it("parses archive chapter edit actions", () => {
@@ -1099,8 +1154,11 @@ describe("cli/args", () => {
       help: false,
       kind: "chapter",
     });
-    expect(
+    expect(() =>
       parseCLIArguments(["wkg://book.wikg/chapter/12/title", "set", "--clear"]),
+    ).toThrow("does not support --clear. Use `clear`.");
+    expect(
+      parseCLIArguments(["wkg://book.wikg/chapter/12/title", "clear"]),
     ).toStrictEqual({
       args: {
         action: "set-title",
@@ -1225,7 +1283,6 @@ describe("cli/args", () => {
       parseCLIArguments([
         "wkg://book.wikg/chapter/12/title",
         "set",
-        "--title",
         "Renamed Chapter",
       ]),
     ).toStrictEqual({
@@ -1255,7 +1312,7 @@ describe("cli/args", () => {
         "Title",
         "--clear",
       ]),
-    ).toThrow("cannot combine --title with --clear");
+    ).toThrow("does not support --clear. Use `clear`.");
   });
 
   it("prints archive maintenance help pages", () => {
@@ -1269,20 +1326,30 @@ describe("cli/args", () => {
       helpText: renderArchiveMaintenanceCommandHelpText("cover"),
       kind: "maintenance",
     });
-    expect(
+    expect(() =>
       parseCLIArguments(["chapter", "set-summary", "--help"]),
+    ).toThrow("Use concrete chapter resource URIs");
+    expect(
+      parseCLIArguments([
+        "wkg://book.wikg/chapter/12/summary",
+        "set",
+        "--help",
+      ]),
     ).toStrictEqual({
       help: true,
       helpText: renderArchiveMaintenanceChapterActionHelpText("set-summary"),
       kind: "chapter",
     });
-    expect(parseCLIArguments(["chapter", "set-title", "--help"])).toStrictEqual(
-      {
-        help: true,
-        helpText: renderArchiveMaintenanceChapterActionHelpText("set-title"),
-        kind: "chapter",
-      },
+    expect(() => parseCLIArguments(["chapter", "set-title", "--help"])).toThrow(
+      "Use concrete chapter resource URIs",
     );
+    expect(
+      parseCLIArguments(["wkg://book.wikg/chapter/12/title", "set", "--help"]),
+    ).toStrictEqual({
+      help: true,
+      helpText: renderArchiveMaintenanceChapterActionHelpText("set-title"),
+      kind: "chapter",
+    });
   });
 
   it("parses config status and prints config status help text", () => {
@@ -1423,7 +1490,7 @@ describe("cli/args", () => {
         "--title",
         "Updated",
       ]),
-    ).toThrow("The `meta` command does not support --json.");
+    ).toThrow("archive URI form does not support `set`");
     expect(() =>
       parseCLIArguments(["wkg://book.wikg/cover", "get", "--json"]),
     ).toThrow("The `cover` command does not support --json.");
@@ -1559,6 +1626,9 @@ describe("cli/args", () => {
     expect(renderHelpTopicText("retrieval")).toContain(
       "Choose the right Wiki Graph scope, lens, pagination, and output format",
     );
+    expect(renderHelpTopicText("retrieval")).toContain(
+      "Avoid `--all | head` as a preview pattern.",
+    );
     expect(renderHelpTopicText("task")).toContain(
       "wikigraph wkg:///Users/me/book.wikg search",
     );
@@ -1604,7 +1674,7 @@ describe("cli/args", () => {
       "[--help|-h]",
     );
     expect(renderArchiveMaintenanceCommandHelpText("meta")).toContain(
-      "--clear-authors",
+      "<object-uri>/meta put <key>",
     );
   });
 

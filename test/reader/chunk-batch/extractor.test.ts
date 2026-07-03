@@ -66,7 +66,7 @@ describe("reader/chunk-batch/extractor", () => {
     const result = await extractor.extractUserFocused({
       sentences: [
         {
-          sentenceId: [1, 0, 0],
+          sentenceId: [1, 0],
           text: "Alpha begins.",
           wordsCount: 2,
         },
@@ -86,8 +86,8 @@ describe("reader/chunk-batch/extractor", () => {
             label: "Alpha label",
             links: [],
             retention: "focused",
-            sentenceId: [1, 0, 0],
-            sentenceIds: [[1, 0, 0]],
+            sentenceId: [1, 0],
+            sentenceIds: [[1, 0]],
             wordsCount: 2,
           },
         ],
@@ -145,7 +145,7 @@ describe("reader/chunk-batch/extractor", () => {
     await extractor.extractUserFocused({
       sentences: [
         {
-          sentenceId: [1, 0, 0],
+          sentenceId: [1, 0],
           text: "Alpha\n\tBeta\u200b  C++！",
           wordsCount: 4,
         },
@@ -194,7 +194,7 @@ describe("reader/chunk-batch/extractor", () => {
     const result = await extractor.extractBookCoherence({
       sentences: [
         {
-          sentenceId: [1, 0, 0],
+          sentenceId: [1, 0],
           text: "Bridge sentence.",
           wordsCount: 3,
         },
@@ -207,8 +207,8 @@ describe("reader/chunk-batch/extractor", () => {
           id: 9,
           label: "Existing label",
           links: [],
-          sentenceId: [1, 0, 0],
-          sentenceIds: [[1, 0, 0]],
+          sentenceId: [1, 0],
+          sentenceIds: [[1, 0]],
           wordsCount: 2,
         },
       ],
@@ -225,8 +225,8 @@ describe("reader/chunk-batch/extractor", () => {
           importance: ChunkImportance.Important,
           label: "Bridge label",
           links: [],
-          sentenceId: [1, 0, 0],
-          sentenceIds: [[1, 0, 0]],
+          sentenceId: [1, 0],
+          sentenceIds: [[1, 0]],
           wordsCount: 3,
         },
       ],
@@ -289,7 +289,7 @@ describe("reader/chunk-batch/extractor", () => {
     const result = await extractor.extractBookCoherence({
       sentences: [
         {
-          sentenceId: [1, 0, 0],
+          sentenceId: [1, 0],
           text: "Bridge sentence.",
           wordsCount: 3,
         },
@@ -302,8 +302,8 @@ describe("reader/chunk-batch/extractor", () => {
           id: 9,
           label: "Existing label",
           links: [],
-          sentenceId: [1, 0, 0],
-          sentenceIds: [[1, 0, 0]],
+          sentenceId: [1, 0],
+          sentenceIds: [[1, 0]],
           wordsCount: 2,
         },
       ],
@@ -348,7 +348,7 @@ describe("reader/chunk-batch/extractor", () => {
     const result = await extractor.extractUserFocused({
       sentences: [
         {
-          sentenceId: [1, 0, 0],
+          sentenceId: [1, 0],
           text: "Alpha begins.",
           wordsCount: 2,
         },
@@ -387,7 +387,7 @@ describe("reader/chunk-batch/extractor", () => {
     const result = await extractor.extractUserFocused({
       sentences: [
         {
-          sentenceId: [1, 0, 0],
+          sentenceId: [1, 0],
           text: "Alpha begins.",
           wordsCount: 2,
         },
@@ -447,7 +447,7 @@ describe("reader/chunk-batch/extractor", () => {
     const result = await extractor.extractUserFocused({
       sentences: [
         {
-          sentenceId: [1, 0, 0],
+          sentenceId: [1, 0],
           text: "Hello world.",
           wordsCount: 2,
         },
@@ -501,7 +501,7 @@ describe("reader/chunk-batch/extractor", () => {
     const result = await extractor.extractUserFocused({
       sentences: [
         {
-          sentenceId: [1, 0, 0],
+          sentenceId: [1, 0],
           text: "Hello world.",
           wordsCount: 2,
         },
@@ -572,12 +572,12 @@ describe("reader/chunk-batch/extractor", () => {
     const result = await extractor.extractUserFocused({
       sentences: [
         {
-          sentenceId: [1, 0, 0],
+          sentenceId: [1, 0],
           text: "Hello world.",
           wordsCount: 2,
         },
         {
-          sentenceId: [1, 0, 1],
+          sentenceId: [1, 1],
           text: "Goodbye.",
           wordsCount: 1,
         },
@@ -639,7 +639,7 @@ describe("reader/chunk-batch/extractor", () => {
     const result = await extractor.extractUserFocused({
       sentences: [
         {
-          sentenceId: [1, 0, 0],
+          sentenceId: [1, 0],
           text: 'He said "hi" and saved to \\tmp\\log.',
           wordsCount: 8,
         },
@@ -654,8 +654,8 @@ describe("reader/chunk-batch/extractor", () => {
       role: "user",
     });
     expect(result.chunkBatch.chunks[0]).toMatchObject({
-      sentenceId: [1, 0, 0],
-      sentenceIds: [[1, 0, 0]],
+      sentenceId: [1, 0],
+      sentenceIds: [[1, 0]],
       wordsCount: 8,
     });
   });

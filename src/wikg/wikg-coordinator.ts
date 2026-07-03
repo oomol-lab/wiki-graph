@@ -6,6 +6,7 @@ import {
   readdir,
   rename,
   rm,
+  stat,
   writeFile,
 } from "fs/promises";
 import { tmpdir } from "os";
@@ -41,6 +42,7 @@ CREATE TABLE IF NOT EXISTS entry_overlays (
   entry_path TEXT NOT NULL,
   kind TEXT NOT NULL,
   workspace_path TEXT,
+  archive_signature TEXT,
   updated_at INTEGER NOT NULL,
   PRIMARY KEY (archive_key, entry_path)
 );
@@ -365,6 +367,27 @@ class WikgDocumentFileStore implements DocumentFileStore {
     this.#session = options.session;
   }
 
+  async #readOverlay(entryPath: string): Promise<EntryOverlay | undefined> {
+    const overlay = await readOverlay(this.#archiveKey, entryPath);
+
+    if (overlay === undefined) {
+      return undefined;
+    }
+
+    const signature = await createArchiveSignature(this.#archivePath);
+
+    if (overlay.archiveSignature === signature) {
+      return overlay;
+    }
+
+    await deleteOverlay(this.#archiveKey, entryPath);
+    if (overlay.workspacePath !== undefined) {
+      await rm(overlay.workspacePath, { force: true }).catch(() => undefined);
+    }
+    this.#entrySourceByPath?.delete(entryPath);
+    return undefined;
+  }
+
   readonly #session: WikgArchiveSession | undefined;
 
   public async close(): Promise<void> {
@@ -384,7 +407,7 @@ class WikgDocumentFileStore implements DocumentFileStore {
 
     await withEntryLock(this.#archiveKey, entryPath, "write", async () => {
       await withEntryLock(this.#archiveKey, entryPath, "state", async () => {
-        const overlay = await readOverlay(this.#archiveKey, entryPath);
+        const overlay = await this.#readOverlay(entryPath);
 
         await upsertOverlay({
           archiveKey: this.#archiveKey,
@@ -522,7 +545,7 @@ class WikgDocumentFileStore implements DocumentFileStore {
       DATABASE_ENTRY_PATH,
       "state",
       async () => {
-        let overlay = await readOverlay(this.#archiveKey, DATABASE_ENTRY_PATH);
+        let overlay = await this.#readOverlay(DATABASE_ENTRY_PATH);
 
         if (overlay?.kind !== "file") {
           const workspacePath = await createWorkspaceFilePath(
@@ -543,7 +566,7 @@ class WikgDocumentFileStore implements DocumentFileStore {
             kind: "file",
             workspacePath,
           });
-          overlay = await readOverlay(this.#archiveKey, DATABASE_ENTRY_PATH);
+          overlay = await this.#readOverlay(DATABASE_ENTRY_PATH);
         }
 
         if (overlay?.workspacePath === undefined) {
@@ -1223,12 +1246,14 @@ async function upsertOverlay(input: {
     await state.run(
       `
 INSERT INTO entry_overlays (
-  archive_key, archive_path, entry_path, kind, workspace_path, updated_at
-) VALUES (?, ?, ?, ?, ?, ?)
+  archive_key, archive_path, entry_path, kind, workspace_path,
+  archive_signature, updated_at
+) VALUES (?, ?, ?, ?, ?, ?, ?)
 ON CONFLICT(archive_key, entry_path)
 DO UPDATE SET kind = excluded.kind,
               archive_path = excluded.archive_path,
               workspace_path = excluded.workspace_path,
+              archive_signature = excluded.archive_signature,
               updated_at = excluded.updated_at
 `,
       [
@@ -1237,6 +1262,7 @@ DO UPDATE SET kind = excluded.kind,
         input.entryPath,
         input.kind,
         input.workspacePath ?? null,
+        await createArchiveSignature(input.archivePath),
         Date.now(),
       ],
     );
@@ -1362,10 +1388,30 @@ async function withStateDatabase<T>(
 }
 
 async function openStateDatabase(): Promise<Database> {
-  return await openSharedStateDatabase(
+  const database = await openSharedStateDatabase(
     join(getCoordinatorStateDirectoryPath(), "wikg-coordinator.sqlite"),
     STATE_SCHEMA_SQL,
   );
+
+  await migrateStateDatabase(database);
+  return database;
+}
+
+async function migrateStateDatabase(database: Database): Promise<void> {
+  const columns = await database.queryAll(
+    "PRAGMA table_info(entry_overlays)",
+    undefined,
+    (row) => getString(row, "name"),
+  );
+
+  if (columns.includes("archive_signature")) {
+    return;
+  }
+
+  await database.run(`
+    ALTER TABLE entry_overlays
+    ADD COLUMN archive_signature TEXT
+  `);
 }
 
 async function createWorkspaceFilePath(
@@ -1437,6 +1483,12 @@ function createArchiveKey(archivePath: string): string {
   return createHash("sha256").update(resolve(archivePath)).digest("hex");
 }
 
+async function createArchiveSignature(archivePath: string): Promise<string> {
+  const stats = await stat(archivePath);
+
+  return `${stats.size}:${stats.mtimeMs}`;
+}
+
 function createOwnerId(): string {
   return `${process.pid}-${randomUUID()}`;
 }
@@ -1450,6 +1502,7 @@ async function delay(ms: number): Promise<void> {
 interface EntryOverlay {
   readonly archiveKey: string;
   readonly archivePath: string;
+  readonly archiveSignature?: string;
   readonly entryPath: string;
   readonly kind: "deleted" | "file";
   readonly workspacePath?: string;
@@ -1467,10 +1520,12 @@ interface ArchiveCommitLock {
 
 function mapEntryOverlay(row: Record<string, unknown>): EntryOverlay {
   const workspacePath = getOptionalString(row, "workspace_path");
+  const archiveSignature = getOptionalString(row, "archive_signature");
 
   return {
     archiveKey: getString(row, "archive_key"),
     archivePath: getString(row, "archive_path"),
+    ...(archiveSignature === undefined ? {} : { archiveSignature }),
     entryPath: getString(row, "entry_path"),
     kind: getOverlayKind(row),
     ...(workspacePath === undefined ? {} : { workspacePath }),

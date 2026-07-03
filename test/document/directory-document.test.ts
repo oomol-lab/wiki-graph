@@ -3,7 +3,10 @@ import { constants as fsConstants } from "fs";
 
 import { describe, expect, it } from "vitest";
 
-import { DirectoryDocument } from "../../src/document/index.js";
+import {
+  DirectoryDocument,
+  ObjectMetadataKind,
+} from "../../src/document/index.js";
 import { withTempDir } from "../helpers/temp.js";
 
 describe("document/directory-document", () => {
@@ -177,6 +180,56 @@ describe("document/directory-document", () => {
     });
   });
 
+  it("persists object metadata and clears chapter-owned rows", async () => {
+    await withTempDir("spinedigest-document-", async (path) => {
+      const document = await DirectoryDocument.open(path);
+
+      try {
+        await document.openSession(async (openedDocument) => {
+          await openedDocument.serials.createWithId(1);
+          await openedDocument.metadata.put(
+            {
+              chapterId: 1,
+              kind: ObjectMetadataKind.Chapter,
+              objectPath: "chapter/1",
+            },
+            "note",
+            "chapter note",
+          );
+          await openedDocument.metadata.put(
+            {
+              entityQid: "Q42",
+              kind: ObjectMetadataKind.Entity,
+              objectPath: "entity/Q42",
+            },
+            "rank",
+            7,
+          );
+        });
+
+        await expect(document.metadata.getMap("chapter/1")).resolves.toEqual({
+          note: "chapter note",
+        });
+        await expect(document.metadata.getMap("entity/Q42")).resolves.toEqual({
+          rank: 7,
+        });
+
+        await document.openSession(async (openedDocument) => {
+          await openedDocument.deleteSerial(1);
+        });
+
+        await expect(document.metadata.getMap("chapter/1")).resolves.toEqual(
+          {},
+        );
+        await expect(document.metadata.getMap("entity/Q42")).resolves.toEqual(
+          {},
+        );
+      } finally {
+        await document.release();
+      }
+    });
+  });
+
   it("rolls back owned serial resources when a document context is disposed without completion", async () => {
     await withTempDir("spinedigest-document-", async (path) => {
       const document = await DirectoryDocument.open(path);
@@ -191,7 +244,6 @@ describe("document/directory-document", () => {
           await document.mentions.saveMany([
             {
               chapterId: 1,
-              fragmentId: 0,
               id: "m1",
               qid: "Q1",
               rangeEnd: 1,
@@ -200,7 +252,6 @@ describe("document/directory-document", () => {
             },
             {
               chapterId: 1,
-              fragmentId: 0,
               id: "m2",
               qid: "Q2",
               rangeEnd: 3,
@@ -209,7 +260,7 @@ describe("document/directory-document", () => {
             },
           ]);
           await document.mentionLinks.save({
-            evidenceSentenceIds: [[1, 0, 0]],
+            evidenceSentenceIds: [[1, 0]],
             id: "l1",
             predicate: "mentions",
             sourceMentionId: "m1",
@@ -230,6 +281,38 @@ describe("document/directory-document", () => {
           document.mentionLinks.listByChapter(1),
         ).resolves.toStrictEqual([]);
         await expect(document.readSummary(1)).resolves.toBeUndefined();
+      } finally {
+        await document.release();
+      }
+    });
+  });
+
+  it("shares text stream draft ownership across serial instances", async () => {
+    await withTempDir("spinedigest-document-", async (path) => {
+      const document = await DirectoryDocument.open(path);
+
+      try {
+        await document.openSession(async (openedDocument) => {
+          await openedDocument.serials.createWithId(1);
+
+          const firstSerial = openedDocument.getSerialFragments(1);
+          const secondSerial = openedDocument.getSerialFragments(1);
+          const draft = await firstSerial.createDraft();
+
+          await expect(secondSerial.createDraft()).rejects.toThrow(
+            "Only one text stream draft can be open at a time",
+          );
+
+          expect(draft.addSentence("Alpha", 1)).toStrictEqual([1, 0]);
+          await draft.commit();
+
+          await expect(
+            openedDocument.getSerialFragments(1).getSentence(0),
+          ).resolves.toMatchObject({
+            text: "Alpha",
+            wordsCount: 1,
+          });
+        });
       } finally {
         await document.release();
       }

@@ -53,6 +53,7 @@ export type HelpVerbName =
   | "add"
   | "boost"
   | "cancel"
+  | "clear"
   | "create"
   | "estimate"
   | "evidence"
@@ -120,8 +121,9 @@ const HELP_OBJECTS: readonly HelpObjectEntry[] = [
         verb: "get",
       },
       {
-        command: 'wikigraph wkg://book.wikg set --title "New Title"',
-        note: "Edit archive metadata fields.",
+        command:
+          'wikigraph wkg://book.wikg/meta set --json \'{"title":"New Title"}\'',
+        note: "Replace archive-level object metadata.",
         verb: "set",
       },
       {
@@ -317,10 +319,14 @@ const HELP_OBJECTS: readonly HelpObjectEntry[] = [
     uriForms: ["wkg://book.wikg/chapter/12/title"],
     verbs: [
       {
-        command:
-          'wikigraph wkg://book.wikg/chapter/12/title set --title "New Title"',
+        command: 'wikigraph wkg://book.wikg/chapter/12/title set "New Title"',
         note: "Set or clear the chapter title.",
         verb: "set",
+      },
+      {
+        command: "wikigraph wkg://book.wikg/chapter/12/title clear",
+        note: "Remove the explicit chapter title.",
+        verb: "clear",
       },
     ],
   },
@@ -550,7 +556,7 @@ const HELP_OBJECTS: readonly HelpObjectEntry[] = [
         verb: "boost",
       },
       {
-        command: "wikigraph wkg-job://<job-id> set --task reading-summary",
+        command: "wikigraph wkg-job://<job-id>/target set reading-summary",
         note: "Change an active job target.",
         verb: "set",
       },
@@ -578,6 +584,11 @@ const HELP_VERBS: readonly HelpVerbEntry[] = [
     title: "Create",
   },
   { description: "Open or render an object.", name: "get", title: "Get" },
+  {
+    description: "Clear a writable object resource.",
+    name: "clear",
+    title: "Clear",
+  },
   {
     description: "Modify a writable object resource.",
     name: "set",

@@ -1,5 +1,5 @@
 import { SpineDigestApp } from "../index.js";
-import { SpineDigestFile } from "../facade/spine-digest-file.js";
+import { SpineDigestFile } from "../wikg/index.js";
 import type { BookMeta } from "../source/index.js";
 
 import type {

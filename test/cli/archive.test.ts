@@ -6,7 +6,7 @@ import type {
   ArchiveFindHit,
   ArchiveListItem,
   ArchivePage,
-} from "../../src/facade/archive-view.js";
+} from "../../src/archive/query/archive-view.js";
 
 const archiveMockState = vi.hoisted(() => ({
   backlinks: {
@@ -73,7 +73,6 @@ const archiveMockState = vi.hoisted(() => ({
           {
             chapterId: 2,
             endSentenceIndex: 1,
-            fragmentId: 0,
             id: "wkg://chapter/2/source#0..1",
             source: "RAG original source fragment.",
             startSentenceIndex: 0,
@@ -103,7 +102,6 @@ const archiveMockState = vi.hoisted(() => ({
           {
             chapterId: 2,
             endSentenceIndex: 1,
-            fragmentId: 0,
             id: "wkg://chapter/2/source#0..1",
             source: "RAG original source fragment.",
             startSentenceIndex: 0,
@@ -185,7 +183,6 @@ const archiveMockState = vi.hoisted(() => ({
       {
         chapterId: 2,
         endSentenceIndex: 1,
-        fragmentId: 0,
         id: "wkg://chapter/2/source#0..1",
         score: 2.5,
         source:
@@ -197,7 +194,6 @@ const archiveMockState = vi.hoisted(() => ({
       {
         chapterId: 2,
         endSentenceIndex: 3,
-        fragmentId: 0,
         id: "wkg://chapter/2/source#3",
         source: "Follow-up source fragment.",
         startSentenceIndex: 3,
@@ -223,7 +219,6 @@ const archiveMockState = vi.hoisted(() => ({
           {
             chapterId: 2,
             endSentenceIndex: 1,
-            fragmentId: 0,
             id: "wkg://chapter/2/source#0..1",
             source: "RAG original source fragment.",
             startSentenceIndex: 0,
@@ -318,7 +313,6 @@ const archiveMockState = vi.hoisted(() => ({
         {
           chapterId: 2,
           endSentenceIndex: 1,
-          fragmentId: 0,
           id: "wkg://chapter/2/source#0..1",
           source: "RAG original source fragment.",
           startSentenceIndex: 0,
@@ -360,7 +354,6 @@ const archiveMockState = vi.hoisted(() => ({
   } satisfies ArchivePage,
   sourceRangePage: {
     fragment: {
-      fragmentId: 0,
       id: "wkg://chapter/2/source#0..1",
       preview: "RAG original source fragment.",
       sentenceCount: 2,
@@ -382,7 +375,6 @@ const archiveMockState = vi.hoisted(() => ({
         {
           chapterId: 2,
           endSentenceIndex: 1,
-          fragmentId: 0,
           id: "wkg://chapter/2/source#0..1",
           source:
             "\n\t\nRAG original source fragment.\n   \n\t\nSecond paragraph.\n\n",
@@ -393,7 +385,6 @@ const archiveMockState = vi.hoisted(() => ({
         {
           chapterId: 2,
           endSentenceIndex: 3,
-          fragmentId: 0,
           id: "wkg://chapter/2/source#3",
           source: "Follow-up source fragment.",
           startSentenceIndex: 3,
@@ -424,7 +415,7 @@ function parseJSONLLastLine(text: string | undefined): unknown {
   return JSON.parse(line) as unknown;
 }
 
-vi.mock("../../src/facade/spine-digest-file.js", () => ({
+vi.mock("../../src/wikg/spine-digest-file.js", () => ({
   SpineDigestFile: class {
     readonly #path: string;
 

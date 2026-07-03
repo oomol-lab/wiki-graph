@@ -28,11 +28,7 @@ export const expectChunkImportance = createEnumValueAsserter(
   "chunk importance",
 );
 
-export type SentenceId = readonly [
-  serialId: number,
-  fragmentId: number,
-  sentenceIndex: number,
-];
+export type SentenceId = readonly [chapterId: number, sentenceIndex: number];
 
 export interface SentenceRecord {
   readonly text: string;
@@ -48,8 +44,18 @@ export interface FragmentRecord {
 
 export interface SerialRecord {
   readonly knowledgeGraphReady: boolean;
+  readonly knowledgeGraphParameterHash?: string;
   readonly id: number;
+  readonly revision: number;
+  readonly topologyParameterHash?: string;
   readonly topologyReady: boolean;
+}
+
+export interface GraphBuildParameterRecord {
+  readonly createdAt: string;
+  readonly hash: string;
+  readonly language?: string;
+  readonly prompt: string;
 }
 
 export interface ChunkRecord {
@@ -77,7 +83,7 @@ export interface ReadingEdgeRecord {
 export interface MentionRecord {
   readonly id: string;
   readonly chapterId: number;
-  readonly fragmentId: number;
+  readonly fragmentId?: number;
   readonly sentenceIndex?: number;
   readonly rangeStart: number;
   readonly rangeEnd: number;
@@ -132,8 +138,32 @@ export interface SnakeEdgeRecord {
   readonly weight: number;
 }
 
-export interface FragmentGroupRecord {
+export interface SentenceGroupRecord {
   readonly serialId: number;
   readonly groupId: number;
-  readonly fragmentId: number;
+  readonly startSentenceIndex: number;
+  readonly endSentenceIndex: number;
+  readonly fragmentId?: number;
+}
+
+export type FragmentGroupRecord = SentenceGroupRecord;
+
+export const enum ObjectMetadataKind {
+  Archive = 1,
+  Chapter = 2,
+  Chunk = 3,
+  Entity = 4,
+  Triple = 5,
+  Object = 6,
+}
+
+export interface ObjectMetadataTarget {
+  readonly kind: ObjectMetadataKind;
+  readonly objectPath: string;
+  readonly chapterId?: number;
+  readonly chunkId?: number;
+  readonly entityQid?: string;
+  readonly tripleSubjectQid?: string;
+  readonly triplePredicate?: string;
+  readonly tripleObjectQid?: string;
 }

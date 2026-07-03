@@ -16,6 +16,7 @@ import type {
   ReadonlyDocument,
   SentenceId,
 } from "../document/index.js";
+import { LanguageCode, normalizeLanguageCode } from "../common/language.js";
 import type { WikipageResolveProgress } from "../wikipage/index.js";
 import {
   buildWikimatchSurfaceProtectionInput,
@@ -46,7 +47,13 @@ export interface ChapterKnowledgeGraphBuildArtifact {
   readonly chapterId: number;
   readonly mentionLinksPath: string;
   readonly mentionsPath: string;
+  readonly parameter: GraphBuildParameterInput;
   readonly workspacePath: string;
+}
+
+export interface GraphBuildParameterInput {
+  readonly language?: string;
+  readonly prompt: string;
 }
 
 export interface BuildChapterKnowledgeGraphArtifactOptions {
@@ -54,6 +61,7 @@ export interface BuildChapterKnowledgeGraphArtifactOptions {
     | AsyncIterable<MentionLinkRecord>
     | Iterable<MentionLinkRecord>;
   readonly mentions: AsyncIterable<MentionRecord> | Iterable<MentionRecord>;
+  readonly parameter?: GraphBuildParameterInput;
   readonly workspacePath: string;
 }
 
@@ -71,7 +79,6 @@ export interface GenerateChapterKnowledgeGraphArtifactOptions {
 const mentionRecordSchema = z.object({
   id: z.string().min(1),
   chapterId: z.number().int(),
-  fragmentId: z.number().int(),
   sentenceIndex: z.number().int().nonnegative().optional(),
   rangeStart: z.number().int().nonnegative(),
   rangeEnd: z.number().int().nonnegative(),
@@ -82,11 +89,7 @@ const mentionRecordSchema = z.object({
 });
 
 const sentenceIdSchema = z
-  .tuple([
-    z.number().int().nonnegative(),
-    z.number().int().nonnegative(),
-    z.number().int().nonnegative(),
-  ])
+  .tuple([z.number().int().nonnegative(), z.number().int().nonnegative()])
   .readonly();
 
 const mentionLinkRecordSchema = z.object({
@@ -208,6 +211,7 @@ export async function generateChapterKnowledgeGraphArtifact(
   const artifact = await buildChapterKnowledgeGraphArtifact(chapterId, {
     mentionLinks,
     mentions,
+    parameter: createKnowledgeGraphParameterInput(options),
     workspacePath: options.workspacePath,
   });
   await options.progressTracker?.updatePhase({
@@ -245,7 +249,25 @@ export async function buildChapterKnowledgeGraphArtifact(
     chapterId,
     mentionLinksPath,
     mentionsPath,
+    parameter: options.parameter ?? {
+      language: LanguageCode.Chinese,
+      prompt: "",
+    },
     workspacePath,
+  };
+}
+
+function createKnowledgeGraphParameterInput(
+  options: Pick<
+    GenerateChapterKnowledgeGraphArtifactOptions,
+    "policyPrompt" | "resolverOptions"
+  >,
+): GraphBuildParameterInput {
+  return {
+    language:
+      normalizeLanguageCode(options.resolverOptions?.language) ??
+      LanguageCode.Chinese,
+    prompt: options.policyPrompt,
   };
 }
 
@@ -824,19 +846,18 @@ function buildMentionLinkWindows(
   readonly fragment: FragmentRecord;
   readonly window: WikilinkEvidenceWindow;
 }> {
-  const mentionsByFragment = new Map<number, MentionRecord[]>();
-
-  for (const mention of mentions) {
-    const list = mentionsByFragment.get(mention.fragmentId) ?? [];
-
-    list.push(mention);
-    mentionsByFragment.set(mention.fragmentId, list);
-  }
-
   return fragments.flatMap((fragment) => {
+    const startSentenceIndex = fragment.fragmentId;
+    const endSentenceIndex = startSentenceIndex + fragment.sentences.length - 1;
     const fragmentMentions = toWikilinkMentions(
       fragment.sentences,
-      mentionsByFragment.get(fragment.fragmentId) ?? [],
+      mentions.filter(
+        (mention) =>
+          mention.sentenceIndex !== undefined &&
+          mention.sentenceIndex >= startSentenceIndex &&
+          mention.sentenceIndex <= endSentenceIndex,
+      ),
+      startSentenceIndex,
     );
     const windows = buildWikilinkEvidenceWindows({
       maxEvidenceDistance: WIKILINK_EVIDENCE_DISTANCE,
@@ -855,6 +876,7 @@ function buildMentionLinkWindows(
 function toWikilinkMentions(
   sentences: readonly WikilinkSentence[],
   mentions: readonly MentionRecord[],
+  startSentenceIndex: number,
 ): readonly WikilinkMention[] {
   const sentenceOffsets = buildFragmentSentenceOffsets(sentences);
 
@@ -863,7 +885,8 @@ function toWikilinkMentions(
       return [];
     }
 
-    const sentenceOffset = sentenceOffsets[mention.sentenceIndex];
+    const sentenceOffset =
+      sentenceOffsets[mention.sentenceIndex - startSentenceIndex];
 
     if (sentenceOffset === undefined) {
       return [];
@@ -916,7 +939,6 @@ function toMentionRecord(
   chapterId: number,
   mention: WikimatchAcceptedMention,
   location: {
-    readonly fragmentId: number;
     readonly rangeStart: number;
     readonly sentenceIndex: number;
   },
@@ -927,7 +949,6 @@ function toMentionRecord(
     ...(mention.confidence === undefined
       ? {}
       : { confidence: mention.confidence }),
-    fragmentId: location.fragmentId,
     id: `m${chapterId}-${index}`,
     ...(mention.note === undefined ? {} : { note: mention.note }),
     qid: mention.qid,
@@ -940,7 +961,6 @@ function toMentionRecord(
 
 interface SentenceLocation {
   readonly absoluteStart: number;
-  readonly fragmentId: number;
   readonly length: number;
   readonly sentenceIndex: number;
 }
@@ -961,9 +981,8 @@ function buildSentenceLocations(
 
       locations.push({
         absoluteStart: offset,
-        fragmentId: fragment.fragmentId,
         length,
-        sentenceIndex,
+        sentenceIndex: fragment.fragmentId + sentenceIndex,
       });
       offset += length + 1;
     }
@@ -976,7 +995,6 @@ function locateMention(
   locations: readonly SentenceLocation[],
   absoluteOffset: number,
 ): {
-  readonly fragmentId: number;
   readonly rangeStart: number;
   readonly sentenceIndex: number;
 } {
@@ -985,7 +1003,6 @@ function locateMention(
 
     if (absoluteOffset >= location.absoluteStart && absoluteOffset < rangeEnd) {
       return {
-        fragmentId: location.fragmentId,
         rangeStart: absoluteOffset - location.absoluteStart,
         sentenceIndex: location.sentenceIndex,
       };
@@ -1025,7 +1042,7 @@ function createWikimatchSentences(
       const sentence = fragment.sentences[index]!;
 
       sentences.push({
-        id: `${fragment.serialId}:${fragment.fragmentId}:${index}`,
+        id: `${fragment.serialId}:${fragment.fragmentId + index}`,
         range: {
           end: offset + sentence.text.length,
           start: offset,
@@ -1070,7 +1087,14 @@ export async function commitChapterKnowledgeGraphArtifact(
     await openedDocument.mentions.deleteByChapter(artifact.chapterId);
     await openedDocument.mentions.saveMany(mentions);
     await openedDocument.mentionLinks.saveMany(mentionLinks);
-    await openedDocument.serials.setKnowledgeGraphReady(artifact.chapterId);
+    const parameter = await openedDocument.graphBuildParameters.save(
+      artifact.parameter,
+    );
+    await openedDocument.serials.setKnowledgeGraphReady(
+      artifact.chapterId,
+      true,
+      parameter.hash,
+    );
   });
 }
 
@@ -1082,6 +1106,7 @@ export async function clearChapterKnowledgeGraph(
     await openedDocument.mentionLinks.deleteByChapter(chapterId);
     await openedDocument.mentions.deleteByChapter(chapterId);
     await openedDocument.serials.setKnowledgeGraphReady(chapterId, false);
+    await openedDocument.graphBuildParameters.deleteUnreferenced();
   });
 }
 
@@ -1201,7 +1226,6 @@ function parseMentionRecord(record: unknown): MentionRecord {
     ...(parsed.confidence === undefined
       ? {}
       : { confidence: parsed.confidence }),
-    fragmentId: parsed.fragmentId,
     id: parsed.id,
     ...(parsed.note === undefined ? {} : { note: parsed.note }),
     qid: parsed.qid,

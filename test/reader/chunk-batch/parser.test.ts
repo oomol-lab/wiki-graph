@@ -60,10 +60,10 @@ describe("reader/chunk-batch/parser", () => {
             label: "Joined label",
             links: [],
             retention: ChunkRetention.Focused,
-            sentenceId: [1, 0, 0],
+            sentenceId: [1, 0],
             sentenceIds: [
-              [1, 0, 0],
-              [1, 0, 1],
+              [1, 0],
+              [1, 1],
             ],
             wordsCount: 5,
           },
@@ -83,12 +83,12 @@ describe("reader/chunk-batch/parser", () => {
     );
     const sentences = [
       {
-        sentenceId: [1, 0, 0],
+        sentenceId: [1, 0],
         text: "Echo",
         wordsCount: 2,
       },
       {
-        sentenceId: [1, 0, 1],
+        sentenceId: [1, 1],
         text: "Echo",
         wordsCount: 3,
       },
@@ -129,8 +129,8 @@ describe("reader/chunk-batch/parser", () => {
 
     expect(requestChoice).toHaveBeenCalledTimes(1);
     expect(result.chunkBatch.chunks[0]).toMatchObject({
-      sentenceId: [1, 0, 1],
-      sentenceIds: [[1, 0, 1]],
+      sentenceId: [1, 1],
+      sentenceIds: [[1, 1]],
       wordsCount: 3,
     });
   });
@@ -173,8 +173,8 @@ describe("reader/chunk-batch/parser", () => {
     );
 
     expect(result.chunkBatch.chunks[0]).toMatchObject({
-      sentenceId: [1, 0, 1],
-      sentenceIds: [[1, 0, 1]],
+      sentenceId: [1, 1],
+      sentenceIds: [[1, 1]],
     });
   });
 
@@ -222,10 +222,10 @@ describe("reader/chunk-batch/parser", () => {
     );
 
     expect(result.chunkBatch.chunks[0]).toMatchObject({
-      sentenceId: [1, 0, 0],
+      sentenceId: [1, 0],
       sentenceIds: [
-        [1, 0, 0],
-        [1, 0, 1],
+        [1, 0],
+        [1, 1],
       ],
     });
   });
@@ -268,8 +268,8 @@ describe("reader/chunk-batch/parser", () => {
     );
 
     expect(result.chunkBatch.chunks[0]).toMatchObject({
-      sentenceId: [1, 0, 2],
-      sentenceIds: [[1, 0, 2]],
+      sentenceId: [1, 2],
+      sentenceIds: [[1, 2]],
     });
   });
 
@@ -280,12 +280,12 @@ describe("reader/chunk-batch/parser", () => {
     );
     const sentences = [
       {
-        sentenceId: [1, 0, 0],
+        sentenceId: [1, 0],
         text: "Echo",
         wordsCount: 2,
       },
       {
-        sentenceId: [1, 0, 1],
+        sentenceId: [1, 1],
         text: "Echo",
         wordsCount: 3,
       },
@@ -331,8 +331,8 @@ describe("reader/chunk-batch/parser", () => {
       'Resolve only this field: "evidence"',
     );
     expect(result.chunkBatch.chunks[0]).toMatchObject({
-      sentenceId: [1, 0, 1],
-      sentenceIds: [[1, 0, 1]],
+      sentenceId: [1, 1],
+      sentenceIds: [[1, 1]],
       wordsCount: 3,
     });
   });
@@ -344,12 +344,12 @@ describe("reader/chunk-batch/parser", () => {
     );
     const sentences = [
       {
-        sentenceId: [1, 0, 0],
+        sentenceId: [1, 0],
         text: "Echo",
         wordsCount: 2,
       },
       {
-        sentenceId: [1, 0, 1],
+        sentenceId: [1, 1],
         text: "Echo",
         wordsCount: 3,
       },
@@ -392,8 +392,8 @@ describe("reader/chunk-batch/parser", () => {
 
     expect(requestChoice).toHaveBeenCalledTimes(1);
     expect(result.chunkBatch.chunks[0]).toMatchObject({
-      sentenceId: [1, 0, 1],
-      sentenceIds: [[1, 0, 1]],
+      sentenceId: [1, 1],
+      sentenceIds: [[1, 1]],
       wordsCount: 3,
     });
   });
@@ -508,7 +508,7 @@ describe("reader/chunk-batch/parser", () => {
   it("matches standardized evidence against the projected fragment text", async () => {
     const sentences = [
       {
-        sentenceId: [1, 0, 0],
+        sentenceId: [1, 0],
         text: 'He said "hi" and used \\\\server.',
         wordsCount: 6,
       },
@@ -551,8 +551,8 @@ describe("reader/chunk-batch/parser", () => {
     );
 
     expect(result.chunkBatch.chunks[0]).toMatchObject({
-      sentenceId: [1, 0, 0],
-      sentenceIds: [[1, 0, 0]],
+      sentenceId: [1, 0],
+      sentenceIds: [[1, 0]],
       wordsCount: 6,
     });
   });
@@ -561,17 +561,17 @@ describe("reader/chunk-batch/parser", () => {
 function createSentences(): readonly ChunkExtractionSentence[] {
   return [
     {
-      sentenceId: [1, 0, 0],
+      sentenceId: [1, 0],
       text: "Alpha begins.",
       wordsCount: 2,
     },
     {
-      sentenceId: [1, 0, 1],
+      sentenceId: [1, 1],
       text: "Beta continues.",
       wordsCount: 3,
     },
     {
-      sentenceId: [1, 0, 2],
+      sentenceId: [1, 2],
       text: "Gamma ends.",
       wordsCount: 4,
     },

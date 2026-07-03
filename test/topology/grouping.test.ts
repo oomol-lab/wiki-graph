@@ -26,19 +26,16 @@ describe("topology/grouping", () => {
 
     expect(result).toStrictEqual([
       {
-        fragmentId: 1,
+        endSentenceIndex: 2,
         groupId: 0,
         serialId: 7,
+        startSentenceIndex: 1,
       },
       {
-        fragmentId: 2,
-        groupId: 0,
-        serialId: 7,
-      },
-      {
-        fragmentId: 3,
+        endSentenceIndex: 3,
         groupId: 1,
         serialId: 7,
+        startSentenceIndex: 3,
       },
     ]);
   });
@@ -46,7 +43,7 @@ describe("topology/grouping", () => {
 
 function createChunk(
   id: number,
-  fragmentId: number,
+  sentenceIndex: number,
   weight: number,
 ): ChunkRecord {
   return {
@@ -54,8 +51,8 @@ function createChunk(
     generation: 0,
     id,
     label: `Chunk ${id}`,
-    sentenceId: [7, fragmentId, 0],
-    sentenceIds: [[7, fragmentId, 0]],
+    sentenceId: [7, sentenceIndex],
+    sentenceIds: [[7, sentenceIndex]],
     wordsCount: 5,
     weight,
   };

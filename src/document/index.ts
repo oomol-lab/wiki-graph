@@ -3,11 +3,14 @@ export {
   ensureSharedStateDatabaseInitialized,
   openSharedStateDatabase,
 } from "./shared-state-database.js";
+export { TextStreams, SerialTextStream } from "./text-streams.js";
 export { FragmentDraft, Fragments, SerialFragments } from "./fragments.js";
 export type {
-  ReadonlyFragments,
-  ReadonlySerialFragments,
-} from "./fragments.js";
+  ReadonlySerialTextStream,
+  ReadonlySerialTextStream as ReadonlySerialFragments,
+  ReadonlyTextStreams,
+  ReadonlyTextStreams as ReadonlyFragments,
+} from "./text-streams.js";
 export { DirectoryDocument } from "./document.js";
 export type {
   Document,
@@ -18,9 +21,11 @@ export { SCHEMA_SQL } from "./schema.js";
 export {
   ChunkStore,
   FragmentGroupStore,
+  GraphBuildParameterStore,
   ReadingEdgeStore,
   MentionLinkStore,
   MentionStore,
+  ObjectMetadataStore,
   SerialStore,
   SnakeChunkStore,
   SnakeEdgeStore,
@@ -29,9 +34,11 @@ export {
 export type {
   ReadonlyChunkStore,
   ReadonlyFragmentGroupStore,
+  ReadonlyGraphBuildParameterStore,
   ReadonlyReadingEdgeStore,
   ReadonlyMentionLinkStore,
   ReadonlyMentionStore,
+  ReadonlyObjectMetadataStore,
   ReadonlySerialStore,
   ReadonlySnakeChunkStore,
   ReadonlySnakeEdgeStore,
@@ -44,17 +51,20 @@ export {
   expectChunkRetention,
   isChunkImportance,
   isChunkRetention,
+  ObjectMetadataKind,
 } from "./types.js";
 export type {
   ChunkRecord,
   CreateSnakeRecord,
-  FragmentGroupRecord,
   FragmentRecord,
+  GraphBuildParameterRecord,
   ReadingEdgeRecord,
   MentionLinkRecord,
   MentionRecord,
+  ObjectMetadataTarget,
   SerialRecord,
   SentenceId,
+  SentenceGroupRecord,
   SentenceRecord,
   SnakeChunkRecord,
   SnakeEdgeRecord,

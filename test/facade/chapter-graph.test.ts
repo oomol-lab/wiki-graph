@@ -88,7 +88,7 @@ describe("facade/chapter graph", () => {
         await expect(
           getChapterDetails(document, chapter.chapterId),
         ).resolves.toMatchObject({
-          fragmentCount: 2,
+          fragmentCount: 1,
           words: 4,
         });
 
@@ -100,9 +100,19 @@ describe("facade/chapter graph", () => {
         await expect(
           getChapterDetails(document, chapter.chapterId),
         ).resolves.toMatchObject({
-          fragmentCount: 2,
+          fragmentCount: 1,
           stage: "graphed",
           words: 4,
+        });
+        const serial = await document.serials.getById(chapter.chapterId);
+
+        expect(serial?.topologyParameterHash).toBeDefined();
+        await expect(
+          document.graphBuildParameters.getByHash(
+            serial!.topologyParameterHash!,
+          ),
+        ).resolves.toMatchObject({
+          prompt: "Keep key beats",
         });
       } finally {
         await document.release();
@@ -136,7 +146,7 @@ describe("facade/chapter graph", () => {
         await expect(
           getChapterDetails(document, chapter.chapterId),
         ).resolves.toMatchObject({
-          fragmentCount: 2,
+          fragmentCount: 1,
           stage: "graphed",
           words: 4,
         });
@@ -193,11 +203,11 @@ describe("facade/chapter graph", () => {
         expect(firstChunks[0]?.id).not.toBe(secondChunks[0]?.id);
         expect(firstChunks[0]).toMatchObject({
           content: "Alpha beta.",
-          sentenceId: [firstChapter.chapterId, 0, 0],
+          sentenceId: [firstChapter.chapterId, 0],
         });
         expect(secondChunks[0]).toMatchObject({
           content: "Gamma delta.",
-          sentenceId: [secondChapter.chapterId, 0, 0],
+          sentenceId: [secondChapter.chapterId, 0],
         });
 
         const firstSnakeIds = await document.snakes.listIdsByGroup(
@@ -242,8 +252,8 @@ describe("facade/chapter graph", () => {
             id: 1,
             label: "Alpha",
             retention: ChunkRetention.Verbatim,
-            sentenceId: [chapter.chapterId, 0, 0],
-            sentenceIds: [[chapter.chapterId, 0, 0]],
+            sentenceId: [chapter.chapterId, 0],
+            sentenceIds: [[chapter.chapterId, 0]],
             weight: 1,
             wordsCount: 2,
           });
@@ -252,21 +262,23 @@ describe("facade/chapter graph", () => {
             generation: 0,
             id: 2,
             label: "Gamma",
-            sentenceId: [chapter.chapterId, 1, 0],
-            sentenceIds: [[chapter.chapterId, 1, 0]],
+            sentenceId: [chapter.chapterId, 1],
+            sentenceIds: [[chapter.chapterId, 1]],
             weight: 1,
             wordsCount: 2,
           });
           await openedDocument.fragmentGroups.saveMany([
             {
-              fragmentId: 0,
+              endSentenceIndex: 0,
               groupId: 1,
               serialId: chapter.chapterId,
+              startSentenceIndex: 0,
             },
             {
-              fragmentId: 1,
+              endSentenceIndex: 1,
               groupId: 2,
               serialId: chapter.chapterId,
+              startSentenceIndex: 1,
             },
           ]);
           await openedDocument.snakes.create({
@@ -298,9 +310,7 @@ describe("facade/chapter graph", () => {
           await openedDocument.serials.setTopologyReady(chapter.chapterId);
         });
 
-        await expect(fragments.listFragmentIds()).resolves.toStrictEqual([
-          0, 1,
-        ]);
+        await expect(fragments.listFragmentIds()).resolves.toStrictEqual([0]);
 
         const snapshot = await snapshotChapterSummaryInput(
           document,
@@ -326,7 +336,7 @@ describe("facade/chapter graph", () => {
         await expect(
           pathExists(`${path}/job-workspace/summary-document`),
         ).resolves.toBe(false);
-        expect(summary).toBe("summary group 1\n\nsummary group 2");
+        expect(summary).toBe("Alpha beta. Gamma delta.");
       } finally {
         await document.release();
       }
@@ -357,15 +367,16 @@ async function createSingleChunkGraphArtifact(input: {
         id: 1,
         label: input.chunkLabel,
         retention: ChunkRetention.Verbatim,
-        sentenceId: [input.chapterId, 0, 0],
-        sentenceIds: [[input.chapterId, 0, 0]],
+        sentenceId: [input.chapterId, 0],
+        sentenceIds: [[input.chapterId, 0]],
         weight: 1,
         wordsCount: countWords(input.chunkContent),
       });
       await openedDocument.fragmentGroups.save({
-        fragmentId: 0,
+        endSentenceIndex: 0,
         groupId: 0,
         serialId: input.chapterId,
+        startSentenceIndex: 0,
       });
       const snakeId = await openedDocument.snakes.create({
         firstLabel: input.chunkLabel,
@@ -390,6 +401,9 @@ async function createSingleChunkGraphArtifact(input: {
   return {
     chapterId: input.chapterId,
     documentPath: input.documentPath,
+    parameter: {
+      prompt: "test graph prompt",
+    },
   };
 }
 

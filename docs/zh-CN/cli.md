@@ -28,7 +28,7 @@ wikigraph wkg-job:// list [--all] [--active] [--input <archive-uri>] [--json]
 wikigraph wkg-job://<job-id> get [--json]
 wikigraph wkg-job://<job-id> watch [--jsonl] [--from beginning|now]
 wikigraph wkg-job://<job-id> pause|resume|cancel|boost
-wikigraph wkg-job://<job-id> set --task reading-graph|reading-summary|knowledge-graph
+wikigraph wkg-job://<job-id>/target set reading-graph|reading-summary|knowledge-graph
 wikigraph queue clean
 ```
 
@@ -119,9 +119,10 @@ wikigraph <archive-uri>/chapter list [--all] [--limit <n>] [--cursor <token>] [-
 wikigraph <archive-uri>/chapter add [options]
 wikigraph <chapter-uri>/state get [--json]
 wikigraph <chapter-uri> move|remove|reset [options]
-wikigraph <chapter-uri>/source set [--input <path>] --input-format <format>
-wikigraph <chapter-uri>/summary set [--input <path>]
-wikigraph <chapter-uri>/title set (--title <title>|--clear)
+wikigraph <chapter-uri>/source set [text] [--input <path>] --input-format <format>
+wikigraph <chapter-uri>/summary set [text] [--input <path>]
+wikigraph <chapter-uri>/title set <title>
+wikigraph <chapter-uri>/title clear
 wikigraph <archive-uri>/chapter/tree get|set [options]
 ```
 

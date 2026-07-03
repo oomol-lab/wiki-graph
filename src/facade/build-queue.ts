@@ -144,8 +144,13 @@ export interface BuildJobWorkerOptions {
   readonly executeJob: (
     job: BuildJob,
     reporter: BuildJobProgressReporter,
+    context: BuildJobExecutionContext,
   ) => Promise<void>;
   readonly idleTimeoutMs?: number;
+}
+
+export interface BuildJobExecutionContext {
+  readonly signal: AbortSignal;
 }
 
 export interface BuildJobProgressReporter {
@@ -652,7 +657,7 @@ export async function runBuildJobWorker(
   let busySlotCount = 0;
   let idleSince = Date.now();
 
-  const stop = (): void => {
+  const stop = (_signal: NodeJS.Signals): void => {
     stopping = true;
   };
 
@@ -725,6 +730,12 @@ async function executeClaimedBuildJob(
   options: BuildJobWorkerOptions,
 ): Promise<void> {
   const reporter = new BuildJobProgressAccumulator(job, ownerId);
+  const abortController = new AbortController();
+  const stopWatcher = setInterval(() => {
+    void abortJobWhenStopped(job, ownerId, abortController).catch(
+      () => undefined,
+    );
+  }, 500);
 
   try {
     await appendBuildJobEvent(job, {
@@ -734,16 +745,46 @@ async function executeClaimedBuildJob(
       state: "running",
       type: "started",
     });
-    await options.executeJob(job, reporter);
+    await options.executeJob(job, reporter, {
+      signal: abortController.signal,
+    });
+    await reporter.throwIfStopped();
     await markBuildJobSucceeded(job.jobId, ownerId);
   } catch (error) {
-    if (error instanceof BuildJobStoppedError) {
+    if (
+      error instanceof BuildJobStoppedError ||
+      abortController.signal.aborted
+    ) {
       await markBuildJobStopped(job.jobId, ownerId);
       return;
     }
 
     await markBuildJobFailed(job.jobId, ownerId, error);
+  } finally {
+    clearInterval(stopWatcher);
   }
+}
+
+async function abortJobWhenStopped(
+  job: BuildJob,
+  ownerId: string,
+  abortController: AbortController,
+): Promise<void> {
+  if (abortController.signal.aborted) {
+    return;
+  }
+
+  const latest = await readBuildJobForStopCheck(job.jobId);
+
+  if (latest.state === "running" && latest.ownerId === ownerId) {
+    return;
+  }
+
+  abortController.abort(
+    new BuildJobStoppedError(
+      `Job ${job.jobId} is ${latest.state}. Stop current worker execution.`,
+    ),
+  );
 }
 
 export async function readBuildJobEvents(

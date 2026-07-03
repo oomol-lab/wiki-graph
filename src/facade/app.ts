@@ -26,7 +26,7 @@ import {
   type DigestTextStreamSessionOptions,
 } from "./digest.js";
 import { createDefaultSpineDigestSampling } from "./llm-sampling.js";
-import { SpineDigestFile } from "./spine-digest-file.js";
+import { SpineDigestFile } from "../wikg/index.js";
 import type { SpineDigest } from "./spine-digest.js";
 import type { ChapterStage } from "./chapter.js";
 

@@ -1,6 +1,13 @@
 import { describe, expect, it } from "vitest";
 
-import { Language } from "../../src/common/language.js";
+import {
+  formatLanguageForPrompt,
+  getLanguageCode,
+  getWikipageLanguageCode,
+  Language,
+  LanguageCode,
+  normalizeLanguageCode,
+} from "../../src/common/language.js";
 import { getLanguageDetectionCode } from "../../src/common/tinyld-language.js";
 
 describe("common/language", () => {
@@ -15,5 +22,23 @@ describe("common/language", () => {
   it("maps languages to detection codes", () => {
     expect(getLanguageDetectionCode(Language.English)).toBe("en");
     expect(getLanguageDetectionCode(Language.SimplifiedChinese)).toBe("zh");
+  });
+
+  it("normalizes language aliases to canonical project codes", () => {
+    expect(getLanguageCode(Language.TraditionalChinese)).toBe(
+      LanguageCode.Chinese,
+    );
+    expect(normalizeLanguageCode("cn")).toBe(LanguageCode.Chinese);
+    expect(normalizeLanguageCode("zh-CN")).toBe(LanguageCode.Chinese);
+    expect(normalizeLanguageCode("zh_TW")).toBe(LanguageCode.Chinese);
+    expect(normalizeLanguageCode("ar")).toBe(LanguageCode.Arabic);
+    expect(normalizeLanguageCode("es")).toBe(LanguageCode.Spanish);
+    expect(normalizeLanguageCode(Language.SimplifiedChinese)).toBe(
+      LanguageCode.Chinese,
+    );
+    expect(getWikipageLanguageCode("zh-Hant")).toBe("zh");
+    expect(formatLanguageForPrompt(LanguageCode.English)).toBe(
+      Language.English,
+    );
   });
 });

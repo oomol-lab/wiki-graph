@@ -32,6 +32,11 @@ export interface EvidenceQuoteScore {
   readonly strategy: EvidenceQuoteMatchStrategy;
 }
 
+export interface PreparedEvidenceQuote {
+  readonly normalizedQuote: string;
+  readonly quoteRaw: string;
+}
+
 export function normalizeEvidenceDisplayText(text: string): string {
   return text
     .replace(/\p{Default_Ignorable_Code_Point}/gu, "")
@@ -55,9 +60,27 @@ export function scoreEvidenceQuote(input: {
   readonly quote: string;
   readonly sentence: string;
 }): EvidenceQuoteScore {
-  const quoteRaw = stripMarkup(input.quote).trim();
+  return scorePreparedEvidenceQuote({
+    preparedQuote: prepareEvidenceQuote(input.quote),
+    sentence: input.sentence,
+  });
+}
+
+export function prepareEvidenceQuote(quote: string): PreparedEvidenceQuote {
+  const quoteRaw = stripMarkup(quote).trim();
+
+  return {
+    normalizedQuote: normalizeEvidenceText(quoteRaw),
+    quoteRaw,
+  };
+}
+
+export function scorePreparedEvidenceQuote(input: {
+  readonly preparedQuote: PreparedEvidenceQuote;
+  readonly sentence: string;
+}): EvidenceQuoteScore {
+  const { normalizedQuote, quoteRaw } = input.preparedQuote;
   const sentenceRaw = stripMarkup(input.sentence).trim();
-  const normalizedQuote = normalizeEvidenceText(quoteRaw);
   const normalizedSentence = normalizeEvidenceText(sentenceRaw);
 
   if (normalizedQuote === "" || normalizedSentence === "") {
@@ -354,8 +377,8 @@ function longestCommonSubstringScore(left: string, right: string): number {
 
   const leftChars = [...left];
   const rightChars = [...right];
-  const previous = new Array<number>(rightChars.length + 1).fill(0);
-  const current = new Array<number>(rightChars.length + 1).fill(0);
+  let previous = new Array<number>(rightChars.length + 1).fill(0);
+  let current = new Array<number>(rightChars.length + 1).fill(0);
   let longest = 0;
 
   for (let leftIndex = 1; leftIndex <= leftChars.length; leftIndex += 1) {
@@ -367,7 +390,7 @@ function longestCommonSubstringScore(left: string, right: string): number {
       longest = Math.max(longest, current[rightIndex] ?? 0);
     }
 
-    previous.splice(0, previous.length, ...current);
+    [previous, current] = [current, previous];
     current.fill(0);
   }
 

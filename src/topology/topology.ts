@@ -1,8 +1,8 @@
 import type {
   ChunkRecord,
   Document,
-  FragmentGroupRecord,
   ReadingEdgeRecord,
+  SentenceGroupRecord,
 } from "../document/index.js";
 import type { ReaderChunk, ReaderGraphDelta } from "../reader/index.js";
 import { groupFragments } from "./grouping.js";
@@ -287,7 +287,7 @@ interface SnakeEdgeDraft {
 function buildSnakeTopology(input: {
   chunks: readonly ChunkRecord[];
   edges: readonly ReadingEdgeRecord[];
-  fragmentGroups: readonly FragmentGroupRecord[];
+  fragmentGroups: readonly SentenceGroupRecord[];
   serialId: number;
 }): {
   readonly snakeChunks: readonly SnakeChunkDraft[];
@@ -297,19 +297,25 @@ function buildSnakeTopology(input: {
   const chunksById = createChunkRecord();
   const chunkIdsByGroupId = createNumberListRecord();
   const edgesByGroupId = createReadingEdgeListRecord();
-  const groupIdByFragmentId = createOptionalNumberRecord();
+  const sentenceRangesByGroupId: Array<{
+    readonly endSentenceIndex: number;
+    readonly groupId: number;
+    readonly startSentenceIndex: number;
+  }> = [];
 
   for (const fragmentGroup of input.fragmentGroups) {
     if (fragmentGroup.serialId !== input.serialId) {
       continue;
     }
 
-    groupIdByFragmentId[String(fragmentGroup.fragmentId)] =
-      fragmentGroup.groupId;
+    sentenceRangesByGroupId.push(fragmentGroup);
   }
 
   for (const chunk of input.chunks) {
-    const groupId = groupIdByFragmentId[String(chunk.sentenceId[1])];
+    const groupId = findSentenceGroupId(
+      sentenceRangesByGroupId,
+      chunk.sentenceId[1],
+    );
 
     chunksById[String(chunk.id)] = chunk;
     if (groupId === undefined) {
@@ -329,8 +335,14 @@ function buildSnakeTopology(input: {
       continue;
     }
 
-    const fromGroupId = groupIdByFragmentId[String(fromChunk.sentenceId[1])];
-    const toGroupId = groupIdByFragmentId[String(toChunk.sentenceId[1])];
+    const fromGroupId = findSentenceGroupId(
+      sentenceRangesByGroupId,
+      fromChunk.sentenceId[1],
+    );
+    const toGroupId = findSentenceGroupId(
+      sentenceRangesByGroupId,
+      toChunk.sentenceId[1],
+    );
 
     if (fromGroupId === undefined || toGroupId === undefined) {
       continue;
@@ -442,6 +454,21 @@ function buildSnakeTopology(input: {
   };
 }
 
+function findSentenceGroupId(
+  groups: readonly {
+    readonly endSentenceIndex: number;
+    readonly groupId: number;
+    readonly startSentenceIndex: number;
+  }[],
+  sentenceIndex: number,
+): number | undefined {
+  return groups.find(
+    (group) =>
+      sentenceIndex >= group.startSentenceIndex &&
+      sentenceIndex <= group.endSentenceIndex,
+  )?.groupId;
+}
+
 function createBooleanRecord(): Record<string, boolean | undefined> {
   return Object.create(null) as Record<string, boolean | undefined>;
 }
@@ -455,10 +482,6 @@ function createReadingEdgeListRecord(): Record<
   ReadingEdgeRecord[] | undefined
 > {
   return Object.create(null) as Record<string, ReadingEdgeRecord[] | undefined>;
-}
-
-function createOptionalNumberRecord(): Record<string, number | undefined> {
-  return Object.create(null) as Record<string, number | undefined>;
 }
 
 function listSortedRecordNumbers(

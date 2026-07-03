@@ -1,11 +1,7 @@
 import { parseArgs } from "util";
 
 import { type CLIFormat, parseCLIFormat } from "./formats.js";
-import {
-  CLI_HELP_ROUTES,
-  archiveMaintenanceHelpRoute,
-  withHelpRoute,
-} from "./errors.js";
+import { CLI_HELP_ROUTES, withHelpRoute } from "./errors.js";
 import {
   type ArchiveTriplePattern,
   type BuildJobTarget,
@@ -30,7 +26,7 @@ import {
   formatLocatedChapterSourceCollectionUri,
   formatLocatedChapterUri,
   parseLocatedWikiGraphUri,
-} from "../facade/archive-uri.js";
+} from "../wikg/index.js";
 
 export interface CLIArguments {
   readonly digestDirPath?: string;
@@ -97,6 +93,7 @@ export interface CLIArchiveChapterArguments {
   readonly first?: boolean;
   readonly inputFormat?: Extract<CLIFormat, "markdown" | "txt">;
   readonly inputPath?: string;
+  readonly inputValue?: string;
   readonly json?: boolean;
   readonly last?: boolean;
   readonly llmJSON?: string;
@@ -108,6 +105,20 @@ export interface CLIArchiveChapterArguments {
   readonly resetStage?: Exclude<ChapterStage, "summarized">;
   readonly title?: string;
   readonly treeAction?: "apply" | "show";
+}
+
+export type CLIMetadataAction = "clear" | "delete" | "get" | "put" | "set";
+
+export interface CLIObjectMetadataArguments {
+  readonly action: CLIMetadataAction;
+  readonly archivePath: string;
+  readonly inputPath?: string;
+  readonly inputValue?: string;
+  readonly json?: boolean;
+  readonly jsonInputValue?: string;
+  readonly key?: string;
+  readonly llmJSON?: string;
+  readonly objectPath: string;
 }
 
 export interface CLIStatusArguments {
@@ -173,8 +184,11 @@ export type CLIArchiveAction =
   | "search";
 
 export type CLIArchiveMaintenanceCommand = "chapter" | "cover" | "meta";
-type CLIArchiveRootAction = CLIArchiveAction | "set" | "queue";
-type CLIArchiveUriAction = CLIArchiveRootAction | CLIArchiveChapterAction;
+type CLIArchiveRootAction = CLIArchiveAction | "queue";
+type CLIArchiveUriAction =
+  | CLIArchiveRootAction
+  | CLIArchiveChapterAction
+  | CLIMetadataAction;
 type CLIJobAction = CLIQueueAction | "get" | "set";
 type ArchiveUriLens = Exclude<CLIObjectKind, "meta">;
 type ChapterStateUriTarget =
@@ -253,6 +267,7 @@ interface ArchiveArgumentValues extends ArchiveMetaFlagValues {
   readonly input?: string;
   readonly "input-format"?: string;
   readonly json?: boolean;
+  readonly "json-input"?: string;
   readonly jsonl?: boolean;
   readonly limit?: string;
   readonly llm?: string;
@@ -311,6 +326,11 @@ export type ParsedCLIArguments =
       readonly help: true;
       readonly helpText: string;
       readonly kind: "chapter";
+    }
+  | {
+      readonly args: CLIObjectMetadataArguments;
+      readonly help: false;
+      readonly kind: "object-metadata";
     }
   | {
       readonly args: CLIArchiveArguments;
@@ -439,6 +459,9 @@ export function parseCLIArguments(
       },
       json: {
         type: "boolean",
+      },
+      "json-input": {
+        type: "string",
       },
       jsonl: {
         type: "boolean",
@@ -671,6 +694,27 @@ function parseArchiveUriTargetArguments(
     );
   }
 
+  const metadataTarget = parseMetadataTarget(objectUri);
+  if (metadataTarget !== undefined) {
+    return parseMetadataUriArguments(
+      archivePath,
+      metadataTarget,
+      action,
+      tail,
+      values,
+      helpRoute,
+    );
+  }
+
+  if (containsMetadataKeySuffix(objectUri)) {
+    throw new Error(
+      withHelpRoute(
+        "Metadata keys are not addressed in the URI. Use `<object>/meta get` and process the JSON output, or use `<object>/meta put <key> ...`.",
+        "wikigraph help object meta",
+      ),
+    );
+  }
+
   if (objectUri === "wkg://cover") {
     return parseArchiveCoverUriArguments(
       uri,
@@ -705,6 +749,127 @@ function parseArchiveUriTargetArguments(
   return parseArchiveArguments(action, [uri, ...tail], values, helpRoute);
 }
 
+function parseMetadataUriArguments(
+  archivePath: string,
+  objectPath: string,
+  action: CLIArchiveUriAction,
+  tail: readonly string[],
+  values: ArchiveArgumentValues,
+  helpRoute: string,
+): ParsedCLIArguments {
+  if (!isMetadataAction(action)) {
+    throw new Error(
+      withHelpRoute(
+        `The metadata object does not support \`${action}\`. Expected get, set, put, delete, or clear.`,
+        "wikigraph help object meta",
+      ),
+    );
+  }
+  rejectMetadataFlags(action, values, helpRoute);
+
+  switch (action) {
+    case "get":
+    case "clear":
+      rejectArchiveMaintenanceExtraPositionals("meta", tail, 0, helpRoute);
+      break;
+    case "delete":
+      rejectArchiveMaintenanceExtraPositionals("meta", tail, 1, helpRoute);
+      if (tail[0] === undefined) {
+        throw new Error(withHelpRoute("Missing metadata key.", helpRoute));
+      }
+      break;
+    case "put":
+      rejectArchiveMaintenanceExtraPositionals("meta", tail, 2, helpRoute);
+      if (tail[0] === undefined) {
+        throw new Error(withHelpRoute("Missing metadata key.", helpRoute));
+      }
+      break;
+    case "set":
+      rejectArchiveMaintenanceExtraPositionals("meta", tail, 1, helpRoute);
+      break;
+  }
+
+  return {
+    args: {
+      action,
+      archivePath,
+      ...(values.input === undefined ? {} : { inputPath: values.input }),
+      ...(action !== "set" && action !== "put"
+        ? {}
+        : tail[action === "put" ? 1 : 0] === undefined
+          ? {}
+          : { inputValue: tail[action === "put" ? 1 : 0] }),
+      ...(values.json === undefined ? {} : { json: values.json }),
+      ...(values["json-input"] === undefined
+        ? {}
+        : { jsonInputValue: values["json-input"] }),
+      ...(tail[0] === undefined || (action !== "put" && action !== "delete")
+        ? {}
+        : { key: tail[0] }),
+      ...(values.llm === undefined ? {} : { llmJSON: values.llm }),
+      objectPath,
+    },
+    help: false,
+    kind: "object-metadata",
+  };
+}
+
+function rejectMetadataFlags(
+  action: CLIMetadataAction,
+  values: ArchiveArgumentValues,
+  helpRoute: string,
+): void {
+  rejectMetaCommandFlag("budget", values.budget, helpRoute);
+  rejectMetaCommandFlag("chapter", values.chapter, helpRoute);
+  rejectMetaCommandFlag("cursor", values.cursor, helpRoute);
+  rejectMetaCommandFlag("digest-dir", values["digest-dir"], helpRoute);
+  rejectMetaCommandFlag("input-format", values["input-format"], helpRoute);
+  rejectMetaCommandFlag("limit", values.limit, helpRoute);
+  rejectMetaCommandFlag("output", values.output, helpRoute);
+  rejectMetaCommandFlag("output-format", values["output-format"], helpRoute);
+  rejectMetaCommandFlag("prompt", values.prompt, helpRoute);
+  rejectMetaCommandFlag("stage", values.stage, helpRoute);
+  rejectMetaCommandFlag("to", values.to, helpRoute);
+  rejectMetaCommandBooleanFlag("confirm", values.confirm, helpRoute);
+  rejectMetaCommandBooleanFlag("jsonl", values.jsonl, helpRoute);
+  rejectArchiveChapterMetaFlags(values, helpRoute);
+  if (values.verbose === true) {
+    throw new Error(
+      withHelpRoute(
+        "The metadata command does not support --verbose.",
+        helpRoute,
+      ),
+    );
+  }
+  if (action === "get") {
+    rejectMetaCommandFlag("input", values.input, helpRoute);
+    rejectMetaCommandFlag("json-input", values["json-input"], helpRoute);
+    return;
+  }
+  if (action === "clear" || action === "delete") {
+    rejectMetaCommandFlag("input", values.input, helpRoute);
+    rejectMetaCommandFlag("json-input", values["json-input"], helpRoute);
+    rejectMetaCommandBooleanFlag("json", values.json, helpRoute);
+  }
+}
+
+function parseMetadataTarget(objectUri: string): string | undefined {
+  const path = stripObjectUriPrefix(objectUri);
+
+  if (path === "meta") {
+    return "";
+  }
+  if (!path.endsWith("/meta")) {
+    return undefined;
+  }
+
+  return path.slice(0, -"/meta".length);
+}
+
+function containsMetadataKeySuffix(objectUri: string): boolean {
+  return /(?:^|\/)meta\/.+/u.test(stripObjectUriPrefix(objectUri));
+}
+
 function parseArchiveUriArchiveArguments(
   uri: string,
   archivePath: string,
@@ -713,10 +878,6 @@ function parseArchiveUriArchiveArguments(
   values: ArchiveArgumentValues,
   helpRoute: string,
 ): ParsedCLIArguments {
-  if (action === "set") {
-    return parseArchiveRootSetArguments(archivePath, tail, values, helpRoute);
-  }
-
   if (!isArchiveAction(action)) {
     throw new Error(
       withHelpRoute(
@@ -756,66 +917,6 @@ function parseArchiveUriArchiveArguments(
     values,
     helpRoute,
   );
-}
-
-function parseArchiveRootSetArguments(
-  archivePath: string,
-  tail: readonly string[],
-  values: ArchiveArgumentValues,
-  helpRoute: string,
-): ParsedCLIArguments {
-  if (values.help === true) {
-    return {
-      help: true,
-      helpText: renderArchiveMaintenanceCommandHelpText("meta"),
-      kind: "maintenance",
-    };
-  }
-
-  rejectArchiveMaintenanceExtraPositionals("meta", tail, 0, helpRoute);
-  rejectMetaCommandFlag("budget", values.budget, helpRoute);
-  rejectMetaCommandFlag("chapter", values.chapter, helpRoute);
-  rejectMetaCommandFlag("cursor", values.cursor, helpRoute);
-  rejectMetaCommandFlag("digest-dir", values["digest-dir"], helpRoute);
-  rejectMetaCommandFlag("input", values.input, helpRoute);
-  rejectMetaCommandFlag("input-format", values["input-format"], helpRoute);
-  rejectMetaCommandFlag("limit", values.limit, helpRoute);
-  rejectMetaCommandFlag("output", values.output, helpRoute);
-  rejectMetaCommandFlag("output-format", values["output-format"], helpRoute);
-  rejectMetaCommandFlag("prompt", values.prompt, helpRoute);
-  rejectMetaCommandFlag("stage", values.stage, helpRoute);
-  rejectMetaCommandFlag("to", values.to, helpRoute);
-  rejectMetaCommandBooleanFlag("confirm", values.confirm, helpRoute);
-  rejectMetaCommandBooleanFlag("json", values.json, helpRoute);
-
-  if (values.verbose === true) {
-    throw new Error(
-      withHelpRoute(
-        "The archive root `set` command does not support --verbose.",
-        helpRoute,
-      ),
-    );
-  }
-
-  const metaPatch = parseArchiveMetaPatch(values, "meta");
-  if (metaPatch === undefined) {
-    throw new Error(
-      withHelpRoute(
-        "Missing metadata edit flags. Use --title, --author, or a --clear-* flag.",
-        helpRoute,
-      ),
-    );
-  }
-
-  return {
-    args: {
-      inputPath: archivePath,
-      ...(values.llm === undefined ? {} : { llmJSON: values.llm }),
-      metaPatch,
-    },
-    help: false,
-    kind: "meta",
-  };
 }
 
 function parseArchiveCoverUriArguments(
@@ -1459,10 +1560,26 @@ function parseChapterResourceUriArguments(
     );
   }
 
-  if (action !== "set" && action !== "get") {
+  if (action !== "set" && action !== "get" && action !== "clear") {
     throw new Error(
       withHelpRoute(
         `The chapter ${resource} resource does not support \`${action}\`. Expected get or set.`,
+        `wikigraph help object chapter-${resource}`,
+      ),
+    );
+  }
+  if (action === "clear" && resource !== "title") {
+    throw new Error(
+      withHelpRoute(
+        `The chapter ${resource} resource does not support clear.`,
+        `wikigraph help object chapter-${resource}`,
+      ),
+    );
+  }
+  if (action === "set" && values.clear === true) {
+    throw new Error(
+      withHelpRoute(
+        `The chapter ${resource} set command does not support --clear. Use \`clear\`.`,
         `wikigraph help object chapter-${resource}`,
       ),
     );
@@ -1493,7 +1610,11 @@ function parseChapterResourceUriArguments(
     mappedAction,
     archivePath,
     tail,
-    { ...values, chapter: String(chapterId) },
+    {
+      ...values,
+      chapter: String(chapterId),
+      ...(action === "clear" ? { clear: true } : {}),
+    },
     helpRoute,
   );
 }
@@ -1529,7 +1650,12 @@ function parseArchiveChapterLikeArguments(
     );
   }
 
-  const maxPositionals = 0;
+  const maxPositionals =
+    action === "set-source" ||
+    action === "set-summary" ||
+    action === "set-title"
+      ? 1
+      : 0;
   if (tail.length > maxPositionals) {
     throw new Error(
       withHelpRoute(
@@ -1546,6 +1672,7 @@ function parseArchiveChapterLikeArguments(
       values,
       helpRoute,
       treeAction,
+      tail[0],
     ),
     help: false,
     kind: "chapter",
@@ -1595,6 +1722,7 @@ function parseJobUriFirstArguments(
   values: ArchiveArgumentValues,
 ): ParsedCLIArguments {
   const uri = positionals[0];
+  const jobTargetUri = parseWikiGraphJobTargetUri(uri);
   const action = positionals[1];
 
   if (uri === undefined) {
@@ -1612,8 +1740,25 @@ function parseJobUriFirstArguments(
     );
   }
 
-  const jobId = parseWikiGraphJobUri(uri);
+  const jobId = jobTargetUri ?? parseWikiGraphJobUri(uri);
   const helpRoute = `wikigraph ${uri} ${action} --help`;
+
+  if (jobTargetUri !== undefined) {
+    if (action !== "set") {
+      throw new Error(
+        withHelpRoute(
+          `The job target URI form does not support \`${action}\`. Expected set.`,
+          "wikigraph queue target --help",
+        ),
+      );
+    }
+    return parseQueueJobTargetUriArguments(
+      jobTargetUri,
+      positionals.slice(2),
+      values,
+      helpRoute,
+    );
+  }
 
   switch (action) {
     case "list":
@@ -1644,7 +1789,6 @@ function parseJobUriFirstArguments(
         values,
         helpRoute,
       );
-    case "set":
     case "target":
       return parseQueueJobArguments(
         "target",
@@ -1653,9 +1797,47 @@ function parseJobUriFirstArguments(
         values,
         helpRoute,
       );
+    case "set":
+      throw new Error(
+        withHelpRoute(
+          "`wkg-job://<job-id> set` is not supported. Use `wkg-job://<job-id>/target set <target>`.",
+          "wikigraph queue target --help",
+        ),
+      );
   }
 
   throw new Error(`Internal error: unsupported job URI action ${action}.`);
+}
+
+function parseQueueJobTargetUriArguments(
+  jobId: string,
+  tail: readonly string[],
+  values: ArchiveArgumentValues,
+  helpRoute: string,
+): ParsedCLIArguments {
+  rejectQueueJSONFlag("target", values.json, helpRoute);
+  rejectQueueJSONLFlag("target", values.jsonl, helpRoute);
+  rejectQueueExtraPositionals(
+    "target",
+    ["target", jobId, ...tail],
+    3,
+    helpRoute,
+  );
+
+  const target = tail[0];
+  if (target === undefined) {
+    throw new Error(withHelpRoute("Missing build job target.", helpRoute));
+  }
+
+  return {
+    args: {
+      action: "target",
+      jobId,
+      target: parseBuildJobTarget(target),
+    },
+    help: false,
+    kind: "queue",
+  };
 }
 
 function parseTransformArguments(
@@ -2174,7 +2356,19 @@ function parseArchiveMaintenanceArguments(
       if (!isArchiveChapterAction(action)) {
         throw new Error(
           withHelpRoute(
-            `Invalid chapter action: ${action}. Expected one of list, add, move, remove, reset, set-source, set-summary, set-title, tree. Use concrete chapter resource URIs such as /source, /summary, or /title for set operations.`,
+            `Invalid chapter action: ${action}. Expected one of list, add, move, remove, reset, or tree. Use concrete chapter resource URIs such as /source, /summary, or /title for set operations.`,
+            CLI_HELP_ROUTES.command,
+          ),
+        );
+      }
+      if (
+        action === "set-source" ||
+        action === "set-summary" ||
+        action === "set-title"
+      ) {
+        throw new Error(
+          withHelpRoute(
+            `Invalid chapter action: ${action}. Use concrete chapter resource URIs such as /source, /summary, or /title for set operations.`,
             CLI_HELP_ROUTES.command,
           ),
         );
@@ -2863,6 +3057,7 @@ function normalizeArchiveChapterArguments(
     readonly input?: string;
     readonly "input-format"?: string;
     readonly json?: boolean;
+    readonly "json-input"?: string;
     readonly llm?: string;
     readonly parent?: string;
     readonly prompt?: string;
@@ -2875,6 +3070,7 @@ function normalizeArchiveChapterArguments(
   },
   helpRoute: string,
   treeAction?: "apply",
+  inputValue?: string,
 ): CLIArchiveChapterArguments {
   const chapterId =
     values.chapter === undefined
@@ -2971,6 +3167,8 @@ function normalizeArchiveChapterArguments(
       rejectActionFlag(values.prompt, "--prompt", action, helpRoute);
       rejectActionFlag(values.title, "--title", action, helpRoute);
       rejectActionFlag(values.to, "--to", action, helpRoute);
+      rejectActionFlag(values["json-input"], "--json", action, helpRoute);
+      rejectActionBooleanFlag(values.json, "--json", action, helpRoute);
       rejectActionBooleanFlag(values.clear, "--clear", action, helpRoute);
       rejectActionBooleanFlag(
         values["dry-run"],
@@ -3150,6 +3348,7 @@ function normalizeArchiveChapterArguments(
         action,
         chapterId,
         inputFormat,
+        ...(inputValue === undefined ? {} : { inputValue }),
         path,
         ...(values.input === undefined ? {} : { inputPath: values.input }),
         ...(values.llm === undefined ? {} : { llmJSON: values.llm }),
@@ -3169,6 +3368,8 @@ function normalizeArchiveChapterArguments(
       rejectActionFlag(values.prompt, "--prompt", action, helpRoute);
       rejectActionFlag(values.title, "--title", action, helpRoute);
       rejectActionFlag(values.to, "--to", action, helpRoute);
+      rejectActionFlag(values["json-input"], "--json", action, helpRoute);
+      rejectActionBooleanFlag(values.json, "--json", action, helpRoute);
       rejectActionBooleanFlag(values.clear, "--clear", action, helpRoute);
       rejectActionBooleanFlag(
         values["dry-run"],
@@ -3188,6 +3389,7 @@ function normalizeArchiveChapterArguments(
       return {
         action,
         chapterId,
+        ...(inputValue === undefined ? {} : { inputValue }),
         path,
         ...(values.input === undefined ? {} : { inputPath: values.input }),
         ...(values.llm === undefined ? {} : { llmJSON: values.llm }),
@@ -3197,18 +3399,23 @@ function normalizeArchiveChapterArguments(
       rejectActionFlag(values.stage, "--stage", action, helpRoute);
       rejectActionFlag(values.after, "--after", action, helpRoute);
       rejectActionFlag(values.before, "--before", action, helpRoute);
-      if (values.title === undefined && values.clear !== true) {
+      rejectActionFlag(values["json-input"], "--json", action, helpRoute);
+      rejectActionBooleanFlag(values.json, "--json", action, helpRoute);
+      if (values.title !== undefined) {
         throw new Error(
           withHelpRoute(
-            "Missing --title or --clear. `chapter set-title` requires a title value or --clear.",
+            "`chapter title set` uses a positional value instead of --title.",
             helpRoute,
           ),
         );
       }
-      if (values.title !== undefined && values.clear === true) {
+      if (inputValue === undefined && values.clear !== true) {
+        throw new Error(withHelpRoute("Missing title value.", helpRoute));
+      }
+      if (inputValue !== undefined && values.clear === true) {
         throw new Error(
           withHelpRoute(
-            "`chapter set-title` cannot combine --title with --clear.",
+            "`chapter title clear` cannot combine with a title value.",
             helpRoute,
           ),
         );
@@ -3243,7 +3450,7 @@ function normalizeArchiveChapterArguments(
         chapterId,
         ...(values.clear === undefined ? {} : { clearTitle: values.clear }),
         path,
-        ...(values.title === undefined ? {} : { title: values.title }),
+        ...(inputValue === undefined ? {} : { title: inputValue }),
         ...(values.llm === undefined ? {} : { llmJSON: values.llm }),
       };
     case "tree":
@@ -3654,133 +3861,6 @@ function parseExternalChapterStage(value: string): ChapterStage | undefined {
   }
 }
 
-function parseArchiveMetaPatch(
-  values: ArchiveMetaFlagValues,
-  command: "meta",
-): ArchiveMetaPatch | undefined {
-  const helpRoute = archiveMaintenanceHelpRoute(command);
-  const patch = {
-    ...parseArchiveStringMetaPatch(values, "title", "title", helpRoute),
-    ...parseArchiveStringMetaPatch(values, "language", "language", helpRoute),
-    ...parseArchiveStringMetaPatch(
-      values,
-      "identifier",
-      "identifier",
-      helpRoute,
-    ),
-    ...parseArchiveStringMetaPatch(values, "publisher", "publisher", helpRoute),
-    ...parseArchiveStringMetaPatch(
-      values,
-      "publishedAt",
-      "published-at",
-      helpRoute,
-    ),
-    ...parseArchiveStringMetaPatch(
-      values,
-      "description",
-      "description",
-      helpRoute,
-    ),
-    ...parseArchiveAuthorsMetaPatch(values, helpRoute),
-  } satisfies ArchiveMetaPatch;
-
-  if (Object.keys(patch).length === 0) {
-    return undefined;
-  }
-  return patch;
-}
-
-function parseArchiveStringMetaPatch(
-  values: ArchiveMetaFlagValues,
-  key:
-    | "description"
-    | "identifier"
-    | "language"
-    | "publishedAt"
-    | "publisher"
-    | "title",
-  flag:
-    | "description"
-    | "identifier"
-    | "language"
-    | "published-at"
-    | "publisher"
-    | "title",
-  helpRoute: string,
-): Partial<ArchiveMetaPatch> {
-  const value = values[flag];
-  const clearFlag = `clear-${flag}` as keyof ArchiveMetaFlagValues;
-  const clearValue = values[clearFlag];
-
-  if (value !== undefined && clearValue === true) {
-    throw new Error(
-      withHelpRoute(
-        `Cannot combine --${flag} with --clear-${flag}.`,
-        helpRoute,
-      ),
-    );
-  }
-  if (value !== undefined) {
-    const normalized = normalizeNonEmptyFlagValue(
-      value,
-      `--${flag}`,
-      helpRoute,
-    );
-
-    return {
-      [key]: normalized,
-    };
-  }
-  if (clearValue === true) {
-    const clearKey = `clear${key[0]!.toUpperCase()}${key.slice(1)}`;
-
-    return {
-      [clearKey]: true,
-    } as Partial<ArchiveMetaPatch>;
-  }
-
-  return {};
-}
-
-function parseArchiveAuthorsMetaPatch(
-  values: ArchiveMetaFlagValues,
-  helpRoute: string,
-): Partial<ArchiveMetaPatch> {
-  if (values.author !== undefined && values["clear-authors"] === true) {
-    throw new Error(
-      withHelpRoute("Cannot combine --author with --clear-authors.", helpRoute),
-    );
-  }
-  if (values.author !== undefined) {
-    return {
-      authors: values.author.map((value) =>
-        normalizeNonEmptyFlagValue(value, "--author", helpRoute),
-      ),
-    };
-  }
-  if (values["clear-authors"] === true) {
-    return {
-      clearAuthors: true,
-    };
-  }
-
-  return {};
-}
-
-function normalizeNonEmptyFlagValue(
-  value: string,
-  flag: string,
-  helpRoute: string,
-): string {
-  const normalized = value.trim();
-
-  if (normalized === "") {
-    throw new Error(withHelpRoute(`${flag} cannot be empty.`, helpRoute));
-  }
-
-  return normalized;
-}
-
 function rejectActionFlag(
   value: string | undefined,
   flag: string,
@@ -4046,7 +4126,19 @@ function isArchiveUriAction(
   return (
     isArchiveAction(value) ||
     isArchiveChapterAction(value) ||
-    value === "queue" ||
+    isMetadataAction(value) ||
+    value === "queue"
+  );
+}
+
+function isMetadataAction(
+  value: string | undefined,
+): value is CLIMetadataAction {
+  return (
+    value === "clear" ||
+    value === "delete" ||
+    value === "get" ||
+    value === "put" ||
     value === "set"
   );
 }
@@ -4068,6 +4160,14 @@ function isWikiGraphUri(value: string | undefined): boolean {
   return value?.startsWith("wkg://") === true;
 }
 
+function stripObjectUriPrefix(objectUri: string): string {
+  if (!objectUri.startsWith("wkg://")) {
+    throw new Error(`Expected Wiki Graph object URI: ${objectUri}`);
+  }
+
+  return objectUri.slice("wkg://".length).replace(/^\/+|\/+$/gu, "");
+}
+
 function isWikiGraphJobUri(value: string | undefined): boolean {
   return value?.startsWith("wkg-job://") === true;
 }
@@ -4086,6 +4186,32 @@ function parseWikiGraphJobUri(uri: string): string | undefined {
   const jobId = uri.slice(prefix.length).trim();
   if (jobId === "") {
     return undefined;
+  }
+
+  return jobId;
+}
+
+function parseWikiGraphJobTargetUri(
+  uri: string | undefined,
+): string | undefined {
+  const prefix = "wkg-job://";
+  if (uri === undefined || !uri.startsWith(prefix)) {
+    return undefined;
+  }
+
+  const body = uri.slice(prefix.length);
+  if (!body.endsWith("/target")) {
+    return undefined;
+  }
+
+  const jobId = body.slice(0, -"/target".length).trim();
+  if (jobId === "") {
+    throw new Error(
+      withHelpRoute(
+        `Expected a job id before /target: ${uri}`,
+        "wikigraph queue target --help",
+      ),
+    );
   }
 
   return jobId;
@@ -4352,6 +4478,7 @@ function normalizeArchiveValueFlagArgv(
 ): readonly string[] {
   const normalized: string[] = [];
   let stopped = false;
+  const jsonMayTakeValue = isValueInputJsonFlagContext(argv);
 
   for (let index = 0; index < argv.length; index += 1) {
     const item = argv[index];
@@ -4368,6 +4495,24 @@ function normalizeArchiveValueFlagArgv(
     if (item === "--") {
       normalized.push(item);
       stopped = true;
+      continue;
+    }
+
+    if (item.startsWith("--json=") && jsonMayTakeValue) {
+      normalized.push("--json");
+      normalized.push(`--json-input=${item.slice("--json=".length)}`);
+      continue;
+    }
+
+    if (item === "--json" && jsonMayTakeValue) {
+      const value = argv[index + 1];
+
+      normalized.push(item);
+      if (value !== undefined && !value.startsWith("-")) {
+        normalized.push("--json-input");
+        normalized.push(value);
+        index += 1;
+      }
       continue;
     }
 
@@ -4398,6 +4543,17 @@ function normalizeArchiveValueFlagArgv(
   }
 
   return normalized;
+}
+
+function isValueInputJsonFlagContext(argv: readonly string[]): boolean {
+  const first = argv[0];
+  const second = argv[1];
+
+  return (
+    isWikiGraphUri(first) &&
+    (second === "set" || second === "put") &&
+    argv.some((item) => item.includes("/meta") || item.endsWith(".wikg/meta"))
+  );
 }
 
 function rejectArchiveExtraPositionals(

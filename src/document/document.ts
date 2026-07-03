@@ -8,23 +8,28 @@ import { tocFileSchema, type TocFile } from "../source/toc.js";
 import type { SourceAsset } from "../source/types.js";
 import { isNodeError } from "../utils/node-error.js";
 import { Database } from "./database.js";
+import type { Database as DocumentDatabase } from "./database.js";
 import {
-  Fragments,
-  type ReadonlySerialFragments,
-  type SerialFragments,
-} from "./fragments.js";
+  TextStreams,
+  type ReadonlySerialTextStream,
+  type SerialTextStream,
+} from "./text-streams.js";
 import { initializeDocumentSchema, SCHEMA_SQL } from "./schema.js";
 import {
   ChunkStore,
   FragmentGroupStore,
+  GraphBuildParameterStore,
   ReadingEdgeStore,
   MentionLinkStore,
   MentionStore,
+  ObjectMetadataStore,
   type ReadonlyChunkStore,
   type ReadonlyFragmentGroupStore,
+  type ReadonlyGraphBuildParameterStore,
   type ReadonlyReadingEdgeStore,
   type ReadonlyMentionLinkStore,
   type ReadonlyMentionStore,
+  type ReadonlyObjectMetadataStore,
   type ReadonlySerialStore,
   type ReadonlySnakeChunkStore,
   type ReadonlySnakeEdgeStore,
@@ -106,19 +111,24 @@ const coverFileSchema = z.object({
 export interface ReadonlyDocument {
   readonly chunks: ReadonlyChunkStore;
   readonly fragmentGroups: ReadonlyFragmentGroupStore;
+  readonly graphBuildParameters: ReadonlyGraphBuildParameterStore;
   readonly readingEdges: ReadonlyReadingEdgeStore;
   readonly mentionLinks: ReadonlyMentionLinkStore;
   readonly mentions: ReadonlyMentionStore;
+  readonly metadata: ReadonlyObjectMetadataStore;
   readonly serials: ReadonlySerialStore;
   readonly snakeChunks: ReadonlySnakeChunkStore;
   readonly snakeEdges: ReadonlySnakeEdgeStore;
   readonly snakes: ReadonlySnakeStore;
 
   getSentence(sentenceId: SentenceId): Promise<string>;
-  getSerialFragments(serialId: number): ReadonlySerialFragments;
-  getSummaryFragments(serialId: number): ReadonlySerialFragments;
+  getSerialFragments(serialId: number): ReadonlySerialTextStream;
+  getSummaryFragments(serialId: number): ReadonlySerialTextStream;
   openSession<T>(
     operation: (document: ReadonlyDocument) => Promise<T> | T,
+  ): Promise<T>;
+  readDatabase<T>(
+    operation: (database: DocumentDatabase) => Promise<T> | T,
   ): Promise<T>;
   readBookMeta(): Promise<BookMeta | undefined>;
   readCover(): Promise<SourceAsset | undefined>;
@@ -137,17 +147,19 @@ export interface DocumentContext {
 export interface Document extends ReadonlyDocument {
   readonly chunks: ChunkStore;
   readonly fragmentGroups: FragmentGroupStore;
+  readonly graphBuildParameters: GraphBuildParameterStore;
   readonly readingEdges: ReadingEdgeStore;
   readonly mentionLinks: MentionLinkStore;
   readonly mentions: MentionStore;
+  readonly metadata: ObjectMetadataStore;
   readonly serials: SerialStore;
   readonly snakeChunks: SnakeChunkStore;
   readonly snakeEdges: SnakeEdgeStore;
   readonly snakes: SnakeStore;
 
   createContext(): DocumentContext;
-  getSerialFragments(serialId: number): SerialFragments;
-  getSummaryFragments(serialId: number): SerialFragments;
+  getSerialFragments(serialId: number): SerialTextStream;
+  getSummaryFragments(serialId: number): SerialTextStream;
   createSerial(): Promise<number>;
   clearSerialGraph(serialId: number): Promise<void>;
   clearSerialSource(serialId: number): Promise<void>;
@@ -167,9 +179,11 @@ export interface Document extends ReadonlyDocument {
 export class DirectoryDocument implements Document {
   public readonly chunks: ChunkStore;
   public readonly fragmentGroups: FragmentGroupStore;
+  public readonly graphBuildParameters: GraphBuildParameterStore;
   public readonly readingEdges: ReadingEdgeStore;
   public readonly mentionLinks: MentionLinkStore;
   public readonly mentions: MentionStore;
+  public readonly metadata: ObjectMetadataStore;
   public readonly path: string;
   public readonly serials: SerialStore;
   public readonly snakeChunks: SnakeChunkStore;
@@ -178,23 +192,25 @@ export class DirectoryDocument implements Document {
 
   readonly #database: Database;
   readonly #fileStore: DocumentFileStore;
-  readonly #fragments: Fragments;
+  readonly #textStreams: TextStreams;
   readonly #contextScope = new AsyncLocalStorage<DirectoryDocumentContext>();
 
   public constructor(
     database: Database,
-    fragments: Fragments,
+    textStreams: TextStreams,
     path: string,
     fileStore: DocumentFileStore = LOCAL_DOCUMENT_FILE_STORE,
   ) {
     this.#database = database;
     this.#fileStore = fileStore;
-    this.#fragments = fragments;
+    this.#textStreams = textStreams;
     this.chunks = new ChunkStore(database);
     this.fragmentGroups = new FragmentGroupStore(database);
+    this.graphBuildParameters = new GraphBuildParameterStore(database);
     this.readingEdges = new ReadingEdgeStore(database);
     this.mentionLinks = new MentionLinkStore(database);
     this.mentions = new MentionStore(database);
+    this.metadata = new ObjectMetadataStore(database);
     this.path = path;
     this.serials = new SerialStore(database);
     this.snakeChunks = new SnakeChunkStore(database);
@@ -211,27 +227,7 @@ export class DirectoryDocument implements Document {
     try {
       const databasePath =
         await fileStore.resolveDatabasePath(resolvedDocumentPath);
-      const writer = {
-        write: async (path: string, content: string): Promise<void> => {
-          await fileStore.writeFile(path, content, { overwrite: false });
-        },
-      };
-      const fragments = new Fragments(resolvedDocumentPath, writer, {
-        ensureDirectory: async (path) => {
-          await fileStore.ensureDirectory(path);
-        },
-        listFiles: async (path) => await fileStore.listFiles(path),
-        ...(fileStore.listFileContents === undefined
-          ? {}
-          : {
-              listFileContents: async (path) =>
-                await fileStore.listFileContents!(path),
-            }),
-        readFile: async (path) => await fileStore.readFile(path),
-      });
-
       await fileStore.ensureDirectory(resolvedDocumentPath);
-      await fragments.ensureCreated();
 
       const shouldInitializeDatabaseSchema =
         fileStore.initializeDatabaseSchema();
@@ -243,17 +239,27 @@ export class DirectoryDocument implements Document {
       if (shouldInitializeDatabaseSchema) {
         await initializeDocumentSchema(database);
       }
+      const textStreams = new TextStreams(resolvedDocumentPath, database, {
+        deleteTree: async (path) => {
+          await fileStore.deleteTree(path);
+        },
+        ensureDirectory: async (path) => {
+          await fileStore.ensureDirectory(path);
+        },
+        listFiles: async (path) => await fileStore.listFiles(path),
+        readFile: async (path) => await fileStore.readFile(path),
+        writeFile: async (path, content, options) => {
+          await fileStore.writeFile(path, content, options);
+        },
+      });
+      await textStreams.ensureCreated();
 
       const document = new DirectoryDocument(
         database,
-        fragments,
+        textStreams,
         resolvedDocumentPath,
         fileStore,
       );
-
-      writer.write = async (path: string, content: string): Promise<void> => {
-        await document.#writeNewFile(path, content);
-      };
 
       return document;
     } catch (error) {
@@ -275,12 +281,12 @@ export class DirectoryDocument implements Document {
     }
   }
 
-  public getSerialFragments(serialId: number): SerialFragments {
-    return this.#fragments.getSerial(serialId);
+  public getSerialFragments(serialId: number): SerialTextStream {
+    return this.#textStreams.getSerial(serialId);
   }
 
-  public getSummaryFragments(serialId: number): SerialFragments {
-    return this.#fragments.getSummarySerial(serialId);
+  public getSummaryFragments(serialId: number): SerialTextStream {
+    return this.#textStreams.getSummarySerial(serialId);
   }
 
   public createContext(): DocumentContext {
@@ -298,11 +304,15 @@ export class DirectoryDocument implements Document {
     await this.deleteSummary(serialId);
     await this.#deleteSerialGraphRecords(serialId);
     await this.serials.setTopologyReady(serialId, false);
+    await this.serials.setKnowledgeGraphReady(serialId, false);
+    await this.serials.bumpRevision(serialId);
+    await this.graphBuildParameters.deleteUnreferenced();
   }
 
   public async clearSerialSource(serialId: number): Promise<void> {
     await this.clearSerialGraph(serialId);
-    await this.#fileStore.deleteTree(this.#fragments.getSerial(serialId).path);
+    await this.#textStreams.getSerial(serialId).delete();
+    await this.serials.bumpRevision(serialId);
   }
 
   public async deleteSerial(serialId: number): Promise<void> {
@@ -310,13 +320,11 @@ export class DirectoryDocument implements Document {
   }
 
   public async deleteSummary(serialId: number): Promise<void> {
-    await this.#fileStore.deleteTree(
-      this.#fragments.getSummarySerial(serialId).path,
-    );
+    await this.#textStreams.getSummarySerial(serialId).delete();
   }
 
   public async getSentence(sentenceId: SentenceId): Promise<string> {
-    return await this.#fragments.getSentence(sentenceId);
+    return await this.#textStreams.getSentence(sentenceId);
   }
 
   public async openSession<T>(
@@ -340,6 +348,12 @@ export class DirectoryDocument implements Document {
     } finally {
       await context.dispose();
     }
+  }
+
+  public async readDatabase<T>(
+    operation: (database: Database) => Promise<T> | T,
+  ): Promise<T> {
+    return await operation(this.#database);
   }
 
   public async peekNextSerialId(): Promise<number> {
@@ -376,24 +390,7 @@ export class DirectoryDocument implements Document {
   }
 
   public async readSummary(serialId: number): Promise<string | undefined> {
-    const fragments = this.#fragments.getSummarySerial(serialId);
-    const fragmentIds = await fragments.listFragmentIds();
-
-    if (fragmentIds.length === 0) {
-      return undefined;
-    }
-
-    const records = await Promise.all(
-      fragmentIds.map(
-        async (fragmentId) => await fragments.getFragment(fragmentId),
-      ),
-    );
-
-    return records
-      .flatMap((fragment) =>
-        fragment.sentences.map((sentence) => sentence.text),
-      )
-      .join("\n");
+    return await this.#textStreams.getSummarySerial(serialId).readText();
   }
 
   public async readToc(): Promise<TocFile | undefined> {
@@ -423,15 +420,18 @@ export class DirectoryDocument implements Document {
 
   public async writeSummary(serialId: number, summary: string): Promise<void> {
     await this.deleteSummary(serialId);
-    await this.#fragments.getSummarySerial(serialId).writeTextStream(summary);
+    await this.#textStreams.getSummarySerial(serialId).writeTextStream(summary);
+    await this.serials.bumpRevision(serialId);
   }
 
   public async writeToc(toc: TocFile): Promise<void> {
     await this.#writeJsonFile(this.#getTocPath(), toc);
+    await this.serials.bumpChaptersRevision();
   }
 
   public async replaceToc(toc: TocFile): Promise<void> {
     await this.#writeJsonFile(this.#getTocPath(), toc, { overwrite: true });
+    await this.serials.bumpChaptersRevision();
   }
 
   public async flush(): Promise<void> {
@@ -479,6 +479,7 @@ export class DirectoryDocument implements Document {
   }
 
   async #deleteSerialResources(serialId: number): Promise<void> {
+    await this.metadata.deleteChapterSubtree(serialId);
     await this.#deleteSerialGraphRecords(serialId);
     await this.#database.transaction(async () => {
       await this.#database.run(
@@ -497,8 +498,10 @@ export class DirectoryDocument implements Document {
       );
     });
 
-    await this.#fileStore.deleteTree(this.#fragments.getSerial(serialId).path);
+    await this.#textStreams.getSerial(serialId).delete();
     await this.deleteSummary(serialId);
+    await this.serials.bumpChaptersRevision();
+    await this.graphBuildParameters.deleteUnreferenced();
   }
 
   async #deleteSerialGraphRecords(serialId: number): Promise<void> {
@@ -576,7 +579,7 @@ export class DirectoryDocument implements Document {
       );
       await this.#database.run(
         `
-          DELETE FROM fragment_groups
+          DELETE FROM sentence_groups
           WHERE serial_id = ?
         `,
         [serialId],
@@ -610,6 +613,8 @@ export class DirectoryDocument implements Document {
         `,
         [serialId],
       );
+      await this.metadata.deleteDeletedChunks();
+      await this.metadata.deleteDeletedEntitiesAndTriples();
     });
   }
 

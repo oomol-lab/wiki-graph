@@ -24,10 +24,11 @@ import {
   updateBuildJobTarget,
   type BuildJob,
   type BuildJobEvent,
+  type BuildJobExecutionContext,
   type BuildJobProgressReporter,
   type BuildJobState,
 } from "../facade/index.js";
-import { SpineDigestFile } from "../facade/spine-digest-file.js";
+import { SpineDigestFile } from "../wikg/index.js";
 import type {
   GuaranteedRequest,
   GuaranteedRequestController,
@@ -160,8 +161,8 @@ async function runQueueWorker(): Promise<void> {
 
   await runBuildJobWorker({
     concurrency: config.queue?.concurrent ?? 1,
-    executeJob: async (job, reporter) => {
-      await executeBuildJob(job, reporter);
+    executeJob: async (job, reporter, context) => {
+      await executeBuildJob(job, reporter, context);
     },
   });
 }
@@ -169,6 +170,7 @@ async function runQueueWorker(): Promise<void> {
 async function executeBuildJob(
   job: BuildJob,
   reporter: BuildJobProgressReporter,
+  context: BuildJobExecutionContext,
 ): Promise<void> {
   const config = await loadRequiredStageConfig({
     ...(job.llmJSON === undefined ? {} : { llmJSON: job.llmJSON }),
@@ -191,6 +193,7 @@ async function executeBuildJob(
       retryIndex: index,
       retryMax: maxRetries,
       scope: SpineDigestScope.ReaderExtraction,
+      signal: context.signal,
     });
   request.lazy = async <T>(
     operation: (request: GuaranteedRequest) => Promise<T>,
