@@ -4,7 +4,7 @@ import { join } from "path";
 
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import { DirectoryDocument } from "../../../src/document/index.js";
+import { Database, DirectoryDocument } from "../../../src/document/index.js";
 import {
   findArchiveObjects,
   grepArchiveObjects,
@@ -312,6 +312,11 @@ describe("archive/query/archive-view", () => {
         expect(sourceOnly.items.map((item) => item.type)).toStrictEqual([
           "source",
         ]);
+        await expect(
+          countStructuredCacheRowsForQuery(`${path}/state`, "Cache Split", [
+            "source",
+          ]),
+        ).resolves.toBe(0);
       } finally {
         restoreEnv("WIKIGRAPH_STATE_DIR", previousStateDir);
         await document.release();
@@ -1059,6 +1064,58 @@ describe("archive/query/archive-view", () => {
             type: "source",
           }),
         ]);
+      } finally {
+        await document.release();
+      }
+    });
+  });
+
+  it("keeps indexed text-only cursors paginated beyond the first lookahead", async () => {
+    await withTempDir("spinedigest-archive-view-", async (path) => {
+      const document = await DirectoryDocument.open(`${path}/document`);
+
+      try {
+        await document.openSession(async (openedDocument) => {
+          const tocItems = [];
+
+          for (let index = 0; index < 12; index += 1) {
+            const serialId = await openedDocument.createSerial();
+            const draft = await openedDocument
+              .getSerialFragments(serialId)
+              .createDraft();
+
+            draft.addSentence(`CursorOnly indexed source ${index}.`, 4);
+            await draft.commit();
+            tocItems.push({
+              children: [],
+              serialId,
+              title: `Cursor ${index}`,
+            });
+          }
+
+          await openedDocument.writeToc({
+            items: tocItems,
+            version: 1,
+          });
+        });
+        await rebuildArchiveSearchIndex(document);
+
+        const firstPage = await findArchiveObjects(document, "CursorOnly", {
+          limit: 5,
+          types: ["source"],
+        });
+        const secondPage = await findArchiveObjects(document, "ignored", {
+          ...(firstPage.nextCursor === null
+            ? {}
+            : { cursor: firstPage.nextCursor }),
+          limit: 5,
+          types: ["source"],
+        });
+
+        expect(firstPage.items).toHaveLength(5);
+        expect(firstPage.nextCursor).not.toBeNull();
+        expect(secondPage.items).toHaveLength(5);
+        expect(secondPage.items[0]?.id).not.toBe(firstPage.items[0]?.id);
       } finally {
         await document.release();
       }
@@ -2747,6 +2804,55 @@ async function countSearchIndexRows(
 
     return row ?? 0;
   });
+}
+
+async function countStructuredCacheRowsForQuery(
+  statePath: string,
+  query: string,
+  types: readonly string[],
+): Promise<number> {
+  const database = await Database.open(
+    join(statePath, "search-sessions.sqlite"),
+    "",
+    { readonly: true },
+  );
+
+  try {
+    const optionsJSON = JSON.stringify({
+      chapters: null,
+      order: "doc-asc",
+      types,
+    });
+    const row = await database.queryOne(
+      `
+        WITH matching_sessions AS (
+          SELECT session_id
+          FROM search_sessions
+          WHERE query = ?
+            AND options_json = ?
+        )
+        SELECT
+          (SELECT COUNT(*)
+           FROM search_evidence_hit_events
+           WHERE session_id IN (SELECT session_id FROM matching_sessions)) +
+          (SELECT COUNT(*)
+           FROM search_entity_hits
+           WHERE session_id IN (SELECT session_id FROM matching_sessions)) +
+          (SELECT COUNT(*)
+           FROM search_triple_hits
+           WHERE session_id IN (SELECT session_id FROM matching_sessions)) +
+          (SELECT COUNT(*)
+           FROM search_chunk_hits
+           WHERE session_id IN (SELECT session_id FROM matching_sessions)) AS count
+      `,
+      [query, optionsJSON],
+      (value) => Number(value.count),
+    );
+
+    return row ?? 0;
+  } finally {
+    await database.close();
+  }
 }
 
 function createEntityWikipageMockFetch(): typeof fetch {

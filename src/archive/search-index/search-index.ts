@@ -248,6 +248,7 @@ export async function querySearchIndex(
   options: {
     readonly chapters?: readonly number[];
     readonly match?: ArchiveFindMatch;
+    readonly textHitLimit?: number;
     readonly types?: readonly ArchiveFindObjectType[] | null;
   } = {},
 ): Promise<SearchIndexQueryResult | undefined> {
@@ -279,6 +280,12 @@ export async function querySearchIndex(
       }
       for (const hit of textRows) {
         textHitsByKey.set(createTextHitKey(hit), hit);
+      }
+      if (
+        options.textHitLimit !== undefined &&
+        textHitsByKey.size >= options.textHitLimit
+      ) {
+        break;
       }
     }
 
@@ -339,6 +346,7 @@ async function queryTextRows(
   matchExpression: string,
   options: {
     readonly chapters?: readonly number[];
+    readonly textHitLimit?: number;
     readonly types?: readonly ArchiveFindObjectType[] | null;
   },
 ): Promise<readonly SearchIndexTextHit[]> {
@@ -363,12 +371,14 @@ async function queryTextRows(
         AND r.kind IN (${kinds.map(() => "?").join(", ")})
         ${createChapterSql(options.chapters)}
       ORDER BY rank ASC, r.chapter_id, r.sentence_index, r.kind
+      ${createLimitSql(options.textHitLimit)}
     `,
     [
       ...TIER_WEIGHTS,
       matchExpression,
       ...kinds,
       ...createChapterParams(options.chapters),
+      ...createLimitParams(options.textHitLimit),
     ],
     (row) => ({
       chapterId: getNumber(row, "chapter_id"),
@@ -627,6 +637,14 @@ function createChapterParams(
   chapters: readonly number[] | undefined,
 ): readonly SqlBindValue[] {
   return chapters === undefined ? [] : [...chapters];
+}
+
+function createLimitSql(limit: number | undefined): string {
+  return limit === undefined ? "" : "LIMIT ?";
+}
+
+function createLimitParams(limit: number | undefined): readonly SqlBindValue[] {
+  return limit === undefined ? [] : [limit];
 }
 
 function shouldQueryObjects(

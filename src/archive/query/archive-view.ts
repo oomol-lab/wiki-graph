@@ -941,6 +941,7 @@ export async function findArchiveObjects(
     const sentenceCacheInput = await createSentenceEvidenceSearchCacheInput(
       document,
       indexed?.result,
+      options,
     );
     const sessionId = await createEntitySearchSession({
       archiveKey: options.archiveKey ?? "archive",
@@ -993,6 +994,7 @@ export async function findArchiveObjects(
   const sentenceCacheInput = await createSentenceEvidenceSearchCacheInput(
     document,
     indexed?.result,
+    options,
   );
   const sessionId = await createSearchSession({
     archiveKey: options.archiveKey ?? "archive",
@@ -1166,6 +1168,7 @@ async function findArchiveObjectsIndexed(
   const result = await querySearchIndex(document, query, {
     ...(options.chapters === undefined ? {} : { chapters: options.chapters }),
     ...(options.match === undefined ? {} : { match: options.match }),
+    ...createSearchIndexQueryLimitOptions(options),
     types: options.types ?? null,
   });
 
@@ -1227,7 +1230,21 @@ function createSearchIndexHydrationOptions(options: ArchiveFindOptions): {
     return {};
   }
 
-  return { textHitLimit: options.limit + 1 };
+  return { textHitLimit: createTextOnlySearchCacheWindow(options.limit) };
+}
+
+function createSearchIndexQueryLimitOptions(options: ArchiveFindOptions): {
+  readonly textHitLimit?: number;
+} {
+  if (!isTextOnlySearch(options) || options.limit === undefined) {
+    return {};
+  }
+
+  return { textHitLimit: createTextOnlySearchCacheWindow(options.limit) };
+}
+
+function createTextOnlySearchCacheWindow(limit: number): number {
+  return Math.max(limit + 1, TEXT_ONLY_SEARCH_CACHE_WINDOW);
 }
 
 function isTextOnlySearch(options: ArchiveFindOptions): boolean {
@@ -3451,13 +3468,14 @@ function createEntitySearchCacheInput(
 async function createSentenceEvidenceSearchCacheInput(
   document: ReadonlyDocument,
   indexResult: SearchIndexQueryResult | undefined,
+  options: ArchiveFindOptions,
 ): Promise<{
   readonly chunkHits: readonly SearchChunkHitInput[];
   readonly entityHits: readonly SearchEntityHitInput[];
   readonly evidenceEvents: readonly SearchEvidenceHitEventInput[];
   readonly tripleHits: readonly SearchTripleHitInput[];
 }> {
-  if (indexResult === undefined) {
+  if (indexResult === undefined || isTextOnlySearch(options)) {
     return {
       chunkHits: [],
       entityHits: [],
@@ -5371,6 +5389,7 @@ interface ArchiveTextMatch {
 
 const DEFAULT_FIND_LIMIT = 20;
 const GROUP_SCORE_EVIDENCE_LIMIT = 10;
+const TEXT_ONLY_SEARCH_CACHE_WINDOW = 100;
 const GROUP_SCORE_MAX_EQUAL_EVIDENCE_BONUS = 0.3;
 const ARCHIVE_ROOT_ID = "meta:root";
 
