@@ -5,11 +5,16 @@ Purpose:
   Try to run Wiki Graph local garbage collection.
 
 Usage:
-  wikigraph gc [--json]
+  wikigraph gc [--force] [--json]
 
 Behavior:
   GC scans local Wiki Graph state and cache resources, then releases expired or low-value resources that are not in use.
   If another GC run is active, this command reports that it was skipped instead of waiting or starting a second run.
+
+Options:
+  --force
+    Ignore normal cache lifetimes and remove disposable resources as soon as they are not in use.
+    This can remove warm SQLite caches and completed or failed build jobs that a normal GC run would keep temporarily.
 
 Managed areas:
   - Search query cache.

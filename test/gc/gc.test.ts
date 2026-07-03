@@ -65,7 +65,7 @@ describe("gc", () => {
     });
   });
 
-  it("removes fresh sqlite cache during explicit GC", async () => {
+  it("keeps fresh sqlite cache during normal GC", async () => {
     await withTempDir("spinedigest-gc-", async (path) => {
       process.env.WIKIGRAPH_STATE_DIR = join(path, "state");
       const sqliteCachePath = await createCoordinatorSqliteCache(path, {
@@ -73,6 +73,20 @@ describe("gc", () => {
       });
 
       const report = await tryRunWikiGraphGc();
+
+      expect(report.skipped).toBe(false);
+      await expect(stat(sqliteCachePath)).resolves.toBeDefined();
+    });
+  });
+
+  it("removes fresh sqlite cache during forced GC", async () => {
+    await withTempDir("spinedigest-gc-", async (path) => {
+      process.env.WIKIGRAPH_STATE_DIR = join(path, "state");
+      const sqliteCachePath = await createCoordinatorSqliteCache(path, {
+        updatedAt: Date.now(),
+      });
+
+      const report = await tryRunWikiGraphGc({ force: true });
 
       expect(report.skipped).toBe(false);
       expect(
@@ -158,6 +172,48 @@ describe("gc", () => {
       expect(wikgCoordinatorJob?.removed).toBeGreaterThanOrEqual(1);
       await expect(stat(referencedPath)).resolves.toBeDefined();
       await expect(stat(orphanedPath)).rejects.toThrow();
+    });
+  });
+
+  it("keeps fresh terminal build jobs during normal GC", async () => {
+    await withTempDir("spinedigest-gc-", async (path) => {
+      process.env.WIKIGRAPH_STATE_DIR = join(path, "state");
+      const job = await createCompletedJob(path, {
+        ageMs: 0,
+        state: "failed",
+      });
+
+      const report = await tryRunWikiGraphGc();
+
+      expect(report.skipped).toBe(false);
+      expect(
+        report.jobs.find((item) => item.name === "build-queue"),
+      ).toMatchObject({ removed: 0 });
+      await expect(stat(job.workspacePath)).resolves.toBeDefined();
+      await expect(countRows("build-queue.sqlite", "build_jobs")).resolves.toBe(
+        1,
+      );
+    });
+  });
+
+  it("removes fresh terminal build jobs during forced GC", async () => {
+    await withTempDir("spinedigest-gc-", async (path) => {
+      process.env.WIKIGRAPH_STATE_DIR = join(path, "state");
+      const job = await createCompletedJob(path, {
+        ageMs: 0,
+        state: "failed",
+      });
+
+      const report = await tryRunWikiGraphGc({ force: true });
+
+      expect(report.skipped).toBe(false);
+      expect(
+        report.jobs.find((item) => item.name === "build-queue"),
+      ).toMatchObject({ removed: 1 });
+      await expect(stat(job.workspacePath)).rejects.toThrow();
+      await expect(countRows("build-queue.sqlite", "build_jobs")).resolves.toBe(
+        0,
+      );
     });
   });
 });
@@ -296,6 +352,22 @@ async function createCompletedOldJob(path: string): Promise<{
   readonly eventsPath: string;
   readonly workspacePath: string;
 }> {
+  return await createCompletedJob(path, {
+    ageMs: 8 * 24 * 60 * 60 * 1000,
+    state: "succeeded",
+  });
+}
+
+async function createCompletedJob(
+  path: string,
+  options: {
+    readonly ageMs: number;
+    readonly state: "canceled" | "failed" | "succeeded";
+  },
+): Promise<{
+  readonly eventsPath: string;
+  readonly workspacePath: string;
+}> {
   const job = await addBuildJob({
     archivePath: join(path, "book.wikg"),
     chapterId: 1,
@@ -309,13 +381,15 @@ async function createCompletedOldJob(path: string): Promise<{
   const database = await openStateDatabase("build-queue.sqlite");
 
   try {
+    const updatedAt = Date.now() - options.ageMs;
+
     await database.run(
       `
 UPDATE build_jobs
-SET state = 'succeeded', updated_at = ?, finished_at = ?
+SET state = ?, updated_at = ?, finished_at = ?
 WHERE job_id = ?
 `,
-      [Date.now() - 8 * 24 * 60 * 60 * 1000, Date.now(), job.jobId],
+      [options.state, updatedAt, updatedAt, job.jobId],
     );
   } finally {
     await database.close();

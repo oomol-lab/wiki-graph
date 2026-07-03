@@ -849,7 +849,9 @@ export async function runBuildQueueGc(
   context: GcContext,
 ): Promise<GcJobResult> {
   const state = await openBuildQueueDatabase();
-  const cutoff = context.now - 7 * 24 * 60 * 60 * 1000;
+  const cutoff = context.force
+    ? context.now
+    : context.now - 7 * 24 * 60 * 60 * 1000;
 
   try {
     const scanned = await state.queryOne(

@@ -38,6 +38,7 @@ const OPPORTUNISTIC_GC_INTERVAL_MS = 10 * 60 * 1000;
 export async function tryRunWikiGraphGc(
   options: {
     readonly dryRun?: boolean;
+    readonly force?: boolean;
     readonly opportunistic?: boolean;
   } = {},
 ): Promise<GcRunReport> {
@@ -74,8 +75,8 @@ export async function tryRunWikiGraphGc(
     }
 
     const context: GcContext = {
-      aggressive: options.opportunistic !== true,
       dryRun: options.dryRun === true,
+      force: options.force === true,
       now: startedAt,
       stateDirectoryPath,
     };

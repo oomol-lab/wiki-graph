@@ -461,10 +461,7 @@ async function canRemoveSqliteCacheOverlay(
   if (await hasActiveArchiveOwnerOrSqliteLease(overlay.archiveKey)) {
     return false;
   }
-  if (
-    !context.aggressive &&
-    context.now - overlay.updatedAt < SQLITE_CACHE_TTL_MS
-  ) {
+  if (!context.force && context.now - overlay.updatedAt < SQLITE_CACHE_TTL_MS) {
     return false;
   }
   if (overlay.workspacePath === undefined) {

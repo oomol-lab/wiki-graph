@@ -28,7 +28,7 @@ export async function runTempDirectoryGc(
 
     if (
       stats === undefined ||
-      context.now - stats.mtimeMs < TEMP_DIRECTORY_TTL_MS
+      (!context.force && context.now - stats.mtimeMs < TEMP_DIRECTORY_TTL_MS)
     ) {
       continue;
     }

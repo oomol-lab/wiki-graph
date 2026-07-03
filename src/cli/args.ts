@@ -127,6 +127,7 @@ export interface CLIStatusArguments {
 }
 
 export interface CLIGcArguments {
+  readonly force?: boolean;
   readonly json?: boolean;
 }
 
@@ -267,6 +268,7 @@ interface ArchiveArgumentValues extends ArchiveMetaFlagValues {
   readonly "dry-run"?: boolean;
   readonly evidence?: string;
   readonly first?: boolean;
+  readonly force?: boolean;
   readonly from?: string;
   readonly help?: boolean;
   readonly input?: string;
@@ -455,6 +457,9 @@ export function parseCLIArguments(
       from: {
         type: "string",
       },
+      force: {
+        type: "boolean",
+      },
       input: {
         type: "string",
       },
@@ -546,6 +551,8 @@ export function parseCLIArguments(
     },
     strict: true,
   });
+
+  rejectNonGcForceFlag(positionals, values);
 
   if (values.version === true) {
     return {
@@ -1996,6 +2003,7 @@ function parseGcArguments(
 
   return {
     args: {
+      ...(values.force === undefined ? {} : { force: values.force }),
       ...(values.json === undefined ? {} : { json: values.json }),
     },
     help: false,
@@ -4046,6 +4054,22 @@ function rejectArchiveChapterMetaFlags(
 
 function rejectHelpMetaFlags(values: ArchiveMetaFlagValues): void {
   rejectCommandMetaFlags(values, "help", CLI_HELP_ROUTES.root);
+}
+
+function rejectNonGcForceFlag(
+  positionals: readonly string[],
+  values: ArchiveArgumentValues,
+): void {
+  if (values.force !== true || positionals[0] === "gc") {
+    return;
+  }
+
+  throw new Error(
+    withHelpRoute(
+      "The --force option is only supported by `gc`.",
+      CLI_HELP_ROUTES.root,
+    ),
+  );
 }
 
 function rejectGcMetaFlags(values: ArchiveMetaFlagValues): void {

@@ -147,11 +147,22 @@ describe("cli/args", () => {
       help: false,
       kind: "gc",
     });
+    expect(parseCLIArguments(["gc", "--force", "--json"])).toStrictEqual({
+      args: {
+        force: true,
+        json: true,
+      },
+      help: false,
+      kind: "gc",
+    });
     expect(parseCLIArguments(["gc", "--help"])).toStrictEqual({
       help: true,
       helpText: renderGcCommandHelpText(),
       kind: "help",
     });
+    expect(() => parseCLIArguments(["transform", "--force"])).toThrow(
+      "The --force option is only supported by `gc`.",
+    );
     expect(() => parseCLIArguments(["gc", "--jsonl"])).toThrow(
       "The `gc` command does not support --jsonl",
     );
