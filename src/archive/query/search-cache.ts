@@ -407,6 +407,7 @@ export async function deleteArchiveSearchSessions(
       for (const sessionId of sessionIds) {
         await deleteSearchSession(database, sessionId);
       }
+      await deleteUnusedPredicates(database);
     });
   } finally {
     await database.close();
@@ -441,6 +442,7 @@ export async function runSearchCacheGc(
         for (const sessionId of sessionIds) {
           await deleteSearchSession(database, sessionId);
         }
+        await deleteUnusedPredicates(database);
       });
       await database.run("VACUUM");
     }
@@ -794,6 +796,17 @@ async function deleteSearchSession(
   await database.run("DELETE FROM search_sessions WHERE session_id = ?", [
     sessionId,
   ]);
+}
+
+async function deleteUnusedPredicates(database: Database): Promise<void> {
+  await database.run(`
+    DELETE FROM predicate_dictionary
+    WHERE NOT EXISTS (
+      SELECT 1
+      FROM search_triple_hits
+      WHERE search_triple_hits.predicate_id = predicate_dictionary.id
+    )
+  `);
 }
 
 async function insertSearchEvidenceHitEvent(

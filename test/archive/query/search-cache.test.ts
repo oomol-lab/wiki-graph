@@ -3,7 +3,10 @@ import { join } from "path";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { Database } from "../../../src/document/index.js";
-import { createSearchSession } from "../../../src/archive/query/search-cache.js";
+import {
+  createSearchSession,
+  deleteArchiveSearchSessions,
+} from "../../../src/archive/query/search-cache.js";
 import { withTempDir } from "../../helpers/temp.js";
 
 const originalStateDir = process.env.WIKIGRAPH_STATE_DIR;
@@ -66,6 +69,68 @@ describe("archive/query/search-cache", () => {
       }
     });
   });
+
+  it("removes predicate dictionary entries after their triple hits are deleted", async () => {
+    await withTempDir("spinedigest-search-cache-", async (path) => {
+      process.env.WIKIGRAPH_STATE_DIR = path;
+
+      await createSearchSession({
+        archiveKey: "archive-a",
+        chapters: null,
+        items: [],
+        lens: "broad",
+        match: "any",
+        order: "rank",
+        query: "query-a",
+        revisionScope: JSON.stringify({ chaptersRevision: 0, scope: "all" }),
+        terms: ["query-a"],
+        tripleHits: [
+          {
+            evidenceTopScores: [1],
+            objectQid: "Q2",
+            predicate: "mentions",
+            subjectQid: "Q1",
+          },
+          {
+            evidenceTopScores: [1],
+            objectQid: "Q3",
+            predicate: "supports",
+            subjectQid: "Q1",
+          },
+        ],
+        types: null,
+      });
+      await createSearchSession({
+        archiveKey: "archive-b",
+        chapters: null,
+        items: [],
+        lens: "broad",
+        match: "any",
+        order: "rank",
+        query: "query-b",
+        revisionScope: JSON.stringify({ chaptersRevision: 0, scope: "all" }),
+        terms: ["query-b"],
+        tripleHits: [
+          {
+            evidenceTopScores: [1],
+            objectQid: "Q4",
+            predicate: "mentions",
+            subjectQid: "Q1",
+          },
+        ],
+        types: null,
+      });
+
+      await expect(listPredicates(path)).resolves.toStrictEqual([
+        "mentions",
+        "supports",
+      ]);
+
+      await deleteArchiveSearchSessions("archive-a");
+
+      await expect(listPredicates(path)).resolves.toStrictEqual(["mentions"]);
+    });
+  });
 });
 
 async function listIndexNames(database: Database): Promise<string[]> {
@@ -93,6 +158,28 @@ async function listTableNames(database: Database): Promise<string[]> {
     undefined,
     (row) => String(row.name),
   );
+}
+
+async function listPredicates(path: string): Promise<string[]> {
+  const database = await Database.open(
+    join(path, "search-sessions.sqlite"),
+    "",
+    { readonly: true },
+  );
+
+  try {
+    return await database.queryAll(
+      `
+        SELECT value
+        FROM predicate_dictionary
+        ORDER BY value
+      `,
+      undefined,
+      (row) => String(row.value),
+    );
+  } finally {
+    await database.close();
+  }
 }
 
 function restoreEnv(name: string, value: string | undefined): void {
