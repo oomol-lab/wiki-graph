@@ -1,7 +1,7 @@
 import { mkdir, mkdtemp } from "fs/promises";
 import { join } from "path";
 
-import { resolveWikiGraphStateDirectoryPath } from "./wiki-graph-dir.js";
+import { resolveWikiGraphTempRootDirectoryPath } from "./wiki-graph-dir.js";
 
 export type WikiGraphTempCategory =
   | "archive-open"
@@ -12,19 +12,13 @@ export type WikiGraphTempCategory =
   | "url-create";
 
 export function resolveWikiGraphStateRootPath(): string {
-  const stateDirectoryPath = process.env.WIKIGRAPH_STATE_DIR;
-
-  if (stateDirectoryPath !== undefined && stateDirectoryPath.trim() !== "") {
-    return stateDirectoryPath;
-  }
-
-  return resolveWikiGraphStateDirectoryPath();
+  return resolveWikiGraphTempRootDirectoryPath();
 }
 
 export function resolveWikiGraphTempDirectoryPath(
   category?: WikiGraphTempCategory,
 ): string {
-  const rootPath = join(resolveWikiGraphStateRootPath(), "tmp");
+  const rootPath = resolveWikiGraphStateRootPath();
 
   return category === undefined ? rootPath : join(rootPath, category);
 }

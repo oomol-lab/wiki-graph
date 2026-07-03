@@ -1,11 +1,11 @@
 Help Type: command
-Command: wikigraph wkg-job://<job-id>/target set
+Command: wikigraph wikg://local/job/<job-id>/target set
 
 Purpose:
   Change the task of an existing active job.
 
 Usage:
-  wikigraph wkg-job://<job-id>/target set <reading-graph|reading-summary|knowledge-graph>
+  wikigraph wikg://local/job/<job-id>/target set <reading-graph|reading-summary|knowledge-graph>
 
 Arguments:
   <job-id>              Full job id or an unambiguous prefix.
@@ -16,5 +16,5 @@ Task choices:
   knowledge-graph       Build entity mentions for entity search.
 
 Examples:
-  wikigraph wkg-job://75d12f7e/target set reading-summary
-  wikigraph wkg-job://75d12f7e/target set knowledge-graph
+  wikigraph wikg://local/job/75d12f7e/target set reading-summary
+  wikigraph wikg://local/job/75d12f7e/target set knowledge-graph

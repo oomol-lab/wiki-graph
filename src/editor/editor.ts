@@ -105,9 +105,10 @@ class EditorOperation<S extends string> {
   }
 
   public async run(): Promise<string> {
-    const fragmentIds = await this.#getGroupFragmentIds();
+    const groups = await this.#listTargetGroups();
+    const segmentStartIndexes = await this.#getGroupSegmentStartIndexes(groups);
 
-    if (fragmentIds.length === 0) {
+    if (segmentStartIndexes.length === 0) {
       return "";
     }
 
@@ -117,7 +118,7 @@ class EditorOperation<S extends string> {
       maxClues: this.#maxClues,
       serialId: this.#serialId,
     });
-    const originalText = await this.#getFullText(fragmentIds);
+    const originalText = await this.#getFullText(groups);
 
     if (originalText.trim() === "") {
       return "";
@@ -127,7 +128,7 @@ class EditorOperation<S extends string> {
 
     const markedOriginalText = await formatChunksAsBook({
       chunks: listClueChunks(clues),
-      fragmentIds,
+      segmentStartIndexes,
       serialFragments: this.#serialFragments,
       wrapHighRetention: true,
     });
@@ -233,17 +234,50 @@ class EditorOperation<S extends string> {
     return bestVersion.text;
   }
 
-  async #getGroupFragmentIds(): Promise<number[]> {
+  async #listTargetGroups(): Promise<readonly SentenceGroup[]> {
     return (await this.#document.fragmentGroups.listBySerial(this.#serialId))
       .filter((record) => record.groupId === this.#groupId)
-      .map((record) => record.startSentenceIndex)
-      .sort(compareNumber);
+      .map((record) => ({
+        endSentenceIndex: record.endSentenceIndex,
+        startSentenceIndex: record.startSentenceIndex,
+      }));
   }
 
-  async #getFullText(_fragmentIds: readonly number[]): Promise<string> {
-    const groups = (
-      await this.#document.fragmentGroups.listBySerial(this.#serialId)
-    ).filter((record) => record.groupId === this.#groupId);
+  async #getGroupSegmentStartIndexes(
+    groups: readonly SentenceGroup[],
+  ): Promise<number[]> {
+    const segmentStartIndexes = [
+      ...(await this.#serialFragments.listFragmentIds()),
+    ].sort(compareNumber);
+    const coveredStartIndexes = new Set<number>();
+
+    for (const group of groups) {
+      for (let index = 0; index < segmentStartIndexes.length; index += 1) {
+        const startSentenceIndex = segmentStartIndexes[index];
+
+        if (startSentenceIndex === undefined) {
+          continue;
+        }
+
+        const nextStartSentenceIndex = segmentStartIndexes[index + 1];
+        const endSentenceIndex =
+          nextStartSentenceIndex === undefined
+            ? Infinity
+            : nextStartSentenceIndex - 1;
+
+        if (
+          startSentenceIndex <= group.endSentenceIndex &&
+          endSentenceIndex >= group.startSentenceIndex
+        ) {
+          coveredStartIndexes.add(startSentenceIndex);
+        }
+      }
+    }
+
+    return [...coveredStartIndexes].sort(compareNumber);
+  }
+
+  async #getFullText(groups: readonly SentenceGroup[]): Promise<string> {
     const fragments = await Promise.all(
       groups.map(async (group) => ({
         sentences: await this.#listGroupSentences(
@@ -271,15 +305,45 @@ class EditorOperation<S extends string> {
       );
     }
 
+    const segmentStartIndexes = [
+      ...(await this.#serialFragments.listFragmentIds()),
+    ].sort(compareNumber);
     const fragments = await Promise.all(
-      createNumberRange(startSentenceIndex, endSentenceIndex).map(
-        async (fragmentId) =>
-          await this.#serialFragments.getFragment(fragmentId),
-      ),
+      segmentStartIndexes
+        .filter((segmentStartIndex, index) => {
+          const nextStartSentenceIndex = segmentStartIndexes[index + 1];
+          const segmentEndSentenceIndex =
+            nextStartSentenceIndex === undefined
+              ? Infinity
+              : nextStartSentenceIndex - 1;
+
+          return (
+            segmentStartIndex <= endSentenceIndex &&
+            segmentEndSentenceIndex >= startSentenceIndex
+          );
+        })
+        .map(
+          async (startSentenceIndex) =>
+            await this.#serialFragments.getFragment(startSentenceIndex),
+        ),
     );
 
-    return fragments.flatMap((fragment) => fragment.sentences);
+    return fragments.flatMap((fragment) =>
+      fragment.sentences.filter((_sentence, index) => {
+        const sentenceIndex = fragment.fragmentId + index;
+
+        return (
+          sentenceIndex >= startSentenceIndex &&
+          sentenceIndex <= endSentenceIndex
+        );
+      }),
+    );
   }
+}
+
+interface SentenceGroup {
+  readonly endSentenceIndex: number;
+  readonly startSentenceIndex: number;
 }
 
 function compareNumber(left: number, right: number): number {
@@ -288,16 +352,6 @@ function compareNumber(left: number, right: number): number {
 
 function listClueChunks(clues: readonly Clue[]): ChunkRecord[] {
   return clues.flatMap((clue) => clue.chunks);
-}
-
-function createNumberRange(start: number, end: number): number[] {
-  const range: number[] = [];
-
-  for (let value = start; value <= end; value += 1) {
-    range.push(value);
-  }
-
-  return range;
 }
 
 function resolveDocument<S extends string>(

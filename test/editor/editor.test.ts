@@ -80,6 +80,61 @@ describe("editor/editor", () => {
     expect(llm.calls).toHaveLength(0);
   });
 
+  it("uses the covered segment when a group starts after the segment start", async () => {
+    const llm = new ScriptedLLM<SpineDigestScope>([
+      "Keep chronology intact.",
+      ["## Compressed Text", "Focused summary"].join("\n"),
+      '{"issues":[]}',
+    ]);
+    const document = createDocument({
+      chunkIdsBySnakeId: {
+        1: [101],
+      },
+      chunksById: {
+        101: createChunkRecord(101, 1, "Beta"),
+      },
+      fragmentGroups: [
+        {
+          endSentenceIndex: 1,
+          groupId: 1,
+          serialId: 1,
+          startSentenceIndex: 1,
+        },
+      ],
+      fragments: [
+        createFragmentRecord(0, [
+          {
+            text: "Alpha begins.",
+            wordsCount: 2,
+          },
+          {
+            text: "Beta continues.",
+            wordsCount: 3,
+          },
+        ]),
+      ],
+      snakeIdsByGroup: [1],
+      snakesById: {
+        1: createSnakeRecord(1, 5, "Beta", "Beta"),
+      },
+    });
+
+    detectMock.mockReturnValue("en");
+
+    const result = await compressText({
+      document,
+      groupId: 1,
+      llm: llm as never,
+      maxIterations: 1,
+      scopes: SPINE_DIGEST_EDITOR_SCOPES,
+      serialId: 1,
+      userLanguage: Language.English,
+    });
+
+    expect(result).toBe("Focused summary");
+    expect(llm.calls[1]?.messages[1]?.content).toContain("Beta continues.");
+  });
+
   it("iterates with reviewer history and language correction before selecting the best version", async () => {
     const llm = new ScriptedLLM<SpineDigestScope>([
       "Keep chronology intact.",

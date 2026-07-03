@@ -29,6 +29,7 @@
     "LICENSE"
   ],
   "bin": {
+    "wikg": "dist/cli.js",
     "wikigraph": "dist/cli.js"
   },
   "exports": {

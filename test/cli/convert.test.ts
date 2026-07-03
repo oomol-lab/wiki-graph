@@ -208,9 +208,6 @@ describe("cli/convert", () => {
         model: "gpt-test",
         provider: "openai",
       },
-      paths: {
-        debugLogDir: "/tmp/debug-log",
-      },
       prompt: "Keep the main beats",
     };
 
@@ -224,7 +221,6 @@ describe("cli/convert", () => {
 
     expect(cliMockState.appConstructorOptions).toStrictEqual([
       {
-        debugLogDirPath: "/tmp/debug-log",
         llm: mockLLMOptions,
       },
     ]);
@@ -365,9 +361,6 @@ describe("cli/convert", () => {
         model: "gpt-test",
         provider: "openai",
       },
-      paths: {
-        debugLogDir: "/tmp/debug-log",
-      },
       prompt: "Keep the main beats",
     };
 
@@ -409,7 +402,7 @@ describe("cli/convert", () => {
         verbose: false,
       }),
     ).rejects.toThrow(
-      "Missing LLM configuration. Set --llm, `llm.provider` and `llm.model` in ~/.wikigraph/config.json, or the matching WIKIGRAPH_LLM_* environment variables.\nSee: wikigraph help config",
+      "Missing LLM configuration. Set --llm for one run, or configure `wikg://local/config/llm` with provider and model.\nSee: wikigraph help config",
     );
 
     expect(cliMockState.appConstructorOptions).toHaveLength(0);

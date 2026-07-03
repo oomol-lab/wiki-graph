@@ -5,9 +5,9 @@ Command Overview
 
 Object commands:
   wikigraph <object-uri> get
-  wikigraph <located-wkg-uri> search <query>
-  wikigraph <located-wkg-uri>/<chapter|entity|triple|source|summary|chunk> search <query>
-  wikigraph <located-wkg-uri>/<chapter|entity|triple|source|summary|chunk> list
+  wikigraph <located-wikg-uri> search <query>
+  wikigraph <located-wikg-uri>/<chapter|entity|triple|source|summary|chunk> search <query>
+  wikigraph <located-wikg-uri>/<chapter|entity|triple|source|summary|chunk> list
   wikigraph <chunk-uri|entity-uri> related
   wikigraph <entity|triple|summary|chunk-uri> evidence
   wikigraph next <cursor>
@@ -26,9 +26,9 @@ Archive commands:
   wikigraph transform [options]
 
 Generation:
-  wikigraph <chapter-uri> queue add --task <reading-graph|reading-summary|knowledge-graph> --accept-cost
-  wikigraph wkg-job:// list
-  wikigraph wkg-job://<job-id> get|watch|pause|resume|cancel|boost|set
+  wikigraph wikg://local/job add --input <chapter-uri> --task <reading-graph|reading-summary|knowledge-graph> --accept-cost
+  wikigraph wikg://local/job list
+  wikigraph wikg://local/job/<job-id> get|watch|pause|resume|cancel|boost|set
 
 Maintenance:
   wikigraph <archive-uri> get|set
@@ -40,5 +40,5 @@ Maintenance:
   wikigraph <chapter-uri>/summary set
   wikigraph <chapter-uri>/title set
   wikigraph <archive-uri>/chapter/tree get|set
-  wikigraph config status
-    Prints JSON by default and does not accept `--json`.
+  wikigraph wikg://local/config/llm get|put|set|delete|clear|test
+  wikigraph wikg://local/config/concurrent get|put|set|delete|clear

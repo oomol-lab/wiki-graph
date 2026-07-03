@@ -1,11 +1,11 @@
 Help Type: command
-Command: wikigraph queue clean
+Command: wikigraph wikg://local/job clean
 
 Purpose:
   Remove old terminal job records and retained files.
 
 Usage:
-  wikigraph queue clean
+  wikigraph wikg://local/job clean
 
 Behavior:
   - Succeeded jobs delete their workspace by default when they finish.
@@ -13,4 +13,4 @@ Behavior:
   - Clean removes retained terminal history according to queue retention rules.
 
 Example:
-  wikigraph queue clean
+  wikigraph wikg://local/job clean

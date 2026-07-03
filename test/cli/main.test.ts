@@ -14,8 +14,7 @@ const mainMockState = vi.hoisted(() => ({
   archiveRunCalls: [] as unknown[],
   archiveIndexRunCalls: [] as unknown[],
   convertRunCalls: [] as unknown[],
-  statusRunCalls: 0,
-  statusRunArgs: [] as unknown[],
+  localConfigRunCalls: [] as unknown[],
   gcRunCalls: [] as unknown[],
   archiveChapterRunCalls: [] as unknown[],
   archiveCoverRunCalls: [] as unknown[],
@@ -24,7 +23,7 @@ const mainMockState = vi.hoisted(() => ({
   archiveRunError: undefined as Error | undefined,
   archiveIndexRunError: undefined as Error | undefined,
   convertRunError: undefined as Error | undefined,
-  statusRunError: undefined as Error | undefined,
+  localConfigRunError: undefined as Error | undefined,
   gcRunError: undefined as Error | undefined,
   archiveChapterRunError: undefined as Error | undefined,
   archiveCoverRunError: undefined as Error | undefined,
@@ -78,13 +77,12 @@ vi.mock("../../src/cli/convert.js", () => ({
   }),
 }));
 
-vi.mock("../../src/cli/status.js", () => ({
-  runStatusCommand: vi.fn((args: unknown) => {
-    mainMockState.statusRunCalls += 1;
-    mainMockState.statusRunArgs.push(args);
+vi.mock("../../src/cli/local-config.js", () => ({
+  runLocalConfigCommand: vi.fn((args: unknown) => {
+    mainMockState.localConfigRunCalls.push(args);
 
-    if (mainMockState.statusRunError !== undefined) {
-      return Promise.reject(mainMockState.statusRunError);
+    if (mainMockState.localConfigRunError !== undefined) {
+      return Promise.reject(mainMockState.localConfigRunError);
     }
 
     return Promise.resolve();
@@ -174,8 +172,7 @@ describe("cli/main", () => {
     mainMockState.archiveRunCalls.length = 0;
     mainMockState.archiveIndexRunCalls.length = 0;
     mainMockState.convertRunCalls.length = 0;
-    mainMockState.statusRunCalls = 0;
-    mainMockState.statusRunArgs.length = 0;
+    mainMockState.localConfigRunCalls.length = 0;
     mainMockState.gcRunCalls.length = 0;
     mainMockState.archiveChapterRunCalls.length = 0;
     mainMockState.archiveCoverRunCalls.length = 0;
@@ -184,7 +181,7 @@ describe("cli/main", () => {
     mainMockState.archiveRunError = undefined;
     mainMockState.archiveIndexRunError = undefined;
     mainMockState.convertRunError = undefined;
-    mainMockState.statusRunError = undefined;
+    mainMockState.localConfigRunError = undefined;
     mainMockState.gcRunError = undefined;
     mainMockState.archiveChapterRunError = undefined;
     mainMockState.archiveCoverRunError = undefined;
@@ -225,7 +222,7 @@ describe("cli/main", () => {
     expect(stdoutChunks).toStrictEqual([`${renderMainHelpText()}\n`]);
     expect(stderrChunks).toStrictEqual([]);
     expect(mainMockState.archiveRunCalls).toHaveLength(0);
-    expect(mainMockState.statusRunCalls).toBe(0);
+    expect(mainMockState.localConfigRunCalls).toHaveLength(0);
     expect(mainMockState.archiveMetaRunCalls).toHaveLength(0);
     expect(process.exitCode).toBe(0);
   });
@@ -242,7 +239,7 @@ describe("cli/main", () => {
     expect(stdoutChunks).toStrictEqual(["CLI HELP\n"]);
     expect(stderrChunks).toStrictEqual([]);
     expect(mainMockState.archiveRunCalls).toHaveLength(0);
-    expect(mainMockState.statusRunCalls).toBe(0);
+    expect(mainMockState.localConfigRunCalls).toHaveLength(0);
     expect(mainMockState.archiveMetaRunCalls).toHaveLength(0);
     expect(process.exitCode).toBe(0);
   });
@@ -266,7 +263,7 @@ describe("cli/main", () => {
       },
     ]);
     expect(mainMockState.archiveMetaRunCalls).toHaveLength(0);
-    expect(mainMockState.statusRunCalls).toBe(0);
+    expect(mainMockState.localConfigRunCalls).toHaveLength(0);
     expect(stdoutChunks).toStrictEqual([]);
     expect(stderrChunks).toStrictEqual([]);
     expect(process.exitCode).toBe(0);
@@ -361,28 +358,29 @@ describe("cli/main", () => {
     expect(stdoutChunks[0]).toMatch(/^\d+\.\d+\.\d+\n$/u);
     expect(stderrChunks).toStrictEqual([]);
     expect(mainMockState.archiveRunCalls).toHaveLength(0);
-    expect(mainMockState.statusRunCalls).toBe(0);
+    expect(mainMockState.localConfigRunCalls).toHaveLength(0);
     expect(mainMockState.archiveChapterRunCalls).toHaveLength(0);
     expect(mainMockState.archiveMetaRunCalls).toHaveLength(0);
     expect(process.exitCode).toBe(0);
   });
 
-  it("runs the status command for status execution", async () => {
+  it("runs the local config command", async () => {
     mainMockState.argsResult = {
       args: {
-        llmJSON: '{"model":"inline-model"}',
+        action: "get",
+        section: "llm",
       },
       help: false,
-      kind: "config-status",
+      kind: "local-config",
     };
 
     await main();
 
     expect(mainMockState.archiveRunCalls).toHaveLength(0);
-    expect(mainMockState.statusRunCalls).toBe(1);
-    expect(mainMockState.statusRunArgs).toStrictEqual([
+    expect(mainMockState.localConfigRunCalls).toStrictEqual([
       {
-        llmJSON: '{"model":"inline-model"}',
+        action: "get",
+        section: "llm",
       },
     ]);
     expect(mainMockState.archiveMetaRunCalls).toHaveLength(0);
@@ -406,7 +404,7 @@ describe("cli/main", () => {
       { dryRun: true, force: true, json: true },
     ]);
     expect(mainMockState.archiveRunCalls).toHaveLength(0);
-    expect(mainMockState.statusRunCalls).toBe(0);
+    expect(mainMockState.localConfigRunCalls).toHaveLength(0);
     expect(process.exitCode).toBe(0);
   });
 
@@ -481,7 +479,7 @@ describe("cli/main", () => {
 
     expect(stderrChunks).toStrictEqual(["bad args\n"]);
     expect(mainMockState.archiveRunCalls).toHaveLength(0);
-    expect(mainMockState.statusRunCalls).toBe(0);
+    expect(mainMockState.localConfigRunCalls).toHaveLength(0);
     expect(process.exitCode).toBe(1);
   });
 
@@ -514,7 +512,7 @@ describe("cli/main", () => {
       "wikigraph",
       "get",
       "/tmp/book.wikg",
-      "wkg://entity/Q1",
+      "wikg://entity/Q1",
       "--json",
     ];
     mainMockState.argsResult = {
@@ -522,7 +520,7 @@ describe("cli/main", () => {
         action: "get",
         archivePath: "/tmp/book.wikg",
         format: "json",
-        objectId: "wkg://entity/Q1",
+        objectId: "wikg://entity/Q1",
       },
       help: false,
       kind: "archive",
@@ -575,28 +573,6 @@ describe("cli/main", () => {
       {
         help: false,
         verbose: false,
-      },
-    ]);
-    expect(process.exitCode).toBe(1);
-  });
-
-  it("writes status command failures to stderr and sets a non-zero exit code", async () => {
-    mainMockState.argsResult = {
-      args: {
-        llmJSON: '{"model":"inline-model"}',
-      },
-      help: false,
-      kind: "config-status",
-    };
-    mainMockState.statusRunError = new Error("status failed");
-
-    await main();
-
-    expect(stderrChunks).toStrictEqual(["status failed\n"]);
-    expect(mainMockState.statusRunCalls).toBe(1);
-    expect(mainMockState.statusRunArgs).toStrictEqual([
-      {
-        llmJSON: '{"model":"inline-model"}',
       },
     ]);
     expect(process.exitCode).toBe(1);

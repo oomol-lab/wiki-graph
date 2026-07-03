@@ -11,40 +11,40 @@ Primary contract:
 Object command inputs:
   Never pass a bare filesystem path to URI-targeted commands.
   Convert archive paths into Wiki Graph URIs first:
-    /Users/me/book.wikg -> wkg:///Users/me/book.wikg
-    ./book.wikg -> wkg://book.wikg
+    /Users/me/book.wikg -> wikg:///Users/me/book.wikg
+    ./book.wikg -> wikg://book.wikg
 
 Treat every search result as a Wiki Graph URI.
-Search results may use short object URIs such as `wkg://entity/Q8018`; prepend the archive locator before passing them back to object commands:
-  wkg:///absolute/path/book.wikg/entity/Q8018
+Search results may use short object URIs such as `wikg://entity/Q8018`; prepend the archive locator before passing them back to object commands:
+  wikg:///absolute/path/book.wikg/entity/Q8018
 
 Default exploration loop:
   1. `wikigraph help uri`
   2. `wikigraph help object`
-  3. `wikigraph wkg:///absolute/path/book.wikg search <query>`
+  3. `wikigraph wikg:///absolute/path/book.wikg search <query>`
   4. `wikigraph <located-object-uri> get`
   5. `wikigraph <located-object-uri> related`
   6. `wikigraph <located-object-uri> evidence`
   7. Pick a located chunk or entity URI before `wikigraph <located-graph-object-uri> pack --budget <chars>`
 
 Archive and job commands also use URI targets:
-  wikigraph wkg://book.wikg create ./book.md
-  wikigraph wkg://book.wikg/chapter list
-  wikigraph wkg://book.wikg/chapter/3 queue add --task reading-graph --accept-cost
-  wikigraph wkg-job:// list
-  wikigraph wkg-job://<job-id> watch --jsonl
+  wikigraph wikg://book.wikg create ./book.md
+  wikigraph wikg://book.wikg/chapter list
+  wikigraph wikg://local/job add --input wikg://book.wikg/chapter/3 --task reading-graph --accept-cost
+  wikigraph wikg://local/job list
+  wikigraph wikg://local/job/<job-id> watch --jsonl
 
 Example:
-  wikigraph wkg:///Users/me/book.wikg/entity search "朱元璋"
+  wikigraph wikg:///Users/me/book.wikg/entity search "朱元璋"
 
 Use URI lenses to select searchable object kinds:
-  wkg://book.wikg/chapter
-  wkg://book.wikg/source
-  wkg://book.wikg/summary
-  wkg://book.wikg/chunk
-  wkg://book.wikg/entity
-  wkg://book.wikg/triple
-  wkg://book.wikg/chapter/3/entity
+  wikg://book.wikg/chapter
+  wikg://book.wikg/source
+  wikg://book.wikg/summary
+  wikg://book.wikg/chunk
+  wikg://book.wikg/entity
+  wikg://book.wikg/triple
+  wikg://book.wikg/chapter/3/entity
 
 Lens position controls scope: use `<archive-uri>/entity list` for an archive-wide entity inventory, and use `<chapter-uri>/entity list` only for one chapter.
 

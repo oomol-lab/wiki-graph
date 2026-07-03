@@ -1,7 +1,7 @@
 import { randomBytes } from "crypto";
-import { join, resolve } from "path";
+import { join } from "path";
 
-import { resolveWikiGraphStateDirectoryPath } from "../../common/wiki-graph-dir.js";
+import { resolveWikiGraphCacheDirectoryPath } from "../../common/wiki-graph-dir.js";
 import { getOptionalString, getString } from "../../document/database.js";
 import { openSharedStateDatabase } from "../../document/index.js";
 import type { Database } from "../../document/index.js";
@@ -547,13 +547,7 @@ async function openContinuationCursorDatabase(): Promise<Database> {
 }
 
 function getContinuationStateDirectoryPath(): string {
-  const stateDirectoryPath = process.env.WIKIGRAPH_STATE_DIR;
-
-  if (stateDirectoryPath !== undefined && stateDirectoryPath.trim() !== "") {
-    return resolve(stateDirectoryPath);
-  }
-
-  return resolveWikiGraphStateDirectoryPath();
+  return resolveWikiGraphCacheDirectoryPath();
 }
 
 function parseCursorFormat(value: string): "json" | "jsonl" | "text" {

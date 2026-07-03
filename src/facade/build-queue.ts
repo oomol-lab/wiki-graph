@@ -2,7 +2,7 @@ import { createHash, randomUUID } from "crypto";
 import { appendFile, mkdir, mkdtemp, readFile, rm } from "fs/promises";
 import { dirname, join, resolve } from "path";
 
-import { resolveWikiGraphStateDirectoryPath } from "../common/wiki-graph-dir.js";
+import { resolveWikiGraphJobsDirectoryPath } from "../common/wiki-graph-dir.js";
 import { openSharedStateDatabase } from "../document/index.js";
 import type { Database } from "../document/index.js";
 import {
@@ -41,6 +41,19 @@ export type BuildJobProgressUnit =
   | "sentence"
   | "window"
   | "record";
+
+export interface BuildJobProgressCounter {
+  readonly done: number;
+  readonly name: string;
+  readonly total: number;
+  readonly unit: BuildJobProgressUnit | "word";
+}
+
+export interface BuildJobTokenUsage {
+  readonly cacheReadTokens?: number;
+  readonly inputTokens?: number;
+  readonly outputTokens?: number;
+}
 
 export interface BuildJob {
   readonly archiveKey: string;
@@ -104,22 +117,13 @@ export type BuildJobEvent =
     }
   | {
       readonly at: number;
-      readonly graphWords: number;
+      readonly counters: readonly BuildJobProgressCounter[];
       readonly jobId: string;
-      readonly outputTokens: number;
       readonly phase?: BuildJobProgressPhase;
-      readonly phaseDetail?: string;
-      readonly phaseDone?: number;
-      readonly phaseTotal?: number;
-      readonly phaseUnit?: BuildJobProgressUnit;
       readonly seq: number;
       readonly step?: BuildJobTarget;
-      readonly readingSummaryWords: number;
-      readonly totalGraphWords: number;
-      readonly totalReadingSummaryWords: number;
-      readonly totalWords: number;
-      readonly type: "progress_snapshot";
-      readonly words: number;
+      readonly tokens?: BuildJobTokenUsage;
+      readonly type: "status_snapshot";
     }
   | {
       readonly at: number;
@@ -162,6 +166,7 @@ export interface BuildJobExecutionContext {
 
 export interface BuildJobProgressReporter {
   addOutputCharacters(characters: number): Promise<void>;
+  addTokenUsage(usage: BuildJobTokenUsage): Promise<void>;
   setTotals(input: {
     readonly totalGraphWords?: number;
     readonly totalReadingSummaryWords?: number;
@@ -1483,7 +1488,7 @@ async function openReadonlyBuildQueueDatabase(): Promise<Database> {
 }
 
 function getBuildQueueDatabasePath(): string {
-  return join(getBuildQueueStateDirectoryPath(), "build-queue.sqlite");
+  return join(getBuildQueueStateDirectoryPath(), "job.sqlite");
 }
 
 async function migrateBuildQueueSchema(database: Database): Promise<void> {
@@ -1529,24 +1534,18 @@ async function createJobWorkspacePath(
 }
 
 function getBuildJobWorkspaceRootPath(): string {
-  return join(getBuildQueueStateDirectoryPath(), "build-jobs");
+  return join(getBuildQueueStateDirectoryPath(), "work");
 }
 
 async function createJobEventsPath(jobId: string): Promise<string> {
-  const rootPath = join(getBuildQueueStateDirectoryPath(), "build-events");
+  const rootPath = join(getBuildQueueStateDirectoryPath(), "events");
 
   await mkdir(rootPath, { recursive: true });
   return join(rootPath, `${jobId}.ndjson`);
 }
 
 function getBuildQueueStateDirectoryPath(): string {
-  const stateDirectoryPath = process.env.WIKIGRAPH_STATE_DIR;
-
-  if (stateDirectoryPath !== undefined && stateDirectoryPath.trim() !== "") {
-    return resolve(stateDirectoryPath);
-  }
-
-  return resolveWikiGraphStateDirectoryPath();
+  return resolveWikiGraphJobsDirectoryPath();
 }
 
 function mapBuildJob(row: Record<string, unknown>): BuildJob {
@@ -1702,16 +1701,10 @@ class BuildJobProgressAccumulator implements BuildJobProgressReporter {
   #graphWords = 0;
   #lastSnapshotAt = 0;
   #outputCharacters = 0;
-  #phase:
-    | {
-        readonly done: number;
-        readonly phase: BuildJobProgressPhase;
-        readonly phaseDetail?: string;
-        readonly total: number;
-        readonly unit: BuildJobProgressUnit;
-      }
-    | undefined;
+  #phase: BuildJobProgressPhase | undefined;
+  readonly #phaseCounters = new Map<string, BuildJobProgressCounter>();
   #step: BuildJobTarget | undefined;
+  #tokenUsage: BuildJobTokenUsage = {};
   #readingSummaryWords = 0;
   #stopCheckQueue: Promise<void> = Promise.resolve();
   #totalGraphWords = 0;
@@ -1728,6 +1721,30 @@ class BuildJobProgressAccumulator implements BuildJobProgressReporter {
       await this.throwIfStopped();
       this.#outputCharacters += characters;
       await this.#snapshot();
+    });
+  }
+
+  public async addTokenUsage(usage: BuildJobTokenUsage): Promise<void> {
+    await this.#enqueue(async () => {
+      await this.throwIfStopped();
+      this.#tokenUsage = {
+        ...formatOptionalTokenUsage(
+          "cacheReadTokens",
+          addOptionalNumbers(
+            this.#tokenUsage.cacheReadTokens,
+            usage.cacheReadTokens,
+          ),
+        ),
+        ...formatOptionalTokenUsage(
+          "inputTokens",
+          addOptionalNumbers(this.#tokenUsage.inputTokens, usage.inputTokens),
+        ),
+        ...formatOptionalTokenUsage(
+          "outputTokens",
+          addOptionalNumbers(this.#tokenUsage.outputTokens, usage.outputTokens),
+        ),
+      };
+      await this.#snapshot(true);
     });
   }
 
@@ -1749,6 +1766,7 @@ class BuildJobProgressAccumulator implements BuildJobProgressReporter {
       await this.throwIfStopped();
       this.#step = step;
       this.#phase = undefined;
+      this.#phaseCounters.clear();
       await markBuildJobStep(this.#job.jobId, step);
       await appendBuildJobEvent(this.#job, {
         at: Date.now(),
@@ -1765,6 +1783,8 @@ class BuildJobProgressAccumulator implements BuildJobProgressReporter {
     await this.#enqueue(async () => {
       await this.throwIfStopped();
       this.#step = step;
+      this.#phase = undefined;
+      this.#phaseCounters.clear();
       await appendBuildJobEvent(this.#job, {
         at: Date.now(),
         jobId: this.#job.jobId,
@@ -1806,15 +1826,16 @@ class BuildJobProgressAccumulator implements BuildJobProgressReporter {
   }): Promise<void> {
     await this.#enqueue(async () => {
       await this.throwIfStopped();
-      this.#phase = {
+      if (this.#phase !== input.phase) {
+        this.#phaseCounters.clear();
+      }
+      this.#phase = input.phase;
+      this.#phaseCounters.set(formatProgressCounterKey(input), {
         done: clampProgressWords(input.done, input.total),
-        phase: input.phase,
-        ...(input.phaseDetail === undefined
-          ? {}
-          : { phaseDetail: input.phaseDetail }),
+        name: formatProgressCounterName(input),
         total: Math.max(0, input.total),
         unit: input.unit,
-      };
+      });
       await this.#snapshot(true);
     });
   }
@@ -1851,57 +1872,120 @@ class BuildJobProgressAccumulator implements BuildJobProgressReporter {
     }
 
     this.#lastSnapshotAt = now;
+    const tokens = this.#formatTokenUsage();
+
     await appendBuildJobEvent(this.#job, {
       at: now,
-      graphWords: this.#graphWords,
+      counters: this.#createCounters(),
       jobId: this.#job.jobId,
-      outputTokens: Math.floor(
-        this.#outputCharacters / this.#outputCharactersPerToken,
-      ),
-      ...(this.#phase === undefined
-        ? {}
-        : {
-            phase: this.#phase.phase,
-            ...(this.#phase.phaseDetail === undefined
-              ? {}
-              : { phaseDetail: this.#phase.phaseDetail }),
-            phaseDone: this.#phase.done,
-            phaseTotal: this.#phase.total,
-            phaseUnit: this.#phase.unit,
-          }),
+      ...(this.#phase === undefined ? {} : { phase: this.#phase }),
       seq: 0,
       ...(this.#step === undefined ? {} : { step: this.#step }),
-      readingSummaryWords: this.#readingSummaryWords,
-      totalGraphWords: this.#totalGraphWords,
-      totalReadingSummaryWords: this.#totalReadingSummaryWords,
-      totalWords: this.#getCurrentTotalWords(),
-      type: "progress_snapshot",
-      words: this.#getCurrentWords(),
+      ...(tokens === undefined ? {} : { tokens }),
+      type: "status_snapshot",
     });
   }
 
-  #getCurrentTotalWords(): number {
+  #createCounters(): readonly BuildJobProgressCounter[] {
+    const wordCounter = this.#createWordCounter();
+    return [
+      ...(wordCounter === undefined ? [] : [wordCounter]),
+      ...this.#phaseCounters.values(),
+    ];
+  }
+
+  #createWordCounter(): BuildJobProgressCounter | undefined {
     switch (this.#step) {
       case "reading-graph":
       case "knowledge-graph":
-        return this.#totalGraphWords;
+        return this.#totalGraphWords <= 0
+          ? undefined
+          : {
+              done: this.#graphWords,
+              name: "words",
+              total: this.#totalGraphWords,
+              unit: "word",
+            };
       case "reading-summary":
-        return this.#totalReadingSummaryWords;
+        return this.#totalReadingSummaryWords <= 0
+          ? undefined
+          : {
+              done: this.#readingSummaryWords,
+              name: "words",
+              total: this.#totalReadingSummaryWords,
+              unit: "word",
+            };
       case undefined:
-        return 0;
+        return undefined;
     }
   }
 
-  #getCurrentWords(): number {
-    switch (this.#step) {
-      case "reading-graph":
-      case "knowledge-graph":
-        return this.#graphWords;
-      case "reading-summary":
-        return this.#readingSummaryWords;
-      case undefined:
-        return 0;
-    }
+  #formatTokenUsage(): BuildJobTokenUsage | undefined {
+    const outputTokens =
+      this.#tokenUsage.outputTokens ??
+      (this.#outputCharacters === 0
+        ? undefined
+        : Math.floor(this.#outputCharacters / this.#outputCharactersPerToken));
+    const usage = {
+      ...(this.#tokenUsage.cacheReadTokens === undefined
+        ? {}
+        : { cacheReadTokens: this.#tokenUsage.cacheReadTokens }),
+      ...(this.#tokenUsage.inputTokens === undefined
+        ? {}
+        : { inputTokens: this.#tokenUsage.inputTokens }),
+      ...(outputTokens === undefined ? {} : { outputTokens }),
+    };
+
+    return Object.keys(usage).length === 0 ? undefined : usage;
+  }
+}
+
+function formatOptionalTokenUsage(
+  key: keyof BuildJobTokenUsage,
+  value: number | undefined,
+): BuildJobTokenUsage {
+  return value === undefined ? {} : { [key]: value };
+}
+
+function addOptionalNumbers(
+  left: number | undefined,
+  right: number | undefined,
+): number | undefined {
+  if (left === undefined && right === undefined) {
+    return undefined;
+  }
+
+  return (left ?? 0) + (right ?? 0);
+}
+
+function formatProgressCounterKey(input: {
+  readonly phaseDetail?: string;
+  readonly unit: BuildJobProgressUnit;
+}): string {
+  return input.phaseDetail ?? input.unit;
+}
+
+function formatProgressCounterName(input: {
+  readonly phaseDetail?: string;
+  readonly unit: BuildJobProgressUnit;
+}): string {
+  if (input.phaseDetail !== undefined) {
+    return input.phaseDetail;
+  }
+
+  switch (input.unit) {
+    case "candidate":
+      return "candidates";
+    case "page":
+      return "page";
+    case "qid":
+      return "qids";
+    case "record":
+      return "records";
+    case "sentence":
+      return "sentences";
+    case "window":
+      return "windows";
   }
 }
 

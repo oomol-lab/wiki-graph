@@ -1,8 +1,8 @@
 import { createHash } from "crypto";
 import { stat } from "fs/promises";
-import { join, resolve } from "path";
+import { join } from "path";
 
-import { resolveWikiGraphStateDirectoryPath } from "../../common/wiki-graph-dir.js";
+import { resolveWikiGraphCacheDirectoryPath } from "../../common/wiki-graph-dir.js";
 import { getNumber, getString } from "../../document/database.js";
 import type { SqlBindValue } from "../../document/database.js";
 import { openSharedStateDatabase } from "../../document/index.js";
@@ -717,13 +717,7 @@ function getSearchSessionDatabasePath(): string {
 }
 
 function getSearchSessionStateDirectoryPath(): string {
-  const stateDirectoryPath = process.env.WIKIGRAPH_STATE_DIR;
-
-  if (stateDirectoryPath !== undefined && stateDirectoryPath.trim() !== "") {
-    return resolve(stateDirectoryPath);
-  }
-
-  return resolveWikiGraphStateDirectoryPath();
+  return resolveWikiGraphCacheDirectoryPath();
 }
 
 async function listExpiredSearchSessionIds(
@@ -1181,7 +1175,7 @@ function mapEntitySearchObjectRow(
       total: 0,
     },
     field: "title",
-    id: `wkg://entity/${qid}`,
+    id: `wikg://entity/${qid}`,
     score: getNumber(row, "result_score"),
     snippet: qid,
     title: qid,

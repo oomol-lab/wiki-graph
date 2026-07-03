@@ -69,52 +69,52 @@ export async function extractCluesFromDocument(input: {
   return normalizeClueWeights(currentClues);
 }
 
-function calculateFragmentReduction(leftClue: Clue, rightClue: Clue): number {
-  const leftFragmentIds = collectFragmentIds(leftClue.chunks);
-  const rightFragmentIds = collectFragmentIds(rightClue.chunks);
-  const mergedFragmentIds = Object.create(null) as Record<string, true>;
+function calculateSentenceReduction(leftClue: Clue, rightClue: Clue): number {
+  const leftSentenceIndexes = collectSentenceIndexes(leftClue.chunks);
+  const rightSentenceIndexes = collectSentenceIndexes(rightClue.chunks);
+  const mergedSentenceIndexes = Object.create(null) as Record<string, true>;
   let mergedCount = 0;
 
-  for (const fragmentId of leftFragmentIds) {
-    mergedFragmentIds[String(fragmentId)] = true;
+  for (const sentenceIndex of leftSentenceIndexes) {
+    mergedSentenceIndexes[String(sentenceIndex)] = true;
     mergedCount += 1;
   }
 
-  for (const fragmentId of rightFragmentIds) {
-    const fragmentKey = String(fragmentId);
+  for (const sentenceIndex of rightSentenceIndexes) {
+    const sentenceKey = String(sentenceIndex);
 
-    if (mergedFragmentIds[fragmentKey] === true) {
+    if (mergedSentenceIndexes[sentenceKey] === true) {
       continue;
     }
 
-    mergedFragmentIds[fragmentKey] = true;
+    mergedSentenceIndexes[sentenceKey] = true;
     mergedCount += 1;
   }
 
-  return leftFragmentIds.length + rightFragmentIds.length - mergedCount;
+  return leftSentenceIndexes.length + rightSentenceIndexes.length - mergedCount;
 }
 
-function collectFragmentIds(chunks: readonly ChunkRecord[]): number[] {
-  const fragmentIdRecord = Object.create(null) as Record<string, true>;
-  const fragmentIds: number[] = [];
+function collectSentenceIndexes(chunks: readonly ChunkRecord[]): number[] {
+  const sentenceIndexRecord = Object.create(null) as Record<string, true>;
+  const sentenceIndexes: number[] = [];
 
   for (const chunk of chunks) {
     for (const sentenceId of chunk.sentenceIds) {
-      const fragmentId = sentenceId[1];
-      const fragmentKey = String(fragmentId);
+      const sentenceIndex = sentenceId[1];
+      const sentenceKey = String(sentenceIndex);
 
-      if (fragmentIdRecord[fragmentKey] === true) {
+      if (sentenceIndexRecord[sentenceKey] === true) {
         continue;
       }
 
-      fragmentIdRecord[fragmentKey] = true;
-      fragmentIds.push(fragmentId);
+      sentenceIndexRecord[sentenceKey] = true;
+      sentenceIndexes.push(sentenceIndex);
     }
   }
 
-  fragmentIds.sort(compareNumber);
+  sentenceIndexes.sort(compareNumber);
 
-  return fragmentIds;
+  return sentenceIndexes;
 }
 
 function compareClueByWeightAscending(left: Clue, right: Clue): number {
@@ -188,7 +188,7 @@ function findBestMergePair(
         continue;
       }
 
-      const reduction = calculateFragmentReduction(leftClue, rightClue);
+      const reduction = calculateSentenceReduction(leftClue, rightClue);
 
       if (reduction <= bestReduction) {
         continue;

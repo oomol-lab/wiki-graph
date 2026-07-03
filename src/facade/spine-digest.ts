@@ -109,7 +109,7 @@ export class SpineDigest {
 
       if (record === undefined) {
         throw new Error(
-          `No completed summary exists for id ${serialId}. Use \`wikigraph wkg://<archive.wikg>/chapter list\` to discover chapter ids, then \`wikigraph wkg://<archive.wikg>/chapter/${serialId}/summary get\` after summary is ready.`,
+          `No completed summary exists for id ${serialId}. Use \`wikigraph wikg://<archive.wikg>/chapter list\` to discover chapter ids, then \`wikigraph wikg://<archive.wikg>/chapter/${serialId}/summary get\` after summary is ready.`,
         );
       }
 
@@ -117,7 +117,7 @@ export class SpineDigest {
 
       if (summary === undefined) {
         throw new Error(
-          `Chapter ${serialId} summary is missing. Run \`wikigraph <chapter-uri> queue add --task reading-summary --accept-cost\` before export, or inspect the archive with \`wikigraph <archive-uri>/chapter/tree get\`.`,
+          `Chapter ${serialId} summary is missing. Run \`wikigraph wikg://local/job add --input <chapter-uri> --task reading-summary --accept-cost\` before export, or inspect the archive with \`wikigraph <archive-uri>/chapter/tree get\`.`,
         );
       }
 

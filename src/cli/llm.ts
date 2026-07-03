@@ -14,7 +14,7 @@ export function buildLLMOptions(config: CLIConfig): SpineDigestLLMOptions {
   if (llm?.provider === undefined || llm.model === undefined) {
     throw new Error(
       withHelpRoute(
-        "Missing LLM configuration. Set --llm, `llm.provider` and `llm.model` in ~/.wikigraph/config.json, or the matching WIKIGRAPH_LLM_* environment variables.",
+        "Missing LLM configuration. Set --llm for one run, or configure `wikg://local/config/llm` with provider and model.",
         CLI_HELP_ROUTES.config,
       ),
     );
@@ -26,33 +26,9 @@ export function buildLLMOptions(config: CLIConfig): SpineDigestLLMOptions {
       baseURL: llm.baseURL,
       name: llm.name,
     }),
-    ...(config.paths?.cacheDir === undefined
+    ...(config.concurrent?.request === undefined
       ? {}
-      : { cacheDirPath: config.paths.cacheDir }),
-    ...(config.paths?.debugLogDir === undefined
-      ? {}
-      : { logDirPath: config.paths.debugLogDir }),
-    ...(config.request?.concurrent === undefined
-      ? {}
-      : { concurrent: config.request.concurrent }),
-    ...(config.request?.retryIntervalSeconds === undefined
-      ? {}
-      : { retryIntervalSeconds: config.request.retryIntervalSeconds }),
-    ...(config.request?.retryTimes === undefined
-      ? {}
-      : { retryTimes: config.request.retryTimes }),
-    ...(config.request?.stream === undefined
-      ? {}
-      : { stream: config.request.stream }),
-    ...(config.request?.temperature === undefined
-      ? {}
-      : { temperature: config.request.temperature }),
-    ...(config.request?.timeout === undefined
-      ? {}
-      : { timeout: config.request.timeout }),
-    ...(config.request?.topP === undefined
-      ? {}
-      : { topP: config.request.topP }),
+      : { concurrent: config.concurrent.request }),
   };
 }
 
@@ -86,7 +62,7 @@ function createLanguageModel(
       if (options.baseURL !== undefined) {
         throw new Error(
           withHelpRoute(
-            "openai does not accept llm.baseURL, baseURL in --llm JSON, or WIKIGRAPH_LLM_BASE_URL. Use openai-compatible for third-party OpenAI-style APIs.",
+            "openai does not accept llm.baseURL or baseURL in --llm JSON. Use openai-compatible for third-party OpenAI-style APIs.",
             CLI_HELP_ROUTES.config,
           ),
         );
@@ -103,7 +79,7 @@ function createLanguageModel(
       if (options.baseURL === undefined) {
         throw new Error(
           withHelpRoute(
-            "openai-compatible requires llm.baseURL, baseURL in --llm JSON, or WIKIGRAPH_LLM_BASE_URL.",
+            "openai-compatible requires llm.baseURL or baseURL in --llm JSON.",
             CLI_HELP_ROUTES.config,
           ),
         );

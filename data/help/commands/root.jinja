@@ -21,13 +21,13 @@ Object workflow:
 
 Object commands:
   wikigraph <object-uri> get [--evidence [n]] [--context <n>] [--backlinks] [--json|--jsonl]
-  wikigraph <located-wkg-uri> search <query> [--all] [--limit <n>] [--context <n>] [--cursor <token>] [--evidence [n]] [--backlinks] [--json|--jsonl]
+  wikigraph <located-wikg-uri> search <query> [--all] [--limit <n>] [--context <n>] [--cursor <token>] [--evidence [n]] [--backlinks] [--json|--jsonl]
   wikigraph <entity|triple|summary|chunk-uri> evidence [query] [--all] [--limit <n>] [--context <n>] [--cursor <token>] [--json|--jsonl]
   wikigraph <chunk-uri|entity-uri> related [query] [--all] [--limit <n>] [--context <n>] [--cursor <token>] [--role <any|subject|object|self>] [--evidence [n]] [--json|--jsonl]
-  wikigraph <located-wkg-uri>/<chapter|entity|triple|source|summary|chunk> search <query> [--all] [--limit <n>] [--context <n>] [--cursor <token>] [--evidence [n]] [--backlinks] [--json|--jsonl]
-  wikigraph <located-wkg-uri>/triple/<subject|_>/<predicate|_>/<object|_> search <query> [--all] [--limit <n>] [--context <n>] [--cursor <token>] [--evidence [n]] [--json|--jsonl]
-  wikigraph <located-wkg-uri>/<chapter|entity|triple|source|summary|chunk> list [--all] [--limit <n>] [--context <n>] [--cursor <token>] [--evidence [n]] [--backlinks] [--json|--jsonl]
-  wikigraph <located-wkg-uri>/triple/<subject|_>/<predicate|_>/<object|_> list [--all] [--limit <n>] [--context <n>] [--cursor <token>] [--evidence [n]] [--json|--jsonl]
+  wikigraph <located-wikg-uri>/<chapter|entity|triple|source|summary|chunk> search <query> [--all] [--limit <n>] [--context <n>] [--cursor <token>] [--evidence [n]] [--backlinks] [--json|--jsonl]
+  wikigraph <located-wikg-uri>/triple/<subject|_>/<predicate|_>/<object|_> search <query> [--all] [--limit <n>] [--context <n>] [--cursor <token>] [--evidence [n]] [--json|--jsonl]
+  wikigraph <located-wikg-uri>/<chapter|entity|triple|source|summary|chunk> list [--all] [--limit <n>] [--context <n>] [--cursor <token>] [--evidence [n]] [--backlinks] [--json|--jsonl]
+  wikigraph <located-wikg-uri>/triple/<subject|_>/<predicate|_>/<object|_> list [--all] [--limit <n>] [--context <n>] [--cursor <token>] [--evidence [n]] [--json|--jsonl]
   wikigraph <located-chunk-uri|located-entity-uri> pack [--budget <chars>] [--json|--jsonl]
   wikigraph next <cursor> [--limit <n>] [--json|--jsonl]
   wikigraph next <wikigraph-uri-with-wikg-locator> <cursor> [--limit <n>] [--json|--jsonl]
@@ -43,10 +43,10 @@ Archive commands:
   wikigraph transform [--input <path>] [--output <path>] [--input-format <format>] [--output-format <format>] [--digest-dir <path>] [--llm <json>] [--prompt <text>] [--stage <stage>] [--verbose|-v]
 
 Generation queue:
-  wikigraph <chapter-uri> queue add --task <reading-graph|reading-summary|knowledge-graph> --accept-cost [--boost] [--llm <json>] [--prompt <text>]
-  wikigraph wkg-job:// list [--all] [--active]
-  wikigraph wkg-job://<job-id> get [--json]
-  wikigraph wkg-job://<job-id> watch [--jsonl] [--from beginning|now]
+  wikigraph wikg://local/job add --input <chapter-uri> --task <reading-graph|reading-summary|knowledge-graph> --accept-cost [--boost] [--llm <json>] [--prompt <text>]
+  wikigraph wikg://local/job list [--all] [--active]
+  wikigraph wikg://local/job/<job-id> get [--json]
+  wikigraph wikg://local/job/<job-id> watch [--jsonl] [--from beginning|now]
   Queue generation tasks call an LLM, consume tokens, and may incur provider charges.
 
 Maintenance:
@@ -63,8 +63,8 @@ Maintenance:
   wikigraph <chapter-uri>/title clear
   wikigraph <archive-uri>/chapter/tree get|set [options]
   wikigraph gc [--force] [--json]
-  wikigraph config status [--llm <json>] [--help|-h]
-    Prints JSON by default and does not accept `--json`.
+  wikigraph wikg://local/config/llm get|set|put|delete|clear|test
+  wikigraph wikg://local/config/concurrent get|set|put|delete|clear
   wikigraph help [topic] [--help|-h]
 
 Help contract:

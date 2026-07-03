@@ -12,6 +12,12 @@ import { SpineDigestFile } from "../wikg/index.js";
 import type { CLIArchiveIndexArguments } from "./args.js";
 import { writeTextToStdout } from "./io.js";
 import { formatCLIJSON } from "./json.js";
+import {
+  ProgressOutputWriter,
+  type ProgressCounter,
+} from "./progress-output.js";
+
+const INDEX_PROGRESS_OUTPUT_INTERVAL_MS = 6_000;
 
 export async function runArchiveIndexCommand(
   args: CLIArchiveIndexArguments,
@@ -49,20 +55,60 @@ async function readIndexSettings(
 }
 
 async function buildIndex(args: CLIArchiveIndexArguments): Promise<void> {
-  let built = false;
+  const writer = new ProgressOutputWriter({
+    jsonl: args.jsonl ?? false,
+    throttleMs: INDEX_PROGRESS_OUTPUT_INTERVAL_MS,
+  });
 
   await new SpineDigestFile(args.archivePath).write(
     async (document) => {
-      const settings = await readArchiveIndexSettings(document);
+      await writer.write({
+        json: { type: "started" },
+        kind: "lifecycle",
+        text: "index started\nsteps: checking -> collecting -> clearing -> indexing-text -> indexing-objects -> finalizing",
+      });
+      await writer.write({
+        json: { phase: "checking", type: "status_snapshot" },
+        kind: "status",
+        phase: "checking",
+      });
 
-      if (!(await isSearchIndexCurrent(document))) {
-        await rebuildArchiveSearchIndex(document);
-        built = true;
+      if (await isSearchIndexCurrent(document)) {
+        await writer.write({
+          json: { type: "already-current" },
+          kind: "lifecycle",
+          text: "already current",
+        });
+      } else {
+        await rebuildArchiveSearchIndex(document, async (event) => {
+          await writer.write({
+            counters:
+              event.done === undefined || event.total === undefined
+                ? []
+                : [formatIndexCounter(event)],
+            json: {
+              counters:
+                event.done === undefined || event.total === undefined
+                  ? []
+                  : [formatIndexCounter(event)],
+              phase: event.phase,
+              type: "status_snapshot",
+            },
+            kind: "status",
+            phase: event.phase,
+          });
+        });
       }
-      await writeIndexOutput(args, {
-        built,
-        ftsEmbedded: settings.ftsEmbedded,
-        ftsCurrent: await isSearchIndexCurrent(document),
+
+      await writer.write({
+        json: { type: "completed" },
+        kind: "lifecycle",
+        text: "index completed",
+      });
+      await writer.write({
+        json: { type: "succeeded" },
+        kind: "lifecycle",
+        text: "succeeded",
       });
     },
     {
@@ -146,6 +192,49 @@ async function readSearchIndexWritebackPolicy(
   });
 
   return embedded ? "archive" : "cache";
+}
+
+function formatIndexCounter(input: {
+  readonly done?: number;
+  readonly total?: number;
+  readonly unit?: "chapter" | "object" | "sentence";
+}): ProgressCounter {
+  return {
+    done: input.done ?? 0,
+    name: formatIndexCounterName(input.unit),
+    total: input.total ?? 0,
+    unit: formatIndexUnit(input.unit),
+  };
+}
+
+function formatIndexCounterName(
+  unit: "chapter" | "object" | "sentence" | undefined,
+): string {
+  switch (unit) {
+    case "chapter":
+      return "chapters";
+    case "object":
+      return "objects";
+    case "sentence":
+      return "sentences";
+    case undefined:
+      return "items";
+  }
+}
+
+function formatIndexUnit(
+  unit: "chapter" | "object" | "sentence" | undefined,
+): string {
+  switch (unit) {
+    case "chapter":
+      return "chapters";
+    case "object":
+      return "objects";
+    case "sentence":
+      return "sentences";
+    case undefined:
+      return "items";
+  }
 }
 
 async function writeIndexOutput(

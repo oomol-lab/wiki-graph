@@ -15,7 +15,7 @@ Usage:
   wikigraph <entity-uri> related [query] [--all] [--limit <n>] [--context <n>] [--cursor <token>] [--role <any|subject|object|self>] [--evidence [n]] [--json|--jsonl] [--help|-h]
 
 Returns:
-  - Related full `wkg://...` URIs with labels or summaries.
+  - Related full `wikg://...` URIs with labels or summaries.
 
 Notes:
   - `related` starts from a known URI; `search` starts from query text.
@@ -34,7 +34,7 @@ Next steps:
   - Use `pack` when one related object becomes the answer anchor.
 
 Examples:
-  wikigraph wkg:///books/book.wikg/chunk/123 related
-  wikigraph wkg:///books/book.wikg/entity/Q162593 related "baptism"
-  wikigraph wkg:///books/book.wikg/entity/Q162593 related
-  wikigraph wkg:///books/book.wikg/entity/Q162593 related --role subject --evidence
+  wikigraph wikg:///books/book.wikg/chunk/123 related
+  wikigraph wikg:///books/book.wikg/entity/Q162593 related "baptism"
+  wikigraph wikg:///books/book.wikg/entity/Q162593 related
+  wikigraph wikg:///books/book.wikg/entity/Q162593 related --role subject --evidence

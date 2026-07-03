@@ -546,8 +546,8 @@ describe("wikg/spine-digest-file", () => {
           archivePath,
           entryPath: "book-meta.json",
           ownerId: "stale-owner-file",
-          stateRootPath: `${path}/state`,
-          workspacePath: `${path}/state/workspaces/stale/book-meta.json`,
+          stateRootPath: `${path}/state/staging`,
+          workspacePath: `${path}/state/staging/work/stale/book-meta.json`,
           content: `${JSON.stringify({
             authors: [],
             description: null,
@@ -587,7 +587,7 @@ describe("wikg/spine-digest-file", () => {
           archivePath,
           entryPath: "book-meta.json",
           ownerId: "stale-owner-delete",
-          stateRootPath: `${path}/state`,
+          stateRootPath: `${path}/state/staging`,
         });
 
         await new SpineDigestFile(archivePath).read(async (digest) => {
@@ -609,10 +609,10 @@ describe("wikg/spine-digest-file", () => {
       const restoreStateDir = useCoordinatorStateDir(`${path}/state`);
       try {
         const archivePath = await createSeedArchive(path);
-        const stagingPath = `${path}/state/workspaces/stale/book-meta.json.tmp`;
+        const stagingPath = `${path}/state/staging/work/stale/book-meta.json.tmp`;
 
         await initializeCoordinatorState(archivePath);
-        await mkdir(`${path}/state/workspaces/stale`, { recursive: true });
+        await mkdir(`${path}/state/staging/work/stale`, { recursive: true });
         await writeFile(
           stagingPath,
           `${JSON.stringify({
@@ -719,14 +719,14 @@ async function readCoordinatorOverlays(path: string): Promise<
   }>
 > {
   try {
-    await access(`${path}/state/wikg-coordinator.sqlite`);
+    await access(`${path}/state/staging/staging.sqlite`);
   } catch {
     return [];
   }
 
   const { Database } = await import("../../src/document/index.js");
   const database = await Database.open(
-    `${path}/state/wikg-coordinator.sqlite`,
+    `${path}/state/staging/staging.sqlite`,
     "",
     { readonly: true },
   );
@@ -754,9 +754,9 @@ ORDER BY archive_path, entry_path
 async function createStaleOverlay(path: string): Promise<void> {
   const { Database } = await import("../../src/document/index.js");
 
-  await mkdir(`${path}/state`, { recursive: true });
+  await mkdir(`${path}/state/staging`, { recursive: true });
   const database = await Database.open(
-    `${path}/state/wikg-coordinator.sqlite`,
+    `${path}/state/staging/staging.sqlite`,
     `
 CREATE TABLE IF NOT EXISTS entry_overlays (
   archive_key TEXT NOT NULL,
@@ -806,7 +806,7 @@ async function seedStalePublishedFileOverlay(input: {
   readonly content: string;
 }): Promise<void> {
   await initializeCoordinatorState(input.archivePath);
-  await mkdir(`${input.stateRootPath}/workspaces/stale`, { recursive: true });
+  await mkdir(`${input.stateRootPath}/work/stale`, { recursive: true });
   await writeFile(input.workspacePath, input.content, "utf8");
   await insertStaleArchiveOwner({
     archivePath: input.archivePath,
@@ -827,7 +827,7 @@ async function seedStalePublishedDeleteOverlay(input: {
   readonly stateRootPath: string;
 }): Promise<void> {
   await initializeCoordinatorState(input.archivePath);
-  await mkdir(`${input.stateRootPath}/workspaces/stale`, { recursive: true });
+  await mkdir(`${input.stateRootPath}/work/stale`, { recursive: true });
   await insertStaleArchiveOwner({
     archivePath: input.archivePath,
     ownerId: input.ownerId,
@@ -897,7 +897,7 @@ function resolveCoordinatorDatabasePath(): string {
     throw new Error("WIKIGRAPH_STATE_DIR is not set.");
   }
 
-  return `${stateDir}/wikg-coordinator.sqlite`;
+  return `${stateDir}/staging/staging.sqlite`;
 }
 
 function createArchiveKey(archivePath: string): string {

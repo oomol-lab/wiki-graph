@@ -25,22 +25,22 @@ Input:
   - Metadata keys are command arguments, not URI segments.
 
 Behavior:
-  - Archive-level metadata is addressed as `wkg://book.wikg/meta`.
-  - Object metadata is addressed as `<object-uri>/meta`, for example `wkg://book.wikg/entity/Q42/meta`.
+  - Archive-level metadata is addressed as `wikg://book.wikg/meta`.
+  - Object metadata is addressed as `<object-uri>/meta`, for example `wikg://book.wikg/entity/Q42/meta`.
   - `<object-uri>/meta/<key>` is rejected. Use `get --json` and a JSON tool to read one key.
   - Deleting an object may remove metadata attached to that object.
   - This command does not call an LLM provider.
 
 Examples:
-  wikigraph wkg://book.wikg/meta get --json
-  wikigraph wkg://book.wikg/meta set --json '{"title":"New Title"}'
-  wikigraph wkg://book.wikg/entity/Q42/meta put note "reviewed"
-  wikigraph wkg://book.wikg/entity/Q42/meta put rank --json 7
-  wikigraph wkg://book.wikg/entity/Q42/meta delete note
-  wikigraph wkg://book.wikg/entity/Q42/meta clear
+  wikigraph wikg://book.wikg/meta get --json
+  wikigraph wikg://book.wikg/meta set --json '{"title":"New Title"}'
+  wikigraph wikg://book.wikg/entity/Q42/meta put note "reviewed"
+  wikigraph wikg://book.wikg/entity/Q42/meta put rank --json 7
+  wikigraph wikg://book.wikg/entity/Q42/meta delete note
+  wikigraph wikg://book.wikg/entity/Q42/meta clear
 
 Where to go next:
   - Need chapter tree editing:
-    wikigraph wkg://book.wikg/chapter/tree get --help
+    wikigraph wikg://book.wikg/chapter/tree get --help
   - Need archive-vs-source mental model:
     wikigraph help command

@@ -302,12 +302,12 @@ describe("cli/archive-chapter", () => {
         {
           stage: "planned",
           title: "Part I",
-          uri: "wkg://chapter/1",
+          uri: "wikg://chapter/1",
         },
         {
           stage: "source",
           title: "Chapter 1",
-          uri: "wkg://chapter/2",
+          uri: "wikg://chapter/2",
         },
       ],
     });
@@ -498,8 +498,8 @@ describe("cli/archive-chapter", () => {
 
     expect(chapterMockState.textWrites[0]).toBe(
       [
-        "└─ Part I  wkg://chapter/1",
-        "   └─ Chapter 1  wkg://chapter/2",
+        "└─ Part I  wikg://chapter/1",
+        "   └─ Chapter 1  wikg://chapter/2",
         "",
       ].join("\n"),
     );

@@ -45,11 +45,9 @@ describe("gc", () => {
       await expect(stat(jobParentPath)).rejects.toThrow();
       await expect(stat(job.eventsPath)).rejects.toThrow();
       await expect(
-        countRows("search-sessions.sqlite", "search_sessions"),
+        countRows("cache/search-sessions.sqlite", "search_sessions"),
       ).resolves.toBe(0);
-      await expect(countRows("build-queue.sqlite", "build_jobs")).resolves.toBe(
-        0,
-      );
+      await expect(countRows("jobs/job.sqlite", "build_jobs")).resolves.toBe(0);
     });
   });
 
@@ -105,13 +103,15 @@ describe("gc", () => {
       const workspaceBucketPath = join(
         path,
         "state",
-        "workspaces",
+        "staging",
+        "work",
         "archive-key",
       );
       const buildJobBucketPath = join(
         path,
         "state",
-        "build-jobs",
+        "jobs",
+        "work",
         "archive-key",
       );
 
@@ -170,7 +170,8 @@ describe("gc", () => {
       const workspaceBucketPath = join(
         path,
         "state",
-        "workspaces",
+        "staging",
+        "work",
         "archive-key",
       );
       const referencedPath = join(workspaceBucketPath, "book-meta.json");
@@ -218,9 +219,7 @@ describe("gc", () => {
         report.jobs.find((item) => item.name === "build-queue"),
       ).toMatchObject({ removed: 0 });
       await expect(stat(job.workspacePath)).resolves.toBeDefined();
-      await expect(countRows("build-queue.sqlite", "build_jobs")).resolves.toBe(
-        1,
-      );
+      await expect(countRows("jobs/job.sqlite", "build_jobs")).resolves.toBe(1);
     });
   });
 
@@ -239,9 +238,7 @@ describe("gc", () => {
         report.jobs.find((item) => item.name === "build-queue"),
       ).toMatchObject({ removed: 1 });
       await expect(stat(job.workspacePath)).rejects.toThrow();
-      await expect(countRows("build-queue.sqlite", "build_jobs")).resolves.toBe(
-        0,
-      );
+      await expect(countRows("jobs/job.sqlite", "build_jobs")).resolves.toBe(0);
     });
   });
 });
@@ -257,22 +254,29 @@ async function createCoordinatorSqliteCache(
   options: { readonly entryPath?: string; readonly updatedAt: number },
 ): Promise<string> {
   const archivePath = join(path, "book.wikg");
-  const workspacePath = join(path, "state", "workspaces", "archive-key", "db");
+  const workspacePath = join(
+    path,
+    "state",
+    "staging",
+    "work",
+    "archive-key",
+    "db",
+  );
   const entryPath = options.entryPath ?? "database.db";
 
   await writeFile(archivePath, "archive", "utf8");
-  await mkdir(join(path, "state", "workspaces", "archive-key"), {
+  await mkdir(join(path, "state", "staging", "work", "archive-key"), {
     recursive: true,
   });
   await writeFile(workspacePath, "sqlite-cache", "utf8");
   await writeFile(
-    join(path, "state", "workspaces", "archive-key", ".DS_Store"),
+    join(path, "state", "staging", "work", "archive-key", ".DS_Store"),
     "finder",
     "utf8",
   );
 
   const database = await openStateDatabase(
-    "wikg-coordinator.sqlite",
+    "staging/staging.sqlite",
     `
 CREATE TABLE IF NOT EXISTS entry_overlays (
   archive_key TEXT NOT NULL,
@@ -316,7 +320,7 @@ async function createCoordinatorOverlay(
 
   await writeFile(archivePath, "archive", "utf8");
   const database = await openStateDatabase(
-    "wikg-coordinator.sqlite",
+    "staging/staging.sqlite",
     `
 CREATE TABLE IF NOT EXISTS entry_overlays (
   archive_key TEXT NOT NULL,
@@ -365,7 +369,7 @@ async function createExpiredSearchSession(): Promise<void> {
     terms: ["query"],
     types: null,
   });
-  const database = await openStateDatabase("search-sessions.sqlite");
+  const database = await openStateDatabase("cache/search-sessions.sqlite");
 
   try {
     await database.run(
@@ -407,7 +411,7 @@ async function createCompletedJob(
   await writeFile(join(dirname(job.workspacePath), ".DS_Store"), "finder");
   await writeFile(job.eventsPath, "event\n", "utf8");
 
-  const database = await openStateDatabase("build-queue.sqlite");
+  const database = await openStateDatabase("jobs/job.sqlite");
 
   try {
     const updatedAt = Date.now() - options.ageMs;
@@ -447,7 +451,7 @@ async function makeOldPath(path: string): Promise<void> {
 
 async function insertGcLock(): Promise<void> {
   const database = await openStateDatabase(
-    "gc.sqlite",
+    "tmp/gc.sqlite",
     `
 CREATE TABLE IF NOT EXISTS gc_locks (
   scope TEXT PRIMARY KEY,
@@ -501,7 +505,9 @@ async function openStateDatabase(
     throw new Error("WIKIGRAPH_STATE_DIR is not set.");
   }
 
-  await mkdir(process.env.WIKIGRAPH_STATE_DIR, { recursive: true });
+  await mkdir(dirname(join(process.env.WIKIGRAPH_STATE_DIR, databaseName)), {
+    recursive: true,
+  });
   return await Database.open(
     join(process.env.WIKIGRAPH_STATE_DIR, databaseName),
     schemaSql,

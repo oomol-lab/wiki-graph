@@ -7,6 +7,7 @@ import {
   generateText,
   streamText,
   type LanguageModel,
+  type LanguageModelUsage,
   type ModelMessage,
   type SystemModelMessage,
 } from "ai";
@@ -30,11 +31,13 @@ import type {
   LLMRequestOptions,
   LLMRequestFunction,
   LLMStreamProgressCallback,
+  LLMTokenUsageCallback,
   SamplingScopeConfig,
   TemperatureSetting,
 } from "./types.js";
 
 const DEFAULT_TIMEOUT_MS = 360_000;
+const DEFAULT_CONCURRENT_REQUESTS = 6;
 const ABORT_ERROR_NAMES = new Set([
   "AbortError",
   "ResponseAborted",
@@ -91,6 +94,7 @@ export class LLM<S extends string> {
   readonly #modelId: string;
   readonly #modelIdentity: string;
   readonly #onStreamProgress: LLMStreamProgressCallback | undefined;
+  readonly #onTokenUsage: LLMTokenUsageCallback | undefined;
   readonly #requestLimiter: AsyncSemaphore;
   readonly #retryIntervalSeconds: number;
   readonly #retryTimes: number;
@@ -113,7 +117,7 @@ export class LLM<S extends string> {
   }>;
 
   public constructor(options: LLMOptions<S>) {
-    const concurrent = options.concurrent ?? 1;
+    const concurrent = options.concurrent ?? DEFAULT_CONCURRENT_REQUESTS;
     const timeout = options.timeout ?? DEFAULT_TIMEOUT_MS;
     const temperature = options.temperature ?? 0.6;
     const topP = options.topP ?? 0.6;
@@ -141,6 +145,7 @@ export class LLM<S extends string> {
     this.#modelId = modelInfo.modelId;
     this.#modelIdentity = modelInfo.identity;
     this.#onStreamProgress = options.onStreamProgress;
+    this.#onTokenUsage = options.onTokenUsage;
     this.#requestLimiter = new AsyncSemaphore(concurrent);
     this.#retryIntervalSeconds = options.retryIntervalSeconds ?? 6;
     this.#retryTimes = options.retryTimes ?? 5;
@@ -332,10 +337,12 @@ export class LLM<S extends string> {
               textChunks.push(chunk);
               await this.#emitStreamProgress(chunk.length);
             }
+            await this.#emitTokenUsage(await result.totalUsage);
             return textChunks.join("");
           } else {
             const result = await generateText(generationInput);
             await this.#emitStreamProgress(result.text.length);
+            await this.#emitTokenUsage(result.usage);
             return result.text;
           }
         });
@@ -409,6 +416,28 @@ export class LLM<S extends string> {
 
     try {
       await this.#onStreamProgress({ outputCharacters });
+    } catch {
+      return;
+    }
+  }
+
+  async #emitTokenUsage(usage: LanguageModelUsage | undefined): Promise<void> {
+    if (this.#onTokenUsage === undefined || usage === undefined) {
+      return;
+    }
+
+    try {
+      await this.#onTokenUsage({
+        ...(usage.inputTokenDetails.cacheReadTokens === undefined
+          ? {}
+          : { cacheReadTokens: usage.inputTokenDetails.cacheReadTokens }),
+        ...(usage.inputTokens === undefined
+          ? {}
+          : { inputTokens: usage.inputTokens }),
+        ...(usage.outputTokens === undefined
+          ? {}
+          : { outputTokens: usage.outputTokens }),
+      });
     } catch {
       return;
     }

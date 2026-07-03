@@ -1,11 +1,11 @@
 Help Type: command
-Command: wikigraph wkg-job://<job-id> get
+Command: wikigraph wikg://local/job/<job-id> get
 
 Purpose:
   Inspect one queue job.
 
 Usage:
-  wikigraph wkg-job://<job-id> get [--json]
+  wikigraph wikg://local/job/<job-id> get [--json]
 
 Arguments:
   <job-id>              Full job id or an unambiguous prefix.
@@ -17,5 +17,5 @@ Human output:
   Shows job id, state, archive path, chapter id, target, current step, workspace path, and error JSON when present.
 
 Examples:
-  wikigraph wkg-job://75d12f7e get
-  wikigraph wkg-job://75d12f7e get --json
+  wikigraph wikg://local/job/75d12f7e get
+  wikigraph wikg://local/job/75d12f7e get --json

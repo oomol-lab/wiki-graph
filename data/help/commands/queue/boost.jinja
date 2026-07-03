@@ -1,11 +1,11 @@
 Help Type: command
-Command: wikigraph wkg-job://<job-id> boost
+Command: wikigraph wikg://local/job/<job-id> boost
 
 Purpose:
   Move one queued job to the front of the queue.
 
 Usage:
-  wikigraph wkg-job://<job-id> boost
+  wikigraph wikg://local/job/<job-id> boost
 
 Arguments:
   <job-id>              Full job id or an unambiguous prefix.
@@ -15,4 +15,4 @@ Behavior:
   - Boosting does not preempt running jobs.
 
 Example:
-  wikigraph wkg-job://75d12f7e boost
+  wikigraph wikg://local/job/75d12f7e boost

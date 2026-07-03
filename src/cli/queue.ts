@@ -15,6 +15,7 @@ import {
   generateChapterKnowledgeGraphArtifact,
   getBuildJob,
   listBuildJobs,
+  listChapters,
   pauseBuildJob,
   readChapterBuildInput,
   readBuildJobEvents,
@@ -27,6 +28,7 @@ import {
   type BuildJob,
   type BuildJobEvent,
   type BuildJobExecutionContext,
+  type BuildJobProgressCounter,
   type BuildJobProgressReporter,
   type BuildJobState,
 } from "../facade/index.js";
@@ -40,7 +42,12 @@ import type { LLMessage } from "../llm/index.js";
 import type { CLIQueueArguments } from "./args.js";
 import { loadCLIConfig } from "./config.js";
 import { writeTextToStdout } from "./io.js";
-import { formatCLIJSON, formatCLIJSONLine } from "./json.js";
+import { formatCLIJSON } from "./json.js";
+import {
+  ProgressOutputWriter,
+  type ProgressCounter,
+  type ProgressTokens,
+} from "./progress-output.js";
 import {
   createStageLLM,
   loadRequiredStageConfig,
@@ -53,23 +60,26 @@ const TERMINAL_STATES = new Set<BuildJobState>([
   "failed",
   "canceled",
 ]);
+const DEFAULT_QUEUE_CONCURRENCY = 3;
+const PROGRESS_OUTPUT_INTERVAL_MS = 6_000;
 
 export async function runQueueCommand(args: CLIQueueArguments): Promise<void> {
   switch (args.action) {
     case "add": {
-      await assertQueueAddReady(args);
+      if (args.chapterId !== undefined) {
+        await assertQueueAddReady(args);
+      }
       assertBuildCostAccepted(args);
-
-      const job = await addBuildJob({
-        archivePath: args.archivePath!,
-        boost: args.boost ?? false,
-        chapterId: args.chapterId!,
+      await loadRequiredStageConfig({
         ...(args.llmJSON === undefined ? {} : { llmJSON: args.llmJSON }),
-        ...(args.prompt === undefined ? {} : { prompt: args.prompt }),
-        target: args.target ?? "reading-summary",
       });
 
-      await writeJobSummary(job);
+      if (args.chapterId === undefined) {
+        await addArchiveJobs(args);
+      } else {
+        await writeJobSummary(await addChapterJob(args, args.chapterId));
+      }
+
       tryStartQueueWorker();
       return;
     }
@@ -138,6 +148,53 @@ async function resolveQueueJobId(args: CLIQueueArguments): Promise<string> {
   return await resolveBuildJobId(args.jobId!);
 }
 
+async function addChapterJob(
+  args: CLIQueueArguments,
+  chapterId: number,
+): Promise<BuildJob> {
+  return await addBuildJob({
+    archivePath: args.archivePath!,
+    boost: args.boost ?? false,
+    chapterId,
+    ...(args.llmJSON === undefined ? {} : { llmJSON: args.llmJSON }),
+    ...(args.prompt === undefined ? {} : { prompt: args.prompt }),
+    target: args.target ?? "reading-summary",
+  });
+}
+
+async function addArchiveJobs(args: CLIQueueArguments): Promise<void> {
+  const created: BuildJob[] = [];
+  const skipped: Array<{
+    readonly chapterId: number;
+    readonly reason: string;
+  }> = [];
+
+  await new SpineDigestFile(args.archivePath!).readDocument(
+    async (document) => {
+      for (const chapter of await listChapters(document)) {
+        if (chapter.stage === "planned") {
+          skipped.push({
+            chapterId: chapter.chapterId,
+            reason: "planned",
+          });
+          continue;
+        }
+
+        try {
+          created.push(await addChapterJob(args, chapter.chapterId));
+        } catch (error) {
+          skipped.push({
+            chapterId: chapter.chapterId,
+            reason: error instanceof Error ? error.message : String(error),
+          });
+        }
+      }
+    },
+  );
+
+  await writeArchiveAddSummary({ created, skipped });
+}
+
 async function assertQueueAddReady(args: CLIQueueArguments): Promise<void> {
   await new SpineDigestFile(args.archivePath!).read(async (digest) => {
     if ((await digest.readChapterStage(args.chapterId!)) === "planned") {
@@ -154,7 +211,7 @@ function assertBuildCostAccepted(args: CLIQueueArguments): void {
   }
 
   throw new Error(
-    "Queue generation tasks can call an LLM, consume tokens, incur provider charges, and run for minutes to hours on large archives. Run `wikigraph <archive-uri> estimate --stage reading-summary`, then rerun `queue add` with --accept-cost if the cost and wait time are acceptable.",
+    "Generation tasks can call an LLM, consume tokens, incur provider charges, and run for minutes to hours on large archives. Run `wikigraph <archive-uri> estimate --stage reading-summary`, then rerun `wikigraph wikg://local/job add` with --accept-cost if the cost and wait time are acceptable.",
   );
 }
 
@@ -162,7 +219,7 @@ async function runQueueWorker(): Promise<void> {
   const config = await loadCLIConfig();
 
   await runBuildJobWorker({
-    concurrency: config.queue?.concurrent ?? 1,
+    concurrency: config.concurrent?.job ?? DEFAULT_QUEUE_CONCURRENCY,
     executeJob: async (job, reporter, context) => {
       await executeBuildJob(job, reporter, context);
     },
@@ -180,6 +237,19 @@ async function executeBuildJob(
   const llm = createStageLLM(config, {
     onStreamProgress: async (event) => {
       await reporter.addOutputCharacters(event.outputCharacters);
+    },
+    onTokenUsage: async (usage) => {
+      await reporter.addTokenUsage({
+        ...(usage.cacheReadTokens === undefined
+          ? {}
+          : { cacheReadTokens: usage.cacheReadTokens }),
+        ...(usage.inputTokens === undefined
+          ? {}
+          : { inputTokens: usage.inputTokens }),
+        ...(usage.outputTokens === undefined
+          ? {}
+          : { outputTokens: usage.outputTokens }),
+      });
     },
   });
   const promptSource = job.prompt ?? config.prompt;
@@ -375,6 +445,10 @@ async function watchBuildJob(
   },
 ): Promise<void> {
   let seenSeq = 0;
+  const writer = new ProgressOutputWriter({
+    jsonl: options.jsonl,
+    throttleMs: PROGRESS_OUTPUT_INTERVAL_MS,
+  });
 
   if (options.from === "now") {
     const job = await getBuildJob(jobId);
@@ -391,7 +465,7 @@ async function watchBuildJob(
 
     for (const event of events) {
       seenSeq = Math.max(seenSeq, event.seq);
-      await writeWatchEvent(event, options.jsonl);
+      await writer.write(formatWatchOutputEvent(event));
     }
 
     if (TERMINAL_STATES.has(job.state)) {
@@ -402,92 +476,76 @@ async function watchBuildJob(
   }
 }
 
-async function writeWatchEvent(
-  event: BuildJobEvent,
-  jsonl: boolean,
-): Promise<void> {
-  if (jsonl) {
-    await writeTextToStdout(formatCLIJSONLine(formatWatchEventJSONL(event)));
-    return;
-  }
-
+function formatWatchOutputEvent(event: BuildJobEvent) {
   switch (event.type) {
-    case "progress_snapshot":
-      await writeTextToStdout(`${formatProgressSnapshot(event)}\n`);
-      return;
+    case "status_snapshot": {
+      const tokens = formatProgressTokens(event.tokens);
+      return {
+        counters: event.counters.map(formatProgressCounter),
+        json: event,
+        kind: "status" as const,
+        phase: event.phase ?? event.step ?? "status",
+        ...(tokens === undefined ? {} : { tokens }),
+      };
+    }
     case "target_changed":
-      await writeTextToStdout(`target ${event.from} -> ${event.to}\n`);
-      return;
+      return {
+        json: event,
+        kind: "lifecycle" as const,
+        text: `target ${event.from} -> ${event.to}`,
+      };
     case "step_started":
+      return {
+        json: event,
+        kind: "lifecycle" as const,
+        text: `${event.step} started\nsteps: ${formatStepPlan(event.step)}`,
+      };
     case "step_completed":
-      await writeTextToStdout(`${event.type} ${event.step}\n`);
-      return;
+      return {
+        json: event,
+        kind: "lifecycle" as const,
+        text: `${event.step} completed`,
+      };
+    case "created":
+      return {
+        json: event,
+        kind: "lifecycle" as const,
+        text: "created",
+      };
     default:
-      await writeTextToStdout(`${event.type}\n`);
+      return {
+        json: event,
+        kind: "lifecycle" as const,
+        text: event.type,
+      };
   }
 }
 
-function formatWatchEventJSONL(event: BuildJobEvent): unknown {
-  if (event.type !== "progress_snapshot") {
-    return event;
+function formatStepPlan(step: string): string {
+  switch (step) {
+    case "knowledge-graph":
+      return "screening -> matching -> enrichment -> relation-discovery -> grounding";
+    case "reading-summary":
+      return "reading-graph -> summarizing -> committing";
+    case "reading-graph":
+      return "extracting -> committing";
+    default:
+      return step;
   }
+}
 
-  const progress = getProgressWords(event);
-
+function formatProgressCounter(
+  counter: BuildJobProgressCounter,
+): ProgressCounter {
   return {
-    at: event.at,
-    jobId: event.jobId,
-    outputTokens: event.outputTokens,
-    ...(event.phase === undefined
-      ? {}
-      : {
-          phase: event.phase,
-          ...(event.phaseDetail === undefined
-            ? {}
-            : { phaseDetail: event.phaseDetail }),
-          phaseDone: event.phaseDone ?? 0,
-          phaseTotal: event.phaseTotal ?? 0,
-          phaseUnit: event.phaseUnit,
-        }),
-    seq: event.seq,
-    ...(event.step === undefined ? {} : { step: event.step }),
-    totalWords: progress.totalWords,
-    type: event.type,
-    words: clampWords(progress.words, progress.totalWords),
+    done: counter.done,
+    name: counter.name,
+    total: counter.total,
+    unit: formatProgressUnit(counter.unit),
   };
 }
 
-function formatProgressSnapshot(
-  event: Extract<BuildJobEvent, { readonly type: "progress_snapshot" }>,
-): string {
-  const step = event.step ?? "-";
-  const output = `output ~${event.outputTokens} tokens`;
-
-  switch (event.step) {
-    case "reading-graph":
-      return `progress reading-graph ${formatWords(getProgressWords(event))} ${output}`;
-    case "knowledge-graph":
-      return `progress knowledge-graph${formatPhaseProgress(event)} ${output}`;
-    case "reading-summary":
-      return `progress reading-summary ${formatWords(getProgressWords(event))} ${output}`;
-    case undefined:
-      return `progress ${step} ${output}`;
-  }
-
-  return `progress ${step} ${output}`;
-}
-
-function formatPhaseProgress(
-  event: Extract<BuildJobEvent, { readonly type: "progress_snapshot" }>,
-): string {
-  if (event.phase === undefined) {
-    return "";
-  }
-
-  return ` ${event.phase}${event.phaseDetail === undefined ? "" : ` ${event.phaseDetail}`} ${event.phaseDone ?? 0}/${event.phaseTotal ?? 0} ${formatProgressUnit(event.phaseUnit)}`;
-}
-
-function formatProgressUnit(unit: string | undefined): string {
+function formatProgressUnit(unit: string): string {
   switch (unit) {
     case "candidate":
       return "candidates";
@@ -499,78 +557,34 @@ function formatProgressUnit(unit: string | undefined): string {
       return "records";
     case "sentence":
       return "sentences";
+    case "word":
+      return "words";
     case "window":
       return "windows";
-    case undefined:
-      return "items";
     default:
       return unit;
   }
 }
 
-function getProgressWords(
-  event: Extract<BuildJobEvent, { readonly type: "progress_snapshot" }>,
-): { readonly totalWords: number; readonly words: number } {
-  const legacyEvent = event as Extract<
+function formatProgressTokens(
+  tokens: Extract<
     BuildJobEvent,
-    { readonly type: "progress_snapshot" }
-  > & {
-    readonly totalWords?: number;
-    readonly words?: number;
-  };
-
-  if (
-    typeof legacyEvent.words === "number" &&
-    typeof legacyEvent.totalWords === "number"
-  ) {
-    return {
-      totalWords: legacyEvent.totalWords,
-      words: legacyEvent.words,
-    };
-  }
-
-  switch (event.step) {
-    case "reading-graph":
-      return {
-        totalWords: event.totalGraphWords,
-        words: event.graphWords,
-      };
-    case "knowledge-graph":
-      return {
-        totalWords: event.totalGraphWords,
-        words: event.graphWords,
-      };
-    case "reading-summary":
-      return {
-        totalWords: event.totalReadingSummaryWords,
-        words: event.readingSummaryWords,
-      };
-    case undefined:
-      return {
-        totalWords: 0,
-        words: 0,
-      };
+    { readonly type: "status_snapshot" }
+  >["tokens"],
+): ProgressTokens | undefined {
+  if (tokens === undefined) {
+    return undefined;
   }
 
   return {
-    totalWords: 0,
-    words: 0,
+    ...(tokens.cacheReadTokens === undefined
+      ? {}
+      : { cache: tokens.cacheReadTokens }),
+    ...(tokens.inputTokens === undefined ? {} : { input: tokens.inputTokens }),
+    ...(tokens.outputTokens === undefined
+      ? {}
+      : { output: tokens.outputTokens }),
   };
-}
-
-function formatWords(input: {
-  readonly totalWords: number;
-  readonly words: number;
-}): string {
-  return `${clampWords(input.words, input.totalWords)}/${input.totalWords}`;
-}
-
-function clampWords(words: number, totalWords: number): number {
-  if (totalWords <= 0) {
-    return Math.max(0, words);
-  }
-
-  return Math.min(totalWords, Math.max(0, words));
 }
 
 async function writeJobList(
@@ -656,6 +670,30 @@ async function writeJobSummary(job: BuildJob): Promise<void> {
   );
 }
 
+async function writeArchiveAddSummary(input: {
+  readonly created: readonly BuildJob[];
+  readonly skipped: readonly {
+    readonly chapterId: number;
+    readonly reason: string;
+  }[];
+}): Promise<void> {
+  const lines = [
+    `Created: ${input.created.length}`,
+    `Skipped: ${input.skipped.length}`,
+  ];
+
+  for (const job of input.created) {
+    lines.push(
+      `Job ${job.jobId} ${job.state} ${job.target} chapter ${job.chapterId}`,
+    );
+  }
+  for (const skipped of input.skipped) {
+    lines.push(`Skipped chapter ${skipped.chapterId}: ${skipped.reason}`);
+  }
+
+  await writeTextToStdout(`${lines.join("\n")}\n`);
+}
+
 function tryStartQueueWorker(): void {
   if (process.env.WIKIGRAPH_QUEUE_DISABLE_AUTOSTART === "1") {
     return;
@@ -667,7 +705,7 @@ function tryStartQueueWorker(): void {
     return;
   }
 
-  const child = spawn(process.execPath, [entryPath, "queue", "worker"], {
+  const child = spawn(process.execPath, [entryPath, "__queue-worker"], {
     detached: true,
     env: process.env,
     stdio: "ignore",

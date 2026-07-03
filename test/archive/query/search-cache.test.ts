@@ -34,7 +34,7 @@ describe("archive/query/search-cache", () => {
       });
 
       const database = await Database.open(
-        join(path, "search-sessions.sqlite"),
+        join(path, "cache", "search-sessions.sqlite"),
         "",
         { readonly: true },
       );
@@ -162,7 +162,7 @@ async function listTableNames(database: Database): Promise<string[]> {
 
 async function listPredicates(path: string): Promise<string[]> {
   const database = await Database.open(
-    join(path, "search-sessions.sqlite"),
+    join(path, "cache", "search-sessions.sqlite"),
     "",
     { readonly: true },
   );

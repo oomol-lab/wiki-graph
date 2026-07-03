@@ -27,13 +27,13 @@ Output shape:
   The `Chapter: <id>` line is the new chapter id for later commands.
 
 Typical next step:
-  wikigraph <chapter-uri> queue add --task reading-graph --accept-cost
+  wikigraph wikg://local/job add --input <chapter-uri> --task reading-graph --accept-cost
 
 Examples:
-  wikigraph wkg://book.wikg/chapter add --stage planned --title "Part I"
-  wikigraph wkg://book.wikg/chapter add --stage source --title "Chapter 1" --input ./chapter.md --input-format markdown --parent wkg://book.wikg/chapter/3
+  wikigraph wikg://book.wikg/chapter add --stage planned --title "Part I"
+  wikigraph wikg://book.wikg/chapter add --stage source --title "Chapter 1" --input ./chapter.md --input-format markdown --parent wikg://book.wikg/chapter/3
 
 See also:
-  - wikigraph wkg://book.wikg/chapter list --help
-  - wikigraph wkg://book.wikg/chapter/3/source set --help
+  - wikigraph wikg://book.wikg/chapter list --help
+  - wikigraph wikg://book.wikg/chapter/3/source set --help
   - wikigraph help command

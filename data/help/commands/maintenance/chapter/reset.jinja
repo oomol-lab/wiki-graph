@@ -18,10 +18,10 @@ Behavior:
   - `reading-summary` is not supported because reset is a backward operation.
   - Reset is destructive and may discard work.
   - Does not call an LLM provider.
-  - After resetting to `source` or `reading-graph`, use `wikigraph <chapter-uri> queue add --task <reading-graph|reading-summary|knowledge-graph> --accept-cost` to generate again.
+  - After resetting to `source` or `reading-graph`, use `wikigraph wikg://local/job add --input <chapter-uri> --task <reading-graph|reading-summary|knowledge-graph> --accept-cost` to generate again.
   - After resetting to `planned`, restore source text before queueing generated tasks.
 
 See also:
-  - wikigraph queue --help
-  - wikigraph wkg://book.wikg/chapter/3/state get --help
+  - wikigraph wikg://local/job --help
+  - wikigraph wikg://book.wikg/chapter/3/state get --help
   - wikigraph help command

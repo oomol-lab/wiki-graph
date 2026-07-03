@@ -105,8 +105,8 @@ function createInput(): DisambiguationProfileNormalizerInput {
           },
         ],
         text:
-          "* [[乔治·华盛顿|wkg://qid=Q23]]，美国第一任总统\n" +
-          "* [[华盛顿哥伦比亚特区|wkg://qid=Q61]]，美国首都",
+          "* [[乔治·华盛顿|wikg://qid=Q23]]，美国第一任总统\n" +
+          "* [[华盛顿哥伦比亚特区|wikg://qid=Q61]]，美国首都",
         title: "华盛顿",
         wiki: "zhwiki",
       },

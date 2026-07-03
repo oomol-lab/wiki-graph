@@ -1,8 +1,6 @@
 export const CLI_HELP_ROUTES = {
   command: "wikigraph help command",
   config: "wikigraph help config",
-  "config-file": "wikigraph help config-file",
-  env: "wikigraph help env",
   format: "wikigraph help format",
   root: "wikigraph --help",
   runtime: "wikigraph help runtime",

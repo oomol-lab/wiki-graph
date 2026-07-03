@@ -81,43 +81,25 @@ describe("cli/llm", () => {
     llmMockState.openAICompatibleModelCalls.length = 0;
   });
 
-  it("builds openai llm options with request and path settings", () => {
+  it("builds openai llm options with configured request concurrency", () => {
     expect(
       buildLLMOptions({
+        concurrent: {
+          request: 3,
+        },
         llm: {
           apiKey: "secret",
           model: "gpt-test",
           name: "custom-openai",
           provider: "openai",
         },
-        paths: {
-          cacheDir: "/tmp/cache",
-          debugLogDir: "/tmp/debug",
-        },
-        request: {
-          concurrent: 3,
-          retryIntervalSeconds: 2,
-          retryTimes: 4,
-          stream: true,
-          temperature: [0.2, 0.4],
-          timeout: 30000,
-          topP: 0.9,
-        },
       }),
     ).toStrictEqual({
-      cacheDirPath: "/tmp/cache",
       concurrent: 3,
-      logDirPath: "/tmp/debug",
       model: {
         model: "gpt-test",
         provider: "openai",
       },
-      retryIntervalSeconds: 2,
-      retryTimes: 4,
-      stream: true,
-      temperature: [0.2, 0.4],
-      timeout: 30000,
-      topP: 0.9,
     });
 
     expect(llmMockState.openAIFactoryCalls).toStrictEqual([
@@ -214,7 +196,7 @@ describe("cli/llm", () => {
 
   it("rejects missing provider/model inputs and missing openai-compatible base urls", () => {
     expect(() => buildLLMOptions({})).toThrow(
-      "Missing LLM configuration. Set --llm, `llm.provider` and `llm.model` in ~/.wikigraph/config.json, or the matching WIKIGRAPH_LLM_* environment variables.\nSee: wikigraph help config",
+      "Missing LLM configuration. Set --llm for one run, or configure `wikg://local/config/llm` with provider and model.\nSee: wikigraph help config",
     );
     expect(() =>
       buildLLMOptions({
@@ -224,7 +206,7 @@ describe("cli/llm", () => {
         },
       }),
     ).toThrow(
-      "openai-compatible requires llm.baseURL, baseURL in --llm JSON, or WIKIGRAPH_LLM_BASE_URL.\nSee: wikigraph help config",
+      "openai-compatible requires llm.baseURL or baseURL in --llm JSON.\nSee: wikigraph help config",
     );
   });
 
@@ -239,7 +221,7 @@ describe("cli/llm", () => {
         },
       }),
     ).toThrow(
-      "openai does not accept llm.baseURL, baseURL in --llm JSON, or WIKIGRAPH_LLM_BASE_URL. Use openai-compatible for third-party OpenAI-style APIs.\nSee: wikigraph help config",
+      "openai does not accept llm.baseURL or baseURL in --llm JSON. Use openai-compatible for third-party OpenAI-style APIs.\nSee: wikigraph help config",
     );
   });
 });

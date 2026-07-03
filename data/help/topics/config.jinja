@@ -1,66 +1,66 @@
 Help Type: topic
 Topic: config
 
-Configuration Overview
+Configuration
 
 Purpose:
-  This topic explains how SpineDigest layers configuration sources and when each layer applies.
-  Use it as the entry point before diving into env vars or the JSON file schema.
+  Configuration is managed through local Wiki Graph URIs, not by editing files directly.
+  `wikg://local/config` is a namespace; operate on a child section.
 
-Precedence:
-  - `--prompt` overrides both environment and config-file prompt settings for one run.
-  - `--llm` overrides LLM environment variables and config-file LLM settings for one run.
-  - Environment variables override the config file.
-  - The config file provides persistent machine defaults.
-  - Explicit format flags are separate from config and override file-extension inference.
+Sections:
+  `wikg://local/config/llm`
+    LLM provider, model, optional base URL, client name, and API key.
 
-Configuration layers:
-  1. CLI flags:
-     Per-invocation decisions such as `--llm`, `--prompt`, `--input-format`, and `--output-format`.
-  2. Environment variables:
-     Best for one shell session, CI, wrappers, or temporary overrides.
-  3. Config file:
-     Best for stable machine defaults in `~/.wikigraph/config.json`.
+  `wikg://local/config/concurrent`
+    Local concurrency settings:
+      - `job`: simultaneous queue jobs. Default: 3.
+      - `request`: concurrent LLM requests. Default: 6.
+
+Operations:
+  Read a section:
+    wikigraph wikg://local/config/llm get
+    wikigraph wikg://local/config/concurrent get
+
+  Replace a section with a JSON object:
+    wikigraph wikg://local/config/llm set --json '{"provider":"openai","model":"gpt-4.1"}'
+    wikigraph wikg://local/config/concurrent set --json '{"job":3,"request":6}'
+
+  Update one key:
+    wikigraph wikg://local/config/llm put provider openai
+    wikigraph wikg://local/config/llm put model gpt-4.1
+    wikigraph wikg://local/config/concurrent put job 3
+    wikigraph wikg://local/config/concurrent put request 6
+
+  Store the API key:
+    wikigraph wikg://local/config/llm put apiKey --secret
+
+Secret handling:
+  - `apiKey` is read through an interactive hidden prompt.
+  - `apiKey` is masked as `****` in command output.
+  - `set --json` cannot set a real `apiKey`.
+  - `set --json` may include `"apiKey":"****"` to preserve an existing secret.
+  - Omitting `apiKey` from `set --json` removes it from the section.
 
 Minimum LLM-backed operation configuration:
-  - llm.provider
-  - llm.model
-  These are required for source digest runs and queue reading-graph, reading-summary, and knowledge-graph jobs.
+  - `llm.provider`
+  - `llm.model`
+  - Provider credentials when required by the selected provider.
 
-Inline LLM JSON:
-  `--llm <json>` accepts an inline LLM client object for the current invocation.
-  It may use the same `llm` object shape as the config file, or the object directly.
-  It also accepts common OpenAI-compatible aliases such as `baseUrl` and `chatCompletionsUrl`.
+One-run overrides:
+  `--llm <json>` can provide an LLM object for one invocation.
+  It accepts direct LLM objects and common OpenAI-compatible aliases such as `baseUrl`.
   A base URL implies `openai-compatible` when `provider` is omitted.
-  Prefer this for wrapper tools or one-shot automation that already has client JSON.
 
-Execution paths:
-  - Source digest runs use prompt, LLM, cache, and request settings.
-  - `.wikg` re-export through the main convert command does not require LLM settings.
-  - `meta`, `cover`, and non-generating `chapter` maintenance commands accept but do not use these LLM settings.
-  - `queue` uses LLM settings when reading-graph, reading-summary, or knowledge-graph generation is needed.
-  - `paths.debugLogDir` may still matter when the app emits debug logs.
-
-When to prefer each layer:
-  - Prefer CLI flags for one run.
-  - Prefer environment variables for shell-local overrides and automation.
-  - Prefer the config file for persistent defaults.
-
-Main caution points:
-  - `openai` rejects `baseURL`.
-  - `openai-compatible` requires `baseURL`.
-  - Env path overrides resolve from the current working directory.
-  - Config-file paths resolve from the config file directory.
-  - Invalid JSON or invalid typed values fail before the digest run starts.
+Examples:
+  wikigraph wikg://local/config/llm put provider openai
+  wikigraph wikg://local/config/llm put model gpt-4.1
+  wikigraph wikg://local/config/llm put apiKey --secret
+  wikigraph wikg://local/config/llm test
 
 Where to go next:
-  - Need the detailed environment variable list:
-    wikigraph help env
-  - Need the detailed JSON schema and examples:
-    wikigraph help config-file
+  - Need URI grammar:
+    wikigraph help uri
   - Need command-level override behavior:
     wikigraph help command
-  - Need runtime effects for logs, retries, and streams:
+  - Need runtime effects for queue jobs:
     wikigraph help runtime
-  - Need error handling:
-    wikigraph help troubleshoot

@@ -10,21 +10,20 @@ No search results:
 
 Missing generated objects:
   Queue the relevant generation task for the chapter:
-    wikigraph <chapter-uri> queue add --task reading-graph --accept-cost
-    wikigraph <chapter-uri> queue add --task reading-summary --accept-cost
+    wikigraph wikg://local/job add --input <chapter-uri> --task reading-graph --accept-cost
+    wikigraph wikg://local/job add --input <chapter-uri> --task reading-summary --accept-cost
 
 Need machine-readable output:
   Use `--json` or `--jsonl` on object commands.
   Read `wikigraph help retrieval` for pagination and output format choices.
-  `wikigraph config status` is the exception: it prints JSON by default and does not accept `--json`.
 
 URI rejected:
   Do not pass a bare filesystem path to object commands. Convert it first:
-    /Users/me/book.wikg -> wkg:///Users/me/book.wikg
-  If you copied a short URI such as `wkg://entity/Q8018` from output, prepend the archive locator:
-    wkg:///Users/me/book.wikg/entity/Q8018
+    /Users/me/book.wikg -> wikg:///Users/me/book.wikg
+  If you copied a short URI such as `wikg://entity/Q8018` from output, prepend the archive locator:
+    wikg:///Users/me/book.wikg/entity/Q8018
 
 Help did not appear:
   Append `--help` after the verb you are trying to inspect:
-    wikigraph wkg://book.wikg/chapter list --help
-    wikigraph wkg://book.wikg/entity/Q8018 get --help
+    wikigraph wikg://book.wikg/chapter list --help
+    wikigraph wikg://book.wikg/entity/Q8018 get --help

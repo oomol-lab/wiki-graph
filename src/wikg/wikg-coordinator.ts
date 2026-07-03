@@ -20,7 +20,7 @@ import {
   resolve,
 } from "path";
 
-import { resolveWikiGraphStateDirectoryPath } from "../common/wiki-graph-dir.js";
+import { resolveWikiGraphStagingDirectoryPath } from "../common/wiki-graph-dir.js";
 import { createWikiGraphTempDirectory } from "../common/wiki-graph-temp.js";
 import { openSharedStateDatabase } from "../document/index.js";
 import type { Database } from "../document/index.js";
@@ -1728,7 +1728,7 @@ async function withStateDatabase<T>(
 
 async function openStateDatabase(): Promise<Database> {
   const database = await openSharedStateDatabase(
-    join(getCoordinatorStateDirectoryPath(), "wikg-coordinator.sqlite"),
+    join(getCoordinatorStateDirectoryPath(), "staging.sqlite"),
     STATE_SCHEMA_SQL,
   );
 
@@ -1779,7 +1779,7 @@ async function createWorkspaceFilePath(
 }
 
 function getCoordinatorWorkspaceRootPath(): string {
-  return join(getCoordinatorStateDirectoryPath(), "workspaces");
+  return join(getCoordinatorStateDirectoryPath(), "work");
 }
 
 async function ensureEmptyDirectory(directoryPath: string): Promise<void> {
@@ -1851,13 +1851,7 @@ function normalizeEntryDirectoryPrefix(path: string): string {
 }
 
 function getCoordinatorStateDirectoryPath(): string {
-  const stateDirectoryPath = process.env.WIKIGRAPH_STATE_DIR;
-
-  if (stateDirectoryPath !== undefined && stateDirectoryPath.trim() !== "") {
-    return resolve(stateDirectoryPath);
-  }
-
-  return resolveWikiGraphStateDirectoryPath();
+  return resolveWikiGraphStagingDirectoryPath();
 }
 
 function createArchiveKey(archivePath: string): string {

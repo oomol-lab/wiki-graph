@@ -1,13 +1,14 @@
 Help Type: command
-Command: wikigraph <chapter-uri> queue add
+Command: wikigraph wikg://local/job add --input <chapter-uri|archive-uri>
 
 Purpose:
-  Create one generation task for one `.wikg` chapter.
+  Create generation tasks for one `.wikg` chapter or every buildable chapter in an archive.
 
 Usage:
-  wikigraph <chapter-uri> queue add --task <reading-graph|reading-summary|knowledge-graph> --accept-cost [--boost] [--llm <json>] [--prompt <text>]
+  wikigraph wikg://local/job add --input <chapter-uri|archive-uri> --task <reading-graph|reading-summary|knowledge-graph> --accept-cost [--boost] [--llm <json>] [--prompt <text>]
 
 Options:
+  --input <uri>        Chapter URI for one job, or archive URI for all buildable chapters.
   --task <task>        Required task: reading-graph, reading-summary, or knowledge-graph.
   --accept-cost        Explicitly acknowledge LLM cost and wait time.
   --boost              Insert the new job at the front of the queued jobs.
@@ -20,12 +21,14 @@ Task choices:
   knowledge-graph      Build entity mentions from sourced text. Required before entity search can return results.
 
 Merge rules:
-  - Source is required first; queue add does not create or import source text.
+  - Source is required first; wikg://local/job add does not create or import source text.
+  - Archive input skips planned chapters.
   - reading-graph and reading-summary share one Reading Graph lane job per chapter.
   - Adding reading-summary upgrades an active reading-graph job for the same chapter.
   - knowledge-graph uses a separate lane and can run alongside the Reading Graph lane for the same chapter.
 
 Examples:
-  wikigraph wkg://book.wikg/chapter/3 queue add --task reading-graph --accept-cost
-  wikigraph wkg://book.wikg/chapter/3 queue add --task reading-summary --accept-cost --boost
-  wikigraph wkg://book.wikg/chapter/3 queue add --task knowledge-graph --accept-cost
+  wikigraph wikg://local/job add --input wikg://book.wikg/chapter/3 --task reading-graph --accept-cost
+  wikigraph wikg://local/job add --input wikg://book.wikg --task knowledge-graph --accept-cost
+  wikigraph wikg://local/job add --input wikg://book.wikg/chapter/3 --task reading-summary --accept-cost --boost
+  wikigraph wikg://local/job add --input wikg://book.wikg/chapter/3 --task knowledge-graph --accept-cost

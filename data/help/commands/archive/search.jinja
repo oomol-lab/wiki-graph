@@ -16,7 +16,7 @@ Usage:
   wikigraph <chapter-uri>/<entity|triple|source|summary|chunk> search <query> [--all] [--limit <n>] [--context <n>] [--evidence [n]] [--backlinks] [--cursor <token>] [--json|--jsonl] [--help|-h]
 
 Returns:
-  - In text output, a ranked list of full `wkg://...` URIs.
+  - In text output, a ranked list of full `wikg://...` URIs.
   - With a machine-readable format, search result items.
 
 Notes:
@@ -42,9 +42,9 @@ Next steps:
   - Use `pack` after selecting a useful readable URI.
 
 Examples:
-  wikigraph wkg:///books/book.wikg search "恩典 婴儿洗礼"
-  wikigraph wkg:///books/book.wikg/source search "infant baptism"
-  wikigraph wkg:///books/book.wikg/entity search "infant baptism"
-  wikigraph wkg:///books/book.wikg/chapter/3/source search "infant baptism"
-  wikigraph wkg:///books/book.wikg/chapter/3/entity search "infant baptism"
-  wikigraph wkg:///books/book.wikg/triple/_/_/Q178561 search "battle"
+  wikigraph wikg:///books/book.wikg search "恩典 婴儿洗礼"
+  wikigraph wikg:///books/book.wikg/source search "infant baptism"
+  wikigraph wikg:///books/book.wikg/entity search "infant baptism"
+  wikigraph wikg:///books/book.wikg/chapter/3/source search "infant baptism"
+  wikigraph wikg:///books/book.wikg/chapter/3/entity search "infant baptism"
+  wikigraph wikg:///books/book.wikg/triple/_/_/Q178561 search "battle"

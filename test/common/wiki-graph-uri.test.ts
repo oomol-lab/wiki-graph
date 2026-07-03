@@ -12,6 +12,6 @@ describe("wiki graph URI helpers", () => {
         String.raw`C:\books\book.wikg`,
         formatWikiGraphObjectUri("entity/Q9957"),
       ),
-    ).toBe("wkg://C:/books/book.wikg/entity/Q9957");
+    ).toBe("wikg://C:/books/book.wikg/entity/Q9957");
   });
 });
