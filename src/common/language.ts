@@ -101,6 +101,8 @@ const LANGUAGE_CODE_TO_PROMPT_LANGUAGE = {
 } satisfies Record<LanguageCode, Language>;
 
 const LANGUAGE_CODE_ALIASES = new Map<string, LanguageCode>([
+  ["ar", LanguageCode.Arabic],
+  ["ara", LanguageCode.Arabic],
   ["arabic", LanguageCode.Arabic],
   ["da", LanguageCode.Danish],
   ["danish", LanguageCode.Danish],
@@ -150,6 +152,7 @@ const LANGUAGE_CODE_ALIASES = new Map<string, LanguageCode>([
   ["russian", LanguageCode.Russian],
   ["spa", LanguageCode.Spanish],
   ["spanish", LanguageCode.Spanish],
+  ["es", LanguageCode.Spanish],
   ["sv", LanguageCode.Swedish],
   ["swe", LanguageCode.Swedish],
   ["swedish", LanguageCode.Swedish],

@@ -312,12 +312,10 @@ function buildSnakeTopology(input: {
   }
 
   for (const chunk of input.chunks) {
-    const group = sentenceRangesByGroupId.find(
-      (item) =>
-        chunk.sentenceId[1] >= item.startSentenceIndex &&
-        chunk.sentenceId[1] <= item.endSentenceIndex,
+    const groupId = findSentenceGroupId(
+      sentenceRangesByGroupId,
+      chunk.sentenceId[1],
     );
-    const groupId = group?.groupId;
 
     chunksById[String(chunk.id)] = chunk;
     if (groupId === undefined) {

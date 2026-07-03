@@ -13,6 +13,18 @@ const TEXT_STREAM_KIND = {
 
 type TextStreamName = keyof typeof TEXT_STREAM_KIND;
 
+interface TextSentenceLocation {
+  readonly byteLength: number;
+  readonly byteOffset: number;
+  readonly sentenceIndex: number;
+  readonly wordsCount: number;
+}
+
+interface TextStreamDraftState {
+  draftOpen: boolean;
+  nextSentenceIndex?: number;
+}
+
 interface TextStreamFileAccess {
   deleteTree(path: string): Promise<void>;
   ensureDirectory(path: string): Promise<void>;
@@ -126,13 +138,13 @@ export class TextStreams implements ReadonlyTextStreams {
 }
 
 export class SerialTextStream implements ReadonlySerialTextStream {
+  static readonly #draftStates = new Map<string, TextStreamDraftState>();
+
   readonly #database: Database;
   readonly #documentPath: string;
   readonly #fileAccess: TextStreamFileAccess;
   readonly #stream: TextStreamName;
   readonly #serialId: number;
-  #draftOpen = false;
-  #nextSentenceIndex: number | undefined;
 
   public constructor(
     documentPath: string,
@@ -149,16 +161,18 @@ export class SerialTextStream implements ReadonlySerialTextStream {
   }
 
   public async createDraft(): Promise<TextStreamDraft> {
-    if (this.#draftOpen) {
+    const draftState = this.#getDraftState();
+
+    if (draftState.draftOpen) {
       throw new Error("Only one text stream draft can be open at a time");
     }
 
     await this.#fileAccess.ensureDirectory(this.#getDirectoryPath());
-    this.#draftOpen = true;
+    draftState.draftOpen = true;
 
     return new TextStreamDraft(this.#serialId, await this.#peekNextIndex(), {
       discard: () => {
-        this.#draftOpen = false;
+        draftState.draftOpen = false;
       },
       finalize: async (startIndex, summary, sentences) =>
         await this.#commitDraft(startIndex, summary, sentences),
@@ -177,13 +191,13 @@ export class SerialTextStream implements ReadonlySerialTextStream {
   }
 
   public async getSentence(sentenceIndex: number): Promise<SentenceRecord> {
-    const sentence = (await this.listSentences())[sentenceIndex];
+    const location = await this.#getSentenceLocation(sentenceIndex);
 
-    if (sentence === undefined) {
+    if (location === undefined) {
       throw new RangeError(`Sentence ${sentenceIndex} does not exist`);
     }
 
-    return sentence;
+    return this.#readSentenceLocation(location, await this.#readContent());
   }
 
   public async listFragmentIds(): Promise<readonly number[]> {
@@ -191,42 +205,81 @@ export class SerialTextStream implements ReadonlySerialTextStream {
   }
 
   public async listSentences(): Promise<readonly SentenceRecord[]> {
-    return await this.#database
-      .queryAll(
-        `
-        SELECT sentence_index, byte_offset, byte_length, words_count
-        FROM text_sentence_records
-        WHERE kind = ? AND chapter_id = ?
-        ORDER BY sentence_index
-      `,
-        [TEXT_STREAM_KIND[this.#stream], this.#serialId],
-        (row) => ({
-          byteLength: Number(row.byte_length),
-          byteOffset: Number(row.byte_offset),
-          sentenceIndex: Number(row.sentence_index),
-          wordsCount: Number(row.words_count),
-        }),
-      )
-      .then(async (rows) => {
-        const content = await this.#readContent();
+    const rows = await this.#listSentenceLocations();
+    const content = await this.#readContent();
 
-        return rows.map((row) => ({
-          text: content
-            .subarray(row.byteOffset, row.byteOffset + row.byteLength)
-            .toString("utf8"),
-          wordsCount: row.wordsCount,
-        }));
-      });
+    return rows.map((row) => this.#readSentenceLocation(row, content));
   }
 
   public async listSentencesInRange(
     startSentenceIndex: number,
     endSentenceIndex: number,
   ): Promise<readonly SentenceRecord[]> {
-    return (await this.listSentences()).slice(
-      startSentenceIndex,
-      endSentenceIndex + 1,
+    if (endSentenceIndex < startSentenceIndex) {
+      return [];
+    }
+
+    const rows = await this.#database.queryAll(
+      `
+        SELECT sentence_index, byte_offset, byte_length, words_count
+        FROM text_sentence_records
+        WHERE kind = ? AND chapter_id = ?
+          AND sentence_index BETWEEN ? AND ?
+        ORDER BY sentence_index
+      `,
+      [
+        TEXT_STREAM_KIND[this.#stream],
+        this.#serialId,
+        startSentenceIndex,
+        endSentenceIndex,
+      ],
+      mapTextSentenceLocation,
     );
+    const content = await this.#readContent();
+
+    return rows.map((row) => this.#readSentenceLocation(row, content));
+  }
+
+  async #getSentenceLocation(
+    sentenceIndex: number,
+  ): Promise<TextSentenceLocation | undefined> {
+    return await this.#database.queryOne(
+      `
+        SELECT sentence_index, byte_offset, byte_length, words_count
+        FROM text_sentence_records
+        WHERE kind = ? AND chapter_id = ? AND sentence_index = ?
+      `,
+      [TEXT_STREAM_KIND[this.#stream], this.#serialId, sentenceIndex],
+      mapTextSentenceLocation,
+    );
+  }
+
+  async #listSentenceLocations(): Promise<readonly TextSentenceLocation[]> {
+    return await this.#database.queryAll(
+      `
+        SELECT sentence_index, byte_offset, byte_length, words_count
+        FROM text_sentence_records
+        WHERE kind = ? AND chapter_id = ?
+        ORDER BY sentence_index
+      `,
+      [TEXT_STREAM_KIND[this.#stream], this.#serialId],
+      mapTextSentenceLocation,
+    );
+  }
+
+  #readSentenceLocation(
+    location: TextSentenceLocation,
+    content: Buffer,
+  ): SentenceRecord {
+    return {
+      text: content
+        .subarray(
+          location.byteOffset,
+          location.byteOffset + location.byteLength,
+        )
+        .toString("utf8"),
+      wordsCount: location.wordsCount,
+    };
   }
 
   public async readText(): Promise<string | undefined> {
@@ -261,7 +314,7 @@ export class SerialTextStream implements ReadonlySerialTextStream {
       `,
       [TEXT_STREAM_KIND[this.#stream], this.#serialId],
     );
-    this.#nextSentenceIndex = undefined;
+    delete this.#getDraftState().nextSentenceIndex;
   }
 
   public get path(): string {
@@ -277,7 +330,9 @@ export class SerialTextStream implements ReadonlySerialTextStream {
     textOverride: string,
     sentences: readonly SentenceRecord[],
   ): Promise<FragmentRecord | undefined> {
-    this.#draftOpen = false;
+    const draftState = this.#getDraftState();
+
+    draftState.draftOpen = false;
 
     const existing = await this.#fileAccess.readFile(this.#getTextPath());
     const existingBuffer =
@@ -337,7 +392,7 @@ export class SerialTextStream implements ReadonlySerialTextStream {
       }
     }
 
-    this.#nextSentenceIndex = startIndex + sentences.length;
+    draftState.nextSentenceIndex = startIndex + sentences.length;
 
     return {
       fragmentId: startIndex,
@@ -392,11 +447,13 @@ export class SerialTextStream implements ReadonlySerialTextStream {
   }
 
   async #peekNextIndex(): Promise<number> {
-    if (this.#nextSentenceIndex !== undefined) {
-      return this.#nextSentenceIndex;
+    const draftState = this.#getDraftState();
+
+    if (draftState.nextSentenceIndex !== undefined) {
+      return draftState.nextSentenceIndex;
     }
 
-    this.#nextSentenceIndex =
+    draftState.nextSentenceIndex =
       (await this.#database.queryOne(
         `
           SELECT COALESCE(MAX(sentence_index), -1) + 1 AS next_index
@@ -407,7 +464,7 @@ export class SerialTextStream implements ReadonlySerialTextStream {
         (row) => Number(row.next_index),
       )) ?? 0;
 
-    return this.#nextSentenceIndex;
+    return draftState.nextSentenceIndex;
   }
 
   async #readContent(): Promise<Buffer> {
@@ -423,6 +480,29 @@ export class SerialTextStream implements ReadonlySerialTextStream {
   #getTextPath(): string {
     return join(this.#getDirectoryPath(), `${this.#serialId}.txt`);
   }
+
+  #getDraftState(): TextStreamDraftState {
+    const key = `${this.#documentPath}\0${this.#stream}\0${this.#serialId}`;
+    let state = SerialTextStream.#draftStates.get(key);
+
+    if (state === undefined) {
+      state = { draftOpen: false };
+      SerialTextStream.#draftStates.set(key, state);
+    }
+
+    return state;
+  }
+}
+
+function mapTextSentenceLocation(
+  row: Record<string, unknown>,
+): TextSentenceLocation {
+  return {
+    byteLength: Number(row.byte_length),
+    byteOffset: Number(row.byte_offset),
+    sentenceIndex: Number(row.sentence_index),
+    wordsCount: Number(row.words_count),
+  };
 }
 
 export class TextStreamDraft {

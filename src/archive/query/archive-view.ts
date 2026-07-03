@@ -1190,11 +1190,23 @@ async function findArchiveObjectsIndexed(
 }
 
 function isReadonlySqliteError(error: unknown): boolean {
-  return (
-    error instanceof Error &&
-    (error.message.includes("SQLITE_READONLY") ||
-      error.message.includes("readonly database"))
-  );
+  const code = getErrorCode(error);
+
+  if (code !== undefined && code.startsWith("SQLITE_READONLY")) {
+    return true;
+  }
+
+  return error instanceof Error && error.message.includes("readonly database");
+}
+
+function getErrorCode(error: unknown): string | undefined {
+  if (typeof error !== "object" || error === null || !("code" in error)) {
+    return undefined;
+  }
+
+  const code = error.code;
+
+  return typeof code === "string" ? code : undefined;
 }
 
 async function hydrateSearchIndexHits(
@@ -4947,8 +4959,13 @@ async function findSentenceIndexAtOffset(
   chapterId: number,
   offset: number,
 ): Promise<number> {
+  const serial = document.getSerialFragments(chapterId);
   const sentences =
-    await document.getSerialFragments(chapterId).listSentences!();
+    serial.listSentences === undefined ? [] : await serial.listSentences();
+
+  if (sentences.length === 0) {
+    return 0;
+  }
   let cursor = 0;
 
   for (let index = 0; index < sentences.length; index += 1) {

@@ -64,4 +64,24 @@ describe("document/fragments", () => {
       );
     });
   });
+
+  it("returns serial-wide sentence ids across multiple fragments", async () => {
+    await withTempDir("spinedigest-fragments-", async (path) => {
+      const serial = new Fragments(path).getSerial(7);
+      const first = await serial.createDraft();
+
+      expect(first.addSentence("Alpha", 1)).toStrictEqual([7, 0]);
+      expect(first.addSentence("Beta", 1)).toStrictEqual([7, 1]);
+      await first.commit();
+
+      const second = await serial.createDraft();
+
+      expect(second.addSentence("Gamma", 1)).toStrictEqual([7, 2]);
+      await second.commit();
+
+      const fragments = new Fragments(path);
+
+      await expect(fragments.getSentence([7, 2])).resolves.toBe("Gamma");
+    });
+  });
 });

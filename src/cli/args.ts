@@ -4127,8 +4127,7 @@ function isArchiveUriAction(
     isArchiveAction(value) ||
     isArchiveChapterAction(value) ||
     isMetadataAction(value) ||
-    value === "queue" ||
-    value === "set"
+    value === "queue"
   );
 }
 

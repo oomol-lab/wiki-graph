@@ -90,7 +90,6 @@ export interface SearchIndexQueryResult {
 }
 
 const SEARCH_INDEX_VERSION = "3";
-const SEARCH_INDEX_OBJECT_TARGET = 1;
 const TIER_WEIGHTS = [1, 0.45, 0.08] as const;
 
 export async function isSearchIndexCurrent(
@@ -231,14 +230,6 @@ export async function querySearchIndex(
       }
       for (const hit of textRows) {
         textHitsByKey.set(createTextHitKey(hit), hit);
-      }
-
-      if (
-        objectHitsByKey.size + textHitsByKey.size >=
-          SEARCH_INDEX_OBJECT_TARGET &&
-        options.match !== "all"
-      ) {
-        break;
       }
     }
 

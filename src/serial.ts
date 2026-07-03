@@ -402,6 +402,7 @@ export class SerialGeneration {
     });
 
     await fragmentDraft.commit();
+    await this.#serials.bumpRevision(input.serialId);
     saveDelta(
       input.allChunks,
       input.successorIdsByChunkId,

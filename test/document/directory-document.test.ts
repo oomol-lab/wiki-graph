@@ -286,4 +286,36 @@ describe("document/directory-document", () => {
       }
     });
   });
+
+  it("shares text stream draft ownership across serial instances", async () => {
+    await withTempDir("spinedigest-document-", async (path) => {
+      const document = await DirectoryDocument.open(path);
+
+      try {
+        await document.openSession(async (openedDocument) => {
+          await openedDocument.serials.createWithId(1);
+
+          const firstSerial = openedDocument.getSerialFragments(1);
+          const secondSerial = openedDocument.getSerialFragments(1);
+          const draft = await firstSerial.createDraft();
+
+          await expect(secondSerial.createDraft()).rejects.toThrow(
+            "Only one text stream draft can be open at a time",
+          );
+
+          expect(draft.addSentence("Alpha", 1)).toStrictEqual([1, 0]);
+          await draft.commit();
+
+          await expect(
+            openedDocument.getSerialFragments(1).getSentence(0),
+          ).resolves.toMatchObject({
+            text: "Alpha",
+            wordsCount: 1,
+          });
+        });
+      } finally {
+        await document.release();
+      }
+    });
+  });
 });

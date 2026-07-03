@@ -51,6 +51,7 @@ export {
 } from "./build-queue.js";
 export type {
   AddBuildJobOptions,
+  BuildJobExecutionContext,
   BuildJob,
   BuildJobEvent,
   BuildJobListOptions,

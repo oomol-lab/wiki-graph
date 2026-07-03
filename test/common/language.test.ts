@@ -31,6 +31,8 @@ describe("common/language", () => {
     expect(normalizeLanguageCode("cn")).toBe(LanguageCode.Chinese);
     expect(normalizeLanguageCode("zh-CN")).toBe(LanguageCode.Chinese);
     expect(normalizeLanguageCode("zh_TW")).toBe(LanguageCode.Chinese);
+    expect(normalizeLanguageCode("ar")).toBe(LanguageCode.Arabic);
+    expect(normalizeLanguageCode("es")).toBe(LanguageCode.Spanish);
     expect(normalizeLanguageCode(Language.SimplifiedChinese)).toBe(
       LanguageCode.Chinese,
     );

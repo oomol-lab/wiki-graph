@@ -24,6 +24,7 @@ import {
   updateBuildJobTarget,
   type BuildJob,
   type BuildJobEvent,
+  type BuildJobExecutionContext,
   type BuildJobProgressReporter,
   type BuildJobState,
 } from "../facade/index.js";
@@ -169,7 +170,7 @@ async function runQueueWorker(): Promise<void> {
 async function executeBuildJob(
   job: BuildJob,
   reporter: BuildJobProgressReporter,
-  context: { readonly signal: AbortSignal },
+  context: BuildJobExecutionContext,
 ): Promise<void> {
   const config = await loadRequiredStageConfig({
     ...(job.llmJSON === undefined ? {} : { llmJSON: job.llmJSON }),
