@@ -15,7 +15,7 @@ Input:
 Preconditions:
   - The chapter must be `reading-graph`.
   - If the chapter is `source`, run:
-    wikigraph <chapter-uri> queue add --task reading-graph --accept-cost
+    wikigraph wikg://local/job add --input <chapter-uri> --task reading-graph --accept-cost
 
 Behavior:
   - Moves the chapter to `reading-summary`.
@@ -23,6 +23,6 @@ Behavior:
   - Does not call an LLM provider.
 
 See also:
-  - wikigraph queue --help
+  - wikigraph wikg://local/job --help
   - wikigraph wikg://book.wikg/chapter/3/state get --help
   - wikigraph help command

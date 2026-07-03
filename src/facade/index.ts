@@ -60,6 +60,7 @@ export type {
   BuildJob,
   BuildJobEvent,
   BuildJobListOptions,
+  BuildJobProgressCounter,
   BuildJobProgressReporter,
   BuildJobState,
   BuildJobTarget,

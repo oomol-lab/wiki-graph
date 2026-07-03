@@ -67,6 +67,25 @@ export interface SearchIndexInput {
   readonly textSentences: readonly TextSentenceRecordInput[];
 }
 
+export type SearchIndexProgressPhase =
+  | "checking"
+  | "clearing"
+  | "collecting"
+  | "finalizing"
+  | "indexing-objects"
+  | "indexing-text";
+
+export interface SearchIndexProgressEvent {
+  readonly done?: number;
+  readonly phase: SearchIndexProgressPhase;
+  readonly total?: number;
+  readonly unit?: "chapter" | "object" | "sentence";
+}
+
+export type SearchIndexProgressReporter = (
+  event: SearchIndexProgressEvent,
+) => void | Promise<void>;
+
 export interface SearchIndexTextHit {
   readonly chapterId: number;
   readonly kind: TextSentenceKind;
@@ -169,6 +188,7 @@ export async function isSearchIndexCurrent(
 export async function ensureSearchIndex(
   document: Document,
   input: SearchIndexInput,
+  progress?: SearchIndexProgressReporter,
 ): Promise<void> {
   const chaptersRevision = await document.serials.getChaptersRevision();
 
@@ -194,18 +214,28 @@ export async function ensureSearchIndex(
     }
 
     await database.transaction(async () => {
+      await progress?.({ phase: "clearing" });
       await database.run("DELETE FROM text_sentence_fts");
       await database.run("DELETE FROM search_object_properties_fts");
       await database.run("DELETE FROM search_object_properties_records");
       await database.run("DELETE FROM search_index_state");
 
+      let textDone = 0;
       for (const record of input.textSentences) {
         const plan = createSearchTokenPlan(record.text);
         const rowId = await insertTextSentenceRecord(database, record);
 
         await insertFtsRecord(database, "text_sentence_fts", rowId, plan);
+        textDone += 1;
+        await progress?.({
+          done: textDone,
+          phase: "indexing-text",
+          total: input.textSentences.length,
+          unit: "sentence",
+        });
       }
 
+      let objectDone = 0;
       for (const record of input.objectProperties) {
         const plan = createSearchTokenPlan(record.text);
         const rowId = await insertSearchObjectPropertyRecord(database, record);
@@ -216,8 +246,16 @@ export async function ensureSearchIndex(
           rowId,
           plan,
         );
+        objectDone += 1;
+        await progress?.({
+          done: objectDone,
+          phase: "indexing-objects",
+          total: input.objectProperties.length,
+          unit: "object",
+        });
       }
 
+      await progress?.({ phase: "finalizing" });
       await database.run(
         `
           INSERT INTO search_index_state(key, value)

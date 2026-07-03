@@ -8,8 +8,8 @@ Create an archive from Markdown:
   cat article.md | wikigraph wikg://article.wikg create --input-format markdown
 
 Queue derived data:
-  wikigraph wikg://book.wikg/chapter/3 queue add --task reading-graph --accept-cost
-  wikigraph wikg://book.wikg/chapter/3 queue add --task reading-summary --accept-cost
+  wikigraph wikg://local/job add --input wikg://book.wikg/chapter/3 --task reading-graph --accept-cost
+  wikigraph wikg://local/job add --input wikg://book.wikg/chapter/3 --task reading-summary --accept-cost
 
 Search and open objects:
   wikigraph wikg:///Users/me/book.wikg search "恩典 婴儿洗礼"

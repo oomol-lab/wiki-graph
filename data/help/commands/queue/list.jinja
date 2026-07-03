@@ -1,11 +1,11 @@
 Help Type: command
-Command: wikigraph wikg://local/job/ list
+Command: wikigraph wikg://local/job list
 
 Purpose:
   Show queue jobs. By default this shows active jobs: `queued`, `running`, and `paused`.
 
 Usage:
-  wikigraph wikg://local/job/ list [--all] [--active] [--input <archive-uri>] [--json]
+  wikigraph wikg://local/job list [--all] [--active] [--input <archive-uri>] [--json]
 
 Options:
   --all                 Include terminal history: `succeeded`, `failed`, and `canceled`.
@@ -27,6 +27,6 @@ Agent use:
   - Use `wikg://local/job/<job-id> watch --jsonl` for durable event history and progress.
 
 Examples:
-  wikigraph wikg://local/job/ list
-  wikigraph wikg://local/job/ list --input wikg://book.wikg --json
-  wikigraph wikg://local/job/ list --all
+  wikigraph wikg://local/job list
+  wikigraph wikg://local/job list --input wikg://book.wikg --json
+  wikigraph wikg://local/job list --all

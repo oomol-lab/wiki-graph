@@ -396,7 +396,7 @@ describe("cli/queue", () => {
     expect(queueMockState.textWrites.join("")).toContain("Job job-1 queued");
   });
 
-  it("rejects queue add before enqueueing when llm config is missing", async () => {
+  it("rejects job add before enqueueing when llm config is missing", async () => {
     queueMockState.loadRequiredStageConfigError = new Error(
       "Missing LLM configuration.",
     );
@@ -732,15 +732,22 @@ describe("cli/queue", () => {
     queueMockState.events = [
       {
         at: 1,
-        graphWords: 4520,
+        counters: [
+          {
+            done: 4520,
+            name: "words",
+            total: 4520,
+            unit: "word",
+          },
+        ],
         jobId: "job-1",
-        outputTokens: 200,
         seq: 1,
         step: "reading-summary",
-        readingSummaryWords: 9040,
-        totalGraphWords: 4520,
-        totalReadingSummaryWords: 4520,
-        type: "progress_snapshot",
+        tokens: {
+          inputTokens: 1200,
+          outputTokens: 200,
+        },
+        type: "status_snapshot",
       },
       {
         at: 2,
@@ -758,9 +765,15 @@ describe("cli/queue", () => {
       jsonl: true,
     });
 
-    expect(queueMockState.textWrites[0]).toBe(
-      '{"at":1,"seq":1,"jobId":"job-1","type":"progress_snapshot","step":"reading-summary","words":4520,"totalWords":4520,"outputTokens":200}\n',
-    );
+    expect(JSON.parse(queueMockState.textWrites[0] ?? "")).toStrictEqual({
+      at: 1,
+      counters: [{ done: 4520, name: "words", total: 4520, unit: "word" }],
+      jobId: "job-1",
+      seq: 1,
+      step: "reading-summary",
+      tokens: { inputTokens: 1200, outputTokens: 200 },
+      type: "status_snapshot",
+    });
     expect(queueMockState.textWrites[0]).not.toContain("graphWords");
     expect(queueMockState.textWrites[0]).not.toContain("readingSummaryWords");
     expect(queueMockState.textWrites[1]).toBe(
@@ -772,15 +785,22 @@ describe("cli/queue", () => {
     queueMockState.events = [
       {
         at: 1,
-        graphWords: 4520,
+        counters: [
+          {
+            done: 4520,
+            name: "words",
+            total: 4520,
+            unit: "word",
+          },
+        ],
         jobId: "job-1",
-        outputTokens: 200,
         seq: 1,
         step: "reading-summary",
-        readingSummaryWords: 9040,
-        totalGraphWords: 4520,
-        totalReadingSummaryWords: 4520,
-        type: "progress_snapshot",
+        tokens: {
+          inputTokens: 1200,
+          outputTokens: 200,
+        },
+        type: "status_snapshot",
       },
       {
         at: 2,
@@ -799,7 +819,7 @@ describe("cli/queue", () => {
     });
 
     expect(queueMockState.textWrites).toStrictEqual([
-      "progress reading-summary 4520/4520 output ~200 tokens\n",
+      "reading-summary words 4520/4520 [tokens input: 1200 / output: 200]\n",
       "succeeded\n",
     ]);
   });
@@ -808,21 +828,22 @@ describe("cli/queue", () => {
     queueMockState.events = [
       {
         at: 1,
-        graphWords: 0,
+        counters: [
+          {
+            done: 5,
+            name: "windows",
+            total: 19,
+            unit: "window",
+          },
+        ],
         jobId: "job-1",
-        outputTokens: 6500,
         phase: "grounding",
-        phaseDone: 5,
-        phaseTotal: 19,
-        phaseUnit: "window",
-        readingSummaryWords: 0,
         seq: 1,
         step: "knowledge-graph",
-        totalGraphWords: 0,
-        totalReadingSummaryWords: 4520,
-        totalWords: 0,
-        type: "progress_snapshot",
-        words: 0,
+        tokens: {
+          outputTokens: 6500,
+        },
+        type: "status_snapshot",
       },
       {
         at: 2,
@@ -841,7 +862,7 @@ describe("cli/queue", () => {
     });
 
     expect(queueMockState.textWrites).toStrictEqual([
-      "progress knowledge-graph grounding 5/19 windows output ~6500 tokens\n",
+      "grounding windows 5/19 [tokens output: 6500]\n",
       "succeeded\n",
     ]);
   });
@@ -850,22 +871,22 @@ describe("cli/queue", () => {
     queueMockState.events = [
       {
         at: 1,
-        graphWords: 0,
+        counters: [
+          {
+            done: 25,
+            name: "linked-page",
+            total: 80,
+            unit: "page",
+          },
+        ],
         jobId: "job-1",
-        outputTokens: 6500,
         phase: "enrichment",
-        phaseDetail: "linked-page",
-        phaseDone: 25,
-        phaseTotal: 80,
-        phaseUnit: "page",
-        readingSummaryWords: 0,
         seq: 1,
         step: "knowledge-graph",
-        totalGraphWords: 0,
-        totalReadingSummaryWords: 4520,
-        totalWords: 0,
-        type: "progress_snapshot",
-        words: 0,
+        tokens: {
+          outputTokens: 6500,
+        },
+        type: "status_snapshot",
       },
     ];
 
@@ -877,7 +898,7 @@ describe("cli/queue", () => {
     });
 
     expect(queueMockState.textWrites).toStrictEqual([
-      "progress knowledge-graph enrichment linked-page 25/80 pages output ~6500 tokens\n",
+      "enrichment linked-page 25/80 pages [tokens output: 6500]\n",
     ]);
   });
 
@@ -885,22 +906,22 @@ describe("cli/queue", () => {
     queueMockState.events = [
       {
         at: 1,
-        graphWords: 0,
+        counters: [
+          {
+            done: 5,
+            name: "window",
+            total: 19,
+            unit: "window",
+          },
+        ],
         jobId: "job-1",
-        outputTokens: 6500,
         phase: "grounding",
-        phaseDetail: "window",
-        phaseDone: 5,
-        phaseTotal: 19,
-        phaseUnit: "window",
-        readingSummaryWords: 0,
         seq: 1,
         step: "knowledge-graph",
-        totalGraphWords: 0,
-        totalReadingSummaryWords: 4520,
-        totalWords: 0,
-        type: "progress_snapshot",
-        words: 0,
+        tokens: {
+          outputTokens: 6500,
+        },
+        type: "status_snapshot",
       },
       {
         at: 2,
@@ -918,8 +939,15 @@ describe("cli/queue", () => {
       jsonl: true,
     });
 
-    expect(queueMockState.textWrites[0]).toBe(
-      '{"at":1,"seq":1,"jobId":"job-1","type":"progress_snapshot","step":"knowledge-graph","phase":"grounding","phaseDetail":"window","phaseDone":5,"phaseTotal":19,"phaseUnit":"window","words":0,"totalWords":0,"outputTokens":6500}\n',
-    );
+    expect(JSON.parse(queueMockState.textWrites[0] ?? "")).toStrictEqual({
+      at: 1,
+      counters: [{ done: 5, name: "window", total: 19, unit: "window" }],
+      jobId: "job-1",
+      phase: "grounding",
+      seq: 1,
+      step: "knowledge-graph",
+      tokens: { outputTokens: 6500 },
+      type: "status_snapshot",
+    });
   });
 });

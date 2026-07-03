@@ -37,7 +37,7 @@ Input rules:
   - `<archive-uri>/chapter/tree set` applies a complete chapter tree JSON. It can reorder chapters and change titles when a node includes `title`.
   - `reset --to` accepts `planned`, `source`, or `reading-graph`.
   - Structure edits, `/title set`, `/source set`, `/summary set`, and `reset` do not call an LLM provider.
-  - To generate reading-graph, reading-summary, or knowledge-graph for a chapter, use `wikigraph <chapter-uri> queue add --task <reading-graph|reading-summary|knowledge-graph> --accept-cost`.
+  - To generate reading-graph, reading-summary, or knowledge-graph for a chapter, use `wikigraph wikg://local/job add --input <chapter-uri> --task <reading-graph|reading-summary|knowledge-graph> --accept-cost`.
   - `<chapter-uri>/state get` shows the aggregate chapter state. `<chapter-uri>/state/<target> get` checks one target.
   - Append `--help` after an action for action-specific details, for example `wikigraph wikg://book.wikg/chapter/3 reset --help`.
 
@@ -50,5 +50,5 @@ See also:
   - wikigraph wikg://book.wikg/chapter/3/title clear
   - wikigraph wikg://book.wikg/chapter/3/source set --input chapter.md --input-format markdown
   - wikigraph wikg://book.wikg/chapter/3/summary set --input summary.md
-  - wikigraph queue --help
+  - wikigraph wikg://local/job --help
   - wikigraph help command

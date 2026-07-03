@@ -2,7 +2,10 @@ import { resolveDataDirPath } from "../common/data-dir.js";
 import type { SpineDigestScope } from "../common/llm-scope.js";
 import { createDefaultSpineDigestSampling } from "../facade/llm-sampling.js";
 import { LLM } from "../llm/index.js";
-import type { LLMStreamProgressCallback } from "../llm/index.js";
+import type {
+  LLMStreamProgressCallback,
+  LLMTokenUsageCallback,
+} from "../llm/index.js";
 
 import { loadCLIConfig, type CLIConfig } from "./config.js";
 import { CLI_HELP_ROUTES, withHelpRoute } from "./errors.js";
@@ -25,6 +28,7 @@ export function createStageLLM(
   config: CLIConfig,
   options?: {
     readonly onStreamProgress?: LLMStreamProgressCallback;
+    readonly onTokenUsage?: LLMTokenUsageCallback;
   },
 ): LLM<SpineDigestScope> {
   const llmOptions = buildLLMOptions(config);
@@ -41,6 +45,9 @@ export function createStageLLM(
     ...(options?.onStreamProgress === undefined
       ? {}
       : { onStreamProgress: options.onStreamProgress }),
+    ...(options?.onTokenUsage === undefined
+      ? {}
+      : { onTokenUsage: options.onTokenUsage }),
   });
 }
 

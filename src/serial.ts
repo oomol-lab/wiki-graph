@@ -582,7 +582,7 @@ export async function readSerial(
 
   if (summary === undefined) {
     throw new Error(
-      `Chapter ${serialId} summary is missing. Run \`wikigraph <chapter-uri> queue add --task reading-summary --accept-cost\` before export, or inspect the chapter with \`wikigraph <archive-uri>/chapter/${serialId}/source get\`.`,
+      `Chapter ${serialId} summary is missing. Run \`wikigraph wikg://local/job add --input <chapter-uri> --task reading-summary --accept-cost\` before export, or inspect the chapter with \`wikigraph <archive-uri>/chapter/${serialId}/source get\`.`,
     );
   }
 

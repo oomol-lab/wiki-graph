@@ -37,6 +37,16 @@ export type LLMStreamProgressCallback = (event: {
   readonly outputCharacters: number;
 }) => void | Promise<void>;
 
+export interface LLMTokenUsage {
+  readonly cacheReadTokens?: number;
+  readonly inputTokens?: number;
+  readonly outputTokens?: number;
+}
+
+export type LLMTokenUsageCallback = (
+  usage: LLMTokenUsage,
+) => void | Promise<void>;
+
 export interface LLMOptions<S extends string> {
   readonly model: LLMModel;
   readonly dataDirPath: string;
@@ -51,4 +61,5 @@ export interface LLMOptions<S extends string> {
   readonly retryTimes?: number;
   readonly retryIntervalSeconds?: number;
   readonly onStreamProgress?: LLMStreamProgressCallback;
+  readonly onTokenUsage?: LLMTokenUsageCallback;
 }

@@ -180,8 +180,8 @@ const HELP_OBJECTS: readonly HelpObjectEntry[] = [
         verb: "get",
       },
       {
-        command: "wikigraph wikg://book.wikg/index build",
-        note: "Build a usable FTS index if none is available; by default it stays in local cache.",
+        command: "wikigraph wikg://book.wikg/index build --jsonl",
+        note: "Build a usable FTS index with progress events; by default it stays in local cache.",
         verb: "build",
       },
       {
@@ -256,7 +256,7 @@ const HELP_OBJECTS: readonly HelpObjectEntry[] = [
       },
       {
         command:
-          "wikigraph wikg://book.wikg/chapter/12 queue add --task reading-graph --accept-cost",
+          "wikigraph wikg://local/job add --input wikg://book.wikg/chapter/12 --task reading-graph --accept-cost",
         note: "Queue generated work for the chapter.",
         verb: "queue",
       },
@@ -551,6 +551,12 @@ const HELP_OBJECTS: readonly HelpObjectEntry[] = [
     uriForms: ["wikg://local/job"],
     verbs: [
       {
+        command:
+          "wikigraph wikg://local/job add --input wikg://book.wikg/chapter/12 --task reading-summary --accept-cost",
+        note: "Create a generation job.",
+        verb: "add",
+      },
+      {
         command: "wikigraph wikg://local/job list --json",
         note: "List queue jobs.",
         verb: "list",
@@ -562,41 +568,41 @@ const HELP_OBJECTS: readonly HelpObjectEntry[] = [
     description: "One local generation job.",
     name: "job",
     title: "Job",
-    uriForms: ["wikg://local/job<job-id>"],
+    uriForms: ["wikg://local/job/<job-id>"],
     verbs: [
       {
-        command: "wikigraph wikg://local/job<job-id> get --json",
+        command: "wikigraph wikg://local/job/<job-id> get --json",
         note: "Inspect one job.",
         verb: "get",
       },
       {
-        command: "wikigraph wikg://local/job<job-id> watch --jsonl",
+        command: "wikigraph wikg://local/job/<job-id> watch --jsonl",
         note: "Follow durable job progress.",
         verb: "watch",
       },
       {
-        command: "wikigraph wikg://local/job<job-id> pause",
+        command: "wikigraph wikg://local/job/<job-id> pause",
         note: "Pause an active job.",
         verb: "pause",
       },
       {
-        command: "wikigraph wikg://local/job<job-id> resume",
+        command: "wikigraph wikg://local/job/<job-id> resume",
         note: "Resume a paused job.",
         verb: "resume",
       },
       {
-        command: "wikigraph wikg://local/job<job-id> cancel",
+        command: "wikigraph wikg://local/job/<job-id> cancel",
         note: "Cancel an active job.",
         verb: "cancel",
       },
       {
-        command: "wikigraph wikg://local/job<job-id> boost",
+        command: "wikigraph wikg://local/job/<job-id> boost",
         note: "Move a queued job forward.",
         verb: "boost",
       },
       {
         command:
-          "wikigraph wikg://local/job<job-id>/target set reading-summary",
+          "wikigraph wikg://local/job/<job-id>/target set reading-summary",
         note: "Change an active job target.",
         verb: "set",
       },

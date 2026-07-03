@@ -7,6 +7,7 @@ import {
   generateText,
   streamText,
   type LanguageModel,
+  type LanguageModelUsage,
   type ModelMessage,
   type SystemModelMessage,
 } from "ai";
@@ -30,6 +31,7 @@ import type {
   LLMRequestOptions,
   LLMRequestFunction,
   LLMStreamProgressCallback,
+  LLMTokenUsageCallback,
   SamplingScopeConfig,
   TemperatureSetting,
 } from "./types.js";
@@ -92,6 +94,7 @@ export class LLM<S extends string> {
   readonly #modelId: string;
   readonly #modelIdentity: string;
   readonly #onStreamProgress: LLMStreamProgressCallback | undefined;
+  readonly #onTokenUsage: LLMTokenUsageCallback | undefined;
   readonly #requestLimiter: AsyncSemaphore;
   readonly #retryIntervalSeconds: number;
   readonly #retryTimes: number;
@@ -142,6 +145,7 @@ export class LLM<S extends string> {
     this.#modelId = modelInfo.modelId;
     this.#modelIdentity = modelInfo.identity;
     this.#onStreamProgress = options.onStreamProgress;
+    this.#onTokenUsage = options.onTokenUsage;
     this.#requestLimiter = new AsyncSemaphore(concurrent);
     this.#retryIntervalSeconds = options.retryIntervalSeconds ?? 6;
     this.#retryTimes = options.retryTimes ?? 5;
@@ -333,10 +337,12 @@ export class LLM<S extends string> {
               textChunks.push(chunk);
               await this.#emitStreamProgress(chunk.length);
             }
+            await this.#emitTokenUsage(await result.totalUsage);
             return textChunks.join("");
           } else {
             const result = await generateText(generationInput);
             await this.#emitStreamProgress(result.text.length);
+            await this.#emitTokenUsage(result.usage);
             return result.text;
           }
         });
@@ -410,6 +416,28 @@ export class LLM<S extends string> {
 
     try {
       await this.#onStreamProgress({ outputCharacters });
+    } catch {
+      return;
+    }
+  }
+
+  async #emitTokenUsage(usage: LanguageModelUsage | undefined): Promise<void> {
+    if (this.#onTokenUsage === undefined || usage === undefined) {
+      return;
+    }
+
+    try {
+      await this.#onTokenUsage({
+        ...(usage.inputTokenDetails.cacheReadTokens === undefined
+          ? {}
+          : { cacheReadTokens: usage.inputTokenDetails.cacheReadTokens }),
+        ...(usage.inputTokens === undefined
+          ? {}
+          : { inputTokens: usage.inputTokens }),
+        ...(usage.outputTokens === undefined
+          ? {}
+          : { outputTokens: usage.outputTokens }),
+      });
     } catch {
       return;
     }

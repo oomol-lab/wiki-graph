@@ -7,9 +7,9 @@ Create:
   wikigraph wikg://book.wikg create ./book.md
 
 Generate:
-  wikigraph wikg://book.wikg/chapter/3 queue add --task reading-graph --accept-cost
-  wikigraph wikg://book.wikg/chapter/3 queue add --task reading-summary --accept-cost
-  wikigraph wikg://book.wikg/chapter/3 queue add --task knowledge-graph --accept-cost
+  wikigraph wikg://local/job add --input wikg://book.wikg/chapter/3 --task reading-graph --accept-cost
+  wikigraph wikg://local/job add --input wikg://book.wikg/chapter/3 --task reading-summary --accept-cost
+  wikigraph wikg://local/job add --input wikg://book.wikg/chapter/3 --task knowledge-graph --accept-cost
 
 Explore:
   wikigraph wikg:///Users/me/book.wikg search "keyword"

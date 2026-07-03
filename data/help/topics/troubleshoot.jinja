@@ -10,8 +10,8 @@ No search results:
 
 Missing generated objects:
   Queue the relevant generation task for the chapter:
-    wikigraph <chapter-uri> queue add --task reading-graph --accept-cost
-    wikigraph <chapter-uri> queue add --task reading-summary --accept-cost
+    wikigraph wikg://local/job add --input <chapter-uri> --task reading-graph --accept-cost
+    wikigraph wikg://local/job add --input <chapter-uri> --task reading-summary --accept-cost
 
 Need machine-readable output:
   Use `--json` or `--jsonl` on object commands.

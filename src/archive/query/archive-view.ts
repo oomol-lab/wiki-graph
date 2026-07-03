@@ -58,6 +58,7 @@ import {
   TEXT_SENTENCE_KIND,
   type SearchIndexInput,
   type SearchIndexObjectHit,
+  type SearchIndexProgressReporter,
   type SearchIndexQueryResult,
   type SearchIndexTextHit,
 } from "../search-index/search-index.js";
@@ -1085,8 +1086,13 @@ async function createSearchRevisionScope(
 
 export async function rebuildArchiveSearchIndex(
   document: Document,
+  progress?: SearchIndexProgressReporter,
 ): Promise<void> {
-  await ensureSearchIndex(document, await createSearchIndexRecords(document));
+  await ensureSearchIndex(
+    document,
+    await createSearchIndexRecords(document, progress),
+    progress,
+  );
 }
 
 export async function grepArchiveObjects(
@@ -1347,11 +1353,14 @@ async function hydrateSearchTextHit(
 
 async function createSearchIndexRecords(
   document: ReadonlyDocument,
+  progress?: SearchIndexProgressReporter,
 ): Promise<SearchIndexInput> {
   const objectProperties: SearchIndexInput["objectProperties"][number][] = [];
   const textSentences: SearchIndexInput["textSentences"][number][] = [];
+  const chapters = await listChapters(document);
+  let chapterDone = 0;
 
-  for (const chapter of await listChapters(document)) {
+  for (const chapter of chapters) {
     const title = chapter.title ?? `[chapter ${chapter.chapterId}]`;
 
     objectProperties.push({
@@ -1378,6 +1387,13 @@ async function createSearchIndexRecords(
         title,
       )),
     );
+    chapterDone += 1;
+    await progress?.({
+      done: chapterDone,
+      phase: "collecting",
+      total: chapters.length,
+      unit: "chapter",
+    });
   }
 
   for (const node of await document.chunks.listAll()) {

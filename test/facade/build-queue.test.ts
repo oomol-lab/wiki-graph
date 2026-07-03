@@ -307,15 +307,19 @@ describe("facade/build-queue", () => {
       });
 
       const snapshots = (await readBuildJobEvents(job)).filter(
-        (event) => event.type === "progress_snapshot",
+        (event) => event.type === "status_snapshot",
       );
       const latest = snapshots.at(-1);
 
       expect(latest).toMatchObject({
-        graphWords: 100,
-        readingSummaryWords: 50,
-        totalWords: 50,
-        words: 50,
+        counters: [
+          {
+            done: 50,
+            name: "words",
+            total: 50,
+            unit: "word",
+          },
+        ],
       });
     });
   });
@@ -344,15 +348,74 @@ describe("facade/build-queue", () => {
       });
 
       const snapshots = (await readBuildJobEvents(job)).filter(
-        (event) => event.type === "progress_snapshot",
+        (event) => event.type === "status_snapshot",
       );
       const latest = snapshots.at(-1);
 
       expect(latest).toMatchObject({
+        counters: [
+          {
+            done: 3,
+            name: "windows",
+            total: 5,
+            unit: "window",
+          },
+        ],
         phase: "grounding",
-        phaseDone: 3,
-        phaseTotal: 5,
-        phaseUnit: "window",
+        step: "knowledge-graph",
+      });
+    });
+  });
+
+  it("keeps multiple counters for one progress phase", async () => {
+    await withTempDir("spinedigest-build-queue-", async (path) => {
+      useStateDir(`${path}/state`);
+      const job = await addBuildJob({
+        archivePath: `${path}/book.wikg`,
+        chapterId: 1,
+        target: "knowledge-graph",
+      });
+
+      await runBuildJobWorker({
+        concurrency: 1,
+        executeJob: async (_job, reporter) => {
+          await reporter.stepStarted("knowledge-graph");
+          await reporter.updatePhase({
+            done: 600,
+            phase: "enrichment",
+            total: 3811,
+            unit: "qid",
+          });
+          await reporter.updatePhase({
+            done: 600,
+            phase: "enrichment",
+            phaseDetail: "entity",
+            total: 3811,
+            unit: "record",
+          });
+          await reporter.updatePhase({
+            done: 58,
+            phase: "enrichment",
+            phaseDetail: "page",
+            total: 58,
+            unit: "page",
+          });
+        },
+        idleTimeoutMs: 0,
+      });
+
+      const snapshots = (await readBuildJobEvents(job)).filter(
+        (event) => event.type === "status_snapshot",
+      );
+      const latest = snapshots.at(-1);
+
+      expect(latest).toMatchObject({
+        counters: [
+          { done: 600, name: "qids", total: 3811, unit: "qid" },
+          { done: 600, name: "entity", total: 3811, unit: "record" },
+          { done: 58, name: "page", total: 58, unit: "page" },
+        ],
+        phase: "enrichment",
         step: "knowledge-graph",
       });
     });

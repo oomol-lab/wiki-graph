@@ -189,6 +189,7 @@ export interface CLIQueueArguments {
   readonly boost?: boolean;
   readonly chapterId?: number;
   readonly from?: "beginning" | "now";
+  readonly inputPath?: string;
   readonly jobId?: string;
   readonly json?: boolean;
   readonly jsonl?: boolean;
@@ -216,13 +217,23 @@ export type CLIArchiveIndexAction =
   | "embed"
   | "external"
   | "get";
-type CLIArchiveRootAction = CLIArchiveAction | "queue";
+type CLIArchiveRootAction = CLIArchiveAction;
 type CLIArchiveUriAction =
   | CLIArchiveRootAction
   | CLIArchiveChapterAction
   | CLIArchiveIndexAction
   | CLIMetadataAction;
-type CLIJobAction = CLIQueueAction | "get" | "set";
+type CLIJobAction =
+  | "add"
+  | "boost"
+  | "cancel"
+  | "clean"
+  | "get"
+  | "list"
+  | "pause"
+  | "resume"
+  | "set"
+  | "watch";
 type ArchiveUriLens = Exclude<CLIObjectKind, "meta">;
 type ChapterStateUriTarget =
   | "knowledge-graph"
@@ -264,6 +275,7 @@ export interface CLIArchiveIndexArguments {
   readonly action: CLIArchiveIndexAction;
   readonly archivePath: string;
   readonly json?: boolean;
+  readonly jsonl?: boolean;
 }
 
 interface ArchiveMetaFlagValues {
@@ -607,17 +619,12 @@ export function parseCLIArguments(
 
   if (
     values["accept-cost"] === true &&
-    !(positionals[0] === "queue" && positionals[1] === "add") &&
-    !(
-      isWikiGraphUri(positionals[0]) &&
-      positionals[1] === "queue" &&
-      positionals[2] === "add"
-    )
+    !(isWikiGraphJobUri(positionals[0]) && positionals[1] === "add")
   ) {
     throw new Error(
       withHelpRoute(
-        "`--accept-cost` is only valid for `wikigraph queue add`.",
-        "wikigraph queue --help",
+        "`--accept-cost` is only valid for `wikigraph wikg://local/job add`.",
+        "wikigraph wikg://local/job add --help",
       ),
     );
   }
@@ -630,8 +637,8 @@ export function parseCLIArguments(
     return parseGcArguments(positionals.slice(1), values);
   }
 
-  if (positionals[0] === "queue") {
-    return parseQueueArguments(positionals.slice(1), values);
+  if (positionals[0] === "__queue-worker") {
+    return parseQueueWorkerArguments(positionals.slice(1), values);
   }
 
   if (positionals[0] === "legacy") {
@@ -728,16 +735,6 @@ function parseArchiveUriTargetArguments(
 
   if (archivePath === undefined) {
     throw new Error(formatMissingArchiveLocatorMessage(uri));
-  }
-
-  if (action === "queue") {
-    return parseArchiveUriQueueArguments(
-      uri,
-      archivePath,
-      objectUri,
-      tail,
-      values,
-    );
   }
 
   if (objectUri === undefined) {
@@ -867,7 +864,11 @@ function parseArchiveIndexUriArguments(
   rejectArchiveBooleanFlag(action, "--confirm", values.confirm, helpRoute);
   rejectArchiveBooleanFlag(action, "--dry-run", values["dry-run"], helpRoute);
   rejectArchiveBooleanFlag(action, "--first", values.first, helpRoute);
-  rejectArchiveBooleanFlag(action, "--jsonl", values.jsonl, helpRoute);
+  if (action === "build") {
+    rejectArchiveBooleanFlag(action, "--json", values.json, helpRoute);
+  } else {
+    rejectArchiveBooleanFlag(action, "--jsonl", values.jsonl, helpRoute);
+  }
   rejectArchiveBooleanFlag(action, "--last", values.last, helpRoute);
   rejectArchiveBooleanFlag(action, "--root", values.root, helpRoute);
   rejectArchiveBooleanFlag(action, "--verbose", values.verbose, helpRoute);
@@ -878,6 +879,7 @@ function parseArchiveIndexUriArguments(
       action,
       archivePath,
       ...(values.json === undefined ? {} : { json: values.json }),
+      ...(values.jsonl === undefined ? {} : { jsonl: values.jsonl }),
     },
     help: false,
     kind: "archive-index",
@@ -1574,14 +1576,6 @@ function parseSingleChapterUriArguments(
         { ...values, chapter: String(chapterId) },
         helpRoute,
       );
-    case "queue":
-      return parseArchiveUriQueueArguments(
-        formatLocatedChapterUri(archivePath, chapterId),
-        archivePath,
-        `wikg://chapter/${chapterId}`,
-        tail,
-        values,
-      );
     default:
       throw new Error(
         withHelpRoute(
@@ -1814,44 +1808,6 @@ function parseArchiveChapterLikeArguments(
   };
 }
 
-function parseArchiveUriQueueArguments(
-  uri: string,
-  archivePath: string,
-  objectUri: string | undefined,
-  tail: readonly string[],
-  values: ArchiveArgumentValues,
-): ParsedCLIArguments {
-  const queueAction = tail[0];
-  const helpRoute = `wikigraph ${uri} queue --help`;
-
-  if (queueAction !== "add") {
-    throw new Error(
-      withHelpRoute(
-        queueAction === undefined
-          ? "Missing queue action. Expected add."
-          : `Invalid queue action for archive object URI: ${queueAction}. Expected add.`,
-        helpRoute,
-      ),
-    );
-  }
-
-  const chapterTarget =
-    objectUri === undefined ? undefined : parseChapterTarget(objectUri);
-  if (chapterTarget?.kind !== "chapter") {
-    throw new Error(
-      withHelpRoute("`queue add` requires a chapter URI target.", helpRoute),
-    );
-  }
-
-  return parseQueueAddArguments(
-    archivePath,
-    chapterTarget.chapterId,
-    tail.slice(1),
-    values,
-    helpRoute,
-  );
-}
-
 function parseJobUriFirstArguments(
   positionals: readonly string[],
   values: ArchiveArgumentValues,
@@ -1864,13 +1820,44 @@ function parseJobUriFirstArguments(
     throw new Error("Internal error: missing job URI.");
   }
 
+  if (values.help === true) {
+    if (action === undefined) {
+      return {
+        help: true,
+        helpText: renderQueueCommandHelpText(),
+        kind: "help",
+      };
+    }
+    if (action === "get") {
+      return {
+        help: true,
+        helpText: renderQueueCommandHelpText("status"),
+        kind: "help",
+      };
+    }
+    if (action === "set" && jobTargetUri !== undefined) {
+      return {
+        help: true,
+        helpText: renderQueueCommandHelpText("target"),
+        kind: "help",
+      };
+    }
+    if (isQueueActionHelp(action)) {
+      return {
+        help: true,
+        helpText: renderQueueCommandHelpText(action),
+        kind: "help",
+      };
+    }
+  }
+
   if (!isJobUriAction(action)) {
     throw new Error(
       withHelpRoute(
         action === undefined
           ? `Missing action after ${uri}.`
           : `The job URI form does not support \`${action}\`.`,
-        "wikigraph queue --help",
+        "wikigraph wikg://local/job --help",
       ),
     );
   }
@@ -1883,7 +1870,7 @@ function parseJobUriFirstArguments(
       throw new Error(
         withHelpRoute(
           `The job target URI form does not support \`${action}\`. Expected set.`,
-          "wikigraph queue target --help",
+          "wikigraph wikg://local/job/<job-id>/target set --help",
         ),
       );
     }
@@ -1896,15 +1883,61 @@ function parseJobUriFirstArguments(
   }
 
   switch (action) {
+    case "add":
+      if (jobId !== undefined) {
+        throw new Error(
+          withHelpRoute("Job add requires `wikg://local/job`.", helpRoute),
+        );
+      }
+      return parseQueueAddArguments(positionals.slice(2), values, helpRoute);
+    case "clean":
+      if (jobId !== undefined) {
+        throw new Error(
+          withHelpRoute("Job clean requires `wikg://local/job`.", helpRoute),
+        );
+      }
+      rejectQueueJSONFlag("clean", values.json, helpRoute);
+      rejectQueueJSONLFlag("clean", values.jsonl, helpRoute);
+      rejectQueueExtraPositionals(
+        "clean",
+        ["clean", ...positionals.slice(2)],
+        1,
+        helpRoute,
+      );
+      return {
+        args: {
+          action: "clean",
+        },
+        help: false,
+        kind: "queue",
+      };
     case "list":
       if (jobId !== undefined) {
         throw new Error(
           withHelpRoute("Job list requires `wikg://local/job`.", helpRoute),
         );
       }
-      return parseQueueArguments(["list", ...positionals.slice(2)], values);
+      rejectQueueJSONLFlag("list", values.jsonl, helpRoute);
+      rejectQueueExtraPositionals(
+        "list",
+        ["list", ...positionals.slice(2)],
+        1,
+        helpRoute,
+      );
+      return {
+        args: {
+          action: "list",
+          ...(values.active === undefined ? {} : { activeOnly: values.active }),
+          ...(values.all === undefined ? {} : { all: values.all }),
+          ...(values.input === undefined
+            ? {}
+            : { archivePath: requireArchiveUriPath(values.input, helpRoute) }),
+          ...(values.json === undefined ? {} : { json: values.json }),
+        },
+        help: false,
+        kind: "queue",
+      };
     case "get":
-    case "status":
       return parseQueueJobArguments(
         "status",
         jobId,
@@ -1924,24 +1957,16 @@ function parseJobUriFirstArguments(
         values,
         helpRoute,
       );
-    case "target":
-      return parseQueueJobArguments(
-        "target",
-        jobId,
-        positionals.slice(2),
-        values,
-        helpRoute,
-      );
     case "set":
       throw new Error(
         withHelpRoute(
           "`wikg://local/job/<job-id> set` is not supported. Use `wikg://local/job/<job-id>/target set <target>`.",
-          "wikigraph queue target --help",
+          "wikigraph wikg://local/job/<job-id>/target set --help",
         ),
       );
   }
 
-  throw new Error(`Internal error: unsupported job URI action ${action}.`);
+  throw new Error("Internal error: unsupported job URI action.");
 }
 
 function parseLocalConfigUriFirstArguments(
@@ -2337,120 +2362,28 @@ function rejectLegacyBooleanFlag(
   }
 }
 
-function parseQueueArguments(
+function parseQueueWorkerArguments(
   positionals: readonly string[],
   values: ArchiveArgumentValues,
 ): ParsedCLIArguments {
-  const action = positionals[0];
-  const helpRoute = "wikigraph queue --help";
+  const helpRoute = "wikigraph help";
 
-  if (values.help === true) {
-    if (isQueueAction(action)) {
-      return {
-        help: true,
-        helpText: renderQueueCommandHelpText(action),
-        kind: "help",
-      };
-    }
-    return {
-      help: true,
-      helpText: renderQueueCommandHelpText(),
-      kind: "help",
-    };
-  }
-  if (!isQueueAction(action)) {
-    throw new Error(
-      withHelpRoute(
-        action === undefined
-          ? "Missing queue action."
-          : `Invalid queue action: ${action}. Expected add, list, status, watch, pause, resume, cancel, boost, target, clean, or worker.`,
-        helpRoute,
-      ),
-    );
-  }
-  if (values.verbose === true) {
-    throw new Error(
-      withHelpRoute(
-        "The `queue` command does not support --verbose.",
-        helpRoute,
-      ),
-    );
-  }
-
-  switch (action) {
-    case "add":
-      throw new Error(
-        withHelpRoute(
-          "`queue add` requires a chapter URI target. Use `wikigraph wikg://<archive.wikg>/chapter/<id> queue add --task <task> --accept-cost`.",
-          helpRoute,
-        ),
-      );
-    case "list":
-      rejectQueueJSONLFlag(action, values.jsonl, helpRoute);
-      rejectQueueExtraPositionals(action, positionals, 1, helpRoute);
-      return {
-        args: {
-          action,
-          ...(values.active === undefined ? {} : { activeOnly: values.active }),
-          ...(values.all === undefined ? {} : { all: values.all }),
-          ...(values.input === undefined
-            ? {}
-            : { archivePath: requireArchiveUriPath(values.input, helpRoute) }),
-          ...(values.json === undefined ? {} : { json: values.json }),
-        },
-        help: false,
-        kind: "queue",
-      };
-    case "status":
-      return parseQueueJobArguments(
-        action,
-        positionals[1],
-        positionals.slice(2),
-        values,
-        helpRoute,
-      );
-    case "watch":
-      return parseQueueJobArguments(
-        action,
-        positionals[1],
-        positionals.slice(2),
-        values,
-        helpRoute,
-      );
-    case "pause":
-    case "resume":
-    case "cancel":
-    case "boost": {
-      return parseQueueJobArguments(
-        action,
-        positionals[1],
-        positionals.slice(2),
-        values,
-        helpRoute,
-      );
-    }
-    case "target":
-      return parseQueueJobArguments(
-        action,
-        positionals[1],
-        positionals.slice(2),
-        values,
-        helpRoute,
-      );
-    case "clean":
-    case "worker":
-      rejectQueueJSONFlag(action, values.json, helpRoute);
-      rejectQueueJSONLFlag(action, values.jsonl, helpRoute);
-      rejectQueueExtraPositionals(action, positionals, 1, helpRoute);
-      return {
-        args: {
-          action,
-          ...(values.llm === undefined ? {} : { llmJSON: values.llm }),
-        },
-        help: false,
-        kind: "queue",
-      };
-  }
+  rejectQueueJSONFlag("worker", values.json, helpRoute);
+  rejectQueueJSONLFlag("worker", values.jsonl, helpRoute);
+  rejectQueueExtraPositionals(
+    "worker",
+    ["worker", ...positionals],
+    1,
+    helpRoute,
+  );
+  return {
+    args: {
+      action: "worker",
+      ...(values.llm === undefined ? {} : { llmJSON: values.llm }),
+    },
+    help: false,
+    kind: "queue",
+  };
 }
 
 function rejectQueueJSONFlag(
@@ -2464,15 +2397,13 @@ function rejectQueueJSONFlag(
 
   throw new Error(
     withHelpRoute(
-      `\`wikigraph queue ${action}\` does not support --json.`,
+      `\`wikigraph wikg://local/job ${action}\` does not support --json.`,
       helpRoute,
     ),
   );
 }
 
 function parseQueueAddArguments(
-  archivePath: string,
-  chapterId: number,
   tail: readonly string[],
   values: ArchiveArgumentValues,
   helpRoute: string,
@@ -2485,6 +2416,11 @@ function parseQueueAddArguments(
   rejectQueueFlag(action, "--to", values.to, helpRoute);
   rejectQueueFlag(action, "--chapter", values.chapter, helpRoute);
   rejectQueueExtraPositionals(action, [action, ...tail], 1, helpRoute);
+  if (values.input === undefined) {
+    throw new Error(withHelpRoute("Missing --input.", helpRoute));
+  }
+
+  const input = parseQueueAddInput(values.input, helpRoute);
 
   return {
     args: {
@@ -2492,15 +2428,50 @@ function parseQueueAddArguments(
       ...(values["accept-cost"] === undefined
         ? {}
         : { acceptCost: values["accept-cost"] }),
-      archivePath,
+      archivePath: input.archivePath,
       ...(values.boost === undefined ? {} : { boost: values.boost }),
-      chapterId,
+      ...(input.chapterId === undefined ? {} : { chapterId: input.chapterId }),
+      inputPath: values.input,
       ...(values.llm === undefined ? {} : { llmJSON: values.llm }),
       ...(values.prompt === undefined ? {} : { prompt: values.prompt }),
       target: parseBuildJobTarget(values.task),
     },
     help: false,
     kind: "queue",
+  };
+}
+
+function parseQueueAddInput(
+  uri: string,
+  helpRoute: string,
+): { readonly archivePath: string; readonly chapterId?: number } {
+  const parsed = parseLocatedWikiGraphUri(uri);
+
+  if (parsed.archivePath === undefined) {
+    throw new Error(
+      withHelpRoute(
+        `Expected an archive or chapter Wiki Graph URI: ${uri}`,
+        helpRoute,
+      ),
+    );
+  }
+  if (parsed.objectUri === undefined) {
+    return { archivePath: parsed.archivePath };
+  }
+
+  const chapterTarget = parseChapterTarget(parsed.objectUri);
+  if (chapterTarget?.kind !== "chapter") {
+    throw new Error(
+      withHelpRoute(
+        `Expected an archive or chapter Wiki Graph URI: ${uri}`,
+        helpRoute,
+      ),
+    );
+  }
+
+  return {
+    archivePath: parsed.archivePath,
+    chapterId: chapterTarget.chapterId,
   };
 }
 
@@ -2531,7 +2502,7 @@ function parseQueueJobArguments(
   if (jobId === undefined) {
     throw new Error(
       withHelpRoute(
-        `\`wikigraph queue ${action}\` requires <job-id>.`,
+        `\`wikigraph wikg://local/job/<job-id> ${action}\` requires <job-id>.`,
         helpRoute,
       ),
     );
@@ -2599,7 +2570,7 @@ function rejectQueueJSONLFlag(
 
   throw new Error(
     withHelpRoute(
-      `\`wikigraph queue ${action}\` does not support --jsonl.`,
+      `\`wikigraph wikg://local/job ${action}\` does not support --jsonl.`,
       helpRoute,
     ),
   );
@@ -2617,7 +2588,7 @@ function rejectQueueFlag(
 
   throw new Error(
     withHelpRoute(
-      `\`wikigraph queue ${action}\` does not support ${name}.`,
+      `\`wikigraph wikg://local/job ${action}\` does not support ${name}.`,
       helpRoute,
     ),
   );
@@ -4371,8 +4342,7 @@ function isArchiveUriAction(
     isArchiveAction(value) ||
     isArchiveChapterAction(value) ||
     isArchiveIndexAction(value) ||
-    isMetadataAction(value) ||
-    value === "queue"
+    isMetadataAction(value)
   );
 }
 
@@ -4459,7 +4429,7 @@ function parseWikiGraphJobUri(uri: string): string | undefined {
     throw new Error(
       withHelpRoute(
         `Expected a Wiki Graph job URI: ${uri}`,
-        "wikigraph queue --help",
+        "wikigraph wikg://local/job --help",
       ),
     );
   }
@@ -4492,7 +4462,7 @@ function parseWikiGraphJobTargetUri(
     throw new Error(
       withHelpRoute(
         `Expected a job id before /target: ${uri}`,
-        "wikigraph queue target --help",
+        "wikigraph wikg://local/job/<job-id>/target set --help",
       ),
     );
   }
@@ -4544,20 +4514,22 @@ function requireArchiveUriPath(uri: string, helpRoute: string): string {
 
 function isJobUriAction(value: string | undefined): value is CLIJobAction {
   return (
+    value === "add" ||
     value === "boost" ||
     value === "cancel" ||
+    value === "clean" ||
     value === "get" ||
     value === "list" ||
     value === "pause" ||
     value === "resume" ||
     value === "set" ||
-    value === "status" ||
-    value === "target" ||
     value === "watch"
   );
 }
 
-function isQueueAction(value: string | undefined): value is CLIQueueAction {
+function isQueueActionHelp(
+  value: string | undefined,
+): value is Exclude<CLIQueueAction, "status" | "target" | "worker"> {
   return (
     value === "add" ||
     value === "boost" ||
@@ -4566,10 +4538,7 @@ function isQueueAction(value: string | undefined): value is CLIQueueAction {
     value === "list" ||
     value === "pause" ||
     value === "resume" ||
-    value === "status" ||
-    value === "target" ||
-    value === "watch" ||
-    value === "worker"
+    value === "watch"
   );
 }
 
@@ -4586,7 +4555,7 @@ function parseBuildJobTarget(value: string | undefined): BuildJobTarget {
       throw new Error(
         withHelpRoute(
           `Invalid queue task: ${value}. Expected reading-graph, reading-summary, or knowledge-graph.`,
-          "wikigraph queue --help",
+          "wikigraph wikg://local/job add --help",
         ),
       );
   }

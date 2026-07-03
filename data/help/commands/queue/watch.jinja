@@ -16,9 +16,9 @@ Options:
   --from now            Follow only new events.
 
 Progress:
-  - Human output shows only the current step progress.
-  - JSONL `progress_snapshot` events expose `step`, `words`, `totalWords`, and approximate `outputTokens`.
-  - Token progress is throttled and approximate.
+  - Human output shows lifecycle events as lines and the current status as a refreshed status line.
+  - JSONL `status_snapshot` events expose `step`, `phase`, `counters`, and `tokens` when available.
+  - Status refreshes are throttled when the phase does not change.
 
 Examples:
   wikigraph wikg://local/job/75d12f7e watch

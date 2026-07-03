@@ -229,13 +229,16 @@ describe("cli/args", () => {
   });
 
   it("parses archive index object commands", () => {
-    expect(
+    expect(() =>
       parseCLIArguments(["wikg:///tmp/book.wikg/index", "build", "--json"]),
+    ).toThrow("The `build` command does not support --json.");
+    expect(
+      parseCLIArguments(["wikg:///tmp/book.wikg/index", "build", "--jsonl"]),
     ).toStrictEqual({
       args: {
         action: "build",
         archivePath: "/tmp/book.wikg",
-        json: true,
+        jsonl: true,
       },
       help: false,
       kind: "archive-index",
@@ -286,9 +289,10 @@ describe("cli/args", () => {
   it("parses queue commands", () => {
     expect(
       parseCLIArguments([
-        "wikg://book.wikg/chapter/12",
-        "queue",
+        "wikg://local/job",
         "add",
+        "--input",
+        "wikg://book.wikg/chapter/12",
         "--task",
         "reading-summary",
         "--boost",
@@ -303,6 +307,7 @@ describe("cli/args", () => {
         archivePath: archivePath,
         boost: true,
         chapterId: 12,
+        inputPath: "wikg://book.wikg/chapter/12",
         llmJSON: '{"model":"cli-model"}',
         target: "reading-summary",
       },
@@ -312,9 +317,10 @@ describe("cli/args", () => {
 
     expect(
       parseCLIArguments([
-        "wikg://book.wikg/chapter/12",
-        "queue",
+        "wikg://local/job",
         "add",
+        "--input",
+        "wikg://book.wikg/chapter/12",
         "--task",
         "reading-summary",
       ]),
@@ -323,6 +329,7 @@ describe("cli/args", () => {
         action: "add",
         archivePath: archivePath,
         chapterId: 12,
+        inputPath: "wikg://book.wikg/chapter/12",
         target: "reading-summary",
       },
       help: false,
@@ -330,21 +337,23 @@ describe("cli/args", () => {
     });
     expect(() =>
       parseCLIArguments(["wikg://book.wikg", "status", "--accept-cost"]),
-    ).toThrow("only valid for `wikigraph queue add`");
+    ).toThrow("only valid for `wikigraph wikg://local/job add`");
     expect(() =>
       parseCLIArguments([
-        "wikg://book.wikg/chapter/12",
-        "queue",
+        "wikg://local/job",
         "add",
+        "--input",
+        "wikg://book.wikg/chapter/12",
         "--stage",
         "graph",
       ]),
-    ).toThrow("`wikigraph queue add` does not support --stage.");
+    ).toThrow("`wikigraph wikg://local/job add` does not support --stage.");
     expect(
       parseCLIArguments([
-        "wikg://book.wikg/chapter/12",
-        "queue",
+        "wikg://local/job",
         "add",
+        "--input",
+        "wikg://book.wikg/chapter/12",
         "--task",
         "knowledge-graph",
       ]),
@@ -353,6 +362,7 @@ describe("cli/args", () => {
         action: "add",
         archivePath: archivePath,
         chapterId: 12,
+        inputPath: "wikg://book.wikg/chapter/12",
         target: "knowledge-graph",
       },
       help: false,
@@ -361,32 +371,24 @@ describe("cli/args", () => {
 
     expect(
       parseCLIArguments([
-        "queue",
-        "watch",
-        "job-1",
-        "--jsonl",
-        "--from",
-        "now",
+        "wikg://local/job",
+        "add",
+        "--input",
+        "wikg://book.wikg",
+        "--task",
+        "knowledge-graph",
       ]),
     ).toStrictEqual({
       args: {
-        action: "watch",
-        from: "now",
-        jobId: "job-1",
-        jsonl: true,
+        action: "add",
+        archivePath,
+        inputPath: "wikg://book.wikg",
+        target: "knowledge-graph",
       },
       help: false,
       kind: "queue",
     });
 
-    expect(parseCLIArguments(["queue", "list", "--json"])).toStrictEqual({
-      args: {
-        action: "list",
-        json: true,
-      },
-      help: false,
-      kind: "queue",
-    });
     expect(
       parseCLIArguments([
         "wikg://local/job",
@@ -466,24 +468,24 @@ describe("cli/args", () => {
       ]),
     ).toThrow("is not supported");
 
-    expect(parseCLIArguments(["queue", "--help"])).toStrictEqual({
-      help: true,
-      helpText: renderQueueCommandHelpText(),
-      kind: "help",
-    });
+    expect(() => parseCLIArguments(["queue", "--help"])).toThrow(
+      "Unknown command: queue.",
+    );
 
-    expect(parseCLIArguments(["queue", "list", "--help"])).toStrictEqual({
+    expect(
+      parseCLIArguments(["wikg://local/job", "list", "--help"]),
+    ).toStrictEqual({
       help: true,
       helpText: renderQueueCommandHelpText("list"),
       kind: "help",
     });
 
     expect(() =>
-      parseCLIArguments(["queue", "watch", "job-1", "--json"]),
+      parseCLIArguments(["wikg://local/job/job-1", "watch", "--json"]),
     ).toThrow("does not support --json");
-    expect(() => parseCLIArguments(["queue", "list", "--jsonl"])).toThrow(
-      "does not support --jsonl",
-    );
+    expect(() =>
+      parseCLIArguments(["wikg://local/job", "list", "--jsonl"]),
+    ).toThrow("does not support --jsonl");
   });
 
   it("parses the transform command as direct digest", () => {
@@ -1706,7 +1708,7 @@ describe("cli/args", () => {
     );
     expect(rootHelpText).toContain("wikigraph transform");
     expect(rootHelpText).not.toContain("wikigraph import");
-    expect(rootHelpText).toContain("wikigraph <chapter-uri> queue add");
+    expect(rootHelpText).toContain("wikigraph wikg://local/job add");
     expect(rootHelpText).toContain(
       "Append `--help` to commands and subcommands",
     );

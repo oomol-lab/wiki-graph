@@ -73,7 +73,7 @@ async function collectSections(
 
       if (summary === undefined) {
         throw new Error(
-          `Chapter ${item.serialId} summary is missing. Run \`wikigraph <chapter-uri> queue add --task reading-summary --accept-cost\` before export, or inspect the archive with \`wikigraph <archive-uri>/chapter/tree get\`.`,
+          `Chapter ${item.serialId} summary is missing. Run \`wikigraph wikg://local/job add --input <chapter-uri> --task reading-summary --accept-cost\` before export, or inspect the archive with \`wikigraph <archive-uri>/chapter/tree get\`.`,
         );
       }
 

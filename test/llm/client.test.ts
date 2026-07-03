@@ -2,6 +2,13 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const aiMockState = vi.hoisted(() => ({
   generateTextResponse: "generated response",
+  usage: {
+    inputTokenDetails: {
+      cacheReadTokens: 3,
+    },
+    inputTokens: 11,
+    outputTokens: 7,
+  },
   generateTextCalls: [] as unknown[],
   generateTextError: undefined as Error | undefined,
   generateTextHandler: undefined as
@@ -45,13 +52,17 @@ vi.mock("ai", () => ({
       return Promise.reject(aiMockState.generateTextError);
     }
 
-    return Promise.resolve({ text: aiMockState.generateTextResponse });
+    return Promise.resolve({
+      text: aiMockState.generateTextResponse,
+      usage: aiMockState.usage,
+    });
   }),
   streamText: vi.fn((input: unknown) => {
     aiMockState.streamTextCalls.push(input);
     const chunks = ["streamed ", "response"];
 
     return {
+      totalUsage: Promise.resolve(aiMockState.usage),
       textStream: {
         [Symbol.asyncIterator]() {
           let index = 0;
@@ -107,6 +118,13 @@ const RETRYABLE_HTTP_STATUS_CODES = [
 describe("llm/client", () => {
   beforeEach(() => {
     aiMockState.generateTextResponse = "generated response";
+    aiMockState.usage = {
+      inputTokenDetails: {
+        cacheReadTokens: 3,
+      },
+      inputTokens: 11,
+      outputTokens: 7,
+    };
     aiMockState.generateTextCalls.length = 0;
     aiMockState.generateTextError = undefined;
     aiMockState.generateTextHandler = undefined;
@@ -144,6 +162,37 @@ describe("llm/client", () => {
       timeout: 360000,
     });
     expect(aiMockState.streamTextCalls).toHaveLength(0);
+  });
+
+  it("reports token usage when the provider returns it", async () => {
+    const usages: unknown[] = [];
+    const llm = new LLM({
+      dataDirPath: process.cwd(),
+      model: {
+        modelId: "test-model",
+        provider: "test-provider",
+      } as never,
+      onTokenUsage: (usage) => {
+        usages.push(usage);
+      },
+    });
+
+    await expect(
+      llm.request([
+        {
+          content: "hello",
+          role: "user",
+        },
+      ]),
+    ).resolves.toBe("generated response");
+
+    expect(usages).toStrictEqual([
+      {
+        cacheReadTokens: 3,
+        inputTokens: 11,
+        outputTokens: 7,
+      },
+    ]);
   });
 
   it("moves a leading system message to the top-level system field", async () => {

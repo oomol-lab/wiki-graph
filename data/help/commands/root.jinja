@@ -43,8 +43,8 @@ Archive commands:
   wikigraph transform [--input <path>] [--output <path>] [--input-format <format>] [--output-format <format>] [--digest-dir <path>] [--llm <json>] [--prompt <text>] [--stage <stage>] [--verbose|-v]
 
 Generation queue:
-  wikigraph <chapter-uri> queue add --task <reading-graph|reading-summary|knowledge-graph> --accept-cost [--boost] [--llm <json>] [--prompt <text>]
-  wikigraph wikg://local/job/ list [--all] [--active]
+  wikigraph wikg://local/job add --input <chapter-uri> --task <reading-graph|reading-summary|knowledge-graph> --accept-cost [--boost] [--llm <json>] [--prompt <text>]
+  wikigraph wikg://local/job list [--all] [--active]
   wikigraph wikg://local/job/<job-id> get [--json]
   wikigraph wikg://local/job/<job-id> watch [--jsonl] [--from beginning|now]
   Queue generation tasks call an LLM, consume tokens, and may incur provider charges.
