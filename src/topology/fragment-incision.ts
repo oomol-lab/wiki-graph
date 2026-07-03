@@ -50,12 +50,24 @@ function computeFragmentIncisions(input: {
   edges: readonly ReadingEdgeRecord[];
   fragmentWordsCounts: Readonly<Record<string, number>>;
 }): FragmentInfo[] {
+  const fragmentIds = Object.keys(input.fragmentWordsCounts)
+    .map(Number)
+    .sort(compareNumber);
   const chunkIdsByFragmentId = createNumberListRecord();
   const chunkWeightsById = createNumberRecord();
   const edgesByChunkId = createReadingEdgeListRecord();
 
   for (const chunk of input.chunks) {
-    const fragmentKey = String(chunk.sentenceId[1]);
+    const fragmentId = findContainingFragmentId(
+      fragmentIds,
+      chunk.sentenceId[1],
+    );
+
+    if (fragmentId === undefined) {
+      continue;
+    }
+
+    const fragmentKey = String(fragmentId);
 
     chunkWeightsById[String(chunk.id)] = chunk.weight;
     if (chunkIdsByFragmentId[fragmentKey] === undefined) {
@@ -85,9 +97,10 @@ function computeFragmentIncisions(input: {
     chunksById[String(chunk.id)] = chunk;
   }
 
-  return Object.keys(chunkIdsByFragmentId)
-    .map(Number)
-    .sort(compareNumber)
+  return fragmentIds
+    .filter(
+      (fragmentId) => chunkIdsByFragmentId[String(fragmentId)] !== undefined,
+    )
     .map((fragmentId) => {
       const chunkIds = chunkIdsByFragmentId[String(fragmentId)] ?? [];
       let endIncision = 0;
@@ -109,7 +122,10 @@ function computeFragmentIncisions(input: {
             }
 
             return {
-              otherFragmentId: otherChunk.sentenceId[1],
+              otherFragmentId: findContainingFragmentId(
+                fragmentIds,
+                otherChunk.sentenceId[1],
+              ),
               weight: edge.weight,
             };
           })
@@ -119,7 +135,10 @@ function computeFragmentIncisions(input: {
             ): edge is {
               otherFragmentId: number;
               weight: number;
-            } => edge !== undefined && edge.otherFragmentId !== fragmentId,
+            } =>
+              edge !== undefined &&
+              edge.otherFragmentId !== undefined &&
+              edge.otherFragmentId !== fragmentId,
           );
 
         if (externalEdges.length === 0) {
@@ -154,6 +173,23 @@ function computeFragmentIncisions(input: {
         wordsCount: input.fragmentWordsCounts[String(fragmentId)] ?? 0,
       };
     });
+}
+
+function findContainingFragmentId(
+  fragmentIds: readonly number[],
+  sentenceIndex: number,
+): number | undefined {
+  let containingFragmentId: number | undefined;
+
+  for (const fragmentId of fragmentIds) {
+    if (fragmentId > sentenceIndex) {
+      break;
+    }
+
+    containingFragmentId = fragmentId;
+  }
+
+  return containingFragmentId;
 }
 
 function normalizeIncisions(

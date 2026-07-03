@@ -66,6 +66,38 @@ describe("topology/fragment-incision", () => {
     ]);
   });
 
+  it("maps chunk sentences to sparse fragment start indexes", async () => {
+    const result = await computeNormalizedFragmentIncisions({
+      chunks: [createChunk(1, 2, 5), createChunk(2, 5, 5)],
+      edges: [
+        {
+          fromId: 1,
+          toId: 2,
+          weight: 2,
+        },
+      ] satisfies ReadingEdgeRecord[],
+      fragments: createSerialFragments({
+        0: 10,
+        3: 20,
+      }),
+    });
+
+    expect(result).toStrictEqual([
+      {
+        endIncision: 10,
+        fragmentId: 0,
+        startIncision: 0,
+        wordsCount: 10,
+      },
+      {
+        endIncision: 0,
+        fragmentId: 3,
+        startIncision: 10,
+        wordsCount: 20,
+      },
+    ]);
+  });
+
   it("normalizes mixed incision strengths across multiple fragments", async () => {
     const result = await computeNormalizedFragmentIncisions({
       chunks: [

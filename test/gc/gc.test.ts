@@ -204,6 +204,50 @@ describe("gc", () => {
     });
   });
 
+  it("removes empty coordinator workspace descendants", async () => {
+    await withTempDir("spinedigest-gc-", async (path) => {
+      process.env.WIKIGRAPH_STATE_DIR = join(path, "state");
+      const workspaceBucketPath = join(
+        path,
+        "state",
+        "staging",
+        "work",
+        "archive-key",
+      );
+      const referencedPath = join(workspaceBucketPath, "fts.db");
+      const sourceDirectoryPath = join(workspaceBucketPath, "texts", "source");
+      const summaryDirectoryPath = join(
+        workspaceBucketPath,
+        "texts",
+        "summary",
+      );
+
+      await mkdir(sourceDirectoryPath, { recursive: true });
+      await mkdir(summaryDirectoryPath, { recursive: true });
+      await writeFile(referencedPath, "referenced", "utf8");
+      await writeFile(join(summaryDirectoryPath, ".DS_Store"), "finder");
+      await createCoordinatorOverlay(path, {
+        archiveKey: "archive-key",
+        entryPath: "fts.db",
+        workspacePath: referencedPath,
+      });
+
+      const report = await tryRunWikiGraphGc();
+
+      expect(report.skipped).toBe(false);
+      const wikgCoordinatorJob = report.jobs.find(
+        (item) => item.name === "wikg-coordinator",
+      );
+
+      expect(wikgCoordinatorJob?.removed).toBeGreaterThanOrEqual(2);
+      await expect(stat(referencedPath)).resolves.toBeDefined();
+      await expect(stat(sourceDirectoryPath)).rejects.toThrow();
+      await expect(stat(summaryDirectoryPath)).rejects.toThrow();
+      await expect(stat(join(workspaceBucketPath, "texts"))).rejects.toThrow();
+      await expect(stat(workspaceBucketPath)).resolves.toBeDefined();
+    });
+  });
+
   it("keeps fresh terminal build jobs during normal GC", async () => {
     await withTempDir("spinedigest-gc-", async (path) => {
       process.env.WIKIGRAPH_STATE_DIR = join(path, "state");

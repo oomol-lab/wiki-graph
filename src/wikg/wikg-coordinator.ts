@@ -29,6 +29,7 @@ import {
   isDisposableDirectoryEntry,
   readPathSize,
   removeDisposableChildDirectories,
+  removeDisposableDescendantDirectories,
   removeDisposableDirectory,
 } from "../gc/files.js";
 import type { GcContext, GcJobResult } from "../gc/index.js";
@@ -611,6 +612,16 @@ async function removeOrphanedWorkspaceFiles(
 
       freedBytes += size;
       removed += 1;
+    }
+
+    if (!context.dryRun) {
+      const disposableDirectories = await removeDisposableDescendantDirectories(
+        join(rootPath, archiveKey),
+      );
+
+      freedBytes += disposableDirectories.freedBytes;
+      removed += disposableDirectories.removed;
+      scanned += disposableDirectories.scanned;
     }
   }
 

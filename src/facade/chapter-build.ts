@@ -655,7 +655,7 @@ class SummaryInputSnapshotDocument implements ReadonlyDocument {
   public constructor(snapshot: SummaryInputSnapshotData) {
     const serialId = snapshot.serial.id;
 
-    this.chunks = new SnapshotChunkStore(snapshot.chunks);
+    this.chunks = new SnapshotChunkStore(snapshot.chunks, snapshot.fragments);
     this.fragmentGroups = new SnapshotFragmentGroupStore(
       snapshot.fragmentGroups,
     );
@@ -920,10 +920,19 @@ class SnapshotSerialFragments implements ReadonlySerialFragments {
 class SnapshotChunkStore implements ReadonlyChunkStore {
   readonly #chunks: readonly ChunkRecord[];
   readonly #chunksById: Map<number, ChunkRecord>;
+  readonly #fragmentStartIndexesBySerialId: ReadonlyMap<
+    number,
+    readonly number[]
+  >;
 
-  public constructor(chunks: readonly ChunkRecord[]) {
+  public constructor(
+    chunks: readonly ChunkRecord[],
+    fragments: readonly FragmentRecord[],
+  ) {
     this.#chunks = [...chunks].sort(compareChunkById);
     this.#chunksById = new Map(chunks.map((chunk) => [chunk.id, chunk]));
+    this.#fragmentStartIndexesBySerialId =
+      createFragmentStartIndexesBySerialId(fragments);
   }
 
   public getById(chunkId: number): Promise<ChunkRecord | undefined> {
@@ -942,13 +951,20 @@ class SnapshotChunkStore implements ReadonlyChunkStore {
     serialId: number,
     fragmentIds: readonly number[],
   ): Promise<ChunkRecord[]> {
-    const fragmentIdSet = new Set(fragmentIds);
+    const fragmentRanges = createFragmentRanges(
+      this.#fragmentStartIndexesBySerialId.get(serialId) ?? [],
+      fragmentIds,
+    );
 
     return Promise.resolve(
       this.#chunks.filter(
         (chunk) =>
           chunk.sentenceId[0] === serialId &&
-          fragmentIdSet.has(chunk.sentenceId[1]),
+          fragmentRanges.some(
+            (range) =>
+              chunk.sentenceId[1] >= range.startSentenceIndex &&
+              chunk.sentenceId[1] <= range.endSentenceIndex,
+          ),
       ),
     );
   }
@@ -1331,6 +1347,53 @@ async function collectReaderText(
 
 function compareNumber(left: number, right: number): number {
   return left - right;
+}
+
+function createFragmentStartIndexesBySerialId(
+  fragments: readonly FragmentRecord[],
+): ReadonlyMap<number, readonly number[]> {
+  const indexesBySerialId = new Map<number, number[]>();
+
+  for (const fragment of fragments) {
+    const indexes = indexesBySerialId.get(fragment.serialId) ?? [];
+
+    indexes.push(fragment.fragmentId);
+    indexesBySerialId.set(fragment.serialId, indexes);
+  }
+
+  return new Map(
+    [...indexesBySerialId.entries()].map(
+      ([serialId, indexes]) => [serialId, indexes.sort(compareNumber)] as const,
+    ),
+  );
+}
+
+function createFragmentRanges(
+  allStartIndexes: readonly number[],
+  selectedStartIndexes: readonly number[],
+): Array<{
+  readonly endSentenceIndex: number;
+  readonly startSentenceIndex: number;
+}> {
+  const selected = new Set(selectedStartIndexes);
+
+  return allStartIndexes.flatMap((startSentenceIndex, index) => {
+    if (!selected.has(startSentenceIndex)) {
+      return [];
+    }
+
+    const nextStartSentenceIndex = allStartIndexes[index + 1];
+
+    return [
+      {
+        endSentenceIndex:
+          nextStartSentenceIndex === undefined
+            ? Infinity
+            : nextStartSentenceIndex - 1,
+        startSentenceIndex,
+      },
+    ];
+  });
 }
 
 function compareChunkById(left: ChunkRecord, right: ChunkRecord): number {

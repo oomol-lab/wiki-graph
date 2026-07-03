@@ -103,6 +103,53 @@ export async function removeDisposableChildDirectories(
   return { freedBytes, removed, scanned };
 }
 
+export async function removeDisposableDescendantDirectories(
+  rootPath: string,
+): Promise<{
+  readonly freedBytes: number;
+  readonly removed: number;
+  readonly scanned: number;
+}> {
+  const entries = await readdir(rootPath, { withFileTypes: true }).catch(
+    (error: unknown) => {
+      if (isNodeError(error) && error.code === "ENOENT") {
+        return [];
+      }
+
+      throw error;
+    },
+  );
+  let freedBytes = 0;
+  let removed = 0;
+  let scanned = 0;
+
+  for (const entry of entries) {
+    if (!entry.isDirectory()) {
+      continue;
+    }
+
+    const directoryPath = join(rootPath, entry.name);
+    const childResult =
+      await removeDisposableDescendantDirectories(directoryPath);
+
+    freedBytes += childResult.freedBytes;
+    removed += childResult.removed;
+    scanned += childResult.scanned + 1;
+
+    const removedBytes = await removeDisposableDirectory(directoryPath);
+
+    if (await pathExists(directoryPath)) {
+      freedBytes += removedBytes;
+      continue;
+    }
+
+    freedBytes += removedBytes;
+    removed += 1;
+  }
+
+  return { freedBytes, removed, scanned };
+}
+
 export async function readPathSize(path: string): Promise<number> {
   try {
     const stats = await stat(path);
