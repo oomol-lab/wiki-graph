@@ -1696,9 +1696,9 @@ describe("cli/args", () => {
     const commandHelpText = renderHelpTopicText("command");
 
     expect(rootHelpText).toContain("wikigraph help [topic]");
-    expect(rootHelpText).toContain("wikigraph <located-wkg-uri> search");
+    expect(rootHelpText).toContain("wikigraph <located-wikg-uri> search");
     expect(rootHelpText).toContain(
-      "wikigraph <located-wkg-uri>/<chapter|entity|triple|source|summary|chunk> list",
+      "wikigraph <located-wikg-uri>/<chapter|entity|triple|source|summary|chunk> list",
     );
     expect(rootHelpText).toContain("wikigraph help overview");
     expect(rootHelpText).toContain("wikigraph help uri");
@@ -1724,7 +1724,7 @@ describe("cli/args", () => {
     expect(renderHelpTopicText("runtime")).toContain("Runtime Behavior");
     expect(renderHelpTopicText("config")).toContain("Configuration");
     expect(renderHelpTopicText("command")).toContain(
-      "wikigraph <located-wkg-uri> search",
+      "wikigraph <located-wikg-uri> search",
     );
     expect(renderHelpTopicText("command")).toContain(
       "wikigraph <entity|triple|summary|chunk-uri> evidence",

@@ -1,5 +1,13 @@
 import { createHash } from "crypto";
-import { mkdir, readFile, rename, rm, stat, writeFile } from "fs/promises";
+import {
+  chmod,
+  mkdir,
+  readFile,
+  rename,
+  rm,
+  stat,
+  writeFile,
+} from "fs/promises";
 import { dirname, resolve } from "path";
 import { setTimeout as sleep } from "timers/promises";
 
@@ -41,12 +49,16 @@ export async function ensureSharedStateDatabaseInitialized(
   await mkdir(dirname(resolvedDatabasePath), { recursive: true });
   await withInitLock(resolvedDatabasePath, async () => {
     if (await hasInitMarker(markerPath, schemaHash)) {
+      await hardenSharedStateFile(markerPath);
       return;
     }
 
     await Database.initialize(resolvedDatabasePath, schemaSql);
+    await hardenSharedStateFile(resolvedDatabasePath);
     await writeInitMarker(markerPath, schemaHash);
   });
+  await hardenSharedStateFile(resolvedDatabasePath);
+  await hardenSharedStateFile(markerPath);
 }
 
 async function writeInitMarker(
@@ -55,8 +67,12 @@ async function writeInitMarker(
 ): Promise<void> {
   const tempPath = `${markerPath}.${process.pid}.tmp`;
 
-  await writeFile(tempPath, `${schemaHash}\n`, "utf8");
+  await writeFile(tempPath, `${schemaHash}\n`, {
+    encoding: "utf8",
+    mode: 0o600,
+  });
   await rename(tempPath, markerPath);
+  await hardenSharedStateFile(markerPath);
 }
 
 async function withInitLock<T>(
@@ -67,7 +83,7 @@ async function withInitLock<T>(
 
   while (true) {
     try {
-      await mkdir(lockPath);
+      await mkdir(lockPath, { mode: 0o700 });
       break;
     } catch (error) {
       if (!isNodeError(error) || error.code !== "EEXIST") {
@@ -106,7 +122,10 @@ async function writeInitLockOwner(lockPath: string): Promise<void> {
       null,
       2,
     )}\n`,
-    "utf8",
+    {
+      encoding: "utf8",
+      mode: 0o600,
+    },
   );
 }
 
@@ -213,6 +232,18 @@ async function hasInitMarker(
 
 function createInitMarkerPath(databasePath: string): string {
   return `${databasePath}.initialized`;
+}
+
+async function hardenSharedStateFile(path: string): Promise<void> {
+  try {
+    await chmod(path, 0o600);
+  } catch (error) {
+    if (isNodeError(error) && error.code === "ENOENT") {
+      return;
+    }
+
+    throw error;
+  }
 }
 
 function hashSchema(schemaSql: string): string {

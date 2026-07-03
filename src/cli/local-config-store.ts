@@ -206,6 +206,12 @@ function validateLLMConfig(value: LocalConfigObject): LocalConfigObject {
     "name",
     "provider",
   ]);
+  const allowedProviders = new Set([
+    "anthropic",
+    "google",
+    "openai",
+    "openai-compatible",
+  ]);
   const next: Record<string, unknown> = {};
 
   for (const [key, entry] of Object.entries(value)) {
@@ -215,7 +221,13 @@ function validateLLMConfig(value: LocalConfigObject): LocalConfigObject {
     if (typeof entry !== "string" || entry.trim() === "") {
       throw new Error(`llm.${key} must be a non-empty string.`);
     }
-    next[key] = entry.trim();
+    const normalized = entry.trim();
+
+    if (key === "provider" && !allowedProviders.has(normalized)) {
+      throw new Error(`Unknown llm.provider: ${normalized}`);
+    }
+
+    next[key] = normalized;
   }
 
   return next;

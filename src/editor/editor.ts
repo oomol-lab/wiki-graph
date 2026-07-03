@@ -105,7 +105,8 @@ class EditorOperation<S extends string> {
   }
 
   public async run(): Promise<string> {
-    const segmentStartIndexes = await this.#getGroupSegmentStartIndexes();
+    const groups = await this.#listTargetGroups();
+    const segmentStartIndexes = await this.#getGroupSegmentStartIndexes(groups);
 
     if (segmentStartIndexes.length === 0) {
       return "";
@@ -117,7 +118,7 @@ class EditorOperation<S extends string> {
       maxClues: this.#maxClues,
       serialId: this.#serialId,
     });
-    const originalText = await this.#getFullText();
+    const originalText = await this.#getFullText(groups);
 
     if (originalText.trim() === "") {
       return "";
@@ -233,10 +234,18 @@ class EditorOperation<S extends string> {
     return bestVersion.text;
   }
 
-  async #getGroupSegmentStartIndexes(): Promise<number[]> {
-    const groups = (
-      await this.#document.fragmentGroups.listBySerial(this.#serialId)
-    ).filter((record) => record.groupId === this.#groupId);
+  async #listTargetGroups(): Promise<readonly SentenceGroup[]> {
+    return (await this.#document.fragmentGroups.listBySerial(this.#serialId))
+      .filter((record) => record.groupId === this.#groupId)
+      .map((record) => ({
+        endSentenceIndex: record.endSentenceIndex,
+        startSentenceIndex: record.startSentenceIndex,
+      }));
+  }
+
+  async #getGroupSegmentStartIndexes(
+    groups: readonly SentenceGroup[],
+  ): Promise<number[]> {
     const segmentStartIndexes = [
       ...(await this.#serialFragments.listFragmentIds()),
     ].sort(compareNumber);
@@ -268,10 +277,7 @@ class EditorOperation<S extends string> {
     return [...coveredStartIndexes].sort(compareNumber);
   }
 
-  async #getFullText(): Promise<string> {
-    const groups = (
-      await this.#document.fragmentGroups.listBySerial(this.#serialId)
-    ).filter((record) => record.groupId === this.#groupId);
+  async #getFullText(groups: readonly SentenceGroup[]): Promise<string> {
     const fragments = await Promise.all(
       groups.map(async (group) => ({
         sentences: await this.#listGroupSentences(
@@ -304,7 +310,7 @@ class EditorOperation<S extends string> {
     ].sort(compareNumber);
     const fragments = await Promise.all(
       segmentStartIndexes
-        .filter((startSentenceIndex, index) => {
+        .filter((segmentStartIndex, index) => {
           const nextStartSentenceIndex = segmentStartIndexes[index + 1];
           const segmentEndSentenceIndex =
             nextStartSentenceIndex === undefined
@@ -312,7 +318,7 @@ class EditorOperation<S extends string> {
               : nextStartSentenceIndex - 1;
 
           return (
-            startSentenceIndex <= endSentenceIndex &&
+            segmentStartIndex <= endSentenceIndex &&
             segmentEndSentenceIndex >= startSentenceIndex
           );
         })
@@ -333,6 +339,11 @@ class EditorOperation<S extends string> {
       }),
     );
   }
+}
+
+interface SentenceGroup {
+  readonly endSentenceIndex: number;
+  readonly startSentenceIndex: number;
 }
 
 function compareNumber(left: number, right: number): number {

@@ -43,14 +43,23 @@ export async function formatChunksAsBook(input: {
   }
 
   const chunkCoverage = createChunkCoverage(input.chunks);
+  const segmentStartIndexes = [...input.segmentStartIndexes].sort(
+    compareNumber,
+  );
+  const allSegmentStartIndexes = [
+    ...(await input.serialFragments.listFragmentIds()),
+  ].sort(compareNumber);
   const fragments = await loadFragments(
-    input.segmentStartIndexes,
+    listRequiredSegmentStartIndexes(
+      segmentStartIndexes,
+      allSegmentStartIndexes,
+    ),
     input.serialFragments,
   );
   const resultParts: string[] = [];
 
-  for (let index = 0; index < input.segmentStartIndexes.length; index += 1) {
-    const startSentenceIndex = input.segmentStartIndexes[index];
+  for (let index = 0; index < segmentStartIndexes.length; index += 1) {
+    const startSentenceIndex = segmentStartIndexes[index];
 
     if (startSentenceIndex === undefined) {
       continue;
@@ -63,16 +72,19 @@ export async function formatChunksAsBook(input: {
     }
 
     if (index > 0) {
-      const previousStartSentenceIndex = input.segmentStartIndexes[index - 1];
+      const previousStartSentenceIndex = segmentStartIndexes[index - 1];
 
       if (
         previousStartSentenceIndex !== undefined &&
-        startSentenceIndex > previousStartSentenceIndex + 1
+        startSentenceIndex > previousStartSentenceIndex
       ) {
         const skippedSummary = collectSkippedSummary({
-          endStartSentenceIndex: startSentenceIndex,
           fragments,
-          startStartSentenceIndex: previousStartSentenceIndex,
+          skippedStartIndexes: listSkippedSegmentStartIndexes(
+            allSegmentStartIndexes,
+            previousStartSentenceIndex,
+            startSentenceIndex,
+          ),
         });
 
         if (skippedSummary !== "") {
@@ -175,17 +187,12 @@ function buildFragmentMarkup(input: {
 }
 
 function collectSkippedSummary(input: {
-  endStartSentenceIndex: number;
   fragments: Record<string, FragmentRecord | undefined>;
-  startStartSentenceIndex: number;
+  skippedStartIndexes: readonly number[];
 }): string {
   const summaries: string[] = [];
 
-  for (
-    let startSentenceIndex = input.startStartSentenceIndex + 1;
-    startSentenceIndex < input.endStartSentenceIndex;
-    startSentenceIndex += 1
-  ) {
+  for (const startSentenceIndex of input.skippedStartIndexes) {
     const summary =
       input.fragments[String(startSentenceIndex)]?.summary?.trim() ?? "";
 
@@ -220,6 +227,43 @@ function createChunkCoverage(
 
 function createSentenceKey(serialId: number, sentenceIndex: number): string {
   return `${serialId}:${sentenceIndex}`;
+}
+
+function listRequiredSegmentStartIndexes(
+  selectedStartIndexes: readonly number[],
+  allStartIndexes: readonly number[],
+): number[] {
+  const required = new Set(selectedStartIndexes);
+
+  for (let index = 1; index < selectedStartIndexes.length; index += 1) {
+    const previousStartIndex = selectedStartIndexes[index - 1];
+    const nextStartIndex = selectedStartIndexes[index];
+
+    if (previousStartIndex === undefined || nextStartIndex === undefined) {
+      continue;
+    }
+
+    for (const skippedStartIndex of listSkippedSegmentStartIndexes(
+      allStartIndexes,
+      previousStartIndex,
+      nextStartIndex,
+    )) {
+      required.add(skippedStartIndex);
+    }
+  }
+
+  return [...required].sort(compareNumber);
+}
+
+function listSkippedSegmentStartIndexes(
+  allStartIndexes: readonly number[],
+  previousStartIndex: number,
+  nextStartIndex: number,
+): number[] {
+  return allStartIndexes.filter(
+    (startIndex) =>
+      startIndex > previousStartIndex && startIndex < nextStartIndex,
+  );
 }
 
 async function listSegmentStartIndexesCoveringChunks(

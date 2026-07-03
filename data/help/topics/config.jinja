@@ -18,21 +18,21 @@ Sections:
 
 Operations:
   Read a section:
-    wikg wikg://local/config/llm get
-    wikg wikg://local/config/concurrent get
+    wikigraph wikg://local/config/llm get
+    wikigraph wikg://local/config/concurrent get
 
   Replace a section with a JSON object:
-    wikg wikg://local/config/llm set --json '{"provider":"openai","model":"gpt-4.1"}'
-    wikg wikg://local/config/concurrent set --json '{"job":3,"request":6}'
+    wikigraph wikg://local/config/llm set --json '{"provider":"openai","model":"gpt-4.1"}'
+    wikigraph wikg://local/config/concurrent set --json '{"job":3,"request":6}'
 
   Update one key:
-    wikg wikg://local/config/llm put provider openai
-    wikg wikg://local/config/llm put model gpt-4.1
-    wikg wikg://local/config/concurrent put job 3
-    wikg wikg://local/config/concurrent put request 6
+    wikigraph wikg://local/config/llm put provider openai
+    wikigraph wikg://local/config/llm put model gpt-4.1
+    wikigraph wikg://local/config/concurrent put job 3
+    wikigraph wikg://local/config/concurrent put request 6
 
   Store the API key:
-    wikg wikg://local/config/llm put apiKey --secret
+    wikigraph wikg://local/config/llm put apiKey --secret
 
 Secret handling:
   - `apiKey` is read through an interactive hidden prompt.
@@ -52,10 +52,10 @@ One-run overrides:
   A base URL implies `openai-compatible` when `provider` is omitted.
 
 Examples:
-  wikg wikg://local/config/llm put provider openai
-  wikg wikg://local/config/llm put model gpt-4.1
-  wikg wikg://local/config/llm put apiKey --secret
-  wikg wikg://local/config/llm test
+  wikigraph wikg://local/config/llm put provider openai
+  wikigraph wikg://local/config/llm put model gpt-4.1
+  wikigraph wikg://local/config/llm put apiKey --secret
+  wikigraph wikg://local/config/llm test
 
 Where to go next:
   - Need URI grammar:

@@ -79,8 +79,9 @@ async function runLLMConfigTest(args: CLILocalConfigArguments): Promise<void> {
 
   const startedAt = Date.now();
   const llm = await readLocalConfigSection("llm");
-  const options = buildLLMOptions({
-    llm: {
+
+  try {
+    const llmConfig = {
       ...(typeof llm.apiKey === "string" ? { apiKey: llm.apiKey } : {}),
       ...(typeof llm.baseURL === "string" ? { baseURL: llm.baseURL } : {}),
       ...(typeof llm.model === "string" ? { model: llm.model } : {}),
@@ -88,10 +89,10 @@ async function runLLMConfigTest(args: CLILocalConfigArguments): Promise<void> {
       ...(typeof llm.provider === "string"
         ? { provider: parseLLMProvider(llm.provider) }
         : {}),
-    },
-  });
-
-  try {
+    };
+    const options = buildLLMOptions({
+      llm: llmConfig,
+    });
     const result = await generateText({
       maxRetries: 0,
       messages: [
@@ -105,9 +106,9 @@ async function runLLMConfigTest(args: CLILocalConfigArguments): Promise<void> {
     });
     const output = {
       durationMs: Date.now() - startedAt,
-      model: String(llm.model),
+      model: llmConfig.model,
       ok: true,
-      provider: String(llm.provider),
+      provider: llmConfig.provider,
       response: result.text.trim(),
     };
 
@@ -202,7 +203,7 @@ export function mergeMaskedSecretsForSet(
   }
 
   throw new Error(
-    "apiKey is sensitive and cannot be set from JSON. Use `wikg wikg://local/config/llm put apiKey --secret`.",
+    "apiKey is sensitive and cannot be set from JSON. Use `wikigraph wikg://local/config/llm put apiKey --secret`.",
   );
 }
 

@@ -44,6 +44,24 @@ describe("cli/local-config", () => {
     });
   });
 
+  it("validates llm provider values at write time", () => {
+    expect(
+      validateLocalConfigSection("llm", {
+        model: "gpt-test",
+        provider: "openai-compatible",
+      }),
+    ).toStrictEqual({
+      model: "gpt-test",
+      provider: "openai-compatible",
+    });
+    expect(() =>
+      validateLocalConfigSection("llm", {
+        model: "gpt-test",
+        provider: "unknown",
+      }),
+    ).toThrow("Unknown llm.provider: unknown");
+  });
+
   it("preserves masked apiKey during llm set --json", () => {
     expect(
       mergeMaskedSecretsForSet(
@@ -90,6 +108,8 @@ describe("cli/local-config", () => {
         },
         {},
       ),
-    ).toThrow("apiKey is sensitive and cannot be set from JSON.");
+    ).toThrow(
+      "apiKey is sensitive and cannot be set from JSON. Use `wikigraph wikg://local/config/llm put apiKey --secret`.",
+    );
   });
 });
