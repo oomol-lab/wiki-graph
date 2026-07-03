@@ -531,7 +531,7 @@ async function runNextArchivePage(args: CLIArchiveArguments): Promise<void> {
         }
 
         await writeFindHits(
-          await findArchiveObjects(document, "", findOptions),
+          await findArchiveObjects(document, cursor.query ?? "", findOptions),
           {
             archiveKey: cursor.archiveKey,
             archivePath: cursor.archivePath,
@@ -705,12 +705,13 @@ function createArchiveOutputContext(
     ...createOptionalSourceContext(args),
     format: args.format ?? "text",
     limit: args.limit ?? DEFAULT_OUTPUT_LIMIT,
-    ...(args.action !== "evidence" || args.query === undefined
+    ...(args.action !== "evidence" &&
+    args.action !== "related" &&
+    args.action !== "search"
       ? {}
-      : { query: args.query }),
-    ...(args.action !== "related" || args.query === undefined
-      ? {}
-      : { query: args.query }),
+      : args.query === undefined
+        ? {}
+        : { query: args.query }),
     ...(args.role === undefined ? {} : { role: args.role }),
     ...(options.continuationKind === "collection"
       ? createScopeOptions(args.archivePath)
@@ -863,6 +864,7 @@ async function createOutputContinuationCursor(
         : { evidenceLimit: context.evidenceLimit }),
       format: context.format,
       kind: "search",
+      ...(context.query === undefined ? {} : { query: context.query }),
       ...(context.sourceContext === undefined
         ? {}
         : { sourceContext: context.sourceContext }),

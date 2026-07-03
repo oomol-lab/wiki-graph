@@ -774,8 +774,12 @@ export async function findArchiveObjects(
   options: ArchiveFindOptions = {},
 ): Promise<ArchiveFindResult> {
   const limit = options.limit ?? DEFAULT_FIND_LIMIT;
+  const textOnlySearch = isTextOnlySearch(options);
 
-  if (options.cursor !== undefined) {
+  if (
+    options.cursor !== undefined &&
+    (!textOnlySearch || !isFindCursor(options.cursor))
+  ) {
     const cursor = decodeSearchSessionCursor(options.cursor);
     const descriptor = await readSearchSessionDescriptor(
       cursor.sessionId,
@@ -832,6 +836,15 @@ export async function findArchiveObjects(
 
   if (search === undefined) {
     return createFindResult(query, [], options);
+  }
+
+  if (textOnlySearch) {
+    return await findTextOnlyArchiveObjectsIndexed(
+      document,
+      query,
+      options,
+      search,
+    );
   }
 
   const revisionScope = await createSearchRevisionScope(
@@ -1032,6 +1045,23 @@ export async function findArchiveObjects(
       nextCursor: firstPage.nextCursor,
     },
     options,
+  );
+}
+
+async function findTextOnlyArchiveObjectsIndexed(
+  document: ReadonlyDocument,
+  query: string,
+  options: ArchiveFindOptions,
+  search: LexicalQuery,
+): Promise<ArchiveFindResult> {
+  const indexed = await findArchiveObjectsIndexed(document, query, options);
+  const hits = indexed?.hits ?? [];
+
+  return createFindResult(
+    query,
+    filterLexicalHitsByMatch(hits, search, options.match ?? "any"),
+    options,
+    indexed?.result.terms ?? search.terms,
   );
 }
 
@@ -6019,6 +6049,15 @@ function decodeFindCursor(cursor: string | undefined): number {
   }
 
   throw new Error("Invalid search cursor.");
+}
+
+function isFindCursor(cursor: string): boolean {
+  try {
+    decodeFindCursor(cursor);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 function createSnippet(value: string, needle?: string): string {

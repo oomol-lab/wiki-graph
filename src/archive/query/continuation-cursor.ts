@@ -34,6 +34,7 @@ export type ContinuationCursor =
       readonly evidenceLimit?: number;
       readonly format: "json" | "jsonl" | "text";
       readonly kind: "search";
+      readonly query?: string;
       readonly sourceContext?: number;
       readonly triplePattern?: {
         readonly objectQid?: string;
@@ -196,6 +197,7 @@ function createCursorPayload(input: ContinuationCursor): object {
         ...(input.evidenceLimit === undefined
           ? {}
           : { evidenceLimit: input.evidenceLimit }),
+        ...(input.query === undefined ? {} : { query: input.query }),
         ...(input.sourceContext === undefined
           ? {}
           : { sourceContext: input.sourceContext }),
@@ -265,6 +267,7 @@ function parseContinuationCursorRecord(record: {
       ...getPayloadOptionalPositiveInteger(payload, "evidenceLimit"),
       format: record.format,
       kind: "search",
+      ...getPayloadOptionalString(payload, "query"),
       ...getPayloadOptionalInteger(payload, "sourceContext", "sourceContext"),
       ...getPayloadOptionalTriplePattern(payload),
       types: getPayloadStringArrayOrNull(payload, "types"),

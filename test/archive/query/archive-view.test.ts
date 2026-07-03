@@ -317,6 +317,11 @@ describe("archive/query/archive-view", () => {
             "source",
           ]),
         ).resolves.toBe(0);
+        await expect(
+          countSearchSessionsForQuery(`${path}/state`, "Cache Split", [
+            "source",
+          ]),
+        ).resolves.toBe(0);
       } finally {
         restoreEnv("WIKIGRAPH_STATE_DIR", previousStateDir);
         await document.release();
@@ -1059,7 +1064,7 @@ describe("archive/query/archive-view", () => {
         expect(result.items).toStrictEqual([
           expect.objectContaining({
             chapter: 1,
-            id: "wkg://chapter/1/source#0..2",
+            id: "wkg://chapter/1/source#0",
             position: { chapter: 1, sentence: 0 },
             type: "source",
           }),
@@ -1104,7 +1109,7 @@ describe("archive/query/archive-view", () => {
           limit: 5,
           types: ["source"],
         });
-        const secondPage = await findArchiveObjects(document, "ignored", {
+        const secondPage = await findArchiveObjects(document, "CursorOnly", {
           ...(firstPage.nextCursor === null
             ? {}
             : { cursor: firstPage.nextCursor }),
@@ -2844,6 +2849,40 @@ async function countStructuredCacheRowsForQuery(
           (SELECT COUNT(*)
            FROM search_chunk_hits
            WHERE session_id IN (SELECT session_id FROM matching_sessions)) AS count
+      `,
+      [query, optionsJSON],
+      (value) => Number(value.count),
+    );
+
+    return row ?? 0;
+  } finally {
+    await database.close();
+  }
+}
+
+async function countSearchSessionsForQuery(
+  statePath: string,
+  query: string,
+  types: readonly string[],
+): Promise<number> {
+  const database = await Database.open(
+    join(statePath, "search-sessions.sqlite"),
+    "",
+    { readonly: true },
+  );
+
+  try {
+    const optionsJSON = JSON.stringify({
+      chapters: null,
+      order: "doc-asc",
+      types,
+    });
+    const row = await database.queryOne(
+      `
+        SELECT COUNT(*) AS count
+        FROM search_sessions
+        WHERE query = ?
+          AND options_json = ?
       `,
       [query, optionsJSON],
       (value) => Number(value.count),

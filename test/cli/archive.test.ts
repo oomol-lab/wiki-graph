@@ -1322,6 +1322,7 @@ describe("cli/archive", () => {
       evidenceLimit: 4,
       format: "json",
       kind: "search",
+      query: "RAG",
       types: ["entity"],
     });
   });
@@ -1370,6 +1371,7 @@ describe("cli/archive", () => {
       cursor: "raw-next-evidence-cursor",
       format: "json",
       kind: "evidence",
+      query: "RAG",
       targetUri: "wkg://entity/Q1",
     });
   });
