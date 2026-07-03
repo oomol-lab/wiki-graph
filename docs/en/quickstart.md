@@ -65,6 +65,7 @@ wikigraph wkg-job:// list --input wkg://book.wikg
 
 ```bash
 wikigraph wkg://book.wikg/chapter/tree get
+wikigraph wkg://book.wikg/index build
 wikigraph wkg://book.wikg/chunk search "central argument"
 wikigraph wkg://book.wikg/chapter/3 get
 wikigraph wkg://book.wikg/chunk/84 get

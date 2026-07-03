@@ -6,6 +6,7 @@ import { ZipFile } from "yazl";
 
 import { describe, expect, it } from "vitest";
 
+import { DirectoryDocument } from "../../src/document/index.js";
 import {
   extractWikgArchive,
   readWikgArchiveEntry,
@@ -76,6 +77,56 @@ describe("wikg/archive", () => {
       await expect(
         readFile(`${extractDir}/texts/source/note.txt`, "utf8"),
       ).rejects.toThrow();
+    });
+  });
+
+  it("omits external FTS databases from new archives", async () => {
+    await withTempDir("spinedigest-archive-", async (path) => {
+      const sourceDir = `${path}/source`;
+      const archivePath = `${path}/book.wikg`;
+      const document = await DirectoryDocument.open(sourceDir);
+
+      try {
+        await writeFile(`${sourceDir}/fts.db`, "fts", "utf8");
+      } finally {
+        await document.release();
+      }
+
+      await writeWikgArchive(sourceDir, archivePath);
+
+      await expect(readWikgArchiveEntry(archivePath, "fts.db")).resolves.toBe(
+        undefined,
+      );
+    });
+  });
+
+  it("includes embedded FTS databases in new archives", async () => {
+    await withTempDir("spinedigest-archive-", async (path) => {
+      const sourceDir = `${path}/source`;
+      const archivePath = `${path}/book.wikg`;
+      const document = await DirectoryDocument.open(sourceDir);
+
+      try {
+        await document.readDatabase(async (database) => {
+          await database.run(
+            `
+              INSERT INTO archive_index_settings(id, fts_embedded)
+              VALUES (1, 1)
+              ON CONFLICT(id)
+              DO UPDATE SET fts_embedded = excluded.fts_embedded
+            `,
+          );
+        });
+        await writeFile(`${sourceDir}/fts.db`, "fts", "utf8");
+      } finally {
+        await document.release();
+      }
+
+      await writeWikgArchive(sourceDir, archivePath);
+
+      await expect(
+        readWikgArchiveEntry(archivePath, "fts.db"),
+      ).resolves.toEqual(Buffer.from("fts", "utf8"));
     });
   });
 

@@ -7,6 +7,7 @@ import { ZipFile } from "yazl";
 import { describe, expect, it } from "vitest";
 
 import { Database, DirectoryDocument } from "../../src/document/index.js";
+import { rebuildArchiveSearchIndex } from "../../src/archive/query/index.js";
 import { extractWikgArchive } from "../../src/wikg/archive.js";
 import { migrateLegacySdpubToWikg } from "../../src/legacy-sdpub/upgrade.js";
 import { withTempDir } from "../helpers/temp.js";
@@ -38,6 +39,10 @@ describe("legacy-sdpub/upgrade", () => {
         await expect(document.readSummary(1)).resolves.toBe(
           "Summary sentence one.\nSummary sentence two.",
         );
+        await expect(
+          readFile(`${extractedPath}/fts.db`, "utf8"),
+        ).rejects.toThrow();
+        await rebuildArchiveSearchIndex(document);
         await expect(
           countSearchIndexRecords(document),
         ).resolves.toBeGreaterThan(0);
@@ -330,7 +335,7 @@ async function readFragmentGroupIds(
 async function countSearchIndexRecords(
   document: DirectoryDocument,
 ): Promise<number> {
-  return await document.readDatabase(async (database) => {
+  return await document.readSearchIndexDatabase(async (database) => {
     const row = await database.queryOne(
       `
         SELECT

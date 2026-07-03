@@ -23,6 +23,7 @@ wikigraph <entity-uri> related [query] [--all] [--limit <n>] [--context <n>] [--
 wikigraph <entity-uri|triple-uri|summary-uri|chunk-uri> evidence [query] [--all] [--limit <n>] [--context <n>] [--cursor <token>] [--json|--jsonl]
 wikigraph <located-chunk-uri|located-entity-uri> pack [--budget <chars>] [--json|--jsonl]
 wikigraph <archive-uri> export --output-format <format> [--output <path>]
+wikigraph <archive-uri>/index get|build|embed|external|clear [--json]
 wikigraph <chapter-uri> queue add --task reading-graph|reading-summary|knowledge-graph --accept-cost [--boost] [--llm <json>] [--prompt <text>]
 wikigraph wkg-job:// list [--all] [--active] [--input <archive-uri>] [--json]
 wikigraph wkg-job://<job-id> get [--json]
@@ -41,6 +42,7 @@ wikigraph queue clean
 搜索与集合行为：
 
 - `search` 根据 query text 查找可 URI 寻址的对象。Search result 是线索，不等于 source evidence。
+- Search 需要当前可用的 FTS index。如果 index 缺失或过期，先运行 `<archive-uri>/index build`；默认会创建本地缓存 FTS index，不写入归档。
 - `list` 在没有 query text 时枚举可 URI 寻址的对象。
 - Object command 使用 Wiki Graph URI。`search` 和 `list` 使用 archive 或 scope URI，例如 `wkg:///Users/me/book.wikg`；`get`、`related`、`evidence` 和 `pack` 使用具体 object URI，例如 `wkg:///Users/me/book.wikg/chapter/12`。
 - 做内容理解时，在 URI 中选择 search lens：`<archive-uri>/chunk` 用于 Reading Graph 结构，`<archive-uri>/summary` 用于快速概览，`<archive-uri>/source` 用于原文措辞，`<archive-uri>/entity` 和 `<archive-uri>/triple` 用于 Knowledge Graph 对象。

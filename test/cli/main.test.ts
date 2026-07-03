@@ -12,6 +12,7 @@ const mainMockState = vi.hoisted(() => ({
   } as Record<string, unknown>,
   parseError: undefined as Error | undefined,
   archiveRunCalls: [] as unknown[],
+  archiveIndexRunCalls: [] as unknown[],
   convertRunCalls: [] as unknown[],
   statusRunCalls: 0,
   statusRunArgs: [] as unknown[],
@@ -21,6 +22,7 @@ const mainMockState = vi.hoisted(() => ({
   archiveMetaRunCalls: [] as unknown[],
   legacyRunCalls: [] as unknown[],
   archiveRunError: undefined as Error | undefined,
+  archiveIndexRunError: undefined as Error | undefined,
   convertRunError: undefined as Error | undefined,
   statusRunError: undefined as Error | undefined,
   gcRunError: undefined as Error | undefined,
@@ -46,6 +48,18 @@ vi.mock("../../src/cli/archive.js", () => ({
 
     if (mainMockState.archiveRunError !== undefined) {
       return Promise.reject(mainMockState.archiveRunError);
+    }
+
+    return Promise.resolve();
+  }),
+}));
+
+vi.mock("../../src/cli/archive-index.js", () => ({
+  runArchiveIndexCommand: vi.fn((args: unknown) => {
+    mainMockState.archiveIndexRunCalls.push(args);
+
+    if (mainMockState.archiveIndexRunError !== undefined) {
+      return Promise.reject(mainMockState.archiveIndexRunError);
     }
 
     return Promise.resolve();
@@ -158,6 +172,7 @@ describe("cli/main", () => {
     };
     mainMockState.parseError = undefined;
     mainMockState.archiveRunCalls.length = 0;
+    mainMockState.archiveIndexRunCalls.length = 0;
     mainMockState.convertRunCalls.length = 0;
     mainMockState.statusRunCalls = 0;
     mainMockState.statusRunArgs.length = 0;
@@ -167,6 +182,7 @@ describe("cli/main", () => {
     mainMockState.archiveMetaRunCalls.length = 0;
     mainMockState.legacyRunCalls.length = 0;
     mainMockState.archiveRunError = undefined;
+    mainMockState.archiveIndexRunError = undefined;
     mainMockState.convertRunError = undefined;
     mainMockState.statusRunError = undefined;
     mainMockState.gcRunError = undefined;
@@ -253,6 +269,28 @@ describe("cli/main", () => {
     expect(mainMockState.statusRunCalls).toBe(0);
     expect(stdoutChunks).toStrictEqual([]);
     expect(stderrChunks).toStrictEqual([]);
+    expect(process.exitCode).toBe(0);
+  });
+
+  it("runs the archive index command", async () => {
+    mainMockState.argsResult = {
+      args: {
+        action: "build",
+        archivePath: "/tmp/book.wikg",
+      },
+      help: false,
+      kind: "archive-index",
+    };
+
+    await main();
+
+    expect(mainMockState.archiveIndexRunCalls).toStrictEqual([
+      {
+        action: "build",
+        archivePath: "/tmp/book.wikg",
+      },
+    ]);
+    expect(mainMockState.archiveRunCalls).toHaveLength(0);
     expect(process.exitCode).toBe(0);
   });
 

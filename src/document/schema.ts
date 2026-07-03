@@ -20,6 +20,11 @@ export const SCHEMA_SQL = `
     value INTEGER NOT NULL
   );
 
+  CREATE TABLE IF NOT EXISTS archive_index_settings (
+    id INTEGER PRIMARY KEY CHECK (id = 1),
+    fts_embedded INTEGER NOT NULL DEFAULT 0
+  );
+
   CREATE TABLE IF NOT EXISTS graph_build_parameters (
     hash TEXT PRIMARY KEY,
     prompt TEXT NOT NULL,
@@ -235,6 +240,57 @@ export const SCHEMA_SQL = `
   FROM chapter_entity_relations
   GROUP BY subject_qid, predicate, object_qid;
 
+  CREATE TABLE IF NOT EXISTS text_sentence_records (
+    id INTEGER PRIMARY KEY,
+    kind INTEGER NOT NULL,
+    chapter_id INTEGER NOT NULL,
+    sentence_index INTEGER NOT NULL,
+    words_count INTEGER NOT NULL DEFAULT 0,
+    byte_offset INTEGER NOT NULL DEFAULT 0,
+    byte_length INTEGER NOT NULL DEFAULT 0,
+    UNIQUE(kind, chapter_id, sentence_index)
+  );
+
+  CREATE INDEX IF NOT EXISTS idx_text_sentence_records_chapter
+  ON text_sentence_records(kind, chapter_id, sentence_index);
+
+  CREATE TABLE IF NOT EXISTS object_metadata (
+    id INTEGER PRIMARY KEY,
+    object_kind INTEGER NOT NULL,
+    object_path TEXT NOT NULL,
+    key TEXT NOT NULL,
+    value_json TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    chapter_id INTEGER,
+    chunk_id INTEGER,
+    entity_qid TEXT,
+    triple_subject_qid TEXT,
+    triple_predicate TEXT,
+    triple_object_qid TEXT,
+    UNIQUE(object_path, key)
+  );
+
+  CREATE INDEX IF NOT EXISTS idx_object_metadata_object
+  ON object_metadata(object_path);
+
+  CREATE INDEX IF NOT EXISTS idx_object_metadata_chapter
+  ON object_metadata(chapter_id);
+
+  CREATE INDEX IF NOT EXISTS idx_object_metadata_chunk
+  ON object_metadata(chunk_id);
+
+  CREATE INDEX IF NOT EXISTS idx_object_metadata_entity
+  ON object_metadata(entity_qid);
+
+  CREATE INDEX IF NOT EXISTS idx_object_metadata_triple
+  ON object_metadata(
+    triple_subject_qid,
+    triple_predicate,
+    triple_object_qid
+  );
+`;
+
+export const SEARCH_INDEX_SCHEMA_SQL = `
   CREATE TABLE IF NOT EXISTS search_index_state (
     key TEXT PRIMARY KEY,
     value TEXT NOT NULL
@@ -280,41 +336,6 @@ export const SCHEMA_SQL = `
     tier2,
     tier3,
     tokenize='ascii'
-  );
-
-  CREATE TABLE IF NOT EXISTS object_metadata (
-    id INTEGER PRIMARY KEY,
-    object_kind INTEGER NOT NULL,
-    object_path TEXT NOT NULL,
-    key TEXT NOT NULL,
-    value_json TEXT NOT NULL,
-    updated_at TEXT NOT NULL,
-    chapter_id INTEGER,
-    chunk_id INTEGER,
-    entity_qid TEXT,
-    triple_subject_qid TEXT,
-    triple_predicate TEXT,
-    triple_object_qid TEXT,
-    UNIQUE(object_path, key)
-  );
-
-  CREATE INDEX IF NOT EXISTS idx_object_metadata_object
-  ON object_metadata(object_path);
-
-  CREATE INDEX IF NOT EXISTS idx_object_metadata_chapter
-  ON object_metadata(chapter_id);
-
-  CREATE INDEX IF NOT EXISTS idx_object_metadata_chunk
-  ON object_metadata(chunk_id);
-
-  CREATE INDEX IF NOT EXISTS idx_object_metadata_entity
-  ON object_metadata(entity_qid);
-
-  CREATE INDEX IF NOT EXISTS idx_object_metadata_triple
-  ON object_metadata(
-    triple_subject_qid,
-    triple_predicate,
-    triple_object_qid
   );
 `;
 

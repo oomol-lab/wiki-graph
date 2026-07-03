@@ -34,6 +34,7 @@ export class SpineDigestFile {
     ) => Promise<T> | T,
     options: {
       readonly documentDirPath?: string;
+      readonly searchIndexWritebackPolicy?: "archive" | "cache";
     } = {},
   ): Promise<T> {
     return await this.#coordinator.withArchiveSession(
@@ -55,7 +56,15 @@ export class SpineDigestFile {
         }
 
         const document = await DirectoryDocument.open(this.#path, {
-          fileStore: session.createFileStore({ readonlyDatabase: true }),
+          fileStore: session.createFileStore({
+            readonlyDatabase: true,
+            ...(options.searchIndexWritebackPolicy === undefined
+              ? {}
+              : {
+                  searchIndexWritebackPolicy:
+                    options.searchIndexWritebackPolicy,
+                }),
+          }),
         });
 
         try {
@@ -69,12 +78,20 @@ export class SpineDigestFile {
 
   public async write<T>(
     operation: (document: DirectoryDocument) => Promise<T> | T,
+    options: { readonly searchIndexWritebackPolicy?: "archive" | "cache" } = {},
   ): Promise<T> {
     return await this.#coordinator.withArchiveSession(
       this.#path,
       async (session) => {
         const document = await DirectoryDocument.open(this.#path, {
-          fileStore: session.createFileStore(),
+          fileStore: session.createFileStore({
+            ...(options.searchIndexWritebackPolicy === undefined
+              ? {}
+              : {
+                  searchIndexWritebackPolicy:
+                    options.searchIndexWritebackPolicy,
+                }),
+          }),
         });
 
         try {

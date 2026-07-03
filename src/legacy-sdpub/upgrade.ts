@@ -12,7 +12,6 @@ import {
 
 import { Database, type SqlBindValue } from "../document/database.js";
 import { DirectoryDocument } from "../document/document.js";
-import { rebuildArchiveSearchIndex } from "../archive/query/index.js";
 import { writeWikgArchive } from "../wikg/index.js";
 import { isNodeError } from "../utils/node-error.js";
 
@@ -48,22 +47,11 @@ export async function migrateLegacySdpubToWikg(
     await extractLegacySdpubArchive(inputPath, workspacePath);
     await migrateKnowledgeEdgesInDatabase(join(workspacePath, "database.db"));
     await migrateLegacyTextStorage(workspacePath);
-    await rebuildDerivedData(workspacePath);
     await writeWikgArchive(workspacePath, outputPath);
 
     return { inputPath, outputPath };
   } finally {
     await rm(workspacePath, { force: true, recursive: true });
-  }
-}
-
-async function rebuildDerivedData(workspacePath: string): Promise<void> {
-  const document = await DirectoryDocument.open(workspacePath);
-
-  try {
-    await rebuildArchiveSearchIndex(document);
-  } finally {
-    await document.release();
   }
 }
 

@@ -1,6 +1,7 @@
 import { parseCLIArguments } from "./args.js";
 import { runArchiveCommand } from "./archive.js";
 import { runArchiveChapterCommand } from "./archive-chapter.js";
+import { runArchiveIndexCommand } from "./archive-index.js";
 import {
   runArchiveCoverCommand,
   runArchiveMetaCommand,
@@ -52,6 +53,9 @@ export async function main(): Promise<void> {
         return;
       case "archive":
         await runArchiveCommand(parsed.args);
+        return;
+      case "archive-index":
+        await runArchiveIndexCommand(parsed.args);
         return;
       case "queue":
         await runQueueCommand(parsed.args);

@@ -5,7 +5,7 @@ import {
   type Database,
   type SqlBindValue,
 } from "../../document/database.js";
-import type { ReadonlyDocument } from "../../document/index.js";
+import type { Document, ReadonlyDocument } from "../../document/index.js";
 
 import {
   createSearchTokenPlan,
@@ -92,37 +92,86 @@ export interface SearchIndexQueryResult {
 const SEARCH_INDEX_VERSION = "3";
 const TIER_WEIGHTS = [1, 0.45, 0.08] as const;
 
+export interface ArchiveIndexSettings {
+  readonly ftsEmbedded: boolean;
+}
+
+export async function readArchiveIndexSettings(
+  document: ReadonlyDocument,
+): Promise<ArchiveIndexSettings> {
+  return await document.readDatabase(async (database) => {
+    const row = await database.queryOne(
+      `
+        SELECT fts_embedded
+        FROM archive_index_settings
+        WHERE id = 1
+      `,
+      undefined,
+      (value) => ({
+        ftsEmbedded: getNumber(value, "fts_embedded") !== 0,
+      }),
+    );
+
+    return row ?? { ftsEmbedded: false };
+  });
+}
+
+export async function setFtsIndexEmbedded(
+  document: ReadonlyDocument,
+  embedded: boolean,
+): Promise<void> {
+  await document.readDatabase(async (database) => {
+    await database.run(
+      `
+        INSERT INTO archive_index_settings(id, fts_embedded)
+        VALUES (1, ?)
+        ON CONFLICT(id)
+        DO UPDATE SET fts_embedded = excluded.fts_embedded
+      `,
+      [embedded ? 1 : 0],
+    );
+  });
+}
+
 export async function isSearchIndexCurrent(
   document: ReadonlyDocument,
 ): Promise<boolean> {
   const chaptersRevision = await document.serials.getChaptersRevision();
 
-  return await document.readDatabase(async (database) => {
-    const current = await database.queryAll(
-      `
-        SELECT key, value
-        FROM search_index_state
-        WHERE key IN ('version', 'chaptersRevision')
-      `,
-      undefined,
-      (row) => [String(row.key), String(row.value)] as const,
-    );
-    const state = new Map(current);
+  try {
+    return await document.readSearchIndexDatabase(async (database) => {
+      const current = await database.queryAll(
+        `
+          SELECT key, value
+          FROM search_index_state
+          WHERE key IN ('version', 'chaptersRevision')
+        `,
+        undefined,
+        (row) => [String(row.key), String(row.value)] as const,
+      );
+      const state = new Map(current);
 
-    return (
-      state.get("version") === SEARCH_INDEX_VERSION &&
-      state.get("chaptersRevision") === String(chaptersRevision)
-    );
-  });
+      return (
+        state.get("version") === SEARCH_INDEX_VERSION &&
+        state.get("chaptersRevision") === String(chaptersRevision)
+      );
+    });
+  } catch (error) {
+    if (isMissingSearchIndexError(error)) {
+      return false;
+    }
+
+    throw error;
+  }
 }
 
 export async function ensureSearchIndex(
-  document: ReadonlyDocument,
+  document: Document,
   input: SearchIndexInput,
 ): Promise<void> {
   const chaptersRevision = await document.serials.getChaptersRevision();
 
-  await document.readDatabase(async (database) => {
+  await document.writeSearchIndexDatabase(async (database) => {
     const fingerprint = createSearchIndexFingerprint(input);
     const current = await database.queryAll(
       `
@@ -210,7 +259,7 @@ export async function querySearchIndex(
 
   const terms = listSearchPlanTerms(plan);
 
-  return await document.readDatabase(async (database) => {
+  return await document.readSearchIndexDatabase(async (database) => {
     const tierQueries = createTierQueries(query, plan, options.match ?? "any");
     const objectHitsByKey = new Map<string, SearchIndexObjectHit>();
     const textHitsByKey = new Map<string, SearchIndexTextHit>();
@@ -544,6 +593,20 @@ function createSearchIndexFingerprint(input: SearchIndexInput): string {
   }
 
   return hash.digest("hex");
+}
+
+function isMissingSearchIndexError(error: unknown): boolean {
+  const code =
+    typeof error === "object" && error !== null && "code" in error
+      ? error.code
+      : undefined;
+
+  return (
+    code === "SQLITE_CANTOPEN" ||
+    (error instanceof Error &&
+      (error.message.includes("Archive SQLite entry is missing: fts.db") ||
+        error.message.includes("no such table: search_index_state")))
+  );
 }
 
 function serializeTokens(

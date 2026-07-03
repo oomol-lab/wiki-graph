@@ -6,7 +6,10 @@ import { afterEach, describe, expect, it } from "vitest";
 
 import { DirectoryDocument } from "../../src/document/index.js";
 import { extractWikgArchive } from "../../src/wikg/archive.js";
-import { findArchiveObjects } from "../../src/archive/query/archive-view.js";
+import {
+  findArchiveObjects,
+  rebuildArchiveSearchIndex,
+} from "../../src/archive/query/archive-view.js";
 import { SpineDigest } from "../../src/facade/spine-digest.js";
 import { SpineDigestFile } from "../../src/wikg/spine-digest-file.js";
 import { WikgCoordinator } from "../../src/wikg/wikg-coordinator.js";
@@ -290,6 +293,13 @@ describe("wikg/spine-digest-file", () => {
       try {
         const archivePath = await createSeedArchive(path);
 
+        await new SpineDigestFile(archivePath).write(
+          async (document) => {
+            await rebuildArchiveSearchIndex(document);
+          },
+          { searchIndexWritebackPolicy: "cache" },
+        );
+
         await new SpineDigestFile(archivePath).readDocument(
           async (document) => {
             await expect(
@@ -301,17 +311,23 @@ describe("wikg/spine-digest-file", () => {
         );
 
         await new SpineDigestFile(archivePath).write(async (document) => {
-          const meta = await document.readBookMeta();
-
-          if (meta === undefined) {
-            throw new Error("Missing test metadata.");
-          }
-
-          await document.replaceBookMeta({
-            ...meta,
-            title: "Fresh Cache Title",
+          await document.replaceToc({
+            items: [
+              {
+                children: [],
+                serialId: 1,
+                title: "Fresh Cache Title",
+              },
+            ],
+            version: 1,
           });
         });
+        await new SpineDigestFile(archivePath).write(
+          async (document) => {
+            await rebuildArchiveSearchIndex(document);
+          },
+          { searchIndexWritebackPolicy: "cache" },
+        );
 
         await new SpineDigestFile(archivePath).readDocument(
           async (document) => {
@@ -320,7 +336,7 @@ describe("wikg/spine-digest-file", () => {
                 archiveKey: archivePath,
               }),
             ).resolves.toMatchObject({
-              items: [expect.objectContaining({ id: "meta:root" })],
+              items: [expect.objectContaining({ id: "chapter:1" })],
             });
           },
         );
@@ -660,6 +676,7 @@ async function createSeedArchive(path: string): Promise<string> {
 
   try {
     await seedDocument(document);
+    await rebuildArchiveSearchIndex(document);
 
     const archivePath = `${path}/fixture/book.wikg`;
 

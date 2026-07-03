@@ -7,6 +7,7 @@ import type {
   SentenceId,
 } from "../../document/index.js";
 import type { BookMeta } from "../../source/index.js";
+import type { Document } from "../../document/index.js";
 import {
   WikipageResolver,
   type WikipageResolverOptions,
@@ -1055,7 +1056,7 @@ async function createSearchRevisionScope(
 }
 
 export async function rebuildArchiveSearchIndex(
-  document: ReadonlyDocument,
+  document: Document,
 ): Promise<void> {
   await ensureSearchIndex(document, await createSearchIndexRecords(document));
 }
@@ -1157,19 +1158,10 @@ async function findArchiveObjectsIndexed(
     }
   | undefined
 > {
-  try {
-    if (!(await isSearchIndexCurrent(document))) {
-      await ensureSearchIndex(
-        document,
-        await createSearchIndexRecords(document),
-      );
-    }
-  } catch (error) {
-    if (isReadonlySqliteError(error)) {
-      return undefined;
-    }
-
-    throw error;
+  if (!(await isSearchIndexCurrent(document))) {
+    throw new Error(
+      "Wiki Graph search index is missing or outdated. Run `<archive>/index build` before searching.",
+    );
   }
   const result = await querySearchIndex(document, query, {
     ...(options.chapters === undefined ? {} : { chapters: options.chapters }),
@@ -1187,26 +1179,6 @@ async function findArchiveObjectsIndexed(
         ),
         result,
       };
-}
-
-function isReadonlySqliteError(error: unknown): boolean {
-  const code = getErrorCode(error);
-
-  if (code !== undefined && code.startsWith("SQLITE_READONLY")) {
-    return true;
-  }
-
-  return error instanceof Error && error.message.includes("readonly database");
-}
-
-function getErrorCode(error: unknown): string | undefined {
-  if (typeof error !== "object" || error === null || !("code" in error)) {
-    return undefined;
-  }
-
-  const code = error.code;
-
-  return typeof code === "string" ? code : undefined;
 }
 
 async function hydrateSearchIndexHits(

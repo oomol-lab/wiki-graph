@@ -168,6 +168,47 @@ describe("cli/args", () => {
     );
   });
 
+  it("parses archive index object commands", () => {
+    expect(
+      parseCLIArguments(["wkg:///tmp/book.wikg/index", "build", "--json"]),
+    ).toStrictEqual({
+      args: {
+        action: "build",
+        archivePath: "/tmp/book.wikg",
+        json: true,
+      },
+      help: false,
+      kind: "archive-index",
+    });
+    expect(
+      parseCLIArguments(["wkg:///tmp/book.wikg/index", "external"]),
+    ).toStrictEqual({
+      args: {
+        action: "external",
+        archivePath: "/tmp/book.wikg",
+      },
+      help: false,
+      kind: "archive-index",
+    });
+    expect(
+      parseCLIArguments(["wkg:///tmp/book.wikg/index", "build", "--help"]),
+    ).toStrictEqual({
+      help: true,
+      helpText: renderHelpMatrixText({ kind: "object", object: "index" }),
+      kind: "help",
+    });
+    expect(parseCLIArguments(["help", "index"])).toStrictEqual({
+      help: true,
+      helpText: renderHelpMatrixText({ kind: "object", object: "index" }),
+      kind: "help",
+    });
+    expect(parseCLIArguments(["help", "build"])).toStrictEqual({
+      help: true,
+      helpText: renderHelpMatrixText({ kind: "verb", verb: "build" }),
+      kind: "help",
+    });
+  });
+
   it("parses queue commands", () => {
     expect(
       parseCLIArguments([

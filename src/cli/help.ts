@@ -43,6 +43,7 @@ export type HelpObjectName =
   | "cover"
   | "cursor"
   | "entity"
+  | "index"
   | "job"
   | "job-collection"
   | "source"
@@ -51,13 +52,16 @@ export type HelpObjectName =
 
 export type HelpVerbName =
   | "add"
+  | "build"
   | "boost"
   | "cancel"
   | "clear"
   | "create"
   | "estimate"
   | "evidence"
+  | "embed"
   | "export"
+  | "external"
   | "get"
   | "list"
   | "move"
@@ -163,6 +167,39 @@ const HELP_OBJECTS: readonly HelpObjectEntry[] = [
         command: "wikigraph wkg://book.wikg/cover get > cover.bin",
         note: "Write cover bytes to stdout.",
         verb: "get",
+      },
+    ],
+  },
+  {
+    description: "The archive search index policy and FTS materialization.",
+    name: "index",
+    title: "Index",
+    uriForms: ["wkg://book.wikg/index"],
+    verbs: [
+      {
+        command: "wikigraph wkg://book.wikg/index get --json",
+        note: "Read FTS storage policy.",
+        verb: "get",
+      },
+      {
+        command: "wikigraph wkg://book.wikg/index build",
+        note: "Build a usable FTS index if none is available; by default it stays in local cache.",
+        verb: "build",
+      },
+      {
+        command: "wikigraph wkg://book.wikg/index embed",
+        note: "Build if needed, store FTS in the archive, and mark the policy embedded.",
+        verb: "embed",
+      },
+      {
+        command: "wikigraph wkg://book.wikg/index external",
+        note: "Mark FTS as local cache only and remove the embedded index copy.",
+        verb: "external",
+      },
+      {
+        command: "wikigraph wkg://book.wikg/index clear",
+        note: "Delete the current FTS index without changing storage policy.",
+        verb: "clear",
       },
     ],
   },
@@ -582,6 +619,21 @@ const HELP_VERBS: readonly HelpVerbEntry[] = [
     description: "Create a new archive or object.",
     name: "create",
     title: "Create",
+  },
+  {
+    description: "Build a derived resource when it is not already usable.",
+    name: "build",
+    title: "Build",
+  },
+  {
+    description: "Store an externalized resource inside the archive.",
+    name: "embed",
+    title: "Embed",
+  },
+  {
+    description: "Keep a derived resource outside the archive as local cache.",
+    name: "external",
+    title: "External",
   },
   { description: "Open or render an object.", name: "get", title: "Get" },
   {

@@ -96,6 +96,7 @@ CREATE TABLE IF NOT EXISTS archive_commit_locks (
 `;
 
 const DATABASE_ENTRY_PATH = "database.db";
+const SEARCH_INDEX_DATABASE_ENTRY_PATH = "fts.db";
 const LOCK_POLL_INTERVAL_MS = 100;
 const LOCK_STALE_TIMEOUT_MS = 60_000;
 const OWNER_HEARTBEAT_INTERVAL_MS = 20_000;
@@ -107,12 +108,14 @@ const ARCHIVE_SESSION_CONSTRUCTOR_TOKEN = Symbol(
 
 type EntryLockMode = "read" | "state" | "write";
 type SqliteLeaseMode = "read" | "write";
+type WorkspaceWritebackPolicy = "archive" | "cache";
 
 export class WikgCoordinator {
   public createFileStore(
     archivePath: string,
     options: {
       readonly readonlyDatabase?: boolean;
+      readonly searchIndexWritebackPolicy?: WorkspaceWritebackPolicy;
       readonly session?: WikgArchiveSession;
     } = {},
   ): DocumentFileStore {
@@ -232,7 +235,10 @@ export class WikgArchiveSession {
   }
 
   public createFileStore(
-    options: { readonly readonlyDatabase?: boolean } = {},
+    options: {
+      readonly readonlyDatabase?: boolean;
+      readonly searchIndexWritebackPolicy?: WorkspaceWritebackPolicy;
+    } = {},
   ): DocumentFileStore {
     return new WikgDocumentFileStore(this.#archivePath, {
       ...options,
@@ -393,12 +399,12 @@ async function listSqliteCacheGcCandidates(): Promise<readonly EntryOverlay[]> {
       `
 SELECT overlay.*
 FROM entry_overlays AS overlay
-WHERE overlay.entry_path = ?
+WHERE overlay.entry_path IN (?, ?)
   AND overlay.kind = 'file'
   AND overlay.workspace_path IS NOT NULL
 ORDER BY overlay.updated_at ASC
 `,
-      [DATABASE_ENTRY_PATH],
+      [DATABASE_ENTRY_PATH, SEARCH_INDEX_DATABASE_ENTRY_PATH],
       mapEntryOverlay,
     );
   });
@@ -459,6 +465,12 @@ async function canRemoveSqliteCacheOverlay(
   context: GcContext,
 ): Promise<boolean> {
   if (await hasActiveArchiveOwnerOrSqliteLease(overlay.archiveKey)) {
+    return false;
+  }
+  if (
+    overlay.entryPath === SEARCH_INDEX_DATABASE_ENTRY_PATH &&
+    !context.force
+  ) {
     return false;
   }
   if (!context.force && context.now - overlay.updatedAt < SQLITE_CACHE_TTL_MS) {
@@ -608,18 +620,22 @@ class WikgDocumentFileStore implements DocumentFileStore {
       >
     | undefined;
   readonly #readonlyDatabase: boolean;
+  readonly #searchIndexWritebackPolicy: WorkspaceWritebackPolicy;
   readonly #sqliteLeaseOwnerId = createOwnerId();
 
   public constructor(
     archivePath: string,
     options: {
       readonly readonlyDatabase?: boolean;
+      readonly searchIndexWritebackPolicy?: WorkspaceWritebackPolicy;
       readonly session?: WikgArchiveSession;
     },
   ) {
     this.#archivePath = resolve(archivePath);
     this.#archiveKey = createArchiveKey(this.#archivePath);
     this.#readonlyDatabase = options.readonlyDatabase === true;
+    this.#searchIndexWritebackPolicy =
+      options.searchIndexWritebackPolicy ?? "archive";
     this.#session = options.session;
   }
 
@@ -654,6 +670,11 @@ class WikgDocumentFileStore implements DocumentFileStore {
     await releaseSqliteLease({
       archiveKey: this.#archiveKey,
       entryPath: DATABASE_ENTRY_PATH,
+      ownerId: this.#sqliteLeaseOwnerId,
+    });
+    await releaseSqliteLease({
+      archiveKey: this.#archiveKey,
+      entryPath: SEARCH_INDEX_DATABASE_ENTRY_PATH,
       ownerId: this.#sqliteLeaseOwnerId,
     });
   }
@@ -708,6 +729,15 @@ class WikgDocumentFileStore implements DocumentFileStore {
   public markDatabaseDirty(): void {
     if (!this.#readonlyDatabase) {
       this.#session?.observeDirtyEntry(DATABASE_ENTRY_PATH);
+    }
+  }
+
+  public markSearchIndexDatabaseDirty(): void {
+    if (
+      !this.#readonlyDatabase &&
+      this.#searchIndexWritebackPolicy === "archive"
+    ) {
+      this.#session?.observeDirtyEntry(SEARCH_INDEX_DATABASE_ENTRY_PATH);
     }
   }
 
@@ -802,21 +832,45 @@ class WikgDocumentFileStore implements DocumentFileStore {
   }
 
   public async resolveDatabasePath(): Promise<string> {
+    return await this.#resolveSqliteDatabasePath(DATABASE_ENTRY_PATH, {
+      createIfMissing: true,
+      readonly: this.#readonlyDatabase,
+    });
+  }
+
+  public async resolveSearchIndexDatabasePath(): Promise<string> {
+    return await this.#resolveSqliteDatabasePath(
+      SEARCH_INDEX_DATABASE_ENTRY_PATH,
+      {
+        createIfMissing: !this.#readonlyDatabase,
+        readonly: this.#readonlyDatabase,
+      },
+    );
+  }
+
+  async #resolveSqliteDatabasePath(
+    entryPath: string,
+    options: { readonly createIfMissing: boolean; readonly readonly: boolean },
+  ): Promise<string> {
     return await withEntryLock(
       this.#archiveKey,
-      DATABASE_ENTRY_PATH,
+      entryPath,
       "state",
       async () => {
-        let overlay = await this.#readOverlay(DATABASE_ENTRY_PATH);
+        let overlay = await this.#readOverlay(entryPath);
 
         if (overlay?.kind !== "file") {
-          const workspacePath = await createWorkspaceFilePath(
-            this.#archiveKey,
-            DATABASE_ENTRY_PATH,
-          );
           const content = await readWikgArchiveEntry(
             this.#archivePath,
-            DATABASE_ENTRY_PATH,
+            entryPath,
+          );
+
+          if (content === undefined && !options.createIfMissing) {
+            throw new Error(`Archive SQLite entry is missing: ${entryPath}`);
+          }
+          const workspacePath = await createWorkspaceFilePath(
+            this.#archiveKey,
+            entryPath,
           );
 
           await mkdir(dirname(workspacePath), { recursive: true });
@@ -824,11 +878,11 @@ class WikgDocumentFileStore implements DocumentFileStore {
           await upsertOverlay({
             archiveKey: this.#archiveKey,
             archivePath: this.#archivePath,
-            entryPath: DATABASE_ENTRY_PATH,
+            entryPath,
             kind: "file",
             workspacePath,
           });
-          overlay = await this.#readOverlay(DATABASE_ENTRY_PATH);
+          overlay = await this.#readOverlay(entryPath);
         }
 
         if (overlay?.workspacePath === undefined) {
@@ -837,8 +891,8 @@ class WikgDocumentFileStore implements DocumentFileStore {
 
         await acquireSqliteLease({
           archiveKey: this.#archiveKey,
-          entryPath: DATABASE_ENTRY_PATH,
-          mode: this.#readonlyDatabase ? "read" : "write",
+          entryPath,
+          mode: options.readonly ? "read" : "write",
           ownerId: this.#sqliteLeaseOwnerId,
         });
         return overlay.workspacePath;
@@ -1031,6 +1085,12 @@ async function flushArchiveOverlays(
 
     if (entryPaths.includes(DATABASE_ENTRY_PATH)) {
       await waitForSqliteLeasesToDrain(archiveKey, DATABASE_ENTRY_PATH);
+    }
+    if (entryPaths.includes(SEARCH_INDEX_DATABASE_ENTRY_PATH)) {
+      await waitForSqliteLeasesToDrain(
+        archiveKey,
+        SEARCH_INDEX_DATABASE_ENTRY_PATH,
+      );
     }
 
     const currentOverlays = (await listOverlays(archiveKey)).filter((overlay) =>

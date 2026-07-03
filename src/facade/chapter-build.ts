@@ -711,6 +711,14 @@ class SummaryInputSnapshotDocument implements ReadonlyDocument {
     );
   }
 
+  public readSearchIndexDatabase<T>(): Promise<T> {
+    return Promise.reject(
+      new Error(
+        "Summary input snapshots do not expose a search index database.",
+      ),
+    );
+  }
+
   public readBookMeta(): Promise<undefined> {
     return Promise.resolve(undefined);
   }

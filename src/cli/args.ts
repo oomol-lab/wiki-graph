@@ -190,10 +190,17 @@ export type CLIArchiveAction =
   | "search";
 
 export type CLIArchiveMaintenanceCommand = "chapter" | "cover" | "meta";
+export type CLIArchiveIndexAction =
+  | "build"
+  | "clear"
+  | "embed"
+  | "external"
+  | "get";
 type CLIArchiveRootAction = CLIArchiveAction | "queue";
 type CLIArchiveUriAction =
   | CLIArchiveRootAction
   | CLIArchiveChapterAction
+  | CLIArchiveIndexAction
   | CLIMetadataAction;
 type CLIJobAction = CLIQueueAction | "get" | "set";
 type ArchiveUriLens = Exclude<CLIObjectKind, "meta">;
@@ -231,6 +238,12 @@ export interface CLIArchiveArguments {
   readonly sourcePath?: string;
   readonly targetStage?: ChapterStage;
   readonly triplePattern?: ArchiveTriplePattern;
+}
+
+export interface CLIArchiveIndexArguments {
+  readonly action: CLIArchiveIndexAction;
+  readonly archivePath: string;
+  readonly json?: boolean;
 }
 
 interface ArchiveMetaFlagValues {
@@ -343,6 +356,11 @@ export type ParsedCLIArguments =
       readonly args: CLIArchiveArguments;
       readonly help: false;
       readonly kind: "archive";
+    }
+  | {
+      readonly args: CLIArchiveIndexArguments;
+      readonly help: false;
+      readonly kind: "archive-index";
     }
   | {
       readonly args: CLIQueueArguments;
@@ -746,6 +764,10 @@ function parseArchiveUriTargetArguments(
     );
   }
 
+  if (objectUri === "wkg://index") {
+    return parseArchiveIndexUriArguments(archivePath, action, tail, values);
+  }
+
   const chapterTarget = parseChapterTarget(objectUri);
   if (chapterTarget !== undefined) {
     return parseArchiveChapterUriArguments(
@@ -768,6 +790,56 @@ function parseArchiveUriTargetArguments(
   }
 
   return parseArchiveArguments(action, [uri, ...tail], values, helpRoute);
+}
+
+function parseArchiveIndexUriArguments(
+  archivePath: string,
+  action: CLIArchiveUriAction,
+  tail: readonly string[],
+  values: ArchiveArgumentValues,
+): ParsedCLIArguments {
+  const helpRoute = `wikigraph wkg://<archive.wikg>/index ${action} --help`;
+
+  if (values.help === true) {
+    return {
+      help: true,
+      helpText: renderHelpMatrixText({ kind: "object", object: "index" }),
+      kind: "help",
+    };
+  }
+
+  if (!isArchiveIndexAction(action)) {
+    throw new Error(
+      withHelpRoute(
+        `The index object does not support \`${action}\`. Expected get, build, embed, external, or clear.`,
+        "wikigraph help object",
+      ),
+    );
+  }
+  rejectArchiveExtraPositionals(action, tail, 0, helpRoute);
+  rejectArchiveNonReadFlags(action, values, helpRoute);
+  rejectArchiveFlag(action, "--budget", values.budget, helpRoute);
+  rejectArchiveFlag(action, "--chapter", values.chapter, helpRoute);
+  rejectArchiveFlag(action, "--context", values.context, helpRoute);
+  rejectArchiveFlag(action, "--cursor", values.cursor, helpRoute);
+  rejectArchiveFlag(action, "--evidence", values.evidence, helpRoute);
+  rejectArchiveFlag(action, "--from", values.from, helpRoute);
+  rejectArchiveFlag(action, "--limit", values.limit, helpRoute);
+  rejectArchiveFlag(action, "--role", values.role, helpRoute);
+  rejectArchiveFlag(action, "--to", values.to, helpRoute);
+  rejectArchiveBooleanFlag(action, "--all", values.all, helpRoute);
+  rejectArchiveBooleanFlag(action, "--backlinks", values.backlinks, helpRoute);
+  rejectArchiveBooleanFlag(action, "--confirm", values.confirm, helpRoute);
+
+  return {
+    args: {
+      action,
+      archivePath,
+      ...(values.json === undefined ? {} : { json: values.json }),
+    },
+    help: false,
+    kind: "archive-index",
+  };
 }
 
 function parseMetadataUriArguments(
@@ -4239,8 +4311,21 @@ function isArchiveUriAction(
   return (
     isArchiveAction(value) ||
     isArchiveChapterAction(value) ||
+    isArchiveIndexAction(value) ||
     isMetadataAction(value) ||
     value === "queue"
+  );
+}
+
+function isArchiveIndexAction(
+  value: string | undefined,
+): value is CLIArchiveIndexAction {
+  return (
+    value === "build" ||
+    value === "clear" ||
+    value === "embed" ||
+    value === "external" ||
+    value === "get"
   );
 }
 
@@ -4670,7 +4755,7 @@ function isValueInputJsonFlagContext(argv: readonly string[]): boolean {
 }
 
 function rejectArchiveExtraPositionals(
-  action: CLIArchiveAction,
+  action: string,
   positionals: readonly string[],
   allowed: number,
   helpRoute: string,
@@ -4789,7 +4874,7 @@ function rejectCoverMetaFlags(values: ArchiveMetaFlagValues): void {
 }
 
 function rejectArchiveFlag(
-  action: CLIArchiveAction,
+  action: string,
   flag: string,
   value: string | undefined,
   helpRoute: string,
@@ -4805,7 +4890,7 @@ function rejectArchiveFlag(
 }
 
 function rejectArchiveBooleanFlag(
-  action: CLIArchiveAction,
+  action: string,
   flag: string,
   value: boolean | undefined,
   helpRoute: string,
@@ -4821,7 +4906,7 @@ function rejectArchiveBooleanFlag(
 }
 
 function rejectArchiveNonReadFlags(
-  action: CLIArchiveAction,
+  action: string,
   values: {
     readonly input?: string;
     readonly "input-format"?: string;

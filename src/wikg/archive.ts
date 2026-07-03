@@ -19,8 +19,11 @@ import {
 } from "yauzl";
 import { ZipFile as YazlZipFile } from "yazl";
 
+import { Database } from "../document/database.js";
+
 export const WIKG_FORMAT_VERSION = 1;
 const WIKG_MANIFEST_PATH = "manifest.json";
+const SEARCH_INDEX_DATABASE_PATH = "fts.db";
 const WIKG_MANIFEST_CONTENT = `${JSON.stringify({
   formatVersion: WIKG_FORMAT_VERSION,
 })}\n`;
@@ -28,6 +31,7 @@ const WIKG_MANIFEST_CONTENT = `${JSON.stringify({
 const WIKG_ARCHIVE_PATTERNS = [
   /^manifest\.json$/u,
   /^database\.db$/u,
+  /^fts\.db$/u,
   /^book-meta\.json$/u,
   /^toc\.json$/u,
   /^cover\/(?:data\.bin|info\.json)$/u,
@@ -151,8 +155,19 @@ export async function writeWikgArchive(
 
   const zipFile = new YazlZipFile();
   const files = await listDocumentFiles(documentDirectoryPath);
+  const includeSearchIndex = await shouldEmbedSearchIndex(
+    documentDirectoryPath,
+  );
   const entries = [
-    ...files.filter((file) => file.archivePath !== WIKG_MANIFEST_PATH),
+    ...files.filter((file) => {
+      if (file.archivePath === WIKG_MANIFEST_PATH) {
+        return false;
+      }
+
+      return (
+        file.archivePath !== SEARCH_INDEX_DATABASE_PATH || includeSearchIndex
+      );
+    }),
     {
       archivePath: WIKG_MANIFEST_PATH,
       content: Buffer.from(WIKG_MANIFEST_CONTENT, "utf8"),
@@ -330,6 +345,40 @@ async function listDocumentFiles(
   }
 
   return files.filter((file) => isWikgArchivePath(file.archivePath));
+}
+
+async function shouldEmbedSearchIndex(
+  documentDirectoryPath: string,
+): Promise<boolean> {
+  const database = await Database.open(
+    join(documentDirectoryPath, "database.db"),
+    "",
+    {
+      readonly: true,
+    },
+  ).catch(() => undefined);
+
+  if (database === undefined) {
+    return true;
+  }
+
+  try {
+    const row = await database.queryOne(
+      `
+        SELECT fts_embedded
+        FROM archive_index_settings
+        WHERE id = 1
+      `,
+      undefined,
+      (value) => Number(value.fts_embedded) !== 0,
+    );
+
+    return row ?? false;
+  } catch {
+    return true;
+  } finally {
+    await database.close();
+  }
 }
 
 async function openIndexedArchive(inputPath: string): Promise<{

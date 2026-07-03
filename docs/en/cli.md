@@ -23,6 +23,7 @@ wikigraph <entity-uri> related [query] [--all] [--limit <n>] [--context <n>] [--
 wikigraph <entity-uri|triple-uri|summary-uri|chunk-uri> evidence [query] [--all] [--limit <n>] [--context <n>] [--cursor <token>] [--json|--jsonl]
 wikigraph <located-chunk-uri|located-entity-uri> pack [--budget <chars>] [--json|--jsonl]
 wikigraph <archive-uri> export --output-format <format> [--output <path>]
+wikigraph <archive-uri>/index get|build|embed|external|clear [--json]
 wikigraph <chapter-uri> queue add --task reading-graph|reading-summary|knowledge-graph --accept-cost [--boost] [--llm <json>] [--prompt <text>]
 wikigraph wkg-job:// list [--all] [--active] [--input <archive-uri>] [--json]
 wikigraph wkg-job://<job-id> get [--json]
@@ -41,6 +42,7 @@ Exploration modes:
 Search and collection behavior:
 
 - `search` finds URI-addressable objects from query text. Search results are leads, not source evidence.
+- Search requires a current FTS index. If the index is missing or outdated, run `<archive-uri>/index build`; by default this creates a local cached FTS index instead of storing it in the archive.
 - `list` enumerates URI-addressable objects without query text.
 - Object commands use Wiki Graph URIs. Use an archive or scope URI such as `wkg:///Users/me/book.wikg` for `search` and `list`; use a concrete object URI such as `wkg:///Users/me/book.wikg/chapter/12` for `get` or `evidence`. `related` and `pack` are limited to chunk and entity objects.
 - For content understanding, choose a search lens in the URI: `<archive-uri>/chunk` for Reading Graph structure, `<archive-uri>/summary` for quick overview, `<archive-uri>/source` for original source wording, or `<archive-uri>/entity` and `<archive-uri>/triple` for Knowledge Graph objects.
