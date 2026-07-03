@@ -415,7 +415,7 @@ describe("archive/query/archive-view", () => {
     });
   });
 
-  it("prioritizes entity matches before source fallback", async () => {
+  it("prioritizes entity matches before source hits", async () => {
     await withTempDir("spinedigest-archive-view-", async (path) => {
       const previousStateDir = process.env.WIKIGRAPH_STATE_DIR;
       process.env.WIKIGRAPH_STATE_DIR = `${path}/state`;
@@ -935,39 +935,6 @@ describe("archive/query/archive-view", () => {
         );
 
         expect(multi?.score).toBeCloseTo((single?.score ?? 0) * 1.3, 10);
-      } finally {
-        restoreEnv("WIKIGRAPH_STATE_DIR", previousStateDir);
-        await document.release();
-      }
-    });
-  });
-
-  it("falls back to lexical source scan with session cursors", async () => {
-    await withTempDir("spinedigest-archive-view-", async (path) => {
-      const previousStateDir = process.env.WIKIGRAPH_STATE_DIR;
-      process.env.WIKIGRAPH_STATE_DIR = `${path}/state`;
-      const document = await DirectoryDocument.open(`${path}/document`);
-
-      try {
-        await seedSourcedDocument(document);
-
-        const firstPage = await findArchiveObjects(document, "Wiki", {
-          limit: 1,
-          types: ["source", "node"],
-        });
-        const secondPage = await findArchiveObjects(document, "ignored query", {
-          ...(firstPage.nextCursor === null
-            ? {}
-            : { cursor: firstPage.nextCursor }),
-          limit: 1,
-          types: ["source", "node"],
-        });
-
-        expect(firstPage.items).toHaveLength(1);
-        expect(firstPage.nextCursor).not.toBeNull();
-        expect(["source", "node"]).toContain(firstPage.items[0]?.type);
-        expect(secondPage.query).toBe("Wiki");
-        expect(secondPage.items[0]?.id).not.toBe(firstPage.items[0]?.id);
       } finally {
         restoreEnv("WIKIGRAPH_STATE_DIR", previousStateDir);
         await document.release();

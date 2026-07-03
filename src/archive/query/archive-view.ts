@@ -934,12 +934,7 @@ export async function findArchiveObjects(
         ...(await findTriples(document, search, { mentions: allMentions })),
       ]
     : [];
-  const hits =
-    indexed === undefined
-      ? await findArchiveObjectsUncached(document, search, options, {
-          allMentions,
-        })
-      : [...structuredHits, ...indexed.hits];
+  const hits = [...structuredHits, ...(indexed?.hits ?? [])];
   if (isEntityOnlySearch(options)) {
     const ranked = createRankedFindResult(
       query,
@@ -1123,60 +1118,6 @@ export async function grepArchiveObjects(
     [query.trim().toLowerCase()],
     "exact",
   );
-}
-
-async function findArchiveObjectsUncached(
-  document: ReadonlyDocument,
-  search: LexicalQuery,
-  options: ArchiveFindOptions,
-  context: {
-    readonly allMentions: readonly MentionRecord[];
-  },
-): Promise<readonly ArchiveFindHit[]> {
-  const requestedTypes = options.types ?? null;
-  const shouldFindMeta =
-    requestedTypes === null || requestedTypes.includes("meta");
-  const shouldFindEntities =
-    requestedTypes === null || requestedTypes.includes("entity");
-  const shouldFindTriples =
-    requestedTypes === null || requestedTypes.includes("triple");
-  const hasOnlyStructuredTypeRequest =
-    requestedTypes !== null &&
-    requestedTypes.every((type) => type === "entity" || type === "triple");
-  const hasTextTypeRequest =
-    requestedTypes === null ||
-    requestedTypes.includes("chapter") ||
-    requestedTypes.includes("meta") ||
-    requestedTypes.includes("fragment") ||
-    requestedTypes.includes("node") ||
-    requestedTypes.includes("source") ||
-    requestedTypes.includes("summary");
-  const metaHits = shouldFindMeta
-    ? findMetaLexical(await document.readBookMeta(), search)
-    : [];
-  const structuredHits = [
-    ...metaHits,
-    ...(shouldFindEntities
-      ? findEntities(search, { mentions: context.allMentions })
-      : []),
-    ...(shouldFindTriples
-      ? await findTriples(document, search, { mentions: context.allMentions })
-      : []),
-  ];
-
-  if (structuredHits.length > 0 && hasOnlyStructuredTypeRequest) {
-    return structuredHits;
-  }
-  if (!hasTextTypeRequest) {
-    return structuredHits;
-  }
-
-  const hits: ArchiveFindHit[] = [];
-
-  hits.push(...(await findChaptersLexical(document, search)));
-  hits.push(...(await findNodesLexical(document, search)));
-
-  return [...structuredHits, ...hits];
 }
 
 async function findArchiveObjectsIndexed(
@@ -3684,39 +3625,6 @@ function parseEntityQid(id: string): string | undefined {
   return id.startsWith(prefix) ? id.slice(prefix.length) : undefined;
 }
 
-function findMetaLexical(
-  meta: BookMeta | undefined,
-  search: LexicalQuery,
-): readonly ArchiveFindHit[] {
-  if (meta === undefined) {
-    return [];
-  }
-
-  const fields = [
-    meta.title,
-    ...meta.authors,
-    meta.description,
-    meta.publisher,
-  ].filter(isDefined);
-  const content = fields.join("\n");
-  const contentMatch = scoreLexicalText(content, search);
-
-  if (contentMatch === undefined) {
-    return [];
-  }
-
-  return [
-    {
-      field: "metadata",
-      id: ARCHIVE_ROOT_ID,
-      ...createFindMatchFields(contentMatch),
-      snippet: createSnippet(content, contentMatch.snippetNeedle),
-      title: meta.title ?? "Book metadata",
-      type: "meta",
-    },
-  ];
-}
-
 function filterLexicalHitsByMatch(
   hits: readonly ArchiveFindHit[],
   search: LexicalQuery,
@@ -3735,97 +3643,6 @@ function filterLexicalHitsByMatch(
   return hits.filter((hit) =>
     requiredTerms.every((term) => hit.matchedTerms?.includes(term) === true),
   );
-}
-
-async function findChaptersLexical(
-  document: ReadonlyDocument,
-  search: LexicalQuery,
-): Promise<readonly ArchiveFindHit[]> {
-  const hits: ArchiveFindHit[] = [];
-
-  for (const chapter of await listChapters(document)) {
-    const title = chapter.title ?? `[chapter ${chapter.chapterId}]`;
-    const titleMatch = scoreLexicalText(title, search);
-
-    if (titleMatch !== undefined) {
-      hits.push({
-        chapter: chapter.chapterId,
-        field: "title",
-        id: formatChapterId(chapter.chapterId),
-        ...createFindMatchFields(titleMatch),
-        position: {
-          chapter: chapter.chapterId,
-        },
-        snippet: title,
-        state: await createChapterState(document, chapter),
-        title,
-        type: "chapter",
-      });
-    }
-
-    hits.push(
-      ...(await findTextStreamSentencesLexical(
-        document,
-        chapter.chapterId,
-        "summary",
-        title,
-        search,
-      )),
-    );
-
-    hits.push(
-      ...(await findTextStreamSentencesLexical(
-        document,
-        chapter.chapterId,
-        "source",
-        title,
-        search,
-      )),
-    );
-  }
-
-  return hits;
-}
-
-async function findNodesLexical(
-  document: ReadonlyDocument,
-  search: LexicalQuery,
-): Promise<readonly ArchiveFindHit[]> {
-  const hits: ArchiveFindHit[] = [];
-
-  for (const node of await document.chunks.listAll()) {
-    const position = createNodePosition(node.sentenceIds);
-    const labelMatch = scoreLexicalText(node.label, search);
-
-    if (labelMatch !== undefined) {
-      hits.push({
-        chapter: node.sentenceId[0],
-        field: "title",
-        id: formatNodeId(node.id),
-        ...createFindMatchFields(labelMatch),
-        ...(position === undefined ? {} : { position }),
-        snippet: node.label,
-        title: node.label,
-        type: "node",
-      });
-    }
-    const contentMatch = scoreLexicalText(node.content, search);
-
-    if (contentMatch !== undefined) {
-      hits.push({
-        chapter: node.sentenceId[0],
-        field: "content",
-        id: formatNodeId(node.id),
-        ...createFindMatchFields(contentMatch),
-        ...(position === undefined ? {} : { position }),
-        snippet: createSnippet(node.content, contentMatch.snippetNeedle),
-        title: node.label,
-        type: "node",
-      });
-    }
-  }
-
-  return hits;
 }
 
 async function findChapters(
@@ -3876,46 +3693,6 @@ async function findChapters(
   }
 
   return hits;
-}
-
-async function findTextStreamSentencesLexical(
-  document: ReadonlyDocument,
-  chapterId: number,
-  stream: ArchiveTextStreamKind,
-  title: string,
-  search: LexicalQuery,
-): Promise<readonly ArchiveFindHit[]> {
-  const index = await createTextStreamIndex(document, chapterId, stream);
-
-  return index.sentences.flatMap((sentence) => {
-    const match = scoreLexicalText(sentence.text, search);
-
-    if (match === undefined) {
-      return [];
-    }
-
-    return [
-      {
-        chapter: chapterId,
-        field: stream,
-        id: formatTextStreamRangeUri(
-          chapterId,
-          stream,
-          sentence.globalIndex,
-          sentence.globalIndex,
-        ),
-        ...createFindMatchFields(match),
-        position: {
-          chapter: chapterId,
-          fragment: sentence.fragmentId,
-          sentence: sentence.localIndex,
-        },
-        snippet: createSnippet(sentence.text, match.snippetNeedle),
-        title,
-        type: stream === "source" ? ("source" as const) : ("summary" as const),
-      },
-    ];
-  });
 }
 
 async function findTextStreamSentences(
