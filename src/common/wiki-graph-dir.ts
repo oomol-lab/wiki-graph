@@ -13,6 +13,10 @@ export function resolveWikiGraphStateDirectoryPath(): string {
   return join(resolveWikiGraphHomeDirectoryPath(), "state");
 }
 
+export function resolveWikiGraphCoreDatabasePath(): string {
+  return join(resolveWikiGraphHomeDirectoryPath(), "core.sqlite");
+}
+
 export function resolveWikiGraphCacheDatabasePath(): string {
   return join(resolveWikiGraphHomeDirectoryPath(), "cache.sqlite");
 }

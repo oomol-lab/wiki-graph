@@ -1,18 +1,18 @@
 Help Type: command
-Command: wikigraph wkg-job://<job-id> pause
+Command: wikigraph wikg://local/job/<job-id> pause
 
 Purpose:
   Pause one queued or running job.
 
 Usage:
-  wikigraph wkg-job://<job-id> pause
+  wikigraph wikg://local/job/<job-id> pause
 
 Arguments:
   <job-id>              Full job id or an unambiguous prefix.
 
 Behavior:
   - Paused jobs keep their workspace and are not scheduled.
-  - Resume with `wikigraph wkg-job://<job-id> resume`.
+  - Resume with `wikigraph wikg://local/job/<job-id> resume`.
 
 Example:
-  wikigraph wkg-job://75d12f7e pause
+  wikigraph wikg://local/job/75d12f7e pause

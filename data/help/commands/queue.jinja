@@ -6,14 +6,14 @@ Purpose:
 
 Usage:
   wikigraph <chapter-uri> queue add --task <reading-graph|reading-summary|knowledge-graph> --accept-cost [--boost] [--llm <json>] [--prompt <text>]
-  wikigraph wkg-job:// list [--all] [--active] [--input <archive-uri>]
-  wikigraph wkg-job://<job-id> get [--json]
-  wikigraph wkg-job://<job-id> watch [--jsonl] [--from beginning|now]
-  wikigraph wkg-job://<job-id> pause
-  wikigraph wkg-job://<job-id> resume
-  wikigraph wkg-job://<job-id> cancel
-  wikigraph wkg-job://<job-id> boost
-  wikigraph wkg-job://<job-id>/target set <reading-graph|reading-summary|knowledge-graph>
+  wikigraph wikg://local/job/ list [--all] [--active] [--input <archive-uri>]
+  wikigraph wikg://local/job/<job-id> get [--json]
+  wikigraph wikg://local/job/<job-id> watch [--jsonl] [--from beginning|now]
+  wikigraph wikg://local/job/<job-id> pause
+  wikigraph wikg://local/job/<job-id> resume
+  wikigraph wikg://local/job/<job-id> cancel
+  wikigraph wikg://local/job/<job-id> boost
+  wikigraph wikg://local/job/<job-id>/target set <reading-graph|reading-summary|knowledge-graph>
   wikigraph queue clean
 
 Tasks:
@@ -33,8 +33,8 @@ Cost:
   `queue add` requires `--accept-cost`.
 
 Examples:
-  wikigraph wkg://book.wikg/chapter/3 queue add --task reading-graph --accept-cost
-  wikigraph wkg://book.wikg/chapter/3 queue add --task reading-summary --accept-cost
-  wikigraph wkg://book.wikg/chapter/3 queue add --task knowledge-graph --accept-cost
-  wikigraph wkg-job:// list --input wkg://book.wikg --json
-  wikigraph wkg-job://<job-id> watch --jsonl
+  wikigraph wikg://book.wikg/chapter/3 queue add --task reading-graph --accept-cost
+  wikigraph wikg://book.wikg/chapter/3 queue add --task reading-summary --accept-cost
+  wikigraph wikg://book.wikg/chapter/3 queue add --task knowledge-graph --accept-cost
+  wikigraph wikg://local/job/ list --input wikg://book.wikg --json
+  wikigraph wikg://local/job/<job-id> watch --jsonl

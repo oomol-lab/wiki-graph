@@ -88,6 +88,7 @@ Fields:
   `queue.concurrent`
     Simultaneous queue job limit.
     Type: positive integer.
+    Default: 3.
     Notes:
       This controls how many build jobs the worker may run at once.
       It is separate from `request.concurrent`, which controls concurrent LLM requests inside those jobs.
@@ -95,6 +96,7 @@ Fields:
   `request.concurrent`
     Concurrent LLM request limit.
     Type: positive integer.
+    Default: 6.
 
   `request.timeout`
     Request timeout.

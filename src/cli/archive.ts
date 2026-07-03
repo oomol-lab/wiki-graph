@@ -774,7 +774,7 @@ function createOptionalSourceContext(args: CLIArchiveArguments): {
 }
 
 function isEvidenceBackedObjectUri(uri: string): boolean {
-  return /^wkg:\/\/(?:(?:chapter\/[1-9][0-9]*\/)?entity\/Q[1-9][0-9]*|(?:chapter\/[1-9][0-9]*\/)?triple\/Q[1-9][0-9]*\/[^/]+\/Q[1-9][0-9]*)\/?$/u.test(
+  return /^wikg:\/\/(?:(?:chapter\/[1-9][0-9]*\/)?entity\/Q[1-9][0-9]*|(?:chapter\/[1-9][0-9]*\/)?triple\/Q[1-9][0-9]*\/[^/]+\/Q[1-9][0-9]*)\/?$/u.test(
     uri,
   );
 }
@@ -944,11 +944,11 @@ function getArchivePath(uri: string): string {
 function getObjectUri(uri: string): string {
   const parsed = requireLocatedObjectOrArchiveUri(uri);
 
-  return parsed.objectUri ?? "wkg://";
+  return parsed.objectUri ?? "wikg://";
 }
 
 function parseChapterScope(uri: string): number | undefined {
-  const match = /^wkg:\/\/chapter\/([1-9][0-9]*)(?:\/|$)/u.exec(uri);
+  const match = /^wikg:\/\/chapter\/([1-9][0-9]*)(?:\/|$)/u.exec(uri);
 
   return match?.[1] === undefined ? undefined : Number(match[1]);
 }
@@ -1332,7 +1332,7 @@ function parseTextStreamObjectRange(object: ArchiveOutputObject):
     }
   | undefined {
   const match =
-    /^wkg:\/\/chapter\/([1-9][0-9]*)\/(source|summary)#([0-9]+)(?:\.\.([0-9]+))?$/u.exec(
+    /^wikg:\/\/chapter\/([1-9][0-9]*)\/(source|summary)#([0-9]+)(?:\.\.([0-9]+))?$/u.exec(
       object.uri,
     );
 
@@ -1365,7 +1365,7 @@ function formatTextStreamObjectUri(
   start: number,
   end: number,
 ): string {
-  return `wkg://chapter/${chapterId}/${stream}#${start === end ? String(start) : `${start}..${end}`}`;
+  return `wikg://chapter/${chapterId}/${stream}#${start === end ? String(start) : `${start}..${end}`}`;
 }
 
 function isString(value: string | undefined): value is string {
@@ -1540,14 +1540,14 @@ async function writePage(
       return;
     case "fragment":
       if (
-        page.id.startsWith("wkg://") &&
+        page.id.startsWith("wikg://") &&
         !page.id.includes("#") &&
         page.backlinks === undefined
       ) {
         await writeTextToStdout(`${page.fragment.text}\n`);
         return;
       }
-      if (page.id.startsWith("wkg://chapter/")) {
+      if (page.id.startsWith("wikg://chapter/")) {
         await writeTextToStdout(
           `${formatFindObject(
             (await createPageObject(page, context)) as ArchiveOutputObject,
@@ -1672,7 +1672,7 @@ function appendEntityNextSteps(
 }
 
 function isEntityOutputUri(uri: string): boolean {
-  return /^wkg:\/\/(?:chapter\/[1-9][0-9]*\/)?entity\/Q[1-9][0-9]*\/?$/u.test(
+  return /^wikg:\/\/(?:chapter\/[1-9][0-9]*\/)?entity\/Q[1-9][0-9]*\/?$/u.test(
     uri,
   );
 }
@@ -2126,7 +2126,7 @@ function isChapterStateListObject(
 } {
   return (
     object.state !== undefined &&
-    object.uri.startsWith("wkg://chapter/") &&
+    object.uri.startsWith("wikg://chapter/") &&
     !object.uri.includes("/state")
   );
 }
@@ -2149,7 +2149,7 @@ function parseTripleOutputUri(uri: string):
     }
   | undefined {
   const match =
-    /^wkg:\/\/triple\/(Q[1-9][0-9]*)\/([^/]+)\/(Q[1-9][0-9]*)\/?$/u.exec(uri);
+    /^wikg:\/\/triple\/(Q[1-9][0-9]*)\/([^/]+)\/(Q[1-9][0-9]*)\/?$/u.exec(uri);
 
   if (
     match?.[1] === undefined ||
@@ -2276,7 +2276,7 @@ function getTextStreamOutputType(
   uri: string,
 ): "source" | "summary" | undefined {
   const match =
-    /^wkg:\/\/chapter\/[1-9][0-9]*\/(source|summary)(?:#.*)?$/u.exec(uri);
+    /^wikg:\/\/chapter\/[1-9][0-9]*\/(source|summary)(?:#.*)?$/u.exec(uri);
 
   return match?.[1] as "source" | "summary" | undefined;
 }
@@ -2493,15 +2493,15 @@ function toWikiGraphUri(id: string): string {
 
   switch (type) {
     case "chapter":
-      return `wkg://chapter/${first ?? ""}`;
+      return `wikg://chapter/${first ?? ""}`;
     case "fragment":
-      return `wkg://chapter/${first ?? ""}/source/${second ?? "0"}`;
+      return `wikg://chapter/${first ?? ""}/source/${second ?? "0"}`;
     case "meta":
-      return "wkg://";
+      return "wikg://";
     case "node":
-      return `wkg://chunk/${first ?? ""}`;
+      return `wikg://chunk/${first ?? ""}`;
     case "summary":
-      return `wkg://chapter/${first ?? ""}/summary`;
+      return `wikg://chapter/${first ?? ""}/summary`;
     default:
       return id;
   }

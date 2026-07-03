@@ -132,6 +132,7 @@ describe("llm/client", () => {
       ]),
     ).resolves.toBe("generated response");
 
+    expect(llm.config.concurrent).toBe(6);
     expect(llm.config.stream).toBe(false);
     expect(llm.config.timeout).toBe(360000);
     expect(aiMockState.generateTextCalls).toHaveLength(1);

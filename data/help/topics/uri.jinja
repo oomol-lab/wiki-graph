@@ -10,75 +10,75 @@ Archive locator:
   - Archive/object command URIs must contain a `.wikg` locator.
   - Do not pass a bare filesystem path as a command target.
     Use a Wiki Graph URI instead:
-    /Users/me/book.wikg -> wkg:///Users/me/book.wikg
-    ./book.wikg -> wkg://book.wikg
-    C:\Users\me\book.wikg -> wkg://C:/Users/me/book.wikg
+    /Users/me/book.wikg -> wikg:///Users/me/book.wikg
+    ./book.wikg -> wikg://book.wikg
+    C:\Users\me\book.wikg -> wikg://C:/Users/me/book.wikg
   - URI paths use `/` separators, including on Windows.
-  - Absolute archive locators use `wkg:///`:
-    wkg:///books/book.wikg
-  - Relative archive locators use `wkg://`:
-    wkg://book.wikg
-    wkg://books/book.wikg
+  - Absolute archive locators use `wikg:///`:
+    wikg:///books/book.wikg
+  - Relative archive locators use `wikg://`:
+    wikg://book.wikg
+    wikg://books/book.wikg
   - The first path segment ending in `.wikg` is the archive/object boundary.
 
 Short object URIs:
   Commands return short object URIs without local file paths:
-    wkg://chapter/3
-    wkg://chapter/3/source/
-    wkg://chapter/3/source#4..8
-    wkg://chapter/3/summary
-    wkg://chunk/12
-    wkg://entity/Q8018
-    wkg://triple/Q8018/discusses/Q123
-    wkg://triple/Q8018/_/Q123
+    wikg://chapter/3
+    wikg://chapter/3/source/
+    wikg://chapter/3/source#4..8
+    wikg://chapter/3/summary
+    wikg://chunk/12
+    wikg://entity/Q8018
+    wikg://triple/Q8018/discusses/Q123
+    wikg://triple/Q8018/_/Q123
 
 Located object URIs:
   Add an archive locator before the object path when passing a URI to a command:
-    wkg:///books/book.wikg/chapter/3
-    wkg:///books/book.wikg/chapter/3/source#4..8
-    wkg://book.wikg/entity/Q8018
+    wikg:///books/book.wikg/chapter/3
+    wikg:///books/book.wikg/chapter/3/source#4..8
+    wikg://book.wikg/entity/Q8018
   Returned short URIs are archive-relative handles, not complete command targets. Prepend the archive locator before passing them back to object commands.
   Located readable object URIs can omit the `get` verb:
-    wikigraph wkg://book.wikg/entity/Q8018
+    wikigraph wikg://book.wikg/entity/Q8018
   Collection and lens URIs still require an explicit verb such as `list` or `search`.
 
 Triple pattern lenses:
   Use `_` as an any-value placeholder for subject, predicate, or object:
-    wkg://book.wikg/triple/Q8018/_/Q123
-    wkg://book.wikg/triple/_/_/Q123
+    wikg://book.wikg/triple/Q8018/_/Q123
+    wikg://book.wikg/triple/_/_/Q123
   Trailing placeholders may be omitted:
-    wkg://book.wikg/triple/Q8018
-    wkg://book.wikg/triple/Q8018/discusses
+    wikg://book.wikg/triple/Q8018
+    wikg://book.wikg/triple/Q8018/discusses
   A complete triple URI without `_` is a concrete object, not a collection lens.
 
 Object command examples:
   Search an absolute local archive:
-    wikigraph wkg:///Users/me/book.wikg/entity search "keyword"
+    wikigraph wikg:///Users/me/book.wikg/entity search "keyword"
   Open an object inside an absolute local archive:
-    wikigraph wkg:///Users/me/book.wikg/entity/Q8018 get
+    wikigraph wikg:///Users/me/book.wikg/entity/Q8018 get
   Open mapped Wikipedia pages for an entity:
-    wikigraph wkg:///Users/me/book.wikg/entity/Q8018/wikipage get
+    wikigraph wikg:///Users/me/book.wikg/entity/Q8018/wikipage get
 
 Archive command examples:
   Create or inspect an archive:
-    wikigraph wkg://book.wikg create ./book.md
-    wikigraph wkg://book.wikg/chapter list
-    wikigraph wkg://book.wikg/chapter/tree get
+    wikigraph wikg://book.wikg create ./book.md
+    wikigraph wikg://book.wikg/chapter list
+    wikigraph wikg://book.wikg/chapter/tree get
 
 Job URIs:
-  Queue jobs use the `wkg-job://` scheme and do not contain `.wikg` locators:
-    wikigraph wkg-job:// list
-    wikigraph wkg-job://<job-id> get --json
-    wikigraph wkg-job://<job-id> watch --jsonl
+  Queue jobs use the `wikg://local/job/` scheme and do not contain `.wikg` locators:
+    wikigraph wikg://local/job/ list
+    wikigraph wikg://local/job/<job-id> get --json
+    wikigraph wikg://local/job/<job-id> watch --jsonl
 
 Scopes:
-  - `wkg:///book.wikg` addresses the whole archive.
-  - `wkg:///book.wikg/` is the same archive target; a trailing slash does not create a separate object.
-  - `wkg:///book.wikg/chapter/3` scopes search and list to chapter 3.
-  - `wkg:///book.wikg/entity` searches or lists archive-wide entities.
-  - `wkg:///book.wikg/chapter/3/entity` searches or lists entities scoped to chapter 3 only.
-  - `wkg:///book.wikg/entity/Q8018/wikipage` returns mapped Wikipedia pages for the entity.
-  - `wkg://chapter/3/entity/Q8018` is the entity view whose evidence must appear in chapter 3.
+  - `wikg:///book.wikg` addresses the whole archive.
+  - `wikg:///book.wikg/` is the same archive target; a trailing slash does not create a separate object.
+  - `wikg:///book.wikg/chapter/3` scopes search and list to chapter 3.
+  - `wikg:///book.wikg/entity` searches or lists archive-wide entities.
+  - `wikg:///book.wikg/chapter/3/entity` searches or lists entities scoped to chapter 3 only.
+  - `wikg:///book.wikg/entity/Q8018/wikipage` returns mapped Wikipedia pages for the entity.
+  - `wikg://chapter/3/entity/Q8018` is the entity view whose evidence must appear in chapter 3.
 
 Object boundaries:
   - `chapter` is a structural object; searching it uses chapter title and structure, not child source or summary text.

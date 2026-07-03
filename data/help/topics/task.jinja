@@ -4,17 +4,17 @@ Topic: task
 Task Routing
 
 Create:
-  wikigraph wkg://book.wikg create ./book.md
+  wikigraph wikg://book.wikg create ./book.md
 
 Generate:
-  wikigraph wkg://book.wikg/chapter/3 queue add --task reading-graph --accept-cost
-  wikigraph wkg://book.wikg/chapter/3 queue add --task reading-summary --accept-cost
-  wikigraph wkg://book.wikg/chapter/3 queue add --task knowledge-graph --accept-cost
+  wikigraph wikg://book.wikg/chapter/3 queue add --task reading-graph --accept-cost
+  wikigraph wikg://book.wikg/chapter/3 queue add --task reading-summary --accept-cost
+  wikigraph wikg://book.wikg/chapter/3 queue add --task knowledge-graph --accept-cost
 
 Explore:
-  wikigraph wkg:///Users/me/book.wikg search "keyword"
-  wikigraph wkg:///Users/me/book.wikg/chapter/3/entity list
-  wikigraph wkg:///Users/me/book.wikg/<object-path> get
-  wikigraph wkg:///Users/me/book.wikg/<object-path> related
-  wikigraph wkg:///Users/me/book.wikg/<object-path> evidence
-  wikigraph wkg:///Users/me/book.wikg/<object-path> pack --budget 5000
+  wikigraph wikg:///Users/me/book.wikg search "keyword"
+  wikigraph wikg:///Users/me/book.wikg/chapter/3/entity list
+  wikigraph wikg:///Users/me/book.wikg/<object-path> get
+  wikigraph wikg:///Users/me/book.wikg/<object-path> related
+  wikigraph wikg:///Users/me/book.wikg/<object-path> evidence
+  wikigraph wikg:///Users/me/book.wikg/<object-path> pack --budget 5000

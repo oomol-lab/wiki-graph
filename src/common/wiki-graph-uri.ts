@@ -1,7 +1,9 @@
 import { resolve } from "path";
 
-export const WIKI_GRAPH_URI_PREFIX = "wkg://";
-export const WIKI_GRAPH_JOB_URI_PREFIX = "wkg-job://";
+export const WIKI_GRAPH_URI_PREFIX = "wikg://";
+export const LEGACY_WIKI_GRAPH_URI_PREFIX = "wkg://";
+export const WIKI_GRAPH_JOB_URI_PREFIX = "wikg://local/job";
+export const LEGACY_WIKI_GRAPH_JOB_URI_PREFIX = "wkg-job://";
 export const WIKI_GRAPH_ARCHIVE_EXTENSION = ".wikg";
 
 export interface LocatedWikiGraphUri {
@@ -10,19 +12,24 @@ export interface LocatedWikiGraphUri {
 }
 
 export function isWikiGraphUri(value: string | undefined): value is string {
-  return value?.startsWith(WIKI_GRAPH_URI_PREFIX) ?? false;
+  return isWikiGraphUriPrefix(value);
 }
 
 export function isWikiGraphJobUri(value: string | undefined): value is string {
-  return value?.startsWith(WIKI_GRAPH_JOB_URI_PREFIX) ?? false;
+  return (
+    isWikiGraphLocalJobUri(value) ||
+    value?.startsWith(LEGACY_WIKI_GRAPH_JOB_URI_PREFIX) === true
+  );
 }
 
 export function parseLocatedWikiGraphUri(uri: string): LocatedWikiGraphUri {
-  if (!uri.startsWith(WIKI_GRAPH_URI_PREFIX)) {
+  const prefix = getWikiGraphUriPrefix(uri);
+
+  if (prefix === undefined) {
     throw new Error(formatWikiGraphUriExpectedError(uri));
   }
 
-  const body = uri.slice(WIKI_GRAPH_URI_PREFIX.length);
+  const body = uri.slice(prefix.length);
   const split = body.split("#", 2);
   const path = split[0] ?? "";
   const hash = split[1] ?? "";
@@ -32,7 +39,7 @@ export function parseLocatedWikiGraphUri(uri: string): LocatedWikiGraphUri {
   );
 
   if (archiveIndex < 0) {
-    return { objectUri: uri };
+    return { objectUri: normalizeWikiGraphUriPrefix(uri) };
   }
 
   const archivePath = parts.slice(0, archiveIndex + 1).join("/");
@@ -159,7 +166,7 @@ export function formatWikiGraphUriExpectedError(value: string): string {
   const example =
     value.endsWith(WIKI_GRAPH_ARCHIVE_EXTENSION) && value.startsWith("/")
       ? `${WIKI_GRAPH_URI_PREFIX}${value}`
-      : "wkg:///absolute/path/book.wikg";
+      : "wikg:///absolute/path/book.wikg";
 
   return [
     `Expected a Wiki Graph URI with a .wikg archive locator: ${value}`,
@@ -169,9 +176,42 @@ export function formatWikiGraphUriExpectedError(value: string): string {
 }
 
 function stripWikiGraphUriPrefix(uri: string): string {
-  if (!uri.startsWith(WIKI_GRAPH_URI_PREFIX)) {
+  const prefix = getWikiGraphUriPrefix(uri);
+
+  if (prefix === undefined) {
     throw new Error(`Expected a Wiki Graph object URI: ${uri}`);
   }
 
-  return uri.slice(WIKI_GRAPH_URI_PREFIX.length).replace(/^\/+/u, "");
+  return uri.slice(prefix.length).replace(/^\/+/u, "");
+}
+
+function getWikiGraphUriPrefix(uri: string): string | undefined {
+  if (uri.startsWith(WIKI_GRAPH_URI_PREFIX)) {
+    return WIKI_GRAPH_URI_PREFIX;
+  }
+  if (uri.startsWith(LEGACY_WIKI_GRAPH_URI_PREFIX)) {
+    return LEGACY_WIKI_GRAPH_URI_PREFIX;
+  }
+
+  return undefined;
+}
+
+function isWikiGraphUriPrefix(value: string | undefined): value is string {
+  return (
+    value?.startsWith(WIKI_GRAPH_URI_PREFIX) === true ||
+    value?.startsWith(LEGACY_WIKI_GRAPH_URI_PREFIX) === true
+  );
+}
+
+function isWikiGraphLocalJobUri(value: string | undefined): boolean {
+  return (
+    value === WIKI_GRAPH_JOB_URI_PREFIX ||
+    value?.startsWith(`${WIKI_GRAPH_JOB_URI_PREFIX}/`) === true
+  );
+}
+
+function normalizeWikiGraphUriPrefix(uri: string): string {
+  return uri.startsWith(LEGACY_WIKI_GRAPH_URI_PREFIX)
+    ? `${WIKI_GRAPH_URI_PREFIX}${uri.slice(LEGACY_WIKI_GRAPH_URI_PREFIX.length)}`
+    : uri;
 }

@@ -23,10 +23,18 @@ import {
   renderTransformHelpText,
 } from "./help.js";
 import {
+  parseLocalConfigSection,
+  type LocalConfigSection,
+} from "./local-config-store.js";
+import {
   formatLocatedChapterResourceUri,
   formatLocatedChapterSourceCollectionUri,
   formatLocatedChapterUri,
+  LEGACY_WIKI_GRAPH_JOB_URI_PREFIX,
+  LEGACY_WIKI_GRAPH_URI_PREFIX,
   parseLocatedWikiGraphUri,
+  WIKI_GRAPH_JOB_URI_PREFIX,
+  WIKI_GRAPH_URI_PREFIX,
 } from "../wikg/index.js";
 
 export interface CLIArguments {
@@ -124,6 +132,24 @@ export interface CLIObjectMetadataArguments {
 
 export interface CLIStatusArguments {
   readonly llmJSON?: string;
+}
+
+export type CLILocalConfigAction =
+  | "clear"
+  | "delete"
+  | "get"
+  | "put"
+  | "set"
+  | "test";
+
+export interface CLILocalConfigArguments {
+  readonly action: CLILocalConfigAction;
+  readonly inputValue?: string;
+  readonly json?: boolean;
+  readonly jsonInputValue?: string;
+  readonly key?: string;
+  readonly section: LocalConfigSection;
+  readonly secret?: boolean;
 }
 
 export interface CLIGcArguments {
@@ -299,6 +325,7 @@ interface ArchiveArgumentValues extends ArchiveMetaFlagValues {
   readonly prompt?: string;
   readonly role?: string;
   readonly root?: boolean;
+  readonly secret?: boolean;
   readonly stage?: string;
   readonly last?: boolean;
   readonly task?: string;
@@ -382,6 +409,11 @@ export type ParsedCLIArguments =
       readonly args: CLIStatusArguments;
       readonly help: false;
       readonly kind: "config-status";
+    }
+  | {
+      readonly args: CLILocalConfigArguments;
+      readonly help: false;
+      readonly kind: "local-config";
     }
   | {
       readonly args: CLIStatusArguments;
@@ -545,6 +577,9 @@ export function parseCLIArguments(
       recursive: {
         type: "boolean",
       },
+      secret: {
+        type: "boolean",
+      },
       role: {
         type: "string",
       },
@@ -647,6 +682,10 @@ export function parseCLIArguments(
 
   if (isWikiGraphJobUri(positionals[0])) {
     return parseJobUriFirstArguments(positionals, values);
+  }
+
+  if (isWikiGraphLocalConfigUri(positionals[0])) {
+    return parseLocalConfigUriFirstArguments(positionals, values);
   }
 
   if (isWikiGraphUri(positionals[0])) {
@@ -755,7 +794,7 @@ function parseArchiveUriTargetArguments(
     );
   }
 
-  if (objectUri === "wkg://cover") {
+  if (objectUri === "wikg://cover") {
     return parseArchiveCoverUriArguments(
       uri,
       archivePath,
@@ -765,7 +804,7 @@ function parseArchiveUriTargetArguments(
     );
   }
 
-  if (objectUri === "wkg://index") {
+  if (objectUri === "wikg://index") {
     return parseArchiveIndexUriArguments(archivePath, action, tail, values);
   }
 
@@ -799,7 +838,7 @@ function parseArchiveIndexUriArguments(
   tail: readonly string[],
   values: ArchiveArgumentValues,
 ): ParsedCLIArguments {
-  const helpRoute = `wikigraph wkg://<archive.wikg>/index ${action} --help`;
+  const helpRoute = `wikigraph wikg://<archive.wikg>/index ${action} --help`;
 
   if (values.help === true) {
     return {
@@ -1127,11 +1166,11 @@ type ChapterUriTarget =
     };
 
 function parseChapterTarget(objectUri: string): ChapterUriTarget | undefined {
-  if (objectUri === "wkg://chapter") {
+  if (objectUri === "wikg://chapter") {
     return { kind: "collection" };
   }
 
-  if (objectUri === "wkg://chapter/tree") {
+  if (objectUri === "wikg://chapter/tree") {
     return { kind: "tree" };
   }
 
@@ -1148,7 +1187,7 @@ function parseChapterTarget(objectUri: string): ChapterUriTarget | undefined {
     };
   }
 
-  const match = /^wkg:\/\/chapter\/([1-9][0-9]*)(?:\/(.*))?\/?$/u.exec(
+  const match = /^wikg:\/\/chapter\/([1-9][0-9]*)(?:\/(.*))?\/?$/u.exec(
     objectUri,
   );
 
@@ -1251,11 +1290,11 @@ function parseChapterResourceSuffix(
 function parseTriplePatternObjectUri(
   objectUri: string,
 ): ArchiveTriplePattern | undefined {
-  if (!objectUri.startsWith("wkg://triple/")) {
+  if (!objectUri.startsWith("wikg://triple/")) {
     return undefined;
   }
 
-  return parseTriplePatternSuffix(objectUri.slice("wkg://".length));
+  return parseTriplePatternSuffix(objectUri.slice("wikg://".length));
 }
 
 function parseTriplePatternSuffix(
@@ -1302,17 +1341,17 @@ function parseArchiveUriLensObjectUri(
   objectUri: string,
 ): ArchiveUriLens | undefined {
   switch (objectUri) {
-    case "wkg://chapter":
+    case "wikg://chapter":
       return "chapter";
-    case "wkg://chunk":
+    case "wikg://chunk":
       return "chunk";
-    case "wkg://entity":
+    case "wikg://entity":
       return "entity";
-    case "wkg://source":
+    case "wikg://source":
       return "source";
-    case "wkg://summary":
+    case "wikg://summary":
       return "summary";
-    case "wkg://triple":
+    case "wikg://triple":
       return "triple";
     default:
       return undefined;
@@ -1561,7 +1600,7 @@ function parseSingleChapterUriArguments(
       return parseArchiveUriQueueArguments(
         formatLocatedChapterUri(archivePath, chapterId),
         archivePath,
-        `wkg://chapter/${chapterId}`,
+        `wikg://chapter/${chapterId}`,
         tail,
         values,
       );
@@ -1882,7 +1921,7 @@ function parseJobUriFirstArguments(
     case "list":
       if (jobId !== undefined) {
         throw new Error(
-          withHelpRoute("Job list requires `wkg-job://`.", helpRoute),
+          withHelpRoute("Job list requires `wikg://local/job`.", helpRoute),
         );
       }
       return parseQueueArguments(["list", ...positionals.slice(2)], values);
@@ -1918,13 +1957,162 @@ function parseJobUriFirstArguments(
     case "set":
       throw new Error(
         withHelpRoute(
-          "`wkg-job://<job-id> set` is not supported. Use `wkg-job://<job-id>/target set <target>`.",
+          "`wikg://local/job/<job-id> set` is not supported. Use `wikg://local/job/<job-id>/target set <target>`.",
           "wikigraph queue target --help",
         ),
       );
   }
 
   throw new Error(`Internal error: unsupported job URI action ${action}.`);
+}
+
+function parseLocalConfigUriFirstArguments(
+  positionals: readonly string[],
+  values: ArchiveArgumentValues,
+): ParsedCLIArguments {
+  const uri = positionals[0];
+
+  if (uri === undefined) {
+    throw new Error("Internal error: missing local config URI.");
+  }
+
+  const section = parseLocalConfigUriSection(uri);
+  const action = positionals[1] ?? "get";
+  const helpRoute = `wikigraph ${uri} ${action} --help`;
+
+  if (section === undefined) {
+    throw new Error(
+      withHelpRoute(
+        "Expected a local config section URI such as wikg://local/config/llm.",
+        "wikigraph help config",
+      ),
+    );
+  }
+  if (!isLocalConfigAction(action)) {
+    throw new Error(
+      withHelpRoute(
+        `The local config URI form does not support \`${action}\`. Expected get, set, put, delete, clear, or test.`,
+        helpRoute,
+      ),
+    );
+  }
+
+  return parseLocalConfigArguments(
+    section,
+    action,
+    positionals[1] === undefined ? [] : positionals.slice(2),
+    values,
+    helpRoute,
+  );
+}
+
+function parseLocalConfigArguments(
+  section: LocalConfigSection,
+  action: CLILocalConfigAction,
+  tail: readonly string[],
+  values: ArchiveArgumentValues,
+  helpRoute: string,
+): ParsedCLIArguments {
+  rejectLocalConfigFlags(action, values, helpRoute);
+
+  switch (action) {
+    case "get":
+    case "clear":
+    case "test":
+      rejectArchiveExtraPositionals(action, tail, 0, helpRoute);
+      break;
+    case "delete":
+      rejectArchiveExtraPositionals(action, tail, 1, helpRoute);
+      if (tail[0] === undefined) {
+        throw new Error(withHelpRoute("Missing config key.", helpRoute));
+      }
+      break;
+    case "put":
+      rejectArchiveExtraPositionals(
+        action,
+        tail,
+        values.secret === true ? 1 : 2,
+        helpRoute,
+      );
+      if (tail[0] === undefined) {
+        throw new Error(withHelpRoute("Missing config key.", helpRoute));
+      }
+      if (
+        values.secret !== true &&
+        tail[1] === undefined &&
+        values["json-input"] === undefined
+      ) {
+        throw new Error(withHelpRoute("Missing config value.", helpRoute));
+      }
+      break;
+    case "set":
+      rejectArchiveExtraPositionals(action, tail, 1, helpRoute);
+      break;
+  }
+
+  return {
+    args: {
+      action,
+      ...(tail[0] === undefined || (action !== "put" && action !== "delete")
+        ? {}
+        : { key: tail[0] }),
+      ...(values.json === undefined ? {} : { json: values.json }),
+      ...(values["json-input"] === undefined
+        ? {}
+        : { jsonInputValue: values["json-input"] }),
+      ...(action !== "set" && action !== "put"
+        ? {}
+        : tail[action === "put" ? 1 : 0] === undefined
+          ? {}
+          : { inputValue: tail[action === "put" ? 1 : 0] }),
+      section,
+      ...(values.secret === undefined ? {} : { secret: values.secret }),
+    },
+    help: false,
+    kind: "local-config",
+  };
+}
+
+function rejectLocalConfigFlags(
+  action: CLILocalConfigAction,
+  values: ArchiveArgumentValues,
+  helpRoute: string,
+): void {
+  rejectMetaCommandFlag("input", values.input, helpRoute);
+  rejectMetaCommandFlag("llm", values.llm, helpRoute);
+  rejectMetaCommandFlag("output", values.output, helpRoute);
+  rejectMetaCommandFlag("prompt", values.prompt, helpRoute);
+  rejectMetaCommandFlag("task", values.task, helpRoute);
+  rejectMetaCommandBooleanFlag("jsonl", values.jsonl, helpRoute);
+  rejectMetaCommandBooleanFlag("verbose", values.verbose, helpRoute);
+  rejectCommandMetaFlags(values, action, helpRoute);
+
+  if (values.secret === true && action !== "put") {
+    throw new Error(
+      withHelpRoute("`--secret` is only valid for config put.", helpRoute),
+    );
+  }
+  if (action === "get" || action === "test") {
+    return;
+  }
+  if (values.json === true && action !== "set" && action !== "put") {
+    throw new Error(
+      withHelpRoute(`\`${action}\` does not support --json.`, helpRoute),
+    );
+  }
+}
+
+function isLocalConfigAction(
+  value: string | undefined,
+): value is CLILocalConfigAction {
+  return (
+    value === "clear" ||
+    value === "delete" ||
+    value === "get" ||
+    value === "put" ||
+    value === "set" ||
+    value === "test"
+  );
 }
 
 function parseQueueJobTargetUriArguments(
@@ -2244,7 +2432,7 @@ function parseQueueArguments(
     case "add":
       throw new Error(
         withHelpRoute(
-          "`queue add` requires a chapter URI target. Use `wikigraph wkg://<archive.wikg>/chapter/<id> queue add --task <task> --accept-cost`.",
+          "`queue add` requires a chapter URI target. Use `wikigraph wikg://<archive.wikg>/chapter/<id> queue add --task <task> --accept-cost`.",
           helpRoute,
         ),
       );
@@ -3086,10 +3274,10 @@ function validateRelatedTargetUri(
 
 function isPackableObjectUri(objectUri: string): boolean {
   return (
-    /^wkg:\/\/chunk\/[1-9][0-9]*$/u.test(objectUri) ||
-    /^wkg:\/\/chapter\/[1-9][0-9]*\/chunk\/[1-9][0-9]*$/u.test(objectUri) ||
-    /^wkg:\/\/entity\/[^/]+$/u.test(objectUri) ||
-    /^wkg:\/\/chapter\/[1-9][0-9]*\/entity\/[^/]+$/u.test(objectUri)
+    /^wikg:\/\/chunk\/[1-9][0-9]*$/u.test(objectUri) ||
+    /^wikg:\/\/chapter\/[1-9][0-9]*\/chunk\/[1-9][0-9]*$/u.test(objectUri) ||
+    /^wikg:\/\/entity\/[^/]+$/u.test(objectUri) ||
+    /^wikg:\/\/chapter\/[1-9][0-9]*\/entity\/[^/]+$/u.test(objectUri)
   );
 }
 
@@ -3097,14 +3285,14 @@ function getRelatedObjectUriType(
   objectUri: string,
 ): "chunk" | "entity" | undefined {
   if (
-    /^wkg:\/\/chunk\/[1-9][0-9]*$/u.test(objectUri) ||
-    /^wkg:\/\/chapter\/[1-9][0-9]*\/chunk\/[1-9][0-9]*$/u.test(objectUri)
+    /^wikg:\/\/chunk\/[1-9][0-9]*$/u.test(objectUri) ||
+    /^wikg:\/\/chapter\/[1-9][0-9]*\/chunk\/[1-9][0-9]*$/u.test(objectUri)
   ) {
     return "chunk";
   }
   if (
-    /^wkg:\/\/entity\/[^/]+$/u.test(objectUri) ||
-    /^wkg:\/\/chapter\/[1-9][0-9]*\/entity\/[^/]+$/u.test(objectUri)
+    /^wikg:\/\/entity\/[^/]+$/u.test(objectUri) ||
+    /^wikg:\/\/chapter\/[1-9][0-9]*\/entity\/[^/]+$/u.test(objectUri)
   ) {
     return "entity";
   }
@@ -3154,8 +3342,8 @@ function formatPathAsUriMessage(path: string): string {
   const normalized = normalizeWikgPathSeparators(path);
   const [archivePath = normalized, suffix = ""] = splitWikgPath(normalized);
   const uri = archivePath.startsWith("/")
-    ? `wkg://${archivePath}${suffix}`
-    : `wkg://${archivePath.replace(/^\.\/+/u, "")}${suffix}`;
+    ? `wikg://${archivePath}${suffix}`
+    : `wikg://${archivePath.replace(/^\.\/+/u, "")}${suffix}`;
 
   return [
     `Expected a Wiki Graph URI, not a filesystem path: ${path}`,
@@ -3178,7 +3366,7 @@ function formatMissingArchiveLocatorMessage(uri: string): string {
   return [
     `Expected a located Wiki Graph URI with a .wikg archive locator: ${uri}`,
     "Short object URIs from output are archive-relative handles.",
-    "Example: wkg://book.wikg/entity/Q9957",
+    "Example: wikg://book.wikg/entity/Q9957",
     "See: wikigraph help uri",
   ].join("\n");
 }
@@ -3194,20 +3382,20 @@ function formatPackObjectMismatchMessage(uri: string): string {
 function formatMissingArchiveInputMessage(action: CLIArchiveAction): string {
   switch (action) {
     case "create":
-      return "Missing archive URI. Use `wikigraph wkg://<archive.wikg> create [source]`.";
+      return "Missing archive URI. Use `wikigraph wikg://<archive.wikg> create [source]`.";
     case "export":
-      return "Missing archive URI. Use `wikigraph wkg://<archive.wikg> export --output-format <format>`.";
+      return "Missing archive URI. Use `wikigraph wikg://<archive.wikg> export --output-format <format>`.";
     case "estimate":
-      return "Missing archive URI. Use `wikigraph wkg://<archive.wikg> estimate`.";
+      return "Missing archive URI. Use `wikigraph wikg://<archive.wikg> estimate`.";
     case "search":
-      return "Missing Wiki Graph URI with .wikg locator. Use `wikigraph wkg://<archive.wikg> search <query>`.";
+      return "Missing Wiki Graph URI with .wikg locator. Use `wikigraph wikg://<archive.wikg> search <query>`.";
     case "list":
-      return "Missing Wiki Graph URI with .wikg locator. Use `wikigraph wkg://<archive.wikg> list`.";
+      return "Missing Wiki Graph URI with .wikg locator. Use `wikigraph wikg://<archive.wikg> list`.";
     case "get":
     case "related":
     case "evidence":
     case "pack":
-      return `Missing object URI. Use \`wikigraph wkg://<archive.wikg>/<object> ${action}\`.`;
+      return `Missing object URI. Use \`wikigraph wikg://<archive.wikg>/<object> ${action}\`.`;
     case "next":
       return "Missing continuation cursor. Use `wikigraph next <cursor>`.";
   }
@@ -3882,7 +4070,7 @@ function parseChapterRef(
 ): number {
   const normalized = value.trim();
 
-  if (!normalized.startsWith("wkg://")) {
+  if (!isWikiGraphUri(normalized)) {
     return parseSerialId(value, flag, helpRoute);
   }
 
@@ -3898,12 +4086,12 @@ function parseChapterRef(
   }
 
   const objectUri = parsed.objectUri ?? normalized;
-  const match = /^wkg:\/\/chapter\/([1-9][0-9]*)\/?$/u.exec(objectUri);
+  const match = /^wikg:\/\/chapter\/([1-9][0-9]*)\/?$/u.exec(objectUri);
 
   if (match?.[1] === undefined) {
     throw new Error(
       withHelpRoute(
-        `Invalid ${flag}: ${value}. Expected a chapter URI such as wkg://chapter/3.`,
+        `Invalid ${flag}: ${value}. Expected a chapter URI such as wikg://chapter/3.`,
         helpRoute,
       ),
     );
@@ -4381,24 +4569,51 @@ function isUriFirstArchiveAction(
 }
 
 function isWikiGraphUri(value: string | undefined): boolean {
-  return value?.startsWith("wkg://") === true;
+  return (
+    value?.startsWith(WIKI_GRAPH_URI_PREFIX) === true ||
+    value?.startsWith(LEGACY_WIKI_GRAPH_URI_PREFIX) === true
+  );
 }
 
 function stripObjectUriPrefix(objectUri: string): string {
-  if (!objectUri.startsWith("wkg://")) {
+  const prefix = getWikiGraphUriPrefix(objectUri);
+
+  if (prefix === undefined) {
     throw new Error(`Expected Wiki Graph object URI: ${objectUri}`);
   }
 
-  return objectUri.slice("wkg://".length).replace(/^\/+|\/+$/gu, "");
+  return objectUri.slice(prefix.length).replace(/^\/+|\/+$/gu, "");
 }
 
 function isWikiGraphJobUri(value: string | undefined): boolean {
-  return value?.startsWith("wkg-job://") === true;
+  return isWikiGraphLocalJobUri(value) || isLegacyWikiGraphJobUri(value);
+}
+
+function isWikiGraphLocalConfigUri(value: string | undefined): boolean {
+  return (
+    value === `${WIKI_GRAPH_URI_PREFIX}local/config` ||
+    value?.startsWith(`${WIKI_GRAPH_URI_PREFIX}local/config/`) === true
+  );
+}
+
+function parseLocalConfigUriSection(
+  uri: string,
+): LocalConfigSection | undefined {
+  const prefix = `${WIKI_GRAPH_URI_PREFIX}local/config/`;
+
+  if (!uri.startsWith(prefix)) {
+    return undefined;
+  }
+
+  const [section] = uri.slice(prefix.length).split("/");
+
+  return parseLocalConfigSection(section);
 }
 
 function parseWikiGraphJobUri(uri: string): string | undefined {
-  const prefix = "wkg-job://";
-  if (!uri.startsWith(prefix)) {
+  const body = parseWikiGraphJobUriBody(uri);
+
+  if (body === undefined) {
     throw new Error(
       withHelpRoute(
         `Expected a Wiki Graph job URI: ${uri}`,
@@ -4407,7 +4622,7 @@ function parseWikiGraphJobUri(uri: string): string | undefined {
     );
   }
 
-  const jobId = uri.slice(prefix.length).trim();
+  const jobId = stripLeadingSlash(body).trim();
   if (jobId === "") {
     return undefined;
   }
@@ -4418,17 +4633,19 @@ function parseWikiGraphJobUri(uri: string): string | undefined {
 function parseWikiGraphJobTargetUri(
   uri: string | undefined,
 ): string | undefined {
-  const prefix = "wkg-job://";
-  if (uri === undefined || !uri.startsWith(prefix)) {
+  if (uri === undefined) {
     return undefined;
   }
 
-  const body = uri.slice(prefix.length);
+  const body = parseWikiGraphJobUriBody(uri);
+  if (body === undefined) {
+    return undefined;
+  }
   if (!body.endsWith("/target")) {
     return undefined;
   }
 
-  const jobId = body.slice(0, -"/target".length).trim();
+  const jobId = stripLeadingSlash(body.slice(0, -"/target".length)).trim();
   if (jobId === "") {
     throw new Error(
       withHelpRoute(
@@ -4439,6 +4656,46 @@ function parseWikiGraphJobTargetUri(
   }
 
   return jobId;
+}
+
+function getWikiGraphUriPrefix(uri: string): string | undefined {
+  if (uri.startsWith(WIKI_GRAPH_URI_PREFIX)) {
+    return WIKI_GRAPH_URI_PREFIX;
+  }
+  if (uri.startsWith(LEGACY_WIKI_GRAPH_URI_PREFIX)) {
+    return LEGACY_WIKI_GRAPH_URI_PREFIX;
+  }
+
+  return undefined;
+}
+
+function isWikiGraphLocalJobUri(value: string | undefined): boolean {
+  return (
+    value === WIKI_GRAPH_JOB_URI_PREFIX ||
+    value?.startsWith(`${WIKI_GRAPH_JOB_URI_PREFIX}/`) === true
+  );
+}
+
+function isLegacyWikiGraphJobUri(value: string | undefined): boolean {
+  return value?.startsWith(LEGACY_WIKI_GRAPH_JOB_URI_PREFIX) === true;
+}
+
+function parseWikiGraphJobUriBody(uri: string): string | undefined {
+  if (uri === WIKI_GRAPH_JOB_URI_PREFIX) {
+    return "";
+  }
+  if (uri.startsWith(`${WIKI_GRAPH_JOB_URI_PREFIX}/`)) {
+    return uri.slice(WIKI_GRAPH_JOB_URI_PREFIX.length);
+  }
+  if (uri.startsWith(LEGACY_WIKI_GRAPH_JOB_URI_PREFIX)) {
+    return uri.slice(LEGACY_WIKI_GRAPH_JOB_URI_PREFIX.length);
+  }
+
+  return undefined;
+}
+
+function stripLeadingSlash(value: string): string {
+  return value.replace(/^\/+/u, "");
 }
 
 function requireArchiveUriPath(uri: string, helpRoute: string): string {
@@ -4773,9 +5030,15 @@ function isValueInputJsonFlagContext(argv: readonly string[]): boolean {
   const first = argv[0];
   const second = argv[1];
 
+  if (second !== "set" && second !== "put") {
+    return false;
+  }
+  if (isWikiGraphLocalConfigUri(first)) {
+    return true;
+  }
+
   return (
     isWikiGraphUri(first) &&
-    (second === "set" || second === "put") &&
     argv.some((item) => item.includes("/meta") || item.endsWith(".wikg/meta"))
   );
 }

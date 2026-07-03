@@ -514,7 +514,7 @@ describe("cli/main", () => {
       "wikigraph",
       "get",
       "/tmp/book.wikg",
-      "wkg://entity/Q1",
+      "wikg://entity/Q1",
       "--json",
     ];
     mainMockState.argsResult = {
@@ -522,7 +522,7 @@ describe("cli/main", () => {
         action: "get",
         archivePath: "/tmp/book.wikg",
         format: "json",
-        objectId: "wkg://entity/Q1",
+        objectId: "wikg://entity/Q1",
       },
       help: false,
       kind: "archive",

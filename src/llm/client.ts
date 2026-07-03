@@ -35,6 +35,7 @@ import type {
 } from "./types.js";
 
 const DEFAULT_TIMEOUT_MS = 360_000;
+const DEFAULT_CONCURRENT_REQUESTS = 6;
 const ABORT_ERROR_NAMES = new Set([
   "AbortError",
   "ResponseAborted",
@@ -113,7 +114,7 @@ export class LLM<S extends string> {
   }>;
 
   public constructor(options: LLMOptions<S>) {
-    const concurrent = options.concurrent ?? 1;
+    const concurrent = options.concurrent ?? DEFAULT_CONCURRENT_REQUESTS;
     const timeout = options.timeout ?? DEFAULT_TIMEOUT_MS;
     const temperature = options.temperature ?? 0.6;
     const topP = options.topP ?? 0.6;

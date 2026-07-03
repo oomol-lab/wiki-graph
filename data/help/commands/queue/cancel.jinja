@@ -1,11 +1,11 @@
 Help Type: command
-Command: wikigraph wkg-job://<job-id> cancel
+Command: wikigraph wikg://local/job/<job-id> cancel
 
 Purpose:
   Cancel one active job.
 
 Usage:
-  wikigraph wkg-job://<job-id> cancel
+  wikigraph wikg://local/job/<job-id> cancel
 
 Arguments:
   <job-id>              Full job id or an unambiguous prefix.
@@ -15,4 +15,4 @@ Behavior:
   - Their workspace is retained for debugging until `queue clean` removes old retained files.
 
 Example:
-  wikigraph wkg-job://75d12f7e cancel
+  wikigraph wikg://local/job/75d12f7e cancel

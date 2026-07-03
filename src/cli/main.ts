@@ -9,6 +9,7 @@ import {
 import { runConvertCommand } from "./convert.js";
 import { runGcCommand } from "./gc.js";
 import { runLegacyCommand } from "./legacy.js";
+import { runLocalConfigCommand } from "./local-config.js";
 import { renderMainHelpText } from "./help.js";
 import { runObjectMetadataCommand } from "./object-metadata.js";
 import { runQueueCommand } from "./queue.js";
@@ -65,6 +66,9 @@ export async function main(): Promise<void> {
         return;
       case "legacy":
         await runLegacyCommand(parsed.args);
+        return;
+      case "local-config":
+        await runLocalConfigCommand(parsed.args);
         return;
       case "config-status":
         await runStatusCommand(parsed.args);

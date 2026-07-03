@@ -10,7 +10,7 @@ Usage:
   wikigraph <archive-uri>/chapter list [--all] [--limit <n>] [--cursor <token>] [--json|--jsonl] [--llm <json>] [--help|-h]
 
 Output shape:
-  wkg://chapter/<id>  <title-or-[untitled]>  source:<ready|missing> reading-graph:<ready|missing> reading-summary:<ready|missing> knowledge-graph:<ready|missing>
+  wikg://chapter/<id>  <title-or-[untitled]>  source:<ready|missing> reading-graph:<ready|missing> reading-summary:<ready|missing> knowledge-graph:<ready|missing>
 
   With machine-readable output, each chapter object includes `uri`, `title`, and `state`.
 
@@ -18,7 +18,7 @@ Behavior:
   - Includes sourced, generated, and unfinished chapters.
   - Some chapters are structural table-of-contents nodes that organize child chapters; missing generated artifacts alone does not make them abnormal.
   - Read `wikigraph help retrieval` before choosing `--limit`, `--all`, `--json`, or `--jsonl`.
-  - Chapter ids are encoded in the returned `wkg://chapter/<id>` URIs.
+  - Chapter ids are encoded in the returned `wikg://chapter/<id>` URIs.
   - Does not call an LLM provider.
   - Does not mutate chapter content or summaries.
 
@@ -27,5 +27,5 @@ Use this before mutation:
     wikigraph <archive-uri>/chapter list
 
 See also:
-  - wikigraph wkg://book.wikg/chapter/3/state get --help
+  - wikigraph wikg://book.wikg/chapter/3/state get --help
   - wikigraph help command

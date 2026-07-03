@@ -4,15 +4,15 @@ This note tracks how the CLI help system is expected to recover from common user
 
 ## Error Routing Coverage
 
-| Problem family    | Representative failures                                                          | Expected help landing                                                                                                                    |
-| ----------------- | -------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
-| Command shape     | unexpected positional args, unsupported `help` flags                             | `wikigraph help command` or `wikigraph --help`                                                                                           |
-| Maintenance usage | missing URI target, unsupported archive/cover/chapter flags, invalid chapter URI | `wikigraph wkg://book.wikg get --help`, `wikigraph wkg://book.wikg/cover get --help`, or `wikigraph wkg://book.wikg/chapter list --help` |
-| Format rules      | unsupported `stdin`/`stdout` formats, missing format inference                   | `wikigraph help format`                                                                                                                  |
-| Runtime rules     | interactive stdin refusal, `--verbose` with stdout output                        | `wikigraph help runtime`                                                                                                                 |
-| LLM config        | missing provider/model, unsupported provider/baseURL combinations                | `wikigraph help config`                                                                                                                  |
-| Env overrides     | invalid provider values, invalid numeric/boolean/sampling env values             | `wikigraph help env`                                                                                                                     |
-| Config file       | invalid JSON, invalid schema fields                                              | `wikigraph help config-file`                                                                                                             |
+| Problem family    | Representative failures                                                          | Expected help landing                                                                                                                       |
+| ----------------- | -------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| Command shape     | unexpected positional args, unsupported `help` flags                             | `wikigraph help command` or `wikigraph --help`                                                                                              |
+| Maintenance usage | missing URI target, unsupported archive/cover/chapter flags, invalid chapter URI | `wikigraph wikg://book.wikg get --help`, `wikigraph wikg://book.wikg/cover get --help`, or `wikigraph wikg://book.wikg/chapter list --help` |
+| Format rules      | unsupported `stdin`/`stdout` formats, missing format inference                   | `wikigraph help format`                                                                                                                     |
+| Runtime rules     | interactive stdin refusal, `--verbose` with stdout output                        | `wikigraph help runtime`                                                                                                                    |
+| LLM config        | missing provider/model, unsupported provider/baseURL combinations                | `wikigraph help config`                                                                                                                     |
+| Env overrides     | invalid provider values, invalid numeric/boolean/sampling env values             | `wikigraph help env`                                                                                                                        |
+| Config file       | invalid JSON, invalid schema fields                                              | `wikigraph help config-file`                                                                                                                |
 
 ## Current Test Coverage
 

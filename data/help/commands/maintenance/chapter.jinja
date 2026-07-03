@@ -39,16 +39,16 @@ Input rules:
   - Structure edits, `/title set`, `/source set`, `/summary set`, and `reset` do not call an LLM provider.
   - To generate reading-graph, reading-summary, or knowledge-graph for a chapter, use `wikigraph <chapter-uri> queue add --task <reading-graph|reading-summary|knowledge-graph> --accept-cost`.
   - `<chapter-uri>/state get` shows the aggregate chapter state. `<chapter-uri>/state/<target> get` checks one target.
-  - Append `--help` after an action for action-specific details, for example `wikigraph wkg://book.wikg/chapter/3 reset --help`.
+  - Append `--help` after an action for action-specific details, for example `wikigraph wikg://book.wikg/chapter/3 reset --help`.
 
 See also:
-  - wikigraph wkg://book.wikg/chapter list
-  - wikigraph wkg://book.wikg/chapter/3/state get
-  - wikigraph wkg://book.wikg/chapter/3/state/knowledge-graph get
-  - wikigraph wkg://book.wikg/chapter/tree get
-  - wikigraph wkg://book.wikg/chapter/3/title set "New Title"
-  - wikigraph wkg://book.wikg/chapter/3/title clear
-  - wikigraph wkg://book.wikg/chapter/3/source set --input chapter.md --input-format markdown
-  - wikigraph wkg://book.wikg/chapter/3/summary set --input summary.md
+  - wikigraph wikg://book.wikg/chapter list
+  - wikigraph wikg://book.wikg/chapter/3/state get
+  - wikigraph wikg://book.wikg/chapter/3/state/knowledge-graph get
+  - wikigraph wikg://book.wikg/chapter/tree get
+  - wikigraph wikg://book.wikg/chapter/3/title set "New Title"
+  - wikigraph wikg://book.wikg/chapter/3/title clear
+  - wikigraph wikg://book.wikg/chapter/3/source set --input chapter.md --input-format markdown
+  - wikigraph wikg://book.wikg/chapter/3/summary set --input summary.md
   - wikigraph queue --help
   - wikigraph help command

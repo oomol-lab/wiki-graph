@@ -18,6 +18,8 @@ export {
   formatWikiGraphUriExpectedError,
   isWikiGraphJobUri,
   isWikiGraphUri,
+  LEGACY_WIKI_GRAPH_JOB_URI_PREFIX,
+  LEGACY_WIKI_GRAPH_URI_PREFIX,
   parseLocatedWikiGraphUri,
   requireArchiveUri,
   requireLocatedObjectOrArchiveUri,

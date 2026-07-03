@@ -44,9 +44,9 @@ Archive commands:
 
 Generation queue:
   wikigraph <chapter-uri> queue add --task <reading-graph|reading-summary|knowledge-graph> --accept-cost [--boost] [--llm <json>] [--prompt <text>]
-  wikigraph wkg-job:// list [--all] [--active]
-  wikigraph wkg-job://<job-id> get [--json]
-  wikigraph wkg-job://<job-id> watch [--jsonl] [--from beginning|now]
+  wikigraph wikg://local/job/ list [--all] [--active]
+  wikigraph wikg://local/job/<job-id> get [--json]
+  wikigraph wikg://local/job/<job-id> watch [--jsonl] [--from beginning|now]
   Queue generation tasks call an LLM, consume tokens, and may incur provider charges.
 
 Maintenance:

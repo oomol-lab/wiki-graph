@@ -13,6 +13,14 @@ const queueMockState = vi.hoisted(() => ({
   commitSummaryCalls: [] as unknown[],
   inputRevisionAssertions: [] as unknown[],
   inputRevisionRecords: [] as unknown[],
+  cliConfig: {} as {
+    readonly queue?: {
+      readonly concurrent?: number;
+    };
+    readonly request?: {
+      readonly concurrent?: number;
+    };
+  },
   revision: 1,
   events: [] as unknown[],
   getJobIds: [] as string[],
@@ -235,16 +243,7 @@ vi.mock("../../src/cli/io.js", () => ({
 }));
 
 vi.mock("../../src/cli/config.js", () => ({
-  loadCLIConfig: vi.fn(() =>
-    Promise.resolve({
-      queue: {
-        concurrent: 3,
-      },
-      request: {
-        concurrent: 2,
-      },
-    }),
-  ),
+  loadCLIConfig: vi.fn(() => Promise.resolve(queueMockState.cliConfig)),
 }));
 
 vi.mock("../../src/cli/stage-runtime.js", () => ({
@@ -282,6 +281,7 @@ describe("cli/queue", () => {
     queueMockState.getJobIds.length = 0;
     queueMockState.inputRevisionAssertions.length = 0;
     queueMockState.inputRevisionRecords.length = 0;
+    queueMockState.cliConfig = {};
     queueMockState.jobs = [];
     queueMockState.job = {
       archiveKey: "archive-key",
@@ -553,12 +553,26 @@ describe("cli/queue", () => {
     ]);
   });
 
-  it("uses queue concurrency for worker slots", async () => {
+  it("uses default queue concurrency for worker slots", async () => {
     await runQueueCommand({
       action: "worker",
     });
 
     expect(queueMockState.runWorkerOptions?.concurrency).toBe(3);
+  });
+
+  it("uses configured queue concurrency for worker slots", async () => {
+    queueMockState.cliConfig = {
+      queue: {
+        concurrent: 5,
+      },
+    };
+
+    await runQueueCommand({
+      action: "worker",
+    });
+
+    expect(queueMockState.runWorkerOptions?.concurrency).toBe(5);
   });
 
   it("runs knowledge graph work without reading graph or summary builds", async () => {

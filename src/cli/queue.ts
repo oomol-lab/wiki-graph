@@ -53,6 +53,7 @@ const TERMINAL_STATES = new Set<BuildJobState>([
   "failed",
   "canceled",
 ]);
+const DEFAULT_QUEUE_CONCURRENCY = 3;
 
 export async function runQueueCommand(args: CLIQueueArguments): Promise<void> {
   switch (args.action) {
@@ -162,7 +163,7 @@ async function runQueueWorker(): Promise<void> {
   const config = await loadCLIConfig();
 
   await runBuildJobWorker({
-    concurrency: config.queue?.concurrent ?? 1,
+    concurrency: config.queue?.concurrent ?? DEFAULT_QUEUE_CONCURRENCY,
     executeJob: async (job, reporter, context) => {
       await executeBuildJob(job, reporter, context);
     },

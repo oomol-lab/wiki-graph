@@ -61,6 +61,10 @@ import {
   type SearchIndexQueryResult,
   type SearchIndexTextHit,
 } from "../search-index/search-index.js";
+import {
+  LEGACY_WIKI_GRAPH_URI_PREFIX,
+  WIKI_GRAPH_URI_PREFIX,
+} from "../../common/wiki-graph-uri.js";
 
 export type ArchiveObjectType =
   | "chapter"
@@ -1477,8 +1481,12 @@ export async function readArchivePage(
   id: string,
   options: ArchivePageOptions = {},
 ): Promise<ArchivePage> {
-  if (id.startsWith("wkg://")) {
-    return await readWikiGraphPage(document, id, options);
+  if (isWikiGraphObjectUri(id)) {
+    return await readWikiGraphPage(
+      document,
+      normalizeWikiGraphObjectUri(id),
+      options,
+    );
   }
 
   const reference = parseArchiveReference(id);
@@ -1582,6 +1590,7 @@ async function readWikiGraphPage(
   uri: string,
   options: ArchivePageOptions = {},
 ): Promise<ArchivePage> {
+  uri = normalizeWikiGraphObjectUri(uri);
   const reference = parseWikiGraphReference(uri);
 
   switch (reference.type) {
@@ -1600,8 +1609,8 @@ async function readWikiGraphPage(
       return {
         id:
           reference.target === undefined
-            ? `wkg://chapter/${reference.chapterId}/state`
-            : `wkg://chapter/${reference.chapterId}/state/${reference.target}`,
+            ? `wikg://chapter/${reference.chapterId}/state`
+            : `wikg://chapter/${reference.chapterId}/state/${reference.target}`,
         ...(reference.target === undefined
           ? { state: targets }
           : { target: reference.target, value: targets[reference.target] }),
@@ -1724,7 +1733,8 @@ export async function listAllArchiveLinks(
   document: ReadonlyDocument,
   id: string,
 ): Promise<readonly GraphNeighbor[]> {
-  if (id.startsWith("wkg://")) {
+  if (isWikiGraphObjectUri(id)) {
+    id = normalizeWikiGraphObjectUri(id);
     const reference = parseWikiGraphReference(id);
 
     if (reference.type !== "chunk") {
@@ -1758,8 +1768,12 @@ export async function listRelatedArchiveObjects(
   id: string,
   options: ArchiveRelatedOptions = {},
 ): Promise<ArchiveRelatedResult> {
-  if (id.startsWith("wkg://")) {
-    return await listRelatedWikiGraphObjects(document, id, options);
+  if (isWikiGraphObjectUri(id)) {
+    return await listRelatedWikiGraphObjects(
+      document,
+      normalizeWikiGraphObjectUri(id),
+      options,
+    );
   }
 
   const reference = parseArchiveReference(id);
@@ -1797,7 +1811,7 @@ async function listRelatedWikiGraphObjects(
       const chapter = await requireChapter(document, reference.chapterId);
       const items: ArchiveListItem[] = [
         {
-          id: `wkg://chapter/${reference.chapterId}/source`,
+          id: `wikg://chapter/${reference.chapterId}/source`,
           label: "Source",
           summary: `${chapter.fragmentCount} source fragments`,
           type: "source",
@@ -1807,7 +1821,7 @@ async function listRelatedWikiGraphObjects(
 
       if (summary !== undefined) {
         items.push({
-          id: `wkg://chapter/${reference.chapterId}/summary`,
+          id: `wikg://chapter/${reference.chapterId}/summary`,
           label: "Summary",
           summary: createSnippet(summary),
           type: "summary",
@@ -2508,7 +2522,7 @@ function findEntities(
       hit: {
         chapter: mention.chapterId,
         field: "title" as const,
-        id: `wkg://entity/${mention.qid}`,
+        id: `wikg://entity/${mention.qid}`,
         ...createFindMatchFields(match),
         position: {
           chapter: mention.chapterId,
@@ -2672,7 +2686,7 @@ function listEntityCollection(
         createUnscoredEntityEvidenceMention(mention),
       ),
       field: "title",
-      id: `wkg://entity/${qid}`,
+      id: `wikg://entity/${qid}`,
       position: {
         chapter: first.chapterId,
         sentence: first.sentenceIndex ?? 0,
@@ -2957,12 +2971,12 @@ async function hydrateTextStreamHitContext(
 function parseTextStreamHitReference(
   uri: string,
 ): Extract<WikiGraphReference, { readonly type: "text-stream" }> | undefined {
-  if (!uri.startsWith("wkg://")) {
+  if (!isWikiGraphObjectUri(uri)) {
     return undefined;
   }
 
   try {
-    const reference = parseWikiGraphReference(uri);
+    const reference = parseWikiGraphReference(normalizeWikiGraphObjectUri(uri));
 
     return reference.type === "text-stream" ? reference : undefined;
   } catch {
@@ -3011,12 +3025,12 @@ async function hydrateFindHitBacklinks(
 function parseSourceBacklinkReference(
   uri: string,
 ): Extract<WikiGraphReference, { readonly type: "text-stream" }> | undefined {
-  if (!uri.startsWith("wkg://")) {
+  if (!isWikiGraphObjectUri(uri)) {
     return undefined;
   }
 
   try {
-    const reference = parseWikiGraphReference(uri);
+    const reference = parseWikiGraphReference(normalizeWikiGraphObjectUri(uri));
 
     return reference.type === "text-stream" && reference.stream === "source"
       ? reference
@@ -3332,11 +3346,11 @@ function formatTripleUri(
   predicate: string,
   objectQid: string,
 ): string {
-  return `wkg://triple/${subjectQid}/${encodeURIComponent(predicate)}/${objectQid}`;
+  return `wikg://triple/${subjectQid}/${encodeURIComponent(predicate)}/${objectQid}`;
 }
 
 function formatEntityUri(qid: string): string {
-  return `wkg://entity/${qid}`;
+  return `wikg://entity/${qid}`;
 }
 
 function isEntityOnlySearch(options: ArchiveFindOptions): boolean {
@@ -3620,9 +3634,12 @@ function createSentenceHitKey(
 }
 
 function parseEntityQid(id: string): string | undefined {
-  const prefix = "wkg://entity/";
+  const normalized = normalizeWikiGraphObjectUri(id);
+  const prefix = `${WIKI_GRAPH_URI_PREFIX}entity/`;
 
-  return id.startsWith(prefix) ? id.slice(prefix.length) : undefined;
+  return normalized.startsWith(prefix)
+    ? normalized.slice(prefix.length)
+    : undefined;
 }
 
 function filterLexicalHitsByMatch(
@@ -4795,7 +4812,7 @@ function formatTextStreamRangeUri(
       ? String(startSentenceIndex)
       : `${startSentenceIndex}..${endSentenceIndex}`;
 
-  return `wkg://chapter/${chapterId}/${stream}#${hash}`;
+  return `wikg://chapter/${chapterId}/${stream}#${hash}`;
 }
 
 function mergeEvidenceRanges(
@@ -4896,7 +4913,9 @@ type WikiGraphReference =
     };
 
 function parseWikiGraphReference(uri: string): WikiGraphReference {
-  if (!uri.startsWith("wkg://")) {
+  uri = normalizeWikiGraphObjectUri(uri);
+
+  if (!isWikiGraphObjectUri(uri)) {
     const archiveReference = parseArchiveReference(uri);
 
     switch (archiveReference.type) {
@@ -4918,11 +4937,13 @@ function parseWikiGraphReference(uri: string): WikiGraphReference {
     }
   }
 
-  if (uri === "wkg://") {
+  if (uri === WIKI_GRAPH_URI_PREFIX) {
     return { type: "meta" };
   }
 
-  const [rawPath = "", hash = ""] = uri.slice("wkg://".length).split("#", 2);
+  const [rawPath = "", hash = ""] = uri
+    .slice(WIKI_GRAPH_URI_PREFIX.length)
+    .split("#", 2);
   const pathParts = rawPath.split("/").filter((part) => part !== "");
 
   if (pathParts.length === 0) {
@@ -5199,6 +5220,19 @@ const GROUP_SCORE_EVIDENCE_LIMIT = 10;
 const TEXT_ONLY_SEARCH_CACHE_WINDOW = 100;
 const GROUP_SCORE_MAX_EQUAL_EVIDENCE_BONUS = 0.3;
 const ARCHIVE_ROOT_ID = "meta:root";
+
+function isWikiGraphObjectUri(uri: string): boolean {
+  return (
+    uri.startsWith(WIKI_GRAPH_URI_PREFIX) ||
+    uri.startsWith(LEGACY_WIKI_GRAPH_URI_PREFIX)
+  );
+}
+
+function normalizeWikiGraphObjectUri(uri: string): string {
+  return uri.startsWith(LEGACY_WIKI_GRAPH_URI_PREFIX)
+    ? `${WIKI_GRAPH_URI_PREFIX}${uri.slice(LEGACY_WIKI_GRAPH_URI_PREFIX.length)}`
+    : uri;
+}
 
 const BROAD_FIND_LENS_HINT = {
   lenses: {
@@ -5526,7 +5560,7 @@ function parseTripleHitUri(uri: string):
     }
   | undefined {
   const match =
-    /^wkg:\/\/triple\/(Q[1-9][0-9]*)\/([^/]+)\/(Q[1-9][0-9]*)$/u.exec(uri);
+    /^wikg:\/\/triple\/(Q[1-9][0-9]*)\/([^/]+)\/(Q[1-9][0-9]*)$/u.exec(uri);
 
   if (
     match?.[1] === undefined ||

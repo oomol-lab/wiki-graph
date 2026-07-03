@@ -281,7 +281,7 @@ async function writeChapterList(
     await writeTextToStdout(
       formatCLIJSON({
         chapters: entries.map((entry) => ({
-          uri: `wkg://chapter/${entry.chapterId}`,
+          uri: `wikg://chapter/${entry.chapterId}`,
           title: entry.title,
           stage: formatStage(entry.stage),
         })),
@@ -334,7 +334,7 @@ function formatChapterTreeNodes(
     const childPrefix = `${prefix}${last ? "   " : "│  "}`;
 
     return [
-      `${prefix}${branch}${formatChapterTreeTitle(node.title)}  wkg://chapter/${node.id}`,
+      `${prefix}${branch}${formatChapterTreeTitle(node.title)}  wikg://chapter/${node.id}`,
       ...formatChapterTreeNodes(node.children, childPrefix),
     ];
   });

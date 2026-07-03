@@ -1181,7 +1181,7 @@ function mapEntitySearchObjectRow(
       total: 0,
     },
     field: "title",
-    id: `wkg://entity/${qid}`,
+    id: `wikg://entity/${qid}`,
     score: getNumber(row, "result_score"),
     snippet: qid,
     title: qid,
