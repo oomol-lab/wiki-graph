@@ -60,6 +60,9 @@ export async function runQueueCommand(args: CLIQueueArguments): Promise<void> {
     case "add": {
       await assertQueueAddReady(args);
       assertBuildCostAccepted(args);
+      await loadRequiredStageConfig({
+        ...(args.llmJSON === undefined ? {} : { llmJSON: args.llmJSON }),
+      });
 
       const job = await addBuildJob({
         archivePath: args.archivePath!,

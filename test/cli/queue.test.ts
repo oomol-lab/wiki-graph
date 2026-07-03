@@ -19,6 +19,8 @@ const queueMockState = vi.hoisted(() => ({
       readonly request?: number;
     };
   },
+  loadRequiredStageConfigCalls: [] as unknown[],
+  loadRequiredStageConfigError: undefined as Error | undefined,
   revision: 1,
   events: [] as unknown[],
   getJobIds: [] as string[],
@@ -246,11 +248,16 @@ vi.mock("../../src/cli/config.js", () => ({
 
 vi.mock("../../src/cli/stage-runtime.js", () => ({
   createStageLLM: vi.fn(() => ({})),
-  loadRequiredStageConfig: vi.fn(() =>
-    Promise.resolve({
+  loadRequiredStageConfig: vi.fn((options: unknown) => {
+    queueMockState.loadRequiredStageConfigCalls.push(options);
+    if (queueMockState.loadRequiredStageConfigError !== undefined) {
+      return Promise.reject(queueMockState.loadRequiredStageConfigError);
+    }
+
+    return Promise.resolve({
       prompt: "Keep key beats",
-    }),
-  ),
+    });
+  }),
   resolveExtractionPrompt: vi.fn((prompt: string | undefined) => prompt ?? ""),
   resolveKnowledgeGraphRecallPrompt: vi.fn(
     (prompt: string | undefined) => prompt ?? "Default KG recall",
@@ -280,6 +287,8 @@ describe("cli/queue", () => {
     queueMockState.inputRevisionAssertions.length = 0;
     queueMockState.inputRevisionRecords.length = 0;
     queueMockState.cliConfig = {};
+    queueMockState.loadRequiredStageConfigCalls.length = 0;
+    queueMockState.loadRequiredStageConfigError = undefined;
     queueMockState.jobs = [];
     queueMockState.job = {
       archiveKey: "archive-key",
@@ -383,7 +392,33 @@ describe("cli/queue", () => {
         target: "reading-graph",
       },
     ]);
+    expect(queueMockState.loadRequiredStageConfigCalls).toStrictEqual([{}]);
     expect(queueMockState.textWrites.join("")).toContain("Job job-1 queued");
+  });
+
+  it("rejects queue add before enqueueing when llm config is missing", async () => {
+    queueMockState.loadRequiredStageConfigError = new Error(
+      "Missing LLM configuration.",
+    );
+
+    await expect(
+      runQueueCommand({
+        acceptCost: true,
+        action: "add",
+        archivePath: "book.wikg",
+        chapterId: 12,
+        llmJSON: '{"model":"inline-model"}',
+        target: "reading-graph",
+      }),
+    ).rejects.toThrow("Missing LLM configuration.");
+
+    expect(queueMockState.loadRequiredStageConfigCalls).toStrictEqual([
+      {
+        llmJSON: '{"model":"inline-model"}',
+      },
+    ]);
+    expect(queueMockState.addCalls).toStrictEqual([]);
+    expect(queueMockState.textWrites).toStrictEqual([]);
   });
 
   it("prints a header for human queue lists", async () => {
