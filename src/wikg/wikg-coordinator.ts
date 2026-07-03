@@ -78,6 +78,7 @@ CREATE TABLE IF NOT EXISTS archive_owners (
 CREATE TABLE IF NOT EXISTS entry_sqlite_leases (
   archive_key TEXT NOT NULL,
   entry_path TEXT NOT NULL,
+  mode TEXT NOT NULL DEFAULT 'read',
   owner_id TEXT NOT NULL,
   owner_pid INTEGER NOT NULL,
   heartbeat_at INTEGER NOT NULL,
@@ -105,6 +106,7 @@ const ARCHIVE_SESSION_CONSTRUCTOR_TOKEN = Symbol(
 );
 
 type EntryLockMode = "read" | "state" | "write";
+type SqliteLeaseMode = "read" | "write";
 
 export class WikgCoordinator {
   public createFileStore(
@@ -358,9 +360,6 @@ export async function runWikgCoordinatorGc(
   context: GcContext,
 ): Promise<GcJobResult> {
   const candidates = await listSqliteCacheGcCandidates();
-  const childDirectories = await removeDisposableChildDirectories(
-    getCoordinatorWorkspaceRootPath(),
-  );
   let removed = 0;
   let freedBytes = 0;
 
@@ -373,10 +372,17 @@ export async function runWikgCoordinatorGc(
     }
   }
 
+  const orphanedFiles = await removeOrphanedWorkspaceFiles(context);
+  const childDirectories = await removeDisposableChildDirectories(
+    getCoordinatorWorkspaceRootPath(),
+  );
+
   return {
-    freedBytes: freedBytes + childDirectories.freedBytes,
-    removed: removed + childDirectories.removed,
-    scanned: candidates.length + childDirectories.scanned,
+    freedBytes:
+      freedBytes + orphanedFiles.freedBytes + childDirectories.freedBytes,
+    removed: removed + orphanedFiles.removed + childDirectories.removed,
+    scanned:
+      candidates.length + orphanedFiles.scanned + childDirectories.scanned,
   };
 }
 
@@ -507,6 +513,91 @@ WHERE archive_key = ?
   });
 }
 
+async function hasActiveWorkspaceUse(archiveKey: string): Promise<boolean> {
+  return await withStateDatabase(async (state) => {
+    await cleanupStaleState(state);
+    const ownerCount = await state.queryOne(
+      "SELECT COUNT(*) AS count FROM archive_owners WHERE archive_key = ?",
+      [archiveKey],
+      (row) => getNumber(row, "count"),
+    );
+    const leaseCount = await state.queryOne(
+      "SELECT COUNT(*) AS count FROM entry_sqlite_leases WHERE archive_key = ?",
+      [archiveKey],
+      (row) => getNumber(row, "count"),
+    );
+    const lockCount = await state.queryOne(
+      "SELECT COUNT(*) AS count FROM entry_locks WHERE archive_key = ?",
+      [archiveKey],
+      (row) => getNumber(row, "count"),
+    );
+
+    return (
+      (ownerCount ?? 0) > 0 || (leaseCount ?? 0) > 0 || (lockCount ?? 0) > 0
+    );
+  });
+}
+
+async function removeOrphanedWorkspaceFiles(
+  context: GcContext,
+): Promise<Pick<GcJobResult, "freedBytes" | "removed" | "scanned">> {
+  const rootPath = getCoordinatorWorkspaceRootPath();
+  let archiveKeyEntries: readonly WorkspaceDirectoryEntry[];
+
+  try {
+    archiveKeyEntries = await readdir(rootPath, { withFileTypes: true });
+  } catch (error) {
+    if (isNodeError(error) && error.code === "ENOENT") {
+      return { freedBytes: 0, removed: 0, scanned: 0 };
+    }
+
+    throw error;
+  }
+
+  let freedBytes = 0;
+  let removed = 0;
+  let scanned = 0;
+
+  for (const archiveKeyEntry of archiveKeyEntries) {
+    if (!archiveKeyEntry.isDirectory()) {
+      continue;
+    }
+
+    const archiveKey = archiveKeyEntry.name;
+
+    if (await hasActiveWorkspaceUse(archiveKey)) {
+      continue;
+    }
+
+    const referencedWorkspacePaths = new Set(
+      (await listOverlays(archiveKey))
+        .map((overlay) => overlay.workspacePath)
+        .filter((path): path is string => path !== undefined),
+    );
+
+    for (const workspacePath of await listWorkspaceFiles(
+      join(rootPath, archiveKey),
+    )) {
+      scanned += 1;
+
+      if (referencedWorkspacePaths.has(workspacePath)) {
+        continue;
+      }
+
+      const size = await readPathSize(workspacePath);
+
+      if (!context.dryRun) {
+        await rm(workspacePath, { force: true });
+      }
+
+      freedBytes += size;
+      removed += 1;
+    }
+  }
+
+  return { freedBytes, removed, scanned };
+}
+
 class WikgDocumentFileStore implements DocumentFileStore {
   readonly #archiveKey: string;
   readonly #archivePath: string;
@@ -615,6 +706,12 @@ class WikgDocumentFileStore implements DocumentFileStore {
 
   public initializeDatabaseSchema(): boolean {
     return false;
+  }
+
+  public markDatabaseDirty(): void {
+    if (!this.#readonlyDatabase) {
+      this.#session?.observeDirtyEntry(DATABASE_ENTRY_PATH);
+    }
   }
 
   public openDatabaseReadonly(): boolean {
@@ -744,11 +841,9 @@ class WikgDocumentFileStore implements DocumentFileStore {
         await acquireSqliteLease({
           archiveKey: this.#archiveKey,
           entryPath: DATABASE_ENTRY_PATH,
+          mode: this.#readonlyDatabase ? "read" : "write",
           ownerId: this.#sqliteLeaseOwnerId,
         });
-        if (!this.#readonlyDatabase) {
-          this.#session?.observeDirtyEntry(DATABASE_ENTRY_PATH);
-        }
         return overlay.workspacePath;
       },
     );
@@ -788,11 +883,9 @@ class WikgDocumentFileStore implements DocumentFileStore {
           this.#archiveKey,
           entryPath,
         );
-        const temporaryWorkspacePath = `${workspacePath}.tmp`;
 
         await mkdir(dirname(workspacePath), { recursive: true });
-        await writeFile(temporaryWorkspacePath, content);
-        await rename(temporaryWorkspacePath, workspacePath);
+        await writeFile(workspacePath, content);
         await upsertOverlay({
           archiveKey: this.#archiveKey,
           archivePath: this.#archivePath,
@@ -1245,6 +1338,7 @@ function lockPathContains(parent: string, child: string): boolean {
 async function acquireSqliteLease(input: {
   readonly archiveKey: string;
   readonly entryPath: string;
+  readonly mode: SqliteLeaseMode;
   readonly ownerId: string;
 }): Promise<void> {
   await withStateDatabase(async (state) => {
@@ -1252,12 +1346,13 @@ async function acquireSqliteLease(input: {
     await state.run(
       `
 INSERT OR REPLACE INTO entry_sqlite_leases (
-  archive_key, entry_path, owner_id, owner_pid, heartbeat_at, created_at
-) VALUES (?, ?, ?, ?, ?, ?)
+  archive_key, entry_path, mode, owner_id, owner_pid, heartbeat_at, created_at
+) VALUES (?, ?, ?, ?, ?, ?, ?)
 `,
       [
         input.archiveKey,
         input.entryPath,
+        input.mode,
         input.ownerId,
         process.pid,
         Date.now(),
@@ -1566,20 +1661,31 @@ async function openStateDatabase(): Promise<Database> {
 }
 
 async function migrateStateDatabase(database: Database): Promise<void> {
-  const columns = await database.queryAll(
+  const overlayColumns = await database.queryAll(
     "PRAGMA table_info(entry_overlays)",
     undefined,
     (row) => getString(row, "name"),
   );
 
-  if (columns.includes("archive_signature")) {
-    return;
+  if (!overlayColumns.includes("archive_signature")) {
+    await database.run(`
+      ALTER TABLE entry_overlays
+      ADD COLUMN archive_signature TEXT
+    `);
   }
 
-  await database.run(`
-    ALTER TABLE entry_overlays
-    ADD COLUMN archive_signature TEXT
-  `);
+  const sqliteLeaseColumns = await database.queryAll(
+    "PRAGMA table_info(entry_sqlite_leases)",
+    undefined,
+    (row) => getString(row, "name"),
+  );
+
+  if (!sqliteLeaseColumns.includes("mode")) {
+    await database.run(`
+      ALTER TABLE entry_sqlite_leases
+      ADD COLUMN mode TEXT NOT NULL DEFAULT 'read'
+    `);
+  }
 }
 
 async function createWorkspaceFilePath(
@@ -1593,7 +1699,7 @@ async function createWorkspaceFilePath(
   );
 
   await mkdir(directoryPath, { recursive: true });
-  return join(directoryPath, `${basename(entryPath)}.${randomUUID()}`);
+  return join(directoryPath, basename(entryPath));
 }
 
 function getCoordinatorWorkspaceRootPath(): string {
@@ -1608,6 +1714,34 @@ async function ensureEmptyDirectory(directoryPath: string): Promise<void> {
   if (entries.length > 0) {
     throw new Error(`Read workspace directory is not empty: ${directoryPath}`);
   }
+}
+
+async function listWorkspaceFiles(directoryPath: string): Promise<string[]> {
+  let entries: readonly WorkspaceDirectoryEntry[];
+
+  try {
+    entries = await readdir(directoryPath, { withFileTypes: true });
+  } catch (error) {
+    if (isNodeError(error) && error.code === "ENOENT") {
+      return [];
+    }
+
+    throw error;
+  }
+
+  const files: string[] = [];
+
+  for (const entry of entries) {
+    const path = join(directoryPath, entry.name);
+
+    if (entry.isDirectory()) {
+      files.push(...(await listWorkspaceFiles(path)));
+    } else if (entry.isFile()) {
+      files.push(path);
+    }
+  }
+
+  return files;
 }
 
 function toArchiveOverlay(overlay: EntryOverlay): WikgArchiveOverlay {
@@ -1701,6 +1835,12 @@ interface EntryLock {
 
 interface ArchiveCommitLock {
   readonly ownerId: string;
+}
+
+interface WorkspaceDirectoryEntry {
+  isDirectory(): boolean;
+  isFile(): boolean;
+  readonly name: string;
 }
 
 function mapEntryOverlay(row: Record<string, unknown>): EntryOverlay {

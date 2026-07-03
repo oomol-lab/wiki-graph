@@ -79,7 +79,7 @@ describe("gc", () => {
         report.jobs.find((item) => item.name === "wikg-coordinator"),
       ).toMatchObject({
         removed: 1,
-        scanned: 2,
+        scanned: 1,
       });
       await expect(stat(sqliteCachePath)).rejects.toThrow();
     });
@@ -109,14 +109,55 @@ describe("gc", () => {
       const report = await tryRunWikiGraphGc();
 
       expect(report.skipped).toBe(false);
-      expect(
-        report.jobs.find((item) => item.name === "wikg-coordinator"),
-      ).toMatchObject({ removed: 1 });
+      const wikgCoordinatorJob = report.jobs.find(
+        (item) => item.name === "wikg-coordinator",
+      );
+
+      expect(wikgCoordinatorJob?.removed).toBeGreaterThanOrEqual(1);
       expect(
         report.jobs.find((item) => item.name === "build-queue"),
       ).toMatchObject({ removed: 1 });
       await expect(stat(workspaceBucketPath)).rejects.toThrow();
       await expect(stat(buildJobBucketPath)).rejects.toThrow();
+    });
+  });
+
+  it("removes orphaned coordinator workspace files", async () => {
+    await withTempDir("spinedigest-gc-", async (path) => {
+      process.env.WIKIGRAPH_STATE_DIR = join(path, "state");
+      const workspaceBucketPath = join(
+        path,
+        "state",
+        "workspaces",
+        "archive-key",
+      );
+      const referencedPath = join(workspaceBucketPath, "book-meta.json");
+      const orphanedPath = join(
+        workspaceBucketPath,
+        "texts",
+        "source",
+        "1.txt",
+      );
+
+      await mkdir(dirname(orphanedPath), { recursive: true });
+      await writeFile(referencedPath, "referenced", "utf8");
+      await writeFile(orphanedPath, "orphaned", "utf8");
+      await createCoordinatorOverlay(path, {
+        archiveKey: "archive-key",
+        entryPath: "book-meta.json",
+        workspacePath: referencedPath,
+      });
+
+      const report = await tryRunWikiGraphGc();
+
+      expect(report.skipped).toBe(false);
+      const wikgCoordinatorJob = report.jobs.find(
+        (item) => item.name === "wikg-coordinator",
+      );
+
+      expect(wikgCoordinatorJob?.removed).toBeGreaterThanOrEqual(1);
+      await expect(stat(referencedPath)).resolves.toBeDefined();
+      await expect(stat(orphanedPath)).rejects.toThrow();
     });
   });
 });
@@ -176,6 +217,54 @@ INSERT INTO entry_overlays (
   }
 
   return workspacePath;
+}
+
+async function createCoordinatorOverlay(
+  path: string,
+  input: {
+    readonly archiveKey: string;
+    readonly entryPath: string;
+    readonly workspacePath: string;
+  },
+): Promise<void> {
+  const archivePath = join(path, "book.wikg");
+
+  await writeFile(archivePath, "archive", "utf8");
+  const database = await openStateDatabase(
+    "wikg-coordinator.sqlite",
+    `
+CREATE TABLE IF NOT EXISTS entry_overlays (
+  archive_key TEXT NOT NULL,
+  archive_path TEXT NOT NULL,
+  entry_path TEXT NOT NULL,
+  kind TEXT NOT NULL,
+  workspace_path TEXT,
+  archive_signature TEXT,
+  updated_at INTEGER NOT NULL,
+  PRIMARY KEY (archive_key, entry_path)
+);
+`,
+  );
+
+  try {
+    await database.run(
+      `
+INSERT INTO entry_overlays (
+  archive_key, archive_path, entry_path, kind, workspace_path,
+  archive_signature, updated_at
+) VALUES (?, ?, ?, 'file', ?, 'test-signature', ?)
+`,
+      [
+        input.archiveKey,
+        archivePath,
+        input.entryPath,
+        input.workspacePath,
+        Date.now(),
+      ],
+    );
+  } finally {
+    await database.close();
+  }
 }
 
 async function createExpiredSearchSession(): Promise<void> {

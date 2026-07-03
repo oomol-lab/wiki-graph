@@ -47,6 +47,7 @@ export interface DocumentFileStore {
   deleteTree(path: string): Promise<void>;
   ensureDirectory(path: string): Promise<void>;
   initializeDatabaseSchema(): boolean;
+  markDatabaseDirty?(): void;
   openDatabaseReadonly(): boolean;
   listFileContents?(path: string): Promise<ReadonlyMap<string, Uint8Array>>;
   listFiles(path: string): Promise<readonly string[]>;
@@ -71,6 +72,7 @@ const LOCAL_DOCUMENT_FILE_STORE: DocumentFileStore = {
     await mkdir(path, { recursive: true });
   },
   initializeDatabaseSchema: () => true,
+  markDatabaseDirty: () => undefined,
   openDatabaseReadonly: () => false,
   listFiles: async (path) =>
     (await readdir(path, { withFileTypes: true }))
@@ -234,7 +236,12 @@ export class DirectoryDocument implements Document {
       const database = await Database.open(
         databasePath,
         shouldInitializeDatabaseSchema ? SCHEMA_SQL : "",
-        { readonly: fileStore.openDatabaseReadonly() },
+        {
+          onWrite: () => {
+            fileStore.markDatabaseDirty?.();
+          },
+          readonly: fileStore.openDatabaseReadonly(),
+        },
       );
       if (shouldInitializeDatabaseSchema) {
         await initializeDocumentSchema(database);
