@@ -8,10 +8,14 @@ export interface ProgressCounter {
   readonly unit: string;
 }
 
-export interface ProgressTokens {
-  readonly cache?: number;
-  readonly input?: number;
-  readonly output?: number;
+export interface ProgressMetric {
+  readonly name: string;
+  readonly value: number;
+}
+
+export interface ProgressMetricGroup {
+  readonly metrics: readonly ProgressMetric[];
+  readonly name: string;
 }
 
 export type ProgressOutputEvent =
@@ -24,8 +28,8 @@ export type ProgressOutputEvent =
       readonly counters?: readonly ProgressCounter[];
       readonly json: unknown;
       readonly kind: "status";
+      readonly metricGroups?: readonly ProgressMetricGroup[];
       readonly phase: string;
-      readonly tokens?: ProgressTokens;
     };
 
 export class ProgressOutputWriter {
@@ -115,17 +119,17 @@ export class ProgressOutputWriter {
 
 export function formatStatusText(input: {
   readonly counters?: readonly ProgressCounter[];
+  readonly metricGroups?: readonly ProgressMetricGroup[];
   readonly phase: string;
-  readonly tokens?: ProgressTokens;
 }): string {
   const counters = input.counters ?? [];
   const counterText =
     counters.length === 0
       ? ""
       : ` ${counters.map(formatCounterText).join(" | ")}`;
-  const tokenText = formatTokensText(input.tokens);
+  const metricText = formatMetricGroupsText(input.metricGroups);
 
-  return `${input.phase}${counterText}${tokenText === "" ? "" : ` ${tokenText}`}`;
+  return `${input.phase}${counterText}${metricText === "" ? "" : ` ${metricText}`}`;
 }
 
 function formatCounterText(counter: ProgressCounter): string {
@@ -136,18 +140,24 @@ function formatCounterText(counter: ProgressCounter): string {
   return `${counter.name} ${counter.done}/${counter.total} ${counter.unit}`;
 }
 
-function formatTokensText(tokens: ProgressTokens | undefined): string {
-  if (tokens === undefined) {
+function formatMetricGroupsText(
+  metricGroups: readonly ProgressMetricGroup[] | undefined,
+): string {
+  if (metricGroups === undefined) {
     return "";
   }
 
-  const parts = [
-    ...(tokens.input === undefined ? [] : [`input: ${tokens.input}`]),
-    ...(tokens.cache === undefined ? [] : [`cache: ${tokens.cache}`]),
-    ...(tokens.output === undefined ? [] : [`output: ${tokens.output}`]),
-  ];
+  const parts = metricGroups.flatMap((group) => {
+    const metrics = group.metrics.map(
+      (metric) => `${metric.name}: ${metric.value}`,
+    );
 
-  return parts.length === 0 ? "" : `[tokens ${parts.join(" / ")}]`;
+    return metrics.length === 0
+      ? []
+      : [`[${group.name} ${metrics.join(" / ")}]`];
+  });
+
+  return parts.join(" ");
 }
 
 function isStatusComplete(input: {

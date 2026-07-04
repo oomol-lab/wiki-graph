@@ -1893,7 +1893,6 @@ class BuildJobProgressAccumulator implements BuildJobProgressReporter {
   #createWordCounter(): BuildJobProgressCounter | undefined {
     switch (this.#step) {
       case "reading-graph":
-      case "knowledge-graph":
         return this.#totalGraphWords <= 0
           ? undefined
           : {

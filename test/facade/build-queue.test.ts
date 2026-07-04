@@ -348,6 +348,7 @@ describe("facade/build-queue", () => {
       await runBuildJobWorker({
         concurrency: 1,
         executeJob: async (_job, reporter) => {
+          await reporter.setTotals({ totalGraphWords: 4888 });
           await reporter.stepStarted("knowledge-graph");
           await reporter.updatePhase({
             done: 3,
@@ -364,6 +365,9 @@ describe("facade/build-queue", () => {
       );
       const latest = snapshots.at(-1);
 
+      expect(latest?.counters.some((counter) => counter.name === "words")).toBe(
+        false,
+      );
       expect(latest).toMatchObject({
         counters: [
           {

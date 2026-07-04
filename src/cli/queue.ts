@@ -47,7 +47,7 @@ import { formatCLIJSON } from "./json.js";
 import {
   ProgressOutputWriter,
   type ProgressCounter,
-  type ProgressTokens,
+  type ProgressMetricGroup,
 } from "./progress-output.js";
 import {
   createStageLLM,
@@ -534,13 +534,13 @@ async function watchBuildJob(
 function formatWatchOutputEvent(event: BuildJobEvent) {
   switch (event.type) {
     case "status_snapshot": {
-      const tokens = formatProgressTokens(event.tokens);
+      const tokenMetrics = formatProgressTokenMetrics(event.tokens);
       return {
         counters: event.counters.map(formatProgressCounter),
         json: event,
         kind: "status" as const,
+        ...(tokenMetrics === undefined ? {} : { metricGroups: [tokenMetrics] }),
         phase: event.phase ?? event.step ?? "status",
-        ...(tokens === undefined ? {} : { tokens }),
       };
     }
     case "target_changed":
@@ -623,25 +623,29 @@ function formatProgressUnit(unit: string): string {
   }
 }
 
-function formatProgressTokens(
+function formatProgressTokenMetrics(
   tokens: Extract<
     BuildJobEvent,
     { readonly type: "status_snapshot" }
   >["tokens"],
-): ProgressTokens | undefined {
+): ProgressMetricGroup | undefined {
   if (tokens === undefined) {
     return undefined;
   }
 
-  return {
+  const metrics = [
+    ...(tokens.inputTokens === undefined
+      ? []
+      : [{ name: "input", value: tokens.inputTokens }]),
     ...(tokens.cacheReadTokens === undefined
-      ? {}
-      : { cache: tokens.cacheReadTokens }),
-    ...(tokens.inputTokens === undefined ? {} : { input: tokens.inputTokens }),
+      ? []
+      : [{ name: "cache", value: tokens.cacheReadTokens }]),
     ...(tokens.outputTokens === undefined
-      ? {}
-      : { output: tokens.outputTokens }),
-  };
+      ? []
+      : [{ name: "output", value: tokens.outputTokens }]),
+  ];
+
+  return metrics.length === 0 ? undefined : { metrics, name: "tokens" };
 }
 
 async function writeJobList(
