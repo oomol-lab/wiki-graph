@@ -21,52 +21,50 @@ Search results may use short object URIs such as `wikg://entity/Q8018`; prepend 
 Default exploration loop:
   1. `wikigraph help uri`
   2. `wikigraph help object`
-  3. `wikigraph wikg:///absolute/path/book.wikg search <query>`
-  4. `wikigraph <located-object-uri> get`
+  3. `wikigraph wikg:///absolute/path/book.wikg --query <query>`
+  4. `wikigraph <located-object-uri>`
   5. `wikigraph <located-object-uri> related`
   6. `wikigraph <located-object-uri> evidence`
   7. Pick a located chunk or entity URI before `wikigraph <located-graph-object-uri> pack --budget <chars>`
 
 Archive and job commands also use URI targets:
   wikigraph wikg://book.wikg create ./book.md
-  wikigraph wikg://book.wikg/chapter list
+  wikigraph wikg://book.wikg/chapter
   wikigraph wikg://local/job add --input wikg://book.wikg/chapter/3 --task reading-graph --accept-cost
   wikigraph wikg://local/job list
   wikigraph wikg://local/job/<job-id> watch --jsonl
 
 Example:
-  wikigraph wikg:///Users/me/book.wikg/entity search "朱元璋"
+  wikigraph wikg:///Users/me/book.wikg/entity --query "朱元璋"
 
 Use URI lenses to select searchable object kinds:
   wikg://book.wikg/chapter
-  wikg://book.wikg/source
-  wikg://book.wikg/summary
   wikg://book.wikg/chunk
   wikg://book.wikg/entity
   wikg://book.wikg/triple
   wikg://book.wikg/chapter/3/entity
 
-Lens position controls scope: use `<archive-uri>/entity list` for an archive-wide entity inventory, and use `<chapter-uri>/entity list` only for one chapter.
+Lens position controls scope: use `<archive-uri>/entity` for an archive-wide entity inventory, and use `<chapter-uri>/entity` only for one chapter.
 
 When a user asks for source passages mentioning, grounding, or supporting a known entity, start from the entity URI:
   wikigraph <archive-uri>/entity/<qid> evidence
 
 Do not use source search by the entity label as the primary method. Entity labels may have aliases, translations, variants, and grounded mentions that do not match the label text. Use source search only as a secondary literal-text check.
 
-When investigating a known entity, chunk, or triple under a specific aspect, consider passing the aspect as the optional query to `evidence` first. Use `related` queries only for chunk and entity URIs. Both paths use the current FTS index to filter and rank candidates while keeping the current object anchor.
-  wikigraph <archive-uri>/entity/Q830077 evidence "objectivity"
-  wikigraph <archive-uri>/entity/Q830077 related "objectivity" --evidence 2
+When investigating a known entity, chunk, or triple under a specific aspect, consider passing the aspect with `--query` to `evidence` first. Use `related` queries only for chunk and entity URIs. Both paths use the current FTS index to filter and rank candidates while keeping the current object anchor.
+  wikigraph <archive-uri>/entity/Q830077 evidence --query "objectivity"
+  wikigraph <archive-uri>/entity/Q830077 related --query "objectivity" --evidence 2
 
-Use `list` when recall or completeness matters more than narrowing. Read `wikigraph help retrieval` before choosing pagination or output format flags.
+Use scope URIs without `--query` when recall or completeness matters more than narrowing. Read `wikigraph help retrieval` before choosing pagination or output format flags.
 
 When investigating an entity:
-  1. `wikigraph <archive-uri>/entity/<qid> get`
+  1. `wikigraph <archive-uri>/entity/<qid>`
   2. `wikigraph <archive-uri>/entity/<qid> evidence`
   3. `wikigraph <archive-uri>/entity/<qid> related --evidence <n>`
-  4. `wikigraph <archive-uri>/entity/<qid>/wikipage get`
+  4. `wikigraph <archive-uri>/entity/<qid>/wikipage`
   5. Use external web search only if the mapped wikipage is missing or insufficient.
 
-Do not infer Wikipedia URLs from entity labels or Wikidata QIDs. Use `/entity/<qid>/wikipage get` to retrieve canonical mapped pages.
+Do not infer Wikipedia URLs from entity labels or Wikidata QIDs. Use `/entity/<qid>/wikipage` to retrieve canonical mapped pages.
 
 Retrieval strategy:
   Read `wikigraph help retrieval` for scope, lens, pagination, `--limit`, `--all`, `--json`, and `--jsonl` choices.

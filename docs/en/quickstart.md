@@ -37,15 +37,15 @@ cat ./article.md | wikigraph wkg://article.wikg create --input-format markdown
 
 Create creates or replaces a `.wikg` archive at source stage. The archive now contains normalized source data, but generated Reading Graph, Reading Summary, and Knowledge Graph data are still absent.
 
-## 4. Inspect And Estimate
+## 4. Inspect
 
 ```bash
-wikigraph wkg://book.wikg/chapter list
-wikigraph wkg://book.wikg/chapter/tree get
-wikigraph wkg://book.wikg estimate --stage reading-summary
+wikigraph wkg://book.wikg/chapter
+wikigraph wkg://book.wikg/chapter/tree
+wikigraph wkg://book.wikg inspect
 ```
 
-Use the estimate before queueing broad Reading Graph, Reading Summary, or Knowledge Graph work.
+Use inspect before queueing broad Reading Graph, Reading Summary, or Knowledge Graph work.
 
 ## 5. Build Knowledge
 
@@ -66,15 +66,15 @@ wikigraph wkg-job:// list --input wkg://book.wikg
 ```bash
 wikigraph wkg://book.wikg/chapter/tree get
 wikigraph wkg://book.wikg/index build
-wikigraph wkg://book.wikg/chunk search "central argument"
-wikigraph wkg://book.wikg/chapter/3 get
-wikigraph wkg://book.wikg/chunk/84 get
+wikigraph wkg://book.wikg/chunk --query "central argument"
+wikigraph wkg://book.wikg/chapter/3
+wikigraph wkg://book.wikg/chunk/84
 wikigraph wkg://book.wikg/chunk/84 related
 wikigraph wkg://book.wikg/chunk/84 evidence
 wikigraph wkg://book.wikg/chunk/84 pack --budget 5000
 ```
 
-Use URI lenses to choose a search target: `<archive-uri>/chunk` for Reading Graph structure, `<archive-uri>/summary` for quick overview, `<archive-uri>/source` for original source wording, or `<archive-uri>/entity` and `<archive-uri>/triple` for Knowledge Graph objects.
+Use URI lenses to choose a scope or object target. Scope URIs such as `<archive-uri>/chunk`, `<archive-uri>/entity`, and `<archive-uri>/triple` list by default and search with `--query`; object URIs such as `<chapter-uri>/source`, `<chapter-uri>/source#0..8`, and `<chapter-uri>/summary` read by default.
 
 Object commands use Wiki Graph URIs. Read `wikigraph help uri` when constructing URIs manually.
 
@@ -85,7 +85,7 @@ Read `wikigraph help retrieval` when choosing scope, pagination, or machine-read
 Use projections when you need a portable view. For example, read one chapter into Markdown text, or export the full archive as an EPUB:
 
 ```bash
-wikigraph wkg://book.wikg/chapter/3/source get > ./chapter-3.md
+wikigraph wkg://book.wikg/chapter/3/source > ./chapter-3.md
 wikigraph wkg://book.wikg export --output-format epub --output ./digest.epub
 ```
 

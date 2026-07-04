@@ -276,7 +276,7 @@ describe("wikg/spine-digest-file", () => {
                 archiveKey: archivePath,
               }),
             ).resolves.toMatchObject({
-              items: [expect.objectContaining({ id: "chapter:1" })],
+              items: [expect.objectContaining({ id: "chapter-title:1" })],
             });
           },
         );

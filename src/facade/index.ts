@@ -15,7 +15,6 @@ export {
   type SpineDigestTextStreamSessionOptions,
 } from "./app.js";
 export {
-  estimateArchiveBuild,
   findArchiveObjects,
   formatChapterId,
   formatEdgeId,
@@ -125,7 +124,6 @@ export {
   searchGraphNodes,
 } from "./graph.js";
 export type {
-  ArchiveEstimate,
   ArchiveBacklinkBucket,
   ArchiveBacklinks,
   ArchiveEvidence,

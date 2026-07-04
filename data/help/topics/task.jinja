@@ -12,9 +12,9 @@ Generate:
   wikigraph wikg://local/job add --input wikg://book.wikg/chapter/3 --task knowledge-graph --accept-cost
 
 Explore:
-  wikigraph wikg:///Users/me/book.wikg search "keyword"
-  wikigraph wikg:///Users/me/book.wikg/chapter/3/entity list
-  wikigraph wikg:///Users/me/book.wikg/<object-path> get
+  wikigraph wikg:///Users/me/book.wikg --query "keyword"
+  wikigraph wikg:///Users/me/book.wikg/chapter/3/entity
+  wikigraph wikg:///Users/me/book.wikg/<object-path>
   wikigraph wikg:///Users/me/book.wikg/<object-path> related
   wikigraph wikg:///Users/me/book.wikg/<object-path> evidence
   wikigraph wikg:///Users/me/book.wikg/<object-path> pack --budget 5000

@@ -67,12 +67,12 @@ wikigraph wkg://book.wikg create ./book.epub
 cat ./article.md | wikigraph wkg://article.wikg create --input-format markdown
 ```
 
-Inspect and estimate before expensive work:
+Inspect before expensive work:
 
 ```bash
 wikigraph wkg://book.wikg/state get
 wikigraph wkg://book.wikg/chapter/tree get --json
-wikigraph wkg://book.wikg estimate --stage reading-summary
+wikigraph wkg://book.wikg inspect
 ```
 
 Build derived knowledge when you intend to spend LLM time:
@@ -106,7 +106,7 @@ Cost rule:
 
 ```text
 Create is cheap.
-Estimate before queueing Reading Graph, Reading Summary, or Knowledge Graph jobs.
+Inspect before queueing Reading Graph, Reading Summary, or Knowledge Graph jobs.
 Queue Reading Graph, Reading Summary, or Knowledge Graph jobs only when the cost and wait time are acceptable.
 Search, get, related, evidence, pack, and export are cheap after build.
 ```
@@ -187,7 +187,7 @@ SpineDigest's CLI-first design exposes `.wikg` as a managed LLM Wiki archive.
 - **Choose an exploration mode first.** For synthesis and structural understanding, start with `wkg://.../chapter/tree get --json`; use `search` for candidate discovery and exact wording; use `get` for continuous prose after selecting the relevant URI.
 - **Use help as the discovery surface.** Start with `wikigraph --help` as the root page, then follow `wikigraph help overview`, `wikigraph help ai`, topic pages, or command-specific `--help` before guessing behavior.
 - **Prefer `--json`.** Use it when composing with tools.
-- **Estimate before queueing jobs.** Do not queue broad Reading Graph, Reading Summary, or Knowledge Graph work without `wikigraph <archive-uri> estimate`.
+- **Inspect before queueing jobs.** Do not queue broad Reading Graph, Reading Summary, or Knowledge Graph work without `wikigraph <archive-uri> inspect`.
 - **Check exit codes.** Success returns `0`; failure returns non-zero with a plain-text error on `stderr`.
 - **Do not inspect `database.db` routinely.** Use `search`, `list`, `get`, and graph navigation commands instead.
 

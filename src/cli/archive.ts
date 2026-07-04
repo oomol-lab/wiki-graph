@@ -6,13 +6,12 @@ import {
   listArchiveCollection,
   listArchiveEvidence,
   listRelatedArchiveObjects,
+  listChapters,
   packArchiveContext,
   readArchivePage,
-  estimateArchiveBuild,
   findArchiveObjects,
   createContinuationCursor,
   readContinuationCursor,
-  type ArchiveEstimate,
   type ArchiveBacklinkBucket,
   type ArchiveBacklinks,
   type ArchiveEvidence,
@@ -27,8 +26,13 @@ import {
   type ArchivePack,
   type ArchivePage,
   type ArchiveRelatedResult,
+  type ChapterEntry,
   type ContinuationCursor,
 } from "../facade/index.js";
+import {
+  isSearchIndexCurrent,
+  readArchiveIndexSettings,
+} from "../archive/search-index/index.js";
 import {
   formatLocatedWikiGraphUri,
   parseLocatedWikiGraphUri,
@@ -38,6 +42,7 @@ import {
 import type { ReadonlyDocument } from "../document/index.js";
 
 import type { CLIArchiveArguments } from "./args.js";
+import { loadCLIConfig } from "./config.js";
 import { runConvertCommand } from "./convert.js";
 import { readTextStreamFromStdin, writeTextToStdout } from "./io.js";
 import { formatCLIJSON, formatCLIJSONLine } from "./json.js";
@@ -103,6 +108,34 @@ interface ArchiveOutputSource {
   readonly uri: string;
 }
 
+interface InspectChapter extends ChapterEntry {
+  readonly knowledgeGraphReady: boolean;
+  readonly readingGraphReady: boolean;
+  readonly summaryReady: boolean;
+}
+
+interface InspectImprovement {
+  readonly command: string;
+  readonly missingChapters?: number;
+  readonly missingWords?: number;
+  readonly planning?: InspectPlanningCost;
+  readonly recommendation: string;
+  readonly title: string;
+}
+
+interface InspectPlanningCost {
+  readonly model: string;
+  readonly timeSeconds: {
+    readonly max: number;
+    readonly min: number;
+  };
+  readonly tokens: {
+    readonly cached: number;
+    readonly input: number;
+    readonly output: number;
+  };
+}
+
 interface ArchiveOutputContext {
   readonly archiveKey: string;
   readonly archivePath: string;
@@ -145,15 +178,9 @@ export async function runArchiveCommand(
         verbose: false,
       });
       return;
-    case "estimate":
+    case "inspect":
       await readArchiveDocument(args.archivePath, async (document) => {
-        await writeEstimate(
-          await estimateArchiveBuild(
-            document,
-            args.targetStage ?? "summarized",
-          ),
-          args.json ?? false,
-        );
+        await writeArchiveInspectReport(document, args);
       });
       return;
     case "search":
@@ -984,28 +1011,480 @@ async function readArchiveDocument<T>(
   await new SpineDigestFile(path).readDocument(operation);
 }
 
-async function writeEstimate(
-  estimate: ArchiveEstimate,
-  json: boolean,
+async function writeArchiveInspectReport(
+  document: ReadonlyDocument,
+  args: CLIArchiveArguments,
 ): Promise<void> {
-  if (json) {
-    await writeTextToStdout(formatCLIJSON(estimate));
-    return;
-  }
+  const archiveUri = formatLocatedWikiGraphUri(args.archivePath);
+  const scopeUri =
+    args.chapterId === undefined
+      ? archiveUri
+      : `${archiveUri}/chapter/${args.chapterId}`;
+  const [chapters, summaryWords, ftsCurrent, indexSettings, config] =
+    await Promise.all([
+      readInspectChapters(document, args.chapterId),
+      readSummaryWords(document, args.chapterId),
+      isSearchIndexCurrent(document),
+      readArchiveIndexSettings(document),
+      loadCLIConfig(),
+    ]);
+  const concurrent = {
+    job: config.concurrent?.job ?? 3,
+    request: config.concurrent?.request ?? 6,
+  };
+  const planningModel = formatInspectPlanningModel(config.llm);
+  const contentChapters = chapters.filter(
+    (chapter) => chapter.stage !== "planned",
+  );
+  const sourceWords = sumWords(contentChapters);
+  const readingGraphCovered = contentChapters.filter(
+    (chapter) => chapter.readingGraphReady,
+  );
+  const knowledgeGraphCovered = contentChapters.filter(
+    (chapter) => chapter.knowledgeGraphReady,
+  );
+  const summaryCovered = contentChapters.filter(
+    (chapter) => chapter.summaryReady,
+  );
+  const improvements = createInspectImprovements({
+    archiveUri,
+    concurrent,
+    contentChapters,
+    ftsCurrent,
+    planningModel,
+    scopeUri,
+    summaryCovered,
+    knowledgeGraphCovered,
+    readingGraphCovered,
+  });
 
   await writeTextToStdout(
     [
-      `Target stage: ${formatEstimateStage(estimate.targetStage)}`,
-      `Source words: ${estimate.sourceWords}`,
-      `Estimated LLM calls: ${estimate.estimatedLlmCalls}`,
-      `Estimated tokens: ${estimate.estimatedTokens.input} input / ${estimate.estimatedTokens.output} output`,
-      `Estimated time: ${formatDuration(estimate.estimatedTime.minSeconds)}-${formatDuration(estimate.estimatedTime.maxSeconds)}`,
-      `Estimated cost: $${estimate.estimatedCostUsd.min}-$${estimate.estimatedCostUsd.max}`,
-      `Risk: ${estimate.risk}`,
+      "Archive Inspect",
+      `URI: ${scopeUri}`,
+      `Scope: ${args.chapterId === undefined ? "archive" : `chapter ${args.chapterId}`}`,
       "",
-      `Recommendation: ${estimate.recommendation}`,
+      "Content",
+      `Chapters: ${contentChapters.length} content / ${chapters.length} total`,
+      `Planned chapters: ${chapters.length - contentChapters.length}`,
+      `Source words: ${sourceWords}`,
+      `Summary words: ${summaryWords}`,
+      "",
+      "FTS Index",
+      `Status: ${ftsCurrent ? "current" : "missing or outdated"}`,
+      `Storage: ${indexSettings.ftsEmbedded ? "embedded in archive" : "local cache"}`,
+      `Query search: ${ftsCurrent ? "available" : "unavailable"}`,
+      ...(ftsCurrent
+        ? []
+        : [
+            "Impact: search <query>, related <query>, and evidence <query> are unavailable.",
+            `Fix: wikigraph ${archiveUri}/index build`,
+            "Resource: local CPU/disk time only; no LLM tokens.",
+          ]),
+      "",
+      "Coverage",
+      formatCoverageLine("Reading Graph", readingGraphCovered, contentChapters),
+      formatCoverageLine(
+        "Knowledge Graph",
+        knowledgeGraphCovered,
+        contentChapters,
+      ),
+      formatCoverageLine("Summary", summaryCovered, contentChapters),
+      "",
+      "Retrieval Guidance",
+      ...formatRetrievalGuidance({
+        ftsCurrent,
+        knowledgeGraphCovered,
+        readingGraphCovered,
+        contentChapters,
+        sourceWords,
+      }),
+      "",
+      "Improvements",
+      ...(improvements.length === 0
+        ? ["No immediate improvements recommended."]
+        : improvements.flatMap(formatInspectImprovement)),
     ].join("\n") + "\n",
   );
+}
+
+async function readInspectChapters(
+  document: ReadonlyDocument,
+  chapterId: number | undefined,
+): Promise<readonly InspectChapter[]> {
+  const chapters =
+    chapterId === undefined
+      ? await listChapters(document)
+      : (await listChapters(document)).filter(
+          (chapter) => chapter.chapterId === chapterId,
+        );
+
+  if (chapterId !== undefined && chapters.length === 0) {
+    throw new Error(`Chapter ${chapterId} does not exist.`);
+  }
+
+  return await Promise.all(
+    chapters.map(async (chapter) => {
+      const serial = await document.serials.getById(chapter.chapterId);
+
+      return {
+        ...chapter,
+        knowledgeGraphReady: serial?.knowledgeGraphReady === true,
+        readingGraphReady: serial?.topologyReady === true,
+        summaryReady: chapter.stage === "summarized",
+      };
+    }),
+  );
+}
+
+async function readSummaryWords(
+  document: ReadonlyDocument,
+  chapterId: number | undefined,
+): Promise<number> {
+  return await document.readDatabase(
+    async (database) =>
+      (await database.queryOne(
+        `
+          SELECT COALESCE(SUM(words_count), 0) AS words
+          FROM text_sentence_records
+          WHERE kind = 2
+            ${chapterId === undefined ? "" : "AND chapter_id = ?"}
+        `,
+        chapterId === undefined ? undefined : [chapterId],
+        (row) => Number(row.words),
+      )) ?? 0,
+  );
+}
+
+function formatCoverageLine(
+  label: string,
+  covered: readonly InspectChapter[],
+  total: readonly InspectChapter[],
+): string {
+  const coveredWords = sumWords(covered);
+  const totalWords = sumWords(total);
+
+  if (total.length === 0 && totalWords === 0) {
+    return `${label}: n/a, no source content`;
+  }
+
+  return `${label}: ${covered.length}/${total.length} chapters, ${coveredWords}/${totalWords} words, ${formatPercent(coveredWords, totalWords)}`;
+}
+
+function formatRetrievalGuidance(input: {
+  readonly contentChapters: readonly InspectChapter[];
+  readonly ftsCurrent: boolean;
+  readonly knowledgeGraphCovered: readonly InspectChapter[];
+  readonly readingGraphCovered: readonly InspectChapter[];
+  readonly sourceWords: number;
+}): readonly string[] {
+  if (input.sourceWords === 0 || input.contentChapters.length === 0) {
+    return [
+      "Source content: empty.",
+      "Add source text before using search coverage or graph-based retrieval.",
+    ];
+  }
+
+  const lines = [
+    `Query search: ${input.ftsCurrent ? "available" : "unavailable until FTS index is built"}.`,
+  ];
+
+  lines.push(
+    formatObjectSearchGuidance(
+      "Reading Graph object search",
+      input.readingGraphCovered,
+      input.contentChapters,
+    ),
+  );
+  lines.push(
+    formatObjectSearchGuidance(
+      "Entity/triple search",
+      input.knowledgeGraphCovered,
+      input.contentChapters,
+    ),
+  );
+
+  return lines;
+}
+
+function formatObjectSearchGuidance(
+  label: string,
+  covered: readonly InspectChapter[],
+  total: readonly InspectChapter[],
+): string {
+  const coveredWords = sumWords(covered);
+  const totalWords = sumWords(total);
+  const ratio = totalWords === 0 ? 0 : coveredWords / totalWords;
+  const coverage = formatPercent(coveredWords, totalWords);
+
+  if (ratio >= 1) {
+    return `${label}: covers all source content; it can represent the full scope for object retrieval.`;
+  }
+  if (ratio >= 0.9) {
+    return `${label}: covers ${coverage}; use it as the main path, but source search is needed for uncovered content.`;
+  }
+  if (ratio >= 0.5) {
+    return `${label}: covers ${coverage}; use it as leads, not as a full-scope substitute for source search.`;
+  }
+
+  return `${label}: covers ${coverage}; build missing graph coverage before relying on object retrieval.`;
+}
+
+function createInspectImprovements(input: {
+  readonly archiveUri: string;
+  readonly concurrent: { readonly job: number; readonly request: number };
+  readonly contentChapters: readonly InspectChapter[];
+  readonly ftsCurrent: boolean;
+  readonly knowledgeGraphCovered: readonly InspectChapter[];
+  readonly planningModel: string;
+  readonly readingGraphCovered: readonly InspectChapter[];
+  readonly scopeUri: string;
+  readonly summaryCovered: readonly InspectChapter[];
+}): readonly InspectImprovement[] {
+  const improvements: InspectImprovement[] = [];
+
+  if (!input.ftsCurrent) {
+    improvements.push({
+      command: `wikigraph ${input.archiveUri}/index build`,
+      recommendation:
+        "Build the local FTS index so query-based search, related, and evidence commands are available.",
+      title: "Build FTS index",
+    });
+  }
+
+  if (input.contentChapters.length === 0) {
+    improvements.push({
+      command: `wikigraph ${input.archiveUri}/chapter add --stage sourced`,
+      recommendation:
+        "No source content is available yet; add or import source text before graph or summary generation.",
+      title: "Add source content",
+    });
+    return improvements;
+  }
+
+  improvements.push(
+    ...createGraphImprovement({
+      concurrent: input.concurrent,
+      covered: input.readingGraphCovered,
+      planningModel: input.planningModel,
+      scopeUri: input.scopeUri,
+      task: "reading-graph",
+      title: "Complete Reading Graph coverage",
+      total: input.contentChapters,
+    }),
+  );
+  improvements.push(
+    ...createGraphImprovement({
+      concurrent: input.concurrent,
+      covered: input.knowledgeGraphCovered,
+      planningModel: input.planningModel,
+      scopeUri: input.scopeUri,
+      task: "knowledge-graph",
+      title: "Complete Knowledge Graph coverage",
+      total: input.contentChapters,
+    }),
+  );
+  improvements.push(
+    ...createGraphImprovement({
+      concurrent: input.concurrent,
+      covered: input.summaryCovered,
+      planningModel: input.planningModel,
+      scopeUri: input.scopeUri,
+      task: "reading-summary",
+      title: "Complete Summary coverage",
+      total: input.contentChapters,
+    }),
+  );
+
+  return improvements;
+}
+
+function createGraphImprovement(input: {
+  readonly concurrent: { readonly job: number; readonly request: number };
+  readonly covered: readonly InspectChapter[];
+  readonly planningModel: string;
+  readonly scopeUri: string;
+  readonly task: "knowledge-graph" | "reading-graph" | "reading-summary";
+  readonly title: string;
+  readonly total: readonly InspectChapter[];
+}): readonly InspectImprovement[] {
+  const coveredIds = new Set(input.covered.map((chapter) => chapter.chapterId));
+  const missing = input.total.filter(
+    (chapter) => !coveredIds.has(chapter.chapterId),
+  );
+
+  if (missing.length === 0) {
+    return [];
+  }
+
+  const missingWords = sumWords(missing);
+
+  return [
+    {
+      command: `wikigraph wikg://local/job add --input ${input.scopeUri} --task ${input.task} --accept-cost`,
+      missingChapters: missing.length,
+      missingWords,
+      planning: planInspectTask(
+        input.task,
+        missingWords,
+        missing.length,
+        input.concurrent,
+        input.planningModel,
+      ),
+      recommendation: formatImprovementRecommendation(
+        input.covered,
+        input.total,
+        missingWords,
+      ),
+      title: input.title,
+    },
+  ];
+}
+
+function planInspectTask(
+  task: "knowledge-graph" | "reading-graph" | "reading-summary",
+  words: number,
+  chapters: number,
+  concurrent: { readonly job: number; readonly request: number },
+  model: string,
+): InspectPlanningCost {
+  const profile = getInspectTaskPlanningProfile(task);
+  const calls = Math.max(chapters, Math.ceil(words / profile.wordsPerCall));
+  const effectiveConcurrency = Math.max(
+    1,
+    task === "reading-graph" ? 1 : concurrent.job * concurrent.request,
+  );
+  const callBatches = Math.ceil(calls / effectiveConcurrency);
+  const wordSeconds = words * profile.secondsPerWord;
+
+  return {
+    model,
+    timeSeconds: {
+      max: Math.ceil(callBatches * profile.maxSecondsPerCall + wordSeconds),
+      min: Math.ceil(callBatches * profile.minSecondsPerCall + wordSeconds),
+    },
+    tokens: {
+      cached: Math.ceil(words * profile.cachedInputTokenPerWord),
+      input: Math.ceil(words * profile.inputTokenPerWord),
+      output: Math.ceil(words * profile.outputTokenPerWord),
+    },
+  };
+}
+
+function getInspectTaskPlanningProfile(
+  task: "knowledge-graph" | "reading-graph" | "reading-summary",
+): {
+  readonly inputTokenPerWord: number;
+  readonly cachedInputTokenPerWord: number;
+  readonly maxSecondsPerCall: number;
+  readonly minSecondsPerCall: number;
+  readonly outputTokenPerWord: number;
+  readonly secondsPerWord: number;
+  readonly wordsPerCall: number;
+} {
+  switch (task) {
+    case "knowledge-graph":
+      return {
+        cachedInputTokenPerWord: 1.2,
+        inputTokenPerWord: 2.4,
+        maxSecondsPerCall: 180,
+        minSecondsPerCall: 45,
+        outputTokenPerWord: 0.7,
+        secondsPerWord: 0.01,
+        wordsPerCall: 1800,
+      };
+    case "reading-graph":
+      return {
+        cachedInputTokenPerWord: 0.9,
+        inputTokenPerWord: 1.8,
+        maxSecondsPerCall: 150,
+        minSecondsPerCall: 35,
+        outputTokenPerWord: 0.45,
+        secondsPerWord: 0.008,
+        wordsPerCall: 2500,
+      };
+    case "reading-summary":
+      return {
+        cachedInputTokenPerWord: 0.65,
+        inputTokenPerWord: 1.3,
+        maxSecondsPerCall: 90,
+        minSecondsPerCall: 20,
+        outputTokenPerWord: 0.25,
+        secondsPerWord: 0.004,
+        wordsPerCall: 3500,
+      };
+  }
+}
+
+function formatImprovementRecommendation(
+  covered: readonly InspectChapter[],
+  total: readonly InspectChapter[],
+  missingWords: number,
+): string {
+  const totalWords = sumWords(total);
+  const coveredWords = sumWords(covered);
+
+  if (totalWords === 0) {
+    return "No source content is available.";
+  }
+  if (
+    total.length === 1 ||
+    coveredWords / totalWords >= 0.9 ||
+    missingWords <= 1000
+  ) {
+    return "Queue the full scope to finish the remaining gap.";
+  }
+
+  return "Queue selected chapters first if only part of the scope matters.";
+}
+
+function formatInspectImprovement(
+  improvement: InspectImprovement,
+): readonly string[] {
+  return [
+    `${improvement.title}:`,
+    ...(improvement.missingChapters === undefined
+      ? []
+      : [
+          `  Missing: ${improvement.missingChapters} chapters / ${improvement.missingWords} words`,
+        ]),
+    `  Recommendation: ${improvement.recommendation}`,
+    ...(improvement.planning === undefined
+      ? [`  Command: ${improvement.command}`]
+      : [
+          "  If completing this scope:",
+          `    Command: ${improvement.command}`,
+          `    Model: ${improvement.planning.model}`,
+          `    Tokens: ${improvement.planning.tokens.input} input / ${improvement.planning.tokens.cached} cached / ${improvement.planning.tokens.output} output`,
+          `    Wait: ${formatDuration(improvement.planning.timeSeconds.min)}-${formatDuration(improvement.planning.timeSeconds.max)}`,
+        ]),
+  ];
+}
+
+function sumWords(chapters: readonly Pick<InspectChapter, "words">[]): number {
+  return chapters.reduce((total, chapter) => total + chapter.words, 0);
+}
+
+function formatPercent(numerator: number, denominator: number): string {
+  if (denominator === 0) {
+    return "n/a";
+  }
+
+  const percent = (numerator / denominator) * 100;
+
+  return `${Number.isInteger(percent) ? percent.toFixed(0) : percent.toFixed(1)}%`;
+}
+
+function formatInspectPlanningModel(
+  llm: { readonly model?: string; readonly provider?: string } | undefined,
+): string {
+  if (llm?.model === undefined) {
+    return "not configured";
+  }
+
+  return llm.provider === undefined
+    ? llm.model
+    : `${llm.provider}/${llm.model}`;
 }
 
 async function writeList(
@@ -1545,6 +2024,11 @@ async function writePage(
   }
 
   switch (page.type) {
+    case "chapter-title":
+      await writeTextToStdout(
+        `${formatPlainObject(await createPageObject(page, context))}\n`,
+      );
+      return;
     case "chapter":
       await writeTextToStdout(
         `${formatChapterObjectText(
@@ -1784,12 +2268,12 @@ function formatNextCursor(nextCursor: string | null): string {
 
 function formatNoMatches(result: ArchiveFindResult): string {
   if (result.match === "all" && result.terms.length > 1) {
-    return `No matches. Try a more specific lens URI, for example: wikigraph <archive-uri>/source search "${result.query}"${formatFindLensHint(result)}\n`;
+    return `No matches. Try a more specific scope URI, for example: wikigraph <archive-uri>/chunk --query "${result.query}"${formatFindLensHint(result)}\n`;
   }
 
   const lines = [
     "No matches.",
-    "Try fewer or broader keywords, or search a lens URI such as `<archive-uri>/source`, `<archive-uri>/summary`, or `<archive-uri>/chunk`.",
+    "Try fewer or broader keywords, or search a scope URI such as `<archive-uri>/chapter`, `<archive-uri>/chunk`, `<archive-uri>/entity`, or `<archive-uri>/triple`.",
   ];
 
   if (result.lensHint !== null) {
@@ -1809,6 +2293,13 @@ async function createFindObject(
     return {
       ...(hit.state === undefined ? {} : { state: hit.state }),
       title: hit.title,
+      uri,
+    };
+  }
+  if (hit.type === "chapter-title") {
+    return {
+      title: hit.title,
+      type: "chapter-title",
       uri,
     };
   }
@@ -1963,6 +2454,12 @@ async function createPageObject(
         uri: toWikiGraphUri(page.id),
       };
     }
+    case "chapter-title":
+      return {
+        title: page.title,
+        type: "chapter-title",
+        uri: toWikiGraphUri(page.id),
+      };
     case "chapter-tree": {
       const { id: _id, ...rest } = page;
 
@@ -2456,6 +2953,7 @@ async function formatPackAnchor(
   context: ArchiveOutputContext,
 ): Promise<string> {
   switch (anchor.type) {
+    case "chapter-title":
     case "chapter":
       return formatPlainObject(await createPageObject(anchor, context));
     case "chapter-tree":
@@ -2518,6 +3016,8 @@ function toWikiGraphUri(id: string): string {
   switch (type) {
     case "chapter":
       return `wikg://chapter/${first ?? ""}`;
+    case "chapter-title":
+      return `wikg://chapter/${first ?? ""}/title`;
     case "fragment":
       return `wikg://chapter/${first ?? ""}/source/${second ?? "0"}`;
     case "meta":
@@ -2536,7 +3036,7 @@ function toArchiveFindType(
 ): NonNullable<ArchiveFindOptions["types"]>[number] | undefined {
   switch (kind) {
     case "chapter":
-      return "chapter";
+      return "chapter-title";
     case "chunk":
       return "node";
     case "source":
@@ -2557,7 +3057,7 @@ function toArchiveCollectionType(
 ): NonNullable<ArchiveCollectionOptions["types"]>[number] | undefined {
   switch (kind) {
     case "chapter":
-      return "chapter";
+      return "chapter-title";
     case "chunk":
       return "node";
     case "entity":
@@ -2585,22 +3085,6 @@ function isUrl(value: string): boolean {
 
 function formatFetchedUrlSource(url: string, text: string): string {
   return [`# ${url}`, "", text].join("\n");
-}
-
-function formatEstimateStage(stage: ArchiveEstimate["targetStage"]): string {
-  switch (stage) {
-    case "planned":
-      return "planned";
-    case "source":
-    case "sourced":
-      return "source";
-    case "graphed":
-      return "reading-graph";
-    case "summarized":
-      return "reading-summary";
-    default:
-      return stage;
-  }
 }
 
 async function readAllText(stream: AsyncIterable<string>): Promise<string> {

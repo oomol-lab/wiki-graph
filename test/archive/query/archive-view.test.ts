@@ -158,9 +158,10 @@ describe("archive/query/archive-view", () => {
         expect(result.lens).toBe("broad");
         expect(result.lensHint).toMatchObject({
           lenses: {
+            chunk: "source text ranges",
+            entity: "indexed entities",
             node: "topology / LLM Wiki structure",
-            source: "original source wording",
-            summary: "quick overview",
+            triple: "knowledge graph statements",
           },
         });
         expect(result.items).toContainEqual(
@@ -362,8 +363,8 @@ describe("archive/query/archive-view", () => {
         });
 
         expect(result.items.map((item) => item.id)).toStrictEqual([
-          "chapter:2",
-          "chapter:1",
+          "chapter-title:2",
+          "chapter-title:1",
         ]);
         expect(result.items[0]?.score).toBeGreaterThan(
           result.items[1]?.score ?? 0,
@@ -1365,37 +1366,36 @@ describe("archive/query/archive-view", () => {
     });
   });
 
-  it("keeps chapter pages compact for topology exploration", async () => {
+  it("reads chapter title and state as separate objects", async () => {
     await withTempDir("spinedigest-archive-view-", async (path) => {
       const document = await DirectoryDocument.open(`${path}/document`);
 
       try {
         await seedSourcedDocument(document);
 
-        const page = await readArchivePage(document, "chapter:1");
+        await expect(readArchivePage(document, "chapter:1")).rejects.toThrow(
+          "scope URI",
+        );
 
-        expect(page.id).toBe("chapter:1");
-        expect(page.type).toBe("chapter");
-        if (page.type !== "chapter") {
-          throw new Error("Expected chapter page");
-        }
-        expect(page).toStrictEqual({
-          id: "chapter:1",
+        await expect(
+          readArchivePage(document, "chapter-title:1"),
+        ).resolves.toStrictEqual({
+          id: "chapter-title:1",
+          title: "Introduction",
+          type: "chapter-title",
+        });
+        await expect(
+          readArchivePage(document, "wikg://chapter/1/state"),
+        ).resolves.toStrictEqual({
+          id: "wikg://chapter/1/state",
           state: {
             "knowledge-graph": "missing",
             "reading-graph": "ready",
             "reading-summary": "ready",
             source: "ready",
           },
-          title: "Introduction",
-          type: "chapter",
+          type: "state",
         });
-        expect(JSON.stringify(page)).not.toContain("sourcePreview");
-        expect(JSON.stringify(page)).not.toContain("fragments");
-        expect(JSON.stringify(page)).not.toContain("position");
-        expect(JSON.stringify(page)).not.toContain("span");
-        expect(JSON.stringify(page)).not.toContain("weight");
-        expect(JSON.stringify(page)).not.toContain("wordsCount");
       } finally {
         await document.release();
       }
@@ -1857,22 +1857,27 @@ describe("archive/query/archive-view", () => {
 
         const result = await listArchiveCollection(document, {
           chapters: [1],
-          types: ["chapter", "entity", "source", "node", "summary", "triple"],
+          types: [
+            "chapter-title",
+            "entity",
+            "source",
+            "node",
+            "summary",
+            "triple",
+          ],
         });
 
         expect(result.items.map((item) => item.id)).toEqual(
           expect.arrayContaining([
-            "chapter:1",
+            "chapter-title:1",
             "wikg://entity/Q1",
-            "wikg://chapter/1/source#0",
             "node:100",
             "node:101",
-            "wikg://chapter/1/summary#0",
           ]),
         );
         expect(result.items.map((item) => item.id)).not.toEqual(
           expect.arrayContaining([
-            "chapter:2",
+            "chapter-title:2",
             "node:200",
             "wikg://chapter/2/summary#0",
             "wikg://triple/Q1/mentions/Q2",
@@ -2502,9 +2507,12 @@ describe("archive/query/archive-view", () => {
       try {
         await seedSourcedDocument(document);
 
-        await expect(readArchiveText(document, "chapter:1")).resolves.toContain(
-          "An LLM Wiki exposes pages",
+        await expect(readArchiveText(document, "chapter:1")).rejects.toThrow(
+          "scope URI",
         );
+        await expect(
+          readArchiveText(document, "chapter-title:1"),
+        ).resolves.toBe("Introduction");
         await expect(readArchiveText(document, "node:100")).resolves.toBe(
           "Pages and links make archive navigation explicit.",
         );
@@ -3023,26 +3031,7 @@ describe("archive/query/archive-view", () => {
           types: ["source"],
         });
 
-        expect(result.items[0]).toMatchObject({
-          backlinks: {
-            chunks: {
-              items: [
-                {
-                  id: "node:100",
-                },
-              ],
-            },
-            triples: {
-              items: [
-                {
-                  id: "wikg://triple/Q1/mentions/Q2",
-                },
-              ],
-            },
-          },
-          id: "wikg://chapter/1/source#0",
-          type: "source",
-        });
+        expect(result.items).toStrictEqual([]);
       } finally {
         await document.release();
       }
