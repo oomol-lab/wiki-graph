@@ -55,12 +55,12 @@ export type HelpVerbName =
   | "cancel"
   | "clear"
   | "create"
-  | "estimate"
   | "evidence"
   | "embed"
   | "export"
   | "external"
   | "get"
+  | "inspect"
   | "list"
   | "move"
   | "next"
@@ -133,9 +133,9 @@ const HELP_OBJECTS: readonly HelpObjectEntry[] = [
         verb: "create",
       },
       {
-        command: "wikigraph wikg://book.wikg estimate --stage reading-summary",
-        note: "Estimate generated work before queueing it.",
-        verb: "estimate",
+        command: "wikigraph wikg://book.wikg inspect",
+        note: "Inspect archive readiness before searching or queueing work.",
+        verb: "inspect",
       },
       {
         command: "wikigraph wikg://book.wikg export --output-format markdown",
@@ -706,9 +706,10 @@ const HELP_VERBS: readonly HelpVerbEntry[] = [
   { description: "Cancel a queued job.", name: "cancel", title: "Cancel" },
   { description: "Boost a queued job.", name: "boost", title: "Boost" },
   {
-    description: "Estimate generated work before queueing it.",
-    name: "estimate",
-    title: "Estimate",
+    description:
+      "Inspect archive readiness, coverage, search index, and next steps.",
+    name: "inspect",
+    title: "Inspect",
   },
   {
     description: "Export an archive projection.",
@@ -727,7 +728,7 @@ export const ARCHIVE_COMMANDS = [
   "evidence",
   "next",
   "pack",
-  "estimate",
+  "inspect",
   "export",
 ] as const satisfies readonly CLIArchiveAction[];
 

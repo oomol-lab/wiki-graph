@@ -37,15 +37,15 @@ cat ./article.md | wikigraph wkg://article.wikg create --input-format markdown
 
 Create creates or replaces a `.wikg` archive at source stage. The archive now contains normalized source data, but generated Reading Graph, Reading Summary, and Knowledge Graph data are still absent.
 
-## 4. Inspect And Estimate
+## 4. Inspect
 
 ```bash
 wikigraph wkg://book.wikg/chapter list
 wikigraph wkg://book.wikg/chapter/tree get
-wikigraph wkg://book.wikg estimate --stage reading-summary
+wikigraph wkg://book.wikg inspect
 ```
 
-Use the estimate before queueing broad Reading Graph, Reading Summary, or Knowledge Graph work.
+Use inspect before queueing broad Reading Graph, Reading Summary, or Knowledge Graph work.
 
 ## 5. Build Knowledge
 

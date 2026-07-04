@@ -388,26 +388,6 @@ export interface ArchiveEntityWikipageLocale {
   readonly url: string;
 }
 
-export interface ArchiveEstimate {
-  readonly estimatedCostUsd: {
-    readonly max: number;
-    readonly min: number;
-  };
-  readonly estimatedLlmCalls: number;
-  readonly estimatedTime: {
-    readonly maxSeconds: number;
-    readonly minSeconds: number;
-  };
-  readonly estimatedTokens: {
-    readonly input: number;
-    readonly output: number;
-  };
-  readonly recommendation: string;
-  readonly risk: "high" | "low" | "medium";
-  readonly sourceWords: number;
-  readonly targetStage: string;
-}
-
 export interface ArchivePack {
   readonly anchor: ArchivePage;
   readonly budget: number;
@@ -2608,62 +2588,6 @@ function validatePackReference(id: string): void {
         `Pack is only available for chunk and entity objects: ${id}`,
       );
   }
-}
-
-export async function estimateArchiveBuild(
-  document: ReadonlyDocument,
-  targetStage: string,
-): Promise<ArchiveEstimate> {
-  const chapters = await listChapters(document);
-  const words = chapters.reduce((total, chapter) => total + chapter.words, 0);
-  const pendingGraph = chapters.filter(
-    (chapter) => chapter.stage === "sourced",
-  ).length;
-  const pendingSummary = chapters.filter(
-    (chapter) => chapter.stage === "graphed",
-  ).length;
-  const planned = chapters.filter(
-    (chapter) => chapter.stage === "planned",
-  ).length;
-  const targetCalls =
-    targetStage === "source" || targetStage === "sourced"
-      ? 0
-      : Math.max(0, pendingGraph + pendingSummary + planned);
-  const inputTokens = Math.ceil(words * 1.5);
-  const outputTokens = Math.ceil(words * 0.35);
-  const risk =
-    inputTokens > 1_000_000 || targetCalls > 100
-      ? "high"
-      : inputTokens > 150_000 || targetCalls > 20
-        ? "medium"
-        : "low";
-
-  return {
-    estimatedCostUsd: {
-      max: roundMoney(
-        (inputTokens / 1_000_000) * 6 + (outputTokens / 1_000_000) * 18,
-      ),
-      min: roundMoney(
-        (inputTokens / 1_000_000) * 1 + (outputTokens / 1_000_000) * 3,
-      ),
-    },
-    estimatedLlmCalls: targetCalls,
-    estimatedTime: {
-      maxSeconds: targetCalls * 120,
-      minSeconds: targetCalls * 30,
-    },
-    estimatedTokens: {
-      input: inputTokens,
-      output: outputTokens,
-    },
-    recommendation:
-      risk === "high"
-        ? "Do not queue broad generation in an interactive agent session; queue scoped chapters first."
-        : "Estimate is low enough for scoped queue work if the user expects LLM-backed generation.",
-    risk,
-    sourceWords: words,
-    targetStage,
-  };
 }
 
 export function formatChapterId(chapterId: number): string {
@@ -6141,10 +6065,6 @@ function formatMetaText(meta: BookMeta | undefined): string {
 
 function formatWeight(weight: number): string {
   return Number.isInteger(weight) ? String(weight) : weight.toFixed(3);
-}
-
-function roundMoney(value: number): number {
-  return Math.round(value * 100) / 100;
 }
 
 function isDefined<T>(value: T | undefined | null): value is T {

@@ -60,7 +60,7 @@ Use the library API only when the surrounding system explicitly needs in-process
 - Read objects: Wiki Graph URIs such as `wkg://chapter/1/source#0..3`, `wkg://chunk/42`, `wkg://entity/Q9957`, and `wkg://triple/...`
 - Cheap operations: `chapter list`, `<chapter-uri>/state get`, `search`, `get`, `related`, `evidence`, `pack`, `export`
 - Expensive operations: Reading Graph, Reading Summary, or Knowledge Graph `queue add`
-- Estimate first: `wikigraph <archive-uri> estimate --stage reading-summary`
+- Inspect first: `wikigraph <archive-uri> inspect`
 - Retrieval strategy: use `wikigraph help retrieval` for scope, lens, pagination, and output format choices
 
 ## Recommended Execution Strategy
@@ -75,14 +75,14 @@ Use the library API only when the surrounding system explicitly needs in-process
 8. Use `wikigraph <graph-object-uri> pack` when the user needs deterministic context around a known chunk or entity.
 9. Use `export` only when the user needs a projection.
 10. Use `<archive-uri>/chapter list` when chapter readiness or build state is part of the task.
-11. Before `queue add`, run `estimate`; if the estimate is too large for the session, ask the user.
+11. Before `queue add`, run `inspect`; if the planning cost is too large for the session, ask the user.
 
 ## Queue Workflow
 
 ```bash
 wikigraph wkg://book.wikg create ./book.epub
 wikigraph wkg://book.wikg/chapter list
-wikigraph wkg://book.wikg estimate --stage reading-summary
+wikigraph wkg://book.wikg inspect
 wikigraph wkg://book.wikg/chapter/3 queue add --task reading-graph --accept-cost
 wikigraph wkg-job://<job-id> watch --jsonl
 ```

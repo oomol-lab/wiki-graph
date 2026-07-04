@@ -137,6 +137,40 @@ const archiveMockState = vi.hoisted(() => ({
       type: "node",
     },
   ],
+  ftsCurrent: false,
+  ftsEmbedded: false,
+  inspectChapters: [
+    {
+      chapterId: 1,
+      childCount: 0,
+      depth: 0,
+      fragmentCount: 1,
+      stage: "summarized",
+      title: "Ready chapter",
+      tocPath: ["Ready chapter"],
+      words: 800,
+    },
+    {
+      chapterId: 2,
+      childCount: 0,
+      depth: 0,
+      fragmentCount: 1,
+      stage: "sourced",
+      title: "Missing chapter",
+      tocPath: ["Missing chapter"],
+      words: 400,
+    },
+    {
+      chapterId: 3,
+      childCount: 0,
+      depth: 0,
+      fragmentCount: 0,
+      stage: "planned",
+      title: "Planned chapter",
+      tocPath: ["Planned chapter"],
+      words: 0,
+    },
+  ],
   sourceFindHits: [
     {
       chapter: 2,
@@ -402,6 +436,12 @@ const archiveMockState = vi.hoisted(() => ({
     type: "triple",
   } satisfies ArchivePage,
   readCalls: [] as string[],
+  serials: new Map([
+    [1, { knowledgeGraphReady: true, topologyReady: true }],
+    [2, { knowledgeGraphReady: false, topologyReady: false }],
+    [3, { knowledgeGraphReady: false, topologyReady: false }],
+  ]),
+  summaryWords: 120,
   textWrites: [] as string[],
 }));
 
@@ -427,26 +467,13 @@ vi.mock("../../src/wikg/spine-digest-file.js", () => ({
       operation: (document: unknown) => Promise<unknown>,
     ): Promise<unknown> {
       archiveMockState.readCalls.push(this.#path);
-      return await operation({});
+      return await operation(createArchiveMockDocument());
     }
   },
 }));
 
 vi.mock("../../src/facade/index.js", () => ({
   createContinuationCursor: vi.fn(() => Promise.resolve("c_next")),
-  estimateArchiveBuild: vi.fn(() =>
-    Promise.resolve({
-      estimatedCostUsd: { max: 0.02, min: 0.01 },
-      estimatedLlmCalls: 1,
-      estimatedTime: { maxSeconds: 120, minSeconds: 30 },
-      estimatedTokens: { input: 1000, output: 200 },
-      recommendation:
-        "Estimate is low enough for an interactive build if the user expects LLM-backed work.",
-      risk: "low",
-      sourceWords: 500,
-      targetStage: "summarized",
-    }),
-  ),
   findArchiveObjects: vi.fn(
     (
       _document: unknown,
@@ -476,6 +503,7 @@ vi.mock("../../src/facade/index.js", () => ({
   listArchiveCollection: vi.fn(() =>
     Promise.resolve(archiveMockState.collection),
   ),
+  listChapters: vi.fn(() => Promise.resolve(archiveMockState.inspectChapters)),
   getArchiveIndex: vi.fn(() => Promise.resolve(archiveMockState.index)),
   listRelatedArchiveObjects: vi.fn(() =>
     Promise.resolve({
@@ -522,6 +550,30 @@ vi.mock("../../src/facade/index.js", () => ({
   ),
 }));
 
+vi.mock("../../src/archive/search-index/index.js", () => ({
+  isSearchIndexCurrent: vi.fn(() =>
+    Promise.resolve(archiveMockState.ftsCurrent),
+  ),
+  readArchiveIndexSettings: vi.fn(() =>
+    Promise.resolve({ ftsEmbedded: archiveMockState.ftsEmbedded }),
+  ),
+}));
+
+vi.mock("../../src/cli/config.js", () => ({
+  loadCLIConfig: vi.fn(() =>
+    Promise.resolve({
+      concurrent: {
+        job: 2,
+        request: 3,
+      },
+      llm: {
+        model: "gpt-test",
+        provider: "openai-compatible",
+      },
+    }),
+  ),
+}));
+
 vi.mock("../../src/cli/io.js", () => ({
   writeTextToStdout: vi.fn((text: string) => {
     archiveMockState.textWrites.push(text);
@@ -544,10 +596,88 @@ import {
   readArchivePage,
 } from "../../src/facade/index.js";
 
+function createArchiveMockDocument(): unknown {
+  const document = {};
+
+  Object.defineProperties(document, {
+    readDatabase: {
+      value: async (
+        operation: (database: {
+          readonly queryOne: (
+            sql: string,
+            params: unknown,
+            map: (row: { readonly words: number }) => unknown,
+          ) => Promise<unknown>;
+        }) => Promise<unknown>,
+      ) =>
+        await operation({
+          queryOne: (_sql, _params, map) =>
+            Promise.resolve(map({ words: archiveMockState.summaryWords })),
+        }),
+    },
+    serials: {
+      value: {
+        getById: (chapterId: number) =>
+          Promise.resolve(archiveMockState.serials.get(chapterId)),
+      },
+    },
+  });
+
+  return document;
+}
+
+function createDefaultInspectChapters(): typeof archiveMockState.inspectChapters {
+  return [
+    {
+      chapterId: 1,
+      childCount: 0,
+      depth: 0,
+      fragmentCount: 1,
+      stage: "summarized",
+      title: "Ready chapter",
+      tocPath: ["Ready chapter"],
+      words: 800,
+    },
+    {
+      chapterId: 2,
+      childCount: 0,
+      depth: 0,
+      fragmentCount: 1,
+      stage: "sourced",
+      title: "Missing chapter",
+      tocPath: ["Missing chapter"],
+      words: 400,
+    },
+    {
+      chapterId: 3,
+      childCount: 0,
+      depth: 0,
+      fragmentCount: 0,
+      stage: "planned",
+      title: "Planned chapter",
+      tocPath: ["Planned chapter"],
+      words: 0,
+    },
+  ];
+}
+
+function createDefaultInspectSerials(): typeof archiveMockState.serials {
+  return new Map([
+    [1, { knowledgeGraphReady: true, topologyReady: true }],
+    [2, { knowledgeGraphReady: false, topologyReady: false }],
+    [3, { knowledgeGraphReady: false, topologyReady: false }],
+  ]);
+}
+
 describe("cli/archive", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    archiveMockState.ftsCurrent = false;
+    archiveMockState.ftsEmbedded = false;
+    archiveMockState.inspectChapters = createDefaultInspectChapters();
     archiveMockState.readCalls.length = 0;
+    archiveMockState.serials = createDefaultInspectSerials();
+    archiveMockState.summaryWords = 120;
     archiveMockState.textWrites.length = 0;
   });
 
@@ -1555,6 +1685,73 @@ describe("cli/archive", () => {
     expect(JSON.parse(archiveMockState.textWrites[0] ?? "")).toStrictEqual({
       uri: "wikg:///tmp/book.wikg",
     });
+  });
+
+  it("inspects archive readiness as a text report", async () => {
+    await runArchiveCommand({
+      action: "inspect",
+      archivePath: "/tmp/book.wikg",
+    });
+
+    expect(archiveMockState.readCalls).toStrictEqual(["/tmp/book.wikg"]);
+    expect(archiveMockState.textWrites[0]).toContain("Archive Inspect");
+    expect(archiveMockState.textWrites[0]).toContain(
+      "Chapters: 2 content / 3 total",
+    );
+    expect(archiveMockState.textWrites[0]).toContain("Source words: 1200");
+    expect(archiveMockState.textWrites[0]).toContain("Summary words: 120");
+    expect(archiveMockState.textWrites[0]).toContain(
+      "Status: missing or outdated",
+    );
+    expect(archiveMockState.textWrites[0]).toContain(
+      "Reading Graph: 1/2 chapters, 800/1200 words, 66.7%",
+    );
+    expect(archiveMockState.textWrites[0]).toContain(
+      "Knowledge Graph: 1/2 chapters, 800/1200 words, 66.7%",
+    );
+    expect(archiveMockState.textWrites[0]).toContain(
+      "Summary: 1/2 chapters, 800/1200 words, 66.7%",
+    );
+    expect(archiveMockState.textWrites[0]).toContain(
+      "Command: wikigraph wikg:///tmp/book.wikg/index build",
+    );
+    expect(archiveMockState.textWrites[0]).toContain(
+      "Command: wikigraph wikg://local/job add --input wikg:///tmp/book.wikg --task reading-graph --accept-cost",
+    );
+    expect(archiveMockState.textWrites[0]).toContain(
+      "If completing this scope:",
+    );
+    expect(archiveMockState.textWrites[0]).toContain(
+      "Model: openai-compatible/gpt-test",
+    );
+    expect(archiveMockState.textWrites[0]).toContain(
+      "Tokens: 720 input / 360 cached / 180 output",
+    );
+    expect(archiveMockState.textWrites[0]).toContain("Wait:");
+    expect(archiveMockState.textWrites[0]).not.toContain("Calls:");
+    expect(archiveMockState.textWrites[0]).not.toContain("Cost: $");
+  });
+
+  it("inspects empty archive content without showing zero-percent coverage", async () => {
+    archiveMockState.inspectChapters = [];
+    archiveMockState.summaryWords = 0;
+
+    await runArchiveCommand({
+      action: "inspect",
+      archivePath: "/tmp/empty.wikg",
+    });
+
+    expect(archiveMockState.textWrites[0]).toContain("Source content: empty.");
+    expect(archiveMockState.textWrites[0]).toContain(
+      "Reading Graph: n/a, no source content",
+    );
+    expect(archiveMockState.textWrites[0]).toContain(
+      "Knowledge Graph: n/a, no source content",
+    );
+    expect(archiveMockState.textWrites[0]).toContain(
+      "Summary: n/a, no source content",
+    );
+    expect(archiveMockState.textWrites[0]).not.toContain("0%");
   });
 
   it("gets an entity by Wiki Graph URI", async () => {

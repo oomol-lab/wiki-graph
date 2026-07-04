@@ -1,5 +1,4 @@
 export {
-  estimateArchiveBuild,
   findArchiveObjects,
   formatChapterId,
   formatEdgeId,
@@ -24,7 +23,6 @@ export type {
   ArchiveCollectionOptions,
   ArchiveCollectionResult,
   ArchiveCollectionType,
-  ArchiveEstimate,
   ArchiveEvidence,
   ArchiveEvidenceItem,
   ArchiveFindEvidencePreview,

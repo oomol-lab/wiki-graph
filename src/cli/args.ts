@@ -201,9 +201,9 @@ export interface CLIQueueArguments {
 export type CLIArchiveAction =
   | "create"
   | "evidence"
-  | "estimate"
   | "export"
   | "get"
+  | "inspect"
   | "list"
   | "next"
   | "pack"
@@ -267,7 +267,6 @@ export interface CLIArchiveArguments {
   readonly query?: string;
   readonly role?: "any" | "object" | "self" | "subject";
   readonly sourcePath?: string;
-  readonly targetStage?: ChapterStage;
   readonly triplePattern?: ArchiveTriplePattern;
 }
 
@@ -1029,8 +1028,8 @@ function parseArchiveUriArchiveArguments(
 
   if (
     action !== "create" &&
-    action !== "estimate" &&
     action !== "export" &&
+    action !== "inspect" &&
     action !== "list" &&
     action !== "search"
   ) {
@@ -1044,12 +1043,7 @@ function parseArchiveUriArchiveArguments(
 
   return parseArchiveArguments(
     action,
-    [
-      action === "create" || action === "estimate" || action === "export"
-        ? archivePath
-        : uri,
-      ...tail,
-    ],
+    [action === "create" || action === "export" ? archivePath : uri, ...tail],
     values,
     helpRoute,
   );
@@ -1561,6 +1555,13 @@ function parseSingleChapterUriArguments(
     case "get":
       return parseArchiveArguments(
         "get",
+        [formatLocatedChapterUri(archivePath, chapterId), ...tail],
+        values,
+        helpRoute,
+      );
+    case "inspect":
+      return parseArchiveArguments(
+        "inspect",
         [formatLocatedChapterUri(archivePath, chapterId), ...tail],
         values,
         helpRoute,
@@ -2808,25 +2809,40 @@ function parseArchiveArguments(
         help: false,
         kind: "archive",
       };
-    case "estimate":
+    case "inspect": {
+      const chapterId = parseArchiveInspectChapterId(positionals[0]);
+      const parsedArchivePath =
+        parseLocatedWikiGraphUri(archivePath).archivePath ?? archivePath;
+
       rejectArchiveExtraPositionals(action, positionals, 1, helpRoute);
       rejectArchiveNonReadFlags(action, values, helpRoute);
       rejectArchiveFlag(action, "--budget", values.budget, helpRoute);
       rejectArchiveFlag(action, "--context", values.context, helpRoute);
-      rejectArchiveFlag(action, "--to", values.to, helpRoute);
       rejectArchiveFlag(action, "--evidence", values.evidence, helpRoute);
+      rejectArchiveFlag(action, "--stage", values.stage, helpRoute);
+      rejectArchiveFlag(action, "--to", values.to, helpRoute);
       rejectArchiveBooleanFlag(action, "--all", values.all, helpRoute);
+      rejectArchiveBooleanFlag(
+        action,
+        "--backlinks",
+        values.backlinks,
+        helpRoute,
+      );
       rejectArchiveBooleanFlag(action, "--confirm", values.confirm, helpRoute);
+      rejectArchiveBooleanFlag(action, "--json", values.json, helpRoute);
+      rejectArchiveBooleanFlag(action, "--jsonl", values.jsonl, helpRoute);
+      rejectArchiveFlag(action, "--limit", values.limit, helpRoute);
+      rejectArchiveFlag(action, "--role", values.role, helpRoute);
       return {
         args: {
           action,
-          archivePath,
-          ...(values.json === undefined ? {} : { json: values.json }),
-          targetStage: parseArchiveEstimateStage(values.stage ?? values.to),
+          archivePath: parsedArchivePath,
+          ...(chapterId === undefined ? {} : { chapterId }),
         },
         help: false,
         kind: "archive",
       };
+    }
     case "search": {
       const query = positionals[1];
 
@@ -3111,8 +3127,8 @@ function validateArchiveCommandUriInput(
 ): void {
   if (
     action === "create" ||
-    action === "estimate" ||
     action === "export" ||
+    action === "inspect" ||
     action === "next"
   ) {
     return;
@@ -3133,6 +3149,22 @@ function validateArchiveCommandUriInput(
   }
 
   throw new Error(formatPathAsUriMessage(value));
+}
+
+function parseArchiveInspectChapterId(
+  uri: string | undefined,
+): number | undefined {
+  if (uri === undefined || !isWikiGraphUri(uri)) {
+    return undefined;
+  }
+
+  const objectUri = parseLocatedWikiGraphUri(uri).objectUri;
+  const match =
+    objectUri === undefined
+      ? undefined
+      : /^wikg:\/\/chapter\/([1-9][0-9]*)$/u.exec(objectUri);
+
+  return match?.[1] === undefined ? undefined : Number(match[1]);
 }
 
 function validatePackTargetUri(uri: string, helpRoute: string): void {
@@ -3304,8 +3336,8 @@ function formatMissingArchiveInputMessage(action: CLIArchiveAction): string {
       return "Missing archive URI. Use `wikigraph wikg://<archive.wikg> create [source]`.";
     case "export":
       return "Missing archive URI. Use `wikigraph wikg://<archive.wikg> export --output-format <format>`.";
-    case "estimate":
-      return "Missing archive URI. Use `wikigraph wikg://<archive.wikg> estimate`.";
+    case "inspect":
+      return "Missing archive URI. Use `wikigraph wikg://<archive.wikg> inspect`.";
     case "search":
       return "Missing Wiki Graph URI with .wikg locator. Use `wikigraph wikg://<archive.wikg> search <query>`.";
     case "list":
@@ -4323,9 +4355,9 @@ function isArchiveAction(value: string | undefined): value is CLIArchiveAction {
   return (
     value === "create" ||
     value === "evidence" ||
-    value === "estimate" ||
     value === "export" ||
     value === "get" ||
+    value === "inspect" ||
     value === "list" ||
     value === "next" ||
     value === "pack" ||
@@ -4577,14 +4609,6 @@ function parseWatchFrom(
       helpRoute,
     ),
   );
-}
-
-function parseArchiveEstimateStage(value: string | undefined): ChapterStage {
-  if (value === undefined) {
-    return "summarized";
-  }
-
-  return parseChapterStage(value, "--stage", CLI_HELP_ROUTES.command);
 }
 
 function parseResultFormat(values: {

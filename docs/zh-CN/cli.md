@@ -13,7 +13,8 @@ wikigraph wkg-job://<job-id> <action> ...
 
 ```bash
 wikigraph <archive-uri> create [source] [--input-format <format>] [--llm <json>] [--prompt <text>]
-wikigraph <archive-uri> estimate [--stage <source|reading-graph|reading-summary>] [--json]
+wikigraph <archive-uri> inspect
+wikigraph <chapter-uri> inspect
 wikigraph <located-wkg-uri> search <query> [--all] [--limit <n>] [--context <n>] [--cursor <token>] [--evidence [n]] [--backlinks] [--json|--jsonl]
 wikigraph <located-wkg-uri>/<chapter|entity|triple|source|summary|chunk> search <query> [--all] [--limit <n>] [--context <n>] [--cursor <token>] [--evidence [n]] [--backlinks] [--json|--jsonl]
 wikigraph <located-wkg-uri>/<chapter|entity|triple|source|summary|chunk> list [--all] [--limit <n>] [--context <n>] [--cursor <token>] [--evidence [n]] [--backlinks] [--json|--jsonl]
@@ -66,7 +67,7 @@ wikigraph queue clean
 - `reading-summary`：可读的章节 summary
 - `knowledge-graph`：grounded entity mention 和 source-backed relation
 
-`source` 便宜。Reading Graph、Reading Summary 和 Knowledge Graph queue task 可能调用 LLM provider。先运行 `estimate`，再用 `queue add` 为需要生成的 chapter id 排队。
+`source` 便宜。Reading Graph、Reading Summary 和 Knowledge Graph queue task 可能调用 LLM provider。先运行 `inspect`，再用 `queue add` 为需要生成的 chapter id 排队。
 
 Queue 行为：
 

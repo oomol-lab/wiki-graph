@@ -44,7 +44,7 @@ SpineDigest 围绕一个主对象构建：`.wikg` 知识库归档。EPUB、Markd
 - `reading-summary`：已有可读章节 summary 和 export projection 所需数据
 - `knowledge-graph`：已有 grounded entity mention 和 source-backed relation，可用于 URI 化搜索与证据追踪
 
-`source` 便宜，不需要 LLM 访问。Reading Graph、Reading Summary 和 Knowledge Graph queue task 可能调用 LLM provider，整份归档构建前应先 estimate。
+`source` 便宜，不需要 LLM 访问。Reading Graph、Reading Summary 和 Knowledge Graph queue task 可能调用 LLM provider，整份归档构建前应先 inspect。
 
 Knowledge Graph 构建以 source 为基础。它先从源文本筛选 mention candidate，把 mention grounding 到 QID，再让模型在 grounded mention ID 之间发现 relation。Relation evidence 通过共享的 evidence-selection 协议定位：模型返回 sentence ID 和简短原文 quote，程序用 quote 校正 sentence 漂移；因此 Reading Graph 和 Knowledge Graph 可以复用同一套证据定位逻辑，而不需要互相持有对方的业务对象。
 

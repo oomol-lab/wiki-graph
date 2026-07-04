@@ -213,7 +213,7 @@ function assertBuildCostAccepted(args: CLIQueueArguments): void {
   }
 
   throw new Error(
-    "Generation tasks can call an LLM, consume tokens, incur provider charges, and run for minutes to hours on large archives. Run `wikigraph <archive-uri> estimate --stage reading-summary`, then rerun `wikigraph wikg://local/job add` with --accept-cost if the cost and wait time are acceptable.",
+    "Generation tasks can call an LLM, consume tokens, incur provider charges, and run for minutes to hours on large archives. Run `wikigraph <archive-uri> inspect`, then rerun `wikigraph wikg://local/job add` with --accept-cost if the cost and wait time are acceptable.",
   );
 }
 

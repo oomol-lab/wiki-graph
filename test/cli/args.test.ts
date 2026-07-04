@@ -967,9 +967,31 @@ describe("cli/args", () => {
     expect(() =>
       parseCLIArguments(["wikg://book.wikg", "export", "--role", "subject"]),
     ).toThrow("The `export` command does not support --role.");
+    expect(parseCLIArguments(["wikg://book.wikg", "inspect"])).toStrictEqual({
+      args: {
+        action: "inspect",
+        archivePath,
+      },
+      help: false,
+      kind: "archive",
+    });
+    expect(
+      parseCLIArguments(["wikg://book.wikg/chapter/2", "inspect"]),
+    ).toStrictEqual({
+      args: {
+        action: "inspect",
+        archivePath,
+        chapterId: 2,
+      },
+      help: false,
+      kind: "archive",
+    });
     expect(() =>
-      parseCLIArguments(["wikg://book.wikg", "estimate", "--evidence"]),
-    ).toThrow("The `estimate` command does not support --evidence.");
+      parseCLIArguments(["wikg://book.wikg", "inspect", "--jsonl"]),
+    ).toThrow("The `inspect` command does not support --jsonl.");
+    expect(() =>
+      parseCLIArguments(["wikg://book.wikg", "inspect", "--evidence"]),
+    ).toThrow("The `inspect` command does not support --evidence.");
     expect(() =>
       parseCLIArguments(["wikg://book.wikg", "index", "--evidence"]),
     ).toThrow("The URI-first form does not support `index`.");

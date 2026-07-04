@@ -13,7 +13,8 @@ wikigraph wkg-job://<job-id> <action> ...
 
 ```bash
 wikigraph <archive-uri> create [source] [--input-format <format>] [--llm <json>] [--prompt <text>]
-wikigraph <archive-uri> estimate [--stage <source|reading-graph|reading-summary>] [--json]
+wikigraph <archive-uri> inspect
+wikigraph <chapter-uri> inspect
 wikigraph <located-wkg-uri> search <query> [--all] [--limit <n>] [--context <n>] [--cursor <token>] [--evidence [n]] [--backlinks] [--json|--jsonl]
 wikigraph <located-wkg-uri>/<chapter|entity|triple|source|summary|chunk> search <query> [--all] [--limit <n>] [--context <n>] [--cursor <token>] [--evidence [n]] [--backlinks] [--json|--jsonl]
 wikigraph <located-wkg-uri>/<chapter|entity|triple|source|summary|chunk> list [--all] [--limit <n>] [--context <n>] [--cursor <token>] [--evidence [n]] [--backlinks] [--json|--jsonl]
@@ -66,7 +67,7 @@ User-facing stages:
 - `reading-summary`: readable chapter summaries
 - `knowledge-graph`: grounded entity mentions and source-backed relations
 
-`source` is cheap. Reading Graph, Reading Summary, and Knowledge Graph queue tasks may call an LLM provider. Run `estimate` first, then use `queue add` for the chapter ids you want to generate.
+`source` is cheap. Reading Graph, Reading Summary, and Knowledge Graph queue tasks may call an LLM provider. Run `inspect` first, then use `queue add` for the chapter ids you want to generate.
 
 Queue behavior:
 
