@@ -1713,7 +1713,7 @@ describe("cli/archive", () => {
       "Model: openai-compatible/gpt-test",
     );
     expect(archiveMockState.textWrites[0]).toContain(
-      "Tokens: 720 input / 360 cached / 180 output",
+      "Tokens: 10000 input / 8000 cacheable input / 1600 output",
     );
     expect(archiveMockState.textWrites[0]).toContain("Wait:");
     expect(archiveMockState.textWrites[0]).not.toContain("Calls:");
