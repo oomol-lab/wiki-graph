@@ -110,6 +110,7 @@ export interface SearchIndexQueryResult {
 
 const SEARCH_INDEX_VERSION = "3";
 export const SEARCH_INDEX_FTS_HIT_LIMIT = 32_000;
+const FTS5_RANK_SCORE_SCALE = 1_000_000;
 const TIER_WEIGHTS = [1, 0.45, 0.08] as const;
 
 export interface ArchiveIndexSettings {
@@ -748,7 +749,9 @@ function createTextKindFilter(
 }
 
 function rankToScore(rank: number): number {
-  return 1 / (1 + Math.max(0, Math.abs(rank)));
+  const relevance = Math.max(0, -rank) * FTS5_RANK_SCORE_SCALE;
+
+  return relevance / (1 + relevance);
 }
 
 function createObjectHitKey(hit: SearchIndexObjectHit): string {

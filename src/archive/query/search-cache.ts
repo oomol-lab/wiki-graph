@@ -216,7 +216,7 @@ CREATE INDEX IF NOT EXISTS idx_search_sessions_prune
 ON search_sessions(accessed_at DESC, created_at DESC, session_id);
 `;
 
-const SEARCH_RANKING_VERSION = 5;
+const SEARCH_RANKING_VERSION = 6;
 const SEARCH_SESSION_MAX_COUNT = 500;
 const SEARCH_SESSION_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 const SEARCH_TOP_SCORE_COUNT = 10;

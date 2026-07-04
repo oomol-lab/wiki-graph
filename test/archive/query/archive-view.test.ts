@@ -196,6 +196,117 @@ describe("archive/query/archive-view", () => {
     });
   });
 
+  it("orders text search hits by FTS relevance within the text bucket", async () => {
+    await withTempDir("spinedigest-archive-view-", async (path) => {
+      const document = await DirectoryDocument.open(`${path}/document`);
+
+      try {
+        await document.openSession(async (openedDocument) => {
+          await openedDocument.createSerial();
+          const draft = await openedDocument
+            .getSerialFragments(1)
+            .createDraft();
+
+          draft.addSentence("alpha appears in a weak candidate.", 6);
+          draft.addSentence("alpha beta alpha beta is the strongest match.", 8);
+          await draft.commit();
+          await openedDocument.writeBookMeta({
+            authors: [],
+            description: null,
+            identifier: null,
+            language: "en",
+            publishedAt: null,
+            publisher: null,
+            sourceFormat: "markdown",
+            title: "Search Ranking Fixture",
+            version: 1,
+          });
+          await openedDocument.writeToc({
+            items: [
+              {
+                children: [],
+                serialId: 1,
+                title: "Ranking",
+              },
+            ],
+            version: 1,
+          });
+        });
+        await rebuildArchiveSearchIndex(document);
+
+        const result = await findArchiveObjects(document, "alpha beta", {
+          limit: 10,
+          types: ["source"],
+        });
+
+        expect(result.items.map((item) => item.id)).toStrictEqual([
+          "wikg://chapter/1/source#1",
+          "wikg://chapter/1/source#0",
+        ]);
+        expect(result.items[0]?.score).toBeGreaterThan(
+          result.items[1]?.score ?? 0,
+        );
+      } finally {
+        await document.release();
+      }
+    });
+  });
+
+  it("orders chapter search hits by FTS relevance within the object property bucket", async () => {
+    await withTempDir("spinedigest-archive-view-", async (path) => {
+      const document = await DirectoryDocument.open(`${path}/document`);
+
+      try {
+        await document.openSession(async (openedDocument) => {
+          await openedDocument.createSerial();
+          await openedDocument.createSerial();
+          await openedDocument.writeBookMeta({
+            authors: [],
+            description: null,
+            identifier: null,
+            language: "en",
+            publishedAt: null,
+            publisher: null,
+            sourceFormat: "markdown",
+            title: "Chapter Ranking Fixture",
+            version: 1,
+          });
+          await openedDocument.writeToc({
+            items: [
+              {
+                children: [],
+                serialId: 1,
+                title: "alpha appears in a weak chapter",
+              },
+              {
+                children: [],
+                serialId: 2,
+                title: "alpha beta alpha beta strongest chapter",
+              },
+            ],
+            version: 1,
+          });
+        });
+        await rebuildArchiveSearchIndex(document);
+
+        const result = await findArchiveObjects(document, "alpha beta", {
+          limit: 10,
+          types: ["chapter"],
+        });
+
+        expect(result.items.map((item) => item.id)).toStrictEqual([
+          "chapter:2",
+          "chapter:1",
+        ]);
+        expect(result.items[0]?.score).toBeGreaterThan(
+          result.items[1]?.score ?? 0,
+        );
+      } finally {
+        await document.release();
+      }
+    });
+  });
+
   it("limits FTS candidates before search cache hydration", async () => {
     await withTempDir("spinedigest-archive-view-", async (path) => {
       const document = await DirectoryDocument.open(`${path}/document`);
