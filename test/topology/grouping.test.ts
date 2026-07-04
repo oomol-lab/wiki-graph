@@ -4,11 +4,11 @@ import type {
   ChunkRecord,
   ReadonlySerialFragments,
 } from "../../src/document/index.js";
-import { groupFragments } from "../../src/topology/grouping.js";
+import { groupSegments } from "../../src/topology/grouping.js";
 
 describe("topology/grouping", () => {
-  it("converts normalized fragment incisions into persisted fragment groups", async () => {
-    const result = await groupFragments({
+  it("converts normalized segment incisions into persisted sentence groups", async () => {
+    const result = await groupSegments({
       chunks: [
         createChunk(1, 1, 3),
         createChunk(2, 2, 3),
@@ -59,16 +59,16 @@ function createChunk(
 }
 
 function createSerialFragments(
-  wordsCountsByFragmentId: Record<number, number>,
+  wordsCountsByStartIndex: Record<number, number>,
 ): ReadonlySerialFragments {
   return {
-    getFragment: (fragmentId: number) =>
+    getFragment: (startSentenceIndex: number) =>
       Promise.resolve({
-        fragmentId,
+        fragmentId: startSentenceIndex,
         sentences: [
           {
-            text: `Fragment ${fragmentId}`,
-            wordsCount: wordsCountsByFragmentId[fragmentId] ?? 0,
+            text: `Segment ${startSentenceIndex}`,
+            wordsCount: wordsCountsByStartIndex[startSentenceIndex] ?? 0,
           },
         ],
         serialId: 7,
@@ -76,8 +76,8 @@ function createSerialFragments(
       }),
     listFragmentIds: () =>
       Promise.resolve(
-        Object.keys(wordsCountsByFragmentId).map((fragmentId) =>
-          Number(fragmentId),
+        Object.keys(wordsCountsByStartIndex).map((startSentenceIndex) =>
+          Number(startSentenceIndex),
         ),
       ),
     path: "/tmp/fragments",

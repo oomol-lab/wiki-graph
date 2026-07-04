@@ -1,36 +1,36 @@
 import { describe, expect, it } from "vitest";
 
-import { createFragmentGroups } from "../../src/topology/resource-segmentation.js";
+import { createSegmentGroups } from "../../src/topology/resource-segmentation.js";
 
 describe("topology/resource-segmentation", () => {
-  it("returns no groups for empty fragment input", () => {
+  it("returns no groups for empty segment input", () => {
     expect(
-      createFragmentGroups({
-        fragmentInfos: [],
+      createSegmentGroups({
+        segmentInfos: [],
         groupWordsCount: 100,
         serialId: 1,
       }),
     ).toStrictEqual([]);
   });
 
-  it("greedily groups adjacent fragments without duplicating ids", () => {
+  it("greedily groups adjacent segments without duplicating ids", () => {
     expect(
-      createFragmentGroups({
-        fragmentInfos: [
+      createSegmentGroups({
+        segmentInfos: [
           {
-            fragmentId: 1,
+            startSentenceIndex: 1,
             endIncision: 0,
             startIncision: 0,
             wordsCount: 40,
           },
           {
-            fragmentId: 2,
+            startSentenceIndex: 2,
             endIncision: 0,
             startIncision: 0,
             wordsCount: 40,
           },
           {
-            fragmentId: 3,
+            startSentenceIndex: 3,
             endIncision: 0,
             startIncision: 0,
             wordsCount: 40,
@@ -47,28 +47,28 @@ describe("topology/resource-segmentation", () => {
 
   it("prefers strong incision boundaries when splitting oversized groups", () => {
     expect(
-      createFragmentGroups({
-        fragmentInfos: [
+      createSegmentGroups({
+        segmentInfos: [
           {
-            fragmentId: 1,
+            startSentenceIndex: 1,
             endIncision: 1,
             startIncision: 0,
             wordsCount: 20,
           },
           {
-            fragmentId: 2,
+            startSentenceIndex: 2,
             endIncision: 9,
             startIncision: 1,
             wordsCount: 20,
           },
           {
-            fragmentId: 3,
+            startSentenceIndex: 3,
             endIncision: 1,
             startIncision: 9,
             wordsCount: 20,
           },
           {
-            fragmentId: 4,
+            startSentenceIndex: 4,
             endIncision: 0,
             startIncision: 1,
             wordsCount: 20,
@@ -83,24 +83,24 @@ describe("topology/resource-segmentation", () => {
     ]);
   });
 
-  it("forces individually oversized fragments into separate groups", () => {
+  it("forces individually oversized segments into separate groups", () => {
     expect(
-      createFragmentGroups({
-        fragmentInfos: [
+      createSegmentGroups({
+        segmentInfos: [
           {
-            fragmentId: 1,
+            startSentenceIndex: 1,
             endIncision: 0,
             startIncision: 0,
             wordsCount: 70,
           },
           {
-            fragmentId: 2,
+            startSentenceIndex: 2,
             endIncision: 0,
             startIncision: 0,
             wordsCount: 70,
           },
           {
-            fragmentId: 3,
+            startSentenceIndex: 3,
             endIncision: 0,
             startIncision: 0,
             wordsCount: 70,

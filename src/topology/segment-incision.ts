@@ -4,39 +4,39 @@ import type {
   ReadonlySerialFragments,
 } from "../document/index.js";
 
-export interface FragmentInfo {
-  readonly fragmentId: number;
+export interface SegmentInfo {
+  readonly startSentenceIndex: number;
   readonly wordsCount: number;
   readonly startIncision: number;
   readonly endIncision: number;
 }
 
-export async function computeNormalizedFragmentIncisions(input: {
+export async function computeNormalizedSegmentIncisions(input: {
   chunks: readonly ChunkRecord[];
   edges: readonly ReadingEdgeRecord[];
   fragments: ReadonlySerialFragments;
-}): Promise<FragmentInfo[]> {
-  const fragmentWordsCounts = await loadFragmentWordsCounts(input.fragments);
+}): Promise<SegmentInfo[]> {
+  const segmentWordsCounts = await loadSegmentWordsCounts(input.fragments);
 
   return normalizeIncisions(
-    computeFragmentIncisions({
+    computeSegmentIncisions({
       chunks: input.chunks,
       edges: input.edges,
-      fragmentWordsCounts,
+      segmentWordsCounts,
     }),
   );
 }
 
-async function loadFragmentWordsCounts(
+async function loadSegmentWordsCounts(
   fragments: ReadonlySerialFragments,
 ): Promise<Readonly<Record<string, number>>> {
   const wordsCounts = createNumberRecord();
-  const fragmentIds = await fragments.listFragmentIds();
+  const startSentenceIndexes = await fragments.listFragmentIds();
 
-  for (const fragmentId of fragmentIds) {
-    const fragment = await fragments.getFragment(fragmentId);
+  for (const startSentenceIndex of startSentenceIndexes) {
+    const segment = await fragments.getFragment(startSentenceIndex);
 
-    wordsCounts[String(fragmentId)] = fragment.sentences.reduce(
+    wordsCounts[String(startSentenceIndex)] = segment.sentences.reduce(
       (total, sentence) => total + sentence.wordsCount,
       0,
     );
@@ -45,35 +45,35 @@ async function loadFragmentWordsCounts(
   return wordsCounts;
 }
 
-function computeFragmentIncisions(input: {
+function computeSegmentIncisions(input: {
   chunks: readonly ChunkRecord[];
   edges: readonly ReadingEdgeRecord[];
-  fragmentWordsCounts: Readonly<Record<string, number>>;
-}): FragmentInfo[] {
-  const fragmentIds = Object.keys(input.fragmentWordsCounts)
+  segmentWordsCounts: Readonly<Record<string, number>>;
+}): SegmentInfo[] {
+  const startSentenceIndexes = Object.keys(input.segmentWordsCounts)
     .map(Number)
     .sort(compareNumber);
-  const chunkIdsByFragmentId = createNumberListRecord();
+  const chunkIdsBySegmentStartIndex = createNumberListRecord();
   const chunkWeightsById = createNumberRecord();
   const edgesByChunkId = createReadingEdgeListRecord();
 
   for (const chunk of input.chunks) {
-    const fragmentId = findContainingFragmentId(
-      fragmentIds,
+    const startSentenceIndex = findContainingSegmentStartIndex(
+      startSentenceIndexes,
       chunk.sentenceId[1],
     );
 
-    if (fragmentId === undefined) {
+    if (startSentenceIndex === undefined) {
       continue;
     }
 
-    const fragmentKey = String(fragmentId);
+    const segmentKey = String(startSentenceIndex);
 
     chunkWeightsById[String(chunk.id)] = chunk.weight;
-    if (chunkIdsByFragmentId[fragmentKey] === undefined) {
-      chunkIdsByFragmentId[fragmentKey] = [];
+    if (chunkIdsBySegmentStartIndex[segmentKey] === undefined) {
+      chunkIdsBySegmentStartIndex[segmentKey] = [];
     }
-    chunkIdsByFragmentId[fragmentKey]?.push(chunk.id);
+    chunkIdsBySegmentStartIndex[segmentKey]?.push(chunk.id);
   }
 
   for (const edge of input.edges) {
@@ -97,12 +97,14 @@ function computeFragmentIncisions(input: {
     chunksById[String(chunk.id)] = chunk;
   }
 
-  return fragmentIds
+  return startSentenceIndexes
     .filter(
-      (fragmentId) => chunkIdsByFragmentId[String(fragmentId)] !== undefined,
+      (startSentenceIndex) =>
+        chunkIdsBySegmentStartIndex[String(startSentenceIndex)] !== undefined,
     )
-    .map((fragmentId) => {
-      const chunkIds = chunkIdsByFragmentId[String(fragmentId)] ?? [];
+    .map((startSentenceIndex) => {
+      const chunkIds =
+        chunkIdsBySegmentStartIndex[String(startSentenceIndex)] ?? [];
       let endIncision = 0;
       let startIncision = 0;
 
@@ -122,8 +124,8 @@ function computeFragmentIncisions(input: {
             }
 
             return {
-              otherFragmentId: findContainingFragmentId(
-                fragmentIds,
+              otherSegmentStartIndex: findContainingSegmentStartIndex(
+                startSentenceIndexes,
                 otherChunk.sentenceId[1],
               ),
               weight: edge.weight,
@@ -133,12 +135,12 @@ function computeFragmentIncisions(input: {
             (
               edge,
             ): edge is {
-              otherFragmentId: number;
+              otherSegmentStartIndex: number;
               weight: number;
             } =>
               edge !== undefined &&
-              edge.otherFragmentId !== undefined &&
-              edge.otherFragmentId !== fragmentId,
+              edge.otherSegmentStartIndex !== undefined &&
+              edge.otherSegmentStartIndex !== startSentenceIndex,
           );
 
         if (externalEdges.length === 0) {
@@ -157,7 +159,7 @@ function computeFragmentIncisions(input: {
         for (const edge of externalEdges) {
           const halfWeight = (chunkWeight / totalExternalWeight) * edge.weight;
 
-          if (edge.otherFragmentId < fragmentId) {
+          if (edge.otherSegmentStartIndex < startSentenceIndex) {
             startIncision += halfWeight;
             continue;
           }
@@ -168,43 +170,43 @@ function computeFragmentIncisions(input: {
 
       return {
         endIncision,
-        fragmentId,
+        startSentenceIndex,
         startIncision,
-        wordsCount: input.fragmentWordsCounts[String(fragmentId)] ?? 0,
+        wordsCount: input.segmentWordsCounts[String(startSentenceIndex)] ?? 0,
       };
     });
 }
 
-function findContainingFragmentId(
-  fragmentIds: readonly number[],
+function findContainingSegmentStartIndex(
+  startSentenceIndexes: readonly number[],
   sentenceIndex: number,
 ): number | undefined {
-  let containingFragmentId: number | undefined;
+  let containingSegmentStartIndex: number | undefined;
 
-  for (const fragmentId of fragmentIds) {
-    if (fragmentId > sentenceIndex) {
+  for (const startSentenceIndex of startSentenceIndexes) {
+    if (startSentenceIndex > sentenceIndex) {
       break;
     }
 
-    containingFragmentId = fragmentId;
+    containingSegmentStartIndex = startSentenceIndex;
   }
 
-  return containingFragmentId;
+  return containingSegmentStartIndex;
 }
 
 function normalizeIncisions(
-  fragmentInfos: readonly FragmentInfo[],
-): FragmentInfo[] {
-  const allIncisions = fragmentInfos
-    .flatMap((fragmentInfo) => [
-      fragmentInfo.startIncision,
-      fragmentInfo.endIncision,
+  segmentInfos: readonly SegmentInfo[],
+): SegmentInfo[] {
+  const allIncisions = segmentInfos
+    .flatMap((segmentInfo) => [
+      segmentInfo.startIncision,
+      segmentInfo.endIncision,
     ])
     .filter((incision) => incision > 0)
     .sort(compareNumber);
 
   if (allIncisions.length === 0) {
-    return [...fragmentInfos];
+    return [...segmentInfos];
   }
 
   const thresholdIndex = Math.min(
@@ -215,10 +217,10 @@ function normalizeIncisions(
   const normalValues = allIncisions.filter((incision) => incision < threshold);
 
   if (normalValues.length === 0) {
-    return fragmentInfos.map((fragmentInfo) => ({
-      ...fragmentInfo,
-      endIncision: fragmentInfo.endIncision > 0 ? 10 : 0,
-      startIncision: fragmentInfo.startIncision > 0 ? 10 : 0,
+    return segmentInfos.map((segmentInfo) => ({
+      ...segmentInfo,
+      endIncision: segmentInfo.endIncision > 0 ? 10 : 0,
+      startIncision: segmentInfo.startIncision > 0 ? 10 : 0,
     }));
   }
 
@@ -228,14 +230,14 @@ function normalizeIncisions(
   const maxLog = maxValue > 0 ? Math.log(maxValue) : 0;
   const logRange = maxLog - minLog === 0 ? 1 : maxLog - minLog;
 
-  return fragmentInfos.map((fragmentInfo) => ({
-    ...fragmentInfo,
-    endIncision: normalizeIncision(fragmentInfo.endIncision, {
+  return segmentInfos.map((segmentInfo) => ({
+    ...segmentInfo,
+    endIncision: normalizeIncision(segmentInfo.endIncision, {
       logRange,
       minLog,
       threshold,
     }),
-    startIncision: normalizeIncision(fragmentInfo.startIncision, {
+    startIncision: normalizeIncision(segmentInfo.startIncision, {
       logRange,
       minLog,
       threshold,

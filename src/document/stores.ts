@@ -43,9 +43,9 @@ export interface ReadonlyChunkStore {
   countAll(): Promise<number>;
   getById(chunkId: number): Promise<ChunkRecord | undefined>;
   listAll(): Promise<ChunkRecord[]>;
-  listByFragments(
+  listBySentenceStartIndexes(
     serialId: number,
-    fragmentIds: readonly number[],
+    sentenceStartIndexes: readonly number[],
   ): Promise<ChunkRecord[]>;
   listBySentenceRange(
     serialId: number,
@@ -806,18 +806,22 @@ export class ChunkStore implements ReadonlyChunkStore {
     );
   }
 
-  public async listByFragments(
+  public async listBySentenceStartIndexes(
     serialId: number,
-    fragmentIds: readonly number[],
+    sentenceStartIndexes: readonly number[],
   ): Promise<ChunkRecord[]> {
-    if (fragmentIds.length === 0) {
+    if (sentenceStartIndexes.length === 0) {
       return [];
     }
 
     const results = await Promise.all(
-      fragmentIds.map(
-        async (fragmentId) =>
-          await this.listBySentenceRange(serialId, fragmentId, fragmentId),
+      sentenceStartIndexes.map(
+        async (sentenceStartIndex) =>
+          await this.listBySentenceRange(
+            serialId,
+            sentenceStartIndex,
+            sentenceStartIndex,
+          ),
       ),
     );
 

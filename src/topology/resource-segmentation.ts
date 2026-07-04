@@ -1,53 +1,53 @@
 import type { SentenceGroupRecord } from "../document/index.js";
-import type { FragmentInfo } from "./fragment-incision.js";
+import type { SegmentInfo } from "./segment-incision.js";
 
-interface FragmentResource {
+interface SegmentResource {
   readonly count: number;
   readonly startIncision: number;
   readonly endIncision: number;
-  readonly fragmentId: number;
+  readonly startSentenceIndex: number;
 }
 
-export function createFragmentGroups(input: {
-  fragmentInfos: readonly FragmentInfo[];
+export function createSegmentGroups(input: {
+  segmentInfos: readonly SegmentInfo[];
   groupWordsCount: number;
   serialId: number;
 }): SentenceGroupRecord[] {
-  if (input.fragmentInfos.length === 0) {
+  if (input.segmentInfos.length === 0) {
     return [];
   }
 
-  const resources = input.fragmentInfos.map(
-    (fragmentInfo): FragmentResource => ({
-      count: fragmentInfo.wordsCount,
-      endIncision: fragmentInfo.endIncision,
-      fragmentId: fragmentInfo.fragmentId,
-      startIncision: fragmentInfo.startIncision,
+  const resources = input.segmentInfos.map(
+    (segmentInfo): SegmentResource => ({
+      count: segmentInfo.wordsCount,
+      endIncision: segmentInfo.endIncision,
+      startSentenceIndex: segmentInfo.startSentenceIndex,
+      startIncision: segmentInfo.startIncision,
     }),
   );
-  const groups = allocateFragmentGroups(resources, input.groupWordsCount);
+  const groups = allocateSegmentGroups(resources, input.groupWordsCount);
 
-  return groups.map((fragmentIds, groupId) => ({
-    endSentenceIndex: Math.max(...fragmentIds),
+  return groups.map((startSentenceIndexes, groupId) => ({
+    endSentenceIndex: Math.max(...startSentenceIndexes),
     groupId,
     serialId: input.serialId,
-    startSentenceIndex: Math.min(...fragmentIds),
+    startSentenceIndex: Math.min(...startSentenceIndexes),
   }));
 }
 
-function allocateFragmentGroups(
-  resources: readonly FragmentResource[],
+function allocateSegmentGroups(
+  resources: readonly SegmentResource[],
   maxCount: number,
 ): number[][] {
   return splitResources(resources, maxCount).map((group) =>
-    group.map((resource) => resource.fragmentId),
+    group.map((resource) => resource.startSentenceIndex),
   );
 }
 
 function splitResources(
-  resources: readonly FragmentResource[],
+  resources: readonly SegmentResource[],
   maxCount: number,
-): FragmentResource[][] {
+): SegmentResource[][] {
   if (resources.length === 0) {
     return [];
   }
@@ -89,7 +89,7 @@ function splitResources(
 }
 
 function findPreferredSplitIndex(
-  resources: readonly FragmentResource[],
+  resources: readonly SegmentResource[],
   maxCount: number,
 ): number | undefined {
   const totalCount = resources.reduce((total, resource) => {
@@ -140,11 +140,11 @@ function findPreferredSplitIndex(
 }
 
 function splitGreedily(
-  resources: readonly FragmentResource[],
+  resources: readonly SegmentResource[],
   maxCount: number,
-): FragmentResource[][] {
-  const groups: FragmentResource[][] = [];
-  let currentGroup: FragmentResource[] = [];
+): SegmentResource[][] {
+  const groups: SegmentResource[][] = [];
+  let currentGroup: SegmentResource[] = [];
   let currentCount = 0;
 
   for (const resource of resources) {

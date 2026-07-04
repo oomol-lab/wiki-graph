@@ -5,11 +5,11 @@ import type {
   ReadingEdgeRecord,
   ReadonlySerialFragments,
 } from "../../src/document/index.js";
-import { computeNormalizedFragmentIncisions } from "../../src/topology/fragment-incision.js";
+import { computeNormalizedSegmentIncisions } from "../../src/topology/segment-incision.js";
 
-describe("topology/fragment-incision", () => {
-  it("returns zero incisions when fragments have no external edges", async () => {
-    const result = await computeNormalizedFragmentIncisions({
+describe("topology/segment-incision", () => {
+  it("returns zero incisions when segments have no external edges", async () => {
+    const result = await computeNormalizedSegmentIncisions({
       chunks: [createChunk(1, 1, 2), createChunk(2, 2, 3)],
       edges: [],
       fragments: createSerialFragments({
@@ -21,21 +21,21 @@ describe("topology/fragment-incision", () => {
     expect(result).toStrictEqual([
       {
         endIncision: 0,
-        fragmentId: 1,
+        startSentenceIndex: 1,
         startIncision: 0,
         wordsCount: 10,
       },
       {
         endIncision: 0,
-        fragmentId: 2,
+        startSentenceIndex: 2,
         startIncision: 0,
         wordsCount: 20,
       },
     ]);
   });
 
-  it("caps uniformly strong cross-fragment incisions to the maximum score", async () => {
-    const result = await computeNormalizedFragmentIncisions({
+  it("caps uniformly strong cross-segment incisions to the maximum score", async () => {
+    const result = await computeNormalizedSegmentIncisions({
       chunks: [createChunk(1, 1, 5), createChunk(2, 2, 5)],
       edges: [
         {
@@ -53,21 +53,21 @@ describe("topology/fragment-incision", () => {
     expect(result).toStrictEqual([
       {
         endIncision: 10,
-        fragmentId: 1,
+        startSentenceIndex: 1,
         startIncision: 0,
         wordsCount: 10,
       },
       {
         endIncision: 0,
-        fragmentId: 2,
+        startSentenceIndex: 2,
         startIncision: 10,
         wordsCount: 20,
       },
     ]);
   });
 
-  it("maps chunk sentences to sparse fragment start indexes", async () => {
-    const result = await computeNormalizedFragmentIncisions({
+  it("maps chunk sentences to sparse segment start indexes", async () => {
+    const result = await computeNormalizedSegmentIncisions({
       chunks: [createChunk(1, 2, 5), createChunk(2, 5, 5)],
       edges: [
         {
@@ -85,21 +85,21 @@ describe("topology/fragment-incision", () => {
     expect(result).toStrictEqual([
       {
         endIncision: 10,
-        fragmentId: 0,
+        startSentenceIndex: 0,
         startIncision: 0,
         wordsCount: 10,
       },
       {
         endIncision: 0,
-        fragmentId: 3,
+        startSentenceIndex: 3,
         startIncision: 10,
         wordsCount: 20,
       },
     ]);
   });
 
-  it("normalizes mixed incision strengths across multiple fragments", async () => {
-    const result = await computeNormalizedFragmentIncisions({
+  it("normalizes mixed incision strengths across multiple segments", async () => {
+    const result = await computeNormalizedSegmentIncisions({
       chunks: [
         createChunk(1, 1, 4),
         createChunk(2, 2, 6),
@@ -127,19 +127,19 @@ describe("topology/fragment-incision", () => {
     expect(result).toStrictEqual([
       {
         endIncision: 9,
-        fragmentId: 1,
+        startSentenceIndex: 1,
         startIncision: 0,
         wordsCount: 10,
       },
       {
         endIncision: 10,
-        fragmentId: 2,
+        startSentenceIndex: 2,
         startIncision: 1,
         wordsCount: 20,
       },
       {
         endIncision: 0,
-        fragmentId: 3,
+        startSentenceIndex: 3,
         startIncision: 10,
         wordsCount: 30,
       },
@@ -165,16 +165,16 @@ function createChunk(
 }
 
 function createSerialFragments(
-  wordsCountsByFragmentId: Record<number, number>,
+  wordsCountsByStartIndex: Record<number, number>,
 ): ReadonlySerialFragments {
   return {
-    getFragment: (fragmentId: number) =>
+    getFragment: (startSentenceIndex: number) =>
       Promise.resolve({
-        fragmentId,
+        fragmentId: startSentenceIndex,
         sentences: [
           {
-            text: `Fragment ${fragmentId}`,
-            wordsCount: wordsCountsByFragmentId[fragmentId] ?? 0,
+            text: `Segment ${startSentenceIndex}`,
+            wordsCount: wordsCountsByStartIndex[startSentenceIndex] ?? 0,
           },
         ],
         serialId: 1,
@@ -182,8 +182,8 @@ function createSerialFragments(
       }),
     listFragmentIds: () =>
       Promise.resolve(
-        Object.keys(wordsCountsByFragmentId).map((fragmentId) =>
-          Number(fragmentId),
+        Object.keys(wordsCountsByStartIndex).map((startSentenceIndex) =>
+          Number(startSentenceIndex),
         ),
       ),
     path: "/tmp/fragments",

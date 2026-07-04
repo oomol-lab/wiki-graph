@@ -1,11 +1,11 @@
 import { describe, expect, it, vi } from "vitest";
 
-const { groupFragmentsMock } = vi.hoisted(() => ({
-  groupFragmentsMock: vi.fn(),
+const { groupSegmentsMock } = vi.hoisted(() => ({
+  groupSegmentsMock: vi.fn(),
 }));
 
 vi.mock("../../src/topology/grouping.js", () => ({
-  groupFragments: groupFragmentsMock,
+  groupSegments: groupSegmentsMock,
 }));
 
 import { ChunkImportance, ChunkRetention } from "../../src/document/index.js";
@@ -19,7 +19,7 @@ import { Topology } from "../../src/topology/topology.js";
 
 describe("topology/topology", () => {
   it("merges deltas, applies annotations, and persists weighted topology output", async () => {
-    groupFragmentsMock.mockResolvedValue([
+    groupSegmentsMock.mockResolvedValue([
       {
         endSentenceIndex: 1,
         groupId: 0,
@@ -39,7 +39,7 @@ describe("topology/topology", () => {
       getSerialFragments,
       saveChunk,
       saveEdge,
-      saveFragmentGroups,
+      saveSentenceGroups,
       createSnake,
       saveSnakeChunk,
       saveSnakeEdge,
@@ -122,7 +122,7 @@ describe("topology/topology", () => {
         weight: 13,
       },
     ]);
-    expect(groupFragmentsMock).toHaveBeenCalledWith({
+    expect(groupSegmentsMock).toHaveBeenCalledWith({
       chunks: [
         {
           content: "Chunk 1",
@@ -160,7 +160,7 @@ describe("topology/topology", () => {
       groupWordsCount: 120,
       serialId: 7,
     });
-    expect(saveFragmentGroups).toHaveBeenCalledWith([
+    expect(saveSentenceGroups).toHaveBeenCalledWith([
       {
         endSentenceIndex: 1,
         groupId: 0,
@@ -205,7 +205,7 @@ describe("topology/topology", () => {
   });
 
   it("keeps cross-group relations out of persisted snake edges", async () => {
-    groupFragmentsMock.mockResolvedValue([
+    groupSegmentsMock.mockResolvedValue([
       {
         endSentenceIndex: 2,
         groupId: 0,
@@ -296,7 +296,7 @@ describe("topology/topology", () => {
   });
 
   it("splits a connected component into multiple snakes and normalizes snake-edge direction", async () => {
-    groupFragmentsMock.mockResolvedValue([
+    groupSegmentsMock.mockResolvedValue([
       {
         endSentenceIndex: 1,
         groupId: 0,
@@ -421,17 +421,17 @@ function createDocumentStub(): {
   readonly getSerialFragments: () => ReadonlySerialFragments;
   readonly saveChunk: ReturnType<typeof vi.fn>;
   readonly saveEdge: ReturnType<typeof vi.fn>;
-  readonly saveFragmentGroups: ReturnType<typeof vi.fn>;
+  readonly saveSentenceGroups: ReturnType<typeof vi.fn>;
   readonly saveSnakeChunk: ReturnType<typeof vi.fn>;
   readonly saveSnakeEdge: ReturnType<typeof vi.fn>;
 } {
   const fragments = {
-    getFragment: (fragmentId: number) =>
+    getFragment: (startSentenceIndex: number) =>
       Promise.resolve({
-        fragmentId,
+        fragmentId: startSentenceIndex,
         sentences: [
           {
-            text: `Fragment ${fragmentId}`,
+            text: `Segment ${startSentenceIndex}`,
             wordsCount: 10,
           },
         ],
@@ -453,7 +453,7 @@ function createDocumentStub(): {
     });
   });
   const saveEdge = vi.fn(() => Promise.resolve());
-  const saveFragmentGroups = vi.fn(() => Promise.resolve());
+  const saveSentenceGroups = vi.fn(() => Promise.resolve());
   let nextSnakeId = 1;
   const createSnake = vi.fn(() => Promise.resolve(nextSnakeId++));
   const saveSnakeChunk = vi.fn(() => Promise.resolve());
@@ -468,7 +468,7 @@ function createDocumentStub(): {
         create: saveChunk,
       },
       fragmentGroups: {
-        saveMany: saveFragmentGroups,
+        saveMany: saveSentenceGroups,
       },
       getSerialFragments,
       readingEdges: {
@@ -491,7 +491,7 @@ function createDocumentStub(): {
     getSerialFragments,
     saveChunk,
     saveEdge,
-    saveFragmentGroups,
+    saveSentenceGroups,
     saveSnakeChunk,
     saveSnakeEdge,
   };

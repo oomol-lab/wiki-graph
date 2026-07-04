@@ -302,10 +302,13 @@ describe("document/stores", () => {
           },
         ]);
         expect(
-          await openedDocument.chunks.listByFragments(1, []),
+          await openedDocument.chunks.listBySentenceStartIndexes(1, []),
         ).toStrictEqual([]);
         expect(
-          await openedDocument.chunks.listByFragments(1, [20, 10, 99]),
+          await openedDocument.chunks.listBySentenceStartIndexes(
+            1,
+            [20, 10, 99],
+          ),
         ).toStrictEqual([
           {
             content: "Beta",

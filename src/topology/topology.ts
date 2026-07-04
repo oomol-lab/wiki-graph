@@ -5,7 +5,7 @@ import type {
   SentenceGroupRecord,
 } from "../document/index.js";
 import type { ReaderChunk, ReaderGraphDelta } from "../reader/index.js";
-import { groupFragments } from "./grouping.js";
+import { groupSegments } from "./grouping.js";
 import { buildSnakeGraph } from "./snake-graph-builder.js";
 import {
   detectSnakesInComponent,
@@ -79,7 +79,7 @@ export class Topology {
       ...edge,
       weight: edgeWeights[getReadingEdgeKey(edge.fromId, edge.toId)] ?? 0,
     }));
-    const fragmentGroups = await groupFragments({
+    const sentenceGroups = await groupSegments({
       chunks: weightedChunks,
       edges: weightedEdges,
       fragments: this.#document.getSerialFragments(this.#serialId),
@@ -89,7 +89,7 @@ export class Topology {
     const snakeTopology = buildSnakeTopology({
       chunks: weightedChunks,
       edges: weightedEdges,
-      fragmentGroups,
+      sentenceGroups,
       serialId: this.#serialId,
     });
 
@@ -132,7 +132,7 @@ export class Topology {
       });
     }
 
-    await this.#document.fragmentGroups.saveMany(fragmentGroups);
+    await this.#document.fragmentGroups.saveMany(sentenceGroups);
 
     const snakeIds: number[] = [];
 
@@ -287,7 +287,7 @@ interface SnakeEdgeDraft {
 function buildSnakeTopology(input: {
   chunks: readonly ChunkRecord[];
   edges: readonly ReadingEdgeRecord[];
-  fragmentGroups: readonly SentenceGroupRecord[];
+  sentenceGroups: readonly SentenceGroupRecord[];
   serialId: number;
 }): {
   readonly snakeChunks: readonly SnakeChunkDraft[];
@@ -303,12 +303,12 @@ function buildSnakeTopology(input: {
     readonly startSentenceIndex: number;
   }> = [];
 
-  for (const fragmentGroup of input.fragmentGroups) {
-    if (fragmentGroup.serialId !== input.serialId) {
+  for (const sentenceGroup of input.sentenceGroups) {
+    if (sentenceGroup.serialId !== input.serialId) {
       continue;
     }
 
-    sentenceRangesByGroupId.push(fragmentGroup);
+    sentenceRangesByGroupId.push(sentenceGroup);
   }
 
   for (const chunk of input.chunks) {

@@ -1,24 +1,24 @@
 import type { SentenceGroupRecord } from "../document/index.js";
-import { computeNormalizedFragmentIncisions } from "./fragment-incision.js";
-import { createFragmentGroups } from "./resource-segmentation.js";
+import { computeNormalizedSegmentIncisions } from "./segment-incision.js";
+import { createSegmentGroups } from "./resource-segmentation.js";
 
-export async function groupFragments(input: {
-  edges: Parameters<typeof computeNormalizedFragmentIncisions>[0]["edges"];
+export async function groupSegments(input: {
+  edges: Parameters<typeof computeNormalizedSegmentIncisions>[0]["edges"];
   fragments: Parameters<
-    typeof computeNormalizedFragmentIncisions
+    typeof computeNormalizedSegmentIncisions
   >[0]["fragments"];
   groupWordsCount: number;
-  chunks: Parameters<typeof computeNormalizedFragmentIncisions>[0]["chunks"];
+  chunks: Parameters<typeof computeNormalizedSegmentIncisions>[0]["chunks"];
   serialId: number;
 }): Promise<SentenceGroupRecord[]> {
-  const fragmentInfos = await computeNormalizedFragmentIncisions({
+  const segmentInfos = await computeNormalizedSegmentIncisions({
     chunks: input.chunks,
     edges: input.edges,
     fragments: input.fragments,
   });
 
-  return createFragmentGroups({
-    fragmentInfos,
+  return createSegmentGroups({
+    segmentInfos,
     groupWordsCount: input.groupWordsCount,
     serialId: input.serialId,
   });

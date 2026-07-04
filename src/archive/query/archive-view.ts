@@ -4020,7 +4020,9 @@ async function listFragmentNodes(
   chapterId: number,
   fragmentId: number,
 ): Promise<readonly ArchiveNodeLabel[]> {
-  return (await document.chunks.listByFragments(chapterId, [fragmentId]))
+  return (
+    await document.chunks.listBySentenceStartIndexes(chapterId, [fragmentId])
+  )
     .map(createPositionedNodeLabel)
     .sort(comparePositionedNodeLabels)
     .map(({ label }) => label);
