@@ -1,3 +1,5 @@
+import { readdir, readFile } from "fs/promises";
+
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const aiMockState = vi.hoisted(() => ({
@@ -195,6 +197,32 @@ describe("llm/client", () => {
     ]);
   });
 
+  it("writes token usage to request logs when the provider returns it", async () => {
+    await withTempDir("spinedigest-llm-log-", async (logDirPath) => {
+      const llm = new LLM({
+        dataDirPath: process.cwd(),
+        logDirPath,
+        model: {
+          modelId: "test-model",
+          provider: "test-provider",
+        } as never,
+      });
+
+      await expect(
+        llm.request([
+          {
+            content: "hello",
+            role: "user",
+          },
+        ]),
+      ).resolves.toBe("generated response");
+
+      await expect(readOnlyRequestLog(logDirPath)).resolves.toContain(
+        "[[Usage]]:\ninput: 11\ncache: 3\noutput: 7\n\n",
+      );
+    });
+  });
+
   it("moves a leading system message to the top-level system field", async () => {
     const llm = new LLM({
       dataDirPath: process.cwd(),
@@ -261,6 +289,39 @@ describe("llm/client", () => {
 
       await expect(llm.request(messages)).resolves.toBe("generated response");
 
+      expect(aiMockState.generateTextCalls).toHaveLength(1);
+    });
+  });
+
+  it("writes cache-hit usage to request logs for cached responses", async () => {
+    await withTempDir("spinedigest-llm-cache-log-", async (path) => {
+      const cacheDirPath = `${path}/cache`;
+      const logDirPath = `${path}/logs`;
+      const llm = new LLM({
+        cacheDirPath,
+        dataDirPath: process.cwd(),
+        logDirPath,
+        model: {
+          modelId: "test-model",
+          provider: "test-provider",
+        } as never,
+      });
+      const messages = [
+        {
+          content: "hello",
+          role: "user",
+        },
+      ] as const;
+
+      await expect(llm.request(messages)).resolves.toBe("generated response");
+      await expect(llm.request(messages)).resolves.toBe("generated response");
+
+      const logs = await readRequestLogs(logDirPath);
+
+      expect(logs).toHaveLength(2);
+      expect(logs).toContainEqual(
+        expect.stringContaining("[[Usage]]:\ncache-hit\n\n"),
+      );
       expect(aiMockState.generateTextCalls).toHaveLength(1);
     });
   });
@@ -607,6 +668,38 @@ describe("llm/client", () => {
     expect(aiMockState.generateTextCalls).toHaveLength(6);
   });
 
+  it("writes unavailable usage and error stack to request logs after failures", async () => {
+    await withTempDir("spinedigest-llm-error-log-", async (logDirPath) => {
+      aiMockState.generateTextError = new TypeError("terminated");
+
+      const llm = new LLM({
+        dataDirPath: process.cwd(),
+        logDirPath,
+        model: {
+          modelId: "test-model",
+          provider: "test-provider",
+        } as never,
+        retryIntervalSeconds: 0,
+      });
+
+      await expect(
+        llm.request([
+          {
+            content: "hello",
+            role: "user",
+          },
+        ]),
+      ).rejects.toThrow("LLM request failed after 6 attempts: terminated");
+
+      const log = await readOnlyRequestLog(logDirPath);
+
+      expect(log).toContain(
+        "[[Usage]]:\ninput: unavailable\ncache: unavailable\noutput: unavailable\n\n",
+      );
+      expect(log).toContain("[[Error Stack]]:\nTypeError: terminated");
+    });
+  });
+
   it.each(RETRYABLE_TRANSPORT_CODES)(
     "retries transport errors tagged with %s",
     async (code) => {
@@ -824,3 +917,21 @@ describe("llm/client", () => {
     expect(aiMockState.streamTextCalls).toHaveLength(6);
   });
 });
+
+async function readOnlyRequestLog(logDirPath: string): Promise<string> {
+  const logs = await readRequestLogs(logDirPath);
+
+  expect(logs).toHaveLength(1);
+  return logs[0]!;
+}
+
+async function readRequestLogs(logDirPath: string): Promise<string[]> {
+  const entries = await readdir(logDirPath);
+
+  return await Promise.all(
+    entries
+      .filter((entry) => entry.endsWith(".log"))
+      .sort((left, right) => left.localeCompare(right))
+      .map(async (entry) => await readFile(`${logDirPath}/${entry}`, "utf8")),
+  );
+}

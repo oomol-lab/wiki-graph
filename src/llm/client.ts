@@ -291,11 +291,13 @@ export class LLM<S extends string> {
         await requestLog.append(
           `[[Response]] (from cache):\n${cachedResponse}\n\n`,
         );
+        await requestLog.append(formatRequestResultLog("cache-hit"));
         return cachedResponse;
       }
     }
 
     let response: string | undefined;
+    let tokenUsage: LanguageModelUsage | undefined;
     let lastError: unknown;
 
     for (let attempt = 0; attempt <= this.#retryTimes; attempt += 1) {
@@ -337,12 +339,15 @@ export class LLM<S extends string> {
               textChunks.push(chunk);
               await this.#emitStreamProgress(chunk.length);
             }
-            await this.#emitTokenUsage(await result.totalUsage);
+            tokenUsage = await result.totalUsage;
+            await this.#emitTokenUsage(tokenUsage);
             return textChunks.join("");
           } else {
             const result = await generateText(generationInput);
+
+            tokenUsage = result.usage;
             await this.#emitStreamProgress(result.text.length);
-            await this.#emitTokenUsage(result.usage);
+            await this.#emitTokenUsage(tokenUsage);
             return result.text;
           }
         });
@@ -360,11 +365,13 @@ export class LLM<S extends string> {
           await requestLog.append(
             `[[Error]]:\n${formatError(paymentError)}\n\n`,
           );
+          await requestLog.append(formatRequestResultLog(tokenUsage, error));
           throw paymentError;
         }
 
         if (!isRetryableError(error)) {
           await requestLog.append(`[[Error]]:\n${formatError(error)}\n\n`);
+          await requestLog.append(formatRequestResultLog(tokenUsage, error));
           throw error;
         }
 
@@ -387,6 +394,7 @@ export class LLM<S extends string> {
           : `LLM request failed after ${this.#retryTimes + 1} attempts: ${formatError(lastError)}`;
 
       await requestLog.append(`[[Error]]:\n${failureMessage}\n\n`);
+      await requestLog.append(formatRequestResultLog(tokenUsage, lastError));
 
       throw new Error(failureMessage, {
         ...(lastError === undefined ? {} : { cause: lastError }),
@@ -406,6 +414,7 @@ export class LLM<S extends string> {
       }
     }
 
+    await requestLog.append(formatRequestResultLog(tokenUsage));
     return response;
   }
 
@@ -595,6 +604,49 @@ function formatRequestMessages(messages: readonly LLMessage[]): string {
     .join("\n\n");
 
   return `[[Request]]:\n${body}\n\n`;
+}
+
+function formatRequestResultLog(
+  usage: LanguageModelUsage | "cache-hit" | undefined,
+  error?: unknown,
+): string {
+  return [
+    formatRequestUsageLog(usage),
+    ...(error === undefined ? [] : [formatRequestErrorStackLog(error)]),
+  ].join("");
+}
+
+function formatRequestUsageLog(
+  usage: LanguageModelUsage | "cache-hit" | undefined,
+): string {
+  if (usage === "cache-hit") {
+    return "[[Usage]]:\ncache-hit\n\n";
+  }
+
+  return [
+    "[[Usage]]:",
+    `input: ${formatTokenCount(usage?.inputTokens)}`,
+    `cache: ${formatTokenCount(usage?.inputTokenDetails.cacheReadTokens)}`,
+    `output: ${formatTokenCount(usage?.outputTokens)}`,
+    "",
+    "",
+  ].join("\n");
+}
+
+function formatTokenCount(value: number | undefined): string {
+  return value === undefined ? "unavailable" : String(value);
+}
+
+function formatRequestErrorStackLog(error: unknown): string {
+  return `[[Error Stack]]:\n${formatErrorStack(error)}\n\n`;
+}
+
+function formatErrorStack(error: unknown): string {
+  if (error instanceof Error) {
+    return error.stack ?? formatError(error);
+  }
+
+  return formatError(error);
 }
 
 function formatMessageContent(content: LLMessage["content"]): string {
