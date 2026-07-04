@@ -130,7 +130,7 @@ interface InspectPlanningCost {
     readonly min: number;
   };
   readonly tokens: {
-    readonly cached: number;
+    readonly cacheableInput: number;
     readonly input: number;
     readonly output: number;
   };
@@ -1352,7 +1352,7 @@ function planInspectTask(
   const calls = Math.max(chapters, Math.ceil(words / profile.wordsPerCall));
   const effectiveConcurrency = Math.max(
     1,
-    task === "reading-graph" ? 1 : concurrent.job * concurrent.request,
+    task === "reading-graph" ? 1 : concurrent.request,
   );
   const callBatches = Math.ceil(calls / effectiveConcurrency);
   const wordSeconds = words * profile.secondsPerWord;
@@ -1364,7 +1364,7 @@ function planInspectTask(
       min: Math.ceil(callBatches * profile.minSecondsPerCall + wordSeconds),
     },
     tokens: {
-      cached: Math.ceil(words * profile.cachedInputTokenPerWord),
+      cacheableInput: Math.ceil(words * profile.cacheableInputTokenPerWord),
       input: Math.ceil(words * profile.inputTokenPerWord),
       output: Math.ceil(words * profile.outputTokenPerWord),
     },
@@ -1375,7 +1375,7 @@ function getInspectTaskPlanningProfile(
   task: "knowledge-graph" | "reading-graph" | "reading-summary",
 ): {
   readonly inputTokenPerWord: number;
-  readonly cachedInputTokenPerWord: number;
+  readonly cacheableInputTokenPerWord: number;
   readonly maxSecondsPerCall: number;
   readonly minSecondsPerCall: number;
   readonly outputTokenPerWord: number;
@@ -1385,33 +1385,33 @@ function getInspectTaskPlanningProfile(
   switch (task) {
     case "knowledge-graph":
       return {
-        cachedInputTokenPerWord: 1.2,
-        inputTokenPerWord: 2.4,
-        maxSecondsPerCall: 180,
-        minSecondsPerCall: 45,
-        outputTokenPerWord: 0.7,
-        secondsPerWord: 0.01,
-        wordsPerCall: 1800,
+        cacheableInputTokenPerWord: 60,
+        inputTokenPerWord: 80,
+        maxSecondsPerCall: 35,
+        minSecondsPerCall: 15,
+        outputTokenPerWord: 25,
+        secondsPerWord: 0.02,
+        wordsPerCall: 35,
       };
     case "reading-graph":
       return {
-        cachedInputTokenPerWord: 0.9,
-        inputTokenPerWord: 1.8,
-        maxSecondsPerCall: 150,
-        minSecondsPerCall: 35,
-        outputTokenPerWord: 0.45,
-        secondsPerWord: 0.008,
-        wordsPerCall: 2500,
+        cacheableInputTokenPerWord: 20,
+        inputTokenPerWord: 25,
+        maxSecondsPerCall: 45,
+        minSecondsPerCall: 15,
+        outputTokenPerWord: 4,
+        secondsPerWord: 0.01,
+        wordsPerCall: 160,
       };
     case "reading-summary":
       return {
-        cachedInputTokenPerWord: 0.65,
-        inputTokenPerWord: 1.3,
-        maxSecondsPerCall: 90,
-        minSecondsPerCall: 20,
-        outputTokenPerWord: 0.25,
-        secondsPerWord: 0.004,
-        wordsPerCall: 3500,
+        cacheableInputTokenPerWord: 45,
+        inputTokenPerWord: 55,
+        maxSecondsPerCall: 25,
+        minSecondsPerCall: 10,
+        outputTokenPerWord: 4,
+        secondsPerWord: 0.01,
+        wordsPerCall: 110,
       };
   }
 }
@@ -1455,7 +1455,7 @@ function formatInspectImprovement(
           "  If completing this scope:",
           `    Command: ${improvement.command}`,
           `    Model: ${improvement.planning.model}`,
-          `    Tokens: ${improvement.planning.tokens.input} input / ${improvement.planning.tokens.cached} cached / ${improvement.planning.tokens.output} output`,
+          `    Tokens: ${improvement.planning.tokens.input} input / ${improvement.planning.tokens.cacheableInput} cacheable input / ${improvement.planning.tokens.output} output`,
           `    Wait: ${formatDuration(improvement.planning.timeSeconds.min)}-${formatDuration(improvement.planning.timeSeconds.max)}`,
         ]),
   ];
