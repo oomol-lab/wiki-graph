@@ -595,7 +595,13 @@ describe("cli/args", () => {
     );
 
     expect(
-      parseCLIArguments(["wikg://book.wikg/chunk", "search", "RAG", "--json"]),
+      parseCLIArguments([
+        "wikg://book.wikg/chunk",
+        "search",
+        "--query",
+        "RAG",
+        "--json",
+      ]),
     ).toStrictEqual({
       args: {
         action: "search",
@@ -608,10 +614,11 @@ describe("cli/args", () => {
       kind: "archive",
     });
 
-    expect(
+    expect(() =>
       parseCLIArguments([
         "wikg://book.wikg/chapter/11/source",
         "search",
+        "--query",
         "exact phrase",
         "--all",
         "--limit",
@@ -622,21 +629,7 @@ describe("cli/args", () => {
         "2",
         "--jsonl",
       ]),
-    ).toStrictEqual({
-      args: {
-        action: "search",
-        all: true,
-        archivePath: `wikg://${archivePath}/chapter/11`,
-        cursor: "cursor-token",
-        context: 2,
-        format: "jsonl",
-        kinds: ["source"],
-        limit: 10,
-        query: "exact phrase",
-      },
-      help: false,
-      kind: "archive",
-    });
+    ).toThrow("The chapter source resource does not support `search`.");
 
     expect(
       parseCLIArguments(["wikg://book.wikg/entity", "list"]),
@@ -739,6 +732,7 @@ describe("cli/args", () => {
       parseCLIArguments([
         "wikg://book.wikg/chapter/12/triple/_/_/Q2",
         "search",
+        "--query",
         "agent",
       ]),
     ).toStrictEqual({
@@ -760,6 +754,7 @@ describe("cli/args", () => {
       parseCLIArguments([
         "wikg:///Users/me/book.wikg",
         "search",
+        "--query",
         "RAG",
         "--limit",
         "3",
@@ -845,6 +840,7 @@ describe("cli/args", () => {
       parseCLIArguments([
         "wikg://book.wikg/entity/Q1",
         "related",
+        "--query",
         "agents",
         "--role",
         "subject",
@@ -868,6 +864,7 @@ describe("cli/args", () => {
       parseCLIArguments([
         "wikg://book.wikg/triple/Q1/mentions/Q2",
         "evidence",
+        "--query",
         "agents",
         "--jsonl",
       ]),
@@ -933,12 +930,13 @@ describe("cli/args", () => {
       parseCLIArguments(["search", "wikg://book.wikg", "RAG"]),
     ).toThrow("Unknown command: search.");
     expect(() => parseCLIArguments(["wikg://book.wikg", "search"])).toThrow(
-      "`wikigraph search` requires a search query.",
+      "`wikigraph search` requires --query.",
     );
     expect(() =>
       parseCLIArguments([
         "wikg://book.wikg",
         "search",
+        "--query",
         "RAG",
         "--order",
         "doc-desc",
@@ -1002,6 +1000,7 @@ describe("cli/args", () => {
       parseCLIArguments([
         "wikg://book.wikg",
         "search",
+        "--query",
         "RAG",
         "--type",
         "chunk",
@@ -1010,9 +1009,16 @@ describe("cli/args", () => {
     expect(() =>
       parseCLIArguments(["wikg://book.wikg/chapter/1/summary", "pack"]),
     ).toThrow("The chapter summary resource does not support `pack`.");
-    expect(() => parseCLIArguments(["wikg://book.wikg/entity"])).toThrow(
-      "The entity collection does not support `get`. Expected list or search.",
-    );
+    expect(parseCLIArguments(["wikg://book.wikg/entity"])).toStrictEqual({
+      args: {
+        action: "list",
+        archivePath: "wikg://book.wikg/entity",
+        format: "text",
+        kinds: ["entity"],
+      },
+      help: false,
+      kind: "archive",
+    });
     expect(() =>
       parseCLIArguments([
         "wikg://book.wikg/entity/Q1",
@@ -1022,7 +1028,14 @@ describe("cli/args", () => {
       ]),
     ).toThrow("--role must be one of: any, subject, object, self.");
     expect(() =>
-      parseCLIArguments(["wikg://book.wikg", "search", "RAG", "--role", "any"]),
+      parseCLIArguments([
+        "wikg://book.wikg",
+        "search",
+        "--query",
+        "RAG",
+        "--role",
+        "any",
+      ]),
     ).toThrow("The `search` command does not support --role.");
     expect(() =>
       parseCLIArguments([
@@ -1063,11 +1076,80 @@ describe("cli/args", () => {
     ).toThrow("Supported pack targets are chunk and entity objects.");
   });
 
+  it("routes URI-first commands from explicit scope and object kinds", () => {
+    expect(parseCLIArguments(["wikg://book.wikg/chapter/12"])).toStrictEqual({
+      args: {
+        action: "list",
+        archivePath: `wikg://${archivePath}/chapter/12`,
+        format: "text",
+      },
+      help: false,
+      kind: "archive",
+    });
+    expect(
+      parseCLIArguments(["wikg://book.wikg/chapter/12", "--query", "agent"]),
+    ).toStrictEqual({
+      args: {
+        action: "search",
+        archivePath: `wikg://${archivePath}/chapter/12`,
+        format: "text",
+        query: "agent",
+      },
+      help: false,
+      kind: "archive",
+    });
+    expect(
+      parseCLIArguments(["wikg://book.wikg/chapter/12/title"]),
+    ).toStrictEqual({
+      args: {
+        action: "get",
+        archivePath: `wikg://${archivePath}/chapter/12/title`,
+        format: "text",
+        objectId: `wikg://${archivePath}/chapter/12/title`,
+      },
+      help: false,
+      kind: "archive",
+    });
+    expect(() =>
+      parseCLIArguments(["wikg://book.wikg/chapter/12/source", "--query", "x"]),
+    ).toThrow("`--query` requires a scope URI");
+    expect(
+      parseCLIArguments([
+        "wikg://book.wikg/chapter/12/triple/Q1/mentions",
+        "--query",
+        "agent",
+      ]),
+    ).toMatchObject({
+      args: {
+        action: "search",
+        kinds: ["triple"],
+        query: "agent",
+        triplePattern: {
+          predicate: "mentions",
+          subjectQid: "Q1",
+        },
+      },
+      help: false,
+      kind: "archive",
+    });
+    expect(
+      parseCLIArguments(["wikg://book.wikg/chapter/12/triple/Q1/mentions/Q2"]),
+    ).toMatchObject({
+      args: {
+        action: "get",
+        objectId: "wikg://book.wikg/chapter/12/triple/Q1/mentions/Q2",
+      },
+      help: false,
+      kind: "archive",
+    });
+  });
+
   it("keeps explicit negative evidence values for validation", () => {
     expect(() =>
       parseCLIArguments([
         "wikg://book.wikg",
         "search",
+        "--query",
         "RAG",
         "--evidence",
         "-1",
@@ -1077,6 +1159,7 @@ describe("cli/args", () => {
       parseCLIArguments([
         "wikg://book.wikg",
         "search",
+        "--query",
         "RAG",
         "--context",
         "-1",
@@ -1117,10 +1200,9 @@ describe("cli/args", () => {
     });
     expect(parseCLIArguments(["wikg://book.wikg/"])).toStrictEqual({
       args: {
-        action: "get",
+        action: "list",
         archivePath: "wikg://book.wikg/",
         format: "text",
-        objectId: "wikg://book.wikg/",
       },
       help: false,
       kind: "archive",
@@ -1718,16 +1800,12 @@ describe("cli/args", () => {
     const commandHelpText = renderHelpTopicText("command");
 
     expect(rootHelpText).toContain("wikigraph help [topic]");
-    expect(rootHelpText).toContain("wikigraph <located-wikg-uri> search");
-    expect(rootHelpText).toContain(
-      "wikigraph <located-wikg-uri>/<chapter|entity|triple|source|summary|chunk> list",
-    );
+    expect(rootHelpText).toContain("wikigraph <scope-uri> --query <query>");
+    expect(rootHelpText).toContain("wikigraph <object-uri>");
     expect(rootHelpText).toContain("wikigraph help overview");
     expect(rootHelpText).toContain("wikigraph help uri");
-    expect(rootHelpText).toContain("wikigraph <archive-uri> get");
-    expect(rootHelpText).toContain(
-      "wikigraph <archive-uri>/chapter/tree get|set",
-    );
+    expect(rootHelpText).toContain("wikigraph <archive-uri> [--json|--jsonl]");
+    expect(rootHelpText).toContain("wikigraph <archive-uri>/chapter/tree set");
     expect(rootHelpText).toContain("wikigraph transform");
     expect(rootHelpText).not.toContain("wikigraph import");
     expect(rootHelpText).toContain("wikigraph wikg://local/job add");
@@ -1746,7 +1824,7 @@ describe("cli/args", () => {
     expect(renderHelpTopicText("runtime")).toContain("Runtime Behavior");
     expect(renderHelpTopicText("config")).toContain("Configuration");
     expect(renderHelpTopicText("command")).toContain(
-      "wikigraph <located-wikg-uri> search",
+      "wikigraph <scope-uri> --query <query>",
     );
     expect(renderHelpTopicText("command")).toContain(
       "wikigraph <entity|triple|summary|chunk-uri> evidence",
@@ -1762,7 +1840,7 @@ describe("cli/args", () => {
       "/Users/me/book.wikg -> wikg:///Users/me/book.wikg",
     );
     expect(renderHelpTopicText("ai")).toContain(
-      "wikigraph wikg:///Users/me/book.wikg/entity search",
+      'wikigraph wikg:///Users/me/book.wikg/entity --query "朱元璋"',
     );
     expect(renderHelpTopicText("ai")).toContain(
       "wikg:///absolute/path/book.wikg/entity/Q8018",
@@ -1771,7 +1849,7 @@ describe("cli/args", () => {
       "Do not pass a bare filesystem path as a command target.",
     );
     expect(renderHelpTopicText("uri")).toContain(
-      "wikigraph wikg:///Users/me/book.wikg/entity search",
+      'wikigraph wikg:///Users/me/book.wikg/entity --query "keyword"',
     );
     expect(renderHelpTopicText("uri")).toContain(
       String.raw`C:\Users\me\book.wikg -> wikg://C:/Users/me/book.wikg`,
@@ -1784,10 +1862,10 @@ describe("cli/args", () => {
       "Avoid `--all | head` as a preview pattern.",
     );
     expect(renderHelpTopicText("task")).toContain(
-      "wikigraph wikg:///Users/me/book.wikg search",
+      'wikigraph wikg:///Users/me/book.wikg --query "keyword"',
     );
     expect(renderHelpTopicText("recipe")).toContain(
-      "wikigraph wikg:///Users/me/book.wikg search",
+      'wikigraph wikg:///Users/me/book.wikg --query "恩典 婴儿洗礼"',
     );
     expect(commandHelpText).toContain("Object commands:");
     expect(commandHelpText).toContain("wikigraph <archive-uri> create");

@@ -8,32 +8,29 @@ Purpose:
   Treat `.wikg` as the managed archive. Use commands to mutate or inspect it; do not edit archive internals directly.
 
 Object model:
-  Search and navigation return URI-addressable objects. Common object kinds are:
-    meta, chapter, chapter-tree, entity, triple, source, summary, chunk
+  Search and navigation return URI-addressable objects. URI forms are explicitly classified as scope or object URIs.
+  Read `wikigraph help uri` before choosing a target.
 
 Object workflow:
-  - `search` returns candidate Wiki Graph URIs from query text.
-  - `list` is search without query text: it enumerates objects from a located Wiki Graph URI or lens URI.
-  - `get` opens one readable URI.
+  - Scope URIs enumerate objects by default.
+  - Scope URIs with `--query <query>` search within that scope.
+  - Object URIs open one readable object by default.
   - `related` expands from one URI to nearby URIs.
   - `evidence` traces a URI to source-backed evidence.
   - `pack` builds bounded Agent-readable context around one graph object URI.
 
 Object commands:
-  wikigraph <object-uri> get [--evidence [n]] [--context <n>] [--backlinks] [--json|--jsonl]
-  wikigraph <located-wikg-uri> search <query> [--all] [--limit <n>] [--context <n>] [--cursor <token>] [--evidence [n]] [--backlinks] [--json|--jsonl]
-  wikigraph <entity|triple|summary|chunk-uri> evidence [query] [--all] [--limit <n>] [--context <n>] [--cursor <token>] [--json|--jsonl]
-  wikigraph <chunk-uri|entity-uri> related [query] [--all] [--limit <n>] [--context <n>] [--cursor <token>] [--role <any|subject|object|self>] [--evidence [n]] [--json|--jsonl]
-  wikigraph <located-wikg-uri>/<chapter|entity|triple|source|summary|chunk> search <query> [--all] [--limit <n>] [--context <n>] [--cursor <token>] [--evidence [n]] [--backlinks] [--json|--jsonl]
-  wikigraph <located-wikg-uri>/triple/<subject|_>/<predicate|_>/<object|_> search <query> [--all] [--limit <n>] [--context <n>] [--cursor <token>] [--evidence [n]] [--json|--jsonl]
-  wikigraph <located-wikg-uri>/<chapter|entity|triple|source|summary|chunk> list [--all] [--limit <n>] [--context <n>] [--cursor <token>] [--evidence [n]] [--backlinks] [--json|--jsonl]
-  wikigraph <located-wikg-uri>/triple/<subject|_>/<predicate|_>/<object|_> list [--all] [--limit <n>] [--context <n>] [--cursor <token>] [--evidence [n]] [--json|--jsonl]
+  wikigraph <scope-uri> [--all] [--limit <n>] [--context <n>] [--cursor <token>] [--evidence [n]] [--backlinks] [--json|--jsonl]
+  wikigraph <scope-uri> --query <query> [--all] [--limit <n>] [--context <n>] [--cursor <token>] [--evidence [n]] [--backlinks] [--json|--jsonl]
+  wikigraph <object-uri> [--evidence [n]] [--context <n>] [--backlinks] [--json|--jsonl]
+  wikigraph <entity|triple|summary|chunk-uri> evidence [--query <query>] [--all] [--limit <n>] [--context <n>] [--cursor <token>] [--json|--jsonl]
+  wikigraph <chunk-uri|entity-uri> related [--query <query>] [--all] [--limit <n>] [--context <n>] [--cursor <token>] [--role <any|subject|object|self>] [--evidence [n]] [--json|--jsonl]
   wikigraph <located-chunk-uri|located-entity-uri> pack [--budget <chars>] [--json|--jsonl]
   wikigraph next <cursor> [--limit <n>] [--json|--jsonl]
   wikigraph next <wikigraph-uri-with-wikg-locator> <cursor> [--limit <n>] [--json|--jsonl]
 
 URI requirement:
-  `search`, `list`, `get`, `related`, `evidence`, and `pack` use Wiki Graph URIs, not bare filesystem paths.
+  URI-addressed commands use Wiki Graph URIs, not bare filesystem paths.
   Read `wikigraph help uri` before using these commands; skipping the URI rules commonly leads to invalid commands.
 
 Archive commands:
@@ -51,18 +48,19 @@ Generation queue:
   Queue generation tasks call an LLM, consume tokens, and may incur provider charges.
 
 Maintenance:
-  wikigraph <archive-uri> get [--json|--jsonl]
+  wikigraph <archive-uri> [--json|--jsonl]
   wikigraph <archive-uri> set [metadata options] [--llm <json>]
-  wikigraph <cover-uri> get
-  wikigraph <chapter-collection-uri> add|list [options]
-  wikigraph <chapter-uri>/state get [--json]
+  wikigraph <cover-uri>
+  wikigraph <chapter-collection-uri> add [options]
+  wikigraph <chapter-uri>/state [--json]
   wikigraph <chapter-uri> move|remove|reset [options]
   wikigraph <object-uri>/meta get|set|put|delete|clear
   wikigraph <chapter-uri>/source set [text] [--input <path>] --input-format <format>
   wikigraph <chapter-uri>/summary set [text] [--input <path>]
   wikigraph <chapter-uri>/title set <title>
   wikigraph <chapter-uri>/title clear
-  wikigraph <archive-uri>/chapter/tree get|set [options]
+  wikigraph <archive-uri>/chapter/tree
+  wikigraph <archive-uri>/chapter/tree set [options]
   wikigraph gc [--force] [--json]
   wikigraph wikg://local/config/llm get|set|put|delete|clear|test
   wikigraph wikg://local/config/concurrent get|set|put|delete|clear

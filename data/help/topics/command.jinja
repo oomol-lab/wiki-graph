@@ -4,20 +4,19 @@ Topic: command
 Command Overview
 
 Object commands:
-  wikigraph <object-uri> get
-  wikigraph <located-wikg-uri> search <query>
-  wikigraph <located-wikg-uri>/<chapter|entity|triple|source|summary|chunk> search <query>
-  wikigraph <located-wikg-uri>/<chapter|entity|triple|source|summary|chunk> list
+  wikigraph <object-uri>
+  wikigraph <scope-uri>
+  wikigraph <scope-uri> --query <query>
   wikigraph <chunk-uri|entity-uri> related
   wikigraph <entity|triple|summary|chunk-uri> evidence
   wikigraph next <cursor>
   wikigraph <located-chunk-uri|located-entity-uri> pack
 
 URI routing:
-  `search`, `list`, `get`, `related`, `evidence`, and `pack` use Wiki Graph URIs, not bare filesystem paths.
+  URI-addressed commands use Wiki Graph URIs, not bare filesystem paths.
   Read `wikigraph help uri` before using object commands; skipping the URI rules commonly leads to invalid commands.
-  Read `wikigraph help object` to start from a URI target, or `wikigraph help verb` to start from an operation.
-  Conceptually, `list` is `search` without query text, scoped by a URI lens such as `<archive-uri>/entity` or `<chapter-uri>/source`.
+  Scope URIs enumerate by default and search with `--query`.
+  Object URIs read one object by default.
 
 Archive commands:
   wikigraph <archive-uri> create
@@ -32,14 +31,16 @@ Generation:
   wikigraph wikg://local/job/<job-id> get|watch|pause|resume|cancel|boost|set
 
 Maintenance:
-  wikigraph <archive-uri> get|set
-  wikigraph <cover-uri> get
-  wikigraph <chapter-collection-uri> add|list
-  wikigraph <chapter-uri>/state get
+  wikigraph <archive-uri>|<object-uri>
+  wikigraph <archive-uri> set
+  wikigraph <cover-uri>
+  wikigraph <chapter-collection-uri> add
+  wikigraph <chapter-uri>/state
   wikigraph <chapter-uri> move|remove|reset
   wikigraph <chapter-uri>/source set
   wikigraph <chapter-uri>/summary set
   wikigraph <chapter-uri>/title set
-  wikigraph <archive-uri>/chapter/tree get|set
+  wikigraph <archive-uri>/chapter/tree
+  wikigraph <archive-uri>/chapter/tree set
   wikigraph wikg://local/config/llm get|put|set|delete|clear|test
   wikigraph wikg://local/config/concurrent get|put|set|delete|clear

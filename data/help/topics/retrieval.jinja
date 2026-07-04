@@ -20,23 +20,22 @@ Scope:
   - If the first page is too broad, narrow the URI before increasing result volume.
 
 Lens:
-  - `/source` finds original source passages and returns source range URIs.
-  - `/summary` searches readable chapter summaries.
+  - `/source` and `/summary` are readable objects, not list/search scopes.
   - `/chunk` searches Reading Graph chunks.
   - `/entity` searches or lists grounded entities.
   - `/triple` searches or lists Knowledge Graph relations.
-  - `chapter` is structural; searching chapters uses chapter titles and structure, not child source text.
+  - `chapter/<id>` is a scope; searching chapter titles returns `chapter/<id>/title` objects.
 
 Literal source passages:
-  Use source search when the task is to find source wording or passages mentioning a literal term:
-    wikigraph <archive-uri>/source search "term"
-    wikigraph <archive-uri>/chapter/<id>/source search "term"
-    wikigraph <archive-uri>/chapter/<id>/source#20..30 get
+  Use scope search when the task is to find source wording or passages mentioning a literal term:
+    wikigraph <archive-uri> --query "term"
+    wikigraph <archive-uri>/chapter/<id> --query "term"
+    wikigraph <archive-uri>/chapter/<id>/source#20..30
 
 Entity-grounded evidence:
   Use entity evidence when you already have an entity URI or QID and need grounded mentions, aliases, translations, variants, or source-backed support:
     wikigraph <archive-uri>/entity/<qid> evidence
-    wikigraph <archive-uri>/entity/<qid> related "aspect" --evidence 2
+    wikigraph <archive-uri>/entity/<qid> related --query "aspect" --evidence 2
 
 Pagination:
   - Use default paging or `--limit <n>` while exploring.
@@ -54,7 +53,7 @@ Output format:
 
 Preview vs full export:
   - For previews, use `--limit <n>` and omit `--all`:
-      wikigraph <uri>/<lens> list --limit 20 --jsonl
+      wikigraph <scope-uri> --limit 20 --jsonl
   - Avoid `--all | head` as a preview pattern. `--all` still asks wikigraph to enumerate the full selected scope; shell truncation only limits what you read.
   - Use `--all --jsonl` only for intentional full inventories, exports, or batch pipelines.
 

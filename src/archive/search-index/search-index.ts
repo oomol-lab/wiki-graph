@@ -724,6 +724,7 @@ function shouldQueryObjects(
     types === undefined ||
     types === null ||
     types.includes("chapter") ||
+    types.includes("chapter-title") ||
     types.includes("node") ||
     types.includes("entity")
   );

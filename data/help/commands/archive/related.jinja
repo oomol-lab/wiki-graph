@@ -11,15 +11,15 @@ Use when:
   - You have a selected entity and need Knowledge Graph triples involving it.
 
 Usage:
-  wikigraph <chunk-uri> related [query] [--all] [--limit <n>] [--context <n>] [--cursor <token>] [--evidence [n]] [--json|--jsonl] [--help|-h]
-  wikigraph <entity-uri> related [query] [--all] [--limit <n>] [--context <n>] [--cursor <token>] [--role <any|subject|object|self>] [--evidence [n]] [--json|--jsonl] [--help|-h]
+  wikigraph <chunk-uri> related [--query <query>] [--all] [--limit <n>] [--context <n>] [--cursor <token>] [--evidence [n]] [--json|--jsonl] [--help|-h]
+  wikigraph <entity-uri> related [--query <query>] [--all] [--limit <n>] [--context <n>] [--cursor <token>] [--role <any|subject|object|self>] [--evidence [n]] [--json|--jsonl] [--help|-h]
 
 Returns:
   - Related full `wikg://...` URIs with labels or summaries.
 
 Notes:
   - `related` starts from a known URI; `search` starts from query text.
-  - Optional `query` uses the current FTS index to filter and rank only the related objects that would otherwise be returned; run `<archive-uri>/index build` first if the index is missing or outdated.
+  - Optional `--query` uses the current FTS index to filter and rank only the related objects that would otherwise be returned; run `<archive-uri>/index build` first if the index is missing or outdated.
   - `--role` only applies to entity URIs. Default is `any`.
   - Add `--evidence` or `--evidence <n>` to include source evidence previews where available.
   - Evidence previews include 2 nearby sentences before and after by default. Use `--context 0` for exact cited ranges.
@@ -29,12 +29,12 @@ Notes:
   - Read `wikigraph help uri` before constructing object URIs.
 
 Next steps:
-  - Use `get` to inspect a readable returned URI.
+  - Open a readable returned URI directly.
   - Use `evidence` to verify a returned URI.
   - Use `pack` when one related object becomes the answer anchor.
 
 Examples:
   wikigraph wikg:///books/book.wikg/chunk/123 related
-  wikigraph wikg:///books/book.wikg/entity/Q162593 related "baptism"
+  wikigraph wikg:///books/book.wikg/entity/Q162593 related --query "baptism"
   wikigraph wikg:///books/book.wikg/entity/Q162593 related
   wikigraph wikg:///books/book.wikg/entity/Q162593 related --role subject --evidence

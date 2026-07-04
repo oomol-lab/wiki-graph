@@ -4,7 +4,8 @@ Topic: uri
 Wiki Graph URIs
 
 Purpose:
-  Wiki Graph commands use URIs as their address format. A URI can point to an archive, a scoped collection, or one object inside an archive.
+  Wiki Graph commands use URIs as their address format. Every Wiki Graph URI form is explicitly classified as either a scope URI or an object URI.
+  This classification is part of the CLI contract; do not infer it from path length.
 
 Archive locator:
   - Archive/object command URIs must contain a `.wikg` locator.
@@ -23,8 +24,8 @@ Archive locator:
 
 Short object URIs:
   Commands return short object URIs without local file paths:
-    wikg://chapter/3
-    wikg://chapter/3/source/
+    wikg://chapter/3/title
+    wikg://chapter/3/source
     wikg://chapter/3/source#4..8
     wikg://chapter/3/summary
     wikg://chunk/12
@@ -40,7 +41,38 @@ Located object URIs:
   Returned short URIs are archive-relative handles, not complete command targets. Prepend the archive locator before passing them back to object commands.
   Located readable object URIs can omit the `get` verb:
     wikigraph wikg://book.wikg/entity/Q8018
-  Collection and lens URIs still require an explicit verb such as `list` or `search`.
+  Scope URIs can omit list/search verbs:
+    wikigraph wikg://book.wikg/entity
+    wikigraph wikg://book.wikg/entity --query "keyword"
+
+URI kind contract:
+  Scope URIs enumerate objects by default. With `--query <query>`, they search within that scope.
+    wikg://book.wikg
+    wikg://book.wikg/chapter
+    wikg://book.wikg/chapter/3
+    wikg://book.wikg/chapter/3/chunk
+    wikg://book.wikg/chapter/3/entity
+    wikg://book.wikg/chapter/3/triple
+    wikg://book.wikg/chunk
+    wikg://book.wikg/entity
+    wikg://book.wikg/triple
+    wikg://book.wikg/triple/Q8018
+    wikg://book.wikg/triple/Q8018/discusses
+    wikg://book.wikg/triple/Q8018/_/Q123
+  Object URIs read one object by default.
+    wikg://book.wikg/chapter/3/title
+    wikg://book.wikg/chapter/3/state
+    wikg://book.wikg/chapter/3/source
+    wikg://book.wikg/chapter/3/source#4..8
+    wikg://book.wikg/chapter/3/summary
+    wikg://book.wikg/chapter/3/summary#4..8
+    wikg://book.wikg/chapter/3/chunk/12
+    wikg://book.wikg/chapter/3/entity/Q8018
+    wikg://book.wikg/chapter/3/triple/Q8018/discusses/Q123
+    wikg://book.wikg/chunk/12
+    wikg://book.wikg/entity/Q8018
+    wikg://book.wikg/entity/Q8018/wikipage
+    wikg://book.wikg/triple/Q8018/discusses/Q123
 
 Triple pattern lenses:
   Use `_` as an any-value placeholder for subject, predicate, or object:
@@ -49,21 +81,22 @@ Triple pattern lenses:
   Trailing placeholders may be omitted:
     wikg://book.wikg/triple/Q8018
     wikg://book.wikg/triple/Q8018/discusses
-  A complete triple URI without `_` is a concrete object, not a collection lens.
+  Any triple URI with `_` or omitted trailing subject/predicate/object parts is a scope URI.
+  A complete triple URI with concrete subject, predicate, and object is an object URI.
 
 Object command examples:
   Search an absolute local archive:
-    wikigraph wikg:///Users/me/book.wikg/entity search "keyword"
+    wikigraph wikg:///Users/me/book.wikg/entity --query "keyword"
   Open an object inside an absolute local archive:
-    wikigraph wikg:///Users/me/book.wikg/entity/Q8018 get
+    wikigraph wikg:///Users/me/book.wikg/entity/Q8018
   Open mapped Wikipedia pages for an entity:
-    wikigraph wikg:///Users/me/book.wikg/entity/Q8018/wikipage get
+    wikigraph wikg:///Users/me/book.wikg/entity/Q8018/wikipage
 
 Archive command examples:
   Create or inspect an archive:
     wikigraph wikg://book.wikg create ./book.md
-    wikigraph wikg://book.wikg/chapter list
-    wikigraph wikg://book.wikg/chapter/tree get
+    wikigraph wikg://book.wikg/chapter
+    wikigraph wikg://book.wikg/chapter/tree
 
 Job URIs:
   Queue jobs use the `wikg://local/job/` scheme and do not contain `.wikg` locators:
@@ -74,15 +107,16 @@ Job URIs:
 Scopes:
   - `wikg:///book.wikg` addresses the whole archive.
   - `wikg:///book.wikg/` is the same archive target; a trailing slash does not create a separate object.
-  - `wikg:///book.wikg/chapter/3` scopes search and list to chapter 3.
+  - `wikg:///book.wikg/chapter/3` scopes enumeration and search to chapter 3.
   - `wikg:///book.wikg/entity` searches or lists archive-wide entities.
   - `wikg:///book.wikg/chapter/3/entity` searches or lists entities scoped to chapter 3 only.
-  - `wikg:///book.wikg/entity/Q8018/wikipage` returns mapped Wikipedia pages for the entity.
-  - `wikg://chapter/3/entity/Q8018` is the entity view whose evidence must appear in chapter 3.
+  - `wikg://chapter/3/entity/Q8018` is the entity object whose evidence must appear in chapter 3.
 
 Object boundaries:
-  - `chapter` is a structural object; searching it uses chapter title and structure, not child source or summary text.
-  - `source` is the evidence endpoint. `evidence` is not available for source or chapter objects.
+  - `chapter/<id>` is a scope, not an object.
+  - `chapter/<id>/title` is the searchable chapter title object.
+  - `source` and `summary` are readable text objects; they are not list scopes.
+  - `source` is the evidence endpoint. `evidence` is not available for source or chapter scope URIs.
   - `summary`, `chunk`, `entity`, and `triple` can return source-backed evidence.
 
 Retrieval strategy:

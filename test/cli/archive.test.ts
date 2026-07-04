@@ -936,17 +936,11 @@ describe("cli/archive", () => {
         items: [
           {
             field: "title",
-            id: "chapter:1",
+            id: "chapter-title:1",
             position: { chapter: 1 },
-            state: {
-              "knowledge-graph": "missing",
-              "reading-graph": "ready",
-              "reading-summary": "ready",
-              source: "ready",
-            },
             snippet: "Chapter 1",
             title: "Chapter 1",
-            type: "chapter",
+            type: "chapter-title",
           },
         ],
         nextCursor: "raw-collection-cursor",
@@ -956,17 +950,11 @@ describe("cli/archive", () => {
         items: [
           {
             field: "title",
-            id: "chapter:2",
+            id: "chapter-title:2",
             position: { chapter: 2 },
-            state: {
-              "knowledge-graph": "missing",
-              "reading-graph": "ready",
-              "reading-summary": "missing",
-              source: "ready",
-            },
             snippet: "Chapter 2",
             title: "Chapter 2",
-            type: "chapter",
+            type: "chapter-title",
           },
         ],
         nextCursor: null,
@@ -986,7 +974,7 @@ describe("cli/archive", () => {
       {},
       {
         limit: 1,
-        types: ["chapter"],
+        types: ["chapter-title"],
       },
     );
     expect(listArchiveCollection).toHaveBeenNthCalledWith(
@@ -995,15 +983,15 @@ describe("cli/archive", () => {
       {
         cursor: "raw-collection-cursor",
         limit: 1,
-        types: ["chapter"],
+        types: ["chapter-title"],
       },
     );
     expect(createContinuationCursor).not.toHaveBeenCalled();
     expect(archiveMockState.textWrites[0]).toContain(
-      '"uri":"wikg://chapter/1"',
+      '"uri":"wikg://chapter/1/title"',
     );
     expect(archiveMockState.textWrites[1]).toContain(
-      '"uri":"wikg://chapter/2"',
+      '"uri":"wikg://chapter/2/title"',
     );
     expect(archiveMockState.textWrites[0]).not.toContain('"type":"page"');
     expect(archiveMockState.textWrites[1]).not.toContain('"type":"page"');

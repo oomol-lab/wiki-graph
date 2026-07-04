@@ -327,6 +327,7 @@ interface ArchiveArgumentValues extends ArchiveMetaFlagValues {
   readonly parent?: string;
   readonly predicate?: string;
   readonly prompt?: string;
+  readonly query?: string;
   readonly role?: string;
   readonly root?: boolean;
   readonly secret?: boolean;
@@ -537,6 +538,9 @@ export function parseCLIArguments(
       prompt: {
         type: "string",
       },
+      query: {
+        type: "string",
+      },
       stage: {
         type: "string",
       },
@@ -698,11 +702,14 @@ function parseArchiveUriFirstArguments(
   values: ArchiveArgumentValues,
 ): ParsedCLIArguments {
   const uri = positionals[0];
-  const action = positionals[1] ?? "get";
+  const explicitAction = positionals[1];
 
   if (uri === undefined) {
     throw new Error("Internal error: missing URI-first archive URI.");
   }
+
+  const action =
+    explicitAction ?? resolveImplicitArchiveUriAction(uri, values.query);
 
   if (!isArchiveUriAction(action)) {
     throw new Error(
@@ -716,9 +723,64 @@ function parseArchiveUriFirstArguments(
   return parseArchiveUriTargetArguments(
     uri,
     action,
-    positionals[1] === undefined ? [] : positionals.slice(2),
+    explicitAction === undefined ? [] : positionals.slice(2),
     values,
   );
+}
+
+type ArchiveUriKind = "object" | "scope";
+
+function resolveImplicitArchiveUriAction(
+  uri: string,
+  query: string | undefined,
+): CLIArchiveUriAction {
+  const parsed = parseLocatedWikiGraphUri(uri);
+
+  if (parsed.archivePath === undefined) {
+    throw new Error(formatMissingArchiveLocatorMessage(uri));
+  }
+
+  const kind = classifyArchiveUri(parsed.objectUri);
+
+  if (kind === "scope") {
+    return query === undefined ? "list" : "search";
+  }
+  if (query !== undefined) {
+    throw new Error(
+      withHelpRoute(
+        "`--query` requires a scope URI, or an explicit `related` or `evidence` command for supported object URIs.",
+        "wikigraph help uri",
+      ),
+    );
+  }
+
+  return "get";
+}
+
+function classifyArchiveUri(objectUri: string | undefined): ArchiveUriKind {
+  if (objectUri === undefined) {
+    return "scope";
+  }
+
+  const path = stripObjectUriPrefix(objectUri);
+
+  if (path === "chapter") {
+    return "scope";
+  }
+  if (/^chapter\/[1-9][0-9]*$/u.test(path)) {
+    return "scope";
+  }
+  if (/^chapter\/[1-9][0-9]*\/(?:chunk|entity)$/u.test(path)) {
+    return "scope";
+  }
+  if (isTripleScopePath(path)) {
+    return "scope";
+  }
+  if (/^(?:chunk|entity)$/u.test(path)) {
+    return "scope";
+  }
+
+  return "object";
 }
 
 function parseArchiveUriTargetArguments(
@@ -791,6 +853,24 @@ function parseArchiveUriTargetArguments(
       action,
       tail,
       values,
+    );
+  }
+
+  const uriKind = classifyArchiveUri(objectUri);
+  if (uriKind === "object" && (action === "list" || action === "search")) {
+    throw new Error(
+      withHelpRoute(
+        `The object URI ${uri} does not support \`${action}\`. Use a scope URI for list or search.`,
+        "wikigraph help uri",
+      ),
+    );
+  }
+  if (uriKind === "scope" && action === "get") {
+    throw new Error(
+      withHelpRoute(
+        `The scope URI ${uri} does not support \`get\`. Use a concrete object URI.`,
+        "wikigraph help uri",
+      ),
     );
   }
 
@@ -1302,6 +1382,20 @@ function parseTriplePatternSuffix(
   };
 }
 
+function isTripleScopePath(path: string): boolean {
+  if (path === "triple" || /^chapter\/[1-9][0-9]*\/triple$/u.test(path)) {
+    return true;
+  }
+
+  const suffix = path.startsWith("chapter/")
+    ? /^chapter\/[1-9][0-9]*\/(.+)$/u.exec(path)?.[1]
+    : path;
+
+  return suffix === undefined
+    ? false
+    : parseTriplePatternSuffix(suffix) !== undefined;
+}
+
 function isTriplePatternQidSegment(value: string): boolean {
   return value === "_" || /^Q[1-9][0-9]*$/u.test(value);
 }
@@ -1320,10 +1414,6 @@ function parseArchiveUriLensObjectUri(
       return "chunk";
     case "wikg://entity":
       return "entity";
-    case "wikg://source":
-      return "source";
-    case "wikg://summary":
-      return "summary";
     case "wikg://triple":
       return "triple";
     default:
@@ -1669,23 +1759,11 @@ function parseChapterResourceUriArguments(
   helpRoute: string,
 ): ParsedCLIArguments {
   if (action === "list" || action === "search") {
-    if (resource === "title") {
-      throw new Error(
-        withHelpRoute(
-          `The chapter title resource does not support \`${action}\`. Expected get or set.`,
-          "wikigraph help object chapter-title",
-        ),
-      );
-    }
-
-    return parseChapterLensUriArguments(
-      archivePath,
-      chapterId,
-      resource,
-      action,
-      tail,
-      values,
-      helpRoute,
+    throw new Error(
+      withHelpRoute(
+        `The chapter ${resource} resource does not support \`${action}\`.`,
+        `wikigraph help object chapter-${resource}`,
+      ),
     );
   }
 
@@ -2844,17 +2922,14 @@ function parseArchiveArguments(
       };
     }
     case "search": {
-      const query = positionals[1];
+      const query = values.query;
 
       if (query === undefined) {
         throw new Error(
-          withHelpRoute(
-            "`wikigraph search` requires a search query.",
-            helpRoute,
-          ),
+          withHelpRoute("`wikigraph search` requires --query.", helpRoute),
         );
       }
-      rejectArchiveExtraPositionals(action, positionals, 2, helpRoute);
+      rejectArchiveExtraPositionals(action, positionals, 1, helpRoute);
       rejectArchiveNonReadFlags(action, values, helpRoute);
       rejectArchiveFlag(action, "--budget", values.budget, helpRoute);
       rejectArchiveFlag(action, "--chapter", values.chapter, helpRoute);
@@ -2903,6 +2978,7 @@ function parseArchiveArguments(
       rejectArchiveFlag(action, "--chapter", values.chapter, helpRoute);
       rejectArchiveFlag(action, "--from", values.from, helpRoute);
       rejectArchiveFlag(action, "--role", values.role, helpRoute);
+      rejectArchiveFlag(action, "--query", values.query, helpRoute);
       rejectArchiveFlag(action, "--to", values.to, helpRoute);
       rejectArchiveBooleanFlag(action, "--confirm", values.confirm, helpRoute);
       return {
@@ -2945,6 +3021,7 @@ function parseArchiveArguments(
       rejectArchiveFlag(action, "--from", values.from, helpRoute);
       rejectArchiveFlag(action, "--limit", values.limit, helpRoute);
       rejectArchiveFlag(action, "--cursor", values.cursor, helpRoute);
+      rejectArchiveFlag(action, "--query", values.query, helpRoute);
       rejectArchiveFlag(action, "--role", values.role, helpRoute);
       rejectArchiveFlag(action, "--to", values.to, helpRoute);
       rejectArchiveBooleanFlag(action, "--all", values.all, helpRoute);
@@ -2966,7 +3043,7 @@ function parseArchiveArguments(
       };
     }
     case "related": {
-      rejectArchiveExtraPositionals(action, positionals, 2, helpRoute);
+      rejectArchiveExtraPositionals(action, positionals, 1, helpRoute);
       rejectArchiveNonReadFlags(action, values, helpRoute);
       rejectArchiveBooleanFlag(
         action,
@@ -3002,7 +3079,7 @@ function parseArchiveArguments(
                 ),
               }),
           objectId: archivePath,
-          ...(positionals[1] === undefined ? {} : { query: positionals[1] }),
+          ...(values.query === undefined ? {} : { query: values.query }),
           ...(relatedTarget === "entity"
             ? parseRelatedRoleFlag(values.role, helpRoute)
             : {}),
@@ -3012,7 +3089,7 @@ function parseArchiveArguments(
       };
     }
     case "evidence": {
-      rejectArchiveExtraPositionals(action, positionals, 2, helpRoute);
+      rejectArchiveExtraPositionals(action, positionals, 1, helpRoute);
       rejectArchiveNonReadFlags(action, values, helpRoute);
       rejectArchiveBooleanFlag(
         action,
@@ -3045,7 +3122,7 @@ function parseArchiveArguments(
                 ),
               }),
           objectId: archivePath,
-          ...(positionals[1] === undefined ? {} : { query: positionals[1] }),
+          ...(values.query === undefined ? {} : { query: values.query }),
         },
         help: false,
         kind: "archive",

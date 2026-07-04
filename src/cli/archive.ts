@@ -2024,6 +2024,11 @@ async function writePage(
   }
 
   switch (page.type) {
+    case "chapter-title":
+      await writeTextToStdout(
+        `${formatPlainObject(await createPageObject(page, context))}\n`,
+      );
+      return;
     case "chapter":
       await writeTextToStdout(
         `${formatChapterObjectText(
@@ -2263,12 +2268,12 @@ function formatNextCursor(nextCursor: string | null): string {
 
 function formatNoMatches(result: ArchiveFindResult): string {
   if (result.match === "all" && result.terms.length > 1) {
-    return `No matches. Try a more specific lens URI, for example: wikigraph <archive-uri>/source search "${result.query}"${formatFindLensHint(result)}\n`;
+    return `No matches. Try a more specific scope URI, for example: wikigraph <archive-uri>/chunk --query "${result.query}"${formatFindLensHint(result)}\n`;
   }
 
   const lines = [
     "No matches.",
-    "Try fewer or broader keywords, or search a lens URI such as `<archive-uri>/source`, `<archive-uri>/summary`, or `<archive-uri>/chunk`.",
+    "Try fewer or broader keywords, or search a scope URI such as `<archive-uri>/chapter`, `<archive-uri>/chunk`, `<archive-uri>/entity`, or `<archive-uri>/triple`.",
   ];
 
   if (result.lensHint !== null) {
@@ -2288,6 +2293,13 @@ async function createFindObject(
     return {
       ...(hit.state === undefined ? {} : { state: hit.state }),
       title: hit.title,
+      uri,
+    };
+  }
+  if (hit.type === "chapter-title") {
+    return {
+      title: hit.title,
+      type: "chapter-title",
       uri,
     };
   }
@@ -2442,6 +2454,12 @@ async function createPageObject(
         uri: toWikiGraphUri(page.id),
       };
     }
+    case "chapter-title":
+      return {
+        title: page.title,
+        type: "chapter-title",
+        uri: toWikiGraphUri(page.id),
+      };
     case "chapter-tree": {
       const { id: _id, ...rest } = page;
 
@@ -2935,6 +2953,7 @@ async function formatPackAnchor(
   context: ArchiveOutputContext,
 ): Promise<string> {
   switch (anchor.type) {
+    case "chapter-title":
     case "chapter":
       return formatPlainObject(await createPageObject(anchor, context));
     case "chapter-tree":
@@ -2997,6 +3016,8 @@ function toWikiGraphUri(id: string): string {
   switch (type) {
     case "chapter":
       return `wikg://chapter/${first ?? ""}`;
+    case "chapter-title":
+      return `wikg://chapter/${first ?? ""}/title`;
     case "fragment":
       return `wikg://chapter/${first ?? ""}/source/${second ?? "0"}`;
     case "meta":
@@ -3015,7 +3036,7 @@ function toArchiveFindType(
 ): NonNullable<ArchiveFindOptions["types"]>[number] | undefined {
   switch (kind) {
     case "chapter":
-      return "chapter";
+      return "chapter-title";
     case "chunk":
       return "node";
     case "source":
@@ -3036,7 +3057,7 @@ function toArchiveCollectionType(
 ): NonNullable<ArchiveCollectionOptions["types"]>[number] | undefined {
   switch (kind) {
     case "chapter":
-      return "chapter";
+      return "chapter-title";
     case "chunk":
       return "node";
     case "entity":
