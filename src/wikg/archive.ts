@@ -1,3 +1,4 @@
+import { randomBytes } from "crypto";
 import { createWriteStream } from "fs";
 import {
   mkdir,
@@ -22,13 +23,17 @@ import { ZipFile as YazlZipFile } from "yazl";
 import { Database } from "../document/database.js";
 
 export const WIKG_FORMAT_VERSION = 1;
+const WIKG_MUTATION_TOKEN_PATH = ".wikg-mutation-token";
 const WIKG_MANIFEST_PATH = "manifest.json";
 const SEARCH_INDEX_DATABASE_PATH = "fts.db";
 const WIKG_MANIFEST_CONTENT = `${JSON.stringify({
   formatVersion: WIKG_FORMAT_VERSION,
 })}\n`;
+const WIKG_MUTATION_TOKEN_MAGIC = "wikg-mutation-token:v1";
+const WIKG_MUTATION_TOKEN_PATTERN = /^[A-Za-z0-9_-]{43}$/u;
 
 const WIKG_ARCHIVE_PATTERNS = [
+  /^\.wikg-mutation-token$/u,
   /^manifest\.json$/u,
   /^database\.db$/u,
   /^fts\.db$/u,
@@ -158,9 +163,20 @@ export async function writeWikgArchive(
   const includeSearchIndex = await shouldEmbedSearchIndex(
     documentDirectoryPath,
   );
-  const entries = [
+  const entries = sortArchiveEntriesForWrite([
+    {
+      archivePath: WIKG_MUTATION_TOKEN_PATH,
+      content: createWikgMutationTokenContent(),
+    },
+    {
+      archivePath: WIKG_MANIFEST_PATH,
+      content: Buffer.from(WIKG_MANIFEST_CONTENT, "utf8"),
+    },
     ...files.filter((file) => {
       if (file.archivePath === WIKG_MANIFEST_PATH) {
+        return false;
+      }
+      if (file.archivePath === WIKG_MUTATION_TOKEN_PATH) {
         return false;
       }
 
@@ -168,11 +184,7 @@ export async function writeWikgArchive(
         file.archivePath !== SEARCH_INDEX_DATABASE_PATH || includeSearchIndex
       );
     }),
-    {
-      archivePath: WIKG_MANIFEST_PATH,
-      content: Buffer.from(WIKG_MANIFEST_CONTENT, "utf8"),
-    },
-  ].sort((left, right) => left.archivePath.localeCompare(right.archivePath));
+  ]);
 
   for (const entry of entries) {
     if ("content" in entry) {
@@ -221,6 +233,26 @@ export async function readWikgArchiveEntry(
   }
 }
 
+export async function readWikgArchiveMutationToken(
+  inputPath: string,
+): Promise<string> {
+  const reader = await WikgArchiveReader.open(inputPath);
+
+  try {
+    const content = await reader.readEntry(WIKG_MUTATION_TOKEN_PATH);
+
+    if (content === undefined) {
+      throw new Error(
+        `Missing WIKG mutation token: ${WIKG_MUTATION_TOKEN_PATH}.`,
+      );
+    }
+
+    return parseWikgMutationToken(content.toString("utf8"));
+  } finally {
+    reader.close();
+  }
+}
+
 export async function writeWikgArchiveWithOverlays(
   inputPath: string,
   outputPath: string,
@@ -252,17 +284,22 @@ export async function writeWikgArchiveWithOverlays(
       entryPaths.add(archivePath);
     }
   }
+  entryPaths.add(WIKG_MUTATION_TOKEN_PATH);
   entryPaths.add(WIKG_MANIFEST_PATH);
 
   const outputZipFile = new YazlZipFile();
   const sourceFile = await openFile(inputPath, "r");
 
   try {
-    for (const entryPath of [...entryPaths].sort((left, right) =>
-      left.localeCompare(right),
-    )) {
+    for (const entryPath of sortArchiveEntryPathsForWrite(entryPaths)) {
       const overlay = overlayByPath.get(entryPath);
 
+      if (entryPath === WIKG_MUTATION_TOKEN_PATH) {
+        outputZipFile.addBuffer(createWikgMutationTokenContent(), entryPath, {
+          compress: false,
+        });
+        continue;
+      }
       if (entryPath === WIKG_MANIFEST_PATH) {
         outputZipFile.addBuffer(
           Buffer.from(WIKG_MANIFEST_CONTENT, "utf8"),
@@ -431,6 +468,29 @@ function compareDirEntryName(
   return left.name.localeCompare(right.name);
 }
 
+function sortArchiveEntriesForWrite<T extends { readonly archivePath: string }>(
+  entries: readonly T[],
+): T[] {
+  return [...entries].sort((left, right) =>
+    compareArchiveEntryPathsForWrite(left.archivePath, right.archivePath),
+  );
+}
+
+function sortArchiveEntryPathsForWrite(paths: Iterable<string>): string[] {
+  return [...paths].sort(compareArchiveEntryPathsForWrite);
+}
+
+function compareArchiveEntryPathsForWrite(left: string, right: string): number {
+  if (left === WIKG_MUTATION_TOKEN_PATH) {
+    return right === WIKG_MUTATION_TOKEN_PATH ? 0 : -1;
+  }
+  if (right === WIKG_MUTATION_TOKEN_PATH) {
+    return 1;
+  }
+
+  return left.localeCompare(right);
+}
+
 function isWikgArchivePath(archivePath: string): boolean {
   return WIKG_ARCHIVE_PATTERNS.some((pattern) => pattern.test(archivePath));
 }
@@ -439,6 +499,8 @@ async function validateArchiveManifest(
   inputPath: string,
   entries: readonly Entry[],
 ): Promise<void> {
+  await validateArchiveMutationToken(inputPath, entries);
+
   const entry = entries.find(
     (candidate) =>
       normalizeArchivePath(candidate.fileName) === WIKG_MANIFEST_PATH,
@@ -449,6 +511,21 @@ async function validateArchiveManifest(
   }
 
   parseWikgManifest(await readArchiveEntryText(inputPath, entry));
+}
+
+async function validateArchiveMutationToken(
+  inputPath: string,
+  entries: readonly Entry[],
+): Promise<void> {
+  const firstEntryPath = normalizeArchivePath(entries[0]?.fileName ?? "");
+
+  if (firstEntryPath !== WIKG_MUTATION_TOKEN_PATH) {
+    throw new Error(
+      `Missing WIKG mutation token: ${WIKG_MUTATION_TOKEN_PATH}.`,
+    );
+  }
+
+  parseWikgMutationToken(await readArchiveEntryText(inputPath, entries[0]!));
 }
 
 function parseWikgManifest(
@@ -471,6 +548,30 @@ function parseWikgManifest(
   }
 
   return result.data;
+}
+
+function createWikgMutationTokenContent(): Buffer {
+  const token = randomBytes(32).toString("base64url");
+
+  return Buffer.from(`${WIKG_MUTATION_TOKEN_MAGIC}\n${token}\n`, "utf8");
+}
+
+function parseWikgMutationToken(content: string): string {
+  const lines = content.split(/\r?\n/u);
+  const magic = lines[0];
+  const token = lines[1];
+
+  if (
+    magic !== WIKG_MUTATION_TOKEN_MAGIC ||
+    token === undefined ||
+    !WIKG_MUTATION_TOKEN_PATTERN.test(token)
+  ) {
+    throw new Error(
+      `Invalid WIKG mutation token: ${WIKG_MUTATION_TOKEN_PATH}.`,
+    );
+  }
+
+  return token;
 }
 
 function assertWithinDirectory(

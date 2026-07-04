@@ -1,5 +1,5 @@
 import { createHash } from "crypto";
-import { access, mkdir, readFile, writeFile } from "fs/promises";
+import { access, mkdir, readFile, rename, writeFile } from "fs/promises";
 import { resolve } from "path";
 
 import { afterEach, describe, expect, it } from "vitest";
@@ -10,6 +10,7 @@ import {
   findArchiveObjects,
   rebuildArchiveSearchIndex,
 } from "../../src/archive/query/archive-view.js";
+import { isSearchIndexCurrent } from "../../src/archive/search-index/index.js";
 import { SpineDigest } from "../../src/facade/spine-digest.js";
 import { SpineDigestFile } from "../../src/wikg/spine-digest-file.js";
 import { WikgCoordinator } from "../../src/wikg/wikg-coordinator.js";
@@ -340,6 +341,64 @@ describe("wikg/spine-digest-file", () => {
             });
           },
         );
+      } finally {
+        restoreStateDir();
+      }
+    });
+  });
+
+  it("adopts orphaned external FTS cache after moving an archive", async () => {
+    await withTempDir("spinedigest-facade-file-", async (path) => {
+      const restoreStateDir = useCoordinatorStateDir(`${path}/state`);
+      try {
+        const archivePath = await createSeedArchive(path);
+        const movedArchivePath = `${path}/moved/book.wikg`;
+
+        await new SpineDigestFile(archivePath).write(
+          async (document) => {
+            await rebuildArchiveSearchIndex(document);
+          },
+          { searchIndexWritebackPolicy: "cache" },
+        );
+
+        const beforeOverlays = await readCoordinatorOverlays(path);
+        const oldFtsOverlay = beforeOverlays.find(
+          (overlay) => overlay.entryPath === "fts.db",
+        );
+
+        expect(oldFtsOverlay).toMatchObject({
+          archivePath,
+          entryPath: "fts.db",
+          kind: "file",
+        });
+        expect(oldFtsOverlay?.workspacePath).toContain(
+          createArchiveKey(archivePath),
+        );
+
+        await mkdir(`${path}/moved`, { recursive: true });
+        await rename(archivePath, movedArchivePath);
+        await new SpineDigestFile(movedArchivePath).readDocument(
+          async (document) => {
+            await expect(isSearchIndexCurrent(document)).resolves.toBe(true);
+          },
+        );
+
+        const afterOverlays = await readCoordinatorOverlays(path);
+        const newFtsOverlay = afterOverlays.find(
+          (overlay) =>
+            overlay.entryPath === "fts.db" &&
+            overlay.archivePath === movedArchivePath,
+        );
+
+        expect(newFtsOverlay).toMatchObject({
+          archivePath: movedArchivePath,
+          entryPath: "fts.db",
+          kind: "file",
+        });
+        expect(newFtsOverlay?.workspacePath).toContain(
+          createArchiveKey(movedArchivePath),
+        );
+        await expect(access(oldFtsOverlay!.workspacePath!)).rejects.toThrow();
       } finally {
         restoreStateDir();
       }

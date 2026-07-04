@@ -39,6 +39,7 @@ import { isNodeError } from "../utils/node-error.js";
 import {
   extractWikgArchive,
   listWikgArchiveEntries,
+  readWikgArchiveMutationToken,
   readWikgArchiveEntry,
   WikgArchiveReader,
   writeWikgArchiveWithOverlays,
@@ -53,6 +54,7 @@ CREATE TABLE IF NOT EXISTS entry_overlays (
   kind TEXT NOT NULL,
   workspace_path TEXT,
   archive_signature TEXT,
+  mutation_token TEXT,
   updated_at INTEGER NOT NULL,
   PRIMARY KEY (archive_key, entry_path)
 );
@@ -880,6 +882,17 @@ class WikgDocumentFileStore implements DocumentFileStore {
       async () => {
         let overlay = await this.#readOverlay(entryPath);
 
+        if (
+          entryPath === SEARCH_INDEX_DATABASE_ENTRY_PATH &&
+          overlay?.kind !== "file"
+        ) {
+          await tryAdoptSearchIndexCacheOverlay({
+            targetArchiveKey: this.#archiveKey,
+            targetArchivePath: this.#archivePath,
+          });
+          overlay = await this.#readOverlay(entryPath);
+        }
+
         if (overlay?.kind !== "file") {
           const content = await readWikgArchiveEntry(
             this.#archivePath,
@@ -1592,18 +1605,24 @@ async function upsertOverlay(input: {
   readonly kind: "deleted" | "file";
   readonly workspacePath?: string;
 }): Promise<void> {
+  const mutationToken =
+    input.entryPath === SEARCH_INDEX_DATABASE_ENTRY_PATH
+      ? await readWikgArchiveMutationToken(input.archivePath)
+      : undefined;
+
   await withStateDatabase(async (state) => {
     await state.run(
       `
 INSERT INTO entry_overlays (
   archive_key, archive_path, entry_path, kind, workspace_path,
-  archive_signature, updated_at
-) VALUES (?, ?, ?, ?, ?, ?, ?)
+  archive_signature, mutation_token, updated_at
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
 ON CONFLICT(archive_key, entry_path)
 DO UPDATE SET kind = excluded.kind,
               archive_path = excluded.archive_path,
               workspace_path = excluded.workspace_path,
               archive_signature = excluded.archive_signature,
+              mutation_token = excluded.mutation_token,
               updated_at = excluded.updated_at
 `,
       [
@@ -1613,8 +1632,142 @@ DO UPDATE SET kind = excluded.kind,
         input.kind,
         input.workspacePath ?? null,
         await createArchiveSignature(input.archivePath),
+        mutationToken ?? null,
         Date.now(),
       ],
+    );
+  });
+}
+
+async function tryAdoptSearchIndexCacheOverlay(input: {
+  readonly targetArchiveKey: string;
+  readonly targetArchivePath: string;
+}): Promise<void> {
+  const mutationToken = await readWikgArchiveMutationToken(
+    input.targetArchivePath,
+  );
+  const candidates = await listSearchIndexAdoptionCandidates({
+    mutationToken,
+    targetArchiveKey: input.targetArchiveKey,
+  });
+  const adoptable: EntryOverlay[] = [];
+
+  for (const candidate of candidates) {
+    if (
+      candidate.workspacePath === undefined ||
+      (await pathExists(candidate.archivePath)) ||
+      (await hasActiveWorkspaceUse(candidate.archiveKey))
+    ) {
+      continue;
+    }
+
+    adoptable.push(candidate);
+  }
+
+  if (adoptable.length !== 1) {
+    return;
+  }
+
+  const candidate = adoptable[0]!;
+  const releaseWriteLock = await acquireEntryLock(
+    candidate.archiveKey,
+    SEARCH_INDEX_DATABASE_ENTRY_PATH,
+    "write",
+  );
+
+  try {
+    const releaseStateLock = await acquireEntryLock(
+      candidate.archiveKey,
+      SEARCH_INDEX_DATABASE_ENTRY_PATH,
+      "state",
+    );
+
+    try {
+      const current = await readOverlay(
+        candidate.archiveKey,
+        SEARCH_INDEX_DATABASE_ENTRY_PATH,
+      );
+      const target = await readOverlay(
+        input.targetArchiveKey,
+        SEARCH_INDEX_DATABASE_ENTRY_PATH,
+      );
+
+      if (
+        current?.workspacePath === undefined ||
+        current.workspacePath !== candidate.workspacePath ||
+        current.mutationToken !== mutationToken ||
+        target !== undefined ||
+        (await pathExists(candidate.archivePath)) ||
+        (await hasActiveArchiveOwnerOrSqliteLease(
+          candidate.archiveKey,
+          SEARCH_INDEX_DATABASE_ENTRY_PATH,
+        ))
+      ) {
+        return;
+      }
+
+      const targetWorkspacePath = await createWorkspaceFilePath(
+        input.targetArchiveKey,
+        SEARCH_INDEX_DATABASE_ENTRY_PATH,
+      );
+
+      await rm(targetWorkspacePath, { force: true }).catch(() => undefined);
+      await mkdir(dirname(targetWorkspacePath), { recursive: true });
+      await rename(current.workspacePath, targetWorkspacePath);
+      await withStateDatabase(async (state) => {
+        await state.run(
+          `
+UPDATE entry_overlays
+SET archive_key = ?,
+    archive_path = ?,
+    workspace_path = ?,
+    archive_signature = ?,
+    updated_at = ?
+WHERE archive_key = ?
+  AND entry_path = ?
+`,
+          [
+            input.targetArchiveKey,
+            input.targetArchivePath,
+            targetWorkspacePath,
+            await createArchiveSignature(input.targetArchivePath),
+            Date.now(),
+            candidate.archiveKey,
+            SEARCH_INDEX_DATABASE_ENTRY_PATH,
+          ],
+        );
+      });
+    } finally {
+      await releaseStateLock();
+    }
+  } finally {
+    await releaseWriteLock();
+  }
+}
+
+async function listSearchIndexAdoptionCandidates(input: {
+  readonly mutationToken: string;
+  readonly targetArchiveKey: string;
+}): Promise<readonly EntryOverlay[]> {
+  return await withStateDatabase(async (state) => {
+    await cleanupStaleState(state);
+    return await state.queryAll(
+      `
+SELECT *
+FROM entry_overlays
+WHERE entry_path = ?
+  AND kind = 'file'
+  AND workspace_path IS NOT NULL
+  AND mutation_token = ?
+  AND archive_key <> ?
+ORDER BY updated_at ASC
+`,
+      [
+        SEARCH_INDEX_DATABASE_ENTRY_PATH,
+        input.mutationToken,
+        input.targetArchiveKey,
+      ],
+      mapEntryOverlay,
     );
   });
 }
@@ -1761,6 +1914,13 @@ async function migrateStateDatabase(database: Database): Promise<void> {
     `);
   }
 
+  if (!overlayColumns.includes("mutation_token")) {
+    await database.run(`
+      ALTER TABLE entry_overlays
+      ADD COLUMN mutation_token TEXT
+    `);
+  }
+
   const sqliteLeaseColumns = await database.queryAll(
     "PRAGMA table_info(entry_sqlite_leases)",
     undefined,
@@ -1904,6 +2064,7 @@ interface EntryOverlay {
   readonly archiveSignature?: string;
   readonly entryPath: string;
   readonly kind: "deleted" | "file";
+  readonly mutationToken?: string;
   readonly updatedAt: number;
   readonly workspacePath?: string;
 }
@@ -1927,6 +2088,7 @@ interface WorkspaceDirectoryEntry {
 function mapEntryOverlay(row: Record<string, unknown>): EntryOverlay {
   const workspacePath = getOptionalString(row, "workspace_path");
   const archiveSignature = getOptionalString(row, "archive_signature");
+  const mutationToken = getOptionalString(row, "mutation_token");
 
   return {
     archiveKey: getString(row, "archive_key"),
@@ -1934,6 +2096,7 @@ function mapEntryOverlay(row: Record<string, unknown>): EntryOverlay {
     ...(archiveSignature === undefined ? {} : { archiveSignature }),
     entryPath: getString(row, "entry_path"),
     kind: getOverlayKind(row),
+    ...(mutationToken === undefined ? {} : { mutationToken }),
     updatedAt: getNumber(row, "updated_at"),
     ...(workspacePath === undefined ? {} : { workspacePath }),
   };

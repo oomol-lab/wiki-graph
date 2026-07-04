@@ -9,11 +9,14 @@ import { describe, expect, it } from "vitest";
 import { DirectoryDocument } from "../../src/document/index.js";
 import {
   extractWikgArchive,
+  readWikgArchiveMutationToken,
   readWikgArchiveEntry,
   writeWikgArchive,
   writeWikgArchiveWithOverlays,
 } from "../../src/wikg/archive.js";
 import { withTempDir } from "../helpers/temp.js";
+
+const VALID_MUTATION_TOKEN_CONTENT = `wikg-mutation-token:v1\n${"a".repeat(43)}\n`;
 
 describe("wikg/archive", () => {
   it("writes and extracts only whitelisted wikg document files", async () => {
@@ -47,6 +50,9 @@ describe("wikg/archive", () => {
       await writeWikgArchive(sourceDir, archivePath);
       await extractWikgArchive(archivePath, extractDir);
 
+      expect(
+        await readFile(`${extractDir}/.wikg-mutation-token`, "utf8"),
+      ).toMatch(/^wikg-mutation-token:v1\n[A-Za-z0-9_-]{43}\n$/u);
       expect(
         JSON.parse(await readFile(`${extractDir}/manifest.json`, "utf8")),
       ).toEqual({ formatVersion: 1 });
@@ -184,12 +190,83 @@ describe("wikg/archive", () => {
     });
   });
 
+  it("refreshes the mutation token when overlays rewrite the archive", async () => {
+    await withTempDir("spinedigest-archive-", async (path) => {
+      const sourceDir = `${path}/source`;
+      const archivePath = `${path}/book.wikg`;
+      const rewrittenPath = `${path}/rewritten.wikg`;
+
+      await mkdir(sourceDir, { recursive: true });
+      await writeFile(`${sourceDir}/database.db`, "sqlite", "utf8");
+      await writeWikgArchive(sourceDir, archivePath);
+
+      const before = await readWikgArchiveMutationToken(archivePath);
+
+      await writeWikgArchiveWithOverlays(archivePath, rewrittenPath, [
+        {
+          entryPath: "book-meta.json",
+          kind: "file",
+          workspacePath: `${sourceDir}/database.db`,
+        },
+      ]);
+
+      const after = await readWikgArchiveMutationToken(rewrittenPath);
+
+      expect(after).not.toBe(before);
+    });
+  });
+
+  it("rejects archives that omit the mutation token", async () => {
+    await withTempDir("spinedigest-archive-", async (path) => {
+      const archivePath = `${path}/missing-token.wikg`;
+      const extractDir = `${path}/extract`;
+      const zipFile = new ZipFile();
+
+      zipFile.addBuffer(
+        Buffer.from('{"formatVersion":1}', "utf8"),
+        "manifest.json",
+      );
+      zipFile.addBuffer(Buffer.from("sqlite", "utf8"), "database.db");
+      await writeZipFile(zipFile, archivePath);
+
+      await expect(extractWikgArchive(archivePath, extractDir)).rejects.toThrow(
+        "Missing WIKG mutation token: .wikg-mutation-token.",
+      );
+    });
+  });
+
+  it("rejects archives with malformed mutation tokens", async () => {
+    await withTempDir("spinedigest-archive-", async (path) => {
+      const archivePath = `${path}/malformed-token.wikg`;
+      const zipFile = new ZipFile();
+
+      zipFile.addBuffer(
+        Buffer.from("wikg-mutation-token:v1\nbad\n", "utf8"),
+        ".wikg-mutation-token",
+      );
+      zipFile.addBuffer(
+        Buffer.from('{"formatVersion":1}', "utf8"),
+        "manifest.json",
+      );
+      zipFile.addBuffer(Buffer.from("sqlite", "utf8"), "database.db");
+      await writeZipFile(zipFile, archivePath);
+
+      await expect(
+        extractWikgArchive(archivePath, `${path}/extract`),
+      ).rejects.toThrow("Invalid WIKG mutation token: .wikg-mutation-token.");
+    });
+  });
+
   it("rejects archives that omit the manifest", async () => {
     await withTempDir("spinedigest-archive-", async (path) => {
       const archivePath = `${path}/missing-manifest.wikg`;
       const extractDir = `${path}/extract`;
       const zipFile = new ZipFile();
 
+      zipFile.addBuffer(
+        Buffer.from(VALID_MUTATION_TOKEN_CONTENT, "utf8"),
+        ".wikg-mutation-token",
+      );
       zipFile.addBuffer(Buffer.from("sqlite", "utf8"), "database.db");
       await writeZipFile(zipFile, archivePath);
 
@@ -204,6 +281,10 @@ describe("wikg/archive", () => {
       const archivePath = `${path}/future.wikg`;
       const zipFile = new ZipFile();
 
+      zipFile.addBuffer(
+        Buffer.from(VALID_MUTATION_TOKEN_CONTENT, "utf8"),
+        ".wikg-mutation-token",
+      );
       zipFile.addBuffer(
         Buffer.from('{"formatVersion":2}', "utf8"),
         "manifest.json",
@@ -222,6 +303,10 @@ describe("wikg/archive", () => {
       const archivePath = `${path}/malformed.wikg`;
       const zipFile = new ZipFile();
 
+      zipFile.addBuffer(
+        Buffer.from(VALID_MUTATION_TOKEN_CONTENT, "utf8"),
+        ".wikg-mutation-token",
+      );
       zipFile.addBuffer(Buffer.from("not json", "utf8"), "manifest.json");
       zipFile.addBuffer(Buffer.from("sqlite", "utf8"), "database.db");
       await writeZipFile(zipFile, archivePath);
