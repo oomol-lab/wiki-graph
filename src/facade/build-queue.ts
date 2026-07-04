@@ -24,6 +24,7 @@ export type BuildJobTarget =
   | "reading-graph"
   | "reading-summary";
 export type BuildJobProgressPhase =
+  | "committing"
   | "enrichment"
   | "grounding"
   | "matching"
@@ -32,6 +33,7 @@ export type BuildJobProgressPhase =
   | "screening";
 export type BuildJobProgressUnit =
   | "candidate"
+  | "item"
   | "page"
   | "qid"
   | "sentence"
@@ -1970,6 +1972,8 @@ function formatProgressCounterName(input: {
   switch (input.unit) {
     case "candidate":
       return "candidates";
+    case "item":
+      return "items";
     case "page":
       return "page";
     case "qid":

@@ -837,6 +837,59 @@ describe("cli/queue", () => {
     ]);
   });
 
+  it("prints knowledge graph step plan in execution order", async () => {
+    queueMockState.events = [
+      {
+        at: 1,
+        jobId: "job-1",
+        seq: 1,
+        step: "knowledge-graph",
+        type: "step_started",
+      },
+    ];
+
+    await runQueueCommand({
+      action: "watch",
+      from: "beginning",
+      jobId: "job-1",
+      jsonl: false,
+    });
+
+    expect(queueMockState.textWrites).toStrictEqual([
+      "knowledge-graph started\nsteps: matching -> screening -> enrichment -> grounding -> relation-discovery -> committing\n",
+    ]);
+  });
+
+  it("prints committing phase progress in human watch output", async () => {
+    queueMockState.events = [
+      {
+        at: 1,
+        counters: [
+          {
+            done: 1,
+            name: "items",
+            total: 1,
+            unit: "item",
+          },
+        ],
+        jobId: "job-1",
+        phase: "committing",
+        seq: 1,
+        step: "knowledge-graph",
+        type: "status_snapshot",
+      },
+    ];
+
+    await runQueueCommand({
+      action: "watch",
+      from: "beginning",
+      jobId: "job-1",
+      jsonl: false,
+    });
+
+    expect(queueMockState.textWrites).toStrictEqual(["committing items 1/1\n"]);
+  });
+
   it("prints knowledge graph phase progress without word counters", async () => {
     queueMockState.events = [
       {

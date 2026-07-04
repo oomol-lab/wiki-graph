@@ -326,10 +326,22 @@ async function executeBuildJobWithLogging(
         }),
     );
 
+    await reporter.updatePhase({
+      done: 0,
+      phase: "committing",
+      total: 1,
+      unit: "item",
+    });
     await new SpineDigestFile(job.archivePath).write(async (document) => {
       assertJobStillRunning(await getBuildJob(job.jobId));
       await assertCurrentBuildInputRevision(job, document);
       await commitChapterKnowledgeGraphArtifact(document, artifact);
+    });
+    await reporter.updatePhase({
+      done: 1,
+      phase: "committing",
+      total: 1,
+      unit: "item",
     });
     await reporter.stepCompleted("knowledge-graph");
     assertJobStillRunning(await getBuildJob(job.jobId));
@@ -356,6 +368,12 @@ async function executeBuildJobWithLogging(
         },
       },
     });
+    await reporter.updatePhase({
+      done: 0,
+      phase: "committing",
+      total: 1,
+      unit: "item",
+    });
     details = await new SpineDigestFile(job.archivePath).write(
       async (document) => {
         assertJobStillRunning(await getBuildJob(job.jobId));
@@ -363,6 +381,12 @@ async function executeBuildJobWithLogging(
         return await commitChapterGraphArtifact(document, artifact);
       },
     );
+    await reporter.updatePhase({
+      done: 1,
+      phase: "committing",
+      total: 1,
+      unit: "item",
+    });
     const nextBuildInput = await new SpineDigestFile(
       job.archivePath,
     ).readDocument(
@@ -411,6 +435,12 @@ async function executeBuildJobWithLogging(
     snapshotPath: summaryInput.filePath,
     workspacePath: job.workspacePath,
   });
+  await reporter.updatePhase({
+    done: 0,
+    phase: "committing",
+    total: 1,
+    unit: "item",
+  });
   details = await new SpineDigestFile(job.archivePath).write(
     async (document) => {
       assertJobStillRunning(await getBuildJob(job.jobId));
@@ -422,6 +452,12 @@ async function executeBuildJobWithLogging(
       );
     },
   );
+  await reporter.updatePhase({
+    done: 1,
+    phase: "committing",
+    total: 1,
+    unit: "item",
+  });
   await reporter.updateWords({ readingSummaryWords: details.words });
   await reporter.stepCompleted("reading-summary");
   assertJobStillRunning(await getBuildJob(job.jobId));
@@ -543,7 +579,7 @@ function formatWatchOutputEvent(event: BuildJobEvent) {
 function formatStepPlan(step: string): string {
   switch (step) {
     case "knowledge-graph":
-      return "screening -> matching -> enrichment -> relation-discovery -> grounding";
+      return "matching -> screening -> enrichment -> grounding -> relation-discovery -> committing";
     case "reading-summary":
       return "reading-graph -> summarizing -> committing";
     case "reading-graph":
@@ -568,6 +604,8 @@ function formatProgressUnit(unit: string): string {
   switch (unit) {
     case "candidate":
       return "candidates";
+    case "item":
+      return "items";
     case "page":
       return "pages";
     case "qid":
