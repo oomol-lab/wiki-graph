@@ -832,8 +832,42 @@ describe("cli/queue", () => {
     });
 
     expect(queueMockState.textWrites).toStrictEqual([
-      "reading-summary words 4520/4520 [tokens input: 1200 / output: 200]\n",
+      "summarizing words 4520/4520 [tokens input: 1200 / output: 200]\n",
       "succeeded\n",
+    ]);
+  });
+
+  it("prints reading graph word progress as extracting", async () => {
+    queueMockState.events = [
+      {
+        at: 1,
+        counters: [
+          {
+            done: 128,
+            name: "words",
+            total: 2431,
+            unit: "word",
+          },
+        ],
+        jobId: "job-1",
+        seq: 1,
+        step: "reading-graph",
+        tokens: {
+          outputTokens: 614,
+        },
+        type: "status_snapshot",
+      },
+    ];
+
+    await runQueueCommand({
+      action: "watch",
+      from: "beginning",
+      jobId: "job-1",
+      jsonl: false,
+    });
+
+    expect(queueMockState.textWrites).toStrictEqual([
+      "extracting words 128/2431 [tokens output: 614]\n",
     ]);
   });
 

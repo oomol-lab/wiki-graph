@@ -32,6 +32,7 @@ import {
   type BuildJobProgressCounter,
   type BuildJobProgressReporter,
   type BuildJobState,
+  type BuildJobTarget,
 } from "../facade/index.js";
 import { SpineDigestFile } from "../wikg/index.js";
 import type {
@@ -540,7 +541,7 @@ function formatWatchOutputEvent(event: BuildJobEvent) {
         json: event,
         kind: "status" as const,
         ...(tokenMetrics === undefined ? {} : { metricGroups: [tokenMetrics] }),
-        phase: event.phase ?? event.step ?? "status",
+        phase: event.phase ?? formatFallbackStatusPhase(event.step),
       };
     }
     case "target_changed":
@@ -573,6 +574,19 @@ function formatWatchOutputEvent(event: BuildJobEvent) {
         kind: "lifecycle" as const,
         text: event.type,
       };
+  }
+}
+
+function formatFallbackStatusPhase(step: BuildJobTarget | undefined): string {
+  switch (step) {
+    case "reading-graph":
+      return "extracting";
+    case "reading-summary":
+      return "summarizing";
+    case "knowledge-graph":
+      return "knowledge-graph";
+    case undefined:
+      return "status";
   }
 }
 
