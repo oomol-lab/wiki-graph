@@ -1815,6 +1815,15 @@ describe("cli/args", () => {
     expect(rootHelpText).toContain("wikigraph help [topic]");
     expect(rootHelpText).toContain("wikigraph help recipe");
     expect(rootHelpText).toContain("Core concepts:");
+    expect(rootHelpText).toContain("knowledge-base archives");
+    expect(rootHelpText).toContain("Knowledge-base contents:");
+    expect(rootHelpText).toContain(
+      "Knowledge Graph: entity and predicate networks",
+    );
+    expect(rootHelpText).toContain("Reading Graph: attention chunks");
+    expect(rootHelpText).toContain("Summaries: compressed reading outputs");
+    expect(rootHelpText).toContain("Source text: original chapter content");
+    expect(rootHelpText).toContain("searched efficiently with keywords");
     expect(rootHelpText).toContain("Scope: a URI target");
     expect(rootHelpText).toContain("Object: a URI target");
     expect(rootHelpText).toContain("Predicate: an operation bound to a URI");
@@ -1825,6 +1834,9 @@ describe("cli/args", () => {
     expect(rootHelpText).not.toContain("wikigraph import");
     expect(rootHelpText).not.toContain("wikigraph wikg://local/job add");
     expect(rootHelpText).not.toContain("wikigraph <archive-uri>/index build");
+    expect(rootHelpText).toContain(
+      "The CLI help system is part of the product contract",
+    );
     expect(rootHelpText).toContain("Use `wikigraph <uri> --help`");
     expect(rootHelpText).toContain("Treat `wikigraph --help` as the root");
     expect(rootHelpText).toContain("Wiki Graph CLI");

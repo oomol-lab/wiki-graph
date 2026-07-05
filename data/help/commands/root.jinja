@@ -4,8 +4,17 @@ Command: wikigraph
 Wiki Graph CLI
 
 Purpose:
-  Operate `.wikg` archives through stable Wiki Graph objects.
-  The archive is managed storage; use CLI commands to inspect, retrieve, generate, edit, and export it.
+  Operate `.wikg` knowledge-base archives through stable Wiki Graph objects.
+  A `.wikg` archive is managed storage for source text and generated knowledge structures.
+  Use CLI commands to inspect, retrieve, generate, edit, and export it.
+
+Knowledge-base contents:
+  A `.wikg` archive can contain:
+  - Knowledge Graph: entity and predicate networks for concepts, relations, and claims.
+  - Reading Graph: attention chunks that preserve source-backed reading context.
+  - Summaries: compressed reading outputs for chapters or archive scopes.
+  - Source text: original chapter content and source ranges.
+  These structures are URI-addressed and can be searched efficiently with keywords.
 
 Required first step for Agents:
   If you receive an unfamiliar archive, inspect it before searching, generating, or editing:
@@ -39,6 +48,7 @@ What to learn where:
     wikigraph help runtime
 
 Help contract:
+  The CLI help system is part of the product contract. When you do not know what a target or operation supports, ask the CLI for the next document.
   - Use `wikigraph <uri> --help` to inspect a URI command, its default behavior, and supported predicates.
   - Use `wikigraph <uri> <predicate> --help` to inspect a URI-bound predicate command.
   - Use `wikigraph <non-predicate-command> --help` for non-predicate commands such as `transform`, `gc`, `legacy`, and `next`.
