@@ -8,6 +8,11 @@ Purpose:
   A `.wikg` archive is managed storage for source text and generated knowledge structures.
   Use CLI commands to inspect, retrieve, generate, edit, and export it.
 
+Do not edit archive internals:
+  A `.wikg` file is a zip-based archive, but Agents must not unzip it, rewrite internal files, or bypass this CLI.
+  Direct internal edits can break consistency and damage the archive.
+  Use the CLI's retrieval, generation, metadata, chapter, config, and maintenance commands to modify it.
+
 Knowledge-base contents:
   A `.wikg` archive can contain:
   - Knowledge Graph: entity and predicate networks for concepts, relations, and claims.

@@ -1816,6 +1816,15 @@ describe("cli/args", () => {
     expect(rootHelpText).toContain("wikigraph help recipe");
     expect(rootHelpText).toContain("Core concepts:");
     expect(rootHelpText).toContain("knowledge-base archives");
+    expect(rootHelpText).toContain("Do not edit archive internals:");
+    expect(rootHelpText).toContain("zip-based archive");
+    expect(rootHelpText).toContain("Agents must not unzip it");
+    expect(rootHelpText).toContain(
+      "Direct internal edits can break consistency",
+    );
+    expect(rootHelpText).toContain(
+      "Use the CLI's retrieval, generation, metadata, chapter, config, and maintenance commands",
+    );
     expect(rootHelpText).toContain("Knowledge-base contents:");
     expect(rootHelpText).toContain(
       "Knowledge Graph: entity and predicate networks",
