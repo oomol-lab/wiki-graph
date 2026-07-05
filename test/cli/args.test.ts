@@ -1880,7 +1880,7 @@ describe("cli/args", () => {
       "/Users/me/book.wikg -> wikg:///Users/me/book.wikg",
     );
     expect(renderHelpTopicText("recipe")).toContain(
-      'wikigraph wikg:///Users/me/book.wikg/entity --query "朱元璋"',
+      'wikigraph wikg://book.wikg/entity --query "attention" --evidence 2',
     );
     expect(renderHelpTopicText("recipe")).toContain(
       "wikg:///absolute/path/book.wikg/entity/Q8018",
@@ -1901,13 +1901,17 @@ describe("cli/args", () => {
     expect(uriHelpText).toContain("No search results:");
     expect(uriHelpText).toContain("Missing generated objects:");
     expect(renderHelpTopicText("recipe")).toContain(
-      'wikigraph wikg:///Users/me/book.wikg --query "恩典 婴儿洗礼"',
+      'wikigraph wikg:///Users/me/book.wikg --query "attention memory"',
     );
     expect(renderHelpTopicText("recipe")).toContain(
       "Choose your starting point:",
     );
     expect(renderHelpTopicText("recipe")).toContain("After inspect:");
-    expect(renderHelpTopicText("recipe")).toContain("Answering questions:");
+    expect(renderHelpTopicText("recipe")).toContain("Finding material:");
+    expect(renderHelpTopicText("recipe")).toContain("indexed full-text search");
+    expect(renderHelpTopicText("recipe")).toContain(
+      "grep/find with Google-like keyword input",
+    );
     expect(renderHelpTopicText("recipe")).toContain("When to read deeper:");
     expect(renderHelpTopicText("recipe")).toContain(
       "Read the chapter object and use Unix pipes or redirection.",
@@ -1916,16 +1920,22 @@ describe("cli/args", () => {
       "wikigraph wikg://book.wikg/chapter/3/source > chapter-3-source.md",
     );
     expect(renderHelpTopicText("recipe")).toContain(
-      'wikigraph wikg://book.wikg/entity --query "朱元璋" --evidence 2',
+      "wikigraph wikg://book.wikg/chapter/3/source#23..45",
     );
     expect(renderHelpTopicText("recipe")).toContain(
-      'wikigraph wikg://book.wikg/triple --query "婴儿洗礼" --evidence 2',
+      "wikigraph wikg://book.wikg/chapter/3/summary#23..45",
     );
     expect(renderHelpTopicText("recipe")).toContain(
-      'wikigraph wikg://book.wikg/chunk --query "婴儿洗礼" --evidence 2',
+      'wikigraph wikg://book.wikg/triple --query "attention memory" --evidence 2',
     );
     expect(renderHelpTopicText("recipe")).toContain(
-      'wikigraph wikg://book.wikg/entity/Q8018 related --query "aspect"',
+      'wikigraph wikg://book.wikg/chunk --query "attention memory" --evidence 2',
+    );
+    expect(renderHelpTopicText("recipe")).toContain(
+      'wikigraph wikg://book.wikg/entity/Q8018 related --query "memory"',
+    );
+    expect(renderHelpTopicText("recipe")).toContain(
+      "wikigraph wikg://book.wikg/entity/Q8018 pack --budget 5000",
     );
     expect(renderHelpTopicText("recipe")).toContain(
       "wikigraph wikg://book.wikg/chapter/3/entity --jsonl",

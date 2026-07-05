@@ -40,8 +40,8 @@ Choose your starting point:
 
 After inspect:
   - If the archive is ready for retrieval, search a scope or open the URI that inspect suggests.
-    wikigraph wikg:///Users/me/book.wikg --query "恩典 婴儿洗礼"
-    wikigraph wikg:///Users/me/book.wikg/chapter/3 --query "婴儿洗礼"
+    wikigraph wikg:///Users/me/book.wikg --query "attention memory"
+    wikigraph wikg:///Users/me/book.wikg/chapter/3 --query "attention"
 
   - If inspect reports missing or unavailable index support, inspect the index target before building anything.
     wikigraph <archive-uri>/index --help
@@ -59,51 +59,55 @@ After inspect:
   - If summaries are missing, summary reads and summary-based exports may be incomplete.
     Check the chapter or archive readiness before relying on summaries.
 
-Answering questions:
+Finding material:
+  `--query` uses indexed full-text search. Treat it like grep/find with Google-like keyword input.
+
   - Need document structure, chapter readiness, or chapter-local scope:
     wikigraph wikg://book.wikg/chapter
     wikigraph wikg://book.wikg/chapter/3
 
-  - Need literal source wording:
-    Search source text from the narrowest useful scope.
-      wikigraph wikg:///Users/me/book.wikg --query "恩典 婴儿洗礼"
-      wikigraph wikg:///Users/me/book.wikg/chapter/3 --query "婴儿洗礼"
-      wikigraph wikg://book.wikg/chapter/3/source#20..30
-
-  - Need summary wording:
-    Search or read summary objects, then verify important claims against source evidence.
-      wikigraph wikg://book.wikg/chapter/3/summary
-      wikigraph wikg://book.wikg/chapter/3/summary evidence --query "婴儿洗礼"
-      wikigraph wikg://book.wikg/chapter/3/summary --evidence 2
-
-  - Need Reading Graph chunks:
-    Search chunks with source evidence, then open or expand from useful chunk objects.
-      wikigraph wikg://book.wikg/chunk --query "婴儿洗礼" --evidence 2
-      wikigraph wikg://book.wikg/chapter/3/chunk --query "婴儿洗礼" --evidence 2
-      wikigraph wikg://book.wikg/chunk
-      wikigraph wikg://book.wikg/chunk/123 evidence
-      wikigraph wikg://book.wikg/chunk/123 related --query "aspect" --evidence 2
-
   - Need to understand a concept, person, place, term, or object:
-    Search entities with source evidence, then ground or expand from the entity URI.
-      wikigraph wikg://book.wikg/entity --query "朱元璋" --evidence 2
-      wikigraph wikg:///Users/me/book.wikg/entity --query "朱元璋"
-      wikigraph wikg://book.wikg/chapter/3/entity --query "朱元璋" --evidence 2
+    Search entities with source evidence, then ground, expand, or pack from the entity URI.
+      wikigraph wikg://book.wikg/entity --query "attention" --evidence 2
+      wikigraph wikg://book.wikg/chapter/3/entity --query "attention" --evidence 2
       wikigraph wikg://book.wikg/entity/Q8018
       wikigraph wikg://book.wikg/entity/Q8018 evidence
-      wikigraph wikg://book.wikg/entity/Q8018 related --query "aspect"
+      wikigraph wikg://book.wikg/entity/Q8018 related --query "memory"
+      wikigraph wikg://book.wikg/entity/Q8018 pack --budget 5000
     Do not use label text search as the primary path for known entities; aliases, translations, and variants may not match the label.
     Entity scopes can be archive-wide (`<archive-uri>/entity`) or chapter-limited (`<chapter-uri>/entity`).
 
   - Need to trace a relation, claim, or subject-predicate-object connection:
     Search triples with source evidence, then open or ground the triple object.
-      wikigraph wikg://book.wikg/triple --query "婴儿洗礼" --evidence 2
-      wikigraph wikg://book.wikg/chapter/3/triple --query "婴儿洗礼" --evidence 2
+      wikigraph wikg://book.wikg/triple --query "attention memory" --evidence 2
+      wikigraph wikg://book.wikg/chapter/3/triple --query "attention memory" --evidence 2
       wikigraph wikg://book.wikg/triple/Q8018/discusses/Q123
       wikigraph wikg://book.wikg/triple/Q8018/discusses/Q123 evidence
     Triple scopes can be archive-wide (`<archive-uri>/triple`) or chapter-limited (`<chapter-uri>/triple`).
     Related expansion is available from chunk and entity objects; for a triple, expand through its subject or object entity.
-      wikigraph wikg://book.wikg/entity/Q8018 related --query "discusses" --evidence 2
+      wikigraph wikg://book.wikg/entity/Q8018 related --query "memory" --evidence 2
+
+  - Need literal source wording:
+    Search source text from the narrowest useful scope.
+      wikigraph wikg:///Users/me/book.wikg --query "attention memory"
+      wikigraph wikg:///Users/me/book.wikg/chapter/3 --query "attention"
+      wikigraph wikg://book.wikg/chapter/3/source#20..30
+      wikigraph wikg://book.wikg/chapter/3/source#23..45
+
+  - Need summary wording:
+    Read summary objects or summary ranges, then verify important claims against source evidence.
+      wikigraph wikg://book.wikg/chapter/3/summary
+      wikigraph wikg://book.wikg/chapter/3/summary#23..45
+      wikigraph wikg://book.wikg/chapter/3/summary evidence --query "attention"
+      wikigraph wikg://book.wikg/chapter/3/summary --evidence 2
+
+  - Need Reading Graph chunks:
+    Search chunks with source evidence, then open or expand from useful chunk objects.
+      wikigraph wikg://book.wikg/chunk --query "attention memory" --evidence 2
+      wikigraph wikg://book.wikg/chapter/3/chunk --query "attention" --evidence 2
+      wikigraph wikg://book.wikg/chunk
+      wikigraph wikg://book.wikg/chunk/123 evidence
+      wikigraph wikg://book.wikg/chunk/123 related --query "attention" --evidence 2
 
   - Need quick compressed understanding before returning to source evidence:
     Read summaries, then verify important claims with evidence.
@@ -120,7 +124,7 @@ Answering questions:
 
   - Need bounded Agent-readable context around an object:
     Use pack only after choosing a located chunk or entity URI.
-      wikigraph wikg:///Users/me/book.wikg/entity/Q162593 pack --budget 5000
+      wikigraph wikg:///Users/me/book.wikg/entity/Q8018 pack --budget 5000
 
   - Need more results from a paged response:
     Continue with the cursor returned by the previous command.
