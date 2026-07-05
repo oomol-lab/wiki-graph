@@ -4,12 +4,12 @@ Topic: format
 Format Rules
 
 Purpose:
-  File format rules apply at archive boundaries: create, export, transform, stdin, and stdout.
+  File format rules apply at archive boundaries: create/import, export, transform, stdin, and stdout.
 
 Managed archive format:
   wikg
 
-Source formats for archive creation:
+Source formats for archive creation and import:
   epub, txt, markdown
 
 Export formats:
@@ -27,6 +27,7 @@ Inference rules:
 
 Examples:
   wikigraph wikg://book.wikg create ./book.epub
+  wikigraph wikg://book.wikg create ./book.md
   cat chapter.md | wikigraph wikg://book.wikg create --input-format markdown
   wikigraph wikg://book.wikg export --output-format markdown --output out.md
   cat chapter.txt | wikigraph transform --input-format txt --output-format markdown

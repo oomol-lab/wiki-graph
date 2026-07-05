@@ -1,25 +1,44 @@
 Help Type: command
 Command: wikigraph
 
-SpineDigest CLI
+Wiki Graph CLI
 
 Purpose:
-  Create and operate portable Wiki Graph archives for AI agents.
-  Treat `.wikg` as the managed archive. Use commands to mutate or inspect it; do not edit archive internals directly.
+  Create, import, inspect, search, retrieve, and export `.wikg` archives.
+  Treat `.wikg` as a managed archive. Use CLI commands to read or mutate it; do not edit archive internals directly.
 
-Object model:
-  Search and navigation return URI-addressable objects. URI forms are explicitly classified as scope or object URIs.
-  Read `wikigraph help uri` before choosing a target.
+First contact:
+  If you receive an unfamiliar `.wikg` archive, inspect it before searching or changing it:
+    wikigraph <archive-uri> inspect
 
-Object workflow:
-  - Scope URIs enumerate objects by default.
-  - Scope URIs with `--query <query>` search within that scope.
-  - Object URIs open one readable object by default.
-  - `related` expands from one URI to nearby URIs.
-  - `evidence` traces a URI to source-backed evidence.
-  - `pack` builds bounded Agent-readable context around one graph object URI.
+Common flow:
+  1. Create or import an archive.
+     wikigraph wikg://book.wikg create ./book.epub
+     wikigraph wikg://notes.wikg create ./notes.md
+     cat article.txt | wikigraph wikg://article.wikg create --input-format txt
 
-Object commands:
+  2. Inspect archive readiness.
+     wikigraph wikg://book.wikg inspect
+
+  3. Search a scope, open objects, and continue paged results.
+     wikigraph wikg://book.wikg --query "keyword"
+     wikigraph wikg://book.wikg/entity/Q8018
+     wikigraph next <cursor>
+
+  4. Expand or ground an object.
+     wikigraph wikg://book.wikg/entity/Q8018 evidence
+     wikigraph wikg://book.wikg/entity/Q8018 related --evidence 2
+     wikigraph wikg://book.wikg/entity/Q8018 pack --budget 5000
+
+  5. Export when the archive is ready.
+     wikigraph wikg://book.wikg export --output-format markdown --output out.md
+
+Agent route:
+  After root help, read:
+    wikigraph help recipe
+  That page explains the normal workflow, object choices, index/job awareness, and practical recovery paths.
+
+Frequent command shapes:
   wikigraph <scope-uri> [--all] [--limit <n>] [--context <n>] [--cursor <token>] [--evidence [n]] [--backlinks] [--json|--jsonl]
   wikigraph <scope-uri> --query <query> [--all] [--limit <n>] [--context <n>] [--cursor <token>] [--evidence [n]] [--backlinks] [--json|--jsonl]
   wikigraph <object-uri> [--evidence [n]] [--context <n>] [--backlinks] [--json|--jsonl]
@@ -29,45 +48,43 @@ Object commands:
   wikigraph next <cursor> [--limit <n>] [--json|--jsonl]
   wikigraph next <wikigraph-uri-with-wikg-locator> <cursor> [--limit <n>] [--json|--jsonl]
 
-URI requirement:
-  URI-addressed commands use Wiki Graph URIs, not bare filesystem paths.
-  Read `wikigraph help uri` before using these commands; skipping the URI rules commonly leads to invalid commands.
+Objects to recognize:
+  - chapter: document structure and generation boundary.
+  - chunk: source-backed Reading Graph passage.
+  - entity: grounded concept, person, place, term, or object.
+  - triple: Knowledge Graph relation.
+  - summary: compressed reading result.
+  - index: search and retrieval support.
+  - job: local generation or maintenance work.
 
-Archive commands:
+Archive and transform:
   wikigraph <archive-uri> create [source] [--input-format <format>] [--llm <json>] [--prompt <text>]
   wikigraph <archive-uri> export --output-format <format> [--output <path>]
   wikigraph <archive-uri> inspect
   wikigraph transform [--input <path>] [--output <path>] [--input-format <format>] [--output-format <format>] [--digest-dir <path>] [--llm <json>] [--prompt <text>] [--stage <stage>] [--verbose|-v]
 
-Generation jobs:
+Jobs and index:
   wikigraph wikg://local/job add --input <chapter-uri> --task <reading-graph|reading-summary|knowledge-graph> --accept-cost [--boost] [--llm <json>] [--prompt <text>]
   wikigraph wikg://local/job [--all] [--active]
   wikigraph wikg://local/job/<job-id> [--json]
   wikigraph wikg://local/job/<job-id> watch [--jsonl] [--from beginning|now]
-  Generation jobs call an LLM, consume tokens, and may incur provider charges.
+  wikigraph <archive-uri>/index build
+  Jobs and index operations are important when inspect reports missing generated data or unavailable search support.
 
-Maintenance:
-  wikigraph <archive-uri> [--json|--jsonl]
-  wikigraph <archive-uri> set [metadata options] [--llm <json>]
-  wikigraph <cover-uri>
-  wikigraph <chapter-collection-uri> add [options]
-  wikigraph <chapter-uri>/state [--json]
-  wikigraph <chapter-uri> move|remove|reset [options]
-  wikigraph <object-uri>/meta [--json]
-  wikigraph <object-uri>/meta set|put|delete|clear
-  wikigraph <chapter-uri>/source set [text] [--input <path>] --input-format <format>
-  wikigraph <chapter-uri>/summary set [text] [--input <path>]
-  wikigraph <chapter-uri>/title set <title>
-  wikigraph <chapter-uri>/title clear
-  wikigraph <archive-uri>/chapter/tree
-  wikigraph <archive-uri>/chapter/tree set [options]
-  wikigraph gc [--force] [--dry-run] [--json]
+Configuration and maintenance:
   wikigraph wikg://local/config/llm
   wikigraph wikg://local/config/llm set|put|delete|clear|test
   wikigraph wikg://local/config/concurrent
   wikigraph wikg://local/config/concurrent set|put|delete|clear
   wikigraph wikg://local/config/wikispine
   wikigraph wikg://local/config/wikispine set|put|delete|clear|test
+  wikigraph <archive-uri>/chapter
+  wikigraph <archive-uri>/chapter add [options]
+  wikigraph <chapter-uri>/source set [text] [--input <path>] --input-format <format>
+  wikigraph <chapter-uri>/title set <title>
+  wikigraph <object-uri>/meta
+  wikigraph gc [--force] [--dry-run] [--json]
+  wikigraph legacy migrate <archive.sdpub> [--output <archive.wikg>]
   wikigraph help [topic] [--help|-h]
 
 Help contract:
@@ -87,8 +104,10 @@ Help topics:
 Formats:
   {{ formats | join(", ") }}
 
-Start here:
-  - Read `wikigraph help ai` for the agent operating contract.
-  - Read `wikigraph help uri` before using object commands, choosing scopes, pagination, or result formats.
-  - Run `wikigraph <uri> --help` when you have a URI and need valid predicates.
-  - Run `wikigraph <uri> <predicate> --help` when you need a predicate's concrete usage for that URI type.
+Low-frequency advanced entry points:
+  - Runtime, worker, workspace, cache, and JSONL behavior:
+    wikigraph help runtime
+  - URI grammar, scope/object routing, pagination, and machine-readable output:
+    wikigraph help uri
+  - Exact format rules:
+    wikigraph help format

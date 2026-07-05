@@ -1,26 +1,122 @@
 Help Type: topic
 Topic: recipe
 
-Recipes
+Workflow Recipe
 
-Create an archive from Markdown:
-  wikigraph wikg://book.wikg create ./book.md
-  cat article.md | wikigraph wikg://article.wikg create --input-format markdown
+Purpose:
+  Read this after root help. It is the practical workflow guide for Agents and users operating `.wikg` archives.
+  It explains what to try first, which objects matter, when to inspect jobs or index state, and where detailed rules live.
 
-Start derived-data jobs:
-  wikigraph wikg://local/job add --input wikg://book.wikg/chapter/3 --task reading-graph --accept-cost
-  wikigraph wikg://local/job add --input wikg://book.wikg/chapter/3 --task reading-summary --accept-cost
+Primary contract:
+  - Use Wiki Graph URIs as stable object handles.
+  - If you have a URI and need valid operations, run `wikigraph <uri> --help`.
+  - If you need concrete predicate usage for that URI type, run `wikigraph <uri> <predicate> --help`.
+  - Never pass a bare filesystem path to URI-targeted commands.
+    /Users/me/book.wikg -> wikg:///Users/me/book.wikg
+    ./book.wikg -> wikg://book.wikg
+  - Treat returned short URIs as archive-relative handles. Add the archive locator before passing them back:
+    wikg://entity/Q8018 -> wikg:///absolute/path/book.wikg/entity/Q8018
 
-Search and open objects:
-  wikigraph wikg:///Users/me/book.wikg --query "恩典 婴儿洗礼"
-  wikigraph wikg:///Users/me/book.wikg/chapter/3/entity
-  wikigraph wikg:///Users/me/book.wikg/chunk/123
-  wikigraph wikg:///Users/me/book.wikg/chunk/123 related
-  wikigraph wikg:///Users/me/book.wikg/triple/Q162593/discusses/Q9476 evidence
-  wikigraph wikg:///Users/me/book.wikg/entity/Q162593 pack --budget 5000
+Normal workflow:
+  1. Create or import an archive.
+     wikigraph wikg://book.wikg create ./book.epub
+     wikigraph wikg://notes.wikg create ./notes.md
+     cat article.md | wikigraph wikg://article.wikg create --input-format markdown
 
-Export:
-  wikigraph wikg://book.wikg export --output-format markdown --output out.md
+  2. Inspect unfamiliar archives before retrieval.
+     wikigraph wikg://book.wikg inspect
+     Use inspect to learn chapter structure, generated data readiness, index state, and suggested next commands.
 
-Transform without an archive:
-  cat chapter.txt | wikigraph transform --input-format txt --output-format markdown
+  3. Search with a scope URI.
+     wikigraph wikg:///Users/me/book.wikg --query "恩典 婴儿洗礼"
+     wikigraph wikg:///Users/me/book.wikg/chapter/3 --query "婴儿洗礼"
+     wikigraph wikg:///Users/me/book.wikg/entity --query "朱元璋"
+
+  4. Open the returned object URI.
+     wikigraph wikg:///Users/me/book.wikg/chunk/123
+     wikigraph wikg:///Users/me/book.wikg/entity/Q162593
+     wikigraph wikg:///Users/me/book.wikg/triple/Q162593/discusses/Q9476
+
+  5. Ground, expand, or pack an object.
+     wikigraph wikg:///Users/me/book.wikg/entity/Q162593 evidence
+     wikigraph wikg:///Users/me/book.wikg/entity/Q162593 related --evidence 2
+     wikigraph wikg:///Users/me/book.wikg/entity/Q162593 pack --budget 5000
+
+  6. Continue paged output when needed.
+     wikigraph next <cursor>
+
+  7. Export a ready archive.
+     wikigraph wikg://book.wikg export --output-format markdown --output out.md
+
+Object choices:
+  - Use `chapter` when you need structure, readiness, source boundaries, or chapter-local search.
+    wikigraph wikg://book.wikg/chapter
+    wikigraph wikg://book.wikg/chapter/3
+
+  - Use `chunk` when you need source-backed passages and local reading context.
+    wikigraph wikg://book.wikg/chunk
+    wikigraph wikg://book.wikg/chunk/123 evidence
+
+  - Use `entity` when the question is about a concept, person, place, term, or object that may have aliases or variants.
+    wikigraph wikg://book.wikg/entity/Q8018
+    wikigraph wikg://book.wikg/entity/Q8018 evidence
+    wikigraph wikg://book.wikg/entity/Q8018 related --query "aspect"
+
+  - Use `triple` when the question is about a relation or claim between two graph objects.
+    wikigraph wikg://book.wikg/triple/Q8018/discusses/Q123 evidence
+
+  - Use `summary` when you need compressed reading output before going back to source evidence.
+    wikigraph wikg://book.wikg/chapter/3/summary
+
+Retrieval strategy:
+  - Start with inspect when the archive is unknown.
+  - Use the narrowest scope that can still answer the question.
+  - Use source search for literal wording.
+  - Use entity evidence for known entities; do not rely on label text search as the primary path.
+  - Use `related` to expand from a chunk or entity.
+  - Use `pack` only after choosing a located chunk or entity URI.
+  - Use `--context 0` when exact cited ranges matter; otherwise keep the default source context.
+
+Index awareness:
+  Search, evidence, and related depend on available index and generated data.
+  If retrieval is empty or inspect reports missing search support, inspect first and then use index help for the exact operation:
+    wikigraph <archive-uri> inspect
+    wikigraph <archive-uri>/index --help
+    wikigraph <archive-uri>/index build --help
+
+Job awareness:
+  Reading Graph, Reading Summary, and Knowledge Graph generation are lower-frequency operations, but missing generated data can block normal retrieval.
+  Inspect before starting expensive work. Jobs call an LLM, consume tokens, and may run for minutes to hours.
+    wikigraph wikg://local/job
+    wikigraph wikg://local/job add --input <chapter-uri> --task reading-graph --accept-cost
+    wikigraph wikg://local/job/<job-id> watch --jsonl
+
+Configuration path:
+  Configure local LLM and provider settings through config URIs.
+    wikigraph wikg://local/config/llm
+    wikigraph wikg://local/config/llm set --json '{"provider":"openai","model":"gpt-4.1"}'
+    wikigraph wikg://local/config/llm put apiKey --secret
+    wikigraph wikg://local/config/llm test
+
+Maintenance path:
+  Use maintenance commands when you are intentionally editing archive content or metadata.
+    wikigraph wikg://book.wikg/chapter add --stage source --title "Chapter 1" --input ./chapter.md --input-format markdown
+    wikigraph wikg://book.wikg/chapter/3/source set --input ./chapter.md --input-format markdown
+    wikigraph wikg://book.wikg/chapter/3/title set "New title"
+    wikigraph wikg://book.wikg/entity/Q8018/meta
+
+Format path:
+  Use `create` to make or import a managed archive, `export` to project from it, and `transform` for one-shot conversion without keeping an archive.
+    wikigraph wikg://book.wikg create ./book.epub
+    wikigraph wikg://book.wikg export --output-format markdown --output out.md
+    cat chapter.txt | wikigraph transform --input-format txt --output-format markdown
+
+Detailed topics:
+  - URI grammar, scope/object routing, pagination, JSON, and JSONL:
+    wikigraph help uri
+  - Format inference and legal input/output combinations:
+    wikigraph help format
+  - Local configuration:
+    wikigraph help config
+  - Runtime, workers, cache, logs, and debug behavior:
+    wikigraph help runtime

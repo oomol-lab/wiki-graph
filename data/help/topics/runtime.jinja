@@ -1,7 +1,10 @@
 Help Type: topic
 Topic: runtime
 
-Runtime Behavior
+Runtime and Debug Behavior
+
+Purpose:
+  This is a low-frequency advanced topic. Read it when a command fails, a job appears stuck, JSON/JSONL behavior matters, or you need to understand workers, cache, logs, and workspaces.
 
 Archive-first streams:
   - `wikigraph <archive-uri> create --input-format markdown|txt` reads source text from stdin.
@@ -31,6 +34,8 @@ Progress and diagnostics:
   - Job progress is recorded as durable events and exposed by `wikg://local/job/<job-id> watch`.
   - `status_snapshot` events include counters and token usage when the LLM provider reports it.
   - `transform --verbose` writes diagnostic logs to stderr.
+  - Use `wikigraph <archive-uri> inspect` before starting or debugging generation work.
+  - Use `wikigraph <archive-uri>/index --help` when search, evidence, or related appears unavailable.
 
 Workspace behavior:
   - Archive creation from URL or stdin uses temporary workspaces.
@@ -46,6 +51,8 @@ In-place archive edits:
   - Archive writes are coordinated through `~/.wikigraph/staging`.
 
 Where to go next:
+  - Need the normal workflow before debugging:
+    wikigraph help recipe
   - Need legal format combinations:
     wikigraph help format
   - Need URI command routing:

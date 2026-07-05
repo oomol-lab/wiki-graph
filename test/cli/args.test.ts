@@ -1788,7 +1788,7 @@ describe("cli/args", () => {
 
   it("rejects invalid help usage", () => {
     expect(() => parseCLIArguments(["help", "unknown"])).toThrow(
-      "Invalid help topic: unknown. Expected one of format, config, runtime, uri, recipe, ai.\nSee: wikigraph --help",
+      "Invalid help topic: unknown. Expected one of format, config, runtime, uri, recipe.\nSee: wikigraph --help",
     );
     expect(() =>
       parseCLIArguments(["help", "object", "entity", "extra"]),
@@ -1802,7 +1802,7 @@ describe("cli/args", () => {
       "The `help` command does not support --input.\nSee: wikigraph --help",
     );
     expect(() =>
-      parseCLIArguments(["help", "ai", "--llm", '{"model":"cli-model"}']),
+      parseCLIArguments(["help", "runtime", "--llm", '{"model":"cli-model"}']),
     ).toThrow(
       "The `help` command does not support --llm.\nSee: wikigraph --help",
     );
@@ -1813,42 +1813,49 @@ describe("cli/args", () => {
     const uriHelpText = renderHelpTopicText("uri");
 
     expect(rootHelpText).toContain("wikigraph help [topic]");
+    expect(rootHelpText).toContain("wikigraph help recipe");
     expect(rootHelpText).toContain("wikigraph <scope-uri> --query <query>");
     expect(rootHelpText).toContain("wikigraph <object-uri>");
     expect(rootHelpText).not.toContain("wikigraph help task");
     expect(rootHelpText).toContain("wikigraph help uri");
-    expect(rootHelpText).toContain("wikigraph <archive-uri> [--json|--jsonl]");
-    expect(rootHelpText).toContain("wikigraph <archive-uri>/chapter/tree set");
+    expect(rootHelpText).toContain("wikigraph <archive-uri> inspect");
+    expect(rootHelpText).toContain("wikigraph <archive-uri>/index build");
     expect(rootHelpText).toContain("wikigraph transform");
     expect(rootHelpText).not.toContain("wikigraph import");
     expect(rootHelpText).toContain("wikigraph wikg://local/job add");
     expect(rootHelpText).toContain("Use `wikigraph <uri> --help`");
     expect(rootHelpText).toContain("Treat `wikigraph --help` as the root");
+    expect(rootHelpText).toContain("Wiki Graph CLI");
     expect(rootHelpText).not.toContain("wikigraph help overview");
     expect(rootHelpText).not.toContain("wikigraph help retrieval");
     expect(rootHelpText).not.toContain("wikigraph help command");
     expect(rootHelpText).toContain("wikigraph <uri> <predicate> --help");
-    expect(rootHelpText).toContain("Generation jobs call an LLM");
-    expect(renderHelpTopicText("runtime")).toContain("Runtime Behavior");
+    expect(rootHelpText).toContain("Objects to recognize:");
+    expect(renderHelpTopicText("runtime")).toContain(
+      "Runtime and Debug Behavior",
+    );
     expect(renderHelpTopicText("config")).toContain("Configuration");
     expect(uriHelpText).toContain("wikigraph <scope-uri> --query <query>");
     expect(uriHelpText).toContain(
       "wikigraph <entity|triple|summary|chunk-uri> evidence",
     );
-    expect(renderHelpTopicText("ai")).toContain("Primary contract:");
-    expect(renderHelpTopicText("ai")).toContain(
+    expect(() => parseCLIArguments(["help", "ai"])).toThrow(
+      "Invalid help topic: ai.",
+    );
+    expect(renderHelpTopicText("recipe")).toContain("Primary contract:");
+    expect(renderHelpTopicText("recipe")).toContain(
       "Use Wiki Graph URIs as stable object handles",
     );
-    expect(renderHelpTopicText("ai")).toContain(
+    expect(renderHelpTopicText("recipe")).toContain(
       "Never pass a bare filesystem path to URI-targeted commands.",
     );
-    expect(renderHelpTopicText("ai")).toContain(
+    expect(renderHelpTopicText("recipe")).toContain(
       "/Users/me/book.wikg -> wikg:///Users/me/book.wikg",
     );
-    expect(renderHelpTopicText("ai")).toContain(
+    expect(renderHelpTopicText("recipe")).toContain(
       'wikigraph wikg:///Users/me/book.wikg/entity --query "朱元璋"',
     );
-    expect(renderHelpTopicText("ai")).toContain(
+    expect(renderHelpTopicText("recipe")).toContain(
       "wikg:///absolute/path/book.wikg/entity/Q8018",
     );
     expect(uriHelpText).toContain(
@@ -1869,6 +1876,9 @@ describe("cli/args", () => {
     expect(renderHelpTopicText("recipe")).toContain(
       'wikigraph wikg:///Users/me/book.wikg --query "恩典 婴儿洗礼"',
     );
+    expect(renderHelpTopicText("recipe")).toContain("Object choices:");
+    expect(renderHelpTopicText("recipe")).toContain("Index awareness:");
+    expect(renderHelpTopicText("recipe")).toContain("Job awareness:");
     expect(uriHelpText).toContain("Command routing:");
     expect(uriHelpText).toContain("wikigraph <archive-uri> create");
     expect(uriHelpText).toContain("wikigraph <archive-uri> export");
