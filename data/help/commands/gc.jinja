@@ -5,7 +5,7 @@ Purpose:
   Try to run Wiki Graph local garbage collection.
 
 Usage:
-  wikigraph gc [--force] [--json]
+  wikigraph gc [--force] [--dry-run] [--json]
 
 Behavior:
   GC scans local Wiki Graph state and cache resources, then releases expired or low-value resources that are not in use.
@@ -15,6 +15,8 @@ Options:
   --force
     Ignore normal cache lifetimes and remove disposable resources as soon as they are not in use.
     This can remove warm SQLite caches and completed or failed build jobs that a normal GC run would keep temporarily.
+  --dry-run
+    Report what would be removed without deleting anything.
 
 Managed areas:
   - Wiki Graph coordinator workspace files and cached SQLite databases.
@@ -24,4 +26,5 @@ Managed areas:
 
 Output:
   Text output reports scanned resources, removed resources, and freed disk space.
+  With `--dry-run`, text output reports candidate removals and candidate freed disk space.
   Use `--json` for a machine-readable run report.

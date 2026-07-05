@@ -3048,7 +3048,7 @@ function parseArchiveArguments(
 
       if (query === undefined) {
         throw new Error(
-          withHelpRoute("`wikigraph search` requires --query.", helpRoute),
+          withHelpRoute("Scope search requires --query.", helpRoute),
         );
       }
       rejectArchiveExtraPositionals(action, positionals, 1, helpRoute);
@@ -3512,10 +3512,11 @@ function formatMissingArchiveInputMessage(action: CLIArchiveAction): string {
     case "inspect":
       return "Missing archive URI. Use `wikigraph wikg://<archive.wikg> inspect`.";
     case "search":
-      return "Missing Wiki Graph URI with .wikg locator. Use `wikigraph wikg://<archive.wikg> search <query>`.";
+      return "Missing scope URI with .wikg locator. Use `wikigraph wikg://<archive.wikg> --query <query>`.";
     case "list":
-      return "Missing Wiki Graph URI with .wikg locator. Use `wikigraph wikg://<archive.wikg> list`.";
+      return "Missing scope URI with .wikg locator. Use `wikigraph wikg://<archive.wikg>`.";
     case "get":
+      return "Missing object URI with .wikg locator. Use `wikigraph wikg://<archive.wikg>/<object>`.";
     case "related":
     case "evidence":
     case "pack":
