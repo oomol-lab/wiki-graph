@@ -19,10 +19,10 @@ Knowledge-base contents:
   - Reading Graph: attention chunks that preserve source-backed reading context.
   - Summaries: compressed reading outputs for chapters or archive scopes.
   - Source text: original chapter content and source ranges.
-  These structures are URI-addressed and can be searched efficiently with keywords.
+  These structures are URI-addressed and can be retrieved efficiently with keywords.
 
 Required first step for Agents:
-  If you receive an unfamiliar archive, inspect it before searching, generating, or editing:
+  If you receive an unfamiliar archive, inspect it before querying, generating, or editing:
     wikigraph <archive-uri> inspect
 
 Recommended next page:
@@ -32,7 +32,7 @@ Recommended next page:
 
 Core concepts:
   - Archive: a `.wikg` file addressed by an archive URI.
-  - Scope: a URI target that can enumerate or search objects.
+  - Scope: a URI target that can enumerate objects and accept `--query`.
   - Object: a URI target that reads one concrete archive object.
   - Predicate: an operation bound to a URI target, such as `create`, `set`, `evidence`, `related`, or `pack`.
   - Cursor: a continuation token consumed by `wikigraph next`.

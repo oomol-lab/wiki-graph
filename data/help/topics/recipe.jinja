@@ -20,7 +20,7 @@ Operating rules:
 
 Choose your starting point:
   - User gave you an existing `.wikg` archive:
-    Inspect before searching, generating, or editing.
+    Inspect before querying, generating, or editing.
       wikigraph wikg://book.wikg inspect
 
   - User gave you source content and needs a reusable knowledge-base archive:
@@ -39,7 +39,7 @@ Choose your starting point:
       wikigraph wikg://book.wikg/chapter/3/summary > chapter-3-summary.md
 
 After inspect:
-  - If the archive is ready for retrieval, search a scope or open the URI that inspect suggests.
+  - If the archive is ready for retrieval, use `--query` on a scope or open the URI that inspect suggests.
     wikigraph wikg:///Users/me/book.wikg --query "attention memory"
     wikigraph wikg:///Users/me/book.wikg/chapter/3 --query "attention"
 
@@ -49,7 +49,7 @@ After inspect:
     Read readiness before deciding whether to keep the index local or embed it:
       wikigraph help readiness
 
-  - If Reading Graph data is missing, chunk search, related expansion, and pack may be unavailable or incomplete.
+  - If Reading Graph data is missing, chunk `--query`, related expansion, and pack may be unavailable or incomplete.
     Inspect job help before starting generated work.
       wikigraph wikg://local/job --help
       wikigraph wikg://local/job add --help
@@ -64,25 +64,25 @@ After inspect:
     Check the chapter or archive readiness before relying on summaries.
 
 Finding material:
-  `--query` uses indexed full-text search. Treat it like grep/find with Google-like keyword input.
+  `--query` uses indexed full-text retrieval. Treat it like grep/find with Google-like keyword input.
 
   - Need document structure, chapter readiness, or chapter-local scope:
     wikigraph wikg://book.wikg/chapter
     wikigraph wikg://book.wikg/chapter/3
 
   - Need to understand a concept, person, place, term, or object:
-    Search entities with source evidence, then ground, expand, or pack from the entity URI.
+    Use `--query` on entity scopes with source evidence, then ground, expand, or pack from the entity URI.
       wikigraph wikg://book.wikg/entity --query "attention" --evidence 2
       wikigraph wikg://book.wikg/chapter/3/entity --query "attention" --evidence 2
       wikigraph wikg://book.wikg/entity/Q8018
       wikigraph wikg://book.wikg/entity/Q8018 evidence
       wikigraph wikg://book.wikg/entity/Q8018 related --query "memory"
       wikigraph wikg://book.wikg/entity/Q8018 pack --budget 5000
-    Do not use label text search as the primary path for known entities; aliases, translations, and variants may not match the label.
+    Do not rely on label-only matching as the primary path for known entities; aliases, translations, and variants may not match the label.
     Entity scopes can be archive-wide (`<archive-uri>/entity`) or chapter-limited (`<chapter-uri>/entity`).
 
   - Need to trace a relation, claim, or subject-predicate-object connection:
-    Search triples with source evidence, then open or ground the triple object.
+    Use `--query` on triple scopes with source evidence, then open or ground the triple object.
       wikigraph wikg://book.wikg/triple --query "attention memory" --evidence 2
       wikigraph wikg://book.wikg/chapter/3/triple --query "attention memory" --evidence 2
       wikigraph wikg://book.wikg/triple/Q8018/discusses/Q123
@@ -92,7 +92,7 @@ Finding material:
       wikigraph wikg://book.wikg/entity/Q8018 related --query "memory" --evidence 2
 
   - Need literal source wording:
-    Search source text from the narrowest useful scope.
+    Use `--query` on the narrowest useful scope.
       wikigraph wikg:///Users/me/book.wikg --query "attention memory"
       wikigraph wikg:///Users/me/book.wikg/chapter/3 --query "attention"
       wikigraph wikg://book.wikg/chapter/3/source#20..30
@@ -105,7 +105,7 @@ Finding material:
       wikigraph wikg://book.wikg/chapter/3/chunk --query "attention" --evidence 2
 
   - Need Reading Graph chunks:
-    Search chunks with source evidence, then open or expand from useful chunk objects.
+    Use `--query` on chunk scopes with source evidence, then open or expand from useful chunk objects.
       wikigraph wikg://book.wikg/chunk --query "attention memory" --evidence 2
       wikigraph wikg://book.wikg/chapter/3/chunk --query "attention" --evidence 2
       wikigraph wikg://book.wikg/chunk
@@ -140,7 +140,7 @@ When to read deeper:
     wikigraph help format
   - LLM, concurrency, and WikiSpine provider setup:
     wikigraph help config
-  - Search index, LLM, WikiSpine, and generated-data prerequisites:
+  - FTS index, LLM, WikiSpine, and generated-data prerequisites:
     wikigraph help readiness
   - Workers, cache, logs, workspaces, failures, and JSONL progress:
     wikigraph help runtime

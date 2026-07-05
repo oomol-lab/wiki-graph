@@ -206,7 +206,7 @@ describe("cli/args", () => {
       "Expected a local config section URI",
     );
     expect(() => parseCLIArguments(["wikg://local/config/llm", "get"])).toThrow(
-      "Do not use `get` as a command.",
+      "This command form is not available.",
     );
   });
 
@@ -497,10 +497,10 @@ describe("cli/args", () => {
       kind: "help",
     });
     expect(() => parseCLIArguments(["wikg://local/job", "list"])).toThrow(
-      "Do not use `list` as a command.",
+      "This command form is not available.",
     );
     expect(() => parseCLIArguments(["wikg://local/job/job-1", "get"])).toThrow(
-      "Do not use `get` as a command.",
+      "This command form is not available.",
     );
 
     expect(() =>
@@ -927,7 +927,7 @@ describe("cli/args", () => {
       parseCLIArguments(["search", "wikg://book.wikg", "RAG"]),
     ).toThrow("Unknown command: search.");
     expect(() => parseCLIArguments(["wikg://book.wikg", "search"])).toThrow(
-      "Do not use `search` as a command.",
+      "This command form is not available.",
     );
     expect(() =>
       parseCLIArguments([
@@ -1108,7 +1108,7 @@ describe("cli/args", () => {
     });
     expect(() =>
       parseCLIArguments(["wikg://book.wikg/chapter/12", "get"]),
-    ).toThrow("Do not use `get` as a command.");
+    ).toThrow("This command form is not available.");
     expect(
       parseCLIArguments(["wikg://book.wikg/chapter/12/title"]),
     ).toStrictEqual({
@@ -1843,7 +1843,7 @@ describe("cli/args", () => {
     expect(rootHelpText).toContain("Reading Graph: attention chunks");
     expect(rootHelpText).toContain("Summaries: compressed reading outputs");
     expect(rootHelpText).toContain("Source text: original chapter content");
-    expect(rootHelpText).toContain("searched efficiently with keywords");
+    expect(rootHelpText).toContain("retrieved efficiently with keywords");
     expect(rootHelpText).toContain("Scope: a URI target");
     expect(rootHelpText).toContain("Object: a URI target");
     expect(rootHelpText).toContain("Predicate: an operation bound to a URI");
@@ -1870,7 +1870,7 @@ describe("cli/args", () => {
       "Runtime and Debug Behavior",
     );
     expect(renderHelpTopicText("config")).toContain("Configuration");
-    expect(renderHelpTopicText("readiness")).toContain("Search readiness:");
+    expect(renderHelpTopicText("readiness")).toContain("FTS readiness:");
     expect(renderHelpTopicText("readiness")).toContain(
       "Without a current index",
     );
@@ -1922,7 +1922,7 @@ describe("cli/args", () => {
     );
     expect(uriHelpText).toContain("Avoid `--all | head` as a preview pattern.");
     expect(uriHelpText).toContain("Recovery hints:");
-    expect(uriHelpText).toContain("No search results:");
+    expect(uriHelpText).toContain("No `--query` results:");
     expect(uriHelpText).toContain("Missing generated objects:");
     expect(renderHelpTopicText("recipe")).toContain(
       'wikigraph wikg:///Users/me/book.wikg --query "attention memory"',
@@ -1932,7 +1932,9 @@ describe("cli/args", () => {
     );
     expect(renderHelpTopicText("recipe")).toContain("After inspect:");
     expect(renderHelpTopicText("recipe")).toContain("Finding material:");
-    expect(renderHelpTopicText("recipe")).toContain("indexed full-text search");
+    expect(renderHelpTopicText("recipe")).toContain(
+      "indexed full-text retrieval",
+    );
     expect(renderHelpTopicText("recipe")).toContain(
       "grep/find with Google-like keyword input",
     );

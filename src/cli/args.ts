@@ -913,7 +913,7 @@ function parseArchiveUriTargetArguments(
   if (containsMetadataKeySuffix(objectUri)) {
     throw new Error(
       withHelpRoute(
-        "Metadata keys are not addressed in the URI. Use `<object>/meta get` and filter the output, or use `<object>/meta put <key> ...`.",
+        "Metadata keys are not addressed in the URI. Read `<object>/meta` and filter the output, or use `<object>/meta put <key> ...`.",
         "wikigraph <object-uri>/meta --help",
       ),
     );
@@ -957,7 +957,7 @@ function parseArchiveUriTargetArguments(
   if (uriKind === "scope" && action === "get") {
     throw new Error(
       withHelpRoute(
-        `The scope URI ${uri} does not support \`get\`. Use a concrete object URI.`,
+        `The scope URI ${uri} cannot be read as one object. Use a concrete object URI.`,
         CLI_HELP_ROUTES.uri,
       ),
     );
@@ -3048,7 +3048,7 @@ function parseArchiveArguments(
 
       if (query === undefined) {
         throw new Error(
-          withHelpRoute("Scope search requires --query.", helpRoute),
+          withHelpRoute("Scope keyword retrieval requires --query.", helpRoute),
         );
       }
       rejectArchiveExtraPositionals(action, positionals, 1, helpRoute);
@@ -4568,10 +4568,10 @@ function isRemovedImplicitArchiveAction(
 }
 
 function formatRemovedImplicitVerbMessage(
-  action: "get" | "list" | "search",
+  _action: "get" | "list" | "search",
 ): string {
   return withHelpRoute(
-    `Do not use \`${action}\` as a command. Pass the URI directly, or add --query to a scope URI.`,
+    "This command form is not available. Pass the URI directly, or add --query to a scope URI.",
     CLI_HELP_ROUTES.uri,
   );
 }

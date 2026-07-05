@@ -1073,11 +1073,11 @@ async function writeArchiveInspectReport(
       "FTS Index",
       `Status: ${ftsCurrent ? "current" : "missing or outdated"}`,
       `Storage: ${indexSettings.ftsEmbedded ? "embedded in archive" : "local cache"}`,
-      `Query search: ${ftsCurrent ? "available" : "unavailable"}`,
+      `Query support: ${ftsCurrent ? "available" : "unavailable"}`,
       ...(ftsCurrent
         ? []
         : [
-            "Impact: search <query>, related <query>, and evidence <query> are unavailable.",
+            "Impact: --query, related --query, and evidence --query are unavailable.",
             `Fix: wikigraph ${archiveUri}/index build`,
             "Resource: local CPU/disk time only; no LLM tokens.",
           ]),
@@ -1185,24 +1185,24 @@ function formatRetrievalGuidance(input: {
   if (input.sourceWords === 0 || input.contentChapters.length === 0) {
     return [
       "Source content: empty.",
-      "Add source text before using search coverage or graph-based retrieval.",
+      "Add source text before using query coverage or graph-based retrieval.",
     ];
   }
 
   const lines = [
-    `Query search: ${input.ftsCurrent ? "available" : "unavailable until FTS index is built"}.`,
+    `Query support: ${input.ftsCurrent ? "available" : "unavailable until FTS index is built"}.`,
   ];
 
   lines.push(
     formatObjectSearchGuidance(
-      "Reading Graph object search",
+      "Reading Graph object retrieval",
       input.readingGraphCovered,
       input.contentChapters,
     ),
   );
   lines.push(
     formatObjectSearchGuidance(
-      "Entity/triple search",
+      "Entity/triple retrieval",
       input.knowledgeGraphCovered,
       input.contentChapters,
     ),
@@ -1225,10 +1225,10 @@ function formatObjectSearchGuidance(
     return `${label}: covers all source content; it can represent the full scope for object retrieval.`;
   }
   if (ratio >= 0.9) {
-    return `${label}: covers ${coverage}; use it as the main path, but source search is needed for uncovered content.`;
+    return `${label}: covers ${coverage}; use it as the main path, but source --query is needed for uncovered content.`;
   }
   if (ratio >= 0.5) {
-    return `${label}: covers ${coverage}; use it as leads, not as a full-scope substitute for source search.`;
+    return `${label}: covers ${coverage}; use it as leads, not as a full-scope substitute for source --query.`;
   }
 
   return `${label}: covers ${coverage}; build missing graph coverage before relying on object retrieval.`;
@@ -1251,7 +1251,7 @@ function createInspectImprovements(input: {
     improvements.push({
       command: `wikigraph ${input.archiveUri}/index build`,
       recommendation:
-        "Build the local FTS index so query-based search, related, and evidence commands are available.",
+        "Build the local FTS index so --query, related, and evidence commands are available.",
       title: "Build FTS index",
     });
   }
@@ -2179,7 +2179,7 @@ function appendEntityNextSteps(
     "Next:",
     `  wikigraph ${entityUri} evidence`,
     `  wikigraph ${entityUri} related`,
-    `  wikigraph ${entityUri}/wikipage get`,
+    `  wikigraph ${entityUri}/wikipage`,
   ].join("\n");
 }
 
@@ -2277,7 +2277,7 @@ function formatNoMatches(result: ArchiveFindResult): string {
 
   const lines = [
     "No matches.",
-    "Try fewer or broader keywords, or search a scope URI such as `<archive-uri>/chapter`, `<archive-uri>/chunk`, `<archive-uri>/entity`, or `<archive-uri>/triple`.",
+    "Try fewer or broader keywords, or use --query on a scope URI such as `<archive-uri>/chapter`, `<archive-uri>/chunk`, `<archive-uri>/entity`, or `<archive-uri>/triple`.",
   ];
 
   if (result.lensHint !== null) {

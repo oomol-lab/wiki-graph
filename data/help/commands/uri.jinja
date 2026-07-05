@@ -12,7 +12,7 @@ URI type:
 
 Default behavior:
   - `wikigraph {{ uri }}` enumerates archive-level objects.
-  - `wikigraph {{ uri }} --query <query>` searches across archive scopes.
+  - `wikigraph {{ uri }} --query <query>` applies keyword retrieval across archive scopes.
 
 Use when:
   - You need the archive entry point before narrowing to chapters, chunks, entities, triples, source, or summaries.
@@ -22,7 +22,7 @@ URI type:
 
 Default behavior:
   - `wikigraph {{ uri }}` enumerates chapters.
-  - `wikigraph {{ uri }} --query <query>` searches chapter objects.
+  - `wikigraph {{ uri }} --query <query>` applies keyword retrieval to chapter objects.
 
 Use when:
   - You need chapter ids, chapter readiness, or a starting point for chapter-scoped retrieval.
@@ -32,7 +32,7 @@ URI type:
 
 Default behavior:
   - `wikigraph {{ uri }}` enumerates objects inside this chapter.
-  - `wikigraph {{ uri }} --query <query>` searches inside this chapter.
+  - `wikigraph {{ uri }} --query <query>` applies keyword retrieval inside this chapter.
 
 Use when:
   - You already selected a chapter and want local source, summary, chunk, entity, or triple objects.
@@ -42,7 +42,7 @@ URI type:
 
 Default behavior:
   - `wikigraph {{ uri }}` enumerates Reading Graph chunks.
-  - `wikigraph {{ uri }} --query <query>` searches chunks in this scope.
+  - `wikigraph {{ uri }} --query <query>` applies keyword retrieval to chunks in this scope.
 
 Use when:
   - You need candidate Reading Graph chunks before selecting a concrete chunk URI.
@@ -52,7 +52,7 @@ URI type:
 
 Default behavior:
   - `wikigraph {{ uri }}` enumerates Knowledge Graph entities.
-  - `wikigraph {{ uri }} --query <query>` searches entities in this scope.
+  - `wikigraph {{ uri }} --query <query>` applies keyword retrieval to entities in this scope.
 
 Use when:
   - You need candidate entities before selecting a concrete entity URI.
@@ -62,7 +62,7 @@ URI type:
 
 Default behavior:
   - `wikigraph {{ uri }}` enumerates Knowledge Graph triples matching this scope or pattern.
-  - `wikigraph {{ uri }} --query <query>` searches triples in this scope.
+  - `wikigraph {{ uri }} --query <query>` applies keyword retrieval to triples in this scope.
 
 Use when:
   - You need relation candidates or a triple pattern such as `_` placeholders.
@@ -139,7 +139,7 @@ Default behavior:
   - `wikigraph {{ uri }}` reads mapped Wikipedia page data for the entity.
 
 Use when:
-  - You need canonical mapped pages before considering external web search.
+  - You need canonical mapped pages before considering external web lookup.
 {% elif target.name == "triple-object" %}
 URI type:
   Triple object
@@ -163,7 +163,7 @@ URI type:
   Index object
 
 Default behavior:
-  - `wikigraph {{ uri }}` reads the archive search index policy.
+  - `wikigraph {{ uri }}` reads the archive FTS index policy.
 
 Use when:
   - You need to inspect, build, embed, externalize, or clear FTS index materialization.
@@ -172,7 +172,7 @@ URI type:
   Local job collection scope
 
 Default behavior:
-  - `wikigraph {{ uri }}` lists local generation jobs.
+  - `wikigraph {{ uri }}` shows local generation jobs.
 
 Use when:
   - You need to inspect, add, or clean local generation jobs.

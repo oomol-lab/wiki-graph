@@ -1881,7 +1881,7 @@ describe("cli/archive", () => {
         "Next:",
         "  wikigraph wikg:///tmp/book.wikg/entity/Q1 evidence",
         "  wikigraph wikg:///tmp/book.wikg/entity/Q1 related",
-        "  wikigraph wikg:///tmp/book.wikg/entity/Q1/wikipage get",
+        "  wikigraph wikg:///tmp/book.wikg/entity/Q1/wikipage",
         "",
       ].join("\n"),
     );
@@ -1942,7 +1942,7 @@ describe("cli/archive", () => {
         "Next:",
         "  wikigraph wikg:///tmp/book.wikg/entity/Q1 evidence",
         "  wikigraph wikg:///tmp/book.wikg/entity/Q1 related",
-        "  wikigraph wikg:///tmp/book.wikg/entity/Q1/wikipage get",
+        "  wikigraph wikg:///tmp/book.wikg/entity/Q1/wikipage",
       ].join("\n"),
     );
   });

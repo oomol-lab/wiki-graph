@@ -5,7 +5,7 @@ Wiki Graph URIs
 
 Purpose:
   URI targets are the address and routing layer for Wiki Graph commands.
-  Use this page to choose a target, understand scope/object behavior, select retrieval shape, choose object result format, and avoid removed `get`, `list`, and `search` verbs.
+  Use this page to choose a target, understand scope/object behavior, select retrieval shape, and choose object result format.
 
 Archive locator:
   - Archive/object command URIs must contain a `.wikg` locator.
@@ -33,11 +33,10 @@ Short and located URIs:
 
 Command routing:
   - `wikigraph <scope-uri>` enumerates objects.
-  - `wikigraph <scope-uri> --query <query>` searches within that scope.
+  - `wikigraph <scope-uri> --query <query>` applies keyword retrieval within that scope.
   - `wikigraph <object-uri>` reads one object.
   - `wikigraph <uri> --help` explains that URI target and its supported predicates.
   - `wikigraph <uri> <predicate> --help` explains a URI-bound predicate.
-  - Do not spell `get`, `list`, or `search` as commands. The URI and `--query` select those behaviors.
 
 Common command shapes:
   wikigraph <scope-uri>
@@ -59,7 +58,7 @@ Common command shapes:
   wikigraph <object-uri> pack --budget 5000
 
 Scope URIs:
-  Scope URIs enumerate objects by default. With `--query <query>`, they search within that scope.
+  Scope URIs enumerate objects by default. With `--query <query>`, they apply keyword retrieval within that scope.
     wikg://book.wikg
     wikg://book.wikg/chapter
     wikg://book.wikg/chapter/3
@@ -101,7 +100,7 @@ Triple pattern scopes:
 
 Object boundaries:
   - `chapter/<id>` is a scope, not an object.
-  - `chapter/<id>/title` is the searchable chapter title object.
+  - `chapter/<id>/title` is the queryable chapter title object.
   - `source` and `summary` are readable text objects, not collection scopes.
   - Source text is the grounding material. `evidence` is not available for source, summary, or chapter scope URIs.
   - `chunk`, `entity`, and `triple` can return source-backed evidence.
@@ -114,16 +113,16 @@ Retrieval order:
   5. Use `--all` only for an intentional full export or bounded inventory.
 
 Lens selection:
-  - Use `<archive-uri>` when the whole archive is the right search space.
+  - Use `<archive-uri>` when the whole archive is the right retrieval scope.
   - Use `<chapter-uri>` when a known chapter is enough.
   - Use `<chapter-uri>/<lens>` when both chapter and object kind are known.
-  - `/chunk` searches Reading Graph chunks.
-  - `/entity` searches or lists grounded entities.
-  - `/triple` searches or lists Knowledge Graph relations.
-  - `chapter/<id>` is a scope; searching chapter titles returns `chapter/<id>/title` objects.
+  - `/chunk` targets Reading Graph chunks.
+  - `/entity` targets grounded entities.
+  - `/triple` targets Knowledge Graph relations.
+  - `chapter/<id>` is a scope; `--query` over chapter titles returns `chapter/<id>/title` objects.
 
 Literal source passages:
-  Use scope search when the task is to find source wording or passages mentioning a literal term:
+  Use `--query` on the narrowest useful scope when the task is to find source wording or passages mentioning a literal term:
     wikigraph <archive-uri> --query "term"
     wikigraph <archive-uri>/chapter/<id> --query "term"
     wikigraph <archive-uri>/chapter/<id>/source#20..30
@@ -146,7 +145,7 @@ Pagination and object result format:
   - Avoid `--all | head` as a preview pattern. Shell truncation only limits what you read.
 
 Recovery hints:
-  - No search results: try fewer keywords, use a broader scope URI, or inspect chapter readiness and structure.
+  - No `--query` results: try fewer keywords, use a broader scope URI, or inspect chapter readiness and structure.
     wikigraph <archive-uri>/chapter
     wikigraph <archive-uri>/chapter/tree
     wikigraph help readiness

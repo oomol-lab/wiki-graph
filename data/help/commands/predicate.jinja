@@ -66,7 +66,7 @@ Notes:
   - Projections are portable views; they do not replace the `.wikg` archive.
 {% elif predicate == "inspect" %}
 Purpose:
-  Inspect archive readiness before search, retrieval, or starting generated work.
+  Inspect archive readiness before `--query`, retrieval, or starting generated work.
 
 Usage:
   wikigraph {{ uri }} inspect
@@ -140,19 +140,19 @@ Usage:
   wikigraph {{ uri }} clear
 {% elif predicate == "build" %}
 Purpose:
-  Build the search index for this archive.
+  Build the FTS index for this archive.
 
 Usage:
   wikigraph {{ uri }} build [--jsonl]
 {% elif predicate == "embed" %}
 Purpose:
-  Store the search index inside the archive.
+  Store the FTS index inside the archive.
 
 Usage:
   wikigraph {{ uri }} embed
 {% elif predicate == "external" %}
 Purpose:
-  Keep the search index outside the archive as local cache.
+  Keep the FTS index outside the archive as local cache.
 
 Usage:
   wikigraph {{ uri }} external

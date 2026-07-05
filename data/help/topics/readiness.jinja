@@ -4,14 +4,14 @@ Topic: readiness
 Readiness
 
 Purpose:
-  Use this when `inspect` reports missing search, generated data, or provider configuration.
+  Use this when `inspect` reports missing `--query` support, generated data, or provider configuration.
   Readiness explains what must exist before `--query`, Reading Graph, summaries, and Knowledge Graph retrieval can work.
 
 Start with inspect:
   wikigraph <archive-uri> inspect
 
-Search readiness:
-  `--query` uses the archive FTS index. Without a current index, keyword search is unavailable for scopes, evidence, and related results.
+FTS readiness:
+  `--query` uses the archive FTS index. Without a current index, keyword retrieval is unavailable for scopes, evidence, and related results.
 
   Default behavior:
     The FTS index is built as local cache outside the `.wikg` archive.
@@ -76,7 +76,7 @@ WikiSpine readiness:
     wikigraph wikg://local/config/wikispine test
 
 How to choose:
-  - Need keyword search on this machine: build local index.
+  - Need keyword retrieval on this machine: build local index.
   - Need to send a more self-contained `.wikg`: consider embedding the index after it is built.
   - Need generated Reading Graph or summaries: configure LLM and use local jobs.
   - Need Knowledge Graph: configure LLM and WikiSpine, then use local jobs.

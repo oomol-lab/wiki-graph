@@ -35,7 +35,7 @@ Progress and diagnostics:
   - `status_snapshot` events include counters and token usage when the LLM provider reports it.
   - `transform --verbose` writes diagnostic logs to stderr.
   - Use `wikigraph <archive-uri> inspect` before starting or debugging generation work.
-  - Use `wikigraph <archive-uri>/index --help` when search, evidence, or related appears unavailable.
+  - Use `wikigraph <archive-uri>/index --help` when `--query`, evidence, or related appears unavailable.
 
 Workspace behavior:
   - Archive creation from URL or stdin uses temporary workspaces.
@@ -53,7 +53,7 @@ In-place archive edits:
 Where to go next:
   - Need the normal workflow before debugging:
     wikigraph help recipe
-  - Need search/generation prerequisites before debugging:
+  - Need FTS/generation prerequisites before debugging:
     wikigraph help readiness
   - Need legal format combinations:
     wikigraph help format
