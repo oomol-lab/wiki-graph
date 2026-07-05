@@ -4,7 +4,7 @@ Topic: format
 Format Rules
 
 Purpose:
-  File format rules apply at archive boundaries: create/import, export, transform, stdin, and stdout.
+  Format rules cover archive file formats, stdin/stdout inference, and command output shapes for Agents and scripts.
 
 Managed archive format:
   wikg
@@ -25,11 +25,45 @@ Inference rules:
   - Stdout text export requires an explicit or inferable output format.
   - `transform --stage` is only valid when creating `.wikg` from source input.
 
+Command output shapes:
+  - Default text output is for direct human reading and quick inspection.
+  - Use `--json` when an Agent or script needs one stable machine-readable response.
+  - Use `--jsonl` when a command returns many records, streams progress, or feeds a Unix pipeline.
+  - Most read, retrieval, config, job, and maintenance commands support `--json`; unsupported commands fail explicitly.
+  - Commands that do not support `--json` or `--jsonl` say so in their command help or error message.
+
+JSON:
+  `--json` prints one JSON value to stdout.
+  It is usually the best Agent-facing format for inspecting one object, one result page, one config section, one job, or one command report.
+  Prefer it over parsing text when you need fields such as `uri`, `title`, `state`, `nextCursor`, readiness flags, or job status.
+
+JSONL:
+  `--jsonl` prints one JSON record per line.
+  Use it for object inventories, large scope traversal, progress streams, and pipe-oriented downstream processing.
+  JSONL may contain both object records and control records.
+  A paged scope can end with a control record such as:
+    {"type":"page","nextCursor":"..."}
+  Filter by `type` when a downstream program expects only archive objects.
+
+Full-scope export pattern:
+  `--jsonl` is an output shape; it does not imply `--all`.
+  Use `--all --jsonl` when intentionally exporting every object from the selected scope.
+  Prefer the narrowest useful scope before full export.
+  Avoid `--all` without `--jsonl` for large result sets because text and JSON output are buffered before printing.
+  Avoid `--all | head` as a preview pattern. Shell truncation only limits what you read.
+
+Stdout and stderr:
+  Machine-readable command results go to stdout.
+  Progress, warnings, and diagnostics go to stderr.
+  Commands that accept `--json` or `--jsonl` emit machine-readable error objects when those flags are present.
+
 Examples:
   wikigraph wikg://book.wikg create ./book.epub
   wikigraph wikg://book.wikg create ./book.md
   cat chapter.md | wikigraph wikg://book.wikg create --input-format markdown
   wikigraph wikg://book.wikg export --output-format markdown --output out.md
   cat chapter.txt | wikigraph transform --input-format txt --output-format markdown
+  wikigraph wikg://book.wikg inspect --json
+  wikigraph wikg://book.wikg/entity --all --jsonl
 
 Transforming source input usually requires LLM configuration.

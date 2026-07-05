@@ -10,6 +10,7 @@ Purpose:
 Operating rules:
   - Never unzip a `.wikg` archive, rewrite internal files, or bypass this CLI. Use CLI commands for archive edits.
   - Use Wiki Graph URIs as stable object handles.
+  - Use `--json` when you want stable Agent-readable fields instead of human text; most commands support it and unsupported commands fail explicitly.
   - If you have a URI and need valid operations, run `wikigraph <uri> --help`.
   - If you need concrete predicate usage for that URI type, run `wikigraph <uri> <predicate> --help`.
   - Never pass a bare filesystem path to URI-targeted commands.
@@ -117,14 +118,14 @@ Finding material:
       wikigraph wikg://book.wikg/chapter/3/summary
 
   - Need an inventory for a script or Unix pipeline:
-    Enumerate object scopes with `--jsonl`, then filter with standard stream tools.
-    JSONL contains object records and may end with a control record such as `{"type":"page","nextCursor":"..."}`.
-      wikigraph wikg://book.wikg/entity --jsonl
-      wikigraph wikg://book.wikg/triple --jsonl
-      wikigraph wikg://book.wikg/chunk --jsonl
-      wikigraph wikg://book.wikg/chapter/3/entity --jsonl
-      wikigraph wikg://book.wikg/chapter/3/triple --jsonl
-      wikigraph wikg://book.wikg/chapter/3/chunk --jsonl
+    Use `--all --jsonl` to export the selected scope as line-delimited records, then filter with standard stream tools.
+    Prefer the narrowest useful scope before full export.
+      wikigraph wikg://book.wikg/entity --all --jsonl
+      wikigraph wikg://book.wikg/triple --all --jsonl
+      wikigraph wikg://book.wikg/chunk --all --jsonl
+      wikigraph wikg://book.wikg/chapter/3/entity --all --jsonl
+      wikigraph wikg://book.wikg/chapter/3/triple --all --jsonl
+      wikigraph wikg://book.wikg/chapter/3/chunk --all --jsonl
 
   - Need bounded Agent-readable context around an object:
     Use pack only after choosing a located chunk or entity URI.
@@ -135,9 +136,9 @@ Finding material:
       wikigraph next <cursor>
 
 When to read deeper:
-  - URI details, scope/object routing, pagination, JSON, JSONL, and short URI handling:
+  - URI details, scope/object routing, pagination, and short URI handling:
     wikigraph help uri
-  - Format inference, stdin/stdout, create/import, export, and transform:
+  - Format inference, stdin/stdout, create/import, export, transform, JSON, JSONL, and pipe output:
     wikigraph help format
   - LLM, concurrency, and WikiSpine provider setup:
     wikigraph help config

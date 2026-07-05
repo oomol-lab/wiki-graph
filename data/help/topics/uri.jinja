@@ -5,7 +5,7 @@ Wiki Graph URIs
 
 Purpose:
   URI targets are the address and routing layer for Wiki Graph commands.
-  Use this page to choose a target, understand scope/object behavior, select retrieval shape, and choose object result format.
+  Use this page to choose a target, understand scope/object behavior, and select retrieval shape.
 
 Archive locator:
   - Archive/object command URIs must contain a `.wikg` locator.
@@ -109,8 +109,7 @@ Retrieval order:
   1. Choose the narrowest URI scope that can answer the task.
   2. Choose the object lens that matches the question.
   3. Start with a bounded page.
-  4. Choose object result format by how the result will be consumed.
-  5. Use `--all` only for an intentional full export or bounded inventory.
+  4. Use `--all` only for an intentional full export or bounded inventory.
 
 Lens selection:
   - Use `<archive-uri>` when the whole archive is the right retrieval scope.
@@ -132,19 +131,12 @@ Entity-grounded evidence:
     wikigraph <archive-uri>/entity/<qid> evidence
     wikigraph <archive-uri>/entity/<qid> related --query "aspect" --evidence 2
 
-Pagination and object result format:
+Pagination:
   - Use default paging or `--limit <n>` while exploring.
   - Use `wikigraph next <cursor>` to continue a paged result.
   - Use `--all` only when you intentionally need every item from the selected scope.
   - Prefer the narrowest scope before using `--all`.
-  - Default text is for reading and inspection.
-  - `--json` is for one stable machine-readable page.
-  - `--jsonl` is for streamed records, shell pipelines, or full exports.
-  - JSONL contains object records and may include control records such as `{"type":"page","nextCursor":"..."}`.
-  - Filter JSONL by `type` when a pipeline expects only archive objects.
-  - `--jsonl` is only an output format; it does not imply `--all`.
-  - Avoid `--all` without `--jsonl` for large results because text and JSON output are buffered before printing.
-  - Avoid `--all | head` as a preview pattern. Shell truncation only limits what you read.
+  - Read `wikigraph help format` before choosing text, `--json`, `--jsonl`, or `--all --jsonl` for machine consumption.
 
 Recovery hints:
   - No `--query` results: try fewer keywords, use a broader scope URI, or inspect chapter readiness and structure.
@@ -171,7 +163,7 @@ Archive internals:
 Related help:
   - Search index, generated data, and provider prerequisites:
     wikigraph help readiness
-  - Stdin/stdout, create/import, export, and transform formats:
+  - Stdin/stdout, create/import, export, transform, JSON, JSONL, and pipe-oriented output:
     wikigraph help format
   - Local jobs, cache, logs, and runtime debugging:
     wikigraph help runtime

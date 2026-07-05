@@ -1939,8 +1939,16 @@ describe("cli/args", () => {
     expect(uriHelpText).toContain(
       "wikigraph wikg://local/job add --input <archive-uri|chapter-uri>",
     );
-    expect(uriHelpText).toContain("JSONL contains object records");
-    expect(uriHelpText).toContain('"type":"page"');
+    expect(uriHelpText).toContain("wikigraph help format");
+    expect(uriHelpText).not.toContain("JSONL contains object records");
+    expect(renderHelpTopicText("format")).toContain("Command output shapes:");
+    expect(renderHelpTopicText("format")).toContain(
+      "Use `--json` when an Agent or script needs one stable machine-readable response.",
+    );
+    expect(renderHelpTopicText("format")).toContain(
+      "JSONL may contain both object records and control records.",
+    );
+    expect(renderHelpTopicText("format")).toContain("--all --jsonl");
     expect(() => parseCLIArguments(["help", "ai"])).toThrow(
       "Invalid help topic: ai.",
     );
@@ -1974,7 +1982,9 @@ describe("cli/args", () => {
     expect(uriHelpText).toContain(
       "Choose the narrowest URI scope that can answer the task.",
     );
-    expect(uriHelpText).toContain("Avoid `--all | head` as a preview pattern.");
+    expect(renderHelpTopicText("format")).toContain(
+      "Avoid `--all | head` as a preview pattern.",
+    );
     expect(uriHelpText).toContain("Recovery hints:");
     expect(uriHelpText).toContain("No `--query` results:");
     expect(uriHelpText).toContain("Missing generated objects:");
@@ -2019,10 +2029,10 @@ describe("cli/args", () => {
       "wikigraph wikg://book.wikg/entity/Q8018 pack --budget 5000",
     );
     expect(renderHelpTopicText("recipe")).toContain(
-      "wikigraph wikg://book.wikg/chapter/3/entity --jsonl",
+      "Use `--json` when you want stable Agent-readable fields",
     );
     expect(renderHelpTopicText("recipe")).toContain(
-      "JSONL contains object records",
+      "wikigraph wikg://book.wikg/chapter/3/entity --all --jsonl",
     );
     expect(renderHelpTopicText("recipe")).toContain(
       "If Reading Graph data is missing",
