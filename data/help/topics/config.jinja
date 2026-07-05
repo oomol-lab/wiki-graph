@@ -13,7 +13,7 @@ Sections:
 
   `wikg://local/config/concurrent`
     Local concurrency settings:
-      - `job`: simultaneous queue jobs. Default: 3.
+      - `job`: simultaneous generation jobs. Default: 3.
       - `request`: concurrent LLM requests. Default: 6.
 
   `wikg://local/config/wikispine`
@@ -25,9 +25,9 @@ Sections:
 
 Operations:
   Read a section:
-    wikigraph wikg://local/config/llm get
-    wikigraph wikg://local/config/concurrent get
-    wikigraph wikg://local/config/wikispine get
+    wikigraph wikg://local/config/llm
+    wikigraph wikg://local/config/concurrent
+    wikigraph wikg://local/config/wikispine
 
   Replace a section with a JSON object:
     wikigraph wikg://local/config/llm set --json '{"provider":"openai","model":"gpt-4.1"}'
@@ -74,7 +74,7 @@ Examples:
 
 WikiSpine:
   Knowledge Graph builds require WikiSpine. If `wikispine` is missing,
-  configure one provider and run the config test before queueing Knowledge Graph work.
+  configure one provider and run the config test before starting Knowledge Graph work.
   If the config test fails, read:
     https://raw.githubusercontent.com/oomol-lab/spinedigest/main/docs/wikispine-runtime.md
 
@@ -83,5 +83,5 @@ Where to go next:
     wikigraph help uri
   - Need command-level override behavior:
     wikigraph help command
-  - Need runtime effects for queue jobs:
+  - Need runtime effects for generation jobs:
     wikigraph help runtime

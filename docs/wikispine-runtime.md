@@ -126,7 +126,7 @@ Self-hosting avoids repeated runtime data downloads and lets you control privacy
 If WikiGraph says WikiSpine is not configured, choose `fetch` or `cli` and run the config test:
 
 ```bash
-wikigraph wikg://local/config/wikispine get
+wikigraph wikg://local/config/wikispine
 wikigraph wikg://local/config/wikispine test
 ```
 

@@ -62,9 +62,7 @@ export type UriHelpPredicateName =
   | "evidence"
   | "export"
   | "external"
-  | "get"
   | "inspect"
-  | "list"
   | "move"
   | "pack"
   | "pause"
@@ -109,16 +107,16 @@ const URI_HELP_TARGETS: readonly UriHelpTarget[] = [
   { name: "index-object", predicates: ["build", "clear", "embed", "external"] },
   {
     name: "job-collection-scope",
-    predicates: ["add", "clean", "list"],
+    predicates: ["add", "clean"],
   },
   {
     name: "job-object",
-    predicates: ["boost", "cancel", "get", "pause", "resume", "watch"],
+    predicates: ["boost", "cancel", "pause", "resume", "watch"],
   },
   { name: "job-target-object", predicates: ["set"] },
   {
     name: "local-config-section",
-    predicates: ["clear", "delete", "get", "put", "set", "test"],
+    predicates: ["clear", "delete", "put", "set", "test"],
   },
   { name: "summary-object", predicates: ["evidence"] },
   { name: "triple-scope", predicates: [] },

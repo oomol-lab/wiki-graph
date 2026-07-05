@@ -44,7 +44,7 @@ User-facing stages describe how much knowledge has been built into the archive:
 - `reading-summary`: readable chapter summaries and export projections are available
 - `knowledge-graph`: grounded entity mentions and source-backed relations are available for URI-based search and evidence tracing
 
-`source` is cheap and does not require LLM access. Reading Graph, Reading Summary, and Knowledge Graph queue tasks may call an LLM provider; inspect the archive before full-archive builds.
+`source` is cheap and does not require LLM access. Reading Graph, Reading Summary, and Knowledge Graph generation jobs may call an LLM provider; inspect the archive before full-archive builds.
 
 Knowledge Graph construction is source-first. It screens source text for mention candidates, grounds those mentions to QIDs, then asks the model to discover relations between grounded mention IDs. Relation evidence is resolved through the shared evidence-selection protocol, which uses sentence IDs plus short source quotes so both Reading Graph and Knowledge Graph builders can correct sentence drift without owning each other's business objects.
 

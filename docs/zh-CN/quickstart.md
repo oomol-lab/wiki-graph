@@ -50,15 +50,15 @@ wikigraph wikg://book.wikg inspect
 ## 5. 构建知识
 
 ```bash
-wikigraph wikg://book.wikg/chapter/3 queue add --task reading-graph --accept-cost
+wikigraph wikg://local/job add --input wikg://book.wikg/chapter/3 --task reading-graph --accept-cost
 wikigraph wikg://local/job/<job-id> watch --jsonl
 ```
 
 如果需要 summary：
 
 ```bash
-wikigraph wikg://book.wikg/chapter/3 queue add --task reading-summary --accept-cost
-wikigraph wikg://local/job list --input wikg://book.wikg
+wikigraph wikg://local/job add --input wikg://book.wikg/chapter/3 --task reading-summary --accept-cost
+wikigraph wikg://local/job --input wikg://book.wikg
 ```
 
 ## 6. 搜索、浏览和阅读

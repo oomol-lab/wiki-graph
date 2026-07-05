@@ -78,7 +78,7 @@ wikigraph wikg://book.wikg inspect
 Build derived knowledge when you intend to spend LLM time:
 
 ```bash
-wikigraph wikg://book.wikg/chapter/12 queue add --task reading-graph --accept-cost
+wikigraph wikg://local/job add --input wikg://book.wikg/chapter/12 --task reading-graph --accept-cost
 wikigraph wikg://local/job/<job-id> watch --jsonl
 ```
 
@@ -106,8 +106,8 @@ Cost rule:
 
 ```text
 Create is cheap.
-Inspect before queueing Reading Graph, Reading Summary, or Knowledge Graph jobs.
-Queue Reading Graph, Reading Summary, or Knowledge Graph jobs only when the cost and wait time are acceptable.
+Inspect before starting Reading Graph, Reading Summary, or Knowledge Graph jobs.
+Start Reading Graph, Reading Summary, or Knowledge Graph jobs only when the cost and wait time are acceptable.
 Search, read, related, evidence, pack, and export are cheap after build.
 ```
 
@@ -187,7 +187,7 @@ SpineDigest's CLI-first design exposes `.wikg` as a managed LLM Wiki archive.
 - **Choose an exploration mode first.** For synthesis and structural understanding, start with `wikg://.../chapter/tree --json`; use scope URIs with `--query` for candidate discovery and exact wording; pass a selected URI directly for continuous prose.
 - **Use help as the discovery surface.** Start with `wikigraph --help` as the root page, then follow `wikigraph help overview`, `wikigraph help ai`, topic pages, or command-specific `--help` before guessing behavior.
 - **Prefer `--json`.** Use it when composing with tools.
-- **Inspect before queueing jobs.** Do not queue broad Reading Graph, Reading Summary, or Knowledge Graph work without `wikigraph <archive-uri> inspect`.
+- **Inspect before starting jobs.** Do not start broad Reading Graph, Reading Summary, or Knowledge Graph work without `wikigraph <archive-uri> inspect`.
 - **Check exit codes.** Success returns `0`; failure returns non-zero with a plain-text error on `stderr`.
 - **Do not inspect `database.db` routinely.** Use URI-first reads, scope queries, and graph navigation commands instead.
 

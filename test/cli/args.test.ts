@@ -202,8 +202,11 @@ describe("cli/args", () => {
       help: false,
       kind: "local-config",
     });
-    expect(() => parseCLIArguments(["wikg://local/config", "get"])).toThrow(
+    expect(() => parseCLIArguments(["wikg://local/config"])).toThrow(
       "Expected a local config section URI",
+    );
+    expect(() => parseCLIArguments(["wikg://local/config/llm", "get"])).toThrow(
+      "Do not use `get` as a command.",
     );
   });
 
@@ -413,12 +416,7 @@ describe("cli/args", () => {
     });
 
     expect(
-      parseCLIArguments([
-        "wikg://local/job",
-        "list",
-        "--input",
-        "wikg://book.wikg",
-      ]),
+      parseCLIArguments(["wikg://local/job", "--input", "wikg://book.wikg"]),
     ).toStrictEqual({
       args: {
         action: "list",
@@ -429,7 +427,7 @@ describe("cli/args", () => {
     });
 
     expect(
-      parseCLIArguments(["wikg://local/job/job-1", "get", "--json"]),
+      parseCLIArguments(["wikg://local/job/job-1", "--json"]),
     ).toStrictEqual({
       args: {
         action: "status",
@@ -457,9 +455,7 @@ describe("cli/args", () => {
       help: false,
       kind: "queue",
     });
-    expect(
-      parseCLIArguments(["wikg://local/job", "list", "--json"]),
-    ).toStrictEqual({
+    expect(parseCLIArguments(["wikg://local/job", "--json"])).toStrictEqual({
       args: {
         action: "list",
         json: true,
@@ -495,24 +491,24 @@ describe("cli/args", () => {
       "Unknown command: queue.",
     );
 
-    expect(
-      parseCLIArguments(["wikg://local/job", "list", "--help"]),
-    ).toStrictEqual({
+    expect(parseCLIArguments(["wikg://local/job", "--help"])).toStrictEqual({
       help: true,
-      helpText: renderUriPredicateHelpText(
-        "job-collection-scope",
-        "list",
-        "wikg://local/job",
-      ),
+      helpText: renderUriHelpText("job-collection-scope", "wikg://local/job"),
       kind: "help",
     });
+    expect(() => parseCLIArguments(["wikg://local/job", "list"])).toThrow(
+      "Do not use `list` as a command.",
+    );
+    expect(() => parseCLIArguments(["wikg://local/job/job-1", "get"])).toThrow(
+      "Do not use `get` as a command.",
+    );
 
     expect(() =>
       parseCLIArguments(["wikg://local/job/job-1", "watch", "--json"]),
     ).toThrow("does not support --json");
-    expect(() =>
-      parseCLIArguments(["wikg://local/job", "list", "--jsonl"]),
-    ).toThrow("does not support --jsonl");
+    expect(() => parseCLIArguments(["wikg://local/job", "--jsonl"])).toThrow(
+      "does not support --jsonl",
+    );
   });
 
   it("parses the transform command as direct digest", () => {
@@ -1833,7 +1829,7 @@ describe("cli/args", () => {
     );
     expect(rootHelpText).toContain("wikigraph help retrieval");
     expect(rootHelpText).toContain("wikigraph <uri> <predicate> --help");
-    expect(rootHelpText).toContain("Queue generation tasks call an LLM");
+    expect(rootHelpText).toContain("Generation jobs call an LLM");
     expect(renderHelpTopicText("runtime")).toContain("Runtime Behavior");
     expect(renderHelpTopicText("config")).toContain("Configuration");
     expect(renderHelpTopicText("command")).toContain(

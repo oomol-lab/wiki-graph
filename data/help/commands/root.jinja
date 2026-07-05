@@ -39,12 +39,12 @@ Archive commands:
   wikigraph <archive-uri> inspect
   wikigraph transform [--input <path>] [--output <path>] [--input-format <format>] [--output-format <format>] [--digest-dir <path>] [--llm <json>] [--prompt <text>] [--stage <stage>] [--verbose|-v]
 
-Generation queue:
+Generation jobs:
   wikigraph wikg://local/job add --input <chapter-uri> --task <reading-graph|reading-summary|knowledge-graph> --accept-cost [--boost] [--llm <json>] [--prompt <text>]
-  wikigraph wikg://local/job list [--all] [--active]
-  wikigraph wikg://local/job/<job-id> get [--json]
+  wikigraph wikg://local/job [--all] [--active]
+  wikigraph wikg://local/job/<job-id> [--json]
   wikigraph wikg://local/job/<job-id> watch [--jsonl] [--from beginning|now]
-  Queue generation tasks call an LLM, consume tokens, and may incur provider charges.
+  Generation jobs call an LLM, consume tokens, and may incur provider charges.
 
 Maintenance:
   wikigraph <archive-uri> [--json|--jsonl]
@@ -62,9 +62,12 @@ Maintenance:
   wikigraph <archive-uri>/chapter/tree
   wikigraph <archive-uri>/chapter/tree set [options]
   wikigraph gc [--force] [--dry-run] [--json]
-  wikigraph wikg://local/config/llm get|set|put|delete|clear|test
-  wikigraph wikg://local/config/concurrent get|set|put|delete|clear
-  wikigraph wikg://local/config/wikispine get|set|put|delete|clear|test
+  wikigraph wikg://local/config/llm
+  wikigraph wikg://local/config/llm set|put|delete|clear|test
+  wikigraph wikg://local/config/concurrent
+  wikigraph wikg://local/config/concurrent set|put|delete|clear
+  wikigraph wikg://local/config/wikispine
+  wikigraph wikg://local/config/wikispine set|put|delete|clear|test
   wikigraph help [topic] [--help|-h]
 
 Help contract:

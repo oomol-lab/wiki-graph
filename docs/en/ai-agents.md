@@ -59,7 +59,7 @@ Use the library API only when the surrounding system explicitly needs in-process
 - Creation sources: EPUB, Markdown, TXT, and text pipelines
 - Read objects: Wiki Graph URIs such as `wikg://chapter/1/source#0..3`, `wikg://chunk/42`, `wikg://entity/Q9957`, and `wikg://triple/...`
 - Cheap operations: chapter scopes, chapter state reads, scope queries, direct reads, `related`, `evidence`, `pack`, and `export`
-- Expensive operations: Reading Graph, Reading Summary, or Knowledge Graph `queue add`
+- Expensive operations: Reading Graph, Reading Summary, or Knowledge Graph `wikg://local/job add`
 - Inspect first: `wikigraph <archive-uri> inspect`
 - Retrieval strategy: use `wikigraph help retrieval` for scope, lens, pagination, and output format choices
 
@@ -75,15 +75,15 @@ Use the library API only when the surrounding system explicitly needs in-process
 8. Use `wikigraph <graph-object-uri> pack` when the user needs deterministic context around a known chunk or entity.
 9. Use `export` only when the user needs a projection.
 10. Use `<archive-uri>/chapter` when chapter readiness or build state is part of the task.
-11. Before `queue add`, run `inspect`; if the planning cost is too large for the session, ask the user.
+11. Before `wikg://local/job add`, run `inspect`; if the planning cost is too large for the session, ask the user.
 
-## Queue Workflow
+## Generation Job Workflow
 
 ```bash
 wikigraph wikg://book.wikg create ./book.epub
 wikigraph wikg://book.wikg/chapter
 wikigraph wikg://book.wikg inspect
-wikigraph wikg://book.wikg/chapter/3 queue add --task reading-graph --accept-cost
+wikigraph wikg://local/job add --input wikg://book.wikg/chapter/3 --task reading-graph --accept-cost
 wikigraph wikg://local/job/<job-id> watch --jsonl
 ```
 
@@ -93,7 +93,7 @@ Create/source is the safe first step. Reading Graph, Reading Summary, and Knowle
 
 - Do not unzip `.wikg` for routine retrieval.
 - Do not inspect `database.db` unless building external tooling or debugging internals.
-- Do not queue full-archive summary work just because a user asked a question about the archive.
+- Do not start full-archive summary work just because a user asked a question about the archive.
 - Do not present SpineDigest as a natural-language QA layer; the agent answers after reading archive context.
 
 ## Related Docs

@@ -7,7 +7,7 @@ Create an archive from Markdown:
   wikigraph wikg://book.wikg create ./book.md
   cat article.md | wikigraph wikg://article.wikg create --input-format markdown
 
-Queue derived data:
+Start derived-data jobs:
   wikigraph wikg://local/job add --input wikg://book.wikg/chapter/3 --task reading-graph --accept-cost
   wikigraph wikg://local/job add --input wikg://book.wikg/chapter/3 --task reading-summary --accept-cost
 

@@ -172,16 +172,16 @@ URI type:
   Local job collection scope
 
 Default behavior:
-  - `wikigraph {{ uri }}` is not a retrieval shortcut. Use a job predicate.
+  - `wikigraph {{ uri }}` lists local generation jobs.
 
 Use when:
-  - You need to add, list, or clean local generation jobs.
+  - You need to inspect, add, or clean local generation jobs.
 {% elif target.name == "job-object" %}
 URI type:
   Local job object
 
 Default behavior:
-  - `wikigraph {{ uri }}` is not a retrieval shortcut. Use a job predicate.
+  - `wikigraph {{ uri }}` reads local job status.
 
 Use when:
   - You need job status, progress, or lifecycle control.
@@ -199,7 +199,7 @@ URI type:
   Local config section
 
 Default behavior:
-  - `wikigraph {{ uri }}` reads the section, equivalent to `wikigraph {{ uri }} get`.
+  - `wikigraph {{ uri }}` reads the section.
 
 Use when:
   - You need to read, replace, edit, clear, or test local configuration.
@@ -213,7 +213,7 @@ Predicate commands:
 {% elif predicate == "build" %}
   - build: build a derived resource. Help: wikigraph {{ uri }} build --help
 {% elif predicate == "boost" %}
-  - boost: move a queued job forward. Help: wikigraph {{ uri }} boost --help
+  - boost: move a waiting job forward. Help: wikigraph {{ uri }} boost --help
 {% elif predicate == "cancel" %}
   - cancel: cancel a local job. Help: wikigraph {{ uri }} cancel --help
 {% elif predicate == "clean" %}
@@ -232,12 +232,8 @@ Predicate commands:
   - export: export an archive projection. Help: wikigraph {{ uri }} export --help
 {% elif predicate == "external" %}
   - external: keep index data as local cache. Help: wikigraph {{ uri }} external --help
-{% elif predicate == "get" %}
-  - get: read local job status or config data. Help: wikigraph {{ uri }} get --help
 {% elif predicate == "inspect" %}
   - inspect: inspect archive readiness. Help: wikigraph {{ uri }} inspect --help
-{% elif predicate == "list" %}
-  - list: list local jobs. Help: wikigraph {{ uri }} list --help
 {% elif predicate == "move" %}
   - move: move a chapter in the tree. Help: wikigraph {{ uri }} move --help
 {% elif predicate == "pack" %}

@@ -711,12 +711,7 @@ function parseArchiveUriFirstArguments(
   const helpTarget = classifyArchiveUriHelpTarget(uri);
 
   if (isRemovedImplicitArchiveAction(explicitAction)) {
-    throw new Error(
-      withHelpRoute(
-        `Do not use \`${explicitAction}\` as a command. Pass the URI directly, or add --query to a scope URI.`,
-        "wikigraph help uri",
-      ),
-    );
+    throw new Error(formatRemovedImplicitVerbMessage(explicitAction));
   }
 
   if (values.help === true && explicitAction === undefined) {
@@ -1989,14 +1984,18 @@ function parseJobUriFirstArguments(
 ): ParsedCLIArguments {
   const uri = positionals[0];
   const jobTargetUri = parseWikiGraphJobTargetUri(uri);
-  const action = positionals[1];
+  const explicitAction = positionals[1];
 
   if (uri === undefined) {
     throw new Error("Internal error: missing job URI.");
   }
 
+  if (isRemovedImplicitArchiveAction(explicitAction)) {
+    throw new Error(formatRemovedImplicitVerbMessage(explicitAction));
+  }
+
   if (values.help === true) {
-    if (action === undefined) {
+    if (explicitAction === undefined) {
       return {
         help: true,
         helpText: renderUriHelpText(
@@ -2016,14 +2015,23 @@ function parseJobUriFirstArguments(
         : jobTargetUri === undefined
           ? "job-object"
           : "job-target-object";
-    if (isUriHelpPredicate(targetName, action)) {
+    if (isUriHelpPredicate(targetName, explicitAction)) {
       return {
         help: true,
-        helpText: renderUriPredicateHelpText(targetName, action, uri),
+        helpText: renderUriPredicateHelpText(targetName, explicitAction, uri),
         kind: "help",
       };
     }
   }
+
+  const jobId = jobTargetUri ?? parseWikiGraphJobUri(uri);
+  const action =
+    explicitAction ??
+    (jobTargetUri !== undefined
+      ? undefined
+      : jobId === undefined
+        ? "list"
+        : "get");
 
   if (!isJobUriAction(action)) {
     throw new Error(
@@ -2036,8 +2044,11 @@ function parseJobUriFirstArguments(
     );
   }
 
-  const jobId = jobTargetUri ?? parseWikiGraphJobUri(uri);
-  const helpRoute = `wikigraph ${uri} ${action} --help`;
+  const helpRoute =
+    explicitAction === undefined
+      ? `wikigraph ${uri} --help`
+      : `wikigraph ${uri} ${action} --help`;
+  const tail = explicitAction === undefined ? [] : positionals.slice(2);
 
   if (jobTargetUri !== undefined) {
     if (action !== "set") {
@@ -2050,7 +2061,7 @@ function parseJobUriFirstArguments(
     }
     return parseQueueJobTargetUriArguments(
       jobTargetUri,
-      positionals.slice(2),
+      tail,
       values,
       helpRoute,
     );
@@ -2063,7 +2074,7 @@ function parseJobUriFirstArguments(
           withHelpRoute("Job add requires `wikg://local/job`.", helpRoute),
         );
       }
-      return parseQueueAddArguments(positionals.slice(2), values, helpRoute);
+      return parseQueueAddArguments(tail, values, helpRoute);
     case "clean":
       if (jobId !== undefined) {
         throw new Error(
@@ -2072,12 +2083,7 @@ function parseJobUriFirstArguments(
       }
       rejectQueueJSONFlag("clean", values.json, helpRoute);
       rejectQueueJSONLFlag("clean", values.jsonl, helpRoute);
-      rejectQueueExtraPositionals(
-        "clean",
-        ["clean", ...positionals.slice(2)],
-        1,
-        helpRoute,
-      );
+      rejectQueueExtraPositionals("clean", ["clean", ...tail], 1, helpRoute);
       return {
         args: {
           action: "clean",
@@ -2092,12 +2098,7 @@ function parseJobUriFirstArguments(
         );
       }
       rejectQueueJSONLFlag("list", values.jsonl, helpRoute);
-      rejectQueueExtraPositionals(
-        "list",
-        ["list", ...positionals.slice(2)],
-        1,
-        helpRoute,
-      );
+      rejectQueueExtraPositionals("list", ["list", ...tail], 1, helpRoute);
       return {
         args: {
           action: "list",
@@ -2112,25 +2113,13 @@ function parseJobUriFirstArguments(
         kind: "queue",
       };
     case "get":
-      return parseQueueJobArguments(
-        "status",
-        jobId,
-        positionals.slice(2),
-        values,
-        helpRoute,
-      );
+      return parseQueueJobArguments("status", jobId, tail, values, helpRoute);
     case "watch":
     case "pause":
     case "resume":
     case "cancel":
     case "boost":
-      return parseQueueJobArguments(
-        action,
-        jobId,
-        positionals.slice(2),
-        values,
-        helpRoute,
-      );
+      return parseQueueJobArguments(action, jobId, tail, values, helpRoute);
     case "set":
       throw new Error(
         withHelpRoute(
@@ -2154,8 +2143,17 @@ function parseLocalConfigUriFirstArguments(
   }
 
   const section = parseLocalConfigUriSection(uri);
-  const action = positionals[1] ?? "get";
-  const helpRoute = `wikigraph ${uri} ${action} --help`;
+  const explicitAction = positionals[1];
+
+  if (isRemovedImplicitArchiveAction(explicitAction)) {
+    throw new Error(formatRemovedImplicitVerbMessage(explicitAction));
+  }
+
+  const action = explicitAction ?? "get";
+  const helpRoute =
+    explicitAction === undefined
+      ? `wikigraph ${uri} --help`
+      : `wikigraph ${uri} ${action} --help`;
 
   if (section === undefined) {
     throw new Error(
@@ -2165,14 +2163,14 @@ function parseLocalConfigUriFirstArguments(
       ),
     );
   }
-  if (values.help === true && positionals[1] === undefined) {
+  if (values.help === true && explicitAction === undefined) {
     return {
       help: true,
       helpText: renderUriHelpText("local-config-section", uri),
       kind: "help",
     };
   }
-  if (values.help === true && positionals[1] !== undefined) {
+  if (values.help === true && explicitAction !== undefined) {
     if (!isUriHelpPredicate("local-config-section", action)) {
       throw new Error(
         withHelpRoute(
@@ -2190,7 +2188,7 @@ function parseLocalConfigUriFirstArguments(
   if (!isLocalConfigAction(action)) {
     throw new Error(
       withHelpRoute(
-        `The local config URI form does not support \`${action}\`. Expected get, set, put, delete, clear, or test.`,
+        `The local config URI form does not support \`${action}\`. Pass the URI directly to read it, or use set, put, delete, clear, or test.`,
         helpRoute,
       ),
     );
@@ -2199,7 +2197,7 @@ function parseLocalConfigUriFirstArguments(
   return parseLocalConfigArguments(
     section,
     action,
-    positionals[1] === undefined ? [] : positionals.slice(2),
+    explicitAction === undefined ? [] : positionals.slice(2),
     values,
     helpRoute,
   );
@@ -4537,6 +4535,15 @@ function isRemovedImplicitArchiveAction(
   value: string | undefined,
 ): value is "get" | "list" | "search" {
   return value === "get" || value === "list" || value === "search";
+}
+
+function formatRemovedImplicitVerbMessage(
+  action: "get" | "list" | "search",
+): string {
+  return withHelpRoute(
+    `Do not use \`${action}\` as a command. Pass the URI directly, or add --query to a scope URI.`,
+    "wikigraph help uri",
+  );
 }
 
 function isArchiveUriAction(

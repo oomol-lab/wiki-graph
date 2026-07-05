@@ -66,7 +66,7 @@ Notes:
   - Projections are portable views; they do not replace the `.wikg` archive.
 {% elif predicate == "inspect" %}
 Purpose:
-  Inspect archive readiness before search, retrieval, or queueing generated work.
+  Inspect archive readiness before search, retrieval, or starting generated work.
 
 Usage:
   wikigraph {{ uri }} inspect
@@ -156,18 +156,6 @@ Purpose:
 
 Usage:
   wikigraph {{ uri }} external
-{% elif predicate == "get" %}
-Purpose:
-  Read local job status or local config data.
-
-Usage:
-  wikigraph {{ uri }} get [--json]
-{% elif predicate == "list" %}
-Purpose:
-  List local generation jobs.
-
-Usage:
-  wikigraph {{ uri }} list [--all] [--active] [--input <archive-uri>] [--json]
 {% elif predicate == "clean" %}
 Purpose:
   Remove completed local generation jobs.
@@ -200,7 +188,7 @@ Usage:
   wikigraph {{ uri }} cancel
 {% elif predicate == "boost" %}
 Purpose:
-  Move this local job forward in the queue.
+  Move this local job forward in the local job scheduler.
 
 Usage:
   wikigraph {{ uri }} boost

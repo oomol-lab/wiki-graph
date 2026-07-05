@@ -27,8 +27,9 @@ Archive commands:
 
 Generation:
   wikigraph wikg://local/job add --input <chapter-uri> --task <reading-graph|reading-summary|knowledge-graph> --accept-cost
-  wikigraph wikg://local/job list
-  wikigraph wikg://local/job/<job-id> get|watch|pause|resume|cancel|boost
+  wikigraph wikg://local/job
+  wikigraph wikg://local/job/<job-id>
+  wikigraph wikg://local/job/<job-id> watch|pause|resume|cancel|boost
   wikigraph wikg://local/job/<job-id>/target set
 
 Maintenance:
@@ -43,6 +44,9 @@ Maintenance:
   wikigraph <chapter-uri>/title set
   wikigraph <archive-uri>/chapter/tree
   wikigraph <archive-uri>/chapter/tree set
-  wikigraph wikg://local/config/llm get|put|set|delete|clear|test
-  wikigraph wikg://local/config/concurrent get|put|set|delete|clear
-  wikigraph wikg://local/config/wikispine get|put|set|delete|clear|test
+  wikigraph wikg://local/config/llm
+  wikigraph wikg://local/config/llm put|set|delete|clear|test
+  wikigraph wikg://local/config/concurrent
+  wikigraph wikg://local/config/concurrent put|set|delete|clear
+  wikigraph wikg://local/config/wikispine
+  wikigraph wikg://local/config/wikispine put|set|delete|clear|test

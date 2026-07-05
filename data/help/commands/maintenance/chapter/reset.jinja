@@ -19,7 +19,7 @@ Behavior:
   - Reset is destructive and may discard work.
   - Does not call an LLM provider.
   - After resetting to `source` or `reading-graph`, use `wikigraph wikg://local/job add --input <chapter-uri> --task <reading-graph|reading-summary|knowledge-graph> --accept-cost` to generate again.
-  - After resetting to `planned`, restore source text before queueing generated tasks.
+  - After resetting to `planned`, restore source text before starting generated tasks.
 
 See also:
   - wikigraph wikg://local/job --help

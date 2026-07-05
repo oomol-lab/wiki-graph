@@ -23,14 +23,15 @@ wikigraph <entity-uri> related [query] [--all] [--limit <n>] [--context <n>] [--
 wikigraph <entity-uri|triple-uri|summary-uri|chunk-uri> evidence [query] [--all] [--limit <n>] [--context <n>] [--cursor <token>] [--json|--jsonl]
 wikigraph <located-chunk-uri|located-entity-uri> pack [--budget <chars>] [--json|--jsonl]
 wikigraph <archive-uri> export --output-format <format> [--output <path>]
-wikigraph <archive-uri>/index get|build|embed|external|clear [--json]
-wikigraph <chapter-uri> queue add --task reading-graph|reading-summary|knowledge-graph --accept-cost [--boost] [--llm <json>] [--prompt <text>]
-wikigraph wikg://local/job list [--all] [--active] [--input <archive-uri>] [--json]
-wikigraph wikg://local/job/<job-id> get [--json]
+wikigraph <archive-uri>/index
+wikigraph <archive-uri>/index build|embed|external|clear [--json]
+wikigraph wikg://local/job add --input <chapter-uri> --task reading-graph|reading-summary|knowledge-graph --accept-cost [--boost] [--llm <json>] [--prompt <text>]
+wikigraph wikg://local/job [--all] [--active] [--input <archive-uri>] [--json]
+wikigraph wikg://local/job/<job-id> [--json]
 wikigraph wikg://local/job/<job-id> watch [--jsonl] [--from beginning|now]
 wikigraph wikg://local/job/<job-id> pause|resume|cancel|boost
 wikigraph wikg://local/job/<job-id>/target set reading-graph|reading-summary|knowledge-graph
-wikigraph queue clean
+wikigraph wikg://local/job clean
 ```
 
 Exploration modes:
@@ -66,12 +67,12 @@ User-facing stages:
 - `reading-summary`: readable chapter summaries
 - `knowledge-graph`: grounded entity mentions and source-backed relations
 
-`source` is cheap. Reading Graph, Reading Summary, and Knowledge Graph queue tasks may call an LLM provider. Run `inspect` first, then use `queue add` for the chapter ids you want to generate.
+`source` is cheap. Reading Graph, Reading Summary, and Knowledge Graph jobs may call an LLM provider. Run `inspect` first, then use `wikg://local/job add` for the chapter ids you want to generate.
 
-Queue behavior:
+Generation job behavior:
 
-- `queue add` requires `--accept-cost`.
-- `wikg://local/job list --json` prints a machine-readable snapshot.
+- `wikg://local/job add` requires `--accept-cost`.
+- `wikg://local/job --json` prints a machine-readable snapshot.
 - `wikg://local/job/<job-id> watch --jsonl` prints durable progress events and is the recommended agent-facing stream.
 
 ## Formats

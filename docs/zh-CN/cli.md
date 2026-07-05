@@ -23,14 +23,15 @@ wikigraph <entity-uri> related [query] [--all] [--limit <n>] [--context <n>] [--
 wikigraph <entity-uri|triple-uri|summary-uri|chunk-uri> evidence [query] [--all] [--limit <n>] [--context <n>] [--cursor <token>] [--json|--jsonl]
 wikigraph <located-chunk-uri|located-entity-uri> pack [--budget <chars>] [--json|--jsonl]
 wikigraph <archive-uri> export --output-format <format> [--output <path>]
-wikigraph <archive-uri>/index get|build|embed|external|clear [--json]
-wikigraph <chapter-uri> queue add --task reading-graph|reading-summary|knowledge-graph --accept-cost [--boost] [--llm <json>] [--prompt <text>]
-wikigraph wikg://local/job list [--all] [--active] [--input <archive-uri>] [--json]
-wikigraph wikg://local/job/<job-id> get [--json]
+wikigraph <archive-uri>/index
+wikigraph <archive-uri>/index build|embed|external|clear [--json]
+wikigraph wikg://local/job add --input <chapter-uri> --task reading-graph|reading-summary|knowledge-graph --accept-cost [--boost] [--llm <json>] [--prompt <text>]
+wikigraph wikg://local/job [--all] [--active] [--input <archive-uri>] [--json]
+wikigraph wikg://local/job/<job-id> [--json]
 wikigraph wikg://local/job/<job-id> watch [--jsonl] [--from beginning|now]
 wikigraph wikg://local/job/<job-id> pause|resume|cancel|boost
 wikigraph wikg://local/job/<job-id>/target set reading-graph|reading-summary|knowledge-graph
-wikigraph queue clean
+wikigraph wikg://local/job clean
 ```
 
 探索模式：
@@ -66,12 +67,12 @@ wikigraph queue clean
 - `reading-summary`：可读的章节 summary
 - `knowledge-graph`：grounded entity mention 和 source-backed relation
 
-`source` 便宜。Reading Graph、Reading Summary 和 Knowledge Graph queue task 可能调用 LLM provider。先运行 `inspect`，再用 `queue add` 为需要生成的 chapter id 排队。
+`source` 便宜。Reading Graph、Reading Summary 和 Knowledge Graph job 可能调用 LLM provider。先运行 `inspect`，再用 `wikg://local/job add` 为需要生成的 chapter id 启动生成。
 
-Queue 行为：
+Generation job 行为：
 
-- `queue add` 要求 `--accept-cost`。
-- `wikg://local/job list --json` 输出机器可读快照。
+- `wikg://local/job add` 要求 `--accept-cost`。
+- `wikg://local/job --json` 输出机器可读快照。
 - `wikg://local/job/<job-id> watch --jsonl` 输出持久化进度事件，是推荐的 Agent-facing 事件流。
 
 ## 格式

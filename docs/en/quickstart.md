@@ -45,20 +45,20 @@ wikigraph wikg://book.wikg/chapter/tree
 wikigraph wikg://book.wikg inspect
 ```
 
-Use inspect before queueing broad Reading Graph, Reading Summary, or Knowledge Graph work.
+Use inspect before starting broad Reading Graph, Reading Summary, or Knowledge Graph work.
 
 ## 5. Build Knowledge
 
 ```bash
-wikigraph wikg://book.wikg/chapter/3 queue add --task reading-graph --accept-cost
+wikigraph wikg://local/job add --input wikg://book.wikg/chapter/3 --task reading-graph --accept-cost
 wikigraph wikg://local/job/<job-id> watch --jsonl
 ```
 
 For Reading Summary work:
 
 ```bash
-wikigraph wikg://book.wikg/chapter/3 queue add --task reading-summary --accept-cost
-wikigraph wikg://local/job list --input wikg://book.wikg
+wikigraph wikg://local/job add --input wikg://book.wikg/chapter/3 --task reading-summary --accept-cost
+wikigraph wikg://local/job --input wikg://book.wikg
 ```
 
 ## 6. Search, Browse, And Read
