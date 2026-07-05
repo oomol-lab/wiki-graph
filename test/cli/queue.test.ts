@@ -19,6 +19,12 @@ const queueMockState = vi.hoisted(() => ({
       readonly job?: number;
       readonly request?: number;
     };
+    readonly wikispine?: {
+      readonly command?: string;
+      readonly dataDir?: string;
+      readonly endpoint?: string;
+      readonly provider?: "cli" | "fetch";
+    };
   },
   loadRequiredStageConfigCalls: [] as unknown[],
   loadRequiredStageConfigError: undefined as Error | undefined,
@@ -261,6 +267,7 @@ vi.mock("../../src/cli/stage-runtime.js", () => ({
     }
 
     return Promise.resolve({
+      ...queueMockState.cliConfig,
       prompt: "Keep key beats",
     });
   }),
@@ -426,6 +433,21 @@ describe("cli/queue", () => {
         llmJSON: '{"model":"inline-model"}',
       },
     ]);
+    expect(queueMockState.addCalls).toStrictEqual([]);
+    expect(queueMockState.textWrites).toStrictEqual([]);
+  });
+
+  it("rejects knowledge graph job add when wikispine is not configured", async () => {
+    await expect(
+      runQueueCommand({
+        acceptCost: true,
+        action: "add",
+        archivePath: "book.wikg",
+        chapterId: 12,
+        target: "knowledge-graph",
+      }),
+    ).rejects.toThrow("Knowledge Graph requires WikiSpine.");
+
     expect(queueMockState.addCalls).toStrictEqual([]);
     expect(queueMockState.textWrites).toStrictEqual([]);
   });
@@ -622,6 +644,12 @@ describe("cli/queue", () => {
   });
 
   it("runs knowledge graph work without reading graph or summary builds", async () => {
+    queueMockState.cliConfig = {
+      wikispine: {
+        endpoint: "https://wikispine.example",
+        provider: "fetch",
+      },
+    };
     queueMockState.job = {
       ...queueMockState.job,
       state: "running",
@@ -660,6 +688,10 @@ describe("cli/queue", () => {
     expect(queueMockState.buildKnowledgeGraphCalls[0]).toMatchObject({
       policyPrompt: "Keep key beats",
       progressTracker: reporter,
+      wikispine: {
+        endpoint: "https://wikispine.example",
+        provider: "fetch",
+      },
       workspacePath: "/tmp/job-workspace",
     });
     expect(queueMockState.commitKnowledgeGraphCalls).toStrictEqual([
@@ -717,6 +749,33 @@ describe("cli/queue", () => {
       '{"at":1,"seq":1,"jobId":"job-1","type":"created","state":"queued"}\n',
       '{"at":2,"seq":2,"jobId":"job-1","type":"succeeded","state":"succeeded"}\n',
     ]);
+  });
+
+  it("rejects knowledge graph work when wikispine is not configured", async () => {
+    queueMockState.job = {
+      ...queueMockState.job,
+      state: "running",
+      target: "knowledge-graph",
+    };
+
+    await runQueueCommand({
+      action: "worker",
+    });
+
+    const reporter = {
+      addOutputCharacters: vi.fn(() => Promise.resolve()),
+      setTotals: vi.fn(() => Promise.resolve()),
+      stepCompleted: vi.fn(() => Promise.resolve()),
+      stepStarted: vi.fn(() => Promise.resolve()),
+      updatePhase: vi.fn(() => Promise.resolve()),
+      updateWords: vi.fn(() => Promise.resolve()),
+    };
+
+    await expect(
+      queueMockState.runWorkerOptions!.executeJob(queueMockState.job, reporter),
+    ).rejects.toThrow("Knowledge Graph requires WikiSpine.");
+    expect(queueMockState.buildKnowledgeGraphCalls).toStrictEqual([]);
+    expect(queueMockState.writeCalls).toStrictEqual([]);
   });
 
   it("resolves short job ids before watching", async () => {

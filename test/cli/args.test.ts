@@ -181,6 +181,23 @@ describe("cli/args", () => {
       help: false,
       kind: "local-config",
     });
+    expect(
+      parseCLIArguments([
+        "wikg://local/config/wikispine",
+        "put",
+        "provider",
+        "fetch",
+      ]),
+    ).toStrictEqual({
+      args: {
+        action: "put",
+        inputValue: "fetch",
+        key: "provider",
+        section: "wikispine",
+      },
+      help: false,
+      kind: "local-config",
+    });
     expect(() => parseCLIArguments(["wikg://local/config", "get"])).toThrow(
       "Expected a local config section URI",
     );

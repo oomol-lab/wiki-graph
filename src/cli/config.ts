@@ -47,6 +47,12 @@ export interface CLIConfig {
     readonly job?: number;
     readonly request?: number;
   };
+  readonly wikispine?: {
+    readonly command?: string;
+    readonly dataDir?: string;
+    readonly endpoint?: string;
+    readonly provider?: "cli" | "fetch";
+  };
 }
 
 type InlineLLMConfig = NonNullable<CLIConfig["llm"]>;
@@ -54,9 +60,10 @@ type InlineLLMConfig = NonNullable<CLIConfig["llm"]>;
 export async function loadCLIConfig(options?: {
   readonly llmJSON?: string;
 }): Promise<CLIConfig> {
-  const [localLLM, concurrent] = await Promise.all([
+  const [localLLM, concurrent, wikispine] = await Promise.all([
     readLocalConfigSection("llm"),
     readLocalConfigSection("concurrent"),
+    readLocalConfigSection("wikispine"),
   ]);
   const inlineLLMConfig =
     options?.llmJSON === undefined
@@ -77,6 +84,7 @@ export async function loadCLIConfig(options?: {
   });
   const requestConcurrent = readPositiveInteger(concurrent.request);
   const jobConcurrent = readPositiveInteger(concurrent.job);
+  const wikispineConfig = createWikispineConfig(wikispine);
 
   return {
     ...(jobConcurrent === undefined && requestConcurrent === undefined
@@ -90,6 +98,7 @@ export async function loadCLIConfig(options?: {
           },
         }),
     ...(llm === undefined ? {} : { llm }),
+    ...(wikispineConfig === undefined ? {} : { wikispine: wikispineConfig }),
   };
 }
 
@@ -244,6 +253,35 @@ function readProvider(value: unknown): CLIProvider | undefined {
   const parsed = cliProviderSchema.safeParse(value);
 
   return parsed.success ? parsed.data : undefined;
+}
+
+function createWikispineConfig(
+  value: Record<string, unknown>,
+): CLIConfig["wikispine"] | undefined {
+  const provider = readWikispineProvider(value.provider);
+  const command = readString(value.command);
+  const dataDir = readString(value.dataDir);
+  const endpoint = readString(value.endpoint);
+
+  if (
+    command === undefined &&
+    dataDir === undefined &&
+    endpoint === undefined &&
+    provider === undefined
+  ) {
+    return undefined;
+  }
+
+  return {
+    ...(command === undefined ? {} : { command }),
+    ...(dataDir === undefined ? {} : { dataDir }),
+    ...(endpoint === undefined ? {} : { endpoint }),
+    ...(provider === undefined ? {} : { provider }),
+  };
+}
+
+function readWikispineProvider(value: unknown): "cli" | "fetch" | undefined {
+  return value === "cli" || value === "fetch" ? value : undefined;
 }
 
 function readString(value: unknown): string | undefined {

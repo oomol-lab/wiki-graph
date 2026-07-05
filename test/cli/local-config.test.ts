@@ -14,6 +14,11 @@ describe("cli/local-config", () => {
     expect(normalizeLocalConfigKey("llm", "model")).toBe("model");
   });
 
+  it("normalizes wikispine kebab-case keys", () => {
+    expect(normalizeLocalConfigKey("wikispine", "data-dir")).toBe("dataDir");
+    expect(normalizeLocalConfigKey("wikispine", "endpoint")).toBe("endpoint");
+  });
+
   it("validates concurrent values as positive integers", () => {
     expect(
       validateLocalConfigSection("concurrent", {
@@ -60,6 +65,35 @@ describe("cli/local-config", () => {
         provider: "unknown",
       }),
     ).toThrow("Unknown llm.provider: unknown");
+  });
+
+  it("validates wikispine provider values at write time", () => {
+    expect(
+      validateLocalConfigSection("wikispine", {
+        endpoint: "https://wikispine.example",
+        provider: "fetch",
+      }),
+    ).toStrictEqual({
+      endpoint: "https://wikispine.example",
+      provider: "fetch",
+    });
+    expect(
+      validateLocalConfigSection("wikispine", {
+        command: "wikispine",
+        dataDir: "/runtime",
+        provider: "cli",
+      }),
+    ).toStrictEqual({
+      command: "wikispine",
+      dataDir: "/runtime",
+      provider: "cli",
+    });
+    expect(() =>
+      validateLocalConfigSection("wikispine", { provider: "unknown" }),
+    ).toThrow("Unknown wikispine.provider: unknown");
+    expect(() =>
+      validateLocalConfigSection("wikispine", { endpoint: "not a url" }),
+    ).toThrow("wikispine.endpoint must be a valid URL.");
   });
 
   it("preserves masked apiKey during llm set --json", () => {

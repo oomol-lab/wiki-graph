@@ -4,11 +4,12 @@ const configMockState = vi.hoisted(() => ({
   sections: {
     concurrent: {} as Record<string, unknown>,
     llm: {} as Record<string, unknown>,
+    wikispine: {} as Record<string, unknown>,
   },
 }));
 
 vi.mock("../../src/cli/local-config-store.js", () => ({
-  readLocalConfigSection: vi.fn((section: "concurrent" | "llm") =>
+  readLocalConfigSection: vi.fn((section: "concurrent" | "llm" | "wikispine") =>
     Promise.resolve(configMockState.sections[section]),
   ),
 }));
@@ -20,10 +21,11 @@ describe("cli/config", () => {
     configMockState.sections = {
       concurrent: {},
       llm: {},
+      wikispine: {},
     };
   });
 
-  it("loads llm and concurrent settings from local config sections", async () => {
+  it("loads llm, concurrent, and wikispine settings from local config sections", async () => {
     configMockState.sections = {
       concurrent: {
         job: 3,
@@ -34,6 +36,10 @@ describe("cli/config", () => {
         baseURL: "https://local.example/v1",
         model: "local-model",
         provider: "openai-compatible",
+      },
+      wikispine: {
+        endpoint: "https://wikispine.example",
+        provider: "fetch",
       },
     };
 
@@ -48,6 +54,10 @@ describe("cli/config", () => {
         job: 3,
         request: 6,
       },
+      wikispine: {
+        endpoint: "https://wikispine.example",
+        provider: "fetch",
+      },
     });
   });
 
@@ -60,6 +70,7 @@ describe("cli/config", () => {
         model: "local-model",
         provider: "openai-compatible",
       },
+      wikispine: {},
     };
 
     await expect(

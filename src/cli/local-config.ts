@@ -5,6 +5,10 @@ import { generateText } from "ai";
 
 import type { CLILocalConfigArguments } from "./args.js";
 import type { CLIProvider } from "./config.js";
+import {
+  testWikispineRuntime,
+  type WikispineProvider,
+} from "../wikimatch/index.js";
 import { buildLLMOptions } from "./llm.js";
 import { writeTextToStderr, writeTextToStdout } from "./io.js";
 import { formatCLIJSON } from "./json.js";
@@ -67,8 +71,23 @@ export async function runLocalConfigCommand(
       );
       return;
     case "test":
+      await runConfigTest(args);
+      return;
+  }
+}
+
+async function runConfigTest(args: CLILocalConfigArguments): Promise<void> {
+  switch (args.section) {
+    case "llm":
       await runLLMConfigTest(args);
       return;
+    case "wikispine":
+      await runWikispineConfigTest(args);
+      return;
+    default:
+      throw new Error(
+        "Only wikg://local/config/llm and wikg://local/config/wikispine support test.",
+      );
   }
 }
 
@@ -135,6 +154,79 @@ async function runLLMConfigTest(args: CLILocalConfigArguments): Promise<void> {
       model: typeof llm.model === "string" ? llm.model : undefined,
       ok: false,
       provider: typeof llm.provider === "string" ? llm.provider : undefined,
+    };
+
+    if (args.json === true) {
+      await writeTextToStdout(formatCLIJSON(output));
+      process.exitCode = 1;
+      return;
+    }
+
+    throw error;
+  }
+}
+
+async function runWikispineConfigTest(
+  args: CLILocalConfigArguments,
+): Promise<void> {
+  const startedAt = Date.now();
+  const wikispine = await readLocalConfigSection("wikispine");
+
+  try {
+    const provider = parseWikispineProvider(wikispine.provider);
+    const result = await testWikispineRuntime({
+      ...(typeof wikispine.command === "string"
+        ? { command: wikispine.command }
+        : {}),
+      ...(typeof wikispine.dataDir === "string"
+        ? { dataDir: wikispine.dataDir }
+        : {}),
+      ...(typeof wikispine.endpoint === "string"
+        ? { endpoint: wikispine.endpoint }
+        : {}),
+      provider,
+    });
+    const output = {
+      durationMs: result.durationMs,
+      ...(typeof wikispine.endpoint === "string"
+        ? { endpoint: wikispine.endpoint }
+        : {}),
+      ...(result.metadata === undefined ? {} : { metadata: result.metadata }),
+      ok: true,
+      provider,
+    };
+
+    if (args.json === true) {
+      await writeTextToStdout(formatCLIJSON(output));
+      return;
+    }
+
+    await writeTextToStdout(
+      [
+        "WikiSpine connection ok.",
+        `Provider: ${output.provider}`,
+        ...(output.endpoint === undefined
+          ? []
+          : [`Endpoint: ${output.endpoint}`]),
+        ...(output.metadata === undefined
+          ? []
+          : [
+              `Runtime: ${output.metadata.format}`,
+              `Surfaces: ${output.metadata.surface_count}`,
+              `QIDs: ${output.metadata.qid_count}`,
+            ]),
+        "",
+      ].join("\n"),
+    );
+  } catch (error) {
+    const output = {
+      durationMs: Date.now() - startedAt,
+      error: {
+        message: error instanceof Error ? error.message : String(error),
+      },
+      ok: false,
+      provider:
+        typeof wikispine.provider === "string" ? wikispine.provider : undefined,
     };
 
     if (args.json === true) {
@@ -243,6 +335,18 @@ function parseLLMProvider(value: string): CLIProvider {
     default:
       throw new Error(
         `Invalid llm.provider: ${value}. Expected anthropic, google, openai, or openai-compatible.`,
+      );
+  }
+}
+
+function parseWikispineProvider(value: unknown): WikispineProvider {
+  switch (value) {
+    case "cli":
+    case "fetch":
+      return value;
+    default:
+      throw new Error(
+        "Missing wikispine.provider. Configure `wikg://local/config/wikispine` with provider `cli` or `fetch`.",
       );
   }
 }

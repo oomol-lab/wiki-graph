@@ -34,6 +34,10 @@ export { suppressContainedRanges } from "./range-suppression.js";
 export {
   matchWikispineSentenceCandidates,
   type MatchWikispineSentenceCandidatesOptions,
+  testWikispineRuntime,
+  type TestWikispineRuntimeOptions,
+  type WikispineProvider,
+  type WikispineRuntimeTestResult,
 } from "./wikispine.js";
 export { buildWikimatchWindows } from "./window.js";
 export { expandRangeByWords, listWordBoundaries } from "./words.js";

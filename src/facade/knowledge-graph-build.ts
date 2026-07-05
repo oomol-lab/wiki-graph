@@ -30,6 +30,7 @@ import {
   type WikimatchAcceptedMention,
   type WikimatchCandidate,
   type WikimatchSentence,
+  type MatchWikispineSentenceCandidatesOptions,
 } from "../wikimatch/index.js";
 import type { WikipageResolverOptions } from "../wikipage/index.js";
 import {
@@ -73,6 +74,10 @@ export interface GenerateChapterKnowledgeGraphArtifactOptions {
   >;
   readonly request: GuaranteedRequestController;
   readonly resolverOptions?: Omit<WikipageResolverOptions, "progress">;
+  readonly wikispine?: Pick<
+    MatchWikispineSentenceCandidatesOptions,
+    "command" | "dataDir" | "endpoint" | "provider"
+  >;
   readonly workspacePath: string;
 }
 
@@ -134,6 +139,7 @@ export async function generateChapterKnowledgeGraphArtifact(
   });
   const rawCandidates = await matchWikispineSentenceCandidates({
     includeDisambiguation: true,
+    ...(options.wikispine ?? {}),
     sentences,
   });
   await options.progressTracker?.throwIfStopped();

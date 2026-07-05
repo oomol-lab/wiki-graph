@@ -22,6 +22,7 @@ Task choices:
 
 Merge rules:
   - Source is required first; wikg://local/job add does not create or import source text.
+  - knowledge-graph requires `wikg://local/config/wikispine`; run `wikigraph wikg://local/config/wikispine test` before queueing.
   - Archive input skips planned chapters.
   - reading-graph and reading-summary share one Reading Graph lane job per chapter.
   - Adding reading-summary upgrades an active reading-graph job for the same chapter.

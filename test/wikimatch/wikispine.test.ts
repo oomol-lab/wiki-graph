@@ -66,4 +66,87 @@ describe("wikimatch/wikispine", () => {
       },
     ]);
   });
+
+  it("matches through the fetch provider", async () => {
+    const requests: Array<{ readonly body: unknown; readonly url: string }> =
+      [];
+    const fetchMock: typeof fetch = (input, init) => {
+      requests.push({
+        body:
+          typeof init?.body === "string" ? JSON.parse(init.body) : init?.body,
+        url:
+          typeof input === "string"
+            ? input
+            : input instanceof URL
+              ? input.toString()
+              : input.url,
+      });
+
+      return Promise.resolve(
+        new Response(
+          [
+            JSON.stringify({
+              match: {
+                end: 4,
+                qids: [{ disambiguation: false, qid: "Q16952" }],
+                start: 0,
+                surface_id: 1,
+              },
+              type: "match",
+            }),
+            JSON.stringify({ stats: { matches: 1 }, type: "done" }),
+          ].join("\n"),
+          {
+            headers: {
+              "content-type": "application/x-ndjson",
+            },
+            status: 200,
+          },
+        ),
+      );
+    };
+
+    await expect(
+      matchWikispineSentenceCandidates({
+        endpoint: "https://wikispine.example/",
+        fetch: fetchMock,
+        includeDisambiguation: false,
+        maxCandidatesPerSurface: 1,
+        provider: "fetch",
+        sentences: [
+          {
+            range: { end: 9, start: 5 },
+            text: "北京大学",
+          },
+        ],
+      }),
+    ).resolves.toStrictEqual([
+      {
+        id: "c1",
+        qidOptions: [
+          {
+            isDisambiguation: false,
+            qid: "Q16952",
+          },
+        ],
+        range: {
+          end: 9,
+          start: 5,
+        },
+        surface: "北京大学",
+      },
+    ]);
+    expect(requests).toStrictEqual([
+      {
+        body: {
+          options: {
+            include_disambiguation: false,
+            max_candidates_per_surface: 1,
+          },
+          text: "北京大学",
+        },
+        url: "https://wikispine.example/match",
+      },
+    ]);
+  });
 });

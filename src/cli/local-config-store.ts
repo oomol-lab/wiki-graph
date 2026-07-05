@@ -2,7 +2,11 @@ import { resolveWikiGraphCoreDatabasePath } from "../common/wiki-graph-dir.js";
 import { openSharedStateDatabase } from "../document/index.js";
 import type { Database } from "../document/index.js";
 
-export const LOCAL_CONFIG_SECTIONS = ["concurrent", "llm"] as const;
+export const LOCAL_CONFIG_SECTIONS = [
+  "concurrent",
+  "llm",
+  "wikispine",
+] as const;
 
 export type LocalConfigSection = (typeof LOCAL_CONFIG_SECTIONS)[number];
 
@@ -114,6 +118,14 @@ export function normalizeLocalConfigKey(
         return normalized;
     }
   }
+  if (section === "wikispine") {
+    switch (normalized) {
+      case "data-dir":
+        return "dataDir";
+      default:
+        return normalized;
+    }
+  }
 
   return normalized;
 }
@@ -127,6 +139,8 @@ export function validateLocalConfigSection(
       return validateLLMConfig(value);
     case "concurrent":
       return validateConcurrentConfig(value);
+    case "wikispine":
+      return validateWikispineConfig(value);
   }
 }
 
@@ -252,6 +266,37 @@ function validateConcurrentConfig(value: LocalConfigObject): LocalConfigObject {
       throw new Error(`concurrent.${key} must be a positive integer.`);
     }
     next[key] = parsed;
+  }
+
+  return next;
+}
+
+function validateWikispineConfig(value: LocalConfigObject): LocalConfigObject {
+  const allowedKeys = new Set(["command", "dataDir", "endpoint", "provider"]);
+  const allowedProviders = new Set(["cli", "fetch"]);
+  const next: Record<string, unknown> = {};
+
+  for (const [key, entry] of Object.entries(value)) {
+    if (!allowedKeys.has(key)) {
+      throw new Error(`Unknown wikispine config key: ${key}`);
+    }
+    if (typeof entry !== "string" || entry.trim() === "") {
+      throw new Error(`wikispine.${key} must be a non-empty string.`);
+    }
+    const normalized = entry.trim();
+
+    if (key === "provider" && !allowedProviders.has(normalized)) {
+      throw new Error(`Unknown wikispine.provider: ${normalized}`);
+    }
+    if (key === "endpoint") {
+      try {
+        new URL(normalized);
+      } catch {
+        throw new Error("wikispine.endpoint must be a valid URL.");
+      }
+    }
+
+    next[key] = normalized;
   }
 
   return next;
