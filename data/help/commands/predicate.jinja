@@ -94,10 +94,12 @@ Purpose:
   Inspect archive readiness before `--query`, retrieval, or starting generated work.
 
 Usage:
-  wikigraph {{ uri }} inspect
+  wikigraph {{ uri }} inspect [--json]
 
 Notes:
   - Run this before broad Reading Graph, Reading Summary, or Knowledge Graph work.
+  - The report includes content counts, FTS index readiness, generation coverage, retrieval guidance, recommended next commands, planning estimates, and concurrency hints.
+  - Use `--json` for a machine-readable report with the same recommendations.
 {% elif predicate == "add" and target.name == "chapter-collection-scope" %}
 Purpose:
   Add a planned chapter to the archive.
@@ -281,38 +283,56 @@ Notes:
 Notes:
   - This predicate is only available on URI targets that explicitly support clearing.
 {% endif %}
-{% elif predicate == "build" %}
+{% elif predicate == "enable" %}
 Purpose:
-  Build the FTS index for this archive.
+  Enable searchable FTS index support for this archive on this machine.
 
 Usage:
-  wikigraph {{ uri }} build [--jsonl]
+  wikigraph {{ uri }} enable [--jsonl]
 
 Notes:
-  - Safe to run repeatedly; it refreshes a missing or outdated FTS index.
-  - By default the index is stored as local cache outside the `.wikg` archive.
-  - Build uses local CPU and disk only; it does not call an LLM provider.
+  - This initializes or repairs the local searchable index and may take time on large archives.
+  - After the index is enabled, CLI archive writes keep it synchronized automatically.
+  - Do not run this after every generation job; run it when `inspect` says query support is unavailable or the index needs repair.
+  - By default the index is stored as local cache outside the `.wikg` archive. Use `embed` when the index should travel with the archive.
+  - Enabling uses local CPU and disk only; it does not call an LLM provider.
   - Text success output is a short status summary.
   - With `--jsonl`, progress is emitted as line-delimited event records such as step/status/error records.
-  - After build, `--query`, `related --query`, and `evidence --query` become available.
-{% elif predicate == "embed" %}
+  - After enable succeeds, `--query`, `related --query`, and `evidence --query` become available.
+{% elif predicate == "disable" %}
 Purpose:
-  Store the FTS index inside the archive.
+  Disable searchable FTS index support for this archive and remove the current index materialization.
 
 Usage:
-  wikigraph {{ uri }} embed
+  wikigraph {{ uri }} disable [--json]
 
 Notes:
-  - Embedding writes the current FTS index into the `.wikg` archive.
-  - This makes the archive more portable, but increases archive size.
-  - Run `build` first if the index is missing or outdated.
-  - If embed fails because the index is unavailable, run `wikigraph {{ uri }} build`.
-{% elif predicate == "external" %}
+  - Disabling removes the current local or embedded index materialization.
+  - After disable succeeds, `--query`, `related --query`, and `evidence --query` are unavailable until `enable` or `embed` is run again.
+  - Use this when intentionally dropping index state, not as routine cleanup after generation.
+{% elif predicate == "embed" %}
 Purpose:
-  Keep the FTS index outside the archive as local cache.
+  Use an archive-embedded searchable FTS index.
 
 Usage:
-  wikigraph {{ uri }} external
+  wikigraph {{ uri }} embed [--json]
+
+Notes:
+  - This switches the index storage policy to the `.wikg` archive and ensures the embedded index is current.
+  - After embedding, CLI archive writes keep the embedded index synchronized automatically.
+  - This makes the archive more portable, but increases archive size.
+  - Use it when distributing a `.wikg` with keyword retrieval ready for another machine.
+{% elif predicate == "external" %}
+Purpose:
+  Use external local-cache storage for the searchable FTS index.
+
+Usage:
+  wikigraph {{ uri }} external [--json]
+
+Notes:
+  - This switches the index storage policy back to local cache outside the `.wikg` archive.
+  - The archive no longer carries embedded index data.
+  - If query support is needed on this machine after externalizing, run `wikigraph {{ uri }} enable`.
 {% elif predicate == "clean" %}
 Purpose:
   Remove completed local generation jobs.
@@ -419,7 +439,7 @@ Notes:
 Related help:
   - wikigraph {{ uri }} --help
   - wikigraph help uri
-{% if predicate == "related" or predicate == "evidence" or predicate == "pack" or predicate == "build" or predicate == "embed" or predicate == "external" or target.name == "index-object" or target.name == "job-collection-scope" %}
+{% if predicate == "related" or predicate == "evidence" or predicate == "pack" or predicate == "enable" or predicate == "disable" or predicate == "embed" or predicate == "external" or target.name == "index-object" or target.name == "job-collection-scope" %}
   - wikigraph help readiness
 {% endif %}
 {% if predicate == "create" or predicate == "export" %}

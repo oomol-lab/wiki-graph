@@ -10,7 +10,7 @@ Purpose:
 Operating rules:
   - Never unzip a `.wikg` archive, rewrite internal files, or bypass this CLI. Use CLI commands for archive edits.
   - Use Wiki Graph URIs as stable object handles.
-  - Use `--json` when you want stable Agent-readable fields instead of human text; most commands support it and unsupported commands fail explicitly.
+  - Use `--json` when you want stable Agent-readable fields instead of human text. URI commands support it except readable `source` and `summary` text objects.
   - If you have a URI and need valid operations, run `wikigraph <uri> --help`.
   - If you need concrete predicate usage for that URI type, run `wikigraph <uri> <predicate> --help`.
   - Never pass a bare filesystem path to URI-targeted commands.
@@ -44,9 +44,9 @@ After inspect:
     wikigraph wikg:///Users/me/book.wikg --query "attention memory"
     wikigraph wikg:///Users/me/book.wikg/chapter/3 --query "attention"
 
-  - If inspect reports missing or unavailable index support, inspect the index target before building anything.
+  - If inspect reports missing or unavailable index support, inspect the index target before enabling anything.
     wikigraph <archive-uri>/index --help
-    wikigraph <archive-uri>/index build --help
+    wikigraph <archive-uri>/index enable --help
     Read readiness before deciding whether to keep the index local or embed it:
       wikigraph help readiness
 

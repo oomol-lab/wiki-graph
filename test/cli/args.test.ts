@@ -259,13 +259,13 @@ describe("cli/args", () => {
 
   it("parses archive index object commands", () => {
     expect(() =>
-      parseCLIArguments(["wikg:///tmp/book.wikg/index", "build", "--json"]),
-    ).toThrow("The `build` command does not support --json.");
+      parseCLIArguments(["wikg:///tmp/book.wikg/index", "enable", "--json"]),
+    ).toThrow("The `enable` command does not support --json.");
     expect(
-      parseCLIArguments(["wikg:///tmp/book.wikg/index", "build", "--jsonl"]),
+      parseCLIArguments(["wikg:///tmp/book.wikg/index", "enable", "--jsonl"]),
     ).toStrictEqual({
       args: {
-        action: "build",
+        action: "enable",
         archivePath: "/tmp/book.wikg",
         jsonl: true,
       },
@@ -283,12 +283,12 @@ describe("cli/args", () => {
       kind: "archive-index",
     });
     expect(
-      parseCLIArguments(["wikg:///tmp/book.wikg/index", "build", "--help"]),
+      parseCLIArguments(["wikg:///tmp/book.wikg/index", "enable", "--help"]),
     ).toStrictEqual({
       help: true,
       helpText: renderUriPredicateHelpText(
         "index-object",
-        "build",
+        "enable",
         "wikg:///tmp/book.wikg/index",
       ),
       kind: "help",
@@ -300,19 +300,23 @@ describe("cli/args", () => {
       "Invalid help topic: build.",
     );
     expect(() =>
-      parseCLIArguments(["wikg:///tmp/book.wikg/index", "clear", "--dry-run"]),
-    ).toThrow("The `clear` command does not support --dry-run.");
+      parseCLIArguments([
+        "wikg:///tmp/book.wikg/index",
+        "disable",
+        "--dry-run",
+      ]),
+    ).toThrow("The `disable` command does not support --dry-run.");
     expect(() =>
-      parseCLIArguments(["wikg:///tmp/book.wikg/index", "clear", "--jsonl"]),
-    ).toThrow("The `clear` command does not support --jsonl.");
+      parseCLIArguments(["wikg:///tmp/book.wikg/index", "disable", "--jsonl"]),
+    ).toThrow("The `disable` command does not support --jsonl.");
     expect(() =>
       parseCLIArguments([
         "wikg:///tmp/book.wikg/index",
-        "clear",
+        "disable",
         "--title",
         "x",
       ]),
-    ).toThrow("The `clear` command does not support --title.");
+    ).toThrow("The `disable` command does not support --title.");
   });
 
   it("parses queue commands", () => {
@@ -1003,6 +1007,17 @@ describe("cli/args", () => {
         action: "inspect",
         archivePath,
         chapterId: 2,
+      },
+      help: false,
+      kind: "archive",
+    });
+    expect(
+      parseCLIArguments(["wikg://book.wikg", "inspect", "--json"]),
+    ).toStrictEqual({
+      args: {
+        action: "inspect",
+        archivePath,
+        json: true,
       },
       help: false,
       kind: "archive",
@@ -1901,7 +1916,13 @@ describe("cli/args", () => {
       "Without a current index",
     );
     expect(renderHelpTopicText("readiness")).toContain(
-      "built as local cache outside the `.wikg` archive",
+      "`wikigraph <archive-uri>/index enable` enables the searchable index as local cache outside the `.wikg` archive",
+    );
+    expect(renderHelpTopicText("readiness")).toContain(
+      "CLI archive writes keep it synchronized automatically",
+    );
+    expect(renderHelpTopicText("readiness")).toContain(
+      "wikigraph <archive-uri>/index enable --help",
     );
     expect(renderHelpTopicText("readiness")).toContain(
       "wikigraph <archive-uri>/index embed --help",

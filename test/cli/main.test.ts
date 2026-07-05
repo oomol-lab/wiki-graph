@@ -272,7 +272,7 @@ describe("cli/main", () => {
   it("runs the archive index command", async () => {
     mainMockState.argsResult = {
       args: {
-        action: "build",
+        action: "enable",
         archivePath: "/tmp/book.wikg",
       },
       help: false,
@@ -283,7 +283,7 @@ describe("cli/main", () => {
 
     expect(mainMockState.archiveIndexRunCalls).toStrictEqual([
       {
-        action: "build",
+        action: "enable",
         archivePath: "/tmp/book.wikg",
       },
     ]);

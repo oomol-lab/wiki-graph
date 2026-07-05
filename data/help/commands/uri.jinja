@@ -166,7 +166,7 @@ Default behavior:
   - `wikigraph {{ uri }}` reads the archive FTS index policy.
 
 Use when:
-  - You need to inspect, build, embed, externalize, or clear FTS index materialization.
+  - You need to inspect, enable, disable, embed, or externalize searchable FTS index support.
 {% elif target.name == "job-collection-scope" %}
 URI type:
   Local job collection scope
@@ -215,8 +215,6 @@ Predicate commands:
 {% for predicate in target.predicates %}
 {% if predicate == "add" %}
   - add: create a child object or local job. Help: wikigraph {{ uri }} add --help
-{% elif predicate == "build" %}
-  - build: build a derived resource. Help: wikigraph {{ uri }} build --help
 {% elif predicate == "boost" %}
   - boost: move a waiting job forward. Help: wikigraph {{ uri }} boost --help
 {% elif predicate == "cancel" %}
@@ -229,14 +227,18 @@ Predicate commands:
   - create: create the archive; use `--replace` only when discarding an existing archive. Help: wikigraph {{ uri }} create --help
 {% elif predicate == "delete" %}
   - delete: delete a config key. Help: wikigraph {{ uri }} delete --help
+{% elif predicate == "disable" %}
+  - disable: disable searchable index support and remove index materialization. Help: wikigraph {{ uri }} disable --help
 {% elif predicate == "embed" %}
-  - embed: store derived index data in the archive. Help: wikigraph {{ uri }} embed --help
+  - embed: use archive-embedded searchable index storage. Help: wikigraph {{ uri }} embed --help
+{% elif predicate == "enable" %}
+  - enable: enable searchable index support and bring it to current. Help: wikigraph {{ uri }} enable --help
 {% elif predicate == "evidence" %}
   - evidence: trace this object to source-backed evidence. Help: wikigraph {{ uri }} evidence --help
 {% elif predicate == "export" %}
   - export: export an archive projection. Help: wikigraph {{ uri }} export --help
 {% elif predicate == "external" %}
-  - external: keep index data as local cache. Help: wikigraph {{ uri }} external --help
+  - external: use local-cache searchable index storage. Help: wikigraph {{ uri }} external --help
 {% elif predicate == "inspect" %}
   - inspect: inspect archive readiness. Help: wikigraph {{ uri }} inspect --help
 {% elif predicate == "move" %}

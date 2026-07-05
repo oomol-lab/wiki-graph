@@ -130,6 +130,51 @@ interface InspectImprovement {
   readonly title: string;
 }
 
+interface InspectCoverage {
+  readonly coveredChapters: number;
+  readonly coveredWords: number;
+  readonly percent: string;
+  readonly totalChapters: number;
+  readonly totalWords: number;
+}
+
+interface InspectReport {
+  readonly uri: string;
+  readonly scope: {
+    readonly chapterId?: number;
+    readonly type: "archive" | "chapter";
+  };
+  readonly content: {
+    readonly chapters: {
+      readonly content: number;
+      readonly planned: number;
+      readonly total: number;
+    };
+    readonly sourceWords: number;
+    readonly summaryWords: number;
+  };
+  readonly index: {
+    readonly current: boolean;
+    readonly fixCommand?: string;
+    readonly impact?: string;
+    readonly querySupport: boolean;
+    readonly resource?: string;
+    readonly status: "current" | "missing-or-outdated";
+    readonly storage: "archive" | "cache";
+  };
+  readonly coverage: {
+    readonly knowledgeGraph: InspectCoverage;
+    readonly readingGraph: InspectCoverage;
+    readonly summary: InspectCoverage;
+  };
+  readonly retrievalGuidance: readonly string[];
+  readonly improvements: readonly InspectImprovement[];
+  readonly performanceHints: readonly GenerationPerformanceHint[];
+  readonly help: {
+    readonly readiness: string;
+  };
+}
+
 interface ArchiveOutputContext {
   readonly archiveKey: string;
   readonly archivePath: string;
@@ -1097,6 +1142,20 @@ async function writeArchiveInspectReport(
   document: ReadonlyDocument,
   args: CLIArchiveArguments,
 ): Promise<void> {
+  const report = await createArchiveInspectReport(document, args);
+
+  if (args.json === true) {
+    await writeTextToStdout(formatCLIJSON(report));
+    return;
+  }
+
+  await writeTextToStdout(formatArchiveInspectText(report));
+}
+
+async function createArchiveInspectReport(
+  document: ReadonlyDocument,
+  args: CLIArchiveArguments,
+): Promise<InspectReport> {
   const archiveUri = formatWikiGraphCommandUri(args.archivePath);
   const scopeUri =
     args.chapterId === undefined
@@ -1150,59 +1209,100 @@ async function writeArchiveInspectReport(
     ),
   });
 
-  await writeTextToStdout(
-    [
-      "Archive Inspect",
-      `URI: ${scopeUri}`,
-      `Scope: ${args.chapterId === undefined ? "archive" : `chapter ${args.chapterId}`}`,
-      "",
-      "Content",
-      `Chapters: ${contentChapters.length} content / ${chapters.length} total`,
-      `Planned chapters: ${chapters.length - contentChapters.length}`,
-      `Source words: ${sourceWords}`,
-      `Summary words: ${summaryWords}`,
-      "",
-      "FTS Index",
-      `Status: ${ftsCurrent ? "current" : "missing or outdated"}`,
-      `Storage: ${indexSettings.ftsEmbedded ? "embedded in archive" : "local cache"}`,
-      `Query support: ${ftsCurrent ? "available" : "unavailable"}`,
+  return {
+    uri: scopeUri,
+    scope:
+      args.chapterId === undefined
+        ? { type: "archive" }
+        : { chapterId: args.chapterId, type: "chapter" },
+    content: {
+      chapters: {
+        content: contentChapters.length,
+        planned: chapters.length - contentChapters.length,
+        total: chapters.length,
+      },
+      sourceWords,
+      summaryWords,
+    },
+    index: {
+      current: ftsCurrent,
       ...(ftsCurrent
-        ? []
-        : [
-            "Impact: --query, related --query, and evidence --query are unavailable.",
-            `Fix: wikigraph ${archiveUri}/index build`,
-            "Resource: local CPU/disk time only; no LLM tokens.",
-          ]),
-      "",
-      "Coverage",
-      formatCoverageLine("Reading Graph", readingGraphCovered, contentChapters),
-      formatCoverageLine(
-        "Knowledge Graph",
+        ? {}
+        : {
+            fixCommand: `wikigraph ${archiveUri}/index enable`,
+            impact:
+              "--query, related --query, and evidence --query are unavailable.",
+            resource: "local CPU/disk time only; no LLM tokens.",
+          }),
+      querySupport: ftsCurrent,
+      status: ftsCurrent ? "current" : "missing-or-outdated",
+      storage: indexSettings.ftsEmbedded ? "archive" : "cache",
+    },
+    coverage: {
+      knowledgeGraph: createInspectCoverage(
         knowledgeGraphCovered,
         contentChapters,
       ),
-      formatCoverageLine("Summary", summaryCovered, contentChapters),
+      readingGraph: createInspectCoverage(readingGraphCovered, contentChapters),
+      summary: createInspectCoverage(summaryCovered, contentChapters),
+    },
+    retrievalGuidance: formatRetrievalGuidance({
+      ftsCurrent,
+      knowledgeGraphCovered,
+      readingGraphCovered,
+      contentChapters,
+      sourceWords,
+    }),
+    improvements,
+    performanceHints,
+    help: { readiness: "wikigraph help readiness" },
+  };
+}
+
+function formatArchiveInspectText(report: InspectReport): string {
+  return (
+    [
+      "Archive Inspect",
+      `URI: ${report.uri}`,
+      `Scope: ${report.scope.type === "archive" ? "archive" : `chapter ${report.scope.chapterId}`}`,
+      "",
+      "Content",
+      `Chapters: ${report.content.chapters.content} content / ${report.content.chapters.total} total`,
+      `Planned chapters: ${report.content.chapters.planned}`,
+      `Source words: ${report.content.sourceWords}`,
+      `Summary words: ${report.content.summaryWords}`,
+      "",
+      "FTS Index",
+      `Status: ${report.index.current ? "current" : "missing or outdated"}`,
+      `Storage: ${report.index.storage === "archive" ? "embedded in archive" : "local cache"}`,
+      `Query support: ${report.index.querySupport ? "available" : "unavailable"}`,
+      ...(report.index.current
+        ? []
+        : [
+            `Impact: ${report.index.impact}`,
+            `Fix: ${report.index.fixCommand}`,
+            `Resource: ${report.index.resource}`,
+          ]),
+      "",
+      "Coverage",
+      formatCoverageLine("Reading Graph", report.coverage.readingGraph),
+      formatCoverageLine("Knowledge Graph", report.coverage.knowledgeGraph),
+      formatCoverageLine("Summary", report.coverage.summary),
       "",
       "Retrieval Guidance",
-      ...formatRetrievalGuidance({
-        ftsCurrent,
-        knowledgeGraphCovered,
-        readingGraphCovered,
-        contentChapters,
-        sourceWords,
-      }),
+      ...report.retrievalGuidance,
       "",
       "Improvements",
-      ...(improvements.length === 0
+      ...(report.improvements.length === 0
         ? ["No immediate improvements recommended."]
         : [
-            ...improvements.flatMap(formatInspectImprovement),
+            ...report.improvements.flatMap(formatInspectImprovement),
             "",
-            ...formatInspectPerformanceHints(performanceHints),
-            ...(performanceHints.length === 0 ? [] : [""]),
-            "Readiness details: wikigraph help readiness",
+            ...formatInspectPerformanceHints(report.performanceHints),
+            ...(report.performanceHints.length === 0 ? [] : [""]),
+            `Readiness details: ${report.help.readiness}`,
           ]),
-    ].join("\n") + "\n",
+    ].join("\n") + "\n"
   );
 }
 
@@ -1254,19 +1354,28 @@ async function readSummaryWords(
   );
 }
 
-function formatCoverageLine(
-  label: string,
+function createInspectCoverage(
   covered: readonly InspectChapter[],
   total: readonly InspectChapter[],
-): string {
+): InspectCoverage {
   const coveredWords = sumWords(covered);
   const totalWords = sumWords(total);
 
-  if (total.length === 0 && totalWords === 0) {
+  return {
+    coveredChapters: covered.length,
+    coveredWords,
+    percent: formatPercent(coveredWords, totalWords),
+    totalChapters: total.length,
+    totalWords,
+  };
+}
+
+function formatCoverageLine(label: string, coverage: InspectCoverage): string {
+  if (coverage.totalChapters === 0 && coverage.totalWords === 0) {
     return `${label}: n/a, no source content`;
   }
 
-  return `${label}: ${covered.length}/${total.length} chapters, ${coveredWords}/${totalWords} words, ${formatPercent(coveredWords, totalWords)}`;
+  return `${label}: ${coverage.coveredChapters}/${coverage.totalChapters} chapters, ${coverage.coveredWords}/${coverage.totalWords} words, ${coverage.percent}`;
 }
 
 function formatRetrievalGuidance(input: {
@@ -1284,7 +1393,7 @@ function formatRetrievalGuidance(input: {
   }
 
   const lines = [
-    `Query support: ${input.ftsCurrent ? "available" : "unavailable until FTS index is built"}.`,
+    `Query support: ${input.ftsCurrent ? "available" : "unavailable until the searchable index is enabled"}.`,
   ];
 
   lines.push(
@@ -1343,10 +1452,10 @@ function createInspectImprovements(input: {
 
   if (!input.ftsCurrent) {
     improvements.push({
-      command: `wikigraph ${input.archiveUri}/index build`,
+      command: `wikigraph ${input.archiveUri}/index enable`,
       recommendation:
-        "Build the local FTS index so --query, related, and evidence commands are available.",
-      title: "Build FTS index",
+        "Enable the searchable FTS index so --query, related, and evidence commands are available.",
+      title: "Enable searchable index",
     });
   }
 

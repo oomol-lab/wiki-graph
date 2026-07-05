@@ -213,9 +213,9 @@ export type CLIArchiveAction =
 
 export type CLIArchiveMaintenanceCommand = "chapter" | "cover" | "meta";
 export type CLIArchiveIndexAction =
-  | "build"
-  | "clear"
+  | "disable"
   | "embed"
+  | "enable"
   | "external"
   | "get";
 type CLIArchiveRootAction = CLIArchiveAction;
@@ -1003,7 +1003,7 @@ function parseArchiveIndexUriArguments(
   if (!isArchiveIndexAction(action)) {
     throw new Error(
       withHelpRoute(
-        `The index object does not support \`${action}\`. Read the index object directly, or use build, embed, external, or clear.`,
+        `The index object does not support \`${action}\`. Read the index object directly, or use enable, disable, embed, or external.`,
         CLI_HELP_ROUTES.uri,
       ),
     );
@@ -1041,7 +1041,7 @@ function parseArchiveIndexUriArguments(
   rejectArchiveBooleanFlag(action, "--confirm", values.confirm, helpRoute);
   rejectArchiveBooleanFlag(action, "--dry-run", values["dry-run"], helpRoute);
   rejectArchiveBooleanFlag(action, "--first", values.first, helpRoute);
-  if (action === "build") {
+  if (action === "enable") {
     rejectArchiveBooleanFlag(action, "--json", values.json, helpRoute);
   } else {
     rejectArchiveBooleanFlag(action, "--jsonl", values.jsonl, helpRoute);
@@ -3037,7 +3037,6 @@ function parseArchiveArguments(
         helpRoute,
       );
       rejectArchiveBooleanFlag(action, "--confirm", values.confirm, helpRoute);
-      rejectArchiveBooleanFlag(action, "--json", values.json, helpRoute);
       rejectArchiveBooleanFlag(action, "--jsonl", values.jsonl, helpRoute);
       rejectArchiveFlag(action, "--limit", values.limit, helpRoute);
       rejectArchiveFlag(action, "--role", values.role, helpRoute);
@@ -3046,6 +3045,7 @@ function parseArchiveArguments(
           action,
           archivePath: parsedArchivePath,
           ...(chapterId === undefined ? {} : { chapterId }),
+          ...(values.json === true ? { json: true } : {}),
         },
         help: false,
         kind: "archive",
@@ -4623,9 +4623,9 @@ function isArchiveIndexAction(
   value: string | undefined,
 ): value is CLIArchiveIndexAction {
   return (
-    value === "build" ||
-    value === "clear" ||
+    value === "disable" ||
     value === "embed" ||
+    value === "enable" ||
     value === "external" ||
     value === "get"
   );

@@ -47,13 +47,14 @@ export type UriHelpTargetName =
 export type UriHelpPredicateName =
   | "add"
   | "boost"
-  | "build"
   | "cancel"
   | "clear"
   | "clean"
   | "create"
   | "delete"
+  | "disable"
   | "embed"
+  | "enable"
   | "evidence"
   | "export"
   | "external"
@@ -99,7 +100,10 @@ const URI_HELP_TARGETS: readonly UriHelpTarget[] = [
   },
   { name: "entity-object", predicates: ["evidence", "pack", "related"] },
   { name: "entity-wikipage-object", predicates: [] },
-  { name: "index-object", predicates: ["build", "clear", "embed", "external"] },
+  {
+    name: "index-object",
+    predicates: ["enable", "disable", "embed", "external"],
+  },
   {
     name: "job-collection-scope",
     predicates: ["add", "clean"],

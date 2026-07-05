@@ -14,18 +14,22 @@ FTS readiness:
   `--query` uses the archive FTS index. Without a current index, keyword retrieval is unavailable for scopes, evidence, and related results.
 
   Default behavior:
-    The FTS index is built as local cache outside the `.wikg` archive.
+    `wikigraph <archive-uri>/index enable` enables the searchable index as local cache outside the `.wikg` archive.
     This keeps the archive smaller, but the index does not travel with copied archive files.
-    If another user receives the `.wikg`, they usually need to build their own local index.
+    If another user receives the `.wikg`, they usually need to enable their own local index.
+    After an index is enabled, CLI archive writes keep it synchronized automatically.
+    Do not enable the index again after every generation job.
 
   Portable behavior:
-    You can embed the built index into the `.wikg` archive.
+    `wikigraph <archive-uri>/index embed` switches to an archive-embedded searchable index and ensures it is current.
     This makes the archive more self-contained, but increases file size.
-    If you are unsure, build the local index first and embed only when distribution convenience matters.
+    After embedding, CLI archive writes keep the embedded index synchronized automatically.
+    If you are unsure, enable the local index first and embed only when distribution convenience matters.
 
   Commands:
     wikigraph <archive-uri>/index
-    wikigraph <archive-uri>/index build --help
+    wikigraph <archive-uri>/index enable --help
+    wikigraph <archive-uri>/index disable --help
     wikigraph <archive-uri>/index embed --help
     wikigraph <archive-uri>/index external --help
 
@@ -77,8 +81,9 @@ WikiSpine readiness:
     https://raw.githubusercontent.com/oomol-lab/wiki-graph/refs/heads/main/docs/wikispine-runtime.md
 
 How to choose:
-  - Need keyword retrieval on this machine: build local index.
-  - Need to send a more self-contained `.wikg`: consider embedding the index after it is built.
+  - Need keyword retrieval on this machine: enable local index.
+  - Need to send a more self-contained `.wikg`: consider embedding the index.
+  - Need to intentionally drop query support or index materialization: disable index.
   - Need generated Reading Graph or summaries: configure LLM and use local jobs.
   - Need Knowledge Graph: configure LLM and WikiSpine, then use local jobs.
   - Not sure whether to embed index or generate missing data: keep the archive external/local first, inspect again, and decide later.

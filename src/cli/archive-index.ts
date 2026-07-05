@@ -26,8 +26,8 @@ export async function runArchiveIndexCommand(
     case "get":
       await readIndexSettings(args);
       return;
-    case "build":
-      await buildIndex(args);
+    case "enable":
+      await enableIndex(args);
       return;
     case "embed":
       await embedIndex(args);
@@ -35,8 +35,8 @@ export async function runArchiveIndexCommand(
     case "external":
       await externalizeIndex(args);
       return;
-    case "clear":
-      await clearIndex(args);
+    case "disable":
+      await disableIndex(args);
       return;
   }
 }
@@ -54,7 +54,7 @@ async function readIndexSettings(
   });
 }
 
-async function buildIndex(args: CLIArchiveIndexArguments): Promise<void> {
+async function enableIndex(args: CLIArchiveIndexArguments): Promise<void> {
   const writer = new ProgressOutputWriter({
     jsonl: args.jsonl ?? false,
     throttleMs: INDEX_PROGRESS_OUTPUT_INTERVAL_MS,
@@ -65,7 +65,7 @@ async function buildIndex(args: CLIArchiveIndexArguments): Promise<void> {
       await writer.write({
         json: { type: "started" },
         kind: "lifecycle",
-        text: "index started\nsteps: checking -> collecting -> clearing -> indexing-text -> indexing-objects -> finalizing",
+        text: "index enable started\nsteps: checking -> collecting -> clearing -> indexing-text -> indexing-objects -> finalizing",
       });
       await writer.write({
         json: { phase: "checking", type: "status_snapshot" },
@@ -103,7 +103,7 @@ async function buildIndex(args: CLIArchiveIndexArguments): Promise<void> {
       await writer.write({
         json: { type: "completed" },
         kind: "lifecycle",
-        text: "index completed",
+        text: "index enabled",
       });
       await writer.write({
         json: { type: "succeeded" },
@@ -162,7 +162,7 @@ async function externalizeIndex(args: CLIArchiveIndexArguments): Promise<void> {
   await deleteArchiveSearchSessions(args.archivePath);
 }
 
-async function clearIndex(args: CLIArchiveIndexArguments): Promise<void> {
+async function disableIndex(args: CLIArchiveIndexArguments): Promise<void> {
   await new SpineDigestFile(args.archivePath).write(
     async (document) => {
       await document.deleteSearchIndexDatabase();
