@@ -43,6 +43,14 @@ import type { ReadonlyDocument } from "../document/index.js";
 import type { CLIArchiveArguments } from "./args.js";
 import { loadCLIConfig } from "./config.js";
 import { runConvertCommand } from "./convert.js";
+import {
+  createGenerationPerformanceHints,
+  formatGenerationPlanningDuration,
+  formatGenerationPlanningModel,
+  planGenerationTask,
+  type GenerationPerformanceHint,
+  type GenerationPlanningCost,
+} from "./generation-planning.js";
 import { readTextStreamFromStdin, writeTextToStdout } from "./io.js";
 import { formatCLIJSON, formatCLIJSONLine } from "./json.js";
 
@@ -117,22 +125,9 @@ interface InspectImprovement {
   readonly command: string;
   readonly missingChapters?: number;
   readonly missingWords?: number;
-  readonly planning?: InspectPlanningCost;
+  readonly planning?: GenerationPlanningCost;
   readonly recommendation: string;
   readonly title: string;
-}
-
-interface InspectPlanningCost {
-  readonly model: string;
-  readonly timeSeconds: {
-    readonly max: number;
-    readonly min: number;
-  };
-  readonly tokens: {
-    readonly cacheableInput: number;
-    readonly input: number;
-    readonly output: number;
-  };
 }
 
 interface ArchiveOutputContext {
@@ -1119,7 +1114,7 @@ async function writeArchiveInspectReport(
     job: config.concurrent?.job ?? 3,
     request: config.concurrent?.request ?? 6,
   };
-  const planningModel = formatInspectPlanningModel(config.llm);
+  const planningModel = formatGenerationPlanningModel(config.llm);
   const contentChapters = chapters.filter(
     (chapter) => chapter.stage !== "planned",
   );
@@ -1143,6 +1138,16 @@ async function writeArchiveInspectReport(
     summaryCovered,
     knowledgeGraphCovered,
     readingGraphCovered,
+  });
+  const performanceHints = createGenerationPerformanceHints({
+    chapters: Math.max(
+      0,
+      ...improvements.map((improvement) => improvement.missingChapters ?? 0),
+    ),
+    concurrent,
+    hasGenerationWork: improvements.some(
+      (improvement) => improvement.planning !== undefined,
+    ),
   });
 
   await writeTextToStdout(
@@ -1193,6 +1198,8 @@ async function writeArchiveInspectReport(
         : [
             ...improvements.flatMap(formatInspectImprovement),
             "",
+            ...formatInspectPerformanceHints(performanceHints),
+            ...(performanceHints.length === 0 ? [] : [""]),
             "Readiness details: wikigraph help readiness",
           ]),
     ].join("\n") + "\n",
@@ -1415,7 +1422,7 @@ function createGraphImprovement(input: {
       command: `wikigraph wikg://local/job add --input ${input.scopeUri} --task ${input.task} --accept-cost`,
       missingChapters: missing.length,
       missingWords,
-      planning: planInspectTask(
+      planning: planGenerationTask(
         input.task,
         missingWords,
         missing.length,
@@ -1430,81 +1437,6 @@ function createGraphImprovement(input: {
       title: input.title,
     },
   ];
-}
-
-function planInspectTask(
-  task: "knowledge-graph" | "reading-graph" | "reading-summary",
-  words: number,
-  chapters: number,
-  concurrent: { readonly job: number; readonly request: number },
-  model: string,
-): InspectPlanningCost {
-  const profile = getInspectTaskPlanningProfile(task);
-  const calls = Math.max(chapters, Math.ceil(words / profile.wordsPerCall));
-  const effectiveConcurrency = Math.max(
-    1,
-    task === "reading-graph" ? 1 : concurrent.request,
-  );
-  const callBatches = Math.ceil(calls / effectiveConcurrency);
-  const wordSeconds = words * profile.secondsPerWord;
-
-  return {
-    model,
-    timeSeconds: {
-      max: Math.ceil(callBatches * profile.maxSecondsPerCall + wordSeconds),
-      min: Math.ceil(callBatches * profile.minSecondsPerCall + wordSeconds),
-    },
-    tokens: {
-      cacheableInput: Math.ceil(words * profile.cacheableInputTokenPerWord),
-      input: Math.ceil(words * profile.inputTokenPerWord),
-      output: Math.ceil(words * profile.outputTokenPerWord),
-    },
-  };
-}
-
-function getInspectTaskPlanningProfile(
-  task: "knowledge-graph" | "reading-graph" | "reading-summary",
-): {
-  readonly inputTokenPerWord: number;
-  readonly cacheableInputTokenPerWord: number;
-  readonly maxSecondsPerCall: number;
-  readonly minSecondsPerCall: number;
-  readonly outputTokenPerWord: number;
-  readonly secondsPerWord: number;
-  readonly wordsPerCall: number;
-} {
-  switch (task) {
-    case "knowledge-graph":
-      return {
-        cacheableInputTokenPerWord: 60,
-        inputTokenPerWord: 80,
-        maxSecondsPerCall: 35,
-        minSecondsPerCall: 15,
-        outputTokenPerWord: 25,
-        secondsPerWord: 0.02,
-        wordsPerCall: 35,
-      };
-    case "reading-graph":
-      return {
-        cacheableInputTokenPerWord: 20,
-        inputTokenPerWord: 25,
-        maxSecondsPerCall: 45,
-        minSecondsPerCall: 15,
-        outputTokenPerWord: 4,
-        secondsPerWord: 0.01,
-        wordsPerCall: 160,
-      };
-    case "reading-summary":
-      return {
-        cacheableInputTokenPerWord: 45,
-        inputTokenPerWord: 55,
-        maxSecondsPerCall: 25,
-        minSecondsPerCall: 10,
-        outputTokenPerWord: 4,
-        secondsPerWord: 0.01,
-        wordsPerCall: 110,
-      };
-  }
 }
 
 function formatImprovementRecommendation(
@@ -1547,8 +1479,25 @@ function formatInspectImprovement(
           `    Command: ${improvement.command}`,
           `    Model: ${improvement.planning.model}`,
           `    Tokens: ${improvement.planning.tokens.input} input / ${improvement.planning.tokens.cacheableInput} cacheable input / ${improvement.planning.tokens.output} output`,
-          `    Wait: ${formatDuration(improvement.planning.timeSeconds.min)}-${formatDuration(improvement.planning.timeSeconds.max)}`,
+          `    Wait: ${formatGenerationPlanningDuration(improvement.planning.timeSeconds.min)}-${formatGenerationPlanningDuration(improvement.planning.timeSeconds.max)}`,
         ]),
+  ];
+}
+
+function formatInspectPerformanceHints(
+  hints: readonly GenerationPerformanceHint[],
+): readonly string[] {
+  if (hints.length === 0) {
+    return [];
+  }
+
+  return [
+    "Performance hints:",
+    ...hints.flatMap((hint) => [
+      `  ${hint.message}`,
+      `  Current ${hint.kind}: ${hint.current}; suggested: ${hint.recommended}.`,
+      `  Command: ${hint.command}`,
+    ]),
   ];
 }
 
@@ -1564,18 +1513,6 @@ function formatPercent(numerator: number, denominator: number): string {
   const percent = (numerator / denominator) * 100;
 
   return `${Number.isInteger(percent) ? percent.toFixed(0) : percent.toFixed(1)}%`;
-}
-
-function formatInspectPlanningModel(
-  llm: { readonly model?: string; readonly provider?: string } | undefined,
-): string {
-  if (llm?.model === undefined) {
-    return "not configured";
-  }
-
-  return llm.provider === undefined
-    ? llm.model
-    : `${llm.provider}/${llm.model}`;
 }
 
 async function writeList(
@@ -3043,20 +2980,6 @@ function formatPosition(
   ]
     .filter((part): part is string => part !== undefined)
     .join(", ");
-}
-
-function formatDuration(seconds: number): string {
-  if (seconds < 60) {
-    return `${seconds}s`;
-  }
-
-  const minutes = Math.round(seconds / 60);
-
-  if (minutes < 60) {
-    return `${minutes}m`;
-  }
-
-  return `${Math.round(minutes / 60)}h`;
 }
 
 async function formatPackAnchor(

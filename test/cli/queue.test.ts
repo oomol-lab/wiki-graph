@@ -11,6 +11,7 @@ const queueMockState = vi.hoisted(() => ({
   chapters: [] as Array<{
     readonly chapterId: number;
     readonly stage: "planned" | "sourced" | "graphed" | "summarized";
+    readonly words: number;
   }>,
   commitGraphCalls: [] as unknown[],
   commitKnowledgeGraphCalls: [] as unknown[],
@@ -335,6 +336,13 @@ describe("cli/queue", () => {
     queueMockState.stepLog.length = 0;
     queueMockState.textWrites.length = 0;
     queueMockState.writeCalls.length = 0;
+    queueMockState.chapters = [
+      {
+        chapterId: 12,
+        stage: "sourced",
+        words: 800,
+      },
+    ];
     process.env.WIKIGRAPH_QUEUE_DISABLE_AUTOSTART = "1";
   });
 
@@ -416,6 +424,16 @@ describe("cli/queue", () => {
     ]);
     expect(queueMockState.loadRequiredStageConfigCalls).toStrictEqual([{}]);
     expect(queueMockState.textWrites.join("")).toContain("Job job-1 queued");
+    expect(queueMockState.textWrites.join("")).toContain("Estimate:");
+    expect(queueMockState.textWrites.join("")).toContain(
+      "Work: reading-graph over 1 chapter / 800 words",
+    );
+    expect(queueMockState.textWrites.join("")).toContain(
+      "Current concurrency: job=3 request=6",
+    );
+    expect(queueMockState.textWrites.join("")).toContain(
+      "Watch: wikigraph wikg://local/job/job-1 watch",
+    );
   });
 
   it("prints a created chapter job as json", async () => {
@@ -431,9 +449,19 @@ describe("cli/queue", () => {
     expect(JSON.parse(queueMockState.textWrites.join(""))).toMatchObject({
       archivePath: "book.wikg",
       chapterId: 12,
+      estimate: {
+        chapters: 1,
+        concurrent: {
+          job: 3,
+          request: 6,
+        },
+        target: "reading-graph",
+        words: 800,
+      },
       jobId: "job-1",
       state: "queued",
       target: "reading-summary",
+      watchCommand: "wikigraph wikg://local/job/job-1 watch",
     });
   });
 
@@ -442,10 +470,12 @@ describe("cli/queue", () => {
       {
         chapterId: 11,
         stage: "planned",
+        words: 0,
       },
       {
         chapterId: 12,
         stage: "sourced",
+        words: 800,
       },
     ];
 
@@ -466,6 +496,11 @@ describe("cli/queue", () => {
           state: "queued",
         },
       ],
+      estimate: {
+        chapters: 1,
+        target: "reading-graph",
+        words: 800,
+      },
       skipped: [
         {
           chapterId: 11,
@@ -473,6 +508,36 @@ describe("cli/queue", () => {
         },
       ],
     });
+  });
+
+  it("suggests job concurrency for multi-chapter archive job add", async () => {
+    queueMockState.chapters = [
+      {
+        chapterId: 11,
+        stage: "sourced",
+        words: 400,
+      },
+      {
+        chapterId: 12,
+        stage: "sourced",
+        words: 800,
+      },
+    ];
+
+    await runQueueCommand({
+      acceptCost: true,
+      action: "add",
+      archivePath: "book.wikg",
+      target: "reading-summary",
+    });
+
+    expect(queueMockState.textWrites.join("")).toContain("Created: 2");
+    expect(queueMockState.textWrites.join("")).toContain(
+      "Work: reading-summary over 2 chapters / 1200 words",
+    );
+    expect(queueMockState.textWrites.join("")).toContain(
+      "Command: wikigraph wikg://local/config/concurrent put job 4",
+    );
   });
 
   it("rejects job add before enqueueing when llm config is missing", async () => {

@@ -1832,6 +1832,13 @@ describe("cli/archive", () => {
       "Tokens: 10000 input / 8000 cacheable input / 1600 output",
     );
     expect(archiveMockState.textWrites[0]).toContain("Wait:");
+    expect(archiveMockState.textWrites[0]).toContain("Performance hints:");
+    expect(archiveMockState.textWrites[0]).toContain(
+      "Current request: 3; suggested: 6.",
+    );
+    expect(archiveMockState.textWrites[0]).toContain(
+      "Command: wikigraph wikg://local/config/concurrent put request 6",
+    );
     expect(archiveMockState.textWrites[0]).toContain(
       "Readiness details: wikigraph help readiness",
     );

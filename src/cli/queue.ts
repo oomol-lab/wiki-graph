@@ -33,6 +33,7 @@ import {
   type BuildJobProgressReporter,
   type BuildJobState,
   type BuildJobTarget,
+  type ChapterEntry,
 } from "../facade/index.js";
 import { SpineDigestFile } from "../wikg/index.js";
 import type {
@@ -43,6 +44,15 @@ import type { LLMessage } from "../llm/index.js";
 
 import type { CLIQueueArguments } from "./args.js";
 import { loadCLIConfig, type CLIConfig } from "./config.js";
+import {
+  createGenerationPerformanceHints,
+  formatGenerationPlanningDuration,
+  formatGenerationPlanningModel,
+  planGenerationTask,
+  type GenerationConcurrency,
+  type GenerationPerformanceHint,
+  type GenerationPlanningCost,
+} from "./generation-planning.js";
 import { writeTextToStdout } from "./io.js";
 import { formatCLIJSON } from "./json.js";
 import { CLI_HELP_ROUTES, withHelpRoute } from "./errors.js";
@@ -64,7 +74,17 @@ const TERMINAL_STATES = new Set<BuildJobState>([
   "canceled",
 ]);
 const DEFAULT_QUEUE_CONCURRENCY = 3;
+const DEFAULT_REQUEST_CONCURRENCY = 6;
 const PROGRESS_OUTPUT_INTERVAL_MS = 6_000;
+
+interface QueueAddEstimate {
+  readonly chapters: number;
+  readonly concurrent: GenerationConcurrency;
+  readonly performanceHints: readonly GenerationPerformanceHint[];
+  readonly planning: GenerationPlanningCost;
+  readonly target: BuildJobTarget;
+  readonly words: number;
+}
 
 export async function runQueueCommand(args: CLIQueueArguments): Promise<void> {
   switch (args.action) {
@@ -81,10 +101,19 @@ export async function runQueueCommand(args: CLIQueueArguments): Promise<void> {
       }
 
       if (args.chapterId === undefined) {
-        await addArchiveJobs(args);
+        await addArchiveJobs(args, config);
       } else {
+        const chapter = await readQueueAddChapter(args, args.chapterId);
+        const estimate = createQueueAddEstimate({
+          chapters: [chapter],
+          config,
+          target: args.target ?? "reading-summary",
+        });
+
         await writeJobSummary(await addChapterJob(args, args.chapterId), {
+          estimate,
           json: args.json ?? false,
+          watch: true,
         });
       }
 
@@ -170,8 +199,14 @@ async function addChapterJob(
   });
 }
 
-async function addArchiveJobs(args: CLIQueueArguments): Promise<void> {
-  const created: BuildJob[] = [];
+async function addArchiveJobs(
+  args: CLIQueueArguments,
+  config: CLIConfig,
+): Promise<void> {
+  const created: Array<{
+    readonly chapter: ChapterEntry;
+    readonly job: BuildJob;
+  }> = [];
   const skipped: Array<{
     readonly chapterId: number;
     readonly reason: string;
@@ -189,7 +224,10 @@ async function addArchiveJobs(args: CLIQueueArguments): Promise<void> {
         }
 
         try {
-          created.push(await addChapterJob(args, chapter.chapterId));
+          created.push({
+            chapter,
+            job: await addChapterJob(args, chapter.chapterId),
+          });
         } catch (error) {
           skipped.push({
             chapterId: chapter.chapterId,
@@ -200,7 +238,20 @@ async function addArchiveJobs(args: CLIQueueArguments): Promise<void> {
     },
   );
 
-  await writeArchiveAddSummary({ created, json: args.json ?? false, skipped });
+  await writeArchiveAddSummary({
+    created,
+    ...(created.length === 0
+      ? {}
+      : {
+          estimate: createQueueAddEstimate({
+            chapters: created.map((item) => item.chapter),
+            config,
+            target: args.target ?? "reading-summary",
+          }),
+        }),
+    json: args.json ?? false,
+    skipped,
+  });
 }
 
 async function assertQueueAddReady(args: CLIQueueArguments): Promise<void> {
@@ -211,6 +262,27 @@ async function assertQueueAddReady(args: CLIQueueArguments): Promise<void> {
       );
     }
   });
+}
+
+async function readQueueAddChapter(
+  args: CLIQueueArguments,
+  chapterId: number,
+): Promise<ChapterEntry> {
+  let matched: ChapterEntry | undefined;
+
+  await new SpineDigestFile(args.archivePath!).readDocument(
+    async (document) => {
+      matched = (await listChapters(document)).find(
+        (chapter) => chapter.chapterId === chapterId,
+      );
+    },
+  );
+
+  if (matched === undefined) {
+    throw new Error(`Chapter ${chapterId} does not exist.`);
+  }
+
+  return matched;
 }
 
 function assertBuildCostAccepted(args: CLIQueueArguments): void {
@@ -744,7 +816,7 @@ async function writeJobStatus(
   );
 }
 
-function formatJobJSON(job: BuildJob): unknown {
+function formatJobJSON(job: BuildJob): Record<string, unknown> {
   return {
     archiveKey: job.archiveKey,
     archivePath: job.archivePath,
@@ -832,20 +904,47 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 async function writeJobSummary(
   job: BuildJob,
-  options: { readonly json: boolean } = { json: false },
+  options: {
+    readonly estimate?: QueueAddEstimate;
+    readonly json: boolean;
+    readonly watch?: boolean;
+  } = { json: false },
 ): Promise<void> {
   if (options.json) {
-    await writeTextToStdout(formatCLIJSON(formatJobJSON(job)));
+    await writeTextToStdout(
+      formatCLIJSON({
+        ...formatJobJSON(job),
+        ...(options.estimate === undefined
+          ? {}
+          : { estimate: formatQueueAddEstimateJSON(options.estimate) }),
+        ...(options.watch === true
+          ? { watchCommand: `wikigraph wikg://local/job/${job.jobId} watch` }
+          : {}),
+      }),
+    );
     return;
   }
 
   await writeTextToStdout(
-    `Job ${job.jobId} ${job.state} ${job.target} chapter ${job.chapterId} ${job.archivePath}\n`,
+    [
+      `Job ${job.jobId} ${job.state} ${job.target} chapter ${job.chapterId} ${job.archivePath}`,
+      ...(options.watch === true
+        ? [`Watch: wikigraph wikg://local/job/${job.jobId} watch`]
+        : []),
+      ...(options.estimate === undefined
+        ? []
+        : ["", ...formatQueueAddEstimateLines(options.estimate)]),
+      "",
+    ].join("\n"),
   );
 }
 
 async function writeArchiveAddSummary(input: {
-  readonly created: readonly BuildJob[];
+  readonly created: readonly {
+    readonly chapter: ChapterEntry;
+    readonly job: BuildJob;
+  }[];
+  readonly estimate?: QueueAddEstimate;
   readonly json: boolean;
   readonly skipped: readonly {
     readonly chapterId: number;
@@ -855,7 +954,10 @@ async function writeArchiveAddSummary(input: {
   if (input.json) {
     await writeTextToStdout(
       formatCLIJSON({
-        created: input.created.map(formatJobJSON),
+        created: input.created.map((item) => formatJobJSON(item.job)),
+        ...(input.estimate === undefined
+          ? {}
+          : { estimate: formatQueueAddEstimateJSON(input.estimate) }),
         skipped: input.skipped,
       }),
     );
@@ -869,14 +971,94 @@ async function writeArchiveAddSummary(input: {
 
   for (const job of input.created) {
     lines.push(
-      `Job ${job.jobId} ${job.state} ${job.target} chapter ${job.chapterId}`,
+      `Job ${job.job.jobId} ${job.job.state} ${job.job.target} chapter ${job.job.chapterId}`,
     );
   }
   for (const skipped of input.skipped) {
     lines.push(`Skipped chapter ${skipped.chapterId}: ${skipped.reason}`);
   }
+  if (input.estimate !== undefined) {
+    lines.push("", ...formatQueueAddEstimateLines(input.estimate));
+  }
 
   await writeTextToStdout(`${lines.join("\n")}\n`);
+}
+
+function createQueueAddEstimate(input: {
+  readonly chapters: readonly Pick<ChapterEntry, "words">[];
+  readonly config: CLIConfig;
+  readonly target: BuildJobTarget;
+}): QueueAddEstimate {
+  const concurrent = {
+    job: input.config.concurrent?.job ?? DEFAULT_QUEUE_CONCURRENCY,
+    request: input.config.concurrent?.request ?? DEFAULT_REQUEST_CONCURRENCY,
+  };
+  const words = input.chapters.reduce(
+    (total, chapter) => total + chapter.words,
+    0,
+  );
+
+  return {
+    chapters: input.chapters.length,
+    concurrent,
+    performanceHints: createGenerationPerformanceHints({
+      chapters: input.chapters.length,
+      concurrent,
+      hasGenerationWork: input.chapters.length > 0,
+    }),
+    planning: planGenerationTask(
+      input.target,
+      words,
+      input.chapters.length,
+      concurrent,
+      formatGenerationPlanningModel(input.config.llm),
+    ),
+    target: input.target,
+    words,
+  };
+}
+
+function formatQueueAddEstimateJSON(estimate: QueueAddEstimate): unknown {
+  return {
+    chapters: estimate.chapters,
+    concurrent: estimate.concurrent,
+    performanceHints: estimate.performanceHints,
+    target: estimate.target,
+    tokens: estimate.planning.tokens,
+    waitSeconds: estimate.planning.timeSeconds,
+    words: estimate.words,
+    model: estimate.planning.model,
+  };
+}
+
+function formatQueueAddEstimateLines(
+  estimate: QueueAddEstimate,
+): readonly string[] {
+  return [
+    "Estimate:",
+    `  Work: ${estimate.target} over ${estimate.chapters} chapter${estimate.chapters === 1 ? "" : "s"} / ${estimate.words} words`,
+    `  Model: ${estimate.planning.model}`,
+    `  Tokens: ${estimate.planning.tokens.input} input / ${estimate.planning.tokens.cacheableInput} cacheable input / ${estimate.planning.tokens.output} output`,
+    `  Wait: ${formatGenerationPlanningDuration(estimate.planning.timeSeconds.min)}-${formatGenerationPlanningDuration(estimate.planning.timeSeconds.max)}`,
+    `  Current concurrency: job=${estimate.concurrent.job} request=${estimate.concurrent.request}`,
+    ...formatQueuePerformanceHintLines(estimate.performanceHints),
+  ];
+}
+
+function formatQueuePerformanceHintLines(
+  hints: readonly GenerationPerformanceHint[],
+): readonly string[] {
+  if (hints.length === 0) {
+    return [];
+  }
+
+  return [
+    "Performance hints:",
+    ...hints.flatMap((hint) => [
+      `  ${hint.message}`,
+      `  Command: ${hint.command}`,
+    ]),
+  ];
 }
 
 function tryStartQueueWorker(): void {
