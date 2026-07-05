@@ -17,6 +17,8 @@ import {
 
 describe("cli/args", () => {
   const archivePath = resolve("book.wikg");
+  const wikispineRuntimeGuideUrl =
+    "https://raw.githubusercontent.com/oomol-lab/wiki-graph/refs/heads/main/docs/wikispine-runtime.md";
 
   it("parses --version", () => {
     expect(parseCLIArguments(["--version"])).toStrictEqual({
@@ -1897,6 +1899,23 @@ describe("cli/args", () => {
     expect(renderHelpTopicText("readiness")).toContain("LLM readiness:");
     expect(renderHelpTopicText("readiness")).toContain("WikiSpine readiness:");
     expect(renderHelpTopicText("readiness")).toContain("provider fetch");
+    expect(renderHelpTopicText("readiness")).toContain(
+      wikispineRuntimeGuideUrl,
+    );
+    expect(renderHelpTopicText("config")).toContain(wikispineRuntimeGuideUrl);
+    expect(
+      renderUriHelpText(
+        "local-config-section",
+        "wikg://local/config/wikispine",
+      ),
+    ).toContain(wikispineRuntimeGuideUrl);
+    expect(
+      renderUriPredicateHelpText(
+        "local-config-section",
+        "test",
+        "wikg://local/config/wikispine",
+      ),
+    ).toContain(wikispineRuntimeGuideUrl);
     expect(renderTransformHelpText()).toContain(
       "This is not a plain file-format converter",
     );

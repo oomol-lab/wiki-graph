@@ -67,7 +67,7 @@ interface WikispineMetadata {
 }
 
 const WIKISPINE_RUNTIME_GUIDE_URL =
-  "https://raw.githubusercontent.com/oomol-lab/spinedigest/main/docs/wikispine-runtime.md";
+  "https://raw.githubusercontent.com/oomol-lab/wiki-graph/refs/heads/main/docs/wikispine-runtime.md";
 export const DEFAULT_WIKISPINE_FETCH_ENDPOINT =
   "https://wikispi-service-cxbfjlteab.cn-hangzhou.fcapp.run";
 

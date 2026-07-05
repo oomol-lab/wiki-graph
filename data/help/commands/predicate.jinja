@@ -409,6 +409,9 @@ Notes:
   - Text success output is intentionally short.
   - With `--json`, success and failure both return `{ "ok": true|false, ... }`; failures set a non-zero exit code.
   - Without `--json`, failures print the command error. Use `wikigraph help readiness` and `wikigraph help config` to recover.
+{% if "/wikispine" in uri %}
+  - Runtime setup and recovery guide: https://raw.githubusercontent.com/oomol-lab/wiki-graph/refs/heads/main/docs/wikispine-runtime.md
+{% endif %}
 {% endif %}
 
 Related help:

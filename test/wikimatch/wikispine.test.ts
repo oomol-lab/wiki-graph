@@ -206,4 +206,21 @@ describe("wikimatch/wikispine", () => {
       },
     ]);
   });
+
+  it("includes the runtime guide URL in fetch provider failures", async () => {
+    await expect(
+      matchWikispineSentenceCandidates({
+        fetch: () => Promise.resolve(new Response("down", { status: 503 })),
+        provider: "fetch",
+        sentences: [
+          {
+            range: { end: 4, start: 0 },
+            text: "北京大学",
+          },
+        ],
+      }),
+    ).rejects.toThrow(
+      "https://raw.githubusercontent.com/oomol-lab/wiki-graph/refs/heads/main/docs/wikispine-runtime.md",
+    );
+  });
 });
