@@ -7,16 +7,12 @@ import type {
   CLIArchiveAction,
   CLIArchiveChapterAction,
   CLIArchiveMaintenanceCommand,
-  CLIQueueAction,
 } from "./args.js";
 
 export const HELP_TOPICS = [
   "overview",
   "task",
   "command",
-  "object",
-  "verb",
-  "matrix",
   "format",
   "config",
   "runtime",
@@ -29,509 +25,109 @@ export const HELP_TOPICS = [
 
 export type HelpTopic = (typeof HELP_TOPICS)[number];
 
-export type HelpObjectName =
-  | "archive"
-  | "chapter"
-  | "chapter-source"
-  | "chapter-summary"
-  | "chapter-title"
-  | "chapter-tree"
-  | "chapter-state"
-  | "chunk"
-  | "cover"
-  | "cursor"
-  | "entity"
-  | "index"
-  | "job"
-  | "job-collection"
-  | "source"
-  | "summary"
-  | "triple";
+export type UriHelpTargetName =
+  | "archive-scope"
+  | "chapter-collection-scope"
+  | "chapter-scope"
+  | "chapter-source-object"
+  | "chapter-summary-object"
+  | "chapter-title-object"
+  | "chapter-tree-object"
+  | "chapter-state-object"
+  | "chunk-scope"
+  | "chunk-object"
+  | "cover-object"
+  | "entity-scope"
+  | "entity-object"
+  | "entity-wikipage-object"
+  | "index-object"
+  | "job-collection-scope"
+  | "job-object"
+  | "job-target-object"
+  | "local-config-section"
+  | "summary-object"
+  | "triple-scope"
+  | "triple-object";
 
-export type HelpVerbName =
+export type UriHelpPredicateName =
   | "add"
-  | "build"
   | "boost"
+  | "build"
   | "cancel"
   | "clear"
+  | "clean"
   | "create"
-  | "evidence"
+  | "delete"
   | "embed"
+  | "evidence"
   | "export"
   | "external"
   | "get"
   | "inspect"
   | "list"
   | "move"
-  | "next"
   | "pack"
   | "pause"
-  | "queue"
+  | "put"
   | "related"
   | "remove"
   | "reset"
   | "resume"
-  | "search"
   | "set"
+  | "test"
   | "watch";
 
-interface HelpObjectVerb {
-  readonly command: string;
-  readonly note: string;
-  readonly verb: HelpVerbName;
+interface UriHelpTarget {
+  readonly name: UriHelpTargetName;
+  readonly predicates: readonly UriHelpPredicateName[];
 }
 
-interface HelpObjectEntry {
-  readonly aliases?: readonly string[];
-  readonly description: string;
-  readonly name: HelpObjectName;
-  readonly title: string;
-  readonly uriForms: readonly string[];
-  readonly verbs: readonly HelpObjectVerb[];
-}
-
-interface HelpVerbEntry {
-  readonly description: string;
-  readonly name: HelpVerbName;
-  readonly title: string;
-}
-
-interface HelpVerbObjectRows {
-  readonly object: HelpObjectEntry;
-  readonly rows: readonly HelpObjectVerb[];
-}
-
-interface HelpVerbView extends HelpVerbEntry {
-  readonly objects: readonly HelpVerbObjectRows[];
-}
-
-export type HelpMatrixPage =
-  | { readonly kind: "matrix" }
-  | { readonly kind: "object"; readonly object?: HelpObjectName }
-  | { readonly kind: "verb"; readonly verb?: HelpVerbName };
-
-const HELP_OBJECTS: readonly HelpObjectEntry[] = [
+const URI_HELP_TARGETS: readonly UriHelpTarget[] = [
   {
-    description: "The whole `.wikg` archive addressed by its archive URI.",
-    name: "archive",
-    title: "Archive",
-    uriForms: ["wikg://book.wikg", "wikg:///Users/me/book.wikg"],
-    verbs: [
-      {
-        command: 'wikigraph wikg://book.wikg/meta put title "New Title"',
-        note: "Edit archive-level object metadata.",
-        verb: "set",
-      },
-      {
-        command: "wikigraph wikg://book.wikg create ./book.md",
-        note: "Create or replace the archive from source material.",
-        verb: "create",
-      },
-      {
-        command: "wikigraph wikg://book.wikg inspect",
-        note: "Inspect archive readiness before searching or queueing work.",
-        verb: "inspect",
-      },
-      {
-        command: "wikigraph wikg://book.wikg export --output-format markdown",
-        note: "Export a projection from the archive.",
-        verb: "export",
-      },
-    ],
+    name: "archive-scope",
+    predicates: ["create", "export", "inspect", "set"],
+  },
+  { name: "chapter-collection-scope", predicates: ["add"] },
+  {
+    name: "chapter-scope",
+    predicates: ["inspect", "move", "remove", "reset"],
+  },
+  { name: "chapter-source-object", predicates: ["set"] },
+  { name: "chapter-summary-object", predicates: ["evidence", "set"] },
+  { name: "chapter-title-object", predicates: ["clear", "set"] },
+  { name: "chapter-tree-object", predicates: ["set"] },
+  { name: "chapter-state-object", predicates: [] },
+  { name: "chunk-scope", predicates: [] },
+  { name: "chunk-object", predicates: ["evidence", "pack", "related"] },
+  { name: "cover-object", predicates: [] },
+  {
+    name: "entity-scope",
+    predicates: [],
+  },
+  { name: "entity-object", predicates: ["evidence", "pack", "related"] },
+  { name: "entity-wikipage-object", predicates: [] },
+  { name: "index-object", predicates: ["build", "clear", "embed", "external"] },
+  {
+    name: "job-collection-scope",
+    predicates: ["add", "clean", "list"],
   },
   {
-    description: "The raw cover resource stored in an archive.",
-    name: "cover",
-    title: "Cover",
-    uriForms: ["wikg://book.wikg/cover"],
-    verbs: [],
+    name: "job-object",
+    predicates: ["boost", "cancel", "get", "pause", "resume", "watch"],
   },
+  { name: "job-target-object", predicates: ["set"] },
   {
-    description: "The archive search index policy and FTS materialization.",
-    name: "index",
-    title: "Index",
-    uriForms: ["wikg://book.wikg/index"],
-    verbs: [
-      {
-        command: "wikigraph wikg://book.wikg/index build --jsonl",
-        note: "Build a usable FTS index with progress events; by default it stays in local cache.",
-        verb: "build",
-      },
-      {
-        command: "wikigraph wikg://book.wikg/index embed",
-        note: "Build if needed, store FTS in the archive, and mark the policy embedded.",
-        verb: "embed",
-      },
-      {
-        command: "wikigraph wikg://book.wikg/index external",
-        note: "Mark FTS as local cache only and remove the embedded index copy.",
-        verb: "external",
-      },
-      {
-        command: "wikigraph wikg://book.wikg/index clear",
-        note: "Delete the current FTS index without changing storage policy.",
-        verb: "clear",
-      },
-    ],
+    name: "local-config-section",
+    predicates: ["clear", "delete", "get", "put", "set", "test"],
   },
-  {
-    aliases: ["chapters"],
-    description: "The chapter collection under one archive.",
-    name: "chapter",
-    title: "Chapter Collection And Chapter",
-    uriForms: ["wikg://book.wikg/chapter", "wikg://book.wikg/chapter/12"],
-    verbs: [
-      {
-        command: "wikigraph wikg://book.wikg/chapter add --stage planned",
-        note: "Create a new chapter.",
-        verb: "add",
-      },
-      {
-        command:
-          "wikigraph wikg://book.wikg/chapter/12 move --parent wikg://book.wikg/chapter/3",
-        note: "Move a chapter in the TOC tree.",
-        verb: "move",
-      },
-      {
-        command: "wikigraph wikg://book.wikg/chapter/12 remove",
-        note: "Delete a chapter.",
-        verb: "remove",
-      },
-      {
-        command: "wikigraph wikg://book.wikg/chapter/12 reset --to source",
-        note: "Delete later-stage artifacts.",
-        verb: "reset",
-      },
-      {
-        command:
-          "wikigraph wikg://local/job add --input wikg://book.wikg/chapter/12 --task reading-graph --accept-cost",
-        note: "Queue generated work for the chapter.",
-        verb: "queue",
-      },
-    ],
-  },
-  {
-    description: "One chapter's stored artifact readiness.",
-    name: "chapter-state",
-    title: "Chapter State",
-    uriForms: [
-      "wikg://book.wikg/chapter/12/state",
-      "wikg://book.wikg/chapter/12/state/reading-graph",
-      "wikg://book.wikg/chapter/12/state/knowledge-graph",
-    ],
-    verbs: [],
-  },
-  {
-    description: "The complete chapter tree resource.",
-    name: "chapter-tree",
-    title: "Chapter Tree",
-    uriForms: ["wikg://book.wikg/chapter/tree"],
-    verbs: [
-      {
-        command:
-          "wikigraph wikg://book.wikg/chapter/tree set --input tree.json",
-        note: "Replace chapter order and titles from a full tree JSON.",
-        verb: "set",
-      },
-    ],
-  },
-  {
-    description: "A chapter's source text resource.",
-    name: "chapter-source",
-    title: "Chapter Source",
-    uriForms: ["wikg://book.wikg/chapter/12/source"],
-    verbs: [
-      {
-        command:
-          "wikigraph wikg://book.wikg/chapter/12/source set --input chapter.md --input-format markdown",
-        note: "Fill a planned chapter with source text.",
-        verb: "set",
-      },
-    ],
-  },
-  {
-    description: "A chapter's final summary resource.",
-    name: "chapter-summary",
-    title: "Chapter Summary",
-    uriForms: ["wikg://book.wikg/chapter/12/summary"],
-    verbs: [
-      {
-        command:
-          "wikigraph wikg://book.wikg/chapter/12/summary set --input summary.md",
-        note: "Write a manual summary for a graphed chapter.",
-        verb: "set",
-      },
-    ],
-  },
-  {
-    description: "A chapter's TOC title resource.",
-    name: "chapter-title",
-    title: "Chapter Title",
-    uriForms: ["wikg://book.wikg/chapter/12/title"],
-    verbs: [
-      {
-        command: 'wikigraph wikg://book.wikg/chapter/12/title set "New Title"',
-        note: "Set or clear the chapter title.",
-        verb: "set",
-      },
-      {
-        command: "wikigraph wikg://book.wikg/chapter/12/title clear",
-        note: "Remove the explicit chapter title.",
-        verb: "clear",
-      },
-    ],
-  },
-  {
-    description:
-      "Readable chapter source text, optionally narrowed to a range.",
-    name: "source",
-    title: "Source",
-    uriForms: [
-      "wikg://book.wikg/chapter/12/source",
-      "wikg://book.wikg/chapter/12/source#4..8",
-    ],
-    verbs: [],
-  },
-  {
-    description:
-      "Readable chapter summary text, optionally narrowed to a range.",
-    name: "summary",
-    title: "Summary",
-    uriForms: [
-      "wikg://book.wikg/chapter/12/summary",
-      "wikg://book.wikg/chapter/12/summary#4..8",
-    ],
-    verbs: [
-      {
-        command: "wikigraph wikg://book.wikg/chapter/12/summary evidence",
-        note: "Trace summary support back to source.",
-        verb: "evidence",
-      },
-    ],
-  },
-  {
-    description: "A Reading Graph chunk.",
-    name: "chunk",
-    title: "Chunk",
-    uriForms: ["wikg://book.wikg/chunk", "wikg://book.wikg/chunk/123"],
-    verbs: [
-      {
-        command: "wikigraph wikg://book.wikg/chunk/123 related",
-        note: "Expand to nearby Reading Graph chunks.",
-        verb: "related",
-      },
-      {
-        command: "wikigraph wikg://book.wikg/chunk/123 evidence",
-        note: "Trace chunk support back to source.",
-        verb: "evidence",
-      },
-      {
-        command: "wikigraph wikg://book.wikg/chunk/123 pack --budget 5000",
-        note: "Assemble bounded context around the chunk.",
-        verb: "pack",
-      },
-    ],
-  },
-  {
-    description: "A Knowledge Graph entity grouped from mentions.",
-    name: "entity",
-    title: "Entity",
-    uriForms: [
-      "wikg://book.wikg/entity",
-      "wikg://book.wikg/entity/Q9957",
-      "wikg://book.wikg/entity/Q9957/wikipage",
-    ],
-    verbs: [
-      {
-        command:
-          "wikigraph wikg://book.wikg/entity/Q9957 related --role subject --all --jsonl",
-        note: "Stream triples related to the entity.",
-        verb: "related",
-      },
-      {
-        command:
-          "wikigraph wikg://book.wikg/entity/Q9957 evidence --all --jsonl",
-        note: "Trace known entity mentions back to source before literal source search by label.",
-        verb: "evidence",
-      },
-      {
-        command: "wikigraph wikg://book.wikg/entity/Q9957 pack --budget 5000",
-        note: "Pack bounded source-backed context.",
-        verb: "pack",
-      },
-    ],
-  },
-  {
-    description: "A Knowledge Graph relation between two entities.",
-    name: "triple",
-    title: "Triple",
-    uriForms: [
-      "wikg://book.wikg/triple",
-      "wikg://book.wikg/triple/Q9957/participant_in/Q178561",
-    ],
-    verbs: [
-      {
-        command:
-          "wikigraph wikg://book.wikg/triple/Q9957/participant_in/Q178561 evidence",
-        note: "Trace relation evidence back to source.",
-        verb: "evidence",
-      },
-    ],
-  },
-  {
-    description: "The local generation job collection.",
-    name: "job-collection",
-    title: "Job Collection",
-    uriForms: ["wikg://local/job"],
-    verbs: [
-      {
-        command:
-          "wikigraph wikg://local/job add --input wikg://book.wikg/chapter/12 --task reading-summary --accept-cost",
-        note: "Create a generation job.",
-        verb: "add",
-      },
-    ],
-  },
-  {
-    aliases: ["job"],
-    description: "One local generation job.",
-    name: "job",
-    title: "Job",
-    uriForms: ["wikg://local/job/<job-id>"],
-    verbs: [
-      {
-        command: "wikigraph wikg://local/job/<job-id> watch --jsonl",
-        note: "Follow durable job progress.",
-        verb: "watch",
-      },
-      {
-        command: "wikigraph wikg://local/job/<job-id> pause",
-        note: "Pause an active job.",
-        verb: "pause",
-      },
-      {
-        command: "wikigraph wikg://local/job/<job-id> resume",
-        note: "Resume a paused job.",
-        verb: "resume",
-      },
-      {
-        command: "wikigraph wikg://local/job/<job-id> cancel",
-        note: "Cancel an active job.",
-        verb: "cancel",
-      },
-      {
-        command: "wikigraph wikg://local/job/<job-id> boost",
-        note: "Move a queued job forward.",
-        verb: "boost",
-      },
-      {
-        command:
-          "wikigraph wikg://local/job/<job-id>/target set reading-summary",
-        note: "Change an active job target.",
-        verb: "set",
-      },
-    ],
-  },
-  {
-    description: "A continuation cursor returned by paged commands.",
-    name: "cursor",
-    title: "Cursor",
-    uriForms: ["c_abc123"],
-    verbs: [
-      {
-        command: "wikigraph next c_abc123 --limit 10",
-        note: "Read the next page for any cursor.",
-        verb: "next",
-      },
-    ],
-  },
+  { name: "summary-object", predicates: ["evidence"] },
+  { name: "triple-scope", predicates: [] },
+  { name: "triple-object", predicates: ["evidence"] },
 ] as const;
 
-const HELP_VERBS: readonly HelpVerbEntry[] = [
-  {
-    description: "Create a new archive or object.",
-    name: "create",
-    title: "Create",
-  },
-  {
-    description: "Build a derived resource when it is not already usable.",
-    name: "build",
-    title: "Build",
-  },
-  {
-    description: "Store an externalized resource inside the archive.",
-    name: "embed",
-    title: "Embed",
-  },
-  {
-    description: "Keep a derived resource outside the archive as local cache.",
-    name: "external",
-    title: "External",
-  },
-  {
-    description: "Clear a writable object resource.",
-    name: "clear",
-    title: "Clear",
-  },
-  {
-    description: "Modify a writable object resource.",
-    name: "set",
-    title: "Set",
-  },
-  {
-    description: "Add a child object to a collection.",
-    name: "add",
-    title: "Add",
-  },
-  {
-    description: "Expand from one object to nearby objects.",
-    name: "related",
-    title: "Related",
-  },
-  {
-    description: "Trace an object back to source-backed evidence.",
-    name: "evidence",
-    title: "Evidence",
-  },
-  {
-    description: "Pack bounded context around an object.",
-    name: "pack",
-    title: "Pack",
-  },
-  {
-    description: "Move a chapter object in the chapter tree.",
-    name: "move",
-    title: "Move",
-  },
-  { description: "Remove a chapter object.", name: "remove", title: "Remove" },
-  {
-    description: "Delete later-stage artifacts for a chapter.",
-    name: "reset",
-    title: "Reset",
-  },
-  {
-    description: "Queue generated work for a chapter.",
-    name: "queue",
-    title: "Queue",
-  },
-  { description: "Watch a queued job.", name: "watch", title: "Watch" },
-  { description: "Pause a queued job.", name: "pause", title: "Pause" },
-  { description: "Resume a paused job.", name: "resume", title: "Resume" },
-  { description: "Cancel a queued job.", name: "cancel", title: "Cancel" },
-  { description: "Boost a queued job.", name: "boost", title: "Boost" },
-  {
-    description:
-      "Inspect archive readiness, coverage, search index, and next steps.",
-    name: "inspect",
-    title: "Inspect",
-  },
-  {
-    description: "Export an archive projection.",
-    name: "export",
-    title: "Export",
-  },
-  { description: "Read a continuation cursor.", name: "next", title: "Next" },
-] as const;
+const URI_HELP_TARGET_LOOKUP = new Map<UriHelpTargetName, UriHelpTarget>(
+  URI_HELP_TARGETS.map((target) => [target.name, target]),
+);
 
 export const ARCHIVE_COMMANDS = [
   "create",
@@ -564,18 +160,6 @@ const HELP_TOPIC_METADATA: readonly {
   {
     name: "command",
     summary: "Top-level commands, flags, and command family boundaries.",
-  },
-  {
-    name: "object",
-    summary: "URI-addressed objects and the verbs each object supports.",
-  },
-  {
-    name: "verb",
-    summary: "Verb semantics and object-specific implementations.",
-  },
-  {
-    name: "matrix",
-    summary: "Cross-reference of objects and verbs.",
   },
   {
     name: "format",
@@ -633,9 +217,6 @@ const HELP_TOPIC_TEMPLATE_NAMES: Readonly<Record<HelpTopic, string>> = {
   overview: "help/topics/overview",
   task: "help/topics/task",
   command: "help/topics/command",
-  object: "help/topics/object",
-  verb: "help/topics/verb",
-  matrix: "help/topics/matrix",
   format: "help/topics/format",
   config: "help/topics/config",
   runtime: "help/topics/runtime",
@@ -645,17 +226,6 @@ const HELP_TOPIC_TEMPLATE_NAMES: Readonly<Record<HelpTopic, string>> = {
   troubleshoot: "help/topics/troubleshoot",
   ai: "help/topics/ai",
 };
-
-const HELP_OBJECT_LOOKUP = new Map<string, HelpObjectEntry>(
-  HELP_OBJECTS.flatMap((object) => [
-    [object.name, object],
-    ...(object.aliases ?? []).map((alias) => [alias, object] as const),
-  ]),
-);
-
-const HELP_VERB_LOOKUP = new Map<string, HelpVerbEntry>(
-  HELP_VERBS.map((verb) => [verb.name, verb]),
-);
 
 let helpTemplateEnvironment: ReturnType<typeof createEnv> | undefined;
 
@@ -679,14 +249,6 @@ export function renderLegacyCommandHelpText(action?: "migrate"): string {
   );
 }
 
-export function renderQueueCommandHelpText(action?: CLIQueueAction): string {
-  return renderHelpTemplate(
-    action === undefined
-      ? "help/commands/queue"
-      : `help/commands/queue/${action}`,
-  );
-}
-
 export function renderArchiveCommandHelpText(action: CLIArchiveAction): string {
   return renderHelpTemplate(`help/commands/archive/${action}`);
 }
@@ -695,23 +257,46 @@ export function renderHelpTopicText(topic: HelpTopic): string {
   return renderHelpTemplate(HELP_TOPIC_TEMPLATE_NAMES[topic]);
 }
 
-export function renderHelpMatrixText(page: HelpMatrixPage): string {
-  switch (page.kind) {
-    case "matrix":
-      return renderHelpTemplate("help/topics/matrix");
-    case "object":
-      return renderHelpTemplate("help/topics/object", {
-        selectedObject:
-          page.object === undefined
-            ? undefined
-            : requireHelpObject(page.object),
-      });
-    case "verb":
-      return renderHelpTemplate("help/topics/verb", {
-        selectedVerb:
-          page.verb === undefined ? undefined : createHelpVerbView(page.verb),
-      });
+export function renderUriHelpText(
+  targetName: UriHelpTargetName,
+  uri: string,
+): string {
+  return renderHelpTemplate("help/commands/uri", {
+    target: requireUriHelpTarget(targetName),
+    uri,
+  });
+}
+
+export function renderUriPredicateHelpText(
+  targetName: UriHelpTargetName,
+  predicate: UriHelpPredicateName,
+  uri: string,
+): string {
+  const target = requireUriHelpTarget(targetName);
+
+  if (!target.predicates.includes(predicate)) {
+    throw new Error(
+      withHelpRoute(
+        `The URI target ${uri} does not support \`${predicate}\`.`,
+        `wikigraph ${uri} --help`,
+      ),
+    );
   }
+
+  return renderHelpTemplate("help/commands/predicate", {
+    predicate,
+    target,
+    uri,
+  });
+}
+
+export function isUriHelpPredicate(
+  targetName: UriHelpTargetName,
+  predicate: string,
+): predicate is UriHelpPredicateName {
+  return requireUriHelpTarget(targetName).predicates.includes(
+    predicate as UriHelpPredicateName,
+  );
 }
 
 export function renderArchiveMaintenanceCommandHelpText(
@@ -741,144 +326,14 @@ export function parseHelpTopic(value: string): HelpTopic {
   );
 }
 
-export function parseHelpMatrixPage(
-  positionals: readonly string[],
-): HelpMatrixPage | undefined {
-  const [kind, target] = positionals;
+function requireUriHelpTarget(name: UriHelpTargetName): UriHelpTarget {
+  const target = URI_HELP_TARGET_LOOKUP.get(name);
 
-  if (kind === "matrix") {
-    if (target !== undefined) {
-      throw new Error(
-        withHelpRoute(
-          `Unexpected positional arguments: ${positionals.slice(1).join(" ")}.`,
-          CLI_HELP_ROUTES.root,
-        ),
-      );
-    }
-    return { kind: "matrix" };
+  if (target === undefined) {
+    throw new Error(`Internal error: unknown URI help target ${name}.`);
   }
 
-  if (kind === "object") {
-    if (positionals.length > 2) {
-      throw new Error(
-        withHelpRoute(
-          `Unexpected positional arguments: ${positionals.slice(2).join(" ")}.`,
-          CLI_HELP_ROUTES.root,
-        ),
-      );
-    }
-    return {
-      kind: "object",
-      ...(target === undefined ? {} : { object: parseHelpObjectName(target) }),
-    };
-  }
-
-  if (kind === "verb") {
-    if (positionals.length > 2) {
-      throw new Error(
-        withHelpRoute(
-          `Unexpected positional arguments: ${positionals.slice(2).join(" ")}.`,
-          CLI_HELP_ROUTES.root,
-        ),
-      );
-    }
-    return {
-      kind: "verb",
-      ...(target === undefined ? {} : { verb: parseHelpVerbName(target) }),
-    };
-  }
-
-  if (positionals.length === 1 && kind !== undefined) {
-    const object = parseHelpObjectNameOrUndefined(kind);
-    if (object !== undefined) {
-      return { kind: "object", object };
-    }
-
-    const verb = parseHelpVerbNameOrUndefined(kind);
-    if (verb !== undefined) {
-      return { kind: "verb", verb };
-    }
-  }
-
-  return undefined;
-}
-
-function parseHelpObjectName(value: string): HelpObjectName {
-  const object = parseHelpObjectNameOrUndefined(value);
-
-  if (object !== undefined) {
-    return object;
-  }
-
-  throw new Error(
-    withHelpRoute(
-      `Invalid help object: ${value}. Expected one of ${HELP_OBJECTS.map((entry) => entry.name).join(", ")}.`,
-      CLI_HELP_ROUTES.root,
-    ),
-  );
-}
-
-function parseHelpObjectNameOrUndefined(
-  value: string,
-): HelpObjectName | undefined {
-  return HELP_OBJECT_LOOKUP.get(value.trim().toLowerCase())?.name;
-}
-
-function parseHelpVerbName(value: string): HelpVerbName {
-  const verb = parseHelpVerbNameOrUndefined(value);
-
-  if (verb !== undefined) {
-    return verb;
-  }
-
-  throw new Error(
-    withHelpRoute(
-      `Invalid help verb: ${value}. Expected one of ${HELP_VERBS.map((entry) => entry.name).join(", ")}.`,
-      CLI_HELP_ROUTES.root,
-    ),
-  );
-}
-
-function parseHelpVerbNameOrUndefined(value: string): HelpVerbName | undefined {
-  return HELP_VERB_LOOKUP.get(value.trim().toLowerCase())?.name;
-}
-
-function requireHelpObject(name: HelpObjectName): HelpObjectEntry {
-  const object = HELP_OBJECT_LOOKUP.get(name);
-
-  if (object === undefined) {
-    throw new Error(`Internal error: unknown help object ${name}.`);
-  }
-
-  return object;
-}
-
-function requireHelpVerb(name: HelpVerbName): HelpVerbEntry {
-  const verb = HELP_VERB_LOOKUP.get(name);
-
-  if (verb === undefined) {
-    throw new Error(`Internal error: unknown help verb ${name}.`);
-  }
-
-  return verb;
-}
-
-function createHelpVerbView(name: HelpVerbName): HelpVerbView {
-  const verb = requireHelpVerb(name);
-
-  return {
-    ...verb,
-    objects: createHelpVerbObjectRows(name),
-  };
-}
-
-function createHelpVerbObjectRows(
-  name: HelpVerbName,
-): readonly HelpVerbObjectRows[] {
-  return HELP_OBJECTS.map((object) => ({
-    object,
-    rows: object.verbs.filter((item) => item.verb === name),
-  })).filter((item) => item.rows.length > 0);
+  return target;
 }
 
 function renderHelpTemplate(
@@ -889,12 +344,7 @@ function renderHelpTemplate(
     formats: CLI_FORMATS,
     helpTopics: HELP_TOPIC_METADATA,
     archiveMaintenanceCommands: ARCHIVE_MAINTENANCE_COMMAND_METADATA,
-    helpObjects: HELP_OBJECTS,
-    helpVerbs: HELP_VERBS,
-    helpVerbRows: HELP_VERBS.map((verb) => ({
-      ...verb,
-      objects: createHelpVerbObjectRows(verb.name),
-    })),
+    uriHelpTargets: URI_HELP_TARGETS,
     ...extraContext,
   });
 }

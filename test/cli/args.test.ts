@@ -7,11 +7,11 @@ import {
   renderArchiveMaintenanceChapterActionHelpText,
   renderArchiveMaintenanceCommandHelpText,
   renderGcCommandHelpText,
-  renderHelpMatrixText,
   renderHelpTopicText,
   renderLegacyCommandHelpText,
   renderMainHelpText,
-  renderQueueCommandHelpText,
+  renderUriHelpText,
+  renderUriPredicateHelpText,
   renderTransformHelpText,
 } from "../../src/cli/help.js";
 
@@ -38,8 +38,12 @@ describe("cli/args", () => {
     });
   });
 
-  it("renders archive command help", () => {
-    const createHelp = parseCLIArguments(["create", "--help"]);
+  it("renders URI predicate help", () => {
+    const createHelp = parseCLIArguments([
+      "wikg://book.wikg",
+      "create",
+      "--help",
+    ]);
     const helpTopic = parseCLIArguments(["help", "recipe"]);
 
     expect(createHelp.help).toBe(true);
@@ -52,10 +56,11 @@ describe("cli/args", () => {
     if (!helpTopic.help || helpTopic.kind !== "help") {
       throw new Error("Expected help topic");
     }
-    expect(createHelp.helpText).toContain(
-      "Command: wikigraph <archive-uri> create",
+    expect(createHelp.helpText).toContain("Command: wikigraph <uri> create");
+    expect(createHelp.helpText).toContain("Create or replace the archive");
+    expect(() => parseCLIArguments(["create", "--help"])).toThrow(
+      "Unknown command: create.",
     );
-    expect(createHelp.helpText).toContain("stdin: supported");
   });
 
   it("parses legacy migration commands", () => {
@@ -273,19 +278,19 @@ describe("cli/args", () => {
       parseCLIArguments(["wikg:///tmp/book.wikg/index", "build", "--help"]),
     ).toStrictEqual({
       help: true,
-      helpText: renderHelpMatrixText({ kind: "object", object: "index" }),
+      helpText: renderUriPredicateHelpText(
+        "index-object",
+        "build",
+        "wikg:///tmp/book.wikg/index",
+      ),
       kind: "help",
     });
-    expect(parseCLIArguments(["help", "index"])).toStrictEqual({
-      help: true,
-      helpText: renderHelpMatrixText({ kind: "object", object: "index" }),
-      kind: "help",
-    });
-    expect(parseCLIArguments(["help", "build"])).toStrictEqual({
-      help: true,
-      helpText: renderHelpMatrixText({ kind: "verb", verb: "build" }),
-      kind: "help",
-    });
+    expect(() => parseCLIArguments(["help", "index"])).toThrow(
+      "Invalid help topic: index.",
+    );
+    expect(() => parseCLIArguments(["help", "build"])).toThrow(
+      "Invalid help topic: build.",
+    );
     expect(() =>
       parseCLIArguments(["wikg:///tmp/book.wikg/index", "clear", "--dry-run"]),
     ).toThrow("The `clear` command does not support --dry-run.");
@@ -494,7 +499,11 @@ describe("cli/args", () => {
       parseCLIArguments(["wikg://local/job", "list", "--help"]),
     ).toStrictEqual({
       help: true,
-      helpText: renderQueueCommandHelpText("list"),
+      helpText: renderUriPredicateHelpText(
+        "job-collection-scope",
+        "list",
+        "wikg://local/job",
+      ),
       kind: "help",
     });
 
@@ -1503,7 +1512,7 @@ describe("cli/args", () => {
       parseCLIArguments(["wikg://book.wikg/chapter/12/title", "set", "--help"]),
     ).toMatchObject({
       help: true,
-      kind: "chapter",
+      kind: "help",
     });
     expect(
       parseCLIArguments([
@@ -1594,8 +1603,12 @@ describe("cli/args", () => {
       ]),
     ).toStrictEqual({
       help: true,
-      helpText: renderArchiveMaintenanceChapterActionHelpText("set-summary"),
-      kind: "chapter",
+      helpText: renderUriPredicateHelpText(
+        "chapter-summary-object",
+        "set",
+        "wikg://book.wikg/chapter/12/summary",
+      ),
+      kind: "help",
     });
     expect(() => parseCLIArguments(["chapter", "set-title", "--help"])).toThrow(
       "Use concrete chapter resource URIs",
@@ -1604,8 +1617,12 @@ describe("cli/args", () => {
       parseCLIArguments(["wikg://book.wikg/chapter/12/title", "set", "--help"]),
     ).toStrictEqual({
       help: true,
-      helpText: renderArchiveMaintenanceChapterActionHelpText("set-title"),
-      kind: "chapter",
+      helpText: renderUriPredicateHelpText(
+        "chapter-title-object",
+        "set",
+        "wikg://book.wikg/chapter/12/title",
+      ),
+      kind: "help",
     });
   });
 
@@ -1618,49 +1635,52 @@ describe("cli/args", () => {
     expect(() => parseCLIArguments(["search", "--help"])).toThrow(
       "Unknown command: search.",
     );
-    expect(parseCLIArguments(["help", "object"])).toStrictEqual({
-      help: true,
-      helpText: renderHelpMatrixText({ kind: "object" }),
-      kind: "help",
-    });
-    expect(parseCLIArguments(["help", "object", "entity"])).toStrictEqual({
-      help: true,
-      helpText: renderHelpMatrixText({ kind: "object", object: "entity" }),
-      kind: "help",
-    });
-    expect(parseCLIArguments(["help", "entity"])).toStrictEqual({
-      help: true,
-      helpText: renderHelpMatrixText({ kind: "object", object: "entity" }),
-      kind: "help",
-    });
+    expect(() => parseCLIArguments(["help", "object"])).toThrow(
+      "Invalid help topic: object.",
+    );
+    expect(() => parseCLIArguments(["help", "object", "entity"])).toThrow(
+      "Unexpected positional arguments: entity.",
+    );
+    expect(() => parseCLIArguments(["help", "entity"])).toThrow(
+      "Invalid help topic: entity.",
+    );
     expect(
       parseCLIArguments(["wikg://book.wikg/chunk", "--help"]),
     ).toStrictEqual({
       help: true,
-      helpText: renderHelpMatrixText({ kind: "object", object: "chunk" }),
+      helpText: renderUriHelpText("chunk-scope", "wikg://book.wikg/chunk"),
       kind: "help",
     });
     expect(
       parseCLIArguments(["wikg://book.wikg/chapter/tree", "--help"]),
     ).toStrictEqual({
       help: true,
-      helpText: renderHelpMatrixText({
-        kind: "object",
-        object: "chapter-tree",
-      }),
+      helpText: renderUriHelpText(
+        "chapter-tree-object",
+        "wikg://book.wikg/chapter/tree",
+      ),
+      kind: "help",
+    });
+    expect(
+      parseCLIArguments(["wikg://book.wikg/entity/Q42", "related", "--help"]),
+    ).toStrictEqual({
+      help: true,
+      helpText: renderUriPredicateHelpText(
+        "entity-object",
+        "related",
+        "wikg://book.wikg/entity/Q42",
+      ),
       kind: "help",
     });
     expect(() => parseCLIArguments(["help", "verb", "get"])).toThrow(
-      "Invalid help verb: get.",
+      "Unexpected positional arguments: get.",
     );
     expect(() => parseCLIArguments(["help", "get"])).toThrow(
       "Invalid help topic: get.",
     );
-    expect(parseCLIArguments(["help", "matrix"])).toStrictEqual({
-      help: true,
-      helpText: renderHelpMatrixText({ kind: "matrix" }),
-      kind: "help",
-    });
+    expect(() => parseCLIArguments(["help", "matrix"])).toThrow(
+      "Invalid help topic: matrix.",
+    );
   });
 
   it("rejects positional arguments", () => {
@@ -1739,7 +1759,7 @@ describe("cli/args", () => {
     expect(() =>
       parseCLIArguments(["wikg://book.wikg/chapter/x/source", "set"]),
     ).toThrow(
-      "Use `wikigraph help object` to inspect valid object/verb pairs.",
+      "Use `wikigraph wikg://book.wikg/chapter/x/source --help` to inspect valid predicates.",
     );
     expect(() => parseCLIArguments(["wikg://entity/Q9957"])).toThrow(
       "Short object URIs from output are archive-relative handles.",
@@ -1772,13 +1792,13 @@ describe("cli/args", () => {
 
   it("rejects invalid help usage", () => {
     expect(() => parseCLIArguments(["help", "unknown"])).toThrow(
-      "Invalid help topic: unknown. Expected one of overview, task, command, object, verb, matrix, format, config, runtime, uri, retrieval, recipe, troubleshoot, ai.\nSee: wikigraph --help",
+      "Invalid help topic: unknown. Expected one of overview, task, command, format, config, runtime, uri, retrieval, recipe, troubleshoot, ai.\nSee: wikigraph --help",
     );
     expect(() =>
       parseCLIArguments(["help", "object", "entity", "extra"]),
-    ).toThrow("Unexpected positional arguments: extra.");
+    ).toThrow("Unexpected positional arguments: entity extra.");
     expect(() => parseCLIArguments(["help", "verb", "get", "extra"])).toThrow(
-      "Unexpected positional arguments: extra.",
+      "Unexpected positional arguments: get extra.",
     );
     expect(() =>
       parseCLIArguments(["help", "task", "--input", "book.epub"]),
@@ -1806,17 +1826,13 @@ describe("cli/args", () => {
     expect(rootHelpText).toContain("wikigraph transform");
     expect(rootHelpText).not.toContain("wikigraph import");
     expect(rootHelpText).toContain("wikigraph wikg://local/job add");
-    expect(rootHelpText).toContain(
-      "Append `--help` to commands and subcommands",
-    );
+    expect(rootHelpText).toContain("Use `wikigraph <uri> --help`");
     expect(rootHelpText).toContain("Treat `wikigraph --help` as the root");
     expect(rootHelpText).toContain(
       "Read `wikigraph help overview` for the URI-first archive mental model.",
     );
     expect(rootHelpText).toContain("wikigraph help retrieval");
-    expect(rootHelpText).toContain("wikigraph help object");
-    expect(rootHelpText).toContain("wikigraph help verb");
-    expect(rootHelpText).toContain("wikigraph help matrix");
+    expect(rootHelpText).toContain("wikigraph <uri> <predicate> --help");
     expect(rootHelpText).toContain("Queue generation tasks call an LLM");
     expect(renderHelpTopicText("runtime")).toContain("Runtime Behavior");
     expect(renderHelpTopicText("config")).toContain("Configuration");

@@ -68,7 +68,9 @@ Maintenance:
   wikigraph help [topic] [--help|-h]
 
 Help contract:
-  - Append `--help` to commands and subcommands to see command-specific usage.
+  - Use `wikigraph <uri> --help` to inspect a URI command, its default behavior, and supported predicates.
+  - Use `wikigraph <uri> <predicate> --help` to inspect a URI-bound predicate command.
+  - Use `wikigraph <non-predicate-command> --help` for non-predicate commands such as `transform`, `gc`, `legacy`, and `next`.
   - Use `wikigraph help <topic>` for cross-command concepts, constraints, and runtime behavior.
   - Treat `wikigraph --help` as the root page of the same help system.
   - Use `wikigraph legacy migrate --help` only when upgrading an `.sdpub` archive.
@@ -87,6 +89,6 @@ Start here:
   - Read `wikigraph help overview` for the URI-first archive mental model.
   - Read `wikigraph help uri` before using object commands.
   - Read `wikigraph help retrieval` before choosing scope, lens, pagination, or output format flags.
-  - Read `wikigraph help object` when you have a URI and need valid verbs.
-  - Read `wikigraph help verb` when you know an operation and need valid targets.
+  - Run `wikigraph <uri> --help` when you have a URI and need valid predicates.
+  - Run `wikigraph <uri> <predicate> --help` when you need a predicate's concrete usage for that URI type.
   - Read `wikigraph help command` for command shapes.

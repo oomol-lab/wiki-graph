@@ -1,0 +1,271 @@
+Help Type: command
+Command: wikigraph <uri>
+
+URI Command
+
+Target:
+  {{ uri }}
+
+{% if target.name == "archive-scope" %}
+URI type:
+  Archive scope
+
+Default behavior:
+  - `wikigraph {{ uri }}` enumerates archive-level objects.
+  - `wikigraph {{ uri }} --query <query>` searches across archive scopes.
+
+Use when:
+  - You need the archive entry point before narrowing to chapters, chunks, entities, triples, source, or summaries.
+{% elif target.name == "chapter-collection-scope" %}
+URI type:
+  Chapter collection scope
+
+Default behavior:
+  - `wikigraph {{ uri }}` enumerates chapters.
+  - `wikigraph {{ uri }} --query <query>` searches chapter objects.
+
+Use when:
+  - You need chapter ids, chapter readiness, or a starting point for chapter-scoped retrieval.
+{% elif target.name == "chapter-scope" %}
+URI type:
+  Chapter scope
+
+Default behavior:
+  - `wikigraph {{ uri }}` enumerates objects inside this chapter.
+  - `wikigraph {{ uri }} --query <query>` searches inside this chapter.
+
+Use when:
+  - You already selected a chapter and want local source, summary, chunk, entity, or triple objects.
+{% elif target.name == "chunk-scope" %}
+URI type:
+  Chunk scope
+
+Default behavior:
+  - `wikigraph {{ uri }}` enumerates Reading Graph chunks.
+  - `wikigraph {{ uri }} --query <query>` searches chunks in this scope.
+
+Use when:
+  - You need candidate Reading Graph chunks before selecting a concrete chunk URI.
+{% elif target.name == "entity-scope" %}
+URI type:
+  Entity scope
+
+Default behavior:
+  - `wikigraph {{ uri }}` enumerates Knowledge Graph entities.
+  - `wikigraph {{ uri }} --query <query>` searches entities in this scope.
+
+Use when:
+  - You need candidate entities before selecting a concrete entity URI.
+{% elif target.name == "triple-scope" %}
+URI type:
+  Triple scope
+
+Default behavior:
+  - `wikigraph {{ uri }}` enumerates Knowledge Graph triples matching this scope or pattern.
+  - `wikigraph {{ uri }} --query <query>` searches triples in this scope.
+
+Use when:
+  - You need relation candidates or a triple pattern such as `_` placeholders.
+{% elif target.name == "chapter-source-object" %}
+URI type:
+  Chapter source object
+
+Default behavior:
+  - `wikigraph {{ uri }}` reads source text.
+  - Source range fragments such as `#4..8` read an exact range.
+
+Use when:
+  - You need continuous original wording from a selected chapter.
+{% elif target.name == "chapter-summary-object" or target.name == "summary-object" %}
+URI type:
+  Summary object
+
+Default behavior:
+  - `wikigraph {{ uri }}` reads summary text.
+  - Summary range fragments such as `#4..8` read an exact range.
+
+Use when:
+  - You need compact readable prose before tracing source evidence.
+{% elif target.name == "chapter-title-object" %}
+URI type:
+  Chapter title object
+
+Default behavior:
+  - `wikigraph {{ uri }}` reads the chapter title.
+
+Use when:
+  - You need the current title or want to set or clear it.
+{% elif target.name == "chapter-tree-object" %}
+URI type:
+  Chapter tree object
+
+Default behavior:
+  - `wikigraph {{ uri }}` reads the table-of-contents tree.
+
+Use when:
+  - You need the global chapter structure before choosing scopes.
+{% elif target.name == "chapter-state-object" %}
+URI type:
+  Chapter state object
+
+Default behavior:
+  - `wikigraph {{ uri }}` reads generated artifact readiness.
+
+Use when:
+  - You need to know whether source, Reading Graph, Reading Summary, or Knowledge Graph data exists for a chapter.
+{% elif target.name == "chunk-object" %}
+URI type:
+  Chunk object
+
+Default behavior:
+  - `wikigraph {{ uri }}` reads one Reading Graph chunk.
+
+Use when:
+  - You selected a chunk and need to read, expand, verify, or pack it.
+{% elif target.name == "entity-object" %}
+URI type:
+  Entity object
+
+Default behavior:
+  - `wikigraph {{ uri }}` reads one Knowledge Graph entity.
+
+Use when:
+  - You selected an entity and need related triples, source evidence, or packed context.
+{% elif target.name == "entity-wikipage-object" %}
+URI type:
+  Entity wikipage object
+
+Default behavior:
+  - `wikigraph {{ uri }}` reads mapped Wikipedia page data for the entity.
+
+Use when:
+  - You need canonical mapped pages before considering external web search.
+{% elif target.name == "triple-object" %}
+URI type:
+  Triple object
+
+Default behavior:
+  - `wikigraph {{ uri }}` reads one Knowledge Graph relation.
+
+Use when:
+  - You selected a concrete subject, predicate, and object relation.
+{% elif target.name == "cover-object" %}
+URI type:
+  Cover object
+
+Default behavior:
+  - `wikigraph {{ uri }}` writes raw cover bytes to stdout.
+
+Use when:
+  - You need to redirect or pipe the cover resource.
+{% elif target.name == "index-object" %}
+URI type:
+  Index object
+
+Default behavior:
+  - `wikigraph {{ uri }}` reads the archive search index policy.
+
+Use when:
+  - You need to inspect, build, embed, externalize, or clear FTS index materialization.
+{% elif target.name == "job-collection-scope" %}
+URI type:
+  Local job collection scope
+
+Default behavior:
+  - `wikigraph {{ uri }}` is not a retrieval shortcut. Use a job predicate.
+
+Use when:
+  - You need to add, list, or clean local generation jobs.
+{% elif target.name == "job-object" %}
+URI type:
+  Local job object
+
+Default behavior:
+  - `wikigraph {{ uri }}` is not a retrieval shortcut. Use a job predicate.
+
+Use when:
+  - You need job status, progress, or lifecycle control.
+{% elif target.name == "job-target-object" %}
+URI type:
+  Local job target object
+
+Default behavior:
+  - `wikigraph {{ uri }}` is not a retrieval shortcut. Use `set`.
+
+Use when:
+  - You need to change an active job target.
+{% elif target.name == "local-config-section" %}
+URI type:
+  Local config section
+
+Default behavior:
+  - `wikigraph {{ uri }}` reads the section, equivalent to `wikigraph {{ uri }} get`.
+
+Use when:
+  - You need to read, replace, edit, clear, or test local configuration.
+{% endif %}
+
+Predicate commands:
+{% if target.predicates.length %}
+{% for predicate in target.predicates %}
+{% if predicate == "add" %}
+  - add: create a child object or local job. Help: wikigraph {{ uri }} add --help
+{% elif predicate == "build" %}
+  - build: build a derived resource. Help: wikigraph {{ uri }} build --help
+{% elif predicate == "boost" %}
+  - boost: move a queued job forward. Help: wikigraph {{ uri }} boost --help
+{% elif predicate == "cancel" %}
+  - cancel: cancel a local job. Help: wikigraph {{ uri }} cancel --help
+{% elif predicate == "clean" %}
+  - clean: remove completed local jobs. Help: wikigraph {{ uri }} clean --help
+{% elif predicate == "clear" %}
+  - clear: clear a writable resource or config section. Help: wikigraph {{ uri }} clear --help
+{% elif predicate == "create" %}
+  - create: create or replace the archive. Help: wikigraph {{ uri }} create --help
+{% elif predicate == "delete" %}
+  - delete: delete a config key. Help: wikigraph {{ uri }} delete --help
+{% elif predicate == "embed" %}
+  - embed: store derived index data in the archive. Help: wikigraph {{ uri }} embed --help
+{% elif predicate == "evidence" %}
+  - evidence: trace this object to source-backed evidence. Help: wikigraph {{ uri }} evidence --help
+{% elif predicate == "export" %}
+  - export: export an archive projection. Help: wikigraph {{ uri }} export --help
+{% elif predicate == "external" %}
+  - external: keep index data as local cache. Help: wikigraph {{ uri }} external --help
+{% elif predicate == "get" %}
+  - get: read local job status or config data. Help: wikigraph {{ uri }} get --help
+{% elif predicate == "inspect" %}
+  - inspect: inspect archive readiness. Help: wikigraph {{ uri }} inspect --help
+{% elif predicate == "list" %}
+  - list: list local jobs. Help: wikigraph {{ uri }} list --help
+{% elif predicate == "move" %}
+  - move: move a chapter in the tree. Help: wikigraph {{ uri }} move --help
+{% elif predicate == "pack" %}
+  - pack: assemble bounded context around this object. Help: wikigraph {{ uri }} pack --help
+{% elif predicate == "pause" %}
+  - pause: pause a local job. Help: wikigraph {{ uri }} pause --help
+{% elif predicate == "put" %}
+  - put: set one config key. Help: wikigraph {{ uri }} put --help
+{% elif predicate == "related" %}
+  - related: expand from this object to nearby objects. Help: wikigraph {{ uri }} related --help
+{% elif predicate == "remove" %}
+  - remove: remove a chapter. Help: wikigraph {{ uri }} remove --help
+{% elif predicate == "reset" %}
+  - reset: delete later-stage chapter artifacts. Help: wikigraph {{ uri }} reset --help
+{% elif predicate == "resume" %}
+  - resume: resume a local job. Help: wikigraph {{ uri }} resume --help
+{% elif predicate == "set" %}
+  - set: modify this writable target. Help: wikigraph {{ uri }} set --help
+{% elif predicate == "test" %}
+  - test: test local config connectivity. Help: wikigraph {{ uri }} test --help
+{% elif predicate == "watch" %}
+  - watch: follow local job progress. Help: wikigraph {{ uri }} watch --help
+{% endif %}
+{% endfor %}
+{% else %}
+  This URI has no additional predicate commands. Use the naked URI command shown above.
+{% endif %}
+
+Related topics:
+  - wikigraph help uri
+  - wikigraph help retrieval

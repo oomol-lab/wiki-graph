@@ -1,0 +1,231 @@
+Help Type: command
+Command: wikigraph <uri> {{ predicate }}
+
+URI Predicate Command
+
+Target:
+  {{ uri }}
+
+Predicate:
+  {{ predicate }}
+
+{% if predicate == "related" %}
+Purpose:
+  Expand from the current chunk or entity object to nearby objects.
+
+Usage:
+  wikigraph {{ uri }} related [--query <query>] [--all] [--limit <n>] [--context <n>] [--cursor <token>] [--role <any|subject|object|self>] [--evidence [n]] [--json|--jsonl]
+
+Notes:
+  - Chunk targets return nearby Reading Graph chunks.
+  - Entity targets return Knowledge Graph triples involving the entity.
+  - `--query` filters and ranks related results with the current FTS index.
+  - `--role` only applies to entity targets.
+  - Use `wikigraph {{ uri }} evidence --help` when source grounding is the main goal.
+{% elif predicate == "evidence" %}
+Purpose:
+  Trace the current object back to source-backed evidence.
+
+Usage:
+  wikigraph {{ uri }} evidence [--query <query>] [--all] [--limit <n>] [--context <n>] [--cursor <token>] [--json|--jsonl]
+
+Notes:
+  - Evidence is for grounding, verification, and citation support.
+  - `--query` filters and ranks evidence with the current FTS index.
+  - Evidence previews include nearby source context by default; use `--context 0` for exact cited ranges.
+  - Source and scope URIs are not evidence targets.
+{% elif predicate == "pack" %}
+Purpose:
+  Build bounded Agent-readable context around the current chunk or entity object.
+
+Usage:
+  wikigraph {{ uri }} pack [--budget <chars>] [--json|--jsonl]
+
+Notes:
+  - Default budget is 5000 characters.
+  - Use this after selecting a useful chunk or entity.
+  - Use `evidence` first when verification matters more than context assembly.
+{% elif predicate == "create" %}
+Purpose:
+  Create or replace the archive at this URI.
+
+Usage:
+  wikigraph {{ uri }} create [source] [--input-format <format>] [--llm <json>] [--prompt <text>]
+
+Notes:
+  - `source` may be EPUB, Markdown, txt, or another supported input.
+  - Stdin is supported when `--input-format markdown` or `--input-format txt` is provided.
+{% elif predicate == "export" %}
+Purpose:
+  Export a projection from this archive.
+
+Usage:
+  wikigraph {{ uri }} export --output-format <format> [--output <path>]
+
+Notes:
+  - Projections are portable views; they do not replace the `.wikg` archive.
+{% elif predicate == "inspect" %}
+Purpose:
+  Inspect archive readiness before search, retrieval, or queueing generated work.
+
+Usage:
+  wikigraph {{ uri }} inspect
+
+Notes:
+  - Run this before broad Reading Graph, Reading Summary, or Knowledge Graph work.
+{% elif predicate == "add" and target.name == "chapter-collection-scope" %}
+Purpose:
+  Add a planned chapter to the archive.
+
+Usage:
+  wikigraph {{ uri }} add [--parent <chapter-uri>] [--title <title>] [--after <chapter-uri>] [--before <chapter-uri>] [--stage planned]
+{% elif predicate == "add" and target.name == "job-collection-scope" %}
+Purpose:
+  Add a local generation job.
+
+Usage:
+  wikigraph {{ uri }} add --input <chapter-uri> --task reading-graph|reading-summary|knowledge-graph --accept-cost [--boost] [--llm <json>] [--prompt <text>]
+
+Notes:
+  - Generation jobs may call an LLM provider and incur cost.
+{% elif predicate == "move" %}
+Purpose:
+  Move this chapter in the chapter tree.
+
+Usage:
+  wikigraph {{ uri }} move [--parent <chapter-uri>] [--after <chapter-uri>] [--before <chapter-uri>]
+{% elif predicate == "remove" %}
+Purpose:
+  Remove this chapter.
+
+Usage:
+  wikigraph {{ uri }} remove [--confirm]
+{% elif predicate == "reset" %}
+Purpose:
+  Delete later-stage artifacts for this chapter.
+
+Usage:
+  wikigraph {{ uri }} reset --to source|reading-graph|reading-summary|knowledge-graph [--confirm]
+{% elif predicate == "set" %}
+Purpose:
+  Modify this writable URI target.
+
+{% if target.name == "chapter-tree-object" %}
+Usage:
+  wikigraph {{ uri }} set --input <tree.json>
+{% elif target.name == "chapter-source-object" %}
+Usage:
+  wikigraph {{ uri }} set [text] [--input <path>] --input-format markdown|txt
+{% elif target.name == "chapter-summary-object" %}
+Usage:
+  wikigraph {{ uri }} set [text] [--input <path>]
+{% elif target.name == "chapter-title-object" %}
+Usage:
+  wikigraph {{ uri }} set <title>
+{% elif target.name == "job-target-object" %}
+Usage:
+  wikigraph {{ uri }} set reading-graph|reading-summary|knowledge-graph
+{% elif target.name == "local-config-section" %}
+Usage:
+  wikigraph {{ uri }} set [<json>] [--json <json>|--json-input <json>]
+{% else %}
+Usage:
+  wikigraph {{ uri }} set [options]
+{% endif %}
+{% elif predicate == "clear" %}
+Purpose:
+  Clear this writable resource or local config section.
+
+Usage:
+  wikigraph {{ uri }} clear
+{% elif predicate == "build" %}
+Purpose:
+  Build the search index for this archive.
+
+Usage:
+  wikigraph {{ uri }} build [--jsonl]
+{% elif predicate == "embed" %}
+Purpose:
+  Store the search index inside the archive.
+
+Usage:
+  wikigraph {{ uri }} embed
+{% elif predicate == "external" %}
+Purpose:
+  Keep the search index outside the archive as local cache.
+
+Usage:
+  wikigraph {{ uri }} external
+{% elif predicate == "get" %}
+Purpose:
+  Read local job status or local config data.
+
+Usage:
+  wikigraph {{ uri }} get [--json]
+{% elif predicate == "list" %}
+Purpose:
+  List local generation jobs.
+
+Usage:
+  wikigraph {{ uri }} list [--all] [--active] [--input <archive-uri>] [--json]
+{% elif predicate == "clean" %}
+Purpose:
+  Remove completed local generation jobs.
+
+Usage:
+  wikigraph {{ uri }} clean
+{% elif predicate == "watch" %}
+Purpose:
+  Follow durable local job progress.
+
+Usage:
+  wikigraph {{ uri }} watch [--jsonl] [--from beginning|now]
+{% elif predicate == "pause" %}
+Purpose:
+  Pause this local job.
+
+Usage:
+  wikigraph {{ uri }} pause
+{% elif predicate == "resume" %}
+Purpose:
+  Resume this local job.
+
+Usage:
+  wikigraph {{ uri }} resume
+{% elif predicate == "cancel" %}
+Purpose:
+  Cancel this local job.
+
+Usage:
+  wikigraph {{ uri }} cancel
+{% elif predicate == "boost" %}
+Purpose:
+  Move this local job forward in the queue.
+
+Usage:
+  wikigraph {{ uri }} boost
+{% elif predicate == "put" %}
+Purpose:
+  Set one key in this local config section.
+
+Usage:
+  wikigraph {{ uri }} put <key> <value>
+  wikigraph {{ uri }} put <key> --secret
+{% elif predicate == "delete" %}
+Purpose:
+  Delete one key from this local config section.
+
+Usage:
+  wikigraph {{ uri }} delete <key>
+{% elif predicate == "test" %}
+Purpose:
+  Test connectivity for this local config section.
+
+Usage:
+  wikigraph {{ uri }} test
+{% endif %}
+
+Related help:
+  - wikigraph {{ uri }} --help
+  - wikigraph help uri
+  - wikigraph help retrieval

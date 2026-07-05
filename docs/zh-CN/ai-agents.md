@@ -25,7 +25,7 @@ wikigraph wikg://book.wikg/entity/Q9957 pack --budget 5000
 wikigraph wikg://book.wikg/chapter
 ```
 
-当 Agent 已经拿到 URI，但不确定它支持哪些操作时，使用 `wikigraph <uri> --help`。当已经知道要执行的操作，但不确定它能作用于哪些对象时，使用 `wikigraph help <verb>`。
+当 Agent 已经拿到 URI，但不确定它支持哪些操作时，使用 `wikigraph <uri> --help`。需要某个谓词的具体用法时，使用 `wikigraph <uri> <predicate> --help`；谓词不脱离 URI target 单独解释。
 
 优先先选择三种探索模式之一。对于综合理解、时间线、关系分析、过程梳理或概念结构任务，先走结构模式：用 `wikg://.../chapter/tree` 查看压缩后的目录地图，再选择可能相关的 chapter id，并用 scoped URI 加 `--query` 或对象 URI 展开局部。搜索模式使用 scope URI，例如 `wikg://.../chunk --query <query>` 或 `wikg://.../entity --query <query>` 做候选定位。阅读模式适合在选定 source URI 后直接输出连续文本。
 Search result 可能显示短 object URI，例如 `wikg://entity/Q9957`；把它继续传给 object command 前，需要补上 archive locator，例如 `wikg://book.wikg/entity/Q9957`。

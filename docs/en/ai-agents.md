@@ -25,7 +25,7 @@ wikigraph wikg://book.wikg/entity/Q9957 pack --budget 5000
 wikigraph wikg://book.wikg/chapter
 ```
 
-When an agent has a URI and needs to know which operations are valid, use `wikigraph <uri> --help`. When the operation is known but the valid targets are unclear, use `wikigraph help <verb>`.
+When an agent has a URI and needs to know which operations are valid, use `wikigraph <uri> --help`. For concrete predicate usage, use `wikigraph <uri> <predicate> --help`; predicates are not explained without a URI target.
 
 Use three exploration modes. For synthesis, timelines, relationship analysis, process reconstruction, or concept-structure tasks, start with Structure mode: `wikg://.../chapter/tree` for a compact table-of-contents map, then choose likely chapter ids and expand them with scoped URI queries or direct URI reads. Search mode uses lens URIs such as `wikg://.../source --query <query>`, `wikg://.../chunk --query <query>`, or `wikg://.../entity --query <query>` for candidate discovery. Reading mode passes the relevant source URI directly.
 Search results may display short object URIs such as `wikg://entity/Q9957`; prepend the archive locator before reusing them in object commands, for example `wikg://book.wikg/entity/Q9957`.
