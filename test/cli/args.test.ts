@@ -1866,7 +1866,10 @@ describe("cli/args", () => {
     expect(() => parseCLIArguments(["help", "ai"])).toThrow(
       "Invalid help topic: ai.",
     );
-    expect(renderHelpTopicText("recipe")).toContain("Primary contract:");
+    expect(renderHelpTopicText("recipe")).toContain("Operating rules:");
+    expect(renderHelpTopicText("recipe")).toContain(
+      "Never unzip a `.wikg` archive",
+    );
     expect(renderHelpTopicText("recipe")).toContain(
       "Use Wiki Graph URIs as stable object handles",
     );
@@ -1900,9 +1903,18 @@ describe("cli/args", () => {
     expect(renderHelpTopicText("recipe")).toContain(
       'wikigraph wikg:///Users/me/book.wikg --query "恩典 婴儿洗礼"',
     );
-    expect(renderHelpTopicText("recipe")).toContain("Object choices:");
-    expect(renderHelpTopicText("recipe")).toContain("Index awareness:");
-    expect(renderHelpTopicText("recipe")).toContain("Job awareness:");
+    expect(renderHelpTopicText("recipe")).toContain(
+      "Choose your starting point:",
+    );
+    expect(renderHelpTopicText("recipe")).toContain("After inspect:");
+    expect(renderHelpTopicText("recipe")).toContain("Answering questions:");
+    expect(renderHelpTopicText("recipe")).toContain("When to read deeper:");
+    expect(renderHelpTopicText("recipe")).toContain(
+      "If Reading Graph data is missing",
+    );
+    expect(renderHelpTopicText("recipe")).toContain(
+      "If Knowledge Graph data is missing",
+    );
     expect(uriHelpText).toContain("Command routing:");
     expect(uriHelpText).toContain("wikigraph <archive-uri> create");
     expect(uriHelpText).toContain("wikigraph <archive-uri> export");
