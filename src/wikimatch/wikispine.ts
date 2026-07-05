@@ -79,16 +79,16 @@ export async function matchWikispineSentenceCandidates(
 
   for (const sentence of options.sentences) {
     for (const matched of await matchSentence(sentence.text, options)) {
-      const surface = sentence.text.slice(matched.start, matched.end);
+      const range = normalizeWikispineMatchRange(sentence.text, matched);
 
       candidates.push({
         id: `c${candidateIndex}`,
         qidOptions: matched.qids.map(toQidOption),
         range: {
-          end: sentence.range.start + matched.end,
-          start: sentence.range.start + matched.start,
+          end: sentence.range.start + range.end,
+          start: sentence.range.start + range.start,
         },
-        surface,
+        surface: range.surface,
       });
       candidateIndex += 1;
     }
@@ -111,6 +111,91 @@ async function matchSentence(
         );
 
   return parseWikispineMatchOutput(stdout);
+}
+
+function normalizeWikispineMatchRange(
+  text: string,
+  matched: Pick<WikispineMatchRecord, "end" | "start">,
+): {
+  readonly end: number;
+  readonly start: number;
+  readonly surface: string;
+} {
+  const start = clampInteger(matched.start, 0, text.length);
+  const end = clampInteger(matched.end, start, text.length);
+
+  if (matched.start === start && matched.end === end) {
+    return {
+      end,
+      start,
+      surface: text.slice(start, end),
+    };
+  }
+
+  const byteRange = decodeUtf8ByteRange(text, matched.start, matched.end);
+
+  if (byteRange !== undefined) {
+    return byteRange;
+  }
+
+  return {
+    end,
+    start,
+    surface: text.slice(start, end),
+  };
+}
+
+function decodeUtf8ByteRange(
+  text: string,
+  start: number,
+  end: number,
+):
+  | {
+      readonly end: number;
+      readonly start: number;
+      readonly surface: string;
+    }
+  | undefined {
+  if (
+    !Number.isInteger(start) ||
+    !Number.isInteger(end) ||
+    start < 0 ||
+    end < start
+  ) {
+    return undefined;
+  }
+
+  const buffer = Buffer.from(text, "utf8");
+
+  if (end > buffer.length) {
+    return undefined;
+  }
+
+  const prefixBuffer = buffer.subarray(0, start);
+  const rangeBuffer = buffer.subarray(start, end);
+  const prefix = prefixBuffer.toString("utf8");
+  const surface = rangeBuffer.toString("utf8");
+
+  if (
+    !Buffer.from(prefix, "utf8").equals(prefixBuffer) ||
+    !Buffer.from(surface, "utf8").equals(rangeBuffer)
+  ) {
+    return undefined;
+  }
+
+  return {
+    end: prefix.length + surface.length,
+    start: prefix.length,
+    surface,
+  };
+}
+
+function clampInteger(value: number, min: number, max: number): number {
+  if (!Number.isFinite(value)) {
+    return min;
+  }
+
+  return Math.min(Math.max(Math.trunc(value), min), max);
 }
 
 export async function testWikispineRuntime(

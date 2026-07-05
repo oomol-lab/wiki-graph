@@ -318,4 +318,47 @@ describe("document/directory-document", () => {
       }
     });
   });
+
+  it("reads UTF-8 text stream sentences by byte locations", async () => {
+    await withTempDir("spinedigest-document-", async (path) => {
+      const document = await DirectoryDocument.open(path);
+
+      try {
+        await document.openSession(async (openedDocument) => {
+          await openedDocument.serials.createWithId(1);
+          await openedDocument
+            .getSerialFragments(1)
+            .writeTextStream(
+              [
+                "矛头指向张士诚",
+                "完成了从农民到王侯",
+                "攻占江苏大片地区",
+                "朱文正因封赏不满",
+                "被朱元璋发现",
+              ].join("\n\n"),
+            );
+        });
+
+        const sentences = await document.getSerialFragments(1).listSentences();
+
+        expect(sentences.map((sentence) => sentence.text)).toStrictEqual([
+          "矛头指向张士诚",
+          "完成了从农民到王侯",
+          "攻占江苏大片地区",
+          "朱文正因封赏不满",
+          "被朱元璋发现",
+        ]);
+        await expect(
+          document.getSerialFragments(1).getSentence(3),
+        ).resolves.toMatchObject({
+          text: "朱文正因封赏不满",
+        });
+        expect(
+          sentences.map((sentence) => sentence.text).join("\n"),
+        ).not.toContain("�");
+      } finally {
+        await document.release();
+      }
+    });
+  });
 });

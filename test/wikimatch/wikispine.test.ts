@@ -153,6 +153,116 @@ describe("wikimatch/wikispine", () => {
     ]);
   });
 
+  it("keeps WikiSpine character offsets for Chinese text", async () => {
+    const fetchMock: typeof fetch = () =>
+      Promise.resolve(
+        new Response(
+          [
+            JSON.stringify({
+              match: {
+                end: 7,
+                qids: [{ disambiguation: false, qid: "Q704619" }],
+                start: 4,
+                surface_id: 1,
+              },
+              type: "match",
+            }),
+            JSON.stringify({ stats: { matches: 1 }, type: "done" }),
+          ].join("\n"),
+          {
+            headers: {
+              "content-type": "application/x-ndjson",
+            },
+            status: 200,
+          },
+        ),
+      );
+
+    await expect(
+      matchWikispineSentenceCandidates({
+        endpoint: "https://wikispine.example/",
+        fetch: fetchMock,
+        provider: "fetch",
+        sentences: [
+          {
+            range: { end: 27, start: 20 },
+            text: "矛头指向张士诚",
+          },
+        ],
+      }),
+    ).resolves.toStrictEqual([
+      {
+        id: "c1",
+        qidOptions: [
+          {
+            isDisambiguation: false,
+            qid: "Q704619",
+          },
+        ],
+        range: {
+          end: 27,
+          start: 24,
+        },
+        surface: "张士诚",
+      },
+    ]);
+  });
+
+  it("falls back to UTF-8 byte offsets when a runtime returns out-of-range character offsets", async () => {
+    const fetchMock: typeof fetch = () =>
+      Promise.resolve(
+        new Response(
+          [
+            JSON.stringify({
+              match: {
+                end: Buffer.byteLength("矛头指向张士诚", "utf8"),
+                qids: [{ disambiguation: false, qid: "Q704619" }],
+                start: Buffer.byteLength("矛头指向", "utf8"),
+                surface_id: 1,
+              },
+              type: "match",
+            }),
+            JSON.stringify({ stats: { matches: 1 }, type: "done" }),
+          ].join("\n"),
+          {
+            headers: {
+              "content-type": "application/x-ndjson",
+            },
+            status: 200,
+          },
+        ),
+      );
+
+    await expect(
+      matchWikispineSentenceCandidates({
+        endpoint: "https://wikispine.example/",
+        fetch: fetchMock,
+        provider: "fetch",
+        sentences: [
+          {
+            range: { end: 27, start: 20 },
+            text: "矛头指向张士诚",
+          },
+        ],
+      }),
+    ).resolves.toStrictEqual([
+      {
+        id: "c1",
+        qidOptions: [
+          {
+            isDisambiguation: false,
+            qid: "Q704619",
+          },
+        ],
+        range: {
+          end: 27,
+          start: 24,
+        },
+        surface: "张士诚",
+      },
+    ]);
+  });
+
   it("uses the default fetch endpoint when none is configured", async () => {
     const requests: Array<{ readonly url: string }> = [];
     const fetchMock: typeof fetch = (input) => {
