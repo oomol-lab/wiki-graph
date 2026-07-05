@@ -266,6 +266,7 @@ export interface CLIArchiveArguments {
   readonly outputPath?: string;
   readonly prompt?: string;
   readonly query?: string;
+  readonly replace?: boolean;
   readonly role?: "any" | "object" | "self" | "subject";
   readonly sourcePath?: string;
   readonly triplePattern?: ArchiveTriplePattern;
@@ -329,6 +330,7 @@ interface ArchiveArgumentValues extends ArchiveMetaFlagValues {
   readonly predicate?: string;
   readonly prompt?: string;
   readonly query?: string;
+  readonly replace?: boolean;
   readonly role?: string;
   readonly root?: boolean;
   readonly secret?: boolean;
@@ -542,6 +544,9 @@ export function parseCLIArguments(
       query: {
         type: "string",
       },
+      replace: {
+        type: "boolean",
+      },
       stage: {
         type: "string",
       },
@@ -605,6 +610,7 @@ export function parseCLIArguments(
   });
 
   rejectNonGcForceFlag(positionals, values);
+  rejectNonCreateReplaceFlag(positionals, values);
 
   if (values.version === true) {
     return {
@@ -2960,6 +2966,7 @@ function parseArchiveArguments(
           ...(values.json === undefined ? {} : { json: values.json }),
           ...(values.llm === undefined ? {} : { llmJSON: values.llm }),
           ...(values.prompt === undefined ? {} : { prompt: values.prompt }),
+          ...(values.replace === undefined ? {} : { replace: values.replace }),
           ...(sourcePath === undefined ? {} : { sourcePath }),
         },
         help: false,
@@ -4415,6 +4422,30 @@ function rejectNonGcForceFlag(
   throw new Error(
     withHelpRoute(
       "The --force option is only supported by `gc`.",
+      CLI_HELP_ROUTES.root,
+    ),
+  );
+}
+
+function rejectNonCreateReplaceFlag(
+  positionals: readonly string[],
+  values: ArchiveArgumentValues,
+): void {
+  if (values.replace !== true) {
+    return;
+  }
+
+  const [command, action] = positionals;
+  if (
+    command?.startsWith(WIKI_GRAPH_URI_PREFIX) === true &&
+    action === "create"
+  ) {
+    return;
+  }
+
+  throw new Error(
+    withHelpRoute(
+      "The --replace option is only supported by `wikigraph <archive-uri> create`.",
       CLI_HELP_ROUTES.root,
     ),
   );

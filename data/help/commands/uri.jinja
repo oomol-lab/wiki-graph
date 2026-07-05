@@ -226,7 +226,7 @@ Predicate commands:
 {% elif predicate == "clear" %}
   - clear: clear a writable resource or config section. Help: wikigraph {{ uri }} clear --help
 {% elif predicate == "create" %}
-  - create: create or replace the archive. Help: wikigraph {{ uri }} create --help
+  - create: create the archive; use `--replace` only when discarding an existing archive. Help: wikigraph {{ uri }} create --help
 {% elif predicate == "delete" %}
   - delete: delete a config key. Help: wikigraph {{ uri }} delete --help
 {% elif predicate == "embed" %}

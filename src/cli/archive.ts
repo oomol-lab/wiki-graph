@@ -1,5 +1,5 @@
-import { rm, writeFile } from "fs/promises";
-import { join } from "path";
+import { rename, rm, stat, writeFile } from "fs/promises";
+import { basename, dirname, join } from "path";
 
 import { createWikiGraphTempDirectory } from "../common/wiki-graph-temp.js";
 import {
@@ -398,15 +398,31 @@ export async function runArchiveCommand(
 }
 
 async function createArchive(args: CLIArchiveArguments): Promise<void> {
+  const outputPath = await prepareCreateArchiveOutputPath(args);
+
+  try {
+    await writeCreatedArchiveFile(args, outputPath);
+    await finalizeCreatedArchiveFile(args, outputPath);
+  } finally {
+    if (outputPath !== args.archivePath) {
+      await rm(outputPath, { force: true, recursive: true });
+    }
+  }
+
+  await writeCreatedArchive(args);
+}
+
+async function writeCreatedArchiveFile(
+  args: CLIArchiveArguments,
+  outputPath: string,
+): Promise<void> {
   if (args.sourcePath === undefined) {
     if (args.inputFormat === undefined) {
-      await new SpineDigestFile(args.archivePath).write(async () => {});
-      await writeCreatedArchive(args);
+      await new SpineDigestFile(outputPath).write(async () => {});
       return;
     }
 
-    await createArchiveFromStdin(args);
-    await writeCreatedArchive(args);
+    await createArchiveFromStdin(args, outputPath);
     return;
   }
 
@@ -414,7 +430,7 @@ async function createArchive(args: CLIArchiveArguments): Promise<void> {
     await runConvertCommand({
       help: false,
       inputPath: args.sourcePath,
-      outputPath: args.archivePath,
+      outputPath,
       ...(args.inputFormat === undefined
         ? {}
         : { inputFormat: args.inputFormat }),
@@ -424,7 +440,6 @@ async function createArchive(args: CLIArchiveArguments): Promise<void> {
       targetStage: "sourced",
       verbose: false,
     });
-    await writeCreatedArchive(args);
     return;
   }
 
@@ -449,15 +464,72 @@ async function createArchive(args: CLIArchiveArguments): Promise<void> {
       inputPath: sourcePath,
       ...(args.llmJSON === undefined ? {} : { llmJSON: args.llmJSON }),
       outputFormat: "wikg",
-      outputPath: args.archivePath,
+      outputPath,
       ...(args.prompt === undefined ? {} : { prompt: args.prompt }),
       targetStage: "sourced",
       verbose: false,
     });
-    await writeCreatedArchive(args);
   } finally {
     await rm(temporaryDirectoryPath, { force: true, recursive: true });
   }
+}
+
+async function prepareCreateArchiveOutputPath(
+  args: CLIArchiveArguments,
+): Promise<string> {
+  if (args.replace !== true && (await fileExists(args.archivePath))) {
+    throw new Error(formatArchiveAlreadyExistsMessage(args.archivePath));
+  }
+
+  if (args.replace !== true) {
+    return args.archivePath;
+  }
+
+  return join(
+    dirname(args.archivePath),
+    `.${basename(args.archivePath)}.${process.pid}.${Date.now()}.tmp.wikg`,
+  );
+}
+
+async function finalizeCreatedArchiveFile(
+  args: CLIArchiveArguments,
+  outputPath: string,
+): Promise<void> {
+  if (outputPath === args.archivePath) {
+    return;
+  }
+
+  await rename(outputPath, args.archivePath);
+}
+
+async function fileExists(path: string): Promise<boolean> {
+  try {
+    await stat(path);
+    return true;
+  } catch (error) {
+    if (isNodeENOENTError(error)) {
+      return false;
+    }
+
+    throw error;
+  }
+}
+
+function isNodeENOENTError(error: unknown): error is NodeJS.ErrnoException {
+  return (
+    error instanceof Error &&
+    "code" in error &&
+    (error as NodeJS.ErrnoException).code === "ENOENT"
+  );
+}
+
+function formatArchiveAlreadyExistsMessage(archivePath: string): string {
+  const uri = formatWikiGraphCommandUri(archivePath);
+
+  return [
+    `Archive already exists: ${archivePath}`,
+    `Use \`wikigraph ${uri} inspect\` to view it, or rerun with \`--replace\` to overwrite it.`,
+  ].join("\n");
 }
 
 async function writeCreatedArchive(args: CLIArchiveArguments): Promise<void> {
@@ -666,6 +738,7 @@ async function runNextArchivePage(args: CLIArchiveArguments): Promise<void> {
 
 async function createArchiveFromStdin(
   args: CLIArchiveArguments,
+  outputPath: string,
 ): Promise<void> {
   if (args.inputFormat === undefined) {
     throw new Error("Internal error: missing stdin create format.");
@@ -689,7 +762,7 @@ async function createArchiveFromStdin(
       inputPath: sourcePath,
       ...(args.llmJSON === undefined ? {} : { llmJSON: args.llmJSON }),
       outputFormat: "wikg",
-      outputPath: args.archivePath,
+      outputPath,
       ...(args.prompt === undefined ? {} : { prompt: args.prompt }),
       targetStage: "sourced",
       verbose: false,

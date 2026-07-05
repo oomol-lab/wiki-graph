@@ -59,7 +59,10 @@ describe("cli/args", () => {
       throw new Error("Expected help topic");
     }
     expect(createHelp.helpText).toContain("Command: wikigraph <uri> create");
-    expect(createHelp.helpText).toContain("Create or replace the archive");
+    expect(createHelp.helpText).toContain("Create the archive");
+    expect(createHelp.helpText).toContain(
+      "Existing archives are not overwritten by default",
+    );
     expect(() => parseCLIArguments(["create", "--help"])).toThrow(
       "Unknown command: create.",
     );
@@ -578,12 +581,14 @@ describe("cli/args", () => {
         "book.md",
         "--input-format",
         "markdown",
+        "--replace",
       ]),
     ).toStrictEqual({
       args: {
         action: "create",
         archivePath: archivePath,
         inputFormat: "markdown",
+        replace: true,
         sourcePath: "book.md",
       },
       help: false,
@@ -628,6 +633,11 @@ describe("cli/args", () => {
     expect(() =>
       parseCLIArguments(["wikg://book.wikg", "create", "--jsonl"]),
     ).toThrow("The `create` command does not support --jsonl.");
+    expect(() =>
+      parseCLIArguments(["wikg://book.wikg", "inspect", "--replace"]),
+    ).toThrow(
+      "The --replace option is only supported by `wikigraph <archive-uri> create`.",
+    );
 
     expect(() => parseCLIArguments(["build", "book.wikg"])).toThrow(
       "Unknown command: build.",

@@ -1,3 +1,7 @@
+import { mkdtemp, rm, writeFile } from "fs/promises";
+import { join } from "path";
+import { tmpdir } from "os";
+
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type {
   ArchiveBacklinks,
@@ -443,6 +447,7 @@ const archiveMockState = vi.hoisted(() => ({
   ]),
   summaryWords: 120,
   textWrites: [] as string[],
+  convertCalls: [] as unknown[],
   writeCalls: [] as string[],
 }));
 
@@ -591,7 +596,14 @@ vi.mock("../../src/cli/io.js", () => ({
 }));
 
 vi.mock("../../src/cli/convert.js", () => ({
-  runConvertCommand: vi.fn(() => Promise.resolve()),
+  runConvertCommand: vi.fn(async (args: { readonly outputPath?: string }) => {
+    archiveMockState.convertCalls.push(args);
+    if (args.outputPath !== undefined) {
+      const { writeFile: writeOutputFile } = await import("fs/promises");
+
+      await writeOutputFile(args.outputPath, "created");
+    }
+  }),
 }));
 
 import { runArchiveCommand } from "../../src/cli/archive.js";
@@ -687,32 +699,96 @@ describe("cli/archive", () => {
     archiveMockState.readCalls.length = 0;
     archiveMockState.serials = createDefaultInspectSerials();
     archiveMockState.summaryWords = 120;
+    archiveMockState.convertCalls.length = 0;
     archiveMockState.textWrites.length = 0;
     archiveMockState.writeCalls.length = 0;
   });
 
   it("prints archive object output after creating an empty archive", async () => {
-    await runArchiveCommand({
-      action: "create",
-      archivePath: "/tmp/new.wikg",
-    });
+    const directoryPath = await mkdtemp(join(tmpdir(), "wikigraph-create-"));
+    const archivePath = join(directoryPath, "new.wikg");
 
-    expect(archiveMockState.writeCalls).toStrictEqual(["/tmp/new.wikg"]);
-    expect(archiveMockState.textWrites[0]).toBe("<archive>\n");
+    try {
+      await runArchiveCommand({
+        action: "create",
+        archivePath,
+      });
+
+      expect(archiveMockState.writeCalls).toStrictEqual([archivePath]);
+      expect(archiveMockState.textWrites[0]).toBe("<archive>\n");
+    } finally {
+      await rm(directoryPath, { force: true, recursive: true });
+    }
   });
 
   it("prints archive object JSON after creating from a source", async () => {
-    await runArchiveCommand({
-      action: "create",
-      archivePath: "/tmp/new.wikg",
-      json: true,
-      sourcePath: "/tmp/source.md",
-    });
+    const directoryPath = await mkdtemp(join(tmpdir(), "wikigraph-create-"));
+    const archivePath = join(directoryPath, "new.wikg");
 
-    expect(archiveMockState.writeCalls).toStrictEqual([]);
-    expect(JSON.parse(archiveMockState.textWrites[0] ?? "")).toStrictEqual({
-      uri: "wikg:///tmp/new.wikg",
-    });
+    try {
+      await runArchiveCommand({
+        action: "create",
+        archivePath,
+        json: true,
+        sourcePath: "/tmp/source.md",
+      });
+
+      expect(archiveMockState.writeCalls).toStrictEqual([]);
+      expect(JSON.parse(archiveMockState.textWrites[0] ?? "")).toStrictEqual({
+        uri: `wikg://${archivePath}`,
+      });
+    } finally {
+      await rm(directoryPath, { force: true, recursive: true });
+    }
+  });
+
+  it("rejects creating over an existing archive without replace", async () => {
+    const directoryPath = await mkdtemp(join(tmpdir(), "wikigraph-create-"));
+    const archivePath = join(directoryPath, "existing.wikg");
+
+    try {
+      await writeFile(archivePath, "existing");
+
+      await expect(
+        runArchiveCommand({
+          action: "create",
+          archivePath,
+          sourcePath: "/tmp/source.md",
+        }),
+      ).rejects.toThrow("Archive already exists:");
+      expect(archiveMockState.convertCalls).toStrictEqual([]);
+    } finally {
+      await rm(directoryPath, { force: true, recursive: true });
+    }
+  });
+
+  it("creates replacement archives through a temporary output path", async () => {
+    const directoryPath = await mkdtemp(join(tmpdir(), "wikigraph-create-"));
+    const archivePath = join(directoryPath, "existing.wikg");
+
+    try {
+      await writeFile(archivePath, "existing");
+
+      await runArchiveCommand({
+        action: "create",
+        archivePath,
+        replace: true,
+        sourcePath: "/tmp/source.md",
+      });
+
+      const [convertCall] = archiveMockState.convertCalls as Array<{
+        readonly outputPath: string;
+      }>;
+
+      if (convertCall === undefined) {
+        throw new Error("Expected create to call convert.");
+      }
+      expect(convertCall.outputPath).not.toBe(archivePath);
+      expect(convertCall.outputPath).toContain("existing.wikg");
+      expect(archiveMockState.textWrites[0]).toBe("<archive>\n");
+    } finally {
+      await rm(directoryPath, { force: true, recursive: true });
+    }
   });
 
   it("gets chapter state", async () => {

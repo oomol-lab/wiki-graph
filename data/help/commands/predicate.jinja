@@ -47,10 +47,10 @@ Notes:
   - Use `evidence` first when verification matters more than context assembly.
 {% elif predicate == "create" %}
 Purpose:
-  Create or replace the archive at this URI.
+  Create the archive at this URI.
 
 Usage:
-  wikigraph {{ uri }} create [source] [--input-format <format>] [--llm <json>] [--prompt <text>] [--json]
+  wikigraph {{ uri }} create [source] [--input-format <format>] [--llm <json>] [--prompt <text>] [--replace] [--json]
 
 Notes:
   - `source` may be EPUB, Markdown, txt, URL, or another supported input path.
@@ -58,7 +58,8 @@ Notes:
   - Stdin is supported when `--input-format markdown` or `--input-format txt` is provided.
   - Input format is inferred from the source extension when possible; use `--input-format` when stdin or the extension is ambiguous.
   - Creating from EPUB, Markdown, txt, URL, or stdin runs only the import/source stage.
-  - This command creates or replaces the target archive file; parent directories must already exist.
+  - Existing archives are not overwritten by default. Use `--replace` only when the target archive should be discarded and recreated.
+  - Parent directories must already exist.
   - `--llm <json>` passes local LLM settings to the import pipeline when the selected input path needs them.
   - On success, text output is the archive object (`<archive>`). With `--json`, output is `{"uri":"..."}`.
 
