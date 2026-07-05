@@ -67,7 +67,9 @@ interface WikispineMetadata {
 }
 
 const WIKISPINE_RUNTIME_GUIDE_URL =
-  "https://raw.githubusercontent.com/oomol-lab/spinedigest/main/docs/wikispine-runtime.md";
+  "https://raw.githubusercontent.com/oomol-lab/wiki-graph/refs/heads/main/docs/wikispine-runtime.md";
+export const DEFAULT_WIKISPINE_FETCH_ENDPOINT =
+  "https://wikispi-service-cxbfjlteab.cn-hangzhou.fcapp.run";
 
 export async function matchWikispineSentenceCandidates(
   options: MatchWikispineSentenceCandidatesOptions,
@@ -434,12 +436,14 @@ function resolveProvider(options: {
 }
 
 function requireEndpoint(endpoint: string | undefined): string {
-  const normalized = endpoint?.trim().replace(/\/+$/u, "");
+  const normalized = (endpoint ?? DEFAULT_WIKISPINE_FETCH_ENDPOINT)
+    .trim()
+    .replace(/\/+$/u, "");
 
-  if (normalized === undefined || normalized === "") {
+  if (normalized === "") {
     throw new Error(
       formatWikispineRuntimeError(
-        "WikiSpine fetch provider requires wikispine.endpoint.",
+        "WikiSpine fetch provider has no default endpoint.",
       ),
     );
   }

@@ -709,7 +709,6 @@ describe("cli/queue", () => {
   it("runs knowledge graph work without reading graph or summary builds", async () => {
     queueMockState.cliConfig = {
       wikispine: {
-        endpoint: "https://wikispine.example",
         provider: "fetch",
       },
     };
@@ -752,7 +751,6 @@ describe("cli/queue", () => {
       policyPrompt: "Keep key beats",
       progressTracker: reporter,
       wikispine: {
-        endpoint: "https://wikispine.example",
         provider: "fetch",
       },
       workspacePath: "/tmp/job-workspace",

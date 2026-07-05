@@ -6,6 +6,7 @@ import { generateText } from "ai";
 import type { CLILocalConfigArguments } from "./args.js";
 import type { CLIProvider } from "./config.js";
 import {
+  DEFAULT_WIKISPINE_FETCH_ENDPOINT,
   testWikispineRuntime,
   type WikispineProvider,
 } from "../wikimatch/index.js";
@@ -175,21 +176,14 @@ async function runWikispineConfigTest(
   try {
     const provider = parseWikispineProvider(wikispine.provider);
     const result = await testWikispineRuntime({
-      ...(typeof wikispine.command === "string"
-        ? { command: wikispine.command }
-        : {}),
-      ...(typeof wikispine.dataDir === "string"
-        ? { dataDir: wikispine.dataDir }
-        : {}),
-      ...(typeof wikispine.endpoint === "string"
-        ? { endpoint: wikispine.endpoint }
-        : {}),
       provider,
     });
     const output = {
       durationMs: result.durationMs,
-      ...(typeof wikispine.endpoint === "string"
-        ? { endpoint: wikispine.endpoint }
+      ...(provider === "fetch"
+        ? {
+            endpoint: DEFAULT_WIKISPINE_FETCH_ENDPOINT,
+          }
         : {}),
       ...(result.metadata === undefined ? {} : { metadata: result.metadata }),
       ok: true,

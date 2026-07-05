@@ -48,9 +48,6 @@ export interface CLIConfig {
     readonly request?: number;
   };
   readonly wikispine?: {
-    readonly command?: string;
-    readonly dataDir?: string;
-    readonly endpoint?: string;
     readonly provider?: "cli" | "fetch";
   };
 }
@@ -259,25 +256,12 @@ function createWikispineConfig(
   value: Record<string, unknown>,
 ): CLIConfig["wikispine"] | undefined {
   const provider = readWikispineProvider(value.provider);
-  const command = readString(value.command);
-  const dataDir = readString(value.dataDir);
-  const endpoint = readString(value.endpoint);
 
-  if (
-    command === undefined &&
-    dataDir === undefined &&
-    endpoint === undefined &&
-    provider === undefined
-  ) {
+  if (provider === undefined) {
     return undefined;
   }
 
-  return {
-    ...(command === undefined ? {} : { command }),
-    ...(dataDir === undefined ? {} : { dataDir }),
-    ...(endpoint === undefined ? {} : { endpoint }),
-    ...(provider === undefined ? {} : { provider }),
-  };
+  return { provider };
 }
 
 function readWikispineProvider(value: unknown): "cli" | "fetch" | undefined {

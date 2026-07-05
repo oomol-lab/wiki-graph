@@ -443,6 +443,7 @@ const archiveMockState = vi.hoisted(() => ({
   ]),
   summaryWords: 120,
   textWrites: [] as string[],
+  writeCalls: [] as string[],
 }));
 
 function parseJSONLLastLine(text: string | undefined): unknown {
@@ -468,6 +469,11 @@ vi.mock("../../src/wikg/spine-digest-file.js", () => ({
     ): Promise<unknown> {
       archiveMockState.readCalls.push(this.#path);
       return await operation(createArchiveMockDocument());
+    }
+
+    public async write(operation: () => Promise<unknown>): Promise<unknown> {
+      archiveMockState.writeCalls.push(this.#path);
+      return await operation();
     }
   },
 }));
@@ -679,6 +685,31 @@ describe("cli/archive", () => {
     archiveMockState.serials = createDefaultInspectSerials();
     archiveMockState.summaryWords = 120;
     archiveMockState.textWrites.length = 0;
+    archiveMockState.writeCalls.length = 0;
+  });
+
+  it("prints archive object output after creating an empty archive", async () => {
+    await runArchiveCommand({
+      action: "create",
+      archivePath: "/tmp/new.wikg",
+    });
+
+    expect(archiveMockState.writeCalls).toStrictEqual(["/tmp/new.wikg"]);
+    expect(archiveMockState.textWrites[0]).toBe("<archive>\n");
+  });
+
+  it("prints archive object JSON after creating from a source", async () => {
+    await runArchiveCommand({
+      action: "create",
+      archivePath: "/tmp/new.wikg",
+      json: true,
+      sourcePath: "/tmp/source.md",
+    });
+
+    expect(archiveMockState.writeCalls).toStrictEqual([]);
+    expect(JSON.parse(archiveMockState.textWrites[0] ?? "")).toStrictEqual({
+      uri: "wikg:///tmp/new.wikg",
+    });
   });
 
   it("gets chapter state", async () => {
@@ -830,6 +861,12 @@ describe("cli/archive", () => {
     );
     expect(archiveMockState.textWrites[0]).toContain("wikg://entity/Q1");
     expect(archiveMockState.textWrites[0]).toContain("RAG");
+    expect(archiveMockState.textWrites[0]).toContain(
+      "Open short URIs with the archive locator",
+    );
+    expect(archiveMockState.textWrites[0]).toContain(
+      "wikigraph wikg:///tmp/book.wikg/entity/Q1",
+    );
   });
 
   it("passes backlinks to listed source objects", async () => {

@@ -17,6 +17,8 @@ import {
 
 describe("cli/args", () => {
   const archivePath = resolve("book.wikg");
+  const wikispineRuntimeGuideUrl =
+    "https://raw.githubusercontent.com/oomol-lab/wiki-graph/refs/heads/main/docs/wikispine-runtime.md";
 
   it("parses --version", () => {
     expect(parseCLIArguments(["--version"])).toStrictEqual({
@@ -612,6 +614,20 @@ describe("cli/args", () => {
       help: false,
       kind: "archive",
     });
+    expect(
+      parseCLIArguments(["wikg://book.wikg", "create", "--json"]),
+    ).toStrictEqual({
+      args: {
+        action: "create",
+        archivePath: archivePath,
+        json: true,
+      },
+      help: false,
+      kind: "archive",
+    });
+    expect(() =>
+      parseCLIArguments(["wikg://book.wikg", "create", "--jsonl"]),
+    ).toThrow("The `create` command does not support --jsonl.");
 
     expect(() => parseCLIArguments(["build", "book.wikg"])).toThrow(
       "Unknown command: build.",
@@ -1883,10 +1899,38 @@ describe("cli/args", () => {
     expect(renderHelpTopicText("readiness")).toContain("LLM readiness:");
     expect(renderHelpTopicText("readiness")).toContain("WikiSpine readiness:");
     expect(renderHelpTopicText("readiness")).toContain("provider fetch");
+    expect(renderHelpTopicText("readiness")).toContain(
+      wikispineRuntimeGuideUrl,
+    );
+    expect(renderHelpTopicText("config")).toContain(wikispineRuntimeGuideUrl);
+    expect(
+      renderUriHelpText(
+        "local-config-section",
+        "wikg://local/config/wikispine",
+      ),
+    ).toContain(wikispineRuntimeGuideUrl);
+    expect(
+      renderUriPredicateHelpText(
+        "local-config-section",
+        "test",
+        "wikg://local/config/wikispine",
+      ),
+    ).toContain(wikispineRuntimeGuideUrl);
+    expect(renderTransformHelpText()).toContain(
+      "This is not a plain file-format converter",
+    );
+    expect(renderTransformHelpText()).toContain(
+      "Source inputs (`epub`, `txt`, `markdown`) call an LLM",
+    );
     expect(uriHelpText).toContain("wikigraph <scope-uri> --query <query>");
     expect(uriHelpText).toContain(
       "wikigraph <entity|triple|chunk-uri> evidence",
     );
+    expect(uriHelpText).toContain(
+      "wikigraph wikg://local/job add --input <archive-uri|chapter-uri>",
+    );
+    expect(uriHelpText).toContain("JSONL contains object records");
+    expect(uriHelpText).toContain('"type":"page"');
     expect(() => parseCLIArguments(["help", "ai"])).toThrow(
       "Invalid help topic: ai.",
     );
@@ -1966,6 +2010,9 @@ describe("cli/args", () => {
     );
     expect(renderHelpTopicText("recipe")).toContain(
       "wikigraph wikg://book.wikg/chapter/3/entity --jsonl",
+    );
+    expect(renderHelpTopicText("recipe")).toContain(
+      "JSONL contains object records",
     );
     expect(renderHelpTopicText("recipe")).toContain(
       "If Reading Graph data is missing",

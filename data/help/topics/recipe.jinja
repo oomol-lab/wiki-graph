@@ -30,7 +30,7 @@ Choose your starting point:
       cat article.md | wikigraph wikg://article.wikg create --input-format markdown
 
   - User needs one-shot conversion without keeping an archive:
-    Use transform.
+    Use transform. Source input usually requires LLM configuration.
       cat chapter.txt | wikigraph transform --input-format txt --output-format markdown
 
   - User needs a chapter-level file:
@@ -118,6 +118,7 @@ Finding material:
 
   - Need an inventory for a script or Unix pipeline:
     Enumerate object scopes with `--jsonl`, then filter with standard stream tools.
+    JSONL contains object records and may end with a control record such as `{"type":"page","nextCursor":"..."}`.
       wikigraph wikg://book.wikg/entity --jsonl
       wikigraph wikg://book.wikg/triple --jsonl
       wikigraph wikg://book.wikg/chunk --jsonl
@@ -134,7 +135,7 @@ Finding material:
       wikigraph next <cursor>
 
 When to read deeper:
-  - URI details, scope/object routing, pagination, JSON, and JSONL:
+  - URI details, scope/object routing, pagination, JSON, JSONL, and short URI handling:
     wikigraph help uri
   - Format inference, stdin/stdout, create/import, export, and transform:
     wikigraph help format

@@ -118,15 +118,6 @@ export function normalizeLocalConfigKey(
         return normalized;
     }
   }
-  if (section === "wikispine") {
-    switch (normalized) {
-      case "data-dir":
-        return "dataDir";
-      default:
-        return normalized;
-    }
-  }
-
   return normalized;
 }
 
@@ -272,7 +263,7 @@ function validateConcurrentConfig(value: LocalConfigObject): LocalConfigObject {
 }
 
 function validateWikispineConfig(value: LocalConfigObject): LocalConfigObject {
-  const allowedKeys = new Set(["command", "dataDir", "endpoint", "provider"]);
+  const allowedKeys = new Set(["provider"]);
   const allowedProviders = new Set(["cli", "fetch"]);
   const next: Record<string, unknown> = {};
 
@@ -287,13 +278,6 @@ function validateWikispineConfig(value: LocalConfigObject): LocalConfigObject {
 
     if (key === "provider" && !allowedProviders.has(normalized)) {
       throw new Error(`Unknown wikispine.provider: ${normalized}`);
-    }
-    if (key === "endpoint") {
-      try {
-        new URL(normalized);
-      } catch {
-        throw new Error("wikispine.endpoint must be a valid URL.");
-      }
     }
 
     next[key] = normalized;

@@ -3,6 +3,7 @@ export {
   formatLocatedChapterSourceCollectionUri,
   formatLocatedChapterUri,
   formatLocatedWikiGraphUri,
+  formatWikiGraphCommandUri,
   formatWikiGraphObjectUri,
   formatWikiGraphUriExpectedError,
   isWikiGraphJobUri,

@@ -50,20 +50,44 @@ Purpose:
   Create or replace the archive at this URI.
 
 Usage:
-  wikigraph {{ uri }} create [source] [--input-format <format>] [--llm <json>] [--prompt <text>]
+  wikigraph {{ uri }} create [source] [--input-format <format>] [--llm <json>] [--prompt <text>] [--json]
 
 Notes:
-  - `source` may be EPUB, Markdown, txt, or another supported input.
+  - `source` may be EPUB, Markdown, txt, URL, or another supported input path.
+  - Without `source`, an empty `.wikg` archive is created unless stdin is selected with `--input-format`.
   - Stdin is supported when `--input-format markdown` or `--input-format txt` is provided.
+  - Input format is inferred from the source extension when possible; use `--input-format` when stdin or the extension is ambiguous.
+  - Creating from EPUB, Markdown, txt, URL, or stdin runs only the import/source stage.
+  - This command creates or replaces the target archive file; parent directories must already exist.
+  - `--llm <json>` passes local LLM settings to the import pipeline when the selected input path needs them.
+  - On success, text output is the archive object (`<archive>`). With `--json`, output is `{"uri":"..."}`.
+
+Examples:
+  wikigraph {{ uri }} create ./book.epub
+  wikigraph {{ uri }} create ./notes.md --input-format markdown
+  cat chapter.md | wikigraph {{ uri }} create --input-format markdown
+  wikigraph {{ uri }} create --json
+
+Next:
+  wikigraph {{ uri }} inspect
 {% elif predicate == "export" %}
 Purpose:
   Export a projection from this archive.
 
 Usage:
-  wikigraph {{ uri }} export --output-format <format> [--output <path>]
+  wikigraph {{ uri }} export [--output-format markdown|txt|epub] [--output <path>]
 
 Notes:
+  - Default output format is markdown when omitted by the parser, but explicit `--output-format` is recommended.
+  - Without `--output`, exported content is written to stdout.
+  - `--json` and `--jsonl` are not supported; the output stream is the exported projection.
+  - Text exports depend on available source/summary content. Missing summaries produce an error that points to the generation command.
+  - Export does not build Reading Graph or Knowledge Graph coverage.
   - Projections are portable views; they do not replace the `.wikg` archive.
+
+Examples:
+  wikigraph {{ uri }} export --output-format markdown --output book.md
+  wikigraph {{ uri }} export --output-format txt > book.txt
 {% elif predicate == "inspect" %}
 Purpose:
   Inspect archive readiness before `--query`, retrieval, or starting generated work.
@@ -84,10 +108,11 @@ Purpose:
   Add a local generation job.
 
 Usage:
-  wikigraph {{ uri }} add --input <chapter-uri> --task reading-graph|reading-summary|knowledge-graph --accept-cost [--boost] [--llm <json>] [--prompt <text>]
+  wikigraph {{ uri }} add --input <archive-uri|chapter-uri> --task reading-graph|reading-summary|knowledge-graph --accept-cost [--boost] [--llm <json>] [--prompt <text>]
 
 Notes:
   - Generation jobs may call an LLM provider and incur cost.
+  - Archive input adds jobs for all eligible chapters; chapter input adds one job.
 {% elif predicate == "move" %}
 Purpose:
   Move this chapter in the chapter tree.
@@ -107,30 +132,132 @@ Purpose:
 Usage:
   wikigraph {{ uri }} reset --to source|reading-graph|reading-summary|knowledge-graph [--confirm]
 {% elif predicate == "set" %}
-Purpose:
-  Modify this writable URI target.
-
 {% if target.name == "chapter-tree-object" %}
+Purpose:
+  Replace the chapter tree with a JSON tree document.
+
 Usage:
   wikigraph {{ uri }} set --input <tree.json>
+
+Notes:
+  - The input is a chapter tree JSON document produced by the chapter tree view.
+  - This rewires chapter hierarchy and order; it does not rewrite chapter source text or generated graph content.
 {% elif target.name == "chapter-source-object" %}
+Purpose:
+  Replace this chapter source text.
+
 Usage:
   wikigraph {{ uri }} set [text] [--input <path>] --input-format markdown|txt
+
+Notes:
+  - `--input-format` is required and must be markdown or txt.
+  - Source replacement invalidates later generated work for that chapter.
+  - Use `wikigraph {{ uri }} --help` to inspect the source object before replacing it.
 {% elif target.name == "chapter-summary-object" %}
+Purpose:
+  Replace this chapter summary text.
+
 Usage:
   wikigraph {{ uri }} set [text] [--input <path>]
+
+Notes:
+  - The input is plain summary text.
+  - This sets the summary resource directly; it does not call an LLM provider.
 {% elif target.name == "chapter-title-object" %}
+Purpose:
+  Replace this chapter title.
+
 Usage:
   wikigraph {{ uri }} set <title>
+
+Notes:
+  - Use `clear` on the same title URI to remove an explicit title.
 {% elif target.name == "job-target-object" %}
+Purpose:
+  Change the generation target for this local job.
+
 Usage:
   wikigraph {{ uri }} set reading-graph|reading-summary|knowledge-graph
+
+Notes:
+  - This changes what the job will generate when resumed or picked up by a worker.
+  - Use `wikigraph {{ uri }} --help` to inspect the current job target first.
 {% elif target.name == "local-config-section" %}
+Purpose:
+  Replace this entire local config section with a JSON object.
+
 Usage:
-  wikigraph {{ uri }} set [<json>] [--json <json>|--json-input <json>]
+  wikigraph {{ uri }} set <json> [--json]
+  wikigraph {{ uri }} set --json-input <json> [--json]
+
+{% if "/llm" in uri %}
+Schema:
+  {
+    "provider": "openai|openai-compatible|anthropic|google",
+    "model": "<model-name>",
+    "baseURL": "<url>",
+    "name": "<display-name>"
+  }
+
+Notes:
+  - Allowed keys: provider, model, baseURL, name, apiKey.
+  - `apiKey` is sensitive and cannot be set from JSON.
+  - If current output shows `"apiKey":"****"`, passing the same masked value preserves the existing secret.
+  - To add or replace the secret, use `wikigraph {{ uri }} put apiKey --secret`.
+  - To remove the secret, use `wikigraph {{ uri }} delete apiKey`.
+{% elif "/wikispine" in uri %}
+Schema:
+  {
+    "provider": "fetch|cli"
+  }
+
+Notes:
+  - `fetch` uses the built-in WikiSpine service endpoint.
+  - `cli` runs the local `wikispine` command from PATH.
+{% elif "/concurrent" in uri %}
+Schema:
+  {
+    "job": 3,
+    "request": 6
+  }
+
+Notes:
+  - Allowed keys: job, request.
+  - Values must be positive integers.
+{% endif %}
+
+Examples:
+{% if "/llm" in uri %}
+  wikigraph {{ uri }} set '{"provider":"openai","model":"gpt-4.1"}'
+  wikigraph {{ uri }} set --json-input '{"provider":"openai-compatible","model":"model-name"}'
+  wikigraph {{ uri }} set '{"provider":"google","model":"gemini-2.5-pro"}' --json
+{% elif "/wikispine" in uri %}
+  wikigraph {{ uri }} set '{"provider":"fetch"}'
+  wikigraph {{ uri }} set '{"provider":"cli"}'
+{% elif "/concurrent" in uri %}
+  wikigraph {{ uri }} set '{"job":3,"request":6}'
+  wikigraph {{ uri }} set --json-input '{"job":2,"request":4}'
+{% endif %}
+{% elif "/meta" in uri %}
+Purpose:
+  Replace this metadata object from a JSON object or input value.
+
+Usage:
+  wikigraph {{ uri }} set <json> [--json]
+  wikigraph {{ uri }} set --json-input <json> [--json]
+
+Notes:
+  - Metadata shape depends on whether this is archive metadata or object metadata.
+  - `put`, `delete`, and `clear` are usually safer for single-key metadata edits.
 {% else %}
+Purpose:
+  This URI target has no generic `set` behavior.
+
 Usage:
-  wikigraph {{ uri }} set [options]
+  wikigraph {{ uri }} --help
+
+Notes:
+  - `set` is target-specific. Use the URI help page to find the writable child resource or supported predicate.
 {% endif %}
 {% elif predicate == "clear" %}
 Purpose:
@@ -138,18 +265,46 @@ Purpose:
 
 Usage:
   wikigraph {{ uri }} clear
+
+{% if target.name == "local-config-section" %}
+Notes:
+  - Clears every key in this local config section, including secrets.
+  - No confirmation prompt is shown.
+  - Success output is the now-empty JSON object: `{}`.
+{% elif "/meta" in uri %}
+Notes:
+  - Clears all metadata keys for this metadata object.
+  - No confirmation prompt is shown.
+{% else %}
+Notes:
+  - This predicate is only available on URI targets that explicitly support clearing.
+{% endif %}
 {% elif predicate == "build" %}
 Purpose:
   Build the FTS index for this archive.
 
 Usage:
   wikigraph {{ uri }} build [--jsonl]
+
+Notes:
+  - Safe to run repeatedly; it refreshes a missing or outdated FTS index.
+  - By default the index is stored as local cache outside the `.wikg` archive.
+  - Build uses local CPU and disk only; it does not call an LLM provider.
+  - Text success output is a short status summary.
+  - With `--jsonl`, progress is emitted as line-delimited event records such as step/status/error records.
+  - After build, `--query`, `related --query`, and `evidence --query` become available.
 {% elif predicate == "embed" %}
 Purpose:
   Store the FTS index inside the archive.
 
 Usage:
   wikigraph {{ uri }} embed
+
+Notes:
+  - Embedding writes the current FTS index into the `.wikg` archive.
+  - This makes the archive more portable, but increases archive size.
+  - Run `build` first if the index is missing or outdated.
+  - If embed fails because the index is unavailable, run `wikigraph {{ uri }} build`.
 {% elif predicate == "external" %}
 Purpose:
   Keep the FTS index outside the archive as local cache.
@@ -198,19 +353,65 @@ Purpose:
 
 Usage:
   wikigraph {{ uri }} put <key> <value>
+  wikigraph {{ uri }} put <key> --json-input <json>
+{% if "/llm" in uri %}
   wikigraph {{ uri }} put <key> --secret
+{% endif %}
+
+{% if target.name == "local-config-section" %}
+{% if "/llm" in uri %}
+Keys:
+  - provider: openai, openai-compatible, anthropic, or google
+  - model: non-empty model name
+  - baseURL: non-empty provider base URL string
+  - name: non-empty display name
+  - apiKey: secret; use `--secret`
+{% elif "/wikispine" in uri %}
+Keys:
+  - provider: fetch or cli
+{% elif "/concurrent" in uri %}
+Keys:
+  - job: positive integer
+  - request: positive integer
+{% endif %}
+
+Notes:
+  - Positional `<value>` is stored as a string.
+  - `--json-input` stores a JSON value and is useful for numeric config sections.
+{% if "/llm" in uri %}
+  - `--secret` reads the value from an interactive terminal without echoing it; use it for `apiKey`.
+{% endif %}
+  - Success output is the full section JSON with sensitive values masked.
+{% endif %}
 {% elif predicate == "delete" %}
 Purpose:
   Delete one key from this local config section.
 
 Usage:
   wikigraph {{ uri }} delete <key>
+
+{% if target.name == "local-config-section" %}
+Notes:
+  - Deletes the key if present; deleting an absent key leaves the section unchanged.
+  - Success output is the full section JSON after deletion.
+  - Key aliases are normalized where supported, for example `api-key` to `apiKey`.
+{% endif %}
 {% elif predicate == "test" %}
 Purpose:
   Test connectivity for this local config section.
 
 Usage:
-  wikigraph {{ uri }} test
+  wikigraph {{ uri }} test [--json]
+
+Notes:
+  - For `llm`, this sends a small request to the configured model.
+  - For `wikispine`, this checks the built-in fetch service or local `wikispine` command.
+  - Text success output is intentionally short.
+  - With `--json`, success and failure both return `{ "ok": true|false, ... }`; failures set a non-zero exit code.
+  - Without `--json`, failures print the command error. Use `wikigraph help readiness` and `wikigraph help config` to recover.
+{% if "/wikispine" in uri %}
+  - Runtime setup and recovery guide: https://raw.githubusercontent.com/oomol-lab/wiki-graph/refs/heads/main/docs/wikispine-runtime.md
+{% endif %}
 {% endif %}
 
 Related help:

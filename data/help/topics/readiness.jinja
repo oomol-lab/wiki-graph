@@ -63,17 +63,18 @@ WikiSpine readiness:
   WikiSpine provides entity candidate lookup for Knowledge Graph construction.
 
   Provider choices:
-  - `fetch`: use an HTTP endpoint. This is usually easier for Agents and hosted setups when a service URL is available.
-  - `cli`: run a local `wikispine` command. This is useful for offline or locally controlled environments, but requires local runtime setup and data.
+  - `fetch`: use the built-in WikiSpine HTTP service. This is usually easier for Agents and hosted setups.
+  - `cli`: run the local `wikispine` command from PATH. This is useful for offline or locally controlled environments, but requires local runtime setup and data.
 
   Configure one provider, then test it:
     wikigraph wikg://local/config/wikispine put provider fetch
-    wikigraph wikg://local/config/wikispine put endpoint https://example.com
     wikigraph wikg://local/config/wikispine test
 
     wikigraph wikg://local/config/wikispine put provider cli
-    wikigraph wikg://local/config/wikispine put command wikispine
     wikigraph wikg://local/config/wikispine test
+
+  Runtime setup and recovery guide:
+    https://raw.githubusercontent.com/oomol-lab/wiki-graph/refs/heads/main/docs/wikispine-runtime.md
 
 How to choose:
   - Need keyword retrieval on this machine: build local index.

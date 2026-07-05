@@ -32,6 +32,7 @@ export {
 export { buildWikimatchSurfaceProtectionInput } from "./surface-window.js";
 export { suppressContainedRanges } from "./range-suppression.js";
 export {
+  DEFAULT_WIKISPINE_FETCH_ENDPOINT,
   matchWikispineSentenceCandidates,
   type MatchWikispineSentenceCandidatesOptions,
   testWikispineRuntime,

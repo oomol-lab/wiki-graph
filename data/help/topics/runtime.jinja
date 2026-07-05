@@ -9,7 +9,7 @@ Purpose:
 Archive-first streams:
   - `wikigraph <archive-uri> create --input-format markdown|txt` reads source text from stdin.
   - `wikigraph <archive-uri> export --output-format markdown|txt` can write text projections to stdout.
-  - `wikigraph transform --input-format markdown|txt --output-format markdown|txt` runs direct one-shot stream digest/export.
+  - `wikigraph transform --input-format markdown|txt --output-format markdown|txt` runs direct one-shot stream digest/export and usually requires LLM configuration.
   - Retrieval commands print human-readable text by default and support `--json` where documented.
   - A bare `wikigraph` in an interactive terminal prints root help.
   - A bare non-interactive `wikigraph` invocation is not a transform shortcut; use `wikigraph transform`.

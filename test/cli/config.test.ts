@@ -38,7 +38,6 @@ describe("cli/config", () => {
         provider: "openai-compatible",
       },
       wikispine: {
-        endpoint: "https://wikispine.example",
         provider: "fetch",
       },
     };
@@ -55,7 +54,6 @@ describe("cli/config", () => {
         request: 6,
       },
       wikispine: {
-        endpoint: "https://wikispine.example",
         provider: "fetch",
       },
     });

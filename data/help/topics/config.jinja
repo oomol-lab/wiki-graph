@@ -19,9 +19,8 @@ Sections:
   `wikg://local/config/wikispine`
     WikiSpine runtime provider for Knowledge Graph builds:
       - `provider`: `cli` or `fetch`.
-      - `command`: local command for `cli`. Default: `wikispine`.
-      - `dataDir`: optional local runtime data directory for `cli`.
-      - `endpoint`: HTTP service endpoint for `fetch`.
+      - `fetch` uses the built-in WikiSpine service endpoint.
+      - `cli` runs the local `wikispine` command from PATH.
 
 Operations:
   Read a section:
@@ -30,9 +29,9 @@ Operations:
     wikigraph wikg://local/config/wikispine
 
   Replace a section with a JSON object:
-    wikigraph wikg://local/config/llm set --json '{"provider":"openai","model":"gpt-4.1"}'
-    wikigraph wikg://local/config/concurrent set --json '{"job":3,"request":6}'
-    wikigraph wikg://local/config/wikispine set --json '{"provider":"fetch","endpoint":"https://example.com"}'
+    wikigraph wikg://local/config/llm set '{"provider":"openai","model":"gpt-4.1"}'
+    wikigraph wikg://local/config/concurrent set '{"job":3,"request":6}'
+    wikigraph wikg://local/config/wikispine set '{"provider":"fetch"}'
 
   Update one key:
     wikigraph wikg://local/config/llm put provider openai
@@ -41,7 +40,6 @@ Operations:
     wikigraph wikg://local/config/concurrent put request 6
     wikigraph wikg://local/config/wikispine put provider cli
     wikigraph wikg://local/config/wikispine put provider fetch
-    wikigraph wikg://local/config/wikispine put endpoint https://example.com
 
   Store the API key:
     wikigraph wikg://local/config/llm put apiKey --secret
@@ -69,12 +67,13 @@ Examples:
   wikigraph wikg://local/config/llm put apiKey --secret
   wikigraph wikg://local/config/llm test
   wikigraph wikg://local/config/wikispine put provider fetch
-  wikigraph wikg://local/config/wikispine put endpoint https://example.com
   wikigraph wikg://local/config/wikispine test
 
 WikiSpine:
   Knowledge Graph builds require WikiSpine. If `wikispine` is missing,
   configure one provider and run the config test before starting Knowledge Graph work.
+  Runtime setup and recovery guide:
+    https://raw.githubusercontent.com/oomol-lab/wiki-graph/refs/heads/main/docs/wikispine-runtime.md
 
 Where to go next:
   - Need the normal workflow:

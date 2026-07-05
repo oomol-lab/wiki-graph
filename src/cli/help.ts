@@ -78,7 +78,7 @@ interface UriHelpTarget {
 const URI_HELP_TARGETS: readonly UriHelpTarget[] = [
   {
     name: "archive-scope",
-    predicates: ["create", "export", "inspect", "set"],
+    predicates: ["create", "export", "inspect"],
   },
   { name: "chapter-collection-scope", predicates: ["add"] },
   {

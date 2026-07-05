@@ -51,7 +51,7 @@ Common command shapes:
   wikigraph <archive-uri> inspect
   wikigraph transform [options]
   wikigraph wikg://local/job
-  wikigraph wikg://local/job add --input <chapter-uri> --task <reading-graph|reading-summary|knowledge-graph> --accept-cost
+  wikigraph wikg://local/job add --input <archive-uri|chapter-uri> --task <reading-graph|reading-summary|knowledge-graph> --accept-cost
   wikigraph wikg://local/job/<job-id>
   wikigraph <object-uri> related
   wikigraph <object-uri> evidence
@@ -140,6 +140,8 @@ Pagination and object result format:
   - Default text is for reading and inspection.
   - `--json` is for one stable machine-readable page.
   - `--jsonl` is for streamed records, shell pipelines, or full exports.
+  - JSONL contains object records and may include control records such as `{"type":"page","nextCursor":"..."}`.
+  - Filter JSONL by `type` when a pipeline expects only archive objects.
   - `--jsonl` is only an output format; it does not imply `--all`.
   - Avoid `--all` without `--jsonl` for large results because text and JSON output are buffered before printing.
   - Avoid `--all | head` as a preview pattern. Shell truncation only limits what you read.
@@ -150,8 +152,8 @@ Recovery hints:
     wikigraph <archive-uri>/chapter/tree
     wikigraph help readiness
   - Missing generated objects: start the relevant generation job for the chapter.
-    wikigraph wikg://local/job add --input <chapter-uri> --task reading-graph --accept-cost
-    wikigraph wikg://local/job add --input <chapter-uri> --task reading-summary --accept-cost
+    wikigraph wikg://local/job add --input <archive-uri|chapter-uri> --task reading-graph --accept-cost
+    wikigraph wikg://local/job add --input <archive-uri|chapter-uri> --task reading-summary --accept-cost
     wikigraph help readiness
     wikigraph help runtime
   - URI rejected: convert bare filesystem paths to Wiki Graph URIs, and prepend the archive locator to short object URIs.

@@ -2951,12 +2951,13 @@ function parseArchiveArguments(
       );
       rejectArchiveFlag(action, "--role", values.role, helpRoute);
       rejectArchiveBooleanFlag(action, "--confirm", values.confirm, helpRoute);
-      rejectArchiveBooleanFlag(action, "--json", values.json, helpRoute);
+      rejectArchiveBooleanFlag(action, "--jsonl", values.jsonl, helpRoute);
       return {
         args: {
           action,
           archivePath,
           ...(inputFormat === undefined ? {} : { inputFormat }),
+          ...(values.json === undefined ? {} : { json: values.json }),
           ...(values.llm === undefined ? {} : { llmJSON: values.llm }),
           ...(values.prompt === undefined ? {} : { prompt: values.prompt }),
           ...(sourcePath === undefined ? {} : { sourcePath }),

@@ -2,7 +2,8 @@ Help Type: command
 Command: wikigraph transform
 
 Purpose:
-  Run a direct one-shot digest/export without creating a reusable `.wikg` archive.
+  Run a direct one-shot digest/export.
+  This is not a plain file-format converter; source inputs usually require LLM-backed digest work, and `--output-format wikg` can create a reusable `.wikg` archive.
 
 Usage:
   wikigraph transform [--input <path>] [--output <path>] [--input-format <format>] [--output-format <format>] [--digest-dir <path>] [--llm <json>] [--prompt <text>] [--stage <planned|source|reading-graph|reading-summary>] [--verbose|-v]
@@ -10,12 +11,16 @@ Usage:
 Behavior:
   - Reads from `--input <path>`, or from stdin when `--input` is omitted.
   - Writes to `--output <path>`, or to stdout when `--output` is omitted.
-  - May call an LLM depending on output format, target stage, and source state.
+  - Source inputs (`epub`, `txt`, `markdown`) call an LLM unless `--output-format wikg --stage planned|source` is used.
+  - Existing `.wikg` input can be exported to text without running digest generation.
   - Does not leave a managed archive unless `--output-format wikg` is selected.
 
-Examples:
+LLM-backed source examples:
   cat chapter.txt | wikigraph transform --input-format txt --output-format markdown
   wikigraph transform --input book.epub --output digest.md --output-format markdown
+
+Existing archive export example:
+  wikigraph transform --input book.wikg --output digest.md --output-format markdown
 
 Where to go next:
   - Prefer reusable archives:

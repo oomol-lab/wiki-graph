@@ -1,4 +1,4 @@
-import { resolve } from "path";
+import { isAbsolute, relative, resolve } from "path";
 import { homedir } from "os";
 
 export const WIKI_GRAPH_URI_PREFIX = "wikg://";
@@ -79,6 +79,35 @@ export function formatLocatedWikiGraphUri(
   return `${WIKI_GRAPH_URI_PREFIX}${uriArchivePath}/${stripWikiGraphUriPrefix(
     objectUri,
   )}`;
+}
+
+export function formatWikiGraphCommandUri(
+  archivePath: string,
+  objectUri?: string,
+  cwd = process.cwd(),
+): string {
+  return formatLocatedWikiGraphUri(
+    formatCommandArchivePath(archivePath, cwd),
+    objectUri,
+  );
+}
+
+function formatCommandArchivePath(archivePath: string, cwd: string): string {
+  const resolvedCwd = resolve(cwd);
+  const resolvedArchivePath = isAbsolute(archivePath)
+    ? resolve(archivePath)
+    : resolve(resolvedCwd, archivePath);
+  const relativeArchivePath = relative(resolvedCwd, resolvedArchivePath);
+
+  if (
+    relativeArchivePath !== "" &&
+    !relativeArchivePath.startsWith("..") &&
+    !isAbsolute(relativeArchivePath)
+  ) {
+    return relativeArchivePath;
+  }
+
+  return resolvedArchivePath;
 }
 
 export function formatLocatedChapterUri(

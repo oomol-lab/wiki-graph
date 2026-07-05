@@ -35,6 +35,7 @@ import {
 } from "../archive/search-index/index.js";
 import {
   formatLocatedWikiGraphUri,
+  formatWikiGraphCommandUri,
   parseLocatedWikiGraphUri,
   requireLocatedObjectOrArchiveUri,
   SpineDigestFile,
@@ -402,10 +403,12 @@ async function createArchive(args: CLIArchiveArguments): Promise<void> {
   if (args.sourcePath === undefined) {
     if (args.inputFormat === undefined) {
       await new SpineDigestFile(args.archivePath).write(async () => {});
+      await writeCreatedArchive(args);
       return;
     }
 
     await createArchiveFromStdin(args);
+    await writeCreatedArchive(args);
     return;
   }
 
@@ -423,6 +426,7 @@ async function createArchive(args: CLIArchiveArguments): Promise<void> {
       targetStage: "sourced",
       verbose: false,
     });
+    await writeCreatedArchive(args);
     return;
   }
 
@@ -452,9 +456,21 @@ async function createArchive(args: CLIArchiveArguments): Promise<void> {
       targetStage: "sourced",
       verbose: false,
     });
+    await writeCreatedArchive(args);
   } finally {
     await rm(temporaryDirectoryPath, { force: true, recursive: true });
   }
+}
+
+async function writeCreatedArchive(args: CLIArchiveArguments): Promise<void> {
+  if (args.json === true) {
+    await writeTextToStdout(
+      formatCLIJSON({ uri: formatLocatedWikiGraphUri(args.archivePath) }),
+    );
+    return;
+  }
+
+  await writeTextToStdout("<archive>\n");
 }
 
 async function runNextArchivePage(args: CLIArchiveArguments): Promise<void> {
@@ -1015,7 +1031,7 @@ async function writeArchiveInspectReport(
   document: ReadonlyDocument,
   args: CLIArchiveArguments,
 ): Promise<void> {
-  const archiveUri = formatLocatedWikiGraphUri(args.archivePath);
+  const archiveUri = formatWikiGraphCommandUri(args.archivePath);
   const scopeUri =
     args.chapterId === undefined
       ? archiveUri
@@ -1521,7 +1537,7 @@ async function writeList(
   }
 
   await writeTextToStdout(
-    `${objects.map(formatFindObject).join(getListObjectSeparator(objects))}${formatNextCursor(nextCursor)}\n`,
+    `${objects.map(formatFindObject).join(getListObjectSeparator(objects))}${formatOpenShortUriHint(objects, context)}${formatNextCursor(nextCursor)}\n`,
   );
 }
 
@@ -1698,7 +1714,7 @@ async function writeFindHits(
       .map((object) => formatFindObject(object))
       .join(
         getListObjectSeparator(outputObjects),
-      )}${formatNextCursor(nextCursor)}${formatFindLensHint(result)}\n`,
+      )}${formatOpenShortUriHint(outputObjects, context)}${formatNextCursor(nextCursor)}${formatFindLensHint(result)}\n`,
   );
 }
 
@@ -2168,7 +2184,7 @@ function appendEntityNextSteps(
   if (!isEntityOutputUri(uri)) {
     return text;
   }
-  const entityUri = formatLocatedWikiGraphUri(
+  const entityUri = formatWikiGraphCommandUri(
     archivePath,
     uri.replace(/\/$/u, ""),
   );
@@ -2584,6 +2600,26 @@ function formatFindObject(object: ArchiveOutputObject): string {
   }
 
   return lines.join("\n");
+}
+
+function formatOpenShortUriHint(
+  objects: readonly ArchiveOutputObject[],
+  context: ArchiveOutputContext,
+): string {
+  const shortUri = objects.find((object) => isShortOutputUri(object.uri))?.uri;
+
+  if (shortUri === undefined) {
+    return "";
+  }
+
+  return `\n\nOpen short URIs with the archive locator, for example:\n  wikigraph ${formatWikiGraphCommandUri(context.archivePath, shortUri)}`;
+}
+
+function isShortOutputUri(uri: string): boolean {
+  return (
+    uri.startsWith("wikg://") &&
+    parseLocatedWikiGraphUri(uri).archivePath === undefined
+  );
 }
 
 function formatScoredLines(
