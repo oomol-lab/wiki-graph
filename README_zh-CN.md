@@ -117,32 +117,75 @@ Wiki Graph 也可以为章节生成中文摘要，把长文本压缩成更短、
 
 ### Wiki Graph URI
 
-Wiki Graph 用 URI 作为归档和对象的稳定句柄。CLI 命令围绕 URI 工作：
+Wiki Graph 用 URI 作为归档、scope 和 object 的稳定句柄。一个 URI 要么指向 scope，要么指向 object：scope 用来枚举或检索一组对象，object 用来读取或操作一个具体对象。
 
 ```bash
-wikigraph wikg://book.wikg
-wikigraph wikg://book.wikg/chapter
-wikigraph wikg://book.wikg/entity
-wikigraph wikg://book.wikg/entity/Q8018
-wikigraph wikg://book.wikg/triple/Q8018/discusses/Q123
+$ wikigraph wikg://book.wikg/chapter
+$ wikigraph wikg://book.wikg/chapter/3
+$ wikigraph wikg://book.wikg/chapter/3/chunk
+$ wikigraph wikg://book.wikg/entity
+$ wikigraph wikg://book.wikg/triple/Q8018/discusses
 ```
 
-Scope URI 默认枚举对象，也可以加 `--query` 检索。Object URI 默认读取一个具体对象。对象支持哪些操作，由对象自己的 help 决定：
+上面这些都是 scope URI。直接调用 scope URI 会列出对象；加上 `--query` 会在这个 scope 内搜索；加上 `--limit` 可以限制返回数量；加上 `--all` 会取回完整结果，适合明确需要全量导出或清点时使用。
 
 ```bash
-wikigraph <uri> --help
-wikigraph <uri> <predicate> --help
+$ wikigraph wikg://book.wikg/chapter/3 --query "memory"
+$ wikigraph wikg://book.wikg/entity --query "neural network" --limit 5
+$ wikigraph wikg://book.wikg/chapter --all --json
 ```
 
-### Local Index、Local Job 和 Local Config
+object URI 默认读取一个具体对象：
 
-Wiki Graph 把归档内容和本机运行状态分开：
+```bash
+$ wikigraph wikg://book.wikg/chapter/3/title
+$ wikigraph wikg://book.wikg/chapter/3/source#4..8
+$ wikigraph wikg://book.wikg/chapter/3/chunk/12
+$ wikigraph wikg://book.wikg/entity/Q8018
+$ wikigraph wikg://book.wikg/triple/Q8018/discusses/Q123
+```
 
-- `<archive-uri>/index` 管理 `.wikg` 的搜索索引策略。
-- `wikg://local/job` 管理本机生成任务。
-- `wikg://local/config` 下的 section 管理本机 LLM、并发和 WikiSpine 配置。
+大多数对象都可以落在某个章节下，例如 `chapter/3/source#4..8`、`chapter/3/chunk/12`、`chapter/3/entity/Q8018`。也有一些对象可以在章节外按整个归档访问，例如 `entity/Q8018` 和 `triple/Q8018/discusses/Q123`；同一个实体或关系可能由多个章节共同支撑。
 
-这些本地状态不等同于归档内容。复制 `.wikg` 文件时，接收方可能需要在自己的机器上重新启用索引或配置 provider。
+URI 前半段是归档地址。绝对地址、相对地址和 Windows 路径要写成 Wiki Graph URI，而不是裸文件路径：
+
+```bash
+$ wikigraph wikg:///Users/me/books/book.wikg
+$ wikigraph wikg://book.wikg
+$ wikigraph wikg://C:/Users/me/books/book.wikg
+```
+
+命令输出里经常出现短地址，例如：
+
+```text
+wikg://chapter/3/source#4..8
+wikg://entity/Q8018
+wikg://triple/Q8018/discusses/Q123
+```
+
+这些短地址只是 archive-relative handle，用来让输出更短，本身不是完整命令 target。再次使用时要补上归档地址：
+
+```bash
+$ wikigraph wikg://book.wikg/chapter/3/source#4..8
+$ wikigraph wikg:///Users/me/books/book.wikg/entity/Q8018
+```
+
+命令形态通常是“URI + 谓语”。URI 放在前面，但它是命令要处理的对象；后面的谓语说明要对它做什么。没有谓语时，scope URI 通常执行 list，object URI 通常执行 read。
+
+```bash
+$ wikigraph wikg://book.wikg/entity/Q8018
+$ wikigraph wikg://book.wikg/entity/Q8018 evidence
+$ wikigraph wikg://book.wikg/entity/Q8018 related --query "memory"
+$ wikigraph wikg://book.wikg/entity/Q8018 pack --budget 5000 --json
+```
+
+更多 URI 规则和边界以 CLI help 为准。可以先看 URI 专题，也可以直接对某个 URI 或 URI 谓语查 help：
+
+```bash
+$ wikigraph help uri
+$ wikigraph wikg://book.wikg/entity/Q8018 --help
+$ wikigraph wikg://book.wikg/entity/Q8018 evidence --help
+```
 
 ## 常用工作流
 
