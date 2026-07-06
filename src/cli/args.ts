@@ -3033,6 +3033,8 @@ function parseArchiveArguments(
       rejectArchiveFlag(action, "--role", values.role, helpRoute);
       rejectArchiveFlag(action, "--llm", values.llm, helpRoute);
       rejectArchiveFlag(action, "--prompt", values.prompt, helpRoute);
+      rejectArchiveFlag(action, "--query", values.query, helpRoute);
+      rejectArchiveBooleanFlag(action, "--reverse", values.reverse, helpRoute);
       rejectArchiveBooleanFlag(action, "--confirm", values.confirm, helpRoute);
       rejectArchiveBooleanFlag(action, "--jsonl", values.jsonl, helpRoute);
       if (

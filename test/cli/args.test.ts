@@ -992,6 +992,12 @@ describe("cli/args", () => {
       parseCLIArguments(["wikg://book.wikg", "create", "--role", "subject"]),
     ).toThrow("The `create` command does not support --role.");
     expect(() =>
+      parseCLIArguments(["wikg://book.wikg", "create", "--query", "agent"]),
+    ).toThrow("The `create` command does not support --query.");
+    expect(() =>
+      parseCLIArguments(["wikg://book.wikg", "create", "--reverse"]),
+    ).toThrow("The `create` command does not support --reverse.");
+    expect(() =>
       parseCLIArguments(["wikg://book.wikg", "export", "--backlinks"]),
     ).toThrow("The `export` command does not support --backlinks.");
     expect(() =>
@@ -2159,6 +2165,12 @@ describe("cli/args", () => {
     expect(
       renderArchiveMaintenanceChapterActionHelpText("set-summary"),
     ).toContain("The chapter must be `reading-graph`");
+    expect(renderArchiveMaintenanceChapterActionHelpText("add")).toContain(
+      "[--json]",
+    );
+    expect(
+      renderArchiveMaintenanceChapterActionHelpText("set-source"),
+    ).toContain("[--json]");
     expect(renderArchiveMaintenanceCommandHelpText("cover")).toContain(
       "refuses to write binary data to an interactive terminal",
     );

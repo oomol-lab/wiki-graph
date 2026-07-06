@@ -7,8 +7,8 @@ Purpose:
   Insert a new chapter into an existing `.wikg` chapter tree.
 
 Usage:
-  wikigraph <archive-uri>/chapter add --stage planned [--title <title>] [--parent <chapter-uri>] [--llm <json>] [--help|-h]
-  wikigraph <archive-uri>/chapter add --stage source [--title <title>] [--parent <chapter-uri>] [--input <path>] [--llm <json>] [--help|-h]
+  wikigraph <archive-uri>/chapter add --stage planned [--title <title>] [--parent <chapter-uri>] [--llm <json>] [--json] [--help|-h]
+  wikigraph <archive-uri>/chapter add --stage source [--title <title>] [--parent <chapter-uri>] [--input <path>] [--llm <json>] [--json] [--help|-h]
 
 Behavior:
   - `--stage planned` creates an empty chapter with no source, graph, or summary.
@@ -24,6 +24,7 @@ Behavior:
 Output shape:
   Prints the new chapter status.
   The `Chapter: <id>` line is the new chapter id for later commands.
+  With `--json`, prints the new chapter status as one JSON object.
 
 Typical next step:
   wikigraph wikg://local/job add --input <archive-uri|chapter-uri> --task reading-graph --accept-cost
