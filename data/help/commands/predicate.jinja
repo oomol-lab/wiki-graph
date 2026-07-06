@@ -14,12 +14,13 @@ Purpose:
   Expand from the current chunk or entity object to nearby objects.
 
 Usage:
-  wikigraph {{ uri }} related [--query <query>] [--all] [--limit <n>] [--context <n>] [--cursor <token>] [--role <any|subject|object|self>] [--evidence [n]] [--json|--jsonl]
+  wikigraph {{ uri }} related [--query <query>] [--reverse] [--all] [--limit <n>] [--context <n>] [--cursor <token>] [--role <any|subject|object|self>] [--evidence [n]] [--json|--jsonl]
 
 Notes:
   - Chunk targets return nearby Reading Graph chunks.
   - Entity targets return Knowledge Graph triples involving the entity.
   - `--query` filters and ranks related results with the current FTS index.
+  - Without `--query`, `--reverse` reads Document Flow order backward. See `wikigraph help uri`.
   - `--role` only applies to entity targets.
   - Use `wikigraph {{ uri }} evidence --help` when source grounding is the main goal.
 {% elif predicate == "evidence" %}
@@ -27,11 +28,12 @@ Purpose:
   Trace the current object back to source-backed evidence.
 
 Usage:
-  wikigraph {{ uri }} evidence [--query <query>] [--all] [--limit <n>] [--context <n>] [--cursor <token>] [--json|--jsonl]
+  wikigraph {{ uri }} evidence [--query <query>] [--reverse] [--all] [--limit <n>] [--context <n>] [--cursor <token>] [--json|--jsonl]
 
 Notes:
   - Evidence is for grounding, verification, and citation support.
   - `--query` filters and ranks evidence with the current FTS index.
+  - Without `--query`, `--reverse` reads Document Flow order backward. See `wikigraph help uri`.
   - Evidence previews include nearby source context by default; use `--context 0` for exact cited ranges.
   - Source and scope URIs are not evidence targets.
 {% elif predicate == "pack" %}

@@ -2012,10 +2012,30 @@ describe("cli/args", () => {
     expect(uriHelpText).toContain(
       String.raw`C:\Users\me\book.wikg -> wikg://C:/Users/me/book.wikg`,
     );
-    expect(uriHelpText).toContain("Retrieval order:");
+    expect(uriHelpText).toContain("Document Flow order:");
     expect(uriHelpText).toContain(
-      "Choose the narrowest URI scope that can answer the task.",
+      "`--reverse` cannot be combined with `--query`",
     );
+    expect(uriHelpText).toContain(
+      "wikigraph <archive-uri>/entity/<qid> evidence --reverse --limit 1",
+    );
+    expect(
+      renderUriPredicateHelpText(
+        "entity-object",
+        "evidence",
+        "wikg://book.wikg/entity/Q8018",
+      ),
+    ).toContain("wikigraph help uri");
+    expect(
+      renderUriPredicateHelpText(
+        "entity-object",
+        "related",
+        "wikg://book.wikg/entity/Q8018",
+      ),
+    ).toContain("`--reverse` reads Document Flow order backward");
+    expect(
+      renderUriHelpText("entity-object", "wikg://book.wikg/entity/Q8018"),
+    ).toContain("supports `--reverse` without `--query`");
     expect(renderHelpTopicText("format")).toContain(
       "Avoid `--all | head` as a preview pattern.",
     );
@@ -2049,6 +2069,9 @@ describe("cli/args", () => {
     );
     expect(renderHelpTopicText("recipe")).toContain(
       "wikigraph wikg://book.wikg/chapter/3/summary#23..45",
+    );
+    expect(renderHelpTopicText("recipe")).toContain(
+      "wikigraph wikg://book.wikg/entity/Q8018 evidence --reverse --limit 1",
     );
     expect(renderHelpTopicText("recipe")).toContain(
       'wikigraph wikg://book.wikg/triple --query "attention memory" --evidence 2',

@@ -99,6 +99,10 @@ Finding material:
       wikigraph wikg://book.wikg/chapter/3/source#20..30
       wikigraph wikg://book.wikg/chapter/3/source#23..45
 
+  - Need the latest source evidence for a known object:
+    Use `--reverse` without `--query`; read `wikigraph help uri` for Document Flow order.
+      wikigraph wikg://book.wikg/entity/Q8018 evidence --reverse --limit 1
+
   - Need summary wording:
     Read summary objects or summary ranges, then verify important claims through related chunk, entity, or triple evidence.
       wikigraph wikg://book.wikg/chapter/3/summary

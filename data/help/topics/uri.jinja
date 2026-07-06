@@ -105,11 +105,17 @@ Object boundaries:
   - Source text is the grounding material. `evidence` is not available for source, summary, or chapter scope URIs.
   - `chunk`, `entity`, and `triple` can return source-backed evidence.
 
-Retrieval order:
+Retrieval strategy:
   1. Choose the narrowest URI scope that can answer the task.
   2. Choose the object lens that matches the question.
   3. Start with a bounded page.
   4. Use `--all` only for an intentional full export or bounded inventory.
+
+Document Flow order:
+  Without `--query`, multi-object results and source/summary evidence follow Document Flow order.
+  Document Flow order means `/chapter/tree` preorder chapter traversal, then source or summary ranges from the start of each chapter to the end.
+  Use `--reverse` when you need the same flow backward, for example to find the latest source occurrence of a known object.
+  `--reverse` cannot be combined with `--query`; query results use indexed match ranking instead.
 
 Lens selection:
   - Use `<archive-uri>` when the whole archive is the right retrieval scope.
@@ -130,6 +136,7 @@ Entity-grounded evidence:
   Use entity evidence when you already have an entity URI or QID and need grounded mentions, aliases, translations, variants, or source-backed support:
     wikigraph <archive-uri>/entity/<qid> evidence
     wikigraph <archive-uri>/entity/<qid> related --query "aspect" --evidence 2
+    wikigraph <archive-uri>/entity/<qid> evidence --reverse --limit 1
 
 Pagination:
   - Use default paging or `--limit <n>` while exploring.

@@ -234,7 +234,7 @@ Predicate commands:
 {% elif predicate == "enable" %}
   - enable: enable searchable index support and bring it to current. Help: wikigraph {{ uri }} enable --help
 {% elif predicate == "evidence" %}
-  - evidence: trace this object to source-backed evidence. Help: wikigraph {{ uri }} evidence --help
+  - evidence: trace this object to source-backed evidence; supports `--reverse` without `--query`. Help: wikigraph {{ uri }} evidence --help
 {% elif predicate == "export" %}
   - export: export an archive projection. Help: wikigraph {{ uri }} export --help
 {% elif predicate == "external" %}
@@ -250,7 +250,7 @@ Predicate commands:
 {% elif predicate == "put" %}
   - put: set one config key. Help: wikigraph {{ uri }} put --help
 {% elif predicate == "related" %}
-  - related: expand from this object to nearby objects. Help: wikigraph {{ uri }} related --help
+  - related: expand from this object to nearby objects; supports `--reverse` without `--query`. Help: wikigraph {{ uri }} related --help
 {% elif predicate == "remove" %}
   - remove: remove a chapter. Help: wikigraph {{ uri }} remove --help
 {% elif predicate == "reset" %}
