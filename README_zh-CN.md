@@ -109,11 +109,11 @@ subject --predicate--> object
 
 Evidence 是支持实体或关系的原文依据。Wiki Graph 的 Knowledge Graph 不是只给出结论，还要能回到 source text。
 
-### Reading Graph 和 Summary
+### 摘要生成
 
-Reading Graph 与 Summary 是辅助能力。Reading Graph 用于保存阅读过程中的注意力结构，Summary 用于生成压缩后的可读文本。
+Wiki Graph 也可以为章节生成中文摘要，把长文本压缩成更短、更容易携带和复用的阅读结果。
 
-它们仍然有价值，但不是 README 的主线。当前产品心智以 Knowledge Graph 和 source-backed retrieval 为中心。
+它的摘要不是直接把全文一次性压扁，而是先生成 Reading Graph：根据[米勒定律](https://en.wikipedia.org/wiki/The_Magical_Number_Seven,_Plus_or_Minus_Two)中认知区块的思路，把长文本拆成可追溯的[区块](<https://en.wikipedia.org/wiki/Chunking_(psychology)>)，按概念相关性连接，再按原文顺序组织成阅读链路。中文摘要基于 Reading Graph 生成，因此压缩后的文本仍然能回到原文依据。
 
 ### Wiki Graph URI
 
