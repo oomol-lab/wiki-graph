@@ -10,7 +10,7 @@
 
 Wiki Graph 是一个面向 [Andrej Karpathy](https://github.com/karpathy) 的 [LLM Wiki](https://gist.github.com/karpathy/442a6bf555914893e9891c11519de94f) 思路和 Google [OKF](https://cloud.google.com/blog/products/data-analytics/how-the-open-knowledge-format-can-improve-data-sharing) 方向构建的开源长文本知识库管理 CLI。
 
-它将文本写入 `.wikg` 归档，并按需生成可检索、可追溯证据的 Knowledge Graph。这为 Karpathy 所说的 LLM Wiki 落地为可执行的知识生产流程，提供了一套可运行的 CLI。
+它将纯文本写入 `.wikg` 归档，并按需生成可检索、可追溯证据的 Knowledge Graph。这为 Karpathy 所说的 LLM Wiki 落地为可执行的知识生产流程，提供了一套可运行的 CLI。
 
 在 Agent 场景中，PDF、网页、EPUB、字幕、会议录音、视频课程或内部文档都可以先由外部工具转成文本，再交给 Wiki Graph。Wiki Graph 负责的是后半段：把这些长文本落入知识库，抽取 Entity 和 Triple，并保留能追到章节与原句的证据线索；需要压缩阅读时，也可以先生成阅读图谱，再基于它产出摘要。
 
@@ -49,7 +49,7 @@ $ wikigraph wikg://quickstart.wikg/chapter/tree
 └─ Second note  wikg://chapter/2
 ```
 
-开启并构件 FTS 全文索引（开启后才可使用 `--query` 进行全文搜索）：
+开启并构建 FTS 全文索引（开启后才可使用 `--query` 进行全文搜索）：
 
 ```bash
 $ wikigraph wikg://quickstart.wikg/index enable
@@ -80,9 +80,11 @@ TODO：这一节最后写。
 
 ### `.wikg`
 
-`.wikg` 是 Wiki Graph 管理的知识库归档。它可以保存源文本、章节结构、Knowledge Graph、Reading Graph、Summary、索引策略和元数据。
+`.wikg` 是 Wiki Graph 用来创建、维护和分享知识库的归档文件。它可以保存源文本、章节树、Knowledge Graph、Reading Graph、Summary、索引策略和元数据，并用树形章节组织知识库内容。
 
-`.wikg` 是托管归档，不是让用户手工解压和编辑的文件格式。日常读取、检索、生成和维护都应通过 `wikigraph` CLI 完成。
+在 LLM Wiki 的描述下，知识库常常接近一个人的第二大脑：私人、持续增长，并且混合着大量个人 schema。`.wikg` 是对这个方向的一个可携带补充：它给知识库加上明确 scope，让它可以像一本书、一个网站、一门课程或一组会议记录那样被组织和交付。
+
+你既可以把它当成私人知识库来逐步整理，也可以保留原始材料的结构，例如书籍章节、网站目录、课程单元或视频分段。生产知识库的人和消费知识库的人不必是同一个人；一个 `.wikg` 文件可以被复制、发送、上传、备份和分享。
 
 ### Knowledge Graph
 
