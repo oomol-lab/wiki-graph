@@ -10,9 +10,9 @@
 
 Wiki Graph 是一个面向 [Andrej Karpathy](https://github.com/karpathy) 的 [LLM Wiki](https://gist.github.com/karpathy/442a6bf555914893e9891c11519de94f) 思路和 Google [OKF](https://cloud.google.com/blog/products/data-analytics/how-the-open-knowledge-format-can-improve-data-sharing) 方向构建的开源长文本知识库管理 CLI。
 
-它将纯文本写入 `.wikg` 归档，并按需生成可检索、可追溯证据的 Knowledge Graph。这为 Karpathy 所说的 LLM Wiki 落地为可执行的知识生产流程，提供了一套可运行的 CLI。
+它将文本写入 `.wikg` 归档，并按需生成可检索、可追溯证据的 Knowledge Graph。这为 Karpathy 所说的 LLM Wiki 落地为可执行的知识生产流程，提供了一套可运行的 CLI。
 
-在 Agent 场景中，PDF、网页、EPUB、字幕、会议录音、视频课程或内部文档都可以先由外部工具转成纯文本，再交给 Wiki Graph。Wiki Graph 负责的是后半段：把这些长文本落入知识库，抽取 Entity 和 Triple，并保留能追到章节与原句的证据线索；需要压缩阅读时，也可以先生成阅读图谱，再基于它产出摘要。
+在 Agent 场景中，PDF、网页、EPUB、字幕、会议录音、视频课程或内部文档都可以先由外部工具转成文本，再交给 Wiki Graph。Wiki Graph 负责的是后半段：把这些长文本落入知识库，抽取 Entity 和 Triple，并保留能追到章节与原句的证据线索；需要压缩阅读时，也可以先生成阅读图谱，再基于它产出摘要。
 
 Karpathy 的核心想法是：不要让 AI 每次提问都从原始材料重新检索，而是把知识编译成可持续维护的 Wiki。OKF 则把这类 Wiki 实践推向开放、可移植的知识格式。Wiki Graph 负责把这条链路中属于 OKF 的 source layer 这部分做实：把长文本变成 Wiki 和 OKF 可以继续消费的知识原料，包括实体、关系，以及能追回原文的证据。
 
@@ -32,23 +32,24 @@ $ npm install -g wikigraph
 $ wikigraph wikg://quickstart.wikg create
 ```
 
-导入两个 source chapter：
+导入两个章节的文本：
 
 ```bash
-$ printf "Alpha is connected to beta.\n" | wikigraph wikg://quickstart.wikg/chapter add --stage source --title "First note"
+$ printf "Alpha is connected to beta.\n" | wikigraph wikg://quickstart.wikg/chapter add --title "First note" --input -
 
-$ printf "Beta mentions gamma.\n" > chapter.txt && wikigraph wikg://quickstart.wikg/chapter add --stage source --title "Second note" --input ./chapter.txt
+$ printf "Beta mentions gamma.\n" > tmp.txt && wikigraph wikg://quickstart.wikg/chapter add --title "Second note" --input ./tmp.txt
 ```
 
 查看章节树：
 
 ```bash
 $ wikigraph wikg://quickstart.wikg/chapter/tree
+
 ├─ First note  wikg://chapter/1
 └─ Second note  wikg://chapter/2
 ```
 
-启用可搜索索引。这个步骤只使用本机 CPU 和磁盘，不需要 LLM 或 WikiSpine：
+开启并构件 FTS 全文索引（开启后才可使用 `--query` 进行全文搜索）：
 
 ```bash
 $ wikigraph wikg://quickstart.wikg/index enable
@@ -58,7 +59,8 @@ $ wikigraph wikg://quickstart.wikg/index enable
 
 ```bash
 $ wikigraph wikg://quickstart.wikg --query alpha
-@@ wikg://chapter/1/source#0 @@
+
+@@ wikg://chapter/1/source#1 @@
 Alpha is connected to beta.
 ```
 
