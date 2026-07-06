@@ -64,17 +64,23 @@ $ wikigraph wikg://quickstart.wikg --query alpha
 Alpha is connected to beta.
 ```
 
-## 为什么需要 Wiki Graph
+## 为什么要做 Wiki Graph
 
-TODO：这一节最后写。
+这个项目最早叫 SpineDigest，重点是把长文本压缩成更短、更容易阅读和携带的摘要。那一版解决的问题是：LLM 如何像人一样读完整本书，如何在有限的工作记忆里保留线索，并在需要时回到原文。它借助[米勒定律](https://en.wikipedia.org/wiki/The_Magical_Number_Seven,_Plus_or_Minus_Two)和[认知区块](<https://en.wikipedia.org/wiki/Chunking_(psychology)>)的思路，把长文本组织成 Reading Graph，再基于这个结构生成摘要。
 
-可以讨论的问题：
+当时有一个比喻：像论文答辩里老师不断质询学生一样，每条阅读链路都在提醒“这个说法有什么证据”“这个概念和哪个概念有关”“这里不能混在一起”。这张图描述的是旧版本的阅读与摘要流程，但它也解释了 Wiki Graph 的起点：长文本不应该只被一次性压扁，而应该被组织成可以反复进入、追问和验证的结构。
 
-- 为什么长文本不应该只被压缩成摘要？
-- 为什么知识库比一次性问答更适合反复使用？
-- 为什么 Knowledge Graph 要保留 source evidence？
-- 为什么 Reading Graph 和 Summary 是辅助层，而不是最终目标？
-- 为什么 CLI 和 URI 对 AI Agent 特别重要？
+![SpineDigest flowchart](./docs/images/flowchart.svg)
+
+后来项目的重心发生了变化。摘要仍然有用，但摘要只是长文本的一种投影；更值得沉淀的是文本里的实体、关系和证据。于是 SpineDigest 改名为 Wiki Graph，主线也从“压缩阅读”转向“构建可维护的 Knowledge Graph”。
+
+Karpathy 的 LLM Wiki 给出了一个很重要的方向：知识不应该每次都从原始材料重新检索，而应该被编译成可维护的 Wiki。在这个方案里，除了原始材料和 Wiki 本身，还会有一层 schema：它是一份写给 Agent 的知识库维护规约，用来约定 Wiki 的组织方式、页面格式、交叉引用和摄入流程。由于这份规约会由你和 LLM 围绕自己的领域、偏好和材料一起演化，它天然会形成私人 schema；当 Wiki 还主要依赖私人实体时，Agent 往往需要反复阅读、抽取和修正，才能尽可能多地找出实体、关系和结构。也就是说，抽取效果不仅取决于模型能力，还取决于这套规约是否足够清晰、稳定；一旦规约漂移，信息就更容易被漏掉，幻觉也更容易写进知识库。
+
+Wiki Graph 选择从更确定的地方开始：公共实体。Wikipedia / Wikidata 像一部人类共享的公共词典，已经给大量人物、组织、地点、概念、术语、法条和事件提供了相对稳定的语义边界。Wiki Graph 通过 [WikiSpine](https://github.com/moskize91/wikispine) 扫描文本，召回可能对应 Wikipedia / Wikidata 的实体，再用 LLM 做消歧和筛选。它更像是先用公共词典召回候选实体，再让模型做消歧和筛选，而不是让模型从零决定实体边界；公共实体抽取也不依赖一份需要用户和 Agent 共同维护的私人 schema。
+
+因为这条路线依赖 Wikipedia / Wikidata 的既有收录，所以它不能覆盖所有私人实体，例如员工手册里的内部代号、电话簿里的普通姓名，或新创作小说里的非知名角色。这是一种有意识的取舍：Wiki Graph 不急着覆盖所有实体，而是先换取公共实体抽取的稳定性和可复用性。只要实体能对齐到同一个 QID，关系和证据就可以跨章节、跨书、跨材料累积到同一个知识对象上。
+
+Wiki Graph 要做的，就是把长文本中可以稳定对齐的公共知识先沉淀成 source layer，让它们成为可检索、可追溯、可继续生长的知识库底座。
 
 ## 核心概念
 

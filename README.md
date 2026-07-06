@@ -64,17 +64,23 @@ $ wikigraph wikg://quickstart.wikg --query alpha
 Alpha is connected to beta.
 ```
 
-## Why Wiki Graph
+## Why Build Wiki Graph
 
-TODO: write this section last.
+This project started as SpineDigest, with a focus on compressing long text into shorter summaries that were easier to read and carry. That version was built around a reading problem: how can an LLM read a whole book more like a person, keep useful threads in limited working memory, and still return to the source when needed? It used the ideas behind [Miller's Law](https://en.wikipedia.org/wiki/The_Magical_Number_Seven,_Plus_or_Minus_Two) and cognitive [chunking](<https://en.wikipedia.org/wiki/Chunking_(psychology)>) to organize long text into a Reading Graph, then generated summaries from that structure.
 
-Questions to cover:
+The metaphor at the time was a dissertation defense: professors keep questioning the respondent, reminding them which claim has evidence, which concepts are connected, and which ideas should not be collapsed together. The diagram below describes that older reading-and-summary flow, but it also explains where Wiki Graph starts: long text should not only be flattened once; it should become a structure that can be re-entered, questioned, and verified.
 
-- Why should long text not be reduced only to summaries?
-- Why is a knowledge base better than one-shot Q&A for repeated use?
-- Why should a Knowledge Graph keep source evidence?
-- Why are Reading Graph and Summary supporting layers rather than the final object?
-- Why are CLI and URI especially useful for AI agents?
+![SpineDigest flowchart](./docs/images/flowchart.svg)
+
+The center of gravity later changed. Summaries are still useful, but a summary is only one projection of long text. The more durable material is the entities, relations, and evidence inside the text. SpineDigest became Wiki Graph, and the main line moved from compressed reading to building maintainable Knowledge Graphs.
+
+Karpathy's LLM Wiki gives an important direction: knowledge should not be retrieved from raw material from scratch every time; it should be compiled into a maintainable Wiki. In that setup, besides raw sources and the Wiki itself, there is also a schema layer: a maintenance rulebook for the Agent, defining how the Wiki should be organized, how pages should be shaped, how cross-references work, and how new source material should be ingested. Because that rulebook evolves between a person and an LLM around their own domain, preferences, and material, it naturally becomes a private schema. When the Wiki also depends heavily on private entities, the Agent often has to read, extract, and revise repeatedly to find as many entities, relations, and structures as possible. In other words, extraction quality depends not only on model capability, but also on whether that rulebook stays clear and stable; once it drifts, information is easier to miss and hallucinations are easier to write into the knowledge base.
+
+Wiki Graph starts from a more determinate layer: public entities. Wikipedia / Wikidata acts like a shared public dictionary, already giving relatively stable semantic boundaries to many people, organizations, places, concepts, terms, statutes, and events. Wiki Graph uses [WikiSpine](https://github.com/moskize91/wikispine) to scan text, recall entities that may correspond to Wikipedia / Wikidata, and then use an LLM for disambiguation and filtering. This is closer to recalling candidate entities from a public dictionary and asking the model to disambiguate them, rather than asking the model to decide entity boundaries from scratch; public entity extraction also does not depend on a private schema jointly maintained by a person and an Agent.
+
+Because this route depends on what Wikipedia / Wikidata already covers, it cannot cover every private entity: internal code names in an employee handbook, ordinary names in a phone book, or non-notable characters in a newly written novel. That is an intentional tradeoff. Wiki Graph does not rush to cover every entity; it first gains stability and reuse for public entity extraction. Once an entity is aligned to the same QID, relations and evidence can accumulate onto the same knowledge object across chapters, books, and source collections.
+
+What Wiki Graph aims to do is sediment the public knowledge in long text that can be stably aligned into a source layer, so it can become a searchable, traceable, and extensible foundation for a knowledge base.
 
 ## Core Concepts
 
