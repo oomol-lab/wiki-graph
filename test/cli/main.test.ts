@@ -540,7 +540,13 @@ describe("cli/main", () => {
   });
 
   it("writes parse errors as JSON when --json is requested", async () => {
-    process.argv = ["node", "wikigraph", "search", "--json"];
+    process.argv = [
+      "node",
+      "wikigraph",
+      "wikg:///tmp/book.wikg/index",
+      "enable",
+      "--json",
+    ];
     mainMockState.parseError = new Error("bad args");
 
     await main();
@@ -549,6 +555,28 @@ describe("cli/main", () => {
     expect(JSON.parse(stdoutChunks.join(""))).toStrictEqual({
       error: {
         message: "bad args",
+        type: "error",
+      },
+    });
+    expect(process.exitCode).toBe(1);
+  });
+
+  it("writes parse errors as JSON when --json has an inline value", async () => {
+    process.argv = [
+      "node",
+      "wikigraph",
+      "wikg://local/config/llm",
+      "set",
+      "--json={",
+    ];
+    mainMockState.parseError = new Error("invalid JSON");
+
+    await main();
+
+    expect(stderrChunks).toStrictEqual([]);
+    expect(JSON.parse(stdoutChunks.join(""))).toStrictEqual({
+      error: {
+        message: "invalid JSON",
         type: "error",
       },
     });

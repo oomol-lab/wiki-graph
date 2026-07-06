@@ -116,7 +116,7 @@ function createCLIErrorObject(error: unknown): {
 }
 
 function shouldWriteJSONError(argv: readonly string[]): boolean {
-  return argv.includes("--json");
+  return argv.some((item) => item === "--json" || item.startsWith("--json="));
 }
 
 function shouldWriteJSONLError(argv: readonly string[]): boolean {
