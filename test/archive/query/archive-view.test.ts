@@ -112,7 +112,7 @@ describe("archive/query/archive-view", () => {
 
       try {
         await expect(findArchiveObjects(document, "missing")).rejects.toThrow(
-          "Wiki Graph search index is missing or outdated. Run `<archive-uri>/index build` before searching.",
+          "Wiki Graph search index is missing or outdated. Run `<archive-uri>/index enable` before searching.",
         );
       } finally {
         await document.release();
@@ -171,7 +171,7 @@ describe("archive/query/archive-view", () => {
             query: "Alpha",
           }),
         ).rejects.toThrow(
-          "Wiki Graph search index is missing or outdated. Run `<archive-uri>/index build` before searching.",
+          "Wiki Graph search index is missing or outdated. Run `<archive-uri>/index enable` before searching.",
         );
         await expect(
           listRelatedArchiveObjects(document, "wikg://entity/Q1", {
@@ -179,7 +179,7 @@ describe("archive/query/archive-view", () => {
             role: "subject",
           }),
         ).rejects.toThrow(
-          "Wiki Graph search index is missing or outdated. Run `<archive-uri>/index build` before searching.",
+          "Wiki Graph search index is missing or outdated. Run `<archive-uri>/index enable` before searching.",
         );
       } finally {
         await document.release();
