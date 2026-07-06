@@ -3,8 +3,10 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type * as WikiGraphIndex from "../../src/wikg/index.js";
 
 const objectMetadataMockState = vi.hoisted(() => ({
+  inputFileContent: '{"file":true}',
   maps: new Map<string, Record<string, unknown>>(),
   readCalls: [] as string[],
+  stdinStream: ["stdin content"],
   targets: [] as unknown[],
   textWrites: [] as string[],
   writeCalls: [] as string[],
@@ -40,11 +42,17 @@ vi.mock("../../src/wikg/index.js", async (importOriginal) => {
 });
 
 vi.mock("../../src/cli/io.js", () => ({
-  readTextStreamFromStdin: vi.fn(async function* () {}),
+  readTextStreamFromStdin: vi.fn(() => objectMetadataMockState.stdinStream),
   writeTextToStdout: vi.fn((text: string) => {
     objectMetadataMockState.textWrites.push(text);
     return Promise.resolve();
   }),
+}));
+
+vi.mock("fs/promises", () => ({
+  readFile: vi.fn(() =>
+    Promise.resolve(objectMetadataMockState.inputFileContent),
+  ),
 }));
 
 import { parseCLIArguments } from "../../src/cli/args.js";
@@ -71,8 +79,10 @@ interface MockDocument {
 
 describe("cli/object metadata", () => {
   beforeEach(() => {
+    objectMetadataMockState.inputFileContent = '{"file":true}';
     objectMetadataMockState.maps.clear();
     objectMetadataMockState.readCalls.length = 0;
+    objectMetadataMockState.stdinStream = ["stdin content"];
     objectMetadataMockState.targets.length = 0;
     objectMetadataMockState.textWrites.length = 0;
     objectMetadataMockState.writeCalls.length = 0;
@@ -165,6 +175,49 @@ describe("cli/object metadata", () => {
       note: "updated",
       tags: ["x", 2],
     });
+  });
+
+  it("reads metadata input from --input file and --input dash", async () => {
+    await runObjectMetadataCommand({
+      action: "set",
+      archivePath: "/tmp/book.wikg",
+      inputPath: "/tmp/meta.json",
+      json: true,
+      objectPath: "entity/Q42",
+    });
+
+    expect(
+      JSON.parse(objectMetadataMockState.textWrites.at(-1)!),
+    ).toStrictEqual({
+      file: true,
+    });
+
+    await runObjectMetadataCommand({
+      action: "put",
+      archivePath: "/tmp/book.wikg",
+      inputPath: "-",
+      key: "note",
+      objectPath: "entity/Q42",
+    });
+
+    expect(objectMetadataMockState.textWrites.at(-1)).toBe(
+      "file: true\nnote: stdin content\n",
+    );
+  });
+
+  it("rejects missing metadata input without reading implicit stdin", async () => {
+    await expect(
+      runObjectMetadataCommand({
+        action: "put",
+        archivePath: "/tmp/book.wikg",
+        key: "note",
+        objectPath: "entity/Q42",
+      }),
+    ).rejects.toThrow(
+      "Missing input. Pass a value, use --input <path>, or use --input - for stdin.",
+    );
+
+    expect(objectMetadataMockState.writeCalls).toStrictEqual([]);
   });
 
   it("parses json output for metadata delete and clear, and rejects jsonl", () => {

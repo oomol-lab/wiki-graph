@@ -72,7 +72,8 @@ URI type:
 
 Default behavior:
   - `wikigraph {{ uri }}` reads source text.
-  - Source range fragments such as `#4..8` read an exact range.
+  - Source range fragments such as `#4..8` read sentence numbers 4 through 8, inclusive.
+  - Range sentence numbers are 1-based. `#1` is the first sentence; `#1..2` is the first two sentences.
   - Whole source reads are plain text streams and do not support `--json`; source range fragments are structured range objects and support `--json`.
 
 Use when:
@@ -83,7 +84,8 @@ URI type:
 
 Default behavior:
   - `wikigraph {{ uri }}` reads summary text.
-  - Summary range fragments such as `#4..8` read an exact range.
+  - Summary range fragments such as `#4..8` read sentence numbers 4 through 8, inclusive.
+  - Range sentence numbers are 1-based. `#1` is the first sentence; `#1..2` is the first two sentences.
   - Whole summary reads are plain text streams and do not support `--json`; summary range fragments are structured range objects and support `--json`.
 
 Use when:

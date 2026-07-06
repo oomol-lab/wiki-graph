@@ -4156,7 +4156,7 @@ async function readTextStreamRange(
   const lastSentenceIndex = index.sentences.length - 1;
   if (startSentenceIndex > lastSentenceIndex) {
     throw new Error(
-      `${stream} range ${formatTextStreamRangeUri(chapterId, stream, startSentenceIndex, endSentenceIndex)} is out of bounds. Last sentence index is ${lastSentenceIndex}.`,
+      `${stream} range ${formatTextStreamRangeUri(chapterId, stream, startSentenceIndex, endSentenceIndex)} is out of bounds. Last sentence number is ${lastSentenceIndex + 1}.`,
     );
   }
 
@@ -5155,10 +5155,12 @@ function formatTextStreamRangeUri(
   startSentenceIndex: number,
   endSentenceIndex: number,
 ): string {
+  const startSentenceNumber = startSentenceIndex + 1;
+  const endSentenceNumber = endSentenceIndex + 1;
   const hash =
     startSentenceIndex === endSentenceIndex
-      ? String(startSentenceIndex)
-      : `${startSentenceIndex}..${endSentenceIndex}`;
+      ? String(startSentenceNumber)
+      : `${startSentenceNumber}..${endSentenceNumber}`;
 
   return `wikg://chapter/${chapterId}/${stream}#${hash}`;
 }
@@ -5466,14 +5468,14 @@ function parseSentenceRange(hash: string): readonly [number, number] {
     return [0, Number.POSITIVE_INFINITY];
   }
 
-  const match = /^([0-9]+)(?:\.\.([0-9]+))?$/u.exec(hash);
+  const match = /^([1-9][0-9]*)(?:\.\.([1-9][0-9]*))?$/u.exec(hash);
 
   if (match?.[1] === undefined) {
     throw new Error(`Invalid source sentence range: ${hash}`);
   }
 
-  const parsedStart = Number(match[1]);
-  const parsedEnd = Number(match[2] ?? match[1]);
+  const parsedStart = Number(match[1]) - 1;
+  const parsedEnd = Number(match[2] ?? match[1]) - 1;
 
   if (
     Number.isInteger(parsedStart) &&

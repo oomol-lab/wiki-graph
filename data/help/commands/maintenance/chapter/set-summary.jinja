@@ -5,10 +5,10 @@ Purpose:
   Fill a Reading Graph-stage chapter with a manual final summary.
 
 Usage:
-  wikigraph <chapter-uri>/summary set [text] [--input <path>] [--llm <json>] [--help|-h]
+  wikigraph <chapter-uri>/summary set [text] [--input <path|->] [--llm <json>] [--json] [--help|-h]
 
 Input:
-  - Summary text is read from a positional value, `--input <path>`, or stdin.
+  - Summary text is read from a positional value, `--input <path>`, or `--input -` for stdin.
   - Summary text is stored as the chapter's final summary.
   - A common workflow is `read > /tmp/summary.md`, edit the file, then pass it back with `--input`.
 
@@ -21,6 +21,7 @@ Behavior:
   - Moves the chapter to `reading-summary`.
   - Does not generate or modify Reading Graph data.
   - Does not call an LLM provider.
+  - With `--json`, prints the updated chapter status as one JSON object.
 
 See also:
   - wikigraph wikg://local/job --help

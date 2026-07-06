@@ -9,19 +9,21 @@ Purpose:
 Usage:
   wikigraph <object-uri>/meta [--json] [--help|-h]
   wikigraph <object-uri>/meta set --json <object> [--help|-h]
-  wikigraph <object-uri>/meta set --json --input <path> [--help|-h]
+  wikigraph <object-uri>/meta set --json --input <path|-> [--help|-h]
+  wikigraph <object-uri>/meta set --json-input <object> [--json] [--help|-h]
   wikigraph <object-uri>/meta put <key> <value> [--help|-h]
   wikigraph <object-uri>/meta put <key> --json <value> [--help|-h]
-  wikigraph <object-uri>/meta put <key> --input <path> [--help|-h]
+  wikigraph <object-uri>/meta put <key> --input <path|-> [--help|-h]
+  wikigraph <object-uri>/meta put <key> --json-input <value> [--json] [--help|-h]
   wikigraph <object-uri>/meta delete <key> [--json] [--help|-h]
   wikigraph <object-uri>/meta clear [--json] [--help|-h]
 
 Input:
   - `set` replaces the whole metadata map and requires a JSON object.
   - `put` writes one key. Without `--json`, the value is stored as a string.
+  - `--json-input <json>` reads an inline JSON value.
   - `--json --input <path>` reads JSON from a file.
-  - `--json` without an inline value reads JSON from stdin.
-  - Without a positional value or `--input`, `set` and `put` read stdin.
+  - Use `--input -` to read from stdin.
   - Metadata keys are command arguments, not URI segments.
 
 Behavior:

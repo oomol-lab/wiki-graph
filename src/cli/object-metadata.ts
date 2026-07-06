@@ -105,18 +105,19 @@ async function readRawInput(args: CLIObjectMetadataArguments): Promise<string> {
   if (args.inputValue !== undefined) {
     return args.inputValue;
   }
+  if (args.inputPath === "-") {
+    let content = "";
+    for await (const chunk of readTextStreamFromStdin()) {
+      content += chunk;
+    }
+    return content;
+  }
   if (args.inputPath !== undefined) {
     return await readFile(args.inputPath, "utf8");
   }
-  if (process.stdin.isTTY) {
-    throw new Error("Missing input. Pass a value, use --input, or pipe stdin.");
-  }
-
-  let content = "";
-  for await (const chunk of readTextStreamFromStdin()) {
-    content += chunk;
-  }
-  return content;
+  throw new Error(
+    "Missing input. Pass a value, use --input <path>, or use --input - for stdin.",
+  );
 }
 
 function parseMetadataMap(value: unknown): Readonly<Record<string, unknown>> {

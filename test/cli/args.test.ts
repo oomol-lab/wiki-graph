@@ -66,6 +66,11 @@ describe("cli/args", () => {
     expect(() => parseCLIArguments(["create", "--help"])).toThrow(
       "Unknown command: create.",
     );
+    expect(() =>
+      parseCLIArguments(["wikg://book.wikg/unknown", "--help"]),
+    ).toThrow(
+      "Unknown Wiki Graph URI target: wikg://book.wikg/unknown. Use the archive root help or URI guide to choose a valid target.",
+    );
   });
 
   it("parses legacy migration commands", () => {
@@ -1360,8 +1365,6 @@ describe("cli/args", () => {
       parseCLIArguments([
         "wikg://book.wikg/chapter",
         "add",
-        "--stage",
-        "planned",
         "--title",
         "Chapter 1",
         "--parent",
@@ -1370,7 +1373,6 @@ describe("cli/args", () => {
     ).toStrictEqual({
       args: {
         action: "add",
-        addStage: "planned",
         parentChapterId: 3,
         path: archivePath,
         title: "Chapter 1",
@@ -1378,6 +1380,33 @@ describe("cli/args", () => {
       help: false,
       kind: "chapter",
     });
+    expect(
+      parseCLIArguments([
+        "wikg://book.wikg/chapter",
+        "add",
+        "--title",
+        "Chapter 1",
+        "--input",
+        "chapter.txt",
+      ]),
+    ).toStrictEqual({
+      args: {
+        action: "add",
+        inputPath: "chapter.txt",
+        path: archivePath,
+        title: "Chapter 1",
+      },
+      help: false,
+      kind: "chapter",
+    });
+    expect(() =>
+      parseCLIArguments([
+        "wikg://book.wikg/chapter",
+        "add",
+        "--stage",
+        "planned",
+      ]),
+    ).toThrow("The `chapter add` action does not support --stage.");
     expect(
       parseCLIArguments([
         "wikg://book.wikg/chapter/8",

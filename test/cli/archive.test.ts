@@ -77,7 +77,7 @@ const archiveMockState = vi.hoisted(() => ({
           {
             chapterId: 2,
             endSentenceIndex: 1,
-            id: "wikg://chapter/2/source#0..1",
+            id: "wikg://chapter/2/source#1..2",
             source: "RAG original source fragment.",
             startSentenceIndex: 0,
             title: "Chapter 2",
@@ -106,7 +106,7 @@ const archiveMockState = vi.hoisted(() => ({
           {
             chapterId: 2,
             endSentenceIndex: 1,
-            id: "wikg://chapter/2/source#0..1",
+            id: "wikg://chapter/2/source#1..2",
             source: "RAG original source fragment.",
             startSentenceIndex: 0,
             title: "Chapter 2",
@@ -179,7 +179,7 @@ const archiveMockState = vi.hoisted(() => ({
     {
       chapter: 2,
       field: "source",
-      id: "wikg://chapter/2/source#0..1",
+      id: "wikg://chapter/2/source#1..2",
       matchedTerms: ["rag"],
       position: { chapter: 2, fragment: 0 },
       score: 1,
@@ -221,7 +221,7 @@ const archiveMockState = vi.hoisted(() => ({
       {
         chapterId: 2,
         endSentenceIndex: 1,
-        id: "wikg://chapter/2/source#0..1",
+        id: "wikg://chapter/2/source#1..2",
         score: 2.5,
         source:
           "\n\t\nRAG original source fragment.\n   \n\t\nSecond paragraph.\n\n",
@@ -232,7 +232,7 @@ const archiveMockState = vi.hoisted(() => ({
       {
         chapterId: 2,
         endSentenceIndex: 3,
-        id: "wikg://chapter/2/source#3",
+        id: "wikg://chapter/2/source#4",
         source: "Follow-up source fragment.",
         startSentenceIndex: 3,
         title: "Chapter 2",
@@ -257,7 +257,7 @@ const archiveMockState = vi.hoisted(() => ({
           {
             chapterId: 2,
             endSentenceIndex: 1,
-            id: "wikg://chapter/2/source#0..1",
+            id: "wikg://chapter/2/source#1..2",
             source: "RAG original source fragment.",
             startSentenceIndex: 0,
             title: "Chapter 2",
@@ -351,7 +351,7 @@ const archiveMockState = vi.hoisted(() => ({
         {
           chapterId: 2,
           endSentenceIndex: 1,
-          id: "wikg://chapter/2/source#0..1",
+          id: "wikg://chapter/2/source#1..2",
           source: "RAG original source fragment.",
           startSentenceIndex: 0,
           title: "Chapter 2",
@@ -392,17 +392,17 @@ const archiveMockState = vi.hoisted(() => ({
   } satisfies ArchivePage,
   sourceRangePage: {
     fragment: {
-      id: "wikg://chapter/2/source#0..1",
+      id: "wikg://chapter/2/source#1..2",
       preview: "RAG original source fragment.",
       sentenceCount: 2,
       text: "\n\t\nRAG original source fragment.\n   \n\t\nSecond paragraph.\n\n",
       wordsCount: 5,
     },
-    id: "wikg://chapter/2/source#0..1",
+    id: "wikg://chapter/2/source#1..2",
     nextFragmentId: undefined,
     nodes: [],
     previousFragmentId: undefined,
-    title: "wikg://chapter/2/source#0..1",
+    title: "wikg://chapter/2/source#1..2",
     type: "fragment",
   } satisfies ArchivePage,
   triplePage: {
@@ -413,7 +413,7 @@ const archiveMockState = vi.hoisted(() => ({
         {
           chapterId: 2,
           endSentenceIndex: 1,
-          id: "wikg://chapter/2/source#0..1",
+          id: "wikg://chapter/2/source#1..2",
           source:
             "\n\t\nRAG original source fragment.\n   \n\t\nSecond paragraph.\n\n",
           startSentenceIndex: 0,
@@ -423,7 +423,7 @@ const archiveMockState = vi.hoisted(() => ({
         {
           chapterId: 2,
           endSentenceIndex: 3,
-          id: "wikg://chapter/2/source#3",
+          id: "wikg://chapter/2/source#4",
           source: "Follow-up source fragment.",
           startSentenceIndex: 3,
           title: "Chapter 2",
@@ -550,7 +550,7 @@ vi.mock("../../src/facade/index.js", () => ({
             ? archiveMockState.triplePage
             : id === "wikg://chapter/2"
               ? archiveMockState.chapterPage
-              : id === "wikg://chapter/2/source#0..1"
+              : id === "wikg://chapter/2/source#1..2"
                 ? archiveMockState.sourceRangePage
                 : id === "wikg://"
                   ? archiveMockState.metaPage
@@ -848,7 +848,7 @@ describe("cli/archive", () => {
     });
     expect(archiveMockState.textWrites[0]).toContain(
       [
-        "@@ wikg://chapter/2/source#0..1 @@",
+        "@@ wikg://chapter/2/source#1..2 @@",
         "RAG original source fragment.",
         "",
         "Second paragraph.",
@@ -876,7 +876,7 @@ describe("cli/archive", () => {
     expect(archiveMockState.textWrites[0]).not.toContain("1 wikg://entity/Q1");
     expect(archiveMockState.textWrites[0]).toContain("-- evidence 1/1");
     expect(archiveMockState.textWrites[0]).toContain(
-      "@@ wikg://chapter/2/source#0..1 @@",
+      "@@ wikg://chapter/2/source#1..2 @@",
     );
     expect(archiveMockState.textWrites[0]).toContain("2 evidence more...");
   });
@@ -989,7 +989,7 @@ describe("cli/archive", () => {
             entities: { objects: [{ uri: "wikg://entity/Q1" }] },
             triples: { objects: [{ uri: "wikg://triple/Q1/mentions/Q2" }] },
           },
-          uri: "wikg://chapter/2/source#0..1",
+          uri: "wikg://chapter/2/source#1..2",
         },
       ],
     });
@@ -1194,7 +1194,7 @@ describe("cli/archive", () => {
             sources: [
               {
                 text: "RAG original source fragment.",
-                uri: "wikg://chapter/2/source#0..1",
+                uri: "wikg://chapter/2/source#1..2",
               },
             ],
             total: 3,
@@ -1325,7 +1325,7 @@ describe("cli/archive", () => {
             sources: [
               {
                 text: "RAG original source fragment.",
-                uri: "wikg://chapter/2/source#0..1",
+                uri: "wikg://chapter/2/source#1..2",
               },
             ],
             total: 1,
@@ -1415,7 +1415,7 @@ describe("cli/archive", () => {
             sources: [
               {
                 text: "RAG original source fragment.",
-                uri: "wikg://chapter/2/source#0..1",
+                uri: "wikg://chapter/2/source#1..2",
               },
             ],
             total: 1,
@@ -1471,7 +1471,7 @@ describe("cli/archive", () => {
             entities: { objects: [{ uri: "wikg://entity/Q1" }] },
             triples: { objects: [{ uri: "wikg://triple/Q1/mentions/Q2" }] },
           },
-          uri: "wikg://chapter/2/source#0..1",
+          uri: "wikg://chapter/2/source#1..2",
         },
       ],
     });
@@ -1679,17 +1679,17 @@ describe("cli/archive", () => {
       action: "get",
       archivePath: "wikg:///tmp/book.wikg",
       format: "text",
-      objectId: "wikg:///tmp/book.wikg/chapter/2/source#0..1",
+      objectId: "wikg:///tmp/book.wikg/chapter/2/source#1..2",
     });
 
     expect(readArchivePage).toHaveBeenCalledWith(
       {},
-      "wikg://chapter/2/source#0..1",
+      "wikg://chapter/2/source#1..2",
       {},
     );
     expect(archiveMockState.textWrites[0]).toBe(
       [
-        "@@ wikg://chapter/2/source#0..1 @@",
+        "@@ wikg://chapter/2/source#1..2 @@",
         "RAG original source fragment.",
         "",
         "Second paragraph.",
@@ -1713,12 +1713,12 @@ describe("cli/archive", () => {
       archivePath: "wikg:///tmp/book.wikg",
       backlinks: true,
       format: "json",
-      objectId: "wikg:///tmp/book.wikg/chapter/2/source#0..1",
+      objectId: "wikg:///tmp/book.wikg/chapter/2/source#1..2",
     });
 
     expect(readArchivePage).toHaveBeenCalledWith(
       {},
-      "wikg://chapter/2/source#0..1",
+      "wikg://chapter/2/source#1..2",
       { backlinks: true },
     );
     expect(JSON.parse(archiveMockState.textWrites[0] ?? "")).toMatchObject({
@@ -1736,7 +1736,7 @@ describe("cli/archive", () => {
           objects: [{ uri: "wikg://triple/Q1/mentions/Q2" }],
         },
       },
-      uri: "wikg://chapter/2/source#0..1",
+      uri: "wikg://chapter/2/source#1..2",
     });
     expect(JSON.parse(archiveMockState.textWrites[0] ?? "")).not.toHaveProperty(
       "type",
@@ -1754,7 +1754,7 @@ describe("cli/archive", () => {
       archivePath: "wikg:///tmp/book.wikg",
       backlinks: true,
       format: "text",
-      objectId: "wikg:///tmp/book.wikg/chapter/2/source#0..1",
+      objectId: "wikg:///tmp/book.wikg/chapter/2/source#1..2",
     });
 
     expect(archiveMockState.textWrites[0]).toContain("Backlinks:");
@@ -2082,7 +2082,7 @@ describe("cli/archive", () => {
         shown: 1,
         sources: [
           {
-            uri: "wikg://chapter/2/source#0..1",
+            uri: "wikg://chapter/2/source#1..2",
             text: "RAG original source fragment.",
           },
         ],
@@ -2282,11 +2282,11 @@ describe("cli/archive", () => {
         sources: [
           {
             text: "\n\t\nRAG original source fragment.\n   \n\t\nSecond paragraph.\n\n",
-            uri: "wikg://chapter/2/source#0..1",
+            uri: "wikg://chapter/2/source#1..2",
           },
           {
             text: "Follow-up source fragment.",
-            uri: "wikg://chapter/2/source#3",
+            uri: "wikg://chapter/2/source#4",
           },
         ],
         total: 2,
@@ -2399,7 +2399,7 @@ describe("cli/archive", () => {
             shown: 1,
             sources: [
               {
-                uri: "wikg://chapter/2/source#0..1",
+                uri: "wikg://chapter/2/source#1..2",
               },
             ],
             total: 1,
@@ -2468,27 +2468,27 @@ describe("cli/archive", () => {
       {},
     );
     expect(archiveMockState.textWrites[0]).toContain(
-      "wikg://chapter/2/source#0..1",
+      "wikg://chapter/2/source#1..2",
     );
     expect(archiveMockState.textWrites[0]).toContain(
-      "@@ wikg://chapter/2/source#0..1 @@",
+      "@@ wikg://chapter/2/source#1..2 @@",
     );
     expect(archiveMockState.textWrites[0]).toContain(
       "RAG original source fragment.",
     );
     expect(archiveMockState.textWrites[0]).toContain(
       [
-        "@@ wikg://chapter/2/source#0..1 @@",
+        "@@ wikg://chapter/2/source#1..2 @@",
         "RAG original source fragment.",
         "",
         "Second paragraph.",
         "",
-        "@@ wikg://chapter/2/source#3 @@",
+        "@@ wikg://chapter/2/source#4 @@",
         "Follow-up source fragment.",
       ].join("\n"),
     );
     expect(archiveMockState.textWrites[0]).toContain(
-      "score: 2.5\n@@ wikg://chapter/2/source#0..1 @@",
+      "score: 2.5\n@@ wikg://chapter/2/source#1..2 @@",
     );
   });
 
@@ -2503,13 +2503,13 @@ describe("cli/archive", () => {
     expect(archiveMockState.textWrites[0]).toContain(
       [
         "-- evidence 1/2",
-        "@@ wikg://chapter/2/source#0..1 @@",
+        "@@ wikg://chapter/2/source#1..2 @@",
         "RAG original source fragment.",
         "",
         "Second paragraph.",
         "",
         "-- evidence 2/2",
-        "@@ wikg://chapter/2/source#3 @@",
+        "@@ wikg://chapter/2/source#4 @@",
         "Follow-up source fragment.",
       ].join("\n"),
     );
@@ -2573,7 +2573,7 @@ describe("cli/archive", () => {
     });
 
     expect(archiveMockState.textWrites[0]).toContain(
-      '"uri":"wikg://chapter/2/source#0..1"',
+      '"uri":"wikg://chapter/2/source#1..2"',
     );
     expect(archiveMockState.textWrites[0]).not.toContain('"fragmentId"');
     expect(archiveMockState.textWrites[0]).not.toContain('"chapterId"');
@@ -2621,10 +2621,10 @@ describe("cli/archive", () => {
     );
     expect(createContinuationCursor).not.toHaveBeenCalled();
     expect(archiveMockState.textWrites[0]).toContain(
-      '"uri":"wikg://chapter/2/source#0..1"',
+      '"uri":"wikg://chapter/2/source#1..2"',
     );
     expect(archiveMockState.textWrites[1]).toContain(
-      '"uri":"wikg://chapter/2/source#3"',
+      '"uri":"wikg://chapter/2/source#4"',
     );
     expect(archiveMockState.textWrites[0]).not.toContain('"type":"page"');
     expect(archiveMockState.textWrites[1]).not.toContain('"type":"page"');

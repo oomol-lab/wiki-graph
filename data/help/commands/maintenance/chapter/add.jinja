@@ -7,15 +7,14 @@ Purpose:
   Insert a new chapter into an existing `.wikg` chapter tree.
 
 Usage:
-  wikigraph <archive-uri>/chapter add --stage planned [--title <title>] [--parent <chapter-uri>] [--llm <json>] [--json] [--help|-h]
-  wikigraph <archive-uri>/chapter add --stage source [--title <title>] [--parent <chapter-uri>] [--input <path>] [--llm <json>] [--json] [--help|-h]
+  wikigraph <archive-uri>/chapter add [--title <title>] [--parent <chapter-uri>] [--input <path|->] [--llm <json>] [--json] [--help|-h]
 
 Behavior:
-  - `--stage planned` creates an empty chapter with no source, graph, or summary.
-  - Planned chapters can be used as chapter directories, groups, or drafting placeholders.
-  - `--stage source` creates a chapter and writes normalized source text.
-  - Source input comes from `--input <path>` when provided, otherwise stdin.
-  - Source input must not be empty or whitespace-only.
+  - Without `--input`, creates an empty planned chapter with no source, graph, or summary.
+  - Empty planned chapters can be used as chapter directories, groups, or drafting placeholders.
+  - With `--input <path>`, creates a chapter and writes normalized source text.
+  - With `--input -`, reads source text from stdin.
+  - Source input must not be empty or whitespace-only when `--input` is used.
   - Omitting `--title` creates an untitled planned chapter.
   - Omitting `--parent` adds the chapter at the top level.
   - `--parent <chapter-uri>` adds the chapter under an existing chapter.
@@ -30,8 +29,9 @@ Typical next step:
   wikigraph wikg://local/job add --input <archive-uri|chapter-uri> --task reading-graph --accept-cost
 
 Examples:
-  wikigraph wikg://book.wikg/chapter add --stage planned --title "Part I"
-  wikigraph wikg://book.wikg/chapter add --stage source --title "Chapter 1" --input ./chapter.txt --parent wikg://book.wikg/chapter/3
+  wikigraph wikg://book.wikg/chapter add --title "Part I"
+  wikigraph wikg://book.wikg/chapter add --title "Chapter 1" --input ./chapter.txt --parent wikg://book.wikg/chapter/3
+  cat chapter.txt | wikigraph wikg://book.wikg/chapter add --title "Chapter 1" --input -
 
 See also:
   - wikigraph wikg://book.wikg/chapter --help

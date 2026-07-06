@@ -8,7 +8,7 @@ Purpose:
 
 Usage:
   wikigraph <archive-uri>/chapter/tree [--json] [--llm <json>] [--help|-h]
-  wikigraph <archive-uri>/chapter/tree set [--input <path>] [--dry-run] [--llm <json>] [--help|-h]
+  wikigraph <archive-uri>/chapter/tree set --input <path|-> [--dry-run] [--llm <json>] [--help|-h]
 
 Tree JSON shape:
   Reading without `--json` prints a readable tree. Add `--json` when you need editable tree JSON.
@@ -26,6 +26,7 @@ Tree JSON shape:
   }
 
 Apply rules:
+  - `set` reads tree JSON from `--input <path>` or `--input -` for stdin.
   - Every existing chapter id must appear exactly once.
   - Unknown, duplicated, or missing chapter ids are rejected.
   - `children` is required on every node.
@@ -47,6 +48,7 @@ Examples:
   wikigraph wikg://book.wikg/chapter/tree --json > tree.json
   wikigraph wikg://book.wikg/chapter/tree set --input tree.json --dry-run
   wikigraph wikg://book.wikg/chapter/tree set --input tree.json
+  cat tree.json | wikigraph wikg://book.wikg/chapter/tree set --input -
 
 See also:
   - wikigraph wikg://book.wikg/chapter/3 move --help

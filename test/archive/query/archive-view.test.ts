@@ -208,7 +208,7 @@ describe("archive/query/archive-view", () => {
         expect(result.items).toContainEqual(
           expect.objectContaining({
             field: "source",
-            id: "wikg://chapter/1/source#0..2",
+            id: "wikg://chapter/1/source#1..3",
             position: {
               chapter: 1,
               sentence: 0,
@@ -260,7 +260,7 @@ describe("archive/query/archive-view", () => {
         expect(result.items).toStrictEqual([
           expect.objectContaining({
             field: "source",
-            id: "wikg://chapter/1/source#0..2",
+            id: "wikg://chapter/1/source#1..3",
             snippet:
               "# Test Note\nAlice studies graph retrieval.\nBob cites Alice in a research note.",
             type: "source",
@@ -288,7 +288,7 @@ describe("archive/query/archive-view", () => {
 
         expect(result.match).toBe("any");
         const sourceHit = result.items.find(
-          (item) => item.id === "wikg://chapter/1/source#0..2",
+          (item) => item.id === "wikg://chapter/1/source#1..3",
         );
         expect(sourceHit).toMatchObject({
           field: "source",
@@ -401,8 +401,8 @@ describe("archive/query/archive-view", () => {
         });
 
         expect(result.items.map((item) => item.id)).toStrictEqual([
+          "wikg://chapter/1/source#2",
           "wikg://chapter/1/source#1",
-          "wikg://chapter/1/source#0",
         ]);
         expect(result.items[0]?.score).toBeGreaterThan(
           result.items[1]?.score ?? 0,
@@ -779,7 +779,7 @@ describe("archive/query/archive-view", () => {
               shown: 1,
               sources: [
                 expect.objectContaining({
-                  id: "wikg://chapter/1/source#0..2",
+                  id: "wikg://chapter/1/source#1..3",
                   source:
                     "An LLM Wiki exposes pages, links, and source fragments to agents.\n朱元璋知道了这个消息，随后亲自来到洪都。\nSource-only archives should be searchable.",
                 }),
@@ -1194,7 +1194,7 @@ describe("archive/query/archive-view", () => {
         expect(triple?.evidence?.total).toBe(1);
         expect(triple?.evidence?.sources).toStrictEqual([
           expect.objectContaining({
-            id: "wikg://chapter/1/source#0..2",
+            id: "wikg://chapter/1/source#1..3",
             source:
               "An LLM Wiki exposes pages, links, and source fragments to agents.\n朱元璋知道了这个消息，随后亲自来到洪都。\nSource-only archives should be searchable.",
           }),
@@ -1294,7 +1294,7 @@ describe("archive/query/archive-view", () => {
           expect.arrayContaining(["朱元璋", "不存在的关键词"]),
         );
         const sourceHit = result.items.find(
-          (item) => item.id === "wikg://chapter/1/source#0..2",
+          (item) => item.id === "wikg://chapter/1/source#1..3",
         );
         expect(sourceHit).toMatchObject({
           field: "source",
@@ -1332,7 +1332,7 @@ describe("archive/query/archive-view", () => {
         expect(result.items).toContainEqual(
           expect.objectContaining({
             field: "source",
-            id: "wikg://chapter/1/source#1",
+            id: "wikg://chapter/1/source#2",
             type: "source",
           }),
         );
@@ -1361,7 +1361,7 @@ describe("archive/query/archive-view", () => {
         expect(result.items).toStrictEqual([
           expect.objectContaining({
             chapter: 1,
-            id: "wikg://chapter/1/source#0",
+            id: "wikg://chapter/1/source#1",
             position: { chapter: 1, sentence: 0 },
             type: "source",
           }),
@@ -1632,7 +1632,7 @@ describe("archive/query/archive-view", () => {
 
         expect(result.items).toContainEqual(
           expect.objectContaining({
-            id: "wikg://chapter/1/summary#0",
+            id: "wikg://chapter/1/summary#1",
             type: "summary",
           }),
         );
@@ -1705,7 +1705,7 @@ describe("archive/query/archive-view", () => {
           listArchiveObjects(document, "fragments"),
         ).resolves.toContainEqual(
           expect.objectContaining({
-            id: "wikg://chapter/1/source#0",
+            id: "wikg://chapter/1/source#1",
             label: "Introduction",
             type: "source",
           }),
@@ -1725,12 +1725,12 @@ describe("archive/query/archive-view", () => {
 
         const fragmentPage = await readArchivePage(
           document,
-          "wikg://chapter/1/source#0",
+          "wikg://chapter/1/source#1",
         );
 
         expect(fragmentPage).toMatchObject({
           fragment: {
-            id: "wikg://chapter/1/source#0",
+            id: "wikg://chapter/1/source#1",
             text: "An LLM Wiki exposes pages, links, and source fragments to agents.",
           },
           type: "fragment",
@@ -1765,12 +1765,12 @@ describe("archive/query/archive-view", () => {
 
         const page = await readArchivePage(
           document,
-          "wikg://chapter/1/source#10..12",
+          "wikg://chapter/1/source#11..13",
         );
 
         expect(page).toMatchObject({
           fragment: {
-            id: "wikg://chapter/1/source#10..12",
+            id: "wikg://chapter/1/source#11..13",
             text: ["Sentence 10", "Sentence 11", "Sentence 12"].join("\n"),
           },
           type: "fragment",
@@ -1791,6 +1791,12 @@ describe("archive/query/archive-view", () => {
         await expect(
           readArchivePage(document, "wikg://chapter/1/source#1..2..3"),
         ).rejects.toThrow("Invalid source sentence range: 1..2..3");
+        await expect(
+          readArchivePage(document, "wikg://chapter/1/source#0"),
+        ).rejects.toThrow("Invalid source sentence range: 0");
+        await expect(
+          readArchivePage(document, "wikg://chapter/1/source#10..9"),
+        ).rejects.toThrow("Invalid source sentence range: 10..9");
       } finally {
         await document.release();
       }
@@ -1805,9 +1811,9 @@ describe("archive/query/archive-view", () => {
         await seedSourcedDocument(document);
 
         await expect(
-          readArchivePage(document, "wikg://chapter/1/source#99..99"),
+          readArchivePage(document, "wikg://chapter/1/source#100..100"),
         ).rejects.toThrow(
-          "source range wikg://chapter/1/source#99 is out of bounds.",
+          "source range wikg://chapter/1/source#100 is out of bounds. Last sentence number is 3.",
         );
       } finally {
         await document.release();
@@ -1833,7 +1839,7 @@ describe("archive/query/archive-view", () => {
         );
         expect(page.id).toBe("node:100");
         expect(page.sourceFragments[0]?.id).toBe(
-          "wikg://chapter/1/source#0..2",
+          "wikg://chapter/1/source#1..3",
         );
         expect(page.sourceFragments[0]?.text).toContain(
           "An LLM Wiki exposes pages",
@@ -1860,7 +1866,7 @@ describe("archive/query/archive-view", () => {
           throw new Error("Expected node page");
         }
         expect(page.sourceFragments[0]?.id).toBe(
-          "wikg://chapter/1/source#0..2",
+          "wikg://chapter/1/source#1..3",
         );
         expect(page.sourceFragments[0]?.text).toContain(
           "Source-only archives should be searchable.",
@@ -1952,12 +1958,12 @@ describe("archive/query/archive-view", () => {
           "chapter-title:2",
         ]);
         expect(evidence.items.map((item) => item.id)).toStrictEqual([
-          "wikg://chapter/2/source#0",
-          "wikg://chapter/1/source#0",
+          "wikg://chapter/2/source#1",
+          "wikg://chapter/1/source#1",
         ]);
         expect(evidenceReverse.items.map((item) => item.id)).toStrictEqual([
-          "wikg://chapter/1/source#0",
-          "wikg://chapter/2/source#0",
+          "wikg://chapter/1/source#1",
+          "wikg://chapter/2/source#1",
         ]);
       } finally {
         await document.release();
@@ -2092,7 +2098,7 @@ describe("archive/query/archive-view", () => {
           expect.arrayContaining([
             "chapter-title:2",
             "node:200",
-            "wikg://chapter/2/summary#0",
+            "wikg://chapter/2/summary#1",
             "wikg://triple/Q1/mentions/Q2",
           ]),
         );
@@ -2147,7 +2153,7 @@ describe("archive/query/archive-view", () => {
         expect(entityWithEvidence?.type).toBe("entity");
         expect(entityWithEvidence?.evidence?.shown).toBe(1);
         expect(entityWithEvidence?.evidence?.sources[0]?.id).toBe(
-          "wikg://chapter/2/source#0",
+          "wikg://chapter/2/source#1",
         );
       } finally {
         await document.release();
@@ -2805,7 +2811,7 @@ describe("archive/query/archive-view", () => {
         ).resolves.toMatchObject({
           items: [
             {
-              id: "wikg://chapter/1/source#0..2",
+              id: "wikg://chapter/1/source#1..3",
               source:
                 "An LLM Wiki exposes pages, links, and source fragments to agents.\n朱元璋知道了这个消息，随后亲自来到洪都。\nSource-only archives should be searchable.",
               type: "source",
@@ -2819,7 +2825,7 @@ describe("archive/query/archive-view", () => {
         ).resolves.toMatchObject({
           items: [
             {
-              id: "wikg://chapter/1/source#0",
+              id: "wikg://chapter/1/source#1",
               source:
                 "An LLM Wiki exposes pages, links, and source fragments to agents.",
               type: "source",
@@ -2831,7 +2837,7 @@ describe("archive/query/archive-view", () => {
         ).resolves.toMatchObject({
           items: [
             {
-              id: "wikg://chapter/1/source#0..2",
+              id: "wikg://chapter/1/source#1..3",
               type: "source",
             },
           ],
@@ -2841,7 +2847,7 @@ describe("archive/query/archive-view", () => {
         ).resolves.toMatchObject({
           items: [
             {
-              id: "wikg://chapter/1/source#0..2",
+              id: "wikg://chapter/1/source#1..3",
               type: "source",
             },
           ],
@@ -2853,7 +2859,7 @@ describe("archive/query/archive-view", () => {
             shown: 1,
             sources: [
               {
-                id: "wikg://chapter/1/source#0..2",
+                id: "wikg://chapter/1/source#1..3",
                 type: "source",
               },
             ],
@@ -2873,7 +2879,7 @@ describe("archive/query/archive-view", () => {
             shown: 1,
             sources: [
               {
-                id: "wikg://chapter/1/source#0..2",
+                id: "wikg://chapter/1/source#1..3",
                 type: "source",
               },
             ],
@@ -2901,7 +2907,7 @@ describe("archive/query/archive-view", () => {
           ],
         });
         await expect(
-          packArchiveContext(document, "wikg://chapter/1/source#0", 1000),
+          packArchiveContext(document, "wikg://chapter/1/source#1", 1000),
         ).rejects.toThrow(
           "Pack is only available for chunk and entity objects",
         );
@@ -2936,7 +2942,7 @@ describe("archive/query/archive-view", () => {
                 shown: 1,
                 sources: [
                   {
-                    id: "wikg://chapter/1/source#0..2",
+                    id: "wikg://chapter/1/source#1..3",
                   },
                 ],
                 total: 1,
@@ -2965,7 +2971,7 @@ describe("archive/query/archive-view", () => {
         ).resolves.toMatchObject({
           items: [
             {
-              id: "wikg://chapter/1/source#2..5",
+              id: "wikg://chapter/1/source#3..6",
               source:
                 "Source-only archives should be searchable.\nFirst unrelated fragment sentence.\nSecond fragment mentions Augustine.\nThird unrelated fragment sentence.",
               type: "source",
@@ -2973,14 +2979,14 @@ describe("archive/query/archive-view", () => {
           ],
         });
         await expect(
-          listArchiveEvidence(document, "wikg://chapter/1/source#4"),
+          listArchiveEvidence(document, "wikg://chapter/1/source#5"),
         ).rejects.toThrow("Evidence is not available");
         await expect(
           listArchiveEvidence(document, "wikg://entity/Q4"),
         ).resolves.toMatchObject({
           items: [
             {
-              id: "wikg://chapter/1/source#0..4",
+              id: "wikg://chapter/1/source#1..5",
               type: "source",
             },
           ],
@@ -3028,7 +3034,7 @@ describe("archive/query/archive-view", () => {
         );
 
         expect(evidence.items.map((item) => item.id)).toStrictEqual([
-          "wikg://chapter/1/source#0..2",
+          "wikg://chapter/1/source#1..3",
         ]);
         expect(evidence.items[0]?.score).toBeGreaterThan(0);
       } finally {
@@ -3150,8 +3156,8 @@ describe("archive/query/archive-view", () => {
         );
 
         expect(evidence.items.map((item) => item.id)).toStrictEqual([
-          "wikg://chapter/1/source#2",
-          "wikg://chapter/1/source#0",
+          "wikg://chapter/1/source#3",
+          "wikg://chapter/1/source#1",
         ]);
       } finally {
         await document.release();
@@ -3197,7 +3203,7 @@ describe("archive/query/archive-view", () => {
         });
 
         await expect(
-          readArchivePage(document, "wikg://chapter/1/source#0", {
+          readArchivePage(document, "wikg://chapter/1/source#1", {
             backlinks: true,
           }),
         ).resolves.toMatchObject({
@@ -3235,7 +3241,7 @@ describe("archive/query/archive-view", () => {
             },
           },
           fragment: {
-            id: "wikg://chapter/1/source#0",
+            id: "wikg://chapter/1/source#1",
           },
           type: "fragment",
         });

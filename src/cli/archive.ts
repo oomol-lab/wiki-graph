@@ -1433,8 +1433,8 @@ function createInspectImprovements(input: {
         "wikigraph",
         `${input.archiveUri}/chapter`,
         "add",
-        "--stage",
-        "source",
+        "--input",
+        "source.txt",
       ]),
       recommendation:
         "No source content is available yet; add or import source text before graph or summary generation.",

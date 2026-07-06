@@ -1,5 +1,5 @@
-<div align=center>
-  <h1>SpineDigest</h1>
+<div align="center">
+  <h1>Wiki Graph</h1>
   <p>English | <a href="./README_zh-CN.md">中文</a></p>
   <p>
     <a href="https://www.npmjs.com/package/wikigraph"><img alt="npm version" src="https://img.shields.io/npm/v/wikigraph"></a>
@@ -8,199 +8,267 @@
   </p>
 </div>
 
-![SpineDigest Terminal Demo](./docs/images/terminal-en.png)
+Wiki Graph is an open-source CLI for managing long-text knowledge bases, built toward [Andrej Karpathy](https://github.com/karpathy)'s [LLM Wiki](https://gist.github.com/karpathy/442a6bf555914893e9891c11519de94f) idea and Google's [OKF](https://cloud.google.com/blog/products/data-analytics/how-the-open-knowledge-format-can-improve-data-sharing) direction.
 
-**SpineDigest is a knowledge-base CLI optimized for AI agents.** It imports EPUB, Markdown, and plain text into `.wikg`, can use LLMs to extract knowledge graphs and summaries, then exposes the archive as a searchable, browsable, readable, source-backed, graph-navigable, context-packable [LLM Wiki](https://gist.github.com/karpathy/442a6bf555914893e9891c11519de94f).
+It writes plain text into `.wikg` archives and can generate searchable, source-traceable Knowledge Graphs on demand. In practice, it provides a runnable CLI for turning Karpathy's LLM Wiki idea into an executable knowledge production workflow.
 
-It is not a one-shot book-to-summary converter. Summaries, EPUB, Markdown, and JSON output are projections of the `.wikg` knowledge archive. The primary object is `.wikg` itself: a portable knowledge archive that can be built, maintained, searched, and reused.
+In agent workflows, PDFs, web pages, EPUBs, subtitles, meeting recordings, video courses, and internal documents can first be converted into plain text by external tools, then handed to Wiki Graph. Wiki Graph handles the second half: placing that long text into a knowledge base, extracting Entities and Triples, and preserving evidence that can be traced back to chapters and original sentences. When compressed reading is needed, it can also build a Reading Graph and generate a Summary from it.
 
-There are three main ways to explore a `.wikg` archive:
-
-- **Search mode:** use scope URIs with `--query` to discover URI-addressable source, summary, chunk, entity, and triple objects.
-- **Structure mode:** use `wikg://.../chapter/tree --json` for the table-of-contents hierarchy, then use scope URIs directly or with `--query` to inspect local object collections.
-- **Reading mode:** pass source, chapter, summary, chunk, entity, or triple URIs directly after selecting the relevant object.
-
-Together, these modes let long documents behave like navigable knowledge bases: start with structure, locate relevant content, then return to source text and knowledge nodes for deeper reading.
-
-![Inkora screenshot](./docs/images/app-screenshot-en.png)
-
-<div align=center>
-  <sub><a href="http://inkora.oomol.com/download/wikg">Inkora</a> opening a .wikg file</sub>
-</div>
-
-## Install
-
-Requirements:
-
-- Node `>=22.12.0`
-- For LLM-backed Reading Graph, Reading Summary, or Knowledge Graph jobs: a supported LLM provider plus credentials
-- For `.wikg` search, reading, navigation, and export: no LLM access required
-
-Try it without a global install:
-
-```bash
-npx spinedigest --help
-```
-
-Global install:
-
-```bash
-npm install -g spinedigest
-```
-
-To explore the CLI surface first, start with:
-
-```bash
-wikigraph --help
-wikigraph help overview
-wikigraph help ai
-```
+Karpathy's core point is that AI should not go back to raw material from scratch every time it answers a question; knowledge should be compiled into a maintainable Wiki. OKF pushes this kind of Wiki practice toward open, portable knowledge formats. Wiki Graph makes the OKF source layer concrete: it turns long text into knowledge material that a Wiki or OKF system can continue to consume, including entities, relations, and evidence that can point back to the source.
 
 ## Quick Start
 
-SpineDigest's primary object is `.wikg`: a CLI-managed knowledge-base archive, not a one-off export result.
+Requirement: Node.js `>=22.12.0`
 
-Create a knowledge base from source material:
-
-```bash
-wikigraph wikg://book.wikg create ./book.epub
-cat ./article.md | wikigraph wikg://article.wikg create --input-format markdown
-```
-
-Inspect before expensive work:
+Install:
 
 ```bash
-wikigraph wikg://book.wikg/state
-wikigraph wikg://book.wikg/chapter/tree --json
-wikigraph wikg://book.wikg inspect
+$ npm install -g wikigraph
 ```
 
-Build derived knowledge when you intend to spend LLM time:
+Create an empty `.wikg` knowledge base:
 
 ```bash
-wikigraph wikg://local/job add --input wikg://book.wikg/chapter/12 --task reading-graph --accept-cost
-wikigraph wikg://local/job/<job-id> watch --jsonl
+$ wikigraph wikg://quickstart.wikg create
 ```
 
-Search, browse, and read through the knowledge-base interface:
+Add text as two source chapters:
 
 ```bash
-wikigraph wikg://book.wikg/chapter/tree --json
-wikigraph wikg://book.wikg/chunk --query "RAG"
-wikigraph wikg://book.wikg/chapter/12/source --query "exact source phrase"
-wikigraph wikg://book.wikg/chapter/12
-wikigraph wikg://book.wikg/chunk/84
-wikigraph wikg://book.wikg/chunk/84 related
-wikigraph wikg://book.wikg/chunk/84 evidence
-wikigraph wikg://book.wikg/chunk/84 pack --budget 5000
+$ printf "Alpha is connected to beta.\n" | wikigraph wikg://quickstart.wikg/chapter add --title "First note" --input -
+
+$ printf "Beta mentions gamma.\n" > tmp.txt && wikigraph wikg://quickstart.wikg/chapter add --title "Second note" --input ./tmp.txt
 ```
 
-Output a projection only when you need a portable view. For example, read one chapter into Markdown text, or export the full archive as an EPUB:
+Show the chapter tree:
 
 ```bash
-wikigraph wikg://book.wikg/chapter/12/source > ./chapter-12.md
-wikigraph wikg://book.wikg export --output-format epub --output ./digest.epub
+$ wikigraph wikg://quickstart.wikg/chapter/tree
+
+├─ First note  wikg://chapter/1
+└─ Second note  wikg://chapter/2
 ```
 
-Cost rule:
+Enable and build the FTS index. Full-text `--query` search is available after this step:
 
-```text
-Create is cheap.
-Inspect before starting Reading Graph, Reading Summary, or Knowledge Graph jobs.
-Start Reading Graph, Reading Summary, or Knowledge Graph jobs only when the cost and wait time are acceptable.
-Search, read, related, evidence, pack, and export are cheap after build.
+```bash
+$ wikigraph wikg://quickstart.wikg/index enable
 ```
 
-Full flag reference: [CLI Reference](./docs/en/cli.md).
+Search the content:
+
+```bash
+$ wikigraph wikg://quickstart.wikg --query alpha
+
+@@ wikg://chapter/1/source#1 @@
+Alpha is connected to beta.
+```
 
 ## Why We Built This
 
-Knowledge bases are useful for long documents because they turn material into a structure you can re-enter: inspect the table of contents, find concepts, and return to evidence instead of stuffing everything into one context window. The problem is that knowledge bases usually require people to define page boundaries, concept relationships, and source references. Books are the most familiar long documents; if we can Wiki-ify a book, EPUB, Markdown, and plain text can enter the same knowledge-base workflow.
+This project started as SpineDigest, with a focus on compressing long text into shorter summaries that were easier to read and carry. That version was built around a reading problem: how can an LLM read a whole book more like a person, keep useful threads in limited working memory, and still return to the source when needed? It used the ideas behind [Miller's Law](https://en.wikipedia.org/wiki/The_Magical_Number_Seven,_Plus_or_Minus_Two) and cognitive [chunking](<https://en.wikipedia.org/wiki/Chunking_(psychology)>) to organize long text into a Reading Graph, then generated summaries from that structure.
 
-That is why SpineDigest started with the problem of whole books. People often say an LLM cannot really read a whole book because the context window is not long enough. But human short-term memory holds only 7 +/- 2 items ([Miller's Law](https://en.wikipedia.org/wiki/The_Magical_Number_Seven,_Plus_or_Minus_Two)), far less than any modern LLM context window. Humans still read whole books, move back and forth with questions, build structures in their heads, and answer from those structures.
+The metaphor at the time was a dissertation defense: professors keep questioning the respondent, reminding them which claim has evidence, which concepts are connected, and which ideas should not be collapsed together. The diagram below describes that older reading-and-summary flow, but it also explains where Wiki Graph starts: long text should not only be flattened once; it should become a structure that can be re-entered, questioned, and verified.
 
-The bottleneck is not just window size. It is how working memory is organized.
+![SpineDigest flowchart](./docs/images/flowchart.svg)
 
-If you put a whole book directly into context, what you get is a very long text stream. It can be summarized on the fly, searched by keyword, or sliced into excerpts, but it is hard to answer stable structural questions: which concepts belong together, where a claim came from, how two chapters relate, and which source passages support a knowledge point. Longer context does not make those problems disappear. It makes structure more necessary.
+The center of gravity later changed. Summaries are still useful, but a summary is only one projection of long text. The more durable material is the entities, relations, and evidence inside the text. SpineDigest became Wiki Graph, and the main line moved from compressed reading to building maintainable Knowledge Graphs.
 
-SpineDigest's goal is to turn long documents into external working memory.
+Karpathy's LLM Wiki gives an important direction: knowledge should not be retrieved from raw material from scratch every time; it should be compiled into a maintainable Wiki. In that setup, besides raw sources and the Wiki itself, there is also a schema layer: a maintenance rulebook for the Agent, defining how the Wiki should be organized, how pages should be shaped, how cross-references work, and how new source material should be ingested. Because that rulebook evolves between a person and an LLM around their own domain, preferences, and material, it naturally becomes a private schema. When the Wiki also depends heavily on private entities, the Agent often has to read, extract, and revise repeatedly to find as many entities, relations, and structures as possible. In other words, extraction quality depends not only on model capability, but also on whether that rulebook stays clear and stable; once it drifts, information is easier to miss and hallucinations are easier to write into the knowledge base.
 
-First, an LLM reads the source text section by section, simulating how human attention is drawn to important ideas. It extracts a set of [chunks](<https://en.wikipedia.org/wiki/Chunking_(psychology)>). A chunk is not the final summary; it is an attention landing point, an independent knowledge unit that can be cited, traced, and recombined later.
+Wiki Graph starts from a more determinate layer: public entities. Wikipedia / Wikidata acts like a shared public dictionary, already giving relatively stable semantic boundaries to many people, organizations, places, concepts, terms, statutes, and events. Wiki Graph uses [WikiSpine](https://github.com/moskize91/wikispine) to scan text, recall entities that may correspond to Wikipedia / Wikidata, and then use an LLM for disambiguation and filtering. This is closer to recalling candidate entities from a public dictionary and asking the model to disambiguate them, rather than asking the model to decide entity boundaries from scratch; public entity extraction also does not depend on a private schema jointly maintained by a person and an Agent.
 
-Next, a classical algorithm takes over. I build a knowledge graph with chunks as nodes, connect them by conceptual relevance, then use graph traversal and community detection to cluster semantically related chunks. Each cluster is serialized in original reading order into what I call a snake: a knowledge chain that moves through the source text and links dispersed but related ideas.
+Because this route depends on what Wikipedia / Wikidata already covers, it cannot cover every private entity: internal code names in an employee handbook, ordinary names in a phone book, or non-notable characters in a newly written novel. That is an intentional tradeoff. Wiki Graph does not rush to cover every entity; it first gains stability and reuse for public entity extraction. Once an entity is aligned to the same QID, relations and evidence can accumulate onto the same knowledge object across chapters, books, and source collections.
 
-Finally, the LLM returns to work on that structure. The old use case compressed those structures into a summary; the more important use now is to save them into `.wikg`. Later, you can use it like a Wiki: open chapter and chunk objects, trace source evidence, follow related objects, and pack an evidence-bounded context before answering.
+What Wiki Graph aims to do is sediment the public knowledge in long text that can be stably aligned into a source layer, so it can become a searchable, traceable, and extensible foundation for a knowledge base.
 
-**Every professor holds a snake.**
+## Core Concepts
 
-Picture a dissertation defense. The respondent stands at the front. The professors sit around the table. Each professor holds one knowledge chain and keeps reminding the respondent: this has evidence, that has a relationship, and this concept should not be mixed with that one. In the old story, the endpoint was a fairer summary. Now, the endpoint is a reference room you can enter again and again. You do not need to remember the whole book at once; you can call the relevant professors back, follow their chains to the evidence, and then compose your answer.
+### `.wikg`
 
-![SpineDigest architecture](./docs/images/flowchart.svg)
+`.wikg` is the archive file Wiki Graph uses to create, maintain, and share a knowledge base. It can store source text, a chapter tree, Knowledge Graphs, Reading Graphs, summaries, index policy, and metadata, while organizing knowledge base content through hierarchical chapters.
 
-Your intent still runs through the whole process. During build, the prompt influences which knowledge units receive attention. During retrieval, the task decides whether to inspect structure first, search keywords first, or read source fragments first. The same `.wikg` can serve different questions: a timeline today, a concept map tomorrow, a writing context pack later. The knowledge base is not a one-shot answer. It is an interface for repeated reading, locating, and reuse.
+In the LLM Wiki framing, a knowledge base often resembles a person's second brain: private, continuously growing, and mixed with many personal schemas. `.wikg` is a portable complement to that direction. It gives a knowledge base a clear scope, so it can be organized and delivered like a book, a website, a course, or a set of meeting records.
 
-## The `.wikg` Format
+It can be used as a personal knowledge base and gradually organized over time. It can also preserve the structure of the original material, such as book chapters, website sections, course units, or video segments. The producer and consumer of a knowledge base need not be the same person; a `.wikg` file can be copied, sent, uploaded, backed up, and shared.
 
-`.wikg` is the core SpineDigest knowledge-base archive. It holds source-derived chapter pages, graph nodes, evidence pointers, summaries, and metadata, then exposes them through the CLI as an LLM Wiki.
+### Knowledge Graph
 
-With that archive on hand, you can search and navigate the knowledge structure directly:
+Knowledge Graph is Wiki Graph's main generated result. It extracts people, organizations, concepts, events, and relations scattered across long text, so the knowledge base is no longer only a searchable text collection. It becomes a structured knowledge network that can be followed through entities and relations.
 
-```bash
-wikigraph wikg://book.wikg/chapter/tree --json
-wikigraph wikg://book.wikg/chapter/12/chunk
-wikigraph wikg://book.wikg/chunk --query "central argument"
-wikigraph wikg://book.wikg/chapter/12
-wikigraph wikg://book.wikg/chapter/12/source
+Relations are projected as triples: `subject --predicate--> object`. This makes it possible to start from one entity and continue asking what it is connected to, what kind of relation it has, and which source evidence supports that relation.
+
+This matters especially for long text. The same concept may appear across many chapters, and the same relation may be supported by multiple passages. Knowledge Graph collects those dispersed signals into the same knowledge object, making it easier to see "what is related to what", "where this claim came from", and "which chapters support the same knowledge point".
+
+Typical questions include:
+
+- Which important entities appear in the document?
+- What objects is a given entity related to?
+- Which source passages support a relation?
+- Which chapters or passages support the same knowledge point?
+
+Wiki Graph's Knowledge Graph is mainly composed of Entity, Triple, and Evidence. Entity is a normalized public entity, usually aligned by [WikiSpine](https://github.com/moskize91/wikispine) to a Wikipedia / Wikidata QID, such as a person, organization, place, concept, term, or statute. Private names, internal code names, and unpublished fictional settings are not its main coverage. Triple is an entity-level relation:
+
+```text
+subject --predicate--> object
 ```
 
-Markdown, EPUB, txt, and JSON-style outputs are projections of the archive. They are useful for portability and reading, but they do not replace the `.wikg` object when graph links and source fragments matter.
+Evidence is the source basis for an entity or relation. Wiki Graph's Knowledge Graph is not meant to only return conclusions; it should also be able to return to source text.
 
-To open a `.wikg` file, use **[Inkora](http://inkora.oomol.com/download/wikg)**. It is a free app built specifically for `.wikg`, with chapter topology and knowledge graph views.
+### Summary Generation
 
-The internal layout and parser guidance live in the format spec.
+Wiki Graph can also generate chapter summaries, compressing long text into shorter reading results that are easier to carry and reuse.
 
-## Direct Transform
+The summary is not produced by flattening the whole text in one pass. Wiki Graph first builds a Reading Graph: following the idea of cognitive chunks in [Miller's Law](https://en.wikipedia.org/wiki/The_Magical_Number_Seven,_Plus_or_Minus_Two), it breaks long text into traceable [chunks](<https://en.wikipedia.org/wiki/Chunking_(psychology)>), connects them by conceptual relevance, and then organizes them back into reading chains in source order. The Summary is generated from the Reading Graph, so the compressed text can still trace back to source evidence.
 
-If you only need a one-shot digest or format conversion, use `transform`. It does not leave a reusable `.wikg` knowledge base unless you explicitly choose `--output-format wikg`.
+### Wiki Graph URI
+
+Wiki Graph uses URIs as stable handles for archives, scopes, and objects. A URI points to either a scope or an object: a scope enumerates or searches a collection of objects, while an object reads or operates on one concrete object.
 
 ```bash
-cat chapter.txt | wikigraph transform --input-format txt --output-format markdown
-wikigraph transform --input book.epub --output digest.md --output-format markdown
+$ wikigraph wikg://book.wikg/chapter
+$ wikigraph wikg://book.wikg/chapter/3
+$ wikigraph wikg://book.wikg/chapter/3/chunk
+$ wikigraph wikg://book.wikg/entity
+$ wikigraph wikg://book.wikg/triple/Q8018/discusses
 ```
 
-This mode is for pure conversion tasks. If the material will later be searched, navigated, traced to evidence, or built further, create a `.wikg` archive first.
+The examples above are scope URIs. Calling a scope URI directly lists objects. Adding `--query` searches within that scope. Adding `--limit` limits the number of returned results. Adding `--all` retrieves the full result set, which is suitable for intentional full export or inventory work.
 
-## Library Usage
+```bash
+$ wikigraph wikg://book.wikg/chapter/3 --query "memory"
+$ wikigraph wikg://book.wikg/entity --query "neural network" --limit 5
+$ wikigraph wikg://book.wikg/chapter --all --json
+```
 
-SpineDigest also exposes a programmatic API for embedding lower-level import, build, and export flows in your own Node or TypeScript code. The CLI is still the most complete knowledge-base interface. See [Library Usage](./docs/en/library.md) for non-CLI integration.
+Object URIs read one concrete object by default:
 
-## Related Projects
+```bash
+$ wikigraph wikg://book.wikg/chapter/3/title
+$ wikigraph wikg://book.wikg/chapter/3/source#4..8
+$ wikigraph wikg://book.wikg/chapter/3/chunk/12
+$ wikigraph wikg://book.wikg/entity/Q8018
+$ wikigraph wikg://book.wikg/triple/Q8018/discusses/Q123
+```
 
-- [PDF Craft](https://github.com/oomol-lab/pdf-craft): If your source material is a scanned PDF, PDF Craft can convert it into EPUB or Markdown before you import it into a SpineDigest knowledge base.
-- [EPUB Translator](https://github.com/oomol-lab/epub-translator): If your goal is bilingual reading rather than building a knowledge base, EPUB Translator turns an EPUB into a bilingual edition while preserving the original layout.
+Most objects can be scoped to a chapter, such as `chapter/3/source#4..8`, `chapter/3/chunk/12`, or `chapter/3/entity/Q8018`. Some objects can also be accessed at archive scope, such as `entity/Q8018` and `triple/Q8018/discusses/Q123`; the same entity or relation may be supported by multiple chapters.
+
+The front part of a URI is the archive locator. Absolute paths, relative paths, and Windows paths must be written as Wiki Graph URIs instead of bare filesystem paths:
+
+```bash
+$ wikigraph wikg:///Users/me/books/book.wikg
+$ wikigraph wikg://book.wikg
+$ wikigraph wikg://C:/Users/me/books/book.wikg
+```
+
+Command output often contains short URIs:
+
+```text
+wikg://chapter/3/source#4..8
+wikg://entity/Q8018
+wikg://triple/Q8018/discusses/Q123
+```
+
+These short URIs are archive-relative handles. They keep output readable, but they are not complete command targets. Add the archive locator before passing them back to the CLI:
+
+```bash
+$ wikigraph wikg://book.wikg/chapter/3/source#4..8
+$ wikigraph wikg:///Users/me/books/book.wikg/entity/Q8018
+```
+
+The common command shape is "URI + predicate". The URI appears first, but it is the object being operated on; the predicate says what to do with it. Without a predicate, a scope URI usually performs list, and an object URI usually performs read.
+
+```bash
+$ wikigraph wikg://book.wikg/entity/Q8018
+$ wikigraph wikg://book.wikg/entity/Q8018 evidence
+$ wikigraph wikg://book.wikg/entity/Q8018 related --query "memory"
+$ wikigraph wikg://book.wikg/entity/Q8018 pack --budget 5000 --json
+```
+
+For more URI rules and boundaries, use the CLI help. You can start from the URI topic, or ask for help on a specific URI or URI predicate:
+
+```bash
+$ wikigraph help uri
+$ wikigraph wikg://book.wikg/entity/Q8018 --help
+$ wikigraph wikg://book.wikg/entity/Q8018 evidence --help
+```
+
+## Common Workflows
+
+### Create a Knowledge Base
+
+```bash
+$ wikigraph wikg://book.wikg create
+$ wikigraph wikg://book.wikg create --import ./book.epub
+```
+
+Without `--import`, this creates an empty `.wikg` knowledge base. `--import` accepts EPUB only; it creates the knowledge base and imports EPUB metadata, cover, chapter tree, and source text.
+
+### Inspect Archive State
+
+```bash
+$ wikigraph wikg://book.wikg inspect
+$ wikigraph wikg://book.wikg inspect --json
+```
+
+`inspect` reports what the archive currently contains, which capabilities are not ready yet, and which help page or command should be used next.
+
+### Generate Knowledge Graph
+
+```bash
+$ wikigraph wikg://local/job add --input wikg://book.wikg --task knowledge-graph --accept-cost
+$ wikigraph wikg://local/job add --input wikg://book.wikg/chapter/3 --task knowledge-graph --accept-cost
+$ wikigraph wikg://local/job/<job-id> watch --jsonl
+```
+
+Generation jobs may call an LLM provider. Time and cost depend on material length, model, and configuration. Read `inspect` and job help before starting a job.
+
+### Search Entities and Relations
+
+```bash
+$ wikigraph wikg://book.wikg/entity --query "neural network" --evidence 2
+$ wikigraph wikg://book.wikg/triple --query "attention memory" --evidence 2
+$ wikigraph wikg://book.wikg/chapter/3/entity --query "attention"
+$ wikigraph wikg://book.wikg/chapter/3/triple --query "memory"
+```
+
+Use the narrowest useful URI scope. If the chapter is known, search from the chapter scope. Use the archive scope when a whole-archive view is needed.
+
+### Trace Source Evidence
+
+```bash
+$ wikigraph wikg://book.wikg/entity/Q8018 evidence
+$ wikigraph wikg://book.wikg/triple/Q8018/discusses/Q123 evidence
+$ wikigraph wikg://book.wikg/entity/Q8018 evidence --query "memory"
+```
+
+Use `evidence` when a statement, entity, relation, or answer needs to be checked against source material.
+
+### Expand Related Objects
+
+```bash
+$ wikigraph wikg://book.wikg/entity/Q8018 related --evidence 2
+$ wikigraph wikg://book.wikg/entity/Q8018 related --query "memory" --evidence 2
+```
+
+`related` expands from a selected object to nearby objects. For Entity, related results are mainly related triples.
+
+### Prepare Context
+
+```bash
+$ wikigraph wikg://book.wikg/entity/Q8018 pack --budget 5000
+```
+
+`pack` turns the surrounding context of a selected chunk or entity into portable text. Use `evidence` first when strict verification is needed.
 
 ## For AI Agents
 
-SpineDigest's CLI-first design exposes `.wikg` as a managed LLM Wiki archive.
-
-- **Treat `.wikg` as the primary object.** Use archive commands before unpacking or inspecting internals.
-- **Choose an exploration mode first.** For synthesis and structural understanding, start with `wikg://.../chapter/tree --json`; use scope URIs with `--query` for candidate discovery and exact wording; pass a selected URI directly for continuous prose.
-- **Use help as the discovery surface.** Start with `wikigraph --help` as the root page, then follow `wikigraph help overview`, `wikigraph help ai`, topic pages, or command-specific `--help` before guessing behavior.
-- **Prefer `--json`.** Use it when composing with tools.
-- **Inspect before starting jobs.** Do not start broad Reading Graph, Reading Summary, or Knowledge Graph work without `wikigraph <archive-uri> inspect`.
-- **Check exit codes.** Success returns `0`; failure returns non-zero with a plain-text error on `stderr`.
-- **Do not inspect `database.db` routinely.** Use URI-first reads, scope queries, and graph navigation commands instead.
-
-Useful help entry points:
+Wiki Graph treats CLI help as part of the product contract. After installation, start from the root help; commands, URIs, predicates, configuration, runtime behavior, and format constraints can be discovered by following the help network, without guessing command shapes from the README.
 
 ```bash
-wikigraph help overview
-wikigraph help ai
-wikigraph help task
-wikigraph help config
-wikigraph help env
-wikigraph help config-file
-wikigraph help command
+$ wikigraph --help
 ```
 
-Full agent guidance: [AI Agent Guide](./docs/en/ai-agents.md).
+## License
+
+Apache-2.0

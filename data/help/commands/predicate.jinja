@@ -100,16 +100,16 @@ Notes:
   - Use `--json` for a machine-readable report with the same recommendations.
 {% elif predicate == "add" and target.name == "chapter-collection-scope" %}
 Purpose:
-  Add a planned or source chapter to the archive.
+  Add a chapter to the archive.
 
 Usage:
-  wikigraph {{ uri }} add --stage planned [--parent <chapter-uri>] [--title <title>] [--json]
-  wikigraph {{ uri }} add --stage source [--parent <chapter-uri>] [--title <title>] [--input <path>] [--json]
+  wikigraph {{ uri }} add [--parent <chapter-uri>] [--title <title>] [--input <path|->] [--json]
 
 Notes:
-  - `--stage planned` creates an empty chapter placeholder.
-  - `--stage source` creates a chapter and fills source text from `--input <path>` or stdin.
-  - Source input must not be empty.
+  - Without `--input`, creates an empty planned chapter placeholder.
+  - With `--input <path>`, creates a chapter and fills source text.
+  - Use `--input -` to read source text from stdin.
+  - Source input must not be empty when `--input` is used.
 {% elif predicate == "add" and target.name == "job-collection-scope" %}
 Purpose:
   Add a local generation job.
@@ -145,20 +145,21 @@ Purpose:
   Replace the chapter tree with a JSON tree document.
 
 Usage:
-  wikigraph {{ uri }} set --input <tree.json>
+  wikigraph {{ uri }} set --input <tree.json|->
 
 Notes:
   - The input is a chapter tree JSON document produced by the chapter tree view.
+  - Use `--input -` to read the tree JSON from stdin.
   - This rewires chapter hierarchy and order; it does not rewrite chapter source text or generated graph content.
 {% elif target.name == "chapter-source-object" %}
 Purpose:
   Replace this chapter source text.
 
 Usage:
-  wikigraph {{ uri }} set [text] [--input <path>]
+  wikigraph {{ uri }} set [text] [--input <path|->]
 
 Notes:
-  - Source text is read from a positional value, `--input <path>`, or stdin.
+  - Source text is read from a positional value, `--input <path>`, or `--input -` for stdin.
   - Source replacement invalidates later generated work for that chapter.
   - Use `wikigraph {{ uri }} --help` to inspect the source object before replacing it.
 {% elif target.name == "chapter-summary-object" %}
@@ -166,10 +167,10 @@ Purpose:
   Replace this chapter summary text.
 
 Usage:
-  wikigraph {{ uri }} set [text] [--input <path>]
+  wikigraph {{ uri }} set [text] [--input <path|->]
 
 Notes:
-  - The input is plain summary text.
+  - The input is plain summary text from a positional value, `--input <path>`, or `--input -` for stdin.
   - This sets the summary resource directly; it does not call an LLM provider.
 {% elif target.name == "chapter-title-object" %}
 Purpose:
@@ -252,10 +253,12 @@ Purpose:
 
 Usage:
   wikigraph {{ uri }} set <json> [--json]
+  wikigraph {{ uri }} set --input <path|-> [--json]
   wikigraph {{ uri }} set --json-input <json> [--json]
 
 Notes:
   - Metadata shape depends on whether this is archive metadata or object metadata.
+  - Use `--input -` when metadata JSON should come from stdin.
   - `put`, `delete`, and `clear` are usually safer for single-key metadata edits.
 {% else %}
 Purpose:

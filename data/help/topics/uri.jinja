@@ -103,6 +103,7 @@ Object boundaries:
   - `chapter/<id>/title` is the queryable chapter title object.
   - Whole `source` and `summary` objects are readable text streams, not collection scopes.
   - Ranged fragments such as `/source#4..8` and `/summary#4..8` are structured range objects.
+  - Source and summary range numbers are 1-based and inclusive. `/source#1..2` means the first two source sentences.
   - Source text is the grounding material. `evidence` is not available for source, summary, or chapter scope URIs.
   - `chunk`, `entity`, and `triple` can return source-backed evidence.
 

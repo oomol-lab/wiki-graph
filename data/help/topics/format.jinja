@@ -4,7 +4,7 @@ Topic: format
 Format Rules
 
 Purpose:
-  Format rules cover archive file formats, stdin/stdout inference, and command output shapes for Agents and scripts.
+  Format rules cover archive file formats, explicit stdin/stdout behavior, and command output shapes for Agents and scripts.
 
 Managed archive format:
   wikg
@@ -22,6 +22,7 @@ Transform input/output formats:
 Inference rules:
   - File paths use their extension when the format flag is omitted.
   - Transform stdin requires an explicit `--input-format`.
+  - Commands that accept content input use `--input <path>` for files and `--input -` for stdin.
   - Archive chapter/source text commands read plain source text and do not use `--input-format`.
   - Stdout text export requires an explicit or inferable output format.
   - `transform --stage` is only valid when creating `.wikg` from source input.
@@ -32,6 +33,7 @@ Command output shapes:
   - Use `--jsonl` when a command returns many records, streams progress, or feeds a Unix pipeline.
   - Whole `source` and `summary` text objects are plain text streams and do not support `--json`.
   - Ranged fragments such as `/source#20..30` and `/summary#20..30` are structured range objects and support `--json`.
+  - Source and summary range numbers are 1-based and inclusive.
   - Commands that do not support `--json` or `--jsonl` say so in their command help or error message.
 
 JSON:

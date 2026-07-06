@@ -1,4 +1,3 @@
-import { createReadStream } from "fs";
 import { readFile } from "fs/promises";
 import { Readable } from "stream";
 
@@ -46,7 +45,7 @@ export async function runArchiveChapterCommand(
           ...(args.title === undefined ? {} : { title: args.title }),
         });
 
-        if (args.addStage === "sourced") {
+        if (args.inputPath !== undefined) {
           details = await setChapterSource(
             document,
             details.chapterId,
@@ -151,7 +150,7 @@ export async function runArchiveChapterCommand(
           await readContentText(args),
         );
 
-        await writeChapterDetails(details, false);
+        await writeChapterDetails(details, args.json ?? false);
       });
       return;
     case "set-title":
@@ -209,27 +208,6 @@ async function runEditableCommand(
   await new SpineDigestFile(path).write(operation);
 }
 
-function createContentStream(
-  args: Pick<CLIArchiveChapterArguments, "inputPath" | "inputValue">,
-): AsyncIterable<string> {
-  if (args.inputValue !== undefined && args.inputPath !== undefined) {
-    throw new Error("Choose either a positional value or --input, not both.");
-  }
-  if (args.inputValue !== undefined) {
-    return Readable.from([args.inputValue]);
-  }
-  if (args.inputPath !== undefined) {
-    return createReadStream(args.inputPath, { encoding: "utf8" });
-  }
-  if (process.stdin.isTTY) {
-    throw new Error(
-      "Missing --input. Pipe text into stdin or pass --input <path>.",
-    );
-  }
-
-  return readTextStreamFromStdin();
-}
-
 async function readContentText(
   args: Pick<CLIArchiveChapterArguments, "inputPath" | "inputValue">,
 ): Promise<string> {
@@ -239,16 +217,21 @@ async function readContentText(
   if (args.inputValue !== undefined) {
     return args.inputValue;
   }
+  if (args.inputPath === "-") {
+    let content = "";
+
+    for await (const chunk of readTextStreamFromStdin()) {
+      content += chunk;
+    }
+
+    return content;
+  }
   if (args.inputPath !== undefined) {
     return await readFile(args.inputPath, "utf8");
   }
-  let content = "";
-
-  for await (const chunk of createContentStream(args)) {
-    content += chunk;
-  }
-
-  return content;
+  throw new Error(
+    "Missing input. Pass a positional value, use --input <path>, or use --input - for stdin.",
+  );
 }
 
 async function readRequiredSourceText(
@@ -258,7 +241,7 @@ async function readRequiredSourceText(
 
   if (content.trim() === "") {
     throw new Error(
-      "Source input is empty. Pass non-empty text with --input <path> or pipe text into stdin.",
+      "Source input is empty. Pass non-empty text with --input <path> or --input -.",
     );
   }
 
