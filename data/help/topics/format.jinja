@@ -9,11 +9,11 @@ Purpose:
 Managed archive format:
   wikg
 
-Source formats for archive creation and import:
-  epub, txt, markdown
+Archive create/import input:
+  epub via `wikigraph <archive-uri> create --import <epub-path>`
 
 Export formats:
-  txt, markdown
+  txt, markdown, epub
 
 Transform input/output formats:
   input: wikg, epub, txt, markdown
@@ -21,7 +21,8 @@ Transform input/output formats:
 
 Inference rules:
   - File paths use their extension when the format flag is omitted.
-  - Stdin requires an explicit `--input-format`.
+  - Transform stdin requires an explicit `--input-format`.
+  - Archive chapter/source text commands read plain source text and do not use `--input-format`.
   - Stdout text export requires an explicit or inferable output format.
   - `transform --stage` is only valid when creating `.wikg` from source input.
 
@@ -59,9 +60,8 @@ Stdout and stderr:
   Commands that accept `--json` or `--jsonl` emit machine-readable error objects when those flags are present.
 
 Examples:
-  wikigraph wikg://book.wikg create ./book.epub
-  wikigraph wikg://book.wikg create ./book.md
-  cat chapter.md | wikigraph wikg://book.wikg create --input-format markdown
+  wikigraph wikg://book.wikg create
+  wikigraph wikg://book.wikg create --import ./book.epub
   wikigraph wikg://book.wikg export --output-format markdown --output out.md
   cat chapter.txt | wikigraph transform --input-format txt --output-format markdown
   wikigraph wikg://book.wikg inspect --json

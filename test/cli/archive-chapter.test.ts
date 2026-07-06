@@ -331,11 +331,31 @@ describe("cli/archive-chapter", () => {
     expect(chapterMockState.textWrites[0]).toContain("Chapter: 3\n");
   });
 
+  it("adds a chapter and prints JSON when requested", async () => {
+    await runArchiveChapterCommand({
+      action: "add",
+      addStage: "planned",
+      json: true,
+      path: "/tmp/book.wikg",
+      title: "New Chapter",
+    });
+
+    expect(JSON.parse(chapterMockState.textWrites[0] ?? "")).toStrictEqual({
+      chapterId: 3,
+      childCount: 0,
+      graphReady: false,
+      hasSummary: false,
+      sourceUnits: 2,
+      stage: "planned",
+      title: "New Chapter",
+      uri: "wikg://chapter/3",
+    });
+  });
+
   it("adds a sourced chapter from --input", async () => {
     await runArchiveChapterCommand({
       action: "add",
       addStage: "sourced",
-      inputFormat: "markdown",
       inputPath: "/tmp/chapter.md",
       path: "/tmp/book.wikg",
       title: "New Chapter",
@@ -359,7 +379,6 @@ describe("cli/archive-chapter", () => {
     await runArchiveChapterCommand({
       action: "set-source",
       chapterId: 2,
-      inputFormat: "markdown",
       inputPath: "/tmp/chapter.md",
       path: "/tmp/book.wikg",
     });
@@ -376,7 +395,6 @@ describe("cli/archive-chapter", () => {
     await runArchiveChapterCommand({
       action: "set-source",
       chapterId: 2,
-      inputFormat: "txt",
       inputValue: "inline source",
       path: "/tmp/book.wikg",
     });

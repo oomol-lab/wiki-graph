@@ -52,24 +52,20 @@ Purpose:
   Create the archive at this URI.
 
 Usage:
-  wikigraph {{ uri }} create [source] [--input-format <format>] [--llm <json>] [--prompt <text>] [--replace] [--json]
+  wikigraph {{ uri }} create [--import <epub-path>] [--replace] [--json]
 
 Notes:
-  - `source` may be EPUB, Markdown, txt, URL, or another supported input path.
-  - Without `source`, an empty `.wikg` archive is created unless stdin is selected with `--input-format`.
-  - Stdin is supported when `--input-format markdown` or `--input-format txt` is provided.
-  - Input format is inferred from the source extension when possible; use `--input-format` when stdin or the extension is ambiguous.
-  - Creating from EPUB, Markdown, txt, URL, or stdin runs only the import/source stage.
+  - Without `--import`, create an empty `.wikg` archive.
+  - `--import <epub-path>` creates the archive and imports EPUB metadata, cover, chapter tree, and source text.
+  - `create` does not read stdin; `--import` only accepts EPUB input.
+  - EPUB import runs only the import/source stage and does not call an LLM provider.
   - Existing archives are not overwritten by default. Use `--replace` only when the target archive should be discarded and recreated.
   - Parent directories must already exist.
-  - `--llm <json>` passes local LLM settings to the import pipeline when the selected input path needs them.
   - On success, text output is the archive object (`<archive>`). With `--json`, output is `{"uri":"..."}`.
 
 Examples:
-  wikigraph {{ uri }} create ./book.epub
-  wikigraph {{ uri }} create ./notes.md --input-format markdown
-  cat chapter.md | wikigraph {{ uri }} create --input-format markdown
   wikigraph {{ uri }} create --json
+  wikigraph {{ uri }} create --import ./book.epub
 
 Next:
   wikigraph {{ uri }} inspect
@@ -104,10 +100,16 @@ Notes:
   - Use `--json` for a machine-readable report with the same recommendations.
 {% elif predicate == "add" and target.name == "chapter-collection-scope" %}
 Purpose:
-  Add a planned chapter to the archive.
+  Add a planned or source chapter to the archive.
 
 Usage:
-  wikigraph {{ uri }} add [--parent <chapter-uri>] [--title <title>] [--after <chapter-uri>] [--before <chapter-uri>] [--stage planned]
+  wikigraph {{ uri }} add --stage planned [--parent <chapter-uri>] [--title <title>] [--json]
+  wikigraph {{ uri }} add --stage source [--parent <chapter-uri>] [--title <title>] [--input <path>] [--json]
+
+Notes:
+  - `--stage planned` creates an empty chapter placeholder.
+  - `--stage source` creates a chapter and fills source text from `--input <path>` or stdin.
+  - Source input must not be empty.
 {% elif predicate == "add" and target.name == "job-collection-scope" %}
 Purpose:
   Add a local generation job.
@@ -153,10 +155,10 @@ Purpose:
   Replace this chapter source text.
 
 Usage:
-  wikigraph {{ uri }} set [text] [--input <path>] --input-format markdown|txt
+  wikigraph {{ uri }} set [text] [--input <path>]
 
 Notes:
-  - `--input-format` is required and must be markdown or txt.
+  - Source text is read from a positional value, `--input <path>`, or stdin.
   - Source replacement invalidates later generated work for that chapter.
   - Use `wikigraph {{ uri }} --help` to inspect the source object before replacing it.
 {% elif target.name == "chapter-summary-object" %}

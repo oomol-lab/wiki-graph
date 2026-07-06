@@ -25,10 +25,9 @@ Choose your starting point:
       wikigraph wikg://book.wikg inspect
 
   - User gave you source content and needs a reusable knowledge-base archive:
-    Create or import a `.wikg` archive.
-      wikigraph wikg://book.wikg create ./book.epub
-      wikigraph wikg://notes.wikg create ./notes.md
-      cat article.md | wikigraph wikg://article.wikg create --input-format markdown
+    Create an empty `.wikg` archive, or create one while importing an EPUB.
+      wikigraph wikg://book.wikg create
+      wikigraph wikg://book.wikg create --import ./book.epub
 
   - User needs one-shot conversion without keeping an archive:
     Use transform. Source input usually requires LLM configuration.

@@ -54,7 +54,7 @@ export async function runArchiveChapterCommand(
           );
         }
 
-        await writeChapterDetails(details);
+        await writeChapterDetails(details, args.json ?? false);
       });
       return;
     case "list":
@@ -87,7 +87,7 @@ export async function runArchiveChapterCommand(
             : { parentChapterId: args.parentChapterId }),
         });
 
-        await writeChapterDetails(details);
+        await writeChapterDetails(details, args.json ?? false);
       });
       return;
     case "remove":
@@ -100,6 +100,12 @@ export async function runArchiveChapterCommand(
         await removeChapter(document, args.chapterId!, {
           recursive: args.recursive ?? false,
         });
+        if (args.json === true) {
+          await writeTextToStdout(
+            formatCLIJSON({ chapterId: args.chapterId!, removed: true }),
+          );
+          return;
+        }
         await writeTextToStdout(`Removed chapter ${args.chapterId!}.\n`);
       });
       return;
@@ -112,7 +118,7 @@ export async function runArchiveChapterCommand(
           args.resetStage!,
         );
 
-        await writeChapterDetails(details);
+        await writeChapterDetails(details, args.json ?? false);
       });
       return;
     case "set-source":
@@ -128,7 +134,7 @@ export async function runArchiveChapterCommand(
           Readable.from([await readRequiredSourceText(args)]),
         );
 
-        await writeChapterDetails(details);
+        await writeChapterDetails(details, args.json ?? false);
       });
       return;
     case "set-summary":
@@ -145,7 +151,7 @@ export async function runArchiveChapterCommand(
           await readContentText(args),
         );
 
-        await writeChapterDetails(details);
+        await writeChapterDetails(details, false);
       });
       return;
     case "set-title":
@@ -161,7 +167,7 @@ export async function runArchiveChapterCommand(
           args.clearTitle === true ? null : args.title,
         );
 
-        await writeChapterDetails(details);
+        await writeChapterDetails(details, false);
       });
       return;
     case "tree":
@@ -259,7 +265,26 @@ async function readRequiredSourceText(
   return content;
 }
 
-async function writeChapterDetails(details: ChapterDetails): Promise<void> {
+async function writeChapterDetails(
+  details: ChapterDetails,
+  json: boolean,
+): Promise<void> {
+  if (json) {
+    await writeTextToStdout(
+      formatCLIJSON({
+        chapterId: details.chapterId,
+        childCount: details.childCount,
+        graphReady: details.graphReady,
+        hasSummary: details.hasSummary,
+        sourceUnits: details.fragmentCount,
+        stage: formatStage(details.stage),
+        title: details.title,
+        uri: `wikg://chapter/${details.chapterId}`,
+      }),
+    );
+    return;
+  }
+
   const lines = [
     `Chapter: ${details.chapterId}`,
     `Title: ${details.title ?? "[untitled]"}`,

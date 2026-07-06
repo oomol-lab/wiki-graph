@@ -1,4 +1,4 @@
-import { mkdtemp, rm, writeFile } from "fs/promises";
+import { mkdtemp, rm, stat, writeFile } from "fs/promises";
 import { join } from "path";
 import { tmpdir } from "os";
 
@@ -714,14 +714,14 @@ describe("cli/archive", () => {
         archivePath,
       });
 
-      expect(archiveMockState.writeCalls).toStrictEqual([archivePath]);
+      expect((await stat(archivePath)).size).toBeGreaterThan(0);
       expect(archiveMockState.textWrites[0]).toBe("<archive>\n");
     } finally {
       await rm(directoryPath, { force: true, recursive: true });
     }
   });
 
-  it("prints archive object JSON after creating from a source", async () => {
+  it("prints archive object JSON after importing EPUB", async () => {
     const directoryPath = await mkdtemp(join(tmpdir(), "wikigraph-create-"));
     const archivePath = join(directoryPath, "new.wikg");
 
@@ -729,11 +729,18 @@ describe("cli/archive", () => {
       await runArchiveCommand({
         action: "create",
         archivePath,
+        importPath: "/tmp/book.epub",
         json: true,
-        sourcePath: "/tmp/source.md",
       });
 
-      expect(archiveMockState.writeCalls).toStrictEqual([]);
+      expect(archiveMockState.convertCalls).toStrictEqual([
+        expect.objectContaining({
+          inputPath: "/tmp/book.epub",
+          outputFormat: "wikg",
+          outputPath: archivePath,
+          targetStage: "sourced",
+        }),
+      ]);
       expect(JSON.parse(archiveMockState.textWrites[0] ?? "")).toStrictEqual({
         uri: `wikg://${archivePath}`,
       });
@@ -753,7 +760,7 @@ describe("cli/archive", () => {
         runArchiveCommand({
           action: "create",
           archivePath,
-          sourcePath: "/tmp/source.md",
+          importPath: "/tmp/book.epub",
         }),
       ).rejects.toThrow("Archive already exists:");
       expect(archiveMockState.convertCalls).toStrictEqual([]);
@@ -772,8 +779,8 @@ describe("cli/archive", () => {
       await runArchiveCommand({
         action: "create",
         archivePath,
+        importPath: "/tmp/book.epub",
         replace: true,
-        sourcePath: "/tmp/source.md",
       });
 
       const [convertCall] = archiveMockState.convertCalls as Array<{

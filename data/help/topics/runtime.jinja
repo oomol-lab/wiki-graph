@@ -7,7 +7,8 @@ Purpose:
   This is a low-frequency advanced topic. Read it when a command fails, a job appears stuck, JSON/JSONL behavior matters, or you need to understand workers, cache, logs, and workspaces.
 
 Archive-first streams:
-  - `wikigraph <archive-uri> create --input-format markdown|txt` reads source text from stdin.
+  - `wikigraph <archive-uri> create` creates an empty archive; it does not read stdin.
+  - `wikigraph <archive-uri> create --import <epub-path>` imports EPUB source into a new archive.
   - `wikigraph <archive-uri> export --output-format markdown|txt` can write text projections to stdout.
   - `wikigraph transform --input-format markdown|txt --output-format markdown|txt` runs direct one-shot stream digest/export and usually requires LLM configuration.
   - Retrieval commands print human-readable text by default and support `--json` where documented.
@@ -38,7 +39,7 @@ Progress and diagnostics:
   - Use `wikigraph <archive-uri>/index --help` when `--query`, evidence, or related appears unavailable.
 
 Workspace behavior:
-  - Archive creation from URL or stdin uses temporary workspaces.
+  - Archive creation and EPUB import use temporary workspaces.
   - `transform --digest-dir <path>` uses the provided digest workspace for source digest runs.
   - Generation jobs use per-job directories under `~/.wikigraph/jobs/work`, `~/.wikigraph/jobs/cache`, and `~/.wikigraph/jobs/logs`.
   - Succeeded jobs delete their workspace by default.

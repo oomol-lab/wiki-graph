@@ -7,8 +7,8 @@ Purpose:
   Insert a new chapter into an existing `.wikg` chapter tree.
 
 Usage:
-  wikigraph <archive-uri>/chapter add --stage planned [--title <title>] [--parent <chapter-uri>] [--llm <json>] [--help|-h]
-  wikigraph <archive-uri>/chapter add --stage source [--title <title>] [--parent <chapter-uri>] [--input <path>] --input-format <format> [--llm <json>] [--help|-h]
+  wikigraph <archive-uri>/chapter add --stage planned [--title <title>] [--parent <chapter-uri>] [--llm <json>] [--json] [--help|-h]
+  wikigraph <archive-uri>/chapter add --stage source [--title <title>] [--parent <chapter-uri>] [--input <path>] [--llm <json>] [--json] [--help|-h]
 
 Behavior:
   - `--stage planned` creates an empty chapter with no source, graph, or summary.
@@ -16,7 +16,6 @@ Behavior:
   - `--stage source` creates a chapter and writes normalized source text.
   - Source input comes from `--input <path>` when provided, otherwise stdin.
   - Source input must not be empty or whitespace-only.
-  - `--stage source` accepts only `txt` or `markdown` for `--input-format`.
   - Omitting `--title` creates an untitled planned chapter.
   - Omitting `--parent` adds the chapter at the top level.
   - `--parent <chapter-uri>` adds the chapter under an existing chapter.
@@ -25,13 +24,14 @@ Behavior:
 Output shape:
   Prints the new chapter status.
   The `Chapter: <id>` line is the new chapter id for later commands.
+  With `--json`, prints the new chapter status as one JSON object.
 
 Typical next step:
   wikigraph wikg://local/job add --input <archive-uri|chapter-uri> --task reading-graph --accept-cost
 
 Examples:
   wikigraph wikg://book.wikg/chapter add --stage planned --title "Part I"
-  wikigraph wikg://book.wikg/chapter add --stage source --title "Chapter 1" --input ./chapter.md --input-format markdown --parent wikg://book.wikg/chapter/3
+  wikigraph wikg://book.wikg/chapter add --stage source --title "Chapter 1" --input ./chapter.txt --parent wikg://book.wikg/chapter/3
 
 See also:
   - wikigraph wikg://book.wikg/chapter --help

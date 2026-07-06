@@ -1797,6 +1797,24 @@ describe("archive/query/archive-view", () => {
     });
   });
 
+  it("rejects out-of-bounds source sentence ranges", async () => {
+    await withTempDir("spinedigest-archive-view-", async (path) => {
+      const document = await DirectoryDocument.open(`${path}/document`);
+
+      try {
+        await seedSourcedDocument(document);
+
+        await expect(
+          readArchivePage(document, "wikg://chapter/1/source#99..99"),
+        ).rejects.toThrow(
+          "source range wikg://chapter/1/source#99 is out of bounds.",
+        );
+      } finally {
+        await document.release();
+      }
+    });
+  });
+
   it("shows node pages with generated summaries and source fragments", async () => {
     await withTempDir("spinedigest-archive-view-", async (path) => {
       const document = await DirectoryDocument.open(`${path}/document`);

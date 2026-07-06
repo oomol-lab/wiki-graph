@@ -1,6 +1,10 @@
 import { parseArgs } from "util";
 
-import { type CLIFormat, parseCLIFormat } from "./formats.js";
+import {
+  type CLIFormat,
+  inferCLIFormatFromPath,
+  parseCLIFormat,
+} from "./formats.js";
 import { CLI_HELP_ROUTES, withHelpRoute } from "./errors.js";
 import {
   type ArchiveTriplePattern,
@@ -99,7 +103,6 @@ export interface CLIArchiveChapterArguments {
   readonly clearTitle?: boolean;
   readonly dryRun?: boolean;
   readonly first?: boolean;
-  readonly inputFormat?: Extract<CLIFormat, "markdown" | "txt">;
   readonly inputPath?: string;
   readonly inputValue?: string;
   readonly json?: boolean;
@@ -257,6 +260,7 @@ export interface CLIArchiveArguments {
   readonly evidenceLimit?: number;
   readonly format?: CLIResultFormat;
   readonly inputFormat?: CLIFormat;
+  readonly importPath?: string;
   readonly json?: boolean;
   readonly jsonl?: boolean;
   readonly kinds?: readonly CLIObjectKind[];
@@ -270,7 +274,6 @@ export interface CLIArchiveArguments {
   readonly replace?: boolean;
   readonly reverse?: boolean;
   readonly role?: "any" | "object" | "self" | "subject";
-  readonly sourcePath?: string;
   readonly triplePattern?: ArchiveTriplePattern;
 }
 
@@ -319,6 +322,7 @@ interface ArchiveArgumentValues extends ArchiveMetaFlagValues {
   readonly force?: boolean;
   readonly from?: string;
   readonly help?: boolean;
+  readonly import?: string;
   readonly input?: string;
   readonly "input-format"?: string;
   readonly json?: boolean;
@@ -512,6 +516,9 @@ export function parseCLIArguments(
         type: "boolean",
       },
       input: {
+        type: "string",
+      },
+      import: {
         type: "string",
       },
       "input-format": {
@@ -915,7 +922,9 @@ function parseArchiveUriTargetArguments(
   const parsed = parseLocatedWikiGraphUri(uri);
   const archivePath = parsed.archivePath;
   const objectUri = parsed.objectUri;
-  const helpRoute = formatWikiGraphHelpCommand(uri, action);
+  const helpRoute = isImplicitArchiveReadAction(action)
+    ? formatWikiGraphHelpCommand(uri)
+    : formatWikiGraphHelpCommand(uri, action);
 
   if (archivePath === undefined) {
     throw new Error(formatMissingArchiveLocatorMessage(uri));
@@ -1194,6 +1203,7 @@ function rejectMetadataFlags(
   rejectMetaCommandFlag("chapter", values.chapter, helpRoute);
   rejectMetaCommandFlag("cursor", values.cursor, helpRoute);
   rejectMetaCommandFlag("digest-dir", values["digest-dir"], helpRoute);
+  rejectMetaCommandFlag("import", values.import, helpRoute);
   rejectMetaCommandFlag("input-format", values["input-format"], helpRoute);
   rejectMetaCommandFlag("limit", values.limit, helpRoute);
   rejectMetaCommandFlag("output", values.output, helpRoute);
@@ -1315,6 +1325,7 @@ function parseArchiveCoverUriArguments(
   rejectCoverCommandFlag("chapter", values.chapter, helpRoute);
   rejectCoverCommandFlag("cursor", values.cursor, helpRoute);
   rejectCoverCommandFlag("digest-dir", values["digest-dir"], helpRoute);
+  rejectCoverCommandFlag("import", values.import, helpRoute);
   rejectCoverCommandFlag("input", values.input, helpRoute);
   rejectCoverCommandFlag("input-format", values["input-format"], helpRoute);
   rejectCoverCommandFlag("limit", values.limit, helpRoute);
@@ -2429,6 +2440,7 @@ function parseTransformArguments(
   rejectTransformFlag("cursor", values.cursor, helpRoute);
   rejectTransformFlag("evidence", values.evidence, helpRoute);
   rejectTransformFlag("json", values.json, helpRoute);
+  rejectTransformFlag("import", values.import, helpRoute);
   rejectTransformFlag("limit", values.limit, helpRoute);
   rejectTransformFlag("parent", values.parent, helpRoute);
   rejectTransformFlag("to", values.to, helpRoute);
@@ -2494,6 +2506,7 @@ function parseGcArguments(
   }
 
   rejectGcFlag("digest-dir", values["digest-dir"], helpRoute);
+  rejectGcFlag("import", values.import, helpRoute);
   rejectGcFlag("input", values.input, helpRoute);
   rejectGcFlag("input-format", values["input-format"], helpRoute);
   rejectGcFlag("jsonl", values.jsonl, helpRoute);
@@ -2553,6 +2566,7 @@ function parseLegacyArguments(
     }
 
     rejectLegacyFlag("--input", values.input);
+    rejectLegacyFlag("--import", values.import);
     rejectLegacyFlag("--input-format", values["input-format"]);
     rejectLegacyFlag("--output-format", values["output-format"]);
     rejectLegacyFlag("--llm", values.llm);
@@ -2987,27 +3001,14 @@ function parseArchiveArguments(
 
   switch (action) {
     case "create": {
-      const rawSourcePath = positionals[1] ?? values.input;
-      const sourcePath = rawSourcePath === "-" ? undefined : rawSourcePath;
-      const inputFormat =
-        values["input-format"] === undefined
-          ? undefined
-          : parseCLIFormat(values["input-format"], "--input-format");
-
-      if (
-        sourcePath === undefined &&
-        inputFormat !== undefined &&
-        inputFormat !== "markdown" &&
-        inputFormat !== "txt"
-      ) {
-        throw new Error(
-          withHelpRoute(
-            "stdin create only supports --input-format markdown or txt.",
-            helpRoute,
-          ),
-        );
-      }
-      rejectArchiveExtraPositionals(action, positionals, 2, helpRoute);
+      rejectArchiveExtraPositionals(action, positionals, 1, helpRoute);
+      rejectArchiveFlag(action, "--input", values.input, helpRoute);
+      rejectArchiveFlag(
+        action,
+        "--input-format",
+        values["input-format"],
+        helpRoute,
+      );
       rejectArchiveFlag(action, "--output", values.output, helpRoute);
       rejectArchiveFlag(
         action,
@@ -3030,18 +3031,30 @@ function parseArchiveArguments(
         helpRoute,
       );
       rejectArchiveFlag(action, "--role", values.role, helpRoute);
+      rejectArchiveFlag(action, "--llm", values.llm, helpRoute);
+      rejectArchiveFlag(action, "--prompt", values.prompt, helpRoute);
+      rejectArchiveFlag(action, "--query", values.query, helpRoute);
+      rejectArchiveBooleanFlag(action, "--reverse", values.reverse, helpRoute);
       rejectArchiveBooleanFlag(action, "--confirm", values.confirm, helpRoute);
       rejectArchiveBooleanFlag(action, "--jsonl", values.jsonl, helpRoute);
+      if (
+        values.import !== undefined &&
+        inferCLIFormatFromPath(values.import) !== "epub"
+      ) {
+        throw new Error(
+          withHelpRoute(
+            "`create --import` only supports EPUB input.",
+            helpRoute,
+          ),
+        );
+      }
       return {
         args: {
           action,
           archivePath,
-          ...(inputFormat === undefined ? {} : { inputFormat }),
+          ...(values.import === undefined ? {} : { importPath: values.import }),
           ...(values.json === undefined ? {} : { json: values.json }),
-          ...(values.llm === undefined ? {} : { llmJSON: values.llm }),
-          ...(values.prompt === undefined ? {} : { prompt: values.prompt }),
           ...(values.replace === undefined ? {} : { replace: values.replace }),
-          ...(sourcePath === undefined ? {} : { sourcePath }),
         },
         help: false,
         kind: "archive",
@@ -3049,6 +3062,7 @@ function parseArchiveArguments(
     }
     case "export":
       rejectArchiveExtraPositionals(action, positionals, 1, helpRoute);
+      rejectArchiveFlag(action, "--import", values.import, helpRoute);
       rejectArchiveFlag(action, "--input", values.input, helpRoute);
       rejectArchiveFlag(
         action,
@@ -3627,7 +3641,7 @@ function formatPackObjectMismatchMessage(uri: string): string {
 function formatMissingArchiveInputMessage(action: CLIArchiveAction): string {
   switch (action) {
     case "create":
-      return "Missing archive URI. Use `wikigraph wikg://<archive.wikg> create [source]`.";
+      return "Missing archive URI. Use `wikigraph wikg://<archive.wikg> create`.";
     case "export":
       return "Missing archive URI. Use `wikigraph wikg://<archive.wikg> export --output-format <format>`.";
     case "inspect":
@@ -3657,6 +3671,7 @@ function normalizeArchiveChapterArguments(
     readonly clear?: boolean;
     readonly "dry-run"?: boolean;
     readonly first?: boolean;
+    readonly import?: string;
     readonly input?: string;
     readonly "input-format"?: string;
     readonly json?: boolean;
@@ -3691,10 +3706,6 @@ function normalizeArchiveChapterArguments(
     values.after === undefined
       ? undefined
       : parseChapterRef(values.after, "--after", path, helpRoute);
-  const inputFormat =
-    values["input-format"] === undefined
-      ? undefined
-      : parseChapterInputFormat(values["input-format"], helpRoute);
   const addStage =
     values.stage === undefined
       ? undefined
@@ -3712,6 +3723,7 @@ function normalizeArchiveChapterArguments(
       );
     case "add":
       rejectActionFlag(values.chapter, "--chapter", action, helpRoute);
+      rejectActionFlag(values.import, "--import", action, helpRoute);
       rejectActionFlag(values.prompt, "--prompt", action, helpRoute);
       rejectActionFlag(values.to, "--to", action, helpRoute);
       rejectActionBooleanFlag(
@@ -3736,20 +3748,20 @@ function normalizeArchiveChapterArguments(
           action,
           helpRoute,
         );
-      } else if (addStage === "sourced" && inputFormat === undefined) {
-        throw new Error(
-          withHelpRoute(
-            "Missing --input-format. `chapter add --stage source` requires txt or markdown.",
-            helpRoute,
-          ),
+      } else if (addStage === "sourced") {
+        rejectActionFlag(
+          values["input-format"],
+          "--input-format",
+          action,
+          helpRoute,
         );
       }
       return {
         action,
         path,
         ...(addStage === undefined ? {} : { addStage }),
-        ...(inputFormat === undefined ? {} : { inputFormat }),
         ...(values.input === undefined ? {} : { inputPath: values.input }),
+        ...(values.json === undefined ? {} : { json: values.json }),
         ...(values.llm === undefined ? {} : { llmJSON: values.llm }),
         ...(parentChapterId === undefined ? {} : { parentChapterId }),
         ...(values.title === undefined ? {} : { title: values.title }),
@@ -3760,6 +3772,7 @@ function normalizeArchiveChapterArguments(
       rejectActionFlag(values.after, "--after", action, helpRoute);
       rejectActionFlag(values.before, "--before", action, helpRoute);
       rejectActionFlag(values.input, "--input", action, helpRoute);
+      rejectActionFlag(values.import, "--import", action, helpRoute);
       rejectActionFlag(
         values["input-format"],
         "--input-format",
@@ -3798,6 +3811,7 @@ function normalizeArchiveChapterArguments(
       requireChapterId(chapterId, action, helpRoute);
       rejectActionFlag(values.stage, "--stage", action, helpRoute);
       rejectActionFlag(values.input, "--input", action, helpRoute);
+      rejectActionFlag(values.import, "--import", action, helpRoute);
       rejectActionFlag(
         values["input-format"],
         "--input-format",
@@ -3827,6 +3841,7 @@ function normalizeArchiveChapterArguments(
         ...(beforeChapterId === undefined ? {} : { beforeChapterId }),
         chapterId,
         ...(values.first === undefined ? {} : { first: values.first }),
+        ...(values.json === undefined ? {} : { json: values.json }),
         ...(values.last === undefined ? {} : { last: values.last }),
         ...(values.llm === undefined ? {} : { llmJSON: values.llm }),
         ...(values.root === undefined ? {} : { moveToRoot: values.root }),
@@ -3839,6 +3854,7 @@ function normalizeArchiveChapterArguments(
       rejectActionFlag(values.after, "--after", action, helpRoute);
       rejectActionFlag(values.before, "--before", action, helpRoute);
       rejectActionFlag(values.input, "--input", action, helpRoute);
+      rejectActionFlag(values.import, "--import", action, helpRoute);
       rejectActionFlag(
         values["input-format"],
         "--input-format",
@@ -3862,6 +3878,7 @@ function normalizeArchiveChapterArguments(
       return {
         action,
         chapterId,
+        ...(values.json === undefined ? {} : { json: values.json }),
         path,
         ...(values.llm === undefined ? {} : { llmJSON: values.llm }),
         ...(values.recursive === undefined
@@ -3882,6 +3899,7 @@ function normalizeArchiveChapterArguments(
         );
       }
       rejectActionFlag(values.input, "--input", action, helpRoute);
+      rejectActionFlag(values.import, "--import", action, helpRoute);
       rejectActionFlag(
         values["input-format"],
         "--input-format",
@@ -3910,6 +3928,7 @@ function normalizeArchiveChapterArguments(
       return {
         action,
         chapterId,
+        ...(values.json === undefined ? {} : { json: values.json }),
         path,
         resetStage,
         ...(values.llm === undefined ? {} : { llmJSON: values.llm }),
@@ -3919,14 +3938,13 @@ function normalizeArchiveChapterArguments(
       rejectActionFlag(values.stage, "--stage", action, helpRoute);
       rejectActionFlag(values.after, "--after", action, helpRoute);
       rejectActionFlag(values.before, "--before", action, helpRoute);
-      if (inputFormat === undefined) {
-        throw new Error(
-          withHelpRoute(
-            "Missing --input-format. `chapter set-source` requires txt or markdown.",
-            helpRoute,
-          ),
-        );
-      }
+      rejectActionFlag(values.import, "--import", action, helpRoute);
+      rejectActionFlag(
+        values["input-format"],
+        "--input-format",
+        action,
+        helpRoute,
+      );
       rejectActionFlag(values.parent, "--parent", action, helpRoute);
       rejectActionFlag(values.prompt, "--prompt", action, helpRoute);
       rejectActionFlag(values.title, "--title", action, helpRoute);
@@ -3950,8 +3968,8 @@ function normalizeArchiveChapterArguments(
       return {
         action,
         chapterId,
-        inputFormat,
         ...(inputValue === undefined ? {} : { inputValue }),
+        ...(values.json === undefined ? {} : { json: values.json }),
         path,
         ...(values.input === undefined ? {} : { inputPath: values.input }),
         ...(values.llm === undefined ? {} : { llmJSON: values.llm }),
@@ -3961,6 +3979,7 @@ function normalizeArchiveChapterArguments(
       rejectActionFlag(values.stage, "--stage", action, helpRoute);
       rejectActionFlag(values.after, "--after", action, helpRoute);
       rejectActionFlag(values.before, "--before", action, helpRoute);
+      rejectActionFlag(values.import, "--import", action, helpRoute);
       rejectActionFlag(
         values["input-format"],
         "--input-format",
@@ -4002,6 +4021,7 @@ function normalizeArchiveChapterArguments(
       rejectActionFlag(values.stage, "--stage", action, helpRoute);
       rejectActionFlag(values.after, "--after", action, helpRoute);
       rejectActionFlag(values.before, "--before", action, helpRoute);
+      rejectActionFlag(values.import, "--import", action, helpRoute);
       rejectActionFlag(values["json-input"], "--json", action, helpRoute);
       rejectActionBooleanFlag(values.json, "--json", action, helpRoute);
       if (values.title !== undefined) {
@@ -4061,6 +4081,7 @@ function normalizeArchiveChapterArguments(
       rejectActionFlag(values.chapter, "--chapter", action, helpRoute);
       rejectActionFlag(values.after, "--after", action, helpRoute);
       rejectActionFlag(values.before, "--before", action, helpRoute);
+      rejectActionFlag(values.import, "--import", action, helpRoute);
       rejectActionFlag(
         values["input-format"],
         "--input-format",
@@ -4132,6 +4153,7 @@ function parseHelpArguments(
     readonly description?: string;
     readonly "digest-dir"?: string;
     readonly help?: boolean;
+    readonly import?: string;
     readonly identifier?: string;
     readonly input?: string;
     readonly "input-format"?: string;
@@ -4149,6 +4171,7 @@ function parseHelpArguments(
   },
 ): ParsedCLIArguments {
   rejectHelpFlag("digest-dir", values["digest-dir"]);
+  rejectHelpFlag("import", values.import);
   rejectHelpFlag("input", values.input);
   rejectHelpFlag("input-format", values["input-format"]);
   rejectHelpFlag("json", values.json);
@@ -4290,24 +4313,6 @@ function parseChapterStage(
   throw new Error(
     withHelpRoute(
       `Invalid ${flag}: ${value}. Expected planned, source, reading-graph, or reading-summary.`,
-      helpRoute,
-    ),
-  );
-}
-
-function parseChapterInputFormat(
-  value: string,
-  helpRoute: string,
-): Extract<CLIFormat, "markdown" | "txt"> {
-  const format = parseCLIFormat(value, "--input-format");
-
-  if (format === "markdown" || format === "txt") {
-    return format;
-  }
-
-  throw new Error(
-    withHelpRoute(
-      `Invalid --input-format for chapter source: ${value}. Expected txt or markdown.`,
       helpRoute,
     ),
   );
@@ -4741,6 +4746,12 @@ function isUriFirstArchiveAction(
   );
 }
 
+function isImplicitArchiveReadAction(
+  value: CLIArchiveUriAction,
+): value is "get" | "list" | "search" {
+  return value === "get" || value === "list" || value === "search";
+}
+
 function isWikiGraphUri(value: string | undefined): boolean {
   return value?.startsWith(WIKI_GRAPH_URI_PREFIX) === true;
 }
@@ -5071,6 +5082,7 @@ function normalizeArchiveInlineOptions(
       case "--chapter":
       case "--context":
       case "--cursor":
+      case "--import":
       case "--input":
       case "--input-format":
       case "--limit":
@@ -5346,6 +5358,7 @@ function rejectArchiveNonReadFlags(
   action: string,
   values: {
     readonly input?: string;
+    readonly import?: string;
     readonly "input-format"?: string;
     readonly llm?: string;
     readonly output?: string;
@@ -5355,6 +5368,7 @@ function rejectArchiveNonReadFlags(
   helpRoute: string,
 ): void {
   rejectArchiveFlag(action, "--input", values.input, helpRoute);
+  rejectArchiveFlag(action, "--import", values.import, helpRoute);
   rejectArchiveFlag(
     action,
     "--input-format",

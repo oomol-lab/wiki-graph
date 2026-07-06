@@ -4147,17 +4147,22 @@ async function readTextStreamRange(
   readonly text: string;
 }> {
   const index = await getTextStreamIndex(document, chapterId, stream, context);
-  const lastSentenceIndex = Math.max(0, index.sentences.length - 1);
-  const start = clampInteger(startSentenceIndex, 0, lastSentenceIndex);
-  const end = clampInteger(endSentenceIndex, start, lastSentenceIndex);
-  const sentences = index.sentences.slice(start, end + 1);
-  const [firstSentence] = sentences;
-
-  if (firstSentence === undefined) {
+  if (index.sentences.length === 0) {
     throw new Error(
       `Chapter ${formatChapterId(chapterId)} has no ${stream} text.`,
     );
   }
+
+  const lastSentenceIndex = index.sentences.length - 1;
+  if (startSentenceIndex > lastSentenceIndex) {
+    throw new Error(
+      `${stream} range ${formatTextStreamRangeUri(chapterId, stream, startSentenceIndex, endSentenceIndex)} is out of bounds. Last sentence index is ${lastSentenceIndex}.`,
+    );
+  }
+
+  const start = clampInteger(startSentenceIndex, 0, lastSentenceIndex);
+  const end = clampInteger(endSentenceIndex, start, lastSentenceIndex);
+  const sentences = index.sentences.slice(start, end + 1);
 
   return {
     endSentenceIndex: end,

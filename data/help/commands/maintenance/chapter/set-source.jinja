@@ -5,10 +5,9 @@ Purpose:
   Fill a planned chapter with normalized source text.
 
 Usage:
-  wikigraph <chapter-uri>/source set [text] [--input <path>] --input-format <format> [--llm <json>] [--help|-h]
+  wikigraph <chapter-uri>/source set [text] [--input <path>] [--llm <json>] [--json] [--help|-h]
 
 Input:
-  - `--input-format` must be `txt` or `markdown`.
   - Source text is read from a positional value, `--input <path>`, or stdin.
 
 Preconditions:
@@ -21,6 +20,7 @@ Behavior:
   - Does not generate Reading Graph data.
   - Does not generate or modify a summary.
   - Does not call an LLM provider.
+  - With `--json`, prints the updated chapter status as one JSON object.
 
 Typical next step:
   wikigraph wikg://local/job add --input <archive-uri|chapter-uri> --task reading-graph --accept-cost

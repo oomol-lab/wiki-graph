@@ -1,4 +1,4 @@
-import { rename, rm, stat, writeFile } from "fs/promises";
+import { rename, rm, stat } from "fs/promises";
 import { basename, dirname, join } from "path";
 
 import { createWikiGraphTempDirectory } from "../common/wiki-graph-temp.js";
@@ -37,8 +37,10 @@ import {
   parseLocatedWikiGraphUri,
   requireLocatedObjectOrArchiveUri,
   SpineDigestFile,
+  writeWikgArchive,
 } from "../wikg/index.js";
-import type { ReadonlyDocument } from "../document/index.js";
+import { DirectoryDocument, type ReadonlyDocument } from "../document/index.js";
+import { TOC_FILE_VERSION } from "../source/index.js";
 
 import type { CLIArchiveArguments } from "./args.js";
 import { loadCLIConfig } from "./config.js";
@@ -53,7 +55,7 @@ import {
   type GenerationPerformanceHint,
   type GenerationPlanningCost,
 } from "./generation-planning.js";
-import { readTextStreamFromStdin, writeTextToStdout } from "./io.js";
+import { writeTextToStdout } from "./io.js";
 import { formatCLIJSON, formatCLIJSONLine } from "./json.js";
 import { formatShellCommand } from "./shell.js";
 
@@ -463,61 +465,39 @@ async function writeCreatedArchiveFile(
   args: CLIArchiveArguments,
   outputPath: string,
 ): Promise<void> {
-  if (args.sourcePath === undefined) {
-    if (args.inputFormat === undefined) {
-      await new SpineDigestFile(outputPath).write(async () => {});
-      return;
-    }
-
-    await createArchiveFromStdin(args, outputPath);
+  if (args.importPath === undefined) {
+    await createEmptyArchive(outputPath);
     return;
   }
 
-  if (!isUrl(args.sourcePath)) {
-    await runConvertCommand({
-      help: false,
-      inputPath: args.sourcePath,
-      outputPath,
-      ...(args.inputFormat === undefined
-        ? {}
-        : { inputFormat: args.inputFormat }),
-      ...(args.llmJSON === undefined ? {} : { llmJSON: args.llmJSON }),
-      outputFormat: "wikg",
-      ...(args.prompt === undefined ? {} : { prompt: args.prompt }),
-      targetStage: "sourced",
-      verbose: false,
-    });
-    return;
-  }
+  await runConvertCommand({
+    help: false,
+    inputPath: args.importPath,
+    outputFormat: "wikg",
+    outputPath,
+    targetStage: "sourced",
+    verbose: false,
+  });
+}
 
-  const temporaryDirectoryPath =
-    await createWikiGraphTempDirectory("url-create");
-  const sourcePath = join(temporaryDirectoryPath, "source.md");
+async function createEmptyArchive(outputPath: string): Promise<void> {
+  const directoryPath = await createWikiGraphTempDirectory("archive-write");
+  const document = await DirectoryDocument.open(directoryPath);
 
   try {
-    const response = await fetch(args.sourcePath);
-
-    if (!response.ok) {
-      throw new Error(
-        `Failed to fetch ${args.sourcePath}: ${response.status} ${response.statusText}`,
-      );
+    try {
+      await document.openSession(async (openedDocument) => {
+        await openedDocument.writeToc({
+          items: [],
+          version: TOC_FILE_VERSION,
+        });
+      });
+    } finally {
+      await document.release();
     }
-
-    const text = await response.text();
-    await writeFile(sourcePath, formatFetchedUrlSource(args.sourcePath, text));
-    await runConvertCommand({
-      help: false,
-      inputFormat: args.inputFormat ?? "markdown",
-      inputPath: sourcePath,
-      ...(args.llmJSON === undefined ? {} : { llmJSON: args.llmJSON }),
-      outputFormat: "wikg",
-      outputPath,
-      ...(args.prompt === undefined ? {} : { prompt: args.prompt }),
-      targetStage: "sourced",
-      verbose: false,
-    });
+    await writeWikgArchive(directoryPath, outputPath);
   } finally {
-    await rm(temporaryDirectoryPath, { force: true, recursive: true });
+    await rm(directoryPath, { force: true, recursive: true });
   }
 }
 
@@ -785,42 +765,6 @@ async function runNextArchivePage(args: CLIArchiveArguments): Promise<void> {
         return;
     }
   });
-}
-
-async function createArchiveFromStdin(
-  args: CLIArchiveArguments,
-  outputPath: string,
-): Promise<void> {
-  if (args.inputFormat === undefined) {
-    throw new Error("Internal error: missing stdin create format.");
-  }
-  if (process.stdin.isTTY) {
-    throw new Error(
-      "Missing source input. Pipe text into stdin or pass a source path.",
-    );
-  }
-
-  const temporaryDirectoryPath =
-    await createWikiGraphTempDirectory("stdin-create");
-  const extension = args.inputFormat === "markdown" ? ".md" : ".txt";
-  const sourcePath = join(temporaryDirectoryPath, `source${extension}`);
-
-  try {
-    await writeFile(sourcePath, await readAllText(readTextStreamFromStdin()));
-    await runConvertCommand({
-      help: false,
-      inputFormat: args.inputFormat,
-      inputPath: sourcePath,
-      ...(args.llmJSON === undefined ? {} : { llmJSON: args.llmJSON }),
-      outputFormat: "wikg",
-      outputPath,
-      ...(args.prompt === undefined ? {} : { prompt: args.prompt }),
-      targetStage: "sourced",
-      verbose: false,
-    });
-  } finally {
-    await rm(temporaryDirectoryPath, { force: true, recursive: true });
-  }
 }
 
 function createFindOptions(args: CLIArchiveArguments): ArchiveFindOptions {
@@ -1490,7 +1434,7 @@ function createInspectImprovements(input: {
         `${input.archiveUri}/chapter`,
         "add",
         "--stage",
-        "sourced",
+        "source",
       ]),
       recommendation:
         "No source content is available yet; add or import source text before graph or summary generation.",
@@ -3155,28 +3099,4 @@ function toArchiveCollectionType(
     case "triple":
       return "triple";
   }
-}
-
-function isUrl(value: string): boolean {
-  try {
-    const url = new URL(value);
-
-    return url.protocol === "http:" || url.protocol === "https:";
-  } catch {
-    return false;
-  }
-}
-
-function formatFetchedUrlSource(url: string, text: string): string {
-  return [`# ${url}`, "", text].join("\n");
-}
-
-async function readAllText(stream: AsyncIterable<string>): Promise<string> {
-  let text = "";
-
-  for await (const chunk of stream) {
-    text += chunk;
-  }
-
-  return text;
 }
