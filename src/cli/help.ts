@@ -3,6 +3,7 @@ import { createEnv } from "../common/template.js";
 
 import { CLI_FORMATS } from "./formats.js";
 import { CLI_HELP_ROUTES, withHelpRoute } from "./errors.js";
+import { formatShellCommand } from "./shell.js";
 import type {
   CLIArchiveAction,
   CLIArchiveChapterAction,
@@ -251,7 +252,7 @@ export function renderUriPredicateHelpText(
     throw new Error(
       withHelpRoute(
         `The URI target ${uri} does not support \`${predicate}\`.`,
-        `wikigraph ${uri} --help`,
+        formatShellCommand(["wikigraph", uri, "--help"]),
       ),
     );
   }

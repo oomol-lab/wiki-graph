@@ -1904,6 +1904,20 @@ describe("cli/archive", () => {
     expect(requestIndex).toBeLessThan(jobIndex);
   });
 
+  it("quotes generated inspect commands for shell copy and paste", async () => {
+    await runArchiveCommand({
+      action: "inspect",
+      archivePath: "/tmp/My Book.wikg",
+    });
+
+    expect(archiveMockState.textWrites[0]).toContain(
+      "Command: wikigraph 'wikg:///tmp/My Book.wikg/index' enable",
+    );
+    expect(archiveMockState.textWrites[0]).toContain(
+      "Command: wikigraph wikg://local/job add --input 'wikg:///tmp/My Book.wikg' --task reading-graph --accept-cost",
+    );
+  });
+
   it("inspects archive readiness as a json report", async () => {
     interface InspectJSONReport {
       readonly improvements: readonly unknown[];

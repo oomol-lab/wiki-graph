@@ -26,6 +26,7 @@ import {
   parseLocalConfigSection,
   type LocalConfigSection,
 } from "./local-config-store.js";
+import { formatShellCommand } from "./shell.js";
 import {
   formatLocatedChapterResourceUri,
   formatLocatedChapterSourceCollectionUri,
@@ -758,7 +759,7 @@ function parseArchiveUriFirstArguments(
       throw new Error(
         withHelpRoute(
           `The URI target ${uri} does not support \`${explicitAction}\`.`,
-          `wikigraph ${uri} --help`,
+          formatWikiGraphHelpCommand(uri),
         ),
       );
     }
@@ -770,10 +771,12 @@ function parseArchiveUriFirstArguments(
   }
 
   if (!isArchiveUriAction(action)) {
+    const helpCommand = formatWikiGraphHelpCommand(uri);
+
     throw new Error(
       withHelpRoute(
-        `The URI-first form does not support \`${action}\`. Use \`wikigraph ${uri} --help\` to inspect valid predicates.`,
-        `wikigraph ${uri} --help`,
+        `The URI-first form does not support \`${action}\`. Use \`${helpCommand}\` to inspect valid predicates.`,
+        helpCommand,
       ),
     );
   }
@@ -912,7 +915,7 @@ function parseArchiveUriTargetArguments(
   const parsed = parseLocatedWikiGraphUri(uri);
   const archivePath = parsed.archivePath;
   const objectUri = parsed.objectUri;
-  const helpRoute = `wikigraph ${uri} ${action} --help`;
+  const helpRoute = formatWikiGraphHelpCommand(uri, action);
 
   if (archivePath === undefined) {
     throw new Error(formatMissingArchiveLocatorMessage(uri));
@@ -996,10 +999,12 @@ function parseArchiveUriTargetArguments(
   }
 
   if (!isUriFirstArchiveAction(action)) {
+    const helpCommand = formatWikiGraphHelpCommand(uri);
+
     throw new Error(
       withHelpRoute(
-        `The URI target ${uri} does not support \`${action}\`. Use \`wikigraph ${uri} --help\` to inspect valid predicates.`,
-        `wikigraph ${uri} --help`,
+        `The URI target ${uri} does not support \`${action}\`. Use \`${helpCommand}\` to inspect valid predicates.`,
+        helpCommand,
       ),
     );
   }
@@ -1285,7 +1290,7 @@ function parseArchiveCoverUriArguments(
   tail: readonly string[],
   values: ArchiveArgumentValues,
 ): ParsedCLIArguments {
-  const helpRoute = `wikigraph ${uri} ${action} --help`;
+  const helpRoute = formatWikiGraphHelpCommand(uri, action);
 
   if (values.help === true) {
     return {
@@ -1578,7 +1583,7 @@ function parseArchiveChapterUriArguments(
   tail: readonly string[],
   values: ArchiveArgumentValues,
 ): ParsedCLIArguments {
-  const helpRoute = `wikigraph ${uri} ${action} --help`;
+  const helpRoute = formatWikiGraphHelpCommand(uri, action);
 
   switch (target.kind) {
     case "collection":
@@ -2105,8 +2110,8 @@ function parseJobUriFirstArguments(
 
   const helpRoute =
     explicitAction === undefined
-      ? `wikigraph ${uri} --help`
-      : `wikigraph ${uri} ${action} --help`;
+      ? formatWikiGraphHelpCommand(uri)
+      : formatWikiGraphHelpCommand(uri, action);
   const tail = explicitAction === undefined ? [] : positionals.slice(2);
 
   if (jobTargetUri !== undefined) {
@@ -2211,8 +2216,8 @@ function parseLocalConfigUriFirstArguments(
   const action = explicitAction ?? "get";
   const helpRoute =
     explicitAction === undefined
-      ? `wikigraph ${uri} --help`
-      : `wikigraph ${uri} ${action} --help`;
+      ? formatWikiGraphHelpCommand(uri)
+      : formatWikiGraphHelpCommand(uri, action);
 
   if (section === undefined) {
     throw new Error(
@@ -2234,7 +2239,7 @@ function parseLocalConfigUriFirstArguments(
       throw new Error(
         withHelpRoute(
           `The URI target ${uri} does not support \`${action}\`.`,
-          `wikigraph ${uri} --help`,
+          formatWikiGraphHelpCommand(uri),
         ),
       );
     }
@@ -5347,4 +5352,13 @@ function rejectArchiveNonReadFlags(
     helpRoute,
   );
   rejectArchiveFlag(action, "--prompt", values.prompt, helpRoute);
+}
+
+function formatWikiGraphHelpCommand(uri: string, action?: string): string {
+  return formatShellCommand([
+    "wikigraph",
+    uri,
+    ...(action === undefined ? [] : [action]),
+    "--help",
+  ]);
 }

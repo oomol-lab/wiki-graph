@@ -55,6 +55,7 @@ import {
 } from "./generation-planning.js";
 import { readTextStreamFromStdin, writeTextToStdout } from "./io.js";
 import { formatCLIJSON, formatCLIJSONLine } from "./json.js";
+import { formatShellCommand } from "./shell.js";
 
 type ResultFormat = "json" | "jsonl" | "text";
 
@@ -574,7 +575,7 @@ function formatArchiveAlreadyExistsMessage(archivePath: string): string {
 
   return [
     `Archive already exists: ${archivePath}`,
-    `Use \`wikigraph ${uri} inspect\` to view it, or rerun with \`--replace\` to overwrite it.`,
+    `Use \`${formatShellCommand(["wikigraph", uri, "inspect"])}\` to view it, or rerun with \`--replace\` to overwrite it.`,
   ].join("\n");
 }
 
@@ -1244,7 +1245,11 @@ async function createArchiveInspectReport(
       ...(ftsCurrent
         ? {}
         : {
-            fixCommand: `wikigraph ${archiveUri}/index enable`,
+            fixCommand: formatShellCommand([
+              "wikigraph",
+              `${archiveUri}/index`,
+              "enable",
+            ]),
             impact:
               "--query, related --query, and evidence --query are unavailable.",
             resource: "local CPU/disk time only; no LLM tokens.",
@@ -1467,7 +1472,11 @@ function createInspectImprovements(input: {
 
   if (!input.ftsCurrent) {
     improvements.push({
-      command: `wikigraph ${input.archiveUri}/index enable`,
+      command: formatShellCommand([
+        "wikigraph",
+        `${input.archiveUri}/index`,
+        "enable",
+      ]),
       recommendation:
         "Enable the searchable FTS index so --query filtering is available for scopes, related results, and evidence.",
       title: "Enable searchable index",
@@ -1476,7 +1485,13 @@ function createInspectImprovements(input: {
 
   if (input.contentChapters.length === 0) {
     improvements.push({
-      command: `wikigraph ${input.archiveUri}/chapter add --stage sourced`,
+      command: formatShellCommand([
+        "wikigraph",
+        `${input.archiveUri}/chapter`,
+        "add",
+        "--stage",
+        "sourced",
+      ]),
       recommendation:
         "No source content is available yet; add or import source text before graph or summary generation.",
       title: "Add source content",
@@ -1543,7 +1558,16 @@ function createGraphImprovement(input: {
 
   return [
     {
-      command: `wikigraph wikg://local/job add --input ${input.scopeUri} --task ${input.task} --accept-cost`,
+      command: formatShellCommand([
+        "wikigraph",
+        "wikg://local/job",
+        "add",
+        "--input",
+        input.scopeUri,
+        "--task",
+        input.task,
+        "--accept-cost",
+      ]),
       missingChapters: missing.length,
       missingWords,
       planning: planGenerationTask(
@@ -2325,9 +2349,9 @@ function appendEntityNextSteps(
     text,
     "",
     "Next:",
-    `  wikigraph ${entityUri} evidence`,
-    `  wikigraph ${entityUri} related`,
-    `  wikigraph ${entityUri}/wikipage`,
+    `  ${formatShellCommand(["wikigraph", entityUri, "evidence"])}`,
+    `  ${formatShellCommand(["wikigraph", entityUri, "related"])}`,
+    `  ${formatShellCommand(["wikigraph", `${entityUri}/wikipage`])}`,
   ].join("\n");
 }
 
@@ -2744,7 +2768,7 @@ function formatOpenShortUriHint(
     return "";
   }
 
-  return `\n\nOpen short URIs with the archive locator, for example:\n  wikigraph ${formatWikiGraphCommandUri(context.archivePath, shortUri)}`;
+  return `\n\nOpen short URIs with the archive locator, for example:\n  ${formatShellCommand(["wikigraph", formatWikiGraphCommandUri(context.archivePath, shortUri)])}`;
 }
 
 function isShortOutputUri(uri: string): boolean {

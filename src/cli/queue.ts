@@ -57,6 +57,7 @@ import {
 } from "./generation-planning.js";
 import { writeTextToStdout } from "./io.js";
 import { formatCLIJSON } from "./json.js";
+import { formatShellCommand } from "./shell.js";
 import { CLI_HELP_ROUTES, withHelpRoute } from "./errors.js";
 import {
   ProgressOutputWriter,
@@ -928,7 +929,13 @@ async function writeJobSummary(
           ? {}
           : { estimate: formatQueueAddEstimateJSON(options.estimate) }),
         ...(options.watch === true
-          ? { watchCommand: `wikigraph wikg://local/job/${job.jobId} watch` }
+          ? {
+              watchCommand: formatShellCommand([
+                "wikigraph",
+                `wikg://local/job/${job.jobId}`,
+                "watch",
+              ]),
+            }
           : {}),
       }),
     );
@@ -939,7 +946,13 @@ async function writeJobSummary(
     [
       `Job ${job.jobId} ${job.state} ${job.target} chapter ${job.chapterId} ${job.archivePath}`,
       ...(options.watch === true
-        ? [`Watch: wikigraph wikg://local/job/${job.jobId} watch`]
+        ? [
+            `Watch: ${formatShellCommand([
+              "wikigraph",
+              `wikg://local/job/${job.jobId}`,
+              "watch",
+            ])}`,
+          ]
         : []),
       ...(options.estimate === undefined
         ? []
