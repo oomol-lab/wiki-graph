@@ -1103,6 +1103,7 @@ function parseArchiveIndexUriArguments(
     rejectArchiveBooleanFlag(action, "--jsonl", values.jsonl, helpRoute);
   }
   rejectArchiveBooleanFlag(action, "--last", values.last, helpRoute);
+  rejectArchiveBooleanFlag(action, "--reverse", values.reverse, helpRoute);
   rejectArchiveBooleanFlag(action, "--root", values.root, helpRoute);
   rejectArchiveBooleanFlag(action, "--verbose", values.verbose, helpRoute);
   rejectCommandMetaFlags(values, action, helpRoute);

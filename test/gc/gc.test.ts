@@ -116,12 +116,15 @@ describe("gc", () => {
       const report = await tryRunWikiGraphGc({ dryRun: true });
 
       expect(report.skipped).toBe(false);
-      expect(
-        report.jobs.find((item) => item.name === "wikipage-cache"),
-      ).toMatchObject({
+      const wikipageCacheJob = report.jobs.find(
+        (item) => item.name === "wikipage-cache",
+      );
+
+      expect(wikipageCacheJob).toMatchObject({
         removed: 2,
         scanned: 2,
       });
+      expect(wikipageCacheJob?.freedBytes).toBeGreaterThan(0);
       await expect(countRows("cache/cache.sqlite", "qid_cache")).resolves.toBe(
         1,
       );

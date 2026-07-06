@@ -261,6 +261,9 @@ describe("cli/args", () => {
     expect(() =>
       parseCLIArguments(["wikg:///tmp/book.wikg/index", "enable", "--json"]),
     ).toThrow("The `enable` command does not support --json.");
+    expect(() =>
+      parseCLIArguments(["wikg:///tmp/book.wikg/index", "--reverse"]),
+    ).toThrow("The `get` command does not support --reverse.");
     expect(
       parseCLIArguments(["wikg:///tmp/book.wikg/index", "enable", "--jsonl"]),
     ).toStrictEqual({

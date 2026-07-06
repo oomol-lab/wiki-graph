@@ -255,13 +255,27 @@ export async function runWikipageCacheGc(
     const afterBytes = await readFileSize(databasePath);
 
     return {
-      freedBytes: Math.max(0, beforeBytes - (afterBytes ?? 0)),
+      freedBytes: context.dryRun
+        ? estimateDryRunFreedBytes(beforeBytes, scanned, expired)
+        : Math.max(0, beforeBytes - (afterBytes ?? 0)),
       removed: expired,
       scanned,
     };
   } finally {
     await database.close();
   }
+}
+
+function estimateDryRunFreedBytes(
+  beforeBytes: number,
+  scanned: number,
+  expired: number,
+): number {
+  if (scanned === 0 || expired === 0) {
+    return 0;
+  }
+
+  return Math.round(beforeBytes * (expired / scanned));
 }
 
 async function migrateWikipageCacheSchema(database: Database): Promise<void> {

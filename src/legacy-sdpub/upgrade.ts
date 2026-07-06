@@ -949,12 +949,16 @@ async function listTableColumns(
   tableName: string,
 ): Promise<ReadonlySet<string>> {
   const columns = await database.queryAll(
-    `PRAGMA table_info(${JSON.stringify(tableName)})`,
+    `PRAGMA table_info(${quoteSqlIdentifier(tableName)})`,
     undefined,
     (row) => String(row.name),
   );
 
   return new Set(columns);
+}
+
+function quoteSqlIdentifier(identifier: string): string {
+  return `"${identifier.replaceAll('"', '""')}"`;
 }
 
 async function indexArchiveEntries(
