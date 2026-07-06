@@ -192,12 +192,11 @@ $ wikigraph wikg://book.wikg/entity/Q8018 evidence --help
 ### 创建知识库
 
 ```bash
-wikigraph wikg://book.wikg create ./book.epub
-wikigraph wikg://report.wikg create ./report.md
-cat ./notes.txt | wikigraph wikg://notes.wikg create --input-format txt
+$ wikigraph wikg://book.wikg create
+$ wikigraph wikg://book.wikg create --import ./book.epub
 ```
 
-创建命令只导入 source stage。Knowledge Graph、Reading Graph 和 Summary 需要后续生成任务。
+不带 `--import` 时会创建一份空的 `.wikg` 知识库。`--import` 只接受 EPUB，用于创建知识库并导入 EPUB 的元数据、封面、章节树和源文本。
 
 ### 检查归档状态
 
@@ -248,70 +247,21 @@ wikigraph wikg://book.wikg/entity/Q8018 related --query "memory" --evidence 2
 
 `related` 用于从一个已选对象扩展到附近对象。Entity 的 related 结果主要是相关 triples。
 
-### 打包上下文
+### 准备上下文
 
 ```bash
 wikigraph wikg://book.wikg/entity/Q8018 pack --budget 5000
 ```
 
-`pack` 用于把一个已选 chunk 或 entity 周围的上下文打包给 AI Agent。需要严格核验时，先用 `evidence`。
-
-### 导出投影
-
-```bash
-wikigraph wikg://book.wikg export --output-format markdown --output book.md
-wikigraph wikg://book.wikg export --output-format txt > book.txt
-```
-
-导出结果是 `.wikg` 的可读投影，不替代 `.wikg` 归档本身。
+`pack` 用于把一个已选 chunk 或 entity 周围的上下文整理成可直接携带的文本。需要严格核验时，先用 `evidence`。
 
 ## 面向 AI Agent
 
-Wiki Graph 的 CLI help 是产品契约的一部分。Agent 不应该猜命令形态，而应该从 help 网络继续下钻：
+Wiki Graph 把 CLI help 作为产品契约维护。安装后从根 help 开始即可；命令、URI、谓语、配置、运行时和格式约束都会在 help 网络中继续下钻，不需要依赖 README 猜命令形态。
 
 ```bash
-wikigraph --help
-wikigraph help recipe
-wikigraph help readiness
-wikigraph help uri
-wikigraph help format
-wikigraph help config
-wikigraph help runtime
+$ wikigraph --help
 ```
-
-拿到一个陌生归档时，第一步是：
-
-```bash
-wikigraph <archive-uri> inspect
-```
-
-拿到一个 URI 但不知道它能做什么时：
-
-```bash
-wikigraph <uri> --help
-```
-
-拿到一个 URI 和一个 predicate，但不知道参数时：
-
-```bash
-wikigraph <uri> <predicate> --help
-```
-
-Agent 使用原则：
-
-- 不要解压 `.wikg`，不要直接改内部 SQLite 或归档文件。
-- 不要把裸文件路径当作 URI target，先转成 `wikg://...`。
-- 命令返回的短 URI 是 archive-relative handle，复用前要补上 archive locator。
-- 需要稳定字段时优先使用 `--json`。
-- 需要遍历大量对象或读取进度流时使用 `--jsonl`。
-- 需要回答内容问题时，优先从 `inspect`、scope query、object read、`evidence`、`related` 和 `pack` 组合出上下文。
-- 需要生成新数据时，先确认 LLM、WikiSpine、index 和 job readiness。
-
-## 状态
-
-Wiki Graph 仍在快速迭代。当前推荐的稳定入口是 `wikigraph` CLI 和它的内建 help 系统。
-
-程序化 API 和 `.wikg` 内部格式暂时不是 README 的主要文档面。它们可能已经随包暴露，但不建议外部用户在没有明确需求时依赖。
 
 ## License
 
