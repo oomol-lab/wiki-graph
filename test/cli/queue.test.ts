@@ -201,8 +201,8 @@ vi.mock("../../src/facade/index.js", () => ({
     queueMockState.getJobIds.push(jobId);
     return Promise.resolve(queueMockState.job);
   }),
-  generateChapterKnowledgeGraphArtifact: vi.fn(
-    (_document: unknown, _chapterId: number, options: unknown) => {
+  generateChapterKnowledgeGraphArtifactFromSnapshot: vi.fn(
+    (_chapterId: number, _snapshot: unknown, options: unknown) => {
       queueMockState.stepLog.push("build-knowledge-graph");
       queueMockState.buildKnowledgeGraphCalls.push(options);
       return Promise.resolve({
@@ -241,6 +241,16 @@ vi.mock("../../src/facade/index.js", () => ({
       sourceText: ["Alpha beta."],
     }),
   ),
+  snapshotChapterKnowledgeGraphInput: vi.fn(() => {
+    queueMockState.stepLog.push("snapshot-knowledge-graph");
+    return Promise.resolve({
+      details: {
+        chapterId: 12,
+        stage: "sourced",
+      },
+      fragments: [],
+    });
+  }),
   snapshotChapterSummaryInput: vi.fn(() => {
     queueMockState.stepLog.push("snapshot-summary");
     return Promise.resolve({
@@ -899,8 +909,9 @@ describe("cli/queue", () => {
       "read:start",
       "read:end",
       "read:start",
-      "build-knowledge-graph",
+      "snapshot-knowledge-graph",
       "read:end",
+      "build-knowledge-graph",
       "write:start",
       "commit-knowledge-graph",
       "write:end",
@@ -928,6 +939,11 @@ describe("cli/queue", () => {
       },
     ]);
     expect(queueMockState.inputRevisionAssertions).toStrictEqual([
+      {
+        currentRevision: 1,
+        jobId: "job-1",
+        ownerId: "owner-1",
+      },
       {
         currentRevision: 1,
         jobId: "job-1",

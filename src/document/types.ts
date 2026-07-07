@@ -35,6 +35,30 @@ export interface SentenceRecord {
   readonly wordsCount: number;
 }
 
+export class Sentence implements SentenceRecord {
+  #text: string | undefined;
+  public readonly rawText: string;
+  public readonly wordsCount: number;
+
+  public constructor(rawText: string, wordsCount: number) {
+    this.rawText = rawText;
+    this.wordsCount = wordsCount;
+  }
+
+  public get text(): string {
+    this.#text ??= normalizeSentenceText(this.rawText);
+
+    return this.#text;
+  }
+
+  public toJSON(): SentenceRecord {
+    return {
+      text: this.text,
+      wordsCount: this.wordsCount,
+    };
+  }
+}
+
 export interface FragmentRecord {
   readonly serialId: number;
   readonly fragmentId: number;
@@ -137,6 +161,10 @@ export interface SnakeEdgeRecord {
   readonly fromSnakeId: number;
   readonly toSnakeId: number;
   readonly weight: number;
+}
+
+function normalizeSentenceText(text: string): string {
+  return text.replace(/\s+/gu, " ").trim();
 }
 
 export interface SentenceGroupRecord {

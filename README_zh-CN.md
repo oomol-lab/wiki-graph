@@ -1,3 +1,5 @@
+![](./docs/images/terminal-cn.png)
+
 <div align="center">
   <h1>Wiki Graph</h1>
   <p><a href="./README.md">English</a> | 中文</p>

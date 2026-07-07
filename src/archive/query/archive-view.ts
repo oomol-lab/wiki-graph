@@ -2,6 +2,7 @@ import type {
   ChunkRecord,
   MentionLinkRecord,
   MentionRecord,
+  ReadonlySerialTextStream,
   ReadonlyDocument,
   ReadingEdgeRecord,
   SentenceId,
@@ -4163,12 +4164,16 @@ async function readTextStreamRange(
   const start = clampInteger(startSentenceIndex, 0, lastSentenceIndex);
   const end = clampInteger(endSentenceIndex, start, lastSentenceIndex);
   const sentences = index.sentences.slice(start, end + 1);
+  const text =
+    normalizeRenderedTextStreamRange(
+      await readTextStreamRawRange(document, chapterId, stream, start, end),
+    ) ?? joinTextStreamSentences(sentences);
 
   return {
     endSentenceIndex: end,
     id: formatTextStreamRangeUri(chapterId, stream, start, end),
     startSentenceIndex: start,
-    text: sentences.map((sentence) => sentence.text).join("\n"),
+    text,
   };
 }
 
@@ -4177,9 +4182,52 @@ async function readTextStreamText(
   chapterId: number,
   stream: ArchiveTextStreamKind,
 ): Promise<string> {
+  const serial = getTextStreamSerial(document, chapterId, stream);
+  const text = await serial.readText?.();
+
+  if (text !== undefined) {
+    return text;
+  }
+
   const index = await createTextStreamIndex(document, chapterId, stream);
 
-  return index.sentences.map((sentence) => sentence.text).join("\n");
+  return joinTextStreamSentences(index.sentences);
+}
+
+async function readTextStreamRawRange(
+  document: ReadonlyDocument,
+  chapterId: number,
+  stream: ArchiveTextStreamKind,
+  startSentenceIndex: number,
+  endSentenceIndex: number,
+): Promise<string | undefined> {
+  const serial = getTextStreamSerial(document, chapterId, stream);
+
+  return await serial.readTextInRange?.(startSentenceIndex, endSentenceIndex);
+}
+
+function getTextStreamSerial(
+  document: ReadonlyDocument,
+  chapterId: number,
+  stream: ArchiveTextStreamKind,
+): ReadonlySerialTextStream {
+  return stream === "summary"
+    ? document.getSummaryFragments(chapterId)
+    : document.getSerialFragments(chapterId);
+}
+
+function joinTextStreamSentences(
+  sentences: readonly Pick<ArchiveTextStreamSentence, "text">[],
+): string {
+  return sentences.map((sentence) => sentence.text).join("");
+}
+
+function normalizeRenderedTextStreamRange(
+  text: string | undefined,
+): string | undefined {
+  return text
+    ?.replace(/^(?:[^\S\r\n]*(?:\r\n|\n|\r))+/u, "")
+    .replace(/(?:(?:\r\n|\n|\r)[^\S\r\n]*)+$/u, "");
 }
 
 async function getTextStreamIndex(

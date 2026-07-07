@@ -222,6 +222,45 @@ describe("archive/query/archive-view", () => {
     });
   });
 
+  it("renders source text from the stored text stream without sentence newlines", async () => {
+    await withTempDir("spinedigest-archive-view-", async (path) => {
+      const document = await DirectoryDocument.open(`${path}/document`);
+      const sourceText = "\n\n  Alpha one.\n\nBeta two.\n\n";
+
+      try {
+        await document.openSession(async (openedDocument) => {
+          await openedDocument.createSerial();
+          await openedDocument
+            .getSerialFragments(1)
+            .writeTextStream(sourceText);
+          await openedDocument.writeToc({
+            items: [{ children: [], serialId: 1, title: "Chapter 1" }],
+            version: 1,
+          });
+        });
+
+        const fullPage = await readArchivePage(
+          document,
+          "wikg://chapter/1/source",
+        );
+        const rangePage = await readArchivePage(
+          document,
+          "wikg://chapter/1/source#1..2",
+        );
+
+        expect(fullPage.type).toBe("fragment");
+        expect(rangePage.type).toBe("fragment");
+        if (fullPage.type !== "fragment" || rangePage.type !== "fragment") {
+          throw new Error("Expected source fragment pages");
+        }
+        expect(fullPage.fragment.text).toBe("  Alpha one.\n\nBeta two.");
+        expect(rangePage.fragment.text).toBe("  Alpha one.\n\nBeta two.");
+      } finally {
+        await document.release();
+      }
+    });
+  });
+
   it("coalesces expanded text search hits within a result page", async () => {
     await withTempDir("spinedigest-archive-view-", async (path) => {
       const document = await DirectoryDocument.open(`${path}/document`);
@@ -262,7 +301,7 @@ describe("archive/query/archive-view", () => {
             field: "source",
             id: "wikg://chapter/1/source#1..3",
             snippet:
-              "# Test Note\nAlice studies graph retrieval.\nBob cites Alice in a research note.",
+              "# Test NoteAlice studies graph retrieval.Bob cites Alice in a research note.",
             type: "source",
           }),
         ]);
@@ -781,7 +820,7 @@ describe("archive/query/archive-view", () => {
                 expect.objectContaining({
                   id: "wikg://chapter/1/source#1..3",
                   source:
-                    "An LLM Wiki exposes pages, links, and source fragments to agents.\n朱元璋知道了这个消息，随后亲自来到洪都。\nSource-only archives should be searchable.",
+                    "An LLM Wiki exposes pages, links, and source fragments to agents.朱元璋知道了这个消息，随后亲自来到洪都。Source-only archives should be searchable.",
                 }),
               ],
               total: 1,
@@ -1196,7 +1235,7 @@ describe("archive/query/archive-view", () => {
           expect.objectContaining({
             id: "wikg://chapter/1/source#1..3",
             source:
-              "An LLM Wiki exposes pages, links, and source fragments to agents.\n朱元璋知道了这个消息，随后亲自来到洪都。\nSource-only archives should be searchable.",
+              "An LLM Wiki exposes pages, links, and source fragments to agents.朱元璋知道了这个消息，随后亲自来到洪都。Source-only archives should be searchable.",
           }),
         ]);
 
@@ -1771,7 +1810,7 @@ describe("archive/query/archive-view", () => {
         expect(page).toMatchObject({
           fragment: {
             id: "wikg://chapter/1/source#11..13",
-            text: ["Sentence 10", "Sentence 11", "Sentence 12"].join("\n"),
+            text: ["Sentence 10", "Sentence 11", "Sentence 12"].join(""),
           },
           type: "fragment",
         });
@@ -2813,7 +2852,7 @@ describe("archive/query/archive-view", () => {
             {
               id: "wikg://chapter/1/source#1..3",
               source:
-                "An LLM Wiki exposes pages, links, and source fragments to agents.\n朱元璋知道了这个消息，随后亲自来到洪都。\nSource-only archives should be searchable.",
+                "An LLM Wiki exposes pages, links, and source fragments to agents.朱元璋知道了这个消息，随后亲自来到洪都。Source-only archives should be searchable.",
               type: "source",
             },
           ],
@@ -2973,7 +3012,7 @@ describe("archive/query/archive-view", () => {
             {
               id: "wikg://chapter/1/source#3..6",
               source:
-                "Source-only archives should be searchable.\nFirst unrelated fragment sentence.\nSecond fragment mentions Augustine.\nThird unrelated fragment sentence.",
+                "Source-only archives should be searchable.First unrelated fragment sentence.Second fragment mentions Augustine.Third unrelated fragment sentence.",
               type: "source",
             },
           ],

@@ -41,7 +41,7 @@ import {
   type WikilinkSentence,
 } from "../wikilink/index.js";
 
-import { getChapterDetails } from "./chapter.js";
+import { getChapterDetails, type ChapterDetails } from "./chapter.js";
 import type { BuildJobProgressReporter } from "./build-queue.js";
 
 export interface ChapterKnowledgeGraphBuildArtifact {
@@ -50,6 +50,11 @@ export interface ChapterKnowledgeGraphBuildArtifact {
   readonly mentionsPath: string;
   readonly parameter: GraphBuildParameterInput;
   readonly workspacePath: string;
+}
+
+export interface ChapterKnowledgeGraphInputSnapshot {
+  readonly details: ChapterDetails;
+  readonly fragments: readonly FragmentRecord[];
 }
 
 export interface GraphBuildParameterInput {
@@ -120,6 +125,17 @@ export async function generateChapterKnowledgeGraphArtifact(
   chapterId: number,
   options: GenerateChapterKnowledgeGraphArtifactOptions,
 ): Promise<ChapterKnowledgeGraphBuildArtifact> {
+  return await generateChapterKnowledgeGraphArtifactFromSnapshot(
+    chapterId,
+    await snapshotChapterKnowledgeGraphInput(document, chapterId),
+    options,
+  );
+}
+
+export async function snapshotChapterKnowledgeGraphInput(
+  document: ReadonlyDocument,
+  chapterId: number,
+): Promise<ChapterKnowledgeGraphInputSnapshot> {
   const details = await getChapterDetails(document, chapterId);
 
   if (details.stage === "planned") {
@@ -128,7 +144,29 @@ export async function generateChapterKnowledgeGraphArtifact(
     );
   }
 
-  const fragments = await readChapterFragments(document, chapterId);
+  return {
+    details,
+    fragments: await readChapterFragments(document, chapterId),
+  };
+}
+
+export async function generateChapterKnowledgeGraphArtifactFromSnapshot(
+  chapterId: number,
+  snapshot: ChapterKnowledgeGraphInputSnapshot,
+  options: GenerateChapterKnowledgeGraphArtifactOptions,
+): Promise<ChapterKnowledgeGraphBuildArtifact> {
+  if (snapshot.details.chapterId !== chapterId) {
+    throw new Error(
+      `Knowledge Graph snapshot belongs to chapter ${snapshot.details.chapterId}, not chapter ${chapterId}.`,
+    );
+  }
+  if (snapshot.details.stage === "planned") {
+    throw new Error(
+      `Chapter ${chapterId} is planned. Set source before generating Knowledge Graph.`,
+    );
+  }
+
+  const fragments = snapshot.fragments;
   const text = joinFragmentText(fragments);
   const sentences = createWikimatchSentences(fragments);
   await options.progressTracker?.updatePhase({

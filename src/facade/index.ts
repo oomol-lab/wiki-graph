@@ -80,7 +80,9 @@ export {
   commitChapterKnowledgeGraphArtifact,
   createEnrichmentProgressReporter,
   generateChapterKnowledgeGraphArtifact,
+  generateChapterKnowledgeGraphArtifactFromSnapshot,
   groundWikimatchCandidates,
+  snapshotChapterKnowledgeGraphInput,
 } from "./knowledge-graph-build.js";
 export {
   createContinuationCursor,
@@ -95,6 +97,7 @@ export type {
 export type {
   BuildChapterKnowledgeGraphArtifactOptions,
   ChapterKnowledgeGraphBuildArtifact,
+  ChapterKnowledgeGraphInputSnapshot,
 } from "./knowledge-graph-build.js";
 export {
   addChapter,

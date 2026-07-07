@@ -121,23 +121,11 @@ export async function writeSerialSource(
 ): Promise<void> {
   const serialFragments = document.getSerialFragments(serialId);
 
-  for await (const fragment of streamFragments({
-    maxWordsCount: DEFAULT_FRAGMENT_WORDS_COUNT,
-    stream: segmentTextStream(stream, {
-      ...(options.segmenter === undefined
-        ? {}
-        : { adapter: options.segmenter }),
-    }),
-  })) {
-    const fragmentDraft = await serialFragments.createDraft();
-
-    for (const sentence of fragment.sentences) {
-      fragmentDraft.addSentence(sentence.text, sentence.wordsCount);
-    }
-
-    await fragmentDraft.commit();
-  }
-
+  await serialFragments.writeTextStream(await collectTextStream(stream), {
+    ...(options.segmenter === undefined
+      ? {}
+      : { segmenter: options.segmenter }),
+  });
   await document.serials.bumpRevision(serialId);
 }
 
@@ -749,6 +737,16 @@ async function listFragmentSentences(
   return records
     .sort((left, right) => left.fragmentId - right.fragmentId)
     .flatMap((fragment) => fragment.sentences);
+}
+
+async function collectTextStream(stream: ReaderTextStream): Promise<string> {
+  const parts: string[] = [];
+
+  for await (const chunk of stream) {
+    parts.push(chunk);
+  }
+
+  return parts.join("");
 }
 
 function countFragmentWords(

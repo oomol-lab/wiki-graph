@@ -107,7 +107,7 @@ describe("serial", () => {
           llm: {} as never,
         }).generateInto(
           1,
-          [],
+          ["Alpha beta."],
           {
             extractionPrompt: "Keep key beats",
           },
@@ -153,7 +153,7 @@ describe("serial", () => {
           llm: {} as never,
         }).generateInto(
           1,
-          [],
+          [`${createWords("alpha", 200)}. ${createWords("Gamma", 160)}.`],
           {
             extractionPrompt: "Keep key beats",
           },
@@ -193,7 +193,7 @@ describe("serial", () => {
         const serial = await new SerialGeneration({
           document,
           llm: {} as never,
-        }).generateInto(1, [], {
+        }).generateInto(1, ["Alpha beta. Gamma delta."], {
           extractionPrompt: "Keep key beats",
         });
 
@@ -250,7 +250,7 @@ describe("serial", () => {
         });
 
         await document.serials.createWithId(1);
-        await writeSerialSource(document, 1, []);
+        await writeSerialSource(document, 1, ["Alpha beta."]);
         await generation.buildTopologyInto(1, {
           extractionPrompt: "Keep key beats",
         });
@@ -264,6 +264,31 @@ describe("serial", () => {
 
         expect(serial.getSummary()).toBe("Alpha beta.");
         expect(await document.readSummary(1)).toBe("Alpha beta.");
+      } finally {
+        await document.release();
+      }
+    });
+  });
+
+  it("preserves imported source text while exposing normalized sentences", async () => {
+    await withTempDir("spinedigest-serial-", async (path) => {
+      const document = await DirectoryDocument.open(path);
+      const sourceText =
+        "\n\n  Alpha wraps\ninside one sentence. Beta follows.\n\n";
+
+      try {
+        await document.serials.createWithId(1);
+        await writeSerialSource(document, 1, [sourceText]);
+
+        const serial = document.getSerialFragments(1);
+        const sentence = await serial.getSentence(0);
+
+        expect(await serial.readText()).toBe(sourceText);
+        expect(sentence).toMatchObject({
+          rawText: "  Alpha wraps\n",
+          text: "Alpha wraps",
+          wordsCount: 2,
+        });
       } finally {
         await document.release();
       }
@@ -315,7 +340,7 @@ describe("serial", () => {
         });
 
         await document.serials.createWithId(1);
-        await writeSerialSource(document, 1, []);
+        await writeSerialSource(document, 1, ["Alpha beta. Gamma delta."]);
         await generation.buildTopologyInto(1, {
           extractionPrompt: "Keep key beats",
         });
@@ -350,7 +375,7 @@ describe("serial", () => {
 
       try {
         await document.serials.createWithId(1);
-        await writeSerialSource(document, 1, []);
+        await writeSerialSource(document, 1, ["朱元璋面对张士诚。"]);
         const before = await document.getSerialFragments(1).readText();
 
         await new SerialGeneration({
@@ -382,4 +407,8 @@ function createSentenceStream(
       };
     },
   };
+}
+
+function createWords(word: string, count: number): string {
+  return Array.from({ length: count }, () => word).join(" ");
 }

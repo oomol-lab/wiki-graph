@@ -13,7 +13,7 @@ import {
   commitChapterGraphArtifact,
   commitChapterKnowledgeGraphArtifact,
   commitChapterSummaryArtifact,
-  generateChapterKnowledgeGraphArtifact,
+  generateChapterKnowledgeGraphArtifactFromSnapshot,
   getBuildJob,
   listBuildJobs,
   listChapters,
@@ -24,6 +24,7 @@ import {
   resumeBuildJob,
   resolveBuildJobId,
   runBuildJobWorker,
+  snapshotChapterKnowledgeGraphInput,
   snapshotChapterSummaryInput,
   updateBuildJobTarget,
   type BuildJob,
@@ -408,15 +409,22 @@ async function executeBuildJobWithLogging(
     const wikispine = requireKnowledgeGraphWikispineConfig(config);
 
     await reporter.stepStarted("knowledge-graph");
-    const artifact = await new SpineDigestFile(job.archivePath).readDocument(
-      async (document) =>
-        await generateChapterKnowledgeGraphArtifact(document, job.chapterId, {
-          policyPrompt: knowledgeGraphRecallPrompt,
-          progressTracker: reporter,
-          request,
-          wikispine,
-          workspacePath: job.workspacePath,
-        }),
+    const knowledgeGraphInput = await new SpineDigestFile(
+      job.archivePath,
+    ).readDocument(async (document) => {
+      await assertCurrentBuildInputRevision(job, document);
+      return await snapshotChapterKnowledgeGraphInput(document, job.chapterId);
+    });
+    const artifact = await generateChapterKnowledgeGraphArtifactFromSnapshot(
+      job.chapterId,
+      knowledgeGraphInput,
+      {
+        policyPrompt: knowledgeGraphRecallPrompt,
+        progressTracker: reporter,
+        request,
+        wikispine,
+        workspacePath: job.workspacePath,
+      },
     );
 
     await reporter.updatePhase({

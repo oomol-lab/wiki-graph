@@ -6,12 +6,78 @@ import {
   clearChapterKnowledgeGraph,
   commitChapterKnowledgeGraphArtifact,
   createEnrichmentProgressReporter,
+  generateChapterKnowledgeGraphArtifactFromSnapshot,
   groundWikimatchCandidates,
 } from "../../src/facade/index.js";
 import type { GuaranteedRequest } from "../../src/guaranteed/index.js";
 import { withTempDir } from "../helpers/temp.js";
 
 describe("facade/knowledge-graph-build", () => {
+  it("generates knowledge graph artifacts from a snapshot without a document session", async () => {
+    await withTempDir("spinedigest-kg-snapshot-", async (path) => {
+      const artifact = await generateChapterKnowledgeGraphArtifactFromSnapshot(
+        1,
+        {
+          details: {
+            chapterId: 1,
+            childCount: 0,
+            depth: 0,
+            documentOrder: 1,
+            fragmentCount: 0,
+            graphReady: false,
+            hasSummary: false,
+            stage: "sourced",
+            title: null,
+            tocPath: [],
+            words: 0,
+          },
+          fragments: [],
+        },
+        {
+          policyPrompt: "Recall entities.",
+          request: () => {
+            throw new Error("LLM should not be called for empty snapshots.");
+          },
+          workspacePath: path,
+        },
+      );
+
+      expect(artifact).toMatchObject({
+        chapterId: 1,
+        workspacePath: `${path}/knowledge-graph/chapter-1`,
+      });
+    });
+  });
+
+  it("rejects knowledge graph snapshots for a different chapter", async () => {
+    await expect(
+      generateChapterKnowledgeGraphArtifactFromSnapshot(
+        2,
+        {
+          details: {
+            chapterId: 1,
+            childCount: 0,
+            depth: 0,
+            documentOrder: 1,
+            fragmentCount: 0,
+            graphReady: false,
+            hasSummary: false,
+            stage: "sourced",
+            title: null,
+            tocPath: [],
+            words: 0,
+          },
+          fragments: [],
+        },
+        {
+          policyPrompt: "Recall entities.",
+          request: () => Promise.resolve("{}"),
+          workspacePath: "",
+        },
+      ),
+    ).rejects.toThrow("belongs to chapter 1, not chapter 2");
+  });
+
   it("reports enrichment progress across resolver subphases", async () => {
     const phases: unknown[] = [];
     let stopChecks = 0;
