@@ -28,7 +28,7 @@ Install:
 $ npm install -g wiki-graph
 ```
 
-The primary command is `wg`. If that conflicts with another local tool, use the full command `wikigraph`.
+The primary command is `wg`; `wikigraph` is also available.
 
 Create an empty `.wikg` knowledge base:
 
@@ -74,7 +74,7 @@ This project started as SpineDigest, with a focus on compressing long text into 
 
 The metaphor at the time was a dissertation defense: professors keep questioning the respondent, reminding them which claim has evidence, which concepts are connected, and which ideas should not be collapsed together. The diagram below describes that older reading-and-summary flow, but it also explains where Wiki Graph starts: long text should not only be flattened once; it should become a structure that can be re-entered, questioned, and verified.
 
-![SpineDigest flowchart](./docs/images/flowchart.svg)
+![Reading flowchart](./docs/images/flowchart.svg)
 
 The center of gravity later changed. Summaries are still useful, but a summary is only one projection of long text. The more durable material is the entities, relations, and evidence inside the text. SpineDigest became Wiki Graph, and the main line moved from compressed reading to building maintainable Knowledge Graphs.
 
