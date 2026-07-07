@@ -33,9 +33,13 @@ describe("wikimatch/wikispine", () => {
     );
     await chmod(commandPath, 0o755);
 
+    const progress: number[] = [];
     const candidates = await matchWikispineSentenceCandidates({
       command: commandPath,
       maxCandidatesPerSurface: 3,
+      onProgress: (event) => {
+        progress.push(event.coveredRangeEnd);
+      },
       sentences: [
         {
           range: { end: 5, start: 0 },
@@ -52,6 +56,7 @@ describe("wikimatch/wikispine", () => {
       JSON.stringify("前文句末"),
       JSON.stringify("句首有恩典"),
     ]);
+    expect(progress).toStrictEqual([5, 10, 12]);
     expect(candidates).toStrictEqual([
       {
         id: "c1",
@@ -109,12 +114,17 @@ describe("wikimatch/wikispine", () => {
       );
     };
 
+    const progress: number[] = [];
+
     await expect(
       matchWikispineSentenceCandidates({
         endpoint: "https://wikispine.example/",
         fetch: fetchMock,
         includeDisambiguation: false,
         maxCandidatesPerSurface: 1,
+        onProgress: (event) => {
+          progress.push(event.coveredRangeEnd);
+        },
         provider: "fetch",
         sentences: [
           {
@@ -139,6 +149,7 @@ describe("wikimatch/wikispine", () => {
         surface: "北京大学",
       },
     ]);
+    expect(progress).toStrictEqual([9, 9]);
     expect(requests).toStrictEqual([
       {
         body: {

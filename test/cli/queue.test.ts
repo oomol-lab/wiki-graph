@@ -1281,6 +1281,38 @@ describe("cli/queue", () => {
     ]);
   });
 
+  it("prints matching text character progress", async () => {
+    queueMockState.events = [
+      {
+        at: 1,
+        counters: [
+          {
+            done: 128,
+            name: "text",
+            total: 4096,
+            unit: "char",
+          },
+        ],
+        jobId: "job-1",
+        phase: "matching",
+        seq: 1,
+        step: "knowledge-graph",
+        type: "status_snapshot",
+      },
+    ];
+
+    await runQueueCommand({
+      action: "watch",
+      from: "beginning",
+      jobId: "job-1",
+      jsonl: false,
+    });
+
+    expect(queueMockState.textWrites).toStrictEqual([
+      "matching text 128/4096 chars\n",
+    ]);
+  });
+
   it("includes knowledge graph phase progress in jsonl watch output", async () => {
     queueMockState.events = [
       {

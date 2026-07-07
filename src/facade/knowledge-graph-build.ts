@@ -134,20 +134,34 @@ export async function generateChapterKnowledgeGraphArtifact(
   await options.progressTracker?.updatePhase({
     done: 0,
     phase: "matching",
-    total: sentences.length,
-    unit: "sentence",
+    phaseDetail: "text",
+    total: text.length,
+    unit: "char",
   });
   const rawCandidates = await matchWikispineSentenceCandidates({
     includeDisambiguation: true,
+    onProgress: (progress) => {
+      void options.progressTracker
+        ?.updatePhase({
+          done: progress.coveredRangeEnd,
+          force: false,
+          phase: "matching",
+          phaseDetail: "text",
+          total: text.length,
+          unit: "char",
+        })
+        .catch(() => undefined);
+    },
     ...(options.wikispine ?? {}),
     sentences,
   });
   await options.progressTracker?.throwIfStopped();
   await options.progressTracker?.updatePhase({
-    done: sentences.length,
+    done: text.length,
     phase: "matching",
-    total: sentences.length,
-    unit: "sentence",
+    phaseDetail: "text",
+    total: text.length,
+    unit: "char",
   });
   const screenedCandidates = await screenCandidates({
     candidates: rawCandidates,

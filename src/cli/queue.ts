@@ -730,6 +730,8 @@ function formatProgressUnit(unit: string): string {
   switch (unit) {
     case "candidate":
       return "candidates";
+    case "char":
+      return "chars";
     case "item":
       return "items";
     case "page":

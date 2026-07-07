@@ -33,6 +33,7 @@ export type BuildJobProgressPhase =
   | "screening";
 export type BuildJobProgressUnit =
   | "candidate"
+  | "char"
   | "item"
   | "page"
   | "qid"
@@ -179,6 +180,7 @@ export interface BuildJobProgressReporter {
   }): Promise<void>;
   updatePhase(input: {
     readonly done: number;
+    readonly force?: boolean;
     readonly phase: BuildJobProgressPhase;
     readonly phaseDetail?: string;
     readonly total: number;
@@ -1815,6 +1817,7 @@ class BuildJobProgressAccumulator implements BuildJobProgressReporter {
 
   public async updatePhase(input: {
     readonly done: number;
+    readonly force?: boolean;
     readonly phase: BuildJobProgressPhase;
     readonly phaseDetail?: string;
     readonly total: number;
@@ -1832,7 +1835,7 @@ class BuildJobProgressAccumulator implements BuildJobProgressReporter {
         total: Math.max(0, input.total),
         unit: input.unit,
       });
-      await this.#snapshot(true);
+      await this.#snapshot(input.force ?? true);
     });
   }
 
@@ -1971,6 +1974,8 @@ function formatProgressCounterName(input: {
   switch (input.unit) {
     case "candidate":
       return "candidates";
+    case "char":
+      return "chars";
     case "item":
       return "items";
     case "page":

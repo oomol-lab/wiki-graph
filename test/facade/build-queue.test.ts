@@ -383,6 +383,61 @@ describe("facade/build-queue", () => {
     });
   });
 
+  it("throttles non-forced phase progress snapshots", async () => {
+    await withTempDir("spinedigest-build-queue-", async (path) => {
+      useStateDir(`${path}/state`);
+      const job = await addBuildJob({
+        archivePath: `${path}/book.wikg`,
+        chapterId: 1,
+        target: "knowledge-graph",
+      });
+
+      await runBuildJobWorker({
+        concurrency: 1,
+        executeJob: async (_job, reporter) => {
+          await reporter.stepStarted("knowledge-graph");
+          await reporter.updatePhase({
+            done: 0,
+            phase: "matching",
+            phaseDetail: "text",
+            total: 100,
+            unit: "char",
+          });
+          await reporter.updatePhase({
+            done: 50,
+            force: false,
+            phase: "matching",
+            phaseDetail: "text",
+            total: 100,
+            unit: "char",
+          });
+          await reporter.updatePhase({
+            done: 100,
+            phase: "matching",
+            phaseDetail: "text",
+            total: 100,
+            unit: "char",
+          });
+        },
+        idleTimeoutMs: 0,
+      });
+
+      const snapshots = (await readBuildJobEvents(job)).filter(
+        (event) => event.type === "status_snapshot",
+      );
+
+      expect(
+        snapshots.map((snapshot) =>
+          snapshot.counters.find((counter) => counter.name === "text"),
+        ),
+      ).toStrictEqual([
+        undefined,
+        { done: 0, name: "text", total: 100, unit: "char" },
+        { done: 100, name: "text", total: 100, unit: "char" },
+      ]);
+    });
+  });
+
   it("keeps multiple counters for one progress phase", async () => {
     await withTempDir("spinedigest-build-queue-", async (path) => {
       useStateDir(`${path}/state`);

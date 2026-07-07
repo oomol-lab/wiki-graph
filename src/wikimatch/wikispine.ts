@@ -13,11 +13,18 @@ export interface MatchWikispineSentenceCandidatesOptions {
   readonly fetch?: typeof fetch;
   readonly includeDisambiguation?: boolean;
   readonly maxCandidatesPerSurface?: number;
+  readonly onProgress?: (
+    progress: WikispineMatchProgress,
+  ) => Promise<void> | void;
   readonly provider?: WikispineProvider;
   readonly sentences: readonly WikimatchSentence[];
 }
 
 export type WikispineProvider = "cli" | "fetch";
+
+export interface WikispineMatchProgress {
+  readonly coveredRangeEnd: number;
+}
 
 export interface TestWikispineRuntimeOptions {
   readonly command?: string;
@@ -78,7 +85,7 @@ export async function matchWikispineSentenceCandidates(
   let candidateIndex = 1;
 
   for (const sentence of options.sentences) {
-    for (const matched of await matchSentence(sentence.text, options)) {
+    for (const matched of await matchSentence(sentence, options)) {
       const surface = sentence.text.slice(matched.start, matched.end);
 
       candidates.push({
@@ -92,25 +99,24 @@ export async function matchWikispineSentenceCandidates(
       });
       candidateIndex += 1;
     }
+    await options.onProgress?.({ coveredRangeEnd: sentence.range.end });
   }
 
   return candidates;
 }
 
 async function matchSentence(
-  text: string,
+  sentence: WikimatchSentence,
   options: MatchWikispineSentenceCandidatesOptions,
 ): Promise<readonly WikispineMatchRecord[]> {
-  const stdout =
-    resolveProvider(options) === "fetch"
-      ? await fetchWikispineMatch(options, text)
-      : await runWikispineMatch(
-          options.command ?? "wikispine",
-          buildMatchArgs(options),
-          text,
-        );
-
-  return parseWikispineMatchOutput(stdout);
+  return resolveProvider(options) === "fetch"
+    ? await fetchWikispineMatch(options, sentence)
+    : await runWikispineMatch(
+        options.command ?? "wikispine",
+        buildMatchArgs(options),
+        sentence,
+        options,
+      );
 }
 
 export async function testWikispineRuntime(
@@ -123,15 +129,17 @@ export async function testWikispineRuntime(
     const endpoint = requireEndpoint(options.endpoint);
     const metadata = await fetchWikispineMetadata(endpoint, options.fetch);
 
-    parseWikispineMatchOutput(
-      await fetchWikispineMatch(
-        {
-          ...options,
-          endpoint,
-          maxCandidatesPerSurface: 1,
-        },
-        "北京大学位于北京。",
-      ),
+    await fetchWikispineMatch(
+      {
+        ...options,
+        endpoint,
+        maxCandidatesPerSurface: 1,
+      },
+      {
+        id: "test",
+        range: { end: 7, start: 0 },
+        text: "北京大学位于北京。",
+      },
     );
 
     return {
@@ -142,15 +150,18 @@ export async function testWikispineRuntime(
     };
   }
 
-  parseWikispineMatchOutput(
-    await runWikispineMatch(
-      options.command ?? "wikispine",
-      buildMatchArgs({
-        ...options,
-        maxCandidatesPerSurface: 1,
-      }),
-      "北京大学位于北京。",
-    ),
+  await runWikispineMatch(
+    options.command ?? "wikispine",
+    buildMatchArgs({
+      ...options,
+      maxCandidatesPerSurface: 1,
+    }),
+    {
+      id: "test",
+      range: { end: 7, start: 0 },
+      text: "北京大学位于北京。",
+    },
+    {},
   );
 
   return {
@@ -163,17 +174,30 @@ export async function testWikispineRuntime(
 async function runWikispineMatch(
   command: string,
   args: readonly string[],
-  input: string,
-): Promise<string> {
+  sentence: WikimatchSentence,
+  options: Pick<MatchWikispineSentenceCandidatesOptions, "onProgress">,
+): Promise<readonly WikispineMatchRecord[]> {
   return await new Promise((resolve, reject) => {
     const child = spawn(command, args, {
       stdio: ["pipe", "pipe", "pipe"],
     });
-    const stdout: Buffer[] = [];
+    const parser = createWikispineNdjsonParser({
+      onMatch: (match) => {
+        void options.onProgress?.({
+          coveredRangeEnd: sentence.range.start + match.end,
+        });
+      },
+    });
     const stderr: Buffer[] = [];
 
-    child.stdout.on("data", (chunk: Buffer) => {
-      stdout.push(chunk);
+    child.stdout.setEncoding("utf8");
+    child.stdout.on("data", (chunk: string) => {
+      try {
+        parser.push(chunk);
+      } catch (error) {
+        reject(toError(error));
+        child.kill();
+      }
     });
     child.stderr.on("data", (chunk: Buffer) => {
       stderr.push(chunk);
@@ -199,10 +223,14 @@ async function runWikispineMatch(
         return;
       }
 
-      resolve(Buffer.concat(stdout).toString("utf8"));
+      try {
+        resolve(parser.finish());
+      } catch (error) {
+        reject(toError(error));
+      }
     });
 
-    child.stdin.end(input);
+    child.stdin.end(sentence.text);
   });
 }
 
@@ -233,10 +261,14 @@ function buildMatchArgs(
 async function fetchWikispineMatch(
   options: Pick<
     MatchWikispineSentenceCandidatesOptions,
-    "endpoint" | "fetch" | "includeDisambiguation" | "maxCandidatesPerSurface"
+    | "endpoint"
+    | "fetch"
+    | "includeDisambiguation"
+    | "maxCandidatesPerSurface"
+    | "onProgress"
   >,
-  text: string,
-): Promise<string> {
+  sentence: WikimatchSentence,
+): Promise<readonly WikispineMatchRecord[]> {
   const endpoint = requireEndpoint(options.endpoint);
   const response = await (options.fetch ?? fetch)(`${endpoint}/match`, {
     body: JSON.stringify({
@@ -250,7 +282,7 @@ async function fetchWikispineMatch(
               max_candidates_per_surface: options.maxCandidatesPerSurface,
             }),
       },
-      text,
+      text: sentence.text,
     }),
     headers: {
       accept: "application/x-ndjson",
@@ -267,7 +299,32 @@ async function fetchWikispineMatch(
     );
   }
 
-  return await response.text();
+  const parser = createWikispineNdjsonParser({
+    onMatch: (match) => {
+      void options.onProgress?.({
+        coveredRangeEnd: sentence.range.start + match.end,
+      });
+    },
+  });
+
+  if (response.body === null) {
+    parser.push(await response.text());
+    return parser.finish();
+  }
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) {
+      break;
+    }
+    parser.push(decoder.decode(value, { stream: true }));
+  }
+
+  parser.push(decoder.decode());
+  return parser.finish();
 }
 
 async function fetchWikispineMetadata(
@@ -309,36 +366,60 @@ async function fetchWikispineMetadata(
   }
 }
 
-function parseWikispineNdjson(value: string): readonly WikispineMatchRecord[] {
+function createWikispineNdjsonParser(input?: {
+  readonly onMatch?: (match: WikispineMatchRecord) => void;
+}): {
+  readonly finish: () => readonly WikispineMatchRecord[];
+  readonly push: (chunk: string) => void;
+} {
   const matches: WikispineMatchRecord[] = [];
+  let buffer = "";
 
-  for (const line of value.split(/\r?\n/u)) {
+  function parseLine(line: string): void {
     if (line.trim() === "") {
-      continue;
+      return;
     }
 
     const event = parseWikispineEvent(JSON.parse(line));
 
     if (event.type === "match") {
       matches.push(event.match);
+      input?.onMatch?.(event.match);
     }
   }
 
-  return matches;
-}
-
-function parseWikispineMatchOutput(
-  value: string,
-): readonly WikispineMatchRecord[] {
-  try {
-    return parseWikispineNdjson(value);
-  } catch (error) {
-    throw new Error(
+  function wrapParseError(error: unknown): Error {
+    return new Error(
       formatWikispineRuntimeError(
         `Invalid WikiSpine match response: ${error instanceof Error ? error.message : String(error)}`,
       ),
     );
   }
+
+  return {
+    finish: () => {
+      try {
+        parseLine(buffer);
+        buffer = "";
+        return matches;
+      } catch (error) {
+        throw wrapParseError(error);
+      }
+    },
+    push: (chunk) => {
+      try {
+        buffer += chunk;
+        const lines = buffer.split(/\r?\n/u);
+        buffer = lines.pop() ?? "";
+
+        for (const line of lines) {
+          parseLine(line);
+        }
+      } catch (error) {
+        throw wrapParseError(error);
+      }
+    },
+  };
 }
 
 function parseWikispineEvent(value: unknown): WikispineEvent {
@@ -359,6 +440,10 @@ function parseWikispineEvent(value: unknown): WikispineEvent {
   }
 
   throw new Error(`Unexpected wikispine event: ${JSON.stringify(value)}`);
+}
+
+function toError(error: unknown): Error {
+  return error instanceof Error ? error : new Error(String(error));
 }
 
 function parseWikispineMetadata(value: unknown): WikispineMetadata {
