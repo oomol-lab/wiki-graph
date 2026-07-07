@@ -214,7 +214,7 @@ function buildPackageOpf() {
   return `<?xml version="1.0" encoding="utf-8"?>
 <package version="3.0" unique-identifier="bookid" xmlns="http://www.idpf.org/2007/opf">
   <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
-    <dc:identifier id="bookid">urn:spinedigest:sample-observatory-guide</dc:identifier>
+    <dc:identifier id="bookid">urn:wiki-graph:sample-observatory-guide</dc:identifier>
     <dc:title>The Pocket Observatory Manual</dc:title>
     <dc:creator>Ari Lantern</dc:creator>
     <dc:language>en</dc:language>

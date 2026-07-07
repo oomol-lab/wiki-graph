@@ -27,7 +27,7 @@ describe("source/epub", () => {
           authors: ["Ari Lantern"],
           language: "en",
           publisher: "Open Sample Press",
-          identifier: "urn:spinedigest:sample-observatory-guide",
+          identifier: "urn:wiki-graph:sample-observatory-guide",
         });
         expect(cover).toMatchObject({
           mediaType: "image/png",

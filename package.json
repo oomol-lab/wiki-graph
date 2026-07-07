@@ -1,7 +1,14 @@
 {
   "name": "wiki-graph",
   "version": "0.3.0",
-  "description": "CLI-first tool for digesting long-form text and ebooks into compressed text, EPUB, or reusable .wikg archives.",
+  "description": "CLI-first tool for building and querying .wikg knowledge-base archives from long-form text and ebooks.",
+  "keywords": [
+    "wiki-graph",
+    "knowledge-graph",
+    "llm",
+    "cli",
+    "wikg"
+  ],
   "license": "Apache-2.0",
   "type": "module",
   "packageManager": "pnpm@10.33.2",
@@ -30,8 +37,7 @@
   ],
   "bin": {
     "wg": "dist/cli.js",
-    "wikigraph": "dist/cli.js",
-    "wikg": "dist/cli.js"
+    "wikigraph": "dist/cli.js"
   },
   "exports": {
     ".": {

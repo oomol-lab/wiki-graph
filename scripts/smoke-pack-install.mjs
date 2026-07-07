@@ -7,12 +7,29 @@ const packageRoot = resolve(import.meta.dirname, "..");
 const tempRoot = mkdtempSync(join(tmpdir(), "wiki-graph-pack-"));
 let tarballName;
 
+function readTarballName(packOutput) {
+  const packResult = JSON.parse(packOutput);
+  const filename = packResult[0]?.filename;
+
+  if (typeof filename !== "string" || filename.length === 0) {
+    throw new Error("Failed to resolve tarball filename from npm pack output.");
+  }
+
+  return filename;
+}
+
 try {
-  tarballName = execFileSync("npm", ["pack", "--ignore-scripts"], {
-    cwd: packageRoot,
-    encoding: "utf8",
-    stdio: ["ignore", "pipe", "inherit"],
-  }).trim();
+  const packOutput = execFileSync(
+    "npm",
+    ["pack", "--ignore-scripts", "--json"],
+    {
+      cwd: packageRoot,
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "inherit"],
+    },
+  );
+
+  tarballName = readTarballName(packOutput);
 
   writeFileSync(
     join(tempRoot, "package.json"),
@@ -21,10 +38,14 @@ try {
 
   const tarballPath = join(packageRoot, tarballName);
 
-  execFileSync("npm", ["install", tarballPath], {
-    cwd: tempRoot,
-    stdio: "inherit",
-  });
+  execFileSync(
+    "npm",
+    ["install", "--ignore-scripts", "--no-audit", "--no-fund", tarballPath],
+    {
+      cwd: tempRoot,
+      stdio: "inherit",
+    },
+  );
 
   execFileSync(
     process.execPath,
@@ -32,8 +53,8 @@ try {
       "-e",
       [
         'const mod = require("wiki-graph");',
-        'if (typeof mod.SpineDigestApp !== "function") {',
-        '  throw new Error("CommonJS export SpineDigestApp is not available");',
+        "if (mod.Language === undefined || mod.Language === null) {",
+        '  throw new Error("CommonJS export Language is not available");',
         "}",
       ].join(" "),
     ],
@@ -50,8 +71,8 @@ try {
       "-e",
       [
         'const mod = await import("wiki-graph");',
-        'if (typeof mod.SpineDigestApp !== "function") {',
-        '  throw new Error("ESM export SpineDigestApp is not available");',
+        "if (mod.Language === undefined || mod.Language === null) {",
+        '  throw new Error("ESM export Language is not available");',
         "}",
         "process.exit(0);",
       ].join(" "),
@@ -62,18 +83,12 @@ try {
     },
   );
 
-  const installedCliPath = join(
-    tempRoot,
-    "node_modules",
-    "wiki-graph",
-    "dist",
-    "cli.js",
-  );
-
-  execFileSync(process.execPath, [installedCliPath, "--help"], {
-    cwd: tempRoot,
-    stdio: "inherit",
-  });
+  for (const command of ["wg", "wikigraph"]) {
+    execFileSync(join(tempRoot, "node_modules", ".bin", command), ["--help"], {
+      cwd: tempRoot,
+      stdio: "inherit",
+    });
+  }
 } finally {
   if (tarballName !== undefined) {
     rmSync(join(packageRoot, tarballName), { force: true });
