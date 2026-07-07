@@ -140,17 +140,15 @@ export async function generateChapterKnowledgeGraphArtifact(
   });
   const rawCandidates = await matchWikispineSentenceCandidates({
     includeDisambiguation: true,
-    onProgress: (progress) => {
-      void options.progressTracker
-        ?.updatePhase({
-          done: progress.coveredRangeEnd,
-          force: false,
-          phase: "matching",
-          phaseDetail: "text",
-          total: text.length,
-          unit: "char",
-        })
-        .catch(() => undefined);
+    onProgress: async (progress) => {
+      await options.progressTracker?.updatePhase({
+        done: progress.coveredRangeEnd,
+        force: false,
+        phase: "matching",
+        phaseDetail: "text",
+        total: text.length,
+        unit: "char",
+      });
     },
     ...(options.wikispine ?? {}),
     sentences,

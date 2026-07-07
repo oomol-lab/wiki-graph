@@ -181,9 +181,15 @@ async function runWikispineMatch(
     const child = spawn(command, args, {
       stdio: ["pipe", "pipe", "pipe"],
     });
+    const progress = createWikispineProgressReporter(options.onProgress, {
+      onFailure: (error) => {
+        reject(error);
+        child.kill();
+      },
+    });
     const parser = createWikispineNdjsonParser({
       onMatch: (match) => {
-        void options.onProgress?.({
+        progress.report({
           coveredRangeEnd: sentence.range.start + match.end,
         });
       },
@@ -223,11 +229,15 @@ async function runWikispineMatch(
         return;
       }
 
-      try {
-        resolve(parser.finish());
-      } catch (error) {
-        reject(toError(error));
-      }
+      void (async () => {
+        try {
+          const matches = parser.finish();
+          await progress.wait();
+          resolve(matches);
+        } catch (error) {
+          reject(toError(error));
+        }
+      })();
     });
 
     child.stdin.end(sentence.text);
@@ -299,9 +309,10 @@ async function fetchWikispineMatch(
     );
   }
 
+  const progress = createWikispineProgressReporter(options.onProgress);
   const parser = createWikispineNdjsonParser({
     onMatch: (match) => {
-      void options.onProgress?.({
+      progress.report({
         coveredRangeEnd: sentence.range.start + match.end,
       });
     },
@@ -309,7 +320,9 @@ async function fetchWikispineMatch(
 
   if (response.body === null) {
     parser.push(await response.text());
-    return parser.finish();
+    const matches = parser.finish();
+    await progress.wait();
+    return matches;
   }
 
   const reader = response.body.getReader();
@@ -321,10 +334,62 @@ async function fetchWikispineMatch(
       break;
     }
     parser.push(decoder.decode(value, { stream: true }));
+    progress.throwIfFailed();
   }
 
   parser.push(decoder.decode());
-  return parser.finish();
+  const matches = parser.finish();
+  await progress.wait();
+  return matches;
+}
+
+function createWikispineProgressReporter(
+  onProgress:
+    | ((progress: WikispineMatchProgress) => Promise<void> | void)
+    | undefined,
+  options?: {
+    readonly onFailure?: (error: Error) => void;
+  },
+): {
+  readonly report: (progress: WikispineMatchProgress) => void;
+  readonly throwIfFailed: () => void;
+  readonly wait: () => Promise<void>;
+} {
+  const tasks: Promise<void>[] = [];
+  let failure: Error | undefined;
+
+  function fail(error: unknown): void {
+    if (failure !== undefined) {
+      return;
+    }
+    failure = toError(error);
+    options?.onFailure?.(failure);
+  }
+
+  return {
+    report: (progress) => {
+      if (onProgress === undefined || failure !== undefined) {
+        return;
+      }
+
+      try {
+        tasks.push(Promise.resolve(onProgress(progress)).catch(fail));
+      } catch (error) {
+        fail(error);
+      }
+    },
+    throwIfFailed: () => {
+      if (failure !== undefined) {
+        throw failure;
+      }
+    },
+    wait: async () => {
+      await Promise.all(tasks);
+      if (failure !== undefined) {
+        throw failure;
+      }
+    },
+  };
 }
 
 async function fetchWikispineMetadata(

@@ -164,6 +164,75 @@ describe("wikimatch/wikispine", () => {
     ]);
   });
 
+  it("rejects CLI matches when progress reporting fails", async () => {
+    const tempDir = await mkdtemp(join(tmpdir(), "wikispine-test-"));
+    const commandPath = join(tempDir, "fake-wikispine.mjs");
+
+    await writeFile(
+      commandPath,
+      [
+        "#!/usr/bin/env node",
+        "console.log(JSON.stringify({ type: 'match', match: { start: 0, end: 4, surface_id: 1, qids: [{ qid: 'Q16952', disambiguation: false }] } }));",
+        "console.log(JSON.stringify({ type: 'done', stats: { matches: 1 } }));",
+      ].join("\n"),
+    );
+    await chmod(commandPath, 0o755);
+
+    await expect(
+      matchWikispineSentenceCandidates({
+        command: commandPath,
+        onProgress: () => Promise.reject(new Error("progress stopped")),
+        sentences: [
+          {
+            range: { end: 4, start: 0 },
+            text: "北京大学",
+          },
+        ],
+      }),
+    ).rejects.toThrow("progress stopped");
+  });
+
+  it("rejects fetch matches when progress reporting fails", async () => {
+    const fetchMock: typeof fetch = () =>
+      Promise.resolve(
+        new Response(
+          [
+            JSON.stringify({
+              match: {
+                end: 4,
+                qids: [{ disambiguation: false, qid: "Q16952" }],
+                start: 0,
+                surface_id: 1,
+              },
+              type: "match",
+            }),
+            JSON.stringify({ stats: { matches: 1 }, type: "done" }),
+          ].join("\n"),
+          {
+            headers: {
+              "content-type": "application/x-ndjson",
+            },
+            status: 200,
+          },
+        ),
+      );
+
+    await expect(
+      matchWikispineSentenceCandidates({
+        endpoint: "https://wikispine.example/",
+        fetch: fetchMock,
+        onProgress: () => Promise.reject(new Error("progress stopped")),
+        provider: "fetch",
+        sentences: [
+          {
+            range: { end: 4, start: 0 },
+            text: "北京大学",
+          },
+        ],
+      }),
+    ).rejects.toThrow("progress stopped");
+  });
+
   it("uses the default fetch endpoint when none is configured", async () => {
     const requests: Array<{ readonly url: string }> = [];
     const fetchMock: typeof fetch = (input) => {
