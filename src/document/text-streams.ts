@@ -83,6 +83,10 @@ export interface ReadonlySerialTextStream {
   listFragmentIds(): Promise<readonly number[]>;
   listSentences?(): Promise<readonly SentenceRecord[]>;
   readText?(): Promise<string | undefined>;
+  readTextInRange?(
+    startSentenceIndex: number,
+    endSentenceIndex: number,
+  ): Promise<string | undefined>;
   readonly path: string;
   readonly serialId: number;
 }
@@ -238,6 +242,44 @@ export class SerialTextStream implements ReadonlySerialTextStream {
     const content = await this.#readContent();
 
     return rows.map((row) => this.#readSentenceLocation(row, content));
+  }
+
+  public async readTextInRange(
+    startSentenceIndex: number,
+    endSentenceIndex: number,
+  ): Promise<string | undefined> {
+    if (endSentenceIndex < startSentenceIndex) {
+      return "";
+    }
+
+    const rows = await this.#database.queryAll(
+      `
+        SELECT sentence_index, byte_offset, byte_length, words_count
+        FROM text_sentence_records
+        WHERE kind = ? AND chapter_id = ?
+          AND sentence_index BETWEEN ? AND ?
+        ORDER BY sentence_index
+      `,
+      [
+        TEXT_STREAM_KIND[this.#stream],
+        this.#serialId,
+        startSentenceIndex,
+        endSentenceIndex,
+      ],
+      mapTextSentenceLocation,
+    );
+    const first = rows[0];
+    const last = rows[rows.length - 1];
+
+    if (first === undefined || last === undefined) {
+      return undefined;
+    }
+
+    const content = await this.#readContent();
+
+    return content
+      .subarray(first.byteOffset, last.byteOffset + last.byteLength)
+      .toString("utf8");
   }
 
   async #getSentenceLocation(
