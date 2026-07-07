@@ -1,5 +1,5 @@
 Help Type: command
-Command: wikigraph <chapter-uri> move
+Command: {{ commandName }} <chapter-uri> move
 
 chapter move
 
@@ -7,12 +7,12 @@ Purpose:
   Move one existing chapter to a new parent or sibling position.
 
 Usage:
-  wikigraph <chapter-uri> move --parent <chapter-uri> [--first|--last] [--llm <json>] [--help|-h]
-  wikigraph <chapter-uri> move --root [--first|--last] [--llm <json>] [--help|-h]
-  wikigraph <chapter-uri> move --before <chapter-uri> [--llm <json>] [--help|-h]
-  wikigraph <chapter-uri> move --after <chapter-uri> [--llm <json>] [--help|-h]
-  wikigraph <chapter-uri> move --first [--llm <json>] [--help|-h]
-  wikigraph <chapter-uri> move --last [--llm <json>] [--help|-h]
+  {{ commandName }} <chapter-uri> move --parent <chapter-uri> [--first|--last] [--llm <json>] [--help|-h]
+  {{ commandName }} <chapter-uri> move --root [--first|--last] [--llm <json>] [--help|-h]
+  {{ commandName }} <chapter-uri> move --before <chapter-uri> [--llm <json>] [--help|-h]
+  {{ commandName }} <chapter-uri> move --after <chapter-uri> [--llm <json>] [--help|-h]
+  {{ commandName }} <chapter-uri> move --first [--llm <json>] [--help|-h]
+  {{ commandName }} <chapter-uri> move --last [--llm <json>] [--help|-h]
 
 Behavior:
   - Moves only the chapter tree node. Source text, Reading Graph data, and summary stay attached to the same chapter id.
@@ -25,12 +25,12 @@ Behavior:
   - Does not call an LLM provider.
 
 Examples:
-  wikigraph wikg://book.wikg/chapter/8 move --parent wikg://book.wikg/chapter/3 --first
-  wikigraph wikg://book.wikg/chapter/8 move --root --last
-  wikigraph wikg://book.wikg/chapter/8 move --before wikg://book.wikg/chapter/9
+  {{ commandName }} wikg://book.wikg/chapter/8 move --parent wikg://book.wikg/chapter/3 --first
+  {{ commandName }} wikg://book.wikg/chapter/8 move --root --last
+  {{ commandName }} wikg://book.wikg/chapter/8 move --before wikg://book.wikg/chapter/9
 
 See also:
-  - wikigraph wikg://book.wikg/chapter --help
-  - wikigraph wikg://book.wikg/chapter/tree --help
-  - wikigraph help uri
-  - wikigraph --help
+  - {{ commandName }} wikg://book.wikg/chapter --help
+  - {{ commandName }} wikg://book.wikg/chapter/tree --help
+  - {{ commandName }} help uri
+  - {{ commandName }} --help

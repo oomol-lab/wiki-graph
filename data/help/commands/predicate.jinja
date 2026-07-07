@@ -1,5 +1,5 @@
 Help Type: command
-Command: wikigraph <uri> {{ predicate }}
+Command: {{ commandName }} <uri> {{ predicate }}
 
 URI Predicate Command
 
@@ -14,26 +14,26 @@ Purpose:
   Expand from the current chunk or entity object to nearby objects.
 
 Usage:
-  wikigraph {{ uri }} related [--query <query>] [--reverse] [--all] [--limit <n>] [--context <n>] [--cursor <token>] [--role <any|subject|object|self>] [--evidence [n]] [--json|--jsonl]
+  {{ commandName }} {{ uri }} related [--query <query>] [--reverse] [--all] [--limit <n>] [--context <n>] [--cursor <token>] [--role <any|subject|object|self>] [--evidence [n]] [--json|--jsonl]
 
 Notes:
   - Chunk targets return nearby Reading Graph chunks.
   - Entity targets return Knowledge Graph triples involving the entity.
   - `--query` filters and ranks related results with the current FTS index.
-  - Without `--query`, `--reverse` reads Document Flow order backward. See `wikigraph help uri`.
+  - Without `--query`, `--reverse` reads Document Flow order backward. See `{{ commandName }} help uri`.
   - `--role` only applies to entity targets.
-  - Use `wikigraph {{ uri }} evidence --help` when source grounding is the main goal.
+  - Use `{{ commandName }} {{ uri }} evidence --help` when source grounding is the main goal.
 {% elif predicate == "evidence" %}
 Purpose:
   Trace the current object back to source-backed evidence.
 
 Usage:
-  wikigraph {{ uri }} evidence [--query <query>] [--reverse] [--all] [--limit <n>] [--context <n>] [--cursor <token>] [--json|--jsonl]
+  {{ commandName }} {{ uri }} evidence [--query <query>] [--reverse] [--all] [--limit <n>] [--context <n>] [--cursor <token>] [--json|--jsonl]
 
 Notes:
   - Evidence is for grounding, verification, and citation support.
   - `--query` filters and ranks evidence with the current FTS index.
-  - Without `--query`, `--reverse` reads Document Flow order backward. See `wikigraph help uri`.
+  - Without `--query`, `--reverse` reads Document Flow order backward. See `{{ commandName }} help uri`.
   - Evidence previews include nearby source context by default; use `--context 0` for exact cited ranges.
   - Source and scope URIs are not evidence targets.
 {% elif predicate == "pack" %}
@@ -41,7 +41,7 @@ Purpose:
   Build bounded Agent-readable context around the current chunk or entity object.
 
 Usage:
-  wikigraph {{ uri }} pack [--budget <chars>] [--json|--jsonl]
+  {{ commandName }} {{ uri }} pack [--budget <chars>] [--json|--jsonl]
 
 Notes:
   - Default budget is 5000 characters.
@@ -52,7 +52,7 @@ Purpose:
   Create the archive at this URI.
 
 Usage:
-  wikigraph {{ uri }} create [--import <epub-path>] [--replace] [--json]
+  {{ commandName }} {{ uri }} create [--import <epub-path>] [--replace] [--json]
 
 Notes:
   - Without `--import`, create an empty `.wikg` archive.
@@ -64,17 +64,17 @@ Notes:
   - On success, text output is the archive object (`<archive>`). With `--json`, output is `{"uri":"..."}`.
 
 Examples:
-  wikigraph {{ uri }} create --json
-  wikigraph {{ uri }} create --import ./book.epub
+  {{ commandName }} {{ uri }} create --json
+  {{ commandName }} {{ uri }} create --import ./book.epub
 
 Next:
-  wikigraph {{ uri }} inspect
+  {{ commandName }} {{ uri }} inspect
 {% elif predicate == "export" %}
 Purpose:
   Export a projection from this archive.
 
 Usage:
-  wikigraph {{ uri }} export [--output-format markdown|txt|epub] [--output <path>]
+  {{ commandName }} {{ uri }} export [--output-format markdown|txt|epub] [--output <path>]
 
 Notes:
   - Default output format is markdown when omitted by the parser, but explicit `--output-format` is recommended.
@@ -85,14 +85,14 @@ Notes:
   - Projections are portable views; they do not replace the `.wikg` archive.
 
 Examples:
-  wikigraph {{ uri }} export --output-format markdown --output book.md
-  wikigraph {{ uri }} export --output-format txt > book.txt
+  {{ commandName }} {{ uri }} export --output-format markdown --output book.md
+  {{ commandName }} {{ uri }} export --output-format txt > book.txt
 {% elif predicate == "inspect" %}
 Purpose:
   Inspect archive readiness before `--query`, retrieval, or starting generated work.
 
 Usage:
-  wikigraph {{ uri }} inspect [--json]
+  {{ commandName }} {{ uri }} inspect [--json]
 
 Notes:
   - Run this before broad Reading Graph, Reading Summary, or Knowledge Graph work.
@@ -103,7 +103,7 @@ Purpose:
   Add a chapter to the archive.
 
 Usage:
-  wikigraph {{ uri }} add [--parent <chapter-uri>] [--title <title>] [--input <path|->] [--json]
+  {{ commandName }} {{ uri }} add [--parent <chapter-uri>] [--title <title>] [--input <path|->] [--json]
 
 Notes:
   - Without `--input`, creates an empty planned chapter placeholder.
@@ -115,7 +115,7 @@ Purpose:
   Add a local generation job.
 
 Usage:
-  wikigraph {{ uri }} add --input <archive-uri|chapter-uri> --task reading-graph|reading-summary|knowledge-graph --accept-cost [--boost] [--llm <json>] [--prompt <text>]
+  {{ commandName }} {{ uri }} add --input <archive-uri|chapter-uri> --task reading-graph|reading-summary|knowledge-graph --accept-cost [--boost] [--llm <json>] [--prompt <text>]
 
 Notes:
   - Generation jobs may call an LLM provider and incur cost.
@@ -126,26 +126,26 @@ Purpose:
   Move this chapter in the chapter tree.
 
 Usage:
-  wikigraph {{ uri }} move [--parent <chapter-uri>] [--after <chapter-uri>] [--before <chapter-uri>]
+  {{ commandName }} {{ uri }} move [--parent <chapter-uri>] [--after <chapter-uri>] [--before <chapter-uri>]
 {% elif predicate == "remove" %}
 Purpose:
   Remove this chapter.
 
 Usage:
-  wikigraph {{ uri }} remove [--confirm]
+  {{ commandName }} {{ uri }} remove [--confirm]
 {% elif predicate == "reset" %}
 Purpose:
   Delete later-stage artifacts for this chapter.
 
 Usage:
-  wikigraph {{ uri }} reset --to source|reading-graph|reading-summary|knowledge-graph [--confirm]
+  {{ commandName }} {{ uri }} reset --to source|reading-graph|reading-summary|knowledge-graph [--confirm]
 {% elif predicate == "set" %}
 {% if target.name == "chapter-tree-object" %}
 Purpose:
   Replace the chapter tree with a JSON tree document.
 
 Usage:
-  wikigraph {{ uri }} set --input <tree.json|->
+  {{ commandName }} {{ uri }} set --input <tree.json|->
 
 Notes:
   - The input is a chapter tree JSON document produced by the chapter tree view.
@@ -156,18 +156,18 @@ Purpose:
   Replace this chapter source text.
 
 Usage:
-  wikigraph {{ uri }} set [text] [--input <path|->]
+  {{ commandName }} {{ uri }} set [text] [--input <path|->]
 
 Notes:
   - Source text is read from a positional value, `--input <path>`, or `--input -` for stdin.
   - Source replacement invalidates later generated work for that chapter.
-  - Use `wikigraph {{ uri }} --help` to inspect the source object before replacing it.
+  - Use `{{ commandName }} {{ uri }} --help` to inspect the source object before replacing it.
 {% elif target.name == "chapter-summary-object" %}
 Purpose:
   Replace this chapter summary text.
 
 Usage:
-  wikigraph {{ uri }} set [text] [--input <path|->]
+  {{ commandName }} {{ uri }} set [text] [--input <path|->]
 
 Notes:
   - The input is plain summary text from a positional value, `--input <path>`, or `--input -` for stdin.
@@ -177,7 +177,7 @@ Purpose:
   Replace this chapter title.
 
 Usage:
-  wikigraph {{ uri }} set <title>
+  {{ commandName }} {{ uri }} set <title>
 
 Notes:
   - Use `clear` on the same title URI to remove an explicit title.
@@ -186,18 +186,18 @@ Purpose:
   Change the generation target for this local job.
 
 Usage:
-  wikigraph {{ uri }} set reading-graph|reading-summary|knowledge-graph
+  {{ commandName }} {{ uri }} set reading-graph|reading-summary|knowledge-graph
 
 Notes:
   - This changes what the job will generate when resumed or picked up by a worker.
-  - Use `wikigraph {{ uri }} --help` to inspect the current job target first.
+  - Use `{{ commandName }} {{ uri }} --help` to inspect the current job target first.
 {% elif target.name == "local-config-section" %}
 Purpose:
   Replace this entire local config section with a JSON object.
 
 Usage:
-  wikigraph {{ uri }} set <json> [--json]
-  wikigraph {{ uri }} set --json-input <json> [--json]
+  {{ commandName }} {{ uri }} set <json> [--json]
+  {{ commandName }} {{ uri }} set --json-input <json> [--json]
 
 {% if "/llm" in uri %}
 Schema:
@@ -212,8 +212,8 @@ Notes:
   - Allowed keys: provider, model, baseURL, name, apiKey.
   - `apiKey` is sensitive and cannot be set from JSON.
   - If current output shows `"apiKey":"****"`, passing the same masked value preserves the existing secret.
-  - To add or replace the secret, use `wikigraph {{ uri }} put apiKey --secret`.
-  - To remove the secret, use `wikigraph {{ uri }} delete apiKey`.
+  - To add or replace the secret, use `{{ commandName }} {{ uri }} put apiKey --secret`.
+  - To remove the secret, use `{{ commandName }} {{ uri }} delete apiKey`.
 {% elif "/wikispine" in uri %}
 Schema:
   {
@@ -237,24 +237,24 @@ Notes:
 
 Examples:
 {% if "/llm" in uri %}
-  wikigraph {{ uri }} set '{"provider":"openai","model":"gpt-4.1"}'
-  wikigraph {{ uri }} set --json-input '{"provider":"openai-compatible","model":"model-name"}'
-  wikigraph {{ uri }} set '{"provider":"google","model":"gemini-2.5-pro"}' --json
+  {{ commandName }} {{ uri }} set '{"provider":"openai","model":"gpt-4.1"}'
+  {{ commandName }} {{ uri }} set --json-input '{"provider":"openai-compatible","model":"model-name"}'
+  {{ commandName }} {{ uri }} set '{"provider":"google","model":"gemini-2.5-pro"}' --json
 {% elif "/wikispine" in uri %}
-  wikigraph {{ uri }} set '{"provider":"fetch"}'
-  wikigraph {{ uri }} set '{"provider":"cli"}'
+  {{ commandName }} {{ uri }} set '{"provider":"fetch"}'
+  {{ commandName }} {{ uri }} set '{"provider":"cli"}'
 {% elif "/concurrent" in uri %}
-  wikigraph {{ uri }} set '{"job":3,"request":6}'
-  wikigraph {{ uri }} set --json-input '{"job":2,"request":4}'
+  {{ commandName }} {{ uri }} set '{"job":3,"request":6}'
+  {{ commandName }} {{ uri }} set --json-input '{"job":2,"request":4}'
 {% endif %}
 {% elif "/meta" in uri %}
 Purpose:
   Replace this metadata object from a JSON object or input value.
 
 Usage:
-  wikigraph {{ uri }} set <json> [--json]
-  wikigraph {{ uri }} set --input <path|-> [--json]
-  wikigraph {{ uri }} set --json-input <json> [--json]
+  {{ commandName }} {{ uri }} set <json> [--json]
+  {{ commandName }} {{ uri }} set --input <path|-> [--json]
+  {{ commandName }} {{ uri }} set --json-input <json> [--json]
 
 Notes:
   - Metadata shape depends on whether this is archive metadata or object metadata.
@@ -265,7 +265,7 @@ Purpose:
   This URI target has no generic `set` behavior.
 
 Usage:
-  wikigraph {{ uri }} --help
+  {{ commandName }} {{ uri }} --help
 
 Notes:
   - `set` is target-specific. Use the URI help page to find the writable child resource or supported predicate.
@@ -275,7 +275,7 @@ Purpose:
   Clear this writable resource or local config section.
 
 Usage:
-  wikigraph {{ uri }} clear
+  {{ commandName }} {{ uri }} clear
 
 {% if target.name == "local-config-section" %}
 Notes:
@@ -295,7 +295,7 @@ Purpose:
   Enable searchable FTS index support for this archive on this machine.
 
 Usage:
-  wikigraph {{ uri }} enable [--jsonl]
+  {{ commandName }} {{ uri }} enable [--jsonl]
 
 Notes:
   - This initializes or repairs the local searchable index and may take time on large archives.
@@ -311,7 +311,7 @@ Purpose:
   Disable searchable FTS index support for this archive and remove the current index materialization.
 
 Usage:
-  wikigraph {{ uri }} disable [--json]
+  {{ commandName }} {{ uri }} disable [--json]
 
 Notes:
   - Disabling removes the current local or embedded index materialization.
@@ -322,7 +322,7 @@ Purpose:
   Use an archive-embedded searchable FTS index.
 
 Usage:
-  wikigraph {{ uri }} embed [--json]
+  {{ commandName }} {{ uri }} embed [--json]
 
 Notes:
   - This switches the index storage policy to the `.wikg` archive and ensures the embedded index is current.
@@ -334,57 +334,57 @@ Purpose:
   Use external local-cache storage for the searchable FTS index.
 
 Usage:
-  wikigraph {{ uri }} external [--json]
+  {{ commandName }} {{ uri }} external [--json]
 
 Notes:
   - This switches the index storage policy back to local cache outside the `.wikg` archive.
   - The archive no longer carries embedded index data.
-  - If query support is needed on this machine after externalizing, run `wikigraph {{ uri }} enable`.
+  - If query support is needed on this machine after externalizing, run `{{ commandName }} {{ uri }} enable`.
 {% elif predicate == "clean" %}
 Purpose:
   Remove completed local generation jobs.
 
 Usage:
-  wikigraph {{ uri }} clean
+  {{ commandName }} {{ uri }} clean
 {% elif predicate == "watch" %}
 Purpose:
   Follow durable local job progress.
 
 Usage:
-  wikigraph {{ uri }} watch [--jsonl] [--from beginning|now]
+  {{ commandName }} {{ uri }} watch [--jsonl] [--from beginning|now]
 {% elif predicate == "pause" %}
 Purpose:
   Pause this local job.
 
 Usage:
-  wikigraph {{ uri }} pause
+  {{ commandName }} {{ uri }} pause
 {% elif predicate == "resume" %}
 Purpose:
   Resume this local job.
 
 Usage:
-  wikigraph {{ uri }} resume
+  {{ commandName }} {{ uri }} resume
 {% elif predicate == "cancel" %}
 Purpose:
   Cancel this local job.
 
 Usage:
-  wikigraph {{ uri }} cancel
+  {{ commandName }} {{ uri }} cancel
 {% elif predicate == "boost" %}
 Purpose:
   Move this local job forward in the local job scheduler.
 
 Usage:
-  wikigraph {{ uri }} boost
+  {{ commandName }} {{ uri }} boost
 {% elif predicate == "put" %}
 Purpose:
   Set one key in this local config section.
 
 Usage:
-  wikigraph {{ uri }} put <key> <value>
-  wikigraph {{ uri }} put <key> --json-input <json>
+  {{ commandName }} {{ uri }} put <key> <value>
+  {{ commandName }} {{ uri }} put <key> --json-input <json>
 {% if "/llm" in uri %}
-  wikigraph {{ uri }} put <key> --secret
+  {{ commandName }} {{ uri }} put <key> --secret
 {% endif %}
 
 {% if target.name == "local-config-section" %}
@@ -417,7 +417,7 @@ Purpose:
   Delete one key from this local config section.
 
 Usage:
-  wikigraph {{ uri }} delete <key>
+  {{ commandName }} {{ uri }} delete <key>
 
 {% if target.name == "local-config-section" %}
 Notes:
@@ -430,31 +430,31 @@ Purpose:
   Test connectivity for this local config section.
 
 Usage:
-  wikigraph {{ uri }} test [--json]
+  {{ commandName }} {{ uri }} test [--json]
 
 Notes:
   - For `llm`, this sends a small request to the configured model.
   - For `wikispine`, this checks the built-in fetch service or local `wikispine` command.
   - Text success output is intentionally short.
   - With `--json`, success and failure both return `{ "ok": true|false, ... }`; failures set a non-zero exit code.
-  - Without `--json`, failures print the command error. Use `wikigraph help readiness` and `wikigraph help config` to recover.
+  - Without `--json`, failures print the command error. Use `{{ commandName }} help readiness` and `{{ commandName }} help config` to recover.
 {% if "/wikispine" in uri %}
   - Runtime setup and recovery guide: https://raw.githubusercontent.com/oomol-lab/wiki-graph/refs/heads/main/docs/wikispine-runtime.md
 {% endif %}
 {% endif %}
 
 Related help:
-  - wikigraph {{ uri }} --help
-  - wikigraph help uri
+  - {{ commandName }} {{ uri }} --help
+  - {{ commandName }} help uri
 {% if predicate == "related" or predicate == "evidence" or predicate == "pack" or predicate == "enable" or predicate == "disable" or predicate == "embed" or predicate == "external" or target.name == "index-object" or target.name == "job-collection-scope" %}
-  - wikigraph help readiness
+  - {{ commandName }} help readiness
 {% endif %}
 {% if predicate == "create" or predicate == "export" %}
-  - wikigraph help format
+  - {{ commandName }} help format
 {% endif %}
 {% if target.name == "job-collection-scope" or target.name == "job-object" or target.name == "job-target-object" %}
-  - wikigraph help runtime
+  - {{ commandName }} help runtime
 {% endif %}
 {% if target.name == "local-config-section" %}
-  - wikigraph help config
+  - {{ commandName }} help config
 {% endif %}

@@ -79,7 +79,7 @@ export function createGenerationPerformanceHints(input: {
 
   if (recommendedRequest !== undefined) {
     hints.push({
-      command: `wikigraph wikg://local/config/concurrent put request ${recommendedRequest}`,
+      command: `wg wikg://local/config/concurrent put request ${recommendedRequest}`,
       current: input.concurrent.request,
       kind: "request",
       message:
@@ -90,7 +90,7 @@ export function createGenerationPerformanceHints(input: {
 
   if (input.concurrent.job < 4 && input.chapters > 1) {
     hints.push({
-      command: "wikigraph wikg://local/config/concurrent put job 4",
+      command: "wg wikg://local/config/concurrent put job 4",
       current: input.concurrent.job,
       kind: "job",
       message:

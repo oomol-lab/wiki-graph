@@ -1,11 +1,11 @@
 Help Type: command
-Command: wikigraph <chapter-uri>/summary set
+Command: {{ commandName }} <chapter-uri>/summary set
 
 Purpose:
   Fill a Reading Graph-stage chapter with a manual final summary.
 
 Usage:
-  wikigraph <chapter-uri>/summary set [text] [--input <path|->] [--llm <json>] [--json] [--help|-h]
+  {{ commandName }} <chapter-uri>/summary set [text] [--input <path|->] [--llm <json>] [--json] [--help|-h]
 
 Input:
   - Summary text is read from a positional value, `--input <path>`, or `--input -` for stdin.
@@ -15,7 +15,7 @@ Input:
 Preconditions:
   - The chapter must be `reading-graph`.
   - If the chapter is `source`, run:
-    wikigraph wikg://local/job add --input <archive-uri|chapter-uri> --task reading-graph --accept-cost
+    {{ commandName }} wikg://local/job add --input <archive-uri|chapter-uri> --task reading-graph --accept-cost
 
 Behavior:
   - Moves the chapter to `reading-summary`.
@@ -24,8 +24,8 @@ Behavior:
   - With `--json`, prints the updated chapter status as one JSON object.
 
 See also:
-  - wikigraph wikg://local/job --help
-  - wikigraph wikg://book.wikg/chapter/3/state --help
-  - wikigraph help readiness
-  - wikigraph help runtime
-  - wikigraph --help
+  - {{ commandName }} wikg://local/job --help
+  - {{ commandName }} wikg://book.wikg/chapter/3/state --help
+  - {{ commandName }} help readiness
+  - {{ commandName }} help runtime
+  - {{ commandName }} --help

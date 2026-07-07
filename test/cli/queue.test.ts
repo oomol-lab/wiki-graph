@@ -442,7 +442,7 @@ describe("cli/queue", () => {
       "Current concurrency: job=3 request=6",
     );
     expect(queueMockState.textWrites.join("")).toContain(
-      "Watch: wikigraph wikg://local/job/job-1 watch",
+      "Watch: wg wikg://local/job/job-1 watch",
     );
   });
 
@@ -471,7 +471,7 @@ describe("cli/queue", () => {
       jobId: "job-1",
       state: "queued",
       target: "reading-summary",
-      watchCommand: "wikigraph wikg://local/job/job-1 watch",
+      watchCommand: "wg wikg://local/job/job-1 watch",
     });
   });
 
@@ -549,7 +549,7 @@ describe("cli/queue", () => {
       "Includes prerequisite Reading Graph work where missing.",
     );
     expect(queueMockState.textWrites.join("")).toContain(
-      "Command: wikigraph wikg://local/config/concurrent put job 4",
+      "Command: wg wikg://local/config/concurrent put job 4",
     );
   });
 

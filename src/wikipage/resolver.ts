@@ -26,7 +26,7 @@ const DEFAULT_MIN_REQUEST_INTERVAL_MS = 100;
 const DEFAULT_RETRY_BASE_DELAY_MS = 1_000;
 const DEFAULT_RETRY_TIMES = 3;
 const DEFAULT_USER_AGENT =
-  "WikiGraph/0.3 (https://github.com/oomol-lab/spinedigest)";
+  "WikiGraph/0.3 (https://github.com/oomol-lab/wiki-graph)";
 
 export class WikipageResolver {
   readonly #cache: WikipageCache;

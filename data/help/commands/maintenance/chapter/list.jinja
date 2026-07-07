@@ -1,5 +1,5 @@
 Help Type: command
-Command: wikigraph <archive-uri>/chapter
+Command: {{ commandName }} <archive-uri>/chapter
 
 chapter collection
 
@@ -7,7 +7,7 @@ Purpose:
   List every chapter and its stored artifact readiness.
 
 Usage:
-  wikigraph <archive-uri>/chapter [--all] [--limit <n>] [--cursor <token>] [--json|--jsonl] [--llm <json>] [--help|-h]
+  {{ commandName }} <archive-uri>/chapter [--all] [--limit <n>] [--cursor <token>] [--json|--jsonl] [--llm <json>] [--help|-h]
 
 Output shape:
   wikg://chapter/<id>  <title-or-[untitled]>  source:<ready|missing> reading-graph:<ready|missing> reading-summary:<ready|missing> knowledge-graph:<ready|missing>
@@ -17,17 +17,17 @@ Output shape:
 Behavior:
   - Includes sourced, generated, and unfinished chapters.
   - Some chapters are structural table-of-contents nodes that organize child chapters; missing generated artifacts alone does not make them abnormal.
-  - Read `wikigraph help uri` before choosing `--limit`, `--all`, `--json`, or `--jsonl`.
+  - Read `{{ commandName }} help uri` before choosing `--limit`, `--all`, `--json`, or `--jsonl`.
   - Chapter ids are encoded in the returned `wikg://chapter/<id>` URIs.
   - Does not call an LLM provider.
   - Does not mutate chapter content or summaries.
 
 Use this before mutation:
   Discover ids and missing generated artifacts with:
-    wikigraph <archive-uri>/chapter
+    {{ commandName }} <archive-uri>/chapter
 
 See also:
-  - wikigraph wikg://book.wikg/chapter/3/state --help
-  - wikigraph help readiness
-  - wikigraph help uri
-  - wikigraph --help
+  - {{ commandName }} wikg://book.wikg/chapter/3/state --help
+  - {{ commandName }} help readiness
+  - {{ commandName }} help uri
+  - {{ commandName }} --help

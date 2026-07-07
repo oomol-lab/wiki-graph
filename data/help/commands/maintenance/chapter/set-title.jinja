@@ -1,12 +1,12 @@
 Help Type: command
-Command: wikigraph <chapter-uri>/title set
+Command: {{ commandName }} <chapter-uri>/title set
 
 Purpose:
   Rename an existing chapter in the archive TOC.
 
 Usage:
-  wikigraph <chapter-uri>/title set <title> [--help|-h]
-  wikigraph <chapter-uri>/title clear [--help|-h]
+  {{ commandName }} <chapter-uri>/title set <title> [--help|-h]
+  {{ commandName }} <chapter-uri>/title clear [--help|-h]
 
 Behavior:
   - Updates only the chapter title stored in the TOC.
@@ -19,11 +19,11 @@ Output shape:
   Prints the updated chapter object.
 
 Examples:
-  wikigraph wikg://book.wikg/chapter/12/title set "New Chapter Title"
-  wikigraph wikg://book.wikg/chapter/12/title clear
+  {{ commandName }} wikg://book.wikg/chapter/12/title set "New Chapter Title"
+  {{ commandName }} wikg://book.wikg/chapter/12/title clear
 
 See also:
-  - wikigraph wikg://book.wikg/chapter --help
-  - wikigraph wikg://book.wikg/chapter/12/state --help
-  - wikigraph help uri
-  - wikigraph --help
+  - {{ commandName }} wikg://book.wikg/chapter --help
+  - {{ commandName }} wikg://book.wikg/chapter/12/state --help
+  - {{ commandName }} help uri
+  - {{ commandName }} --help

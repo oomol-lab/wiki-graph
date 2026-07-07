@@ -1,16 +1,16 @@
 Help Type: command
-Command: wikigraph next
+Command: {{ commandName }} next
 
 Purpose:
   Continue any paged Wiki Graph result from its `nextCursor`.
 
 Use when:
-  - A JSON or text result prints `nextCursor` or `Next page: wikigraph next <cursor>`.
+  - A JSON or text result prints `nextCursor` or `Next page: {{ commandName }} next <cursor>`.
   - You do not want to know whether the cursor came from `--query`, scope enumeration, or evidence.
 
 Usage:
-  wikigraph next <cursor> [--limit <n>] [--json|--jsonl] [--help|-h]
-  wikigraph next <archive-uri> <cursor> [--limit <n>] [--json|--jsonl] [--help|-h]
+  {{ commandName }} next <cursor> [--limit <n>] [--json|--jsonl] [--help|-h]
+  {{ commandName }} next <archive-uri> <cursor> [--limit <n>] [--json|--jsonl] [--help|-h]
 
 Returns:
   - The next result page for the cursor.
@@ -21,9 +21,9 @@ Notes:
   - Use `--limit` to override the next page size.
 
 Examples:
-  wikigraph next c_7Kp9x2aQ
-  wikigraph next wikg:///books/book.wikg c_7Kp9x2aQ
+  {{ commandName }} next c_7Kp9x2aQ
+  {{ commandName }} next wikg:///books/book.wikg c_7Kp9x2aQ
 
 Related help:
   - URI scopes, pagination, JSON, and JSONL result shapes:
-    wikigraph help uri
+    {{ commandName }} help uri

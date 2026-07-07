@@ -1,19 +1,19 @@
 Help Type: command
-Command: wikigraph legacy
+Command: {{ commandName }} legacy
 
 Purpose:
   Expose the single `.sdpub` upgrade command.
 
 Usage:
-  wikigraph legacy migrate <path.sdpub> [--output <path.wikg>]
+  {{ commandName }} legacy migrate <path.sdpub> [--output <path.wikg>]
 
 Commands:
   migrate    Convert an `.sdpub` archive into the current `.wikg` format.
 
 Examples:
-  wikigraph legacy migrate ./book.sdpub
-  wikigraph legacy migrate ./book.sdpub --output ./book.wikg
+  {{ commandName }} legacy migrate ./book.sdpub
+  {{ commandName }} legacy migrate ./book.sdpub --output ./book.wikg
 
 See Also:
-  wikigraph legacy migrate --help
-  wikigraph help format
+  {{ commandName }} legacy migrate --help
+  {{ commandName }} help format

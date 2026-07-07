@@ -268,7 +268,7 @@ export async function addChapter(
       !appendChildToChapter(toc.items, options.parentChapterId, chapterItem)
     ) {
       throw new Error(
-        `Chapter ${options.parentChapterId} does not exist. Use \`wikigraph <archive-uri>/chapter list\` to discover chapter ids.`,
+        `Chapter ${options.parentChapterId} does not exist. Use \`wg <archive-uri>/chapter list\` to discover chapter ids.`,
       );
     }
 
@@ -359,7 +359,7 @@ export async function getChapterDetails(
 
   if (entry === undefined) {
     throw new Error(
-      `Chapter ${chapterId} does not exist. Use \`wikigraph <archive-uri>/chapter list\` to discover chapter ids.`,
+      `Chapter ${chapterId} does not exist. Use \`wg <archive-uri>/chapter list\` to discover chapter ids.`,
     );
   }
 
@@ -427,7 +427,7 @@ export async function moveChapter(
 
     if (extracted.item === undefined) {
       throw new Error(
-        `Chapter ${chapterId} does not exist. Use \`wikigraph <archive-uri>/chapter list\` to discover chapter ids.`,
+        `Chapter ${chapterId} does not exist. Use \`wg <archive-uri>/chapter list\` to discover chapter ids.`,
       );
     }
 
@@ -458,7 +458,7 @@ export async function removeChapter(
 
     if (!result.removed) {
       throw new Error(
-        `Chapter ${chapterId} does not exist. Use \`wikigraph <archive-uri>/chapter list\` to discover chapter ids.`,
+        `Chapter ${chapterId} does not exist. Use \`wg <archive-uri>/chapter list\` to discover chapter ids.`,
       );
     }
 
@@ -544,7 +544,7 @@ export async function setChapterTitle(
 
     if (!setChapterTitleInItems(toc.items, chapterId, normalizedTitle)) {
       throw new Error(
-        `Chapter ${chapterId} does not exist. Use \`wikigraph <archive-uri>/chapter list\` to discover chapter ids.`,
+        `Chapter ${chapterId} does not exist. Use \`wg <archive-uri>/chapter list\` to discover chapter ids.`,
       );
     }
 
@@ -867,7 +867,7 @@ async function selectChapterEntries(
 
   if (selectedIds.size === 0) {
     throw new Error(
-      `Chapter ${chapterId} does not exist. Use \`wikigraph <archive-uri>/chapter list\` to discover chapter ids.`,
+      `Chapter ${chapterId} does not exist. Use \`wg <archive-uri>/chapter list\` to discover chapter ids.`,
     );
   }
 

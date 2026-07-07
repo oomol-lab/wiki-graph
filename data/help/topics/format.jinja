@@ -10,7 +10,7 @@ Managed archive format:
   wikg
 
 Archive create/import input:
-  epub via `wikigraph <archive-uri> create --import <epub-path>`
+  epub via `{{ commandName }} <archive-uri> create --import <epub-path>`
 
 Export formats:
   txt, markdown, epub
@@ -62,11 +62,11 @@ Stdout and stderr:
   Commands that accept `--json` or `--jsonl` emit machine-readable error objects when those flags are present.
 
 Examples:
-  wikigraph wikg://book.wikg create
-  wikigraph wikg://book.wikg create --import ./book.epub
-  wikigraph wikg://book.wikg export --output-format markdown --output out.md
-  cat chapter.txt | wikigraph transform --input-format txt --output-format markdown
-  wikigraph wikg://book.wikg inspect --json
-  wikigraph wikg://book.wikg/entity --all --jsonl
+  {{ commandName }} wikg://book.wikg create
+  {{ commandName }} wikg://book.wikg create --import ./book.epub
+  {{ commandName }} wikg://book.wikg export --output-format markdown --output out.md
+  cat chapter.txt | {{ commandName }} transform --input-format txt --output-format markdown
+  {{ commandName }} wikg://book.wikg inspect --json
+  {{ commandName }} wikg://book.wikg/entity --all --jsonl
 
 Transforming source input usually requires LLM configuration.

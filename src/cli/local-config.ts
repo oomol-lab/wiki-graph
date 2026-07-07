@@ -289,7 +289,7 @@ export function mergeMaskedSecretsForSet(
   }
 
   throw new Error(
-    "apiKey is sensitive and cannot be set from JSON. Use `wikigraph wikg://local/config/llm put apiKey --secret`.",
+    "apiKey is sensitive and cannot be set from JSON. Use `wg wikg://local/config/llm put apiKey --secret`.",
   );
 }
 

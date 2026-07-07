@@ -24,25 +24,25 @@ Sections:
 
 Operations:
   Read a section:
-    wikigraph wikg://local/config/llm
-    wikigraph wikg://local/config/concurrent
-    wikigraph wikg://local/config/wikispine
+    {{ commandName }} wikg://local/config/llm
+    {{ commandName }} wikg://local/config/concurrent
+    {{ commandName }} wikg://local/config/wikispine
 
   Replace a section with a JSON object:
-    wikigraph wikg://local/config/llm set '{"provider":"openai","model":"gpt-4.1"}'
-    wikigraph wikg://local/config/concurrent set '{"job":3,"request":6}'
-    wikigraph wikg://local/config/wikispine set '{"provider":"fetch"}'
+    {{ commandName }} wikg://local/config/llm set '{"provider":"openai","model":"gpt-4.1"}'
+    {{ commandName }} wikg://local/config/concurrent set '{"job":3,"request":6}'
+    {{ commandName }} wikg://local/config/wikispine set '{"provider":"fetch"}'
 
   Update one key:
-    wikigraph wikg://local/config/llm put provider openai
-    wikigraph wikg://local/config/llm put model gpt-4.1
-    wikigraph wikg://local/config/concurrent put job 3
-    wikigraph wikg://local/config/concurrent put request 6
-    wikigraph wikg://local/config/wikispine put provider cli
-    wikigraph wikg://local/config/wikispine put provider fetch
+    {{ commandName }} wikg://local/config/llm put provider openai
+    {{ commandName }} wikg://local/config/llm put model gpt-4.1
+    {{ commandName }} wikg://local/config/concurrent put job 3
+    {{ commandName }} wikg://local/config/concurrent put request 6
+    {{ commandName }} wikg://local/config/wikispine put provider cli
+    {{ commandName }} wikg://local/config/wikispine put provider fetch
 
   Store the API key:
-    wikigraph wikg://local/config/llm put apiKey --secret
+    {{ commandName }} wikg://local/config/llm put apiKey --secret
 
 Secret handling:
   - `apiKey` is read through an interactive hidden prompt.
@@ -60,16 +60,16 @@ One-run overrides:
   `--llm <json>` can provide an LLM object for one invocation.
   It accepts direct LLM objects and common OpenAI-compatible aliases such as `baseUrl`.
   A base URL implies `openai-compatible` when `provider` is omitted.
-  Generation jobs may also receive `--llm <json>` at `wikigraph wikg://local/job add`;
+  Generation jobs may also receive `--llm <json>` at `{{ commandName }} wikg://local/job add`;
   that job-local LLM object is stored with the job and does not appear in `wikg://local/config/llm`.
 
 Examples:
-  wikigraph wikg://local/config/llm put provider openai
-  wikigraph wikg://local/config/llm put model gpt-4.1
-  wikigraph wikg://local/config/llm put apiKey --secret
-  wikigraph wikg://local/config/llm test
-  wikigraph wikg://local/config/wikispine put provider fetch
-  wikigraph wikg://local/config/wikispine test
+  {{ commandName }} wikg://local/config/llm put provider openai
+  {{ commandName }} wikg://local/config/llm put model gpt-4.1
+  {{ commandName }} wikg://local/config/llm put apiKey --secret
+  {{ commandName }} wikg://local/config/llm test
+  {{ commandName }} wikg://local/config/wikispine put provider fetch
+  {{ commandName }} wikg://local/config/wikispine test
 
 WikiSpine:
   Knowledge Graph builds require WikiSpine. If `wikispine` is missing,
@@ -79,10 +79,10 @@ WikiSpine:
 
 Where to go next:
   - Need the normal workflow:
-    wikigraph help recipe
+    {{ commandName }} help recipe
   - Need to understand why index, LLM, or WikiSpine blocks retrieval/generation:
-    wikigraph help readiness
+    {{ commandName }} help readiness
   - Need URI grammar:
-    wikigraph help uri
+    {{ commandName }} help uri
   - Need runtime effects for generation jobs:
-    wikigraph help runtime
+    {{ commandName }} help runtime

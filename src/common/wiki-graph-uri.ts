@@ -204,7 +204,7 @@ export function formatWikiGraphUriExpectedError(value: string): string {
   return [
     `Expected a Wiki Graph URI with a .wikg archive locator: ${value}`,
     `Example: ${example}`,
-    "See: wikigraph help uri",
+    "See: wg help uri",
   ].join("\n");
 }
 

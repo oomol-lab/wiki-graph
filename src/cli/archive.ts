@@ -41,6 +41,7 @@ import {
 } from "../wikg/index.js";
 import { DirectoryDocument, type ReadonlyDocument } from "../document/index.js";
 import { TOC_FILE_VERSION } from "../source/index.js";
+import { CLI_PRIMARY_COMMAND } from "../common/cli-command.js";
 
 import type { CLIArchiveArguments } from "./args.js";
 import { loadCLIConfig } from "./config.js";
@@ -57,7 +58,7 @@ import {
 } from "./generation-planning.js";
 import { writeTextToStdout } from "./io.js";
 import { formatCLIJSON, formatCLIJSONLine } from "./json.js";
-import { formatShellCommand } from "./shell.js";
+import { formatCliCommand } from "./shell.js";
 
 type ResultFormat = "json" | "jsonl" | "text";
 
@@ -555,7 +556,7 @@ function formatArchiveAlreadyExistsMessage(archivePath: string): string {
 
   return [
     `Archive already exists: ${archivePath}`,
-    `Use \`${formatShellCommand(["wikigraph", uri, "inspect"])}\` to view it, or rerun with \`--replace\` to overwrite it.`,
+    `Use \`${formatCliCommand([uri, "inspect"])}\` to view it, or rerun with \`--replace\` to overwrite it.`,
   ].join("\n");
 }
 
@@ -1189,11 +1190,7 @@ async function createArchiveInspectReport(
       ...(ftsCurrent
         ? {}
         : {
-            fixCommand: formatShellCommand([
-              "wikigraph",
-              `${archiveUri}/index`,
-              "enable",
-            ]),
+            fixCommand: formatCliCommand([`${archiveUri}/index`, "enable"]),
             impact:
               "--query, related --query, and evidence --query are unavailable.",
             resource: "local CPU/disk time only; no LLM tokens.",
@@ -1219,7 +1216,7 @@ async function createArchiveInspectReport(
     }),
     improvements,
     performanceHints,
-    help: { readiness: "wikigraph help readiness" },
+    help: { readiness: "wg help readiness" },
   };
 }
 
@@ -1416,11 +1413,7 @@ function createInspectImprovements(input: {
 
   if (!input.ftsCurrent) {
     improvements.push({
-      command: formatShellCommand([
-        "wikigraph",
-        `${input.archiveUri}/index`,
-        "enable",
-      ]),
+      command: formatCliCommand([`${input.archiveUri}/index`, "enable"]),
       recommendation:
         "Enable the searchable FTS index so --query filtering is available for scopes, related results, and evidence.",
       title: "Enable searchable index",
@@ -1429,8 +1422,7 @@ function createInspectImprovements(input: {
 
   if (input.contentChapters.length === 0) {
     improvements.push({
-      command: formatShellCommand([
-        "wikigraph",
+      command: formatCliCommand([
         `${input.archiveUri}/chapter`,
         "add",
         "--input",
@@ -1502,8 +1494,7 @@ function createGraphImprovement(input: {
 
   return [
     {
-      command: formatShellCommand([
-        "wikigraph",
+      command: formatCliCommand([
         "wikg://local/job",
         "add",
         "--input",
@@ -2009,7 +2000,7 @@ function mergeEvidencePages(
 function formatEvidenceNextCursor(nextCursor: string | null): string {
   return nextCursor === null
     ? ""
-    : `\n\nNext page: wikigraph next ${nextCursor}`;
+    : `\n\nNext page: ${CLI_PRIMARY_COMMAND} next ${nextCursor}`;
 }
 
 function createPageCursorObject(nextCursor: string | null): {
@@ -2195,9 +2186,9 @@ function appendEntityNextSteps(
     text,
     "",
     "Next:",
-    `  ${formatShellCommand(["wikigraph", entityUri, "evidence"])}`,
-    `  ${formatShellCommand(["wikigraph", entityUri, "related"])}`,
-    `  ${formatShellCommand(["wikigraph", `${entityUri}/wikipage`])}`,
+    `  ${formatCliCommand([entityUri, "evidence"])}`,
+    `  ${formatCliCommand([entityUri, "related"])}`,
+    `  ${formatCliCommand([`${entityUri}/wikipage`])}`,
   ].join("\n");
 }
 
@@ -2285,12 +2276,12 @@ function formatNextCursor(nextCursor: string | null): string {
     return "";
   }
 
-  return `\n\nNext page: wikigraph next ${nextCursor}`;
+  return `\n\nNext page: ${CLI_PRIMARY_COMMAND} next ${nextCursor}`;
 }
 
 function formatNoMatches(result: ArchiveFindResult): string {
   if (result.match === "all" && result.terms.length > 1) {
-    return `No matches. Try a more specific scope URI, for example: wikigraph <archive-uri>/chunk --query "${result.query}"${formatFindLensHint(result)}\n`;
+    return `No matches. Try a more specific scope URI, for example: ${CLI_PRIMARY_COMMAND} <archive-uri>/chunk --query "${result.query}"${formatFindLensHint(result)}\n`;
   }
 
   const lines = [
@@ -2614,7 +2605,7 @@ function formatOpenShortUriHint(
     return "";
   }
 
-  return `\n\nOpen short URIs with the archive locator, for example:\n  ${formatShellCommand(["wikigraph", formatWikiGraphCommandUri(context.archivePath, shortUri)])}`;
+  return `\n\nOpen short URIs with the archive locator, for example:\n  ${formatCliCommand([formatWikiGraphCommandUri(context.archivePath, shortUri)])}`;
 }
 
 function isShortOutputUri(uri: string): boolean {
@@ -2916,7 +2907,7 @@ function formatEvidencePreviewContinuation(
   if (evidence.nextCursor !== null) {
     return [
       "",
-      `${hiddenEvidenceCount} more evidence: wikigraph next ${evidence.nextCursor}`,
+      `${hiddenEvidenceCount} more evidence: ${CLI_PRIMARY_COMMAND} next ${evidence.nextCursor}`,
     ];
   }
 

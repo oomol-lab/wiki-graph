@@ -58,7 +58,7 @@ describe("cli/args", () => {
     if (!helpTopic.help || helpTopic.kind !== "help") {
       throw new Error("Expected help topic");
     }
-    expect(createHelp.helpText).toContain("Command: wikigraph <uri> create");
+    expect(createHelp.helpText).toContain("Command: wg <uri> create");
     expect(createHelp.helpText).toContain("Create the archive");
     expect(createHelp.helpText).toContain(
       "Existing archives are not overwritten by default",
@@ -128,10 +128,10 @@ describe("cli/args", () => {
       throw new Error("Expected recipe help");
     }
     expect(recipeHelp.helpText).toContain(
-      "wikigraph wikg://book.wikg create --import ./book.epub",
+      "wg wikg://book.wikg create --import ./book.epub",
     );
     expect(recipeHelp.helpText).toContain(
-      "cat chapter.txt | wikigraph transform --input-format txt --output-format markdown",
+      "cat chapter.txt | wg transform --input-format txt --output-format markdown",
     );
   });
 
@@ -380,7 +380,7 @@ describe("cli/args", () => {
     });
     expect(() =>
       parseCLIArguments(["wikg://book.wikg", "status", "--accept-cost"]),
-    ).toThrow("only valid for `wikigraph wikg://local/job add`");
+    ).toThrow("only valid for `wg wikg://local/job add`");
     expect(() =>
       parseCLIArguments([
         "wikg://local/job",
@@ -390,7 +390,7 @@ describe("cli/args", () => {
         "--stage",
         "graph",
       ]),
-    ).toThrow("`wikigraph wikg://local/job add` does not support --stage.");
+    ).toThrow("`wg wikg://local/job add` does not support --stage.");
     expect(
       parseCLIArguments([
         "wikg://local/job",
@@ -637,7 +637,7 @@ describe("cli/args", () => {
     expect(() =>
       parseCLIArguments(["wikg://book.wikg", "inspect", "--replace"]),
     ).toThrow(
-      "The --replace option is only supported by `wikigraph <archive-uri> create`.",
+      "The --replace option is only supported by `wg <archive-uri> create`.",
     );
 
     expect(() => parseCLIArguments(["build", "book.wikg"])).toThrow(
@@ -753,7 +753,7 @@ describe("cli/args", () => {
     expect(() =>
       parseCLIArguments(["wikg://book.wikg", "--query", "agent", "--reverse"]),
     ).toThrow(
-      "`--reverse` cannot be combined with --query.\nSee: wikigraph wikg://book.wikg --help",
+      "`--reverse` cannot be combined with --query.\nSee: wg wikg://book.wikg --help",
     );
 
     expect(
@@ -1730,7 +1730,7 @@ describe("cli/args", () => {
     ).toThrow("does not support `evidence`");
     expect(() =>
       parseCLIArguments(["wikg://book.wikg/chapter/12/summary", "evidence"]),
-    ).toThrow("wikigraph <chapter-uri>/summary --help");
+    ).toThrow("wg <chapter-uri>/summary --help");
     expect(() => parseCLIArguments(["chapter", "set-title", "--help"])).toThrow(
       "Use concrete chapter resource URIs",
     );
@@ -1806,20 +1806,20 @@ describe("cli/args", () => {
 
   it("rejects positional arguments", () => {
     expect(() => parseCLIArguments(["book.epub"])).toThrow(
-      "Unknown command: book.epub.\nSee: wikigraph --help",
+      "Unknown command: book.epub.\nSee: wg --help",
     );
     expect(() => parseCLIArguments(["book.wikg", "search", "RAG"])).toThrow(
-      "Expected a Wiki Graph URI, not a filesystem path: book.wikg\nUse: wikg://book.wikg\nSee: wikigraph help uri",
+      "Expected a Wiki Graph URI, not a filesystem path: book.wikg\nUse: wikg://book.wikg\nSee: wg help uri",
     );
     expect(() =>
       parseCLIArguments(["/Users/me/book.wikg/chapter/12", "get"]),
     ).toThrow(
-      "Expected a Wiki Graph URI, not a filesystem path: /Users/me/book.wikg/chapter/12\nUse: wikg:///Users/me/book.wikg/chapter/12\nSee: wikigraph help uri",
+      "Expected a Wiki Graph URI, not a filesystem path: /Users/me/book.wikg/chapter/12\nUse: wikg:///Users/me/book.wikg/chapter/12\nSee: wg help uri",
     );
     expect(() =>
       parseCLIArguments(["C:\\books\\book.wikg\\chapter\\12", "get"]),
     ).toThrow(
-      "Expected a Wiki Graph URI, not a filesystem path: C:\\books\\book.wikg\\chapter\\12\nUse: wikg://C:/books/book.wikg/chapter/12\nSee: wikigraph help uri",
+      "Expected a Wiki Graph URI, not a filesystem path: C:\\books\\book.wikg\\chapter\\12\nUse: wikg://C:/books/book.wikg/chapter/12\nSee: wg help uri",
     );
   });
 
@@ -1827,7 +1827,7 @@ describe("cli/args", () => {
     expect(() =>
       parseCLIArguments(["wikg://book.wikg", "create", "--import", "pdf"]),
     ).toThrow(
-      "`create --import` only supports EPUB input.\nSee: wikigraph wikg://book.wikg create --help",
+      "`create --import` only supports EPUB input.\nSee: wg wikg://book.wikg create --help",
     );
     expect(() =>
       parseCLIArguments([
@@ -1837,19 +1837,19 @@ describe("cli/args", () => {
         "pdf",
       ]),
     ).toThrow(
-      "Invalid --output-format: pdf. Expected one of wikg, epub, txt, markdown.\nSee: wikigraph help format",
+      "Invalid --output-format: pdf. Expected one of wikg, epub, txt, markdown.\nSee: wg help format",
     );
   });
 
   it("rejects removed command families and invalid maintenance usage", () => {
     expect(() => parseCLIArguments([])).toThrow(
-      "Missing command.\nSee: wikigraph --help",
+      "Missing command.\nSee: wg --help",
     );
     expect(() => parseCLIArguments(["import", "--help"])).toThrow(
-      "Unknown command: import.\nSee: wikigraph --help",
+      "Unknown command: import.\nSee: wg --help",
     );
     expect(() => parseCLIArguments(["ls", "book.wikg"])).toThrow(
-      "Unknown command: ls.\nSee: wikigraph --help",
+      "Unknown command: ls.\nSee: wg --help",
     );
     expect(() => parseCLIArguments(["wikg"])).toThrow("Unknown command: wikg.");
     expect(() => parseCLIArguments(["wikg", "toc"])).toThrow(
@@ -1874,7 +1874,7 @@ describe("cli/args", () => {
     expect(() =>
       parseCLIArguments(["wikg://book.wikg/chapter/x/source", "set"]),
     ).toThrow(
-      "Use `wikigraph wikg://book.wikg/chapter/x/source --help` to inspect valid predicates.",
+      "Use `wg wikg://book.wikg/chapter/x/source --help` to inspect valid predicates.",
     );
     expect(() => parseCLIArguments(["wikg://entity/Q9957"])).toThrow(
       "Short object URIs from output are archive-relative handles.",
@@ -1889,7 +1889,7 @@ describe("cli/args", () => {
         "--jsonl",
       ]),
     ).toThrow(
-      "The `chapter` command does not support --jsonl.\nSee: wikigraph wikg://book.wikg/chapter/1/source set --help",
+      "The `chapter` command does not support --jsonl.\nSee: wg wikg://book.wikg/chapter/1/source set --help",
     );
     expect(() =>
       parseCLIArguments([
@@ -1899,13 +1899,13 @@ describe("cli/args", () => {
         "summarized",
       ]),
     ).toThrow(
-      "Invalid --to: summarized. Expected planned, source, or reading-graph.\nSee: wikigraph wikg://book.wikg/chapter/1 reset --help",
+      "Invalid --to: summarized. Expected planned, source, or reading-graph.\nSee: wg wikg://book.wikg/chapter/1 reset --help",
     );
   });
 
   it("rejects invalid help usage", () => {
     expect(() => parseCLIArguments(["help", "unknown"])).toThrow(
-      "Invalid help topic: unknown. Expected one of format, config, runtime, uri, recipe, readiness.\nSee: wikigraph --help",
+      "Invalid help topic: unknown. Expected one of format, config, runtime, uri, recipe, readiness.\nSee: wg --help",
     );
     expect(() =>
       parseCLIArguments(["help", "object", "entity", "extra"]),
@@ -1915,23 +1915,19 @@ describe("cli/args", () => {
     );
     expect(() =>
       parseCLIArguments(["help", "recipe", "--input", "book.epub"]),
-    ).toThrow(
-      "The `help` command does not support --input.\nSee: wikigraph --help",
-    );
+    ).toThrow("The `help` command does not support --input.\nSee: wg --help");
     expect(() =>
       parseCLIArguments(["help", "runtime", "--llm", '{"model":"cli-model"}']),
-    ).toThrow(
-      "The `help` command does not support --llm.\nSee: wikigraph --help",
-    );
+    ).toThrow("The `help` command does not support --llm.\nSee: wg --help");
   });
 
   it("documents the layered help contract", () => {
     const rootHelpText = renderMainHelpText();
     const uriHelpText = renderHelpTopicText("uri");
 
-    expect(rootHelpText).toContain("wikigraph help [topic]");
-    expect(rootHelpText).toContain("wikigraph help recipe");
-    expect(rootHelpText).toContain("wikigraph help readiness");
+    expect(rootHelpText).toContain("wg help [topic]");
+    expect(rootHelpText).toContain("wg help recipe");
+    expect(rootHelpText).toContain("wg help readiness");
     expect(rootHelpText).toContain("Core concepts:");
     expect(rootHelpText).toContain("knowledge-base archives");
     expect(rootHelpText).toContain("Do not edit archive internals:");
@@ -1954,23 +1950,23 @@ describe("cli/args", () => {
     expect(rootHelpText).toContain("Scope: a URI target");
     expect(rootHelpText).toContain("Object: a URI target");
     expect(rootHelpText).toContain("Predicate: an operation bound to a URI");
-    expect(rootHelpText).not.toContain("wikigraph help task");
-    expect(rootHelpText).toContain("wikigraph help uri");
-    expect(rootHelpText).toContain("wikigraph <archive-uri> inspect");
-    expect(rootHelpText).toContain("wikigraph transform");
-    expect(rootHelpText).not.toContain("wikigraph import");
-    expect(rootHelpText).not.toContain("wikigraph wikg://local/job add");
-    expect(rootHelpText).not.toContain("wikigraph <archive-uri>/index build");
+    expect(rootHelpText).not.toContain("wg help task");
+    expect(rootHelpText).toContain("wg help uri");
+    expect(rootHelpText).toContain("wg <archive-uri> inspect");
+    expect(rootHelpText).toContain("wg transform");
+    expect(rootHelpText).not.toContain("wg import");
+    expect(rootHelpText).not.toContain("wg wikg://local/job add");
+    expect(rootHelpText).not.toContain("wg <archive-uri>/index build");
     expect(rootHelpText).toContain(
       "The CLI help system is part of the product contract",
     );
-    expect(rootHelpText).toContain("Use `wikigraph <uri> --help`");
-    expect(rootHelpText).toContain("Treat `wikigraph --help` as the root");
+    expect(rootHelpText).toContain("Use `wg <uri> --help`");
+    expect(rootHelpText).toContain("Treat `wg --help` as the root");
     expect(rootHelpText).toContain("Wiki Graph CLI");
-    expect(rootHelpText).not.toContain("wikigraph help overview");
-    expect(rootHelpText).not.toContain("wikigraph help retrieval");
-    expect(rootHelpText).not.toContain("wikigraph help command");
-    expect(rootHelpText).toContain("wikigraph <uri> <predicate> --help");
+    expect(rootHelpText).not.toContain("wg help overview");
+    expect(rootHelpText).not.toContain("wg help retrieval");
+    expect(rootHelpText).not.toContain("wg help command");
+    expect(rootHelpText).toContain("wg <uri> <predicate> --help");
     expect(rootHelpText).toContain("Important object families:");
     expect(rootHelpText).toContain("What to learn where:");
     expect(renderHelpTopicText("runtime")).toContain(
@@ -1982,16 +1978,16 @@ describe("cli/args", () => {
       "Without a current index",
     );
     expect(renderHelpTopicText("readiness")).toContain(
-      "`wikigraph <archive-uri>/index enable` enables the searchable index as local cache outside the `.wikg` archive",
+      "`wg <archive-uri>/index enable` enables the searchable index as local cache outside the `.wikg` archive",
     );
     expect(renderHelpTopicText("readiness")).toContain(
       "CLI archive writes keep it synchronized automatically",
     );
     expect(renderHelpTopicText("readiness")).toContain(
-      "wikigraph <archive-uri>/index enable --help",
+      "wg <archive-uri>/index enable --help",
     );
     expect(renderHelpTopicText("readiness")).toContain(
-      "wikigraph <archive-uri>/index embed --help",
+      "wg <archive-uri>/index embed --help",
     );
     expect(renderHelpTopicText("readiness")).toContain("LLM readiness:");
     expect(renderHelpTopicText("readiness")).toContain("WikiSpine readiness:");
@@ -2019,14 +2015,12 @@ describe("cli/args", () => {
     expect(renderTransformHelpText()).toContain(
       "Source inputs (`epub`, `txt`, `markdown`) call an LLM",
     );
-    expect(uriHelpText).toContain("wikigraph <scope-uri> --query <query>");
+    expect(uriHelpText).toContain("wg <scope-uri> --query <query>");
+    expect(uriHelpText).toContain("wg <entity|triple|chunk-uri> evidence");
     expect(uriHelpText).toContain(
-      "wikigraph <entity|triple|chunk-uri> evidence",
+      "wg wikg://local/job add --input <archive-uri|chapter-uri>",
     );
-    expect(uriHelpText).toContain(
-      "wikigraph wikg://local/job add --input <archive-uri|chapter-uri>",
-    );
-    expect(uriHelpText).toContain("wikigraph help format");
+    expect(uriHelpText).toContain("wg help format");
     expect(uriHelpText).not.toContain("JSONL contains object records");
     expect(renderHelpTopicText("format")).toContain("Command output shapes:");
     expect(renderHelpTopicText("format")).toContain(
@@ -2059,7 +2053,7 @@ describe("cli/args", () => {
       "/Users/me/book.wikg -> wikg:///Users/me/book.wikg",
     );
     expect(renderHelpTopicText("recipe")).toContain(
-      'wikigraph wikg://book.wikg/entity --query "attention" --evidence 2',
+      'wg wikg://book.wikg/entity --query "attention" --evidence 2',
     );
     expect(renderHelpTopicText("recipe")).toContain(
       "wikg:///absolute/path/book.wikg/entity/Q8018",
@@ -2067,7 +2061,7 @@ describe("cli/args", () => {
     expect(uriHelpText).toContain(
       "Do not pass a bare filesystem path as a command target.",
     );
-    expect(uriHelpText).toContain('wikigraph <archive-uri> --query "term"');
+    expect(uriHelpText).toContain('wg <archive-uri> --query "term"');
     expect(uriHelpText).toContain(
       String.raw`C:\Users\me\book.wikg -> wikg://C:/Users/me/book.wikg`,
     );
@@ -2076,7 +2070,7 @@ describe("cli/args", () => {
       "`--reverse` cannot be combined with `--query`",
     );
     expect(uriHelpText).toContain(
-      "wikigraph <archive-uri>/entity/<qid> evidence --reverse --limit 1",
+      "wg <archive-uri>/entity/<qid> evidence --reverse --limit 1",
     );
     expect(
       renderUriPredicateHelpText(
@@ -2084,7 +2078,7 @@ describe("cli/args", () => {
         "evidence",
         "wikg://book.wikg/entity/Q8018",
       ),
-    ).toContain("wikigraph help uri");
+    ).toContain("wg help uri");
     expect(
       renderUriPredicateHelpText(
         "entity-object",
@@ -2102,7 +2096,7 @@ describe("cli/args", () => {
     expect(uriHelpText).toContain("No `--query` results:");
     expect(uriHelpText).toContain("Missing generated objects:");
     expect(renderHelpTopicText("recipe")).toContain(
-      'wikigraph wikg:///Users/me/book.wikg --query "attention memory"',
+      'wg wikg:///Users/me/book.wikg --query "attention memory"',
     );
     expect(renderHelpTopicText("recipe")).toContain(
       "Choose your starting point:",
@@ -2116,33 +2110,33 @@ describe("cli/args", () => {
       "grep/find with Google-like keyword input",
     );
     expect(renderHelpTopicText("recipe")).toContain("When to read deeper:");
-    expect(renderHelpTopicText("recipe")).toContain("wikigraph help readiness");
+    expect(renderHelpTopicText("recipe")).toContain("wg help readiness");
     expect(renderHelpTopicText("recipe")).toContain(
       "Read the chapter object and use Unix pipes or redirection.",
     );
     expect(renderHelpTopicText("recipe")).toContain(
-      "wikigraph wikg://book.wikg/chapter/3/source > chapter-3-source.md",
+      "wg wikg://book.wikg/chapter/3/source > chapter-3-source.md",
     );
     expect(renderHelpTopicText("recipe")).toContain(
-      "wikigraph wikg://book.wikg/chapter/3/source#23..45",
+      "wg wikg://book.wikg/chapter/3/source#23..45",
     );
     expect(renderHelpTopicText("recipe")).toContain(
-      "wikigraph wikg://book.wikg/chapter/3/summary#23..45",
+      "wg wikg://book.wikg/chapter/3/summary#23..45",
     );
     expect(renderHelpTopicText("recipe")).toContain(
-      "wikigraph wikg://book.wikg/entity/Q8018 evidence --reverse --limit 1",
+      "wg wikg://book.wikg/entity/Q8018 evidence --reverse --limit 1",
     );
     expect(renderHelpTopicText("recipe")).toContain(
-      'wikigraph wikg://book.wikg/triple --query "attention memory" --evidence 2',
+      'wg wikg://book.wikg/triple --query "attention memory" --evidence 2',
     );
     expect(renderHelpTopicText("recipe")).toContain(
-      'wikigraph wikg://book.wikg/chunk --query "attention memory" --evidence 2',
+      'wg wikg://book.wikg/chunk --query "attention memory" --evidence 2',
     );
     expect(renderHelpTopicText("recipe")).toContain(
-      'wikigraph wikg://book.wikg/entity/Q8018 related --query "memory"',
+      'wg wikg://book.wikg/entity/Q8018 related --query "memory"',
     );
     expect(renderHelpTopicText("recipe")).toContain(
-      "wikigraph wikg://book.wikg/entity/Q8018 pack --budget 5000",
+      "wg wikg://book.wikg/entity/Q8018 pack --budget 5000",
     );
     expect(renderHelpTopicText("recipe")).toContain(
       "Use `--json` when you want stable Agent-readable fields",
@@ -2162,7 +2156,7 @@ describe("cli/args", () => {
       "Whole source reads are plain text streams and do not support `--json`; source range fragments are structured range objects and support `--json`.",
     );
     expect(renderHelpTopicText("recipe")).toContain(
-      "wikigraph wikg://book.wikg/chapter/3/entity --all --jsonl",
+      "wg wikg://book.wikg/chapter/3/entity --all --jsonl",
     );
     expect(renderHelpTopicText("recipe")).toContain(
       "If Reading Graph data is missing",
@@ -2171,10 +2165,10 @@ describe("cli/args", () => {
       "If Knowledge Graph data is missing",
     );
     expect(uriHelpText).toContain("Command routing:");
-    expect(uriHelpText).toContain("wikigraph <archive-uri> create");
-    expect(uriHelpText).toContain("wikigraph <archive-uri> export");
-    expect(uriHelpText).toContain("wikigraph transform");
-    expect(uriHelpText).not.toContain("wikigraph ls");
+    expect(uriHelpText).toContain("wg <archive-uri> create");
+    expect(uriHelpText).toContain("wg <archive-uri> export");
+    expect(uriHelpText).toContain("wg transform");
+    expect(uriHelpText).not.toContain("wg ls");
     expect(renderHelpTopicText("config")).toContain("wikg://local/config/llm");
     expect(renderHelpTopicText("config")).toContain(
       "wikg://local/config/concurrent",
@@ -2214,16 +2208,14 @@ describe("cli/args", () => {
   it("supports a first-contact recovery chain from root help to parse failures", () => {
     const rootHelpText = renderMainHelpText();
 
-    expect(rootHelpText).not.toContain("wikigraph help overview");
-    expect(rootHelpText).not.toContain("wikigraph help command");
+    expect(rootHelpText).not.toContain("wg help overview");
+    expect(rootHelpText).not.toContain("wg help command");
     expect(() =>
       parseCLIArguments(["wikg://book.wikg", "create", "--import", "book.pdf"]),
-    ).toThrow("See: wikigraph wikg://book.wikg create --help");
+    ).toThrow("See: wg wikg://book.wikg create --help");
     expect(() => parseCLIArguments(["wikg", "inspect"])).toThrow(
-      "See: wikigraph --help",
+      "See: wg --help",
     );
-    expect(() => parseCLIArguments(["book.epub"])).toThrow(
-      "See: wikigraph --help",
-    );
+    expect(() => parseCLIArguments(["book.epub"])).toThrow("See: wg --help");
   });
 });

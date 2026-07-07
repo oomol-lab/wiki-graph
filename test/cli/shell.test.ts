@@ -24,11 +24,7 @@ describe("cli/shell", () => {
 
   it("formats copyable shell commands", () => {
     expect(
-      formatShellCommand([
-        "wikigraph",
-        "wikg:///tmp/My Book.wikg/index",
-        "enable",
-      ]),
-    ).toBe("wikigraph 'wikg:///tmp/My Book.wikg/index' enable");
+      formatShellCommand(["wg", "wikg:///tmp/My Book.wikg/index", "enable"]),
+    ).toBe("wg 'wikg:///tmp/My Book.wikg/index' enable");
   });
 });

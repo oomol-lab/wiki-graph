@@ -1,5 +1,5 @@
 Help Type: command
-Command: wikigraph <archive-uri>/chapter/tree
+Command: {{ commandName }} <archive-uri>/chapter/tree
 
 chapter tree
 
@@ -7,8 +7,8 @@ Purpose:
   Get or set the complete chapter tree.
 
 Usage:
-  wikigraph <archive-uri>/chapter/tree [--json] [--llm <json>] [--help|-h]
-  wikigraph <archive-uri>/chapter/tree set --input <path|-> [--dry-run] [--llm <json>] [--help|-h]
+  {{ commandName }} <archive-uri>/chapter/tree [--json] [--llm <json>] [--help|-h]
+  {{ commandName }} <archive-uri>/chapter/tree set --input <path|-> [--dry-run] [--llm <json>] [--help|-h]
 
 Tree JSON shape:
   Reading without `--json` prints a readable tree. Add `--json` when you need editable tree JSON.
@@ -44,15 +44,15 @@ Structural chapters:
   Some chapters are table-of-contents nodes that organize child chapters. Check this tree before treating a chapter with missing generated artifacts as abnormal.
 
 Examples:
-  wikigraph wikg://book.wikg/chapter/tree
-  wikigraph wikg://book.wikg/chapter/tree --json > tree.json
-  wikigraph wikg://book.wikg/chapter/tree set --input tree.json --dry-run
-  wikigraph wikg://book.wikg/chapter/tree set --input tree.json
-  cat tree.json | wikigraph wikg://book.wikg/chapter/tree set --input -
+  {{ commandName }} wikg://book.wikg/chapter/tree
+  {{ commandName }} wikg://book.wikg/chapter/tree --json > tree.json
+  {{ commandName }} wikg://book.wikg/chapter/tree set --input tree.json --dry-run
+  {{ commandName }} wikg://book.wikg/chapter/tree set --input tree.json
+  cat tree.json | {{ commandName }} wikg://book.wikg/chapter/tree set --input -
 
 See also:
-  - wikigraph wikg://book.wikg/chapter/3 move --help
-  - wikigraph wikg://book.wikg/chapter/3/title set --help
-  - wikigraph help readiness
-  - wikigraph help uri
-  - wikigraph --help
+  - {{ commandName }} wikg://book.wikg/chapter/3 move --help
+  - {{ commandName }} wikg://book.wikg/chapter/3/title set --help
+  - {{ commandName }} help readiness
+  - {{ commandName }} help uri
+  - {{ commandName }} --help

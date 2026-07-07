@@ -30,7 +30,7 @@ import {
   parseLocalConfigSection,
   type LocalConfigSection,
 } from "./local-config-store.js";
-import { formatShellCommand } from "./shell.js";
+import { formatCliCommand } from "./shell.js";
 import {
   formatLocatedChapterResourceUri,
   formatLocatedChapterSourceCollectionUri,
@@ -645,8 +645,8 @@ export function parseCLIArguments(
   ) {
     throw new Error(
       withHelpRoute(
-        "`--accept-cost` is only valid for `wikigraph wikg://local/job add`.",
-        "wikigraph wikg://local/job add --help",
+        "`--accept-cost` is only valid for `wg wikg://local/job add`.",
+        "wg wikg://local/job add --help",
       ),
     );
   }
@@ -700,7 +700,7 @@ export function parseCLIArguments(
       positionals[1] ?? "job",
       "--reverse",
       values.reverse,
-      "wikigraph wikg://local/job --help",
+      "wg wikg://local/job --help",
     );
     return parseJobUriFirstArguments(positionals, values);
   }
@@ -710,7 +710,7 @@ export function parseCLIArguments(
       positionals[1] ?? "config",
       "--reverse",
       values.reverse,
-      "wikigraph wikg://local/config --help",
+      "wg wikg://local/config --help",
     );
     return parseLocalConfigUriFirstArguments(positionals, values);
   }
@@ -965,7 +965,7 @@ function parseArchiveUriTargetArguments(
     throw new Error(
       withHelpRoute(
         "Metadata keys are not addressed in the URI. Read `<object>/meta` and filter the output, or use `<object>/meta put <key> ...`.",
-        "wikigraph <object-uri>/meta --help",
+        "wg <object-uri>/meta --help",
       ),
     );
   }
@@ -1059,7 +1059,7 @@ function parseArchiveIndexUriArguments(
   tail: readonly string[],
   values: ArchiveArgumentValues,
 ): ParsedCLIArguments {
-  const helpRoute = `wikigraph wikg://<archive.wikg>/index ${action} --help`;
+  const helpRoute = `wg wikg://<archive.wikg>/index ${action} --help`;
 
   if (values.help === true) {
     return {
@@ -1148,7 +1148,7 @@ function parseMetadataUriArguments(
     throw new Error(
       withHelpRoute(
         `The metadata object does not support \`${action}\`. Read it directly, or use set, put, delete, or clear.`,
-        "wikigraph <object-uri>/meta --help",
+        "wg <object-uri>/meta --help",
       ),
     );
   }
@@ -1268,8 +1268,8 @@ function parseArchiveUriArchiveArguments(
   if (!isArchiveAction(action)) {
     throw new Error(
       withHelpRoute(
-        `The archive URI form does not support \`${action}\`. Use \`wikigraph <archive-uri> --help\` to inspect valid verbs.`,
-        "wikigraph <archive-uri> --help",
+        `The archive URI form does not support \`${action}\`. Use \`wg <archive-uri> --help\` to inspect valid verbs.`,
+        "wg <archive-uri> --help",
       ),
     );
   }
@@ -1287,8 +1287,8 @@ function parseArchiveUriArchiveArguments(
   ) {
     throw new Error(
       withHelpRoute(
-        `The archive URI ${uri} cannot be used with \`${action}\`; use a concrete object URI. Use \`wikigraph <archive-uri> --help\` to inspect valid archive verbs.`,
-        "wikigraph <archive-uri> --help",
+        `The archive URI ${uri} cannot be used with \`${action}\`; use a concrete object URI. Use \`wg <archive-uri> --help\` to inspect valid archive verbs.`,
+        "wg <archive-uri> --help",
       ),
     );
   }
@@ -1322,7 +1322,7 @@ function parseArchiveCoverUriArguments(
     throw new Error(
       withHelpRoute(
         `The cover object does not support \`${action}\`. Read the cover URI directly.`,
-        "wikigraph <cover-uri> --help",
+        "wg <cover-uri> --help",
       ),
     );
   }
@@ -1713,7 +1713,7 @@ function parseChapterCollectionUriArguments(
     throw new Error(
       withHelpRoute(
         `The chapter collection does not support \`${action}\`. Read it directly, add --query, or use add.`,
-        "wikigraph <chapter-uri> --help",
+        "wg <chapter-uri> --help",
       ),
     );
   }
@@ -1739,7 +1739,7 @@ function parseArchiveLensUriArguments(
     throw new Error(
       withHelpRoute(
         `The ${lens} collection does not support \`${action}\`. Read it directly, or add --query.`,
-        `wikigraph <scope-uri> --help`,
+        `wg <scope-uri> --help`,
       ),
     );
   }
@@ -1761,7 +1761,7 @@ function parseArchiveTriplePatternLensUriArguments(
     throw new Error(
       withHelpRoute(
         `The triple pattern collection does not support \`${action}\`. Read it directly, or add --query.`,
-        "wikigraph <triple-uri> --help",
+        "wg <triple-uri> --help",
       ),
     );
   }
@@ -1783,7 +1783,7 @@ function parseChapterTreeUriArguments(
     throw new Error(
       withHelpRoute(
         `The chapter tree does not support \`${action}\`. Read it directly, or use set.`,
-        "wikigraph <archive-uri>/chapter/tree --help",
+        "wg <archive-uri>/chapter/tree --help",
       ),
     );
   }
@@ -1843,7 +1843,7 @@ function parseSingleChapterUriArguments(
       throw new Error(
         withHelpRoute(
           `The chapter object does not support \`${action}\`.`,
-          "wikigraph <chapter-uri> --help",
+          "wg <chapter-uri> --help",
         ),
       );
   }
@@ -1862,7 +1862,7 @@ function parseChapterLensUriArguments(
     throw new Error(
       withHelpRoute(
         `The chapter ${lens} collection does not support \`${action}\`. Read it directly, or add --query.`,
-        `wikigraph <scope-uri> --help`,
+        `wg <scope-uri> --help`,
       ),
     );
   }
@@ -1889,7 +1889,7 @@ function parseChapterTriplePatternLensUriArguments(
     throw new Error(
       withHelpRoute(
         `The chapter triple pattern collection does not support \`${action}\`. Read it directly, or add --query.`,
-        "wikigraph <triple-uri> --help",
+        "wg <triple-uri> --help",
       ),
     );
   }
@@ -1914,7 +1914,7 @@ function parseChapterStateUriArguments(
     throw new Error(
       withHelpRoute(
         `The chapter state object does not support \`${action}\`. Read the state URI directly.`,
-        "wikigraph <chapter-uri>/state --help",
+        "wg <chapter-uri>/state --help",
       ),
     );
   }
@@ -1931,7 +1931,7 @@ function parseChapterResourceUriArguments(
   values: ArchiveArgumentValues,
   helpRoute: string,
 ): ParsedCLIArguments {
-  const resourceHelpRoute = `wikigraph <chapter-uri>/${resource} --help`;
+  const resourceHelpRoute = `wg <chapter-uri>/${resource} --help`;
 
   if (action === "list" || action === "search") {
     throw new Error(
@@ -2122,7 +2122,7 @@ function parseJobUriFirstArguments(
         action === undefined
           ? `Missing action after ${uri}.`
           : `The job URI form does not support \`${action}\`.`,
-        "wikigraph wikg://local/job --help",
+        "wg wikg://local/job --help",
       ),
     );
   }
@@ -2138,7 +2138,7 @@ function parseJobUriFirstArguments(
       throw new Error(
         withHelpRoute(
           `The job target URI form does not support \`${action}\`. Expected set.`,
-          "wikigraph wikg://local/job/<job-id>/target set --help",
+          "wg wikg://local/job/<job-id>/target set --help",
         ),
       );
     }
@@ -2207,7 +2207,7 @@ function parseJobUriFirstArguments(
       throw new Error(
         withHelpRoute(
           "`wikg://local/job/<job-id> set` is not supported. Use `wikg://local/job/<job-id>/target set <target>`.",
-          "wikigraph wikg://local/job/<job-id>/target set --help",
+          "wg wikg://local/job/<job-id>/target set --help",
         ),
       );
   }
@@ -2430,7 +2430,7 @@ function parseTransformArguments(
   positionals: readonly string[],
   values: ArchiveArgumentValues,
 ): ParsedCLIArguments {
-  const helpRoute = "wikigraph transform --help";
+  const helpRoute = "wg transform --help";
 
   if (positionals.length > 0) {
     throw new Error(
@@ -2502,7 +2502,7 @@ function parseGcArguments(
   positionals: readonly string[],
   values: ArchiveArgumentValues & ArchiveMetaFlagValues,
 ): ParsedCLIArguments {
-  const helpRoute = "wikigraph gc --help";
+  const helpRoute = "wg gc --help";
 
   if (values.help === true) {
     return {
@@ -2586,17 +2586,14 @@ function parseLegacyArguments(
 
     if (inputPath === undefined) {
       throw new Error(
-        withHelpRoute(
-          "Missing legacy input path.",
-          "wikigraph legacy migrate --help",
-        ),
+        withHelpRoute("Missing legacy input path.", "wg legacy migrate --help"),
       );
     }
     if (positionals.length > 2) {
       throw new Error(
         withHelpRoute(
           `Unexpected positional arguments: ${positionals.slice(2).join(" ")}.`,
-          "wikigraph legacy migrate --help",
+          "wg legacy migrate --help",
         ),
       );
     }
@@ -2617,7 +2614,7 @@ function parseLegacyArguments(
       action === undefined
         ? "Missing legacy command."
         : `Invalid legacy command: ${action}.`,
-      "wikigraph legacy --help",
+      "wg legacy --help",
     ),
   );
 }
@@ -2626,8 +2623,8 @@ function rejectLegacyFlag(flag: string, value: unknown): void {
   if (value !== undefined) {
     throw new Error(
       withHelpRoute(
-        `\`wikigraph legacy migrate\` does not support ${flag}.`,
-        "wikigraph legacy migrate --help",
+        `\`wg legacy migrate\` does not support ${flag}.`,
+        "wg legacy migrate --help",
       ),
     );
   }
@@ -2646,7 +2643,7 @@ function parseQueueWorkerArguments(
   positionals: readonly string[],
   values: ArchiveArgumentValues,
 ): ParsedCLIArguments {
-  const helpRoute = "wikigraph help";
+  const helpRoute = "wg help";
 
   rejectStreamingJSONFlag("worker", values.json, helpRoute);
   rejectQueueJSONLFlag("worker", values.jsonl, helpRoute);
@@ -2677,7 +2674,7 @@ function rejectQueueJSONFlag(
 
   throw new Error(
     withHelpRoute(
-      `\`wikigraph wikg://local/job ${action}\` does not support --json.`,
+      `\`wg wikg://local/job ${action}\` does not support --json.`,
       helpRoute,
     ),
   );
@@ -2799,7 +2796,7 @@ function parseQueueJobArguments(
   if (jobId === undefined) {
     throw new Error(
       withHelpRoute(
-        `\`wikigraph wikg://local/job/<job-id> ${action}\` requires <job-id>.`,
+        `\`wg wikg://local/job/<job-id> ${action}\` requires <job-id>.`,
         helpRoute,
       ),
     );
@@ -2867,7 +2864,7 @@ function rejectQueueJSONLFlag(
 
   throw new Error(
     withHelpRoute(
-      `\`wikigraph wikg://local/job ${action}\` does not support --jsonl.`,
+      `\`wg wikg://local/job ${action}\` does not support --jsonl.`,
       helpRoute,
     ),
   );
@@ -2885,7 +2882,7 @@ function rejectQueueFlag(
 
   throw new Error(
     withHelpRoute(
-      `\`wikigraph wikg://local/job ${action}\` does not support ${name}.`,
+      `\`wg wikg://local/job ${action}\` does not support ${name}.`,
       helpRoute,
     ),
   );
@@ -2968,7 +2965,7 @@ function parseArchiveArguments(
   action: CLIArchiveAction,
   positionals: readonly string[],
   values: ArchiveArgumentValues,
-  helpRoute = `wikigraph ${action} --help`,
+  helpRoute = `wg ${action} --help`,
   options: {
     readonly defaultKinds?: readonly CLIObjectKind[];
     readonly triplePattern?: ArchiveTriplePattern;
@@ -3614,7 +3611,7 @@ function formatPathAsUriMessage(path: string): string {
   return [
     `Expected a Wiki Graph URI, not a filesystem path: ${path}`,
     `Use: ${uri}`,
-    "See: wikigraph help uri",
+    "See: wg help uri",
   ].join("\n");
 }
 
@@ -3633,7 +3630,7 @@ function formatMissingArchiveLocatorMessage(uri: string): string {
     `Expected a located Wiki Graph URI with a .wikg archive locator: ${uri}`,
     "Short object URIs from output are archive-relative handles.",
     "Example: wikg://book.wikg/entity/Q9957",
-    "See: wikigraph help uri",
+    "See: wg help uri",
   ].join("\n");
 }
 
@@ -3641,30 +3638,30 @@ function formatPackObjectMismatchMessage(uri: string): string {
   return [
     `Pack requires a graph object URI: ${uri}`,
     "Supported pack targets are chunk and entity objects.",
-    "Use `wikigraph <uri> --help` to inspect valid predicates.",
+    "Use `wg <uri> --help` to inspect valid predicates.",
   ].join("\n");
 }
 
 function formatMissingArchiveInputMessage(action: CLIArchiveAction): string {
   switch (action) {
     case "create":
-      return "Missing archive URI. Use `wikigraph wikg://<archive.wikg> create`.";
+      return "Missing archive URI. Use `wg wikg://<archive.wikg> create`.";
     case "export":
-      return "Missing archive URI. Use `wikigraph wikg://<archive.wikg> export --output-format <format>`.";
+      return "Missing archive URI. Use `wg wikg://<archive.wikg> export --output-format <format>`.";
     case "inspect":
-      return "Missing archive URI. Use `wikigraph wikg://<archive.wikg> inspect`.";
+      return "Missing archive URI. Use `wg wikg://<archive.wikg> inspect`.";
     case "search":
-      return "Missing scope URI with .wikg locator. Use `wikigraph wikg://<archive.wikg> --query <query>`.";
+      return "Missing scope URI with .wikg locator. Use `wg wikg://<archive.wikg> --query <query>`.";
     case "list":
-      return "Missing scope URI with .wikg locator. Use `wikigraph wikg://<archive.wikg>`.";
+      return "Missing scope URI with .wikg locator. Use `wg wikg://<archive.wikg>`.";
     case "get":
-      return "Missing object URI with .wikg locator. Use `wikigraph wikg://<archive.wikg>/<object>`.";
+      return "Missing object URI with .wikg locator. Use `wg wikg://<archive.wikg>/<object>`.";
     case "related":
     case "evidence":
     case "pack":
-      return `Missing object URI. Use \`wikigraph wikg://<archive.wikg>/<object> ${action}\`.`;
+      return `Missing object URI. Use \`wg wikg://<archive.wikg>/<object> ${action}\`.`;
     case "next":
-      return "Missing continuation cursor. Use `wikigraph next <cursor>`.";
+      return "Missing continuation cursor. Use `wg next <cursor>`.";
   }
 }
 
@@ -4502,14 +4499,14 @@ function rejectNonCreateReplaceFlag(
 
   throw new Error(
     withHelpRoute(
-      "The --replace option is only supported by `wikigraph <archive-uri> create`.",
+      "The --replace option is only supported by `wg <archive-uri> create`.",
       CLI_HELP_ROUTES.root,
     ),
   );
 }
 
 function rejectGcMetaFlags(values: ArchiveMetaFlagValues): void {
-  rejectCommandMetaFlags(values, "gc", "wikigraph gc --help");
+  rejectCommandMetaFlags(values, "gc", "wg gc --help");
 }
 
 function rejectCommandMetaFlags(
@@ -4561,7 +4558,7 @@ function rejectTransformMetaFlags(values: ArchiveMetaFlagValues): void {
     throw new Error(
       withHelpRoute(
         `The \`transform\` command does not support ${flag}.`,
-        "wikigraph transform --help",
+        "wg transform --help",
       ),
     );
   }
@@ -4765,7 +4762,7 @@ function parseWikiGraphJobUri(uri: string): string | undefined {
     throw new Error(
       withHelpRoute(
         `Expected a Wiki Graph job URI: ${uri}`,
-        "wikigraph wikg://local/job --help",
+        "wg wikg://local/job --help",
       ),
     );
   }
@@ -4798,7 +4795,7 @@ function parseWikiGraphJobTargetUri(
     throw new Error(
       withHelpRoute(
         `Expected a job id before /target: ${uri}`,
-        "wikigraph wikg://local/job/<job-id>/target set --help",
+        "wg wikg://local/job/<job-id>/target set --help",
       ),
     );
   }
@@ -4876,7 +4873,7 @@ function parseBuildJobTarget(value: string | undefined): BuildJobTarget {
       throw new Error(
         withHelpRoute(
           `Invalid queue task: ${value}. Expected reading-graph, reading-summary, or knowledge-graph.`,
-          "wikigraph wikg://local/job add --help",
+          "wg wikg://local/job add --help",
         ),
       );
   }
@@ -5283,7 +5280,7 @@ function rejectCoverMetaFlags(values: ArchiveMetaFlagValues): void {
     throw new Error(
       withHelpRoute(
         `The \`cover\` command does not support ${flag}.`,
-        "wikigraph cover --help",
+        "wg cover --help",
       ),
     );
   }
@@ -5354,8 +5351,7 @@ function rejectArchiveNonReadFlags(
 }
 
 function formatWikiGraphHelpCommand(uri: string, action?: string): string {
-  return formatShellCommand([
-    "wikigraph",
+  return formatCliCommand([
     uri,
     ...(action === undefined ? [] : [action]),
     "--help",

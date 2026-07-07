@@ -120,7 +120,7 @@ describe("cli/config", () => {
     );
 
     await expect(loadCLIConfig({ llmJSON: "{}" })).rejects.toThrow(
-      "--llm must contain at least one supported LLM field.\nSee: wikigraph help config",
+      "--llm must contain at least one supported LLM field.\nSee: wg help config",
     );
 
     await expect(
@@ -130,7 +130,7 @@ describe("cli/config", () => {
         }),
       }),
     ).rejects.toThrow(
-      "--llm chatCompletionsUrl must end with /chat/completions when baseURL is not provided.\nSee: wikigraph help config",
+      "--llm chatCompletionsUrl must end with /chat/completions when baseURL is not provided.\nSee: wg help config",
     );
   });
 });

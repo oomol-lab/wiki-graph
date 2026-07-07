@@ -1,12 +1,12 @@
 Help Type: command
-Command: wikigraph transform
+Command: {{ commandName }} transform
 
 Purpose:
   Run a direct one-shot digest/export.
   This is not a plain file-format converter; source inputs usually require LLM-backed digest work, and `--output-format wikg` can create a reusable `.wikg` archive.
 
 Usage:
-  wikigraph transform [--input <path>] [--output <path>] [--input-format <format>] [--output-format <format>] [--digest-dir <path>] [--llm <json>] [--prompt <text>] [--stage <planned|source|reading-graph|reading-summary>] [--verbose|-v]
+  {{ commandName }} transform [--input <path>] [--output <path>] [--input-format <format>] [--output-format <format>] [--digest-dir <path>] [--llm <json>] [--prompt <text>] [--stage <planned|source|reading-graph|reading-summary>] [--verbose|-v]
 
 Behavior:
   - Reads from `--input <path>`, or from stdin when `--input` is omitted.
@@ -16,19 +16,19 @@ Behavior:
   - Does not leave a managed archive unless `--output-format wikg` is selected.
 
 LLM-backed source examples:
-  cat chapter.txt | wikigraph transform --input-format txt --output-format markdown
-  wikigraph transform --input book.epub --output digest.md --output-format markdown
+  cat chapter.txt | {{ commandName }} transform --input-format txt --output-format markdown
+  {{ commandName }} transform --input book.epub --output digest.md --output-format markdown
 
 Existing archive export example:
-  wikigraph transform --input book.wikg --output digest.md --output-format markdown
+  {{ commandName }} transform --input book.wikg --output digest.md --output-format markdown
 
 Where to go next:
   - Prefer reusable archives:
-    wikigraph wikg://book.wikg create
-    wikigraph wikg://book.wikg create --import ./book.epub
+    {{ commandName }} wikg://book.wikg create
+    {{ commandName }} wikg://book.wikg create --import ./book.epub
   - Configure LLM defaults:
-    wikigraph wikg://local/config/llm
+    {{ commandName }} wikg://local/config/llm
   - Format inference, stdin, stdout, and legal conversions:
-    wikigraph help format
+    {{ commandName }} help format
   - Runtime behavior for stdin/stdout, logs, and failures:
-    wikigraph help runtime
+    {{ commandName }} help runtime

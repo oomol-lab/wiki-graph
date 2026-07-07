@@ -1,22 +1,22 @@
 Help Type: command
-Command: wikigraph <chapter-uri> / <archive-uri>/chapter
+Command: {{ commandName }} <chapter-uri> / <archive-uri>/chapter
 
 Edit chapters inside an existing `.wikg` archive.
 
 Usage:
-  wikigraph <archive-uri>/chapter [--llm <json>] [--help|-h]
-  wikigraph <chapter-uri>/state [--json] [--help|-h]
-  wikigraph <chapter-uri>/state/<source|reading-graph|reading-summary|knowledge-graph> [--json] [--help|-h]
-  wikigraph <archive-uri>/chapter add [--title <title>] [--parent <id>] [--input <path|->] [--llm <json>] [--json] [--help|-h]
-  wikigraph <chapter-uri> move (--parent <id>|--root|--before <id>|--after <id>|--first|--last) [--llm <json>] [--help|-h]
-  wikigraph <chapter-uri> remove [--recursive] [--llm <json>] [--help|-h]
-  wikigraph <chapter-uri> reset --to <planned|source|reading-graph> [--llm <json>] [--help|-h]
-  wikigraph <chapter-uri>/source set [text] [--input <path|->] [--llm <json>] [--json] [--help|-h]
-  wikigraph <chapter-uri>/summary set [text] [--input <path|->] [--llm <json>] [--json] [--help|-h]
-  wikigraph <chapter-uri>/title set <title> [--llm <json>] [--help|-h]
-  wikigraph <chapter-uri>/title clear [--llm <json>] [--help|-h]
-  wikigraph <archive-uri>/chapter/tree [--json] [--llm <json>] [--help|-h]
-  wikigraph <archive-uri>/chapter/tree set --input <path|-> [--dry-run] [--llm <json>] [--help|-h]
+  {{ commandName }} <archive-uri>/chapter [--llm <json>] [--help|-h]
+  {{ commandName }} <chapter-uri>/state [--json] [--help|-h]
+  {{ commandName }} <chapter-uri>/state/<source|reading-graph|reading-summary|knowledge-graph> [--json] [--help|-h]
+  {{ commandName }} <archive-uri>/chapter add [--title <title>] [--parent <id>] [--input <path|->] [--llm <json>] [--json] [--help|-h]
+  {{ commandName }} <chapter-uri> move (--parent <id>|--root|--before <id>|--after <id>|--first|--last) [--llm <json>] [--help|-h]
+  {{ commandName }} <chapter-uri> remove [--recursive] [--llm <json>] [--help|-h]
+  {{ commandName }} <chapter-uri> reset --to <planned|source|reading-graph> [--llm <json>] [--help|-h]
+  {{ commandName }} <chapter-uri>/source set [text] [--input <path|->] [--llm <json>] [--json] [--help|-h]
+  {{ commandName }} <chapter-uri>/summary set [text] [--input <path|->] [--llm <json>] [--json] [--help|-h]
+  {{ commandName }} <chapter-uri>/title set <title> [--llm <json>] [--help|-h]
+  {{ commandName }} <chapter-uri>/title clear [--llm <json>] [--help|-h]
+  {{ commandName }} <archive-uri>/chapter/tree [--json] [--llm <json>] [--help|-h]
+  {{ commandName }} <archive-uri>/chapter/tree set --input <path|-> [--dry-run] [--llm <json>] [--help|-h]
 
 Chapter stages:
   planned     TOC chapter exists, but no source is stored.
@@ -36,24 +36,24 @@ Input rules:
   - `<archive-uri>/chapter/tree set --input <path|->` applies a complete chapter tree JSON. It can reorder chapters and change titles when a node includes `title`.
   - `reset --to` accepts `planned`, `source`, or `reading-graph`.
   - Structure edits, `/title set`, `/source set`, `/summary set`, and `reset` do not call an LLM provider.
-  - To generate reading-graph, reading-summary, or knowledge-graph, use `wikigraph wikg://local/job add --input <archive-uri|chapter-uri> --task <reading-graph|reading-summary|knowledge-graph> --accept-cost`.
+  - To generate reading-graph, reading-summary, or knowledge-graph, use `{{ commandName }} wikg://local/job add --input <archive-uri|chapter-uri> --task <reading-graph|reading-summary|knowledge-graph> --accept-cost`.
   - `<chapter-uri>/state` shows the aggregate chapter state. `<chapter-uri>/state/<target>` checks one target.
-  - Append `--help` after an action for action-specific details, for example `wikigraph wikg://book.wikg/chapter/3 reset --help`.
+  - Append `--help` after an action for action-specific details, for example `{{ commandName }} wikg://book.wikg/chapter/3 reset --help`.
 
 See also:
-  - wikigraph wikg://book.wikg/chapter
-  - wikigraph wikg://book.wikg/chapter/3/state
-  - wikigraph wikg://book.wikg/chapter/3/state/knowledge-graph
-  - wikigraph wikg://book.wikg/chapter/tree
-  - wikigraph wikg://book.wikg/chapter/3/title set "New Title"
-  - wikigraph wikg://book.wikg/chapter/3/title clear
-  - wikigraph wikg://book.wikg/chapter add --input chapter.txt
-  - wikigraph wikg://book.wikg/chapter/3/source set --input chapter.txt
-  - wikigraph wikg://book.wikg/chapter/3/summary set --input summary.md
-  - cat tree.json | wikigraph wikg://book.wikg/chapter/tree set --input -
-  - wikigraph wikg://local/job --help
-  - wikigraph help format
-  - wikigraph help readiness
-  - wikigraph help runtime
-  - wikigraph help uri
-  - wikigraph --help
+  - {{ commandName }} wikg://book.wikg/chapter
+  - {{ commandName }} wikg://book.wikg/chapter/3/state
+  - {{ commandName }} wikg://book.wikg/chapter/3/state/knowledge-graph
+  - {{ commandName }} wikg://book.wikg/chapter/tree
+  - {{ commandName }} wikg://book.wikg/chapter/3/title set "New Title"
+  - {{ commandName }} wikg://book.wikg/chapter/3/title clear
+  - {{ commandName }} wikg://book.wikg/chapter add --input chapter.txt
+  - {{ commandName }} wikg://book.wikg/chapter/3/source set --input chapter.txt
+  - {{ commandName }} wikg://book.wikg/chapter/3/summary set --input summary.md
+  - cat tree.json | {{ commandName }} wikg://book.wikg/chapter/tree set --input -
+  - {{ commandName }} wikg://local/job --help
+  - {{ commandName }} help format
+  - {{ commandName }} help readiness
+  - {{ commandName }} help runtime
+  - {{ commandName }} help uri
+  - {{ commandName }} --help

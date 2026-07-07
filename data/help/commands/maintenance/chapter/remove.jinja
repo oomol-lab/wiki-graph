@@ -1,5 +1,5 @@
 Help Type: command
-Command: wikigraph <chapter-uri> remove
+Command: {{ commandName }} <chapter-uri> remove
 
 chapter remove
 
@@ -7,7 +7,7 @@ Purpose:
   Remove a chapter from the `.wikg` chapter tree.
 
 Usage:
-  wikigraph <chapter-uri> remove [--recursive] [--llm <json>] [--help|-h]
+  {{ commandName }} <chapter-uri> remove [--recursive] [--llm <json>] [--help|-h]
 
 Behavior:
   - Removes the target chapter from the TOC tree.
@@ -20,7 +20,7 @@ Safety:
   This is a destructive in-place edit. Read `<archive-uri>/chapter` first and keep your own copy if the archive is important.
 
 See also:
-  - wikigraph wikg://book.wikg/chapter --help
-  - wikigraph wikg://book.wikg/chapter/3 reset --help
-  - wikigraph help readiness
-  - wikigraph --help
+  - {{ commandName }} wikg://book.wikg/chapter --help
+  - {{ commandName }} wikg://book.wikg/chapter/3 reset --help
+  - {{ commandName }} help readiness
+  - {{ commandName }} --help

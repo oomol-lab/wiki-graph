@@ -58,7 +58,7 @@ import {
 } from "./generation-planning.js";
 import { writeTextToStdout } from "./io.js";
 import { formatCLIJSON } from "./json.js";
-import { formatShellCommand } from "./shell.js";
+import { formatCliCommand } from "./shell.js";
 import { CLI_HELP_ROUTES, withHelpRoute } from "./errors.js";
 import {
   ProgressOutputWriter,
@@ -303,7 +303,7 @@ function assertBuildCostAccepted(args: CLIQueueArguments): void {
   }
 
   throw new Error(
-    "Generation tasks can call an LLM, consume tokens, incur provider charges, and run for minutes to hours on large archives. Run `wikigraph <archive-uri> inspect`, then rerun `wikigraph wikg://local/job add` with --accept-cost if the cost and wait time are acceptable.",
+    "Generation tasks can call an LLM, consume tokens, incur provider charges, and run for minutes to hours on large archives. Run `wg <archive-uri> inspect`, then rerun `wg wikg://local/job add` with --accept-cost if the cost and wait time are acceptable.",
   );
 }
 
@@ -575,7 +575,7 @@ function requireKnowledgeGraphWikispineConfig(
     withHelpRoute(
       [
         "Knowledge Graph requires WikiSpine.",
-        "Configure `wikg://local/config/wikispine` with provider `cli` or `fetch`, then run `wikigraph wikg://local/config/wikispine test`.",
+        "Configure `wikg://local/config/wikispine` with provider `cli` or `fetch`, then run `wg wikg://local/config/wikispine test`.",
       ].join(" "),
       CLI_HELP_ROUTES.config,
     ),
@@ -940,8 +940,7 @@ async function writeJobSummary(
           : { estimate: formatQueueAddEstimateJSON(options.estimate) }),
         ...(options.watch === true
           ? {
-              watchCommand: formatShellCommand([
-                "wikigraph",
+              watchCommand: formatCliCommand([
                 `wikg://local/job/${job.jobId}`,
                 "watch",
               ]),
@@ -957,8 +956,7 @@ async function writeJobSummary(
       `Job ${job.jobId} ${job.state} ${job.target} chapter ${job.chapterId} ${job.archivePath}`,
       ...(options.watch === true
         ? [
-            `Watch: ${formatShellCommand([
-              "wikigraph",
+            `Watch: ${formatCliCommand([
               `wikg://local/job/${job.jobId}`,
               "watch",
             ])}`,

@@ -1,11 +1,11 @@
 Help Type: command
-Command: wikigraph <chapter-uri>/source set
+Command: {{ commandName }} <chapter-uri>/source set
 
 Purpose:
   Fill a planned chapter with normalized source text.
 
 Usage:
-  wikigraph <chapter-uri>/source set [text] [--input <path|->] [--llm <json>] [--json] [--help|-h]
+  {{ commandName }} <chapter-uri>/source set [text] [--input <path|->] [--llm <json>] [--json] [--help|-h]
 
 Input:
   - Source text is read from a positional value, `--input <path>`, or `--input -` for stdin.
@@ -23,12 +23,12 @@ Behavior:
   - With `--json`, prints the updated chapter status as one JSON object.
 
 Typical next step:
-  wikigraph wikg://local/job add --input <archive-uri|chapter-uri> --task reading-graph --accept-cost
+  {{ commandName }} wikg://local/job add --input <archive-uri|chapter-uri> --task reading-graph --accept-cost
 
 See also:
-  - wikigraph wikg://book.wikg/chapter/3/state --help
-  - wikigraph wikg://book.wikg/chapter/3 reset --help
-  - wikigraph wikg://local/job --help
-  - wikigraph help format
-  - wikigraph help readiness
-  - wikigraph --help
+  - {{ commandName }} wikg://book.wikg/chapter/3/state --help
+  - {{ commandName }} wikg://book.wikg/chapter/3 reset --help
+  - {{ commandName }} wikg://local/job --help
+  - {{ commandName }} help format
+  - {{ commandName }} help readiness
+  - {{ commandName }} --help

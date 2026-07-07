@@ -349,7 +349,7 @@ describe("cli/convert", () => {
         verbose: false,
       }),
     ).rejects.toThrow(
-      "Missing --input. Refusing to read from interactive stdin. Use --input <path> or pipe text into stdin.\nSee: wikigraph help runtime",
+      "Missing --input. Refusing to read from interactive stdin. Use --input <path> or pipe text into stdin.\nSee: wg help runtime",
     );
 
     expect(cliMockState.digestCalls.textStream).toHaveLength(0);
@@ -402,7 +402,7 @@ describe("cli/convert", () => {
         verbose: false,
       }),
     ).rejects.toThrow(
-      "Missing LLM configuration. Set --llm for one run, or configure `wikg://local/config/llm` with provider and model.\nSee: wikigraph help config",
+      "Missing LLM configuration. Set --llm for one run, or configure `wikg://local/config/llm` with provider and model.\nSee: wg help config",
     );
 
     expect(cliMockState.appConstructorOptions).toHaveLength(0);
@@ -446,7 +446,7 @@ describe("cli/convert", () => {
         verbose: false,
       }),
     ).rejects.toThrow(
-      "--stage is only supported when output format is wikg.\nSee: wikigraph help format",
+      "--stage is only supported when output format is wikg.\nSee: wg help format",
     );
 
     await expect(
@@ -458,7 +458,7 @@ describe("cli/convert", () => {
         verbose: false,
       }),
     ).rejects.toThrow(
-      "--stage is only supported when creating .wikg from source input.\nSee: wikigraph help format",
+      "--stage is only supported when creating .wikg from source input.\nSee: wg help format",
     );
   });
 
@@ -470,7 +470,7 @@ describe("cli/convert", () => {
         verbose: false,
       }),
     ).rejects.toThrow(
-      "Cannot infer input format from stdin. Set --input-format.\nSee: wikigraph help format",
+      "Cannot infer input format from stdin. Set --input-format.\nSee: wg help format",
     );
 
     expect(cliMockState.appConstructorOptions).toHaveLength(0);
@@ -485,7 +485,7 @@ describe("cli/convert", () => {
         verbose: false,
       }),
     ).rejects.toThrow(
-      "stdout only supports txt or markdown, but got wikg.\nSee: wikigraph help format",
+      "stdout only supports txt or markdown, but got wikg.\nSee: wg help format",
     );
 
     expect(cliMockState.appConstructorOptions).toHaveLength(0);
@@ -508,7 +508,7 @@ describe("cli/convert", () => {
         verbose: true,
       }),
     ).rejects.toThrow(
-      "Cannot use --verbose when writing digest output to stdout. Use --output <path> or disable --verbose.\nSee: wikigraph help runtime",
+      "Cannot use --verbose when writing digest output to stdout. Use --output <path> or disable --verbose.\nSee: wg help runtime",
     );
 
     expect(cliMockState.appConstructorOptions).toHaveLength(0);
@@ -548,7 +548,7 @@ describe("cli/convert", () => {
         outputPath: "/tmp/output.txt",
         verbose: false,
       }),
-    ).rejects.toThrow("See: wikigraph help config");
+    ).rejects.toThrow("See: wg help config");
 
     cliMockState.config = {
       llm: {
@@ -564,7 +564,7 @@ describe("cli/convert", () => {
         outputFormat: "txt",
         verbose: true,
       }),
-    ).rejects.toThrow("See: wikigraph help runtime");
+    ).rejects.toThrow("See: wg help runtime");
   });
 
   it("renders digest progress to stderr for interactive file output", async () => {

@@ -5,15 +5,15 @@ WikiGraph can create archives, build Reading Graph data, and build Reading Summa
 The WikiGraph CLI stores only one WikiSpine setting:
 
 ```bash
-wikigraph wikg://local/config/wikispine put provider fetch
-wikigraph wikg://local/config/wikispine test
+wg wikg://local/config/wikispine put provider fetch
+wg wikg://local/config/wikispine test
 ```
 
 or:
 
 ```bash
-wikigraph wikg://local/config/wikispine put provider cli
-wikigraph wikg://local/config/wikispine test
+wg wikg://local/config/wikispine put provider cli
+wg wikg://local/config/wikispine test
 ```
 
 Use `fetch` for the fastest setup. Use `cli` when source text must stay local, network access is unavailable, or you need a controlled local runtime.
@@ -23,8 +23,8 @@ Use `fetch` for the fastest setup. Use `cli` when source text must stay local, n
 `fetch` sends WikiSpine match requests to the WikiGraph built-in WikiSpine service. No endpoint is configured by the user.
 
 ```bash
-wikigraph wikg://local/config/wikispine put provider fetch
-wikigraph wikg://local/config/wikispine test
+wg wikg://local/config/wikispine put provider fetch
+wg wikg://local/config/wikispine test
 ```
 
 The test checks the built-in service metadata and performs a small match request.
@@ -38,7 +38,7 @@ Use this provider when:
 If `fetch` fails:
 
 - confirm the machine has network access;
-- rerun `wikigraph wikg://local/config/wikispine test --json` to capture the structured failure;
+- rerun `wg wikg://local/config/wikispine test --json` to capture the structured failure;
 - try again later if the built-in service is unavailable;
 - switch to `cli` if the text is private or the service is not reachable from the current environment.
 
@@ -47,8 +47,8 @@ If `fetch` fails:
 `cli` runs a local `wikispine` command from `PATH`.
 
 ```bash
-wikigraph wikg://local/config/wikispine put provider cli
-wikigraph wikg://local/config/wikispine test
+wg wikg://local/config/wikispine put provider cli
+wg wikg://local/config/wikispine test
 ```
 
 Install the WikiSpine CLI:
@@ -73,7 +73,7 @@ Use this provider when:
 
 If `cli` fails:
 
-- confirm `wikispine --version` works in the same shell that runs `wikigraph`;
+- confirm `wikispine --version` works in the same shell that runs `wg`;
 - run `wikispine doctor`;
 - run `wikispine init` if runtime data is missing;
 - make sure the runtime data is on a volume with enough free space;
@@ -112,32 +112,32 @@ If your deployment needs a private or regional WikiSpine service, track the curr
 Start with:
 
 ```bash
-wikigraph wikg://local/config/wikispine
-wikigraph wikg://local/config/wikispine test --json
+wg wikg://local/config/wikispine
+wg wikg://local/config/wikispine test --json
 ```
 
 If the config object is empty, choose one provider:
 
 ```bash
-wikigraph wikg://local/config/wikispine put provider fetch
+wg wikg://local/config/wikispine put provider fetch
 ```
 
 or:
 
 ```bash
-wikigraph wikg://local/config/wikispine put provider cli
+wg wikg://local/config/wikispine put provider cli
 ```
 
 Then rerun:
 
 ```bash
-wikigraph wikg://local/config/wikispine test --json
+wg wikg://local/config/wikispine test --json
 ```
 
 If Knowledge Graph jobs still fail after the test succeeds, inspect the archive and the job:
 
 ```bash
-wikigraph <archive-uri> inspect
-wikigraph wikg://local/job --help
-wikigraph wikg://local/job/<job-id> watch --jsonl
+wg <archive-uri> inspect
+wg wikg://local/job --help
+wg wikg://local/job/<job-id> watch --jsonl
 ```

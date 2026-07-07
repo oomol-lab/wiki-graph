@@ -1,11 +1,11 @@
 Help Type: command
-Command: wikigraph gc
+Command: {{ commandName }} gc
 
 Purpose:
   Try to run Wiki Graph local garbage collection.
 
 Usage:
-  wikigraph gc [--force] [--dry-run] [--json]
+  {{ commandName }} gc [--force] [--dry-run] [--json]
 
 Behavior:
   GC scans local Wiki Graph state and cache resources, then releases expired or low-value resources that are not in use.
@@ -33,6 +33,6 @@ Output:
 
 Related help:
   - Runtime cache, logs, workspaces, and local state:
-    wikigraph help runtime
+    {{ commandName }} help runtime
   - Search index and generated-data readiness after cleanup:
-    wikigraph help readiness
+    {{ commandName }} help readiness

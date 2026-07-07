@@ -1,7 +1,10 @@
 Help Type: command
-Command: wikigraph
+Command: {{ commandName }}
 
 Wiki Graph CLI
+
+Alias:
+  `{{ fullCommandName }}` is also installed as the full command name. Use it when `{{ commandName }}` conflicts with another local tool.
 
 Purpose:
   Operate `.wikg` knowledge-base archives through stable Wiki Graph objects.
@@ -23,11 +26,11 @@ Knowledge-base contents:
 
 Required first step for Agents:
   If you receive an unfamiliar archive, inspect it before querying, generating, or editing:
-    wikigraph <archive-uri> inspect
+    {{ commandName }} <archive-uri> inspect
 
 Recommended next page:
   Read the workflow recipe after this root page:
-    wikigraph help recipe
+    {{ commandName }} help recipe
   It contains the practical flow: create/import, inspect, retrieve, choose objects, notice index/job blockers, and export.
 
 Core concepts:
@@ -35,44 +38,44 @@ Core concepts:
   - Scope: a URI target that can enumerate objects and accept `--query`.
   - Object: a URI target that reads one concrete archive object.
   - Predicate: an operation bound to a URI target, such as `create`, `set`, `evidence`, `related`, or `pack`.
-  - Cursor: a continuation token consumed by `wikigraph next`.
+  - Cursor: a continuation token consumed by `{{ commandName }} next`.
 
 Important object families:
   chapter, chunk, entity, triple, summary, index, job, config, meta.
 
 What to learn where:
   - Normal workflow, object choice, and practical Agent behavior:
-    wikigraph help recipe
+    {{ commandName }} help recipe
   - Search index, LLM, WikiSpine, and generated-data prerequisites:
-    wikigraph help readiness
+    {{ commandName }} help readiness
   - URI grammar, scope/object routing, pagination, and short URI handling:
-    wikigraph help uri
+    {{ commandName }} help uri
   - Input/output formats, inference, stdin, stdout, import, export, transform, JSON, and JSONL:
-    wikigraph help format
+    {{ commandName }} help format
   - Local LLM, concurrency, and WikiSpine provider configuration:
-    wikigraph help config
+    {{ commandName }} help config
   - Advanced runtime behavior, workers, cache, logs, and debugging:
-    wikigraph help runtime
+    {{ commandName }} help runtime
 
 Help contract:
   The CLI help system is part of the product contract. When you do not know what a target or operation supports, ask the CLI for the next document.
-  - Use `wikigraph <uri> --help` to inspect a URI command, its default behavior, and supported predicates.
-  - Use `wikigraph <uri> <predicate> --help` to inspect a URI-bound predicate command.
-  - Use `wikigraph <non-predicate-command> --help` for non-predicate commands such as `transform`, `gc`, `legacy`, and `next`.
-  - Use `wikigraph help <topic>` for cross-command concepts, constraints, and runtime behavior.
-  - Treat `wikigraph --help` as the root page of the same help system.
-  - Use `wikigraph legacy migrate --help` only when upgrading an `.sdpub` archive.
+  - Use `{{ commandName }} <uri> --help` to inspect a URI command, its default behavior, and supported predicates.
+  - Use `{{ commandName }} <uri> <predicate> --help` to inspect a URI-bound predicate command.
+  - Use `{{ commandName }} <non-predicate-command> --help` for non-predicate commands such as `transform`, `gc`, `legacy`, and `next`.
+  - Use `{{ commandName }} help <topic>` for cross-command concepts, constraints, and runtime behavior.
+  - Treat `{{ commandName }} --help` as the root page of the same help system.
+  - Use `{{ commandName }} legacy migrate --help` only when upgrading an `.sdpub` archive.
 
 Non-predicate command entry points:
-  wikigraph transform --help
-  wikigraph next --help
-  wikigraph gc --help
-  wikigraph legacy --help
-  wikigraph help [topic] [--help|-h]
+  {{ commandName }} transform --help
+  {{ commandName }} next --help
+  {{ commandName }} gc --help
+  {{ commandName }} legacy --help
+  {{ commandName }} help [topic] [--help|-h]
 
 Help topics:
 {% for topic in helpTopics %}
-  - wikigraph help {{ topic.name }}
+  - {{ commandName }} help {{ topic.name }}
     {{ topic.summary }}
 {% endfor %}
 

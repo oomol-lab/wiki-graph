@@ -1,5 +1,5 @@
 Help Type: command
-Command: wikigraph <chapter-uri> reset
+Command: {{ commandName }} <chapter-uri> reset
 
 chapter reset
 
@@ -7,7 +7,7 @@ Purpose:
   Move a chapter backward by deleting later-stage artifacts.
 
 Usage:
-  wikigraph <chapter-uri> reset --to <planned|source|reading-graph> [--llm <json>] [--help|-h]
+  {{ commandName }} <chapter-uri> reset --to <planned|source|reading-graph> [--llm <json>] [--help|-h]
 
 Targets:
   planned     Delete source text, Reading Graph data, and summary.
@@ -18,12 +18,12 @@ Behavior:
   - `reading-summary` is not supported because reset is a backward operation.
   - Reset is destructive and may discard work.
   - Does not call an LLM provider.
-  - After resetting to `source` or `reading-graph`, use `wikigraph wikg://local/job add --input <archive-uri|chapter-uri> --task <reading-graph|reading-summary|knowledge-graph> --accept-cost` to generate again.
+  - After resetting to `source` or `reading-graph`, use `{{ commandName }} wikg://local/job add --input <archive-uri|chapter-uri> --task <reading-graph|reading-summary|knowledge-graph> --accept-cost` to generate again.
   - After resetting to `planned`, restore source text before starting generated tasks.
 
 See also:
-  - wikigraph wikg://local/job --help
-  - wikigraph wikg://book.wikg/chapter/3/state --help
-  - wikigraph help readiness
-  - wikigraph help runtime
-  - wikigraph --help
+  - {{ commandName }} wikg://local/job --help
+  - {{ commandName }} wikg://book.wikg/chapter/3/state --help
+  - {{ commandName }} help readiness
+  - {{ commandName }} help runtime
+  - {{ commandName }} --help

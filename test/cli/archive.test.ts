@@ -923,10 +923,10 @@ describe("cli/archive", () => {
     });
 
     expect(archiveMockState.textWrites[0]).toContain(
-      "2 more evidence: wikigraph next c_more_evidence",
+      "2 more evidence: wg next c_more_evidence",
     );
     expect(archiveMockState.textWrites[0]).toContain(
-      "Next page: wikigraph next c_more_results",
+      "Next page: wg next c_more_results",
     );
   });
 
@@ -951,7 +951,7 @@ describe("cli/archive", () => {
       "Open short URIs with the archive locator",
     );
     expect(archiveMockState.textWrites[0]).toContain(
-      "wikigraph wikg:///tmp/book.wikg/entity/Q1",
+      "wg wikg:///tmp/book.wikg/entity/Q1",
     );
   });
 
@@ -1825,10 +1825,10 @@ describe("cli/archive", () => {
       "Summary: 1/2 chapters, 800/1200 words, 66.7%",
     );
     expect(archiveMockState.textWrites[0]).toContain(
-      "Command: wikigraph wikg:///tmp/book.wikg/index enable",
+      "Command: wg wikg:///tmp/book.wikg/index enable",
     );
     expect(archiveMockState.textWrites[0]).toContain(
-      "Command: wikigraph wikg://local/job add --input wikg:///tmp/book.wikg --task reading-graph --accept-cost",
+      "Command: wg wikg://local/job add --input wikg:///tmp/book.wikg --task reading-graph --accept-cost",
     );
     expect(archiveMockState.textWrites[0]).toContain(
       "If completing this scope:",
@@ -1845,10 +1845,10 @@ describe("cli/archive", () => {
       "Current request: 3; suggested: 6.",
     );
     expect(archiveMockState.textWrites[0]).toContain(
-      "Command: wikigraph wikg://local/config/concurrent put request 6",
+      "Command: wg wikg://local/config/concurrent put request 6",
     );
     expect(archiveMockState.textWrites[0]).toContain(
-      "Readiness details: wikigraph help readiness",
+      "Readiness details: wg help readiness",
     );
     expect(archiveMockState.textWrites[0]).not.toContain("Calls:");
     expect(archiveMockState.textWrites[0]).not.toContain("Cost: $");
@@ -1900,10 +1900,10 @@ describe("cli/archive", () => {
 
     const output = archiveMockState.textWrites[0] ?? "";
     const requestIndex = output.indexOf(
-      "Command: wikigraph wikg://local/config/concurrent put request 6",
+      "Command: wg wikg://local/config/concurrent put request 6",
     );
     const jobIndex = output.indexOf(
-      "Command: wikigraph wikg://local/config/concurrent put job 4",
+      "Command: wg wikg://local/config/concurrent put job 4",
     );
 
     expect(requestIndex).toBeGreaterThanOrEqual(0);
@@ -1918,10 +1918,10 @@ describe("cli/archive", () => {
     });
 
     expect(archiveMockState.textWrites[0]).toContain(
-      "Command: wikigraph 'wikg:///tmp/My Book.wikg/index' enable",
+      "Command: wg 'wikg:///tmp/My Book.wikg/index' enable",
     );
     expect(archiveMockState.textWrites[0]).toContain(
-      "Command: wikigraph wikg://local/job add --input 'wikg:///tmp/My Book.wikg' --task reading-graph --accept-cost",
+      "Command: wg wikg://local/job add --input 'wikg:///tmp/My Book.wikg' --task reading-graph --accept-cost",
     );
   });
 
@@ -1956,7 +1956,7 @@ describe("cli/archive", () => {
       },
       index: {
         current: false,
-        fixCommand: "wikigraph wikg:///tmp/book.wikg/index enable",
+        fixCommand: "wg wikg:///tmp/book.wikg/index enable",
         querySupport: false,
         status: "missing-or-outdated",
         storage: "cache",
@@ -1984,7 +1984,7 @@ describe("cli/archive", () => {
           totalWords: 1200,
         },
       },
-      help: { readiness: "wikigraph help readiness" },
+      help: { readiness: "wg help readiness" },
     });
     expect(output.retrievalGuidance).toEqual(
       expect.arrayContaining([
@@ -1994,14 +1994,14 @@ describe("cli/archive", () => {
     expect(output.improvements).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
-          command: "wikigraph wikg:///tmp/book.wikg/index enable",
+          command: "wg wikg:///tmp/book.wikg/index enable",
           recommendation:
             "Enable the searchable FTS index so --query filtering is available for scopes, related results, and evidence.",
           title: "Enable searchable index",
         }),
         expect.objectContaining({
           command:
-            "wikigraph wikg://local/job add --input wikg:///tmp/book.wikg --task reading-graph --accept-cost",
+            "wg wikg://local/job add --input wikg:///tmp/book.wikg --task reading-graph --accept-cost",
           missingChapters: 1,
           missingWords: 400,
           planning: {
@@ -2022,7 +2022,7 @@ describe("cli/archive", () => {
     );
     expect(output.performanceHints).toEqual([
       {
-        command: "wikigraph wikg://local/config/concurrent put request 6",
+        command: "wg wikg://local/config/concurrent put request 6",
         current: 3,
         kind: "request",
         message:
@@ -2188,9 +2188,9 @@ describe("cli/archive", () => {
         "RAG",
         "",
         "Next:",
-        "  wikigraph wikg:///tmp/book.wikg/entity/Q1 evidence",
-        "  wikigraph wikg:///tmp/book.wikg/entity/Q1 related",
-        "  wikigraph wikg:///tmp/book.wikg/entity/Q1/wikipage",
+        "  wg wikg:///tmp/book.wikg/entity/Q1 evidence",
+        "  wg wikg:///tmp/book.wikg/entity/Q1 related",
+        "  wg wikg:///tmp/book.wikg/entity/Q1/wikipage",
         "",
       ].join("\n"),
     );
@@ -2232,7 +2232,7 @@ describe("cli/archive", () => {
     });
 
     expect(archiveMockState.textWrites[0]).toContain(
-      "2 more evidence: wikigraph next c_more_evidence",
+      "2 more evidence: wg next c_more_evidence",
     );
     expect(archiveMockState.textWrites[0]).not.toContain("Mentions:");
     expect(archiveMockState.textWrites[0]).not.toContain("Next page:");
@@ -2249,9 +2249,9 @@ describe("cli/archive", () => {
     expect(archiveMockState.textWrites[0]).toContain(
       [
         "Next:",
-        "  wikigraph wikg:///tmp/book.wikg/entity/Q1 evidence",
-        "  wikigraph wikg:///tmp/book.wikg/entity/Q1 related",
-        "  wikigraph wikg:///tmp/book.wikg/entity/Q1/wikipage",
+        "  wg wikg:///tmp/book.wikg/entity/Q1 evidence",
+        "  wg wikg:///tmp/book.wikg/entity/Q1 related",
+        "  wg wikg:///tmp/book.wikg/entity/Q1/wikipage",
       ].join("\n"),
     );
   });
@@ -2716,8 +2716,6 @@ describe("cli/archive", () => {
         format: "json",
         query: "RAG",
       }),
-    ).rejects.toThrow(
-      "Example: wikg:///tmp/book.wikg\nSee: wikigraph help uri",
-    );
+    ).rejects.toThrow("Example: wikg:///tmp/book.wikg\nSee: wg help uri");
   });
 });

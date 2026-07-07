@@ -32,30 +32,30 @@ Short and located URIs:
     wikg:///books/book.wikg/chapter/3/source#4..8
 
 Command routing:
-  - `wikigraph <scope-uri>` enumerates objects.
-  - `wikigraph <scope-uri> --query <query>` applies keyword retrieval within that scope.
-  - `wikigraph <object-uri>` reads one object.
-  - `wikigraph <uri> --help` explains that URI target and its supported predicates.
-  - `wikigraph <uri> <predicate> --help` explains a URI-bound predicate.
+  - `{{ commandName }} <scope-uri>` enumerates objects.
+  - `{{ commandName }} <scope-uri> --query <query>` applies keyword retrieval within that scope.
+  - `{{ commandName }} <object-uri>` reads one object.
+  - `{{ commandName }} <uri> --help` explains that URI target and its supported predicates.
+  - `{{ commandName }} <uri> <predicate> --help` explains a URI-bound predicate.
 
 Common command shapes:
-  wikigraph <scope-uri>
-  wikigraph <scope-uri> --query <query>
-  wikigraph <object-uri>
-  wikigraph <chunk-uri|entity-uri> related
-  wikigraph <entity|triple|chunk-uri> evidence
-  wikigraph <located-chunk-uri|located-entity-uri> pack
-  wikigraph next <cursor>
-  wikigraph <archive-uri> create [--import <epub-path>]
-  wikigraph <archive-uri> export --output-format <format>
-  wikigraph <archive-uri> inspect
-  wikigraph transform [options]
-  wikigraph wikg://local/job
-  wikigraph wikg://local/job add --input <archive-uri|chapter-uri> --task <reading-graph|reading-summary|knowledge-graph> --accept-cost
-  wikigraph wikg://local/job/<job-id>
-  wikigraph <object-uri> related
-  wikigraph <object-uri> evidence
-  wikigraph <object-uri> pack --budget 5000
+  {{ commandName }} <scope-uri>
+  {{ commandName }} <scope-uri> --query <query>
+  {{ commandName }} <object-uri>
+  {{ commandName }} <chunk-uri|entity-uri> related
+  {{ commandName }} <entity|triple|chunk-uri> evidence
+  {{ commandName }} <located-chunk-uri|located-entity-uri> pack
+  {{ commandName }} next <cursor>
+  {{ commandName }} <archive-uri> create [--import <epub-path>]
+  {{ commandName }} <archive-uri> export --output-format <format>
+  {{ commandName }} <archive-uri> inspect
+  {{ commandName }} transform [options]
+  {{ commandName }} wikg://local/job
+  {{ commandName }} wikg://local/job add --input <archive-uri|chapter-uri> --task <reading-graph|reading-summary|knowledge-graph> --accept-cost
+  {{ commandName }} wikg://local/job/<job-id>
+  {{ commandName }} <object-uri> related
+  {{ commandName }} <object-uri> evidence
+  {{ commandName }} <object-uri> pack --budget 5000
 
 Scope URIs:
   Scope URIs enumerate objects by default. With `--query <query>`, they apply keyword retrieval within that scope.
@@ -130,49 +130,49 @@ Lens selection:
 
 Literal source passages:
   Use `--query` on the narrowest useful scope when the task is to find source wording or passages mentioning a literal term:
-    wikigraph <archive-uri> --query "term"
-    wikigraph <archive-uri>/chapter/<id> --query "term"
-    wikigraph <archive-uri>/chapter/<id>/source#20..30
+    {{ commandName }} <archive-uri> --query "term"
+    {{ commandName }} <archive-uri>/chapter/<id> --query "term"
+    {{ commandName }} <archive-uri>/chapter/<id>/source#20..30
 
 Entity-grounded evidence:
   Use entity evidence when you already have an entity URI or QID and need grounded mentions, aliases, translations, variants, or source-backed support:
-    wikigraph <archive-uri>/entity/<qid> evidence
-    wikigraph <archive-uri>/entity/<qid> related --query "aspect" --evidence 2
-    wikigraph <archive-uri>/entity/<qid> evidence --reverse --limit 1
+    {{ commandName }} <archive-uri>/entity/<qid> evidence
+    {{ commandName }} <archive-uri>/entity/<qid> related --query "aspect" --evidence 2
+    {{ commandName }} <archive-uri>/entity/<qid> evidence --reverse --limit 1
 
 Pagination:
   - Use default paging or `--limit <n>` while exploring.
-  - Use `wikigraph next <cursor>` to continue a paged result.
+  - Use `{{ commandName }} next <cursor>` to continue a paged result.
   - Use `--all` only when you intentionally need every item from the selected scope.
   - Prefer the narrowest scope before using `--all`.
-  - Read `wikigraph help format` before choosing text, `--json`, `--jsonl`, or `--all --jsonl` for machine consumption.
+  - Read `{{ commandName }} help format` before choosing text, `--json`, `--jsonl`, or `--all --jsonl` for machine consumption.
 
 Recovery hints:
   - No `--query` results: try fewer keywords, use a broader scope URI, or inspect chapter readiness and structure.
-    wikigraph <archive-uri>/chapter
-    wikigraph <archive-uri>/chapter/tree
-    wikigraph help readiness
+    {{ commandName }} <archive-uri>/chapter
+    {{ commandName }} <archive-uri>/chapter/tree
+    {{ commandName }} help readiness
   - Missing generated objects: start the relevant generation job for the chapter.
-    wikigraph wikg://local/job add --input <archive-uri|chapter-uri> --task reading-graph --accept-cost
-    wikigraph wikg://local/job add --input <archive-uri|chapter-uri> --task reading-summary --accept-cost
-    wikigraph help readiness
-    wikigraph help runtime
+    {{ commandName }} wikg://local/job add --input <archive-uri|chapter-uri> --task reading-graph --accept-cost
+    {{ commandName }} wikg://local/job add --input <archive-uri|chapter-uri> --task reading-summary --accept-cost
+    {{ commandName }} help readiness
+    {{ commandName }} help runtime
   - URI rejected: convert bare filesystem paths to Wiki Graph URIs, and prepend the archive locator to short object URIs.
   - Help did not appear: append `--help` to the URI or URI-bound predicate you are trying to inspect.
 
 Job URIs:
   Local jobs use the `wikg://local/job/` scheme and do not contain `.wikg` locators:
-    wikigraph wikg://local/job
-    wikigraph wikg://local/job/<job-id> --json
-    wikigraph wikg://local/job/<job-id> watch --jsonl
+    {{ commandName }} wikg://local/job
+    {{ commandName }} wikg://local/job/<job-id> --json
+    {{ commandName }} wikg://local/job/<job-id> watch --jsonl
 
 Archive internals:
   Do not unzip `.wikg` or read internal SQLite for routine retrieval. Use URI commands.
 
 Related help:
   - Search index, generated data, and provider prerequisites:
-    wikigraph help readiness
+    {{ commandName }} help readiness
   - Stdin/stdout, create/import, export, transform, JSON, JSONL, and pipe-oriented output:
-    wikigraph help format
+    {{ commandName }} help format
   - Local jobs, cache, logs, and runtime debugging:
-    wikigraph help runtime
+    {{ commandName }} help runtime

@@ -1,9 +1,13 @@
 import { resolveDataDirPath } from "../common/data-dir.js";
 import { createEnv } from "../common/template.js";
 
+import {
+  CLI_FULL_COMMAND,
+  CLI_PRIMARY_COMMAND,
+} from "../common/cli-command.js";
 import { CLI_FORMATS } from "./formats.js";
 import { CLI_HELP_ROUTES, withHelpRoute } from "./errors.js";
-import { formatShellCommand } from "./shell.js";
+import { formatCliCommand } from "./shell.js";
 import type {
   CLIArchiveAction,
   CLIArchiveChapterAction,
@@ -252,7 +256,7 @@ export function renderUriPredicateHelpText(
     throw new Error(
       withHelpRoute(
         `The URI target ${uri} does not support \`${predicate}\`.`,
-        formatShellCommand(["wikigraph", uri, "--help"]),
+        formatCliCommand([uri, "--help"]),
       ),
     );
   }
@@ -316,6 +320,8 @@ function renderHelpTemplate(
 ): string {
   return getHelpTemplateEnvironment().render(templateName, {
     formats: CLI_FORMATS,
+    commandName: CLI_PRIMARY_COMMAND,
+    fullCommandName: CLI_FULL_COMMAND,
     helpTopics: HELP_TOPIC_METADATA,
     archiveMaintenanceCommands: ARCHIVE_MAINTENANCE_COMMAND_METADATA,
     uriHelpTargets: URI_HELP_TARGETS,

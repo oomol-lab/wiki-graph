@@ -11,8 +11,8 @@ Operating rules:
   - Never unzip a `.wikg` archive, rewrite internal files, or bypass this CLI. Use CLI commands for archive edits.
   - Use Wiki Graph URIs as stable object handles.
   - Use `--json` when you want stable Agent-readable fields instead of human text. Whole `source` and `summary` objects are text streams, while ranged fragments such as `/source#20..30` support `--json`.
-  - If you have a URI and need valid operations, run `wikigraph <uri> --help`.
-  - If you need concrete predicate usage for that URI type, run `wikigraph <uri> <predicate> --help`.
+  - If you have a URI and need valid operations, run `{{ commandName }} <uri> --help`.
+  - If you need concrete predicate usage for that URI type, run `{{ commandName }} <uri> <predicate> --help`.
   - Never pass a bare filesystem path to URI-targeted commands.
     /Users/me/book.wikg -> wikg:///Users/me/book.wikg
     ./book.wikg -> wikg://book.wikg
@@ -22,43 +22,43 @@ Operating rules:
 Choose your starting point:
   - User gave you an existing `.wikg` archive:
     Inspect before querying, generating, or editing.
-      wikigraph wikg://book.wikg inspect
+      {{ commandName }} wikg://book.wikg inspect
 
   - User gave you source content and needs a reusable knowledge-base archive:
     Create an empty `.wikg` archive, or create one while importing an EPUB.
-      wikigraph wikg://book.wikg create
-      wikigraph wikg://book.wikg create --import ./book.epub
+      {{ commandName }} wikg://book.wikg create
+      {{ commandName }} wikg://book.wikg create --import ./book.epub
 
   - User needs one-shot conversion without keeping an archive:
     Use transform. Source input usually requires LLM configuration.
-      cat chapter.txt | wikigraph transform --input-format txt --output-format markdown
+      cat chapter.txt | {{ commandName }} transform --input-format txt --output-format markdown
 
   - User needs a chapter-level file:
     Read the chapter object and use Unix pipes or redirection. `/source` prints original source text; `/summary` prints the chapter summary.
-      wikigraph wikg://book.wikg/chapter/3/source > chapter-3-source.md
-      wikigraph wikg://book.wikg/chapter/3/summary > chapter-3-summary.md
+      {{ commandName }} wikg://book.wikg/chapter/3/source > chapter-3-source.md
+      {{ commandName }} wikg://book.wikg/chapter/3/summary > chapter-3-summary.md
 
 After inspect:
   - If the archive is ready for retrieval, use `--query` on a scope or open the URI that inspect suggests.
-    wikigraph wikg:///Users/me/book.wikg --query "attention memory"
-    wikigraph wikg:///Users/me/book.wikg/chapter/3 --query "attention"
+    {{ commandName }} wikg:///Users/me/book.wikg --query "attention memory"
+    {{ commandName }} wikg:///Users/me/book.wikg/chapter/3 --query "attention"
 
   - If inspect reports missing or unavailable index support, inspect the index target before enabling anything.
-    wikigraph <archive-uri>/index --help
-    wikigraph <archive-uri>/index enable --help
+    {{ commandName }} <archive-uri>/index --help
+    {{ commandName }} <archive-uri>/index enable --help
     Read readiness before deciding whether to keep the index local or embed it:
-      wikigraph help readiness
+      {{ commandName }} help readiness
 
   - If Reading Graph data is missing, chunk `--query`, related expansion, and pack may be unavailable or incomplete.
     Inspect job help before starting generated work.
-      wikigraph wikg://local/job --help
-      wikigraph wikg://local/job add --help
-      wikigraph help readiness
+      {{ commandName }} wikg://local/job --help
+      {{ commandName }} wikg://local/job add --help
+      {{ commandName }} help readiness
 
   - If Knowledge Graph data is missing, entity and triple retrieval may be unavailable or incomplete.
     Knowledge Graph generation needs configuration and may require WikiSpine provider setup.
-      wikigraph help config
-      wikigraph help readiness
+      {{ commandName }} help config
+      {{ commandName }} help readiness
 
   - If summaries are missing, summary reads and summary-based exports may be incomplete.
     Check the chapter or archive readiness before relying on summaries.
@@ -67,85 +67,85 @@ Finding material:
   `--query` uses indexed full-text retrieval. Treat it like grep/find with Google-like keyword input.
 
   - Need document structure, chapter readiness, or chapter-local scope:
-    wikigraph wikg://book.wikg/chapter
-    wikigraph wikg://book.wikg/chapter/3
+    {{ commandName }} wikg://book.wikg/chapter
+    {{ commandName }} wikg://book.wikg/chapter/3
 
   - Need to understand a concept, person, place, term, or object:
     Use `--query` on entity scopes with source evidence, then ground, expand, or pack from the entity URI.
-      wikigraph wikg://book.wikg/entity --query "attention" --evidence 2
-      wikigraph wikg://book.wikg/chapter/3/entity --query "attention" --evidence 2
-      wikigraph wikg://book.wikg/entity/Q8018
-      wikigraph wikg://book.wikg/entity/Q8018 evidence
-      wikigraph wikg://book.wikg/entity/Q8018 related --query "memory"
-      wikigraph wikg://book.wikg/entity/Q8018 pack --budget 5000
+      {{ commandName }} wikg://book.wikg/entity --query "attention" --evidence 2
+      {{ commandName }} wikg://book.wikg/chapter/3/entity --query "attention" --evidence 2
+      {{ commandName }} wikg://book.wikg/entity/Q8018
+      {{ commandName }} wikg://book.wikg/entity/Q8018 evidence
+      {{ commandName }} wikg://book.wikg/entity/Q8018 related --query "memory"
+      {{ commandName }} wikg://book.wikg/entity/Q8018 pack --budget 5000
     Do not rely on label-only matching as the primary path for known entities; aliases, translations, and variants may not match the label.
     Entity scopes can be archive-wide (`<archive-uri>/entity`) or chapter-limited (`<chapter-uri>/entity`).
 
   - Need to trace a relation, claim, or subject-predicate-object connection:
     Use `--query` on triple scopes with source evidence, then open or ground the triple object.
-      wikigraph wikg://book.wikg/triple --query "attention memory" --evidence 2
-      wikigraph wikg://book.wikg/chapter/3/triple --query "attention memory" --evidence 2
-      wikigraph wikg://book.wikg/triple/Q8018/discusses/Q123
-      wikigraph wikg://book.wikg/triple/Q8018/discusses/Q123 evidence
+      {{ commandName }} wikg://book.wikg/triple --query "attention memory" --evidence 2
+      {{ commandName }} wikg://book.wikg/chapter/3/triple --query "attention memory" --evidence 2
+      {{ commandName }} wikg://book.wikg/triple/Q8018/discusses/Q123
+      {{ commandName }} wikg://book.wikg/triple/Q8018/discusses/Q123 evidence
     Triple scopes can be archive-wide (`<archive-uri>/triple`) or chapter-limited (`<chapter-uri>/triple`).
     Related expansion is available from chunk and entity objects; for a triple, expand through its subject or object entity.
-      wikigraph wikg://book.wikg/entity/Q8018 related --query "memory" --evidence 2
+      {{ commandName }} wikg://book.wikg/entity/Q8018 related --query "memory" --evidence 2
 
   - Need literal source wording:
     Use `--query` on the narrowest useful scope.
-      wikigraph wikg:///Users/me/book.wikg --query "attention memory"
-      wikigraph wikg:///Users/me/book.wikg/chapter/3 --query "attention"
-      wikigraph wikg://book.wikg/chapter/3/source#20..30
-      wikigraph wikg://book.wikg/chapter/3/source#23..45
+      {{ commandName }} wikg:///Users/me/book.wikg --query "attention memory"
+      {{ commandName }} wikg:///Users/me/book.wikg/chapter/3 --query "attention"
+      {{ commandName }} wikg://book.wikg/chapter/3/source#20..30
+      {{ commandName }} wikg://book.wikg/chapter/3/source#23..45
 
   - Need the latest source evidence for a known object:
-    Use `--reverse` without `--query`; read `wikigraph help uri` for Document Flow order.
-      wikigraph wikg://book.wikg/entity/Q8018 evidence --reverse --limit 1
+    Use `--reverse` without `--query`; read `{{ commandName }} help uri` for Document Flow order.
+      {{ commandName }} wikg://book.wikg/entity/Q8018 evidence --reverse --limit 1
 
   - Need summary wording:
     Read summary objects or summary ranges, then verify important claims through related chunk, entity, or triple evidence.
-      wikigraph wikg://book.wikg/chapter/3/summary
-      wikigraph wikg://book.wikg/chapter/3/summary#23..45
-      wikigraph wikg://book.wikg/chapter/3/chunk --query "attention" --evidence 2
+      {{ commandName }} wikg://book.wikg/chapter/3/summary
+      {{ commandName }} wikg://book.wikg/chapter/3/summary#23..45
+      {{ commandName }} wikg://book.wikg/chapter/3/chunk --query "attention" --evidence 2
 
   - Need Reading Graph chunks:
     Use `--query` on chunk scopes with source evidence, then open or expand from useful chunk objects.
-      wikigraph wikg://book.wikg/chunk --query "attention memory" --evidence 2
-      wikigraph wikg://book.wikg/chapter/3/chunk --query "attention" --evidence 2
-      wikigraph wikg://book.wikg/chunk
-      wikigraph wikg://book.wikg/chunk/123 evidence
-      wikigraph wikg://book.wikg/chunk/123 related --query "attention" --evidence 2
+      {{ commandName }} wikg://book.wikg/chunk --query "attention memory" --evidence 2
+      {{ commandName }} wikg://book.wikg/chapter/3/chunk --query "attention" --evidence 2
+      {{ commandName }} wikg://book.wikg/chunk
+      {{ commandName }} wikg://book.wikg/chunk/123 evidence
+      {{ commandName }} wikg://book.wikg/chunk/123 related --query "attention" --evidence 2
 
   - Need quick compressed understanding before returning to source evidence:
     Read summaries, then verify important claims with evidence.
-      wikigraph wikg://book.wikg/chapter/3/summary
+      {{ commandName }} wikg://book.wikg/chapter/3/summary
 
   - Need an inventory for a script or Unix pipeline:
     Use `--all --jsonl` to export the selected scope as line-delimited records, then filter with standard stream tools.
     Prefer the narrowest useful scope before full export.
-      wikigraph wikg://book.wikg/entity --all --jsonl
-      wikigraph wikg://book.wikg/triple --all --jsonl
-      wikigraph wikg://book.wikg/chunk --all --jsonl
-      wikigraph wikg://book.wikg/chapter/3/entity --all --jsonl
-      wikigraph wikg://book.wikg/chapter/3/triple --all --jsonl
-      wikigraph wikg://book.wikg/chapter/3/chunk --all --jsonl
+      {{ commandName }} wikg://book.wikg/entity --all --jsonl
+      {{ commandName }} wikg://book.wikg/triple --all --jsonl
+      {{ commandName }} wikg://book.wikg/chunk --all --jsonl
+      {{ commandName }} wikg://book.wikg/chapter/3/entity --all --jsonl
+      {{ commandName }} wikg://book.wikg/chapter/3/triple --all --jsonl
+      {{ commandName }} wikg://book.wikg/chapter/3/chunk --all --jsonl
 
   - Need bounded Agent-readable context around an object:
     Use pack only after choosing a located chunk or entity URI.
-      wikigraph wikg:///Users/me/book.wikg/entity/Q8018 pack --budget 5000
+      {{ commandName }} wikg:///Users/me/book.wikg/entity/Q8018 pack --budget 5000
 
   - Need more results from a paged response:
     Continue with the cursor returned by the previous command.
-      wikigraph next <cursor>
+      {{ commandName }} next <cursor>
 
 When to read deeper:
   - URI details, scope/object routing, pagination, and short URI handling:
-    wikigraph help uri
+    {{ commandName }} help uri
   - Format inference, stdin/stdout, create/import, export, transform, JSON, JSONL, and pipe output:
-    wikigraph help format
+    {{ commandName }} help format
   - LLM, concurrency, and WikiSpine provider setup:
-    wikigraph help config
+    {{ commandName }} help config
   - FTS index, LLM, WikiSpine, and generated-data prerequisites:
-    wikigraph help readiness
+    {{ commandName }} help readiness
   - Workers, cache, logs, workspaces, failures, and JSONL progress:
-    wikigraph help runtime
+    {{ commandName }} help runtime

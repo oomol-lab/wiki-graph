@@ -4,7 +4,7 @@
   <h1>Wiki Graph</h1>
   <p>English | <a href="./README_zh-CN.md">中文</a></p>
   <p>
-    <a href="https://www.npmjs.com/package/wikigraph"><img alt="npm version" src="https://img.shields.io/npm/v/wikigraph"></a>
+    <a href="https://www.npmjs.com/package/wiki-graph"><img alt="npm version" src="https://img.shields.io/npm/v/wiki-graph"></a>
     <a href="https://opensource.org/licenses/Apache-2.0"><img alt="License: Apache 2.0" src="https://img.shields.io/badge/License-Apache%202.0-blue.svg"></a>
     <a href="https://nodejs.org/"><img alt="Node >=22.12.0" src="https://img.shields.io/badge/node-%3E%3D22.12.0-brightgreen"></a>
   </p>
@@ -25,27 +25,29 @@ Requirement: Node.js `>=22.12.0`
 Install:
 
 ```bash
-$ npm install -g wikigraph
+$ npm install -g wiki-graph
 ```
+
+The primary command is `wg`; `wikigraph` is also available.
 
 Create an empty `.wikg` knowledge base:
 
 ```bash
-$ wikigraph wikg://quickstart.wikg create
+$ wg wikg://quickstart.wikg create
 ```
 
 Add text as two source chapters:
 
 ```bash
-$ printf "Alpha is connected to beta.\n" | wikigraph wikg://quickstart.wikg/chapter add --title "First note" --input -
+$ printf "Alpha is connected to beta.\n" | wg wikg://quickstart.wikg/chapter add --title "First note" --input -
 
-$ printf "Beta mentions gamma.\n" > tmp.txt && wikigraph wikg://quickstart.wikg/chapter add --title "Second note" --input ./tmp.txt
+$ printf "Beta mentions gamma.\n" > tmp.txt && wg wikg://quickstart.wikg/chapter add --title "Second note" --input ./tmp.txt
 ```
 
 Show the chapter tree:
 
 ```bash
-$ wikigraph wikg://quickstart.wikg/chapter/tree
+$ wg wikg://quickstart.wikg/chapter/tree
 
 ├─ First note  wikg://chapter/1
 └─ Second note  wikg://chapter/2
@@ -54,13 +56,13 @@ $ wikigraph wikg://quickstart.wikg/chapter/tree
 Enable and build the FTS index. Full-text `--query` search is available after this step:
 
 ```bash
-$ wikigraph wikg://quickstart.wikg/index enable
+$ wg wikg://quickstart.wikg/index enable
 ```
 
 Search the content:
 
 ```bash
-$ wikigraph wikg://quickstart.wikg --query alpha
+$ wg wikg://quickstart.wikg --query alpha
 
 @@ wikg://chapter/1/source#1 @@
 Alpha is connected to beta.
@@ -72,7 +74,7 @@ This project started as SpineDigest, with a focus on compressing long text into 
 
 The metaphor at the time was a dissertation defense: professors keep questioning the respondent, reminding them which claim has evidence, which concepts are connected, and which ideas should not be collapsed together. The diagram below describes that older reading-and-summary flow, but it also explains where Wiki Graph starts: long text should not only be flattened once; it should become a structure that can be re-entered, questioned, and verified.
 
-![SpineDigest flowchart](./docs/images/flowchart.svg)
+![Reading flowchart](./docs/images/flowchart.svg)
 
 The center of gravity later changed. Summaries are still useful, but a summary is only one projection of long text. The more durable material is the entities, relations, and evidence inside the text. SpineDigest became Wiki Graph, and the main line moved from compressed reading to building maintainable Knowledge Graphs.
 
@@ -128,29 +130,29 @@ The summary is not produced by flattening the whole text in one pass. Wiki Graph
 Wiki Graph uses URIs as stable handles for archives, scopes, and objects. A URI points to either a scope or an object: a scope enumerates or searches a collection of objects, while an object reads or operates on one concrete object.
 
 ```bash
-$ wikigraph wikg://book.wikg/chapter
-$ wikigraph wikg://book.wikg/chapter/3
-$ wikigraph wikg://book.wikg/chapter/3/chunk
-$ wikigraph wikg://book.wikg/entity
-$ wikigraph wikg://book.wikg/triple/Q8018/discusses
+$ wg wikg://book.wikg/chapter
+$ wg wikg://book.wikg/chapter/3
+$ wg wikg://book.wikg/chapter/3/chunk
+$ wg wikg://book.wikg/entity
+$ wg wikg://book.wikg/triple/Q8018/discusses
 ```
 
 The examples above are scope URIs. Calling a scope URI directly lists objects. Adding `--query` searches within that scope. Adding `--limit` limits the number of returned results. Adding `--all` retrieves the full result set, which is suitable for intentional full export or inventory work.
 
 ```bash
-$ wikigraph wikg://book.wikg/chapter/3 --query "memory"
-$ wikigraph wikg://book.wikg/entity --query "neural network" --limit 5
-$ wikigraph wikg://book.wikg/chapter --all --json
+$ wg wikg://book.wikg/chapter/3 --query "memory"
+$ wg wikg://book.wikg/entity --query "neural network" --limit 5
+$ wg wikg://book.wikg/chapter --all --json
 ```
 
 Object URIs read one concrete object by default:
 
 ```bash
-$ wikigraph wikg://book.wikg/chapter/3/title
-$ wikigraph wikg://book.wikg/chapter/3/source#4..8
-$ wikigraph wikg://book.wikg/chapter/3/chunk/12
-$ wikigraph wikg://book.wikg/entity/Q8018
-$ wikigraph wikg://book.wikg/triple/Q8018/discusses/Q123
+$ wg wikg://book.wikg/chapter/3/title
+$ wg wikg://book.wikg/chapter/3/source#4..8
+$ wg wikg://book.wikg/chapter/3/chunk/12
+$ wg wikg://book.wikg/entity/Q8018
+$ wg wikg://book.wikg/triple/Q8018/discusses/Q123
 ```
 
 Most objects can be scoped to a chapter, such as `chapter/3/source#4..8`, `chapter/3/chunk/12`, or `chapter/3/entity/Q8018`. Some objects can also be accessed at archive scope, such as `entity/Q8018` and `triple/Q8018/discusses/Q123`; the same entity or relation may be supported by multiple chapters.
@@ -158,9 +160,9 @@ Most objects can be scoped to a chapter, such as `chapter/3/source#4..8`, `chapt
 The front part of a URI is the archive locator. Absolute paths, relative paths, and Windows paths must be written as Wiki Graph URIs instead of bare filesystem paths:
 
 ```bash
-$ wikigraph wikg:///Users/me/books/book.wikg
-$ wikigraph wikg://book.wikg
-$ wikigraph wikg://C:/Users/me/books/book.wikg
+$ wg wikg:///Users/me/books/book.wikg
+$ wg wikg://book.wikg
+$ wg wikg://C:/Users/me/books/book.wikg
 ```
 
 Command output often contains short URIs:
@@ -174,25 +176,25 @@ wikg://triple/Q8018/discusses/Q123
 These short URIs are archive-relative handles. They keep output readable, but they are not complete command targets. Add the archive locator before passing them back to the CLI:
 
 ```bash
-$ wikigraph wikg://book.wikg/chapter/3/source#4..8
-$ wikigraph wikg:///Users/me/books/book.wikg/entity/Q8018
+$ wg wikg://book.wikg/chapter/3/source#4..8
+$ wg wikg:///Users/me/books/book.wikg/entity/Q8018
 ```
 
 The common command shape is "URI + predicate". The URI appears first, but it is the object being operated on; the predicate says what to do with it. Without a predicate, a scope URI usually performs list, and an object URI usually performs read.
 
 ```bash
-$ wikigraph wikg://book.wikg/entity/Q8018
-$ wikigraph wikg://book.wikg/entity/Q8018 evidence
-$ wikigraph wikg://book.wikg/entity/Q8018 related --query "memory"
-$ wikigraph wikg://book.wikg/entity/Q8018 pack --budget 5000 --json
+$ wg wikg://book.wikg/entity/Q8018
+$ wg wikg://book.wikg/entity/Q8018 evidence
+$ wg wikg://book.wikg/entity/Q8018 related --query "memory"
+$ wg wikg://book.wikg/entity/Q8018 pack --budget 5000 --json
 ```
 
 For more URI rules and boundaries, use the CLI help. You can start from the URI topic, or ask for help on a specific URI or URI predicate:
 
 ```bash
-$ wikigraph help uri
-$ wikigraph wikg://book.wikg/entity/Q8018 --help
-$ wikigraph wikg://book.wikg/entity/Q8018 evidence --help
+$ wg help uri
+$ wg wikg://book.wikg/entity/Q8018 --help
+$ wg wikg://book.wikg/entity/Q8018 evidence --help
 ```
 
 ## Common Workflows
@@ -200,8 +202,8 @@ $ wikigraph wikg://book.wikg/entity/Q8018 evidence --help
 ### Create a Knowledge Base
 
 ```bash
-$ wikigraph wikg://book.wikg create
-$ wikigraph wikg://book.wikg create --import ./book.epub
+$ wg wikg://book.wikg create
+$ wg wikg://book.wikg create --import ./book.epub
 ```
 
 Without `--import`, this creates an empty `.wikg` knowledge base. `--import` accepts EPUB only; it creates the knowledge base and imports EPUB metadata, cover, chapter tree, and source text.
@@ -209,8 +211,8 @@ Without `--import`, this creates an empty `.wikg` knowledge base. `--import` acc
 ### Inspect Archive State
 
 ```bash
-$ wikigraph wikg://book.wikg inspect
-$ wikigraph wikg://book.wikg inspect --json
+$ wg wikg://book.wikg inspect
+$ wg wikg://book.wikg inspect --json
 ```
 
 `inspect` reports what the archive currently contains, which capabilities are not ready yet, and which help page or command should be used next.
@@ -218,9 +220,9 @@ $ wikigraph wikg://book.wikg inspect --json
 ### Generate Knowledge Graph
 
 ```bash
-$ wikigraph wikg://local/job add --input wikg://book.wikg --task knowledge-graph --accept-cost
-$ wikigraph wikg://local/job add --input wikg://book.wikg/chapter/3 --task knowledge-graph --accept-cost
-$ wikigraph wikg://local/job/<job-id> watch --jsonl
+$ wg wikg://local/job add --input wikg://book.wikg --task knowledge-graph --accept-cost
+$ wg wikg://local/job add --input wikg://book.wikg/chapter/3 --task knowledge-graph --accept-cost
+$ wg wikg://local/job/<job-id> watch --jsonl
 ```
 
 Generation jobs may call an LLM provider. Time and cost depend on material length, model, and configuration. Read `inspect` and job help before starting a job.
@@ -228,10 +230,10 @@ Generation jobs may call an LLM provider. Time and cost depend on material lengt
 ### Search Entities and Relations
 
 ```bash
-$ wikigraph wikg://book.wikg/entity --query "neural network" --evidence 2
-$ wikigraph wikg://book.wikg/triple --query "attention memory" --evidence 2
-$ wikigraph wikg://book.wikg/chapter/3/entity --query "attention"
-$ wikigraph wikg://book.wikg/chapter/3/triple --query "memory"
+$ wg wikg://book.wikg/entity --query "neural network" --evidence 2
+$ wg wikg://book.wikg/triple --query "attention memory" --evidence 2
+$ wg wikg://book.wikg/chapter/3/entity --query "attention"
+$ wg wikg://book.wikg/chapter/3/triple --query "memory"
 ```
 
 Use the narrowest useful URI scope. If the chapter is known, search from the chapter scope. Use the archive scope when a whole-archive view is needed.
@@ -239,9 +241,9 @@ Use the narrowest useful URI scope. If the chapter is known, search from the cha
 ### Trace Source Evidence
 
 ```bash
-$ wikigraph wikg://book.wikg/entity/Q8018 evidence
-$ wikigraph wikg://book.wikg/triple/Q8018/discusses/Q123 evidence
-$ wikigraph wikg://book.wikg/entity/Q8018 evidence --query "memory"
+$ wg wikg://book.wikg/entity/Q8018 evidence
+$ wg wikg://book.wikg/triple/Q8018/discusses/Q123 evidence
+$ wg wikg://book.wikg/entity/Q8018 evidence --query "memory"
 ```
 
 Use `evidence` when a statement, entity, relation, or answer needs to be checked against source material.
@@ -249,8 +251,8 @@ Use `evidence` when a statement, entity, relation, or answer needs to be checked
 ### Expand Related Objects
 
 ```bash
-$ wikigraph wikg://book.wikg/entity/Q8018 related --evidence 2
-$ wikigraph wikg://book.wikg/entity/Q8018 related --query "memory" --evidence 2
+$ wg wikg://book.wikg/entity/Q8018 related --evidence 2
+$ wg wikg://book.wikg/entity/Q8018 related --query "memory" --evidence 2
 ```
 
 `related` expands from a selected object to nearby objects. For Entity, related results are mainly related triples.
@@ -258,7 +260,7 @@ $ wikigraph wikg://book.wikg/entity/Q8018 related --query "memory" --evidence 2
 ### Prepare Context
 
 ```bash
-$ wikigraph wikg://book.wikg/entity/Q8018 pack --budget 5000
+$ wg wikg://book.wikg/entity/Q8018 pack --budget 5000
 ```
 
 `pack` turns the surrounding context of a selected chunk or entity into portable text. Use `evidence` first when strict verification is needed.
@@ -268,7 +270,7 @@ $ wikigraph wikg://book.wikg/entity/Q8018 pack --budget 5000
 Wiki Graph treats CLI help as part of the product contract. After installation, start from the root help; commands, URIs, predicates, configuration, runtime behavior, and format constraints can be discovered by following the help network, without guessing command shapes from the README.
 
 ```bash
-$ wikigraph --help
+$ wg --help
 ```
 
 ## License

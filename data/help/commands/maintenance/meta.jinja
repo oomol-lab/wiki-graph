@@ -1,5 +1,5 @@
 Help Type: command
-Command: wikigraph <object-uri>/meta
+Command: {{ commandName }} <object-uri>/meta
 
 meta
 
@@ -7,16 +7,16 @@ Purpose:
   Read or edit metadata attached to any Wiki Graph object.
 
 Usage:
-  wikigraph <object-uri>/meta [--json] [--help|-h]
-  wikigraph <object-uri>/meta set --json <object> [--help|-h]
-  wikigraph <object-uri>/meta set --json --input <path|-> [--help|-h]
-  wikigraph <object-uri>/meta set --json-input <object> [--json] [--help|-h]
-  wikigraph <object-uri>/meta put <key> <value> [--help|-h]
-  wikigraph <object-uri>/meta put <key> --json <value> [--help|-h]
-  wikigraph <object-uri>/meta put <key> --input <path|-> [--help|-h]
-  wikigraph <object-uri>/meta put <key> --json-input <value> [--json] [--help|-h]
-  wikigraph <object-uri>/meta delete <key> [--json] [--help|-h]
-  wikigraph <object-uri>/meta clear [--json] [--help|-h]
+  {{ commandName }} <object-uri>/meta [--json] [--help|-h]
+  {{ commandName }} <object-uri>/meta set --json <object> [--help|-h]
+  {{ commandName }} <object-uri>/meta set --json --input <path|-> [--help|-h]
+  {{ commandName }} <object-uri>/meta set --json-input <object> [--json] [--help|-h]
+  {{ commandName }} <object-uri>/meta put <key> <value> [--help|-h]
+  {{ commandName }} <object-uri>/meta put <key> --json <value> [--help|-h]
+  {{ commandName }} <object-uri>/meta put <key> --input <path|-> [--help|-h]
+  {{ commandName }} <object-uri>/meta put <key> --json-input <value> [--json] [--help|-h]
+  {{ commandName }} <object-uri>/meta delete <key> [--json] [--help|-h]
+  {{ commandName }} <object-uri>/meta clear [--json] [--help|-h]
 
 Input:
   - `set` replaces the whole metadata map and requires a JSON object.
@@ -38,18 +38,18 @@ Behavior:
   - This command does not call an LLM provider.
 
 Examples:
-  wikigraph wikg://book.wikg/meta
-  wikigraph wikg://book.wikg/meta --json
-  wikigraph wikg://book.wikg/meta put title "New Title"
-  wikigraph wikg://book.wikg/entity/Q42/meta put note "reviewed"
-  wikigraph wikg://book.wikg/entity/Q42/meta put rank --json 7
-  wikigraph wikg://book.wikg/entity/Q42/meta delete note
-  wikigraph wikg://book.wikg/entity/Q42/meta clear
+  {{ commandName }} wikg://book.wikg/meta
+  {{ commandName }} wikg://book.wikg/meta --json
+  {{ commandName }} wikg://book.wikg/meta put title "New Title"
+  {{ commandName }} wikg://book.wikg/entity/Q42/meta put note "reviewed"
+  {{ commandName }} wikg://book.wikg/entity/Q42/meta put rank --json 7
+  {{ commandName }} wikg://book.wikg/entity/Q42/meta delete note
+  {{ commandName }} wikg://book.wikg/entity/Q42/meta clear
 
 Where to go next:
   - Need chapter tree editing:
-    wikigraph wikg://book.wikg/chapter/tree --help
+    {{ commandName }} wikg://book.wikg/chapter/tree --help
   - Need URI object boundaries and machine-readable output:
-    wikigraph help uri
+    {{ commandName }} help uri
   - Need archive-vs-source mental model:
-    wikigraph --help
+    {{ commandName }} --help

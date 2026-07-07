@@ -499,7 +499,7 @@ async function buildSummaryFromDocument(
 
   if (serial === undefined) {
     throw new Error(
-      `Chapter ${chapterId} does not exist. Use \`wikigraph <archive-uri>/chapter list\` to discover chapter ids.`,
+      `Chapter ${chapterId} does not exist. Use \`wg <archive-uri>/chapter list\` to discover chapter ids.`,
     );
   }
   if (!serial.topologyReady) {

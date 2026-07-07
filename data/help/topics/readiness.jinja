@@ -8,42 +8,42 @@ Purpose:
   Readiness explains what must exist before `--query`, Reading Graph, summaries, and Knowledge Graph retrieval can work.
 
 Start with inspect:
-  wikigraph <archive-uri> inspect
+  {{ commandName }} <archive-uri> inspect
 
 FTS readiness:
   `--query` uses the archive FTS index. Without a current index, keyword retrieval is unavailable for scopes, evidence, and related results.
 
   Default behavior:
-    `wikigraph <archive-uri>/index enable` enables the searchable index as local cache outside the `.wikg` archive.
+    `{{ commandName }} <archive-uri>/index enable` enables the searchable index as local cache outside the `.wikg` archive.
     This keeps the archive smaller, but the index does not travel with copied archive files.
     If another user receives the `.wikg`, they usually need to enable their own local index.
     After an index is enabled, CLI archive writes keep it synchronized automatically.
     Do not enable the index again after every generation job.
 
   Portable behavior:
-    `wikigraph <archive-uri>/index embed` switches to an archive-embedded searchable index and ensures it is current.
+    `{{ commandName }} <archive-uri>/index embed` switches to an archive-embedded searchable index and ensures it is current.
     This makes the archive more self-contained, but increases file size.
     After embedding, CLI archive writes keep the embedded index synchronized automatically.
     If you are unsure, enable the local index first and embed only when distribution convenience matters.
 
   Commands:
-    wikigraph <archive-uri>/index
-    wikigraph <archive-uri>/index enable --help
-    wikigraph <archive-uri>/index disable --help
-    wikigraph <archive-uri>/index embed --help
-    wikigraph <archive-uri>/index external --help
+    {{ commandName }} <archive-uri>/index
+    {{ commandName }} <archive-uri>/index enable --help
+    {{ commandName }} <archive-uri>/index disable --help
+    {{ commandName }} <archive-uri>/index embed --help
+    {{ commandName }} <archive-uri>/index external --help
 
 Generation readiness:
   Reading Graph, Reading Summary, and Knowledge Graph data are generated artifacts.
   They do not appear just because source text exists.
 
   All generation jobs require LLM configuration:
-    wikigraph wikg://local/config/llm
-    wikigraph wikg://local/config/llm test
+    {{ commandName }} wikg://local/config/llm
+    {{ commandName }} wikg://local/config/llm test
 
   Inspect job commands before starting expensive work:
-    wikigraph wikg://local/job --help
-    wikigraph wikg://local/job add --help
+    {{ commandName }} wikg://local/job --help
+    {{ commandName }} wikg://local/job add --help
 
 LLM readiness:
   `wikg://local/config/llm` is required for generating:
@@ -57,10 +57,10 @@ LLM readiness:
     provider credentials when required
 
   Common path:
-    wikigraph wikg://local/config/llm put provider openai
-    wikigraph wikg://local/config/llm put model gpt-4.1
-    wikigraph wikg://local/config/llm put apiKey --secret
-    wikigraph wikg://local/config/llm test
+    {{ commandName }} wikg://local/config/llm put provider openai
+    {{ commandName }} wikg://local/config/llm put model gpt-4.1
+    {{ commandName }} wikg://local/config/llm put apiKey --secret
+    {{ commandName }} wikg://local/config/llm test
 
 WikiSpine readiness:
   Knowledge Graph generation also requires WikiSpine.
@@ -71,11 +71,11 @@ WikiSpine readiness:
   - `cli`: run the local `wikispine` command from PATH. This is useful for offline or locally controlled environments, but requires local runtime setup and data.
 
   Configure one provider, then test it:
-    wikigraph wikg://local/config/wikispine put provider fetch
-    wikigraph wikg://local/config/wikispine test
+    {{ commandName }} wikg://local/config/wikispine put provider fetch
+    {{ commandName }} wikg://local/config/wikispine test
 
-    wikigraph wikg://local/config/wikispine put provider cli
-    wikigraph wikg://local/config/wikispine test
+    {{ commandName }} wikg://local/config/wikispine put provider cli
+    {{ commandName }} wikg://local/config/wikispine test
 
   Runtime setup and recovery guide:
     https://raw.githubusercontent.com/oomol-lab/wiki-graph/refs/heads/main/docs/wikispine-runtime.md
@@ -90,10 +90,10 @@ How to choose:
 
 Where to go next:
   - Normal workflow:
-    wikigraph help recipe
+    {{ commandName }} help recipe
   - Exact config fields and secret handling:
-    wikigraph help config
+    {{ commandName }} help config
   - Job runtime, logs, cache, and failures:
-    wikigraph help runtime
+    {{ commandName }} help runtime
   - URI and predicate help for index/job/config targets:
-    wikigraph <uri> --help
+    {{ commandName }} <uri> --help

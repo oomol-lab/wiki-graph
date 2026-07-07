@@ -1,5 +1,5 @@
 Help Type: command
-Command: wikigraph <cover-uri>
+Command: {{ commandName }} <cover-uri>
 
 cover
 
@@ -7,7 +7,7 @@ Purpose:
   Write the raw cover bytes stored in the archive.
 
 Usage:
-  wikigraph <cover-uri> [--llm <json>] [--help|-h]
+  {{ commandName }} <cover-uri> [--llm <json>] [--help|-h]
 
 Output shape:
   - Raw binary bytes on stdout
@@ -16,13 +16,13 @@ Notes:
   - Redirect or pipe stdout.
   - The command refuses to write binary data to an interactive terminal.
   - The command fails if the archive has no cover.
-  - Use `wikigraph <archive-uri>/meta` first when you need stored metadata.
+  - Use `{{ commandName }} <archive-uri>/meta` first when you need stored metadata.
   - For multimodal agents, project the cover to a normal image file, then inspect that file with image/OCR tools.
 
 Examples:
-  wikigraph wikg://book.wikg/cover > /tmp/cover.bin
-  wikigraph wikg:///books/book.wikg/cover > ./cover.bin
+  {{ commandName }} wikg://book.wikg/cover > /tmp/cover.bin
+  {{ commandName }} wikg:///books/book.wikg/cover > ./cover.bin
 
 Related help:
   - Runtime stdout behavior and binary-output safety:
-    wikigraph help runtime
+    {{ commandName }} help runtime

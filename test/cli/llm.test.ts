@@ -196,7 +196,7 @@ describe("cli/llm", () => {
 
   it("rejects missing provider/model inputs and missing openai-compatible base urls", () => {
     expect(() => buildLLMOptions({})).toThrow(
-      "Missing LLM configuration. Set --llm for one run, or configure `wikg://local/config/llm` with provider and model.\nSee: wikigraph help config",
+      "Missing LLM configuration. Set --llm for one run, or configure `wikg://local/config/llm` with provider and model.\nSee: wg help config",
     );
     expect(() =>
       buildLLMOptions({
@@ -206,7 +206,7 @@ describe("cli/llm", () => {
         },
       }),
     ).toThrow(
-      "openai-compatible requires llm.baseURL or baseURL in --llm JSON.\nSee: wikigraph help config",
+      "openai-compatible requires llm.baseURL or baseURL in --llm JSON.\nSee: wg help config",
     );
   });
 
@@ -221,7 +221,7 @@ describe("cli/llm", () => {
         },
       }),
     ).toThrow(
-      "openai does not accept llm.baseURL or baseURL in --llm JSON. Use openai-compatible for third-party OpenAI-style APIs.\nSee: wikigraph help config",
+      "openai does not accept llm.baseURL or baseURL in --llm JSON. Use openai-compatible for third-party OpenAI-style APIs.\nSee: wg help config",
     );
   });
 });

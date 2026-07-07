@@ -188,7 +188,7 @@ describe("cli/main", () => {
     mainMockState.archiveMetaRunError = undefined;
     mainMockState.legacyRunError = undefined;
     process.exitCode = 0;
-    process.argv = ["node", "wikigraph"];
+    process.argv = ["node", "wg"];
     setStdinTTY(false);
     stdoutChunks = [];
     stderrChunks = [];
@@ -509,7 +509,7 @@ describe("cli/main", () => {
   it("writes archive command failures as JSON when --json is requested", async () => {
     process.argv = [
       "node",
-      "wikigraph",
+      "wg",
       "get",
       "/tmp/book.wikg",
       "wikg://entity/Q1",
@@ -542,7 +542,7 @@ describe("cli/main", () => {
   it("writes parse errors as JSON when --json is requested", async () => {
     process.argv = [
       "node",
-      "wikigraph",
+      "wg",
       "wikg:///tmp/book.wikg/index",
       "enable",
       "--json",
@@ -562,13 +562,7 @@ describe("cli/main", () => {
   });
 
   it("writes parse errors as JSON when --json has an inline value", async () => {
-    process.argv = [
-      "node",
-      "wikigraph",
-      "wikg://local/config/llm",
-      "set",
-      "--json={",
-    ];
+    process.argv = ["node", "wg", "wikg://local/config/llm", "set", "--json={"];
     mainMockState.parseError = new Error("invalid JSON");
 
     await main();
