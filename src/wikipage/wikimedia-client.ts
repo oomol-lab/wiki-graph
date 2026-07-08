@@ -1,5 +1,8 @@
 import { DomUtils, parseDocument } from "htmlparser2";
 
+import { getLogger } from "../common/logging.js";
+import { formatError } from "../utils/node-error.js";
+import type { WikipageFetchLog } from "./fetch-log.js";
 import { RateLimiter, parseRetryAfterMs } from "./rate-limiter.js";
 
 export type SupportedWiki = "enwiki" | "zhwiki";
@@ -9,6 +12,7 @@ export interface WikimediaClientOptions {
   readonly fetch?: typeof fetch;
   readonly language: string;
   readonly minRequestIntervalMs: number;
+  readonly requestLog: WikipageFetchLog;
   readonly retryBaseDelayMs: number;
   readonly retryTimes: number;
   readonly userAgent?: string;
@@ -66,6 +70,7 @@ export class WikimediaClient {
   readonly #fetch: typeof fetch;
   readonly #language: string;
   readonly #limiter: RateLimiter;
+  readonly #requestLog: WikipageFetchLog;
   readonly #retryBaseDelayMs: number;
   readonly #retryTimes: number;
   readonly #userAgent: string | undefined;
@@ -74,6 +79,7 @@ export class WikimediaClient {
   public constructor(options: WikimediaClientOptions) {
     this.#fetch = options.fetch ?? fetch;
     this.#language = options.language;
+    this.#requestLog = options.requestLog;
     this.#wiki = options.wiki;
     this.#userAgent = options.userAgent;
     this.#retryBaseDelayMs = Math.max(0, Math.floor(options.retryBaseDelayMs));
@@ -206,12 +212,13 @@ export class WikimediaClient {
     for (let attempt = 0; attempt <= this.#retryTimes; attempt += 1) {
       try {
         return await this.#limiter.use(
-          async () => await this.#fetchJsonOnce(url),
+          async () => await this.#fetchJsonOnce(url, attempt + 1),
         );
       } catch (error) {
         lastError = error;
 
         if (!isRetryableError(error) || attempt >= this.#retryTimes) {
+          this.#requestLog.warnFailed();
           throw error;
         }
 
@@ -222,17 +229,34 @@ export class WikimediaClient {
     throw lastError instanceof Error ? lastError : new Error(String(lastError));
   }
 
-  async #fetchJsonOnce(url: URL): Promise<Record<string, unknown>> {
-    const response = await this.#fetch(
-      url,
-      this.#userAgent === undefined
-        ? undefined
-        : {
-            headers: {
-              "User-Agent": this.#userAgent,
+  async #fetchJsonOnce(
+    url: URL,
+    attempt: number,
+  ): Promise<Record<string, unknown>> {
+    const startedAt = Date.now();
+    let response: Response;
+
+    try {
+      response = await this.#fetch(
+        url,
+        this.#userAgent === undefined
+          ? undefined
+          : {
+              headers: {
+                "User-Agent": this.#userAgent,
+              },
             },
-          },
-    );
+      );
+    } catch (error) {
+      await this.#appendFetchLog({
+        attempt,
+        durationMs: Date.now() - startedAt,
+        error,
+        startedAt,
+        url,
+      });
+      throw error;
+    }
 
     const retryAfterMs = parseRetryAfterMs(response.headers.get("retry-after"));
 
@@ -240,11 +264,53 @@ export class WikimediaClient {
       this.#limiter.blockFor(retryAfterMs);
     }
     if (!response.ok) {
+      const responseText = isTextResponse(response)
+        ? await response.text()
+        : undefined;
+
+      await this.#appendFetchLog({
+        attempt,
+        durationMs: Date.now() - startedAt,
+        response,
+        ...(responseText === undefined ? {} : { responseText }),
+        startedAt,
+        url,
+      });
       throw new WikimediaRequestError(url, response.status, retryAfterMs);
     }
 
+    await this.#appendFetchLog({
+      attempt,
+      durationMs: Date.now() - startedAt,
+      response,
+      startedAt,
+      url,
+    });
+
     return asRecord(await response.json());
   }
+
+  async #appendFetchLog(
+    entry: Parameters<WikipageFetchLog["append"]>[0],
+  ): Promise<void> {
+    try {
+      await this.#requestLog.append(entry);
+    } catch (error) {
+      getLogger({ component: "wikipage" }).warn(
+        `Failed to write wikipage fetch log entry: ${formatError(error)}`,
+      );
+    }
+  }
+}
+
+function isTextResponse(response: Response): boolean {
+  const contentType = response.headers.get("content-type");
+
+  if (contentType === null) {
+    return false;
+  }
+
+  return /(?:json|text|xml|javascript|html)/iu.test(contentType);
 }
 
 class WikimediaRequestError extends Error {

@@ -1,5 +1,8 @@
+import { mkdir, readdir, readFile } from "fs/promises";
+
 import { describe, expect, it } from "vitest";
 
+import { withLoggingContext } from "../../src/common/logging.js";
 import { Database } from "../../src/document/index.js";
 import { WikipageResolver } from "../../src/wikipage/index.js";
 import { withTempDir } from "../helpers/temp.js";
@@ -117,6 +120,163 @@ describe("wikipage/resolver", () => {
       } finally {
         await resolver.close();
       }
+    });
+  });
+
+  it("writes compact fetch logs when a log directory is configured", async () => {
+    await withTempDir("spinedigest-wikipage-", async (path) => {
+      const calls: string[] = [];
+
+      await withLoggingContext(
+        {
+          logDirPath: path,
+          operation: "wikipage-test",
+        },
+        async () => {
+          const resolver = await WikipageResolver.open({
+            cacheDatabasePath: `${path}/cache.sqlite`,
+            fetch: createMockFetch(calls),
+            language: "en",
+            logDirPath: path,
+            minRequestIntervalMs: 0,
+            retryBaseDelayMs: 0,
+          });
+
+          try {
+            await resolver.resolveQids(["Q1"]);
+          } finally {
+            await resolver.close();
+          }
+        },
+      );
+
+      const log = await readWikipageFetchLog(path);
+      const lines = log
+        .trim()
+        .split("\n")
+        .map((line) => JSON.parse(line) as Record<string, unknown>);
+
+      expect(lines).toHaveLength(3);
+      expect(lines[0]).toMatchObject({
+        action: "wbgetentities",
+        attempt: 1,
+        batch: {
+          count: 1,
+          kind: "qid",
+          sample: ["Q1"],
+        },
+        host: "www.wikidata.org",
+        ok: true,
+        status: 200,
+      });
+      expect(lines[0]).not.toHaveProperty("responseText");
+      expect(lines.slice(1)).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            action: "query",
+            attempt: 1,
+            ok: true,
+            status: 200,
+          }),
+        ]),
+      );
+      expect(lines.slice(1).map(readBatchSample)).toEqual(
+        expect.arrayContaining([["Universe"], ["宇宙"]]),
+      );
+    });
+  });
+
+  it("includes response text for failed text responses", async () => {
+    await withTempDir("spinedigest-wikipage-", async (path) => {
+      const failingFetch: typeof globalThis.fetch = () =>
+        Promise.resolve(
+          new Response("service unavailable", {
+            headers: {
+              "content-type": "text/plain",
+            },
+            status: 503,
+          }),
+        );
+
+      await expect(
+        withLoggingContext(
+          {
+            logDirPath: path,
+            operation: "wikipage-test",
+          },
+          async () => {
+            const resolver = await WikipageResolver.open({
+              cacheDatabasePath: `${path}/cache.sqlite`,
+              fetch: failingFetch,
+              language: "en",
+              logDirPath: path,
+              minRequestIntervalMs: 0,
+              retryBaseDelayMs: 0,
+              retryTimes: 0,
+            });
+
+            try {
+              await resolver.resolveQids(["Q1"]);
+            } finally {
+              await resolver.close();
+            }
+          },
+        ),
+      ).rejects.toThrow("Wikimedia request failed with 503");
+
+      const [line] = (await readWikipageFetchLog(path)).trim().split("\n");
+      const entry = JSON.parse(line!) as Record<string, unknown>;
+
+      expect(entry).toMatchObject({
+        action: "wbgetentities",
+        ok: false,
+        responseText: "service unavailable",
+        status: 503,
+      });
+    });
+  });
+
+  it("does not fail requests when fetch logging fails", async () => {
+    await withTempDir("spinedigest-wikipage-", async (path) => {
+      const calls: string[] = [];
+
+      await expect(
+        withLoggingContext(
+          {
+            logDirPath: path,
+            operation: "wikipage-test",
+          },
+          async () => {
+            const resolver = await WikipageResolver.open({
+              cacheDatabasePath: `${path}/cache.sqlite`,
+              fetch: createMockFetch(calls),
+              language: "en",
+              logDirPath: path,
+              minRequestIntervalMs: 0,
+              retryBaseDelayMs: 0,
+            });
+
+            try {
+              const runDirName = await readOnlyRunDirName(path);
+              await mkdir(
+                `${path}/${runDirName}/artifacts/wikipage/wikipage-fetch.jsonl`,
+              );
+
+              return await resolver.resolveQids(["Q1"]);
+            } finally {
+              await resolver.close();
+            }
+          },
+        ),
+      ).resolves.toMatchObject([
+        {
+          description: "totality of space and time",
+          label: "Universe",
+          qid: "Q1",
+        },
+      ]);
+
+      expect(calls.length).toBeGreaterThan(0);
     });
   });
 
@@ -388,6 +548,35 @@ function createMockFetch(calls: string[]): typeof fetch {
 
     return Promise.resolve(jsonResponse({}, 404));
   }) as typeof fetch;
+}
+
+async function readWikipageFetchLog(logDirPath: string): Promise<string> {
+  const runDirName = await readOnlyRunDirName(logDirPath);
+
+  return await readFile(
+    `${logDirPath}/${runDirName}/artifacts/wikipage/wikipage-fetch.jsonl`,
+    "utf8",
+  );
+}
+
+async function readOnlyRunDirName(logDirPath: string): Promise<string> {
+  const entries = await readdir(logDirPath, { withFileTypes: true });
+  const runEntries = entries.filter((entry) => entry.isDirectory());
+
+  expect(runEntries).toHaveLength(1);
+
+  return runEntries[0]!.name;
+}
+
+function readBatchSample(entry: Record<string, unknown>): readonly unknown[] {
+  const batch = entry.batch;
+
+  expect(batch).toEqual(expect.any(Object));
+
+  const sample = (batch as Record<string, unknown>).sample;
+
+  expect(Array.isArray(sample)).toBe(true);
+  return sample as readonly unknown[];
 }
 
 function entity(

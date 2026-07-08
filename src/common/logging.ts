@@ -99,6 +99,7 @@ export function resolveArtifactPath(input: {
 }
 
 export function allocateArtifactPath(input: {
+  readonly alwaysNumbered?: boolean;
   readonly category: string;
   readonly extension?: string;
   readonly logDirPath?: string;
@@ -118,9 +119,11 @@ export function allocateArtifactPath(input: {
 
   for (let index = startIndex; ; index += 1) {
     const fileName =
-      index === 1
-        ? `${input.prefix}${extension}`
-        : `${input.prefix}-${index}${extension}`;
+      input.alwaysNumbered === true
+        ? `${input.prefix}-${index}${extension}`
+        : index === 1
+          ? `${input.prefix}${extension}`
+          : `${input.prefix}-${index}${extension}`;
     const resolvedPath = resolveArtifactPath({
       category: input.category,
       fileName,
