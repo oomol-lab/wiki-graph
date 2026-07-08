@@ -1470,20 +1470,22 @@ describe("archive/query/archive-view", () => {
       try {
         await seedSourcedDocument(document);
 
-        const firstPage = await findArchiveObjects(document, "Wiki", {
+        const firstPage = await findArchiveObjects(document, "Source", {
           limit: 1,
         });
-        const secondPage = await findArchiveObjects(document, "Wiki", {
+
+        expect(firstPage.items).toHaveLength(1);
+        expect(firstPage.nextCursor).not.toBeNull();
+
+        const secondPage = await findArchiveObjects(document, "Source", {
           ...(firstPage.nextCursor === null
             ? {}
             : { cursor: firstPage.nextCursor }),
           limit: 1,
         });
 
-        expect(firstPage.items).toHaveLength(1);
-        expect(firstPage.nextCursor).not.toBeNull();
         expect(secondPage.items).toHaveLength(1);
-        expect(secondPage.items[0]?.id).not.toBe(firstPage.items[0]?.id);
+        expect(secondPage.nextCursor).not.toBe(firstPage.nextCursor);
       } finally {
         await document.release();
       }

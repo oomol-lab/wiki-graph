@@ -91,6 +91,7 @@ export type SearchIndexStatus = "current" | "dirty" | "missing";
 export interface SearchIndexTextHit {
   readonly chapterId: number;
   readonly kind: TextSentenceKind;
+  readonly rank: number;
   readonly score: number;
   readonly sentenceIndex: number;
   readonly wordsCount: number;
@@ -283,6 +284,12 @@ export async function querySearchIndex(
     readonly chapters?: readonly number[];
     readonly match?: ArchiveFindMatch;
     readonly objectHitLimit?: number;
+    readonly textAfter?: {
+      readonly chapterId: number;
+      readonly kind: TextSentenceKind;
+      readonly rank: number;
+      readonly sentenceIndex: number;
+    };
     readonly textHitLimit?: number;
     readonly types?: readonly ArchiveFindObjectType[] | null;
   } = {},
@@ -334,10 +341,18 @@ export async function querySearchIndex(
       ]);
 
       for (const hit of objectRows) {
-        objectHitsByKey.set(createObjectHitKey(hit), hit);
+        const key = createObjectHitKey(hit);
+
+        if (!objectHitsByKey.has(key)) {
+          objectHitsByKey.set(key, hit);
+        }
       }
       for (const hit of textRows) {
-        textHitsByKey.set(createTextHitKey(hit), hit);
+        const key = createTextHitKey(hit);
+
+        if (!textHitsByKey.has(key)) {
+          textHitsByKey.set(key, hit);
+        }
       }
       if (
         (!queriesObjects || objectHitsByKey.size >= objectHitLimit) &&
@@ -407,6 +422,12 @@ async function queryTextRows(
   matchExpression: string,
   options: {
     readonly chapters?: readonly number[];
+    readonly textAfter?: {
+      readonly chapterId: number;
+      readonly kind: TextSentenceKind;
+      readonly rank: number;
+      readonly sentenceIndex: number;
+    };
     readonly textHitLimit?: number;
     readonly types?: readonly ArchiveFindObjectType[] | null;
   },
@@ -420,21 +441,48 @@ async function queryTextRows(
     return [];
   }
 
+  const after = options.textAfter;
+
   return await database.queryAll(
     `
       SELECT
-        r.kind AS kind,
-        r.chapter_id AS chapter_id,
-        r.sentence_index AS sentence_index,
-        r.words_count AS words_count,
-        bm25(text_sentence_fts, ?, ?, ?) AS rank
-      FROM text_sentence_fts
-      JOIN text_sentence_records AS r
-        ON r.id = text_sentence_fts.rowid
-      WHERE text_sentence_fts MATCH ?
-        AND r.kind IN (${kinds.map(() => "?").join(", ")})
-        ${createChapterSql(options.chapters)}
-      ORDER BY rank ASC, r.chapter_id, r.sentence_index, r.kind
+        kind,
+        chapter_id,
+        sentence_index,
+        words_count,
+        rank
+      FROM (
+        SELECT
+          r.kind AS kind,
+          r.chapter_id AS chapter_id,
+          r.sentence_index AS sentence_index,
+          r.words_count AS words_count,
+          bm25(text_sentence_fts, ?, ?, ?) AS rank
+        FROM text_sentence_fts
+        JOIN text_sentence_records AS r
+          ON r.id = text_sentence_fts.rowid
+        WHERE text_sentence_fts MATCH ?
+          AND r.kind IN (${kinds.map(() => "?").join(", ")})
+          ${createChapterSql(options.chapters)}
+      )
+      ${
+        after === undefined
+          ? ""
+          : `
+            WHERE (
+              rank > ?
+              OR (rank = ? AND chapter_id > ?)
+              OR (rank = ? AND chapter_id = ? AND sentence_index > ?)
+              OR (
+                rank = ?
+                AND chapter_id = ?
+                AND sentence_index = ?
+                AND kind > ?
+              )
+            )
+          `
+      }
+      ORDER BY rank ASC, chapter_id, sentence_index, kind
       ${createLimitSql(options.textHitLimit)}
     `,
     [
@@ -442,15 +490,34 @@ async function queryTextRows(
       matchExpression,
       ...kinds,
       ...createChapterParams(options.chapters),
+      ...(after === undefined
+        ? []
+        : [
+            after.rank,
+            after.rank,
+            after.chapterId,
+            after.rank,
+            after.chapterId,
+            after.sentenceIndex,
+            after.rank,
+            after.chapterId,
+            after.sentenceIndex,
+            after.kind,
+          ]),
       ...createLimitParams(options.textHitLimit),
     ],
-    (row) => ({
-      chapterId: getNumber(row, "chapter_id"),
-      kind: getNumber(row, "kind") as TextSentenceKind,
-      score: rankToScore(getNumber(row, "rank")),
-      sentenceIndex: getNumber(row, "sentence_index"),
-      wordsCount: getNumber(row, "words_count"),
-    }),
+    (row) => {
+      const rank = getNumber(row, "rank");
+
+      return {
+        chapterId: getNumber(row, "chapter_id"),
+        kind: getNumber(row, "kind") as TextSentenceKind,
+        rank,
+        score: rankToScore(rank),
+        sentenceIndex: getNumber(row, "sentence_index"),
+        wordsCount: getNumber(row, "words_count"),
+      };
+    },
   );
 }
 
