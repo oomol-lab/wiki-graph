@@ -422,6 +422,9 @@ async function executeBuildJobWithLogging(
         policyPrompt: knowledgeGraphRecallPrompt,
         progressTracker: reporter,
         request,
+        resolverOptions: {
+          logDirPath: job.logPath,
+        },
         wikispine,
         workspacePath: job.workspacePath,
       },

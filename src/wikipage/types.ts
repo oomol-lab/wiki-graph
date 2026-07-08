@@ -3,6 +3,7 @@ export interface WikipageResolverOptions {
   readonly concurrency?: number;
   readonly fetch?: typeof fetch;
   readonly language?: string;
+  readonly logDirPath?: string;
   readonly maxBatchSize?: number;
   readonly minRequestIntervalMs?: number;
   readonly normalizer?: DisambiguationProfileNormalizer;

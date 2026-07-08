@@ -1,4 +1,5 @@
 import { WikipageCache } from "./cache.js";
+import { createWikipageFetchLog } from "./fetch-log.js";
 import {
   WikimediaClient,
   replaceTitleUriWithQidUri,
@@ -70,6 +71,7 @@ export class WikipageResolver {
       client: new WikimediaClient({
         concurrency: options.concurrency ?? DEFAULT_CONCURRENCY,
         language,
+        requestLog: createWikipageFetchLog(options.logDirPath),
         minRequestIntervalMs:
           options.minRequestIntervalMs ?? DEFAULT_MIN_REQUEST_INTERVAL_MS,
         retryBaseDelayMs:

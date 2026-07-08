@@ -27,6 +27,7 @@ export function createRequestLog(logDirPath?: string): RequestLog {
 
   return new RequestLog(
     allocateArtifactPath({
+      alwaysNumbered: true,
       category: "llm",
       logDirPath,
       prefix: "request",

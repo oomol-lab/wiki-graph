@@ -82,4 +82,25 @@ describe("common/logging", () => {
       return Promise.resolve();
     });
   });
+
+  it("can allocate numbered artifact names starting at one", async () => {
+    await withTempDir("spinedigest-logging-", (path) => {
+      const firstPath = allocateArtifactPath({
+        alwaysNumbered: true,
+        category: "llm",
+        logDirPath: path,
+        prefix: "request",
+      });
+      const secondPath = allocateArtifactPath({
+        alwaysNumbered: true,
+        category: "llm",
+        logDirPath: path,
+        prefix: "request",
+      });
+
+      expect(firstPath).toBe(`${path}/request-1.log`);
+      expect(secondPath).toBe(`${path}/request-2.log`);
+      return Promise.resolve();
+    });
+  });
 });

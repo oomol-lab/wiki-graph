@@ -217,6 +217,7 @@ describe("llm/client", () => {
         ]),
       ).resolves.toBe("generated response");
 
+      await expect(readdir(logDirPath)).resolves.toContain("request-1.log");
       await expect(readOnlyRequestLog(logDirPath)).resolves.toContain(
         "[[Usage]]:\ninput: 11\ncache: 3\noutput: 7\n\n",
       );
