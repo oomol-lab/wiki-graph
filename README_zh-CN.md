@@ -18,6 +18,8 @@ Wiki Graph 是一个面向 [Andrej Karpathy](https://github.com/karpathy) 的 [L
 
 Karpathy 的核心想法是：不要让 AI 每次提问都从原始材料重新检索，而是把知识编译成可持续维护的 Wiki。OKF 则把这类 Wiki 实践推向开放、可移植的知识格式。Wiki Graph 负责把这条链路中属于 OKF 的 source layer 这部分做实：把长文本变成 Wiki 和 OKF 可以继续消费的知识原料，包括实体、关系，以及能追回原文的证据。
 
+[![观看视频](./docs/images/bilibili-cover.png)](https://www.bilibili.com/video/BV1cwMV6ZEpJ/)
+
 ## 快速开始
 
 运行前提 Node.js `>=22.12.0`
