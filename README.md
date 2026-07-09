@@ -18,6 +18,8 @@ In agent workflows, PDFs, web pages, EPUBs, subtitles, meeting recordings, video
 
 Karpathy's core point is that AI should not go back to raw material from scratch every time it answers a question; knowledge should be compiled into a maintainable Wiki. OKF pushes this kind of Wiki practice toward open, portable knowledge formats. Wiki Graph makes the OKF source layer concrete: it turns long text into knowledge material that a Wiki or OKF system can continue to consume, including entities, relations, and evidence that can point back to the source.
 
+[![Watch the video](./docs/images/youtube-cover.png)](https://www.youtube.com/watch?v=UyXLZZTyCsM)
+
 ## Quick Start
 
 Requirement: Node.js `>=22.12.0`
