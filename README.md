@@ -275,6 +275,8 @@ Wiki Graph treats CLI help as part of the product contract. After installation, 
 $ wg --help
 ```
 
+For archive reading, writing, evidence, URI, and automation rules, read the [`.wikg` Archive Standard](./docs/wikg-standard.md).
+
 ## License
 
 Apache-2.0
