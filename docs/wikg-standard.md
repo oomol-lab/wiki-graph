@@ -51,8 +51,9 @@ wikg-mutation-token:v1
 <token>
 ```
 
-The file must end with a newline. `<token>` is a 43-character base64url string
-matching:
+Standard writers end the file with a newline. Readers must validate the magic
+line and token line, and may accept payloads with or without the final trailing
+newline. `<token>` is a 43-character base64url string matching:
 
 ```text
 [A-Za-z0-9_-]{43}
