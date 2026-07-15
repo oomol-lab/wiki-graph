@@ -1,25 +1,33 @@
 import { defineConfig } from "tsup";
 
-const CORE_EXTERNALS: (string | RegExp)[] = [
-  "wiki-graph-core",
-  "wiki-graph-core/*",
-];
+const CJS_DATA_DIR_BANNER = [
+  'globalThis.__WIKIGRAPH_DATA_DIR__ ??= require("path").resolve(',
+  "  __dirname,",
+  '  "data",',
+  ");",
+].join("\n");
+const ESM_DATA_DIR_BANNER = [
+  'import { fileURLToPath as __WIKIGRAPH_FILE_URL_TO_PATH__ } from "url";',
+  'import { resolve as __WIKIGRAPH_RESOLVE__ } from "path";',
+  'globalThis.__WIKIGRAPH_DATA_DIR__ ??= __WIKIGRAPH_RESOLVE__(__WIKIGRAPH_FILE_URL_TO_PATH__(new URL("./data", import.meta.url)));',
+].join("\n");
 const SHARED_OPTIONS = {
   bundle: true,
   clean: false,
-  external: CORE_EXTERNALS,
   outDir: "dist",
   platform: "node",
   skipNodeModulesBundle: true,
   sourcemap: true,
   splitting: false,
   target: "node22",
-  tsconfig: "tsconfig.build.json",
 } as const;
 
 export default defineConfig([
   {
     ...SHARED_OPTIONS,
+    banner: {
+      js: CJS_DATA_DIR_BANNER,
+    },
     clean: true,
     dts: true,
     entry: {
@@ -34,6 +42,9 @@ export default defineConfig([
   },
   {
     ...SHARED_OPTIONS,
+    banner: {
+      js: ESM_DATA_DIR_BANNER,
+    },
     dts: true,
     entry: {
       cli: "src/cli.ts",

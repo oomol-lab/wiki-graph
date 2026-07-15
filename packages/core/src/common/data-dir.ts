@@ -1,5 +1,6 @@
 import { existsSync, statSync } from "fs";
-import { dirname, join, parse } from "path";
+import { fileURLToPath } from "url";
+import { dirname, join, parse, resolve } from "path";
 
 export function resolveDataDirPath(): string {
   const injectedPath = (globalThis as { __WIKIGRAPH_DATA_DIR__?: unknown })
@@ -9,7 +10,27 @@ export function resolveDataDirPath(): string {
     return injectedPath;
   }
 
+  const moduleDataDirPath = resolveDataDirPathFromModule();
+  if (moduleDataDirPath !== undefined) {
+    return moduleDataDirPath;
+  }
+
   return resolveDataDirPathFromWorkingDirectory();
+}
+
+function resolveDataDirPathFromModule(): string | undefined {
+  const moduleDirectoryPath = dirname(fileURLToPath(import.meta.url));
+
+  for (const candidatePath of [
+    resolve(moduleDirectoryPath, "../../data"),
+    resolve(moduleDirectoryPath, "../data"),
+  ]) {
+    if (existsSync(candidatePath) && statSync(candidatePath).isDirectory()) {
+      return candidatePath;
+    }
+  }
+
+  return undefined;
 }
 
 function resolveDataDirPathFromWorkingDirectory(): string {

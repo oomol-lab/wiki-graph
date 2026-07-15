@@ -6,13 +6,7 @@ const CJS_DATA_DIR_BANNER = [
   '  "../data",',
   ");",
 ].join("\n");
-const ESM_DATA_DIR_BANNER = [
-  'import { fileURLToPath as __WIKIGRAPH_FILE_URL_TO_PATH__ } from "url";',
-  'import { resolve as __WIKIGRAPH_RESOLVE__ } from "path";',
-  'globalThis.__WIKIGRAPH_DATA_DIR__ ??= __WIKIGRAPH_RESOLVE__(__WIKIGRAPH_FILE_URL_TO_PATH__(new URL("../data", import.meta.url)));',
-].join("\n");
 const SHARED_OPTIONS = {
-  bundle: true,
   clean: false,
   outDir: "dist",
   platform: "node",
@@ -33,6 +27,7 @@ export default defineConfig([
     banner: {
       js: CJS_DATA_DIR_BANNER,
     },
+    bundle: true,
     clean: true,
     dts: true,
     entry: ENTRY,
@@ -45,11 +40,9 @@ export default defineConfig([
   },
   {
     ...SHARED_OPTIONS,
-    banner: {
-      js: ESM_DATA_DIR_BANNER,
-    },
+    bundle: false,
     dts: true,
-    entry: ENTRY,
+    entry: ["src/**/*.ts"],
     format: ["esm"],
   },
 ]);

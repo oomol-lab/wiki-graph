@@ -61,5 +61,8 @@ jobs:
       - name: Smoke test packed install
         run: pnpm smoke:pack-install
 
-      - name: Validate publish dry run
-        run: pnpm publish:dry-run
+      - name: Validate CLI publish dry run
+        run: pnpm publish:dry-run:cli
+
+      - name: Validate core publish dry run
+        run: pnpm publish:dry-run:core

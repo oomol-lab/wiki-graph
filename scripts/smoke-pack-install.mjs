@@ -1,5 +1,5 @@
 import { execFileSync } from "child_process";
-import { mkdtempSync, rmSync, writeFileSync } from "fs";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "fs";
 import { tmpdir } from "os";
 import { isAbsolute, join, resolve } from "path";
 
@@ -7,6 +7,8 @@ const packageRoot = resolve(import.meta.dirname, "..");
 const coreRoot = join(packageRoot, "packages", "core");
 const cliRoot = join(packageRoot, "packages", "cli");
 const tempRoot = mkdtempSync(join(tmpdir(), "wiki-graph-pack-"));
+const cliInstallRoot = join(tempRoot, "cli-install");
+const coreInstallRoot = join(tempRoot, "core-install");
 const packedTarballs = [];
 
 function readTarballName(packOutput) {
@@ -41,7 +43,7 @@ function packPackage(packageDirectory) {
   return tarballPath;
 }
 
-function assertCommonJsExport(specifier, exportName) {
+function assertCommonJsExport(cwd, specifier, exportName) {
   execFileSync(
     process.execPath,
     [
@@ -54,13 +56,13 @@ function assertCommonJsExport(specifier, exportName) {
       ].join(" "),
     ],
     {
-      cwd: tempRoot,
+      cwd,
       stdio: "inherit",
     },
   );
 }
 
-function assertEsmExport(specifier, exportName) {
+function assertEsmExport(cwd, specifier, exportName) {
   execFileSync(
     process.execPath,
     [
@@ -74,7 +76,50 @@ function assertEsmExport(specifier, exportName) {
       ].join(" "),
     ],
     {
-      cwd: tempRoot,
+      cwd,
+      stdio: "inherit",
+    },
+  );
+}
+
+function assertModuleMissing(cwd, specifier) {
+  execFileSync(
+    process.execPath,
+    [
+      "-e",
+      [
+        "try {",
+        `  require.resolve(${JSON.stringify(specifier)});`,
+        `  throw new Error(${JSON.stringify(`Module ${specifier} should not be installed`)});`,
+        "} catch (error) {",
+        "  if (error && error.code === 'MODULE_NOT_FOUND') {",
+        "    process.exit(0);",
+        "  }",
+        "  throw error;",
+        "}",
+      ].join(" "),
+    ],
+    {
+      cwd,
+      stdio: "inherit",
+    },
+  );
+}
+
+function writeInstallPackageJson(cwd, name) {
+  mkdirSync(cwd, { recursive: true });
+  writeFileSync(
+    join(cwd, "package.json"),
+    JSON.stringify({ name, private: true }),
+  );
+}
+
+function installTarballs(cwd, tarballPaths) {
+  execFileSync(
+    "npm",
+    ["install", "--ignore-scripts", "--no-audit", "--no-fund", ...tarballPaths],
+    {
+      cwd,
       stdio: "inherit",
     },
   );
@@ -84,42 +129,45 @@ try {
   const coreTarballPath = packPackage(coreRoot);
   const cliTarballPath = packPackage(cliRoot);
 
-  writeFileSync(
-    join(tempRoot, "package.json"),
-    JSON.stringify({ name: "wiki-graph-pack-smoke", private: true }),
-  );
+  writeInstallPackageJson(cliInstallRoot, "wiki-graph-cli-pack-smoke");
+  installTarballs(cliInstallRoot, [cliTarballPath]);
 
-  execFileSync(
-    "npm",
-    [
-      "install",
-      "--ignore-scripts",
-      "--no-audit",
-      "--no-fund",
-      coreTarballPath,
-      cliTarballPath,
-    ],
-    {
-      cwd: tempRoot,
-      stdio: "inherit",
-    },
-  );
-
-  assertCommonJsExport("wiki-graph", "Language");
-  assertEsmExport("wiki-graph", "Language");
-  assertCommonJsExport("wiki-graph-core", "WikiGraph");
-  assertEsmExport("wiki-graph-core", "WikiGraph");
-  assertCommonJsExport("wiki-graph-core/gc", "tryRunWikiGraphGc");
-  assertEsmExport("wiki-graph-core/gc", "tryRunWikiGraphGc");
-  assertCommonJsExport("wiki-graph-core/worker", "runBuildJobWorker");
-  assertEsmExport("wiki-graph-core/worker", "runBuildJobWorker");
+  assertModuleMissing(cliInstallRoot, "wiki-graph-core");
+  assertCommonJsExport(cliInstallRoot, "wiki-graph", "Language");
+  assertEsmExport(cliInstallRoot, "wiki-graph", "Language");
 
   for (const command of ["wg", "wikigraph"]) {
-    execFileSync(join(tempRoot, "node_modules", ".bin", command), ["--help"], {
-      cwd: tempRoot,
-      stdio: "inherit",
-    });
+    execFileSync(
+      join(cliInstallRoot, "node_modules", ".bin", command),
+      ["--help"],
+      {
+        cwd: cliInstallRoot,
+        stdio: "inherit",
+      },
+    );
   }
+
+  writeInstallPackageJson(coreInstallRoot, "wiki-graph-core-pack-smoke");
+  installTarballs(coreInstallRoot, [coreTarballPath]);
+
+  assertCommonJsExport(coreInstallRoot, "wiki-graph-core", "WikiGraph");
+  assertEsmExport(coreInstallRoot, "wiki-graph-core", "WikiGraph");
+  assertCommonJsExport(
+    coreInstallRoot,
+    "wiki-graph-core/gc",
+    "tryRunWikiGraphGc",
+  );
+  assertEsmExport(coreInstallRoot, "wiki-graph-core/gc", "tryRunWikiGraphGc");
+  assertCommonJsExport(
+    coreInstallRoot,
+    "wiki-graph-core/worker",
+    "runBuildJobWorker",
+  );
+  assertEsmExport(
+    coreInstallRoot,
+    "wiki-graph-core/worker",
+    "runBuildJobWorker",
+  );
 } finally {
   for (const tarballPath of packedTarballs) {
     rmSync(tarballPath, { force: true });
