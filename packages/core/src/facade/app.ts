@@ -2,7 +2,7 @@ import type { LanguageModel } from "ai";
 
 import { resolveDataDirPath } from "../common/data-dir.js";
 import type { Language } from "../common/language.js";
-import type { SpineDigestScope } from "../common/llm-scope.js";
+import type { WikiGraphScope } from "../common/llm-scope.js";
 import { withLoggingContext } from "../common/logging.js";
 import { LLM } from "../llm/index.js";
 import type {
@@ -10,10 +10,10 @@ import type {
   SerialDiscoveryItem,
   SerialsDiscoveredEvent,
   SerialProgressEvent,
-  SpineDigestProgressCallback,
-  SpineDigestProgressEvent,
-  SpineDigestProgressEventType,
-  SpineDigestOperation,
+  WikiGraphProgressCallback,
+  WikiGraphProgressEvent,
+  WikiGraphProgressEventType,
+  WikiGraphOperation,
 } from "../progress/index.js";
 
 import {
@@ -25,9 +25,9 @@ import {
   type DigestSourceSessionOptions,
   type DigestTextStreamSessionOptions,
 } from "./digest.js";
-import { createDefaultSpineDigestSampling } from "./llm-sampling.js";
-import { SpineDigestFile } from "../wikg/index.js";
-import type { SpineDigest } from "./spine-digest.js";
+import { createDefaultWikiGraphSampling } from "./llm-sampling.js";
+import { WikiGraphArchiveFile } from "../wikg/index.js";
+import type { WikiGraphArchive } from "./wiki-graph-archive.js";
 import type { ChapterStage } from "./chapter.js";
 
 const DATA_DIR_PATH = resolveDataDirPath();
@@ -35,7 +35,7 @@ const DATA_DIR_PATH = resolveDataDirPath();
 const DEFAULT_EXTRACTION_PROMPT =
   "Focus on the main storyline and key character developments. Preserve important dialogues and critical plot points. Background descriptions and minor details can be compressed significantly.";
 
-export interface SpineDigestLLMOptions {
+export interface WikiGraphLLMOptions {
   readonly cacheDirPath?: string;
   readonly concurrent?: number;
   readonly logDirPath?: string;
@@ -48,26 +48,26 @@ export interface SpineDigestLLMOptions {
   readonly topP?: number | readonly number[];
 }
 
-export interface SpineDigestAppOptions {
+export interface WikiGraphOptions {
   readonly debugLogDirPath?: string;
-  readonly llm?: LanguageModel | SpineDigestLLMOptions;
+  readonly llm?: LanguageModel | WikiGraphLLMOptions;
   readonly verbose?: boolean;
 }
 
-export type SpineDigestOpenSessionOptions = DigestDocumentSessionOptions;
+export type WikiGraphOpenSessionOptions = DigestDocumentSessionOptions;
 
-export interface SpineDigestSourceSessionOptions extends DigestDocumentSessionOptions {
+export interface WikiGraphSourceSessionOptions extends DigestDocumentSessionOptions {
   readonly extractionPrompt?: string;
-  readonly onProgress?: SpineDigestProgressCallback;
+  readonly onProgress?: WikiGraphProgressCallback;
   readonly path: string;
   readonly targetStage?: ChapterStage;
   readonly userLanguage?: Language;
 }
 
-export interface SpineDigestTextStreamSessionOptions extends DigestDocumentSessionOptions {
+export interface WikiGraphTextStreamSessionOptions extends DigestDocumentSessionOptions {
   readonly bookLanguage?: string | null;
   readonly extractionPrompt?: string;
-  readonly onProgress?: SpineDigestProgressCallback;
+  readonly onProgress?: WikiGraphProgressCallback;
   readonly sourceFormat?: "markdown" | "txt";
   readonly stream: AsyncIterable<string> | Iterable<string>;
   readonly targetStage?: ChapterStage;
@@ -75,12 +75,12 @@ export interface SpineDigestTextStreamSessionOptions extends DigestDocumentSessi
   readonly userLanguage?: Language;
 }
 
-export class SpineDigestApp {
+export class WikiGraph {
   readonly #debugLogDirPath: string | undefined;
-  readonly #llm: LLM<SpineDigestScope> | undefined;
+  readonly #llm: LLM<WikiGraphScope> | undefined;
   readonly #verbose: boolean;
 
-  public constructor(options: SpineDigestAppOptions) {
+  public constructor(options: WikiGraphOptions) {
     this.#debugLogDirPath = options.debugLogDirPath;
     this.#verbose = options.verbose ?? false;
     if (options.llm === undefined) {
@@ -89,9 +89,9 @@ export class SpineDigestApp {
     }
     const llmOptions = normalizeLLMOptions(options.llm);
 
-    this.#llm = new LLM<SpineDigestScope>({
+    this.#llm = new LLM<WikiGraphScope>({
       dataDirPath: DATA_DIR_PATH,
-      sampling: createDefaultSpineDigestSampling({
+      sampling: createDefaultWikiGraphSampling({
         ...(llmOptions.temperature === undefined
           ? {}
           : { temperature: llmOptions.temperature }),
@@ -102,8 +102,8 @@ export class SpineDigestApp {
   }
 
   public async digestEpubSession<T>(
-    options: SpineDigestSourceSessionOptions,
-    operation: (digest: SpineDigest) => Promise<T> | T,
+    options: WikiGraphSourceSessionOptions,
+    operation: (digest: WikiGraphArchive) => Promise<T> | T,
   ): Promise<T> {
     return await this.#withLogging(
       "digest-epub",
@@ -113,8 +113,8 @@ export class SpineDigestApp {
   }
 
   public async digestMarkdownSession<T>(
-    options: SpineDigestSourceSessionOptions,
-    operation: (digest: SpineDigest) => Promise<T> | T,
+    options: WikiGraphSourceSessionOptions,
+    operation: (digest: WikiGraphArchive) => Promise<T> | T,
   ): Promise<T> {
     return await this.#withLogging(
       "digest-markdown",
@@ -127,8 +127,8 @@ export class SpineDigestApp {
   }
 
   public async digestTextStreamSession<T>(
-    options: SpineDigestTextStreamSessionOptions,
-    operation: (digest: SpineDigest) => Promise<T> | T,
+    options: WikiGraphTextStreamSessionOptions,
+    operation: (digest: WikiGraphArchive) => Promise<T> | T,
   ): Promise<T> {
     return await this.#withLogging(
       "digest-text-stream",
@@ -167,8 +167,8 @@ export class SpineDigestApp {
   }
 
   public async digestTxtSession<T>(
-    options: SpineDigestSourceSessionOptions,
-    operation: (digest: SpineDigest) => Promise<T> | T,
+    options: WikiGraphSourceSessionOptions,
+    operation: (digest: WikiGraphArchive) => Promise<T> | T,
   ): Promise<T> {
     return await this.#withLogging(
       "digest-txt",
@@ -179,13 +179,13 @@ export class SpineDigestApp {
 
   public async openSession<T>(
     path: string,
-    operation: (digest: SpineDigest) => Promise<T> | T,
-    options: SpineDigestOpenSessionOptions = {},
+    operation: (digest: WikiGraphArchive) => Promise<T> | T,
+    options: WikiGraphOpenSessionOptions = {},
   ): Promise<T> {
     return await this.#withLogging(
       "open-wikg",
       async () =>
-        await new SpineDigestFile(path).read(operation, {
+        await new WikiGraphArchiveFile(path).read(operation, {
           ...(options.documentDirPath === undefined
             ? {}
             : { documentDirPath: options.documentDirPath }),
@@ -194,7 +194,7 @@ export class SpineDigestApp {
   }
 
   #createSourceOptions(
-    options: SpineDigestSourceSessionOptions,
+    options: WikiGraphSourceSessionOptions,
   ): DigestSourceSessionOptions {
     return {
       extractionPrompt: resolveExtractionPrompt(options.extractionPrompt),
@@ -218,10 +218,10 @@ export class SpineDigestApp {
     };
   }
 
-  #requireLLM(): LLM<SpineDigestScope> {
+  #requireLLM(): LLM<WikiGraphScope> {
     if (this.#llm === undefined) {
       throw new Error(
-        "LLM is required for digest operations. Configure `llm` when constructing SpineDigestApp.",
+        "LLM is required for digest operations. Configure `llm` when constructing WikiGraph.",
       );
     }
 
@@ -230,7 +230,7 @@ export class SpineDigestApp {
 
   #resolveStageLLM(
     targetStage: ChapterStage | undefined,
-  ): LLM<SpineDigestScope> | undefined {
+  ): LLM<WikiGraphScope> | undefined {
     if (targetStage === "planned" || targetStage === "sourced") {
       return undefined;
     }
@@ -257,31 +257,31 @@ export type {
   SerialDiscoveryItem,
   SerialsDiscoveredEvent,
   SerialProgressEvent,
-  SpineDigestProgressCallback,
-  SpineDigestProgressEvent,
-  SpineDigestProgressEventType,
-  SpineDigestOperation,
+  WikiGraphProgressCallback,
+  WikiGraphProgressEvent,
+  WikiGraphProgressEventType,
+  WikiGraphOperation,
 };
 
 function optionalLLM(
-  llm: LLM<SpineDigestScope> | undefined,
-): { readonly llm: LLM<SpineDigestScope> } | Record<string, never> {
+  llm: LLM<WikiGraphScope> | undefined,
+): { readonly llm: LLM<WikiGraphScope> } | Record<string, never> {
   return llm === undefined ? {} : { llm };
 }
 
 function normalizeLLMOptions(
-  llm: NonNullable<SpineDigestAppOptions["llm"]>,
-): SpineDigestLLMOptions {
-  if (isSpineDigestLLMOptions(llm)) {
+  llm: NonNullable<WikiGraphOptions["llm"]>,
+): WikiGraphLLMOptions {
+  if (isWikiGraphLLMOptions(llm)) {
     return llm;
   }
 
   return { model: llm };
 }
 
-function isSpineDigestLLMOptions(
-  llm: NonNullable<SpineDigestAppOptions["llm"]>,
-): llm is SpineDigestLLMOptions {
+function isWikiGraphLLMOptions(
+  llm: NonNullable<WikiGraphOptions["llm"]>,
+): llm is WikiGraphLLMOptions {
   return typeof llm === "object" && llm !== null && "model" in llm;
 }
 

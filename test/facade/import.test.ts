@@ -124,7 +124,7 @@ describe("facade/import", () => {
   });
 
   it("imports source sections into an empty document with optional toc titles", async () => {
-    await withTempDir("spinedigest-import-", async (path) => {
+    await withTempDir("wikigraph-import-", async (path) => {
       const document = await DirectoryDocument.open(`${path}/document`);
       const meta = createBookMeta({
         title: "Source Fixture",
@@ -215,7 +215,7 @@ describe("facade/import", () => {
   });
 
   it("uses the book title as fallback when importing a single untitled section", async () => {
-    await withTempDir("spinedigest-import-", async (path) => {
+    await withTempDir("wikigraph-import-", async (path) => {
       const document = await DirectoryDocument.open(`${path}/document`);
 
       try {
@@ -253,7 +253,7 @@ describe("facade/import", () => {
   });
 
   it("imports source documents to planned without opening section content", async () => {
-    await withTempDir("spinedigest-import-", async (path) => {
+    await withTempDir("wikigraph-import-", async (path) => {
       const document = await DirectoryDocument.open(`${path}/document`);
       const openCounts = new Map<string, number>();
 
@@ -289,7 +289,7 @@ describe("facade/import", () => {
   });
 
   it("imports source documents to sourced without graph or summary generation", async () => {
-    await withTempDir("spinedigest-import-", async (path) => {
+    await withTempDir("wikigraph-import-", async (path) => {
       const document = await DirectoryDocument.open(`${path}/document`);
 
       try {
@@ -329,7 +329,7 @@ describe("facade/import", () => {
   });
 
   it("opens the source through the adapter path wrapper", async () => {
-    await withTempDir("spinedigest-import-", async (path) => {
+    await withTempDir("wikigraph-import-", async (path) => {
       const document = await DirectoryDocument.open(`${path}/document`);
       const sourceDocument = createSourceDocument({
         meta: createBookMeta({
@@ -371,7 +371,7 @@ describe("facade/import", () => {
   });
 
   it("discovers all serials before generation and reopens sections for import", async () => {
-    await withTempDir("spinedigest-import-", async (path) => {
+    await withTempDir("wikigraph-import-", async (path) => {
       const document = await DirectoryDocument.open(`${path}/document`);
       const openCounts = new Map<string, number>();
       const events: unknown[] = [];
@@ -437,7 +437,7 @@ describe("facade/import", () => {
   });
 
   it("reuses source-provided words counts for discovery", async () => {
-    await withTempDir("spinedigest-import-", async (path) => {
+    await withTempDir("wikigraph-import-", async (path) => {
       const document = await DirectoryDocument.open(`${path}/document`);
       const openCounts = new Map<string, number>();
       const events: unknown[] = [];
@@ -511,7 +511,7 @@ describe("facade/import", () => {
   });
 
   it("runs planned serial generation up to the llm concurrent limit", async () => {
-    await withTempDir("spinedigest-import-", async (path) => {
+    await withTempDir("wikigraph-import-", async (path) => {
       const document = await DirectoryDocument.open(`${path}/document`);
       const startedPromises = new Map<number, Promise<void>>();
 
@@ -586,7 +586,7 @@ describe("facade/import", () => {
   });
 
   it("rejects imports when the target document already has content", async () => {
-    await withTempDir("spinedigest-import-", async (path) => {
+    await withTempDir("wikigraph-import-", async (path) => {
       const sourceDocument = createSourceDocument({
         meta: createBookMeta(),
         sections: [],

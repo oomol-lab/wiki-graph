@@ -9,7 +9,7 @@ import { withTempDir } from "../helpers/temp.js";
 
 describe("wikipage/resolver", () => {
   it("resolves qids, expands disambiguation pages, and reuses cache", async () => {
-    await withTempDir("spinedigest-wikipage-", async (path) => {
+    await withTempDir("wikigraph-wikipage-", async (path) => {
       const calls: string[] = [];
       const fetch = createMockFetch(calls);
       const normalizerCalls: string[] = [];
@@ -124,7 +124,7 @@ describe("wikipage/resolver", () => {
   });
 
   it("writes compact fetch logs when a log directory is configured", async () => {
-    await withTempDir("spinedigest-wikipage-", async (path) => {
+    await withTempDir("wikigraph-wikipage-", async (path) => {
       const calls: string[] = [];
 
       await withLoggingContext(
@@ -187,7 +187,7 @@ describe("wikipage/resolver", () => {
   });
 
   it("includes response text for failed text responses", async () => {
-    await withTempDir("spinedigest-wikipage-", async (path) => {
+    await withTempDir("wikigraph-wikipage-", async (path) => {
       const failingFetch: typeof globalThis.fetch = () =>
         Promise.resolve(
           new Response("service unavailable", {
@@ -237,7 +237,7 @@ describe("wikipage/resolver", () => {
   });
 
   it("does not fail requests when fetch logging fails", async () => {
-    await withTempDir("spinedigest-wikipage-", async (path) => {
+    await withTempDir("wikigraph-wikipage-", async (path) => {
       const calls: string[] = [];
 
       await expect(
@@ -281,7 +281,7 @@ describe("wikipage/resolver", () => {
   });
 
   it("retries transient wikimedia responses", async () => {
-    await withTempDir("spinedigest-wikipage-", async (path) => {
+    await withTempDir("wikigraph-wikipage-", async (path) => {
       let failedOnce = false;
       const calls: string[] = [];
       const resolver = await WikipageResolver.open({
@@ -321,7 +321,7 @@ describe("wikipage/resolver", () => {
   });
 
   it("keeps qid cache entries isolated by language", async () => {
-    await withTempDir("spinedigest-wikipage-", async (path) => {
+    await withTempDir("wikigraph-wikipage-", async (path) => {
       const calls: string[] = [];
       const fetch = createMockFetch(calls);
       const cacheDatabasePath = `${path}/cache.sqlite`;
@@ -372,7 +372,7 @@ describe("wikipage/resolver", () => {
   });
 
   it("keeps cache entries across resolver reopen", async () => {
-    await withTempDir("spinedigest-wikipage-", async (path) => {
+    await withTempDir("wikigraph-wikipage-", async (path) => {
       const calls: string[] = [];
       const fetch = createMockFetch(calls);
       const cacheDatabasePath = `${path}/cache.sqlite`;
@@ -424,7 +424,7 @@ describe("wikipage/resolver", () => {
   });
 
   it("migrates language-insensitive cache entries once", async () => {
-    await withTempDir("spinedigest-wikipage-", async (path) => {
+    await withTempDir("wikigraph-wikipage-", async (path) => {
       const cacheDatabasePath = `${path}/cache.sqlite`;
       const database = await Database.open(
         cacheDatabasePath,

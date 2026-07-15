@@ -1,11 +1,11 @@
 export {
-  createSpineDigestTaskId,
-  SpineDigestTask,
-  SpineDigestTaskContext,
-  SPINE_DIGEST_CONTEXT_VERSION,
+  createWikiGraphTaskId,
+  WikiGraphTask,
+  WikiGraphTaskContext,
+  WIKI_GRAPH_CONTEXT_VERSION,
 } from "./task-context.js";
 export type {
-  SpineDigestTaskContextOptions,
-  SpineDigestTaskIdentity,
-  SpineDigestTaskType,
+  WikiGraphTaskContextOptions,
+  WikiGraphTaskIdentity,
+  WikiGraphTaskType,
 } from "./task-context.js";

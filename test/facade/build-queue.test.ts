@@ -27,7 +27,7 @@ describe("facade/build-queue", () => {
   });
 
   it("merges active reading lane jobs for an archive chapter", async () => {
-    await withTempDir("spinedigest-build-queue-", async (path) => {
+    await withTempDir("wikigraph-build-queue-", async (path) => {
       useStateDir(`${path}/state`);
 
       const job = await addBuildJob({
@@ -54,7 +54,7 @@ describe("facade/build-queue", () => {
   });
 
   it("allows reading and knowledge graph lanes to run for the same chapter", async () => {
-    await withTempDir("spinedigest-build-queue-", async (path) => {
+    await withTempDir("wikigraph-build-queue-", async (path) => {
       useStateDir(`${path}/state`);
 
       const reading = await addBuildJob({
@@ -76,7 +76,7 @@ describe("facade/build-queue", () => {
   });
 
   it("boosts queued jobs to the front without changing running state", async () => {
-    await withTempDir("spinedigest-build-queue-", async (path) => {
+    await withTempDir("wikigraph-build-queue-", async (path) => {
       useStateDir(`${path}/state`);
       const first = await addBuildJob({
         archivePath: `${path}/book.wikg`,
@@ -99,7 +99,7 @@ describe("facade/build-queue", () => {
   });
 
   it("resolves unique job id prefixes and rejects ambiguous prefixes", async () => {
-    await withTempDir("spinedigest-build-queue-", async (path) => {
+    await withTempDir("wikigraph-build-queue-", async (path) => {
       useStateDir(`${path}/state`);
       const first = await addBuildJob({
         archivePath: `${path}/book.wikg`,
@@ -125,7 +125,7 @@ describe("facade/build-queue", () => {
   });
 
   it("rejects summary-to-graph downgrade after summary starts", async () => {
-    await withTempDir("spinedigest-build-queue-", async (path) => {
+    await withTempDir("wikigraph-build-queue-", async (path) => {
       useStateDir(`${path}/state`);
       const job = await addBuildJob({
         archivePath: `${path}/book.wikg`,
@@ -162,7 +162,7 @@ describe("facade/build-queue", () => {
   });
 
   it("rejects target changes that would collide with an active lane", async () => {
-    await withTempDir("spinedigest-build-queue-", async (path) => {
+    await withTempDir("wikigraph-build-queue-", async (path) => {
       useStateDir(`${path}/state`);
       const reading = await addBuildJob({
         archivePath: `${path}/book.wikg`,
@@ -182,7 +182,7 @@ describe("facade/build-queue", () => {
   });
 
   it("blocks archive scoped mutations when any build job is active", async () => {
-    await withTempDir("spinedigest-build-queue-", async (path) => {
+    await withTempDir("wikigraph-build-queue-", async (path) => {
       useStateDir(`${path}/state`);
       await addBuildJob({
         archivePath: `${path}/book.wikg`,
@@ -208,7 +208,7 @@ describe("facade/build-queue", () => {
   });
 
   it("records and validates running job input revisions", async () => {
-    await withTempDir("spinedigest-build-queue-", async (path) => {
+    await withTempDir("wikigraph-build-queue-", async (path) => {
       useStateDir(`${path}/state`);
       const job = await addBuildJob({
         archivePath: `${path}/book.wikg`,
@@ -252,7 +252,7 @@ describe("facade/build-queue", () => {
   });
 
   it("writes structured events and keeps job cache and logs after removing succeeded work", async () => {
-    await withTempDir("spinedigest-build-queue-", async (path) => {
+    await withTempDir("wikigraph-build-queue-", async (path) => {
       useStateDir(`${path}/state`);
       const job = await addBuildJob({
         archivePath: `${path}/book.wikg`,
@@ -294,7 +294,7 @@ describe("facade/build-queue", () => {
   });
 
   it("clamps progress words to configured totals", async () => {
-    await withTempDir("spinedigest-build-queue-", async (path) => {
+    await withTempDir("wikigraph-build-queue-", async (path) => {
       useStateDir(`${path}/state`);
       const job = await addBuildJob({
         archivePath: `${path}/book.wikg`,
@@ -337,7 +337,7 @@ describe("facade/build-queue", () => {
   });
 
   it("records structured phase progress in snapshots", async () => {
-    await withTempDir("spinedigest-build-queue-", async (path) => {
+    await withTempDir("wikigraph-build-queue-", async (path) => {
       useStateDir(`${path}/state`);
       const job = await addBuildJob({
         archivePath: `${path}/book.wikg`,
@@ -384,7 +384,7 @@ describe("facade/build-queue", () => {
   });
 
   it("throttles non-forced phase progress snapshots", async () => {
-    await withTempDir("spinedigest-build-queue-", async (path) => {
+    await withTempDir("wikigraph-build-queue-", async (path) => {
       useStateDir(`${path}/state`);
       const job = await addBuildJob({
         archivePath: `${path}/book.wikg`,
@@ -439,7 +439,7 @@ describe("facade/build-queue", () => {
   });
 
   it("keeps multiple counters for one progress phase", async () => {
-    await withTempDir("spinedigest-build-queue-", async (path) => {
+    await withTempDir("wikigraph-build-queue-", async (path) => {
       useStateDir(`${path}/state`);
       const job = await addBuildJob({
         archivePath: `${path}/book.wikg`,
@@ -493,7 +493,7 @@ describe("facade/build-queue", () => {
   });
 
   it("marks running jobs canceling before the worker confirms cancellation", async () => {
-    await withTempDir("spinedigest-build-queue-", async (path) => {
+    await withTempDir("wikigraph-build-queue-", async (path) => {
       useStateDir(`${path}/state`);
       const first = await addBuildJob({
         archivePath: `${path}/book.wikg`,
@@ -560,7 +560,7 @@ describe("facade/build-queue", () => {
   });
 
   it("aborts the running job context when a job is canceled", async () => {
-    await withTempDir("spinedigest-build-queue-", async (path) => {
+    await withTempDir("wikigraph-build-queue-", async (path) => {
       useStateDir(`${path}/state`);
       const job = await addBuildJob({
         archivePath: `${path}/book.wikg`,
@@ -609,7 +609,7 @@ describe("facade/build-queue", () => {
   });
 
   it("serializes concurrent progress snapshots", async () => {
-    await withTempDir("spinedigest-build-queue-", async (path) => {
+    await withTempDir("wikigraph-build-queue-", async (path) => {
       useStateDir(`${path}/state`);
       const job = await addBuildJob({
         archivePath: `${path}/book.wikg`,
@@ -644,7 +644,7 @@ describe("facade/build-queue", () => {
   });
 
   it("continues claiming queued jobs after one job fails", async () => {
-    await withTempDir("spinedigest-build-queue-", async (path) => {
+    await withTempDir("wikigraph-build-queue-", async (path) => {
       useStateDir(`${path}/state`);
       const failedJob = await addBuildJob({
         archivePath: `${path}/book.wikg`,
@@ -679,7 +679,7 @@ describe("facade/build-queue", () => {
   });
 
   it("waits for transient sqlite locks while marking failed jobs", async () => {
-    await withTempDir("spinedigest-build-queue-", async (path) => {
+    await withTempDir("wikigraph-build-queue-", async (path) => {
       useStateDir(`${path}/state`);
       const job = await addBuildJob({
         archivePath: `${path}/book.wikg`,
@@ -708,7 +708,7 @@ describe("facade/build-queue", () => {
   });
 
   it("fails stale running jobs and removes their workspace", async () => {
-    await withTempDir("spinedigest-build-queue-", async (path) => {
+    await withTempDir("wikigraph-build-queue-", async (path) => {
       useStateDir(`${path}/state`);
       const job = await addBuildJob({
         archivePath: `${path}/book.wikg`,
@@ -739,7 +739,7 @@ describe("facade/build-queue", () => {
   });
 
   it("refills idle worker slots while other jobs are still running", async () => {
-    await withTempDir("spinedigest-build-queue-", async (path) => {
+    await withTempDir("wikigraph-build-queue-", async (path) => {
       useStateDir(`${path}/state`);
       await addBuildJob({
         archivePath: `${path}/book.wikg`,
@@ -797,7 +797,7 @@ describe("facade/build-queue", () => {
   });
 
   it("runs multiple jobs for the same archive when worker concurrency allows it", async () => {
-    await withTempDir("spinedigest-build-queue-", async (path) => {
+    await withTempDir("wikigraph-build-queue-", async (path) => {
       useStateDir(`${path}/state`);
       await addBuildJob({
         archivePath: `${path}/book.wikg`,
@@ -859,7 +859,7 @@ describe("facade/build-queue", () => {
   });
 
   it("keeps queue reads responsive while idle slots wait for work", async () => {
-    await withTempDir("spinedigest-build-queue-", async (path) => {
+    await withTempDir("wikigraph-build-queue-", async (path) => {
       useStateDir(`${path}/state`);
       await addBuildJob({
         archivePath: `${path}/book.wikg`,
@@ -920,7 +920,7 @@ describe("facade/build-queue", () => {
   }
 
   it("lists multiple running jobs when worker concurrency allows it", async () => {
-    await withTempDir("spinedigest-build-queue-", async (path) => {
+    await withTempDir("wikigraph-build-queue-", async (path) => {
       useStateDir(`${path}/state`);
       await addBuildJob({
         archivePath: `${path}/book.wikg`,

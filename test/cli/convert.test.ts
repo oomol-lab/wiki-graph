@@ -48,7 +48,7 @@ const mockTemporaryOutput = {
 const mockStdinStream = ["from stdin"];
 
 vi.mock("../../packages/core/src/index.js", () => ({
-  SpineDigestApp: class {
+  WikiGraph: class {
     public constructor(options: unknown) {
       cliMockState.appConstructorOptions.push(options);
     }

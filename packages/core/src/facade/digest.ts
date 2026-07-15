@@ -12,25 +12,25 @@ import {
 } from "../source/index.js";
 import { DirectoryDocument } from "../document/index.js";
 import type { Language } from "../common/language.js";
-import type { SpineDigestScope } from "../common/llm-scope.js";
+import type { WikiGraphScope } from "../common/llm-scope.js";
 import {
   createDigestProgressTracker,
-  type SpineDigestProgressCallback,
+  type WikiGraphProgressCallback,
 } from "../progress/index.js";
 import type { ReaderSegmenter, ReaderTextStream } from "../reader/index.js";
 import type { LLM } from "../llm/index.js";
 import { SerialGeneration, writeSerialSource } from "../serial.js";
 
 import { importSource } from "./import.js";
-import { SpineDigest } from "./spine-digest.js";
+import { WikiGraphArchive } from "./wiki-graph-archive.js";
 import type { ChapterStage } from "./chapter.js";
 
 interface DigestSessionOptions {
   readonly documentDirPath?: string;
   readonly extractionPrompt: string;
-  readonly llm?: LLM<SpineDigestScope>;
+  readonly llm?: LLM<WikiGraphScope>;
   readonly logDirPath?: string;
-  readonly onProgress?: SpineDigestProgressCallback;
+  readonly onProgress?: WikiGraphProgressCallback;
   readonly segmenter?: ReaderSegmenter;
   readonly targetStage?: ChapterStage;
   readonly userLanguage?: Language;
@@ -53,7 +53,7 @@ export interface DigestTextStreamSessionOptions extends DigestSessionOptions {
 
 export async function digestEpubSession<T>(
   options: DigestSourceSessionOptions,
-  operation: (digest: SpineDigest) => Promise<T> | T,
+  operation: (digest: WikiGraphArchive) => Promise<T> | T,
 ): Promise<T> {
   return await digestSourceSession(
     "digest-epub",
@@ -65,7 +65,7 @@ export async function digestEpubSession<T>(
 
 export async function digestMarkdownSession<T>(
   options: DigestSourceSessionOptions,
-  operation: (digest: SpineDigest) => Promise<T> | T,
+  operation: (digest: WikiGraphArchive) => Promise<T> | T,
 ): Promise<T> {
   return await digestSourceSession(
     "digest-markdown",
@@ -77,7 +77,7 @@ export async function digestMarkdownSession<T>(
 
 export async function digestTextStreamSession<T>(
   options: DigestTextStreamSessionOptions,
-  operation: (digest: SpineDigest) => Promise<T> | T,
+  operation: (digest: WikiGraphArchive) => Promise<T> | T,
 ): Promise<T> {
   const progressTracker = createDigestProgressTracker({
     operation: "digest-text-stream",
@@ -174,13 +174,13 @@ export async function digestTextStreamSession<T>(
       });
     });
 
-    return await operation(new SpineDigest(document, directoryPath));
+    return await operation(new WikiGraphArchive(document, directoryPath));
   }, options.documentDirPath);
 }
 
 export async function digestTxtSession<T>(
   options: DigestSourceSessionOptions,
-  operation: (digest: SpineDigest) => Promise<T> | T,
+  operation: (digest: WikiGraphArchive) => Promise<T> | T,
 ): Promise<T> {
   return await digestSourceSession(
     "digest-txt",
@@ -194,7 +194,7 @@ async function digestSourceSession<T>(
   operationName: "digest-epub" | "digest-markdown" | "digest-txt",
   adapter: SourceAdapter,
   options: DigestSourceSessionOptions,
-  operation: (digest: SpineDigest) => Promise<T> | T,
+  operation: (digest: WikiGraphArchive) => Promise<T> | T,
 ): Promise<T> {
   const progressTracker = createDigestProgressTracker({
     operation: operationName,
@@ -225,7 +225,7 @@ async function digestSourceSession<T>(
         : { userLanguage: options.userLanguage }),
     });
 
-    return await operation(new SpineDigest(document, directoryPath));
+    return await operation(new WikiGraphArchive(document, directoryPath));
   }, options.documentDirPath);
 }
 
@@ -259,9 +259,9 @@ function normalizeTitle(title: string | null | undefined): string | undefined {
 }
 
 function requireDigestLLM(
-  llm: LLM<SpineDigestScope> | undefined,
+  llm: LLM<WikiGraphScope> | undefined,
   targetStage: ChapterStage,
-): LLM<SpineDigestScope> {
+): LLM<WikiGraphScope> {
   if (llm === undefined) {
     throw new Error(`LLM is required to digest source to ${targetStage}.`);
   }

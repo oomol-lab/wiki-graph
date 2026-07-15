@@ -5,7 +5,7 @@ import { withTempDir } from "../helpers/temp.js";
 
 describe("document/fragments", () => {
   it("creates, stores, and reads committed fragments", async () => {
-    await withTempDir("spinedigest-fragments-", async (path) => {
+    await withTempDir("wikigraph-fragments-", async (path) => {
       const fragments = new Fragments(path);
       await fragments.ensureCreated();
 
@@ -30,7 +30,7 @@ describe("document/fragments", () => {
   });
 
   it("does not persist empty drafts", async () => {
-    await withTempDir("spinedigest-fragments-", async (path) => {
+    await withTempDir("wikigraph-fragments-", async (path) => {
       const fragments = new Fragments(path);
       const draft = await fragments.getSerial(1).createDraft();
 
@@ -42,7 +42,7 @@ describe("document/fragments", () => {
   });
 
   it("enforces draft lifecycle rules", async () => {
-    await withTempDir("spinedigest-fragments-", async (path) => {
+    await withTempDir("wikigraph-fragments-", async (path) => {
       const serial = new Fragments(path).getSerial(5);
       const draft = await serial.createDraft();
 
@@ -66,7 +66,7 @@ describe("document/fragments", () => {
   });
 
   it("returns serial-wide sentence ids across multiple fragments", async () => {
-    await withTempDir("spinedigest-fragments-", async (path) => {
+    await withTempDir("wikigraph-fragments-", async (path) => {
       const serial = new Fragments(path).getSerial(7);
       const first = await serial.createDraft();
 

@@ -6,7 +6,7 @@ import { withTempDir } from "../helpers/temp.js";
 
 describe("output/epub/book", () => {
   it("builds sections, navigation, and package metadata from a document", async () => {
-    await withTempDir("spinedigest-epub-book-", async (path) => {
+    await withTempDir("wikigraph-epub-book-", async (path) => {
       const document = await DirectoryDocument.open(`${path}/document`);
 
       try {
@@ -88,7 +88,7 @@ describe("output/epub/book", () => {
   });
 
   it("creates a fallback section when the toc has no content items", async () => {
-    await withTempDir("spinedigest-epub-book-", async (path) => {
+    await withTempDir("wikigraph-epub-book-", async (path) => {
       const document = await DirectoryDocument.open(`${path}/document`);
 
       try {
@@ -127,7 +127,7 @@ describe("output/epub/book", () => {
   });
 
   it("uses fallback section titles for untitled toc items", async () => {
-    await withTempDir("spinedigest-epub-book-", async (path) => {
+    await withTempDir("wikigraph-epub-book-", async (path) => {
       const document = await DirectoryDocument.open(`${path}/document`);
 
       try {
@@ -171,7 +171,7 @@ describe("output/epub/book", () => {
   });
 
   it("throws when archive metadata is missing", async () => {
-    await withTempDir("spinedigest-epub-book-", async (path) => {
+    await withTempDir("wikigraph-epub-book-", async (path) => {
       const document = await DirectoryDocument.open(path);
 
       try {
@@ -192,7 +192,7 @@ describe("output/epub/book", () => {
   });
 
   it("throws when toc is missing", async () => {
-    await withTempDir("spinedigest-epub-book-", async (path) => {
+    await withTempDir("wikigraph-epub-book-", async (path) => {
       const document = await DirectoryDocument.open(path);
 
       try {
@@ -220,7 +220,7 @@ describe("output/epub/book", () => {
   });
 
   it("throws when a summary required by the toc is missing", async () => {
-    await withTempDir("spinedigest-epub-book-", async (path) => {
+    await withTempDir("wikigraph-epub-book-", async (path) => {
       const document = await DirectoryDocument.open(path);
 
       try {

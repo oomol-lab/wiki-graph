@@ -1,63 +1,63 @@
-import { SpineDigestScope } from "../common/llm-scope.js";
+import { WikiGraphScope } from "../common/llm-scope.js";
 import type {
   SamplingProfile,
   SamplingScopeConfig,
   TemperatureSetting,
 } from "../llm/index.js";
 
-export type SpineDigestSamplingConfig = SamplingScopeConfig<SpineDigestScope>;
+export type WikiGraphSamplingConfig = SamplingScopeConfig<WikiGraphScope>;
 
-const DEFAULT_SPINE_DIGEST_SAMPLING = Object.freeze({
-  [SpineDigestScope.EditorCompress]: Object.freeze({
+const DEFAULT_WIKI_GRAPH_SAMPLING = Object.freeze({
+  [WikiGraphScope.EditorCompress]: Object.freeze({
     temperature: 0.7,
     topP: 0.9,
   }),
-  [SpineDigestScope.EditorReview]: Object.freeze({
+  [WikiGraphScope.EditorReview]: Object.freeze({
     temperature: [0.3, 0.95] as const,
     topP: [0.4, 0.8] as const,
   }),
-  [SpineDigestScope.EditorReviewGuide]: Object.freeze({
+  [WikiGraphScope.EditorReviewGuide]: Object.freeze({
     temperature: 0.4,
     topP: 0.6,
   }),
-  [SpineDigestScope.ReaderChoice]: Object.freeze({
+  [WikiGraphScope.ReaderChoice]: Object.freeze({
     temperature: [0.3, 0.95] as const,
     topP: [0.4, 0.8] as const,
   }),
-  [SpineDigestScope.ReaderExtraction]: Object.freeze({
+  [WikiGraphScope.ReaderExtraction]: Object.freeze({
     temperature: [0.3, 0.95] as const,
     topP: [0.4, 0.8] as const,
   }),
-} satisfies SpineDigestSamplingConfig);
+} satisfies WikiGraphSamplingConfig);
 
-export function createDefaultSpineDigestSampling(
+export function createDefaultWikiGraphSampling(
   input: {
     readonly temperature?: TemperatureSetting;
     readonly topP?: TemperatureSetting;
   } = {},
-): SpineDigestSamplingConfig {
+): WikiGraphSamplingConfig {
   return Object.freeze({
-    [SpineDigestScope.EditorCompress]: applySamplingOverrides(
-      DEFAULT_SPINE_DIGEST_SAMPLING[SpineDigestScope.EditorCompress],
+    [WikiGraphScope.EditorCompress]: applySamplingOverrides(
+      DEFAULT_WIKI_GRAPH_SAMPLING[WikiGraphScope.EditorCompress],
       input,
     ),
-    [SpineDigestScope.EditorReview]: applySamplingOverrides(
-      DEFAULT_SPINE_DIGEST_SAMPLING[SpineDigestScope.EditorReview],
+    [WikiGraphScope.EditorReview]: applySamplingOverrides(
+      DEFAULT_WIKI_GRAPH_SAMPLING[WikiGraphScope.EditorReview],
       input,
     ),
-    [SpineDigestScope.EditorReviewGuide]: applySamplingOverrides(
-      DEFAULT_SPINE_DIGEST_SAMPLING[SpineDigestScope.EditorReviewGuide],
+    [WikiGraphScope.EditorReviewGuide]: applySamplingOverrides(
+      DEFAULT_WIKI_GRAPH_SAMPLING[WikiGraphScope.EditorReviewGuide],
       input,
     ),
-    [SpineDigestScope.ReaderChoice]: applySamplingOverrides(
-      DEFAULT_SPINE_DIGEST_SAMPLING[SpineDigestScope.ReaderChoice],
+    [WikiGraphScope.ReaderChoice]: applySamplingOverrides(
+      DEFAULT_WIKI_GRAPH_SAMPLING[WikiGraphScope.ReaderChoice],
       input,
     ),
-    [SpineDigestScope.ReaderExtraction]: applySamplingOverrides(
-      DEFAULT_SPINE_DIGEST_SAMPLING[SpineDigestScope.ReaderExtraction],
+    [WikiGraphScope.ReaderExtraction]: applySamplingOverrides(
+      DEFAULT_WIKI_GRAPH_SAMPLING[WikiGraphScope.ReaderExtraction],
       input,
     ),
-  } satisfies SpineDigestSamplingConfig);
+  } satisfies WikiGraphSamplingConfig);
 }
 
 function applySamplingOverrides(

@@ -1,6 +1,6 @@
 import { resolveDataDirPath } from "wiki-graph-core";
-import type { SpineDigestScope } from "wiki-graph-core";
-import { createDefaultSpineDigestSampling } from "wiki-graph-core";
+import type { WikiGraphScope } from "wiki-graph-core";
+import { createDefaultWikiGraphSampling } from "wiki-graph-core";
 import { LLM } from "wiki-graph-core";
 import type {
   LLMStreamProgressCallback,
@@ -32,12 +32,12 @@ export function createStageLLM(
     readonly onStreamProgress?: LLMStreamProgressCallback;
     readonly onTokenUsage?: LLMTokenUsageCallback;
   },
-): LLM<SpineDigestScope> {
+): LLM<WikiGraphScope> {
   const llmOptions = buildLLMOptions(config);
 
-  return new LLM<SpineDigestScope>({
+  return new LLM<WikiGraphScope>({
     dataDirPath: resolveDataDirPath(),
-    sampling: createDefaultSpineDigestSampling({
+    sampling: createDefaultWikiGraphSampling({
       ...(llmOptions.temperature === undefined
         ? {}
         : { temperature: llmOptions.temperature }),

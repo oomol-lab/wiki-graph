@@ -72,13 +72,11 @@ Alpha is connected to beta.
 
 ## Why We Built This
 
-This project started as SpineDigest, with a focus on compressing long text into shorter summaries that were easier to read and carry. That version was built around a reading problem: how can an LLM read a whole book more like a person, keep useful threads in limited working memory, and still return to the source when needed? It used the ideas behind [Miller's Law](https://en.wikipedia.org/wiki/The_Magical_Number_Seven,_Plus_or_Minus_Two) and cognitive [chunking](<https://en.wikipedia.org/wiki/Chunking_(psychology)>) to organize long text into a Reading Graph, then generated summaries from that structure.
+Wiki Graph is built around a long-text knowledge problem: how can an LLM read large source material, preserve useful evidence, and compile the durable entities and relations into a maintainable knowledge base? It uses public entity grounding, source evidence, and graph structure to make long text searchable, traceable, and reusable.
 
-The metaphor at the time was a dissertation defense: professors keep questioning the respondent, reminding them which claim has evidence, which concepts are connected, and which ideas should not be collapsed together. The diagram below describes that older reading-and-summary flow, but it also explains where Wiki Graph starts: long text should not only be flattened once; it should become a structure that can be re-entered, questioned, and verified.
+Summaries are still useful, but a summary is only one projection of long text. The more durable material is the entities, relations, and evidence inside the text. Wiki Graph treats long text as source material that should become a structure that can be re-entered, questioned, and verified.
 
 ![Reading flowchart](./docs/images/flowchart.svg)
-
-The center of gravity later changed. Summaries are still useful, but a summary is only one projection of long text. The more durable material is the entities, relations, and evidence inside the text. SpineDigest became Wiki Graph, and the main line moved from compressed reading to building maintainable Knowledge Graphs.
 
 Karpathy's LLM Wiki gives an important direction: knowledge should not be retrieved from raw material from scratch every time; it should be compiled into a maintainable Wiki. In that setup, besides raw sources and the Wiki itself, there is also a schema layer: a maintenance rulebook for the Agent, defining how the Wiki should be organized, how pages should be shaped, how cross-references work, and how new source material should be ingested. Because that rulebook evolves between a person and an LLM around their own domain, preferences, and material, it naturally becomes a private schema. When the Wiki also depends heavily on private entities, the Agent often has to read, extract, and revise repeatedly to find as many entities, relations, and structures as possible. In other words, extraction quality depends not only on model capability, but also on whether that rulebook stays clear and stable; once it drifts, information is easier to miss and hallucinations are easier to write into the knowledge base.
 

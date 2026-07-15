@@ -72,7 +72,7 @@ import { withTempDir } from "../helpers/temp.js";
 
 describe("facade/chapter graph", () => {
   it("rebuilds graph without duplicating source fragments", async () => {
-    await withTempDir("spinedigest-chapter-graph-", async (path) => {
+    await withTempDir("wikigraph-chapter-graph-", async (path) => {
       const document = await DirectoryDocument.open(path);
 
       try {
@@ -121,7 +121,7 @@ describe("facade/chapter graph", () => {
   });
 
   it("commits staged graph output without holding the source document", async () => {
-    await withTempDir("spinedigest-chapter-graph-", async (path) => {
+    await withTempDir("wikigraph-chapter-graph-", async (path) => {
       const document = await DirectoryDocument.open(`${path}/archive`);
 
       try {
@@ -162,7 +162,7 @@ describe("facade/chapter graph", () => {
   });
 
   it("remaps staged chunk ids when committing graph artifacts", async () => {
-    await withTempDir("spinedigest-chapter-graph-", async (path) => {
+    await withTempDir("wikigraph-chapter-graph-", async (path) => {
       const document = await DirectoryDocument.open(`${path}/archive`);
 
       try {
@@ -237,7 +237,7 @@ describe("facade/chapter graph", () => {
   });
 
   it("builds summary from a snapshot file without wikg-shaped temp documents", async () => {
-    await withTempDir("spinedigest-chapter-summary-", async (path) => {
+    await withTempDir("wikigraph-chapter-summary-", async (path) => {
       const document = await DirectoryDocument.open(`${path}/archive`);
 
       try {

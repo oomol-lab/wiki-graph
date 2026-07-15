@@ -1,4 +1,4 @@
-export interface SpineDigestSerialEntry {
+export interface WikiGraphSerialEntry {
   readonly fragmentCount: number;
   readonly serialId: number;
   readonly title: string | null;

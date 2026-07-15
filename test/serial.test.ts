@@ -84,7 +84,7 @@ describe("serial", () => {
   });
 
   it("emits advance for a single fragment before completion", async () => {
-    await withTempDir("spinedigest-serial-", async (path) => {
+    await withTempDir("wikigraph-serial-", async (path) => {
       const document = await DirectoryDocument.open(path);
       const progressTracker = {
         advance: vi.fn((_wordsCount: number) => Promise.resolve()),
@@ -125,7 +125,7 @@ describe("serial", () => {
   });
 
   it("emits advance for every processed fragment", async () => {
-    await withTempDir("spinedigest-serial-", async (path) => {
+    await withTempDir("wikigraph-serial-", async (path) => {
       const document = await DirectoryDocument.open(path);
       const progressTracker = {
         advance: vi.fn((_wordsCount: number) => Promise.resolve()),
@@ -171,7 +171,7 @@ describe("serial", () => {
   });
 
   it("uses the original text as summary when a serial has one fragment", async () => {
-    await withTempDir("spinedigest-serial-", async (path) => {
+    await withTempDir("wikigraph-serial-", async (path) => {
       const document = await DirectoryDocument.open(path);
 
       readerSegmentMock.mockReturnValueOnce(
@@ -207,7 +207,7 @@ describe("serial", () => {
   });
 
   it("writes an empty summary when a serial has no fragments", async () => {
-    await withTempDir("spinedigest-serial-", async (path) => {
+    await withTempDir("wikigraph-serial-", async (path) => {
       const document = await DirectoryDocument.open(path);
 
       readerSegmentMock.mockReturnValueOnce(createSentenceStream([]));
@@ -230,7 +230,7 @@ describe("serial", () => {
   });
 
   it("can build topology and summary as separate phases", async () => {
-    await withTempDir("spinedigest-serial-", async (path) => {
+    await withTempDir("wikigraph-serial-", async (path) => {
       const document = await DirectoryDocument.open(path);
 
       readerSegmentMock.mockReturnValueOnce(
@@ -271,7 +271,7 @@ describe("serial", () => {
   });
 
   it("preserves imported source text while exposing normalized sentences", async () => {
-    await withTempDir("spinedigest-serial-", async (path) => {
+    await withTempDir("wikigraph-serial-", async (path) => {
       const document = await DirectoryDocument.open(path);
       const sourceText =
         "\n\n  Alpha wraps\ninside one sentence. Beta follows.\n\n";
@@ -296,7 +296,7 @@ describe("serial", () => {
   });
 
   it("does not build a summary before topology is ready", async () => {
-    await withTempDir("spinedigest-serial-", async (path) => {
+    await withTempDir("wikigraph-serial-", async (path) => {
       const document = await DirectoryDocument.open(path);
 
       try {
@@ -315,7 +315,7 @@ describe("serial", () => {
   });
 
   it("reuses an existing summary without recompressing", async () => {
-    await withTempDir("spinedigest-serial-", async (path) => {
+    await withTempDir("wikigraph-serial-", async (path) => {
       const document = await DirectoryDocument.open(path);
 
       readerSegmentMock.mockReturnValueOnce(
@@ -357,7 +357,7 @@ describe("serial", () => {
   });
 
   it("does not write reader fragment summaries into source text", async () => {
-    await withTempDir("spinedigest-serial-", async (path) => {
+    await withTempDir("wikigraph-serial-", async (path) => {
       const document = await DirectoryDocument.open(path);
 
       readerSegmentMock.mockReturnValueOnce(

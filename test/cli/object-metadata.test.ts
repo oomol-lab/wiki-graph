@@ -17,7 +17,7 @@ vi.mock("../../packages/core/src/wikg/index.js", async (importOriginal) => {
 
   return {
     ...actual,
-    SpineDigestFile: class {
+    WikiGraphArchiveFile: class {
       readonly #path: string;
 
       public constructor(path: string) {

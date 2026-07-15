@@ -8,7 +8,7 @@ import { withTempDir } from "../helpers/temp.js";
 
 describe("output/plain-text", () => {
   it("renders toc titles and summaries into a flat text file", async () => {
-    await withTempDir("spinedigest-output-", async (path) => {
+    await withTempDir("wikigraph-output-", async (path) => {
       const document = await DirectoryDocument.open(`${path}/document`);
 
       try {
@@ -49,7 +49,7 @@ describe("output/plain-text", () => {
   });
 
   it("omits headings for untitled toc items", async () => {
-    await withTempDir("spinedigest-output-", async (path) => {
+    await withTempDir("wikigraph-output-", async (path) => {
       const document = await DirectoryDocument.open(`${path}/document`);
 
       try {
@@ -80,7 +80,7 @@ describe("output/plain-text", () => {
   });
 
   it("throws when toc or required summaries are missing", async () => {
-    await withTempDir("spinedigest-output-", async (path) => {
+    await withTempDir("wikigraph-output-", async (path) => {
       const missingTocDocument = await DirectoryDocument.open(`${path}/no-toc`);
       const missingSummaryDocument = await DirectoryDocument.open(
         `${path}/no-summary`,

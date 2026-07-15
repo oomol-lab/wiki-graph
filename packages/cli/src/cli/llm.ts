@@ -1,4 +1,4 @@
-import type { SpineDigestLLMOptions } from "wiki-graph-core";
+import type { WikiGraphLLMOptions } from "wiki-graph-core";
 
 import { createAnthropic } from "@ai-sdk/anthropic";
 import { createGoogleGenerativeAI } from "@ai-sdk/google";
@@ -8,7 +8,7 @@ import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
 import type { CLIConfig, CLIProvider } from "./config.js";
 import { CLI_HELP_ROUTES, withHelpRoute } from "./errors.js";
 
-export function buildLLMOptions(config: CLIConfig): SpineDigestLLMOptions {
+export function buildLLMOptions(config: CLIConfig): WikiGraphLLMOptions {
   const llm = config.llm;
 
   if (llm?.provider === undefined || llm.model === undefined) {

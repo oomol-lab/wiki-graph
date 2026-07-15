@@ -7,20 +7,20 @@ import {
   type ReadonlyDocument,
 } from "../../packages/core/src/document/index.js";
 import { extractWikgArchive } from "../../packages/core/src/wikg/archive.js";
-import { SpineDigest } from "../../packages/core/src/facade/spine-digest.js";
+import { WikiGraphArchive } from "../../packages/core/src/facade/wiki-graph-archive.js";
 import { EPUB_SOURCE_ADAPTER } from "../../packages/core/src/source/index.js";
 import { collectSectionTitles, readStreamText } from "../helpers/fixtures.js";
 import { withTempDir } from "../helpers/temp.js";
 
-describe("facade/spine-digest", () => {
+describe("facade/wiki-graph", () => {
   it("reads document data and exports plain text plus epub", async () => {
-    await withTempDir("spinedigest-facade-", async (path) => {
+    await withTempDir("wikigraph-facade-", async (path) => {
       const document = await DirectoryDocument.open(`${path}/document`);
 
       try {
         await seedDocument(document);
 
-        const digest = new SpineDigest(document, document.path);
+        const digest = new WikiGraphArchive(document, document.path);
         const textPath = `${path}/exports/book.txt`;
         const epubPath = `${path}/exports/book.epub`;
 
@@ -96,7 +96,7 @@ describe("facade/spine-digest", () => {
   });
 
   it("flushes flushable documents before saving an wikg archive", async () => {
-    await withTempDir("spinedigest-facade-", async (path) => {
+    await withTempDir("wikigraph-facade-", async (path) => {
       const sourceDir = `${path}/document`;
       const archivePath = `${path}/saved/book.wikg`;
       const flush = vi.fn(async () => {});
@@ -105,7 +105,7 @@ describe("facade/spine-digest", () => {
       await writeFile(`${sourceDir}/database.db`, "saved", "utf8");
       await writeFile(`${sourceDir}/database.db-journal`, "transient", "utf8");
 
-      const digest = new SpineDigest(
+      const digest = new WikiGraphArchive(
         {
           flush,
         } as unknown as ReadonlyDocument & { flush(): Promise<void> },
@@ -126,7 +126,7 @@ describe("facade/spine-digest", () => {
   });
 
   it("lists only serials with summaries for cat-ready output", async () => {
-    await withTempDir("spinedigest-facade-", async (path) => {
+    await withTempDir("wikigraph-facade-", async (path) => {
       const document = await DirectoryDocument.open(`${path}/document`);
 
       try {
@@ -151,7 +151,7 @@ describe("facade/spine-digest", () => {
           });
         });
 
-        const digest = new SpineDigest(document, document.path);
+        const digest = new WikiGraphArchive(document, document.path);
 
         expect(await digest.listSerials()).toStrictEqual([
           {
@@ -168,7 +168,7 @@ describe("facade/spine-digest", () => {
   });
 
   it("reads chapter stage without requiring summary-ready serials", async () => {
-    await withTempDir("spinedigest-facade-", async (path) => {
+    await withTempDir("wikigraph-facade-", async (path) => {
       const document = await DirectoryDocument.open(`${path}/document`);
 
       try {
@@ -217,7 +217,7 @@ describe("facade/spine-digest", () => {
           });
         });
 
-        const digest = new SpineDigest(document, document.path);
+        const digest = new WikiGraphArchive(document, document.path);
 
         await expect(digest.readChapterStage(1)).resolves.toBe("planned");
         await expect(digest.readChapterStage(2)).resolves.toBe("sourced");

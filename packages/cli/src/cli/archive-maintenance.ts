@@ -1,5 +1,5 @@
-import { SpineDigestApp } from "wiki-graph-core";
-import { SpineDigestFile } from "wiki-graph-core";
+import { WikiGraph } from "wiki-graph-core";
+import { WikiGraphArchiveFile } from "wiki-graph-core";
 import type { BookMeta } from "wiki-graph-core";
 
 import type {
@@ -18,7 +18,7 @@ export async function runArchiveMetaCommand(
     return;
   }
 
-  const app = new SpineDigestApp({});
+  const app = new WikiGraph({});
   await app.openSession(args.inputPath, async (digest) => {
     await writeArchiveMeta(await digest.readMeta(), {
       json: args.json ?? false,
@@ -29,7 +29,7 @@ export async function runArchiveMetaCommand(
 export async function runArchiveCoverCommand(
   args: CLIArchiveCoverArguments,
 ): Promise<void> {
-  const app = new SpineDigestApp({});
+  const app = new WikiGraph({});
   await app.openSession(args.inputPath, async (digest) => {
     if (process.stdout.isTTY === true) {
       throw new Error(
@@ -51,7 +51,7 @@ async function updateArchiveMeta(
   path: string,
   patch: ArchiveMetaPatch,
 ): Promise<void> {
-  await new SpineDigestFile(path).write(async (document) => {
+  await new WikiGraphArchiveFile(path).write(async (document) => {
     const meta = await document.readBookMeta();
 
     if (meta === undefined) {

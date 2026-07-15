@@ -1,4 +1,4 @@
-export enum SpineDigestScope {
+export enum WikiGraphScope {
   EditorCompress = "serial-generation/editor-compress",
   EditorReview = "serial-generation/editor-review",
   EditorReviewGuide = "serial-generation/editor-review-guide",
@@ -6,21 +6,21 @@ export enum SpineDigestScope {
   ReaderExtraction = "serial-generation/reader-extraction",
 }
 
-export const SPINE_DIGEST_SCOPES = Object.freeze([
-  SpineDigestScope.EditorCompress,
-  SpineDigestScope.EditorReview,
-  SpineDigestScope.EditorReviewGuide,
-  SpineDigestScope.ReaderChoice,
-  SpineDigestScope.ReaderExtraction,
+export const WIKI_GRAPH_SCOPES = Object.freeze([
+  WikiGraphScope.EditorCompress,
+  WikiGraphScope.EditorReview,
+  WikiGraphScope.EditorReviewGuide,
+  WikiGraphScope.ReaderChoice,
+  WikiGraphScope.ReaderExtraction,
 ] as const);
 
-export const SPINE_DIGEST_EDITOR_SCOPES = Object.freeze({
-  compress: SpineDigestScope.EditorCompress,
-  review: SpineDigestScope.EditorReview,
-  reviewGuide: SpineDigestScope.EditorReviewGuide,
+export const WIKI_GRAPH_EDITOR_SCOPES = Object.freeze({
+  compress: WikiGraphScope.EditorCompress,
+  review: WikiGraphScope.EditorReview,
+  reviewGuide: WikiGraphScope.EditorReviewGuide,
 });
 
-export const SPINE_DIGEST_READER_SCOPES = Object.freeze({
-  choice: SpineDigestScope.ReaderChoice,
-  extraction: SpineDigestScope.ReaderExtraction,
+export const WIKI_GRAPH_READER_SCOPES = Object.freeze({
+  choice: WikiGraphScope.ReaderChoice,
+  extraction: WikiGraphScope.ReaderExtraction,
 });

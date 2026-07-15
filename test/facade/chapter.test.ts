@@ -22,7 +22,7 @@ import { withTempDir } from "../helpers/temp.js";
 
 describe("facade/chapter", () => {
   it("adds planned chapters into a tree and lists their stages", async () => {
-    await withTempDir("spinedigest-chapter-", async (path) => {
+    await withTempDir("wikigraph-chapter-", async (path) => {
       const document = await DirectoryDocument.open(path);
 
       try {
@@ -72,7 +72,7 @@ describe("facade/chapter", () => {
   });
 
   it("keeps serial-less grouping nodes read-only when listing chapters", async () => {
-    await withTempDir("spinedigest-chapter-", async (path) => {
+    await withTempDir("wikigraph-chapter-", async (path) => {
       const document = await DirectoryDocument.open(path);
 
       try {
@@ -135,7 +135,7 @@ describe("facade/chapter", () => {
   });
 
   it("normalizes serial-less grouping nodes before chapter writes", async () => {
-    await withTempDir("spinedigest-chapter-", async (path) => {
+    await withTempDir("wikigraph-chapter-", async (path) => {
       const document = await DirectoryDocument.open(path);
 
       try {
@@ -200,7 +200,7 @@ describe("facade/chapter", () => {
   });
 
   it("sets source and summary through explicit stages", async () => {
-    await withTempDir("spinedigest-chapter-", async (path) => {
+    await withTempDir("wikigraph-chapter-", async (path) => {
       const document = await DirectoryDocument.open(path);
 
       try {
@@ -258,7 +258,7 @@ describe("facade/chapter", () => {
   });
 
   it("reads one chapter details without scanning unrelated chapter fragments", async () => {
-    await withTempDir("spinedigest-chapter-", async (path) => {
+    await withTempDir("wikigraph-chapter-", async (path) => {
       const document = await DirectoryDocument.open(path);
 
       try {
@@ -290,7 +290,7 @@ describe("facade/chapter", () => {
   });
 
   it("updates and clears chapter titles in the TOC", async () => {
-    await withTempDir("spinedigest-chapter-", async (path) => {
+    await withTempDir("wikigraph-chapter-", async (path) => {
       const document = await DirectoryDocument.open(path);
 
       try {
@@ -349,7 +349,7 @@ describe("facade/chapter", () => {
   });
 
   it("requires recursive removal for chapters with children", async () => {
-    await withTempDir("spinedigest-chapter-", async (path) => {
+    await withTempDir("wikigraph-chapter-", async (path) => {
       const document = await DirectoryDocument.open(path);
 
       try {
@@ -378,7 +378,7 @@ describe("facade/chapter", () => {
   });
 
   it("moves chapters across parents and sibling positions", async () => {
-    await withTempDir("spinedigest-chapter-", async (path) => {
+    await withTempDir("wikigraph-chapter-", async (path) => {
       const document = await DirectoryDocument.open(path);
 
       try {
@@ -436,7 +436,7 @@ describe("facade/chapter", () => {
   });
 
   it("exports and applies complete chapter trees", async () => {
-    await withTempDir("spinedigest-chapter-", async (path) => {
+    await withTempDir("wikigraph-chapter-", async (path) => {
       const document = await DirectoryDocument.open(path);
 
       try {
@@ -580,7 +580,7 @@ describe("facade/chapter", () => {
   });
 
   it("advances stages idempotently without resetting planned chapters", async () => {
-    await withTempDir("spinedigest-chapter-", async (path) => {
+    await withTempDir("wikigraph-chapter-", async (path) => {
       const document = await DirectoryDocument.open(path);
 
       try {
@@ -633,7 +633,7 @@ describe("facade/chapter", () => {
   });
 
   it("reports advance progress without making progress callbacks fatal", async () => {
-    await withTempDir("spinedigest-chapter-", async (path) => {
+    await withTempDir("wikigraph-chapter-", async (path) => {
       const document = await DirectoryDocument.open(path);
 
       try {

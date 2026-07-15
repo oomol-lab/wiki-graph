@@ -10,19 +10,19 @@ import {
   rebuildArchiveSearchIndex,
 } from "../../packages/core/src/archive/query/archive-view.js";
 import { isSearchIndexCurrent } from "../../packages/core/src/archive/search-index/index.js";
-import { SpineDigest } from "../../packages/core/src/facade/spine-digest.js";
-import { SpineDigestFile } from "../../packages/core/src/wikg/spine-digest-file.js";
+import { WikiGraphArchive } from "../../packages/core/src/facade/wiki-graph-archive.js";
+import { WikiGraphArchiveFile } from "../../packages/core/src/wikg/wiki-graph-archive-file.js";
 import { withTempDir } from "../helpers/temp.js";
 
 const originalStateDir = process.env.WIKIGRAPH_STATE_DIR;
 
-describe("wikg/spine-digest-file", () => {
+describe("wikg/wiki-graph-archive-file", () => {
   afterEach(() => {
     restoreCoordinatorEnv();
   });
 
   it("opens a saved archive for reading and exposes digest operations", async () => {
-    await withTempDir("spinedigest-facade-file-", async (path) => {
+    await withTempDir("wikigraph-facade-file-", async (path) => {
       const restoreStateDir = useCoordinatorStateDir(`${path}/state`);
       try {
         const document = await DirectoryDocument.open(`${path}/document`);
@@ -31,9 +31,9 @@ describe("wikg/spine-digest-file", () => {
           await seedDocument(document);
 
           const archivePath = `${path}/fixture/book.wikg`;
-          await new SpineDigest(document, document.path).saveAs(archivePath);
+          await new WikiGraphArchive(document, document.path).saveAs(archivePath);
 
-          const digestFile = new SpineDigestFile(archivePath);
+          const digestFile = new WikiGraphArchiveFile(archivePath);
           const exportedText = await digestFile.read(async (digest) => {
             const textPath = `${path}/exports/from-read.txt`;
 
@@ -64,7 +64,7 @@ describe("wikg/spine-digest-file", () => {
   });
 
   it("keeps a custom extraction directory when one is provided", async () => {
-    await withTempDir("spinedigest-facade-file-", async (path) => {
+    await withTempDir("wikigraph-facade-file-", async (path) => {
       const document = await DirectoryDocument.open(`${path}/document`);
 
       try {
@@ -73,9 +73,9 @@ describe("wikg/spine-digest-file", () => {
         const archivePath = `${path}/fixture/book.wikg`;
         const readDir = `${path}/opened-read`;
 
-        await new SpineDigest(document, document.path).saveAs(archivePath);
+        await new WikiGraphArchive(document, document.path).saveAs(archivePath);
 
-        const digestFile = new SpineDigestFile(archivePath);
+        const digestFile = new WikiGraphArchiveFile(archivePath);
         await digestFile.read(
           async (digest) => {
             expect(await digest.readMeta()).toMatchObject({
@@ -93,12 +93,12 @@ describe("wikg/spine-digest-file", () => {
   });
 
   it("keeps read-only sqlite materialization as coordinator cache", async () => {
-    await withTempDir("spinedigest-facade-file-", async (path) => {
+    await withTempDir("wikigraph-facade-file-", async (path) => {
       const restoreStateDir = useCoordinatorStateDir(`${path}/state`);
       try {
         const archivePath = await createSeedArchive(path);
 
-        await new SpineDigestFile(archivePath).read(async (digest) => {
+        await new WikiGraphArchiveFile(archivePath).read(async (digest) => {
           expect(await digest.readMeta()).toMatchObject({
             title: "Session Fixture",
           });
@@ -120,7 +120,7 @@ describe("wikg/spine-digest-file", () => {
   });
 
   it("opens the same archive concurrently without reinitializing sqlite schema", async () => {
-    await withTempDir("spinedigest-facade-file-", async (path) => {
+    await withTempDir("wikigraph-facade-file-", async (path) => {
       const restoreStateDir = useCoordinatorStateDir(`${path}/state`);
       try {
         const archivePath = await createSeedArchive(path);
@@ -129,7 +129,7 @@ describe("wikg/spine-digest-file", () => {
           Array.from(
             { length: 6 },
             async () =>
-              await new SpineDigestFile(archivePath).read(async (digest) => {
+              await new WikiGraphArchiveFile(archivePath).read(async (digest) => {
                 expect(await digest.readMeta()).toMatchObject({
                   title: "Session Fixture",
                 });
@@ -143,12 +143,12 @@ describe("wikg/spine-digest-file", () => {
   });
 
   it("flushes successful archive writes back to the archive", async () => {
-    await withTempDir("spinedigest-facade-file-", async (path) => {
+    await withTempDir("wikigraph-facade-file-", async (path) => {
       const restoreStateDir = useCoordinatorStateDir(`${path}/state`);
       try {
         const archivePath = await createSeedArchive(path);
 
-        await new SpineDigestFile(archivePath).write(async (document) => {
+        await new WikiGraphArchiveFile(archivePath).write(async (document) => {
           const meta = await document.readBookMeta();
 
           if (meta === undefined) {
@@ -171,18 +171,18 @@ describe("wikg/spine-digest-file", () => {
   });
 
   it("keeps sqlite cache when write sessions only read the database", async () => {
-    await withTempDir("spinedigest-facade-file-", async (path) => {
+    await withTempDir("wikigraph-facade-file-", async (path) => {
       const restoreStateDir = useCoordinatorStateDir(`${path}/state`);
       try {
         const archivePath = await createSeedArchive(path);
 
-        await new SpineDigestFile(archivePath).readDocument(
+        await new WikiGraphArchiveFile(archivePath).readDocument(
           async (document) => {
             await expect(document.peekNextSerialId()).resolves.toBe(2);
           },
         );
 
-        await new SpineDigestFile(archivePath).write(async (document) => {
+        await new WikiGraphArchiveFile(archivePath).write(async (document) => {
           await expect(document.peekNextSerialId()).resolves.toBe(2);
         });
 
@@ -200,23 +200,23 @@ describe("wikg/spine-digest-file", () => {
   });
 
   it("flushes sqlite cache when write sessions mutate the database", async () => {
-    await withTempDir("spinedigest-facade-file-", async (path) => {
+    await withTempDir("wikigraph-facade-file-", async (path) => {
       const restoreStateDir = useCoordinatorStateDir(`${path}/state`);
       try {
         const archivePath = await createSeedArchive(path);
 
-        await new SpineDigestFile(archivePath).readDocument(
+        await new WikiGraphArchiveFile(archivePath).readDocument(
           async (document) => {
             await expect(document.peekNextSerialId()).resolves.toBe(2);
           },
         );
 
-        await new SpineDigestFile(archivePath).write(async (document) => {
+        await new WikiGraphArchiveFile(archivePath).write(async (document) => {
           await document.createSerial();
         });
 
         await expect(readCoordinatorOverlays(path)).resolves.toStrictEqual([]);
-        await new SpineDigestFile(archivePath).readDocument(
+        await new WikiGraphArchiveFile(archivePath).readDocument(
           async (document) => {
             await expect(document.peekNextSerialId()).resolves.toBe(3);
           },
@@ -228,19 +228,19 @@ describe("wikg/spine-digest-file", () => {
   });
 
   it("clears cached archive searches after successful writes", async () => {
-    await withTempDir("spinedigest-facade-file-", async (path) => {
+    await withTempDir("wikigraph-facade-file-", async (path) => {
       const restoreStateDir = useCoordinatorStateDir(`${path}/state`);
       try {
         const archivePath = await createSeedArchive(path);
 
-        await new SpineDigestFile(archivePath).write(
+        await new WikiGraphArchiveFile(archivePath).write(
           async (document) => {
             await rebuildArchiveSearchIndex(document);
           },
           { searchIndexWritebackPolicy: "cache" },
         );
 
-        await new SpineDigestFile(archivePath).readDocument(
+        await new WikiGraphArchiveFile(archivePath).readDocument(
           async (document) => {
             await expect(
               findArchiveObjects(document, "Fresh Cache Title", {
@@ -250,7 +250,7 @@ describe("wikg/spine-digest-file", () => {
           },
         );
 
-        await new SpineDigestFile(archivePath).write(async (document) => {
+        await new WikiGraphArchiveFile(archivePath).write(async (document) => {
           await document.replaceToc({
             items: [
               {
@@ -262,14 +262,14 @@ describe("wikg/spine-digest-file", () => {
             version: 1,
           });
         });
-        await new SpineDigestFile(archivePath).write(
+        await new WikiGraphArchiveFile(archivePath).write(
           async (document) => {
             await rebuildArchiveSearchIndex(document);
           },
           { searchIndexWritebackPolicy: "cache" },
         );
 
-        await new SpineDigestFile(archivePath).readDocument(
+        await new WikiGraphArchiveFile(archivePath).readDocument(
           async (document) => {
             await expect(
               findArchiveObjects(document, "Fresh Cache Title", {
@@ -287,13 +287,13 @@ describe("wikg/spine-digest-file", () => {
   });
 
   it("adopts orphaned external FTS cache after moving an archive", async () => {
-    await withTempDir("spinedigest-facade-file-", async (path) => {
+    await withTempDir("wikigraph-facade-file-", async (path) => {
       const restoreStateDir = useCoordinatorStateDir(`${path}/state`);
       try {
         const archivePath = await createSeedArchive(path);
         const movedArchivePath = `${path}/moved/book.wikg`;
 
-        await new SpineDigestFile(archivePath).write(
+        await new WikiGraphArchiveFile(archivePath).write(
           async (document) => {
             await rebuildArchiveSearchIndex(document);
           },
@@ -316,7 +316,7 @@ describe("wikg/spine-digest-file", () => {
 
         await mkdir(`${path}/moved`, { recursive: true });
         await rename(archivePath, movedArchivePath);
-        await new SpineDigestFile(movedArchivePath).readDocument(
+        await new WikiGraphArchiveFile(movedArchivePath).readDocument(
           async (document) => {
             await expect(isSearchIndexCurrent(document)).resolves.toBe(true);
           },
@@ -345,13 +345,13 @@ describe("wikg/spine-digest-file", () => {
   });
 
   it("does not let unrelated stale overlays fail archive writes", async () => {
-    await withTempDir("spinedigest-facade-file-", async (path) => {
+    await withTempDir("wikigraph-facade-file-", async (path) => {
       const restoreStateDir = useCoordinatorStateDir(`${path}/state`);
       try {
         const archivePath = await createSeedArchive(path);
         await createStaleOverlay(path);
 
-        await new SpineDigestFile(archivePath).write(async (document) => {
+        await new WikiGraphArchiveFile(archivePath).write(async (document) => {
           const meta = await document.readBookMeta();
 
           if (meta === undefined) {
@@ -381,13 +381,13 @@ describe("wikg/spine-digest-file", () => {
   });
 
   it("settles failed archive writes when leaving the archive session", async () => {
-    await withTempDir("spinedigest-facade-file-", async (path) => {
+    await withTempDir("wikigraph-facade-file-", async (path) => {
       const restoreStateDir = useCoordinatorStateDir(`${path}/state`);
       try {
         const archivePath = await createSeedArchive(path);
 
         await expect(
-          new SpineDigestFile(archivePath).write(async (document) => {
+          new WikiGraphArchiveFile(archivePath).write(async (document) => {
             const meta = await document.readBookMeta();
 
             if (meta === undefined) {
@@ -412,12 +412,12 @@ describe("wikg/spine-digest-file", () => {
   });
 
   it("reads materialized workspace state while flush is pending", async () => {
-    await withTempDir("spinedigest-facade-file-", async (path) => {
+    await withTempDir("wikigraph-facade-file-", async (path) => {
       const restoreStateDir = useCoordinatorStateDir(`${path}/state`);
       try {
         const archivePath = await createSeedArchive(path);
 
-        await new SpineDigestFile(archivePath).write(async (document) => {
+        await new WikiGraphArchiveFile(archivePath).write(async (document) => {
           const meta = await document.readBookMeta();
 
           if (meta === undefined) {
@@ -430,7 +430,7 @@ describe("wikg/spine-digest-file", () => {
           });
         });
 
-        await new SpineDigestFile(archivePath).read(async (digest) => {
+        await new WikiGraphArchiveFile(archivePath).read(async (digest) => {
           expect(await digest.readMeta()).toMatchObject({
             title: "Workspace Title",
           });
@@ -445,12 +445,12 @@ describe("wikg/spine-digest-file", () => {
   });
 
   it("runs concurrent writes to different archive entries", async () => {
-    await withTempDir("spinedigest-facade-file-", async (path) => {
+    await withTempDir("wikigraph-facade-file-", async (path) => {
       const restoreStateDir = useCoordinatorStateDir(`${path}/state`);
       try {
         const archivePath = await createSeedArchive(path);
         await Promise.all([
-          new SpineDigestFile(archivePath).write(async (document) => {
+          new WikiGraphArchiveFile(archivePath).write(async (document) => {
             const meta = await document.readBookMeta();
 
             if (meta === undefined) {
@@ -462,7 +462,7 @@ describe("wikg/spine-digest-file", () => {
               title: "Concurrent Title",
             });
           }),
-          new SpineDigestFile(archivePath).write(async (document) => {
+          new WikiGraphArchiveFile(archivePath).write(async (document) => {
             await document.replaceToc({
               items: [
                 {
@@ -476,7 +476,7 @@ describe("wikg/spine-digest-file", () => {
           }),
         ]);
 
-        await new SpineDigestFile(archivePath).read(async (digest) => {
+        await new WikiGraphArchiveFile(archivePath).read(async (digest) => {
           expect(await digest.readMeta()).toMatchObject({
             title: "Concurrent Title",
           });
@@ -495,13 +495,13 @@ describe("wikg/spine-digest-file", () => {
   });
 
   it("preserves a failed write overlay for later reads", async () => {
-    await withTempDir("spinedigest-facade-file-", async (path) => {
+    await withTempDir("wikigraph-facade-file-", async (path) => {
       const restoreStateDir = useCoordinatorStateDir(`${path}/state`);
       try {
         const archivePath = await createSeedArchive(path);
 
         await expect(
-          new SpineDigestFile(archivePath).write(async (document) => {
+          new WikiGraphArchiveFile(archivePath).write(async (document) => {
             const meta = await document.readBookMeta();
 
             if (meta === undefined) {
@@ -516,7 +516,7 @@ describe("wikg/spine-digest-file", () => {
           }),
         ).rejects.toThrow("keep overlay");
 
-        await new SpineDigestFile(archivePath).read(async (digest) => {
+        await new WikiGraphArchiveFile(archivePath).read(async (digest) => {
           expect(await digest.readMeta()).toMatchObject({
             title: "Failed Overlay Title",
           });
@@ -534,7 +534,7 @@ async function seedDocument(document: DirectoryDocument): Promise<void> {
     await openedDocument.writeBookMeta({
       authors: ["Ari Lantern"],
       description: null,
-      identifier: "urn:test:spine-digest-file",
+      identifier: "urn:test:wiki-graph-archive-file",
       language: "en",
       publishedAt: null,
       publisher: null,
@@ -565,7 +565,7 @@ async function createSeedArchive(path: string): Promise<string> {
 
     const archivePath = `${path}/fixture/book.wikg`;
 
-    await new SpineDigest(document, document.path).saveAs(archivePath);
+    await new WikiGraphArchive(document, document.path).saveAs(archivePath);
     return archivePath;
   } finally {
     await document.release();
@@ -573,7 +573,7 @@ async function createSeedArchive(path: string): Promise<string> {
 }
 
 async function readArchivedTitle(archivePath: string): Promise<string | null> {
-  const meta = await new SpineDigestFile(archivePath).read(
+  const meta = await new WikiGraphArchiveFile(archivePath).read(
     async (digest) => await digest.readMeta(),
   );
 

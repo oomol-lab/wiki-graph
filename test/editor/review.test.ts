@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 
 import {
-  SPINE_DIGEST_EDITOR_SCOPES,
-  SpineDigestScope,
+  WIKI_GRAPH_EDITOR_SCOPES,
+  WikiGraphScope,
 } from "../../packages/core/src/common/llm-scope.js";
 import { Language } from "../../packages/core/src/common/language.js";
 import type { ReadonlySerialFragments } from "../../packages/core/src/document/index.js";
@@ -18,13 +18,13 @@ import { ScriptedLLM } from "../helpers/scripted-llm.js";
 
 describe("editor/review", () => {
   it("generates clue reviewers from clue markup", async () => {
-    const llm = new ScriptedLLM<SpineDigestScope>(["  Reviewer guide  "]);
+    const llm = new ScriptedLLM<WikiGraphScope>(["  Reviewer guide  "]);
     const reviewer = new CompressionReviewer(
       llm as never,
       createSerialFragments(),
       {
-        review: SPINE_DIGEST_EDITOR_SCOPES.review,
-        reviewGuide: SPINE_DIGEST_EDITOR_SCOPES.reviewGuide,
+        review: WIKI_GRAPH_EDITOR_SCOPES.review,
+        reviewGuide: WIKI_GRAPH_EDITOR_SCOPES.reviewGuide,
       },
       Language.English,
     );
@@ -45,20 +45,20 @@ describe("editor/review", () => {
       CLUE_REVIEWER_GENERATOR_PROMPT_TEMPLATE,
     );
     expect(llm.calls[0]?.options.scope).toBe(
-      SpineDigestScope.EditorReviewGuide,
+      WikiGraphScope.EditorReviewGuide,
     );
   });
 
   it("reviews compression through guaranteed-json requests with history", async () => {
-    const llm = new ScriptedLLM<SpineDigestScope>([
+    const llm = new ScriptedLLM<WikiGraphScope>([
       '{"issues":[{"problem":"Missing detail","severity":"major","suggestion":"Restore it"}]}',
     ]);
     const reviewer = new CompressionReviewer(
       llm as never,
       createSerialFragments(),
       {
-        review: SPINE_DIGEST_EDITOR_SCOPES.review,
-        reviewGuide: SPINE_DIGEST_EDITOR_SCOPES.reviewGuide,
+        review: WIKI_GRAPH_EDITOR_SCOPES.review,
+        reviewGuide: WIKI_GRAPH_EDITOR_SCOPES.reviewGuide,
       },
       Language.English,
     );
@@ -98,7 +98,7 @@ describe("editor/review", () => {
     expect(llm.calls).toHaveLength(1);
     expect(llm.calls[0]?.viaContext).toBe(false);
     expect(llm.calls[0]?.options).toMatchObject({
-      scope: SpineDigestScope.EditorReview,
+      scope: WikiGraphScope.EditorReview,
       useCache: false,
     });
     expect(llm.calls[0]?.messages.map((message) => message.role)).toStrictEqual(
@@ -107,13 +107,13 @@ describe("editor/review", () => {
   });
 
   it("falls back to no issues when a reviewer cannot produce valid JSON", async () => {
-    const llm = new ScriptedLLM<SpineDigestScope>(Array(13).fill(""));
+    const llm = new ScriptedLLM<WikiGraphScope>(Array(13).fill(""));
     const reviewer = new CompressionReviewer(
       llm as never,
       createSerialFragments(),
       {
-        review: SPINE_DIGEST_EDITOR_SCOPES.review,
-        reviewGuide: SPINE_DIGEST_EDITOR_SCOPES.reviewGuide,
+        review: WIKI_GRAPH_EDITOR_SCOPES.review,
+        reviewGuide: WIKI_GRAPH_EDITOR_SCOPES.reviewGuide,
       },
       Language.English,
     );
@@ -142,7 +142,7 @@ describe("editor/review", () => {
   });
 
   it("does not hide regular LLM request errors during review", async () => {
-    const llm = new ScriptedLLM<SpineDigestScope>([
+    const llm = new ScriptedLLM<WikiGraphScope>([
       () => {
         throw new Error("network failed");
       },
@@ -151,8 +151,8 @@ describe("editor/review", () => {
       llm as never,
       createSerialFragments(),
       {
-        review: SPINE_DIGEST_EDITOR_SCOPES.review,
-        reviewGuide: SPINE_DIGEST_EDITOR_SCOPES.reviewGuide,
+        review: WIKI_GRAPH_EDITOR_SCOPES.review,
+        reviewGuide: WIKI_GRAPH_EDITOR_SCOPES.reviewGuide,
       },
       Language.English,
     );

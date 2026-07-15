@@ -1,9 +1,9 @@
 import { AsyncSemaphore } from "./utils/async-semaphore.js";
 import type { Language } from "./common/language.js";
 import {
-  SPINE_DIGEST_EDITOR_SCOPES,
-  SPINE_DIGEST_READER_SCOPES,
-  type SpineDigestScope,
+  WIKI_GRAPH_EDITOR_SCOPES,
+  WIKI_GRAPH_READER_SCOPES,
+  type WikiGraphScope,
 } from "./common/llm-scope.js";
 import type { LLM } from "./llm/index.js";
 import type {
@@ -75,13 +75,13 @@ export interface SerialProgressSink {
 }
 
 type ReaderProgressScope =
-  (typeof SPINE_DIGEST_READER_SCOPES)[keyof typeof SPINE_DIGEST_READER_SCOPES];
+  (typeof WIKI_GRAPH_READER_SCOPES)[keyof typeof WIKI_GRAPH_READER_SCOPES];
 
 export type CreateSerialOptions = GenerateSerialOptions;
 
 export interface SerialGenerationOptions {
   readonly document?: Document;
-  readonly llm: LLM<SpineDigestScope>;
+  readonly llm: LLM<WikiGraphScope>;
   readonly logDirPath?: string;
   readonly segmenter?: ReaderSegmenter;
   /** @deprecated Use `document` instead. */
@@ -133,7 +133,7 @@ export class SerialGeneration {
   readonly #fragmentWordsCount = DEFAULT_FRAGMENT_WORDS_COUNT;
   readonly #fragmentGroups: FragmentGroupStore;
   readonly #idSemaphore = new AsyncSemaphore(1);
-  readonly #llm: LLM<SpineDigestScope>;
+  readonly #llm: LLM<WikiGraphScope>;
   readonly #logDirPath: string | undefined;
   readonly #serials: SerialStore;
   readonly #segmenter: ReaderSegmenter | undefined;
@@ -299,7 +299,7 @@ export class SerialGeneration {
       },
       extractionGuidance: extractionPrompt,
       llm: this.#llm,
-      scopes: SPINE_DIGEST_READER_SCOPES,
+      scopes: WIKI_GRAPH_READER_SCOPES,
       sentenceTextSource: this.#document,
       ...(this.#segmenter === undefined
         ? {}
@@ -422,14 +422,14 @@ export class SerialGeneration {
     groupId: number;
     serialId: number;
     userLanguage: Language | undefined;
-  }): EditorOptions<SpineDigestScope> {
+  }): EditorOptions<WikiGraphScope> {
     return {
       compressionRatio: DEFAULT_COMPRESSION_RATIO,
       groupId: input.groupId,
       llm: this.#llm,
       maxClues: DEFAULT_MAX_CLUES,
       maxIterations: DEFAULT_MAX_ITERATIONS,
-      scopes: SPINE_DIGEST_EDITOR_SCOPES,
+      scopes: WIKI_GRAPH_EDITOR_SCOPES,
       serialId: input.serialId,
       document: this.#document,
       ...(this.#logDirPath === undefined

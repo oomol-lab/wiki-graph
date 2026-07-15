@@ -9,7 +9,7 @@ import { withTempDir } from "../helpers/temp.js";
 
 describe("document/wiki-graph-schema", () => {
   it("migrates serial state knowledge graph readiness", async () => {
-    await withTempDir("spinedigest-wiki-graph-schema-", async (path) => {
+    await withTempDir("wikigraph-wiki-graph-schema-", async (path) => {
       const database = await Database.open(`${path}/database.db`);
 
       try {
@@ -75,7 +75,7 @@ describe("document/wiki-graph-schema", () => {
   });
 
   it("creates mention evidence tables, indexes, and entity relation views", async () => {
-    await withTempDir("spinedigest-wiki-graph-schema-", async (path) => {
+    await withTempDir("wikigraph-wiki-graph-schema-", async (path) => {
       const database = await Database.open(`${path}/database.db`, SCHEMA_SQL);
 
       try {

@@ -33,7 +33,7 @@ const archiveMaintenanceMockState = vi.hoisted(() => ({
 }));
 
 vi.mock("../../packages/core/src/index.js", () => ({
-  SpineDigestApp: class {
+  WikiGraph: class {
     public async openSession(
       path: string,
       operation: (digest: MockDigest) => Promise<unknown>,
@@ -44,8 +44,8 @@ vi.mock("../../packages/core/src/index.js", () => ({
   },
 }));
 
-vi.mock("../../packages/core/src/wikg/spine-digest-file.js", () => ({
-  SpineDigestFile: class {
+vi.mock("../../packages/core/src/wikg/wiki-graph-archive-file.js", () => ({
+  WikiGraphArchiveFile: class {
     readonly #path: string;
 
     public constructor(path: string) {

@@ -190,7 +190,7 @@ describe("facade/digest", () => {
   });
 
   it("keeps custom text-stream session directories and omits an empty toc title", async () => {
-    await withTempDir("spinedigest-digest-", async (path) => {
+    await withTempDir("wikigraph-digest-", async (path) => {
       const documentDirPath = `${path}/custom-document`;
 
       await digestTextStreamSession(
@@ -238,7 +238,7 @@ describe("facade/digest", () => {
       readonly type: string;
     }> = [];
 
-    await withTempDir("spinedigest-digest-", async () => {
+    await withTempDir("wikigraph-digest-", async () => {
       await digestTextStreamSession(
         {
           extractionPrompt: "Keep beats",
@@ -292,7 +292,7 @@ describe("facade/digest", () => {
   });
 
   it("routes source digest sessions through importSource with matching adapters", async () => {
-    await withTempDir("spinedigest-digest-", async (path) => {
+    await withTempDir("wikigraph-digest-", async (path) => {
       const epubTitle = await digestEpubSession(
         {
           documentDirPath: `${path}/epub`,

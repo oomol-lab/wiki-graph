@@ -1,16 +1,16 @@
 import { describe, expect, it } from "vitest";
 
-import { SpineDigestScope } from "../../packages/core/src/common/llm-scope.js";
+import { WikiGraphScope } from "../../packages/core/src/common/llm-scope.js";
 import { CompressionRequester } from "../../packages/core/src/editor/compressor.js";
 import { TEXT_COMPRESSOR_PROMPT_TEMPLATE } from "../../packages/core/src/editor/prompt-templates.js";
 import { ScriptedLLM } from "../helpers/scripted-llm.js";
 
 describe("editor/compressor", () => {
   it("builds prompts and compression messages with revision history", async () => {
-    const llm = new ScriptedLLM<SpineDigestScope>(["  compressed result  "]);
+    const llm = new ScriptedLLM<WikiGraphScope>(["  compressed result  "]);
     const requester = new CompressionRequester(
       llm as never,
-      SpineDigestScope.EditorCompress,
+      WikiGraphScope.EditorCompress,
       0.25,
       "English",
     );
@@ -37,7 +37,7 @@ describe("editor/compressor", () => {
       },
     ]);
     expect(llm.calls).toHaveLength(1);
-    expect(llm.calls[0]?.options.scope).toBe(SpineDigestScope.EditorCompress);
+    expect(llm.calls[0]?.options.scope).toBe(WikiGraphScope.EditorCompress);
     expect(llm.calls[0]?.messages.map((message) => message.role)).toStrictEqual(
       ["system", "user", "assistant", "user"],
     );

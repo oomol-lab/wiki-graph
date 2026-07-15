@@ -7,13 +7,13 @@ export {
   normalizeLanguageCode,
 } from "./common/language.js";
 export {
-  createSpineDigestTaskId,
-  SpineDigestTask,
-  SpineDigestTaskContext,
-  SPINE_DIGEST_CONTEXT_VERSION,
-  type SpineDigestTaskContextOptions,
-  type SpineDigestTaskIdentity,
-  type SpineDigestTaskType,
+  createWikiGraphTaskId,
+  WikiGraphTask,
+  WikiGraphTaskContext,
+  WIKI_GRAPH_CONTEXT_VERSION,
+  type WikiGraphTaskContextOptions,
+  type WikiGraphTaskIdentity,
+  type WikiGraphTaskType,
 } from "./context/index.js";
 export { LLM, LLMPaymentRequiredError } from "./llm/index.js";
 export type {
@@ -25,10 +25,10 @@ export type {
   LLMTokenUsageCallback,
 } from "./llm/index.js";
 export {
-  SpineDigestScope,
-  SPINE_DIGEST_EDITOR_SCOPES,
-  SPINE_DIGEST_READER_SCOPES,
-  SPINE_DIGEST_SCOPES,
+  WikiGraphScope,
+  WIKI_GRAPH_EDITOR_SCOPES,
+  WIKI_GRAPH_READER_SCOPES,
+  WIKI_GRAPH_SCOPES,
 } from "./common/llm-scope.js";
 export { withLoggingContext } from "./common/logging.js";
 export { CLI_FULL_COMMAND, CLI_PRIMARY_COMMAND } from "./common/cli-command.js";
@@ -105,25 +105,25 @@ export {
   type WikimatchTextRange,
   type WikimatchWindow,
 } from "./wikimatch/index.js";
-export { createDefaultSpineDigestSampling } from "./facade/llm-sampling.js";
+export { createDefaultWikiGraphSampling } from "./facade/llm-sampling.js";
 export {
   type DigestProgressEvent,
   type SerialDiscoveryItem,
-  SpineDigest,
-  SpineDigestApp,
-  type SpineDigestAppOptions,
-  type SpineDigestLLMOptions,
-  type SpineDigestOpenSessionOptions,
-  type SpineDigestProgressCallback,
-  type SpineDigestProgressEvent,
-  type SpineDigestProgressEventType,
-  type SpineDigestOperation,
+  WikiGraphArchive,
+  WikiGraph,
+  type WikiGraphOptions,
+  type WikiGraphLLMOptions,
+  type WikiGraphOpenSessionOptions,
+  type WikiGraphProgressCallback,
+  type WikiGraphProgressEvent,
+  type WikiGraphProgressEventType,
+  type WikiGraphOperation,
   type SerialsDiscoveredEvent,
   type SerialProgressEvent,
-  type SpineDigestSourceSessionOptions,
-  type SpineDigestTextStreamSessionOptions,
+  type WikiGraphSourceSessionOptions,
+  type WikiGraphTextStreamSessionOptions,
 } from "./facade/index.js";
-export type { SpineDigestSerialEntry } from "./facade/index.js";
+export type { WikiGraphSerialEntry } from "./facade/index.js";
 export {
   formatLocatedChapterResourceUri,
   formatLocatedChapterSourceCollectionUri,
@@ -137,7 +137,7 @@ export {
   requireArchiveUri,
   requireLocatedObjectOrArchiveUri,
   requireLocatedObjectUri,
-  SpineDigestFile,
+  WikiGraphArchiveFile,
   WIKI_GRAPH_JOB_URI_PREFIX,
   WIKI_GRAPH_URI_PREFIX,
   writeWikgArchive,

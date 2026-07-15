@@ -36,7 +36,7 @@ import {
   formatWikiGraphCommandUri,
   parseLocatedWikiGraphUri,
   requireLocatedObjectOrArchiveUri,
-  SpineDigestFile,
+  WikiGraphArchiveFile,
   writeWikgArchive,
 } from "wiki-graph-core";
 import { DirectoryDocument, type ReadonlyDocument } from "wiki-graph-core";
@@ -1095,7 +1095,7 @@ async function readArchiveDocument<T>(
   path: string,
   operation: (document: ReadonlyDocument) => Promise<T> | T,
 ): Promise<void> {
-  await new SpineDigestFile(path).readDocument(operation);
+  await new WikiGraphArchiveFile(path).readDocument(operation);
 }
 
 async function writeArchiveInspectReport(

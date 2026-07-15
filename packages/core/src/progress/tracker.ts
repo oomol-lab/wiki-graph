@@ -1,13 +1,13 @@
 import { createProgressReporter, type ProgressReporter } from "./reporter.js";
 import type {
   SerialDiscoveryItem,
-  SpineDigestOperation,
-  SpineDigestProgressCallback,
+  WikiGraphOperation,
+  WikiGraphProgressCallback,
 } from "./types.js";
 
 export interface CreateDigestProgressTrackerOptions {
-  readonly onProgress?: SpineDigestProgressCallback;
-  readonly operation: SpineDigestOperation;
+  readonly onProgress?: WikiGraphProgressCallback;
+  readonly operation: WikiGraphOperation;
 }
 
 export class DigestProgressTracker {

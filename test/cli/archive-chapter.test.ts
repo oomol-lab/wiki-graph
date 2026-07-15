@@ -69,8 +69,8 @@ const chapterDetails = {
   tocPath: ["Part I", "Chapter 1"],
 };
 
-vi.mock("../../packages/core/src/wikg/spine-digest-file.js", () => ({
-  SpineDigestFile: class {
+vi.mock("../../packages/core/src/wikg/wiki-graph-archive-file.js", () => ({
+  WikiGraphArchiveFile: class {
     readonly #path: string;
 
     public constructor(path: string) {

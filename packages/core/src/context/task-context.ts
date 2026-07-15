@@ -5,7 +5,7 @@ import { z } from "zod";
 import { createHash } from "../utils/hash.js";
 import { isNodeError } from "../utils/node-error.js";
 
-export const SPINE_DIGEST_CONTEXT_VERSION = 1;
+export const WIKI_GRAPH_CONTEXT_VERSION = 1;
 
 const TASK_STATUS_VERSION = 1;
 
@@ -16,22 +16,22 @@ const taskStatusSchema = z.object({
   version: z.literal(TASK_STATUS_VERSION),
 });
 
-export type SpineDigestTaskType = "source-to-graph" | "source-graph-to-summary";
+export type WikiGraphTaskType = "source-to-graph" | "source-graph-to-summary";
 
-export interface SpineDigestTaskIdentity {
+export interface WikiGraphTaskIdentity {
   readonly normalizedSource: string;
   readonly parameters: unknown;
-  readonly taskType: SpineDigestTaskType;
+  readonly taskType: WikiGraphTaskType;
   readonly version?: number;
 }
 
-export interface SpineDigestTaskContextOptions {
+export interface WikiGraphTaskContextOptions {
   readonly rootDirPath: string;
 }
 
-export interface SpineDigestTaskRun<T> {
-  readonly task: SpineDigestTask;
-  run(operation: (task: SpineDigestTask) => Promise<T> | T): Promise<T>;
+export interface WikiGraphTaskRun<T> {
+  readonly task: WikiGraphTask;
+  run(operation: (task: WikiGraphTask) => Promise<T> | T): Promise<T>;
 }
 
 interface TaskStatus {
@@ -41,22 +41,22 @@ interface TaskStatus {
   readonly version: typeof TASK_STATUS_VERSION;
 }
 
-export class SpineDigestTaskContext {
+export class WikiGraphTaskContext {
   readonly #rootDirPath: string;
 
-  public constructor(options: SpineDigestTaskContextOptions) {
+  public constructor(options: WikiGraphTaskContextOptions) {
     this.#rootDirPath = resolve(options.rootDirPath);
   }
 
-  public createTask(identity: SpineDigestTaskIdentity): SpineDigestTask {
-    const taskId = createSpineDigestTaskId(identity);
+  public createTask(identity: WikiGraphTaskIdentity): WikiGraphTask {
+    const taskId = createWikiGraphTaskId(identity);
 
-    return new SpineDigestTask(taskId, join(this.#rootDirPath, taskId));
+    return new WikiGraphTask(taskId, join(this.#rootDirPath, taskId));
   }
 
   public async runTask<T>(
-    identity: SpineDigestTaskIdentity,
-    operation: (task: SpineDigestTask) => Promise<T> | T,
+    identity: WikiGraphTaskIdentity,
+    operation: (task: WikiGraphTask) => Promise<T> | T,
   ): Promise<T> {
     const task = this.createTask(identity);
 
@@ -64,7 +64,7 @@ export class SpineDigestTaskContext {
   }
 }
 
-export class SpineDigestTask {
+export class WikiGraphTask {
   readonly #id: string;
   readonly #path: string;
 
@@ -102,7 +102,7 @@ export class SpineDigestTask {
   }
 
   public async run<T>(
-    operation: (task: SpineDigestTask) => Promise<T> | T,
+    operation: (task: WikiGraphTask) => Promise<T> | T,
   ): Promise<T> {
     await this.#begin();
 
@@ -151,13 +151,13 @@ export class SpineDigestTask {
   }
 }
 
-export function createSpineDigestTaskId(
-  identity: SpineDigestTaskIdentity,
+export function createWikiGraphTaskId(
+  identity: WikiGraphTaskIdentity,
 ): string {
   return createHash({
     normalizedSource: identity.normalizedSource,
     parameters: identity.parameters,
     taskType: identity.taskType,
-    version: identity.version ?? SPINE_DIGEST_CONTEXT_VERSION,
+    version: identity.version ?? WIKI_GRAPH_CONTEXT_VERSION,
   });
 }

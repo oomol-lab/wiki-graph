@@ -3,14 +3,14 @@ import { access, readFile, writeFile } from "fs/promises";
 import { describe, expect, it } from "vitest";
 
 import {
-  createSpineDigestTaskId,
-  SpineDigestTaskContext,
+  createWikiGraphTaskId,
+  WikiGraphTaskContext,
 } from "../../packages/core/src/context/index.js";
 import { withTempDir } from "../helpers/temp.js";
 
 describe("context/task-context", () => {
   it("derives task ids from source, parameters, task type, and context version", () => {
-    const base = createSpineDigestTaskId({
+    const base = createWikiGraphTaskId({
       normalizedSource: "Alpha beta.",
       parameters: {
         sampling: {
@@ -22,7 +22,7 @@ describe("context/task-context", () => {
 
     expect(base).toHaveLength(128);
     expect(
-      createSpineDigestTaskId({
+      createWikiGraphTaskId({
         normalizedSource: "Alpha beta.",
         parameters: {
           sampling: {
@@ -33,7 +33,7 @@ describe("context/task-context", () => {
       }),
     ).toBe(base);
     expect(
-      createSpineDigestTaskId({
+      createWikiGraphTaskId({
         normalizedSource: "Alpha beta.",
         parameters: {
           sampling: {
@@ -44,7 +44,7 @@ describe("context/task-context", () => {
       }),
     ).not.toBe(base);
     expect(
-      createSpineDigestTaskId({
+      createWikiGraphTaskId({
         normalizedSource: "Alpha beta.",
         parameters: {
           sampling: {
@@ -58,8 +58,8 @@ describe("context/task-context", () => {
   });
 
   it("removes a task directory after a successful run", async () => {
-    await withTempDir("spinedigest-context-", async (path) => {
-      const context = new SpineDigestTaskContext({
+    await withTempDir("wikigraph-context-", async (path) => {
+      const context = new WikiGraphTaskContext({
         rootDirPath: path,
       });
       let taskPath = "";
@@ -85,8 +85,8 @@ describe("context/task-context", () => {
   });
 
   it("keeps a task directory when a run fails", async () => {
-    await withTempDir("spinedigest-context-", async (path) => {
-      const context = new SpineDigestTaskContext({
+    await withTempDir("wikigraph-context-", async (path) => {
+      const context = new WikiGraphTaskContext({
         rootDirPath: path,
       });
       let taskPath = "";
@@ -117,8 +117,8 @@ describe("context/task-context", () => {
   });
 
   it("reuses the same task directory for the same identity after failure", async () => {
-    await withTempDir("spinedigest-context-", async (path) => {
-      const context = new SpineDigestTaskContext({
+    await withTempDir("wikigraph-context-", async (path) => {
+      const context = new WikiGraphTaskContext({
         rootDirPath: path,
       });
       const identity = {
@@ -155,8 +155,8 @@ describe("context/task-context", () => {
   });
 
   it("reads a running task status", async () => {
-    await withTempDir("spinedigest-context-", async (path) => {
-      const context = new SpineDigestTaskContext({
+    await withTempDir("wikigraph-context-", async (path) => {
+      const context = new WikiGraphTaskContext({
         rootDirPath: path,
       });
       let status:

@@ -1,4 +1,4 @@
-export type SpineDigestOperation =
+export type WikiGraphOperation =
   | "digest-epub"
   | "digest-markdown"
   | "digest-text-stream"
@@ -30,13 +30,13 @@ export interface DigestProgressEvent {
   readonly totalWords: number;
 }
 
-export type SpineDigestProgressEventType = SpineDigestProgressEvent["type"];
+export type WikiGraphProgressEventType = WikiGraphProgressEvent["type"];
 
-export type SpineDigestProgressEvent =
+export type WikiGraphProgressEvent =
   | SerialsDiscoveredEvent
   | SerialProgressEvent
   | DigestProgressEvent;
 
-export type SpineDigestProgressCallback = (
-  event: SpineDigestProgressEvent,
+export type WikiGraphProgressCallback = (
+  event: WikiGraphProgressEvent,
 ) => void | Promise<void>;

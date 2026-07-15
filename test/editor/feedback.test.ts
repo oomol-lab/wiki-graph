@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import type { SpineDigestScope } from "../../packages/core/src/common/llm-scope.js";
+import type { WikiGraphScope } from "../../packages/core/src/common/llm-scope.js";
 import {
   calculateScore,
   createRevisionFeedback,
@@ -51,7 +51,7 @@ describe("editor/feedback", () => {
   });
 
   it("creates revision feedback from the top 9 sorted issues", () => {
-    const llm = new ScriptedLLM<SpineDigestScope>();
+    const llm = new ScriptedLLM<WikiGraphScope>();
     const reviews = Array.from({ length: 11 }, (_, index) => ({
       clueId: index + 1,
       issues: [

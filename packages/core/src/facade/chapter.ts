@@ -1,6 +1,6 @@
 import type { Document, ReadonlyDocument } from "../document/index.js";
 import { normalizeLanguageCode, type Language } from "../common/language.js";
-import type { SpineDigestScope } from "../common/llm-scope.js";
+import type { WikiGraphScope } from "../common/llm-scope.js";
 import type { LLM } from "../llm/index.js";
 import type { ReaderTextStream } from "../reader/index.js";
 import { z } from "zod";
@@ -94,7 +94,7 @@ export interface MoveChapterOptions {
 export interface AdvanceChapterStagesOptions {
   readonly chapterId?: number;
   readonly extractionPrompt: string;
-  readonly llm: LLM<SpineDigestScope>;
+  readonly llm: LLM<WikiGraphScope>;
   readonly logDirPath?: string;
   readonly onProgress?: AdvanceChapterStagesProgressCallback;
   readonly targetStage: ChapterStage;
@@ -180,14 +180,14 @@ export function parseChapterTreeInput(input: unknown): ChapterTreeInput {
 
 export interface GenerateChapterGraphOptions {
   readonly extractionPrompt: string;
-  readonly llm: LLM<SpineDigestScope>;
+  readonly llm: LLM<WikiGraphScope>;
   readonly logDirPath?: string;
   readonly progressTracker?: SerialProgressSink;
   readonly userLanguage?: Language;
 }
 
 export interface GenerateChapterSummaryOptions {
-  readonly llm: LLM<SpineDigestScope>;
+  readonly llm: LLM<WikiGraphScope>;
   readonly logDirPath?: string;
   readonly userLanguage?: Language;
 }

@@ -10,8 +10,8 @@ export type {
   SerialDiscoveryItem,
   SerialsDiscoveredEvent,
   SerialProgressEvent,
-  SpineDigestOperation,
-  SpineDigestProgressCallback,
-  SpineDigestProgressEvent,
-  SpineDigestProgressEventType,
+  WikiGraphOperation,
+  WikiGraphProgressCallback,
+  WikiGraphProgressEvent,
+  WikiGraphProgressEventType,
 } from "./types.js";

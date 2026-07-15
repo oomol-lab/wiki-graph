@@ -28,5 +28,5 @@ export {
   WIKI_GRAPH_URI_PREFIX,
 } from "./archive-uri.js";
 export type { LocatedWikiGraphUri } from "./archive-uri.js";
-export { SpineDigestFile } from "./spine-digest-file.js";
+export { WikiGraphArchiveFile } from "./wiki-graph-archive-file.js";
 export { runWikgCoordinatorGc, WikgCoordinator } from "./wikg-coordinator.js";

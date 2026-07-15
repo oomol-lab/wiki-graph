@@ -12,7 +12,7 @@ import { withTempDir } from "../helpers/temp.js";
 
 describe("common/logging", () => {
   it("preserves flat artifact paths without an active logging context", async () => {
-    await withTempDir("spinedigest-logging-", (path) => {
+    await withTempDir("wikigraph-logging-", (path) => {
       const artifactPath = resolveArtifactPath({
         category: "llm",
         fileName: "request.log",
@@ -25,7 +25,7 @@ describe("common/logging", () => {
   });
 
   it("writes contextual artifacts under the run directory", async () => {
-    await withTempDir("spinedigest-logging-", async (path) => {
+    await withTempDir("wikigraph-logging-", async (path) => {
       const { artifactPath, runDirPath } = await withLoggingContext(
         {
           logDirPath: path,
@@ -65,7 +65,7 @@ describe("common/logging", () => {
   });
 
   it("allocates stable artifact names with numeric suffixes when needed", async () => {
-    await withTempDir("spinedigest-logging-", (path) => {
+    await withTempDir("wikigraph-logging-", (path) => {
       const firstPath = allocateArtifactPath({
         category: "llm",
         logDirPath: path,
@@ -84,7 +84,7 @@ describe("common/logging", () => {
   });
 
   it("can allocate numbered artifact names starting at one", async () => {
-    await withTempDir("spinedigest-logging-", (path) => {
+    await withTempDir("wikigraph-logging-", (path) => {
       const firstPath = allocateArtifactPath({
         alwaysNumbered: true,
         category: "llm",

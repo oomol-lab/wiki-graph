@@ -7,7 +7,7 @@ import {
   readArchiveIndexSettings,
   setFtsIndexEmbedded,
 } from "wiki-graph-core";
-import { SpineDigestFile } from "wiki-graph-core";
+import { WikiGraphArchiveFile } from "wiki-graph-core";
 
 import type { CLIArchiveIndexArguments } from "./args.js";
 import { writeTextToStdout } from "./io.js";
@@ -44,7 +44,7 @@ export async function runArchiveIndexCommand(
 async function readIndexSettings(
   args: CLIArchiveIndexArguments,
 ): Promise<void> {
-  await new SpineDigestFile(args.archivePath).readDocument(async (document) => {
+  await new WikiGraphArchiveFile(args.archivePath).readDocument(async (document) => {
     const settings = await readArchiveIndexSettings(document);
 
     await writeIndexOutput(args, {
@@ -60,7 +60,7 @@ async function enableIndex(args: CLIArchiveIndexArguments): Promise<void> {
     throttleMs: INDEX_PROGRESS_OUTPUT_INTERVAL_MS,
   });
 
-  await new SpineDigestFile(args.archivePath).write(
+  await new WikiGraphArchiveFile(args.archivePath).write(
     async (document) => {
       await writer.write({
         json: { type: "started" },
@@ -123,7 +123,7 @@ async function enableIndex(args: CLIArchiveIndexArguments): Promise<void> {
 async function embedIndex(args: CLIArchiveIndexArguments): Promise<void> {
   let built = false;
 
-  await new SpineDigestFile(args.archivePath).write(
+  await new WikiGraphArchiveFile(args.archivePath).write(
     async (document) => {
       await setFtsIndexEmbedded(document, true);
       if (await isArchiveSearchIndexCurrent(document)) {
@@ -148,7 +148,7 @@ async function embedIndex(args: CLIArchiveIndexArguments): Promise<void> {
 }
 
 async function externalizeIndex(args: CLIArchiveIndexArguments): Promise<void> {
-  await new SpineDigestFile(args.archivePath).write(
+  await new WikiGraphArchiveFile(args.archivePath).write(
     async (document) => {
       await setFtsIndexEmbedded(document, false);
       await document.deleteSearchIndexDatabase();
@@ -163,7 +163,7 @@ async function externalizeIndex(args: CLIArchiveIndexArguments): Promise<void> {
 }
 
 async function disableIndex(args: CLIArchiveIndexArguments): Promise<void> {
-  await new SpineDigestFile(args.archivePath).write(
+  await new WikiGraphArchiveFile(args.archivePath).write(
     async (document) => {
       await document.deleteSearchIndexDatabase();
       const settings = await readArchiveIndexSettings(document);
@@ -187,7 +187,7 @@ async function readSearchIndexWritebackPolicy(
 ): Promise<"archive" | "cache"> {
   let embedded = false;
 
-  await new SpineDigestFile(archivePath).readDocument(async (document) => {
+  await new WikiGraphArchiveFile(archivePath).readDocument(async (document) => {
     embedded = (await readArchiveIndexSettings(document)).ftsEmbedded;
   });
 

@@ -21,7 +21,7 @@ import {
   type ChapterDetails,
   type ChapterEntry,
 } from "wiki-graph-core";
-import { SpineDigestFile } from "wiki-graph-core";
+import { WikiGraphArchiveFile } from "wiki-graph-core";
 
 import type { CLIArchiveChapterArguments } from "./args.js";
 import { readTextStreamFromStdin, writeTextToStdout } from "./io.js";
@@ -57,7 +57,7 @@ export async function runArchiveChapterCommand(
       });
       return;
     case "list":
-      await new SpineDigestFile(args.path).readDocument(async (document) => {
+      await new WikiGraphArchiveFile(args.path).readDocument(async (document) => {
         await writeChapterList(
           await listChapters(document),
           args.json ?? false,
@@ -191,7 +191,7 @@ export async function runArchiveChapterCommand(
         return;
       }
 
-      await new SpineDigestFile(args.path).readDocument(async (document) => {
+      await new WikiGraphArchiveFile(args.path).readDocument(async (document) => {
         await writeChapterTree(
           await getChapterTree(document),
           args.json ?? false,
@@ -205,7 +205,7 @@ async function runEditableCommand(
   path: string,
   operation: (document: DirectoryDocument) => Promise<void> | void,
 ): Promise<void> {
-  await new SpineDigestFile(path).write(operation);
+  await new WikiGraphArchiveFile(path).write(operation);
 }
 
 async function readContentText(

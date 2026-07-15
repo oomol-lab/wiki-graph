@@ -1,8 +1,8 @@
 import { clearLine, cursorTo, moveCursor } from "readline";
 
 import type {
-  SpineDigestProgressCallback,
-  SpineDigestProgressEvent,
+  WikiGraphProgressCallback,
+  WikiGraphProgressEvent,
 } from "wiki-graph-core";
 
 interface SerialState {
@@ -14,7 +14,7 @@ interface SerialState {
 }
 
 export interface CLIProgressRenderer {
-  readonly onProgress?: SpineDigestProgressCallback;
+  readonly onProgress?: WikiGraphProgressCallback;
   stop(): Promise<void>;
 }
 
@@ -48,7 +48,7 @@ class TerminalProgressRenderer implements CLIProgressRenderer {
     this.#stream = stream;
   }
 
-  public readonly onProgress: SpineDigestProgressCallback = async (event) => {
+  public readonly onProgress: WikiGraphProgressCallback = async (event) => {
     if (this.#stopping) {
       return;
     }
@@ -85,7 +85,7 @@ class TerminalProgressRenderer implements CLIProgressRenderer {
     await stopTask;
   }
 
-  #applyEvent(event: SpineDigestProgressEvent): void {
+  #applyEvent(event: WikiGraphProgressEvent): void {
     switch (event.type) {
       case "serials-discovered":
         if (!event.available) {

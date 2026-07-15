@@ -1,18 +1,18 @@
 export {
-  SpineDigestApp,
+  WikiGraph,
   type DigestProgressEvent,
   type SerialDiscoveryItem,
-  type SpineDigestAppOptions,
-  type SpineDigestLLMOptions,
-  type SpineDigestOpenSessionOptions,
-  type SpineDigestProgressCallback,
-  type SpineDigestProgressEvent,
-  type SpineDigestProgressEventType,
-  type SpineDigestOperation,
+  type WikiGraphOptions,
+  type WikiGraphLLMOptions,
+  type WikiGraphOpenSessionOptions,
+  type WikiGraphProgressCallback,
+  type WikiGraphProgressEvent,
+  type WikiGraphProgressEventType,
+  type WikiGraphOperation,
   type SerialsDiscoveredEvent,
   type SerialProgressEvent,
-  type SpineDigestSourceSessionOptions,
-  type SpineDigestTextStreamSessionOptions,
+  type WikiGraphSourceSessionOptions,
+  type WikiGraphTextStreamSessionOptions,
 } from "./app.js";
 export {
   findArchiveObjects,
@@ -184,5 +184,5 @@ export type {
   GraphSearchHit,
   GraphStatus,
 } from "./graph.js";
-export { SpineDigest } from "./spine-digest.js";
-export type { SpineDigestSerialEntry } from "./types.js";
+export { WikiGraphArchive } from "./wiki-graph-archive.js";
+export type { WikiGraphSerialEntry } from "./types.js";

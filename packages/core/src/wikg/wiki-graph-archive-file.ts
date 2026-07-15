@@ -4,9 +4,9 @@ import { DirectoryDocument } from "../document/index.js";
 
 import { WikgCoordinator } from "./wikg-coordinator.js";
 import { deleteArchiveSearchSessions } from "../archive/query/index.js";
-import { SpineDigest } from "../facade/spine-digest.js";
+import { WikiGraphArchive } from "../facade/wiki-graph-archive.js";
 
-export class SpineDigestFile {
+export class WikiGraphArchiveFile {
   readonly #path: string;
   readonly #coordinator = new WikgCoordinator();
 
@@ -15,14 +15,14 @@ export class SpineDigestFile {
   }
 
   public async read<T>(
-    operation: (digest: SpineDigest) => Promise<T> | T,
+    operation: (digest: WikiGraphArchive) => Promise<T> | T,
     options: {
       readonly documentDirPath?: string;
     } = {},
   ): Promise<T> {
     return await this.readDocument(
       async (document, directoryPath) =>
-        await operation(new SpineDigest(document, directoryPath)),
+        await operation(new WikiGraphArchive(document, directoryPath)),
       options,
     );
   }

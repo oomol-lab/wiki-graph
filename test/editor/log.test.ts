@@ -43,7 +43,7 @@ describe("editor/log", () => {
   });
 
   it("writes clue hierarchy, iteration details, language mismatch, and final selection", async () => {
-    await withTempDir("spinedigest-editor-log-", async (path) => {
+    await withTempDir("wikigraph-editor-log-", async (path) => {
       const log = new CompressionLog(1, 2, {
         compressionRatio: 0.25,
         logDirPath: path,

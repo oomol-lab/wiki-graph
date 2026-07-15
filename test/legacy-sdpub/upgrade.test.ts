@@ -14,7 +14,7 @@ import { withTempDir } from "../helpers/temp.js";
 
 describe("legacy-sdpub/upgrade", () => {
   it("migrates a released sdpub archive into wikg", async () => {
-    await withTempDir("spinedigest-legacy-sdpub-", async (path) => {
+    await withTempDir("wikigraph-legacy-sdpub-", async (path) => {
       const documentPath = `${path}/legacy-document`;
       const legacyArchivePath = `${path}/book.sdpub`;
       const migratedArchivePath = `${path}/book.wikg`;
@@ -67,7 +67,7 @@ describe("legacy-sdpub/upgrade", () => {
   });
 
   it("accepts released sdpub archives with a manifest", async () => {
-    await withTempDir("spinedigest-legacy-sdpub-", async (path) => {
+    await withTempDir("wikigraph-legacy-sdpub-", async (path) => {
       const documentPath = `${path}/legacy-document`;
       const legacyArchivePath = `${path}/manifest.sdpub`;
       const outputPath = `${path}/custom.wikg`;
@@ -88,7 +88,7 @@ describe("legacy-sdpub/upgrade", () => {
   });
 
   it("deduplicates duplicated legacy source fragment halves", async () => {
-    await withTempDir("spinedigest-legacy-sdpub-", async (path) => {
+    await withTempDir("wikigraph-legacy-sdpub-", async (path) => {
       const documentPath = `${path}/legacy-document`;
       const legacyArchivePath = `${path}/duplicated.sdpub`;
       const migratedArchivePath = `${path}/duplicated.wikg`;
@@ -139,7 +139,7 @@ describe("legacy-sdpub/upgrade", () => {
   });
 
   it("rejects unsupported legacy inputs", async () => {
-    await withTempDir("spinedigest-legacy-sdpub-", async (path) => {
+    await withTempDir("wikigraph-legacy-sdpub-", async (path) => {
       const archivePath = `${path}/broken.sdpub`;
       const zipFile = new ZipFile();
 

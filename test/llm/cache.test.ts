@@ -7,7 +7,7 @@ import { withTempDir } from "../helpers/temp.js";
 
 describe("llm/cache", () => {
   it("creates, writes, and reads cache entries", async () => {
-    await withTempDir("spinedigest-cache-", async (path) => {
+    await withTempDir("wikigraph-cache-", async (path) => {
       const cache = new LLMCache(path);
       const entry = cache.createEntry("alpha", "cached-response");
 
@@ -21,7 +21,7 @@ describe("llm/cache", () => {
   });
 
   it("returns undefined for missing cache entries", async () => {
-    await withTempDir("spinedigest-cache-", async (path) => {
+    await withTempDir("wikigraph-cache-", async (path) => {
       const cache = new LLMCache(path);
 
       await expect(cache.read("missing")).resolves.toBeUndefined();

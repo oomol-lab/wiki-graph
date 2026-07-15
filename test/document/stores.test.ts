@@ -10,7 +10,7 @@ import { withTempDir } from "../helpers/temp.js";
 async function withDocument(
   operation: (document: DirectoryDocument) => Promise<void>,
 ): Promise<void> {
-  await withTempDir("spinedigest-stores-", async (path) => {
+  await withTempDir("wikigraph-stores-", async (path) => {
     const document = await DirectoryDocument.open(path);
 
     try {

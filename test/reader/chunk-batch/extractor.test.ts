@@ -11,8 +11,8 @@ vi.mock("tinyld", () => ({
 }));
 
 import {
-  SPINE_DIGEST_READER_SCOPES,
-  SpineDigestScope,
+  WIKI_GRAPH_READER_SCOPES,
+  WikiGraphScope,
 } from "../../../packages/core/src/common/llm-scope.js";
 import { Language } from "../../../packages/core/src/common/language.js";
 import { ChunkImportance } from "../../../packages/core/src/document/index.js";
@@ -36,7 +36,7 @@ describe("reader/chunk-batch/extractor", () => {
   });
 
   it("extracts user-focused chunks through the scripted llm protocol", async () => {
-    const llm = new ScriptedLLM<SpineDigestScope>([
+    const llm = new ScriptedLLM<WikiGraphScope>([
       JSON.stringify({
         chunks: [
           {
@@ -54,10 +54,10 @@ describe("reader/chunk-batch/extractor", () => {
         links: [],
       }),
     ]);
-    const extractor = new ChunkExtractor<SpineDigestScope>({
+    const extractor = new ChunkExtractor<WikiGraphScope>({
       extractionGuidance: "Focus on plot",
       llm: llm as never,
-      scopes: SPINE_DIGEST_READER_SCOPES,
+      scopes: WIKI_GRAPH_READER_SCOPES,
       sentenceTextSource: {
         getSentence: (sentenceId) => Promise.resolve(sentenceId.join(":")),
       },
@@ -110,12 +110,12 @@ describe("reader/chunk-batch/extractor", () => {
     ).toContain('[{"sentence_id":"S1","quote":"exact short source quote"}]');
     expect(llm.calls).toHaveLength(1);
     expect(llm.calls[0]?.messages[1]?.content).toBe("S1: Alpha begins.");
-    expect(llm.calls[0]?.options.scope).toBe(SpineDigestScope.ReaderExtraction);
+    expect(llm.calls[0]?.options.scope).toBe(WikiGraphScope.ReaderExtraction);
     expect(llm.calls[0]?.viaContext).toBe(true);
   });
 
   it("normalizes source sentences for evidence selection prompts", async () => {
-    const llm = new ScriptedLLM<SpineDigestScope>([
+    const llm = new ScriptedLLM<WikiGraphScope>([
       JSON.stringify({
         chunks: [
           {
@@ -133,10 +133,10 @@ describe("reader/chunk-batch/extractor", () => {
         links: [],
       }),
     ]);
-    const extractor = new ChunkExtractor<SpineDigestScope>({
+    const extractor = new ChunkExtractor<WikiGraphScope>({
       extractionGuidance: "Focus on plot",
       llm: llm as never,
-      scopes: SPINE_DIGEST_READER_SCOPES,
+      scopes: WIKI_GRAPH_READER_SCOPES,
       sentenceTextSource: {
         getSentence: (sentenceId) => Promise.resolve(sentenceId.join(":")),
       },
@@ -159,7 +159,7 @@ describe("reader/chunk-batch/extractor", () => {
   });
 
   it("extracts book-coherence chunks with valid importance annotations", async () => {
-    const llm = new ScriptedLLM<SpineDigestScope>([
+    const llm = new ScriptedLLM<WikiGraphScope>([
       JSON.stringify({
         chunks: [
           {
@@ -182,10 +182,10 @@ describe("reader/chunk-batch/extractor", () => {
         links: [],
       }),
     ]);
-    const extractor = new ChunkExtractor<SpineDigestScope>({
+    const extractor = new ChunkExtractor<WikiGraphScope>({
       extractionGuidance: "Focus on plot",
       llm: llm as never,
-      scopes: SPINE_DIGEST_READER_SCOPES,
+      scopes: WIKI_GRAPH_READER_SCOPES,
       sentenceTextSource: {
         getSentence: (sentenceId) => Promise.resolve(sentenceId.join(":")),
       },
@@ -248,7 +248,7 @@ describe("reader/chunk-batch/extractor", () => {
   });
 
   it("allows book-coherence links to current user-focused chunks", async () => {
-    const llm = new ScriptedLLM<SpineDigestScope>([
+    const llm = new ScriptedLLM<WikiGraphScope>([
       JSON.stringify({
         chunks: [
           {
@@ -277,10 +277,10 @@ describe("reader/chunk-batch/extractor", () => {
         ],
       }),
     ]);
-    const extractor = new ChunkExtractor<SpineDigestScope>({
+    const extractor = new ChunkExtractor<WikiGraphScope>({
       extractionGuidance: "Focus on plot",
       llm: llm as never,
-      scopes: SPINE_DIGEST_READER_SCOPES,
+      scopes: WIKI_GRAPH_READER_SCOPES,
       sentenceTextSource: {
         getSentence: (sentenceId) => Promise.resolve(sentenceId.join(":")),
       },
@@ -333,13 +333,13 @@ describe("reader/chunk-batch/extractor", () => {
       fragment_summary: "ignored",
       links: [],
     });
-    const llm = new ScriptedLLM<SpineDigestScope>(
+    const llm = new ScriptedLLM<WikiGraphScope>(
       Array.from({ length: 8 }, () => invalidResponse),
     );
-    const extractor = new ChunkExtractor<SpineDigestScope>({
+    const extractor = new ChunkExtractor<WikiGraphScope>({
       extractionGuidance: "Focus on plot",
       llm: llm as never,
-      scopes: SPINE_DIGEST_READER_SCOPES,
+      scopes: WIKI_GRAPH_READER_SCOPES,
       sentenceTextSource: {
         getSentence: (sentenceId) => Promise.resolve(sentenceId.join(":")),
       },
@@ -372,13 +372,13 @@ describe("reader/chunk-batch/extractor", () => {
   });
 
   it("returns an empty chunk batch when guaranteed retries are exhausted", async () => {
-    const llm = new ScriptedLLM<SpineDigestScope>(
+    const llm = new ScriptedLLM<WikiGraphScope>(
       Array.from({ length: 16 }, () => "I cannot answer that."),
     );
-    const extractor = new ChunkExtractor<SpineDigestScope>({
+    const extractor = new ChunkExtractor<WikiGraphScope>({
       extractionGuidance: "Focus on plot",
       llm: llm as never,
-      scopes: SPINE_DIGEST_READER_SCOPES,
+      scopes: WIKI_GRAPH_READER_SCOPES,
       sentenceTextSource: {
         getSentence: (sentenceId) => Promise.resolve(sentenceId.join(":")),
       },
@@ -410,7 +410,7 @@ describe("reader/chunk-batch/extractor", () => {
   });
 
   it("translates extracted chunks when the requested language differs", async () => {
-    const llm = new ScriptedLLM<SpineDigestScope>([
+    const llm = new ScriptedLLM<WikiGraphScope>([
       JSON.stringify({
         chunks: [
           {
@@ -434,10 +434,10 @@ describe("reader/chunk-batch/extractor", () => {
         },
       ]),
     ]);
-    const extractor = new ChunkExtractor<SpineDigestScope>({
+    const extractor = new ChunkExtractor<WikiGraphScope>({
       extractionGuidance: "Focus on plot",
       llm: llm as never,
-      scopes: SPINE_DIGEST_READER_SCOPES,
+      scopes: WIKI_GRAPH_READER_SCOPES,
       sentenceTextSource: {
         getSentence: (sentenceId) => Promise.resolve(sentenceId.join(":")),
       },
@@ -465,13 +465,13 @@ describe("reader/chunk-batch/extractor", () => {
       TRANSLATE_CHUNKS_PROMPT_TEMPLATE,
     );
     expect(llm.calls).toHaveLength(2);
-    expect(llm.calls[1]?.options.scope).toBe(SpineDigestScope.ReaderExtraction);
+    expect(llm.calls[1]?.options.scope).toBe(WikiGraphScope.ReaderExtraction);
     expect(llm.calls[1]?.viaContext).toBe(false);
   });
 
   it("skips translation when the extracted chunks already match the target language", async () => {
     detectMock.mockReturnValue("en");
-    const llm = new ScriptedLLM<SpineDigestScope>([
+    const llm = new ScriptedLLM<WikiGraphScope>([
       JSON.stringify({
         chunks: [
           {
@@ -488,10 +488,10 @@ describe("reader/chunk-batch/extractor", () => {
         links: [],
       }),
     ]);
-    const extractor = new ChunkExtractor<SpineDigestScope>({
+    const extractor = new ChunkExtractor<WikiGraphScope>({
       extractionGuidance: "Focus on plot",
       llm: llm as never,
-      scopes: SPINE_DIGEST_READER_SCOPES,
+      scopes: WIKI_GRAPH_READER_SCOPES,
       sentenceTextSource: {
         getSentence: (sentenceId) => Promise.resolve(sentenceId.join(":")),
       },
@@ -529,7 +529,7 @@ describe("reader/chunk-batch/extractor", () => {
         label: "Greeting",
       },
     ]);
-    const llm = new ScriptedLLM<SpineDigestScope>([
+    const llm = new ScriptedLLM<WikiGraphScope>([
       JSON.stringify({
         chunks: [
           {
@@ -559,10 +559,10 @@ describe("reader/chunk-batch/extractor", () => {
       invalidTranslation,
       invalidTranslation,
     ]);
-    const extractor = new ChunkExtractor<SpineDigestScope>({
+    const extractor = new ChunkExtractor<WikiGraphScope>({
       extractionGuidance: "Focus on plot",
       llm: llm as never,
-      scopes: SPINE_DIGEST_READER_SCOPES,
+      scopes: WIKI_GRAPH_READER_SCOPES,
       sentenceTextSource: {
         getSentence: (sentenceId) => Promise.resolve(sentenceId.join(":")),
       },
@@ -607,7 +607,7 @@ describe("reader/chunk-batch/extractor", () => {
   });
 
   it("projects dangerous ASCII characters before sending fragment text to the llm", async () => {
-    const llm = new ScriptedLLM<SpineDigestScope>([
+    const llm = new ScriptedLLM<WikiGraphScope>([
       JSON.stringify({
         chunks: [
           {
@@ -627,10 +627,10 @@ describe("reader/chunk-batch/extractor", () => {
         links: [],
       }),
     ]);
-    const extractor = new ChunkExtractor<SpineDigestScope>({
+    const extractor = new ChunkExtractor<WikiGraphScope>({
       extractionGuidance: "Focus on plot",
       llm: llm as never,
-      scopes: SPINE_DIGEST_READER_SCOPES,
+      scopes: WIKI_GRAPH_READER_SCOPES,
       sentenceTextSource: {
         getSentence: (sentenceId) => Promise.resolve(sentenceId.join(":")),
       },

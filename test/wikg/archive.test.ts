@@ -20,7 +20,7 @@ const VALID_MUTATION_TOKEN_CONTENT = `wikg-mutation-token:v1\n${"a".repeat(43)}\
 
 describe("wikg/archive", () => {
   it("writes and extracts only whitelisted wikg document files", async () => {
-    await withTempDir("spinedigest-archive-", async (path) => {
+    await withTempDir("wikigraph-archive-", async (path) => {
       const sourceDir = `${path}/source`;
       const archivePath = `${path}/result/book.wikg`;
       const extractDir = `${path}/extract`;
@@ -83,7 +83,7 @@ describe("wikg/archive", () => {
   });
 
   it("omits external FTS databases from new archives", async () => {
-    await withTempDir("spinedigest-archive-", async (path) => {
+    await withTempDir("wikigraph-archive-", async (path) => {
       const sourceDir = `${path}/source`;
       const archivePath = `${path}/book.wikg`;
       const document = await DirectoryDocument.open(sourceDir);
@@ -103,7 +103,7 @@ describe("wikg/archive", () => {
   });
 
   it("includes embedded FTS databases in new archives", async () => {
-    await withTempDir("spinedigest-archive-", async (path) => {
+    await withTempDir("wikigraph-archive-", async (path) => {
       const sourceDir = `${path}/source`;
       const archivePath = `${path}/book.wikg`;
       const document = await DirectoryDocument.open(sourceDir);
@@ -133,7 +133,7 @@ describe("wikg/archive", () => {
   });
 
   it("creates parent directories for the output archive path", async () => {
-    await withTempDir("spinedigest-archive-", async (path) => {
+    await withTempDir("wikigraph-archive-", async (path) => {
       const sourceDir = `${path}/source`;
       const archivePath = `${path}/deep/output/book.wikg`;
 
@@ -150,7 +150,7 @@ describe("wikg/archive", () => {
   });
 
   it("reads a deflated archive entry without extracting the archive", async () => {
-    await withTempDir("spinedigest-archive-", async (path) => {
+    await withTempDir("wikigraph-archive-", async (path) => {
       const sourceDir = `${path}/source`;
       const archivePath = `${path}/book.wikg`;
       const databaseContent = "sqlite\n".repeat(2000);
@@ -166,7 +166,7 @@ describe("wikg/archive", () => {
   });
 
   it("keeps the manifest when overlays delete it", async () => {
-    await withTempDir("spinedigest-archive-", async (path) => {
+    await withTempDir("wikigraph-archive-", async (path) => {
       const sourceDir = `${path}/source`;
       const archivePath = `${path}/book.wikg`;
       const rewrittenPath = `${path}/rewritten.wikg`;
@@ -187,7 +187,7 @@ describe("wikg/archive", () => {
   });
 
   it("refreshes the mutation token when overlays rewrite the archive", async () => {
-    await withTempDir("spinedigest-archive-", async (path) => {
+    await withTempDir("wikigraph-archive-", async (path) => {
       const sourceDir = `${path}/source`;
       const archivePath = `${path}/book.wikg`;
       const rewrittenPath = `${path}/rewritten.wikg`;
@@ -213,7 +213,7 @@ describe("wikg/archive", () => {
   });
 
   it("rejects archives that omit the mutation token", async () => {
-    await withTempDir("spinedigest-archive-", async (path) => {
+    await withTempDir("wikigraph-archive-", async (path) => {
       const archivePath = `${path}/missing-token.wikg`;
       const extractDir = `${path}/extract`;
       const zipFile = new ZipFile();
@@ -232,7 +232,7 @@ describe("wikg/archive", () => {
   });
 
   it("rejects archives with malformed mutation tokens", async () => {
-    await withTempDir("spinedigest-archive-", async (path) => {
+    await withTempDir("wikigraph-archive-", async (path) => {
       const archivePath = `${path}/malformed-token.wikg`;
       const zipFile = new ZipFile();
 
@@ -254,7 +254,7 @@ describe("wikg/archive", () => {
   });
 
   it("rejects archives that omit the manifest", async () => {
-    await withTempDir("spinedigest-archive-", async (path) => {
+    await withTempDir("wikigraph-archive-", async (path) => {
       const archivePath = `${path}/missing-manifest.wikg`;
       const extractDir = `${path}/extract`;
       const zipFile = new ZipFile();
@@ -273,7 +273,7 @@ describe("wikg/archive", () => {
   });
 
   it("rejects archives with unsupported manifest versions", async () => {
-    await withTempDir("spinedigest-archive-", async (path) => {
+    await withTempDir("wikigraph-archive-", async (path) => {
       const archivePath = `${path}/future.wikg`;
       const zipFile = new ZipFile();
 
@@ -295,7 +295,7 @@ describe("wikg/archive", () => {
   });
 
   it("rejects archives with malformed manifest files", async () => {
-    await withTempDir("spinedigest-archive-", async (path) => {
+    await withTempDir("wikigraph-archive-", async (path) => {
       const archivePath = `${path}/malformed.wikg`;
       const zipFile = new ZipFile();
 

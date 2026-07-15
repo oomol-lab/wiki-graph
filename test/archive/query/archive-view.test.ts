@@ -32,7 +32,7 @@ let testStateDir: string | undefined;
 
 describe("archive/query/archive-view", () => {
   beforeEach(async () => {
-    testStateDir = await mkdtemp(join(tmpdir(), "spinedigest-state-"));
+    testStateDir = await mkdtemp(join(tmpdir(), "wikigraph-state-"));
     process.env.WIKIGRAPH_STATE_DIR = testStateDir;
   });
 
@@ -45,7 +45,7 @@ describe("archive/query/archive-view", () => {
   });
 
   it("distinguishes a missing index from a current empty index", async () => {
-    await withTempDir("spinedigest-archive-view-", async (path) => {
+    await withTempDir("wikigraph-archive-view-", async (path) => {
       const document = await DirectoryDocument.open(`${path}/document`);
 
       try {
@@ -67,7 +67,7 @@ describe("archive/query/archive-view", () => {
   });
 
   it("marks the FTS index outdated when indexed content changes without a chapters revision bump", async () => {
-    await withTempDir("spinedigest-archive-view-", async (path) => {
+    await withTempDir("wikigraph-archive-view-", async (path) => {
       const document = await DirectoryDocument.open(`${path}/document`);
 
       try {
@@ -107,7 +107,7 @@ describe("archive/query/archive-view", () => {
   });
 
   it("rejects search when the FTS index is missing", async () => {
-    await withTempDir("spinedigest-archive-view-", async (path) => {
+    await withTempDir("wikigraph-archive-view-", async (path) => {
       const document = await DirectoryDocument.open(`${path}/document`);
 
       try {
@@ -121,7 +121,7 @@ describe("archive/query/archive-view", () => {
   });
 
   it("rejects evidence and related queries when the FTS index is missing", async () => {
-    await withTempDir("spinedigest-archive-view-", async (path) => {
+    await withTempDir("wikigraph-archive-view-", async (path) => {
       const document = await DirectoryDocument.open(`${path}/document`);
 
       try {
@@ -188,7 +188,7 @@ describe("archive/query/archive-view", () => {
   });
 
   it("searches sourced sentences before graph or summary build", async () => {
-    await withTempDir("spinedigest-archive-view-", async (path) => {
+    await withTempDir("wikigraph-archive-view-", async (path) => {
       const document = await DirectoryDocument.open(`${path}/document`);
 
       try {
@@ -223,7 +223,7 @@ describe("archive/query/archive-view", () => {
   });
 
   it("renders source text from the stored text stream without sentence newlines", async () => {
-    await withTempDir("spinedigest-archive-view-", async (path) => {
+    await withTempDir("wikigraph-archive-view-", async (path) => {
       const document = await DirectoryDocument.open(`${path}/document`);
       const sourceText = "\n\n  Alpha one.\n\nBeta two.\n\n";
 
@@ -262,7 +262,7 @@ describe("archive/query/archive-view", () => {
   });
 
   it("coalesces expanded text search hits within a result page", async () => {
-    await withTempDir("spinedigest-archive-view-", async (path) => {
+    await withTempDir("wikigraph-archive-view-", async (path) => {
       const document = await DirectoryDocument.open(`${path}/document`);
 
       try {
@@ -314,7 +314,7 @@ describe("archive/query/archive-view", () => {
   });
 
   it("finds any whitespace-separated keyword by default", async () => {
-    await withTempDir("spinedigest-archive-view-", async (path) => {
+    await withTempDir("wikigraph-archive-view-", async (path) => {
       const document = await DirectoryDocument.open(`${path}/document`);
 
       try {
@@ -342,7 +342,7 @@ describe("archive/query/archive-view", () => {
   });
 
   it("searches through the archive-local FTS index with normalized tokens", async () => {
-    await withTempDir("spinedigest-archive-view-", async (path) => {
+    await withTempDir("wikigraph-archive-view-", async (path) => {
       const document = await DirectoryDocument.open(`${path}/document`);
 
       try {
@@ -397,7 +397,7 @@ describe("archive/query/archive-view", () => {
   });
 
   it("orders text search hits by FTS relevance within the text bucket", async () => {
-    await withTempDir("spinedigest-archive-view-", async (path) => {
+    await withTempDir("wikigraph-archive-view-", async (path) => {
       const document = await DirectoryDocument.open(`${path}/document`);
 
       try {
@@ -453,7 +453,7 @@ describe("archive/query/archive-view", () => {
   });
 
   it("orders chapter search hits by FTS relevance within the object property bucket", async () => {
-    await withTempDir("spinedigest-archive-view-", async (path) => {
+    await withTempDir("wikigraph-archive-view-", async (path) => {
       const document = await DirectoryDocument.open(`${path}/document`);
 
       try {
@@ -508,7 +508,7 @@ describe("archive/query/archive-view", () => {
   });
 
   it("limits FTS candidates before search cache hydration", async () => {
-    await withTempDir("spinedigest-archive-view-", async (path) => {
+    await withTempDir("wikigraph-archive-view-", async (path) => {
       const document = await DirectoryDocument.open(`${path}/document`);
 
       try {
@@ -556,7 +556,7 @@ describe("archive/query/archive-view", () => {
   });
 
   it("caches empty search results for repeated queries", async () => {
-    await withTempDir("spinedigest-archive-view-", async (path) => {
+    await withTempDir("wikigraph-archive-view-", async (path) => {
       const previousStateDir = process.env.WIKIGRAPH_STATE_DIR;
       process.env.WIKIGRAPH_STATE_DIR = `${path}/state`;
       const document = await DirectoryDocument.open(`${path}/document`);
@@ -594,7 +594,7 @@ describe("archive/query/archive-view", () => {
   });
 
   it("keeps search caches isolated by type and chapter filters", async () => {
-    await withTempDir("spinedigest-archive-view-", async (path) => {
+    await withTempDir("wikigraph-archive-view-", async (path) => {
       const previousStateDir = process.env.WIKIGRAPH_STATE_DIR;
       process.env.WIKIGRAPH_STATE_DIR = `${path}/state`;
       const document = await DirectoryDocument.open(`${path}/document`);
@@ -691,7 +691,7 @@ describe("archive/query/archive-view", () => {
   });
 
   it("groups field-level hits into one object search result", async () => {
-    await withTempDir("spinedigest-archive-view-", async (path) => {
+    await withTempDir("wikigraph-archive-view-", async (path) => {
       const previousStateDir = process.env.WIKIGRAPH_STATE_DIR;
       process.env.WIKIGRAPH_STATE_DIR = `${path}/state`;
       const document = await DirectoryDocument.open(`${path}/document`);
@@ -731,7 +731,7 @@ describe("archive/query/archive-view", () => {
   });
 
   it("refreshes cached search results after archive cache invalidation", async () => {
-    await withTempDir("spinedigest-archive-view-", async (path) => {
+    await withTempDir("wikigraph-archive-view-", async (path) => {
       const previousStateDir = process.env.WIKIGRAPH_STATE_DIR;
       process.env.WIKIGRAPH_STATE_DIR = `${path}/state`;
       const document = await DirectoryDocument.open(`${path}/document`);
@@ -778,7 +778,7 @@ describe("archive/query/archive-view", () => {
   });
 
   it("prioritizes entity matches before source hits", async () => {
-    await withTempDir("spinedigest-archive-view-", async (path) => {
+    await withTempDir("wikigraph-archive-view-", async (path) => {
       const previousStateDir = process.env.WIKIGRAPH_STATE_DIR;
       process.env.WIKIGRAPH_STATE_DIR = `${path}/state`;
       const document = await DirectoryDocument.open(`${path}/document`);
@@ -838,7 +838,7 @@ describe("archive/query/archive-view", () => {
   });
 
   it("keeps entity results ahead of high-frequency source matches", async () => {
-    await withTempDir("spinedigest-archive-view-", async (path) => {
+    await withTempDir("wikigraph-archive-view-", async (path) => {
       const document = await DirectoryDocument.open(`${path}/document`);
 
       try {
@@ -878,7 +878,7 @@ describe("archive/query/archive-view", () => {
   });
 
   it("hydrates entity evidence after reading a search session page", async () => {
-    await withTempDir("spinedigest-archive-view-", async (path) => {
+    await withTempDir("wikigraph-archive-view-", async (path) => {
       const previousStateDir = process.env.WIKIGRAPH_STATE_DIR;
       process.env.WIKIGRAPH_STATE_DIR = `${path}/state`;
       const document = await DirectoryDocument.open(`${path}/document`);
@@ -953,7 +953,7 @@ describe("archive/query/archive-view", () => {
   });
 
   it("continues entity search cursors without repeating --type", async () => {
-    await withTempDir("spinedigest-archive-view-", async (path) => {
+    await withTempDir("wikigraph-archive-view-", async (path) => {
       const previousStateDir = process.env.WIKIGRAPH_STATE_DIR;
       process.env.WIKIGRAPH_STATE_DIR = `${path}/state`;
       const document = await DirectoryDocument.open(`${path}/document`);
@@ -1014,7 +1014,7 @@ describe("archive/query/archive-view", () => {
   });
 
   it("keeps exact entity surfaces ahead of weaker same-qid mentions", async () => {
-    await withTempDir("spinedigest-archive-view-", async (path) => {
+    await withTempDir("wikigraph-archive-view-", async (path) => {
       const previousStateDir = process.env.WIKIGRAPH_STATE_DIR;
       process.env.WIKIGRAPH_STATE_DIR = `${path}/state`;
       const document = await DirectoryDocument.open(`${path}/document`);
@@ -1072,7 +1072,7 @@ describe("archive/query/archive-view", () => {
   });
 
   it("does not expand entity matches through qid aliases", async () => {
-    await withTempDir("spinedigest-archive-view-", async (path) => {
+    await withTempDir("wikigraph-archive-view-", async (path) => {
       const previousStateDir = process.env.WIKIGRAPH_STATE_DIR;
       process.env.WIKIGRAPH_STATE_DIR = `${path}/state`;
       const document = await DirectoryDocument.open(`${path}/document`);
@@ -1126,7 +1126,7 @@ describe("archive/query/archive-view", () => {
   });
 
   it("adds only a small bonus for repeated entity evidence", async () => {
-    await withTempDir("spinedigest-archive-view-", async (path) => {
+    await withTempDir("wikigraph-archive-view-", async (path) => {
       const previousStateDir = process.env.WIKIGRAPH_STATE_DIR;
       process.env.WIKIGRAPH_STATE_DIR = `${path}/state`;
       const document = await DirectoryDocument.open(`${path}/document`);
@@ -1177,7 +1177,7 @@ describe("archive/query/archive-view", () => {
   });
 
   it("finds triples when only one endpoint matches the query", async () => {
-    await withTempDir("spinedigest-archive-view-", async (path) => {
+    await withTempDir("wikigraph-archive-view-", async (path) => {
       const previousStateDir = process.env.WIKIGRAPH_STATE_DIR;
       process.env.WIKIGRAPH_STATE_DIR = `${path}/state`;
       const document = await DirectoryDocument.open(`${path}/document`);
@@ -1253,7 +1253,7 @@ describe("archive/query/archive-view", () => {
   });
 
   it("adds only a small bonus for repeated triple evidence", async () => {
-    await withTempDir("spinedigest-archive-view-", async (path) => {
+    await withTempDir("wikigraph-archive-view-", async (path) => {
       const previousStateDir = process.env.WIKIGRAPH_STATE_DIR;
       process.env.WIKIGRAPH_STATE_DIR = `${path}/state`;
       const document = await DirectoryDocument.open(`${path}/document`);
@@ -1312,7 +1312,7 @@ describe("archive/query/archive-view", () => {
   });
 
   it("supports all-keyword find matching when requested", async () => {
-    await withTempDir("spinedigest-archive-view-", async (path) => {
+    await withTempDir("wikigraph-archive-view-", async (path) => {
       const document = await DirectoryDocument.open(`${path}/document`);
 
       try {
@@ -1351,7 +1351,7 @@ describe("archive/query/archive-view", () => {
   });
 
   it("greps exact text without splitting whitespace-separated keywords", async () => {
-    await withTempDir("spinedigest-archive-view-", async (path) => {
+    await withTempDir("wikigraph-archive-view-", async (path) => {
       const document = await DirectoryDocument.open(`${path}/document`);
 
       try {
@@ -1382,7 +1382,7 @@ describe("archive/query/archive-view", () => {
   });
 
   it("filters search results by type and chapter", async () => {
-    await withTempDir("spinedigest-archive-view-", async (path) => {
+    await withTempDir("wikigraph-archive-view-", async (path) => {
       const document = await DirectoryDocument.open(`${path}/document`);
 
       try {
@@ -1412,7 +1412,7 @@ describe("archive/query/archive-view", () => {
   });
 
   it("keeps indexed text-only cursors paginated beyond the first lookahead", async () => {
-    await withTempDir("spinedigest-archive-view-", async (path) => {
+    await withTempDir("wikigraph-archive-view-", async (path) => {
       const document = await DirectoryDocument.open(`${path}/document`);
 
       try {
@@ -1464,7 +1464,7 @@ describe("archive/query/archive-view", () => {
   });
 
   it("paginates search results with stable cursors", async () => {
-    await withTempDir("spinedigest-archive-view-", async (path) => {
+    await withTempDir("wikigraph-archive-view-", async (path) => {
       const document = await DirectoryDocument.open(`${path}/document`);
 
       try {
@@ -1493,7 +1493,7 @@ describe("archive/query/archive-view", () => {
   });
 
   it("rejects invalid search cursors", async () => {
-    await withTempDir("spinedigest-archive-view-", async (path) => {
+    await withTempDir("wikigraph-archive-view-", async (path) => {
       const document = await DirectoryDocument.open(`${path}/document`);
 
       try {
@@ -1509,7 +1509,7 @@ describe("archive/query/archive-view", () => {
   });
 
   it("reads chapter title and state as separate objects", async () => {
-    await withTempDir("spinedigest-archive-view-", async (path) => {
+    await withTempDir("wikigraph-archive-view-", async (path) => {
       const document = await DirectoryDocument.open(`${path}/document`);
 
       try {
@@ -1545,7 +1545,7 @@ describe("archive/query/archive-view", () => {
   });
 
   it("reads archive metadata as the Wiki Graph root object", async () => {
-    await withTempDir("spinedigest-archive-view-", async (path) => {
+    await withTempDir("wikigraph-archive-view-", async (path) => {
       const document = await DirectoryDocument.open(`${path}/document`);
 
       try {
@@ -1581,7 +1581,7 @@ describe("archive/query/archive-view", () => {
   });
 
   it("reads entity wikipage resources", async () => {
-    await withTempDir("spinedigest-archive-view-", async (path) => {
+    await withTempDir("wikigraph-archive-view-", async (path) => {
       const document = await DirectoryDocument.open(`${path}/document`);
 
       try {
@@ -1617,7 +1617,7 @@ describe("archive/query/archive-view", () => {
   });
 
   it("does not include metadata fields in search", async () => {
-    await withTempDir("spinedigest-archive-view-", async (path) => {
+    await withTempDir("wikigraph-archive-view-", async (path) => {
       const previousStateDir = process.env.WIKIGRAPH_STATE_DIR;
       process.env.WIKIGRAPH_STATE_DIR = `${path}/state`;
       const document = await DirectoryDocument.open(`${path}/document`);
@@ -1658,7 +1658,7 @@ describe("archive/query/archive-view", () => {
   });
 
   it("treats chapter search results as title hits only", async () => {
-    await withTempDir("spinedigest-archive-view-", async (path) => {
+    await withTempDir("wikigraph-archive-view-", async (path) => {
       const previousStateDir = process.env.WIKIGRAPH_STATE_DIR;
       process.env.WIKIGRAPH_STATE_DIR = `${path}/state`;
       const document = await DirectoryDocument.open(`${path}/document`);
@@ -1691,7 +1691,7 @@ describe("archive/query/archive-view", () => {
   });
 
   it("hydrates collection evidence only after pagination", async () => {
-    await withTempDir("spinedigest-archive-view-", async (path) => {
+    await withTempDir("wikigraph-archive-view-", async (path) => {
       const document = await DirectoryDocument.open(`${path}/document`);
 
       try {
@@ -1736,7 +1736,7 @@ describe("archive/query/archive-view", () => {
   });
 
   it("labels source fragments with their chapter title", async () => {
-    await withTempDir("spinedigest-archive-view-", async (path) => {
+    await withTempDir("wikigraph-archive-view-", async (path) => {
       const document = await DirectoryDocument.open(`${path}/document`);
 
       try {
@@ -1758,7 +1758,7 @@ describe("archive/query/archive-view", () => {
   });
 
   it("shows source sentence range pages", async () => {
-    await withTempDir("spinedigest-archive-view-", async (path) => {
+    await withTempDir("wikigraph-archive-view-", async (path) => {
       const document = await DirectoryDocument.open(`${path}/document`);
 
       try {
@@ -1783,7 +1783,7 @@ describe("archive/query/archive-view", () => {
   });
 
   it("keeps multi-digit source range indexes intact", async () => {
-    await withTempDir("spinedigest-archive-view-", async (path) => {
+    await withTempDir("wikigraph-archive-view-", async (path) => {
       const document = await DirectoryDocument.open(`${path}/document`);
 
       try {
@@ -1823,7 +1823,7 @@ describe("archive/query/archive-view", () => {
   });
 
   it("rejects malformed source sentence ranges", async () => {
-    await withTempDir("spinedigest-archive-view-", async (path) => {
+    await withTempDir("wikigraph-archive-view-", async (path) => {
       const document = await DirectoryDocument.open(`${path}/document`);
 
       try {
@@ -1845,7 +1845,7 @@ describe("archive/query/archive-view", () => {
   });
 
   it("rejects out-of-bounds source sentence ranges", async () => {
-    await withTempDir("spinedigest-archive-view-", async (path) => {
+    await withTempDir("wikigraph-archive-view-", async (path) => {
       const document = await DirectoryDocument.open(`${path}/document`);
 
       try {
@@ -1863,7 +1863,7 @@ describe("archive/query/archive-view", () => {
   });
 
   it("shows node pages with generated summaries and source fragments", async () => {
-    await withTempDir("spinedigest-archive-view-", async (path) => {
+    await withTempDir("wikigraph-archive-view-", async (path) => {
       const document = await DirectoryDocument.open(`${path}/document`);
 
       try {
@@ -1894,7 +1894,7 @@ describe("archive/query/archive-view", () => {
   });
 
   it("maps node sentence indexes back to source fragments", async () => {
-    await withTempDir("spinedigest-archive-view-", async (path) => {
+    await withTempDir("wikigraph-archive-view-", async (path) => {
       const document = await DirectoryDocument.open(`${path}/document`);
 
       try {
@@ -1919,7 +1919,7 @@ describe("archive/query/archive-view", () => {
   });
 
   it("orders no-query source and evidence results by document flow", async () => {
-    await withTempDir("spinedigest-archive-view-", async (path) => {
+    await withTempDir("wikigraph-archive-view-", async (path) => {
       const document = await DirectoryDocument.open(`${path}/document`);
 
       try {
@@ -2013,7 +2013,7 @@ describe("archive/query/archive-view", () => {
   });
 
   it("lists objects as a pageable collection", async () => {
-    await withTempDir("spinedigest-archive-view-", async (path) => {
+    await withTempDir("wikigraph-archive-view-", async (path) => {
       const document = await DirectoryDocument.open(`${path}/document`);
 
       try {
@@ -2203,7 +2203,7 @@ describe("archive/query/archive-view", () => {
   });
 
   it("sorts entity related triples with list-mode frequency", async () => {
-    await withTempDir("spinedigest-archive-view-", async (path) => {
+    await withTempDir("wikigraph-archive-view-", async (path) => {
       const document = await DirectoryDocument.open(`${path}/document`);
 
       try {
@@ -2299,7 +2299,7 @@ describe("archive/query/archive-view", () => {
   });
 
   it("breaks related triple frequency ties by sentence position", async () => {
-    await withTempDir("spinedigest-archive-view-", async (path) => {
+    await withTempDir("wikigraph-archive-view-", async (path) => {
       const document = await DirectoryDocument.open(`${path}/document`);
 
       try {
@@ -2379,7 +2379,7 @@ describe("archive/query/archive-view", () => {
   });
 
   it("filters and sorts entity related triples by query text", async () => {
-    await withTempDir("spinedigest-archive-view-", async (path) => {
+    await withTempDir("wikigraph-archive-view-", async (path) => {
       const document = await DirectoryDocument.open(`${path}/document`);
 
       try {
@@ -2484,7 +2484,7 @@ describe("archive/query/archive-view", () => {
   });
 
   it("does not match entity related query against the anchor mention surface", async () => {
-    await withTempDir("spinedigest-archive-view-", async (path) => {
+    await withTempDir("wikigraph-archive-view-", async (path) => {
       const document = await DirectoryDocument.open(`${path}/document`);
 
       try {
@@ -2545,7 +2545,7 @@ describe("archive/query/archive-view", () => {
   });
 
   it("filters chunk related results through chunk property FTS", async () => {
-    await withTempDir("spinedigest-archive-view-", async (path) => {
+    await withTempDir("wikigraph-archive-view-", async (path) => {
       const document = await DirectoryDocument.open(`${path}/document`);
 
       try {
@@ -2575,7 +2575,7 @@ describe("archive/query/archive-view", () => {
   });
 
   it("matches entity related query against mention link evidence sentences", async () => {
-    await withTempDir("spinedigest-archive-view-", async (path) => {
+    await withTempDir("wikigraph-archive-view-", async (path) => {
       const document = await DirectoryDocument.open(`${path}/document`);
 
       try {
@@ -2630,7 +2630,7 @@ describe("archive/query/archive-view", () => {
   });
 
   it("matches entity related triples by mention-link evidence text", async () => {
-    await withTempDir("spinedigest-archive-view-", async (path) => {
+    await withTempDir("wikigraph-archive-view-", async (path) => {
       const document = await DirectoryDocument.open(`${path}/document`);
 
       try {
@@ -2683,7 +2683,7 @@ describe("archive/query/archive-view", () => {
   });
 
   it("rejects malformed top-level chunk and entity URIs", async () => {
-    await withTempDir("spinedigest-archive-view-", async (path) => {
+    await withTempDir("wikigraph-archive-view-", async (path) => {
       const document = await DirectoryDocument.open(`${path}/document`);
 
       try {
@@ -2702,7 +2702,7 @@ describe("archive/query/archive-view", () => {
   });
 
   it("applies evidence limits when reading entity pages", async () => {
-    await withTempDir("spinedigest-archive-view-", async (path) => {
+    await withTempDir("wikigraph-archive-view-", async (path) => {
       const document = await DirectoryDocument.open(`${path}/document`);
 
       try {
@@ -2763,7 +2763,7 @@ describe("archive/query/archive-view", () => {
   });
 
   it("reads archive objects as continuous text", async () => {
-    await withTempDir("spinedigest-archive-view-", async (path) => {
+    await withTempDir("wikigraph-archive-view-", async (path) => {
       const document = await DirectoryDocument.open(`${path}/document`);
 
       try {
@@ -2785,7 +2785,7 @@ describe("archive/query/archive-view", () => {
   });
 
   it("returns source evidence for chunks, entities, and triples", async () => {
-    await withTempDir("spinedigest-archive-view-", async (path) => {
+    await withTempDir("wikigraph-archive-view-", async (path) => {
       const document = await DirectoryDocument.open(`${path}/document`);
 
       try {
@@ -3039,7 +3039,7 @@ describe("archive/query/archive-view", () => {
   });
 
   it("filters evidence by query text", async () => {
-    await withTempDir("spinedigest-archive-view-", async (path) => {
+    await withTempDir("wikigraph-archive-view-", async (path) => {
       const document = await DirectoryDocument.open(`${path}/document`);
 
       try {
@@ -3085,7 +3085,7 @@ describe("archive/query/archive-view", () => {
   });
 
   it("does not match triple evidence query against endpoint mention sentences", async () => {
-    await withTempDir("spinedigest-archive-view-", async (path) => {
+    await withTempDir("wikigraph-archive-view-", async (path) => {
       const document = await DirectoryDocument.open(`${path}/document`);
 
       try {
@@ -3149,7 +3149,7 @@ describe("archive/query/archive-view", () => {
   });
 
   it("keeps query-ranked evidence order after context expansion", async () => {
-    await withTempDir("spinedigest-archive-view-", async (path) => {
+    await withTempDir("wikigraph-archive-view-", async (path) => {
       const document = await DirectoryDocument.open(`${path}/document`);
 
       try {
@@ -3207,7 +3207,7 @@ describe("archive/query/archive-view", () => {
   });
 
   it("returns backlinks for source sentence ranges", async () => {
-    await withTempDir("spinedigest-archive-view-", async (path) => {
+    await withTempDir("wikigraph-archive-view-", async (path) => {
       const document = await DirectoryDocument.open(`${path}/document`);
 
       try {

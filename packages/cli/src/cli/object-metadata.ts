@@ -4,7 +4,7 @@ import {
   ObjectMetadataKind,
   type ObjectMetadataTarget,
 } from "wiki-graph-core";
-import { SpineDigestFile } from "wiki-graph-core";
+import { WikiGraphArchiveFile } from "wiki-graph-core";
 
 import type { CLIObjectMetadataArguments } from "./args.js";
 import { readTextStreamFromStdin, writeTextToStdout } from "./io.js";
@@ -17,7 +17,7 @@ export async function runObjectMetadataCommand(
 
   switch (args.action) {
     case "get":
-      await new SpineDigestFile(args.archivePath).readDocument(
+      await new WikiGraphArchiveFile(args.archivePath).readDocument(
         async (document) => {
           await writeMetadataMap(
             await document.metadata.getMap(args.objectPath),
@@ -30,7 +30,7 @@ export async function runObjectMetadataCommand(
       const value = await readMetadataInput(args, { jsonRequired: true });
       const map = parseMetadataMap(value);
 
-      await new SpineDigestFile(args.archivePath).write(async (document) => {
+      await new WikiGraphArchiveFile(args.archivePath).write(async (document) => {
         await document.metadata.replaceMap(target, map);
         await writeMetadataMap(
           await document.metadata.getMap(args.objectPath),
@@ -43,7 +43,7 @@ export async function runObjectMetadataCommand(
       const key = normalizeMetadataKey(args.key);
       const value = await readMetadataInput(args, { jsonRequired: false });
 
-      await new SpineDigestFile(args.archivePath).write(async (document) => {
+      await new WikiGraphArchiveFile(args.archivePath).write(async (document) => {
         await document.metadata.put(target, key, value);
         await writeMetadataMap(
           await document.metadata.getMap(args.objectPath),
@@ -53,7 +53,7 @@ export async function runObjectMetadataCommand(
       return;
     }
     case "delete":
-      await new SpineDigestFile(args.archivePath).write(async (document) => {
+      await new WikiGraphArchiveFile(args.archivePath).write(async (document) => {
         await document.metadata.deleteKey(
           args.objectPath,
           normalizeMetadataKey(args.key),
@@ -65,7 +65,7 @@ export async function runObjectMetadataCommand(
       });
       return;
     case "clear":
-      await new SpineDigestFile(args.archivePath).write(async (document) => {
+      await new WikiGraphArchiveFile(args.archivePath).write(async (document) => {
         await document.metadata.clear(args.objectPath);
         await writeMetadataMap(
           await document.metadata.getMap(args.objectPath),

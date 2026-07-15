@@ -30,7 +30,7 @@ import type {
   SnakeRecord,
 } from "../document/index.js";
 import { DirectoryDocument, Fragments } from "../document/index.js";
-import { SPINE_DIGEST_EDITOR_SCOPES } from "../common/llm-scope.js";
+import { WIKI_GRAPH_EDITOR_SCOPES } from "../common/llm-scope.js";
 import { normalizeLanguageCode } from "../common/language.js";
 import { compressText } from "../editor/index.js";
 import { segmentTextStream, type ReaderTextStream } from "../reader/index.js";
@@ -471,7 +471,7 @@ async function buildSummaryFromSnapshot(
       llm: options.llm,
       maxClues: 10,
       maxIterations: 5,
-      scopes: SPINE_DIGEST_EDITOR_SCOPES,
+      scopes: WIKI_GRAPH_EDITOR_SCOPES,
       serialId: chapterId,
       ...(options.logDirPath === undefined
         ? {}
@@ -525,7 +525,7 @@ async function buildSummaryFromDocument(
       llm: options.llm,
       maxClues: 10,
       maxIterations: 5,
-      scopes: SPINE_DIGEST_EDITOR_SCOPES,
+      scopes: WIKI_GRAPH_EDITOR_SCOPES,
       serialId: chapterId,
       ...(options.logDirPath === undefined
         ? {}

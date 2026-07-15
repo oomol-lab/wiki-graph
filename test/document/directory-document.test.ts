@@ -11,7 +11,7 @@ import { withTempDir } from "../helpers/temp.js";
 
 describe("document/directory-document", () => {
   it("persists metadata, cover, toc, summaries, and serial state", async () => {
-    await withTempDir("spinedigest-document-", async (path) => {
+    await withTempDir("wikigraph-document-", async (path) => {
       const document = await DirectoryDocument.open(path);
 
       try {
@@ -69,7 +69,7 @@ describe("document/directory-document", () => {
   });
 
   it("rolls back newly created files when a session fails", async () => {
-    await withTempDir("spinedigest-document-", async (path) => {
+    await withTempDir("wikigraph-document-", async (path) => {
       const document = await DirectoryDocument.open(path);
 
       try {
@@ -103,7 +103,7 @@ describe("document/directory-document", () => {
   });
 
   it("writes files only once per path inside a document", async () => {
-    await withTempDir("spinedigest-document-", async (path) => {
+    await withTempDir("wikigraph-document-", async (path) => {
       const document = await DirectoryDocument.open(path);
 
       try {
@@ -136,7 +136,7 @@ describe("document/directory-document", () => {
   });
 
   it("replaces existing archive metadata", async () => {
-    await withTempDir("spinedigest-document-", async (path) => {
+    await withTempDir("wikigraph-document-", async (path) => {
       const document = await DirectoryDocument.open(path);
 
       try {
@@ -181,7 +181,7 @@ describe("document/directory-document", () => {
   });
 
   it("persists object metadata and clears chapter-owned rows", async () => {
-    await withTempDir("spinedigest-document-", async (path) => {
+    await withTempDir("wikigraph-document-", async (path) => {
       const document = await DirectoryDocument.open(path);
 
       try {
@@ -231,7 +231,7 @@ describe("document/directory-document", () => {
   });
 
   it("rolls back owned serial resources when a document context is disposed without completion", async () => {
-    await withTempDir("spinedigest-document-", async (path) => {
+    await withTempDir("wikigraph-document-", async (path) => {
       const document = await DirectoryDocument.open(path);
       const context = document.createContext();
 
@@ -288,7 +288,7 @@ describe("document/directory-document", () => {
   });
 
   it("shares text stream draft ownership across serial instances", async () => {
-    await withTempDir("spinedigest-document-", async (path) => {
+    await withTempDir("wikigraph-document-", async (path) => {
       const document = await DirectoryDocument.open(path);
 
       try {

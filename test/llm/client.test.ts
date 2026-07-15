@@ -98,7 +98,7 @@ vi.mock("ai", () => ({
   }),
 }));
 
-import { SpineDigestScope } from "../../packages/core/src/common/llm-scope.js";
+import { WikiGraphScope } from "../../packages/core/src/common/llm-scope.js";
 import { LLM } from "../../packages/core/src/llm/client.js";
 import { LLMPaymentRequiredError } from "../../packages/core/src/llm/errors.js";
 import { withTempDir } from "../helpers/temp.js";
@@ -198,7 +198,7 @@ describe("llm/client", () => {
   });
 
   it("writes token usage to request logs when the provider returns it", async () => {
-    await withTempDir("spinedigest-llm-log-", async (logDirPath) => {
+    await withTempDir("wikigraph-llm-log-", async (logDirPath) => {
       const llm = new LLM({
         dataDirPath: process.cwd(),
         logDirPath,
@@ -265,7 +265,7 @@ describe("llm/client", () => {
   });
 
   it("keeps cache keys based on the original messages", async () => {
-    await withTempDir("spinedigest-llm-cache-", async (cacheDirPath) => {
+    await withTempDir("wikigraph-llm-cache-", async (cacheDirPath) => {
       const llm = new LLM({
         cacheDirPath,
         dataDirPath: process.cwd(),
@@ -295,7 +295,7 @@ describe("llm/client", () => {
   });
 
   it("writes cache-hit usage to request logs for cached responses", async () => {
-    await withTempDir("spinedigest-llm-cache-log-", async (path) => {
+    await withTempDir("wikigraph-llm-cache-log-", async (path) => {
       const cacheDirPath = `${path}/cache`;
       const logDirPath = `${path}/logs`;
       const llm = new LLM({
@@ -328,7 +328,7 @@ describe("llm/client", () => {
   });
 
   it("does not use cache for requests without visible non-system content", async () => {
-    await withTempDir("spinedigest-llm-empty-cache-", async (cacheDirPath) => {
+    await withTempDir("wikigraph-llm-empty-cache-", async (cacheDirPath) => {
       const llm = new LLM({
         cacheDirPath,
         dataDirPath: process.cwd(),
@@ -503,14 +503,14 @@ describe("llm/client", () => {
   });
 
   it("uses explicit scoped sampling defaults provided by the caller", async () => {
-    const llm = new LLM<SpineDigestScope.EditorCompress>({
+    const llm = new LLM<WikiGraphScope.EditorCompress>({
       dataDirPath: process.cwd(),
       model: {
         modelId: "test-model",
         provider: "test-provider",
       } as never,
       sampling: {
-        [SpineDigestScope.EditorCompress]: {
+        [WikiGraphScope.EditorCompress]: {
           temperature: 0.7,
           topP: 0.9,
         },
@@ -525,7 +525,7 @@ describe("llm/client", () => {
         },
       ],
       {
-        scope: SpineDigestScope.EditorCompress,
+        scope: WikiGraphScope.EditorCompress,
       },
     );
 
@@ -670,7 +670,7 @@ describe("llm/client", () => {
   });
 
   it("writes unavailable usage and error stack to request logs after failures", async () => {
-    await withTempDir("spinedigest-llm-error-log-", async (logDirPath) => {
+    await withTempDir("wikigraph-llm-error-log-", async (logDirPath) => {
       aiMockState.generateTextError = new TypeError("terminated");
 
       const llm = new LLM({

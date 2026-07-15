@@ -1,6 +1,6 @@
 import { spawn } from "child_process";
 
-import { SpineDigestScope } from "wiki-graph-core";
+import { WikiGraphScope } from "wiki-graph-core";
 import { withLoggingContext } from "wiki-graph-core";
 import {
   addBuildJob,
@@ -36,7 +36,7 @@ import {
   type BuildJobTarget,
   type ChapterEntry,
 } from "wiki-graph-core";
-import { SpineDigestFile } from "wiki-graph-core";
+import { WikiGraphArchiveFile } from "wiki-graph-core";
 import type {
   GuaranteedRequest,
   GuaranteedRequestController,
@@ -224,7 +224,7 @@ async function addArchiveJobs(
     readonly reason: string;
   }> = [];
 
-  await new SpineDigestFile(args.archivePath!).readDocument(
+  await new WikiGraphArchiveFile(args.archivePath!).readDocument(
     async (document) => {
       for (const chapter of await listChapters(document)) {
         if (chapter.stage === "planned") {
@@ -267,7 +267,7 @@ async function addArchiveJobs(
 }
 
 async function assertQueueAddReady(args: CLIQueueArguments): Promise<void> {
-  await new SpineDigestFile(args.archivePath!).read(async (digest) => {
+  await new WikiGraphArchiveFile(args.archivePath!).read(async (digest) => {
     if ((await digest.readChapterStage(args.chapterId!)) === "planned") {
       throw new Error(
         `Chapter ${args.chapterId!} is planned. Set source before queueing a build job.`,
@@ -282,7 +282,7 @@ async function readQueueAddChapter(
 ): Promise<ChapterEntry> {
   let matched: ChapterEntry | undefined;
 
-  await new SpineDigestFile(args.archivePath!).readDocument(
+  await new WikiGraphArchiveFile(args.archivePath!).readDocument(
     async (document) => {
       matched = (await listChapters(document)).find(
         (chapter) => chapter.chapterId === chapterId,
@@ -374,14 +374,14 @@ async function executeBuildJobWithLogging(
     await llm.request(messages, {
       retryIndex: index,
       retryMax: maxRetries,
-      scope: SpineDigestScope.ReaderExtraction,
+      scope: WikiGraphScope.ReaderExtraction,
       signal: context.signal,
     });
   request.lazy = async <T>(
     operation: (request: GuaranteedRequest) => Promise<T>,
   ): Promise<T> => await llm.request(async () => await operation(request));
 
-  const buildInput = await new SpineDigestFile(job.archivePath).readDocument(
+  const buildInput = await new WikiGraphArchiveFile(job.archivePath).readDocument(
     async (document) => await readChapterBuildInput(document, job.chapterId),
   );
   let { details } = buildInput;
@@ -409,7 +409,7 @@ async function executeBuildJobWithLogging(
     const wikispine = requireKnowledgeGraphWikispineConfig(config);
 
     await reporter.stepStarted("knowledge-graph");
-    const knowledgeGraphInput = await new SpineDigestFile(
+    const knowledgeGraphInput = await new WikiGraphArchiveFile(
       job.archivePath,
     ).readDocument(async (document) => {
       await assertCurrentBuildInputRevision(job, document);
@@ -436,7 +436,7 @@ async function executeBuildJobWithLogging(
       total: 1,
       unit: "item",
     });
-    await new SpineDigestFile(job.archivePath).write(async (document) => {
+    await new WikiGraphArchiveFile(job.archivePath).write(async (document) => {
       assertJobStillRunning(await getBuildJob(job.jobId));
       await assertCurrentBuildInputRevision(job, document);
       await commitChapterKnowledgeGraphArtifact(document, artifact);
@@ -478,7 +478,7 @@ async function executeBuildJobWithLogging(
       total: 1,
       unit: "item",
     });
-    details = await new SpineDigestFile(job.archivePath).write(
+    details = await new WikiGraphArchiveFile(job.archivePath).write(
       async (document) => {
         assertJobStillRunning(await getBuildJob(job.jobId));
         await assertCurrentBuildInputRevision(job, document);
@@ -491,7 +491,7 @@ async function executeBuildJobWithLogging(
       total: 1,
       unit: "item",
     });
-    const nextBuildInput = await new SpineDigestFile(
+    const nextBuildInput = await new WikiGraphArchiveFile(
       job.archivePath,
     ).readDocument(
       async (document) => await readChapterBuildInput(document, job.chapterId),
@@ -513,7 +513,7 @@ async function executeBuildJobWithLogging(
     return;
   }
   if (details.stage !== "graphed") {
-    ({ details } = await new SpineDigestFile(job.archivePath).readDocument(
+    ({ details } = await new WikiGraphArchiveFile(job.archivePath).readDocument(
       async (document) => await readChapterBuildInput(document, job.chapterId),
     ));
   }
@@ -524,7 +524,7 @@ async function executeBuildJobWithLogging(
   }
 
   await reporter.stepStarted("reading-summary");
-  const summaryInput = await new SpineDigestFile(job.archivePath).readDocument(
+  const summaryInput = await new WikiGraphArchiveFile(job.archivePath).readDocument(
     async (document) => {
       await assertCurrentBuildInputRevision(job, document);
       return await snapshotChapterSummaryInput(
@@ -545,7 +545,7 @@ async function executeBuildJobWithLogging(
     total: 1,
     unit: "item",
   });
-  details = await new SpineDigestFile(job.archivePath).write(
+  details = await new WikiGraphArchiveFile(job.archivePath).write(
     async (document) => {
       assertJobStillRunning(await getBuildJob(job.jobId));
       await assertCurrentBuildInputRevision(job, document);

@@ -1,8 +1,8 @@
 import { rm } from "fs/promises";
 import { resolve } from "path";
 
-import { SpineDigestApp, type SpineDigestAppOptions } from "wiki-graph-core";
-import type { SpineDigest } from "wiki-graph-core";
+import { WikiGraph, type WikiGraphOptions } from "wiki-graph-core";
+import type { WikiGraphArchive } from "wiki-graph-core";
 
 import type { CLIArguments } from "./args.js";
 import { loadCLIConfig, type CLIConfig } from "./config.js";
@@ -83,7 +83,7 @@ export async function runConvertCommand(args: CLIArguments): Promise<void> {
     requiresDigest && targetStage !== "planned" && targetStage !== "sourced";
   const digestDirPath = await prepareDigestDirPath(args, requiresDigest);
   const config = await loadRequiredConfig(args, requiresLLM);
-  const app = new SpineDigestApp(createAppOptions(args, config, requiresLLM));
+  const app = new WikiGraph(createAppOptions(args, config, requiresLLM));
   const progressRenderer = createCLIProgressRenderer({
     enabled:
       requiresDigest &&
@@ -246,7 +246,7 @@ function createAppOptions(
   args: CLIArguments,
   config: CLIConfig,
   requiresDigest: boolean,
-): SpineDigestAppOptions {
+): WikiGraphOptions {
   const llmOptions = !requiresDigest ? undefined : buildLLMOptions(config);
 
   return {
@@ -256,7 +256,7 @@ function createAppOptions(
 }
 
 async function writeDigestOutput(
-  digest: SpineDigest,
+  digest: WikiGraphArchive,
   output: ResolvedOutputEndpoint,
 ): Promise<void> {
   if (output.path !== undefined) {
@@ -282,7 +282,7 @@ async function writeDigestOutput(
 }
 
 async function writeDigestToFile(
-  digest: SpineDigest,
+  digest: WikiGraphArchive,
   path: string,
   format: CLIFormat,
 ): Promise<void> {

@@ -47,10 +47,10 @@ vi.mock("../../packages/core/src/facade/digest.js", () => ({
   ),
 }));
 
-import { SpineDigestScope } from "../../packages/core/src/common/llm-scope.js";
+import { WikiGraphScope } from "../../packages/core/src/common/llm-scope.js";
 import { DirectoryDocument } from "../../packages/core/src/document/index.js";
-import { SpineDigest } from "../../packages/core/src/facade/spine-digest.js";
-import { Language, SpineDigestApp } from "../../packages/core/src/index.js";
+import { WikiGraphArchive } from "../../packages/core/src/facade/wiki-graph-archive.js";
+import { Language, WikiGraph } from "../../packages/core/src/index.js";
 import { withTempDir } from "../helpers/temp.js";
 
 describe("facade/app", () => {
@@ -63,7 +63,7 @@ describe("facade/app", () => {
   });
 
   it("throws when digest operations require an llm but none is configured", async () => {
-    const app = new SpineDigestApp({});
+    const app = new WikiGraph({});
 
     await expect(
       app.digestTxtSession(
@@ -73,7 +73,7 @@ describe("facade/app", () => {
         () => undefined,
       ),
     ).rejects.toThrow(
-      "LLM is required for digest operations. Configure `llm` when constructing SpineDigestApp.",
+      "LLM is required for digest operations. Configure `llm` when constructing WikiGraph.",
     );
   });
 
@@ -81,15 +81,15 @@ describe("facade/app", () => {
     const fakeModel = {
       provider: "test-model",
     };
-    const app = new SpineDigestApp({
-      debugLogDirPath: "/tmp/spinedigest-debug",
+    const app = new WikiGraph({
+      debugLogDirPath: "/tmp/wikigraph-debug",
       llm: fakeModel as never,
     });
     const onProgress = vi.fn();
 
     const result = await app.digestTxtSession(
       {
-        documentDirPath: "/tmp/spinedigest-document",
+        documentDirPath: "/tmp/wikigraph-document",
         extractionPrompt: "   ",
         onProgress,
         path: "/tmp/source.txt",
@@ -115,7 +115,7 @@ describe("facade/app", () => {
     expect(isAbsolute(llmOptions.dataDirPath)).toBe(true);
     expect(basename(llmOptions.dataDirPath)).toBe("data");
     expect(llmOptions.model).toBe(fakeModel);
-    expect(llmOptions.sampling[SpineDigestScope.EditorCompress]).toStrictEqual({
+    expect(llmOptions.sampling[WikiGraphScope.EditorCompress]).toStrictEqual({
       temperature: 0.7,
       topP: 0.9,
     });
@@ -130,8 +130,8 @@ describe("facade/app", () => {
       readonly userLanguage: string;
     };
 
-    expect(digestCall.documentDirPath).toBe("/tmp/spinedigest-document");
-    expect(digestCall.logDirPath).toBe("/tmp/spinedigest-debug");
+    expect(digestCall.documentDirPath).toBe("/tmp/wikigraph-document");
+    expect(digestCall.logDirPath).toBe("/tmp/wikigraph-debug");
     expect(digestCall.onProgress).toBe(onProgress);
     expect(digestCall.path).toBe("/tmp/source.txt");
     expect(digestCall.userLanguage).toBe(Language.SimplifiedChinese);
@@ -145,7 +145,7 @@ describe("facade/app", () => {
     const fakeModel = {
       provider: "test-model",
     };
-    const app = new SpineDigestApp({
+    const app = new WikiGraph({
       llm: {
         cacheDirPath: "/tmp/cache",
         model: fakeModel as never,
@@ -189,12 +189,12 @@ describe("facade/app", () => {
     expect(llmOptions.model).toBe(fakeModel);
     expect(llmOptions.stream).toBe(true);
     expect(llmOptions.temperature).toBe(0.3);
-    expect(llmOptions.sampling[SpineDigestScope.EditorCompress]).toStrictEqual({
+    expect(llmOptions.sampling[WikiGraphScope.EditorCompress]).toStrictEqual({
       temperature: 0.3,
       topP: 0.9,
     });
     expect(
-      llmOptions.sampling[SpineDigestScope.EditorReviewGuide],
+      llmOptions.sampling[WikiGraphScope.EditorReviewGuide],
     ).toStrictEqual({
       temperature: 0.3,
       topP: 0.6,
@@ -220,7 +220,7 @@ describe("facade/app", () => {
   });
 
   it("opens saved digest archives without requiring llm configuration", async () => {
-    await withTempDir("spinedigest-app-", async (path) => {
+    await withTempDir("wikigraph-app-", async (path) => {
       const originalStateDir = process.env.WIKIGRAPH_STATE_DIR;
 
       process.env.WIKIGRAPH_STATE_DIR = `${path}/state`;
@@ -254,9 +254,9 @@ describe("facade/app", () => {
         });
 
         const archivePath = `${path}/fixture/book.wikg`;
-        await new SpineDigest(document, document.path).saveAs(archivePath);
+        await new WikiGraphArchive(document, document.path).saveAs(archivePath);
 
-        const app = new SpineDigestApp({});
+        const app = new WikiGraph({});
         const title = await app.openSession(archivePath, async (digest) => {
           return (await digest.readMeta())?.title;
         });

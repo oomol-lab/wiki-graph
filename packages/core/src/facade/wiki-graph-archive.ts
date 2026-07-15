@@ -12,9 +12,9 @@ import {
   writeWikgArchive,
 } from "../wikg/index.js";
 import type { ChapterStage } from "./chapter.js";
-import type { SpineDigestSerialEntry } from "./types.js";
+import type { WikiGraphSerialEntry } from "./types.js";
 
-export class SpineDigest {
+export class WikiGraphArchive {
   readonly #document: ReadonlyDocument;
   readonly #documentDirectoryPath: string;
 
@@ -91,7 +91,7 @@ export class SpineDigest {
     });
   }
 
-  public async listSerials(): Promise<readonly SpineDigestSerialEntry[]> {
+  public async listSerials(): Promise<readonly WikiGraphSerialEntry[]> {
     return await this.#document.openSession(async (document) => {
       const toc = await document.readToc();
 
@@ -156,8 +156,8 @@ async function collectSerialEntries(
   document: ReadonlyDocument,
   items: readonly TocItem[],
   ancestorTitles: readonly string[] = [],
-): Promise<readonly SpineDigestSerialEntry[]> {
-  const entries: SpineDigestSerialEntry[] = [];
+): Promise<readonly WikiGraphSerialEntry[]> {
+  const entries: WikiGraphSerialEntry[] = [];
 
   for (const item of items) {
     const title = item.title?.trim() || `Chapter ${item.serialId ?? "group"}`;

@@ -55,7 +55,7 @@ describe("source/plain-text", () => {
   });
 
   it("rejects directory inputs", async () => {
-    await withTempDir("spinedigest-source-", async (path) => {
+    await withTempDir("wikigraph-source-", async (path) => {
       const directoryPath = `${path}/nested`;
       await mkdir(directoryPath);
 

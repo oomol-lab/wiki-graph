@@ -3,24 +3,24 @@ import { getLogger } from "../common/logging.js";
 import type {
   DigestProgressEvent,
   SerialProgressEvent,
-  SpineDigestOperation,
-  SpineDigestProgressCallback,
-  SpineDigestProgressEvent,
+  WikiGraphOperation,
+  WikiGraphProgressCallback,
+  WikiGraphProgressEvent,
 } from "./types.js";
 
 export class ProgressReporter {
-  readonly #callback: SpineDigestProgressCallback | undefined;
-  readonly #operation: SpineDigestOperation;
+  readonly #callback: WikiGraphProgressCallback | undefined;
+  readonly #operation: WikiGraphOperation;
 
   public constructor(
-    operation: SpineDigestOperation,
-    callback?: SpineDigestProgressCallback,
+    operation: WikiGraphOperation,
+    callback?: WikiGraphProgressCallback,
   ) {
     this.#callback = callback;
     this.#operation = operation;
   }
 
-  public async emit(event: SpineDigestProgressEvent): Promise<void> {
+  public async emit(event: WikiGraphProgressEvent): Promise<void> {
     getLogger({
       component: "progress",
       eventType: event.type,
@@ -52,14 +52,14 @@ export class ProgressReporter {
 }
 
 export function createProgressReporter(
-  operation: SpineDigestOperation,
-  callback?: SpineDigestProgressCallback,
+  operation: WikiGraphOperation,
+  callback?: WikiGraphProgressCallback,
 ): ProgressReporter {
   return new ProgressReporter(operation, callback);
 }
 
 function buildLogBindings(
-  event: SpineDigestProgressEvent,
+  event: WikiGraphProgressEvent,
 ): Record<string, number> {
   switch (event.type) {
     case "serials-discovered":
@@ -89,7 +89,7 @@ function buildLogBindings(
   }
 }
 
-function buildLogMessage(event: SpineDigestProgressEvent): string {
+function buildLogMessage(event: WikiGraphProgressEvent): string {
   switch (event.type) {
     case "serials-discovered":
       return event.available
