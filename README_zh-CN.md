@@ -275,6 +275,8 @@ $ wg --help
 
 关于归档结构、标准条目、校验和兼容性规则，请阅读 [`.wikg` Archive Standard](./docs/wikg-standard.md)。
 
+关于在 Node.js 中通过代码使用 Wiki Graph，请阅读 [SDK 文档](./docs/zh-CN/sdk.md)。
+
 ## License
 
 Apache-2.0

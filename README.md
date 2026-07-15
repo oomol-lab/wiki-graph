@@ -275,6 +275,8 @@ $ wg --help
 
 For the archive layout, standard entries, validation, and compatibility rules, read the [`.wikg` Archive Standard](./docs/wikg-standard.md).
 
+For programmatic usage from Node.js, read the [SDK guide](./docs/en/sdk.md).
+
 ## License
 
 Apache-2.0
