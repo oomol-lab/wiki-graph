@@ -11,6 +11,7 @@ import {
   type BuildSerialTopologyOptions,
 } from "../serial.js";
 import { TOC_FILE_VERSION, type TocItem } from "../source/index.js";
+import { resolveExtractionPrompt } from "./prompts.js";
 
 export const CHAPTER_STAGES = [
   "planned",
@@ -93,7 +94,7 @@ export interface MoveChapterOptions {
 
 export interface AdvanceChapterStagesOptions {
   readonly chapterId?: number;
-  readonly extractionPrompt: string;
+  readonly extractionPrompt?: string;
   readonly llm: LLM<WikiGraphScope>;
   readonly logDirPath?: string;
   readonly onProgress?: AdvanceChapterStagesProgressCallback;
@@ -179,7 +180,7 @@ export function parseChapterTreeInput(input: unknown): ChapterTreeInput {
 }
 
 export interface GenerateChapterGraphOptions {
-  readonly extractionPrompt: string;
+  readonly extractionPrompt?: string;
   readonly llm: LLM<WikiGraphScope>;
   readonly logDirPath?: string;
   readonly progressTracker?: SerialProgressSink;
@@ -307,7 +308,7 @@ export async function generateChapterGraph(
     );
     const language = normalizeLanguageCode(options.userLanguage);
     const parameter = await openedDocument.graphBuildParameters.save({
-      prompt: options.extractionPrompt,
+      prompt: resolveExtractionPrompt(options.extractionPrompt),
       ...(language === undefined ? {} : { language }),
     });
     await openedDocument.serials.setTopologyReady(
@@ -774,7 +775,7 @@ async function advanceEntriesToGraphed(
       type: "started",
     });
     await generateChapterGraph(document, entry.chapterId, {
-      extractionPrompt: options.extractionPrompt,
+      extractionPrompt: resolveExtractionPrompt(options.extractionPrompt),
       llm: options.llm,
       ...(options.logDirPath === undefined
         ? {}
@@ -1426,7 +1427,7 @@ function createTopologyOptions(
   options: GenerateChapterGraphOptions,
 ): BuildSerialTopologyOptions {
   return {
-    extractionPrompt: options.extractionPrompt,
+    extractionPrompt: resolveExtractionPrompt(options.extractionPrompt),
     ...(options.userLanguage === undefined
       ? {}
       : { userLanguage: options.userLanguage }),

@@ -46,6 +46,7 @@ import {
   type GenerateChapterGraphOptions,
   type GenerateChapterSummaryOptions,
 } from "./chapter.js";
+import { resolveExtractionPrompt } from "./prompts.js";
 
 export interface ChapterGraphBuildArtifact {
   readonly documentPath: string;
@@ -1356,31 +1357,27 @@ async function requireStage(
   }
 }
 
-function createTopologyOptions(
-  options: Pick<
-    BuildSerialTopologyOptions,
-    "extractionPrompt" | "userLanguage"
-  >,
-): BuildSerialTopologyOptions {
+function createTopologyOptions(options: {
+  readonly extractionPrompt?: string;
+  readonly userLanguage?: BuildSerialTopologyOptions["userLanguage"];
+}): BuildSerialTopologyOptions {
   return {
-    extractionPrompt: options.extractionPrompt,
+    extractionPrompt: resolveExtractionPrompt(options.extractionPrompt),
     ...(options.userLanguage === undefined
       ? {}
       : { userLanguage: options.userLanguage }),
   };
 }
 
-function createGraphBuildParameterInput(
-  options: Pick<
-    BuildSerialTopologyOptions,
-    "extractionPrompt" | "userLanguage"
-  >,
-): GraphBuildParameterInput {
+function createGraphBuildParameterInput(options: {
+  readonly extractionPrompt?: string;
+  readonly userLanguage?: BuildSerialTopologyOptions["userLanguage"];
+}): GraphBuildParameterInput {
   const language = normalizeLanguageCode(options.userLanguage);
 
   return {
     ...(language === undefined ? {} : { language }),
-    prompt: options.extractionPrompt,
+    prompt: resolveExtractionPrompt(options.extractionPrompt),
   };
 }
 

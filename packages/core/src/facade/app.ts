@@ -29,11 +29,9 @@ import { createDefaultWikiGraphSampling } from "./llm-sampling.js";
 import { WikiGraphArchiveFile } from "../wikg/index.js";
 import type { WikiGraphArchive } from "./wiki-graph-archive.js";
 import type { ChapterStage } from "./chapter.js";
+import { resolveExtractionPrompt } from "./prompts.js";
 
 const DATA_DIR_PATH = resolveDataDirPath();
-
-const DEFAULT_EXTRACTION_PROMPT =
-  "Focus on the main storyline and key character developments. Preserve important dialogues and critical plot points. Background descriptions and minor details can be compressed significantly.";
 
 export interface WikiGraphLLMOptions {
   readonly cacheDirPath?: string;
@@ -283,12 +281,4 @@ function isWikiGraphLLMOptions(
   llm: NonNullable<WikiGraphOptions["llm"]>,
 ): llm is WikiGraphLLMOptions {
   return typeof llm === "object" && llm !== null && "model" in llm;
-}
-
-function resolveExtractionPrompt(prompt: string | undefined): string {
-  const normalizedPrompt = prompt?.trim();
-
-  return normalizedPrompt === undefined || normalizedPrompt === ""
-    ? DEFAULT_EXTRACTION_PROMPT
-    : normalizedPrompt;
 }

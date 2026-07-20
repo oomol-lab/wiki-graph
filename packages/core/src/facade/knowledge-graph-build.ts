@@ -43,6 +43,7 @@ import {
 
 import { getChapterDetails, type ChapterDetails } from "./chapter.js";
 import type { BuildJobProgressReporter } from "./build-queue.js";
+import { resolveKnowledgeGraphRecallPrompt } from "./prompts.js";
 
 export interface ChapterKnowledgeGraphBuildArtifact {
   readonly chapterId: number;
@@ -72,7 +73,7 @@ export interface BuildChapterKnowledgeGraphArtifactOptions {
 }
 
 export interface GenerateChapterKnowledgeGraphArtifactOptions {
-  readonly policyPrompt: string;
+  readonly policyPrompt?: string;
   readonly progressTracker?: Pick<
     BuildJobProgressReporter,
     "throwIfStopped" | "updatePhase"
@@ -169,6 +170,7 @@ export async function generateChapterKnowledgeGraphArtifactFromSnapshot(
   const fragments = snapshot.fragments;
   const text = joinFragmentText(fragments);
   const sentences = createWikimatchSentences(fragments);
+  const policyPrompt = resolveKnowledgeGraphRecallPrompt(options.policyPrompt);
   await options.progressTracker?.updatePhase({
     done: 0,
     phase: "matching",
@@ -201,7 +203,7 @@ export async function generateChapterKnowledgeGraphArtifactFromSnapshot(
   });
   const screenedCandidates = await screenCandidates({
     candidates: rawCandidates,
-    policyPrompt: options.policyPrompt,
+    policyPrompt,
     ...(options.progressTracker === undefined
       ? {}
       : { progressTracker: options.progressTracker }),
@@ -240,7 +242,7 @@ export async function generateChapterKnowledgeGraphArtifactFromSnapshot(
     candidates: enrichedCandidates,
     chapterId,
     fragments,
-    policyPrompt: options.policyPrompt,
+    policyPrompt,
     ...(options.progressTracker === undefined
       ? {}
       : { progressTracker: options.progressTracker }),
@@ -260,7 +262,12 @@ export async function generateChapterKnowledgeGraphArtifactFromSnapshot(
   const artifact = await buildChapterKnowledgeGraphArtifact(chapterId, {
     mentionLinks,
     mentions,
-    parameter: createKnowledgeGraphParameterInput(options),
+    parameter: createKnowledgeGraphParameterInput({
+      policyPrompt,
+      ...(options.resolverOptions === undefined
+        ? {}
+        : { resolverOptions: options.resolverOptions }),
+    }),
     workspacePath: options.workspacePath,
   });
 
@@ -304,7 +311,7 @@ function createKnowledgeGraphParameterInput(
   options: Pick<
     GenerateChapterKnowledgeGraphArtifactOptions,
     "policyPrompt" | "resolverOptions"
-  >,
+  > & { readonly policyPrompt: string },
 ): GraphBuildParameterInput {
   return {
     language:

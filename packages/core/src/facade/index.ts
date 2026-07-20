@@ -88,6 +88,12 @@ export {
   createContinuationCursor,
   readContinuationCursor,
 } from "../archive/query/index.js";
+export {
+  DEFAULT_EXTRACTION_PROMPT,
+  DEFAULT_KNOWLEDGE_GRAPH_RECALL_PROMPT,
+  resolveExtractionPrompt,
+  resolveKnowledgeGraphRecallPrompt,
+} from "./prompts.js";
 export type { ContinuationCursor } from "../archive/query/index.js";
 export type {
   BuildChapterGraphArtifactOptions,
