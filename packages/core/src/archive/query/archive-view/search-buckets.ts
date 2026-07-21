@@ -19,15 +19,11 @@ import {
   querySearchIndex,
   SEARCH_INDEX_FTS_HIT_LIMIT,
   SEARCH_OBJECT_PROPERTY_OWNER_KIND,
-  type SearchIndexObjectHit,
   type SearchIndexTextHit,
 } from "../../search-index/search-index.js";
 
 import {
   BROAD_FIND_LENS_HINT,
-  compareNumbers,
-  createNodePosition,
-  createSnippet,
   isDefined,
   parseFindLens,
   parseFindMatch,
@@ -49,16 +45,22 @@ import {
   hydrateFindResultBacklinks,
 } from "./backlinks.js";
 import {
-  compareMentions,
-  parseEntityQid,
-  selectEntityLabel,
-} from "./knowledge.js";
-import {
   hydrateSearchObjectHit,
   hydrateSearchTextHit,
   parseSearchPropertyIntegerOwnerId,
   withSearchTerms,
 } from "./search-hydration.js";
+import {
+  hydrateCachedChunkBucketHit,
+  hydrateCachedObjectBucketHit,
+} from "./search-bucket-hydration.js";
+import {
+  compareChapterTitleIndexHits,
+  compareTextIndexHits,
+  getObjectBucketCursorId,
+  isAfterChapterTitleKey,
+  isAfterTextKey,
+} from "./search-bucket-order.js";
 import type { ArchiveFindHit, ArchiveFindOptions, ArchiveFindResult } from "./types.js";
 
 export async function readBucketedSearchResultPage(
@@ -396,157 +398,7 @@ function createBucketQueryWindow(limit: number): number {
   return Math.max(limit + 1, limit * 3 + 1, 100);
 }
 
-async function hydrateCachedObjectBucketHit(
-  document: ReadonlyDocument,
-  hit: ArchiveFindHit,
-): Promise<ArchiveFindHit> {
-  if (hit.type === "entity") {
-    const qid = parseEntityQid(hit.id);
 
-    if (qid === undefined) {
-      return hit;
-    }
-    const mentions = await document.mentions.listByQid(qid);
-    const [first] = [...mentions].sort(compareMentions);
-
-    if (first === undefined) {
-      return hit;
-    }
-
-    return {
-      ...hit,
-      chapter: first.chapterId,
-      position: {
-        chapter: first.chapterId,
-        sentence: first.sentenceIndex ?? 0,
-      },
-      snippet: first.note ?? first.surface,
-      title: selectEntityLabel(mentions),
-    };
-  }
-  if (hit.type === "triple") {
-    return hit;
-  }
-
-  return hit;
-}
-
-async function hydrateCachedChunkBucketHit(
-  document: ReadonlyDocument,
-  hit: ArchiveFindHit,
-): Promise<ArchiveFindHit | undefined> {
-  const chunkId = parseSearchPropertyIntegerOwnerId(
-    hit.id.slice("wikg://chunk/".length),
-  );
-  const node = await document.chunks.getById(chunkId);
-
-  if (node === undefined) {
-    return undefined;
-  }
-  const { position: _position, ...baseHit } = hit;
-  const position = createNodePosition(node.sentenceIds);
-
-  return {
-    ...baseHit,
-    chapter: node.sentenceId[0],
-    field: "title",
-    ...(position === undefined ? {} : { position }),
-    snippet: createSnippet(node.content),
-    title: node.label,
-  };
-}
-
-function compareChapterTitleIndexHits(
-  left: SearchIndexObjectHit,
-  right: SearchIndexObjectHit,
-): number {
-  return (
-    compareNumbers(right.score, left.score) ||
-    compareNumbers(
-      parseSearchPropertyIntegerOwnerId(left.ownerId),
-      parseSearchPropertyIntegerOwnerId(right.ownerId),
-    )
-  );
-}
-
-function compareTextIndexHits(
-  left: SearchIndexTextHit,
-  right: SearchIndexTextHit,
-): number {
-  return (
-    compareNumbers(left.rank, right.rank) ||
-    compareNumbers(left.chapterId, right.chapterId) ||
-    compareNumbers(left.sentenceIndex, right.sentenceIndex) ||
-    compareNumbers(left.kind, right.kind)
-  );
-}
-
-function isAfterChapterTitleKey(
-  hit: SearchIndexObjectHit,
-  key: SearchChapterTitleCursorKey | undefined,
-): boolean {
-  if (key === undefined) {
-    return true;
-  }
-
-  return (
-    compareChapterTitleIndexHits(
-      {
-        ...hit,
-        ownerId: String(key.chapterId),
-        score: key.score,
-      },
-      hit,
-    ) < 0
-  );
-}
-
-function isAfterTextKey(
-  hit: SearchIndexTextHit,
-  key: SearchTextCursorKey | undefined,
-): boolean {
-  if (key === undefined) {
-    return true;
-  }
-
-  return (
-    compareTextIndexHits(
-      {
-        chapterId: key.chapterId,
-        kind: key.kind as SearchIndexTextHit["kind"],
-        rank: key.rank,
-        score: 0,
-        sentenceIndex: key.sentenceIndex,
-        wordsCount: 0,
-      },
-      hit,
-    ) < 0
-  );
-}
-
-function getObjectBucketCursorId(hit: ArchiveFindHit): string {
-  if (hit.type !== "triple") {
-    return hit.id.replace(/^wikg:\/\/entity\//u, "");
-  }
-
-  const triple = parseTripleCursorId(hit.id);
-
-  return triple ?? hit.id;
-}
-
-function parseTripleCursorId(id: string): string | undefined {
-  const match = /^wikg:\/\/triple\/([^/]+)\/([^/]+)\/([^/]+)$/u.exec(id);
-
-  if (
-    match?.[1] === undefined ||
-    match[2] === undefined ||
-    match[3] === undefined
-  ) {
-    return undefined;
-  }
-
-  return `${match[1]}\u001f${decodeURIComponent(match[2])}\u001f${match[3]}`;
-}
 
 export function tryDecodeBucketSearchSessionCursor(cursor: string):
   | {
