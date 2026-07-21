@@ -5,11 +5,11 @@ import {
   judgeWikimatchPolicy,
   parsePolicyResponse,
   type WikimatchCandidate,
-} from "../../packages/core/src/wikimatch/index.js";
+} from "../../packages/core/src/external/wikimatch/index.js";
 import {
   ParsedJsonError,
   type GuaranteedRequest,
-} from "../../packages/core/src/guaranteed/index.js";
+} from "../../packages/core/src/external/guaranteed/index.js";
 
 describe("wikimatch/policy-judge", () => {
   it("retries with precise business errors when recalled mentions overlap", async () => {

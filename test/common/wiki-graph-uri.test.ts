@@ -7,7 +7,7 @@ import {
   formatWikiGraphCommandUri,
   formatWikiGraphObjectUri,
   parseLocatedWikiGraphUri,
-} from "../../packages/core/src/common/wiki-graph-uri.js";
+} from "../../packages/core/src/runtime/common/wiki-graph/uri.js";
 
 describe("wiki graph URI helpers", () => {
   it("formats located URIs with URL path separators", () => {

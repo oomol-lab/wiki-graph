@@ -1,18 +1,18 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { Language } from "../../packages/core/src/common/language.js";
+import { Language } from "../../packages/core/src/runtime/common/language.js";
 import { DirectoryDocument } from "../../packages/core/src/document/index.js";
-import type { SourceDocument } from "../../packages/core/src/source/adapter.js";
-import { createDigestProgressTracker } from "../../packages/core/src/progress/index.js";
+import type { SourceDocument } from "../../packages/core/src/text/source/adapter.js";
+import { createDigestProgressTracker } from "../../packages/core/src/runtime/progress/index.js";
 import type {
   BookMeta,
   SourceAsset,
   SourceSection,
-} from "../../packages/core/src/source/index.js";
+} from "../../packages/core/src/text/source/index.js";
 import {
   importSource,
   importSourceDocument,
-} from "../../packages/core/src/facade/import.js";
+} from "../../packages/core/src/api/import.js";
 import { withTempDir } from "../helpers/temp.js";
 
 const serialMockState = vi.hoisted(() => ({

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { applyQidResolutions } from "../../packages/core/src/wikimatch/index.js";
+import { applyQidResolutions } from "../../packages/core/src/external/wikimatch/index.js";
 
 describe("wikimatch/enrichment", () => {
   it("adds descriptions and disambiguation information to qid options", () => {

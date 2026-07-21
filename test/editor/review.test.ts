@@ -3,8 +3,8 @@ import { describe, expect, it } from "vitest";
 import {
   WIKI_GRAPH_EDITOR_SCOPES,
   WikiGraphScope,
-} from "../../packages/core/src/common/llm-scope.js";
-import { Language } from "../../packages/core/src/common/language.js";
+} from "../../packages/core/src/runtime/common/llm-scope.js";
+import { Language } from "../../packages/core/src/runtime/common/language.js";
 import type { ReadonlySerialFragments } from "../../packages/core/src/document/index.js";
 import type {
   ChunkRecord,
@@ -13,10 +13,10 @@ import type {
 import {
   CLUE_REVIEWER_GENERATOR_PROMPT_TEMPLATE,
   CLUE_REVIEWER_PROMPT_TEMPLATE,
-} from "../../packages/core/src/editor/prompt-templates.js";
-import { CompressionReviewer } from "../../packages/core/src/editor/review.js";
-import type { Clue } from "../../packages/core/src/editor/clue.js";
-import { ReviewSeverity } from "../../packages/core/src/editor/types.js";
+} from "../../packages/core/src/text/editor/prompt-templates.js";
+import { CompressionReviewer } from "../../packages/core/src/text/editor/review.js";
+import type { Clue } from "../../packages/core/src/text/editor/clue.js";
+import { ReviewSeverity } from "../../packages/core/src/text/editor/types.js";
 import { ScriptedLLM } from "../helpers/scripted-llm.js";
 
 describe("editor/review", () => {

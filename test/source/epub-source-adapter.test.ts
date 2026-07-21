@@ -5,8 +5,8 @@ import { describe, expect, it } from "vitest";
 import {
   analyzeSectionTargets,
   EpubContentLoader,
-} from "../../packages/core/src/source/epub/content.js";
-import { EPUB_SOURCE_ADAPTER } from "../../packages/core/src/source/index.js";
+} from "../../packages/core/src/text/source/epub/content.js";
+import { EPUB_SOURCE_ADAPTER } from "../../packages/core/src/text/source/index.js";
 import {
   collectSectionTitles,
   getFixturePath,

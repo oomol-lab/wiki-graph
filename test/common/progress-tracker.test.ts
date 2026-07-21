@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { createDigestProgressTracker } from "../../packages/core/src/progress/index.js";
+import { createDigestProgressTracker } from "../../packages/core/src/runtime/progress/index.js";
 
 describe("progress/tracker", () => {
   it("updates digest progress only when a serial completes", async () => {

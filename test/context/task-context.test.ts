@@ -5,7 +5,7 @@ import { describe, expect, it } from "vitest";
 import {
   createWikiGraphTaskId,
   WikiGraphTaskContext,
-} from "../../packages/core/src/context/index.js";
+} from "../../packages/core/src/runtime/context/index.js";
 import { withTempDir } from "../helpers/temp.js";
 
 describe("context/task-context", () => {

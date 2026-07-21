@@ -5,7 +5,7 @@ import { describe, expect, it } from "vitest";
 import {
   MARKDOWN_SOURCE_ADAPTER,
   TXT_SOURCE_ADAPTER,
-} from "../../packages/core/src/source/index.js";
+} from "../../packages/core/src/text/source/index.js";
 import { getFixturePath, readStreamText } from "../helpers/fixtures.js";
 import { withTempDir } from "../helpers/temp.js";
 

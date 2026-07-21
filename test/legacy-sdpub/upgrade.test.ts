@@ -10,9 +10,9 @@ import {
   Database,
   DirectoryDocument,
 } from "../../packages/core/src/document/index.js";
-import { rebuildArchiveSearchIndex } from "../../packages/core/src/archive/query/index.js";
-import { extractWikgArchive } from "../../packages/core/src/wikg/archive.js";
-import { migrateLegacySdpubToWikg } from "../../packages/core/src/legacy-sdpub/upgrade.js";
+import { rebuildArchiveSearchIndex } from "../../packages/core/src/retrieval/query/index.js";
+import { extractWikgArchive } from "../../packages/core/src/storage/wikg/archive/index.js";
+import { migrateLegacySdpubToWikg } from "../../packages/core/src/storage/migration/legacy-sdpub/upgrade/index.js";
 import { withTempDir } from "../helpers/temp.js";
 
 describe("legacy-sdpub/upgrade", () => {

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { suppressContainedRanges } from "../../packages/core/src/wikimatch/index.js";
+import { suppressContainedRanges } from "../../packages/core/src/external/wikimatch/index.js";
 
 describe("wikimatch/range-suppression", () => {
   it("removes only occurrences contained by longer ranges", () => {

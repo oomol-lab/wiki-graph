@@ -5,7 +5,7 @@ import type {
   ReadingEdgeRecord,
   ReadonlySerialFragments,
 } from "../../packages/core/src/document/index.js";
-import { computeNormalizedSegmentIncisions } from "../../packages/core/src/topology/segment-incision.js";
+import { computeNormalizedSegmentIncisions } from "../../packages/core/src/graph/topology/segment-incision.js";
 
 describe("topology/segment-incision", () => {
   it("returns zero incisions when segments have no external edges", async () => {

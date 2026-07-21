@@ -2,7 +2,7 @@ import { readFile } from "fs/promises";
 
 import { describe, expect, it } from "vitest";
 
-import { LLMCache } from "../../packages/core/src/llm/cache.js";
+import { LLMCache } from "../../packages/core/src/external/llm/cache.js";
 import { withTempDir } from "../helpers/temp.js";
 
 describe("llm/cache", () => {

@@ -17,7 +17,7 @@ import {
   setChapterSource,
   setChapterSummary,
   setChapterTitle,
-} from "../../packages/core/src/facade/chapter.js";
+} from "../../packages/core/src/api/chapter/index.js";
 import { withTempDir } from "../helpers/temp.js";
 
 describe("facade/chapter", () => {

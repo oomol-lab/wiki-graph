@@ -2,7 +2,7 @@ import { resolve } from "path";
 
 import { describe, expect, it } from "vitest";
 
-import { parseCLIArguments } from "../../packages/cli/src/cli/args.js";
+import { parseCLIArguments } from "../../packages/cli/src/args/index.js";
 import {
   renderArchiveMaintenanceChapterActionHelpText,
   renderArchiveMaintenanceCommandHelpText,
@@ -13,7 +13,7 @@ import {
   renderUriHelpText,
   renderUriPredicateHelpText,
   renderTransformHelpText,
-} from "../../packages/cli/src/cli/help.js";
+} from "../../packages/cli/src/args/help.js";
 
 describe("cli/args", () => {
   const archivePath = resolve("book.wikg");

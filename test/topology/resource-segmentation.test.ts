@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { createSegmentGroups } from "../../packages/core/src/topology/resource-segmentation.js";
+import { createSegmentGroups } from "../../packages/core/src/graph/topology/resource-segmentation.js";
 
 describe("topology/resource-segmentation", () => {
   it("returns no groups for empty segment input", () => {

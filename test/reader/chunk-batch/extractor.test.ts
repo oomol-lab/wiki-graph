@@ -13,16 +13,16 @@ vi.mock("tinyld", () => ({
 import {
   WIKI_GRAPH_READER_SCOPES,
   WikiGraphScope,
-} from "../../../packages/core/src/common/llm-scope.js";
-import { Language } from "../../../packages/core/src/common/language.js";
+} from "../../../packages/core/src/runtime/common/llm-scope.js";
+import { Language } from "../../../packages/core/src/runtime/common/language.js";
 import { ChunkImportance } from "../../../packages/core/src/document/index.js";
-import { ChunkExtractor } from "../../../packages/core/src/reader/chunk-batch/extractor.js";
+import { ChunkExtractor } from "../../../packages/core/src/text/reader/chunk-batch/extractor.js";
 import {
   BOOK_COHERENCE_PROMPT_TEMPLATE,
   EVIDENCE_CHOICE_PROMPT_TEMPLATE,
   TRANSLATE_CHUNKS_PROMPT_TEMPLATE,
   USER_FOCUSED_PROMPT_TEMPLATE,
-} from "../../../packages/core/src/reader/chunk-batch/prompt-templates.js";
+} from "../../../packages/core/src/text/reader/chunk-batch/prompt-templates.js";
 import { ScriptedLLM } from "../../helpers/scripted-llm.js";
 
 describe("reader/chunk-batch/extractor", () => {

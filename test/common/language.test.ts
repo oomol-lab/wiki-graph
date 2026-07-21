@@ -7,8 +7,8 @@ import {
   Language,
   LanguageCode,
   normalizeLanguageCode,
-} from "../../packages/core/src/common/language.js";
-import { getLanguageDetectionCode } from "../../packages/core/src/common/tinyld-language.js";
+} from "../../packages/core/src/runtime/common/language.js";
+import { getLanguageDetectionCode } from "../../packages/core/src/runtime/common/tinyld-language.js";
 
 describe("common/language", () => {
   it("exposes a stable language list", () => {

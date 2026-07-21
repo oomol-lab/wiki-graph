@@ -8,13 +8,13 @@ const configMockState = vi.hoisted(() => ({
   },
 }));
 
-vi.mock("../../packages/cli/src/cli/local-config-store.js", () => ({
+vi.mock("../../packages/cli/src/runtime/local-config.js", () => ({
   readLocalConfigSection: vi.fn((section: "concurrent" | "llm" | "wikispine") =>
     Promise.resolve(configMockState.sections[section]),
   ),
 }));
 
-import { loadCLIConfig } from "../../packages/cli/src/cli/config.js";
+import { loadCLIConfig } from "../../packages/cli/src/runtime/config.js";
 
 describe("cli/config", () => {
   beforeEach(() => {

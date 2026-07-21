@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { BookMeta } from "../../packages/core/src/source/index.js";
+import type { BookMeta } from "../../packages/core/src/text/source/index.js";
 
 const archiveMaintenanceMockState = vi.hoisted(() => ({
   binaryWrites: [] as Uint8Array[],
@@ -66,7 +66,8 @@ vi.mock("../../packages/core/src/index.js", () => ({
   },
 }));
 
-vi.mock("../../packages/cli/src/cli/io.js", () => ({
+vi.mock("../../packages/cli/src/support/index.js", () => ({
+  formatCLIJSON: vi.fn((value: unknown) => JSON.stringify(value)),
   writeBinaryToStdout: vi.fn((data: Uint8Array) => {
     archiveMaintenanceMockState.binaryWrites.push(data);
     return Promise.resolve();
@@ -80,7 +81,7 @@ vi.mock("../../packages/cli/src/cli/io.js", () => ({
 import {
   runArchiveCoverCommand,
   runArchiveMetaCommand,
-} from "../../packages/cli/src/cli/archive-maintenance.js";
+} from "../../packages/cli/src/commands/index.js";
 
 describe("cli/archive maintenance", () => {
   const originalStdoutIsTTY = process.stdout.isTTY;

@@ -78,7 +78,7 @@ vi.mock("../../packages/core/src/serial.js", () => ({
   },
 }));
 
-vi.mock("../../packages/core/src/facade/import.js", () => ({
+vi.mock("../../packages/core/src/api/import.js", () => ({
   importSource: vi.fn(
     async (options: {
       readonly adapter: { readonly format: string };
@@ -130,8 +130,8 @@ import {
   digestMarkdownSession,
   digestTextStreamSession,
   digestTxtSession,
-} from "../../packages/core/src/facade/digest.js";
-import { Language } from "../../packages/core/src/common/language.js";
+} from "../../packages/core/src/api/digest.js";
+import { Language } from "../../packages/core/src/runtime/common/language.js";
 import { withTempDir } from "../helpers/temp.js";
 
 describe("facade/digest", () => {

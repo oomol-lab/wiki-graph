@@ -8,8 +8,8 @@ import {
   createEnrichmentProgressReporter,
   generateChapterKnowledgeGraphArtifactFromSnapshot,
   groundWikimatchCandidates,
-} from "../../packages/core/src/facade/index.js";
-import type { GuaranteedRequest } from "../../packages/core/src/guaranteed/index.js";
+} from "../../packages/core/src/api/index.js";
+import type { GuaranteedRequest } from "../../packages/core/src/external/guaranteed/index.js";
 import { withTempDir } from "../helpers/temp.js";
 
 describe("facade/knowledge-graph-build", () => {

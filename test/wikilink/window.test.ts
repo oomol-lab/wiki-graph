@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   buildWikilinkEvidenceWindows,
   type WikilinkMention,
-} from "../../packages/core/src/wikilink/index.js";
+} from "../../packages/core/src/graph/wikilink/index.js";
 
 describe("wikilink/window", () => {
   it("covers every mention pair within maxEvidenceDistance", () => {

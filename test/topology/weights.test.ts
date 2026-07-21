@@ -8,7 +8,7 @@ import {
   computeChunkWeights,
   computeReadingEdgeWeights,
   getReadingEdgeKey,
-} from "../../packages/core/src/topology/weights.js";
+} from "../../packages/core/src/graph/topology/weights.js";
 
 describe("topology/weights", () => {
   it("computes chunk weights from retention and importance", () => {

@@ -3,20 +3,20 @@ import { dirname, join } from "path";
 
 import { afterEach, describe, expect, it } from "vitest";
 
-import { createWikiGraphTempDirectory } from "../../packages/core/src/common/wiki-graph-temp.js";
+import { createWikiGraphTempDirectory } from "../../packages/core/src/runtime/common/wiki-graph/temp.js";
 import {
   Database,
   DirectoryDocument,
 } from "../../packages/core/src/document/index.js";
-import { addBuildJob } from "../../packages/core/src/facade/index.js";
-import { tryRunWikiGraphGc } from "../../packages/core/src/gc/index.js";
+import { addBuildJob } from "../../packages/core/src/api/index.js";
+import { tryRunWikiGraphGc } from "../../packages/core/src/runtime/gc/index.js";
 import {
   createSearchSession,
   rebuildArchiveSearchIndex,
-} from "../../packages/core/src/archive/query/index.js";
-import { writeWikgArchive } from "../../packages/core/src/wikg/archive.js";
-import { WikiGraphArchiveFile } from "../../packages/core/src/wikg/index.js";
-import { WikipageCache } from "../../packages/core/src/wikipage/index.js";
+} from "../../packages/core/src/retrieval/query/index.js";
+import { writeWikgArchive } from "../../packages/core/src/storage/wikg/archive/index.js";
+import { WikiGraphArchiveFile } from "../../packages/core/src/storage/wikg/index.js";
+import { WikipageCache } from "../../packages/core/src/external/wikipage/index.js";
 import { withTempDir } from "../helpers/temp.js";
 
 const originalStateDir = process.env.WIKIGRAPH_STATE_DIR;

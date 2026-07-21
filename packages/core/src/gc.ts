@@ -1,8 +1,8 @@
-export { tryRunWikiGraphGc } from "./gc/index.js";
+export { tryRunWikiGraphGc } from "./runtime/gc/index.js";
 export type {
   GcContext,
   GcJob,
   GcJobReport,
   GcJobResult,
   GcRunReport,
-} from "./gc/index.js";
+} from "./runtime/gc/index.js";

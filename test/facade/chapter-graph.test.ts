@@ -6,7 +6,7 @@ import {
   ChunkRetention,
 } from "../../packages/core/src/document/index.js";
 
-vi.mock("../../packages/core/src/editor/index.js", () => ({
+vi.mock("../../packages/core/src/text/editor/index.js", () => ({
   compressText: vi.fn((options: { readonly groupId: number }) =>
     Promise.resolve(`summary group ${options.groupId}`),
   ),
@@ -63,14 +63,14 @@ import {
   generateChapterGraph,
   getChapterDetails,
   setChapterSource,
-} from "../../packages/core/src/facade/chapter.js";
+} from "../../packages/core/src/api/chapter/index.js";
 import {
   buildChapterGraphArtifact,
   buildChapterSummaryArtifactFromSnapshot,
   commitChapterGraphArtifact,
   readChapterBuildInput,
   snapshotChapterSummaryInput,
-} from "../../packages/core/src/facade/chapter-build.js";
+} from "../../packages/core/src/api/chapter-build/index.js";
 import { withTempDir } from "../helpers/temp.js";
 
 describe("facade/chapter graph", () => {

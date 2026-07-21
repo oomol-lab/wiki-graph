@@ -98,9 +98,9 @@ vi.mock("ai", () => ({
   }),
 }));
 
-import { WikiGraphScope } from "../../packages/core/src/common/llm-scope.js";
-import { LLM } from "../../packages/core/src/llm/client.js";
-import { LLMPaymentRequiredError } from "../../packages/core/src/llm/errors.js";
+import { WikiGraphScope } from "../../packages/core/src/runtime/common/llm-scope.js";
+import { LLM } from "../../packages/core/src/external/llm/client/index.js";
+import { LLMPaymentRequiredError } from "../../packages/core/src/external/llm/errors.js";
 import { withTempDir } from "../helpers/temp.js";
 
 const RETRYABLE_TRANSPORT_CODES = [

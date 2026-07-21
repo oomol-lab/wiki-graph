@@ -7,7 +7,7 @@ import {
   getLogger,
   resolveArtifactPath,
   withLoggingContext,
-} from "../../packages/core/src/common/logging.js";
+} from "../../packages/core/src/runtime/common/logging.js";
 import { withTempDir } from "../helpers/temp.js";
 
 describe("common/logging", () => {

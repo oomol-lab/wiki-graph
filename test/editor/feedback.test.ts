@@ -1,18 +1,18 @@
 import { describe, expect, it } from "vitest";
 
-import type { WikiGraphScope } from "../../packages/core/src/common/llm-scope.js";
+import type { WikiGraphScope } from "../../packages/core/src/runtime/common/llm-scope.js";
 import {
   calculateScore,
   createRevisionFeedback,
   formatIssuesForLog,
   pickBestVersion,
-} from "../../packages/core/src/editor/feedback.js";
-import { REVISION_FEEDBACK_PROMPT_TEMPLATE } from "../../packages/core/src/editor/prompt-templates.js";
+} from "../../packages/core/src/text/editor/feedback.js";
+import { REVISION_FEEDBACK_PROMPT_TEMPLATE } from "../../packages/core/src/text/editor/prompt-templates.js";
 import {
   ReviewSeverity,
   type CompressionVersion,
   type ReviewResult,
-} from "../../packages/core/src/editor/types.js";
+} from "../../packages/core/src/text/editor/types.js";
 import { ScriptedLLM } from "../helpers/scripted-llm.js";
 
 describe("editor/feedback", () => {

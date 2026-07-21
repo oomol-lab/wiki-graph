@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { WorkingMemory } from "../../packages/core/src/reader/attention/working-memory.js";
+import { WorkingMemory } from "../../packages/core/src/text/reader/attention/working-memory.js";
 
 describe("reader/working-memory", () => {
   it("formats current, previous, and retained chunks in prompt order", () => {

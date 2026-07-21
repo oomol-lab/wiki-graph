@@ -6,9 +6,9 @@ import {
   DirectoryDocument,
   type ReadonlyDocument,
 } from "../../packages/core/src/document/index.js";
-import { extractWikgArchive } from "../../packages/core/src/wikg/archive.js";
-import { WikiGraphArchive } from "../../packages/core/src/facade/wiki-graph-archive.js";
-import { EPUB_SOURCE_ADAPTER } from "../../packages/core/src/source/index.js";
+import { extractWikgArchive } from "../../packages/core/src/storage/wikg/archive/index.js";
+import { WikiGraphArchive } from "../../packages/core/src/api/wiki-graph-archive.js";
+import { EPUB_SOURCE_ADAPTER } from "../../packages/core/src/text/source/index.js";
 import { collectSectionTitles, readStreamText } from "../helpers/fixtures.js";
 import { withTempDir } from "../helpers/temp.js";
 

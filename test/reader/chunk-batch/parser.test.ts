@@ -4,14 +4,14 @@ import {
   ChunkImportance,
   ChunkRetention,
 } from "../../../packages/core/src/document/index.js";
-import { ParsedJsonError } from "../../../packages/core/src/guaranteed/index.js";
+import { ParsedJsonError } from "../../../packages/core/src/external/guaranteed/index.js";
 import {
   ChunkBatchParser,
   ChunkMetadataField,
-} from "../../../packages/core/src/reader/chunk-batch/parser.js";
-import { FragmentProjection } from "../../../packages/core/src/reader/chunk-batch/fragment-projection.js";
-import type { ChunkExtractionSentence } from "../../../packages/core/src/reader/chunk-batch/types.js";
-import type { LLMessage } from "../../../packages/core/src/llm/index.js";
+} from "../../../packages/core/src/text/reader/chunk-batch/parser/index.js";
+import { FragmentProjection } from "../../../packages/core/src/text/reader/chunk-batch/fragment-projection.js";
+import type { ChunkExtractionSentence } from "../../../packages/core/src/text/reader/chunk-batch/types.js";
+import type { LLMessage } from "../../../packages/core/src/external/llm/index.js";
 
 describe("reader/chunk-batch/parser", () => {
   it("parses valid chunks from contiguous source sentences", async () => {

@@ -16,7 +16,7 @@ import {
   updateBuildJobTarget,
   cancelBuildJob,
   recordBuildJobInputRevision,
-} from "../../packages/core/src/facade/index.js";
+} from "../../packages/core/src/api/index.js";
 import { withTempDir } from "../helpers/temp.js";
 
 const originalStateDir = process.env.WIKIGRAPH_STATE_DIR;

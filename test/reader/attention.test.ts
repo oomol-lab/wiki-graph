@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { Attention } from "../../packages/core/src/reader/attention/attention.js";
+import { Attention } from "../../packages/core/src/text/reader/attention/core.js";
 import { ChunkImportance } from "../../packages/core/src/document/index.js";
 
 describe("reader/attention", () => {

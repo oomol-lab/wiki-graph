@@ -8,7 +8,7 @@ import {
   normalizeEvidenceDisplayText,
   normalizeEvidenceText,
   scoreEvidenceQuote,
-} from "../../packages/core/src/evidence-selection/index.js";
+} from "../../packages/core/src/graph/evidence-selection/index.js";
 
 const FREUD_SENTENCES = [
   "西格蒙德·弗洛伊德（德語：Sigmund Freud，出生名：Sigismund Schlomo Freud；1856年5月6日—1939年9月23日），奥地利心理學家、精神分析学創始人、哲學家、性学家，二十世纪最有影響力的思想家之一。",

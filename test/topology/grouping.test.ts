@@ -4,7 +4,7 @@ import type {
   ChunkRecord,
   ReadonlySerialFragments,
 } from "../../packages/core/src/document/index.js";
-import { groupSegments } from "../../packages/core/src/topology/grouping.js";
+import { groupSegments } from "../../packages/core/src/graph/topology/grouping.js";
 
 describe("topology/grouping", () => {
   it("converts normalized segment incisions into persisted sentence groups", async () => {

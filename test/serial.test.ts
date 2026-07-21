@@ -5,7 +5,7 @@ import type {
   ReaderSegment,
   ReaderSentence,
   ReaderTextStream,
-} from "../packages/core/src/reader/index.js";
+} from "../packages/core/src/text/reader/index.js";
 
 const EMPTY_DELTA: ReaderGraphDelta = {
   chunks: [],
@@ -20,11 +20,11 @@ const { compressTextMock, readerFragmentSummaryMock, readerSegmentMock } =
       vi.fn<(stream: ReaderTextStream) => AsyncIterable<ReaderSegment>>(),
   }));
 
-vi.mock("../packages/core/src/editor/index.js", () => ({
+vi.mock("../packages/core/src/text/editor/index.js", () => ({
   compressText: compressTextMock,
 }));
 
-vi.mock("../packages/core/src/reader/index.js", () => ({
+vi.mock("../packages/core/src/text/reader/index.js", () => ({
   Reader: class {
     public segment(stream: ReaderTextStream): AsyncIterable<ReaderSegment> {
       return readerSegmentMock(stream);
@@ -60,7 +60,7 @@ vi.mock("../packages/core/src/reader/index.js", () => ({
     readerSegmentMock(stream),
 }));
 
-vi.mock("../packages/core/src/topology/index.js", () => ({
+vi.mock("../packages/core/src/graph/topology/index.js", () => ({
   Topology: class {
     public accept(): void {}
 

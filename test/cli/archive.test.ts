@@ -3,6 +3,7 @@ import { join } from "path";
 import { tmpdir } from "os";
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import type * as CLISupport from "../../packages/cli/src/support/index.js";
 import type {
   ArchiveBacklinks,
   ArchiveCollectionResult,
@@ -10,7 +11,7 @@ import type {
   ArchiveFindHit,
   ArchiveListItem,
   ArchivePage,
-} from "../../packages/core/src/archive/query/archive-view.js";
+} from "../../packages/core/src/retrieval/query/view.js";
 
 const archiveMockState = vi.hoisted(() => ({
   backlinks: {
@@ -461,29 +462,32 @@ function parseJSONLLastLine(text: string | undefined): unknown {
   return JSON.parse(line) as unknown;
 }
 
-vi.mock("../../packages/core/src/wikg/wiki-graph-archive-file.js", () => ({
-  WikiGraphArchiveFile: class {
-    readonly #path: string;
+vi.mock(
+  "../../packages/core/src/storage/wikg/wiki-graph-archive-file.js",
+  () => ({
+    WikiGraphArchiveFile: class {
+      readonly #path: string;
 
-    public constructor(path: string) {
-      this.#path = path;
-    }
+      public constructor(path: string) {
+        this.#path = path;
+      }
 
-    public async readDocument(
-      operation: (document: unknown) => Promise<unknown>,
-    ): Promise<unknown> {
-      archiveMockState.readCalls.push(this.#path);
-      return await operation(createArchiveMockDocument());
-    }
+      public async readDocument(
+        operation: (document: unknown) => Promise<unknown>,
+      ): Promise<unknown> {
+        archiveMockState.readCalls.push(this.#path);
+        return await operation(createArchiveMockDocument());
+      }
 
-    public async write(operation: () => Promise<unknown>): Promise<unknown> {
-      archiveMockState.writeCalls.push(this.#path);
-      return await operation();
-    }
-  },
-}));
+      public async write(operation: () => Promise<unknown>): Promise<unknown> {
+        archiveMockState.writeCalls.push(this.#path);
+        return await operation();
+      }
+    },
+  }),
+);
 
-vi.mock("../../packages/core/src/facade/index.js", () => ({
+vi.mock("../../packages/core/src/api/index.js", () => ({
   createContinuationCursor: vi.fn(() => Promise.resolve("c_next")),
   findArchiveObjects: vi.fn(
     (
@@ -561,19 +565,19 @@ vi.mock("../../packages/core/src/facade/index.js", () => ({
   ),
 }));
 
-vi.mock("../../packages/core/src/archive/search-index/index.js", () => ({
+vi.mock("../../packages/core/src/retrieval/search-index/index.js", () => ({
   readArchiveIndexSettings: vi.fn(() =>
     Promise.resolve({ ftsEmbedded: archiveMockState.ftsEmbedded }),
   ),
 }));
 
-vi.mock("../../packages/core/src/archive/query/index.js", () => ({
+vi.mock("../../packages/core/src/retrieval/query/index.js", () => ({
   isArchiveSearchIndexCurrent: vi.fn(() =>
     Promise.resolve(archiveMockState.ftsCurrent),
   ),
 }));
 
-vi.mock("../../packages/cli/src/cli/config.js", () => ({
+vi.mock("../../packages/cli/src/runtime/config.js", () => ({
   loadCLIConfig: vi.fn(() =>
     Promise.resolve({
       concurrent: {
@@ -588,14 +592,19 @@ vi.mock("../../packages/cli/src/cli/config.js", () => ({
   ),
 }));
 
-vi.mock("../../packages/cli/src/cli/io.js", () => ({
-  writeTextToStdout: vi.fn((text: string) => {
-    archiveMockState.textWrites.push(text);
-    return Promise.resolve();
-  }),
-}));
+vi.mock("../../packages/cli/src/support/index.js", async (importOriginal) => {
+  const actual = await importOriginal<typeof CLISupport>();
 
-vi.mock("../../packages/cli/src/cli/convert.js", () => ({
+  return {
+    ...actual,
+    writeTextToStdout: vi.fn((text: string) => {
+      archiveMockState.textWrites.push(text);
+      return Promise.resolve();
+    }),
+  };
+});
+
+vi.mock("../../packages/cli/src/commands/convert.js", () => ({
   runConvertCommand: vi.fn(async (args: { readonly outputPath?: string }) => {
     archiveMockState.convertCalls.push(args);
     if (args.outputPath !== undefined) {
@@ -606,7 +615,7 @@ vi.mock("../../packages/cli/src/cli/convert.js", () => ({
   }),
 }));
 
-import { runArchiveCommand } from "../../packages/cli/src/cli/archive.js";
+import { runArchiveCommand } from "../../packages/cli/src/commands/index.js";
 import {
   createContinuationCursor,
   findArchiveObjects,
@@ -615,7 +624,7 @@ import {
   listRelatedArchiveObjects,
   readContinuationCursor,
   readArchivePage,
-} from "../../packages/core/src/facade/index.js";
+} from "../../packages/core/src/api/index.js";
 
 function createArchiveMockDocument(): unknown {
   const document = {};

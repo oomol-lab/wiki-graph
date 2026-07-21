@@ -3,20 +3,25 @@ export {
   ensureSharedStateDatabaseInitialized,
   openSharedStateDatabase,
 } from "./shared-state-database.js";
-export { TextStreams, SerialTextStream } from "./text-streams.js";
-export { FragmentDraft, Fragments, SerialFragments } from "./fragments.js";
+export { TextStreams, SerialTextStream } from "./text-streams/index.js";
+export {
+  FragmentDraft,
+  Fragments,
+  SerialFragments,
+} from "./fragments/index.js";
 export type {
   ReadonlySerialTextStream,
   ReadonlySerialTextStream as ReadonlySerialFragments,
   ReadonlyTextStreams,
   ReadonlyTextStreams as ReadonlyFragments,
-} from "./text-streams.js";
-export { DirectoryDocument } from "./document.js";
+} from "./text-streams/index.js";
+export { DirectoryDocument } from "./directory/index.js";
+export { createFragmentBackedDocument } from "./fragment-backed.js";
 export type {
   Document,
   DocumentContext,
   ReadonlyDocument,
-} from "./document.js";
+} from "./directory/index.js";
 export { SCHEMA_SQL } from "./schema.js";
 export {
   ChunkStore,
@@ -30,7 +35,7 @@ export {
   SnakeChunkStore,
   SnakeEdgeStore,
   SnakeStore,
-} from "./stores.js";
+} from "./stores/index.js";
 export type {
   ReadonlyChunkStore,
   ReadonlyFragmentGroupStore,
@@ -43,7 +48,7 @@ export type {
   ReadonlySnakeChunkStore,
   ReadonlySnakeEdgeStore,
   ReadonlySnakeStore,
-} from "./stores.js";
+} from "./stores/index.js";
 export {
   ChunkImportance,
   ChunkRetention,

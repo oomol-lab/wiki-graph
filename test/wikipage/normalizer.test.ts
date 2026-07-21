@@ -3,8 +3,8 @@ import { describe, expect, it, vi } from "vitest";
 import {
   createDisambiguationProfileNormalizer,
   type DisambiguationProfileNormalizerInput,
-} from "../../packages/core/src/wikipage/index.js";
-import type { GuaranteedRequest } from "../../packages/core/src/guaranteed/index.js";
+} from "../../packages/core/src/external/wikipage/index.js";
+import type { GuaranteedRequest } from "../../packages/core/src/external/guaranteed/index.js";
 
 describe("wikipage/normalizer", () => {
   it("normalizes disambiguation page text and rejects invented qids", async () => {

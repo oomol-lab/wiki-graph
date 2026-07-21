@@ -4,7 +4,7 @@ import {
   countWikimatchCandidateOptions,
   splitCandidateByOptionBudget,
   type WikimatchCandidate,
-} from "../../packages/core/src/wikimatch/index.js";
+} from "../../packages/core/src/external/wikimatch/index.js";
 
 describe("wikimatch/options", () => {
   it("counts disambiguation meanings as selectable options", () => {

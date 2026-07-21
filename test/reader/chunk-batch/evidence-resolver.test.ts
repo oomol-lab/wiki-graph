@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { EvidenceResolver } from "../../../packages/core/src/evidence-selection/index.js";
+import { EvidenceResolver } from "../../../packages/core/src/graph/evidence-selection/index.js";
 
 describe("evidence-selection/anchor-resolver", () => {
   it("normalizes multi-sentence anchors to the boundary sentence", () => {

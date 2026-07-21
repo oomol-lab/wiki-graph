@@ -47,9 +47,9 @@ export default defineConfig([
     },
     dts: true,
     entry: {
-      cli: "src/cli.ts",
+      cli: "src/bin/cli.ts",
       index: "src/index.ts",
-      "queue-worker": "src/queue-worker.ts",
+      "queue-worker": "src/bin/queue-worker.ts",
     },
     format: ["esm"],
   },

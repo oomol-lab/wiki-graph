@@ -1,12 +1,12 @@
 import { describe, expect, it, vi } from "vitest";
 
-import type { GuaranteedRequest } from "../../packages/core/src/guaranteed/index.js";
+import type { GuaranteedRequest } from "../../packages/core/src/external/guaranteed/index.js";
 import {
   judgeWikimatchSurfaceProtection,
   parseSurfaceProtectionResponse,
   type WikimatchSurface,
-} from "../../packages/core/src/wikimatch/index.js";
-import { ParsedJsonError } from "../../packages/core/src/guaranteed/index.js";
+} from "../../packages/core/src/external/wikimatch/index.js";
+import { ParsedJsonError } from "../../packages/core/src/external/guaranteed/index.js";
 
 describe("wikimatch/surface-screening", () => {
   it("asks the model to protect useful high-frequency surfaces only", async () => {

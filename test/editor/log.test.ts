@@ -2,13 +2,13 @@ import { readdir, readFile } from "fs/promises";
 
 import { describe, expect, it } from "vitest";
 
-import { Language } from "../../packages/core/src/common/language.js";
+import { Language } from "../../packages/core/src/runtime/common/language.js";
 import {
   ChunkRetention,
   type ChunkRecord,
 } from "../../packages/core/src/document/index.js";
-import { CompressionLog } from "../../packages/core/src/editor/log.js";
-import { ReviewSeverity } from "../../packages/core/src/editor/types.js";
+import { CompressionLog } from "../../packages/core/src/text/editor/log.js";
+import { ReviewSeverity } from "../../packages/core/src/text/editor/types.js";
 import { withTempDir } from "../helpers/temp.js";
 
 describe("editor/log", () => {

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { DirectoryDocument } from "../../packages/core/src/document/index.js";
-import { buildEpubBook } from "../../packages/core/src/output/epub/book.js";
+import { buildEpubBook } from "../../packages/core/src/text/output/epub/book.js";
 import { withTempDir } from "../helpers/temp.js";
 
 describe("output/epub/book", () => {

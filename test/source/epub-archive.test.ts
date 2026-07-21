@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { EpubArchive } from "../../packages/core/src/source/epub/archive.js";
+import { EpubArchive } from "../../packages/core/src/text/source/epub/archive.js";
 import { getFixturePath, readStreamText } from "../helpers/fixtures.js";
 
 describe("source/epub/archive", () => {

@@ -12,7 +12,7 @@ const appMockState = vi.hoisted(() => ({
   llmOptions: [] as unknown[],
 }));
 
-vi.mock("../../packages/core/src/llm/index.js", () => ({
+vi.mock("../../packages/core/src/external/llm/index.js", () => ({
   LLM: class {
     public constructor(options: unknown) {
       appMockState.llmOptions.push(options);
@@ -20,7 +20,7 @@ vi.mock("../../packages/core/src/llm/index.js", () => ({
   },
 }));
 
-vi.mock("../../packages/core/src/facade/digest.js", () => ({
+vi.mock("../../packages/core/src/api/digest.js", () => ({
   digestEpubSession: vi.fn(
     async (options: unknown, operation: () => unknown) => {
       appMockState.digestCalls.epub.push(options);
@@ -47,9 +47,9 @@ vi.mock("../../packages/core/src/facade/digest.js", () => ({
   ),
 }));
 
-import { WikiGraphScope } from "../../packages/core/src/common/llm-scope.js";
+import { WikiGraphScope } from "../../packages/core/src/runtime/common/llm-scope.js";
 import { DirectoryDocument } from "../../packages/core/src/document/index.js";
-import { WikiGraphArchive } from "../../packages/core/src/facade/wiki-graph-archive.js";
+import { WikiGraphArchive } from "../../packages/core/src/api/wiki-graph-archive.js";
 import { Language, WikiGraph } from "../../packages/core/src/index.js";
 import { withTempDir } from "../helpers/temp.js";
 

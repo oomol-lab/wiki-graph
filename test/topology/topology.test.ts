@@ -4,7 +4,7 @@ const { groupSegmentsMock } = vi.hoisted(() => ({
   groupSegmentsMock: vi.fn(),
 }));
 
-vi.mock("../../packages/core/src/topology/grouping.js", () => ({
+vi.mock("../../packages/core/src/graph/topology/grouping.js", () => ({
   groupSegments: groupSegmentsMock,
 }));
 
@@ -18,7 +18,7 @@ import type {
   ReadingEdgeRecord,
   ReadonlySerialFragments,
 } from "../../packages/core/src/document/index.js";
-import { Topology } from "../../packages/core/src/topology/topology.js";
+import { Topology } from "../../packages/core/src/graph/topology/core.js";
 
 describe("topology/topology", () => {
   it("merges deltas, applies annotations, and persists weighted topology output", async () => {

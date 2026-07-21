@@ -67,7 +67,7 @@ vi.mock("@ai-sdk/openai-compatible", () => ({
   }),
 }));
 
-import { buildLLMOptions } from "../../packages/cli/src/cli/llm.js";
+import { buildLLMOptions } from "../../packages/cli/src/runtime/llm.js";
 
 describe("cli/llm", () => {
   beforeEach(() => {

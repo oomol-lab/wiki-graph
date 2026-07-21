@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   buildWikimatchWindows,
   type WikimatchCandidate,
-} from "../../packages/core/src/wikimatch/index.js";
+} from "../../packages/core/src/external/wikimatch/index.js";
 
 describe("wikimatch/window", () => {
   it("keeps overlapping candidates in the same conflict group", () => {

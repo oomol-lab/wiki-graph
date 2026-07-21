@@ -8,10 +8,10 @@ import { DirectoryDocument } from "../../packages/core/src/document/index.js";
 import {
   findArchiveObjects,
   rebuildArchiveSearchIndex,
-} from "../../packages/core/src/archive/query/archive-view.js";
-import { isSearchIndexCurrent } from "../../packages/core/src/archive/search-index/index.js";
-import { WikiGraphArchive } from "../../packages/core/src/facade/wiki-graph-archive.js";
-import { WikiGraphArchiveFile } from "../../packages/core/src/wikg/wiki-graph-archive-file.js";
+} from "../../packages/core/src/retrieval/query/view.js";
+import { isSearchIndexCurrent } from "../../packages/core/src/retrieval/search-index/index.js";
+import { WikiGraphArchive } from "../../packages/core/src/api/wiki-graph-archive.js";
+import { WikiGraphArchiveFile } from "../../packages/core/src/storage/wikg/wiki-graph-archive-file.js";
 import { withTempDir } from "../helpers/temp.js";
 
 const originalStateDir = process.env.WIKIGRAPH_STATE_DIR;

@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { ProgressReporter } from "../../packages/core/src/progress/index.js";
+import { ProgressReporter } from "../../packages/core/src/runtime/progress/index.js";
 
 describe("progress/reporter", () => {
   it("does not fail the pipeline when the progress callback throws", async () => {

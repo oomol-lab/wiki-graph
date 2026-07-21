@@ -17,22 +17,22 @@ import type {
 import {
   WIKI_GRAPH_EDITOR_SCOPES,
   WikiGraphScope,
-} from "../../packages/core/src/common/llm-scope.js";
-import { Language } from "../../packages/core/src/common/language.js";
+} from "../../packages/core/src/runtime/common/llm-scope.js";
+import { Language } from "../../packages/core/src/runtime/common/language.js";
 import type {
   ChunkRecord,
   FragmentGroupRecord,
   FragmentRecord,
   SnakeRecord,
 } from "../../packages/core/src/document/types.js";
-import { compressText } from "../../packages/core/src/editor/editor.js";
+import { compressText } from "../../packages/core/src/text/editor/compression.js";
 import {
   CLUE_REVIEWER_GENERATOR_PROMPT_TEMPLATE,
   CLUE_REVIEWER_PROMPT_TEMPLATE,
   REVISION_FEEDBACK_PROMPT_TEMPLATE,
   TEXT_COMPRESSOR_PROMPT_TEMPLATE,
-} from "../../packages/core/src/editor/prompt-templates.js";
-import { RESPONSE_INTENT_CLASSIFIER_PROMPT_TEMPLATE } from "../../packages/core/src/guaranteed/index.js";
+} from "../../packages/core/src/text/editor/prompt-templates.js";
+import { RESPONSE_INTENT_CLASSIFIER_PROMPT_TEMPLATE } from "../../packages/core/src/external/guaranteed/index.js";
 import { ScriptedLLM } from "../helpers/scripted-llm.js";
 
 describe("editor/editor", () => {

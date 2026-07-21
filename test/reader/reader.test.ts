@@ -10,21 +10,21 @@ const {
   segmentTextStreamMock: vi.fn(),
 }));
 
-vi.mock("../../packages/core/src/reader/chunk-batch/extract.js", () => ({
+vi.mock("../../packages/core/src/text/reader/chunk-batch/extract.js", () => ({
   extractBookCoherenceChunkBatch: extractBookCoherenceChunkBatchMock,
   extractUserFocusedChunkBatch: extractUserFocusedChunkBatchMock,
 }));
 
-vi.mock("../../packages/core/src/reader/segment/segment.js", () => ({
+vi.mock("../../packages/core/src/text/reader/segment/core.js", () => ({
   segmentTextStream: segmentTextStreamMock,
 }));
 
-import { Reader } from "../../packages/core/src/reader/reader.js";
-import { Language } from "../../packages/core/src/common/language.js";
+import { Reader } from "../../packages/core/src/text/reader/core.js";
+import { Language } from "../../packages/core/src/runtime/common/language.js";
 import {
   WIKI_GRAPH_READER_SCOPES,
   WikiGraphScope,
-} from "../../packages/core/src/common/llm-scope.js";
+} from "../../packages/core/src/runtime/common/llm-scope.js";
 import {
   ChunkImportance,
   ChunkRetention,
@@ -33,7 +33,7 @@ import type {
   SentenceStreamAdapter,
   SentenceStreamItem,
   TextStream,
-} from "../../packages/core/src/reader/segment/types.js";
+} from "../../packages/core/src/text/reader/segment/types.js";
 
 describe("reader/reader", () => {
   beforeEach(() => {

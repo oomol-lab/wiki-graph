@@ -1,11 +1,11 @@
 import { describe, expect, it } from "vitest";
 
-import { WikiGraphScope } from "../../packages/core/src/common/llm-scope.js";
+import { WikiGraphScope } from "../../packages/core/src/runtime/common/llm-scope.js";
 import {
   getScopeDefaults,
   resolveSamplingSetting,
   resolveTemperatureSetting,
-} from "../../packages/core/src/llm/sampling.js";
+} from "../../packages/core/src/external/llm/sampling.js";
 
 describe("llm/sampling", () => {
   it("resolves static and ranged sampling values", () => {

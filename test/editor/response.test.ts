@@ -4,7 +4,7 @@ import {
   cleanChunkTags,
   extractCompressedText,
   extractThinkingText,
-} from "../../packages/core/src/editor/response.js";
+} from "../../packages/core/src/text/editor/response.js";
 
 describe("editor/response", () => {
   it("removes chunk tags while keeping content", () => {

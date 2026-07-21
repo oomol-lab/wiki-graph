@@ -1,10 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
 
-import type { GuaranteedRequest } from "../../packages/core/src/guaranteed/index.js";
+import type { GuaranteedRequest } from "../../packages/core/src/external/guaranteed/index.js";
 import {
   buildWikilinkEvidenceWindows,
   discoverWikilinkRelations,
-} from "../../packages/core/src/wikilink/index.js";
+} from "../../packages/core/src/graph/wikilink/index.js";
 
 describe("wikilink/relation-discovery", () => {
   it("persists only LLM-judged semantic relations with resolved evidence", async () => {

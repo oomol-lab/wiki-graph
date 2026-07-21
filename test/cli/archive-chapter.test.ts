@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type * as CLISupport from "../../packages/cli/src/support/index.js";
 
 const chapterMockState = vi.hoisted(() => ({
   activeConflictChecks: [] as unknown[],
@@ -69,31 +70,34 @@ const chapterDetails = {
   tocPath: ["Part I", "Chapter 1"],
 };
 
-vi.mock("../../packages/core/src/wikg/wiki-graph-archive-file.js", () => ({
-  WikiGraphArchiveFile: class {
-    readonly #path: string;
+vi.mock(
+  "../../packages/core/src/storage/wikg/wiki-graph-archive-file.js",
+  () => ({
+    WikiGraphArchiveFile: class {
+      readonly #path: string;
 
-    public constructor(path: string) {
-      this.#path = path;
-    }
+      public constructor(path: string) {
+        this.#path = path;
+      }
 
-    public async readDocument(
-      operation: (document: unknown) => Promise<unknown>,
-    ): Promise<unknown> {
-      chapterMockState.readCalls.push(this.#path);
-      return await operation({});
-    }
+      public async readDocument(
+        operation: (document: unknown) => Promise<unknown>,
+      ): Promise<unknown> {
+        chapterMockState.readCalls.push(this.#path);
+        return await operation({});
+      }
 
-    public async write(
-      operation: (document: unknown) => Promise<unknown>,
-    ): Promise<unknown> {
-      chapterMockState.writeCalls.push(this.#path);
-      return await operation({});
-    }
-  },
-}));
+      public async write(
+        operation: (document: unknown) => Promise<unknown>,
+      ): Promise<unknown> {
+        chapterMockState.writeCalls.push(this.#path);
+        return await operation({});
+      }
+    },
+  }),
+);
 
-vi.mock("../../packages/core/src/facade/index.js", () => ({
+vi.mock("../../packages/core/src/api/index.js", () => ({
   addChapter: vi.fn((_document: unknown, options: unknown) => {
     chapterMockState.addCalls.push(options);
     return Promise.resolve({
@@ -225,23 +229,28 @@ vi.mock("../../packages/core/src/facade/index.js", () => ({
   ),
 }));
 
-vi.mock("../../packages/core/src/common/data-dir.js", () => ({
+vi.mock("../../packages/core/src/runtime/common/data-dir.js", () => ({
   resolveDataDirPath: vi.fn(() => "/tmp/data"),
 }));
 
-vi.mock("../../packages/core/src/llm/index.js", () => ({
+vi.mock("../../packages/core/src/external/llm/index.js", () => ({
   LLM: class {
     public constructor(_options: unknown) {}
   },
 }));
 
-vi.mock("../../packages/cli/src/cli/io.js", () => ({
-  readTextStreamFromStdin: vi.fn(() => chapterMockState.stdinStream),
-  writeTextToStdout: vi.fn((text: string) => {
-    chapterMockState.textWrites.push(text);
-    return Promise.resolve();
-  }),
-}));
+vi.mock("../../packages/cli/src/support/index.js", async (importOriginal) => {
+  const actual = await importOriginal<typeof CLISupport>();
+
+  return {
+    ...actual,
+    readTextStreamFromStdin: vi.fn(() => chapterMockState.stdinStream),
+    writeTextToStdout: vi.fn((text: string) => {
+      chapterMockState.textWrites.push(text);
+      return Promise.resolve();
+    }),
+  };
+});
 
 vi.mock("fs/promises", () => ({
   readFile: vi.fn(() => Promise.resolve(chapterMockState.inputFileContent)),
@@ -251,7 +260,7 @@ vi.mock("fs", () => ({
   createReadStream: vi.fn(() => chapterMockState.sourceFileStream),
 }));
 
-import { runArchiveChapterCommand } from "../../packages/cli/src/cli/archive-chapter.js";
+import { runArchiveChapterCommand } from "../../packages/cli/src/commands/index.js";
 
 describe("cli/archive-chapter", () => {
   const originalStdinIsTTY = process.stdin.isTTY;
