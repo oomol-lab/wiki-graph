@@ -89,13 +89,13 @@ export async function runObjectMetadataCommand(
 }
 
 export async function runQueueCommand(args: CLIQueueArguments): Promise<void> {
-  const command = await import("./queue.js");
+  const command = await import("./queue/index.js");
 
   return command.runQueueCommand(args);
 }
 
 export async function runQueueWorker(): Promise<void> {
-  const command = await import("./queue.js");
+  const command = await import("./queue/index.js");
 
   return command.runQueueWorker();
 }
