@@ -273,7 +273,7 @@ Wiki Graph treats CLI help as part of the product contract. After installation, 
 $ wg --help
 ```
 
-For the archive layout, standard entries, validation, and compatibility rules, read the [`.wikg` Archive Standard](./docs/wikg-standard.md).
+For the archive layout, standard entries, validation, and compatibility rules, read the [`.wikg` Archive Standard](./docs/en/wikg-standard.md).
 
 For programmatic usage from Node.js, read the [SDK guide](./docs/en/sdk.md).
 

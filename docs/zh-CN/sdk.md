@@ -138,5 +138,5 @@ SDK 有三套 process-local surface：
 
 ## 相关文档
 
-- [`.wikg` Archive Standard](../wikg-standard.md)
+- [`.wikg` 归档标准](./wikg-standard.md)
 - [WikiSpine Runtime](../wikispine-runtime.md)

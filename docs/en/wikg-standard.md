@@ -1,3 +1,5 @@
+English | [中文](../zh-CN/wikg-standard.md)
+
 # `.wikg` Archive Standard
 
 This document defines the public `.wikg` archive layout. It explains what a
@@ -291,5 +293,5 @@ depending on whether older readers may safely drop them during rewrite.
 
 ## Related Documents
 
-- [WikiSpine Runtime Guide](./wikispine-runtime.md)
-- [README](../README.md)
+- [WikiSpine Runtime Guide](../wikispine-runtime.md)
+- [README](../../README.md)

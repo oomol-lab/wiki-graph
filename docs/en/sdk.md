@@ -138,5 +138,5 @@ Process creation is outside the SDK. The `wg` CLI uses its own private worker en
 
 ## Related Documents
 
-- [`.wikg` Archive Standard](../wikg-standard.md)
+- [`.wikg` Archive Standard](./wikg-standard.md)
 - [WikiSpine Runtime](../wikispine-runtime.md)
