@@ -6,10 +6,7 @@ import type {
   SentenceId,
 } from "../../../document/index.js";
 import type { BookMeta } from "../../../source/index.js";
-import {
-  WikipageResolver,
-  type WikipageResolverOptions,
-} from "../../../wikipage/index.js";
+import { WikipageResolver } from "../../../wikipage/index.js";
 import type { QidResolution, WikipageSitelink } from "../../../wikipage/index.js";
 
 import {
@@ -18,11 +15,7 @@ import {
   type GraphNeighbor,
   type GraphNode,
 } from "../../../facade/graph.js";
-import {
-  getChapterTree,
-  listChapters,
-  type ChapterEntry,
-} from "../../../facade/chapter.js";
+import { listChapters, type ChapterEntry } from "../../../facade/chapter.js";
 import {
   createMentionLexicalHits,
   scoreLexicalText,
@@ -47,18 +40,19 @@ import {
   queryRequiredSearchIndex,
 } from "./search-hydration.js";
 import {
+  readArchivePage,
+  type ArchivePageOptions,
+} from "./pages.js";
+import {
   createTextStreamIndex,
-  createTextStreamRangeFragment,
   getTextStreamIndex,
   readSourceFragment,
   readTextStreamRange,
-  readTextStreamText,
 } from "./text-streams.js";
 import {
   formatChapterId,
   formatChapterTitleId,
   formatEdgeId,
-  formatFragmentId,
   formatNodeId,
   formatSummaryId,
   formatTextStreamRangeUri,
@@ -89,8 +83,6 @@ import {
   createSnippet,
   formatMetaSummary,
   formatMetaTitle,
-  createMetaPage,
-  formatMetaText,
   formatWeight,
   isDefined,
 } from "./helpers.js";
@@ -118,7 +110,6 @@ import type {
   ArchiveNodeLabel,
   ArchiveNodeSourceFragment,
   ArchivePack,
-  ArchivePage,
   ArchiveRelatedOptions,
   ArchiveRelatedResult,
   ArchiveRelatedRole,
@@ -133,6 +124,8 @@ import type {
 } from "./types.js";
 
 export { findArchiveObjects, grepArchiveObjects } from "./search.js";
+export { readArchivePage, readArchiveText } from "./pages.js";
+export type { ArchivePageOptions } from "./pages.js";
 
 export {
   clearDirtyArchiveSearchIndex,
@@ -186,15 +179,7 @@ export type {
   ArchiveTriplePattern,
 } from "./types.js";
 
-const DEFAULT_SOURCE_CONTEXT = 2;
-
-export interface ArchivePageOptions {
-  readonly backlinks?: boolean;
-  readonly evidenceLimit?: number;
-  readonly order?: ArchiveFindOrder;
-  readonly sourceContext?: number;
-  readonly wikipageResolverOptions?: WikipageResolverOptions;
-}
+export const DEFAULT_SOURCE_CONTEXT = 2;
 
 export async function getArchiveIndex(
   document: ReadonlyDocument,
@@ -433,305 +418,6 @@ function isChapterAllowed(
   return chapterFilter === undefined || chapterFilter.has(chapterId);
 }
 
-export async function readArchiveText(
-  document: ReadonlyDocument,
-  id: string,
-): Promise<string> {
-  const reference = parseArchiveReference(id);
-
-  switch (reference.type) {
-    case "chapter":
-      throw new Error(
-        `Chapter ${formatChapterId(reference.id)} is a scope URI, not a readable object.`,
-      );
-    case "chapter-title": {
-      const chapter = await requireChapter(document, reference.id);
-
-      return chapter.title ?? `[chapter ${reference.id}]`;
-    }
-    case "fragment":
-      return (
-        await readSourceFragment(
-          document,
-          reference.serialId,
-          reference.fragmentId,
-        )
-      ).text;
-    case "summary": {
-      const summary = await readTextStreamText(
-        document,
-        reference.id,
-        "summary",
-      );
-
-      if (summary.trim() === "") {
-        throw new Error(`Summary ${formatSummaryId(reference.id)} is missing.`);
-      }
-
-      return summary;
-    }
-    case "node": {
-      const { node } = await requireNode(document, reference.id);
-
-      return node.content;
-    }
-    case "meta": {
-      return formatMetaText(await document.readBookMeta());
-    }
-  }
-}
-
-export async function readArchivePage(
-  document: ReadonlyDocument,
-  id: string,
-  options: ArchivePageOptions = {},
-): Promise<ArchivePage> {
-  if (isWikiGraphObjectUri(id)) {
-    return await readWikiGraphPage(
-      document,
-      normalizeWikiGraphObjectUri(id),
-      options,
-    );
-  }
-
-  const reference = parseArchiveReference(id);
-
-  switch (reference.type) {
-    case "chapter": {
-      throw new Error(
-        `Chapter ${formatChapterId(reference.id)} is a scope URI, not a readable object. Use wikg://chapter/${reference.id}/title or wikg://chapter/${reference.id}/state.`,
-      );
-    }
-    case "chapter-title": {
-      const chapter = await requireChapter(document, reference.id);
-
-      return {
-        id: formatChapterTitleId(reference.id),
-        title: chapter.title ?? `[chapter ${reference.id}]`,
-        type: "chapter-title",
-      };
-    }
-    case "fragment": {
-      const [fragment, relatedNodes, fragmentIds] = await Promise.all([
-        readSourceFragment(document, reference.serialId, reference.fragmentId),
-        listFragmentNodes(document, reference.serialId, reference.fragmentId),
-        document.getSerialFragments(reference.serialId).listFragmentIds(),
-      ]);
-      const fragmentIndex = fragmentIds.indexOf(reference.fragmentId);
-      const previousFragmentId =
-        fragmentIndex > 0 ? fragmentIds[fragmentIndex - 1] : undefined;
-      const nextFragmentId =
-        fragmentIndex >= 0 && fragmentIndex < fragmentIds.length - 1
-          ? fragmentIds[fragmentIndex + 1]
-          : undefined;
-
-      return {
-        fragment,
-        id: fragment.id,
-        nextFragmentId:
-          nextFragmentId === undefined
-            ? undefined
-            : formatFragmentId(reference.serialId, nextFragmentId),
-        nodes: relatedNodes,
-        previousFragmentId:
-          previousFragmentId === undefined
-            ? undefined
-            : formatFragmentId(reference.serialId, previousFragmentId),
-        title: fragment.id,
-        type: "fragment",
-      };
-    }
-    case "meta":
-      return {
-        ...createMetaPage(await document.readBookMeta()),
-        id: ARCHIVE_ROOT_ID,
-        type: "meta",
-      };
-    case "node": {
-      const { chapterId, node } = await requireNode(document, reference.id);
-      const [neighbors, sourceFragments] = await Promise.all([
-        listGraphNeighbors(document, chapterId, reference.id),
-        readNodeSourceFragments(document, node),
-      ]);
-      const outgoing = neighbors.filter(
-        (neighbor) => neighbor.direction === "outgoing",
-      );
-      const incoming = neighbors.filter(
-        (neighbor) => neighbor.direction === "incoming",
-      );
-
-      return {
-        generatedNodeSummary: node.content,
-        id: formatNodeId(node.id),
-        incoming,
-        neighbors,
-        outgoing,
-        position: createNodePosition(node.sentenceIds),
-        sourceFragments,
-        title: node.label,
-        type: "node",
-      };
-    }
-    case "summary": {
-      const chapter = await requireChapter(document, reference.id);
-      const content = await readTextStreamText(
-        document,
-        reference.id,
-        "summary",
-      );
-
-      if (content.trim() === "") {
-        throw new Error(`Summary ${formatSummaryId(reference.id)} is missing.`);
-      }
-
-      return {
-        content,
-        id: formatSummaryId(reference.id),
-        title: chapter.title ?? `[chapter ${reference.id}]`,
-        type: "summary",
-      };
-    }
-  }
-}
-
-async function readWikiGraphPage(
-  document: ReadonlyDocument,
-  uri: string,
-  options: ArchivePageOptions = {},
-): Promise<ArchivePage> {
-  uri = normalizeWikiGraphObjectUri(uri);
-  const reference = parseWikiGraphReference(uri);
-
-  switch (reference.type) {
-    case "meta":
-      return await readArchivePage(document, ARCHIVE_ROOT_ID, options);
-    case "chapter":
-      throw new Error(
-        `wikg://chapter/${reference.chapterId} is a scope URI, not a readable object. Use wikg://chapter/${reference.chapterId}/title or wikg://chapter/${reference.chapterId}/state.`,
-      );
-    case "chapter-title":
-      return await readArchivePage(
-        document,
-        formatChapterTitleId(reference.chapterId),
-        options,
-      );
-    case "chapter-state": {
-      const details = await requireChapter(document, reference.chapterId);
-      const targets = await createChapterState(document, details);
-
-      return {
-        id:
-          reference.target === undefined
-            ? `wikg://chapter/${reference.chapterId}/state`
-            : `wikg://chapter/${reference.chapterId}/state/${reference.target}`,
-        ...(reference.target === undefined
-          ? { state: targets }
-          : { target: reference.target, value: targets[reference.target] }),
-        type: "state",
-      };
-    }
-    case "chapter-tree":
-      return {
-        id: "chapter-tree",
-        title: "Chapter tree",
-        tree: await getChapterTree(document),
-        type: "chapter-tree",
-      };
-    case "entity": {
-      const mentions = filterMentionsByChapter(
-        await document.mentions.listByQid(reference.qid),
-        reference.chapterId,
-      );
-
-      if (mentions.length === 0) {
-        throw new Error(`Entity ${uri} was not found in this archive.`);
-      }
-
-      return {
-        evidence: await createMentionEvidencePreview(
-          document,
-          mentions,
-          options.evidenceLimit,
-          createEvidenceReadContext(),
-          options.sourceContext ?? DEFAULT_SOURCE_CONTEXT,
-          options.order ?? "doc-asc",
-        ),
-        id: uri,
-        label: selectEntityLabel(mentions),
-        labels: selectEntityLabels(mentions),
-        mentionCount: mentions.length,
-        qid: reference.qid,
-        type: "entity",
-      };
-    }
-    case "entity-wikipage":
-      return {
-        ...(await resolveEntityWikipage(reference.qid, options)),
-        id: uri,
-        type: "entity-wikipage",
-      };
-    case "triple": {
-      const links = await filterMentionLinksByChapter(
-        document,
-        await document.mentionLinks.listByTriple({
-          objectQid: reference.objectQid,
-          predicate: reference.predicate,
-          subjectQid: reference.subjectQid,
-        }),
-        reference.chapterId,
-      );
-
-      if (links.length === 0) {
-        throw new Error(`Triple ${uri} was not found in this archive.`);
-      }
-
-      return {
-        evidence: await createMentionLinkEvidencePreview(
-          document,
-          links,
-          options.evidenceLimit,
-          createEvidenceReadContext(),
-          options.sourceContext ?? DEFAULT_SOURCE_CONTEXT,
-          options.order ?? "doc-asc",
-        ),
-        id: uri,
-        label: await createTriplePageLabel(document, reference),
-        objectQid: reference.objectQid,
-        predicate: reference.predicate,
-        subjectQid: reference.subjectQid,
-        type: "triple",
-      };
-    }
-    case "chunk": {
-      if (reference.chapterId !== undefined) {
-        const { chapterId } = await requireNode(document, reference.id);
-
-        if (chapterId !== reference.chapterId) {
-          throw new Error(`Chunk ${uri} was not found in this archive.`);
-        }
-      }
-      return await readArchivePage(
-        document,
-        formatNodeId(reference.id),
-        options,
-      );
-    }
-    case "text-stream":
-      return {
-        ...(options.backlinks === true
-          ? { backlinks: await createTextStreamBacklinks(document, reference) }
-          : {}),
-        fragment: await createTextStreamRangeFragment(document, reference),
-        id: uri,
-        nextFragmentId: undefined,
-        nodes: [],
-        previousFragmentId: undefined,
-        title: uri,
-        type: "fragment",
-      };
-  }
-}
-
 export async function listArchiveLinks(
   document: ReadonlyDocument,
   id: string,
@@ -898,7 +584,7 @@ async function listRelatedWikiGraphObjects(
   }
 }
 
-async function resolveEntityWikipage(
+export async function resolveEntityWikipage(
   qid: string,
   options: ArchivePageOptions,
 ): Promise<{
@@ -2335,7 +2021,7 @@ export function createFindEvidenceHydrationOptions(
   };
 }
 
-async function createTextStreamBacklinks(
+export async function createTextStreamBacklinks(
   document: ReadonlyDocument,
   reference: Extract<WikiGraphReference, { readonly type: "text-stream" }>,
 ): Promise<ArchiveBacklinks> {
@@ -3031,7 +2717,7 @@ export function selectEntityLabel(mentions: readonly MentionRecord[]): string {
   return selectEntityLabels(mentions)[0] ?? mentions[0]?.qid ?? "[entity]";
 }
 
-function selectEntityLabels(
+export function selectEntityLabels(
   mentions: readonly MentionRecord[],
 ): readonly string[] {
   const counts = new Map<string, number>();
@@ -3051,7 +2737,7 @@ function selectEntityLabels(
     .map(([label]) => label);
 }
 
-async function createTriplePageLabel(
+export async function createTriplePageLabel(
   document: ReadonlyDocument,
   reference: Extract<WikiGraphReference, { readonly type: "triple" }>,
 ): Promise<string> {
@@ -3079,7 +2765,7 @@ async function createTriplePageLabel(
   return `${subjectLabel}(${reference.subjectQid}) ${reference.predicate} ${objectLabel}(${reference.objectQid})`;
 }
 
-async function listFragmentNodes(
+export async function listFragmentNodes(
   document: ReadonlyDocument,
   chapterId: number,
   fragmentId: number,
@@ -3199,7 +2885,7 @@ export async function findNodes(
   return hits;
 }
 
-async function requireChapter(
+export async function requireChapter(
   document: ReadonlyDocument,
   chapterId: number,
 ): Promise<ChapterEntry> {
@@ -3214,7 +2900,7 @@ async function requireChapter(
   return chapter;
 }
 
-async function createChapterState(
+export async function createChapterState(
   document: ReadonlyDocument,
   chapter: ChapterEntry,
 ): Promise<ChapterState> {
@@ -3241,7 +2927,7 @@ function formatChapterStateSummary(state: ChapterState): string {
   ].join(" ");
 }
 
-async function requireNode(
+export async function requireNode(
   document: ReadonlyDocument,
   nodeId: number,
 ): Promise<{
@@ -3262,7 +2948,7 @@ async function requireNode(
   };
 }
 
-async function readNodeSourceFragments(
+export async function readNodeSourceFragments(
   document: ReadonlyDocument,
   node: GraphNode,
 ): Promise<readonly ArchiveNodeSourceFragment[]> {
@@ -3369,7 +3055,7 @@ function createNodeEvidenceRanges(node: Pick<GraphNode, "sentenceIds">): Array<{
   });
 }
 
-async function createMentionEvidencePreview(
+export async function createMentionEvidencePreview(
   document: ReadonlyDocument,
   mentions: readonly MentionRecord[],
   limit = 3,
@@ -3423,7 +3109,7 @@ async function createMentionEvidenceRanges(
   );
 }
 
-async function createMentionLinkEvidencePreview(
+export async function createMentionLinkEvidencePreview(
   document: ReadonlyDocument,
   links: readonly MentionLinkRecord[],
   limit = 3,
@@ -3458,7 +3144,7 @@ function createMentionLinkEvidenceRanges(
   );
 }
 
-function filterMentionsByChapter(
+export function filterMentionsByChapter(
   mentions: readonly MentionRecord[],
   chapterId: number | undefined,
 ): readonly MentionRecord[] {
@@ -3476,7 +3162,7 @@ function filterMentionsByChapterSet(
     : mentions.filter((mention) => chapterFilter.has(mention.chapterId));
 }
 
-async function filterMentionLinksByChapter(
+export async function filterMentionLinksByChapter(
   document: ReadonlyDocument,
   links: readonly MentionLinkRecord[],
   chapterId: number | undefined,
@@ -3858,7 +3544,7 @@ async function createSourceEvidenceItem(
   };
 }
 
-function createEvidenceReadContext(): EvidenceReadContext {
+export function createEvidenceReadContext(): EvidenceReadContext {
   return {
     chapters: new Map(),
     streamIndexes: new Map(),
