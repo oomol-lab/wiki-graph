@@ -6,9 +6,7 @@ export { MentionStore } from "./mention.js";
 export { ObjectMetadataStore } from "./object-metadata.js";
 export { ReadingEdgeStore } from "./reading-edge.js";
 export { SerialStore } from "./serial.js";
-export { SnakeChunkStore } from "./snake/chunk.js";
-export { SnakeEdgeStore } from "./snake/edge.js";
-export { SnakeStore } from "./snake.js";
+export { SnakeChunkStore, SnakeEdgeStore, SnakeStore } from "./snake/index.js";
 export type {
   ReadonlyChunkStore,
   ReadonlyFragmentGroupStore,
