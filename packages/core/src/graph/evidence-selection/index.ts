@@ -1,4 +1,4 @@
-export { EvidenceResolver } from "./anchor/resolver/index.js";
+export { EvidenceResolver } from "./anchor/index.js";
 export type {
   EvidenceResolutionFailure,
   EvidenceResolutionResult,
