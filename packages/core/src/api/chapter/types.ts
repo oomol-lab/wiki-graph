@@ -1,43 +1,18 @@
 import type { Language } from "../../runtime/common/language.js";
 import type { WikiGraphScope } from "../../runtime/common/llm-scope.js";
 import type { LLM } from "../../external/llm/index.js";
-
-export const CHAPTER_STAGES = [
-  "planned",
-  "sourced",
-  "graphed",
-  "summarized",
-] as const;
-
-export type ChapterStage = (typeof CHAPTER_STAGES)[number];
-
-export interface ChapterEntry {
-  readonly chapterId: number;
-  readonly childCount: number;
-  readonly depth: number;
-  readonly documentOrder: number;
-  readonly fragmentCount: number;
-  readonly stage: ChapterStage;
-  readonly title: string | null;
-  readonly tocPath: readonly string[];
-  readonly words: number;
-}
-
-export interface ChapterDetails extends ChapterEntry {
-  readonly graphReady: boolean;
-  readonly hasSummary: boolean;
-  readonly words: number;
-}
-
-export interface ChapterTree {
-  readonly chapters: readonly ChapterTreeNode[];
-}
-
-export interface ChapterTreeNode {
-  readonly children: readonly ChapterTreeNode[];
-  readonly id: number;
-  readonly title: string | null;
-}
+export { CHAPTER_STAGES } from "../../document/chapter/index.js";
+export type {
+  ChapterDetails,
+  ChapterEntry,
+  ChapterStage,
+  ChapterTree,
+  ChapterTreeNode,
+} from "../../document/chapter/index.js";
+import type {
+  ChapterEntry,
+  ChapterStage,
+} from "../../document/chapter/index.js";
 
 export interface ChapterTreeInput {
   readonly chapters: readonly ChapterTreeInputNode[];

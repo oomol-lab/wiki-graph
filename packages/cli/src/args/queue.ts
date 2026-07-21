@@ -23,7 +23,7 @@ import {
   rejectStreamingJSONFlag,
   requireArchiveUriPath,
 } from "./helpers.js";
-import { parseChapterTarget } from "./uri.js";
+import { parseChapterTarget } from "./uri/index.js";
 
 export function parseJobUriFirstArguments(
   positionals: readonly string[],

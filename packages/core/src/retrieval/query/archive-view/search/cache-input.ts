@@ -2,7 +2,7 @@ import type { MentionRecord, ReadonlyDocument } from "../../../../document/index
 
 import {
   SEARCH_EVIDENCE_KIND,
-} from "../../search-cache.js";
+} from "../../search-cache/index.js";
 import type {
   SearchChunkHitInput,
   SearchEntityHitInput,

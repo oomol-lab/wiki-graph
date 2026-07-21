@@ -7,7 +7,7 @@ import type {
   ChapterTreeNode,
   ChapterTreeTitleChange,
   MoveChapterOptions,
-} from "../chapter.js";
+} from "./types.js";
 
 export function appendChildToChapter(
   items: MutableTocItem[],

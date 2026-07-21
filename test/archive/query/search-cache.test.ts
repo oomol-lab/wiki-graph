@@ -6,7 +6,7 @@ import { Database } from "../../../packages/core/src/document/index.js";
 import {
   createSearchSession,
   deleteArchiveSearchSessions,
-} from "../../../packages/core/src/retrieval/query/search-cache.js";
+} from "../../../packages/core/src/retrieval/query/search-cache/index.js";
 import { withTempDir } from "../../helpers/temp.js";
 
 const originalStateDir = process.env.WIKIGRAPH_STATE_DIR;

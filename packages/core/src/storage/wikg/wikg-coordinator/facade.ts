@@ -2,9 +2,9 @@ import { rm } from "fs/promises";
 import { resolve } from "path";
 
 import { createWikiGraphTempDirectory } from "../../../runtime/common/wiki-graph/temp.js";
-import type { DocumentFileStore } from "../../../document/directory.js";
+import type { DocumentFileStore } from "../../../document/directory/index.js";
 
-import { extractWikgArchive } from "../archive.js";
+import { extractWikgArchive } from "../archive/index.js";
 
 import { WikgDocumentFileStore } from "./file-store.js";
 import { WikgArchiveSession } from "./session.js";

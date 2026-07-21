@@ -1,6 +1,6 @@
 import type { MentionRecord, ReadonlyDocument } from "../../../document/index.js";
 import type { BookMeta } from "../../../text/source/index.js";
-import { listChapters } from "../../../api/chapter.js";
+import { listChapters } from "../../../document/chapter/index.js";
 
 import { createMentionLexicalHits, scoreLexicalText, type LexicalQuery } from "../lexical-search.js";
 import {

@@ -9,7 +9,7 @@ import {
   readEntitySearchSessionPage,
   readSearchSessionDescriptor,
   readSearchSessionPage,
-} from "../../search-cache.js";
+} from "../../search-cache/index.js";
 
 import {
   BROAD_FIND_LENS_HINT,

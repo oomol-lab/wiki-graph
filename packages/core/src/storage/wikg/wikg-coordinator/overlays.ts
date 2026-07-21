@@ -1,4 +1,4 @@
-import { readWikgArchiveMutationToken, type WikgArchiveOverlay } from "../archive.js";
+import { readWikgArchiveMutationToken, type WikgArchiveOverlay } from "../archive/index.js";
 
 import { createArchiveSignature } from "./archive-key.js";
 import { SEARCH_INDEX_DATABASE_ENTRY_PATH } from "./constants.js";

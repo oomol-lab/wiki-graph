@@ -1,4 +1,4 @@
-export { LLM } from "./client.js";
+export { LLM } from "./client/index.js";
 export { LLMContext } from "./context.js";
 export { LLMPaymentRequiredError } from "./errors.js";
 export {

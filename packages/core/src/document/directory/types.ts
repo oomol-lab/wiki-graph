@@ -5,7 +5,7 @@ import type { Database as DocumentDatabase } from "../database.js";
 import type {
   ReadonlySerialTextStream,
   SerialTextStream,
-} from "../text-streams.js";
+} from "../text-streams/index.js";
 import type {
   ChunkStore,
   FragmentGroupStore,

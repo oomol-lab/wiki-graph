@@ -4,7 +4,7 @@ import { join } from "path";
 import type { Document } from "../../document/index.js";
 import { DirectoryDocument } from "../../document/index.js";
 import { SerialGeneration } from "../../serial.js";
-import { getChapterDetails, type ChapterDetails } from "../chapter.js";
+import { getChapterDetails, type ChapterDetails } from "../chapter/index.js";
 import { copyChunks, copySnakes } from "./copy.js";
 import { createFragmentBackedDocument } from "./document-adapter.js";
 import { writeGraphArtifactSourceFragments } from "./graph-source.js";

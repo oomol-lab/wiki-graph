@@ -1,5 +1,5 @@
 import type { MentionLinkRecord, MentionRecord, ReadonlyDocument } from "../../../../document/index.js";
-import type { GraphNode } from "../../../../api/graph.js";
+import type { GraphNode } from "../../../../graph/reading.js";
 
 import { getTextStreamIndex } from "../text-streams.js";
 import type { EvidenceReadContext, SourceEvidenceRange } from "../types.js";

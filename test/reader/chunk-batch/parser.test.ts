@@ -8,7 +8,7 @@ import { ParsedJsonError } from "../../../packages/core/src/external/guaranteed/
 import {
   ChunkBatchParser,
   ChunkMetadataField,
-} from "../../../packages/core/src/text/reader/chunk-batch/parser.js";
+} from "../../../packages/core/src/text/reader/chunk-batch/parser/index.js";
 import { FragmentProjection } from "../../../packages/core/src/text/reader/chunk-batch/fragment-projection.js";
 import type { ChunkExtractionSentence } from "../../../packages/core/src/text/reader/chunk-batch/types.js";
 import type { LLMessage } from "../../../packages/core/src/external/llm/index.js";

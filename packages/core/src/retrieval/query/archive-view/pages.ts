@@ -1,6 +1,6 @@
 import type { ReadonlyDocument } from "../../../document/index.js";
-import { getChapterTree } from "../../../api/chapter.js";
-import { listGraphNeighbors } from "../../../api/graph.js";
+import { getChapterTree } from "../../../document/chapter/index.js";
+import { listGraphNeighbors } from "../../../graph/reading.js";
 import type { WikipageResolverOptions } from "../../../external/wikipage/index.js";
 
 import { ARCHIVE_ROOT_ID, createMetaPage, formatMetaText, isWikiGraphObjectUri, normalizeWikiGraphObjectUri, createNodePosition } from "./helpers.js";

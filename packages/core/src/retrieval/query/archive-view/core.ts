@@ -1,6 +1,6 @@
 import type { ChunkRecord, ReadonlyDocument } from "../../../document/index.js";
-import { listChapters, type ChapterEntry } from "../../../api/chapter.js";
-import { getGraphNode, type GraphNode } from "../../../api/graph.js";
+import { listChapters, type ChapterEntry } from "../../../document/chapter/index.js";
+import { getGraphNode, type GraphNode } from "../../../graph/reading.js";
 
 import { compareArchivePositions, createNodePosition } from "./helpers.js";
 import { formatChapterId, formatNodeId, formatTextStreamRangeUri } from "./references.js";

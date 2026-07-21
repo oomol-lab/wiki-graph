@@ -1,6 +1,6 @@
 import type { ReadonlyDocument } from "../../../document/index.js";
 
-import { readEntitySearchEvidenceMentions } from "../search-cache.js";
+import { readEntitySearchEvidenceMentions } from "../search-cache/index.js";
 import {
   encodeFindCursor,
   isWikiGraphObjectUri,

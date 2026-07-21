@@ -3,20 +3,20 @@ export {
   ensureSharedStateDatabaseInitialized,
   openSharedStateDatabase,
 } from "./shared-state-database.js";
-export { TextStreams, SerialTextStream } from "./text-streams.js";
-export { FragmentDraft, Fragments, SerialFragments } from "./fragments.js";
+export { TextStreams, SerialTextStream } from "./text-streams/index.js";
+export { FragmentDraft, Fragments, SerialFragments } from "./fragments/index.js";
 export type {
   ReadonlySerialTextStream,
   ReadonlySerialTextStream as ReadonlySerialFragments,
   ReadonlyTextStreams,
   ReadonlyTextStreams as ReadonlyFragments,
-} from "./text-streams.js";
-export { DirectoryDocument } from "./directory.js";
+} from "./text-streams/index.js";
+export { DirectoryDocument } from "./directory/index.js";
 export type {
   Document,
   DocumentContext,
   ReadonlyDocument,
-} from "./directory.js";
+} from "./directory/index.js";
 export { SCHEMA_SQL } from "./schema.js";
 export {
   ChunkStore,

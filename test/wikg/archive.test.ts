@@ -13,7 +13,7 @@ import {
   readWikgArchiveEntry,
   writeWikgArchive,
   writeWikgArchiveWithOverlays,
-} from "../../packages/core/src/storage/wikg/archive.js";
+} from "../../packages/core/src/storage/wikg/archive/index.js";
 import { withTempDir } from "../helpers/temp.js";
 
 const VALID_MUTATION_TOKEN_CONTENT = `wikg-mutation-token:v1\n${"a".repeat(43)}\n`;

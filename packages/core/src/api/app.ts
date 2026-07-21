@@ -28,7 +28,7 @@ import {
 import { createDefaultWikiGraphSampling } from "./llm-sampling.js";
 import { WikiGraphArchiveFile } from "../storage/wikg/index.js";
 import type { WikiGraphArchive } from "./wiki-graph-archive.js";
-import type { ChapterStage } from "./chapter.js";
+import type { ChapterStage } from "./chapter/index.js";
 import { resolveExtractionPrompt } from "./prompts.js";
 
 const DATA_DIR_PATH = resolveDataDirPath();

@@ -1,5 +1,5 @@
 import type { ReadonlyDocument } from "../../../../document/index.js";
-import type { ChapterEntry } from "../../../../api/chapter.js";
+import type { ChapterEntry } from "../../../../document/chapter/index.js";
 
 import { formatTextStreamRangeUri } from "../references.js";
 import { readTextStreamRange } from "../text-streams.js";

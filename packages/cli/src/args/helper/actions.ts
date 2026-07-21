@@ -7,7 +7,7 @@ import type {
   CLIJobAction,
   CLIMetadataAction,
 } from "../types.js";
-import { isArchiveChapterAction } from "./chapter.js";
+import { isArchiveChapterAction } from "./chapter/index.js";
 
 export function isArchiveAction(
   value: string | undefined,

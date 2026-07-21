@@ -1,5 +1,5 @@
 import type { ReadonlyDocument } from "../../document/index.js";
-import { getChapterDetails } from "../chapter.js";
+import { getChapterDetails } from "../chapter/index.js";
 import { readChapterFragments } from "./fragments.js";
 import type { ChapterKnowledgeGraphInputSnapshot } from "./types.js";
 

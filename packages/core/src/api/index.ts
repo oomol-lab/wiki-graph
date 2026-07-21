@@ -73,7 +73,7 @@ export {
   commitChapterSummaryArtifact,
   readChapterBuildInput,
   snapshotChapterSummaryInput,
-} from "./chapter-build.js";
+} from "./chapter-build/index.js";
 export {
   buildChapterKnowledgeGraphArtifact,
   clearChapterKnowledgeGraph,
@@ -83,7 +83,7 @@ export {
   generateChapterKnowledgeGraphArtifactFromSnapshot,
   groundWikimatchCandidates,
   snapshotChapterKnowledgeGraphInput,
-} from "./knowledge-graph-build.js";
+} from "./knowledge-graph-build/index.js";
 export {
   createContinuationCursor,
   readContinuationCursor,
@@ -99,12 +99,12 @@ export type {
   BuildChapterGraphArtifactOptions,
   BuildChapterSummaryArtifactOptions,
   ChapterGraphBuildArtifact,
-} from "./chapter-build.js";
+} from "./chapter-build/index.js";
 export type {
   BuildChapterKnowledgeGraphArtifactOptions,
   ChapterKnowledgeGraphBuildArtifact,
   ChapterKnowledgeGraphInputSnapshot,
-} from "./knowledge-graph-build.js";
+} from "./knowledge-graph-build/index.js";
 export {
   addChapter,
   advanceChapterStages,
@@ -122,7 +122,7 @@ export {
   setChapterSource,
   setChapterSummary,
   setChapterTitle,
-} from "./chapter.js";
+} from "./chapter/index.js";
 export {
   findGraphPath,
   getGraphEvidence,
@@ -179,7 +179,7 @@ export type {
   GenerateChapterGraphOptions,
   GenerateChapterSummaryOptions,
   MoveChapterOptions,
-} from "./chapter.js";
+} from "./chapter/index.js";
 export type {
   GraphEdge,
   GraphEvidenceLine,

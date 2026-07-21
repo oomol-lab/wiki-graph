@@ -27,7 +27,7 @@ import {
   parseLocalConfigUriFirstArguments,
   parseTransformArguments,
 } from "./root/index.js";
-import { parseArchiveUriFirstArguments } from "./uri.js";
+import { parseArchiveUriFirstArguments } from "./uri/index.js";
 export function parseCLIArguments(
   argv = process.argv.slice(2),
 ): ParsedCLIArguments {

@@ -1,9 +1,9 @@
 import { mkdir, readFile, rename, rm, writeFile } from "fs/promises";
 import { dirname, posix, resolve } from "path";
 
-import type { DocumentFileStore } from "../../../document/directory.js";
+import type { DocumentFileStore } from "../../../document/directory/index.js";
 
-import { readWikgArchiveEntry, WikgArchiveReader } from "../archive.js";
+import { readWikgArchiveEntry, WikgArchiveReader } from "../archive/index.js";
 
 import {
   createArchiveKey,

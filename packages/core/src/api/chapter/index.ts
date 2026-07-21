@@ -1,10 +1,10 @@
-export * from "./chapter/advance.js";
-export * from "./chapter/details.js";
-export * from "./chapter/generate.js";
-export * from "./chapter/manage.js";
-export * from "./chapter/options.js";
-export * from "./chapter/parse.js";
-export { CHAPTER_STAGES } from "./chapter/types.js";
+export * from "./advance.js";
+export * from "./details.js";
+export * from "./generate.js";
+export * from "./manage.js";
+export * from "./options.js";
+export * from "./parse.js";
+export { CHAPTER_STAGES } from "./types.js";
 export type {
   AddChapterOptions,
   AdvanceChapterStagesOptions,
@@ -23,4 +23,4 @@ export type {
   ChapterTreeTitleChange,
   MoveChapterOptions,
   MutableAdvanceProgressState,
-} from "./chapter/types.js";
+} from "./types.js";

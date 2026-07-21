@@ -52,16 +52,16 @@ export type {
 export {
   createContinuationCursor,
   readContinuationCursor,
-} from "./continuation-cursor.js";
-export type { ContinuationCursor } from "./continuation-cursor.js";
+} from "./continuation-cursor/index.js";
+export type { ContinuationCursor } from "./continuation-cursor/index.js";
 export {
   createSearchSession,
   deleteArchiveSearchSessions,
   readCachedSearchSessionPage,
   runSearchCacheGc,
-} from "./search-cache.js";
+} from "./search-cache/index.js";
 export type {
   SearchSessionDescriptor,
   SearchSessionInput,
   SearchSessionPage,
-} from "./search-cache.js";
+} from "./search-cache/index.js";

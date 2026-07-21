@@ -1,5 +1,5 @@
 import type { ReadonlyDocument } from "../../../../document/index.js";
-import { listChapters } from "../../../../api/chapter.js";
+import { listChapters } from "../../../../document/chapter/index.js";
 import { createLexicalQuery, listLexicalQueryCandidateTerms } from "../../lexical-search.js";
 import {
   decodeBucketSearchSessionCursor,
@@ -8,7 +8,7 @@ import {
   readSearchSessionChunkBucketPage,
   readSearchSessionMetadataForCursor,
   readSearchSessionObjectBucketPage,
-} from "../../search-cache.js";
+} from "../../search-cache/index.js";
 import type {
   BucketSearchCursor,
   SearchChapterTitleCursorKey,

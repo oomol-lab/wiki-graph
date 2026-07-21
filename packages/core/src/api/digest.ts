@@ -23,7 +23,7 @@ import { SerialGeneration, writeSerialSource } from "../serial.js";
 
 import { importSource } from "./import.js";
 import { WikiGraphArchive } from "./wiki-graph-archive.js";
-import type { ChapterStage } from "./chapter.js";
+import type { ChapterStage } from "./chapter/index.js";
 
 interface DigestSessionOptions {
   readonly documentDirPath?: string;

@@ -1,6 +1,6 @@
 import type { ReadonlyDocument } from "../../../../document/index.js";
-import type { GraphNeighbor } from "../../../../api/graph.js";
-import { listGraphNeighbors } from "../../../../api/graph.js";
+import type { GraphNeighbor } from "../../../../graph/reading.js";
+import { listGraphNeighbors } from "../../../../graph/reading.js";
 
 import {
   isWikiGraphObjectUri,

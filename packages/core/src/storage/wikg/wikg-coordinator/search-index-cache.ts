@@ -6,7 +6,7 @@ import { createWikiGraphTempDirectory } from "../../../runtime/common/wiki-graph
 import { Database as DocumentDatabase, DirectoryDocument } from "../../../document/index.js";
 import { readSearchIndexFingerprintFromDatabase } from "../../../retrieval/search-index/index.js";
 
-import { extractWikgArchive, readWikgArchiveMutationToken } from "../archive.js";
+import { extractWikgArchive, readWikgArchiveMutationToken } from "../archive/index.js";
 
 import { createArchiveSignature, pathExists } from "./archive-key.js";
 import { hasActiveArchiveOwnerOrSqliteLease, hasActiveWorkspaceUse } from "./activity.js";

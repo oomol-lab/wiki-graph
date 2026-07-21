@@ -99,7 +99,7 @@ vi.mock("ai", () => ({
 }));
 
 import { WikiGraphScope } from "../../packages/core/src/runtime/common/llm-scope.js";
-import { LLM } from "../../packages/core/src/external/llm/client.js";
+import { LLM } from "../../packages/core/src/external/llm/client/index.js";
 import { LLMPaymentRequiredError } from "../../packages/core/src/external/llm/errors.js";
 import { withTempDir } from "../helpers/temp.js";
 

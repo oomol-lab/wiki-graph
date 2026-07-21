@@ -11,7 +11,7 @@ import type {
 import type {
   GenerateChapterGraphOptions,
   GenerateChapterSummaryOptions,
-} from "../chapter.js";
+} from "../chapter/index.js";
 
 export interface ChapterGraphBuildArtifact {
   readonly documentPath: string;

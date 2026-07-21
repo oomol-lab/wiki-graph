@@ -31,4 +31,4 @@ export {
 } from "./helpers.js";
 export { parseJobUriFirstArguments } from "./queue.js";
 export type * from "./types.js";
-export { parseArchiveUriFirstArguments } from "./uri.js";
+export { parseArchiveUriFirstArguments } from "./uri/index.js";

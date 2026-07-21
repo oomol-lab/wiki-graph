@@ -3,7 +3,7 @@ import { join } from "path";
 
 import type { Document, ReadonlyDocument } from "../../document/index.js";
 import { DirectoryDocument } from "../../document/index.js";
-import { getChapterDetails, type ChapterDetails } from "../chapter.js";
+import { getChapterDetails, type ChapterDetails } from "../chapter/index.js";
 import { createFragmentBackedDocument } from "./document-adapter.js";
 import { SummaryInputSnapshotDocument } from "./snapshot/index.js";
 import {

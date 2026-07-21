@@ -6,7 +6,7 @@ import {
   type SupportedWiki,
   type WikiPageInfo,
   type WikidataEntityInfo,
-} from "./wikimedia-client.js";
+} from "./wikimedia-client/index.js";
 import type {
   CachedDisambiguationRecord,
   CachedPageRecord,

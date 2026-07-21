@@ -14,7 +14,7 @@ import {
   createSearchSession,
   rebuildArchiveSearchIndex,
 } from "../../packages/core/src/retrieval/query/index.js";
-import { writeWikgArchive } from "../../packages/core/src/storage/wikg/archive.js";
+import { writeWikgArchive } from "../../packages/core/src/storage/wikg/archive/index.js";
 import { WikiGraphArchiveFile } from "../../packages/core/src/storage/wikg/index.js";
 import { WikipageCache } from "../../packages/core/src/external/wikipage/index.js";
 import { withTempDir } from "../helpers/temp.js";

@@ -21,7 +21,7 @@ import {
   type ExtractChunksResult,
   type UserFocusedResponseData,
   userFocusedResponseSchema,
-} from "./parser.js";
+} from "./parser/index.js";
 import { FragmentProjection } from "./fragment-projection.js";
 import { projectFragmentText } from "./fragment-projection.js";
 import { needsTranslation } from "./language.js";

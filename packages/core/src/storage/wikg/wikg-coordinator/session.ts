@@ -2,9 +2,9 @@ import { mkdir, rm, writeFile } from "fs/promises";
 import { dirname, isAbsolute, relative, resolve } from "path";
 
 import { createWikiGraphTempDirectory } from "../../../runtime/common/wiki-graph/temp.js";
-import type { DocumentFileStore } from "../../../document/directory.js";
+import type { DocumentFileStore } from "../../../document/directory/index.js";
 
-import { listWikgArchiveEntries } from "../archive.js";
+import { listWikgArchiveEntries } from "../archive/index.js";
 
 import { createArchiveKey, createOwnerId } from "./archive-key.js";
 import { ARCHIVE_SESSION_CONSTRUCTOR_TOKEN, OWNER_HEARTBEAT_INTERVAL_MS } from "./constants.js";

@@ -5,7 +5,7 @@ import type {
   ObjectMetadataStore,
   SerialStore,
 } from "../stores/index.js";
-import type { TextStreams } from "../text-streams.js";
+import type { TextStreams } from "../text-streams/index.js";
 import { compareNumberDescending, type DirectoryDocumentContext } from "./context.js";
 import type { DocumentFileStore } from "./types.js";
 

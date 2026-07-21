@@ -5,7 +5,7 @@ export {
 } from "./normalizer.js";
 export { RateLimiter, parseRetryAfterMs } from "./rate-limiter.js";
 export { WikipageResolver } from "./resolver.js";
-export { WikimediaClient } from "./wikimedia-client.js";
+export { WikimediaClient } from "./wikimedia-client/index.js";
 export type {
   CachedDisambiguationRecord,
   CachedPageRecord,

@@ -1,5 +1,5 @@
 import type { Document, ReadonlyDocument } from "../../../document/index.js";
-import { listChapters } from "../../../api/chapter.js";
+import { listChapters } from "../../../document/chapter/index.js";
 import {
   createSearchIndexFingerprint,
   ensureSearchIndex,

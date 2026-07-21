@@ -1,5 +1,5 @@
 import type { ReadonlyDocument } from "../../document/index.js";
-import { getChapterDetails, type ChapterDetails } from "../chapter.js";
+import { getChapterDetails, type ChapterDetails } from "../chapter/index.js";
 import { collectReaderText, readChapterSource } from "./source.js";
 
 export async function readChapterBuildInput(

@@ -18,7 +18,7 @@ import {
   type TocFile,
   type TocItem,
 } from "../text/source/index.js";
-import type { ChapterStage } from "./chapter.js";
+import type { ChapterStage } from "./chapter/index.js";
 
 export interface ImportSourceOptions
   extends

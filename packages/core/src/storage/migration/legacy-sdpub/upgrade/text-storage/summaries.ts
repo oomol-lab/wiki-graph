@@ -1,7 +1,7 @@
 import { readFile, readdir } from "fs/promises";
 import { join } from "path";
 
-import { DirectoryDocument } from "../../../../../document/directory.js";
+import { DirectoryDocument } from "../../../../../document/directory/index.js";
 import { isNodeError } from "../../../../../utils/node-error.js";
 
 export async function migrateLegacySummariesToTextStreams(

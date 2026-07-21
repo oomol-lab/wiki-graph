@@ -9,7 +9,7 @@ import { Database } from "../database.js";
 import {
   TextStreams,
   type SerialTextStream,
-} from "../text-streams.js";
+} from "../text-streams/index.js";
 import {
   initializeDocumentSchema,
   SCHEMA_SQL,

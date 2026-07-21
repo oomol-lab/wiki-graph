@@ -63,14 +63,14 @@ import {
   generateChapterGraph,
   getChapterDetails,
   setChapterSource,
-} from "../../packages/core/src/api/chapter.js";
+} from "../../packages/core/src/api/chapter/index.js";
 import {
   buildChapterGraphArtifact,
   buildChapterSummaryArtifactFromSnapshot,
   commitChapterGraphArtifact,
   readChapterBuildInput,
   snapshotChapterSummaryInput,
-} from "../../packages/core/src/api/chapter-build.js";
+} from "../../packages/core/src/api/chapter-build/index.js";
 import { withTempDir } from "../helpers/temp.js";
 
 describe("facade/chapter graph", () => {

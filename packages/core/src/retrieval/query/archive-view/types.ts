@@ -1,7 +1,7 @@
 import type { MentionLinkRecord, MentionRecord } from "../../../document/index.js";
 import type { BookMeta } from "../../../text/source/index.js";
-import type { GraphNeighbor } from "../../../api/graph.js";
-import type { ChapterEntry, ChapterTree } from "../../../api/chapter.js";
+import type { GraphNeighbor } from "../../../graph/reading.js";
+import type { ChapterEntry, ChapterTree } from "../../../document/chapter/index.js";
 
 export type ArchiveObjectType =
   | "chapter"

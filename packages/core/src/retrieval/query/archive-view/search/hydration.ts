@@ -1,5 +1,5 @@
 import type { ReadonlyDocument } from "../../../../document/index.js";
-import { listChapters, type ChapterEntry } from "../../../../api/chapter.js";
+import { listChapters, type ChapterEntry } from "../../../../document/chapter/index.js";
 import {
   querySearchIndex,
   SEARCH_OBJECT_PROPERTY_KIND,

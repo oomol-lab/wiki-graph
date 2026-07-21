@@ -27,7 +27,7 @@ import {
   readArchiveIndexSettings,
   SEARCH_INDEX_FTS_HIT_LIMIT,
 } from "../../../packages/core/src/retrieval/search-index/index.js";
-import { deleteArchiveSearchSessions } from "../../../packages/core/src/retrieval/query/search-cache.js";
+import { deleteArchiveSearchSessions } from "../../../packages/core/src/retrieval/query/search-cache/index.js";
 import { withTempDir } from "../../helpers/temp.js";
 
 const originalStateDir = process.env.WIKIGRAPH_STATE_DIR;

@@ -1,5 +1,5 @@
 import type { MentionLinkRecord, SentenceId } from "../../../../document/index.js";
-import type { GraphNeighbor, GraphNode } from "../../../../api/graph.js";
+import type { GraphNeighbor, GraphNode } from "../../../../graph/reading.js";
 
 import {
   compareListHits,

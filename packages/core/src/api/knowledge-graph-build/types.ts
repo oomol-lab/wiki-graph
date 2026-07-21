@@ -7,7 +7,7 @@ import type { WikipageResolverOptions } from "../../external/wikipage/index.js";
 import type { MatchWikispineSentenceCandidatesOptions } from "../../external/wikimatch/index.js";
 import type { GuaranteedRequestController } from "../../external/guaranteed/index.js";
 import type { BuildJobProgressReporter } from "../../runtime/jobs/index.js";
-import type { ChapterDetails } from "../chapter.js";
+import type { ChapterDetails } from "../chapter/index.js";
 
 export interface ChapterKnowledgeGraphBuildArtifact {
   readonly chapterId: number;

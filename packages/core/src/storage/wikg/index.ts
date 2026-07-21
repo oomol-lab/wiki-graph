@@ -7,8 +7,8 @@ export {
   WIKG_FORMAT_VERSION,
   writeWikgArchive,
   writeWikgArchiveWithOverlays,
-} from "./archive.js";
-export type { WikgArchiveOverlay } from "./archive.js";
+} from "./archive/index.js";
+export type { WikgArchiveOverlay } from "./archive/index.js";
 export {
   formatLocatedChapterResourceUri,
   formatLocatedChapterSourceCollectionUri,

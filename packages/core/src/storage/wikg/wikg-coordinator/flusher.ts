@@ -2,7 +2,7 @@ import { mkdir, mkdtemp, rename, rm } from "fs/promises";
 import { tmpdir } from "os";
 import { basename, dirname, join, resolve } from "path";
 
-import { writeWikgArchiveWithOverlays } from "../archive.js";
+import { writeWikgArchiveWithOverlays } from "../archive/index.js";
 
 import { createArchiveKey } from "./archive-key.js";
 import { DATABASE_ENTRY_PATH, SEARCH_INDEX_DATABASE_ENTRY_PATH } from "./constants.js";

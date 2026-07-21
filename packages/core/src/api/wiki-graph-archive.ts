@@ -11,7 +11,7 @@ import {
   readWikgArchiveFormatVersion,
   writeWikgArchive,
 } from "../storage/wikg/index.js";
-import type { ChapterStage } from "./chapter.js";
+import type { ChapterStage } from "./chapter/index.js";
 import type { WikiGraphSerialEntry } from "./types.js";
 
 export class WikiGraphArchive {
