@@ -8,13 +8,15 @@ import {
   readSearchSessionChunkBucketPage,
   readSearchSessionMetadataForCursor,
   readSearchSessionObjectBucketPage,
-  type BucketSearchCursor,
-  type SearchChapterTitleCursorKey,
-  type SearchChunkCursorKey,
-  type SearchObjectCursorKey,
-  type SearchSessionDescriptor,
-  type SearchTextCursorKey,
 } from "../../search-cache.js";
+import type {
+  BucketSearchCursor,
+  SearchChapterTitleCursorKey,
+  SearchChunkCursorKey,
+  SearchObjectCursorKey,
+  SearchSessionDescriptor,
+  SearchTextCursorKey,
+} from "../../search-cache/types.js";
 import {
   querySearchIndex,
   SEARCH_INDEX_FTS_HIT_LIMIT,

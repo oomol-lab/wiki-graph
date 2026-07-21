@@ -1,26 +1,26 @@
-import type { ReadonlyDocument } from "../../../document/index.js";
-import type { GraphNeighbor } from "../../../facade/graph.js";
-import { listGraphNeighbors } from "../../../facade/graph.js";
+import type { ReadonlyDocument } from "../../../../document/index.js";
+import type { GraphNeighbor } from "../../../../facade/graph.js";
+import { listGraphNeighbors } from "../../../../facade/graph.js";
 
 import {
   isWikiGraphObjectUri,
   normalizeWikiGraphObjectUri,
-} from "./helpers.js";
-import { requireChapter, requireNode } from "./core.js";
+} from "../helpers.js";
+import { requireChapter, requireNode } from "../core.js";
 import {
   hydrateRelatedItemsEvidence,
   paginateRelatedItems,
-} from "./related/pagination.js";
-import { listRelatedEntityObjects } from "./related/entity.js";
-import { filterAndSortChunkRelatedItemsByQuery } from "./related/query.js";
-import { sortGraphNeighborsByListMode } from "./related/sort.js";
-export { resolveEntityWikipage } from "./related/wikipage.js";
-import { formatChapterId, formatNodeId, parseArchiveReference, parseWikiGraphReference } from "./references.js";
+} from "./pagination.js";
+import { listRelatedEntityObjects } from "./entity.js";
+import { filterAndSortChunkRelatedItemsByQuery } from "./query.js";
+import { sortGraphNeighborsByListMode } from "./sort.js";
+export { resolveEntityWikipage } from "./wikipage.js";
+import { formatChapterId, formatNodeId, parseArchiveReference, parseWikiGraphReference } from "../references.js";
 import type {
   ArchiveRelatedOptions,
   ArchiveRelatedResult,
   ArchiveRelatedRole,
-} from "./types.js";
+} from "../types.js";
 
 export async function listArchiveLinks(
   document: ReadonlyDocument,

@@ -25,7 +25,7 @@ import {
   selectEntityLabel,
   selectEntityLabels,
 } from "./knowledge.js";
-import { resolveEntityWikipage } from "./related.js";
+import { resolveEntityWikipage } from "./related/index.js";
 import {
   formatChapterId,
   formatChapterTitleId,

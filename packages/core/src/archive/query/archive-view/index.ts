@@ -1,10 +1,10 @@
-export { findArchiveObjects, grepArchiveObjects } from "./search.js";
+export { findArchiveObjects, grepArchiveObjects } from "./search/index.js";
 export { readArchivePage, readArchiveText } from "./pages.js";
 export {
   listAllArchiveLinks,
   listArchiveLinks,
   listRelatedArchiveObjects,
-} from "./related.js";
+} from "./related/index.js";
 export type { ArchivePageOptions } from "./pages.js";
 
 export {

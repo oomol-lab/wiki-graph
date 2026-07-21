@@ -1,7 +1,7 @@
 import type { ReadonlyDocument } from "../../../document/index.js";
 
 import { readArchivePage } from "./pages.js";
-import { listRelatedArchiveObjects } from "./related.js";
+import { listRelatedArchiveObjects } from "./related/index.js";
 import { parseWikiGraphReference } from "./references.js";
 import type { ArchivePack } from "./types.js";
 

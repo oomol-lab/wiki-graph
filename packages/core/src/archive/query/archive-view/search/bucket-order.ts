@@ -3,7 +3,7 @@ import { parseSearchPropertyIntegerOwnerId } from "./hydration.js";
 import type {
   SearchChapterTitleCursorKey,
   SearchTextCursorKey,
-} from "../../search-cache.js";
+} from "../../search-cache/types.js";
 import type {
   SearchIndexObjectHit,
   SearchIndexTextHit,

@@ -6,26 +6,26 @@ import type {
   ReadonlyObjectMetadataStore,
   ReadonlySerialFragments,
   SentenceId,
-} from "../../document/index.js";
-import type { SummaryInputSnapshotData } from "./types.js";
-import { SnapshotChunkStore } from "./snapshot/chunk-store.js";
+} from "../../../document/index.js";
+import type { SummaryInputSnapshotData } from "../types.js";
+import { SnapshotChunkStore } from "./chunk-store.js";
 import {
   EmptySnapshotGraphBuildParameterStore,
   EmptySnapshotMentionLinkStore,
   EmptySnapshotMentionStore,
   EmptySnapshotObjectMetadataStore,
-} from "./snapshot/empty-stores.js";
+} from "./empty-stores.js";
 import {
   SnapshotFragmentGroupStore,
   SnapshotReadingEdgeStore,
   SnapshotSnakeChunkStore,
   SnapshotSnakeEdgeStore,
   SnapshotSnakeStore,
-} from "./snapshot/graph-stores.js";
+} from "./graph-stores.js";
 import {
   SnapshotSerialFragments,
   SnapshotSerialStore,
-} from "./snapshot/serial-store.js";
+} from "./serial-store.js";
 
 export class SummaryInputSnapshotDocument implements ReadonlyDocument {
   public readonly chunks: SnapshotChunkStore;

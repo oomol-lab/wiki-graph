@@ -5,7 +5,7 @@ import type { Document, ReadonlyDocument } from "../../document/index.js";
 import { DirectoryDocument } from "../../document/index.js";
 import { getChapterDetails, type ChapterDetails } from "../chapter.js";
 import { createFragmentBackedDocument } from "./document-adapter.js";
-import { SummaryInputSnapshotDocument } from "./snapshot.js";
+import { SummaryInputSnapshotDocument } from "./snapshot/index.js";
 import {
   readSummaryInputSnapshot,
   writeSummaryInputSnapshot,

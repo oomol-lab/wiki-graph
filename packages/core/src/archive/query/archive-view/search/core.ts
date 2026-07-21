@@ -1,5 +1,5 @@
-import type { ReadonlyDocument } from "../../../document/index.js";
-import { createLexicalQuery, listLexicalQueryCandidateTerms, type LexicalQuery } from "../lexical-search.js";
+import type { ReadonlyDocument } from "../../../../document/index.js";
+import { createLexicalQuery, listLexicalQueryCandidateTerms, type LexicalQuery } from "../../lexical-search.js";
 import {
   createEntitySearchSession,
   createSearchSession,
@@ -9,7 +9,7 @@ import {
   readEntitySearchSessionPage,
   readSearchSessionDescriptor,
   readSearchSessionPage,
-} from "../search-cache.js";
+} from "../../search-cache.js";
 
 import {
   BROAD_FIND_LENS_HINT,
@@ -22,15 +22,15 @@ import {
   parseFindLens,
   parseFindMatch,
   parseFindTypes,
-} from "./helpers.js";
-import { isArchiveSearchIndexCurrent } from "./index-state.js";
+} from "../helpers.js";
+import { isArchiveSearchIndexCurrent } from "../index-state.js";
 import {
   assertSearchCursorTypesMatch,
   createEntitySearchCacheInput,
   createSentenceEvidenceSearchCacheInput,
   isEntityOnlySearch,
   isEntitySearchTypes,
-} from "./search/cache-input.js";
+} from "./cache-input.js";
 import {
   filterLexicalHitsByMatch,
   findChapters,
@@ -38,20 +38,20 @@ import {
   findMeta,
   findNodes,
   findTriples,
-} from "./find.js";
+} from "../find.js";
 import {
   createFindEvidenceHydrationOptions,
   hydrateFindHitEvidence,
-} from "./evidence.js";
+} from "../evidence.js";
 import {
   hydrateFindResultBacklinks,
-} from "./backlinks.js";
+} from "../backlinks.js";
 import {
   readBucketedSearchResultPage,
   tryDecodeBucketSearchSessionCursor,
-} from "./search/buckets.js";
-import { findArchiveObjectsIndexed, isTextOnlySearch } from "./search/hydration.js";
-import type { ArchiveFindHit, ArchiveFindOptions, ArchiveFindResult } from "./types.js";
+} from "./buckets.js";
+import { findArchiveObjectsIndexed, isTextOnlySearch } from "./hydration.js";
+import type { ArchiveFindHit, ArchiveFindOptions, ArchiveFindResult } from "../types.js";
 
 export async function findArchiveObjects(
   document: ReadonlyDocument,

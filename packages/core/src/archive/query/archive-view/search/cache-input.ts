@@ -2,11 +2,13 @@ import type { MentionRecord, ReadonlyDocument } from "../../../../document/index
 
 import {
   SEARCH_EVIDENCE_KIND,
-  type SearchChunkHitInput,
-  type SearchEntityHitInput,
-  type SearchEvidenceHitEventInput,
-  type SearchTripleHitInput,
 } from "../../search-cache.js";
+import type {
+  SearchChunkHitInput,
+  SearchEntityHitInput,
+  SearchEvidenceHitEventInput,
+  SearchTripleHitInput,
+} from "../../search-cache/types.js";
 import {
   SEARCH_OBJECT_PROPERTY_OWNER_KIND,
   TEXT_SENTENCE_KIND,
