@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   formatShellArgument,
   formatShellCommand,
-} from "../../packages/cli/src/cli/shell.js";
+} from "../../packages/cli/src/cli/support/index.js";
 
 describe("cli/shell", () => {
   it("keeps simple shell arguments readable", () => {

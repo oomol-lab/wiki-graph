@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-import { CLI_HELP_ROUTES, withHelpRoute } from "./errors.js";
+import { CLI_HELP_ROUTES, withHelpRoute } from "./support/index.js";
 import { readLocalConfigSection } from "./local-config-store.js";
 
 const CLI_PROVIDER_VALUES = [

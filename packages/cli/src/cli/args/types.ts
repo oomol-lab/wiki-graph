@@ -1,4 +1,4 @@
-import type { CLIFormat } from "../formats.js";
+import type { CLIFormat } from "../support/index.js";
 import type { LocalConfigSection } from "../local-config-store.js";
 import type {
   ArchiveTriplePattern,

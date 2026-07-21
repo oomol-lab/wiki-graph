@@ -24,8 +24,11 @@ import {
 import { WikiGraphArchiveFile } from "wiki-graph-core";
 
 import type { CLIArchiveChapterArguments } from "../args.js";
-import { readTextStreamFromStdin, writeTextToStdout } from "../io.js";
-import { formatCLIJSON } from "../json.js";
+import {
+  readTextStreamFromStdin,
+  writeTextToStdout,
+} from "../support/index.js";
+import { formatCLIJSON } from "../support/index.js";
 
 export async function runArchiveChapterCommand(
   args: CLIArchiveChapterArguments,

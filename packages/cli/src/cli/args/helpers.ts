@@ -1,5 +1,5 @@
-import { CLI_HELP_ROUTES, withHelpRoute } from "../errors.js";
-import { formatCliCommand } from "../shell.js";
+import { CLI_HELP_ROUTES, withHelpRoute } from "../support/index.js";
+import { formatCliCommand } from "../support/index.js";
 import {
   parseLocalConfigSection,
   type LocalConfigSection,

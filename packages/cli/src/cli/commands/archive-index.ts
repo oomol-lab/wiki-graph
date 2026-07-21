@@ -7,8 +7,8 @@ import { readArchiveIndexSettings, setFtsIndexEmbedded } from "wiki-graph-core";
 import { WikiGraphArchiveFile } from "wiki-graph-core";
 
 import type { CLIArchiveIndexArguments } from "../args.js";
-import { writeTextToStdout } from "../io.js";
-import { formatCLIJSON } from "../json.js";
+import { writeTextToStdout } from "../support/index.js";
+import { formatCLIJSON } from "../support/index.js";
 import {
   ProgressOutputWriter,
   type ProgressCounter,

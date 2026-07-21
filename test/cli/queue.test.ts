@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type * as CLISupport from "../../packages/cli/src/cli/support/index.js";
 
 const queueMockState = vi.hoisted(() => ({
   activeError: undefined as Error | undefined,
@@ -260,12 +261,20 @@ vi.mock("../../packages/core/src/facade/index.js", () => ({
   updateBuildJobTarget: vi.fn(),
 }));
 
-vi.mock("../../packages/cli/src/cli/io.js", () => ({
-  writeTextToStdout: vi.fn((text: string) => {
-    queueMockState.textWrites.push(text);
-    return Promise.resolve();
-  }),
-}));
+vi.mock(
+  "../../packages/cli/src/cli/support/index.js",
+  async (importOriginal) => {
+    const actual = await importOriginal<typeof CLISupport>();
+
+    return {
+      ...actual,
+      writeTextToStdout: vi.fn((text: string) => {
+        queueMockState.textWrites.push(text);
+        return Promise.resolve();
+      }),
+    };
+  },
+);
 
 vi.mock("../../packages/cli/src/cli/config.js", () => ({
   loadCLIConfig: vi.fn(() => Promise.resolve(queueMockState.cliConfig)),

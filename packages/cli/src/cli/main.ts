@@ -15,8 +15,8 @@ import {
 import { renderMainHelpText } from "./help.js";
 import { LLMPaymentRequiredError } from "wiki-graph-core";
 import { formatError } from "wiki-graph-core";
-import { formatCLIJSON, formatCLIJSONLine } from "./json.js";
-import { readCLIVersion } from "./version.js";
+import { formatCLIJSON, formatCLIJSONLine } from "./support/index.js";
+import { readCLIVersion } from "./support/index.js";
 
 export async function main(): Promise<void> {
   try {

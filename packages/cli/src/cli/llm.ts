@@ -6,7 +6,7 @@ import { createOpenAI } from "@ai-sdk/openai";
 import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
 
 import type { CLIConfig, CLIProvider } from "./config.js";
-import { CLI_HELP_ROUTES, withHelpRoute } from "./errors.js";
+import { CLI_HELP_ROUTES, withHelpRoute } from "./support/index.js";
 
 export function buildLLMOptions(config: CLIConfig): WikiGraphLLMOptions {
   const llm = config.llm;

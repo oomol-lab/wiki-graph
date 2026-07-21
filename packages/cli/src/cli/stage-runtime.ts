@@ -14,7 +14,7 @@ import type {
 } from "wiki-graph-core";
 
 import { loadCLIConfig, type CLIConfig } from "./config.js";
-import { CLI_HELP_ROUTES, withHelpRoute } from "./errors.js";
+import { CLI_HELP_ROUTES, withHelpRoute } from "./support/index.js";
 import { buildLLMOptions } from "./llm.js";
 
 export function createStageLLM(

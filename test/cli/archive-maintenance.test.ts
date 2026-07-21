@@ -66,7 +66,8 @@ vi.mock("../../packages/core/src/index.js", () => ({
   },
 }));
 
-vi.mock("../../packages/cli/src/cli/io.js", () => ({
+vi.mock("../../packages/cli/src/cli/support/index.js", () => ({
+  formatCLIJSON: vi.fn((value: unknown) => JSON.stringify(value)),
   writeBinaryToStdout: vi.fn((data: Uint8Array) => {
     archiveMaintenanceMockState.binaryWrites.push(data);
     return Promise.resolve();

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { formatCLIJSON } from "../../packages/cli/src/cli/json.js";
+import { formatCLIJSON } from "../../packages/cli/src/cli/support/index.js";
 
 describe("cli/json", () => {
   it("preserves JSON.stringify omission semantics while ordering keys", () => {

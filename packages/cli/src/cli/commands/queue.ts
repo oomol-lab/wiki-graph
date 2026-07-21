@@ -57,10 +57,10 @@ import {
   type GenerationPerformanceHint,
   type GenerationPlanningCost,
 } from "../generation-planning.js";
-import { writeTextToStdout } from "../io.js";
-import { formatCLIJSON } from "../json.js";
-import { formatCliCommand } from "../shell.js";
-import { CLI_HELP_ROUTES, withHelpRoute } from "../errors.js";
+import { writeTextToStdout } from "../support/index.js";
+import { formatCLIJSON } from "../support/index.js";
+import { formatCliCommand } from "../support/index.js";
+import { CLI_HELP_ROUTES, withHelpRoute } from "../support/index.js";
 import {
   ProgressOutputWriter,
   type ProgressCounter,

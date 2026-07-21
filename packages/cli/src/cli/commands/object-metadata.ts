@@ -4,8 +4,11 @@ import { ObjectMetadataKind, type ObjectMetadataTarget } from "wiki-graph-core";
 import { WikiGraphArchiveFile } from "wiki-graph-core";
 
 import type { CLIObjectMetadataArguments } from "../args.js";
-import { readTextStreamFromStdin, writeTextToStdout } from "../io.js";
-import { formatCLIJSON } from "../json.js";
+import {
+  readTextStreamFromStdin,
+  writeTextToStdout,
+} from "../support/index.js";
+import { formatCLIJSON } from "../support/index.js";
 
 export async function runObjectMetadataCommand(
   args: CLIObjectMetadataArguments,

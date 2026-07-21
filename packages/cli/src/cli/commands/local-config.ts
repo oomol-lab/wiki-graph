@@ -11,8 +11,8 @@ import {
   type WikispineProvider,
 } from "wiki-graph-core";
 import { buildLLMOptions } from "../llm.js";
-import { writeTextToStderr, writeTextToStdout } from "../io.js";
-import { formatCLIJSON } from "../json.js";
+import { writeTextToStderr, writeTextToStdout } from "../support/index.js";
+import { formatCLIJSON } from "../support/index.js";
 import {
   clearLocalConfigSection,
   deleteLocalConfigValue,

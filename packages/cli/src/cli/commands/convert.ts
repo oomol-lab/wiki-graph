@@ -6,19 +6,19 @@ import type { WikiGraphArchive } from "wiki-graph-core";
 
 import type { CLIArguments } from "../args.js";
 import { loadCLIConfig, type CLIConfig } from "../config.js";
-import { CLI_HELP_ROUTES, withHelpRoute } from "../errors.js";
+import { CLI_HELP_ROUTES, withHelpRoute } from "../support/index.js";
 import {
   type CLIFormat,
   inferCLIFormatFromPath,
   isTextCLIFormat,
-} from "../formats.js";
+} from "../support/index.js";
 import { buildLLMOptions } from "../llm.js";
 import {
   createTemporaryOutputPath,
   readTextStreamFromStdin,
   removeTemporaryDirectory,
   writeTextFileToStdout,
-} from "../io.js";
+} from "../support/index.js";
 import { createCLIProgressRenderer } from "../progress.js";
 
 type TextCLIFormat = Extract<CLIFormat, "markdown" | "txt">;

@@ -1,5 +1,5 @@
-import { inferCLIFormatFromPath, parseCLIFormat } from "../formats.js";
-import { withHelpRoute } from "../errors.js";
+import { inferCLIFormatFromPath, parseCLIFormat } from "../support/index.js";
+import { withHelpRoute } from "../support/index.js";
 import { renderArchiveCommandHelpText } from "../help.js";
 import {
   parseLocatedWikiGraphUri,

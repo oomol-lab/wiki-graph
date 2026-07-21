@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type * as CLISupport from "../../packages/cli/src/cli/support/index.js";
 
 const chapterMockState = vi.hoisted(() => ({
   activeConflictChecks: [] as unknown[],
@@ -235,13 +236,21 @@ vi.mock("../../packages/core/src/llm/index.js", () => ({
   },
 }));
 
-vi.mock("../../packages/cli/src/cli/io.js", () => ({
-  readTextStreamFromStdin: vi.fn(() => chapterMockState.stdinStream),
-  writeTextToStdout: vi.fn((text: string) => {
-    chapterMockState.textWrites.push(text);
-    return Promise.resolve();
-  }),
-}));
+vi.mock(
+  "../../packages/cli/src/cli/support/index.js",
+  async (importOriginal) => {
+    const actual = await importOriginal<typeof CLISupport>();
+
+    return {
+      ...actual,
+      readTextStreamFromStdin: vi.fn(() => chapterMockState.stdinStream),
+      writeTextToStdout: vi.fn((text: string) => {
+        chapterMockState.textWrites.push(text);
+        return Promise.resolve();
+      }),
+    };
+  },
+);
 
 vi.mock("fs/promises", () => ({
   readFile: vi.fn(() => Promise.resolve(chapterMockState.inputFileContent)),

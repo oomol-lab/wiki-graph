@@ -1,8 +1,8 @@
 import { tryRunWikiGraphGc } from "wiki-graph-core/gc";
 
 import type { CLIGcArguments } from "../args.js";
-import { writeTextToStdout } from "../io.js";
-import { formatCLIJSON } from "../json.js";
+import { writeTextToStdout } from "../support/index.js";
+import { formatCLIJSON } from "../support/index.js";
 
 export async function runGcCommand(args: CLIGcArguments): Promise<void> {
   const report = await tryRunWikiGraphGc({

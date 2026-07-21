@@ -1,7 +1,7 @@
 import { parseArgs } from "util";
 
-import { parseCLIFormat } from "./formats.js";
-import { CLI_HELP_ROUTES, withHelpRoute } from "./errors.js";
+import { parseCLIFormat } from "./support/index.js";
+import { CLI_HELP_ROUTES, withHelpRoute } from "./support/index.js";
 import {
   isUriHelpPredicate,
   parseHelpTopic,

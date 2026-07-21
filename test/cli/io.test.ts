@@ -19,7 +19,7 @@ import {
   writeBinaryToStdout,
   writeTextFileToStdout,
   writeTextToStdout,
-} from "../../packages/cli/src/cli/io.js";
+} from "../../packages/cli/src/cli/support/index.js";
 
 describe("cli/io", () => {
   let stdoutChunks: unknown[];

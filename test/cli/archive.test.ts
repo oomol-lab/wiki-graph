@@ -3,6 +3,7 @@ import { join } from "path";
 import { tmpdir } from "os";
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import type * as CLISupport from "../../packages/cli/src/cli/support/index.js";
 import type {
   ArchiveBacklinks,
   ArchiveCollectionResult,
@@ -588,12 +589,20 @@ vi.mock("../../packages/cli/src/cli/config.js", () => ({
   ),
 }));
 
-vi.mock("../../packages/cli/src/cli/io.js", () => ({
-  writeTextToStdout: vi.fn((text: string) => {
-    archiveMockState.textWrites.push(text);
-    return Promise.resolve();
-  }),
-}));
+vi.mock(
+  "../../packages/cli/src/cli/support/index.js",
+  async (importOriginal) => {
+    const actual = await importOriginal<typeof CLISupport>();
+
+    return {
+      ...actual,
+      writeTextToStdout: vi.fn((text: string) => {
+        archiveMockState.textWrites.push(text);
+        return Promise.resolve();
+      }),
+    };
+  },
+);
 
 vi.mock("../../packages/cli/src/cli/commands/convert.js", () => ({
   runConvertCommand: vi.fn(async (args: { readonly outputPath?: string }) => {

@@ -7,8 +7,8 @@ import type {
   CLIArchiveCoverArguments,
   CLIArchiveMetadataArguments,
 } from "../args.js";
-import { writeBinaryToStdout, writeTextToStdout } from "../io.js";
-import { formatCLIJSON } from "../json.js";
+import { writeBinaryToStdout, writeTextToStdout } from "../support/index.js";
+import { formatCLIJSON } from "../support/index.js";
 
 export async function runArchiveMetaCommand(
   args: CLIArchiveMetadataArguments,

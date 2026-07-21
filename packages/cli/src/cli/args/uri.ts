@@ -5,7 +5,7 @@ import {
   parseLocatedWikiGraphUri,
   type ArchiveTriplePattern,
 } from "wiki-graph-core";
-import { CLI_HELP_ROUTES, withHelpRoute } from "../errors.js";
+import { CLI_HELP_ROUTES, withHelpRoute } from "../support/index.js";
 import {
   isUriHelpPredicate,
   renderArchiveMaintenanceChapterActionHelpText,

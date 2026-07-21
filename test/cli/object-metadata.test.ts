@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import type * as CLISupport from "../../packages/cli/src/cli/support/index.js";
 import type * as WikiGraphIndex from "../../packages/core/src/wikg/index.js";
 
 const objectMetadataMockState = vi.hoisted(() => ({
@@ -41,13 +42,21 @@ vi.mock("../../packages/core/src/wikg/index.js", async (importOriginal) => {
   };
 });
 
-vi.mock("../../packages/cli/src/cli/io.js", () => ({
-  readTextStreamFromStdin: vi.fn(() => objectMetadataMockState.stdinStream),
-  writeTextToStdout: vi.fn((text: string) => {
-    objectMetadataMockState.textWrites.push(text);
-    return Promise.resolve();
-  }),
-}));
+vi.mock(
+  "../../packages/cli/src/cli/support/index.js",
+  async (importOriginal) => {
+    const actual = await importOriginal<typeof CLISupport>();
+
+    return {
+      ...actual,
+      readTextStreamFromStdin: vi.fn(() => objectMetadataMockState.stdinStream),
+      writeTextToStdout: vi.fn((text: string) => {
+        objectMetadataMockState.textWrites.push(text);
+        return Promise.resolve();
+      }),
+    };
+  },
+);
 
 vi.mock("fs/promises", () => ({
   readFile: vi.fn(() =>

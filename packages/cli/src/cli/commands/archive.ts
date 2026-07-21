@@ -56,9 +56,9 @@ import {
   type GenerationPerformanceHint,
   type GenerationPlanningCost,
 } from "../generation-planning.js";
-import { writeTextToStdout } from "../io.js";
-import { formatCLIJSON, formatCLIJSONLine } from "../json.js";
-import { formatCliCommand } from "../shell.js";
+import { writeTextToStdout } from "../support/index.js";
+import { formatCLIJSON, formatCLIJSONLine } from "../support/index.js";
+import { formatCliCommand } from "../support/index.js";
 
 type ResultFormat = "json" | "jsonl" | "text";
 

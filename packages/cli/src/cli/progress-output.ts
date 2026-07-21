@@ -1,5 +1,5 @@
-import { writeTextToStdout } from "./io.js";
-import { formatCLIJSONLine } from "./json.js";
+import { writeTextToStdout } from "./support/index.js";
+import { formatCLIJSONLine } from "./support/index.js";
 
 export interface ProgressCounter {
   readonly done: number;
