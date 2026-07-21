@@ -42,7 +42,7 @@ import {
   SnakeChunkStore,
   SnakeEdgeStore,
   SnakeStore,
-} from "./stores.js";
+} from "./stores/index.js";
 import { ObjectMetadataKind, type SentenceId } from "./types.js";
 
 export interface DocumentFileStore {

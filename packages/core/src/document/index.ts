@@ -30,7 +30,7 @@ export {
   SnakeChunkStore,
   SnakeEdgeStore,
   SnakeStore,
-} from "./stores.js";
+} from "./stores/index.js";
 export type {
   ReadonlyChunkStore,
   ReadonlyFragmentGroupStore,
@@ -43,7 +43,7 @@ export type {
   ReadonlySnakeChunkStore,
   ReadonlySnakeEdgeStore,
   ReadonlySnakeStore,
-} from "./stores.js";
+} from "./stores/index.js";
 export {
   ChunkImportance,
   ChunkRetention,
