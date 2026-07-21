@@ -10,7 +10,7 @@ import {
 
 import type { CLIArchiveArguments } from "../../../args/index.js";
 import { writeEvidence, writeFindHits, writeList } from "../../archive-output/index.js";
-import { readArchiveDocument } from "./archive-file.js";
+import { readArchiveDocument } from "./document.js";
 import { createCollectionFindResult } from "./options.js";
 import { DEFAULT_OUTPUT_LIMIT } from "./types.js";
 import { getArchivePath } from "./uri.js";
