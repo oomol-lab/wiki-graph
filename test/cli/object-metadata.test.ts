@@ -56,7 +56,7 @@ vi.mock("fs/promises", () => ({
 }));
 
 import { parseCLIArguments } from "../../packages/cli/src/cli/args.js";
-import { runObjectMetadataCommand } from "../../packages/cli/src/cli/object-metadata.js";
+import { runObjectMetadataCommand } from "../../packages/cli/src/cli/commands/index.js";
 
 interface MockDocument {
   readonly metadata: {

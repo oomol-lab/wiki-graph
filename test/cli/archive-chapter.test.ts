@@ -251,7 +251,7 @@ vi.mock("fs", () => ({
   createReadStream: vi.fn(() => chapterMockState.sourceFileStream),
 }));
 
-import { runArchiveChapterCommand } from "../../packages/cli/src/cli/archive-chapter.js";
+import { runArchiveChapterCommand } from "../../packages/cli/src/cli/commands/index.js";
 
 describe("cli/archive-chapter", () => {
   const originalStdinIsTTY = process.stdin.isTTY;

@@ -140,7 +140,7 @@ vi.mock("fs/promises", () => ({
   }),
 }));
 
-import { runConvertCommand } from "../../packages/cli/src/cli/convert.js";
+import { runConvertCommand } from "../../packages/cli/src/cli/commands/index.js";
 
 describe("cli/convert", () => {
   const originalStdinIsTTY = process.stdin.isTTY;

@@ -80,7 +80,7 @@ vi.mock("../../packages/cli/src/cli/io.js", () => ({
 import {
   runArchiveCoverCommand,
   runArchiveMetaCommand,
-} from "../../packages/cli/src/cli/archive-maintenance.js";
+} from "../../packages/cli/src/cli/commands/index.js";
 
 describe("cli/archive maintenance", () => {
   const originalStdoutIsTTY = process.stdout.isTTY;

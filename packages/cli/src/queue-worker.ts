@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { runQueueWorker } from "./cli/queue.js";
+import { runQueueWorker } from "./cli/commands/index.js";
 
 async function main(): Promise<void> {
   if (process.env.WIKIGRAPH_INTERNAL_WORKER !== "queue-v1") {

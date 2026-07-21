@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { mergeMaskedSecretsForSet } from "../../packages/cli/src/cli/local-config.js";
+import { mergeMaskedSecretsForSet } from "../../packages/cli/src/cli/commands/local-config.js";
 import {
   maskLocalConfigSection,
   normalizeLocalConfigKey,

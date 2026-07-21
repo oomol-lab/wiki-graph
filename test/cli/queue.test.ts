@@ -296,7 +296,7 @@ vi.mock("../../packages/cli/src/cli/stage-runtime.js", () => ({
 import {
   runQueueCommand,
   runQueueWorker,
-} from "../../packages/cli/src/cli/queue.js";
+} from "../../packages/cli/src/cli/commands/index.js";
 
 describe("cli/queue", () => {
   const originalDisableAutostart =

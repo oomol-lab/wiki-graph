@@ -3,9 +3,9 @@ import { readFile } from "fs/promises";
 import { ObjectMetadataKind, type ObjectMetadataTarget } from "wiki-graph-core";
 import { WikiGraphArchiveFile } from "wiki-graph-core";
 
-import type { CLIObjectMetadataArguments } from "./args.js";
-import { readTextStreamFromStdin, writeTextToStdout } from "./io.js";
-import { formatCLIJSON } from "./json.js";
+import type { CLIObjectMetadataArguments } from "../args.js";
+import { readTextStreamFromStdin, writeTextToStdout } from "../io.js";
+import { formatCLIJSON } from "../json.js";
 
 export async function runObjectMetadataCommand(
   args: CLIObjectMetadataArguments,

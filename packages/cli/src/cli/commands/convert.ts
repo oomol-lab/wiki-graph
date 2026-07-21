@@ -4,22 +4,22 @@ import { resolve } from "path";
 import { WikiGraph, type WikiGraphOptions } from "wiki-graph-core";
 import type { WikiGraphArchive } from "wiki-graph-core";
 
-import type { CLIArguments } from "./args.js";
-import { loadCLIConfig, type CLIConfig } from "./config.js";
-import { CLI_HELP_ROUTES, withHelpRoute } from "./errors.js";
+import type { CLIArguments } from "../args.js";
+import { loadCLIConfig, type CLIConfig } from "../config.js";
+import { CLI_HELP_ROUTES, withHelpRoute } from "../errors.js";
 import {
   type CLIFormat,
   inferCLIFormatFromPath,
   isTextCLIFormat,
-} from "./formats.js";
-import { buildLLMOptions } from "./llm.js";
+} from "../formats.js";
+import { buildLLMOptions } from "../llm.js";
 import {
   createTemporaryOutputPath,
   readTextStreamFromStdin,
   removeTemporaryDirectory,
   writeTextFileToStdout,
-} from "./io.js";
-import { createCLIProgressRenderer } from "./progress.js";
+} from "../io.js";
+import { createCLIProgressRenderer } from "../progress.js";
 
 type TextCLIFormat = Extract<CLIFormat, "markdown" | "txt">;
 

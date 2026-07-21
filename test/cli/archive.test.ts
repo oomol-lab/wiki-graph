@@ -595,7 +595,7 @@ vi.mock("../../packages/cli/src/cli/io.js", () => ({
   }),
 }));
 
-vi.mock("../../packages/cli/src/cli/convert.js", () => ({
+vi.mock("../../packages/cli/src/cli/commands/convert.js", () => ({
   runConvertCommand: vi.fn(async (args: { readonly outputPath?: string }) => {
     archiveMockState.convertCalls.push(args);
     if (args.outputPath !== undefined) {
@@ -606,7 +606,7 @@ vi.mock("../../packages/cli/src/cli/convert.js", () => ({
   }),
 }));
 
-import { runArchiveCommand } from "../../packages/cli/src/cli/archive.js";
+import { runArchiveCommand } from "../../packages/cli/src/cli/commands/index.js";
 import {
   createContinuationCursor,
   findArchiveObjects,

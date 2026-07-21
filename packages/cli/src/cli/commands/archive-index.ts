@@ -6,13 +6,13 @@ import {
 import { readArchiveIndexSettings, setFtsIndexEmbedded } from "wiki-graph-core";
 import { WikiGraphArchiveFile } from "wiki-graph-core";
 
-import type { CLIArchiveIndexArguments } from "./args.js";
-import { writeTextToStdout } from "./io.js";
-import { formatCLIJSON } from "./json.js";
+import type { CLIArchiveIndexArguments } from "../args.js";
+import { writeTextToStdout } from "../io.js";
+import { formatCLIJSON } from "../json.js";
 import {
   ProgressOutputWriter,
   type ProgressCounter,
-} from "./progress-output.js";
+} from "../progress-output.js";
 
 const INDEX_PROGRESS_OUTPUT_INTERVAL_MS = 6_000;
 

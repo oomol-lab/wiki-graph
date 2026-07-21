@@ -44,8 +44,8 @@ import type {
 } from "wiki-graph-core";
 import type { LLMessage } from "wiki-graph-core";
 
-import type { CLIQueueArguments } from "./args.js";
-import { loadCLIConfig, type CLIConfig } from "./config.js";
+import type { CLIQueueArguments } from "../args.js";
+import { loadCLIConfig, type CLIConfig } from "../config.js";
 import {
   createGenerationPerformanceHints,
   DEFAULT_GENERATION_JOB_CONCURRENCY,
@@ -56,22 +56,22 @@ import {
   type GenerationConcurrency,
   type GenerationPerformanceHint,
   type GenerationPlanningCost,
-} from "./generation-planning.js";
-import { writeTextToStdout } from "./io.js";
-import { formatCLIJSON } from "./json.js";
-import { formatCliCommand } from "./shell.js";
-import { CLI_HELP_ROUTES, withHelpRoute } from "./errors.js";
+} from "../generation-planning.js";
+import { writeTextToStdout } from "../io.js";
+import { formatCLIJSON } from "../json.js";
+import { formatCliCommand } from "../shell.js";
+import { CLI_HELP_ROUTES, withHelpRoute } from "../errors.js";
 import {
   ProgressOutputWriter,
   type ProgressCounter,
   type ProgressMetricGroup,
-} from "./progress-output.js";
+} from "../progress-output.js";
 import {
   createStageLLM,
   loadRequiredStageConfig,
   resolveExtractionPrompt,
   resolveKnowledgeGraphRecallPrompt,
-} from "./stage-runtime.js";
+} from "../stage-runtime.js";
 
 const TERMINAL_STATES = new Set<BuildJobState>([
   "succeeded",

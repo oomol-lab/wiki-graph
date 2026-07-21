@@ -43,8 +43,8 @@ import { DirectoryDocument, type ReadonlyDocument } from "wiki-graph-core";
 import { TOC_FILE_VERSION } from "wiki-graph-core";
 import { CLI_PRIMARY_COMMAND } from "wiki-graph-core";
 
-import type { CLIArchiveArguments } from "./args.js";
-import { loadCLIConfig } from "./config.js";
+import type { CLIArchiveArguments } from "../args.js";
+import { loadCLIConfig } from "../config.js";
 import { runConvertCommand } from "./convert.js";
 import {
   createGenerationPerformanceHints,
@@ -55,10 +55,10 @@ import {
   planGenerationTask,
   type GenerationPerformanceHint,
   type GenerationPlanningCost,
-} from "./generation-planning.js";
-import { writeTextToStdout } from "./io.js";
-import { formatCLIJSON, formatCLIJSONLine } from "./json.js";
-import { formatCliCommand } from "./shell.js";
+} from "../generation-planning.js";
+import { writeTextToStdout } from "../io.js";
+import { formatCLIJSON, formatCLIJSONLine } from "../json.js";
+import { formatCliCommand } from "../shell.js";
 
 type ResultFormat = "json" | "jsonl" | "text";
 

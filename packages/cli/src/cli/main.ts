@@ -1,18 +1,18 @@
 import { parseCLIArguments } from "./args.js";
-import { runArchiveCommand } from "./archive.js";
-import { runArchiveChapterCommand } from "./archive-chapter.js";
-import { runArchiveIndexCommand } from "./archive-index.js";
 import {
+  runArchiveChapterCommand,
+  runArchiveCommand,
   runArchiveCoverCommand,
+  runArchiveIndexCommand,
   runArchiveMetaCommand,
-} from "./archive-maintenance.js";
-import { runConvertCommand } from "./convert.js";
-import { runGcCommand } from "./gc.js";
-import { runLegacyCommand } from "./legacy.js";
-import { runLocalConfigCommand } from "./local-config.js";
+  runConvertCommand,
+  runGcCommand,
+  runLegacyCommand,
+  runLocalConfigCommand,
+  runObjectMetadataCommand,
+  runQueueCommand,
+} from "./commands/index.js";
 import { renderMainHelpText } from "./help.js";
-import { runObjectMetadataCommand } from "./object-metadata.js";
-import { runQueueCommand } from "./queue.js";
 import { LLMPaymentRequiredError } from "wiki-graph-core";
 import { formatError } from "wiki-graph-core";
 import { formatCLIJSON, formatCLIJSONLine } from "./json.js";

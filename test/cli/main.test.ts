@@ -41,7 +41,7 @@ vi.mock("../../packages/cli/src/cli/args.js", () => ({
   }),
 }));
 
-vi.mock("../../packages/cli/src/cli/archive.js", () => ({
+vi.mock("../../packages/cli/src/cli/commands/index.js", () => ({
   runArchiveCommand: vi.fn((args: unknown) => {
     mainMockState.archiveRunCalls.push(args);
 
@@ -51,9 +51,6 @@ vi.mock("../../packages/cli/src/cli/archive.js", () => ({
 
     return Promise.resolve();
   }),
-}));
-
-vi.mock("../../packages/cli/src/cli/archive-index.js", () => ({
   runArchiveIndexCommand: vi.fn((args: unknown) => {
     mainMockState.archiveIndexRunCalls.push(args);
 
@@ -63,9 +60,6 @@ vi.mock("../../packages/cli/src/cli/archive-index.js", () => ({
 
     return Promise.resolve();
   }),
-}));
-
-vi.mock("../../packages/cli/src/cli/convert.js", () => ({
   runConvertCommand: vi.fn((args: unknown) => {
     mainMockState.convertRunCalls.push(args);
 
@@ -75,9 +69,6 @@ vi.mock("../../packages/cli/src/cli/convert.js", () => ({
 
     return Promise.resolve();
   }),
-}));
-
-vi.mock("../../packages/cli/src/cli/local-config.js", () => ({
   runLocalConfigCommand: vi.fn((args: unknown) => {
     mainMockState.localConfigRunCalls.push(args);
 
@@ -87,9 +78,6 @@ vi.mock("../../packages/cli/src/cli/local-config.js", () => ({
 
     return Promise.resolve();
   }),
-}));
-
-vi.mock("../../packages/cli/src/cli/gc.js", () => ({
   runGcCommand: vi.fn((args: unknown) => {
     mainMockState.gcRunCalls.push(args);
 
@@ -99,9 +87,6 @@ vi.mock("../../packages/cli/src/cli/gc.js", () => ({
 
     return Promise.resolve();
   }),
-}));
-
-vi.mock("../../packages/cli/src/cli/archive-maintenance.js", () => ({
   runArchiveCoverCommand: vi.fn((args: unknown) => {
     mainMockState.archiveCoverRunCalls.push(args);
 
@@ -120,9 +105,6 @@ vi.mock("../../packages/cli/src/cli/archive-maintenance.js", () => ({
 
     return Promise.resolve();
   }),
-}));
-
-vi.mock("../../packages/cli/src/cli/archive-chapter.js", () => ({
   runArchiveChapterCommand: vi.fn((args: unknown) => {
     mainMockState.archiveChapterRunCalls.push(args);
 
@@ -132,9 +114,6 @@ vi.mock("../../packages/cli/src/cli/archive-chapter.js", () => ({
 
     return Promise.resolve();
   }),
-}));
-
-vi.mock("../../packages/cli/src/cli/legacy.js", () => ({
   runLegacyCommand: vi.fn((args: unknown) => {
     mainMockState.legacyRunCalls.push(args);
 
