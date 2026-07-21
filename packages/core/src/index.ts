@@ -152,7 +152,7 @@ export { TOC_FILE_VERSION } from "./source/index.js";
 export type { BookMeta } from "./source/index.js";
 export { isArchiveSearchIndexCurrent } from "./archive/query/index.js";
 export { readArchiveIndexSettings } from "./archive/search-index/index.js";
-export { migrateLegacySdpubToWikg } from "./legacy-sdpub/upgrade.js";
+export { migrateLegacySdpubToWikg } from "./legacy-sdpub/upgrade/index.js";
 export type {
   GuaranteedRequest,
   GuaranteedRequestController,

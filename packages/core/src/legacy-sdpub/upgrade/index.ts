@@ -1,11 +1,11 @@
 import { rm } from "fs/promises";
 import { join, resolve } from "path";
 
-import { createWikiGraphTempDirectory } from "../common/wiki-graph/temp.js";
-import { writeWikgArchive } from "../wikg/index.js";
-import { extractLegacySdpubArchive } from "./upgrade/extract.js";
-import { migrateLegacyDatabase } from "./upgrade/schema.js";
-import { migrateLegacyTextStorage } from "./upgrade/text-storage.js";
+import { createWikiGraphTempDirectory } from "../../common/wiki-graph/temp.js";
+import { writeWikgArchive } from "../../wikg/index.js";
+import { extractLegacySdpubArchive } from "./extract.js";
+import { migrateLegacyDatabase } from "./schema.js";
+import { migrateLegacyTextStorage } from "./text-storage/index.js";
 
 export interface LegacySdpubMigrationResult {
   readonly inputPath: string;
