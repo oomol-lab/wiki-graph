@@ -10,7 +10,7 @@ import {
   type SerialProgressSink,
   type BuildSerialTopologyOptions,
 } from "../serial.js";
-import { TOC_FILE_VERSION, type TocItem } from "../source/index.js";
+import type { TocItem } from "../source/index.js";
 import { resolveExtractionPrompt } from "./prompts.js";
 export { CHAPTER_STAGES } from "./chapter/types.js";
 import { CHAPTER_STAGES } from "./chapter/types.js";
@@ -34,6 +34,12 @@ export type {
   MutableAdvanceProgressState,
 } from "./chapter/types.js";
 import {
+  collectChapterEntries,
+  findChapterEntry,
+  normalizeChapterToc,
+  readChapterToc,
+} from "./chapter/entries.js";
+import {
   appendChildToChapter,
   cloneTocItem,
   collectChapterIds,
@@ -48,8 +54,6 @@ import {
   removeChapterFromItems,
   setChapterTitleInItems,
   toChapterTreeNodes,
-  type MutableTocFile,
-  type MutableTocItem,
 } from "./chapter/tree.js";
 import type {
   AddChapterOptions,
@@ -459,206 +463,6 @@ export async function setChapterTitle(
   });
 }
 
-async function normalizeChapterToc(
-  document: Document,
-): Promise<MutableTocFile> {
-  const existingToc = await document.readToc();
-  const toc = await readChapterToc(document);
-  let changed = false;
-
-  const normalizeItems = async (items: MutableTocItem[]): Promise<void> => {
-    for (const item of items) {
-      if (item.serialId === undefined) {
-        item.serialId = await document.createSerial();
-        changed = true;
-      } else {
-        await document.serials.ensure(item.serialId);
-      }
-
-      await normalizeItems(item.children);
-    }
-  };
-
-  await normalizeItems(toc.items);
-
-  if (existingToc === undefined || changed) {
-    await document.replaceToc(toc);
-  }
-
-  return toc;
-}
-
-async function readChapterToc(
-  document: ReadonlyDocument,
-): Promise<MutableTocFile> {
-  const toc = await document.readToc();
-
-  return toc === undefined
-    ? { items: [], version: TOC_FILE_VERSION }
-    : {
-        items: toc.items.map(cloneTocItem),
-        version: toc.version,
-      };
-}
-
-async function findChapterEntry(
-  document: ReadonlyDocument,
-  items: readonly TocItem[],
-  chapterId: number,
-  ancestorTitles: readonly string[] = [],
-  depth = 0,
-): Promise<ChapterEntry | undefined> {
-  for (const item of items) {
-    const title = normalizeTitle(item.title) ?? null;
-    const tocPath =
-      item.serialId === undefined
-        ? [...ancestorTitles, ...(title === null ? [] : [title])]
-        : [...ancestorTitles, title ?? `Chapter ${item.serialId}`];
-
-    if (item.serialId === chapterId) {
-      return await createChapterEntry(document, item, item.serialId, {
-        depth,
-        title,
-        tocPath,
-      });
-    }
-
-    const childEntry = await findChapterEntry(
-      document,
-      item.children,
-      chapterId,
-      tocPath,
-      depth + 1,
-    );
-
-    if (childEntry !== undefined) {
-      return childEntry;
-    }
-  }
-
-  return undefined;
-}
-
-async function collectChapterEntries(
-  document: ReadonlyDocument,
-  items: readonly TocItem[],
-  ancestorTitles: readonly string[] = [],
-  depth = 0,
-): Promise<ChapterEntry[]> {
-  const entries: ChapterEntry[] = [];
-
-  for (const item of items) {
-    const title = normalizeTitle(item.title) ?? null;
-    const tocPath =
-      item.serialId === undefined
-        ? [...ancestorTitles, ...(title === null ? [] : [title])]
-        : [...ancestorTitles, title ?? `Chapter ${item.serialId}`];
-
-    if (item.serialId === undefined) {
-      entries.push(
-        ...(await collectChapterEntries(
-          document,
-          item.children,
-          tocPath,
-          depth + 1,
-        )),
-      );
-      continue;
-    }
-
-    entries.push(
-      await createChapterEntry(document, item, item.serialId, {
-        depth,
-        title,
-        tocPath,
-      }),
-    );
-    entries.push(
-      ...(await collectChapterEntries(
-        document,
-        item.children,
-        tocPath,
-        depth + 1,
-      )),
-    );
-  }
-
-  return entries;
-}
-
-async function createChapterEntry(
-  document: ReadonlyDocument,
-  item: TocItem,
-  serialId: number,
-  input: {
-    readonly depth: number;
-    readonly title: string | null;
-    readonly tocPath: readonly string[];
-  },
-): Promise<ChapterEntry> {
-  const [serial, sourceSummary] = await Promise.all([
-    document.serials.getById(serialId),
-    summarizeSerialSource(document, serialId),
-  ]);
-
-  return {
-    chapterId: serialId,
-    childCount: item.children.length,
-    depth: input.depth,
-    documentOrder: serial?.documentOrder ?? serialId,
-    fragmentCount: sourceSummary.fragmentCount,
-    stage: await resolveChapterStage(
-      document,
-      serialId,
-      sourceSummary.fragmentCount,
-    ),
-    title: input.title,
-    tocPath: input.tocPath,
-    words: sourceSummary.words,
-  };
-}
-
-async function summarizeSerialSource(
-  document: ReadonlyDocument,
-  serialId: number,
-): Promise<{ readonly fragmentCount: number; readonly words: number }> {
-  const sentenceWords = await document.readDatabase(
-    async (database) =>
-      await database.queryAll(
-        `
-        SELECT words_count
-        FROM text_sentence_records
-        WHERE kind = 1 AND chapter_id = ?
-        ORDER BY sentence_index
-      `,
-        [serialId],
-        (row) => Number(row.words_count),
-      ),
-  );
-  let fragmentCount = 0;
-  let fragmentWords = 0;
-  let words = 0;
-
-  for (const sentenceWordCount of sentenceWords) {
-    if (fragmentWords > 0 && fragmentWords + sentenceWordCount > 600) {
-      fragmentCount += 1;
-      fragmentWords = 0;
-    }
-
-    fragmentWords += sentenceWordCount;
-    words += sentenceWordCount;
-  }
-
-  if (fragmentWords > 0) {
-    fragmentCount += 1;
-  }
-
-  return {
-    fragmentCount,
-    words,
-  };
-}
-
 async function advanceEntriesToGraphed(
   document: Document,
   entries: readonly ChapterEntry[],
@@ -889,41 +693,6 @@ async function emitAdvanceProgress(
   } catch {
     return;
   }
-}
-
-async function resolveChapterStage(
-  document: ReadonlyDocument,
-  chapterId: number,
-  fragmentCount: number,
-): Promise<ChapterStage> {
-  const summarySentenceCount = await document.readDatabase(
-    async (database) =>
-      (await database.queryOne(
-        `
-          SELECT COUNT(*) AS count
-          FROM text_sentence_records
-          WHERE kind = 2 AND chapter_id = ?
-        `,
-        [chapterId],
-        (row) => Number(row.count),
-      )) ?? 0,
-  );
-
-  if (summarySentenceCount > 0) {
-    return "summarized";
-  }
-
-  const serial = await document.serials.getById(chapterId);
-
-  if (serial?.topologyReady === true) {
-    return "graphed";
-  }
-
-  if (fragmentCount > 0) {
-    return "sourced";
-  }
-
-  return "planned";
 }
 
 async function requireChapterDetails(
