@@ -6,9 +6,9 @@ import type {
   ArchiveMetaPatch,
   CLIArchiveCoverArguments,
   CLIArchiveMetadataArguments,
-} from "../args.js";
-import { writeBinaryToStdout, writeTextToStdout } from "../support/index.js";
-import { formatCLIJSON } from "../support/index.js";
+} from "../../args.js";
+import { writeBinaryToStdout, writeTextToStdout } from "../../support/index.js";
+import { formatCLIJSON } from "../../support/index.js";
 
 export async function runArchiveMetaCommand(
   args: CLIArchiveMetadataArguments,

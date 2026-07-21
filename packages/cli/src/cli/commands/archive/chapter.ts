@@ -23,12 +23,12 @@ import {
 } from "wiki-graph-core";
 import { WikiGraphArchiveFile } from "wiki-graph-core";
 
-import type { CLIArchiveChapterArguments } from "../args.js";
+import type { CLIArchiveChapterArguments } from "../../args.js";
 import {
   readTextStreamFromStdin,
   writeTextToStdout,
-} from "../support/index.js";
-import { formatCLIJSON } from "../support/index.js";
+} from "../../support/index.js";
+import { formatCLIJSON } from "../../support/index.js";
 
 export async function runArchiveChapterCommand(
   args: CLIArchiveChapterArguments,

@@ -15,7 +15,7 @@ import type {
 export async function runArchiveCommand(
   args: CLIArchiveArguments,
 ): Promise<void> {
-  const command = await import("./archive.js");
+  const command = await import("./archive/index.js");
 
   return command.runArchiveCommand(args);
 }
@@ -23,7 +23,7 @@ export async function runArchiveCommand(
 export async function runArchiveChapterCommand(
   args: CLIArchiveChapterArguments,
 ): Promise<void> {
-  const command = await import("./archive-chapter.js");
+  const command = await import("./archive/chapter.js");
 
   return command.runArchiveChapterCommand(args);
 }
@@ -31,7 +31,7 @@ export async function runArchiveChapterCommand(
 export async function runArchiveIndexCommand(
   args: CLIArchiveIndexArguments,
 ): Promise<void> {
-  const command = await import("./archive-index.js");
+  const command = await import("./archive/search-index.js");
 
   return command.runArchiveIndexCommand(args);
 }
@@ -39,7 +39,7 @@ export async function runArchiveIndexCommand(
 export async function runArchiveCoverCommand(
   args: CLIArchiveCoverArguments,
 ): Promise<void> {
-  const command = await import("./archive-maintenance.js");
+  const command = await import("./archive/maintenance.js");
 
   return command.runArchiveCoverCommand(args);
 }
@@ -47,7 +47,7 @@ export async function runArchiveCoverCommand(
 export async function runArchiveMetaCommand(
   args: CLIArchiveMetadataArguments,
 ): Promise<void> {
-  const command = await import("./archive-maintenance.js");
+  const command = await import("./archive/maintenance.js");
 
   return command.runArchiveMetaCommand(args);
 }
