@@ -101,10 +101,24 @@ describe("cli/library args", () => {
     });
   });
 
-  it("rejects unsupported specified library URI and inspect", () => {
-    expect(() => parseCLIArguments(["wikg://lib/abc123abc123"])).toThrow(
-      ".lib suffix",
-    );
+  it("parses library archive URI actions and rejects inspect", () => {
+    expect(
+      parseCLIArguments(["wikg://lib/abc123abc123", "remove", "--confirm"]),
+    ).toMatchObject({
+      args: {
+        action: "remove",
+        confirm: true,
+        target: { archivePublicId: "abc123abc123", kind: "archive" },
+      },
+      kind: "library",
+    });
+    expect(parseCLIArguments(["wikg://lib/entity/Q23"])).toMatchObject({
+      args: {
+        action: "list",
+        target: { kind: "scope", objectUri: "wikg://entity/Q23" },
+      },
+      kind: "library",
+    });
     expect(() =>
       parseCLIArguments(["wikg://lib/abc123abc123.lib", "inspect"]),
     ).toThrow("does not support `inspect`");

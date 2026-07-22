@@ -103,17 +103,21 @@ export interface CLIObjectMetadataArguments {
 }
 
 export type CLILibraryAction =
+  | "add"
   | "clear"
   | "create"
   | "delete"
   | "get"
   | "list"
+  | "move"
   | "put"
   | "remove"
+  | "scan"
   | "set";
 
 export interface CLILibraryArguments {
   readonly action: CLILibraryAction;
+  readonly confirm?: boolean | undefined;
   readonly inputPath?: string | undefined;
   readonly inputValue?: string | undefined;
   readonly json?: boolean | undefined;
@@ -121,6 +125,7 @@ export interface CLILibraryArguments {
   readonly key?: string | undefined;
   readonly path?: string | undefined;
   readonly target: ParsedWikiGraphLibraryUri;
+  readonly to?: string | undefined;
 }
 
 export type CLILocalConfigAction =

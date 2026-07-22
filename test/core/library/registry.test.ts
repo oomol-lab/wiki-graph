@@ -1,4 +1,4 @@
-import { mkdtemp, rm, stat } from "fs/promises";
+import { mkdir, mkdtemp, rm, stat, writeFile } from "fs/promises";
 import { join } from "path";
 import { tmpdir } from "os";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -10,12 +10,16 @@ import {
   ensureDefaultWikiGraphLibrary,
   formatWikiGraphLibraryUri,
   getWikiGraphLibraryMetadata,
+  addWikiGraphArchiveToLibrary,
   listWikiGraphLibraryScope,
+  moveWikiGraphLibraryArchive,
   parseLocatedWikiGraphUri,
   parseWikiGraphLibraryUri,
   putWikiGraphLibraryMetadata,
+  removeWikiGraphLibraryArchive,
   removeWikiGraphLibrary,
   replaceWikiGraphLibraryMetadata,
+  scanWikiGraphLibraryArchives,
 } from "../../../packages/core/src/index.js";
 
 describe("wiki graph library registry", () => {
@@ -89,9 +93,25 @@ describe("wiki graph library registry", () => {
       kind: "metadata",
       publicId: "abc123abc123",
     });
-    expect(() => parseWikiGraphLibraryUri("wikg://lib/abc123abc123")).toThrow(
-      ".lib suffix",
-    );
+    expect(parseWikiGraphLibraryUri("wikg://lib/entity/Q23")).toStrictEqual({
+      isDefault: true,
+      kind: "scope",
+      objectUri: "wikg://entity/Q23",
+    });
+    expect(
+      parseWikiGraphLibraryUri("wikg://lib/abc123abc123/chapter"),
+    ).toStrictEqual({
+      archivePublicId: "abc123abc123",
+      isDefault: true,
+      kind: "archive",
+      objectUri: "wikg://chapter",
+    });
+    expect(
+      parseLocatedWikiGraphUri("wikg://lib/abc123abc123/chapter"),
+    ).toMatchObject({
+      libraryArchive: { archivePublicId: "abc123abc123" },
+      objectUri: "wikg://chapter",
+    });
     const parsed = parseLocatedWikiGraphUri(
       "wikg://tmp/lib/book.wikg/entity/Q42",
     );
@@ -140,5 +160,70 @@ describe("wiki graph library registry", () => {
     await expect(listWikiGraphLibraryScope(target)).rejects.toThrow(
       "Unknown Wiki Graph library",
     );
+  });
+
+  it("scans, adds, moves, and removes managed library archive files", async () => {
+    const library = await ensureDefaultWikiGraphLibrary();
+    await mkdir(join(library.folderPath, "nested"), { recursive: true });
+    await writeFile(join(library.folderPath, "nested", "book.wikg"), "archive");
+
+    const scan = await scanWikiGraphLibraryArchives({
+      isDefault: true,
+      kind: "scope",
+    });
+    expect(scan.items).toHaveLength(1);
+    expect(scan.items[0]!.relativePath).toBe("nested/book.wikg");
+    await rm(join(library.folderPath, "nested", "book.wikg"));
+    expect(
+      (
+        await scanWikiGraphLibraryArchives({
+          isDefault: true,
+          kind: "scope",
+        })
+      ).items.find((item) => item.relativePath === "nested/book.wikg")?.status,
+    ).toBe("missing");
+
+    const inputPath = join(stateDir, "external.wikg");
+    await writeFile(inputPath, "external");
+    const added = await addWikiGraphArchiveToLibrary({
+      inputPath,
+      target: { isDefault: true, kind: "scope" },
+      to: "imported/book.wikg",
+    });
+    expect(added.archive.relativePath).toBe("imported/book.wikg");
+    await expect(
+      stat(join(library.folderPath, "imported", "book.wikg")),
+    ).resolves.toBeTruthy();
+    await expect(
+      addWikiGraphArchiveToLibrary({
+        inputPath,
+        target: { isDefault: true, kind: "scope" },
+        to: "../escape.wikg",
+      }),
+    ).rejects.toThrow("inside the library folder");
+
+    const moved = await moveWikiGraphLibraryArchive({
+      target: {
+        archivePublicId: added.archive.publicId,
+        isDefault: true,
+        kind: "archive",
+      },
+      to: "renamed/book.wikg",
+    });
+    expect(moved.archive.publicId).toBe(added.archive.publicId);
+    expect(moved.archive.relativePath).toBe("renamed/book.wikg");
+    await expect(
+      stat(join(library.folderPath, "renamed", "book.wikg")),
+    ).resolves.toBeTruthy();
+
+    const removed = await removeWikiGraphLibraryArchive({
+      archivePublicId: moved.archive.publicId,
+      isDefault: true,
+      kind: "archive",
+    });
+    expect(removed.archive.publicId).toBe(added.archive.publicId);
+    await expect(
+      stat(join(library.folderPath, "renamed", "book.wikg")),
+    ).rejects.toThrow();
   });
 });

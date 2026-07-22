@@ -55,6 +55,11 @@ export {
 } from "./continuation-cursor/index.js";
 export type { ContinuationCursor } from "./continuation-cursor/index.js";
 export {
+  createArchiveQueryIndexScope,
+  createLibraryQueryIndexScope,
+} from "./scope.js";
+export type { QueryIndexScope, QueryScope } from "./scope.js";
+export {
   createSearchSession,
   deleteArchiveSearchSessions,
   readCachedSearchSessionPage,

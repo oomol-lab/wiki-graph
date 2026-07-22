@@ -7,6 +7,10 @@ export const WIKI_GRAPH_ARCHIVE_EXTENSION = ".wikg";
 
 export interface LocatedWikiGraphUri {
   readonly archivePath?: string;
+  readonly libraryArchive?: {
+    readonly archivePublicId: string;
+    readonly libraryPublicId?: string;
+  };
   readonly objectUri?: string;
 }
 
@@ -30,6 +34,12 @@ export function parseLocatedWikiGraphUri(uri: string): LocatedWikiGraphUri {
   const path = split[0] ?? "";
   const hash = split[1] ?? "";
   const parts = path.split("/");
+
+  const libraryArchive = parseLibraryArchiveLocator(parts, hash);
+  if (libraryArchive !== undefined) {
+    return libraryArchive;
+  }
+
   const archiveIndex = parts.findIndex((part) =>
     part.endsWith(WIKI_GRAPH_ARCHIVE_EXTENSION),
   );
@@ -56,6 +66,47 @@ export function parseLocatedWikiGraphUri(uri: string): LocatedWikiGraphUri {
           ),
         }),
   };
+}
+
+function parseLibraryArchiveLocator(
+  parts: readonly string[],
+  hash: string,
+): LocatedWikiGraphUri | undefined {
+  if (parts[0] !== "lib") {
+    return undefined;
+  }
+  const explicitLibrary = /^([^/]+)\.lib$/u.exec(parts[1] ?? "");
+  const archivePublicId = explicitLibrary === null ? parts[1] : parts[2];
+  if (archivePublicId === undefined || archivePublicId === "") {
+    return undefined;
+  }
+  if (archivePublicId.endsWith(WIKI_GRAPH_ARCHIVE_EXTENSION)) {
+    return undefined;
+  }
+  if (isLibraryScopeHead(archivePublicId)) {
+    return undefined;
+  }
+  const objectParts = parts.slice(explicitLibrary === null ? 2 : 3);
+  return {
+    libraryArchive: {
+      archivePublicId,
+      ...(explicitLibrary?.[1] === undefined
+        ? {}
+        : { libraryPublicId: explicitLibrary[1] }),
+    },
+    ...(objectParts.length === 0
+      ? {}
+      : {
+          objectUri: formatWikiGraphObjectUri(
+            objectParts.join("/"),
+            hash === "" ? undefined : hash,
+          ),
+        }),
+  };
+}
+
+function isLibraryScopeHead(value: string): boolean {
+  return /^(?:chapter|chunk|entity|source|summary|triple)$/u.test(value);
 }
 
 function resolveArchivePath(archivePath: string): string {

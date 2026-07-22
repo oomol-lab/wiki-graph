@@ -1,15 +1,21 @@
 import { readFile } from "fs/promises";
 
 import {
+  addWikiGraphArchiveToLibrary,
   clearWikiGraphLibraryMetadata,
   createWikiGraphLibrary,
   deleteWikiGraphLibraryMetadataKey,
   getWikiGraphLibraryMetadata,
   listWikiGraphLibraryScope,
+  moveWikiGraphLibraryArchive,
   putWikiGraphLibraryMetadata,
   removeWikiGraphLibrary,
+  removeWikiGraphLibraryArchive,
   replaceWikiGraphLibraryMetadata,
   resolveWikiGraphLibrary,
+  scanWikiGraphLibraryArchives,
+  type WikiGraphLibraryArchiveRecord,
+  type WikiGraphLibraryRecord,
 } from "wiki-graph-core";
 import type { CLILibraryArguments } from "../args/index.js";
 import {
@@ -30,19 +36,64 @@ export async function runLibraryCommand(
       await writeLibrary(library, args.json ?? false);
       return;
     }
+    case "scan": {
+      await writeLibraryArchiveList(
+        (await scanWikiGraphLibraryArchives(args.target)).items,
+        args.json ?? false,
+      );
+      return;
+    }
+    case "add": {
+      if (args.inputPath === undefined) {
+        throw new Error("Missing --input <path> for library add.");
+      }
+      await writeLibraryArchive(
+        (
+          await addWikiGraphArchiveToLibrary({
+            inputPath: args.inputPath,
+            target: args.target,
+            ...(args.to === undefined ? {} : { to: args.to }),
+          })
+        ).archive,
+        args.json ?? false,
+      );
+      return;
+    }
     case "list": {
-      await listWikiGraphLibraryScope(args.target);
-      await writeTextToStdout(
-        args.json === true ? formatCLIJSON({ items: [] }) : "",
+      await writeLibraryArchiveList(
+        await listWikiGraphLibraryScope(args.target),
+        args.json ?? false,
       );
       return;
     }
     case "remove": {
+      if (args.target.kind === "archive") {
+        if (args.confirm !== true) {
+          throw new Error("Library archive remove requires --confirm.");
+        }
+        await writeLibraryArchiveMutation(
+          await removeWikiGraphLibraryArchive(args.target),
+          args.json ?? false,
+          "removed",
+        );
+        return;
+      }
       const library = await removeWikiGraphLibrary(args.target);
       await writeTextToStdout(
         args.json === true
           ? formatCLIJSON({ removed: library.uri })
           : `Removed library registry: ${library.uri}\n`,
+      );
+      return;
+    }
+    case "move": {
+      if (args.to === undefined) {
+        throw new Error("Missing --to <relative-wikg-path> for library move.");
+      }
+      await writeLibraryArchiveMutation(
+        await moveWikiGraphLibraryArchive({ target: args.target, to: args.to }),
+        args.json ?? false,
+        "moved",
       );
       return;
     }
@@ -54,9 +105,22 @@ export async function runLibraryCommand(
         );
         return;
       }
+      if (args.target.kind === "archive") {
+        await writeLibraryArchive(
+          (await listWikiGraphLibraryScope(args.target)).find(
+            (item) => item.publicId === args.target.archivePublicId,
+          ) ??
+            (() => {
+              throw new Error("Unknown Wiki Graph library archive.");
+            })(),
+          args.json ?? false,
+        );
+        return;
+      }
       await resolveWikiGraphLibrary(args.target);
-      await writeTextToStdout(
-        args.json === true ? formatCLIJSON({ items: [] }) : "",
+      await writeLibraryArchiveList(
+        await listWikiGraphLibraryScope(args.target),
+        args.json ?? false,
       );
       return;
     }
@@ -103,7 +167,7 @@ export async function runLibraryCommand(
 }
 
 async function writeLibrary(
-  library: Awaited<ReturnType<typeof createWikiGraphLibrary>>,
+  library: WikiGraphLibraryRecord,
   json: boolean,
 ): Promise<void> {
   if (json) {
@@ -121,6 +185,74 @@ async function writeLibrary(
     return;
   }
   await writeTextToStdout(`${library.uri}\n`);
+}
+
+async function writeLibraryArchiveList(
+  archives: readonly WikiGraphLibraryArchiveRecord[],
+  json: boolean,
+): Promise<void> {
+  if (json) {
+    await writeTextToStdout(
+      formatCLIJSON({ items: archives.map(formatArchiveJSON) }),
+    );
+    return;
+  }
+  await writeTextToStdout(
+    archives
+      .map(
+        (archive) =>
+          `${archive.uri}\t${archive.relativePath}\t${archive.status}`,
+      )
+      .join("\n") + (archives.length === 0 ? "" : "\n"),
+  );
+}
+
+async function writeLibraryArchive(
+  archive: WikiGraphLibraryArchiveRecord,
+  json: boolean,
+): Promise<void> {
+  if (json) {
+    await writeTextToStdout(formatCLIJSON(formatArchiveJSON(archive)));
+    return;
+  }
+  await writeTextToStdout(
+    `${archive.uri}\t${archive.relativePath}\t${archive.status}\n`,
+  );
+}
+
+async function writeLibraryArchiveMutation(
+  result: {
+    readonly archive: WikiGraphLibraryArchiveRecord;
+    readonly missing?: boolean;
+  },
+  json: boolean,
+  action: "moved" | "removed",
+): Promise<void> {
+  if (json) {
+    await writeTextToStdout(
+      formatCLIJSON({
+        [action]: formatArchiveJSON(result.archive),
+        ...(result.missing === true ? { missing: true } : {}),
+      }),
+    );
+    return;
+  }
+  await writeTextToStdout(
+    `${action}: ${result.archive.uri}\t${result.archive.relativePath}${result.missing === true ? " (file missing)" : ""}\n`,
+  );
+}
+
+function formatArchiveJSON(archive: WikiGraphLibraryArchiveRecord): object {
+  return {
+    uri: archive.uri,
+    id: archive.publicId,
+    libraryUri: archive.libraryUri,
+    relativePath: archive.relativePath,
+    archivePath: archive.archivePath,
+    status: archive.status,
+    createdAt: archive.createdAt,
+    updatedAt: archive.updatedAt,
+  };
 }
 
 async function readMetadataInput(

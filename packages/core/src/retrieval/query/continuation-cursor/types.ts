@@ -1,3 +1,5 @@
+import type { QueryIndexScope } from "../scope.js";
+
 export type ContinuationCursor =
   | {
       readonly archiveKey: string;
@@ -8,6 +10,7 @@ export type ContinuationCursor =
       readonly evidenceLimit?: number;
       readonly format: "json" | "jsonl" | "text";
       readonly ids: readonly string[] | null;
+      readonly indexScope?: QueryIndexScope;
       readonly kind: "collection";
       readonly order: "doc-asc" | "doc-desc";
       readonly sourceContext?: number;
@@ -26,6 +29,7 @@ export type ContinuationCursor =
       readonly cursor: string;
       readonly evidenceLimit?: number;
       readonly format: "json" | "jsonl" | "text";
+      readonly indexScope?: QueryIndexScope;
       readonly kind: "search";
       readonly query?: string;
       readonly sourceContext?: number;
@@ -41,6 +45,7 @@ export type ContinuationCursor =
       readonly archivePath: string;
       readonly cursor: string;
       readonly format: "json" | "jsonl" | "text";
+      readonly indexScope?: QueryIndexScope;
       readonly kind: "evidence";
       readonly order: "doc-asc" | "doc-desc";
       readonly query?: string;
@@ -53,6 +58,7 @@ export type ContinuationCursor =
       readonly cursor: string;
       readonly evidenceLimit?: number;
       readonly format: "json" | "jsonl" | "text";
+      readonly indexScope?: QueryIndexScope;
       readonly kind: "related";
       readonly order: "doc-asc" | "doc-desc";
       readonly query?: string;
