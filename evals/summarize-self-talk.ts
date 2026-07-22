@@ -136,6 +136,7 @@ interface EvalCaseResult {
   readonly legacyBeforeIssue117: {
     readonly heuristics: Record<string, boolean>;
     readonly rawOutput: string;
+    readonly validationError?: string;
   };
   readonly model: Record<string, string | undefined>;
   readonly reviewGuidance: readonly string[];
@@ -155,11 +156,11 @@ async function runEvalCase(
     targetLength: evalCase.targetLength,
   });
   const revisionFeedback = buildRevisionFeedback(llm, evalCase);
-  const legacyRawOutput = await requestCompression(
+  const legacyResult = await runLegacyPath(
     llm,
     legacyPrompt,
-    evalCase.markedText,
-    buildRevisionRequestOptions(evalCase, revisionFeedback, false),
+    evalCase,
+    revisionFeedback,
   );
   const requesterResult = await runRequesterPath(
     llm,
@@ -183,12 +184,44 @@ async function runEvalCase(
         : { validationError: requesterResult.validationError }),
     },
     legacyBeforeIssue117: {
-      heuristics: buildHeuristics(legacyRawOutput, legacyRawOutput),
-      rawOutput: legacyRawOutput,
+      heuristics: buildHeuristics(
+        legacyResult.rawOutput,
+        legacyResult.rawOutput,
+      ),
+      rawOutput: legacyResult.rawOutput,
+      ...(legacyResult.validationError === undefined
+        ? {}
+        : { validationError: legacyResult.validationError }),
     },
     model: publicModelInfo(config),
     reviewGuidance: evalCase.reviewGuidance,
   };
+}
+
+async function runLegacyPath(
+  llm: ReturnType<typeof createStageLLM>,
+  legacyPrompt: string,
+  evalCase: EvalCase,
+  revisionFeedback: string | undefined,
+): Promise<{
+  readonly rawOutput: string;
+  readonly validationError?: string;
+}> {
+  try {
+    return {
+      rawOutput: await requestCompression(
+        llm,
+        legacyPrompt,
+        evalCase.markedText,
+        buildRevisionRequestOptions(evalCase, revisionFeedback, false),
+      ),
+    };
+  } catch (error) {
+    return {
+      rawOutput: "",
+      validationError: error instanceof Error ? error.message : String(error),
+    };
+  }
 }
 
 async function runRequesterPath(
