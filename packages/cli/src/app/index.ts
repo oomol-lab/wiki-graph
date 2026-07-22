@@ -1,12 +1,12 @@
-export * from "wiki-graph-core";
+export { main } from "./main.js";
 export {
   createWikiGraphCLI,
   runWikiGraphCLI,
   runWikiGraphCLICaptured,
-} from "./app/index.js";
+} from "./runner.js";
 export type {
   RunWikiGraphCLICapturedResult,
   RunWikiGraphCLIInput,
   RunWikiGraphCLIResult,
   WikiGraphCLI,
-} from "./app/index.js";
+} from "./runner.js";
