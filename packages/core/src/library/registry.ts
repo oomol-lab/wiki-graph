@@ -144,26 +144,29 @@ export function resolveWikiGraphLibraryStagingDirectoryPath(
 
 export async function ensureDefaultWikiGraphLibrary(): Promise<WikiGraphLibraryRecord> {
   return await withLibraryRegistryDatabase(async (database) => {
-    const existing = await readDefaultLibraryRecord(database);
-    if (existing !== undefined) {
-      await mkdir(existing.folderPath, { recursive: true });
-      return existing;
-    }
+    const library = await database.transaction(async () => {
+      const existing = await readDefaultLibraryRecord(database);
+      if (existing !== undefined) {
+        return existing;
+      }
 
-    const now = new Date().toISOString();
-    const publicId = await createUniqueLibraryPublicId(database);
-    const folderPath = resolveDefaultWikiGraphLibraryDirectoryPath();
+      const now = new Date().toISOString();
+      const publicId = await createUniqueLibraryPublicId(database);
+      const folderPath = resolveDefaultWikiGraphLibraryDirectoryPath();
 
-    await database.run(
-      `
-        INSERT INTO libraries (public_id, folder_path, is_default, created_at, updated_at)
-        VALUES (?, ?, 1, ?, ?)
-      `,
-      [publicId, folderPath, now, now],
-    );
-    await mkdir(folderPath, { recursive: true });
+      await database.run(
+        `
+          INSERT INTO libraries (public_id, folder_path, is_default, created_at, updated_at)
+          VALUES (?, ?, 1, ?, ?)
+        `,
+        [publicId, folderPath, now, now],
+      );
 
-    return await requireDefaultLibraryRecord(database);
+      return await requireDefaultLibraryRecord(database);
+    });
+
+    await mkdir(library.folderPath, { recursive: true });
+    return library;
   });
 }
 

@@ -49,6 +49,19 @@ describe("wiki graph library registry", () => {
     ).toStrictEqual({});
   });
 
+  it("reuses one default library across concurrent first-run callers", async () => {
+    const libraries = await Promise.all(
+      Array.from(
+        { length: 8 },
+        async () => await ensureDefaultWikiGraphLibrary(),
+      ),
+    );
+
+    expect(new Set(libraries.map((library) => library.id)).size).toBe(1);
+    expect(new Set(libraries.map((library) => library.publicId)).size).toBe(1);
+    expect((await stat(libraries[0]!.folderPath)).isDirectory()).toBe(true);
+  });
+
   it("creates non-default libraries with public .lib URIs and refuses existing folders", async () => {
     const folderPath = join(stateDir, "research");
     const library = await createWikiGraphLibrary({ folderPath });

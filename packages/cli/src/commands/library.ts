@@ -128,7 +128,7 @@ async function readMetadataInput(
   options: { readonly jsonRequired: boolean },
 ): Promise<unknown> {
   const raw = await readRawInput(args);
-  if (args.json === true || options.jsonRequired) {
+  if (options.jsonRequired || args.jsonInputValue !== undefined) {
     return parseJSONInput(raw);
   }
   return raw;
@@ -206,6 +206,9 @@ function writeMetadataMap(
 function formatMetadataTextValue(value: unknown): string {
   if (Array.isArray(value)) {
     return value.map((item) => String(item)).join(" ");
+  }
+  if (value !== null && typeof value === "object") {
+    return JSON.stringify(value);
   }
   return String(value);
 }
