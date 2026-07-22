@@ -26,6 +26,26 @@ Notes:
 Examples:
   {{ commandName }} wikg://lib create --path ./research-library
   {{ commandName }} wikg://lib create --path ./research-library --json
+{% elif target.kind == "scope" and predicate == "get" %}
+Purpose:
+  Read a specific object in this library scope.
+
+Usage:
+  {{ commandName }} {{ uri }} get [--json]
+
+Notes:
+  - This follows the normal URI scope contract.
+  - First-stage library support does not yet enumerate library members, so the help page is present even if the command currently returns an empty scope result.
+{% elif target.kind == "scope" and predicate == "list" %}
+Purpose:
+  Enumerate objects in this library scope.
+
+Usage:
+  {{ commandName }} {{ uri }} list [--json]
+
+Notes:
+  - This follows the normal URI scope contract.
+  - First-stage library support does not yet enumerate library members, so the help page is present even if the command currently returns an empty scope result.
 {% elif target.kind == "scope" and predicate == "remove" %}
 Purpose:
   Remove this non-default library registry.
@@ -52,6 +72,17 @@ Notes:
   - Metadata keys are free-form user fields.
   - System registry fields such as id, public id, folder path, default marker, and staging path cannot be modified through metadata.
   - With `--json`, success output is the resulting metadata map.
+{% elif target.kind == "metadata" and predicate == "get" %}
+Purpose:
+  Read this library metadata map.
+
+Usage:
+  {{ commandName }} {{ uri }} get [--json]
+
+Notes:
+  - This reads the whole metadata map.
+  - Metadata keys are free-form user fields.
+  - System registry fields such as id, public id, folder path, default marker, and staging path cannot be modified through metadata.
 {% elif target.kind == "metadata" and predicate == "put" %}
 Purpose:
   Write one library metadata key.

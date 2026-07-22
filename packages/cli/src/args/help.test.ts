@@ -454,6 +454,20 @@ describe("cli/args/help", () => {
     expect(metadataHelpText).toContain("Metadata keys are free-form");
     expect(createHelpText).toContain("Library Predicate Command");
     expect(createHelpText).toContain("Create a non-default library registry");
+    expect(
+      renderLibraryPredicateHelpText(
+        "wikg://lib",
+        { isDefault: true, kind: "scope" },
+        "list",
+      ),
+    ).toContain("Enumerate objects in this library scope");
+    expect(
+      renderLibraryPredicateHelpText(
+        "wikg://lib/meta",
+        { isDefault: true, kind: "metadata" },
+        "get",
+      ),
+    ).toContain("Read this library metadata map");
   });
 
   it("supports a first-contact recovery chain from root help to parse failures", () => {
