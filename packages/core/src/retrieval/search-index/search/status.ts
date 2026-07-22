@@ -50,27 +50,34 @@ export async function readSearchIndexStatus(
 export async function hasDirtySearchIndexChapters(
   database: Database,
 ): Promise<boolean> {
-  const count = await database
-    .queryOne(
-      `
-        SELECT COUNT(*) AS count
-        FROM index_dirty_chapters
-      `,
-      undefined,
-      (row) => getNumber(row, "count"),
-    )
-    .catch((error: unknown) => {
-      if (
-        error instanceof Error &&
-        error.message.includes("no such table: index_dirty_chapters")
-      ) {
-        return undefined;
-      }
+  if (!(await hasTable(database, "index_dirty_chapters"))) {
+    return false;
+  }
 
-      throw error;
-    });
+  const count = await database.queryOne(
+    `
+      SELECT COUNT(*) AS count
+      FROM index_dirty_chapters
+    `,
+    undefined,
+    (row) => getNumber(row, "count"),
+  );
 
   return (count ?? 0) > 0;
+}
+
+async function hasTable(database: Database, table: string): Promise<boolean> {
+  const row = await database.queryOne(
+    `
+      SELECT 1 AS found
+      FROM sqlite_master
+      WHERE type = 'table' AND name = ?
+    `,
+    [table],
+    (value) => getNumber(value, "found"),
+  );
+
+  return row === 1;
 }
 
 export async function assertSearchIndexNotDirty(

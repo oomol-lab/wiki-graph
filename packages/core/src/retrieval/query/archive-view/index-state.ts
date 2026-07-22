@@ -15,17 +15,40 @@ import {
 import { createTextStreamIndex } from "./text-streams.js";
 import type { ArchiveTextStreamKind } from "./types.js";
 
+const SEARCH_INDEX_REBUILD_ATTEMPTS = 2;
+
 export async function rebuildArchiveSearchIndex(
   document: Document,
   progress?: SearchIndexProgressReporter,
 ): Promise<void> {
-  const input = await buildArchiveIndexProjection(document, progress);
+  for (let attempt = 0; attempt < SEARCH_INDEX_REBUILD_ATTEMPTS; attempt += 1) {
+    const input = await buildArchiveIndexProjection(document, progress);
+    const fingerprint = createSearchIndexFingerprint(input);
 
-  if ((await readSearchIndexStatus(document, input)) === "dirty") {
+    if ((await readSearchIndexStatus(document, input)) === "dirty") {
+      const beforeDeleteInput = await buildArchiveIndexProjection(document);
+
+      if (createSearchIndexFingerprint(beforeDeleteInput) !== fingerprint) {
+        continue;
+      }
+
+      await document.deleteSearchIndexDatabase();
+    }
+
+    await writeArchiveIndexProjection(document, input, progress);
+
+    const verifiedInput = await buildArchiveIndexProjection(document);
+    if (
+      createSearchIndexFingerprint(verifiedInput) === fingerprint &&
+      (await readSearchIndexStatus(document, verifiedInput)) === "current"
+    ) {
+      return;
+    }
+
     await document.deleteSearchIndexDatabase();
   }
 
-  await writeArchiveIndexProjection(document, input, progress);
+  throw new Error("Archive changed while rebuilding search index; retry.");
 }
 
 export async function isArchiveSearchIndexCurrent(
