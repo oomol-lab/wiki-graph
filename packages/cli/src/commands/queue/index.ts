@@ -5,9 +5,11 @@ import {
   getBuildJob,
   listBuildJobs,
   pauseBuildJob,
+  resolveChapterPath,
   resolveBuildJobId,
   resumeBuildJob,
   updateBuildJobTarget,
+  WikiGraphArchiveFile,
 } from "wiki-graph-core";
 
 import type { CLIQueueArguments } from "../../args/index.js";
@@ -31,8 +33,9 @@ export { runQueueWorker } from "./worker.js";
 export async function runQueueCommand(args: CLIQueueArguments): Promise<void> {
   switch (args.action) {
     case "add": {
-      if (args.chapterId !== undefined) {
-        await assertQueueAddReady(args);
+      const chapterId = await resolveQueueChapterId(args);
+      if (chapterId !== undefined) {
+        await assertQueueAddReady(args, chapterId);
       }
       assertBuildCostAccepted(args);
       const config = await loadRequiredStageConfig({
@@ -42,17 +45,17 @@ export async function runQueueCommand(args: CLIQueueArguments): Promise<void> {
         requireKnowledgeGraphWikispineConfig(config);
       }
 
-      if (args.chapterId === undefined) {
+      if (chapterId === undefined) {
         await addArchiveJobs(args, config);
       } else {
-        const chapter = await readQueueAddChapter(args, args.chapterId);
+        const chapter = await readQueueAddChapter(args, chapterId);
         const estimate = createQueueAddEstimate({
           chapters: [chapter],
           config,
           target: args.target ?? "reading-summary",
         });
 
-        await writeJobSummary(await addChapterJob(args, args.chapterId), {
+        await writeJobSummary(await addChapterJob(args, chapterId), {
           estimate,
           json: args.json ?? false,
           watch: true,
@@ -122,4 +125,23 @@ export async function runQueueCommand(args: CLIQueueArguments): Promise<void> {
 
 async function resolveQueueJobId(args: CLIQueueArguments): Promise<string> {
   return await resolveBuildJobId(args.jobId!);
+}
+
+async function resolveQueueChapterId(
+  args: CLIQueueArguments,
+): Promise<number | undefined> {
+  if (args.chapterId !== undefined) {
+    return args.chapterId;
+  }
+  if (args.chapterPath === undefined) {
+    return undefined;
+  }
+
+  let chapterId: number | undefined;
+  await new WikiGraphArchiveFile(args.archivePath!).readDocument(
+    async (document) => {
+      chapterId = await resolveChapterPath(document, args.chapterPath!);
+    },
+  );
+  return chapterId;
 }

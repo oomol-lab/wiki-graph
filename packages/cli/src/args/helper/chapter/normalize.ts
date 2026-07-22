@@ -3,8 +3,7 @@ import type {
   CLIArchiveChapterAction,
   CLIArchiveChapterArguments,
 } from "../../types.js";
-import { requireChapterId } from "../flags.js";
-import { parseChapterRef, parseSerialId } from "./ids.js";
+import { parseChapterPathRef } from "./ids.js";
 import { parseResetStage } from "./stages.js";
 import {
   rejectActionBooleanFlag,
@@ -41,22 +40,22 @@ export function normalizeArchiveChapterArguments(
   treeAction?: "apply",
   inputValue?: string,
 ): CLIArchiveChapterArguments {
-  const chapterId =
+  const chapterPath =
     values.chapter === undefined
       ? undefined
-      : parseSerialId(values.chapter, "--chapter", helpRoute);
-  const parentChapterId =
+      : parseChapterPathRef(values.chapter, "--chapter", path, helpRoute);
+  const parentChapterPath =
     values.parent === undefined
       ? undefined
-      : parseChapterRef(values.parent, "--parent", path, helpRoute);
-  const beforeChapterId =
+      : parseChapterPathRef(values.parent, "--parent", path, helpRoute);
+  const beforeChapterPath =
     values.before === undefined
       ? undefined
-      : parseChapterRef(values.before, "--before", path, helpRoute);
-  const afterChapterId =
+      : parseChapterPathRef(values.before, "--before", path, helpRoute);
+  const afterChapterPath =
     values.after === undefined
       ? undefined
-      : parseChapterRef(values.after, "--after", path, helpRoute);
+      : parseChapterPathRef(values.after, "--after", path, helpRoute);
   const resetStage =
     values.to === undefined ? undefined : parseResetStage(values.to, helpRoute);
 
@@ -92,7 +91,7 @@ export function normalizeArchiveChapterArguments(
         ...(values.input === undefined ? {} : { inputPath: values.input }),
         ...(values.json === undefined ? {} : { json: values.json }),
         ...(values.llm === undefined ? {} : { llmJSON: values.llm }),
-        ...(parentChapterId === undefined ? {} : { parentChapterId }),
+        ...(parentChapterPath === undefined ? {} : { parentChapterPath }),
         ...(values.title === undefined ? {} : { title: values.title }),
       };
     case "list":
@@ -137,7 +136,7 @@ export function normalizeArchiveChapterArguments(
         ...(values.llm === undefined ? {} : { llmJSON: values.llm }),
       };
     case "move":
-      requireChapterId(chapterId, action, helpRoute);
+      requireChapterPath(chapterPath, action, helpRoute);
       rejectActionFlag(values.stage, "--stage", action, helpRoute);
       rejectActionFlag(values.input, "--input", action, helpRoute);
       rejectActionFlag(values.import, "--import", action, helpRoute);
@@ -166,19 +165,19 @@ export function normalizeArchiveChapterArguments(
       rejectConflictingMoveFlags(values, helpRoute);
       return {
         action,
-        ...(afterChapterId === undefined ? {} : { afterChapterId }),
-        ...(beforeChapterId === undefined ? {} : { beforeChapterId }),
-        chapterId,
+        ...(afterChapterPath === undefined ? {} : { afterChapterPath }),
+        ...(beforeChapterPath === undefined ? {} : { beforeChapterPath }),
+        chapterPath,
         ...(values.first === undefined ? {} : { first: values.first }),
         ...(values.json === undefined ? {} : { json: values.json }),
         ...(values.last === undefined ? {} : { last: values.last }),
         ...(values.llm === undefined ? {} : { llmJSON: values.llm }),
         ...(values.root === undefined ? {} : { moveToRoot: values.root }),
-        ...(parentChapterId === undefined ? {} : { parentChapterId }),
+        ...(parentChapterPath === undefined ? {} : { parentChapterPath }),
         path,
       };
     case "remove":
-      requireChapterId(chapterId, action, helpRoute);
+      requireChapterPath(chapterPath, action, helpRoute);
       rejectActionFlag(values.stage, "--stage", action, helpRoute);
       rejectActionFlag(values.after, "--after", action, helpRoute);
       rejectActionFlag(values.before, "--before", action, helpRoute);
@@ -206,7 +205,7 @@ export function normalizeArchiveChapterArguments(
       rejectActionBooleanFlag(values.last, "--last", action, helpRoute);
       return {
         action,
-        chapterId,
+        chapterPath,
         ...(values.json === undefined ? {} : { json: values.json }),
         path,
         ...(values.llm === undefined ? {} : { llmJSON: values.llm }),
@@ -215,7 +214,7 @@ export function normalizeArchiveChapterArguments(
           : { recursive: values.recursive }),
       };
     case "reset":
-      requireChapterId(chapterId, action, helpRoute);
+      requireChapterPath(chapterPath, action, helpRoute);
       rejectActionFlag(values.stage, "--stage", action, helpRoute);
       rejectActionFlag(values.after, "--after", action, helpRoute);
       rejectActionFlag(values.before, "--before", action, helpRoute);
@@ -256,14 +255,14 @@ export function normalizeArchiveChapterArguments(
       );
       return {
         action,
-        chapterId,
+        chapterPath,
         ...(values.json === undefined ? {} : { json: values.json }),
         path,
         resetStage,
         ...(values.llm === undefined ? {} : { llmJSON: values.llm }),
       };
     case "set-source":
-      requireChapterId(chapterId, action, helpRoute);
+      requireChapterPath(chapterPath, action, helpRoute);
       rejectActionFlag(values.stage, "--stage", action, helpRoute);
       rejectActionFlag(values.after, "--after", action, helpRoute);
       rejectActionFlag(values.before, "--before", action, helpRoute);
@@ -296,7 +295,7 @@ export function normalizeArchiveChapterArguments(
       );
       return {
         action,
-        chapterId,
+        chapterPath,
         ...(inputValue === undefined ? {} : { inputValue }),
         ...(values.json === undefined ? {} : { json: values.json }),
         path,
@@ -304,7 +303,7 @@ export function normalizeArchiveChapterArguments(
         ...(values.llm === undefined ? {} : { llmJSON: values.llm }),
       };
     case "set-summary":
-      requireChapterId(chapterId, action, helpRoute);
+      requireChapterPath(chapterPath, action, helpRoute);
       rejectActionFlag(values.stage, "--stage", action, helpRoute);
       rejectActionFlag(values.after, "--after", action, helpRoute);
       rejectActionFlag(values.before, "--before", action, helpRoute);
@@ -339,14 +338,14 @@ export function normalizeArchiveChapterArguments(
       );
       return {
         action,
-        chapterId,
+        chapterPath,
         ...(inputValue === undefined ? {} : { inputValue }),
         path,
         ...(values.input === undefined ? {} : { inputPath: values.input }),
         ...(values.llm === undefined ? {} : { llmJSON: values.llm }),
       };
     case "set-title":
-      requireChapterId(chapterId, action, helpRoute);
+      requireChapterPath(chapterPath, action, helpRoute);
       rejectActionFlag(values.stage, "--stage", action, helpRoute);
       rejectActionFlag(values.after, "--after", action, helpRoute);
       rejectActionFlag(values.before, "--before", action, helpRoute);
@@ -399,7 +398,7 @@ export function normalizeArchiveChapterArguments(
       );
       return {
         action,
-        chapterId,
+        chapterPath,
         ...(values.clear === undefined ? {} : { clearTitle: values.clear }),
         path,
         ...(inputValue === undefined ? {} : { title: inputValue }),
@@ -465,5 +464,22 @@ export function normalizeArchiveChapterArguments(
         path,
         treeAction: "show",
       };
+  }
+}
+
+function requireChapterPath(
+  chapterPath: string | undefined,
+  action: CLIArchiveChapterAction,
+  helpRoute: string,
+): asserts chapterPath is string {
+  if (chapterPath === undefined) {
+    throw new Error(
+      withHelpRoute(
+        `Missing --chapter. ` +
+          `chapter ${action}` +
+          ` requires a complete absolute chapter path.`,
+        helpRoute,
+      ),
+    );
   }
 }

@@ -72,7 +72,7 @@ export function parseArchiveChapterUriArguments(
     case "chapter":
       return parseSingleChapterUriArguments(
         archivePath,
-        target.chapterId,
+        target.chapterPath,
         action,
         tail,
         values,
@@ -81,7 +81,7 @@ export function parseArchiveChapterUriArguments(
     case "chapter-lens":
       return parseChapterLensUriArguments(
         archivePath,
-        target.chapterId,
+        target.chapterPath,
         target.lens,
         action,
         tail,
@@ -91,7 +91,7 @@ export function parseArchiveChapterUriArguments(
     case "chapter-triple-pattern-lens":
       return parseChapterTriplePatternLensUriArguments(
         archivePath,
-        target.chapterId,
+        target.chapterPath,
         target.pattern,
         action,
         tail,
@@ -109,7 +109,7 @@ export function parseArchiveChapterUriArguments(
     case "chapter-resource":
       return parseChapterResourceUriArguments(
         archivePath,
-        target.chapterId,
+        target.chapterPath,
         target.resource,
         action,
         tail,
@@ -138,7 +138,7 @@ function parseChapterCollectionUriArguments(
     );
   }
 
-  if (action !== "add") {
+  if (!isChapterCollectionMaintenanceAction(action)) {
     throw new Error(
       withHelpRoute(
         `The chapter collection does not support \`${action}\`. Read it directly, add --query, or use add.`,
@@ -153,6 +153,20 @@ function parseChapterCollectionUriArguments(
     tail,
     values,
     helpRoute,
+  );
+}
+
+function isChapterCollectionMaintenanceAction(
+  action: CLIArchiveUriAction,
+): action is Extract<
+  CLIArchiveChapterAction,
+  "add" | "move" | "remove" | "reset"
+> {
+  return (
+    action === "add" ||
+    action === "move" ||
+    action === "remove" ||
+    action === "reset"
   );
 }
 
@@ -229,7 +243,7 @@ function parseChapterTreeUriArguments(
 
 function parseSingleChapterUriArguments(
   archivePath: string,
-  chapterId: number,
+  chapterPath: string,
   action: CLIArchiveUriAction,
   tail: readonly string[],
   values: ArchiveArgumentValues,
@@ -240,23 +254,23 @@ function parseSingleChapterUriArguments(
     case "list":
       return parseArchiveArguments(
         action,
-        [formatLocatedChapterUri(archivePath, chapterId), ...tail],
+        [formatLocatedChapterUri(archivePath, chapterPath), ...tail],
         values,
         helpRoute,
       );
     case "get":
       throw new Error(
         withHelpRoute(
-          "`chapter/<id>` is a scope URI. Use `chapter/<id>/title` or `chapter/<id>/state` to read a concrete chapter object.",
+          "`chapter/<path>` is a scope URI. Use `chapter/<path>/title` or `chapter/<path>/state` to read a concrete chapter object.",
           CLI_HELP_ROUTES.uri,
         ),
       );
     case "inspect":
-      return parseArchiveArguments(
-        "inspect",
-        [formatLocatedChapterUri(archivePath, chapterId), ...tail],
-        values,
-        helpRoute,
+      throw new Error(
+        withHelpRoute(
+          "`chapter/<path>` inspect is not available. Inspect the archive or read concrete chapter resources instead.",
+          CLI_HELP_ROUTES.uri,
+        ),
       );
     case "move":
     case "remove":
@@ -265,7 +279,7 @@ function parseSingleChapterUriArguments(
         action,
         archivePath,
         tail,
-        { ...values, chapter: String(chapterId) },
+        { ...values, chapter: chapterPath },
         helpRoute,
       );
     default:
@@ -280,7 +294,7 @@ function parseSingleChapterUriArguments(
 
 function parseChapterLensUriArguments(
   archivePath: string,
-  chapterId: number,
+  chapterPath: string,
   lens: ArchiveUriLens,
   action: CLIArchiveUriAction,
   tail: readonly string[],
@@ -298,7 +312,7 @@ function parseChapterLensUriArguments(
 
   return parseArchiveArguments(
     action,
-    [formatLocatedChapterUri(archivePath, chapterId), ...tail],
+    [formatLocatedChapterUri(archivePath, chapterPath), ...tail],
     values,
     helpRoute,
     { defaultKinds: [lens] },
@@ -307,7 +321,7 @@ function parseChapterLensUriArguments(
 
 function parseChapterTriplePatternLensUriArguments(
   archivePath: string,
-  chapterId: number,
+  chapterPath: string,
   pattern: ArchiveTriplePattern,
   action: CLIArchiveUriAction,
   tail: readonly string[],
@@ -325,7 +339,7 @@ function parseChapterTriplePatternLensUriArguments(
 
   return parseArchiveArguments(
     action,
-    [formatLocatedChapterUri(archivePath, chapterId), ...tail],
+    [formatLocatedChapterUri(archivePath, chapterPath), ...tail],
     values,
     helpRoute,
     { defaultKinds: ["triple"], triplePattern: pattern },
@@ -353,7 +367,7 @@ function parseChapterStateUriArguments(
 
 function parseChapterResourceUriArguments(
   archivePath: string,
-  chapterId: number,
+  chapterPath: string,
   resource: "source" | "summary" | "title",
   action: CLIArchiveUriAction,
   tail: readonly string[],
@@ -399,8 +413,8 @@ function parseChapterResourceUriArguments(
   if (action === "get") {
     const objectUri =
       resource === "source"
-        ? formatLocatedChapterSourceCollectionUri(archivePath, chapterId)
-        : formatLocatedChapterResourceUri(archivePath, chapterId, resource);
+        ? formatLocatedChapterSourceCollectionUri(archivePath, chapterPath)
+        : formatLocatedChapterResourceUri(archivePath, chapterPath, resource);
 
     return parseArchiveArguments(
       "get",
@@ -423,7 +437,7 @@ function parseChapterResourceUriArguments(
     tail,
     {
       ...values,
-      chapter: String(chapterId),
+      chapter: chapterPath,
       ...(action === "clear" ? { clear: true } : {}),
     },
     helpRoute,

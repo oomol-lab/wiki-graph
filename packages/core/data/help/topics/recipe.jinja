@@ -35,13 +35,13 @@ Choose your starting point:
 
   - User needs a chapter-level file:
     Read the chapter object and use Unix pipes or redirection. `/source` prints original source text; `/summary` prints the chapter summary.
-      {{ commandName }} wikg://book.wikg/chapter/3/source > chapter-3-source.md
-      {{ commandName }} wikg://book.wikg/chapter/3/summary > chapter-3-summary.md
+      {{ commandName }} wikg://book.wikg/chapter/part/source > chapter-part-source.md
+      {{ commandName }} wikg://book.wikg/chapter/part/summary > chapter-part-summary.md
 
 After inspect:
   - If the archive is ready for retrieval, use `--query` on a scope or open the URI that inspect suggests.
     {{ commandName }} wikg:///Users/me/book.wikg --query "attention memory"
-    {{ commandName }} wikg:///Users/me/book.wikg/chapter/3 --query "attention"
+    {{ commandName }} wikg:///Users/me/book.wikg/chapter/part --query "attention"
 
   - If inspect reports missing or unavailable index support, inspect the index target before enabling anything.
     {{ commandName }} <archive-uri>/index --help
@@ -68,12 +68,12 @@ Finding material:
 
   - Need document structure, chapter readiness, or chapter-local scope:
     {{ commandName }} wikg://book.wikg/chapter
-    {{ commandName }} wikg://book.wikg/chapter/3
+    {{ commandName }} wikg://book.wikg/chapter/part
 
   - Need to understand a concept, person, place, term, or object:
     Use `--query` on entity scopes with source evidence, then ground, expand, or pack from the entity URI.
       {{ commandName }} wikg://book.wikg/entity --query "attention" --evidence 2
-      {{ commandName }} wikg://book.wikg/chapter/3/entity --query "attention" --evidence 2
+      {{ commandName }} wikg://book.wikg/chapter/part/entity --query "attention" --evidence 2
       {{ commandName }} wikg://book.wikg/entity/Q8018
       {{ commandName }} wikg://book.wikg/entity/Q8018 evidence
       {{ commandName }} wikg://book.wikg/entity/Q8018 related --query "memory"
@@ -84,7 +84,7 @@ Finding material:
   - Need to trace a relation, claim, or subject-predicate-object connection:
     Use `--query` on triple scopes with source evidence, then open or ground the triple object.
       {{ commandName }} wikg://book.wikg/triple --query "attention memory" --evidence 2
-      {{ commandName }} wikg://book.wikg/chapter/3/triple --query "attention memory" --evidence 2
+      {{ commandName }} wikg://book.wikg/chapter/part/triple --query "attention memory" --evidence 2
       {{ commandName }} wikg://book.wikg/triple/Q8018/discusses/Q123
       {{ commandName }} wikg://book.wikg/triple/Q8018/discusses/Q123 evidence
     Triple scopes can be archive-wide (`<archive-uri>/triple`) or chapter-limited (`<chapter-uri>/triple`).
@@ -94,9 +94,9 @@ Finding material:
   - Need literal source wording:
     Use `--query` on the narrowest useful scope.
       {{ commandName }} wikg:///Users/me/book.wikg --query "attention memory"
-      {{ commandName }} wikg:///Users/me/book.wikg/chapter/3 --query "attention"
-      {{ commandName }} wikg://book.wikg/chapter/3/source#20..30
-      {{ commandName }} wikg://book.wikg/chapter/3/source#23..45
+      {{ commandName }} wikg:///Users/me/book.wikg/chapter/part --query "attention"
+      {{ commandName }} wikg://book.wikg/chapter/part/source#20..30
+      {{ commandName }} wikg://book.wikg/chapter/part/source#23..45
 
   - Need the latest source evidence for a known object:
     Use `--reverse` without `--query`; read `{{ commandName }} help uri` for Document Flow order.
@@ -104,21 +104,21 @@ Finding material:
 
   - Need summary wording:
     Read summary objects or summary ranges, then verify important claims through related chunk, entity, or triple evidence.
-      {{ commandName }} wikg://book.wikg/chapter/3/summary
-      {{ commandName }} wikg://book.wikg/chapter/3/summary#23..45
-      {{ commandName }} wikg://book.wikg/chapter/3/chunk --query "attention" --evidence 2
+      {{ commandName }} wikg://book.wikg/chapter/part/summary
+      {{ commandName }} wikg://book.wikg/chapter/part/summary#23..45
+      {{ commandName }} wikg://book.wikg/chapter/part/chunk --query "attention" --evidence 2
 
   - Need Reading Graph chunks:
     Use `--query` on chunk scopes with source evidence, then open or expand from useful chunk objects.
       {{ commandName }} wikg://book.wikg/chunk --query "attention memory" --evidence 2
-      {{ commandName }} wikg://book.wikg/chapter/3/chunk --query "attention" --evidence 2
+      {{ commandName }} wikg://book.wikg/chapter/part/chunk --query "attention" --evidence 2
       {{ commandName }} wikg://book.wikg/chunk
       {{ commandName }} wikg://book.wikg/chunk/123 evidence
       {{ commandName }} wikg://book.wikg/chunk/123 related --query "attention" --evidence 2
 
   - Need quick compressed understanding before returning to source evidence:
     Read summaries, then verify important claims with evidence.
-      {{ commandName }} wikg://book.wikg/chapter/3/summary
+      {{ commandName }} wikg://book.wikg/chapter/part/summary
 
   - Need an inventory for a script or Unix pipeline:
     Use `--all --jsonl` to export the selected scope as line-delimited records, then filter with standard stream tools.
@@ -126,9 +126,9 @@ Finding material:
       {{ commandName }} wikg://book.wikg/entity --all --jsonl
       {{ commandName }} wikg://book.wikg/triple --all --jsonl
       {{ commandName }} wikg://book.wikg/chunk --all --jsonl
-      {{ commandName }} wikg://book.wikg/chapter/3/entity --all --jsonl
-      {{ commandName }} wikg://book.wikg/chapter/3/triple --all --jsonl
-      {{ commandName }} wikg://book.wikg/chapter/3/chunk --all --jsonl
+      {{ commandName }} wikg://book.wikg/chapter/part/entity --all --jsonl
+      {{ commandName }} wikg://book.wikg/chapter/part/triple --all --jsonl
+      {{ commandName }} wikg://book.wikg/chapter/part/chunk --all --jsonl
 
   - Need bounded Agent-readable context around an object:
     Use pack only after choosing a located chunk or entity URI.

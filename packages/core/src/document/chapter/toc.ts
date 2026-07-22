@@ -1,6 +1,11 @@
 import type { ReadonlyDocument } from "../index.js";
 import { TOC_FILE_VERSION, type TocItem } from "../../text/source/index.js";
 
+import {
+  collectChapterKeys,
+  createChapterKey,
+  formatChapterUri,
+} from "./path.js";
 import { cloneTocItem, normalizeTitle, type MutableTocFile } from "./tree.js";
 import type { ChapterEntry, ChapterStage } from "./types.js";
 
@@ -8,13 +13,34 @@ export async function readChapterToc(
   document: ReadonlyDocument,
 ): Promise<MutableTocFile> {
   const toc = await document.readToc();
+  const items = toc?.items.map(cloneTocItem) ?? [];
+  ensureChapterKeys(items);
 
   return toc === undefined
     ? { items: [], version: TOC_FILE_VERSION }
     : {
-        items: toc.items.map(cloneTocItem),
+        items,
         version: toc.version,
       };
+}
+
+export function ensureChapterKeys(items: MutableTocFile["items"]): boolean {
+  const existingKeys = collectChapterKeys(items);
+  let changed = false;
+  const visit = (nodes: MutableTocFile["items"]): void => {
+    for (const item of nodes) {
+      if (item.key === undefined) {
+        item.key = createChapterKey(normalizeTitle(item.title), existingKeys);
+        existingKeys.add(item.key);
+        changed = true;
+      } else {
+        existingKeys.add(item.key);
+      }
+      visit(item.children);
+    }
+  };
+  visit(items);
+  return changed;
 }
 
 export async function findChapterEntry(
@@ -22,17 +48,21 @@ export async function findChapterEntry(
   items: readonly TocItem[],
   chapterId: number,
   ancestorTitles: readonly string[] = [],
+  ancestorKeys: readonly string[] = [],
   depth = 0,
 ): Promise<ChapterEntry | undefined> {
   for (const item of items) {
     const title = normalizeTitle(item.title) ?? null;
+    const key = item.key ?? `chapter-${item.serialId ?? "group"}`;
     const tocPath =
       item.serialId === undefined
         ? [...ancestorTitles, ...(title === null ? [] : [title])]
         : [...ancestorTitles, title ?? `Chapter ${item.serialId}`];
+    const chapterPath = [...ancestorKeys, key];
 
     if (item.serialId === chapterId) {
       return await createChapterEntry(document, item, item.serialId, {
+        chapterPath,
         depth,
         title,
         tocPath,
@@ -44,6 +74,7 @@ export async function findChapterEntry(
       item.children,
       chapterId,
       tocPath,
+      chapterPath,
       depth + 1,
     );
 
@@ -59,16 +90,19 @@ export async function collectChapterEntries(
   document: ReadonlyDocument,
   items: readonly TocItem[],
   ancestorTitles: readonly string[] = [],
+  ancestorKeys: readonly string[] = [],
   depth = 0,
 ): Promise<ChapterEntry[]> {
   const entries: ChapterEntry[] = [];
 
   for (const item of items) {
     const title = normalizeTitle(item.title) ?? null;
+    const key = item.key ?? `chapter-${item.serialId ?? "group"}`;
     const tocPath =
       item.serialId === undefined
         ? [...ancestorTitles, ...(title === null ? [] : [title])]
         : [...ancestorTitles, title ?? `Chapter ${item.serialId}`];
+    const chapterPath = [...ancestorKeys, key];
 
     if (item.serialId === undefined) {
       entries.push(
@@ -76,6 +110,7 @@ export async function collectChapterEntries(
           document,
           item.children,
           tocPath,
+          chapterPath,
           depth + 1,
         )),
       );
@@ -84,6 +119,7 @@ export async function collectChapterEntries(
 
     entries.push(
       await createChapterEntry(document, item, item.serialId, {
+        chapterPath,
         depth,
         title,
         tocPath,
@@ -94,6 +130,7 @@ export async function collectChapterEntries(
         document,
         item.children,
         tocPath,
+        chapterPath,
         depth + 1,
       )),
     );
@@ -108,6 +145,7 @@ async function createChapterEntry(
   serialId: number,
   input: {
     readonly depth: number;
+    readonly chapterPath: readonly string[];
     readonly title: string | null;
     readonly tocPath: readonly string[];
   },
@@ -123,6 +161,8 @@ async function createChapterEntry(
     depth: input.depth,
     documentOrder: serial?.documentOrder ?? serialId,
     fragmentCount: sourceSummary.fragmentCount,
+    key: input.chapterPath.at(-1) ?? `chapter-${serialId}`,
+    path: input.chapterPath.join("/"),
     stage: await resolveChapterStage(
       document,
       serialId,
@@ -130,6 +170,7 @@ async function createChapterEntry(
     ),
     title: input.title,
     tocPath: input.tocPath,
+    uri: formatChapterUri(input.chapterPath.join("/")),
     words: sourceSummary.words,
   };
 }

@@ -30,7 +30,7 @@ describe("cli/args/help", () => {
     ).toThrow("Use concrete chapter resource URIs");
     expect(
       parseCLIArguments([
-        "wikg://book.wikg/chapter/12/summary",
+        "wikg://book.wikg/chapter/part/summary",
         "set",
         "--help",
       ]),
@@ -39,31 +39,35 @@ describe("cli/args/help", () => {
       helpText: renderUriPredicateHelpText(
         "chapter-summary-object",
         "set",
-        "wikg://book.wikg/chapter/12/summary",
+        "wikg://book.wikg/chapter/part/summary",
       ),
       kind: "help",
     });
     expect(() =>
       parseCLIArguments([
-        "wikg://book.wikg/chapter/12/summary",
+        "wikg://book.wikg/chapter/part/summary",
         "evidence",
         "--help",
       ]),
     ).toThrow("does not support `evidence`");
     expect(() =>
-      parseCLIArguments(["wikg://book.wikg/chapter/12/summary", "evidence"]),
+      parseCLIArguments(["wikg://book.wikg/chapter/part/summary", "evidence"]),
     ).toThrow("wg <chapter-uri>/summary --help");
     expect(() => parseCLIArguments(["chapter", "set-title", "--help"])).toThrow(
       "Use concrete chapter resource URIs",
     );
     expect(
-      parseCLIArguments(["wikg://book.wikg/chapter/12/title", "set", "--help"]),
+      parseCLIArguments([
+        "wikg://book.wikg/chapter/part/title",
+        "set",
+        "--help",
+      ]),
     ).toStrictEqual({
       help: true,
       helpText: renderUriPredicateHelpText(
         "chapter-title-object",
         "set",
-        "wikg://book.wikg/chapter/12/title",
+        "wikg://book.wikg/chapter/part/title",
       ),
       kind: "help",
     });
@@ -335,13 +339,13 @@ describe("cli/args/help", () => {
       "Read the chapter object and use Unix pipes or redirection.",
     );
     expect(renderHelpTopicText("recipe")).toContain(
-      "wg wikg://book.wikg/chapter/3/source > chapter-3-source.md",
+      "wg wikg://book.wikg/chapter/part/source > chapter-part-source.md",
     );
     expect(renderHelpTopicText("recipe")).toContain(
-      "wg wikg://book.wikg/chapter/3/source#23..45",
+      "wg wikg://book.wikg/chapter/part/source#23..45",
     );
     expect(renderHelpTopicText("recipe")).toContain(
-      "wg wikg://book.wikg/chapter/3/summary#23..45",
+      "wg wikg://book.wikg/chapter/part/summary#23..45",
     );
     expect(renderHelpTopicText("recipe")).toContain(
       "wg wikg://book.wikg/entity/Q8018 evidence --reverse --limit 1",
@@ -370,13 +374,13 @@ describe("cli/args/help", () => {
     expect(
       renderUriHelpText(
         "chapter-source-object",
-        "wikg://book.wikg/chapter/3/source",
+        "wikg://book.wikg/chapter/part/source",
       ),
     ).toContain(
       "Whole source reads are plain text streams and do not support `--json`; source range fragments are structured range objects and support `--json`.",
     );
     expect(renderHelpTopicText("recipe")).toContain(
-      "wg wikg://book.wikg/chapter/3/entity --all --jsonl",
+      "wg wikg://book.wikg/chapter/part/entity --all --jsonl",
     );
     expect(renderHelpTopicText("recipe")).toContain(
       "If Reading Graph data is missing",

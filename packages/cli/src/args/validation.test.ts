@@ -59,34 +59,32 @@ describe("cli/args/validation", () => {
       parseCLIArguments(["wikg://book.wikg/cover", "--json"]),
     ).toThrow("The `cover` command does not support --json.");
     expect(() =>
-      parseCLIArguments(["wikg://book.wikg/chapter/x/source", "set"]),
-    ).toThrow(
-      "Use `wg wikg://book.wikg/chapter/x/source --help` to inspect valid predicates.",
-    );
+      parseCLIArguments(["wikg://book.wikg/chapter/../source", "set"]),
+    ).toThrow("does not support `set`");
     expect(() => parseCLIArguments(["wikg://entity/Q9957"])).toThrow(
       "Short object URIs from output are archive-relative handles.",
     );
     expect(() =>
-      parseCLIArguments(["wikg://book.wikg/chapter/1/source", "set"]),
+      parseCLIArguments(["wikg://book.wikg/chapter/part/source", "set"]),
     ).not.toThrow();
     expect(() =>
       parseCLIArguments([
-        "wikg://book.wikg/chapter/1/source",
+        "wikg://book.wikg/chapter/part/source",
         "set",
         "--jsonl",
       ]),
     ).toThrow(
-      "The `chapter` command does not support --jsonl.\nSee: wg wikg://book.wikg/chapter/1/source set --help",
+      "The `chapter` command does not support --jsonl.\nSee: wg wikg://book.wikg/chapter/part/source set --help",
     );
     expect(() =>
       parseCLIArguments([
-        "wikg://book.wikg/chapter/1",
+        "wikg://book.wikg/chapter/part",
         "reset",
         "--to",
         "summarized",
       ]),
     ).toThrow(
-      "Invalid --to: summarized. Expected planned, source, or reading-graph.\nSee: wg wikg://book.wikg/chapter/1 reset --help",
+      "Invalid --to: summarized. Expected planned, source, or reading-graph.\nSee: wg wikg://book.wikg/chapter/part reset --help",
     );
   });
 });

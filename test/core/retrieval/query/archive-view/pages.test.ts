@@ -183,7 +183,7 @@ describe("archive/query/archive-view/pages", () => {
 
         expect(result.items).toContainEqual(
           expect.objectContaining({
-            id: "wikg://chapter/1/summary#1",
+            id: "wikg://chapter/introduction/summary#1",
             type: "summary",
           }),
         );
@@ -256,7 +256,7 @@ describe("archive/query/archive-view/pages", () => {
           listArchiveObjects(document, "fragments"),
         ).resolves.toContainEqual(
           expect.objectContaining({
-            id: "wikg://chapter/1/source#1",
+            id: "wikg://chapter/introduction/source#1",
             label: "Introduction",
             type: "source",
           }),
@@ -501,20 +501,20 @@ describe("archive/query/archive-view/pages", () => {
         );
 
         expect(chapters.items.map((item) => item.id)).toStrictEqual([
-          "chapter-title:2",
-          "chapter-title:1",
+          "wikg://chapter/second-in-id-first-in-document/title",
+          "wikg://chapter/first-in-id-second-in-document/title",
         ]);
         expect(chaptersReverse.items.map((item) => item.id)).toStrictEqual([
-          "chapter-title:1",
-          "chapter-title:2",
+          "wikg://chapter/first-in-id-second-in-document/title",
+          "wikg://chapter/second-in-id-first-in-document/title",
         ]);
         expect(evidence.items.map((item) => item.id)).toStrictEqual([
-          "wikg://chapter/2/source#1",
-          "wikg://chapter/1/source#1",
+          "wikg://chapter/second-in-id-first-in-document/source#1",
+          "wikg://chapter/first-in-id-second-in-document/source#1",
         ]);
         expect(evidenceReverse.items.map((item) => item.id)).toStrictEqual([
-          "wikg://chapter/1/source#1",
-          "wikg://chapter/2/source#1",
+          "wikg://chapter/first-in-id-second-in-document/source#1",
+          "wikg://chapter/second-in-id-first-in-document/source#1",
         ]);
       } finally {
         await document.release();

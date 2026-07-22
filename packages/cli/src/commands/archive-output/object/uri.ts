@@ -5,8 +5,7 @@ export function isTextStreamOutputType(type: string | undefined): boolean {
 export function getTextStreamOutputType(
   uri: string,
 ): "source" | "summary" | undefined {
-  const match =
-    /^wikg:\/\/chapter\/[1-9][0-9]*\/(source|summary)(?:#.*)?$/u.exec(uri);
+  const match = /^wikg:\/\/chapter\/.+\/(source|summary)(?:#.*)?$/u.exec(uri);
 
   return match?.[1] as "source" | "summary" | undefined;
 }

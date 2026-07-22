@@ -280,7 +280,11 @@ describe("wikg/wiki-graph-archive-file", () => {
                 archiveKey: archivePath,
               }),
             ).resolves.toMatchObject({
-              items: [expect.objectContaining({ id: "chapter-title:1" })],
+              items: [
+                expect.objectContaining({
+                  id: "wikg://chapter/fresh-cache-title/title",
+                }),
+              ],
             });
           },
         );

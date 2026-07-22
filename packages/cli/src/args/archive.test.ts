@@ -199,14 +199,14 @@ describe("cli/args/archive", () => {
 
     expect(
       parseCLIArguments([
-        "wikg://book.wikg/chapter/12/triple/_/_/Q2",
+        "wikg://book.wikg/chapter/part/triple/_/_/Q2",
         "--query",
         "agent",
       ]),
     ).toStrictEqual({
       args: {
         action: "search",
-        archivePath: `wikg://${archivePath}/chapter/12`,
+        archivePath: `wikg://${archivePath}/chapter/part`,
         format: "text",
         kinds: ["triple"],
         query: "agent",
@@ -422,17 +422,9 @@ describe("cli/args/archive", () => {
       help: false,
       kind: "archive",
     });
-    expect(
-      parseCLIArguments(["wikg://book.wikg/chapter/2", "inspect"]),
-    ).toStrictEqual({
-      args: {
-        action: "inspect",
-        archivePath,
-        chapterId: 2,
-      },
-      help: false,
-      kind: "archive",
-    });
+    expect(() =>
+      parseCLIArguments(["wikg://book.wikg/chapter/part", "inspect"]),
+    ).toThrow("`chapter/<path>` inspect is not available");
     expect(
       parseCLIArguments(["wikg://book.wikg", "inspect", "--json"]),
     ).toStrictEqual({
@@ -479,7 +471,7 @@ describe("cli/args/archive", () => {
       ]),
     ).toThrow("Unknown option '--type'.");
     expect(() =>
-      parseCLIArguments(["wikg://book.wikg/chapter/1/summary", "pack"]),
+      parseCLIArguments(["wikg://book.wikg/chapter/part/summary", "pack"]),
     ).toThrow("The chapter summary resource does not support `pack`.");
     expect(parseCLIArguments(["wikg://book.wikg/entity"])).toStrictEqual({
       args: {
@@ -548,21 +540,21 @@ describe("cli/args/archive", () => {
   });
 
   it("routes URI-first commands from explicit scope and object kinds", () => {
-    expect(parseCLIArguments(["wikg://book.wikg/chapter/12"])).toStrictEqual({
+    expect(parseCLIArguments(["wikg://book.wikg/chapter/part"])).toStrictEqual({
       args: {
         action: "list",
-        archivePath: `wikg://${archivePath}/chapter/12`,
+        archivePath: `wikg://${archivePath}/chapter/part`,
         format: "text",
       },
       help: false,
       kind: "archive",
     });
     expect(
-      parseCLIArguments(["wikg://book.wikg/chapter/12", "--query", "agent"]),
+      parseCLIArguments(["wikg://book.wikg/chapter/part", "--query", "agent"]),
     ).toStrictEqual({
       args: {
         action: "search",
-        archivePath: `wikg://${archivePath}/chapter/12`,
+        archivePath: `wikg://${archivePath}/chapter/part`,
         format: "text",
         query: "agent",
       },
@@ -570,26 +562,30 @@ describe("cli/args/archive", () => {
       kind: "archive",
     });
     expect(() =>
-      parseCLIArguments(["wikg://book.wikg/chapter/12", "get"]),
+      parseCLIArguments(["wikg://book.wikg/chapter/part", "get"]),
     ).toThrow("This command form is not available.");
     expect(
-      parseCLIArguments(["wikg://book.wikg/chapter/12/title"]),
+      parseCLIArguments(["wikg://book.wikg/chapter/part/title"]),
     ).toStrictEqual({
       args: {
         action: "get",
-        archivePath: `wikg://${archivePath}/chapter/12/title`,
+        archivePath: `wikg://${archivePath}/chapter/part/title`,
         format: "text",
-        objectId: `wikg://${archivePath}/chapter/12/title`,
+        objectId: `wikg://${archivePath}/chapter/part/title`,
       },
       help: false,
       kind: "archive",
     });
     expect(() =>
-      parseCLIArguments(["wikg://book.wikg/chapter/12/source", "--query", "x"]),
+      parseCLIArguments([
+        "wikg://book.wikg/chapter/part/source",
+        "--query",
+        "x",
+      ]),
     ).toThrow("`--query` requires a scope URI");
     expect(
       parseCLIArguments([
-        "wikg://book.wikg/chapter/12/triple/Q1/mentions",
+        "wikg://book.wikg/chapter/part/triple/Q1/mentions",
         "--query",
         "agent",
       ]),
@@ -607,11 +603,13 @@ describe("cli/args/archive", () => {
       kind: "archive",
     });
     expect(
-      parseCLIArguments(["wikg://book.wikg/chapter/12/triple/Q1/mentions/Q2"]),
+      parseCLIArguments([
+        "wikg://book.wikg/chapter/part/triple/Q1/mentions/Q2",
+      ]),
     ).toMatchObject({
       args: {
         action: "get",
-        objectId: "wikg://book.wikg/chapter/12/triple/Q1/mentions/Q2",
+        objectId: "wikg://book.wikg/chapter/part/triple/Q1/mentions/Q2",
       },
       help: false,
       kind: "archive",
@@ -740,7 +738,7 @@ describe("cli/args/archive", () => {
   it("parses archive chapter edit actions", () => {
     expect(
       parseCLIArguments([
-        "wikg://book.wikg/chapter/12/source",
+        "wikg://book.wikg/chapter/part/source",
         "set",
         "--input",
         "chapter.md",
@@ -748,7 +746,7 @@ describe("cli/args/archive", () => {
     ).toStrictEqual({
       args: {
         action: "set-source",
-        chapterId: 12,
+        chapterPath: "part",
         inputPath: "chapter.md",
         path: archivePath,
       },
@@ -757,7 +755,7 @@ describe("cli/args/archive", () => {
     });
     expect(() =>
       parseCLIArguments([
-        "wikg://book.wikg/chapter/12/source",
+        "wikg://book.wikg/chapter/part/source",
         "set",
         "--input",
         "chapter.txt",
@@ -774,12 +772,12 @@ describe("cli/args/archive", () => {
         "--title",
         "Chapter 1",
         "--parent",
-        "3",
+        "part",
       ]),
     ).toStrictEqual({
       args: {
         action: "add",
-        parentChapterId: 3,
+        parentChapterPath: "part",
         path: archivePath,
         title: "Chapter 1",
       },
@@ -815,18 +813,18 @@ describe("cli/args/archive", () => {
     ).toThrow("The `chapter add` action does not support --stage.");
     expect(
       parseCLIArguments([
-        "wikg://book.wikg/chapter/8",
+        "wikg://book.wikg/chapter/intro",
         "move",
         "--parent",
-        "3",
+        "part",
         "--first",
       ]),
     ).toStrictEqual({
       args: {
         action: "move",
-        chapterId: 8,
+        chapterPath: "intro",
         first: true,
-        parentChapterId: 3,
+        parentChapterPath: "part",
         path: archivePath,
       },
       help: false,
@@ -834,16 +832,16 @@ describe("cli/args/archive", () => {
     });
     expect(
       parseCLIArguments([
-        "wikg://book.wikg/chapter/8",
+        "wikg://book.wikg/chapter/intro",
         "move",
         "--parent",
-        "wikg://chapter/3",
+        "wikg://chapter/part",
       ]),
     ).toStrictEqual({
       args: {
         action: "move",
-        chapterId: 8,
-        parentChapterId: 3,
+        chapterPath: "intro",
+        parentChapterPath: "part",
         path: archivePath,
       },
       help: false,
@@ -851,16 +849,16 @@ describe("cli/args/archive", () => {
     });
     expect(
       parseCLIArguments([
-        "wikg://book.wikg/chapter/8",
+        "wikg://book.wikg/chapter/intro",
         "move",
         "--before",
-        "wikg://book.wikg/chapter/9",
+        "wikg://book.wikg/chapter/appendix",
       ]),
     ).toStrictEqual({
       args: {
         action: "move",
-        beforeChapterId: 9,
-        chapterId: 8,
+        beforeChapterPath: "appendix",
+        chapterPath: "intro",
         path: archivePath,
       },
       help: false,
@@ -868,15 +866,15 @@ describe("cli/args/archive", () => {
     });
     expect(() =>
       parseCLIArguments([
-        "wikg://book.wikg/chapter/8",
+        "wikg://book.wikg/chapter/intro",
         "move",
         "--parent",
-        "wikg://other.wikg/chapter/3",
+        "wikg://other.wikg/chapter/part",
       ]),
     ).toThrow("Chapter URI belongs to a different archive.");
     expect(
       parseCLIArguments([
-        "wikg://book.wikg/chapter/8",
+        "wikg://book.wikg/chapter/intro",
         "move",
         "--root",
         "--last",
@@ -884,7 +882,7 @@ describe("cli/args/archive", () => {
     ).toStrictEqual({
       args: {
         action: "move",
-        chapterId: 8,
+        chapterPath: "intro",
         last: true,
         moveToRoot: true,
         path: archivePath,
@@ -894,7 +892,7 @@ describe("cli/args/archive", () => {
     });
     expect(
       parseCLIArguments([
-        "wikg://book.wikg/chapter/12",
+        "wikg://book.wikg/chapter/part",
         "reset",
         "--to",
         "source",
@@ -902,7 +900,7 @@ describe("cli/args/archive", () => {
     ).toStrictEqual({
       args: {
         action: "reset",
-        chapterId: 12,
+        chapterPath: "part",
         path: archivePath,
         resetStage: "sourced",
       },
@@ -911,17 +909,17 @@ describe("cli/args/archive", () => {
     });
     expect(() =>
       parseCLIArguments([
-        "wikg://book.wikg/chapter/12/title",
+        "wikg://book.wikg/chapter/part/title",
         "set",
         "--clear",
       ]),
     ).toThrow("does not support --clear. Use `clear`.");
     expect(
-      parseCLIArguments(["wikg://book.wikg/chapter/12/title", "clear"]),
+      parseCLIArguments(["wikg://book.wikg/chapter/part/title", "clear"]),
     ).toStrictEqual({
       args: {
         action: "set-title",
-        chapterId: 12,
+        chapterPath: "part",
         clearTitle: true,
         path: archivePath,
       },
@@ -959,38 +957,38 @@ describe("cli/args/archive", () => {
       kind: "archive",
     });
     expect(
-      parseCLIArguments(["wikg://book.wikg/chapter/12/state"]),
+      parseCLIArguments(["wikg://book.wikg/chapter/part/state"]),
     ).toStrictEqual({
       args: {
         action: "get",
-        archivePath: "wikg://book.wikg/chapter/12/state",
+        archivePath: "wikg://book.wikg/chapter/part/state",
         format: "text",
-        objectId: "wikg://book.wikg/chapter/12/state",
+        objectId: "wikg://book.wikg/chapter/part/state",
       },
       help: false,
       kind: "archive",
     });
     expect(
       parseCLIArguments([
-        "wikg://book.wikg/chapter/12/state/reading-graph",
+        "wikg://book.wikg/chapter/part/state/reading-graph",
         "--json",
       ]),
     ).toStrictEqual({
       args: {
         action: "get",
-        archivePath: "wikg://book.wikg/chapter/12/state/reading-graph",
+        archivePath: "wikg://book.wikg/chapter/part/state/reading-graph",
         format: "json",
-        objectId: "wikg://book.wikg/chapter/12/state/reading-graph",
+        objectId: "wikg://book.wikg/chapter/part/state/reading-graph",
       },
       help: false,
       kind: "archive",
     });
     expect(
-      parseCLIArguments(["wikg://book.wikg/chapter/12/entity"]),
+      parseCLIArguments(["wikg://book.wikg/chapter/part/entity"]),
     ).toStrictEqual({
       args: {
         action: "list",
-        archivePath: `wikg://${archivePath}/chapter/12`,
+        archivePath: `wikg://${archivePath}/chapter/part`,
         format: "text",
         kinds: ["entity"],
       },
@@ -998,10 +996,14 @@ describe("cli/args/archive", () => {
       kind: "archive",
     });
     expect(() =>
-      parseCLIArguments(["wikg://book.wikg/chapter/12", "status"]),
+      parseCLIArguments(["wikg://book.wikg/chapter/part", "status"]),
     ).toThrow("The URI-first form does not support `status`.");
     expect(
-      parseCLIArguments(["wikg://book.wikg/chapter/12/title", "set", "--help"]),
+      parseCLIArguments([
+        "wikg://book.wikg/chapter/part/title",
+        "set",
+        "--help",
+      ]),
     ).toMatchObject({
       help: true,
       kind: "help",
@@ -1039,14 +1041,14 @@ describe("cli/args/archive", () => {
     });
     expect(
       parseCLIArguments([
-        "wikg://book.wikg/chapter/12/title",
+        "wikg://book.wikg/chapter/part/title",
         "set",
         "Renamed Chapter",
       ]),
     ).toStrictEqual({
       args: {
         action: "set-title",
-        chapterId: 12,
+        chapterPath: "part",
         path: archivePath,
         title: "Renamed Chapter",
       },
@@ -1055,16 +1057,16 @@ describe("cli/args/archive", () => {
     });
     expect(() =>
       parseCLIArguments([
-        "wikg://book.wikg/chapter/8",
+        "wikg://book.wikg/chapter/intro",
         "move",
         "--parent",
-        "3",
+        "part",
         "--root",
       ]),
     ).toThrow("Choose only one parent target");
     expect(() =>
       parseCLIArguments([
-        "wikg://book.wikg/chapter/12/title",
+        "wikg://book.wikg/chapter/part/title",
         "set",
         "--title",
         "Title",
@@ -1073,7 +1075,7 @@ describe("cli/args/archive", () => {
     ).toThrow("does not support --clear. Use `clear`.");
     expect(() =>
       parseCLIArguments([
-        "wikg://book.wikg/chapter/12/summary",
+        "wikg://book.wikg/chapter/part/summary",
         "set",
         "--import",
         "book.epub",
@@ -1081,7 +1083,7 @@ describe("cli/args/archive", () => {
     ).toThrow("The `chapter set-summary` action does not support --import.");
     expect(() =>
       parseCLIArguments([
-        "wikg://book.wikg/chapter/12/title",
+        "wikg://book.wikg/chapter/part/title",
         "set",
         "Title",
         "--import",

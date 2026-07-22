@@ -169,7 +169,7 @@ describe("archive/query/archive-view/evidence", () => {
         ).resolves.toMatchObject({
           items: [
             {
-              id: "wikg://chapter/1/source#1..3",
+              id: "wikg://chapter/introduction/source#1..3",
               source:
                 "An LLM Wiki exposes pages, links, and source fragments to agents.朱元璋知道了这个消息，随后亲自来到洪都。Source-only archives should be searchable.",
               type: "source",
@@ -183,7 +183,7 @@ describe("archive/query/archive-view/evidence", () => {
         ).resolves.toMatchObject({
           items: [
             {
-              id: "wikg://chapter/1/source#1",
+              id: "wikg://chapter/introduction/source#1",
               source:
                 "An LLM Wiki exposes pages, links, and source fragments to agents.",
               type: "source",
@@ -195,7 +195,7 @@ describe("archive/query/archive-view/evidence", () => {
         ).resolves.toMatchObject({
           items: [
             {
-              id: "wikg://chapter/1/source#1..3",
+              id: "wikg://chapter/introduction/source#1..3",
               type: "source",
             },
           ],
@@ -205,7 +205,7 @@ describe("archive/query/archive-view/evidence", () => {
         ).resolves.toMatchObject({
           items: [
             {
-              id: "wikg://chapter/1/source#1..3",
+              id: "wikg://chapter/introduction/source#1..3",
               type: "source",
             },
           ],
@@ -217,7 +217,7 @@ describe("archive/query/archive-view/evidence", () => {
             shown: 1,
             sources: [
               {
-                id: "wikg://chapter/1/source#1..3",
+                id: "wikg://chapter/introduction/source#1..3",
                 type: "source",
               },
             ],
@@ -237,7 +237,7 @@ describe("archive/query/archive-view/evidence", () => {
             shown: 1,
             sources: [
               {
-                id: "wikg://chapter/1/source#1..3",
+                id: "wikg://chapter/introduction/source#1..3",
                 type: "source",
               },
             ],
@@ -265,7 +265,11 @@ describe("archive/query/archive-view/evidence", () => {
           ],
         });
         await expect(
-          packArchiveContext(document, "wikg://chapter/1/source#1", 1000),
+          packArchiveContext(
+            document,
+            "wikg://chapter/introduction/source#1",
+            1000,
+          ),
         ).rejects.toThrow(
           "Pack is only available for chunk and entity objects",
         );
@@ -300,7 +304,7 @@ describe("archive/query/archive-view/evidence", () => {
                 shown: 1,
                 sources: [
                   {
-                    id: "wikg://chapter/1/source#1..3",
+                    id: "wikg://chapter/introduction/source#1..3",
                   },
                 ],
                 total: 1,
@@ -329,7 +333,7 @@ describe("archive/query/archive-view/evidence", () => {
         ).resolves.toMatchObject({
           items: [
             {
-              id: "wikg://chapter/1/source#3..6",
+              id: "wikg://chapter/introduction/source#3..6",
               source:
                 "Source-only archives should be searchable.First unrelated fragment sentence.Second fragment mentions Augustine.Third unrelated fragment sentence.",
               type: "source",
@@ -337,14 +341,14 @@ describe("archive/query/archive-view/evidence", () => {
           ],
         });
         await expect(
-          listArchiveEvidence(document, "wikg://chapter/1/source#5"),
+          listArchiveEvidence(document, "wikg://chapter/introduction/source#5"),
         ).rejects.toThrow("Evidence is not available");
         await expect(
           listArchiveEvidence(document, "wikg://entity/Q4"),
         ).resolves.toMatchObject({
           items: [
             {
-              id: "wikg://chapter/1/source#1..5",
+              id: "wikg://chapter/introduction/source#1..5",
               type: "source",
             },
           ],
@@ -392,7 +396,7 @@ describe("archive/query/archive-view/evidence", () => {
         );
 
         expect(evidence.items.map((item) => item.id)).toStrictEqual([
-          "wikg://chapter/1/source#1..3",
+          "wikg://chapter/introduction/source#1..3",
         ]);
         expect(evidence.items[0]?.score).toBeGreaterThan(0);
       } finally {
@@ -514,8 +518,8 @@ describe("archive/query/archive-view/evidence", () => {
         );
 
         expect(evidence.items.map((item) => item.id)).toStrictEqual([
-          "wikg://chapter/1/source#3",
-          "wikg://chapter/1/source#1",
+          "wikg://chapter/evidence/source#3",
+          "wikg://chapter/evidence/source#1",
         ]);
       } finally {
         await document.release();
@@ -561,7 +565,7 @@ describe("archive/query/archive-view/evidence", () => {
         });
 
         await expect(
-          readArchivePage(document, "wikg://chapter/1/source#1", {
+          readArchivePage(document, "wikg://chapter/introduction/source#1", {
             backlinks: true,
           }),
         ).resolves.toMatchObject({
@@ -599,7 +603,7 @@ describe("archive/query/archive-view/evidence", () => {
             },
           },
           fragment: {
-            id: "wikg://chapter/1/source#1",
+            id: "wikg://chapter/introduction/source#1",
           },
           type: "fragment",
         });

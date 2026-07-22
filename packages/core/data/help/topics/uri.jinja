@@ -21,15 +21,15 @@ Archive locator:
 
 Short and located URIs:
   Commands may return short object URIs without local file paths:
-    wikg://chapter/3/title
-    wikg://chapter/3/source#4..8
+    wikg://chapter/part/title
+    wikg://chapter/part/source#4..8
     wikg://chunk/12
     wikg://entity/Q8018
     wikg://triple/Q8018/discusses/Q123
   Returned short URIs are archive-relative handles, not complete command targets.
   Add the archive locator before passing them back to commands:
     wikg://book.wikg/entity/Q8018
-    wikg:///books/book.wikg/chapter/3/source#4..8
+    wikg:///books/book.wikg/chapter/part/source#4..8
 
 Command routing:
   - `{{ commandName }} <scope-uri>` enumerates objects.
@@ -61,10 +61,10 @@ Scope URIs:
   Scope URIs enumerate objects by default. With `--query <query>`, they apply keyword retrieval within that scope.
     wikg://book.wikg
     wikg://book.wikg/chapter
-    wikg://book.wikg/chapter/3
-    wikg://book.wikg/chapter/3/chunk
-    wikg://book.wikg/chapter/3/entity
-    wikg://book.wikg/chapter/3/triple
+    wikg://book.wikg/chapter/part
+    wikg://book.wikg/chapter/part/chunk
+    wikg://book.wikg/chapter/part/entity
+    wikg://book.wikg/chapter/part/triple
     wikg://book.wikg/chunk
     wikg://book.wikg/entity
     wikg://book.wikg/triple
@@ -74,15 +74,15 @@ Scope URIs:
 
 Object URIs:
   Object URIs read one object by default.
-    wikg://book.wikg/chapter/3/title
-    wikg://book.wikg/chapter/3/state
-    wikg://book.wikg/chapter/3/source
-    wikg://book.wikg/chapter/3/source#4..8
-    wikg://book.wikg/chapter/3/summary
-    wikg://book.wikg/chapter/3/summary#4..8
-    wikg://book.wikg/chapter/3/chunk/12
-    wikg://book.wikg/chapter/3/entity/Q8018
-    wikg://book.wikg/chapter/3/triple/Q8018/discusses/Q123
+    wikg://book.wikg/chapter/part/title
+    wikg://book.wikg/chapter/part/state
+    wikg://book.wikg/chapter/part/source
+    wikg://book.wikg/chapter/part/source#4..8
+    wikg://book.wikg/chapter/part/summary
+    wikg://book.wikg/chapter/part/summary#4..8
+    wikg://book.wikg/chapter/part/chunk/12
+    wikg://book.wikg/chapter/part/entity/Q8018
+    wikg://book.wikg/chapter/part/triple/Q8018/discusses/Q123
     wikg://book.wikg/chunk/12
     wikg://book.wikg/entity/Q8018
     wikg://book.wikg/entity/Q8018/wikipage

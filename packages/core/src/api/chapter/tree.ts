@@ -1,4 +1,9 @@
 import type { TOC_FILE_VERSION, TocItem } from "../../text/source/index.js";
+import {
+  collectChapterPathById,
+  formatChapterUri,
+  parseChapterUriPath,
+} from "../../document/chapter/path.js";
 import type {
   ChapterTreeApplyResult,
   ChapterTreeInput,
@@ -50,18 +55,19 @@ export function createChapterTreeApplyResult(
 
     if (movedChapter) {
       moved.push({
-        chapterId,
+        newUri: formatChapterUri(newMeta.path.join("/")),
         newIndex: newMeta.index,
-        newParentChapterId: newMeta.parentChapterId,
         newPath: newMeta.path,
+        newParentUri: formatParentChapterUri(newMeta.path),
+        oldUri: formatChapterUri(oldMeta.path.join("/")),
         oldIndex: oldMeta.index,
-        oldParentChapterId: oldMeta.parentChapterId,
         oldPath: oldMeta.path,
+        oldParentUri: formatParentChapterUri(oldMeta.path),
       });
     }
     if (renamedChapter) {
       renamed.push({
-        chapterId,
+        uri: formatChapterUri(newMeta.path.join("/")),
         newTitle: newMeta.title,
         oldTitle: oldMeta.title,
       });
@@ -79,26 +85,45 @@ export function createChapterTreeApplyResult(
   };
 }
 
+function formatParentChapterUri(path: readonly string[]): string | null {
+  const parentPath = path.slice(0, -1);
+
+  return parentPath.length === 0
+    ? null
+    : formatChapterUri(parentPath.join("/"));
+}
+
 export function createTocItemsFromChapterTree(
   tree: ChapterTreeInput,
   oldItems: readonly MutableTocItem[],
 ): { readonly items: MutableTocItem[] } {
   const oldItemsById = new Map<number, MutableTocItem>();
+  const oldItemsByKey = new Map<string, MutableTocItem>();
   const oldIds = new Set<number>();
 
   for (const oldItem of oldItems) {
-    collectTocItemsById(oldItem, oldItemsById, oldIds);
+    collectTocItemsById(oldItem, oldItemsById, oldItemsByKey, oldIds);
   }
 
   const seenIds = new Set<number>();
   const items = tree.chapters.map((node) =>
-    createTocItemFromChapterTreeNode(node, oldItemsById, seenIds),
+    createTocItemFromChapterTreeNode(
+      node,
+      oldItemsById,
+      oldItemsByKey,
+      seenIds,
+      [],
+    ),
   );
   const missingIds = [...oldIds].filter((id) => !seenIds.has(id));
 
   if (missingIds.length > 0) {
     throw new Error(
-      `Chapter tree is missing chapter ids: ${missingIds.join(", ")}.`,
+      `Chapter tree is missing chapter URIs: ${missingIds
+        .map((id) =>
+          formatChapterUri(collectChapterPathById(oldItems, id) ?? String(id)),
+        )
+        .join(", ")}.`,
     );
   }
 
@@ -108,26 +133,54 @@ export function createTocItemsFromChapterTree(
 function createTocItemFromChapterTreeNode(
   node: ChapterTreeInputNode,
   oldItemsById: Map<number, MutableTocItem>,
+  oldItemsByKey: Map<string, MutableTocItem>,
   seenIds: Set<number>,
+  expectedParentPath: readonly string[],
 ): MutableTocItem {
-  const oldItem = oldItemsById.get(node.id);
+  const nodePath = parseChapterUriPath(node.uri);
 
-  if (oldItem === undefined) {
-    throw new Error(`Chapter tree references unknown chapter id: ${node.id}.`);
+  if (nodePath === undefined) {
+    throw new Error(
+      `Chapter tree node URI must be a chapter URI: ${node.uri}.`,
+    );
   }
-  if (seenIds.has(node.id)) {
-    throw new Error(`Chapter tree repeats chapter id: ${node.id}.`);
+  const pathParts = nodePath.split("/");
+  const actualParentPath = pathParts.slice(0, -1);
+  if (actualParentPath.join("/") !== expectedParentPath.join("/")) {
+    throw new Error(
+      `Chapter tree URI ${node.uri} does not match its JSON parent path.`,
+    );
   }
-  seenIds.add(node.id);
+  const key = pathParts.at(-1);
+  const oldItemByKey = key === undefined ? undefined : oldItemsByKey.get(key);
+  const nodeId = oldItemByKey?.serialId;
+  const oldItem = nodeId === undefined ? undefined : oldItemsById.get(nodeId);
+
+  if (nodeId === undefined || oldItem === undefined) {
+    throw new Error(
+      `Chapter tree references unknown chapter URI: ${node.uri}.`,
+    );
+  }
+  if (seenIds.has(nodeId)) {
+    throw new Error(`Chapter tree repeats chapter URI: ${node.uri}.`);
+  }
+  seenIds.add(nodeId);
 
   const title = Object.prototype.hasOwnProperty.call(node, "title")
     ? normalizeTitle(node.title)
     : normalizeTitle(oldItem.title);
   const item: MutableTocItem = {
     children: node.children.map((child) =>
-      createTocItemFromChapterTreeNode(child, oldItemsById, seenIds),
+      createTocItemFromChapterTreeNode(
+        child,
+        oldItemsById,
+        oldItemsByKey,
+        seenIds,
+        pathParts,
+      ),
     ),
-    serialId: node.id,
+    key: oldItem.key,
+    serialId: nodeId,
   };
 
   if (title !== undefined) {
@@ -140,15 +193,19 @@ function createTocItemFromChapterTreeNode(
 function collectTocItemsById(
   item: MutableTocItem,
   itemsById: Map<number, MutableTocItem>,
+  itemsByKey: Map<string, MutableTocItem>,
   ids: Set<number>,
 ): void {
   if (item.serialId !== undefined) {
     itemsById.set(item.serialId, item);
     ids.add(item.serialId);
   }
+  if (item.key !== undefined) {
+    itemsByKey.set(item.key, item);
+  }
 
   for (const child of item.children) {
-    collectTocItemsById(child, itemsById, ids);
+    collectTocItemsById(child, itemsById, itemsByKey, ids);
   }
 }
 
@@ -165,7 +222,8 @@ export function collectTocItemMetas(
     }
 
     const title = normalizeTitle(item.title) ?? null;
-    const path = [...parentPath, title ?? `Chapter ${item.serialId}`];
+    const key = item.key ?? `chapter-${item.serialId}`;
+    const path = [...parentPath, key];
 
     metas.set(item.serialId, {
       index,
@@ -381,27 +439,36 @@ function containsChapterId(
 export function cloneTocItem(item: TocItem): MutableTocItem {
   return {
     children: item.children.map(cloneTocItem),
+    ...(item.key === undefined ? {} : { key: item.key }),
     ...(item.serialId === undefined ? {} : { serialId: item.serialId }),
     title: item.title,
   };
 }
 
-function toChapterTreeNode(item: MutableTocItem): ChapterTreeNode {
+function toChapterTreeNode(
+  item: MutableTocItem,
+  parentPath: readonly string[],
+): ChapterTreeNode {
   if (item.serialId === undefined) {
     throw new Error("Internal error: normalized chapter tree has no id.");
   }
+  const key = item.key ?? `chapter-${item.serialId}`;
+  const path = [...parentPath, key];
 
   return {
-    children: item.children.flatMap(toChapterTreeNodes),
-    id: item.serialId,
+    children: item.children.flatMap((child) => toChapterTreeNodes(child, path)),
     title: normalizeTitle(item.title) ?? null,
+    uri: formatChapterUri(path.join("/")),
   };
 }
 
-export function toChapterTreeNodes(item: MutableTocItem): ChapterTreeNode[] {
+export function toChapterTreeNodes(
+  item: MutableTocItem,
+  parentPath: readonly string[] = [],
+): ChapterTreeNode[] {
   return item.serialId === undefined
-    ? item.children.flatMap(toChapterTreeNodes)
-    : [toChapterTreeNode(item)];
+    ? item.children.flatMap((child) => toChapterTreeNodes(child, parentPath))
+    : [toChapterTreeNode(item, parentPath)];
 }
 
 export function normalizeTitle(
@@ -502,6 +569,7 @@ export interface MutableTocFile {
 
 export interface MutableTocItem {
   children: MutableTocItem[];
+  key?: string | undefined;
   serialId?: number | undefined;
   title?: string | null | undefined;
 }

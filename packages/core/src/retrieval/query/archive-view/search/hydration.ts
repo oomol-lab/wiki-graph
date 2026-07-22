@@ -14,7 +14,7 @@ import {
 } from "../../../search-index/search/index.js";
 
 import { createSnippet, createNodePosition } from "../helpers.js";
-import { formatChapterTitleId, formatNodeId } from "../references.js";
+import { formatNodeId, formatTextStreamRangeUri } from "../references.js";
 import { readTextStreamRange } from "../text-streams.js";
 import { TEXT_ONLY_SEARCH_CACHE_WINDOW } from "../helpers.js";
 import { isArchiveSearchIndexCurrent } from "../index-state.js";
@@ -170,12 +170,12 @@ export async function hydrateSearchObjectHit(
         return undefined;
       }
 
-      const title = chapter.title ?? `[chapter ${chapter.chapterId}]`;
+      const title = chapter.title ?? chapter.uri;
 
       return {
         chapter: chapter.chapterId,
         field: "title",
-        id: formatChapterTitleId(chapter.chapterId),
+        id: `${chapter.uri}/title`,
         matchCount: 1,
         position: { chapter: chapter.chapterId },
         score: hit.score,
@@ -248,7 +248,12 @@ export async function hydrateSearchTextHit(
   return {
     chapter: hit.chapterId,
     field: stream,
-    id: range.id,
+    id: formatTextStreamRangeUri(
+      chapter.path,
+      stream,
+      range.startSentenceIndex,
+      range.endSentenceIndex,
+    ),
     matchCount: 1,
     position: {
       chapter: hit.chapterId,
@@ -256,7 +261,7 @@ export async function hydrateSearchTextHit(
     },
     score: hit.score,
     snippet: createSnippet(range.text),
-    title: chapter.title ?? `[chapter ${hit.chapterId}]`,
+    title: chapter.title ?? chapter.uri,
     type: stream,
   };
 }

@@ -112,32 +112,32 @@ function formatCommandArchivePath(archivePath: string, cwd: string): string {
 
 export function formatLocatedChapterUri(
   archivePath: string,
-  chapterId: number,
+  chapterPath: string,
 ): string {
   return formatLocatedWikiGraphUri(
     archivePath,
-    formatWikiGraphObjectUri(`chapter/${chapterId}`),
+    formatWikiGraphObjectUri(`chapter/${chapterPath}`),
   );
 }
 
 export function formatLocatedChapterResourceUri(
   archivePath: string,
-  chapterId: number,
+  chapterPath: string,
   resource: "source" | "summary" | "title",
 ): string {
   return formatLocatedWikiGraphUri(
     archivePath,
-    formatWikiGraphObjectUri(`chapter/${chapterId}/${resource}`),
+    formatWikiGraphObjectUri(`chapter/${chapterPath}/${resource}`),
   );
 }
 
 export function formatLocatedChapterSourceCollectionUri(
   archivePath: string,
-  chapterId: number,
+  chapterPath: string,
 ): string {
   return formatLocatedWikiGraphUri(
     archivePath,
-    formatWikiGraphObjectUri(`chapter/${chapterId}/source`),
+    formatWikiGraphObjectUri(`chapter/${chapterPath}/source`),
   );
 }
 

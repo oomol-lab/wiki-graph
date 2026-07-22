@@ -253,7 +253,9 @@ function parseQueueAddArguments(
         : { acceptCost: values["accept-cost"] }),
       archivePath: input.archivePath,
       ...(values.boost === undefined ? {} : { boost: values.boost }),
-      ...(input.chapterId === undefined ? {} : { chapterId: input.chapterId }),
+      ...(input.chapterPath === undefined
+        ? {}
+        : { chapterPath: input.chapterPath }),
       inputPath: values.input,
       ...(values.json === undefined ? {} : { json: values.json }),
       ...(values.llm === undefined ? {} : { llmJSON: values.llm }),
@@ -268,7 +270,7 @@ function parseQueueAddArguments(
 function parseQueueAddInput(
   uri: string,
   helpRoute: string,
-): { readonly archivePath: string; readonly chapterId?: number } {
+): { readonly archivePath: string; readonly chapterPath?: string } {
   const parsed = parseLocatedWikiGraphUri(uri);
 
   if (parsed.archivePath === undefined) {
@@ -295,7 +297,7 @@ function parseQueueAddInput(
 
   return {
     archivePath: parsed.archivePath,
-    chapterId: chapterTarget.chapterId,
+    chapterPath: chapterTarget.chapterPath,
   };
 }
 

@@ -1,5 +1,8 @@
 import type { ReadonlyDocument } from "../../../document/index.js";
-import { getChapterTree } from "../../../document/chapter/index.js";
+import {
+  getChapterTree,
+  listChapters,
+} from "../../../document/chapter/index.js";
 import { listGraphNeighbors } from "../../../graph/reading.js";
 import type { WikipageResolverOptions } from "../../../external/wikipage/index.js";
 
@@ -111,10 +114,12 @@ export async function readArchivePage(
   options: ArchivePageOptions = {},
 ): Promise<ArchivePage> {
   if (isWikiGraphObjectUri(id)) {
+    const normalizedUri = normalizeWikiGraphObjectUri(id);
     return await readWikiGraphPage(
       document,
-      normalizeWikiGraphObjectUri(id),
+      await resolveChapterPathObjectUri(document, normalizedUri),
       options,
+      normalizedUri,
     );
   }
 
@@ -218,12 +223,40 @@ export async function readArchivePage(
   }
 }
 
+async function resolveChapterPathObjectUri(
+  document: ReadonlyDocument,
+  uri: string,
+): Promise<string> {
+  const [base = "", hash] = uri.split("#", 2);
+  const prefix = "wikg://chapter/";
+
+  if (!base.startsWith(prefix) || base === "wikg://chapter/tree") {
+    return uri;
+  }
+
+  const path = base.slice(prefix.length);
+  const chapter = (await listChapters(document))
+    .slice()
+    .sort((left, right) => right.path.length - left.path.length)
+    .find((entry) => path === entry.path || path.startsWith(`${entry.path}/`));
+
+  if (chapter === undefined) {
+    return uri;
+  }
+
+  const suffix = path.slice(chapter.path.length);
+  const resolved = `${prefix}${chapter.chapterId}${suffix}`;
+  return hash === undefined ? resolved : `${resolved}#${hash}`;
+}
+
 async function readWikiGraphPage(
   document: ReadonlyDocument,
   uri: string,
   options: ArchivePageOptions = {},
+  displayUri = uri,
 ): Promise<ArchivePage> {
   uri = normalizeWikiGraphObjectUri(uri);
+  displayUri = normalizeWikiGraphObjectUri(displayUri);
   const reference = parseWikiGraphReference(uri);
 
   switch (reference.type) {
@@ -231,7 +264,7 @@ async function readWikiGraphPage(
       return await readArchivePage(document, ARCHIVE_ROOT_ID, options);
     case "chapter":
       throw new Error(
-        `wikg://chapter/${reference.chapterId} is a scope URI, not a readable object. Use wikg://chapter/${reference.chapterId}/title or wikg://chapter/${reference.chapterId}/state.`,
+        `${displayUri} is a scope URI, not a readable object. Use ${displayUri}/title or ${displayUri}/state.`,
       );
     case "chapter-title":
       return await readArchivePage(
@@ -246,8 +279,8 @@ async function readWikiGraphPage(
       return {
         id:
           reference.target === undefined
-            ? `wikg://chapter/${reference.chapterId}/state`
-            : `wikg://chapter/${reference.chapterId}/state/${reference.target}`,
+            ? displayUri
+            : `${displayUri.replace(/\/state(?:\/.*)?$/u, "")}/state/${reference.target}`,
         ...(reference.target === undefined
           ? { state: targets }
           : { target: reference.target, value: targets[reference.target] }),
@@ -280,7 +313,7 @@ async function readWikiGraphPage(
           options.sourceContext ?? DEFAULT_SOURCE_CONTEXT,
           options.order ?? "doc-asc",
         ),
-        id: uri,
+        id: displayUri,
         label: selectEntityLabel(mentions),
         labels: selectEntityLabels(mentions),
         mentionCount: mentions.length,
@@ -291,7 +324,7 @@ async function readWikiGraphPage(
     case "entity-wikipage":
       return {
         ...(await resolveEntityWikipage(reference.qid, options)),
-        id: uri,
+        id: displayUri,
         type: "entity-wikipage",
       };
     case "triple": {
@@ -318,7 +351,7 @@ async function readWikiGraphPage(
           options.sourceContext ?? DEFAULT_SOURCE_CONTEXT,
           options.order ?? "doc-asc",
         ),
-        id: uri,
+        id: displayUri,
         label: await createTriplePageLabel(document, reference),
         objectQid: reference.objectQid,
         predicate: reference.predicate,
@@ -340,18 +373,20 @@ async function readWikiGraphPage(
         options,
       );
     }
-    case "text-stream":
+    case "text-stream": {
+      const fragment = await createTextStreamRangeFragment(document, reference);
       return {
         ...(options.backlinks === true
           ? { backlinks: await createTextStreamBacklinks(document, reference) }
           : {}),
-        fragment: await createTextStreamRangeFragment(document, reference),
-        id: uri,
+        fragment: { ...fragment, id: displayUri },
+        id: displayUri,
         nextFragmentId: undefined,
         nodes: [],
         previousFragmentId: undefined,
-        title: uri,
+        title: displayUri,
         type: "fragment",
       };
+    }
   }
 }

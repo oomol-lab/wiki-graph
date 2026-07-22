@@ -85,11 +85,12 @@ export async function addArchiveJobs(
 
 export async function assertQueueAddReady(
   args: CLIQueueArguments,
+  chapterId = args.chapterId!,
 ): Promise<void> {
   await new WikiGraphArchiveFile(args.archivePath!).read(async (digest) => {
-    if ((await digest.readChapterStage(args.chapterId!)) === "planned") {
+    if ((await digest.readChapterStage(chapterId)) === "planned") {
       throw new Error(
-        `Chapter ${args.chapterId!} is planned. Set source before queueing a build job.`,
+        `Chapter ${chapterId} is planned. Set source before queueing a build job.`,
       );
     }
   });

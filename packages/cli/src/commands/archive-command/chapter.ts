@@ -13,6 +13,7 @@ import {
   parseChapterTreeInput,
   removeChapter,
   resetChapter,
+  resolveChapterPath,
   setChapterSource,
   setChapterSummary,
   setChapterTitle,
@@ -36,15 +37,17 @@ export async function runArchiveChapterCommand(
   switch (args.action) {
     case "add":
       await runEditableCommand(args.path, async (document) => {
+        const parentChapterId = await resolveOptionalChapterPath(
+          document,
+          args.parentChapterPath,
+        );
         await assertNoActiveBuildJobConflicts({
           archivePath: args.path,
           operation: "Adding chapter",
           scope: { kind: "archive" },
         });
         let details = await addChapter(document, {
-          ...(args.parentChapterId === undefined
-            ? {}
-            : { parentChapterId: args.parentChapterId }),
+          ...(parentChapterId === undefined ? {} : { parentChapterId }),
           ...(args.title === undefined ? {} : { title: args.title }),
         });
 
@@ -71,24 +74,38 @@ export async function runArchiveChapterCommand(
       return;
     case "move":
       await runEditableCommand(args.path, async (document) => {
+        const chapterId = await resolveRequiredChapterPath(
+          document,
+          args.chapterPath,
+        );
+        const afterChapterId = await resolveOptionalChapterPath(
+          document,
+          args.afterChapterPath,
+        );
+        const beforeChapterId = await resolveOptionalChapterPath(
+          document,
+          args.beforeChapterPath,
+        );
+        const parentChapterId = await resolveOptionalChapterPath(
+          document,
+          args.parentChapterPath,
+        );
         await assertNoActiveBuildJobConflicts({
           archivePath: args.path,
           operation: "Moving chapter",
           scope: { kind: "archive" },
         });
-        const details = await moveChapter(document, args.chapterId!, {
-          ...(args.afterChapterId === undefined
+        const details = await moveChapter(document, chapterId, {
+          ...(afterChapterId === undefined
             ? {}
-            : { afterChapterId: args.afterChapterId }),
-          ...(args.beforeChapterId === undefined
+            : { afterChapterId: afterChapterId }),
+          ...(beforeChapterId === undefined
             ? {}
-            : { beforeChapterId: args.beforeChapterId }),
+            : { beforeChapterId: beforeChapterId }),
           ...(args.first === undefined ? {} : { first: args.first }),
           ...(args.last === undefined ? {} : { last: args.last }),
           ...(args.moveToRoot === undefined ? {} : { root: args.moveToRoot }),
-          ...(args.parentChapterId === undefined
-            ? {}
-            : { parentChapterId: args.parentChapterId }),
+          ...(parentChapterId === undefined ? {} : { parentChapterId }),
         });
 
         await writeChapterDetails(details, args.json ?? false);
@@ -96,29 +113,42 @@ export async function runArchiveChapterCommand(
       return;
     case "remove":
       await runEditableCommand(args.path, async (document) => {
+        const chapterId = await resolveRequiredChapterPath(
+          document,
+          args.chapterPath,
+        );
         await assertNoActiveBuildJobConflicts({
           archivePath: args.path,
           operation: "Removing chapter",
           scope: { kind: "archive" },
         });
-        await removeChapter(document, args.chapterId!, {
+        await removeChapter(document, chapterId, {
           recursive: args.recursive ?? false,
         });
         if (args.json === true) {
           await writeTextToStdout(
-            formatCLIJSON({ chapterId: args.chapterId!, removed: true }),
+            formatCLIJSON({
+              removed: true,
+              uri: `wikg://chapter/${args.chapterPath}`,
+            }),
           );
           return;
         }
-        await writeTextToStdout(`Removed chapter ${args.chapterId!}.\n`);
+        await writeTextToStdout(
+          `Removed chapter wikg://chapter/${args.chapterPath}.\n`,
+        );
       });
       return;
     case "reset":
       await runEditableCommand(args.path, async (document) => {
-        await assertResetAllowed(args.path, args.chapterId!, args.resetStage!);
+        const chapterId = await resolveRequiredChapterPath(
+          document,
+          args.chapterPath,
+        );
+        await assertResetAllowed(args.path, chapterId, args.resetStage!);
         const details = await resetChapter(
           document,
-          args.chapterId!,
+          chapterId,
           args.resetStage!,
         );
 
@@ -127,14 +157,18 @@ export async function runArchiveChapterCommand(
       return;
     case "set-source":
       await runEditableCommand(args.path, async (document) => {
+        const chapterId = await resolveRequiredChapterPath(
+          document,
+          args.chapterPath,
+        );
         await assertNoActiveBuildJobs({
           archivePath: args.path,
-          chapterIds: [args.chapterId!],
+          chapterIds: [chapterId],
           operation: "Setting chapter source",
         });
         const details = await setChapterSource(
           document,
-          args.chapterId!,
+          chapterId,
           Readable.from([await readRequiredSourceText(args)]),
         );
 
@@ -143,15 +177,19 @@ export async function runArchiveChapterCommand(
       return;
     case "set-summary":
       await runEditableCommand(args.path, async (document) => {
+        const chapterId = await resolveRequiredChapterPath(
+          document,
+          args.chapterPath,
+        );
         await assertNoActiveBuildJobs({
           archivePath: args.path,
-          chapterIds: [args.chapterId!],
+          chapterIds: [chapterId],
           operation: "Setting chapter summary",
           requiresTarget: "reading-summary",
         });
         const details = await setChapterSummary(
           document,
-          args.chapterId!,
+          chapterId,
           await readContentText(args),
         );
 
@@ -160,14 +198,18 @@ export async function runArchiveChapterCommand(
       return;
     case "set-title":
       await runEditableCommand(args.path, async (document) => {
+        const chapterId = await resolveRequiredChapterPath(
+          document,
+          args.chapterPath,
+        );
         await assertNoActiveBuildJobs({
           archivePath: args.path,
-          chapterIds: [args.chapterId!],
+          chapterIds: [chapterId],
           operation: "Setting chapter title",
         });
         const details = await setChapterTitle(
           document,
-          args.chapterId!,
+          chapterId,
           args.clearTitle === true ? null : args.title,
         );
 
@@ -206,6 +248,25 @@ export async function runArchiveChapterCommand(
       );
       return;
   }
+}
+
+async function resolveRequiredChapterPath(
+  document: DirectoryDocument,
+  chapterPath: string | undefined,
+): Promise<number> {
+  if (chapterPath === undefined) {
+    throw new Error("Missing chapter path.");
+  }
+  return await resolveChapterPath(document, chapterPath);
+}
+
+async function resolveOptionalChapterPath(
+  document: DirectoryDocument,
+  chapterPath: string | undefined,
+): Promise<number | undefined> {
+  return chapterPath === undefined
+    ? undefined
+    : await resolveChapterPath(document, chapterPath);
 }
 
 async function runEditableCommand(
@@ -262,21 +323,20 @@ async function writeChapterDetails(
   if (json) {
     await writeTextToStdout(
       formatCLIJSON({
-        chapterId: details.chapterId,
         childCount: details.childCount,
         graphReady: details.graphReady,
         hasSummary: details.hasSummary,
         sourceUnits: details.fragmentCount,
         stage: formatStage(details.stage),
         title: details.title,
-        uri: `wikg://chapter/${details.chapterId}`,
+        uri: details.uri,
       }),
     );
     return;
   }
 
   const lines = [
-    `Chapter: ${details.chapterId}`,
+    `Chapter: ${details.uri}`,
     `Title: ${details.title ?? "[untitled]"}`,
     `Stage: ${formatStage(details.stage)}`,
     `Source Units: ${details.fragmentCount}`,
@@ -296,7 +356,7 @@ async function writeChapterList(
     await writeTextToStdout(
       formatCLIJSON({
         chapters: entries.map((entry) => ({
-          uri: `wikg://chapter/${entry.chapterId}`,
+          uri: entry.uri,
           title: entry.title,
           stage: formatStage(entry.stage),
         })),
@@ -314,7 +374,7 @@ async function writeChapterList(
     `${entries
       .map(
         (entry) =>
-          `${"  ".repeat(entry.depth)}[${entry.chapterId}] ${formatStage(entry.stage).padEnd(8)} ${entry.title ?? "[untitled]"}`,
+          `${"  ".repeat(entry.depth)}[${formatStage(entry.stage)}] ${entry.title ?? "[untitled]"} (${entry.uri})`,
       )
       .join("\n")}\n`,
   );
@@ -349,10 +409,14 @@ function formatChapterTreeNodes(
     const childPrefix = `${prefix}${last ? "   " : "│  "}`;
 
     return [
-      `${prefix}${branch}${formatChapterTreeTitle(node.title)}  wikg://chapter/${node.id}`,
+      `${prefix}${branch}${formatChapterTreeTitle(node.title)} (${formatChapterTreeKey(node.uri)})`,
       ...formatChapterTreeNodes(node.children, childPrefix),
     ];
   });
+}
+
+function formatChapterTreeKey(uri: string): string {
+  return uri.split("/").at(-1) ?? uri;
 }
 
 function formatChapterTreeTitle(title: string | null): string {
@@ -373,24 +437,16 @@ async function writeChapterTreeApplyResult(
 
   for (const move of result.moved) {
     lines.push(
-      `Move ${move.chapterId}: ${formatPath(move.oldPath)} [parent ${formatParent(move.oldParentChapterId)}, index ${move.oldIndex}] -> ${formatPath(move.newPath)} [parent ${formatParent(move.newParentChapterId)}, index ${move.newIndex}]`,
+      `Move ${move.oldUri} [index ${move.oldIndex}] -> ${move.newUri} [index ${move.newIndex}]`,
     );
   }
   for (const rename of result.renamed) {
     lines.push(
-      `Rename ${rename.chapterId}: ${formatTitle(rename.oldTitle)} -> ${formatTitle(rename.newTitle)}`,
+      `Rename ${rename.uri}: ${formatTitle(rename.oldTitle)} -> ${formatTitle(rename.newTitle)}`,
     );
   }
 
   await writeTextToStdout(`${lines.join("\n")}\n`);
-}
-
-function formatParent(parentChapterId: number | null): string {
-  return parentChapterId === null ? "root" : String(parentChapterId);
-}
-
-function formatPath(path: readonly string[]): string {
-  return path.join(" / ");
 }
 
 function formatTitle(title: string | null): string {

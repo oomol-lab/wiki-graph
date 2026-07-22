@@ -7,8 +7,8 @@ Usage:
   {{ commandName }} <archive-uri>/chapter [--llm <json>] [--help|-h]
   {{ commandName }} <chapter-uri>/state [--json] [--help|-h]
   {{ commandName }} <chapter-uri>/state/<source|reading-graph|reading-summary|knowledge-graph> [--json] [--help|-h]
-  {{ commandName }} <archive-uri>/chapter add [--title <title>] [--parent <id>] [--input <path|->] [--llm <json>] [--json] [--help|-h]
-  {{ commandName }} <chapter-uri> move (--parent <id>|--root|--before <id>|--after <id>|--first|--last) [--llm <json>] [--help|-h]
+  {{ commandName }} <archive-uri>/chapter add [--title <title>] [--parent <chapter-path>] [--input <path|->] [--llm <json>] [--json] [--help|-h]
+  {{ commandName }} <chapter-uri> move (--parent <chapter-path>|--root|--before <chapter-path>|--after <chapter-path>|--first|--last) [--llm <json>] [--help|-h]
   {{ commandName }} <chapter-uri> remove [--recursive] [--llm <json>] [--help|-h]
   {{ commandName }} <chapter-uri> reset --to <planned|source|reading-graph> [--llm <json>] [--help|-h]
   {{ commandName }} <chapter-uri>/source set [text] [--input <path|->] [--llm <json>] [--json] [--help|-h]
@@ -26,7 +26,7 @@ Chapter stages:
 
 Input rules:
   - Use Wiki Graph URIs; bare `.wikg` filesystem paths are not accepted.
-  - `<chapter-uri>` includes the numeric chapter id printed by the chapter collection or `add`.
+  - `<chapter-uri>` includes the chapter path printed by the chapter collection or `add`.
   - `add` creates an empty planned chapter. Use this for chapter directories, groups, and drafting placeholders.
   - `add --input <path>` creates a chapter and fills it from source text; use `--input -` for stdin.
   - `<chapter-uri>/source set` and `<chapter-uri>/summary set` read a positional value, `--input <path>`, or `--input -` for stdin.
@@ -38,18 +38,18 @@ Input rules:
   - Structure edits, `/title set`, `/source set`, `/summary set`, and `reset` do not call an LLM provider.
   - To generate reading-graph, reading-summary, or knowledge-graph, use `{{ commandName }} wikg://local/job add --input <archive-uri|chapter-uri> --task <reading-graph|reading-summary|knowledge-graph> --accept-cost`.
   - `<chapter-uri>/state` shows the aggregate chapter state. `<chapter-uri>/state/<target>` checks one target.
-  - Append `--help` after an action for action-specific details, for example `{{ commandName }} wikg://book.wikg/chapter/3 reset --help`.
+  - Append `--help` after an action for action-specific details, for example `{{ commandName }} wikg://book.wikg/chapter/part reset --help`.
 
 See also:
   - {{ commandName }} wikg://book.wikg/chapter
-  - {{ commandName }} wikg://book.wikg/chapter/3/state
-  - {{ commandName }} wikg://book.wikg/chapter/3/state/knowledge-graph
+  - {{ commandName }} wikg://book.wikg/chapter/part/state
+  - {{ commandName }} wikg://book.wikg/chapter/part/state/knowledge-graph
   - {{ commandName }} wikg://book.wikg/chapter/tree
-  - {{ commandName }} wikg://book.wikg/chapter/3/title set "New Title"
-  - {{ commandName }} wikg://book.wikg/chapter/3/title clear
+  - {{ commandName }} wikg://book.wikg/chapter/part/title set "New Title"
+  - {{ commandName }} wikg://book.wikg/chapter/part/title clear
   - {{ commandName }} wikg://book.wikg/chapter add --input chapter.txt
-  - {{ commandName }} wikg://book.wikg/chapter/3/source set --input chapter.txt
-  - {{ commandName }} wikg://book.wikg/chapter/3/summary set --input summary.md
+  - {{ commandName }} wikg://book.wikg/chapter/part/source set --input chapter.txt
+  - {{ commandName }} wikg://book.wikg/chapter/part/summary set --input summary.md
   - cat tree.json | {{ commandName }} wikg://book.wikg/chapter/tree set --input -
   - {{ commandName }} wikg://local/job --help
   - {{ commandName }} help format

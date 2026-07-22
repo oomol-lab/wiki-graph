@@ -27,8 +27,8 @@ Tree JSON shape:
 
 Apply rules:
   - `set` reads tree JSON from `--input <path>` or `--input -` for stdin.
-  - Every existing chapter id must appear exactly once.
-  - Unknown, duplicated, or missing chapter ids are rejected.
+  - Every existing chapter URI must appear exactly once.
+  - Unknown, duplicated, or missing chapter URIs are rejected.
   - `children` is required on every node.
   - `title` is optional when setting the tree.
   - Omitted `title` means keep the current title.
@@ -51,8 +51,8 @@ Examples:
   cat tree.json | {{ commandName }} wikg://book.wikg/chapter/tree set --input -
 
 See also:
-  - {{ commandName }} wikg://book.wikg/chapter/3 move --help
-  - {{ commandName }} wikg://book.wikg/chapter/3/title set --help
+  - {{ commandName }} wikg://book.wikg/chapter/part move --help
+  - {{ commandName }} wikg://book.wikg/chapter/part/title set --help
   - {{ commandName }} help readiness
   - {{ commandName }} help uri
   - {{ commandName }} --help

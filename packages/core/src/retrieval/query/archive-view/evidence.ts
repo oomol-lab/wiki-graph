@@ -19,7 +19,19 @@ export async function listArchiveEvidence(
   uri: string,
   options: ArchiveEvidenceOptions = {},
 ): Promise<ArchiveEvidence> {
-  const reference = parseWikiGraphReference(uri);
+  let reference: ReturnType<typeof parseWikiGraphReference>;
+  try {
+    reference = parseWikiGraphReference(uri);
+  } catch (error) {
+    if (
+      /^wikg:\/\/chapter\/.+\/(?:source|summary|title|state)(?:[#/]|$)/u.test(
+        uri,
+      )
+    ) {
+      throw new Error(`Evidence is not available for ${uri}.`);
+    }
+    throw error;
+  }
 
   switch (reference.type) {
     case "chapter":

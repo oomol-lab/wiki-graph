@@ -51,8 +51,8 @@ Show the chapter tree:
 ```bash
 $ wg wikg://quickstart.wikg/chapter/tree
 
-├─ First note  wikg://chapter/1
-└─ Second note  wikg://chapter/2
+├─ First note  wikg://chapter/first-note
+└─ Second note  wikg://chapter/second-note
 ```
 
 Enable and build the FTS index. Full-text `--query` search is available after this step:
@@ -66,7 +66,7 @@ Search the content:
 ```bash
 $ wg wikg://quickstart.wikg --query alpha
 
-@@ wikg://chapter/1/source#1 @@
+@@ wikg://chapter/first-note/source#1 @@
 Alpha is connected to beta.
 ```
 
@@ -137,8 +137,8 @@ Wiki Graph uses URIs as stable handles for archives, scopes, and objects. A URI 
 
 ```bash
 $ wg wikg://book.wikg/chapter
-$ wg wikg://book.wikg/chapter/3
-$ wg wikg://book.wikg/chapter/3/chunk
+$ wg wikg://book.wikg/chapter/part
+$ wg wikg://book.wikg/chapter/part/chunk
 $ wg wikg://book.wikg/entity
 $ wg wikg://book.wikg/triple/Q8018/discusses
 ```
@@ -146,7 +146,7 @@ $ wg wikg://book.wikg/triple/Q8018/discusses
 The examples above are scope URIs. Calling a scope URI directly lists objects. Adding `--query` searches within that scope. Adding `--limit` limits the number of returned results. Adding `--all` retrieves the full result set, which is suitable for intentional full export or inventory work.
 
 ```bash
-$ wg wikg://book.wikg/chapter/3 --query "memory"
+$ wg wikg://book.wikg/chapter/part --query "memory"
 $ wg wikg://book.wikg/entity --query "neural network" --limit 5
 $ wg wikg://book.wikg/chapter --all --json
 ```
@@ -154,14 +154,14 @@ $ wg wikg://book.wikg/chapter --all --json
 Object URIs read one concrete object by default:
 
 ```bash
-$ wg wikg://book.wikg/chapter/3/title
-$ wg wikg://book.wikg/chapter/3/source#4..8
-$ wg wikg://book.wikg/chapter/3/chunk/12
+$ wg wikg://book.wikg/chapter/part/title
+$ wg wikg://book.wikg/chapter/part/source#4..8
+$ wg wikg://book.wikg/chapter/part/chunk/12
 $ wg wikg://book.wikg/entity/Q8018
 $ wg wikg://book.wikg/triple/Q8018/discusses/Q123
 ```
 
-Most objects can be scoped to a chapter, such as `chapter/3/source#4..8`, `chapter/3/chunk/12`, or `chapter/3/entity/Q8018`. Some objects can also be accessed at archive scope, such as `entity/Q8018` and `triple/Q8018/discusses/Q123`; the same entity or relation may be supported by multiple chapters.
+Most objects can be scoped to a chapter, such as `chapter/part/source#4..8`, `chapter/part/chunk/12`, or `chapter/part/entity/Q8018`. Some objects can also be accessed at archive scope, such as `entity/Q8018` and `triple/Q8018/discusses/Q123`; the same entity or relation may be supported by multiple chapters.
 
 The front part of a URI is the archive locator. Absolute paths, relative paths, and Windows paths must be written as Wiki Graph URIs instead of bare filesystem paths:
 
@@ -174,7 +174,7 @@ $ wg wikg://C:/Users/me/books/book.wikg
 Command output often contains short URIs:
 
 ```text
-wikg://chapter/3/source#4..8
+wikg://chapter/part/source#4..8
 wikg://entity/Q8018
 wikg://triple/Q8018/discusses/Q123
 ```
@@ -182,7 +182,7 @@ wikg://triple/Q8018/discusses/Q123
 These short URIs are archive-relative handles. They keep output readable, but they are not complete command targets. Add the archive locator before passing them back to the CLI:
 
 ```bash
-$ wg wikg://book.wikg/chapter/3/source#4..8
+$ wg wikg://book.wikg/chapter/part/source#4..8
 $ wg wikg:///Users/me/books/book.wikg/entity/Q8018
 ```
 
@@ -227,7 +227,7 @@ $ wg wikg://book.wikg inspect --json
 
 ```bash
 $ wg wikg://local/job add --input wikg://book.wikg --task knowledge-graph --accept-cost
-$ wg wikg://local/job add --input wikg://book.wikg/chapter/3 --task knowledge-graph --accept-cost
+$ wg wikg://local/job add --input wikg://book.wikg/chapter/part --task knowledge-graph --accept-cost
 $ wg wikg://local/job/<job-id> watch --jsonl
 ```
 
@@ -238,8 +238,8 @@ Generation jobs may call an LLM provider. Time and cost depend on material lengt
 ```bash
 $ wg wikg://book.wikg/entity --query "neural network" --evidence 2
 $ wg wikg://book.wikg/triple --query "attention memory" --evidence 2
-$ wg wikg://book.wikg/chapter/3/entity --query "attention"
-$ wg wikg://book.wikg/chapter/3/triple --query "memory"
+$ wg wikg://book.wikg/chapter/part/entity --query "attention"
+$ wg wikg://book.wikg/chapter/part/triple --query "memory"
 ```
 
 Use the narrowest useful URI scope. If the chapter is known, search from the chapter scope. Use the archive scope when a whole-archive view is needed.

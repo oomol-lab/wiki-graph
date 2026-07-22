@@ -51,8 +51,8 @@ $ printf "Beta mentions gamma.\n" > tmp.txt && wg wikg://quickstart.wikg/chapter
 ```bash
 $ wg wikg://quickstart.wikg/chapter/tree
 
-├─ First note  wikg://chapter/1
-└─ Second note  wikg://chapter/2
+├─ First note  wikg://chapter/first-note
+└─ Second note  wikg://chapter/second-note
 ```
 
 开启并构建 FTS 全文索引（开启后才可使用 `--query` 进行全文搜索）：
@@ -66,7 +66,7 @@ $ wg wikg://quickstart.wikg/index enable
 ```bash
 $ wg wikg://quickstart.wikg --query alpha
 
-@@ wikg://chapter/1/source#1 @@
+@@ wikg://chapter/first-note/source#1 @@
 Alpha is connected to beta.
 ```
 
@@ -137,8 +137,8 @@ Wiki Graph 用 URI 作为归档、scope 和 object 的稳定句柄。一个 URI 
 
 ```bash
 $ wg wikg://book.wikg/chapter
-$ wg wikg://book.wikg/chapter/3
-$ wg wikg://book.wikg/chapter/3/chunk
+$ wg wikg://book.wikg/chapter/part
+$ wg wikg://book.wikg/chapter/part/chunk
 $ wg wikg://book.wikg/entity
 $ wg wikg://book.wikg/triple/Q8018/discusses
 ```
@@ -146,7 +146,7 @@ $ wg wikg://book.wikg/triple/Q8018/discusses
 上面这些都是 scope URI。直接调用 scope URI 会列出对象；加上 `--query` 会在这个 scope 内搜索；加上 `--limit` 可以限制返回数量；加上 `--all` 会取回完整结果，适合明确需要全量导出或清点时使用。
 
 ```bash
-$ wg wikg://book.wikg/chapter/3 --query "memory"
+$ wg wikg://book.wikg/chapter/part --query "memory"
 $ wg wikg://book.wikg/entity --query "neural network" --limit 5
 $ wg wikg://book.wikg/chapter --all --json
 ```
@@ -154,14 +154,14 @@ $ wg wikg://book.wikg/chapter --all --json
 object URI 默认读取一个具体对象：
 
 ```bash
-$ wg wikg://book.wikg/chapter/3/title
-$ wg wikg://book.wikg/chapter/3/source#4..8
-$ wg wikg://book.wikg/chapter/3/chunk/12
+$ wg wikg://book.wikg/chapter/part/title
+$ wg wikg://book.wikg/chapter/part/source#4..8
+$ wg wikg://book.wikg/chapter/part/chunk/12
 $ wg wikg://book.wikg/entity/Q8018
 $ wg wikg://book.wikg/triple/Q8018/discusses/Q123
 ```
 
-大多数对象都可以落在某个章节下，例如 `chapter/3/source#4..8`、`chapter/3/chunk/12`、`chapter/3/entity/Q8018`。也有一些对象可以在章节外按整个归档访问，例如 `entity/Q8018` 和 `triple/Q8018/discusses/Q123`；同一个实体或关系可能由多个章节共同支撑。
+大多数对象都可以落在某个章节下，例如 `chapter/part/source#4..8`、`chapter/part/chunk/12`、`chapter/part/entity/Q8018`。也有一些对象可以在章节外按整个归档访问，例如 `entity/Q8018` 和 `triple/Q8018/discusses/Q123`；同一个实体或关系可能由多个章节共同支撑。
 
 URI 前半段是归档地址。绝对地址、相对地址和 Windows 路径要写成 Wiki Graph URI，而不是裸文件路径：
 
@@ -174,7 +174,7 @@ $ wg wikg://C:/Users/me/books/book.wikg
 命令输出里经常出现短地址，例如：
 
 ```text
-wikg://chapter/3/source#4..8
+wikg://chapter/part/source#4..8
 wikg://entity/Q8018
 wikg://triple/Q8018/discusses/Q123
 ```
@@ -182,7 +182,7 @@ wikg://triple/Q8018/discusses/Q123
 这些短地址只是 archive-relative handle，用来让输出更短，本身不是完整命令 target。再次使用时要补上归档地址：
 
 ```bash
-$ wg wikg://book.wikg/chapter/3/source#4..8
+$ wg wikg://book.wikg/chapter/part/source#4..8
 $ wg wikg:///Users/me/books/book.wikg/entity/Q8018
 ```
 
@@ -227,7 +227,7 @@ wg wikg://book.wikg inspect --json
 
 ```bash
 wg wikg://local/job add --input wikg://book.wikg --task knowledge-graph --accept-cost
-wg wikg://local/job add --input wikg://book.wikg/chapter/3 --task knowledge-graph --accept-cost
+wg wikg://local/job add --input wikg://book.wikg/chapter/part --task knowledge-graph --accept-cost
 wg wikg://local/job/<job-id> watch --jsonl
 ```
 
@@ -238,8 +238,8 @@ wg wikg://local/job/<job-id> watch --jsonl
 ```bash
 wg wikg://book.wikg/entity --query "neural network" --evidence 2
 wg wikg://book.wikg/triple --query "attention memory" --evidence 2
-wg wikg://book.wikg/chapter/3/entity --query "attention"
-wg wikg://book.wikg/chapter/3/triple --query "memory"
+wg wikg://book.wikg/chapter/part/entity --query "attention"
+wg wikg://book.wikg/chapter/part/triple --query "memory"
 ```
 
 尽量选择最窄的 URI scope。已知章节时，从章节 scope 查；需要全书视角时，再查 archive scope。

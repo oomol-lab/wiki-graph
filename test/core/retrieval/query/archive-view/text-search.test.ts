@@ -43,7 +43,7 @@ describe("archive/query/archive-view/text search", () => {
         expect(result.items).toContainEqual(
           expect.objectContaining({
             field: "source",
-            id: "wikg://chapter/1/source#1..3",
+            id: "wikg://chapter/introduction/source#1",
             position: {
               chapter: 1,
               sentence: 0,
@@ -134,9 +134,14 @@ describe("archive/query/archive-view/text search", () => {
         expect(result.items).toStrictEqual([
           expect.objectContaining({
             field: "source",
-            id: "wikg://chapter/1/source#1..3",
-            snippet:
-              "# Test NoteAlice studies graph retrieval.Bob cites Alice in a research note.",
+            id: "wikg://chapter/chapter-1/source#2",
+            snippet: "Alice studies graph retrieval.",
+            type: "source",
+          }),
+          expect.objectContaining({
+            field: "source",
+            id: "wikg://chapter/chapter-1/source#3",
+            snippet: "Bob cites Alice in a research note.",
             type: "source",
           }),
         ]);
@@ -162,7 +167,10 @@ describe("archive/query/archive-view/text search", () => {
 
         expect(result.match).toBe("any");
         const sourceHit = result.items.find(
-          (item) => item.id === "wikg://chapter/1/source#1..3",
+          (item) => item.type === "source" && item.field === "source",
+        );
+        expect(sourceHit?.id).toMatch(
+          /^wikg:\/\/chapter\/introduction\/source#/u,
         );
         expect(sourceHit).toMatchObject({
           field: "source",
@@ -275,8 +283,8 @@ describe("archive/query/archive-view/text search", () => {
         });
 
         expect(result.items.map((item) => item.id)).toStrictEqual([
-          "wikg://chapter/1/source#2",
-          "wikg://chapter/1/source#1",
+          "wikg://chapter/ranking/source#2",
+          "wikg://chapter/ranking/source#1",
         ]);
         expect(result.items[0]?.score).toBeGreaterThan(
           result.items[1]?.score ?? 0,
@@ -330,8 +338,8 @@ describe("archive/query/archive-view/text search", () => {
         });
 
         expect(result.items.map((item) => item.id)).toStrictEqual([
-          "chapter-title:2",
-          "chapter-title:1",
+          "wikg://chapter/alpha-beta-alpha-beta-strongest-chapter/title",
+          "wikg://chapter/alpha-appears-in-a-weak-chapter/title",
         ]);
         expect(result.items[0]?.score).toBeGreaterThan(
           result.items[1]?.score ?? 0,

@@ -15,11 +15,8 @@ import {
   isDefined,
 } from "./helpers.js";
 import {
-  formatChapterId,
-  formatChapterTitleId,
   formatEdgeId,
   formatNodeId,
-  formatSummaryId,
   formatTextStreamRangeUri,
 } from "./references.js";
 import { createTextStreamIndex } from "./text-streams.js";
@@ -76,7 +73,7 @@ export async function listArchiveObjects(
           const state = await createChapterState(document, chapter);
 
           return {
-            id: formatChapterId(chapter.chapterId),
+            id: chapter.uri,
             label: chapter.title ?? "[untitled]",
             state,
             summary: formatChapterStateSummary(state),
@@ -121,8 +118,8 @@ export async function listArchiveObjects(
             }
 
             return {
-              id: formatSummaryId(chapter.chapterId),
-              label: chapter.title ?? `[chapter ${chapter.chapterId}]`,
+              id: `${chapter.uri}/summary`,
+              label: chapter.title ?? `[chapter ${chapter.path}]`,
               summary: createSnippet(summary),
               type: "summary" as const,
             };
@@ -133,7 +130,7 @@ export async function listArchiveObjects(
       return (
         await Promise.all(
           (await listChapters(document)).map(async (chapter) => {
-            const title = chapter.title ?? formatChapterId(chapter.chapterId);
+            const title = chapter.title ?? chapter.uri;
 
             return listTextStreamSentenceCollection(
               await createTextStreamIndex(
@@ -142,6 +139,7 @@ export async function listArchiveObjects(
                 "source",
               ),
               chapter.chapterId,
+              chapter.path,
               "source",
               title,
               chapter.documentOrder,
@@ -192,13 +190,13 @@ export async function listArchiveCollection(
       await listChapters(document),
       chapterFilter,
     )) {
-      const title = chapter.title ?? `[chapter ${chapter.chapterId}]`;
+      const title = chapter.title ?? `[chapter ${chapter.path}]`;
 
       if (types.includes("chapter") || types.includes("chapter-title")) {
         items.push({
           chapter: chapter.chapterId,
           field: "title",
-          id: formatChapterTitleId(chapter.chapterId),
+          id: `${chapter.uri}/title`,
           position: {
             chapter: chapter.chapterId,
             documentOrder: chapter.documentOrder,
@@ -325,6 +323,7 @@ export function listEntityCollection(
 function listTextStreamSentenceCollection(
   index: ArchiveTextStreamIndex,
   chapterId: number,
+  chapterPath: string,
   stream: ArchiveTextStreamKind,
   title: string,
   documentOrder?: number,
@@ -333,7 +332,7 @@ function listTextStreamSentenceCollection(
     chapter: chapterId,
     field: stream,
     id: formatTextStreamRangeUri(
-      chapterId,
+      chapterPath,
       stream,
       sentence.globalIndex,
       sentence.globalIndex,

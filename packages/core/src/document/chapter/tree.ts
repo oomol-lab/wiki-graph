@@ -4,27 +4,35 @@ import type { ChapterTreeNode } from "./types.js";
 export function cloneTocItem(item: TocItem): MutableTocItem {
   return {
     children: item.children.map(cloneTocItem),
+    ...(item.key === undefined ? {} : { key: item.key }),
     ...(item.serialId === undefined ? {} : { serialId: item.serialId }),
     title: item.title,
   };
 }
 
-function toChapterTreeNode(item: MutableTocItem): ChapterTreeNode {
+function toChapterTreeNode(
+  item: MutableTocItem,
+  parentPath: readonly string[],
+): ChapterTreeNode {
   if (item.serialId === undefined) {
     throw new Error("Internal error: normalized chapter tree has no id.");
   }
-
+  const key = item.key ?? `chapter-${item.serialId}`;
+  const path = [...parentPath, key];
   return {
-    children: item.children.flatMap(toChapterTreeNodes),
-    id: item.serialId,
+    children: item.children.flatMap((child) => toChapterTreeNodes(child, path)),
     title: normalizeTitle(item.title) ?? null,
+    uri: `wikg://chapter/${path.join("/")}`,
   };
 }
 
-export function toChapterTreeNodes(item: MutableTocItem): ChapterTreeNode[] {
+export function toChapterTreeNodes(
+  item: MutableTocItem,
+  parentPath: readonly string[] = [],
+): ChapterTreeNode[] {
   return item.serialId === undefined
-    ? item.children.flatMap(toChapterTreeNodes)
-    : [toChapterTreeNode(item)];
+    ? item.children.flatMap((child) => toChapterTreeNodes(child, parentPath))
+    : [toChapterTreeNode(item, parentPath)];
 }
 
 export function normalizeTitle(
@@ -59,6 +67,7 @@ export interface MutableTocFile {
 
 export interface MutableTocItem {
   children: MutableTocItem[];
+  key?: string | undefined;
   serialId?: number | undefined;
   title?: string | null | undefined;
 }

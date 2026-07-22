@@ -35,7 +35,7 @@ describe("archive/query/archive-view/search controls", () => {
         expect(result.items).toContainEqual(
           expect.objectContaining({
             field: "source",
-            id: "wikg://chapter/1/source#2",
+            id: "wikg://chapter/introduction/source#2",
             type: "source",
           }),
         );
@@ -64,7 +64,7 @@ describe("archive/query/archive-view/search controls", () => {
         expect(result.items).toStrictEqual([
           expect.objectContaining({
             chapter: 1,
-            id: "wikg://chapter/1/source#1",
+            id: "wikg://chapter/introduction/source#1",
             position: { chapter: 1, sentence: 0 },
             type: "source",
           }),

@@ -32,7 +32,7 @@ export function formatFragmentId(serialId: number, fragmentId: number): string {
 }
 
 export function formatTextStreamRangeUri(
-  chapterId: number,
+  chapterPath: number | string,
   stream: ArchiveTextStreamKind,
   startSentenceIndex: number,
   endSentenceIndex: number,
@@ -44,7 +44,7 @@ export function formatTextStreamRangeUri(
       ? String(startSentenceNumber)
       : `${startSentenceNumber}..${endSentenceNumber}`;
 
-  return `wikg://chapter/${chapterId}/${stream}#${hash}`;
+  return `wikg://chapter/${chapterPath}/${stream}#${hash}`;
 }
 
 export type WikiGraphReference =

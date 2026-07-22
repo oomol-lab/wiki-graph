@@ -1,4 +1,4 @@
-import type { ArchiveTriplePattern } from "wiki-graph-core";
+import { parseChapterPath, type ArchiveTriplePattern } from "wiki-graph-core";
 
 import type { ArchiveUriLens, ChapterStateUriTarget } from "../../types.js";
 import {
@@ -15,24 +15,24 @@ export type ChapterUriTarget =
       readonly pattern: ArchiveTriplePattern;
     }
   | { readonly kind: "tree" }
-  | { readonly chapterId: number; readonly kind: "chapter" }
+  | { readonly chapterPath: string; readonly kind: "chapter" }
   | {
-      readonly chapterId: number;
+      readonly chapterPath: string;
       readonly kind: "chapter-lens";
       readonly lens: ArchiveUriLens;
     }
   | {
-      readonly chapterId: number;
+      readonly chapterPath: string;
       readonly kind: "chapter-triple-pattern-lens";
       readonly pattern: ArchiveTriplePattern;
     }
   | {
-      readonly chapterId: number;
+      readonly chapterPath: string;
       readonly kind: "chapter-state";
       readonly target?: ChapterStateUriTarget;
     }
   | {
-      readonly chapterId: number;
+      readonly chapterPath: string;
       readonly kind: "chapter-resource";
       readonly resource: "source" | "summary" | "title";
     };
@@ -61,22 +61,23 @@ export function parseChapterTarget(
     };
   }
 
-  const match = /^wikg:\/\/chapter\/([1-9][0-9]*)(?:\/(.*))?\/?$/u.exec(
-    objectUri,
-  );
+  const match = /^wikg:\/\/chapter\/(.+)$/u.exec(objectUri);
 
   if (match?.[1] === undefined) {
     return undefined;
   }
 
-  const chapterId = Number(match[1]);
-  const suffix = match[2] === "" ? undefined : match[2];
+  const parsed = parseChapterPathAndSuffix(match[1]);
+  if (parsed === undefined) {
+    return undefined;
+  }
+  const { chapterPath, suffix } = parsed;
   const chapterTriplePattern =
     suffix === undefined ? undefined : parseTriplePatternSuffix(suffix);
 
   if (chapterTriplePattern !== undefined) {
     return {
-      chapterId,
+      chapterPath,
       kind: "chapter-triple-pattern-lens",
       pattern: chapterTriplePattern,
     };
@@ -86,7 +87,7 @@ export function parseChapterTarget(
 
   if (chapterStateTarget !== undefined) {
     return {
-      chapterId,
+      chapterPath,
       kind: "chapter-state",
       ...(chapterStateTarget === "all" ? {} : { target: chapterStateTarget }),
     };
@@ -99,19 +100,48 @@ export function parseChapterTarget(
   }
 
   if (resource === undefined) {
-    return { chapterId, kind: "chapter" };
+    return { chapterPath, kind: "chapter" };
   }
   if (resource === "state") {
-    return { chapterId, kind: "chapter-state" };
+    return { chapterPath, kind: "chapter-state" };
   }
   if (resource === "chunk" || resource === "entity" || resource === "triple") {
-    return { chapterId, kind: "chapter-lens", lens: resource };
+    return { chapterPath, kind: "chapter-lens", lens: resource };
   }
   if (resource === "source" || resource === "summary") {
-    return { chapterId, kind: "chapter-resource", resource };
+    return { chapterPath, kind: "chapter-resource", resource };
   }
 
-  return { chapterId, kind: "chapter-resource", resource };
+  return { chapterPath, kind: "chapter-resource", resource };
+}
+
+function parseChapterPathAndSuffix(
+  value: string,
+): { readonly chapterPath: string; readonly suffix?: string } | undefined {
+  const parts = value.replace(/\/+$/u, "").split("/");
+  const suffixStart = parts.findIndex((part) =>
+    [
+      "chunk",
+      "entity",
+      "source",
+      "state",
+      "summary",
+      "title",
+      "triple",
+    ].includes(part),
+  );
+  const pathParts = suffixStart === -1 ? parts : parts.slice(0, suffixStart);
+  const suffixParts = suffixStart === -1 ? [] : parts.slice(suffixStart);
+
+  try {
+    const chapterPath = parseChapterPath(pathParts.join("/"), "chapter URI");
+    return {
+      chapterPath,
+      ...(suffixParts.length === 0 ? {} : { suffix: suffixParts.join("/") }),
+    };
+  } catch {
+    return undefined;
+  }
 }
 
 function parseChapterStateSuffix(

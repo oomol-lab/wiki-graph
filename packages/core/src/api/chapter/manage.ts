@@ -2,6 +2,11 @@ import type { Document } from "../../document/index.js";
 import type { ReaderTextStream } from "../../text/reader/index.js";
 import { writeSerialSource } from "../../serial.js";
 import type { TocItem } from "../../text/source/index.js";
+import {
+  collectChapterKeys,
+  createChapterKey,
+  resolveChapterIdByPath,
+} from "../../document/chapter/path.js";
 import { getChapterDetails, requireChapterDetails } from "./details.js";
 import { normalizeChapterToc } from "./entries.js";
 import {
@@ -34,10 +39,12 @@ export async function addChapter(
   return await document.openSession(async (openedDocument) => {
     const toc = await normalizeChapterToc(openedDocument);
     const normalizedTitle = normalizeTitle(options.title);
+    const existingKeys = collectChapterKeys(toc.items);
 
     const chapterId = await openedDocument.createSerial();
     const chapterItem = {
       children: [],
+      key: createChapterKey(normalizedTitle, existingKeys),
       serialId: chapterId,
       ...(normalizedTitle === undefined ? {} : { title: normalizedTitle }),
     } satisfies TocItem;
@@ -48,13 +55,25 @@ export async function addChapter(
       !appendChildToChapter(toc.items, options.parentChapterId, chapterItem)
     ) {
       throw new Error(
-        `Chapter ${options.parentChapterId} does not exist. Use \`wg <archive-uri>/chapter list\` to discover chapter ids.`,
+        "Parent chapter does not exist. Use `wg <archive-uri>/chapter` to discover chapter URIs.",
       );
     }
 
     await openedDocument.replaceToc(toc);
     return await getChapterDetails(openedDocument, chapterId);
   });
+}
+
+export async function resolveChapterPath(
+  document: Document,
+  chapterPath: string,
+): Promise<number> {
+  const toc = await normalizeChapterToc(document);
+  const chapterId = resolveChapterIdByPath(toc.items, chapterPath);
+  if (chapterId === undefined) {
+    throw new Error(`Chapter path ${chapterPath} does not exist.`);
+  }
+  return chapterId;
 }
 
 export async function applyChapterTree(
@@ -93,7 +112,7 @@ export async function moveChapter(
 
     if (extracted.item === undefined) {
       throw new Error(
-        `Chapter ${chapterId} does not exist. Use \`wg <archive-uri>/chapter list\` to discover chapter ids.`,
+        "Chapter does not exist. Use `wg <archive-uri>/chapter` to discover chapter URIs.",
       );
     }
 
@@ -124,7 +143,7 @@ export async function removeChapter(
 
     if (!result.removed) {
       throw new Error(
-        `Chapter ${chapterId} does not exist. Use \`wg <archive-uri>/chapter list\` to discover chapter ids.`,
+        "Chapter does not exist. Use `wg <archive-uri>/chapter` to discover chapter URIs.",
       );
     }
 
@@ -171,7 +190,7 @@ export async function setChapterSource(
 
     if (details.stage !== "planned") {
       throw new Error(
-        `Chapter ${chapterId} is ${details.stage}. Reset it to planned before setting source.`,
+        `Chapter ${details.uri} is ${details.stage}. Reset it to planned before setting source.`,
       );
     }
 
@@ -190,7 +209,7 @@ export async function setChapterSummary(
 
     if (details.stage !== "graphed") {
       throw new Error(
-        `Chapter ${chapterId} is ${details.stage}. Set a summary only for graphed chapters.`,
+        `Chapter ${details.uri} is ${details.stage}. Set a summary only for graphed chapters.`,
       );
     }
 
@@ -210,7 +229,7 @@ export async function setChapterTitle(
 
     if (!setChapterTitleInItems(toc.items, chapterId, normalizedTitle)) {
       throw new Error(
-        `Chapter ${chapterId} does not exist. Use \`wg <archive-uri>/chapter list\` to discover chapter ids.`,
+        "Chapter does not exist. Use `wg <archive-uri>/chapter` to discover chapter URIs.",
       );
     }
 

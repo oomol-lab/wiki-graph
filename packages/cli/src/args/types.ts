@@ -62,8 +62,11 @@ export type CLIArchiveChapterAction =
 
 export interface CLIArchiveChapterArguments {
   readonly action: CLIArchiveChapterAction;
+  readonly afterChapterPath?: string;
   readonly afterChapterId?: number;
+  readonly beforeChapterPath?: string;
   readonly beforeChapterId?: number;
+  readonly chapterPath?: string;
   readonly chapterId?: number;
   readonly clearTitle?: boolean;
   readonly dryRun?: boolean;
@@ -74,6 +77,7 @@ export interface CLIArchiveChapterArguments {
   readonly last?: boolean;
   readonly llmJSON?: string;
   readonly moveToRoot?: boolean;
+  readonly parentChapterPath?: string;
   readonly parentChapterId?: number;
   readonly path: string;
   readonly prompt?: string;
@@ -157,6 +161,7 @@ export interface CLIQueueArguments {
   readonly archivePath?: string;
   readonly boost?: boolean;
   readonly chapterId?: number;
+  readonly chapterPath?: string;
   readonly from?: "beginning" | "now";
   readonly inputPath?: string;
   readonly jobId?: string;

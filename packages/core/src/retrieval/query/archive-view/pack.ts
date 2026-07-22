@@ -25,7 +25,21 @@ export async function packArchiveContext(
 }
 
 function validatePackReference(id: string): void {
-  const reference = parseWikiGraphReference(id);
+  let reference: ReturnType<typeof parseWikiGraphReference>;
+  try {
+    reference = parseWikiGraphReference(id);
+  } catch (error) {
+    if (
+      /^wikg:\/\/chapter\/.+\/(?:source|summary|title|state)(?:[#/]|$)/u.test(
+        id,
+      )
+    ) {
+      throw new Error(
+        `Pack is only available for chunk and entity objects: ${id}`,
+      );
+    }
+    throw error;
+  }
 
   switch (reference.type) {
     case "chunk":

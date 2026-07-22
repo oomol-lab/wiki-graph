@@ -23,11 +23,7 @@ import {
   matchText,
 } from "./helpers.js";
 import type { ArchiveTextSearch } from "./helpers.js";
-import {
-  formatChapterTitleId,
-  formatNodeId,
-  formatTextStreamRangeUri,
-} from "./references.js";
+import { formatNodeId, formatTextStreamRangeUri } from "./references.js";
 import { createTextStreamIndex } from "./text-streams.js";
 import type {
   ArchiveFindHit,
@@ -220,14 +216,14 @@ export async function findChapters(
   const hits: ArchiveFindHit[] = [];
 
   for (const chapter of await listChapters(document)) {
-    const title = chapter.title ?? `[chapter ${chapter.chapterId}]`;
+    const title = chapter.title ?? chapter.uri;
     const titleMatch = matchText(title, search);
 
     if (titleMatch !== undefined) {
       hits.push({
         chapter: chapter.chapterId,
         field: "title",
-        id: formatChapterTitleId(chapter.chapterId),
+        id: `${chapter.uri}/title`,
         ...createFindMatchFields(titleMatch),
         position: {
           chapter: chapter.chapterId,
@@ -242,6 +238,7 @@ export async function findChapters(
       ...(await findTextStreamSentences(
         document,
         chapter.chapterId,
+        chapter.path,
         "summary",
         title,
         search,
@@ -252,6 +249,7 @@ export async function findChapters(
       ...(await findTextStreamSentences(
         document,
         chapter.chapterId,
+        chapter.path,
         "source",
         title,
         search,
@@ -265,6 +263,7 @@ export async function findChapters(
 async function findTextStreamSentences(
   document: ReadonlyDocument,
   chapterId: number,
+  chapterPath: string,
   stream: ArchiveTextStreamKind,
   title: string,
   search: ArchiveTextSearch,
@@ -283,7 +282,7 @@ async function findTextStreamSentences(
         chapter: chapterId,
         field: stream,
         id: formatTextStreamRangeUri(
-          chapterId,
+          chapterPath,
           stream,
           sentence.globalIndex,
           sentence.globalIndex,

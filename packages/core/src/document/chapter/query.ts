@@ -51,7 +51,7 @@ export async function getChapterTree(
   const toc = await readChapterToc(document);
 
   return {
-    chapters: toc.items.flatMap(toChapterTreeNodes),
+    chapters: toc.items.flatMap((item) => toChapterTreeNodes(item)),
   };
 }
 

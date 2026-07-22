@@ -120,6 +120,7 @@ export {
   parseChapterTreeInput,
   removeChapter,
   resetChapter,
+  resolveChapterPath,
   setChapterSource,
   setChapterSummary,
   setChapterTitle,

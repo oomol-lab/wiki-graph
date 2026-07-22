@@ -20,7 +20,7 @@ export interface ChapterTreeInput {
 
 export interface ChapterTreeInputNode {
   readonly children: readonly ChapterTreeInputNode[];
-  readonly id: number;
+  readonly uri: string;
   readonly title?: string | null | undefined;
 }
 
@@ -32,17 +32,18 @@ export interface ChapterTreeApplyResult {
 }
 
 export interface ChapterTreeMoveChange {
-  readonly chapterId: number;
+  readonly newUri: string;
   readonly newIndex: number;
-  readonly newParentChapterId: number | null;
   readonly newPath: readonly string[];
+  readonly newParentUri: string | null;
+  readonly oldUri: string;
   readonly oldIndex: number;
-  readonly oldParentChapterId: number | null;
   readonly oldPath: readonly string[];
+  readonly oldParentUri: string | null;
 }
 
 export interface ChapterTreeTitleChange {
-  readonly chapterId: number;
+  readonly uri: string;
   readonly newTitle: string | null;
   readonly oldTitle: string | null;
 }

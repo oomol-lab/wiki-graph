@@ -129,7 +129,7 @@ describe("archive/query/archive-view/collection", () => {
 
         expect(result.items.map((item) => item.id)).toEqual(
           expect.arrayContaining([
-            "chapter-title:1",
+            "wikg://chapter/introduction/title",
             "wikg://entity/Q1",
             "node:100",
             "node:101",
@@ -137,7 +137,7 @@ describe("archive/query/archive-view/collection", () => {
         );
         expect(result.items.map((item) => item.id)).not.toEqual(
           expect.arrayContaining([
-            "chapter-title:2",
+            "wikg://chapter/second/title",
             "node:200",
             "wikg://chapter/2/summary#1",
             "wikg://triple/Q1/mentions/Q2",
@@ -194,7 +194,7 @@ describe("archive/query/archive-view/collection", () => {
         expect(entityWithEvidence?.type).toBe("entity");
         expect(entityWithEvidence?.evidence?.shown).toBe(1);
         expect(entityWithEvidence?.evidence?.sources[0]?.id).toBe(
-          "wikg://chapter/2/source#1",
+          "wikg://chapter/second/source#1",
         );
       } finally {
         await document.release();

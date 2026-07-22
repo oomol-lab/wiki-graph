@@ -108,8 +108,8 @@ describe("facade/chapter", () => {
           chapters: [
             {
               children: [],
-              id: 1,
               title: "Chapter 1",
+              uri: "wikg://chapter/chapter-1",
             },
           ],
         });
@@ -337,6 +337,7 @@ describe("facade/chapter", () => {
           items: [
             {
               children: [],
+              key: "original",
               serialId: chapter.chapterId,
             },
           ],
@@ -455,17 +456,17 @@ describe("facade/chapter", () => {
               children: [
                 {
                   children: [],
-                  id: first.chapterId,
                   title: "First",
+                  uri: first.uri,
                 },
                 {
                   children: [],
-                  id: second.chapterId,
+                  uri: second.uri,
                   title: null,
                 },
               ],
-              id: part.chapterId,
               title: "Part",
+              uri: part.uri,
             },
           ],
         });
@@ -476,18 +477,18 @@ describe("facade/chapter", () => {
             chapters: [
               {
                 children: [],
-                id: second.chapterId,
+                uri: "wikg://chapter/chapter",
                 title: "Second",
               },
               {
                 children: [
                   {
                     children: [],
-                    id: first.chapterId,
+                    uri: first.uri,
                     title: null,
                   },
                 ],
-                id: part.chapterId,
+                uri: part.uri,
               },
             ],
           }),
@@ -495,23 +496,21 @@ describe("facade/chapter", () => {
         );
 
         expect(dryRun.changed).toBe(true);
-        expect(dryRun.moved.map((move) => move.chapterId)).toContain(
-          second.chapterId,
-        );
+        expect(dryRun.moved.map((move) => move.oldUri)).toContain(second.uri);
         expect(
-          [...dryRun.renamed].sort(
-            (left, right) => left.chapterId - right.chapterId,
+          [...dryRun.renamed].sort((left, right) =>
+            left.uri.localeCompare(right.uri),
           ),
         ).toStrictEqual([
           {
-            chapterId: first.chapterId,
-            newTitle: null,
-            oldTitle: "First",
-          },
-          {
-            chapterId: second.chapterId,
+            uri: "wikg://chapter/chapter",
             newTitle: "Second",
             oldTitle: null,
+          },
+          {
+            uri: first.uri,
+            newTitle: null,
+            oldTitle: "First",
           },
         ]);
         await expect(listChapters(document)).resolves.toMatchObject([
@@ -526,18 +525,18 @@ describe("facade/chapter", () => {
             chapters: [
               {
                 children: [],
-                id: second.chapterId,
+                uri: "wikg://chapter/chapter",
                 title: "Second",
               },
               {
                 children: [
                   {
                     children: [],
-                    id: first.chapterId,
+                    uri: first.uri,
                     title: null,
                   },
                 ],
-                id: part.chapterId,
+                uri: part.uri,
               },
             ],
           }),
@@ -556,18 +555,18 @@ describe("facade/chapter", () => {
               chapters: [
                 {
                   children: [],
-                  id: second.chapterId,
+                  uri: second.uri,
                 },
               ],
             }),
           ),
-        ).rejects.toThrow("missing chapter ids");
+        ).rejects.toThrow("does not match its JSON parent path");
         expect(() =>
           parseChapterTreeInput({
             chapters: [
               {
                 children: [],
-                id: second.chapterId,
+                uri: second.uri,
                 summary: "not allowed",
               },
             ],

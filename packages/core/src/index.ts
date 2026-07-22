@@ -128,6 +128,11 @@ export {
 } from "./api/index.js";
 export type { WikiGraphSerialEntry } from "./api/index.js";
 export {
+  formatChapterUri,
+  parseChapterPath,
+  parseChapterUriPath,
+} from "./document/chapter/path.js";
+export {
   formatLocatedChapterResourceUri,
   formatLocatedChapterSourceCollectionUri,
   formatLocatedChapterUri,
@@ -258,6 +263,7 @@ export {
   parseChapterTreeInput,
   removeChapter,
   resetChapter,
+  resolveChapterPath,
   setChapterSource,
   setChapterSummary,
   setChapterTitle,

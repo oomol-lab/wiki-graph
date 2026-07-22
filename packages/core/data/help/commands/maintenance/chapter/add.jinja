@@ -22,7 +22,7 @@ Behavior:
 
 Output shape:
   Prints the new chapter status.
-  The `Chapter: <id>` line is the new chapter id for later commands.
+  The `Chapter: <uri>` line is the new chapter URI for later commands.
   With `--json`, prints the new chapter status as one JSON object.
 
 Typical next step:
@@ -30,12 +30,12 @@ Typical next step:
 
 Examples:
   {{ commandName }} wikg://book.wikg/chapter add --title "Part I"
-  {{ commandName }} wikg://book.wikg/chapter add --title "Chapter 1" --input ./chapter.txt --parent wikg://book.wikg/chapter/3
+  {{ commandName }} wikg://book.wikg/chapter add --title "Chapter 1" --input ./chapter.txt --parent wikg://book.wikg/chapter/part
   cat chapter.txt | {{ commandName }} wikg://book.wikg/chapter add --title "Chapter 1" --input -
 
 See also:
   - {{ commandName }} wikg://book.wikg/chapter --help
-  - {{ commandName }} wikg://book.wikg/chapter/3/source set --help
+  - {{ commandName }} wikg://book.wikg/chapter/part/source set --help
   - {{ commandName }} help format
   - {{ commandName }} help readiness
   - {{ commandName }} --help

@@ -78,7 +78,6 @@ import { addBuildJob, listBuildJobs } from "wiki-graph-core";
 
 const job = await addBuildJob({
   archivePath: "research.wikg",
-  chapterId: 1,
   target: "knowledge-graph",
 });
 

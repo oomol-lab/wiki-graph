@@ -86,7 +86,7 @@ const URI_HELP_TARGETS: readonly UriHelpTarget[] = [
   { name: "chapter-collection-scope", predicates: ["add"] },
   {
     name: "chapter-scope",
-    predicates: ["inspect", "move", "remove", "reset"],
+    predicates: ["move", "remove", "reset"],
   },
   { name: "chapter-source-object", predicates: ["set"] },
   { name: "chapter-summary-object", predicates: ["set"] },

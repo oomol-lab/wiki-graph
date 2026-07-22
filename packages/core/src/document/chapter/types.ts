@@ -13,9 +13,12 @@ export interface ChapterEntry {
   readonly depth: number;
   readonly documentOrder: number;
   readonly fragmentCount: number;
+  readonly key: string;
+  readonly path: string;
   readonly stage: ChapterStage;
   readonly title: string | null;
   readonly tocPath: readonly string[];
+  readonly uri: string;
   readonly words: number;
 }
 
@@ -28,9 +31,8 @@ export interface ChapterDetails extends ChapterEntry {
 export interface ChapterTree {
   readonly chapters: readonly ChapterTreeNode[];
 }
-
 export interface ChapterTreeNode {
   readonly children: readonly ChapterTreeNode[];
-  readonly id: number;
   readonly title: string | null;
+  readonly uri: string;
 }

@@ -139,14 +139,21 @@ function classifyArchiveUri(objectUri: string | undefined): ArchiveUriKind {
 
   const path = stripObjectUriPrefix(objectUri);
 
-  if (path === "chapter") {
-    return "scope";
-  }
-  if (/^chapter\/[1-9][0-9]*$/u.test(path)) {
-    return "scope";
-  }
-  if (/^chapter\/[1-9][0-9]*\/(?:chunk|entity)$/u.test(path)) {
-    return "scope";
+  const chapterTarget = parseChapterTarget(objectUri);
+  if (chapterTarget !== undefined) {
+    switch (chapterTarget.kind) {
+      case "collection":
+      case "chapter":
+      case "lens":
+      case "triple-pattern-lens":
+      case "chapter-lens":
+      case "chapter-triple-pattern-lens":
+        return "scope";
+      case "tree":
+      case "chapter-resource":
+      case "chapter-state":
+        return "object";
+    }
   }
   if (isTripleScopePath(path)) {
     return "scope";
@@ -174,26 +181,46 @@ function classifyArchiveUriHelpTarget(uri: string): UriHelpTargetName {
   if (path === "index") {
     return "index-object";
   }
-  if (path === "chapter") {
-    return "chapter-collection-scope";
-  }
-  if (/^chapter\/[1-9][0-9]*$/u.test(path)) {
-    return "chapter-scope";
-  }
-  if (path === "chapter/tree") {
-    return "chapter-tree-object";
-  }
-  if (/^chapter\/[1-9][0-9]*\/state(?:\/.+)?$/u.test(path)) {
-    return "chapter-state-object";
-  }
-  if (/^chapter\/[1-9][0-9]*\/source(?:#.*)?$/u.test(path)) {
-    return "chapter-source-object";
-  }
-  if (/^chapter\/[1-9][0-9]*\/summary(?:#.*)?$/u.test(path)) {
-    return "chapter-summary-object";
-  }
-  if (/^chapter\/[1-9][0-9]*\/title$/u.test(path)) {
-    return "chapter-title-object";
+  const chapterTarget = parseChapterTarget(objectUri);
+  if (chapterTarget !== undefined) {
+    switch (chapterTarget.kind) {
+      case "collection":
+        return "chapter-collection-scope";
+      case "chapter":
+        return "chapter-scope";
+      case "tree":
+        return "chapter-tree-object";
+      case "chapter-state":
+        return "chapter-state-object";
+      case "chapter-resource":
+        switch (chapterTarget.resource) {
+          case "source":
+            return "chapter-source-object";
+          case "summary":
+            return "chapter-summary-object";
+          case "title":
+            return "chapter-title-object";
+        }
+        break;
+      case "lens":
+      case "chapter-lens":
+        switch (chapterTarget.lens) {
+          case "chunk":
+            return "chunk-scope";
+          case "entity":
+            return "entity-scope";
+          case "source":
+            return "chapter-source-object";
+          case "summary":
+            return "chapter-summary-object";
+          case "triple":
+            return "triple-scope";
+        }
+        break;
+      case "triple-pattern-lens":
+      case "chapter-triple-pattern-lens":
+        return "triple-scope";
+    }
   }
   if (/^(?:chapter\/[1-9][0-9]*\/)?chunk$/u.test(path)) {
     return "chunk-scope";

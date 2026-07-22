@@ -29,7 +29,7 @@ export async function createSourceEvidenceItem(
     endSentenceIndex: range.endSentenceIndex,
     fragmentId: range.startSentenceIndex,
     id: formatTextStreamRangeUri(
-      chapterId,
+      chapter.path,
       "source",
       range.startSentenceIndex,
       range.endSentenceIndex,
@@ -37,7 +37,7 @@ export async function createSourceEvidenceItem(
     ...(score === undefined ? {} : { score }),
     source: range.text,
     startSentenceIndex: range.startSentenceIndex,
-    title: chapter.title ?? `[chapter ${chapterId}]`,
+    title: chapter.title ?? chapter.uri,
     type: "source",
   };
 }

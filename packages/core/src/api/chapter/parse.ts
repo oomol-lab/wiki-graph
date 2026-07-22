@@ -5,7 +5,7 @@ import type { ChapterTreeInput, ChapterTreeInputNode } from "./types.js";
 const chapterTreeInputNodeSchema: z.ZodType<ChapterTreeInputNode> = z
   .object({
     children: z.lazy(() => z.array(chapterTreeInputNodeSchema)),
-    id: z.number().int().nonnegative(),
+    uri: z.string().min(1),
     title: z.string().nullable().optional(),
   })
   .strict();
