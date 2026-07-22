@@ -155,16 +155,23 @@ function filterQidOption(
     return allowedQids.has(option.qid) ? option : undefined;
   }
 
-  const linkedQids = option.disambiguation.linkedQids.filter((item) =>
-    allowedQids.has(item.qid),
-  );
+  const profileMeanings = option.disambiguation.profile?.meanings ?? [];
+  const hasProfileMeanings = profileMeanings.length > 0;
+  const linkedQids = hasProfileMeanings
+    ? option.disambiguation.linkedQids
+    : option.disambiguation.linkedQids.filter((item) =>
+        allowedQids.has(item.qid),
+      );
   const profile = filterDisambiguationProfile(
     option.disambiguation.profile,
     allowedQids,
   );
-  const hasProfileMeanings = (profile?.meanings.length ?? 0) > 0;
+  const hasFilteredProfileMeanings = (profile?.meanings.length ?? 0) > 0;
 
-  if (linkedQids.length === 0 && !hasProfileMeanings) {
+  if (hasProfileMeanings && !hasFilteredProfileMeanings) {
+    return undefined;
+  }
+  if (linkedQids.length === 0 && !hasFilteredProfileMeanings) {
     return undefined;
   }
 
@@ -199,12 +206,10 @@ function listSelectableQids(option: WikimatchQidOption): readonly string[] {
     return [option.qid];
   }
 
-  return [
-    ...new Set([
-      ...(option.disambiguation.profile?.meanings.map(
-        (meaning) => meaning.qid,
-      ) ?? []),
-      ...option.disambiguation.linkedQids.map((item) => item.qid),
-    ]),
-  ];
+  const profileQids =
+    option.disambiguation.profile?.meanings.map((meaning) => meaning.qid) ?? [];
+
+  return profileQids.length > 0
+    ? [...new Set(profileQids)]
+    : [...new Set(option.disambiguation.linkedQids.map((item) => item.qid))];
 }

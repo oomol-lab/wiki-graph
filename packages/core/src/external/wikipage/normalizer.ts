@@ -148,6 +148,9 @@ function buildNormalizerMessages(
         "Page QID links:",
         JSON.stringify(input.pageQidLinks.map(formatPageQidLink), null, 2),
         "",
+        "Structured disambiguation pages:",
+        JSON.stringify(input.pages.map(formatStructuredPage), null, 2),
+        "",
         "Disambiguation page text:",
         input.pages
           .map(
@@ -188,6 +191,41 @@ function formatPageQidLink(item: DisambiguationLinkedQid): object {
     qid: item.qid,
     title: item.title,
   };
+}
+
+function formatStructuredPage(
+  page: DisambiguationProfileNormalizerInput["pages"][number],
+): object {
+  return {
+    ...(page.pageId === undefined ? {} : { pageid: page.pageId }),
+    items: extractPageItems(page.text),
+    title: page.title,
+    wiki: page.wiki,
+  };
+}
+
+function extractPageItems(text: string): readonly object[] {
+  return text
+    .split("\n")
+    .map((line) => line.trim())
+    .filter((line) => line.startsWith("* "))
+    .map((line) => ({
+      links: extractWikgLinks(line),
+      text: stripWikiLinks(line.slice(2).trim()),
+    }));
+}
+
+function extractWikgLinks(text: string): readonly object[] {
+  return [
+    ...text.matchAll(/\[\[([^\]|]+)\|wikg:\/\/qid=(Q[1-9]\d*)\]\]/gu),
+  ].map((match) => ({
+    label: match[1]!,
+    qid: match[2]!,
+  }));
+}
+
+function stripWikiLinks(text: string): string {
+  return text.replace(/\[\[([^\]|]+)\|wikg:\/\/qid=Q[1-9]\d*\]\]/gu, "$1");
 }
 
 function truncatePageText(text: string): string {

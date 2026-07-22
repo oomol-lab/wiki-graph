@@ -5,6 +5,7 @@ import { describe, expect, it } from "vitest";
 import { withLoggingContext } from "../../../../packages/core/src/runtime/common/logging.js";
 import { Database } from "../../../../packages/core/src/document/index.js";
 import { WikipageResolver } from "../../../../packages/core/src/external/wikipage/index.js";
+import { listCandidateSelectableQids } from "../../../../packages/core/src/external/wikimatch/index.js";
 import { withTempDir } from "../../../helpers/temp.js";
 
 describe("wikipage/resolver", () => {
@@ -371,6 +372,79 @@ describe("wikipage/resolver", () => {
     });
   });
 
+  it("uses the Yangshan fixture to keep context-only links out of final selectable QIDs", async () => {
+    await withTempDir("wikigraph-wikipage-", async (path) => {
+      const calls: string[] = [];
+      const resolver = await WikipageResolver.open({
+        cacheDatabasePath: `${path}/cache.sqlite`,
+        fetch: await createYangshanMockFetch(calls),
+        language: "zh",
+        minRequestIntervalMs: 0,
+        normalizer: (input) => {
+          expect(input.pages[0]?.pageId).toBe(287840);
+          expect(input.pageQidLinks.map((item) => item.qid)).toEqual(
+            expect.arrayContaining(["Q15175", "Q16963", "Q42651"]),
+          );
+
+          return Promise.resolve({
+            meanings: [
+              {
+                category: "place",
+                information: "广东省阳山县",
+                name: "阳山县",
+                priority: "primary",
+                qid: "Q286151",
+              },
+              {
+                category: "place",
+                information: "江苏省无锡市阳山镇，被稱为中国水蜜桃之乡",
+                name: "阳山镇",
+                priority: "primary",
+                qid: "Q13779122",
+              },
+            ],
+            sourceQid: input.sourceQid,
+            ...(input.surface === undefined ? {} : { surface: input.surface }),
+          });
+        },
+        retryBaseDelayMs: 0,
+      });
+
+      try {
+        const [resolution] = await resolver.resolveQids(["Q15880244"]);
+        const disambiguation = resolution?.disambiguation;
+
+        expect(disambiguation).toBeDefined();
+
+        expect(disambiguation?.linkedQids.map((item) => item.qid)).toEqual(
+          expect.arrayContaining(["Q15175", "Q16963", "Q42651"]),
+        );
+        expect(
+          disambiguation?.profile?.meanings.map((item) => item.qid),
+        ).toStrictEqual(["Q286151", "Q13779122"]);
+        expect(
+          listCandidateSelectableQids({
+            id: "c1",
+            qidOptions: [
+              {
+                disambiguation: disambiguation!,
+                isDisambiguation: true,
+                label: "阳山",
+                qid: "Q15880244",
+              },
+            ],
+            range: { end: 2, start: 0 },
+            surface: "阳山",
+          }),
+        ).toStrictEqual(["Q286151", "Q13779122"]);
+      } finally {
+        await resolver.close();
+      }
+
+      expect(calls.some((call) => call.includes("action=parse"))).toBe(true);
+    });
+  });
+
   it("keeps cache entries across resolver reopen", async () => {
     await withTempDir("wikigraph-wikipage-", async (path) => {
       const calls: string[] = [];
@@ -544,6 +618,73 @@ function createMockFetch(calls: string[]): typeof fetch {
           },
         }),
       );
+    }
+
+    return Promise.resolve(jsonResponse({}, 404));
+  }) as typeof fetch;
+}
+
+async function createYangshanMockFetch(calls: string[]): Promise<typeof fetch> {
+  const parseFixture = JSON.parse(
+    await readFile("test/fixtures/wikipage/zh-yangshan-parse.json", "utf8"),
+  ) as unknown;
+  const pageQids: Record<string, string | undefined> = {
+    广东省: "Q15175",
+    江苏省: "Q16963",
+    无锡市: "Q42651",
+    阳山: "Q15880244",
+    "阳山 (南京)": undefined,
+    阳山县: "Q286151",
+    阳山镇: "Q13779122",
+  };
+
+  return ((input: string | URL | Request) => {
+    const url = new URL(input instanceof Request ? input.url : input);
+    calls.push(url.toString());
+
+    if (url.hostname === "www.wikidata.org") {
+      return Promise.resolve(
+        jsonResponse({
+          entities: {
+            Q15880244: {
+              descriptions: {
+                zh: { value: "维基媒体消歧义页" },
+              },
+              labels: {
+                zh: { value: "阳山" },
+              },
+              sitelinks: {
+                zhwiki: { title: "阳山" },
+              },
+            },
+          },
+        }),
+      );
+    }
+
+    if (url.searchParams.get("action") === "query") {
+      const titles = url.searchParams.get("titles")?.split("|") ?? [];
+
+      return Promise.resolve(
+        jsonResponse({
+          query: {
+            pages: titles.map((title) => ({
+              pageid: title === "阳山" ? 287840 : 1,
+              pageprops: {
+                ...(title === "阳山" ? { disambiguation: "" } : {}),
+                ...(pageQids[title] === undefined
+                  ? {}
+                  : { wikibase_item: pageQids[title] }),
+              },
+              title,
+            })),
+          },
+        }),
+      );
+    }
+
+    if (url.searchParams.get("action") === "parse") {
+      return Promise.resolve(jsonResponse(parseFixture));
     }
 
     return Promise.resolve(jsonResponse({}, 404));

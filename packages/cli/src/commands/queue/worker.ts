@@ -7,6 +7,7 @@ import {
   commitChapterGraphArtifact,
   commitChapterKnowledgeGraphArtifact,
   commitChapterSummaryArtifact,
+  createDisambiguationProfileNormalizer,
   generateChapterKnowledgeGraphArtifactFromSnapshot,
   getBuildJob,
   readChapterBuildInput,
@@ -154,6 +155,7 @@ async function executeBuildJobWithLogging(
         request,
         resolverOptions: {
           logDirPath: job.logPath,
+          normalizer: createDisambiguationProfileNormalizer({ request }),
         },
         wikispine,
         workspacePath: job.workspacePath,
