@@ -8,6 +8,8 @@ export function createSearchIndexFingerprint(input: SearchIndexInput): string {
   for (const record of input.textSentences) {
     hash.update("text");
     hash.update("\0");
+    hash.update(String(record.archiveId));
+    hash.update("\0");
     hash.update(String(record.kind));
     hash.update("\0");
     hash.update(String(record.chapterId));
@@ -20,6 +22,8 @@ export function createSearchIndexFingerprint(input: SearchIndexInput): string {
 
   for (const record of input.objectProperties) {
     hash.update("object-property");
+    hash.update("\0");
+    hash.update(String(record.archiveId));
     hash.update("\0");
     hash.update(String(record.ownerKind));
     hash.update("\0");

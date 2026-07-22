@@ -291,6 +291,18 @@ export const SCHEMA_SQL = `
   );
 `;
 
+export const SEARCH_INDEX_TEXT_SENTENCE_RECORDS_COLUMNS_SQL = `
+  id INTEGER PRIMARY KEY,
+  archive_id INTEGER NOT NULL,
+  kind INTEGER NOT NULL,
+  chapter_id INTEGER NOT NULL,
+  sentence_index INTEGER NOT NULL,
+  words_count INTEGER NOT NULL DEFAULT 0,
+  byte_offset INTEGER NOT NULL DEFAULT 0,
+  byte_length INTEGER NOT NULL DEFAULT 0,
+  UNIQUE(archive_id, kind, chapter_id, sentence_index)
+`;
+
 export const SEARCH_INDEX_SCHEMA_SQL = `
   CREATE TABLE IF NOT EXISTS search_index_state (
     key TEXT PRIMARY KEY,
@@ -298,18 +310,11 @@ export const SEARCH_INDEX_SCHEMA_SQL = `
   );
 
   CREATE TABLE IF NOT EXISTS text_sentence_records (
-    id INTEGER PRIMARY KEY,
-    kind INTEGER NOT NULL,
-    chapter_id INTEGER NOT NULL,
-    sentence_index INTEGER NOT NULL,
-    words_count INTEGER NOT NULL DEFAULT 0,
-    byte_offset INTEGER NOT NULL DEFAULT 0,
-    byte_length INTEGER NOT NULL DEFAULT 0,
-    UNIQUE(kind, chapter_id, sentence_index)
+${SEARCH_INDEX_TEXT_SENTENCE_RECORDS_COLUMNS_SQL}
   );
 
   CREATE INDEX IF NOT EXISTS idx_text_sentence_records_chapter
-  ON text_sentence_records(kind, chapter_id, sentence_index);
+  ON text_sentence_records(archive_id, kind, chapter_id, sentence_index);
 
   CREATE VIRTUAL TABLE IF NOT EXISTS text_sentence_fts USING fts5(
     tier1,
@@ -320,6 +325,7 @@ export const SEARCH_INDEX_SCHEMA_SQL = `
 
   CREATE TABLE IF NOT EXISTS search_object_properties_records (
     id INTEGER PRIMARY KEY,
+    archive_id INTEGER NOT NULL,
     owner_kind INTEGER NOT NULL,
     owner_id TEXT NOT NULL,
     property_kind INTEGER NOT NULL,
@@ -327,16 +333,23 @@ export const SEARCH_INDEX_SCHEMA_SQL = `
   );
 
   CREATE INDEX IF NOT EXISTS idx_search_object_properties_records_owner
-  ON search_object_properties_records(owner_kind, owner_id);
+  ON search_object_properties_records(archive_id, owner_kind, owner_id);
 
   CREATE INDEX IF NOT EXISTS idx_search_object_properties_records_chapter
-  ON search_object_properties_records(chapter_id, owner_kind, owner_id);
+  ON search_object_properties_records(archive_id, chapter_id, owner_kind, owner_id);
 
   CREATE VIRTUAL TABLE IF NOT EXISTS search_object_properties_fts USING fts5(
     tier1,
     tier2,
     tier3,
     tokenize='ascii'
+  );
+
+  CREATE TABLE IF NOT EXISTS index_dirty_chapters (
+    archive_id INTEGER NOT NULL,
+    chapter_id INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL,
+    PRIMARY KEY (archive_id, chapter_id)
   );
 `;
 

@@ -30,6 +30,7 @@ import type {
   TextSentenceKind,
 } from "./types.js";
 import { SEARCH_INDEX_FTS_HIT_LIMIT, TIER_WEIGHTS } from "./types.js";
+import { assertSearchIndexNotDirty } from "./status.js";
 
 export async function querySearchIndex(
   document: ReadonlyDocument,
@@ -57,6 +58,7 @@ export async function querySearchIndex(
   const terms = listSearchPlanTerms(plan);
 
   return await document.readSearchIndexDatabase(async (database) => {
+    await assertSearchIndexNotDirty(database);
     const tierQueries = createTierQueries(query, plan, options.match ?? "any");
     const objectHitLimit = options.objectHitLimit ?? SEARCH_INDEX_FTS_HIT_LIMIT;
     const textHitLimit = options.textHitLimit ?? SEARCH_INDEX_FTS_HIT_LIMIT;
@@ -143,6 +145,7 @@ async function queryObjectRows(
         r.owner_kind AS owner_kind,
         r.owner_id AS owner_id,
         r.property_kind AS property_kind,
+        r.archive_id AS archive_id,
         r.chapter_id AS chapter_id,
         bm25(search_object_properties_fts, ?, ?, ?) AS rank
       FROM search_object_properties_fts
@@ -161,6 +164,7 @@ async function queryObjectRows(
     ],
     (row) => ({
       ownerId: String(row.owner_id),
+      archiveId: getNumber(row, "archive_id"),
       ownerKind: getNumber(row, "owner_kind") as SearchObjectPropertyOwnerKind,
       propertyKind: getNumber(row, "property_kind") as SearchObjectPropertyKind,
       score: rankToScore(getNumber(row, "rank")),
@@ -201,6 +205,7 @@ async function queryTextRows(
     `
       SELECT
         kind,
+        archive_id,
         chapter_id,
         sentence_index,
         words_count,
@@ -208,6 +213,7 @@ async function queryTextRows(
       FROM (
         SELECT
           r.kind AS kind,
+          r.archive_id AS archive_id,
           r.chapter_id AS chapter_id,
           r.sentence_index AS sentence_index,
           r.words_count AS words_count,
@@ -265,6 +271,7 @@ async function queryTextRows(
 
       return {
         chapterId: getNumber(row, "chapter_id"),
+        archiveId: getNumber(row, "archive_id"),
         kind: getNumber(row, "kind") as TextSentenceKind,
         rank,
         score: rankToScore(rank),

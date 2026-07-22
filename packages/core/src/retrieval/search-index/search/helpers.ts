@@ -80,6 +80,7 @@ export function rankToScore(rank: number): number {
 
 export function createObjectHitKey(hit: SearchIndexObjectHit): string {
   return [
+    hit.archiveId,
     hit.ownerKind,
     hit.ownerId,
     hit.propertyKind,
@@ -88,5 +89,5 @@ export function createObjectHitKey(hit: SearchIndexObjectHit): string {
 }
 
 export function createTextHitKey(hit: SearchIndexTextHit): string {
-  return [hit.kind, hit.chapterId, hit.sentenceIndex].join(":");
+  return [hit.archiveId, hit.kind, hit.chapterId, hit.sentenceIndex].join(":");
 }

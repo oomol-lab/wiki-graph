@@ -2,6 +2,7 @@ export {
   createSearchIndexFingerprint,
   ensureSearchIndex,
   isSearchIndexCurrent,
+  markDirtySearchIndexChapters,
   querySearchIndex,
   readArchiveIndexSettings,
   readSearchIndexFingerprintFromDatabase,
@@ -9,6 +10,7 @@ export {
   SEARCH_INDEX_FTS_HIT_LIMIT,
   SEARCH_OBJECT_PROPERTY_KIND,
   SEARCH_OBJECT_PROPERTY_OWNER_KIND,
+  SINGLE_ARCHIVE_INDEX_ID,
   setFtsIndexEmbedded,
   TEXT_SENTENCE_KIND,
 } from "./search/index.js";

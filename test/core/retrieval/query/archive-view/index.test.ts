@@ -1,5 +1,9 @@
+import { mkdir } from "fs/promises";
+import { join } from "path";
+
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
+  Database,
   DirectoryDocument,
   countSearchIndexRows,
   findArchiveObjects,
@@ -7,8 +11,11 @@ import {
   isSearchIndexCurrent,
   listArchiveEvidence,
   listRelatedArchiveObjects,
+  markDirtySearchIndexChapters,
+  querySearchIndex,
   readArchiveIndexSettings,
   rebuildArchiveSearchIndex,
+  seedSourcedDocument,
   setupArchiveViewTestState,
   teardownArchiveViewTestState,
   withTempDir,
@@ -18,6 +25,86 @@ beforeEach(setupArchiveViewTestState);
 afterEach(teardownArchiveViewTestState);
 
 describe("archive/query/archive-view/index", () => {
+  it("projects single-archive search rows with archive_id 0", async () => {
+    await withTempDir("wikigraph-archive-view-", async (path) => {
+      const document = await DirectoryDocument.open(`${path}/document`);
+
+      try {
+        await seedSourcedDocument(document);
+
+        await expect(
+          document.readSearchIndexDatabase(async (database) => {
+            const textArchiveIds = await database.queryAll(
+              `
+                SELECT DISTINCT archive_id
+                FROM text_sentence_records
+                ORDER BY archive_id
+              `,
+              undefined,
+              (row) => Number(row.archive_id),
+            );
+            const objectArchiveIds = await database.queryAll(
+              `
+                SELECT DISTINCT archive_id
+                FROM search_object_properties_records
+                ORDER BY archive_id
+              `,
+              undefined,
+              (row) => Number(row.archive_id),
+            );
+
+            return { objectArchiveIds, textArchiveIds };
+          }),
+        ).resolves.toStrictEqual({
+          objectArchiveIds: [0],
+          textArchiveIds: [0],
+        });
+
+        const result = await querySearchIndex(document, "Wiki");
+
+        expect(result?.textHits[0]).toMatchObject({ archiveId: 0 });
+        expect(result?.objectHits[0]).toMatchObject({ archiveId: 0 });
+      } finally {
+        await document.release();
+      }
+    });
+  });
+
+  it("treats dirty chapter projection rows as an index-backed read blocker", async () => {
+    await withTempDir("wikigraph-archive-view-", async (path) => {
+      const document = await DirectoryDocument.open(`${path}/document`);
+
+      try {
+        await seedSourcedDocument(document);
+        await expect(isArchiveSearchIndexCurrent(document)).resolves.toBe(true);
+
+        await markDirtySearchIndexChapters(document, [1]);
+
+        await expect(isArchiveSearchIndexCurrent(document)).resolves.toBe(
+          false,
+        );
+        await expect(findArchiveObjects(document, "Wiki")).rejects.toThrow(
+          "Wiki Graph search index is missing or outdated. Run `<archive-uri>/index enable` before searching.",
+        );
+        await expect(querySearchIndex(document, "Wiki")).rejects.toThrow(
+          "Archive search index is dirty; rebuild the index before querying.",
+        );
+        await expect(document.readSummary(1)).resolves.toContain("Summary");
+
+        await rebuildArchiveSearchIndex(document);
+
+        await expect(isArchiveSearchIndexCurrent(document)).resolves.toBe(true);
+        await expect(
+          findArchiveObjects(document, "Wiki"),
+        ).resolves.toMatchObject({
+          query: "Wiki",
+        });
+      } finally {
+        await document.release();
+      }
+    });
+  });
+
   it("distinguishes a missing index from a current empty index", async () => {
     await withTempDir("wikigraph-archive-view-", async (path) => {
       const document = await DirectoryDocument.open(`${path}/document`);
@@ -34,6 +121,97 @@ describe("archive/query/archive-view/index", () => {
 
         await expect(isSearchIndexCurrent(document)).resolves.toBe(true);
         await expect(countSearchIndexRows(document)).resolves.toBe(0);
+      } finally {
+        await document.release();
+      }
+    });
+  });
+
+  it("migrates legacy search index uniqueness to include archive_id", async () => {
+    await withTempDir("wikigraph-archive-view-", async (path) => {
+      const documentPath = `${path}/document`;
+      await mkdir(documentPath, { recursive: true });
+      const legacyDatabase = await Database.open(
+        join(documentPath, "fts.db"),
+        `
+          CREATE TABLE text_sentence_records (
+            id INTEGER PRIMARY KEY,
+            kind INTEGER NOT NULL,
+            chapter_id INTEGER NOT NULL,
+            sentence_index INTEGER NOT NULL,
+            words_count INTEGER NOT NULL DEFAULT 0,
+            byte_offset INTEGER NOT NULL DEFAULT 0,
+            byte_length INTEGER NOT NULL DEFAULT 0,
+            UNIQUE(kind, chapter_id, sentence_index)
+          );
+          CREATE TABLE search_object_properties_records (
+            id INTEGER PRIMARY KEY,
+            owner_kind INTEGER NOT NULL,
+            owner_id TEXT NOT NULL,
+            property_kind INTEGER NOT NULL,
+            chapter_id INTEGER
+          );
+        `,
+      );
+
+      try {
+        await legacyDatabase.run(`
+          INSERT INTO text_sentence_records (
+            kind, chapter_id, sentence_index, words_count
+          )
+          VALUES (1, 1, 0, 3)
+        `);
+      } finally {
+        await legacyDatabase.close();
+      }
+
+      const document = await DirectoryDocument.open(documentPath);
+
+      try {
+        await document.writeSearchIndexDatabase(async (database) => {
+          await database.run(
+            `
+              INSERT INTO text_sentence_records (
+                archive_id, kind, chapter_id, sentence_index, words_count
+              )
+              VALUES (?, ?, ?, ?, ?)
+            `,
+            [1, 1, 1, 0, 4],
+          );
+
+          const rows = await database.queryAll(
+            `
+              SELECT archive_id, kind, chapter_id, sentence_index, words_count
+              FROM text_sentence_records
+              ORDER BY archive_id
+            `,
+            undefined,
+            (row) => ({
+              archiveId: Number(row.archive_id),
+              chapterId: Number(row.chapter_id),
+              kind: Number(row.kind),
+              sentenceIndex: Number(row.sentence_index),
+              wordsCount: Number(row.words_count),
+            }),
+          );
+
+          expect(rows).toStrictEqual([
+            {
+              archiveId: 0,
+              chapterId: 1,
+              kind: 1,
+              sentenceIndex: 0,
+              wordsCount: 3,
+            },
+            {
+              archiveId: 1,
+              chapterId: 1,
+              kind: 1,
+              sentenceIndex: 0,
+              wordsCount: 4,
+            },
+          ]);
+        });
       } finally {
         await document.release();
       }

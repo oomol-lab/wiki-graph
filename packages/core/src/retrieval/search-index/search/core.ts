@@ -1,4 +1,5 @@
 export * from "./build.js";
+export * from "./dirty.js";
 export * from "./fingerprint.js";
 export * from "./query.js";
 export * from "./settings.js";

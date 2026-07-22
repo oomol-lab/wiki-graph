@@ -66,6 +66,7 @@ export function isAfterTextKey(
   return (
     compareTextIndexHits(
       {
+        archiveId: 0,
         chapterId: key.chapterId,
         kind: key.kind as SearchIndexTextHit["kind"],
         rank: key.rank,

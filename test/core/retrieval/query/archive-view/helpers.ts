@@ -21,6 +21,7 @@ import {
 } from "../../../../../packages/core/src/retrieval/query/view.js";
 import {
   isSearchIndexCurrent,
+  markDirtySearchIndexChapters,
   querySearchIndex,
   readArchiveIndexSettings,
   SEARCH_INDEX_FTS_HIT_LIMIT,
@@ -56,6 +57,7 @@ export {
   listArchiveEvidence,
   listArchiveObjects,
   listRelatedArchiveObjects,
+  markDirtySearchIndexChapters,
   packArchiveContext,
   querySearchIndex,
   readArchiveIndexSettings,

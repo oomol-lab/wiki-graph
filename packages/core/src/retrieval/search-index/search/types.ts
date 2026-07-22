@@ -3,6 +3,8 @@ export const TEXT_SENTENCE_KIND = {
   summary: 2,
 } as const;
 
+export const SINGLE_ARCHIVE_INDEX_ID = 0;
+
 export type TextSentenceKind =
   (typeof TEXT_SENTENCE_KIND)[keyof typeof TEXT_SENTENCE_KIND];
 
@@ -26,6 +28,7 @@ export type SearchObjectPropertyKind =
   (typeof SEARCH_OBJECT_PROPERTY_KIND)[keyof typeof SEARCH_OBJECT_PROPERTY_KIND];
 
 export interface TextSentenceRecordInput {
+  readonly archiveId: number;
   readonly chapterId: number;
   readonly kind: TextSentenceKind;
   readonly sentenceIndex: number;
@@ -34,6 +37,7 @@ export interface TextSentenceRecordInput {
 }
 
 export interface SearchObjectPropertyRecordInput {
+  readonly archiveId: number;
   readonly chapterId?: number;
   readonly ownerId: string;
   readonly ownerKind: SearchObjectPropertyOwnerKind;
@@ -68,6 +72,7 @@ export type SearchIndexProgressReporter = (
 export type SearchIndexStatus = "current" | "dirty" | "missing";
 
 export interface SearchIndexTextHit {
+  readonly archiveId: number;
   readonly chapterId: number;
   readonly kind: TextSentenceKind;
   readonly rank: number;
@@ -77,6 +82,7 @@ export interface SearchIndexTextHit {
 }
 
 export interface SearchIndexObjectHit {
+  readonly archiveId: number;
   readonly chapterId?: number;
   readonly ownerId: string;
   readonly ownerKind: SearchObjectPropertyOwnerKind;
@@ -90,7 +96,7 @@ export interface SearchIndexQueryResult {
   readonly textHits: readonly SearchIndexTextHit[];
 }
 
-export const SEARCH_INDEX_VERSION = "3";
+export const SEARCH_INDEX_VERSION = "4";
 export const SEARCH_INDEX_FTS_HIT_LIMIT = 32_000;
 export const FTS5_RANK_SCORE_SCALE = 1_000_000;
 export const TIER_WEIGHTS = [1, 0.45, 0.08] as const;

@@ -12,6 +12,16 @@ import {
 import type { SearchIndexInput, SearchIndexProgressReporter } from "./types.js";
 import { SEARCH_INDEX_VERSION } from "./types.js";
 
+export type ArchiveIndexProjection = SearchIndexInput;
+
+export async function writeArchiveIndexProjection(
+  document: Document,
+  projection: ArchiveIndexProjection,
+  progress?: SearchIndexProgressReporter,
+): Promise<void> {
+  await ensureSearchIndex(document, projection, progress);
+}
+
 export async function ensureSearchIndex(
   document: Document,
   input: SearchIndexInput,
@@ -32,7 +42,9 @@ export async function ensureSearchIndex(
       await progress?.({ phase: "clearing" });
       await database.run("DELETE FROM text_sentence_fts");
       await database.run("DELETE FROM search_object_properties_fts");
+      await database.run("DELETE FROM text_sentence_records");
       await database.run("DELETE FROM search_object_properties_records");
+      await database.run("DELETE FROM index_dirty_chapters");
       await database.run("DELETE FROM search_index_state");
 
       let textDone = 0;
