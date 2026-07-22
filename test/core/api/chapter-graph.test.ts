@@ -66,6 +66,7 @@ import {
 } from "../../../packages/core/src/api/chapter/index.js";
 import {
   buildChapterGraphArtifact,
+  buildChapterSummaryArtifact,
   buildChapterSummaryArtifactFromReadingGraphObjects,
   buildChapterSummaryArtifactFromSnapshot,
   commitChapterGraphArtifact,
@@ -415,6 +416,71 @@ describe("facade/chapter graph", () => {
               workspacePath: `${path}/job-workspace`,
             },
           );
+
+        expect(summary).toBe("Alpha beta.");
+      } finally {
+        await document.release();
+      }
+    });
+  });
+
+  it("routes summary artifact builds through reading graph object streams", async () => {
+    await withTempDir("wikigraph-chapter-summary-dispatch-", async (path) => {
+      const document = await DirectoryDocument.open(`${path}/archive`);
+
+      try {
+        const chapter = await addChapter(document, {
+          title: "Chapter 1",
+        });
+        await setChapterSource(document, chapter.chapterId, ["Alpha beta."]);
+        await document.openSession(async (openedDocument) => {
+          await openedDocument.chunks.save({
+            content: "Alpha beta.",
+            generation: 0,
+            id: 1,
+            label: "Alpha",
+            retention: ChunkRetention.Verbatim,
+            sentenceId: [chapter.chapterId, 0],
+            sentenceIds: [[chapter.chapterId, 0]],
+            weight: 1,
+            wordsCount: 2,
+          });
+          await openedDocument.fragmentGroups.save({
+            endSentenceIndex: 0,
+            groupId: 1,
+            serialId: chapter.chapterId,
+            startSentenceIndex: 0,
+          });
+          const snakeId = await openedDocument.snakes.create({
+            firstLabel: "Alpha",
+            groupId: 1,
+            lastLabel: "Alpha",
+            localSnakeId: 1,
+            serialId: chapter.chapterId,
+            size: 1,
+          });
+          await openedDocument.snakeChunks.save({
+            chunkId: 1,
+            position: 0,
+            snakeId,
+          });
+          await openedDocument.serials.setTopologyReady(chapter.chapterId);
+        });
+
+        const snapshot = await snapshotChapterSummaryInput(
+          document,
+          chapter.chapterId,
+          `${path}/job-workspace`,
+        );
+        const summary = await buildChapterSummaryArtifact(
+          document,
+          chapter.chapterId,
+          {
+            llm: {} as never,
+            readingGraphObjectsPath: snapshot.objectsPath,
+            workspacePath: `${path}/job-workspace`,
+          },
+        );
 
         expect(summary).toBe("Alpha beta.");
       } finally {
