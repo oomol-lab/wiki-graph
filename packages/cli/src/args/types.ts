@@ -4,6 +4,7 @@ import type {
   ArchiveTriplePattern,
   BuildJobTarget,
   ChapterStage,
+  ParsedWikiGraphLibraryUri,
 } from "wiki-graph-core";
 
 export interface CLIArguments {
@@ -99,6 +100,27 @@ export interface CLIObjectMetadataArguments {
   readonly key?: string;
   readonly llmJSON?: string;
   readonly objectPath: string;
+}
+
+export type CLILibraryAction =
+  | "clear"
+  | "create"
+  | "delete"
+  | "get"
+  | "list"
+  | "put"
+  | "remove"
+  | "set";
+
+export interface CLILibraryArguments {
+  readonly action: CLILibraryAction;
+  readonly inputPath?: string | undefined;
+  readonly inputValue?: string | undefined;
+  readonly json?: boolean | undefined;
+  readonly jsonInputValue?: string | undefined;
+  readonly key?: string | undefined;
+  readonly path?: string | undefined;
+  readonly target: ParsedWikiGraphLibraryUri;
 }
 
 export type CLILocalConfigAction =
@@ -302,6 +324,7 @@ export interface ArchiveArgumentValues extends ArchiveMetaFlagValues {
   readonly output?: string;
   readonly "output-format"?: string;
   readonly parent?: string;
+  readonly path?: string;
   readonly predicate?: string;
   readonly prompt?: string;
   readonly query?: string;
@@ -363,6 +386,11 @@ export type ParsedCLIArguments =
       readonly args: CLIObjectMetadataArguments;
       readonly help: false;
       readonly kind: "object-metadata";
+    }
+  | {
+      readonly args: CLILibraryArguments;
+      readonly help: false;
+      readonly kind: "library";
     }
   | {
       readonly args: CLIArchiveArguments;

@@ -1,4 +1,5 @@
 import { parseArgs } from "util";
+import { isWikiGraphLibraryUri } from "wiki-graph-core";
 
 import { renderMainHelpText } from "./help.js";
 import { CLI_HELP_ROUTES, withHelpRoute } from "../support/index.js";
@@ -28,6 +29,7 @@ import {
   parseTransformArguments,
 } from "./root/index.js";
 import { parseArchiveUriFirstArguments } from "./uri/index.js";
+import { parseLibraryUriFirstArguments } from "./uri/library.js";
 export function parseCLIArguments(
   argv = process.argv.slice(2),
 ): ParsedCLIArguments {
@@ -140,6 +142,9 @@ export function parseCLIArguments(
         type: "string",
       },
       output: {
+        type: "string",
+      },
+      path: {
         type: "string",
       },
       "output-format": {
@@ -307,6 +312,10 @@ export function parseCLIArguments(
       "wg wikg://local/config --help",
     );
     return parseLocalConfigUriFirstArguments(positionals, values);
+  }
+
+  if (isWikiGraphLibraryUri(positionals[0])) {
+    return parseLibraryUriFirstArguments(positionals, values);
   }
 
   if (isWikiGraphUri(positionals[0])) {

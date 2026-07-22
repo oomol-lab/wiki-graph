@@ -9,6 +9,7 @@ import {
   runConvertCommand,
   runGcCommand,
   runLegacyCommand,
+  runLibraryCommand,
   runLocalConfigCommand,
   runObjectMetadataCommand,
   runQueueCommand,
@@ -47,6 +48,9 @@ export async function main(): Promise<void> {
         return;
       case "object-metadata":
         await runObjectMetadataCommand(parsed.args);
+        return;
+      case "library":
+        await runLibraryCommand(parsed.args);
         return;
       case "chapter":
         await runArchiveChapterCommand(parsed.args);

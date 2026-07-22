@@ -141,6 +141,7 @@ export function normalizeArchiveInlineOptions(
       case "--llm":
       case "--output":
       case "--output-format":
+      case "--path":
       case "--prompt":
       case "--stage":
       case "--to": {

@@ -5,6 +5,7 @@ import type {
   CLIArchiveCoverArguments,
   CLIArchiveIndexArguments,
   CLIArchiveMetadataArguments,
+  CLILibraryArguments,
   CLIGcArguments,
   CLILegacyArguments,
   CLILocalConfigArguments,
@@ -78,6 +79,14 @@ export async function runLocalConfigCommand(
   const command = await import("./local-config.js");
 
   return command.runLocalConfigCommand(args);
+}
+
+export async function runLibraryCommand(
+  args: CLILibraryArguments,
+): Promise<void> {
+  const command = await import("./library.js");
+
+  return command.runLibraryCommand(args);
 }
 
 export async function runObjectMetadataCommand(

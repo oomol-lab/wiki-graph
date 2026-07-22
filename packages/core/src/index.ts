@@ -38,6 +38,27 @@ export {
 export { resolveDataDirPath } from "./runtime/common/data-dir.js";
 export { createEnv } from "./runtime/common/template.js";
 export {
+  clearWikiGraphLibraryMetadata,
+  createWikiGraphLibrary,
+  deleteWikiGraphLibraryMetadataKey,
+  ensureDefaultWikiGraphLibrary,
+  formatWikiGraphLibraryUri,
+  getWikiGraphLibraryMetadata,
+  isWikiGraphLibraryUri,
+  listWikiGraphLibraryScope,
+  parseWikiGraphLibraryUri,
+  putWikiGraphLibraryMetadata,
+  removeWikiGraphLibrary,
+  replaceWikiGraphLibraryMetadata,
+  resolveDefaultWikiGraphLibraryDirectoryPath,
+  resolveWikiGraphLibrary,
+  resolveWikiGraphLibraryStagingDirectoryPath,
+} from "./library/index.js";
+export type {
+  ParsedWikiGraphLibraryUri,
+  WikiGraphLibraryRecord,
+} from "./library/index.js";
+export {
   resolveWikiGraphCoreDatabasePath,
   resolveWikiGraphHomeDirectoryPath,
 } from "./runtime/common/wiki-graph/dir.js";
