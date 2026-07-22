@@ -519,14 +519,16 @@ function formatQidOptions(options: readonly WikimatchQidOption[]): {
 
   for (const option of options) {
     if (option.disambiguation !== undefined) {
+      const profileMeanings = option.disambiguation.profile?.meanings ?? [];
       disambiguationOptions.push({
         ...(option.label === undefined ? {} : { label: option.label }),
         meanings:
-          option.disambiguation.profile?.meanings.map(formatMeaningForPrompt) ??
-          option.disambiguation.linkedQids.map((item) => ({
-            name: item.title,
-            qid: item.qid,
-          })),
+          profileMeanings.length > 0
+            ? profileMeanings.map(formatMeaningForPrompt)
+            : option.disambiguation.linkedQids.map((item) => ({
+                name: item.title,
+                qid: item.qid,
+              })),
       });
       continue;
     }

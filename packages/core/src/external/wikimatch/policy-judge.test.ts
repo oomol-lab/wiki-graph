@@ -127,6 +127,9 @@ describe("wikimatch/policy-judge", () => {
     );
     expect(request.mock.calls[0]?.[0][1]?.content).not.toContain('"id":"DIS1"');
     expect(request.mock.calls[0]?.[0][1]?.content).toContain('"qid":"Q308"');
+    expect(request.mock.calls[0]?.[0][1]?.content).not.toContain(
+      '"qid":"Q15175"',
+    );
     expect(request.mock.calls[0]?.[0][1]?.content).not.toContain("sourceQid");
     expect(request.mock.calls[0]?.[0][1]?.content).not.toContain(
       "isDisambiguation",
@@ -191,6 +194,41 @@ describe("wikimatch/policy-judge", () => {
       expect(error).toBeInstanceOf(ParsedJsonError);
       expect((error as ParsedJsonError).issues[0]).toContain(
         "Allowed QIDs for",
+      );
+    }
+  });
+
+  it("rejects linked-only disambiguation context qids when profile meanings exist", () => {
+    const input = createInput();
+
+    try {
+      parsePolicyResponse(
+        input.candidates,
+        {
+          groups: [
+            {
+              decisions: [
+                {
+                  candidateId: "c3",
+                  decision: "recall",
+                  qid: "Q15175",
+                },
+              ],
+              groupId: "g2",
+            },
+          ],
+        },
+        input.window.groups,
+      );
+      throw new Error("Expected parsePolicyResponse to fail");
+    } catch (error) {
+      expect(error).toBeInstanceOf(ParsedJsonError);
+      expect((error as ParsedJsonError).issues[0]).toContain(
+        "Allowed QIDs for",
+      );
+      expect((error as ParsedJsonError).issues[0]).toContain("Q308");
+      expect((error as ParsedJsonError).issues[0]).toContain(
+        'Allowed QIDs for "Mercury" are: Q308.',
       );
     }
   });
@@ -391,6 +429,10 @@ function createInput(): {
             disambiguationQid: "Q48397",
             linkedQids: [
               {
+                qid: "Q15175",
+                title: "Guangdong",
+              },
+              {
                 qid: "Q308",
                 title: "Mercury (planet)",
               },
@@ -408,6 +450,17 @@ function createInput(): {
                 wiki: "enwiki",
               },
             ],
+            profile: {
+              meanings: [
+                {
+                  information: "the first planet from the Sun",
+                  name: "Mercury (planet)",
+                  priority: "primary",
+                  qid: "Q308",
+                },
+              ],
+              sourceQid: "Q48397",
+            },
           },
           isDisambiguation: true,
           label: "Mercury",

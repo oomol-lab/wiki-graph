@@ -135,6 +135,8 @@ function buildNormalizerMessages(
         "Only use QIDs from the pageQidLinks list.",
         "The information field must only copy or summarize text present on the disambiguation page itself.",
         "Do not use Wikidata descriptions or external knowledge to fill information.",
+        "When a bullet contains multiple links, treat administrative divisions, parent locations, categories, and locator/explanatory links as context only.",
+        "Do not include context-only links as meanings unless the link itself is the disambiguated target.",
         "Prefer common and context-independent meanings over exhaustive long-tail lists.",
       ].join("\n"),
     },
@@ -147,6 +149,9 @@ function buildNormalizerMessages(
         "",
         "Page QID links:",
         JSON.stringify(input.pageQidLinks.map(formatPageQidLink), null, 2),
+        "",
+        "Structured disambiguation pages:",
+        JSON.stringify(input.pages.map(formatStructuredPage), null, 2),
         "",
         "Disambiguation page text:",
         input.pages
@@ -188,6 +193,41 @@ function formatPageQidLink(item: DisambiguationLinkedQid): object {
     qid: item.qid,
     title: item.title,
   };
+}
+
+function formatStructuredPage(
+  page: DisambiguationProfileNormalizerInput["pages"][number],
+): object {
+  return {
+    ...(page.pageId === undefined ? {} : { pageid: page.pageId }),
+    items: extractPageItems(page.text),
+    title: page.title,
+    wiki: page.wiki,
+  };
+}
+
+function extractPageItems(text: string): readonly object[] {
+  return text
+    .split("\n")
+    .map((line) => line.trim())
+    .filter((line) => line.startsWith("* "))
+    .map((line) => ({
+      links: extractWikgLinks(line),
+      text: stripWikiLinks(line.slice(2).trim()),
+    }));
+}
+
+const WIKG_QID_LINK_PATTERN = /\[\[([^\]|]+)\|wikg:\/\/qid=(Q[1-9]\d*)\]\]/gu;
+
+function extractWikgLinks(text: string): readonly object[] {
+  return [...text.matchAll(WIKG_QID_LINK_PATTERN)].map((match) => ({
+    label: match[1]!,
+    qid: match[2]!,
+  }));
+}
+
+function stripWikiLinks(text: string): string {
+  return text.replace(WIKG_QID_LINK_PATTERN, "$1");
 }
 
 function truncatePageText(text: string): string {

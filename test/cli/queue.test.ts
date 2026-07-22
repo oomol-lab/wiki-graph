@@ -937,6 +937,17 @@ describe("cli/queue", () => {
       },
       workspacePath: "/tmp/job-workspace",
     });
+    const knowledgeGraphOptions = queueMockState
+      .buildKnowledgeGraphCalls[0] as {
+      readonly resolverOptions?: Record<string, unknown>;
+    };
+
+    expect(knowledgeGraphOptions.resolverOptions).toMatchObject({
+      logDirPath: "/tmp/job-logs",
+    });
+    expect(knowledgeGraphOptions.resolverOptions?.normalizer).toEqual(
+      expect.any(Function),
+    );
     expect(queueMockState.commitKnowledgeGraphCalls).toStrictEqual([
       {
         chapterId: 12,
