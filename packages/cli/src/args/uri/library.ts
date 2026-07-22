@@ -60,13 +60,17 @@ export function parseLibraryUriFirstArguments(
     };
   }
 
+  if (target.kind === "archive" && explicitAction === undefined) {
+    throw new Error(
+      withHelpRoute(
+        `The library archive ${uri} requires an explicit action: move or remove.`,
+        formatWikiGraphHelpCommand(uri),
+      ),
+    );
+  }
+
   const action =
-    explicitAction ??
-    (target.kind === "metadata"
-      ? "get"
-      : target.kind === "archive"
-        ? "get"
-        : "list");
+    explicitAction ?? (target.kind === "metadata" ? "get" : "list");
   if (!isLibraryAction(action)) {
     throw new Error(
       withHelpRoute(

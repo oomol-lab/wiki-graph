@@ -183,12 +183,6 @@ export function parseWikiGraphLibraryUri(
     };
   }
 
-  if (/^[^/.][^/]*(?:\/meta)?$/u.test(path)) {
-    throw new Error(
-      "Specified library URIs must use the .lib suffix: wikg://lib/<lib-id>.lib",
-    );
-  }
-
   throw new Error(
     `Invalid Wiki Graph library URI: ${uri}. Expected wikg://lib, wikg://lib/meta, wikg://lib/<lib-id>.lib, or wikg://lib/<lib-id>.lib/meta.`,
   );

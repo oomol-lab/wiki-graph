@@ -13,7 +13,7 @@ export type QueryIndexScope =
 type ContinuationCursorBase = {
   readonly archiveKey: string;
   readonly archivePath: string;
-  readonly indexScope?: QueryIndexScope;
+  readonly indexScope: QueryIndexScope;
 };
 
 export type ContinuationCursor =

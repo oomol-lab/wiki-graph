@@ -1,4 +1,4 @@
-import type { ContinuationCursor } from "./types.js";
+import type { ContinuationCursor, QueryIndexScope } from "./types.js";
 
 export function createCursorPayload(input: ContinuationCursor): object {
   switch (input.kind) {
@@ -20,6 +20,7 @@ export function createCursorPayload(input: ContinuationCursor): object {
         ...(input.triplePattern === undefined
           ? {}
           : { triplePattern: input.triplePattern }),
+        indexScope: input.indexScope,
         types: input.types,
       };
     case "search":
@@ -39,6 +40,7 @@ export function createCursorPayload(input: ContinuationCursor): object {
         ...(input.triplePattern === undefined
           ? {}
           : { triplePattern: input.triplePattern }),
+        indexScope: input.indexScope,
         types: input.types,
       };
     case "evidence":
@@ -49,6 +51,7 @@ export function createCursorPayload(input: ContinuationCursor): object {
         ...(input.sourceContext === undefined
           ? {}
           : { sourceContext: input.sourceContext }),
+        indexScope: input.indexScope,
         targetUri: input.targetUri,
       };
     case "related":
@@ -63,6 +66,7 @@ export function createCursorPayload(input: ContinuationCursor): object {
         ...(input.sourceContext === undefined
           ? {}
           : { sourceContext: input.sourceContext }),
+        indexScope: input.indexScope,
         targetUri: input.targetUri,
       };
   }
@@ -76,6 +80,7 @@ export function parseContinuationCursorRecord(record: {
   readonly payloadJSON: string;
 }): ContinuationCursor {
   const payload = parsePayload(record.payloadJSON);
+  const indexScope = readCursorIndexScope(payload, record);
 
   if (record.kind === "collection") {
     return {
@@ -87,6 +92,7 @@ export function parseContinuationCursorRecord(record: {
       ...getPayloadOptionalPositiveInteger(payload, "evidenceLimit"),
       format: record.format,
       ids: getPayloadStringArrayOrNull(payload, "ids"),
+      indexScope,
       kind: "collection",
       order: getPayloadOrder(payload),
       ...getPayloadOptionalInteger(payload, "sourceContext", "sourceContext"),
@@ -104,6 +110,7 @@ export function parseContinuationCursorRecord(record: {
       cursor: getPayloadString(payload, "cursor"),
       ...getPayloadOptionalPositiveInteger(payload, "evidenceLimit"),
       format: record.format,
+      indexScope,
       kind: "search",
       ...getPayloadOptionalString(payload, "query"),
       ...getPayloadOptionalInteger(payload, "sourceContext", "sourceContext"),
@@ -118,6 +125,7 @@ export function parseContinuationCursorRecord(record: {
       archivePath: record.archivePath,
       cursor: getPayloadString(payload, "cursor"),
       format: record.format,
+      indexScope,
       kind: "evidence",
       order: getPayloadOrder(payload),
       ...getPayloadOptionalString(payload, "query"),
@@ -133,6 +141,7 @@ export function parseContinuationCursorRecord(record: {
       cursor: getPayloadString(payload, "cursor"),
       ...getPayloadOptionalPositiveInteger(payload, "evidenceLimit"),
       format: record.format,
+      indexScope,
       kind: "related",
       order: getPayloadOrder(payload),
       ...getPayloadOptionalString(payload, "query"),
@@ -143,6 +152,41 @@ export function parseContinuationCursorRecord(record: {
   }
 
   throw new Error(`Invalid continuation cursor kind: ${record.kind}.`);
+}
+
+function readCursorIndexScope(
+  payload: Readonly<Record<string, unknown>>,
+  record: { readonly archiveKey: string; readonly archivePath: string },
+): QueryIndexScope {
+  const value = payload.indexScope;
+
+  if (value === undefined) {
+    return {
+      archiveKey: record.archiveKey,
+      archivePath: record.archivePath,
+      kind: "archive-index",
+    };
+  }
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    throw new Error("Invalid continuation cursor payload.");
+  }
+
+  const indexScope = value as Record<string, unknown>;
+  if (indexScope.kind === "archive-index") {
+    return {
+      archiveKey: getPayloadString(indexScope, "archiveKey"),
+      archivePath: getPayloadString(indexScope, "archivePath"),
+      kind: "archive-index",
+    };
+  }
+  if (indexScope.kind === "library-index") {
+    const libraryId = indexScope.libraryId;
+    if (typeof libraryId === "number" && Number.isInteger(libraryId)) {
+      return { kind: "library-index", libraryId };
+    }
+  }
+
+  throw new Error("Invalid continuation cursor payload.");
 }
 
 function parsePayload(value: string): Record<string, unknown> {

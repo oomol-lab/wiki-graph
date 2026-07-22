@@ -115,6 +115,11 @@ describe("cli/archive/evidence pack", () => {
       archivePath: "/tmp/book.wikg",
       cursor: "raw-next-evidence-cursor",
       format: "json",
+      indexScope: {
+        archiveKey: "/tmp/book.wikg",
+        archivePath: "/tmp/book.wikg",
+        kind: "archive-index",
+      },
       kind: "evidence",
       order: "doc-asc",
       query: "paragraph",
