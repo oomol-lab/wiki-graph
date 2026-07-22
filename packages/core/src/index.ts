@@ -44,6 +44,7 @@ export {
   deleteWikiGraphLibraryMetadataKey,
   ensureDefaultWikiGraphLibrary,
   formatWikiGraphLibraryUri,
+  getWikiGraphLibraryArchive,
   getWikiGraphLibraryMetadata,
   isWikiGraphLibraryUri,
   listWikiGraphLibraryArchives,

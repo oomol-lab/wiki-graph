@@ -1,4 +1,12 @@
-import { mkdtemp, mkdir, readFile, rm, writeFile } from "fs/promises";
+import {
+  copyFile,
+  mkdtemp,
+  mkdir,
+  readFile,
+  rename,
+  rm,
+  writeFile,
+} from "fs/promises";
 import { join } from "path";
 import { tmpdir } from "os";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -12,6 +20,7 @@ import {
   removeWikiGraphLibraryArchive,
   scanWikiGraphLibrary,
 } from "../index.js";
+import { writeWikgArchive } from "../storage/wikg/index.js";
 
 let previousStateDir: string | undefined;
 let tempDir: string;
@@ -49,10 +58,81 @@ describe("library archive membership", () => {
     const second = await scanWikiGraphLibrary(target!);
     expect(
       second.archives.map((archive) => ({
-        exists: archive.exists,
         relativePath: archive.relativePath,
+        status: archive.status,
       })),
-    ).toContainEqual({ exists: false, relativePath: "a.wikg" });
+    ).toContainEqual({ relativePath: "a.wikg", status: "missing" });
+  });
+
+  it("adopts a moved archive only when its mutation token uniquely matches a missing member", async () => {
+    const library = await ensureDefaultWikiGraphLibrary();
+    const target = parseWikiGraphLibraryUri("wikg://lib");
+    expect(target).toBeDefined();
+    await createTestWikgArchive(join(library.folderPath, "old.wikg"));
+
+    const first = await scanWikiGraphLibrary(target!);
+    const oldArchive = first.archives.find(
+      (archive) => archive.relativePath === "old.wikg",
+    );
+    expect(oldArchive?.lastSeenMutationToken).toBeDefined();
+
+    await rename(
+      join(library.folderPath, "old.wikg"),
+      join(library.folderPath, "renamed.wikg"),
+    );
+    const second = await scanWikiGraphLibrary(target!);
+    const renamedArchive = second.archives.find(
+      (archive) => archive.relativePath === "renamed.wikg",
+    );
+    expect(renamedArchive?.publicId).toBe(oldArchive?.publicId);
+    expect(renamedArchive?.status).toBe("present");
+    expect(
+      second.archives.some((archive) => archive.relativePath === "old.wikg"),
+    ).toBe(false);
+  });
+
+  it("reports copied-token conflicts instead of silently reusing an archive id", async () => {
+    const library = await ensureDefaultWikiGraphLibrary();
+    const target = parseWikiGraphLibraryUri("wikg://lib");
+    expect(target).toBeDefined();
+    await createTestWikgArchive(join(library.folderPath, "original.wikg"));
+    const first = await scanWikiGraphLibrary(target!);
+
+    await copyFile(
+      join(library.folderPath, "original.wikg"),
+      join(library.folderPath, "copy.wikg"),
+    );
+    const second = await scanWikiGraphLibrary(target!);
+    const original = second.archives.find(
+      (archive) => archive.relativePath === "original.wikg",
+    );
+    const copy = second.archives.find(
+      (archive) => archive.relativePath === "copy.wikg",
+    );
+
+    expect(original?.publicId).toBe(first.archives[0]?.publicId);
+    expect(copy?.status).toBe("conflict");
+    expect(copy?.publicId).not.toBe(original?.publicId);
+  });
+
+  it("does not adopt by basename, size, or mtime without a mutation-token match", async () => {
+    const library = await ensureDefaultWikiGraphLibrary();
+    const target = parseWikiGraphLibraryUri("wikg://lib");
+    expect(target).toBeDefined();
+    await writeFile(join(library.folderPath, "old.wikg"), "same");
+    const first = await scanWikiGraphLibrary(target!);
+
+    await rm(join(library.folderPath, "old.wikg"));
+    await writeFile(join(library.folderPath, "new.wikg"), "same");
+    const second = await scanWikiGraphLibrary(target!);
+    const fresh = second.archives.find(
+      (archive) => archive.relativePath === "new.wikg",
+    );
+
+    expect(fresh?.publicId).not.toBe(first.archives[0]?.publicId);
+    expect(second.archives).toContainEqual(
+      expect.objectContaining({ relativePath: "old.wikg", status: "missing" }),
+    );
   });
 
   it("adds, moves, and removes managed archives inside the library folder", async () => {
@@ -67,6 +147,7 @@ describe("library archive membership", () => {
       to: "nested/book.wikg",
     });
     expect(added.relativePath).toBe("nested/book.wikg");
+    expect(added.status).toBe("present");
     expect(await readFile(added.path, "utf8")).toBe("content");
 
     await expect(
@@ -123,3 +204,9 @@ describe("library URI locators", () => {
     });
   });
 });
+
+async function createTestWikgArchive(path: string): Promise<void> {
+  const sourceDir = await mkdtemp(join(tempDir, "wikg-source-"));
+  await writeFile(join(sourceDir, "database.db"), "test", "utf8");
+  await writeWikgArchive(sourceDir, path);
+}

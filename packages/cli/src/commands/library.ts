@@ -6,6 +6,7 @@ import {
   createWikiGraphLibrary,
   deleteWikiGraphLibraryMetadataKey,
   getWikiGraphLibraryMetadata,
+  getWikiGraphLibraryArchive,
   listWikiGraphLibraryArchives,
   moveWikiGraphLibraryArchive,
   putWikiGraphLibraryMetadata,
@@ -98,6 +99,14 @@ export async function runLibraryCommand(
         );
         return;
       }
+      if (args.target.kind === "archive") {
+        await writeLibraryArchive(
+          await getWikiGraphLibraryArchive(args.target),
+          args.json ?? false,
+          "Library archive",
+        );
+        return;
+      }
       await resolveWikiGraphLibrary(args.target);
       await writeLibraryArchives(
         await listWikiGraphLibraryArchives(args.target),
@@ -181,11 +190,7 @@ async function writeLibraryArchives(
   await writeTextToStdout(
     archives
       .map((archive) =>
-        [
-          archive.uri,
-          archive.relativePath,
-          archive.exists ? "ok" : "missing",
-        ].join("\t"),
+        [archive.uri, archive.relativePath, archive.status].join("\t"),
       )
       .join("\n") + (archives.length === 0 ? "" : "\n"),
   );
@@ -215,6 +220,11 @@ function formatLibraryArchiveJSON(
     relativePath: archive.relativePath,
     path: archive.path,
     exists: archive.exists,
+    status: archive.status,
+    lastSeenMutationToken: archive.lastSeenMutationToken,
+    lastSeenSize: archive.lastSeenSize,
+    lastSeenMtimeMs: archive.lastSeenMtimeMs,
+    lastScannedAt: archive.lastScannedAt,
     createdAt: archive.createdAt,
     updatedAt: archive.updatedAt,
   };

@@ -13,6 +13,7 @@ import { dirname, isAbsolute, join, relative, resolve } from "path";
 
 import {
   getNumber,
+  getOptionalString,
   getString,
   type Database,
   type SqlRow,
@@ -20,6 +21,7 @@ import {
 import { openSharedStateDatabase } from "../document/index.js";
 import { resolveWikiGraphCoreDatabasePath } from "../runtime/common/wiki-graph/dir.js";
 import { WIKI_GRAPH_ARCHIVE_EXTENSION } from "../runtime/common/wiki-graph/uri.js";
+import { readWikgArchiveMutationToken } from "../storage/wikg/index.js";
 import { isNodeError } from "../utils/node-error.js";
 import {
   resolveWikiGraphLibrary,
@@ -34,6 +36,11 @@ const LIBRARY_ARCHIVE_MEMBERSHIP_SCHEMA_SQL = `
     library_id INTEGER NOT NULL,
     public_id TEXT NOT NULL,
     relative_path TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'present',
+    last_seen_mutation_token TEXT,
+    last_seen_size INTEGER,
+    last_seen_mtime_ms INTEGER,
+    last_scanned_at TEXT,
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL,
     UNIQUE(library_id, public_id),
@@ -44,6 +51,8 @@ const LIBRARY_ARCHIVE_MEMBERSHIP_SCHEMA_SQL = `
   ON library_archives(library_id);
 `;
 
+type WikiGraphLibraryArchiveStatus = "conflict" | "missing" | "present";
+
 export interface WikiGraphLibraryArchiveRecord {
   readonly id: number;
   readonly publicId: string;
@@ -53,6 +62,11 @@ export interface WikiGraphLibraryArchiveRecord {
   readonly relativePath: string;
   readonly path: string;
   readonly exists: boolean;
+  readonly status: WikiGraphLibraryArchiveStatus;
+  readonly lastSeenMutationToken?: string;
+  readonly lastSeenSize?: number;
+  readonly lastSeenMtimeMs?: number;
+  readonly lastScannedAt?: string;
   readonly createdAt: string;
   readonly updatedAt: string;
 }
@@ -60,6 +74,14 @@ export interface WikiGraphLibraryArchiveRecord {
 export interface WikiGraphLibraryScanResult {
   readonly library: WikiGraphLibraryRecord;
   readonly archives: readonly WikiGraphLibraryArchiveRecord[];
+}
+
+interface DiscoveredLibraryArchiveFile {
+  readonly relativePath: string;
+  readonly path: string;
+  readonly mutationToken?: string;
+  readonly size: number;
+  readonly mtimeMs: number;
 }
 
 export async function scanWikiGraphLibrary(
@@ -70,11 +92,79 @@ export async function scanWikiGraphLibrary(
 
   await withLibraryArchiveMembershipDatabase(async (database) => {
     await database.transaction(async () => {
-      for (const relativePath of files) {
-        await ensureLibraryArchiveByRelativePath(
-          database,
-          library.id,
-          relativePath,
+      const existing = await listLibraryArchiveRows(database, library);
+      const currentPaths = new Set(files.map((file) => file.relativePath));
+      const seenArchiveIds = new Set<number>();
+
+      for (const file of files) {
+        const existingAtPath = existing.find(
+          (archive) => archive.relativePath === file.relativePath,
+        );
+        if (existingAtPath !== undefined) {
+          await updateLibraryArchiveSeen(database, existingAtPath.id, file, {
+            status: "present",
+          });
+          seenArchiveIds.add(existingAtPath.id);
+          continue;
+        }
+
+        const matchingTokenArchives =
+          file.mutationToken === undefined
+            ? []
+            : existing.filter(
+                (archive) =>
+                  archive.lastSeenMutationToken === file.mutationToken &&
+                  !seenArchiveIds.has(archive.id),
+              );
+        const adoptable = matchingTokenArchives.filter(
+          (archive) => !currentPaths.has(archive.relativePath),
+        );
+
+        if (
+          matchingTokenArchives.length === 1 &&
+          adoptable.length === 1 &&
+          file.mutationToken !== undefined
+        ) {
+          const archive = adoptable[0]!;
+          await database.run(
+            `
+              UPDATE library_archives
+              SET relative_path = ?
+              WHERE id = ?
+            `,
+            [file.relativePath, archive.id],
+          );
+          await updateLibraryArchiveSeen(database, archive.id, file, {
+            status: "present",
+          });
+          seenArchiveIds.add(archive.id);
+          continue;
+        }
+
+        await insertLibraryArchive(database, library.id, file, {
+          status:
+            matchingTokenArchives.length === 0 ||
+            file.mutationToken === undefined
+              ? "present"
+              : "conflict",
+        });
+      }
+
+      const now = new Date().toISOString();
+      for (const archive of existing) {
+        if (
+          seenArchiveIds.has(archive.id) ||
+          currentPaths.has(archive.relativePath)
+        ) {
+          continue;
+        }
+        await database.run(
+          `
+            UPDATE library_archives
+            SET status = 'missing', updated_at = ?, last_scanned_at = ?
+            WHERE id = ?
+          `,
+          [now, now, archive.id],
         );
       }
     });
@@ -90,6 +180,13 @@ export async function listWikiGraphLibraryArchives(
   return await withLibraryArchiveMembershipDatabase(
     async (database) => await listLibraryArchives(database, library),
   );
+}
+
+export async function getWikiGraphLibraryArchive(
+  target: ParsedWikiGraphLibraryUri,
+): Promise<WikiGraphLibraryArchiveRecord> {
+  const library = await resolveWikiGraphLibrary(target);
+  return await resolveLibraryArchiveTarget(target, library);
 }
 
 export async function addWikiGraphLibraryArchive(input: {
@@ -129,13 +226,17 @@ export async function addWikiGraphLibraryArchive(input: {
   );
   await copyFile(sourcePath, targetPath, constants.COPYFILE_EXCL);
   await assertInsideLibrary(await realpath(targetPath), library.folderPath);
+  const targetFile = await inspectLibraryArchiveFile(
+    library.folderPath,
+    targetRelativePath,
+  );
 
   return await withLibraryArchiveMembershipDatabase(async (database) => {
     await database.transaction(async () => {
       await ensureLibraryArchiveByRelativePath(
         database,
         library.id,
-        targetRelativePath,
+        targetFile,
       );
     });
     return await requireLibraryArchiveByRelativePath(
@@ -159,7 +260,7 @@ export async function removeWikiGraphLibraryArchive(input: {
     ]);
   });
 
-  return archive;
+  return { ...archive, exists: false, status: "missing" };
 }
 
 export async function moveWikiGraphLibraryArchive(input: {
@@ -186,12 +287,19 @@ export async function moveWikiGraphLibraryArchive(input: {
   }
   await rename(archive.path, targetPath);
   await assertInsideLibrary(await realpath(targetPath), library.folderPath);
+  const targetFile = await inspectLibraryArchiveFile(
+    library.folderPath,
+    targetRelativePath,
+  );
 
   return await withLibraryArchiveMembershipDatabase(async (database) => {
     await database.run(
-      "UPDATE library_archives SET relative_path = ?, updated_at = ? WHERE id = ?",
-      [targetRelativePath, new Date().toISOString(), archive.id],
+      "UPDATE library_archives SET relative_path = ? WHERE id = ?",
+      [targetRelativePath, archive.id],
     );
+    await updateLibraryArchiveSeen(database, archive.id, targetFile, {
+      status: "present",
+    });
     return await requireLibraryArchiveByPublicId(
       database,
       library,
@@ -209,6 +317,7 @@ async function withLibraryArchiveMembershipDatabase<T>(
   );
 
   try {
+    await ensureLibraryArchiveMembershipColumns(database);
     return await operation(database);
   } finally {
     await database.close();
@@ -219,16 +328,7 @@ async function listLibraryArchives(
   database: Database,
   library: WikiGraphLibraryRecord,
 ): Promise<WikiGraphLibraryArchiveRecord[]> {
-  const rows = await database.queryAll(
-    `
-      SELECT id, public_id, relative_path, created_at, updated_at
-      FROM library_archives
-      WHERE library_id = ?
-      ORDER BY relative_path
-    `,
-    [library.id],
-    (row) => row,
-  );
+  const rows = await queryLibraryArchiveRows(database, library.id);
   const archives: WikiGraphLibraryArchiveRecord[] = [];
   for (const row of rows) {
     const relativePath = getString(row, "relative_path");
@@ -243,36 +343,108 @@ async function listLibraryArchives(
   return archives;
 }
 
+async function listLibraryArchiveRows(
+  database: Database,
+  library: WikiGraphLibraryRecord,
+): Promise<WikiGraphLibraryArchiveRecord[]> {
+  const rows = await queryLibraryArchiveRows(database, library.id);
+  return rows.map((row) => mapLibraryArchiveRecord(library, row, false));
+}
+
+async function queryLibraryArchiveRows(
+  database: Database,
+  libraryId: number,
+): Promise<SqlRow[]> {
+  return await database.queryAll(
+    `
+      SELECT id, public_id, relative_path, status, last_seen_mutation_token,
+             last_seen_size, last_seen_mtime_ms, last_scanned_at,
+             created_at, updated_at
+      FROM library_archives
+      WHERE library_id = ?
+      ORDER BY relative_path
+    `,
+    [libraryId],
+    (row) => row,
+  );
+}
+
 async function ensureLibraryArchiveByRelativePath(
   database: Database,
   libraryId: number,
-  relativePath: string,
+  file: DiscoveredLibraryArchiveFile,
 ): Promise<void> {
-  const now = new Date().toISOString();
   const existing = await database.queryOne(
     "SELECT id FROM library_archives WHERE library_id = ? AND relative_path = ?",
-    [libraryId, relativePath],
+    [libraryId, file.relativePath],
     (row) => getNumber(row, "id"),
   );
   if (existing !== undefined) {
-    await database.run(
-      "UPDATE library_archives SET updated_at = ? WHERE id = ?",
-      [now, existing],
-    );
+    await updateLibraryArchiveSeen(database, existing, file, {
+      status: "present",
+    });
     return;
   }
 
+  await insertLibraryArchive(database, libraryId, file, { status: "present" });
+}
+
+async function insertLibraryArchive(
+  database: Database,
+  libraryId: number,
+  file: DiscoveredLibraryArchiveFile,
+  options: { readonly status: WikiGraphLibraryArchiveStatus },
+): Promise<void> {
+  const now = new Date().toISOString();
   await database.run(
     `
-      INSERT INTO library_archives (library_id, public_id, relative_path, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?)
+      INSERT INTO library_archives (
+        library_id, public_id, relative_path, status, last_seen_mutation_token,
+        last_seen_size, last_seen_mtime_ms, last_scanned_at, created_at, updated_at
+      )
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `,
     [
       libraryId,
       await createUniqueLibraryArchivePublicId(database, libraryId),
-      relativePath,
+      file.relativePath,
+      options.status,
+      file.mutationToken ?? null,
+      file.size,
+      Math.round(file.mtimeMs),
       now,
       now,
+      now,
+    ],
+  );
+}
+
+async function updateLibraryArchiveSeen(
+  database: Database,
+  archiveId: number,
+  file: DiscoveredLibraryArchiveFile,
+  options: { readonly status: WikiGraphLibraryArchiveStatus },
+): Promise<void> {
+  const now = new Date().toISOString();
+  await database.run(
+    `
+      UPDATE library_archives
+      SET status = ?,
+          last_seen_mutation_token = ?,
+          last_seen_size = ?,
+          last_seen_mtime_ms = ?,
+          last_scanned_at = ?,
+          updated_at = ?
+      WHERE id = ?
+    `,
+    [
+      options.status,
+      file.mutationToken ?? null,
+      file.size,
+      Math.round(file.mtimeMs),
+      now,
+      now,
+      archiveId,
     ],
   );
 }
@@ -284,7 +456,9 @@ async function requireLibraryArchiveByRelativePath(
 ): Promise<WikiGraphLibraryArchiveRecord> {
   const archive = await database.queryOne(
     `
-      SELECT id, public_id, relative_path, created_at, updated_at
+      SELECT id, public_id, relative_path, status, last_seen_mutation_token,
+             last_seen_size, last_seen_mtime_ms, last_scanned_at,
+             created_at, updated_at
       FROM library_archives
       WHERE library_id = ? AND relative_path = ?
     `,
@@ -304,22 +478,26 @@ async function requireLibraryArchiveByPublicId(
   library: WikiGraphLibraryRecord,
   publicId: string,
 ): Promise<WikiGraphLibraryArchiveRecord> {
-  const archive = await database.queryOne(
+  const row = await database.queryOne(
     `
-      SELECT id, public_id, relative_path, created_at, updated_at
+      SELECT id, public_id, relative_path, status, last_seen_mutation_token,
+             last_seen_size, last_seen_mtime_ms, last_scanned_at,
+             created_at, updated_at
       FROM library_archives
       WHERE library_id = ? AND public_id = ?
     `,
     [library.id, publicId],
-    (row) => mapLibraryArchiveRecord(library, row, false),
+    (row) => row,
   );
-  if (archive === undefined) {
+  if (row === undefined) {
     throw new Error(`Unknown Wiki Graph library archive: ${publicId}`);
   }
-  return {
-    ...archive,
-    exists: await pathExists(archive.path),
-  };
+  const relativePath = getString(row, "relative_path");
+  return mapLibraryArchiveRecord(
+    library,
+    row,
+    await pathExists(join(library.folderPath, relativePath)),
+  );
 }
 
 async function resolveLibraryArchiveTarget(
@@ -346,24 +524,42 @@ function mapLibraryArchiveRecord(
 ): WikiGraphLibraryArchiveRecord {
   const publicId = getString(row, "public_id");
   const relativePath = getString(row, "relative_path");
+  const databaseStatus = normalizeArchiveStatus(
+    getOptionalString(row, "status") ?? "present",
+  );
   return {
     createdAt: getString(row, "created_at"),
     exists,
     id: getNumber(row, "id"),
     libraryId: library.id,
     libraryUri: library.uri,
+    ...optionalStringField(
+      row,
+      "last_seen_mutation_token",
+      "lastSeenMutationToken",
+    ),
+    ...optionalNumberField(row, "last_seen_mtime_ms", "lastSeenMtimeMs"),
+    ...optionalNumberField(row, "last_seen_size", "lastSeenSize"),
+    ...optionalStringField(row, "last_scanned_at", "lastScannedAt"),
     path: join(library.folderPath, relativePath),
     publicId,
     relativePath,
+    status: exists ? databaseStatus : "missing",
     updatedAt: getString(row, "updated_at"),
     uri: `${library.uri}/${publicId}`,
   };
 }
 
-async function listWikgFiles(root: string): Promise<string[]> {
-  const files: string[] = [];
-  await walkLibraryDirectory(root, root, files);
-  return files.sort((a, b) => a.localeCompare(b));
+async function listWikgFiles(
+  root: string,
+): Promise<DiscoveredLibraryArchiveFile[]> {
+  const relativePaths: string[] = [];
+  await walkLibraryDirectory(root, root, relativePaths);
+  const files: DiscoveredLibraryArchiveFile[] = [];
+  for (const relativePath of relativePaths.sort((a, b) => a.localeCompare(b))) {
+    files.push(await inspectLibraryArchiveFile(root, relativePath));
+  }
+  return files;
 }
 
 async function walkLibraryDirectory(
@@ -390,6 +586,32 @@ async function walkLibraryDirectory(
     ) {
       files.push(relative(root, path).replace(/\\/gu, "/"));
     }
+  }
+}
+
+async function inspectLibraryArchiveFile(
+  root: string,
+  relativePath: string,
+): Promise<DiscoveredLibraryArchiveFile> {
+  const path = join(root, relativePath);
+  const fileStat = await stat(path);
+  const mutationToken = await readOptionalWikgMutationToken(path);
+  return {
+    mtimeMs: fileStat.mtimeMs,
+    ...(mutationToken === undefined ? {} : { mutationToken }),
+    path,
+    relativePath,
+    size: fileStat.size,
+  };
+}
+
+async function readOptionalWikgMutationToken(
+  path: string,
+): Promise<string | undefined> {
+  try {
+    return await readWikgArchiveMutationToken(path);
+  } catch {
+    return undefined;
   }
 }
 
@@ -432,6 +654,31 @@ async function assertInsideLibrary(path: string, root: string): Promise<void> {
   }
 }
 
+async function ensureLibraryArchiveMembershipColumns(
+  database: Database,
+): Promise<void> {
+  const columns = await database.queryAll(
+    "PRAGMA table_info(library_archives)",
+    undefined,
+    (row) => getString(row, "name"),
+  );
+  const columnSet = new Set(columns);
+  const additions: Array<readonly [string, string]> = [
+    ["status", "TEXT NOT NULL DEFAULT 'present'"],
+    ["last_seen_mutation_token", "TEXT"],
+    ["last_seen_size", "INTEGER"],
+    ["last_seen_mtime_ms", "INTEGER"],
+    ["last_scanned_at", "TEXT"],
+  ];
+  for (const [name, definition] of additions) {
+    if (!columnSet.has(name)) {
+      await database.run(
+        `ALTER TABLE library_archives ADD COLUMN ${name} ${definition}`,
+      );
+    }
+  }
+}
+
 async function createUniqueLibraryArchivePublicId(
   database: Database,
   libraryId: number,
@@ -460,4 +707,35 @@ async function pathExists(path: string): Promise<boolean> {
     }
     throw error;
   }
+}
+
+function normalizeArchiveStatus(value: string): WikiGraphLibraryArchiveStatus {
+  if (value === "conflict" || value === "missing" || value === "present") {
+    return value;
+  }
+  return "present";
+}
+
+function optionalNumberField<K extends string>(
+  row: SqlRow,
+  dbKey: string,
+  outputKey: K,
+): Partial<Record<K, number>> {
+  const value = row[dbKey];
+  if (typeof value !== "number") {
+    return {};
+  }
+  return { [outputKey]: value } as Partial<Record<K, number>>;
+}
+
+function optionalStringField<K extends string>(
+  row: SqlRow,
+  dbKey: string,
+  outputKey: K,
+): Partial<Record<K, string>> {
+  const value = getOptionalString(row, dbKey);
+  if (value === undefined) {
+    return {};
+  }
+  return { [outputKey]: value } as Partial<Record<K, string>>;
 }

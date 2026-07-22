@@ -3,6 +3,7 @@ export {
   listWikgArchiveEntries,
   readWikgArchiveEntry,
   readWikgArchiveFormatVersion,
+  readWikgArchiveMutationToken,
   WikgArchiveReader,
   WIKG_FORMAT_VERSION,
   writeWikgArchive,
