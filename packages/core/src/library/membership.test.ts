@@ -420,6 +420,45 @@ describe("library archive membership", () => {
     });
   });
 
+  it("preserves archive public ids when rebind renames a same-token archive", async () => {
+    await withLibraryTestState(async (tempDir) => {
+      const library = await ensureDefaultWikiGraphLibrary();
+      const target = parseWikiGraphLibraryUri("wikg://lib");
+      expect(target).toBeDefined();
+      await createTestWikgArchive(
+        tempDir,
+        join(library.folderPath, "book.wikg"),
+      );
+      const first = await scanWikiGraphLibrary(target!);
+      const original = first.archives.find(
+        (archive) => archive.relativePath === "book.wikg",
+      );
+      expect(original?.lastSeenMutationToken).toBeDefined();
+
+      const newFolder = join(tempDir, "new-library-folder");
+      await mkdir(newFolder);
+      await copyFile(
+        join(library.folderPath, "book.wikg"),
+        join(newFolder, "renamed-book.wikg"),
+      );
+      const rebound = await rebindWikiGraphLibrary({
+        folderPath: newFolder,
+        target: target!,
+      });
+      const reboundArchive = rebound.archives.find(
+        (archive) => archive.relativePath === "renamed-book.wikg",
+      );
+
+      expect(reboundArchive?.publicId).toBe(original?.publicId);
+      expect(reboundArchive?.lastSeenMutationToken).toBe(
+        original?.lastSeenMutationToken,
+      );
+      expect(reboundArchive?.relativePath).toBe("renamed-book.wikg");
+      expect(reboundArchive?.status).toBe("present");
+      expect(rebound.archives).toHaveLength(1);
+    });
+  });
+
   it("preserves archive public ids when rebind keeps the same path and mutation token", async () => {
     await withLibraryTestState(async (tempDir) => {
       const library = await ensureDefaultWikiGraphLibrary();
