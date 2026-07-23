@@ -12,6 +12,8 @@ import { dirname, resolve } from "path";
 import { setTimeout as sleep } from "timers/promises";
 
 import { isNodeError } from "../utils/node-error.js";
+import { ensureWikiGraphHomeSchemaCurrent } from "../storage/schema-upgrade/index.js";
+import { resolveWikiGraphCoreDatabasePath } from "./../runtime/common/wiki-graph/dir.js";
 
 import { Database } from "./database.js";
 
@@ -29,9 +31,20 @@ export async function openSharedStateDatabase(
   schemaSql: string,
   options: { readonly readonly?: boolean } = {},
 ): Promise<Database> {
+  await ensureWikiGraphHomeSchemaCurrentForPath(databasePath);
   await ensureSharedStateDatabaseInitialized(databasePath, schemaSql);
 
   return await Database.open(databasePath, "", options);
+}
+
+function ensureWikiGraphHomeSchemaCurrentForPath(
+  databasePath: string,
+): Promise<void> {
+  if (resolve(databasePath) !== resolve(resolveWikiGraphCoreDatabasePath())) {
+    return Promise.resolve();
+  }
+
+  return ensureWikiGraphHomeSchemaCurrent();
 }
 
 export async function ensureSharedStateDatabaseInitialized(

@@ -211,6 +211,13 @@ export type { Database, Document, ReadonlyDocument } from "./document/index.js";
 export { TOC_FILE_VERSION } from "./text/source/index.js";
 export type { BookMeta } from "./text/source/index.js";
 export { isArchiveSearchIndexCurrent } from "./retrieval/query/index.js";
+export {
+  ensureWikiGraphArchiveSchemaCurrent,
+  ensureWikiGraphHomeSchemaCurrent,
+  readWikiGraphArchiveSchemaVersion,
+  readWikiGraphHomeSchemaVersion,
+  upgradeWikiGraphArchiveSchema,
+} from "./storage/schema-upgrade/index.js";
 export { readArchiveIndexSettings } from "./retrieval/search-index/index.js";
 export { migrateLegacySdpubToWikg } from "./storage/migration/legacy-sdpub/upgrade/index.js";
 export type {

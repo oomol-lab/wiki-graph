@@ -4,8 +4,10 @@ export {
   readWikgArchiveEntry,
   readWikgArchiveFormatVersion,
   readWikgArchiveMutationToken,
+  readWikgArchiveSchemaVersion,
   WikgArchiveReader,
   WIKG_FORMAT_VERSION,
+  WIKG_SCHEMA_VERSION,
   writeWikgArchive,
   writeWikgArchiveWithOverlays,
 } from "./archive/index.js";

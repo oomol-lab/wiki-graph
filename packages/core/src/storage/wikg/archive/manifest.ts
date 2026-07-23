@@ -5,8 +5,10 @@ import { z } from "zod";
 import { WIKG_MANIFEST_PATH, WIKG_MUTATION_TOKEN_PATH } from "./constants.js";
 
 export const WIKG_FORMAT_VERSION = 1;
+export const WIKG_SCHEMA_VERSION = 2;
 export const WIKG_MANIFEST_CONTENT = `${JSON.stringify({
   formatVersion: WIKG_FORMAT_VERSION,
+  schemaVersion: WIKG_SCHEMA_VERSION,
 })}\n`;
 
 const WIKG_MUTATION_TOKEN_MAGIC = "wikg-mutation-token:v1";
@@ -14,11 +16,13 @@ const WIKG_MUTATION_TOKEN_PATTERN = /^[A-Za-z0-9_-]{43}$/u;
 
 const wikgManifestSchema = z.object({
   formatVersion: z.literal(WIKG_FORMAT_VERSION),
+  schemaVersion: z.number().int().positive().optional(),
 });
 
-export function parseWikgManifest(
-  content: string,
-): z.infer<typeof wikgManifestSchema> {
+export function parseWikgManifest(content: string): {
+  readonly formatVersion: number;
+  readonly schemaVersion: number;
+} {
   let parsed: unknown;
 
   try {
@@ -35,7 +39,10 @@ export function parseWikgManifest(
     );
   }
 
-  return result.data;
+  return {
+    formatVersion: result.data.formatVersion,
+    schemaVersion: result.data.schemaVersion ?? 1,
+  };
 }
 
 export function createWikgMutationTokenContent(): Buffer {

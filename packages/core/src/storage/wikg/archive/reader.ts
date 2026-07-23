@@ -7,6 +7,7 @@ import { WIKG_MANIFEST_PATH, WIKG_MUTATION_TOKEN_PATH } from "./constants.js";
 import { parseWikgManifest, parseWikgMutationToken } from "./manifest.js";
 import { isWikgArchivePath, normalizeArchivePath } from "./paths.js";
 import { openIndexedArchive, readArchiveEntryBufferFromFile } from "./zip.js";
+import { ensureWikiGraphArchiveSchemaCurrent } from "../../schema-upgrade/index.js";
 
 export class WikgArchiveReader {
   readonly #entryByPath: Map<string, Entry>;
@@ -34,6 +35,7 @@ export class WikgArchiveReader {
   }
 
   public static async open(inputPath: string): Promise<WikgArchiveReader> {
+    await ensureWikiGraphArchiveSchemaCurrent(inputPath);
     const { entries, zipFile } = await openIndexedArchive(inputPath);
 
     return new WikgArchiveReader(inputPath, zipFile, entries);
@@ -120,4 +122,12 @@ export async function readWikgArchiveFormatVersion(
   return parseWikgManifest(
     await readFile(join(documentDirectoryPath, WIKG_MANIFEST_PATH), "utf8"),
   ).formatVersion;
+}
+
+export async function readWikgArchiveSchemaVersion(
+  documentDirectoryPath: string,
+): Promise<number> {
+  return parseWikgManifest(
+    await readFile(join(documentDirectoryPath, WIKG_MANIFEST_PATH), "utf8"),
+  ).schemaVersion;
 }

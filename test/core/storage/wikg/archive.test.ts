@@ -51,7 +51,7 @@ describe("wikg/archive", () => {
       ).toMatch(/^wikg-mutation-token:v1\n[A-Za-z0-9_-]{43}\n$/u);
       expect(
         JSON.parse(await readFile(`${extractDir}/manifest.json`, "utf8")),
-      ).toEqual({ formatVersion: 1 });
+      ).toEqual({ formatVersion: 1, schemaVersion: 2 });
       expect(await readFile(`${extractDir}/database.db`, "utf8")).toBe(
         "sqlite",
       );
@@ -182,7 +182,7 @@ describe("wikg/archive", () => {
 
       expect(
         JSON.parse(await readFile(`${extractDir}/manifest.json`, "utf8")),
-      ).toEqual({ formatVersion: 1 });
+      ).toEqual({ formatVersion: 1, schemaVersion: 2 });
     });
   });
 
