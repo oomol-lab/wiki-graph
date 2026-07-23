@@ -15,6 +15,7 @@ export type {
   DisambiguationPageText,
   DisambiguationMeaningPriority,
   DisambiguationProfile,
+  DisambiguationProfileError,
   DisambiguationProfileMeaning,
   DisambiguationProfileNormalizer,
   DisambiguationProfileNormalizerInput,

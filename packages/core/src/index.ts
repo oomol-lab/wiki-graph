@@ -131,6 +131,7 @@ export {
   type DisambiguationMeaningPriority,
   type DisambiguationPageText,
   type DisambiguationProfile,
+  type DisambiguationProfileError,
   type DisambiguationProfileMeaning,
   type DisambiguationProfileNormalizer,
   type DisambiguationProfileNormalizerInput,

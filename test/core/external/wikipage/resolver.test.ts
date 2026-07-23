@@ -4,7 +4,11 @@ import { describe, expect, it } from "vitest";
 
 import { withLoggingContext } from "../../../../packages/core/src/runtime/common/logging.js";
 import { Database } from "../../../../packages/core/src/document/index.js";
-import { WikipageResolver } from "../../../../packages/core/src/external/wikipage/index.js";
+import { GuaranteedSchemaValidationError } from "../../../../packages/core/src/external/guaranteed/index.js";
+import {
+  WikipageCache,
+  WikipageResolver,
+} from "../../../../packages/core/src/external/wikipage/index.js";
 import { listCandidateSelectableQids } from "../../../../packages/core/src/external/wikimatch/index.js";
 import { withTempDir } from "../../../helpers/temp.js";
 
@@ -445,6 +449,150 @@ describe("wikipage/resolver", () => {
     });
   });
 
+  it("caches disambiguation profile failures briefly and retries after expiry", async () => {
+    await withTempDir("wikigraph-wikipage-", async (path) => {
+      const calls: string[] = [];
+      const cacheDatabasePath = `${path}/cache.sqlite`;
+      let normalizerCalls = 0;
+      const firstResolver = await WikipageResolver.open({
+        cacheDatabasePath,
+        fetch: createMockFetch(calls),
+        language: "en",
+        minRequestIntervalMs: 0,
+        normalizer: () => {
+          normalizerCalls += 1;
+
+          throw new GuaranteedSchemaValidationError(
+            13,
+            12,
+            {
+              issues: ["meanings.0.qid must be a valid QID"],
+              response: "{}",
+            },
+            new Error("invalid profile"),
+          );
+        },
+        retryBaseDelayMs: 0,
+      });
+
+      try {
+        const [resolution] = await firstResolver.resolveQids(["Q48397"]);
+
+        expect(resolution?.qid).toBe("Q48397");
+        expect(resolution?.isDisambiguation).toBe(true);
+        expect(resolution?.disambiguation?.profile).toBeUndefined();
+        expect(resolution?.disambiguation?.linkedQids).toStrictEqual([
+          {
+            qid: "Q925",
+            title: "Mercury (element)",
+          },
+          {
+            qid: "Q308",
+            title: "Mercury (planet)",
+          },
+        ]);
+      } finally {
+        await firstResolver.close();
+      }
+
+      expect(normalizerCalls).toBe(1);
+      const cachedError = await readProfileError(cacheDatabasePath, "Q48397");
+
+      expect(cachedError).toMatchObject({
+        message: "Schema validation failed after all retries",
+      });
+
+      const callCountAfterFailure = calls.length;
+      const secondResolver = await WikipageResolver.open({
+        cacheDatabasePath,
+        fetch: createMockFetch(calls),
+        language: "en",
+        minRequestIntervalMs: 0,
+        normalizer: () => {
+          normalizerCalls += 1;
+
+          return Promise.resolve({
+            meanings: [
+              {
+                information: "first planet from the Sun",
+                name: "Mercury (planet)",
+                priority: "primary",
+                qid: "Q308",
+              },
+            ],
+            sourceQid: "Q48397",
+          });
+        },
+        retryBaseDelayMs: 0,
+      });
+
+      try {
+        const [resolution] = await secondResolver.resolveQids(["Q48397"]);
+
+        expect(resolution?.disambiguation?.profile).toBeUndefined();
+      } finally {
+        await secondResolver.close();
+      }
+
+      expect(normalizerCalls).toBe(1);
+      expect(calls).toHaveLength(callCountAfterFailure);
+
+      await expireProfileError(cacheDatabasePath, "Q48397");
+      expect(await readProfileError(cacheDatabasePath, "Q48397")).toMatchObject(
+        {
+          retryAfter: "1969-01-01T00:00:00.000Z",
+        },
+      );
+      const cache = await WikipageCache.open(cacheDatabasePath);
+
+      try {
+        expect(
+          await cache.getDisambiguations(["Q48397"], "enwiki"),
+        ).toHaveProperty("size", 0);
+      } finally {
+        await cache.close();
+      }
+
+      const thirdResolver = await WikipageResolver.open({
+        cacheDatabasePath,
+        fetch: createMockFetch(calls),
+        language: "en",
+        minRequestIntervalMs: 0,
+        normalizer: () => {
+          normalizerCalls += 1;
+
+          return Promise.resolve({
+            meanings: [
+              {
+                information: "first planet from the Sun",
+                name: "Mercury (planet)",
+                priority: "primary",
+                qid: "Q308",
+              },
+            ],
+            sourceQid: "Q48397",
+          });
+        },
+        retryBaseDelayMs: 0,
+      });
+
+      try {
+        const [resolution] = await thirdResolver.resolveQids(["Q48397"]);
+
+        expect(normalizerCalls).toBe(2);
+        expect(
+          resolution?.disambiguation?.profile?.meanings.map(
+            (meaning) => meaning.qid,
+          ),
+        ).toStrictEqual(["Q308"]);
+      } finally {
+        await thirdResolver.close();
+      }
+
+      expect(normalizerCalls).toBe(2);
+    });
+  });
+
   it("keeps cache entries across resolver reopen", async () => {
     await withTempDir("wikigraph-wikipage-", async (path) => {
       const calls: string[] = [];
@@ -698,6 +846,61 @@ async function readWikipageFetchLog(logDirPath: string): Promise<string> {
     `${logDirPath}/${runDirName}/artifacts/wikipage/wikipage-fetch.jsonl`,
     "utf8",
   );
+}
+
+async function readProfileError(
+  cacheDatabasePath: string,
+  qid: string,
+): Promise<Record<string, unknown> | undefined> {
+  const database = await Database.open(cacheDatabasePath);
+
+  try {
+    const value = await database.queryOne(
+      `
+SELECT profile_error_json
+FROM disambiguation_cache
+WHERE qid = ?
+`,
+      [qid],
+      (row) =>
+        typeof row.profile_error_json === "string"
+          ? row.profile_error_json
+          : undefined,
+    );
+
+    return value === undefined
+      ? undefined
+      : (JSON.parse(value) as Record<string, unknown>);
+  } finally {
+    await database.close();
+  }
+}
+
+async function expireProfileError(
+  cacheDatabasePath: string,
+  qid: string,
+): Promise<void> {
+  const database = await Database.open(cacheDatabasePath);
+
+  try {
+    await database.run(
+      `
+UPDATE disambiguation_cache
+SET profile_error_json = ?
+WHERE qid = ?
+`,
+      [
+        JSON.stringify({
+          failedAt: "1969-01-01T00:00:00.000Z",
+          message: "Schema validation failed after all retries",
+          retryAfter: "1969-01-01T00:00:00.000Z",
+        }),
+        qid,
+      ],
+    );
+  } finally {
+    await database.close();
+  }
 }
 
 async function readOnlyRunDirName(logDirPath: string): Promise<string> {

@@ -10,6 +10,56 @@ import { renderDisambiguationHtml } from "./wikimedia-client/index.js";
 import type { GuaranteedRequest } from "../guaranteed/index.js";
 
 describe("wikipage/normalizer", () => {
+  it("omits meanings without qids before returning the final profile", async () => {
+    const input = createInput();
+    const request = vi.fn<GuaranteedRequest>().mockResolvedValueOnce(
+      JSON.stringify({
+        meanings: [
+          {
+            category: "concept",
+            information: "unlinked page item",
+            name: "Unlinked meaning",
+            priority: "primary",
+            qid: null,
+          },
+          {
+            category: "work",
+            information: "empty qid page item",
+            name: "Empty QID meaning",
+            priority: "secondary",
+            qid: "",
+          },
+          {
+            category: "place",
+            information: "美国首都",
+            name: "华盛顿哥伦比亚特区",
+            priority: "primary",
+            qid: "Q61",
+          },
+        ],
+        sourceQid: "Q25301",
+        surface: "华盛顿",
+      }),
+    );
+
+    await expect(
+      createDisambiguationProfileNormalizer({ request })(input),
+    ).resolves.toStrictEqual({
+      meanings: [
+        {
+          category: "place",
+          information: "美国首都",
+          name: "华盛顿哥伦比亚特区",
+          priority: "primary",
+          qid: "Q61",
+        },
+      ],
+      sourceQid: "Q25301",
+      surface: "华盛顿",
+    });
+    expect(request).toHaveBeenCalledTimes(1);
+  });
+
   it("normalizes disambiguation page text and rejects invented qids", async () => {
     const input = createInput();
     const request = vi

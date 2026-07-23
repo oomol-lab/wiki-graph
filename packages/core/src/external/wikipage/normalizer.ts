@@ -22,7 +22,7 @@ const profileMeaningSchema = z
     information: z.string(),
     name: z.string().min(1),
     priority: z.enum(["primary", "secondary", "other"]),
-    qid: z.string().regex(/^Q[1-9]\d*$/u),
+    qid: z.union([z.string(), z.null()]),
   })
   .strict();
 
@@ -60,7 +60,7 @@ export function createDisambiguationProfileNormalizer(
 
 function normalizeProfile(
   profile: z.infer<typeof profileSchema>,
-): DisambiguationProfile {
+): NormalizedDisambiguationProfile {
   return {
     meanings: profile.meanings.map((meaning) => ({
       ...(meaning.category === undefined ? {} : { category: meaning.category }),
@@ -76,7 +76,7 @@ function normalizeProfile(
 
 function parseDisambiguationProfile(
   input: DisambiguationProfileNormalizerInput,
-  profile: DisambiguationProfile,
+  profile: NormalizedDisambiguationProfile,
 ): DisambiguationProfile {
   const pageQidLinks = new Set(input.pageQidLinks.map((item) => item.qid));
   const issues: string[] = [];
@@ -90,6 +90,9 @@ function parseDisambiguationProfile(
   }
 
   for (const meaning of profile.meanings) {
+    if (meaning.qid === null || meaning.qid === "") {
+      continue;
+    }
     if (!pageQidLinks.has(meaning.qid)) {
       issues.push(
         `Meaning "${meaning.name}" selected qid ${meaning.qid}, but it is not present in the input disambiguation page links.`,
@@ -104,7 +107,13 @@ function parseDisambiguationProfile(
     }
 
     seen.add(meaning.qid);
-    meanings.push(meaning);
+    meanings.push({
+      ...(meaning.category === undefined ? {} : { category: meaning.category }),
+      information: meaning.information,
+      name: meaning.name,
+      priority: meaning.priority,
+      qid: meaning.qid,
+    });
   }
 
   if (meanings.length === 0) {
@@ -133,6 +142,9 @@ function buildNormalizerMessages(
         "Return JSON only.",
         "Do not invent QIDs, pages, people, places, works, or meanings.",
         "Only use QIDs from the pageQidLinks list.",
+        "Only include meanings whose target has a QID in pageQidLinks.",
+        "Omit disambiguation bullets or page items that have no QID link.",
+        "Never use null, empty strings, placeholder QIDs, or made-up QIDs.",
         "The information field must only copy or summarize text present on the disambiguation page itself.",
         "Do not use Wikidata descriptions or external knowledge to fill information.",
         "When a bullet contains multiple links, treat administrative divisions, parent locations, categories, and locator/explanatory links as context only.",
@@ -186,6 +198,19 @@ function buildNormalizerMessages(
         .join("\n"),
     },
   ];
+}
+
+interface NormalizedDisambiguationProfile {
+  readonly meanings: readonly NormalizedDisambiguationProfileMeaning[];
+  readonly sourceQid: string;
+  readonly surface?: string;
+}
+
+interface NormalizedDisambiguationProfileMeaning extends Omit<
+  DisambiguationProfileMeaning,
+  "qid"
+> {
+  readonly qid: string | null;
 }
 
 function formatPageQidLink(item: DisambiguationLinkedQid): object {

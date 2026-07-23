@@ -13,6 +13,7 @@ import type {
   CachedQidRecord,
   DisambiguationLinkedQid,
   DisambiguationPageText,
+  DisambiguationProfileError,
   DisambiguationProfile,
   DisambiguationProfileMeaning,
 } from "./types.js";
@@ -38,6 +39,7 @@ CREATE TABLE IF NOT EXISTS disambiguation_cache (
   wiki TEXT NOT NULL,
   pages_json TEXT NOT NULL,
   profile_json TEXT,
+  profile_error_json TEXT,
   checked_at TEXT NOT NULL,
   PRIMARY KEY (qid, wiki)
 );
@@ -171,6 +173,9 @@ WHERE qid = ? AND wiki = ?
       );
 
       if (record !== undefined) {
+        if (isExpiredProfileError(record.profileError)) {
+          continue;
+        }
         results.set(qid, record);
       }
     }
@@ -191,11 +196,12 @@ WHERE qid = ? AND wiki = ?
         await this.#database.run(
           `
 INSERT INTO disambiguation_cache (
-  qid, wiki, pages_json, profile_json, checked_at
-) VALUES (?, ?, ?, ?, ?)
+  qid, wiki, pages_json, profile_json, profile_error_json, checked_at
+) VALUES (?, ?, ?, ?, ?, ?)
 ON CONFLICT(qid, wiki) DO UPDATE SET
   pages_json = excluded.pages_json,
   profile_json = excluded.profile_json,
+  profile_error_json = excluded.profile_error_json,
   checked_at = excluded.checked_at
 `,
           [
@@ -205,6 +211,9 @@ ON CONFLICT(qid, wiki) DO UPDATE SET
             record.profile === undefined
               ? null
               : JSON.stringify(record.profile),
+            record.profileError === undefined
+              ? null
+              : JSON.stringify(record.profileError),
             record.checkedAt,
           ],
         );
@@ -315,33 +324,42 @@ async function migrateDisambiguationCacheSchema(
 ): Promise<void> {
   const columns = await listTableColumns(database, "disambiguation_cache");
 
-  if (columns.has("wiki")) {
-    return;
-  }
+  if (!columns.has("wiki")) {
+    await database.transaction(async () => {
+      const transactionColumns = await listTableColumns(
+        database,
+        "disambiguation_cache",
+      );
 
-  await database.transaction(async () => {
-    const transactionColumns = await listTableColumns(
-      database,
-      "disambiguation_cache",
-    );
+      if (transactionColumns.has("wiki")) {
+        return;
+      }
 
-    if (transactionColumns.has("wiki")) {
-      return;
-    }
-
-    await database.run(
-      "ALTER TABLE disambiguation_cache RENAME TO disambiguation_cache_legacy",
-    );
-    await database.run(CREATE_DISAMBIGUATION_CACHE_SQL);
-    await database.run(`
+      await database.run(
+        "ALTER TABLE disambiguation_cache RENAME TO disambiguation_cache_legacy",
+      );
+      await database.run(CREATE_DISAMBIGUATION_CACHE_SQL);
+      await database.run(`
 INSERT OR IGNORE INTO disambiguation_cache (
   qid, wiki, pages_json, profile_json, checked_at
 )
 SELECT qid, 'enwiki', pages_json, profile_json, checked_at
 FROM disambiguation_cache_legacy
 `);
-    await database.run("DROP TABLE disambiguation_cache_legacy");
-  });
+      await database.run("DROP TABLE disambiguation_cache_legacy");
+    });
+  }
+
+  const updatedColumns = await listTableColumns(
+    database,
+    "disambiguation_cache",
+  );
+
+  if (!updatedColumns.has("profile_error_json")) {
+    await database.run(
+      "ALTER TABLE disambiguation_cache ADD COLUMN profile_error_json TEXT",
+    );
+  }
 }
 
 async function listTableColumns(
@@ -423,10 +441,17 @@ function mapQidRecord(row: SqlRow): CachedQidRecord {
 }
 
 function mapDisambiguationRecord(row: SqlRow): CachedDisambiguationRecord {
+  const profileErrorJson = getOptionalString(row.profile_error_json);
+  const profileError =
+    profileErrorJson === undefined
+      ? undefined
+      : parseDisambiguationProfileError(profileErrorJson);
+
   return {
     checkedAt: getString(row.checked_at, "checked_at"),
     disambiguationQid: getString(row.qid, "qid"),
     pages: parseDisambiguationPages(getString(row.pages_json, "pages_json")),
+    ...(profileError === undefined ? {} : { profileError }),
     ...(getOptionalString(row.profile_json) === undefined
       ? {}
       : {
@@ -435,6 +460,18 @@ function mapDisambiguationRecord(row: SqlRow): CachedDisambiguationRecord {
           ),
         }),
   };
+}
+
+function isExpiredProfileError(
+  error: DisambiguationProfileError | undefined,
+): boolean {
+  if (error === undefined) {
+    return false;
+  }
+
+  const retryAt = Date.parse(error.retryAfter);
+
+  return Number.isFinite(retryAt) && retryAt <= Date.now();
 }
 
 function parsePageRecords(value: string): readonly CachedPageRecord[] {
@@ -506,6 +543,18 @@ function parseDisambiguationProfile(value: string): DisambiguationProfile {
   return parsed;
 }
 
+function parseDisambiguationProfileError(
+  value: string,
+): DisambiguationProfileError | undefined {
+  const parsed: unknown = JSON.parse(value);
+
+  if (!isDisambiguationProfileError(parsed)) {
+    return undefined;
+  }
+
+  return parsed;
+}
+
 function isDisambiguationProfile(
   value: unknown,
 ): value is DisambiguationProfile {
@@ -543,6 +592,22 @@ function isDisambiguationProfileMeaning(
       record.priority === "other") &&
     typeof record.qid === "string" &&
     /^Q[1-9]\d*$/u.test(record.qid)
+  );
+}
+
+function isDisambiguationProfileError(
+  value: unknown,
+): value is DisambiguationProfileError {
+  if (typeof value !== "object" || value === null) {
+    return false;
+  }
+
+  const record = value as Record<string, unknown>;
+
+  return (
+    typeof record.failedAt === "string" &&
+    typeof record.message === "string" &&
+    typeof record.retryAfter === "string"
   );
 }
 

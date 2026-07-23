@@ -81,7 +81,14 @@ export interface CachedDisambiguationRecord {
   readonly checkedAt: string;
   readonly disambiguationQid: string;
   readonly pages: readonly DisambiguationPageText[];
+  readonly profileError?: DisambiguationProfileError;
   readonly profile?: DisambiguationProfile;
+}
+
+export interface DisambiguationProfileError {
+  readonly failedAt: string;
+  readonly message: string;
+  readonly retryAfter: string;
 }
 
 export interface CachedPageRecord {

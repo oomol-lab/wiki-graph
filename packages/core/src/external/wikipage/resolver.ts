@@ -1,5 +1,6 @@
 import { WikipageCache } from "./cache.js";
 import { createWikipageFetchLog } from "./fetch-log.js";
+import { GuaranteedRequestFailureError } from "../guaranteed/index.js";
 import {
   WikimediaClient,
   replaceTitleUriWithQidUri,
@@ -28,6 +29,7 @@ const DEFAULT_RETRY_BASE_DELAY_MS = 1_000;
 const DEFAULT_RETRY_TIMES = 3;
 const DEFAULT_USER_AGENT =
   "WikiGraph/0.3 (https://github.com/oomol-lab/wiki-graph)";
+const DISAMBIGUATION_PROFILE_ERROR_RETRY_DELAY_MS = 6 * 60 * 60 * 1_000;
 
 export class WikipageResolver {
   readonly #cache: WikipageCache;
@@ -289,22 +291,56 @@ export class WikipageResolver {
     }
 
     const linkedQids = mergeLinkedQids(pages);
-    const profile =
-      this.#normalizer === undefined || linkedQids.length === 0
-        ? undefined
-        : await this.#normalizer({
-            pageQidLinks: linkedQids,
-            pages,
-            sourceQid: record.qid,
-            ...(record.label === undefined ? {} : { surface: record.label }),
-          });
+    const profileResult = await this.#normalizeDisambiguationProfile(
+      record,
+      pages,
+      linkedQids,
+    );
 
     return {
       checkedAt: new Date().toISOString(),
       disambiguationQid: record.qid,
       pages,
-      ...(profile === undefined ? {} : { profile }),
+      ...profileResult,
     };
+  }
+
+  async #normalizeDisambiguationProfile(
+    record: CachedQidRecord,
+    pages: readonly DisambiguationPageText[],
+    linkedQids: readonly DisambiguationLinkedQid[],
+  ): Promise<Pick<CachedDisambiguationRecord, "profile" | "profileError">> {
+    if (this.#normalizer === undefined || linkedQids.length === 0) {
+      return {};
+    }
+
+    try {
+      return {
+        profile: await this.#normalizer({
+          pageQidLinks: linkedQids,
+          pages,
+          sourceQid: record.qid,
+          ...(record.label === undefined ? {} : { surface: record.label }),
+        }),
+      };
+    } catch (error) {
+      if (!(error instanceof GuaranteedRequestFailureError)) {
+        throw error;
+      }
+
+      const failedAt = new Date();
+      const retryAfter = new Date(
+        failedAt.getTime() + DISAMBIGUATION_PROFILE_ERROR_RETRY_DELAY_MS,
+      );
+
+      return {
+        profileError: {
+          failedAt: failedAt.toISOString(),
+          message: error.message,
+          retryAfter: retryAfter.toISOString(),
+        },
+      };
+    }
   }
 
   async #reportProgress(
