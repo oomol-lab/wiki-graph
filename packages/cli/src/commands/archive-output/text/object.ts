@@ -122,15 +122,16 @@ function formatObjectSummaryLines(object: ArchiveOutputObject): string[] {
 
 function formatLibrarySourceLines(object: ArchiveOutputObject): string[] {
   const sources =
-    object.sources ??
-    (object.archiveId === undefined && object.libraryArchiveUri === undefined
-      ? []
-      : [
-          {
-            archiveId: object.archiveId,
-            libraryArchiveUri: object.libraryArchiveUri,
-          },
-        ]);
+    object.sources !== undefined && object.sources.length > 0
+      ? object.sources
+      : object.archiveId === undefined && object.libraryArchiveUri === undefined
+        ? []
+        : [
+            {
+              archiveId: object.archiveId,
+              libraryArchiveUri: object.libraryArchiveUri,
+            },
+          ];
 
   return sources.map((source) =>
     [

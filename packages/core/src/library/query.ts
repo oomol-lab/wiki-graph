@@ -257,6 +257,11 @@ async function readIndexedArchiveResults<T>(
     target,
     objectUri,
   );
+
+  if (archiveIds.length === 0) {
+    return await readUnindexedArchiveResults(target, objectUri, operation);
+  }
+
   const results: T[] = [];
 
   for (const archiveId of archiveIds) {
@@ -277,6 +282,41 @@ async function readIndexedArchiveResults<T>(
     } catch (error) {
       throw new Error(
         `Failed to read Wiki Graph library archive ${archiveId} (${archive.uri}) for ${objectUri}: ${formatErrorMessage(error)}`,
+        { cause: error },
+      );
+    }
+  }
+
+  if (results.length === 0) {
+    throw new Error(`Wiki Graph library object was not found: ${objectUri}`);
+  }
+  return results;
+}
+
+async function readUnindexedArchiveResults<T>(
+  target: ParsedWikiGraphLibraryUri,
+  objectUri: string,
+  operation: (
+    document: ReadonlyDocument,
+    archive: WikiGraphLibraryArchiveRecord,
+  ) => Promise<T>,
+): Promise<T[]> {
+  const results: T[] = [];
+
+  for (const archive of await listReadyLibraryArchives(target)) {
+    try {
+      results.push(
+        await readLibraryArchiveDocument(
+          archive,
+          async (document) => await operation(document, archive),
+        ),
+      );
+    } catch (error) {
+      if (isArchiveObjectNotFoundError(error)) {
+        continue;
+      }
+      throw new Error(
+        `Failed to read Wiki Graph library archive ${archive.id} (${archive.uri}) for ${objectUri}: ${formatErrorMessage(error)}`,
         { cause: error },
       );
     }
@@ -478,4 +518,11 @@ function createLibrarySource(
 
 function formatErrorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
+}
+
+function isArchiveObjectNotFoundError(error: unknown): boolean {
+  return (
+    error instanceof Error &&
+    error.message.includes(" was not found in this archive.")
+  );
 }

@@ -249,6 +249,42 @@ describe("wiki graph library object query aggregation", () => {
     expect(result.items.map((item) => item.archiveId)).toStrictEqual([1, 2]);
   });
 
+  it("scans readable archives for non-indexed triple pages", async () => {
+    const { readWikiGraphLibraryPage } =
+      await import("../../../packages/core/src/library/query.js");
+
+    const tripleUri = "wikg://triple/Q1/mentions/Q2";
+    mocks.pages.set(`archive-1.wikg:${tripleUri}`, {
+      evidence: { nextCursor: null, shown: 1, sources: [], total: 1 },
+      id: tripleUri,
+      label: "Q1 mentions Q2",
+      objectQid: "Q2",
+      predicate: "mentions",
+      subjectQid: "Q1",
+      type: "triple",
+    });
+    mocks.pages.set(`archive-2.wikg:${tripleUri}`, {
+      evidence: { nextCursor: null, shown: 1, sources: [], total: 1 },
+      id: tripleUri,
+      label: "Q1 mentions Q2",
+      objectQid: "Q2",
+      predicate: "mentions",
+      subjectQid: "Q1",
+      type: "triple",
+    });
+
+    const page = await readWikiGraphLibraryPage(target, tripleUri);
+
+    expect(page).toMatchObject({
+      id: tripleUri,
+      sources: [
+        { archiveId: 1, libraryArchiveUri: "wikg://lib/archive-1" },
+        { archiveId: 2, libraryArchiveUri: "wikg://lib/archive-2" },
+      ],
+      type: "triple",
+    });
+  });
+
   it("aggregates related items instead of returning the first archive", async () => {
     const { listRelatedWikiGraphLibraryObjects } =
       await import("../../../packages/core/src/library/query.js");
