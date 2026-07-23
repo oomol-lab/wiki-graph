@@ -356,12 +356,17 @@ export async function createPageObject(
 function createLibrarySourceObject(source: {
   readonly archiveId?: number;
   readonly libraryArchiveUri?: string;
-}): Pick<ArchiveOutputObject, "archiveId" | "libraryArchiveUri"> {
+  readonly sources?: readonly {
+    readonly archiveId: number;
+    readonly libraryArchiveUri: string;
+  }[];
+}): Pick<ArchiveOutputObject, "archiveId" | "libraryArchiveUri" | "sources"> {
   return {
     ...(source.archiveId === undefined ? {} : { archiveId: source.archiveId }),
     ...(source.libraryArchiveUri === undefined
       ? {}
       : { libraryArchiveUri: source.libraryArchiveUri }),
+    ...(source.sources === undefined ? {} : { sources: source.sources }),
   };
 }
 

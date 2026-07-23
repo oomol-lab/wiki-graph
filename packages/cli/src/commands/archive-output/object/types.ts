@@ -30,11 +30,17 @@ export interface ArchiveOutputObject {
   readonly score?: number;
   readonly state?: Record<string, string>;
   readonly subjectLabel?: string;
+  readonly sources?: readonly ArchiveOutputLibrarySource[];
   readonly text?: string;
   readonly title?: string;
   readonly type?: string;
   readonly uri: string;
   readonly value?: string;
+}
+
+export interface ArchiveOutputLibrarySource {
+  readonly archiveId: number;
+  readonly libraryArchiveUri: string;
 }
 
 export interface ArchiveOutputBacklinks {

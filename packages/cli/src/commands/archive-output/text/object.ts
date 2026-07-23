@@ -121,19 +121,28 @@ function formatObjectSummaryLines(object: ArchiveOutputObject): string[] {
 }
 
 function formatLibrarySourceLines(object: ArchiveOutputObject): string[] {
-  return object.archiveId === undefined &&
-    object.libraryArchiveUri === undefined
-    ? []
-    : [
-        [
-          object.archiveId === undefined
-            ? undefined
-            : `archiveId:${object.archiveId}`,
-          object.libraryArchiveUri,
-        ]
-          .filter((part): part is string => part !== undefined)
-          .join("  "),
-      ];
+  const sources =
+    object.sources !== undefined && object.sources.length > 0
+      ? object.sources
+      : object.archiveId === undefined && object.libraryArchiveUri === undefined
+        ? []
+        : [
+            {
+              archiveId: object.archiveId,
+              libraryArchiveUri: object.libraryArchiveUri,
+            },
+          ];
+
+  return sources.map((source) =>
+    [
+      source.archiveId === undefined
+        ? undefined
+        : `archiveId:${source.archiveId}`,
+      source.libraryArchiveUri,
+    ]
+      .filter((part): part is string => part !== undefined)
+      .join("  "),
+  );
 }
 
 export function getListObjectSeparator(

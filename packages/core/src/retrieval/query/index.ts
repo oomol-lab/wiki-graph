@@ -39,6 +39,7 @@ export type {
   ArchiveFindPosition,
   ArchiveFindResult,
   ArchiveIndex,
+  ArchiveLibrarySource,
   ArchiveListItem,
   ArchiveListKind,
   ArchiveNodeLabel,

@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { archiveMockState, resetArchiveMockState } from "./mock.js";
 import { runArchiveCommand } from "../../../packages/cli/src/commands/index.js";
+import { formatFindObject } from "../../../packages/cli/src/commands/archive-output/text/object.js";
 import {
   createContinuationCursor,
   readArchivePage,
@@ -57,6 +58,19 @@ describe("cli/archive/object", () => {
     expect(archiveMockState.textWrites[0]).toBe(
       "wikg://chapter/2  Chapter 2  source:ready reading-graph:ready reading-summary:missing knowledge-graph:missing\n",
     );
+  });
+
+  it("falls back to single archive provenance when sources is empty", () => {
+    expect(
+      formatFindObject({
+        archiveId: 7,
+        label: "Entity",
+        libraryArchiveUri: "wikg://lib/archive-7",
+        sources: [],
+        type: "entity",
+        uri: "wikg://entity/Q7",
+      }),
+    ).toBe("wikg://entity/Q7\nEntity\narchiveId:7  wikg://lib/archive-7");
   });
 
   it("gets a source range as a citation block", async () => {
