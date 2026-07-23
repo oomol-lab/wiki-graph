@@ -238,7 +238,7 @@ async function hasInitMarker(
   markerPath: string,
   schemaHash: string,
 ): Promise<boolean> {
-  if (!(await pathExists(databasePath))) {
+  if (!(await pathIsRegularFile(databasePath))) {
     return false;
   }
 
@@ -257,10 +257,9 @@ function createInitMarkerPath(databasePath: string): string {
   return `${databasePath}.initialized`;
 }
 
-async function pathExists(path: string): Promise<boolean> {
+async function pathIsRegularFile(path: string): Promise<boolean> {
   try {
-    await stat(path);
-    return true;
+    return (await stat(path)).isFile();
   } catch (error) {
     if (isNodeError(error) && error.code === "ENOENT") {
       return false;
