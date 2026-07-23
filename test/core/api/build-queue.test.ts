@@ -17,13 +17,17 @@ import {
   cancelBuildJob,
   recordBuildJobInputRevision,
 } from "../../../packages/core/src/api/index.js";
+import {
+  getWikiGraphStateDirectoryPathForTesting,
+  setWikiGraphStateDirectoryPathForTesting,
+} from "../../../packages/core/src/runtime/common/wiki-graph/dir.js";
 import { withTempDir } from "../../helpers/temp.js";
 
-const originalStateDir = process.env.WIKIGRAPH_STATE_DIR;
+const originalStateDir = getWikiGraphStateDirectoryPathForTesting();
 
 describe("facade/build-queue", () => {
   afterEach(() => {
-    restoreEnv("WIKIGRAPH_STATE_DIR", originalStateDir);
+    restoreWikiGraphStateDir(originalStateDir);
   });
 
   it("merges active reading lane jobs for an archive chapter", async () => {
@@ -1038,16 +1042,11 @@ function requirePromise<T>(promise: Promise<T> | undefined): Promise<T> {
 }
 
 function useStateDir(path: string): void {
-  process.env.WIKIGRAPH_STATE_DIR = path;
+  setWikiGraphStateDirectoryPathForTesting(path);
 }
 
-function restoreEnv(key: string, value: string | undefined): void {
-  if (value === undefined) {
-    delete process.env[key];
-    return;
-  }
-
-  process.env[key] = value;
+function restoreWikiGraphStateDir(value: string | undefined): void {
+  setWikiGraphStateDirectoryPathForTesting(value);
 }
 
 async function withTimeout<T>(

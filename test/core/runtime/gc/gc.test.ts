@@ -5,6 +5,11 @@ import { afterEach, describe, expect, it } from "vitest";
 
 import { createWikiGraphTempDirectory } from "../../../../packages/core/src/runtime/common/wiki-graph/temp.js";
 import {
+  getWikiGraphStateDirectoryPathForTesting,
+  resolveWikiGraphHomeDirectoryPath,
+  setWikiGraphStateDirectoryPathForTesting,
+} from "../../../../packages/core/src/runtime/common/wiki-graph/dir.js";
+import {
   Database,
   DirectoryDocument,
 } from "../../../../packages/core/src/document/index.js";
@@ -20,16 +25,16 @@ import { WikiGraphArchiveFile } from "../../../../packages/core/src/storage/wikg
 import { WikipageCache } from "../../../../packages/core/src/external/wikipage/index.js";
 import { withTempDir } from "../../../helpers/temp.js";
 
-const originalStateDir = process.env.WIKIGRAPH_STATE_DIR;
+const originalStateDir = getWikiGraphStateDirectoryPathForTesting();
 
 describe("gc", () => {
   afterEach(() => {
-    restoreEnv("WIKIGRAPH_STATE_DIR", originalStateDir);
+    restoreWikiGraphStateDir(originalStateDir);
   });
 
   it("cleans expired search sessions, completed jobs, and old controlled tmp directories", async () => {
     await withTempDir("wikigraph-gc-", async (path) => {
-      process.env.WIKIGRAPH_STATE_DIR = join(path, "state");
+      setWikiGraphStateDirectoryPathForTesting(join(path, "state"));
 
       await createExpiredSearchSession();
       const job = await createCompletedOldJob(path);
@@ -65,7 +70,7 @@ describe("gc", () => {
 
   it("removes expired wikipage cache entries", async () => {
     await withTempDir("wikigraph-gc-", async (path) => {
-      process.env.WIKIGRAPH_STATE_DIR = join(path, "state");
+      setWikiGraphStateDirectoryPathForTesting(join(path, "state"));
       await createWikipageCacheRows(
         new Date(Date.now() - 40 * 24 * 60 * 60 * 1000).toISOString(),
       );
@@ -90,7 +95,7 @@ describe("gc", () => {
 
   it("keeps fresh wikipage cache entries during forced GC", async () => {
     await withTempDir("wikigraph-gc-", async (path) => {
-      process.env.WIKIGRAPH_STATE_DIR = join(path, "state");
+      setWikiGraphStateDirectoryPathForTesting(join(path, "state"));
       await createWikipageCacheRows(new Date().toISOString());
 
       const report = await tryRunWikiGraphGc({ force: true });
@@ -113,7 +118,7 @@ describe("gc", () => {
 
   it("reports expired wikipage cache entries during dry-run GC", async () => {
     await withTempDir("wikigraph-gc-", async (path) => {
-      process.env.WIKIGRAPH_STATE_DIR = join(path, "state");
+      setWikiGraphStateDirectoryPathForTesting(join(path, "state"));
       await createWikipageCacheRows(
         new Date(Date.now() - 40 * 24 * 60 * 60 * 1000).toISOString(),
       );
@@ -141,7 +146,7 @@ describe("gc", () => {
 
   it("skips when another GC run owns the global lock", async () => {
     await withTempDir("wikigraph-gc-", async (path) => {
-      process.env.WIKIGRAPH_STATE_DIR = join(path, "state");
+      setWikiGraphStateDirectoryPathForTesting(join(path, "state"));
       await insertGcLock();
 
       const report = await tryRunWikiGraphGc();
@@ -153,7 +158,7 @@ describe("gc", () => {
 
   it("removes orphan library index staging while preserving valid and locked libraries", async () => {
     await withTempDir("wikigraph-gc-", async (path) => {
-      process.env.WIKIGRAPH_STATE_DIR = join(path, "state");
+      setWikiGraphStateDirectoryPathForTesting(join(path, "state"));
       const library = await createWikiGraphLibrary({
         folderPath: join(path, "library"),
       });
@@ -184,7 +189,7 @@ describe("gc", () => {
 
   it("keeps library index staging when registry ids cannot be read", async () => {
     await withTempDir("wikigraph-gc-", async (path) => {
-      process.env.WIKIGRAPH_STATE_DIR = join(path, "state");
+      setWikiGraphStateDirectoryPathForTesting(join(path, "state"));
       const libraryPath = join(path, "state", "staging", "library", "1");
 
       await mkdir(libraryPath, { recursive: true });
@@ -203,7 +208,7 @@ describe("gc", () => {
 
   it("keeps fresh sqlite cache during normal GC", async () => {
     await withTempDir("wikigraph-gc-", async (path) => {
-      process.env.WIKIGRAPH_STATE_DIR = join(path, "state");
+      setWikiGraphStateDirectoryPathForTesting(join(path, "state"));
       const sqliteCachePath = await createCoordinatorSqliteCache(path, {
         updatedAt: Date.now(),
       });
@@ -217,7 +222,7 @@ describe("gc", () => {
 
   it("removes fresh sqlite cache during forced GC", async () => {
     await withTempDir("wikigraph-gc-", async (path) => {
-      process.env.WIKIGRAPH_STATE_DIR = join(path, "state");
+      setWikiGraphStateDirectoryPathForTesting(join(path, "state"));
       const sqliteCachePath = await createCoordinatorSqliteCache(path, {
         updatedAt: Date.now(),
       });
@@ -237,7 +242,7 @@ describe("gc", () => {
 
   it("removes stale empty workspace directories", async () => {
     await withTempDir("wikigraph-gc-", async (path) => {
-      process.env.WIKIGRAPH_STATE_DIR = join(path, "state");
+      setWikiGraphStateDirectoryPathForTesting(join(path, "state"));
       const workspaceBucketPath = join(
         path,
         "state",
@@ -272,7 +277,7 @@ describe("gc", () => {
 
   it("removes dirty external fts sqlite cache during normal GC", async () => {
     await withTempDir("wikigraph-gc-", async (path) => {
-      process.env.WIKIGRAPH_STATE_DIR = join(path, "state");
+      setWikiGraphStateDirectoryPathForTesting(join(path, "state"));
       const sqliteCachePath = await createCoordinatorSqliteCache(path, {
         entryPath: "fts.db",
         updatedAt: Date.now() - 2 * 60 * 60 * 1000,
@@ -293,7 +298,7 @@ describe("gc", () => {
 
   it("keeps current external fts sqlite cache during normal GC and removes it during forced GC", async () => {
     await withTempDir("wikigraph-gc-", async (path) => {
-      process.env.WIKIGRAPH_STATE_DIR = join(path, "state");
+      setWikiGraphStateDirectoryPathForTesting(join(path, "state"));
       const { ftsPath } = await createArchiveWithExternalSearchIndex(path);
 
       await makeCoordinatorOverlayOld("fts.db");
@@ -314,7 +319,7 @@ describe("gc", () => {
 
   it("removes external fts sqlite cache when the source archive is missing", async () => {
     await withTempDir("wikigraph-gc-", async (path) => {
-      process.env.WIKIGRAPH_STATE_DIR = join(path, "state");
+      setWikiGraphStateDirectoryPathForTesting(join(path, "state"));
       const { archivePath, ftsPath } =
         await createArchiveWithExternalSearchIndex(path);
 
@@ -328,7 +333,7 @@ describe("gc", () => {
 
   it("removes external fts sqlite cache when the archive fingerprint changes", async () => {
     await withTempDir("wikigraph-gc-", async (path) => {
-      process.env.WIKIGRAPH_STATE_DIR = join(path, "state");
+      setWikiGraphStateDirectoryPathForTesting(join(path, "state"));
       const { archivePath, ftsPath } =
         await createArchiveWithExternalSearchIndex(path);
 
@@ -352,7 +357,7 @@ describe("gc", () => {
 
   it("removes orphaned coordinator workspace files", async () => {
     await withTempDir("wikigraph-gc-", async (path) => {
-      process.env.WIKIGRAPH_STATE_DIR = join(path, "state");
+      setWikiGraphStateDirectoryPathForTesting(join(path, "state"));
       const workspaceBucketPath = join(
         path,
         "state",
@@ -392,7 +397,7 @@ describe("gc", () => {
 
   it("removes empty coordinator workspace descendants", async () => {
     await withTempDir("wikigraph-gc-", async (path) => {
-      process.env.WIKIGRAPH_STATE_DIR = join(path, "state");
+      setWikiGraphStateDirectoryPathForTesting(join(path, "state"));
       const workspaceBucketPath = join(
         path,
         "state",
@@ -436,7 +441,7 @@ describe("gc", () => {
 
   it("keeps fresh terminal build jobs during normal GC", async () => {
     await withTempDir("wikigraph-gc-", async (path) => {
-      process.env.WIKIGRAPH_STATE_DIR = join(path, "state");
+      setWikiGraphStateDirectoryPathForTesting(join(path, "state"));
       const job = await createCompletedJob(path, {
         ageMs: 0,
         state: "failed",
@@ -457,7 +462,7 @@ describe("gc", () => {
 
   it("removes fresh terminal build jobs during forced GC", async () => {
     await withTempDir("wikigraph-gc-", async (path) => {
-      process.env.WIKIGRAPH_STATE_DIR = join(path, "state");
+      setWikiGraphStateDirectoryPathForTesting(join(path, "state"));
       const job = await createCompletedJob(path, {
         ageMs: 0,
         state: "failed",
@@ -895,24 +900,14 @@ async function openStateDatabase(
   databaseName: string,
   schemaSql = "",
 ): Promise<Database> {
-  if (process.env.WIKIGRAPH_STATE_DIR === undefined) {
-    throw new Error("WIKIGRAPH_STATE_DIR is not set.");
-  }
+  const stateDirPath = resolveWikiGraphHomeDirectoryPath();
 
-  await mkdir(dirname(join(process.env.WIKIGRAPH_STATE_DIR, databaseName)), {
+  await mkdir(dirname(join(stateDirPath, databaseName)), {
     recursive: true,
   });
-  return await Database.open(
-    join(process.env.WIKIGRAPH_STATE_DIR, databaseName),
-    schemaSql,
-  );
+  return await Database.open(join(stateDirPath, databaseName), schemaSql);
 }
 
-function restoreEnv(name: string, value: string | undefined): void {
-  if (value === undefined) {
-    delete process.env[name];
-    return;
-  }
-
-  process.env[name] = value;
+function restoreWikiGraphStateDir(value: string | undefined): void {
+  setWikiGraphStateDirectoryPathForTesting(value);
 }

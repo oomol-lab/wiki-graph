@@ -2,9 +2,11 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
   DirectoryDocument,
   findArchiveObjects,
+  getWikiGraphStateDirectoryPathForTesting,
   rebuildArchiveSearchIndex,
-  restoreEnv,
+  restoreWikiGraphStateDir,
   seedSourcedDocument,
+  setWikiGraphStateDirectoryPathForTesting,
   setupArchiveViewTestState,
   teardownArchiveViewTestState,
   withTempDir,
@@ -16,8 +18,8 @@ afterEach(teardownArchiveViewTestState);
 describe("archive/query/archive-view/graph search", () => {
   it("prioritizes entity matches before source hits", async () => {
     await withTempDir("wikigraph-archive-view-", async (path) => {
-      const previousStateDir = process.env.WIKIGRAPH_STATE_DIR;
-      process.env.WIKIGRAPH_STATE_DIR = `${path}/state`;
+      const previousStateDir = getWikiGraphStateDirectoryPathForTesting();
+      setWikiGraphStateDirectoryPathForTesting(`${path}/state`);
       const document = await DirectoryDocument.open(`${path}/document`);
 
       try {
@@ -68,7 +70,7 @@ describe("archive/query/archive-view/graph search", () => {
           },
         ]);
       } finally {
-        restoreEnv("WIKIGRAPH_STATE_DIR", previousStateDir);
+        restoreWikiGraphStateDir(previousStateDir);
         await document.release();
       }
     });
@@ -116,8 +118,8 @@ describe("archive/query/archive-view/graph search", () => {
 
   it("hydrates entity evidence after reading a search session page", async () => {
     await withTempDir("wikigraph-archive-view-", async (path) => {
-      const previousStateDir = process.env.WIKIGRAPH_STATE_DIR;
-      process.env.WIKIGRAPH_STATE_DIR = `${path}/state`;
+      const previousStateDir = getWikiGraphStateDirectoryPathForTesting();
+      setWikiGraphStateDirectoryPathForTesting(`${path}/state`);
       const document = await DirectoryDocument.open(`${path}/document`);
 
       try {
@@ -183,7 +185,7 @@ describe("archive/query/archive-view/graph search", () => {
           "evidenceMentions",
         );
       } finally {
-        restoreEnv("WIKIGRAPH_STATE_DIR", previousStateDir);
+        restoreWikiGraphStateDir(previousStateDir);
         await document.release();
       }
     });
@@ -191,8 +193,8 @@ describe("archive/query/archive-view/graph search", () => {
 
   it("continues entity search cursors without repeating --type", async () => {
     await withTempDir("wikigraph-archive-view-", async (path) => {
-      const previousStateDir = process.env.WIKIGRAPH_STATE_DIR;
-      process.env.WIKIGRAPH_STATE_DIR = `${path}/state`;
+      const previousStateDir = getWikiGraphStateDirectoryPathForTesting();
+      setWikiGraphStateDirectoryPathForTesting(`${path}/state`);
       const document = await DirectoryDocument.open(`${path}/document`);
 
       try {
@@ -244,7 +246,7 @@ describe("archive/query/archive-view/graph search", () => {
         expect(secondPage.types).toStrictEqual(["entity"]);
         expect(secondPage.items[0]).toMatchObject({ type: "entity" });
       } finally {
-        restoreEnv("WIKIGRAPH_STATE_DIR", previousStateDir);
+        restoreWikiGraphStateDir(previousStateDir);
         await document.release();
       }
     });
@@ -252,8 +254,8 @@ describe("archive/query/archive-view/graph search", () => {
 
   it("keeps exact entity surfaces ahead of weaker same-qid mentions", async () => {
     await withTempDir("wikigraph-archive-view-", async (path) => {
-      const previousStateDir = process.env.WIKIGRAPH_STATE_DIR;
-      process.env.WIKIGRAPH_STATE_DIR = `${path}/state`;
+      const previousStateDir = getWikiGraphStateDirectoryPathForTesting();
+      setWikiGraphStateDirectoryPathForTesting(`${path}/state`);
       const document = await DirectoryDocument.open(`${path}/document`);
 
       try {
@@ -302,7 +304,7 @@ describe("archive/query/archive-view/graph search", () => {
           type: "entity",
         });
       } finally {
-        restoreEnv("WIKIGRAPH_STATE_DIR", previousStateDir);
+        restoreWikiGraphStateDir(previousStateDir);
         await document.release();
       }
     });
@@ -310,8 +312,8 @@ describe("archive/query/archive-view/graph search", () => {
 
   it("does not expand entity matches through qid aliases", async () => {
     await withTempDir("wikigraph-archive-view-", async (path) => {
-      const previousStateDir = process.env.WIKIGRAPH_STATE_DIR;
-      process.env.WIKIGRAPH_STATE_DIR = `${path}/state`;
+      const previousStateDir = getWikiGraphStateDirectoryPathForTesting();
+      setWikiGraphStateDirectoryPathForTesting(`${path}/state`);
       const document = await DirectoryDocument.open(`${path}/document`);
 
       try {
@@ -356,7 +358,7 @@ describe("archive/query/archive-view/graph search", () => {
           type: "entity",
         });
       } finally {
-        restoreEnv("WIKIGRAPH_STATE_DIR", previousStateDir);
+        restoreWikiGraphStateDir(previousStateDir);
         await document.release();
       }
     });
@@ -364,8 +366,8 @@ describe("archive/query/archive-view/graph search", () => {
 
   it("adds only a small bonus for repeated entity evidence", async () => {
     await withTempDir("wikigraph-archive-view-", async (path) => {
-      const previousStateDir = process.env.WIKIGRAPH_STATE_DIR;
-      process.env.WIKIGRAPH_STATE_DIR = `${path}/state`;
+      const previousStateDir = getWikiGraphStateDirectoryPathForTesting();
+      setWikiGraphStateDirectoryPathForTesting(`${path}/state`);
       const document = await DirectoryDocument.open(`${path}/document`);
 
       try {
@@ -407,7 +409,7 @@ describe("archive/query/archive-view/graph search", () => {
         expect(multi?.score).toBeGreaterThan(single?.score ?? 0);
         expect(multi?.score).toBeLessThan((single?.score ?? 0) * 5);
       } finally {
-        restoreEnv("WIKIGRAPH_STATE_DIR", previousStateDir);
+        restoreWikiGraphStateDir(previousStateDir);
         await document.release();
       }
     });
@@ -415,8 +417,8 @@ describe("archive/query/archive-view/graph search", () => {
 
   it("finds triples when only one endpoint matches the query", async () => {
     await withTempDir("wikigraph-archive-view-", async (path) => {
-      const previousStateDir = process.env.WIKIGRAPH_STATE_DIR;
-      process.env.WIKIGRAPH_STATE_DIR = `${path}/state`;
+      const previousStateDir = getWikiGraphStateDirectoryPathForTesting();
+      setWikiGraphStateDirectoryPathForTesting(`${path}/state`);
       const document = await DirectoryDocument.open(`${path}/document`);
 
       try {
@@ -483,7 +485,7 @@ describe("archive/query/archive-view/graph search", () => {
 
         expect(filtered.items).toStrictEqual([]);
       } finally {
-        restoreEnv("WIKIGRAPH_STATE_DIR", previousStateDir);
+        restoreWikiGraphStateDir(previousStateDir);
         await document.release();
       }
     });
@@ -491,8 +493,8 @@ describe("archive/query/archive-view/graph search", () => {
 
   it("adds only a small bonus for repeated triple evidence", async () => {
     await withTempDir("wikigraph-archive-view-", async (path) => {
-      const previousStateDir = process.env.WIKIGRAPH_STATE_DIR;
-      process.env.WIKIGRAPH_STATE_DIR = `${path}/state`;
+      const previousStateDir = getWikiGraphStateDirectoryPathForTesting();
+      setWikiGraphStateDirectoryPathForTesting(`${path}/state`);
       const document = await DirectoryDocument.open(`${path}/document`);
 
       try {
@@ -542,7 +544,7 @@ describe("archive/query/archive-view/graph search", () => {
 
         expect(multi?.score).toBeCloseTo((single?.score ?? 0) * 1.3, 10);
       } finally {
-        restoreEnv("WIKIGRAPH_STATE_DIR", previousStateDir);
+        restoreWikiGraphStateDir(previousStateDir);
         await document.release();
       }
     });

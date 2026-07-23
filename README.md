@@ -70,6 +70,10 @@ $ wg wikg://quickstart.wikg --query alpha
 Alpha is connected to beta.
 ```
 
+## Local Development
+
+When developing Wiki Graph itself, see [Local CLI Development](./docs/local-cli-development.md) for how to install the current branch as `wg` or run the current checkout through pnpm without a global install.
+
 ## Manual LLM Evals
 
 `pnpm eval:llm` runs a manual summarize/compressor evaluation against a real LLM. It is intentionally not part of `pnpm test`, `pnpm test:run`, or CI. The script prints the case name, model info, raw output, final user-visible output, and heuristic checks so you can judge prompt changes before release.

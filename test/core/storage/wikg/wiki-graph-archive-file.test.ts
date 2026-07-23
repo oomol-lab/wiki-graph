@@ -6,6 +6,10 @@ import { afterEach, describe, expect, it } from "vitest";
 
 import { DirectoryDocument } from "../../../../packages/core/src/document/index.js";
 import {
+  getWikiGraphStateDirectoryPathForTesting,
+  setWikiGraphStateDirectoryPathForTesting,
+} from "../../../../packages/core/src/runtime/common/wiki-graph/dir.js";
+import {
   findArchiveObjects,
   rebuildArchiveSearchIndex,
 } from "../../../../packages/core/src/retrieval/query/view.js";
@@ -14,7 +18,7 @@ import { WikiGraphArchive } from "../../../../packages/core/src/api/wiki-graph-a
 import { WikiGraphArchiveFile } from "../../../../packages/core/src/storage/wikg/wiki-graph-archive-file.js";
 import { withTempDir } from "../../../helpers/temp.js";
 
-const originalStateDir = process.env.WIKIGRAPH_STATE_DIR;
+const originalStateDir = getWikiGraphStateDirectoryPathForTesting();
 
 describe("wikg/wiki-graph-archive-file", () => {
   afterEach(() => {
@@ -676,26 +680,21 @@ function createArchiveKey(archivePath: string): string {
 }
 
 function useCoordinatorStateDir(path: string): () => void {
-  const previousStateDir = process.env.WIKIGRAPH_STATE_DIR;
+  const previousStateDir = getWikiGraphStateDirectoryPathForTesting();
 
-  process.env.WIKIGRAPH_STATE_DIR = path;
+  setWikiGraphStateDirectoryPathForTesting(path);
 
   return () => {
-    restoreEnv("WIKIGRAPH_STATE_DIR", previousStateDir);
+    restoreWikiGraphStateDir(previousStateDir);
   };
 }
 
 function restoreCoordinatorEnv(): void {
-  restoreEnv("WIKIGRAPH_STATE_DIR", originalStateDir);
+  restoreWikiGraphStateDir(originalStateDir);
 }
 
-function restoreEnv(key: string, value: string | undefined): void {
-  if (value === undefined) {
-    delete process.env[key];
-    return;
-  }
-
-  process.env[key] = value;
+function restoreWikiGraphStateDir(value: string | undefined): void {
+  setWikiGraphStateDirectoryPathForTesting(value);
 }
 
 function expectString(value: unknown): string {

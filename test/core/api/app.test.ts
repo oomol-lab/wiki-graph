@@ -48,6 +48,10 @@ vi.mock("../../../packages/core/src/api/digest.js", () => ({
 }));
 
 import { WikiGraphScope } from "../../../packages/core/src/runtime/common/llm-scope.js";
+import {
+  getWikiGraphStateDirectoryPathForTesting,
+  setWikiGraphStateDirectoryPathForTesting,
+} from "../../../packages/core/src/runtime/common/wiki-graph/dir.js";
 import { DirectoryDocument } from "../../../packages/core/src/document/index.js";
 import { WikiGraphArchive } from "../../../packages/core/src/api/wiki-graph-archive.js";
 import { Language, WikiGraph } from "../../../packages/core/src/index.js";
@@ -221,9 +225,9 @@ describe("facade/app", () => {
 
   it("opens saved digest archives without requiring llm configuration", async () => {
     await withTempDir("wikigraph-app-", async (path) => {
-      const originalStateDir = process.env.WIKIGRAPH_STATE_DIR;
+      const originalStateDir = getWikiGraphStateDirectoryPathForTesting();
 
-      process.env.WIKIGRAPH_STATE_DIR = `${path}/state`;
+      setWikiGraphStateDirectoryPathForTesting(`${path}/state`);
       const document = await DirectoryDocument.open(`${path}/document`);
 
       try {
@@ -264,11 +268,7 @@ describe("facade/app", () => {
         expect(title).toBe("App Open Fixture");
       } finally {
         await document.release();
-        if (originalStateDir === undefined) {
-          delete process.env.WIKIGRAPH_STATE_DIR;
-        } else {
-          process.env.WIKIGRAPH_STATE_DIR = originalStateDir;
-        }
+        setWikiGraphStateDirectoryPathForTesting(originalStateDir);
       }
     });
   });

@@ -6,13 +6,15 @@ import {
   countStructuredCacheRowsForQuery,
   deleteArchiveSearchSessions,
   findArchiveObjects,
+  getWikiGraphStateDirectoryPathForTesting,
   listDocumentTableNames,
   listSearchIndexTableNames,
   querySearchIndex,
   readArchivePage,
   rebuildArchiveSearchIndex,
-  restoreEnv,
+  restoreWikiGraphStateDir,
   seedSourcedDocument,
+  setWikiGraphStateDirectoryPathForTesting,
   setupArchiveViewTestState,
   teardownArchiveViewTestState,
   withTempDir,
@@ -400,8 +402,8 @@ describe("archive/query/archive-view/text search", () => {
 
   it("caches empty search results for repeated queries", async () => {
     await withTempDir("wikigraph-archive-view-", async (path) => {
-      const previousStateDir = process.env.WIKIGRAPH_STATE_DIR;
-      process.env.WIKIGRAPH_STATE_DIR = `${path}/state`;
+      const previousStateDir = getWikiGraphStateDirectoryPathForTesting();
+      setWikiGraphStateDirectoryPathForTesting(`${path}/state`);
       const document = await DirectoryDocument.open(`${path}/document`);
 
       try {
@@ -430,7 +432,7 @@ describe("archive/query/archive-view/text search", () => {
         expect(first.items).toStrictEqual([]);
         expect(second.items).toStrictEqual([]);
       } finally {
-        restoreEnv("WIKIGRAPH_STATE_DIR", previousStateDir);
+        restoreWikiGraphStateDir(previousStateDir);
         await document.release();
       }
     });
@@ -438,8 +440,8 @@ describe("archive/query/archive-view/text search", () => {
 
   it("keeps search caches isolated by type and chapter filters", async () => {
     await withTempDir("wikigraph-archive-view-", async (path) => {
-      const previousStateDir = process.env.WIKIGRAPH_STATE_DIR;
-      process.env.WIKIGRAPH_STATE_DIR = `${path}/state`;
+      const previousStateDir = getWikiGraphStateDirectoryPathForTesting();
+      setWikiGraphStateDirectoryPathForTesting(`${path}/state`);
       const document = await DirectoryDocument.open(`${path}/document`);
 
       try {
@@ -527,7 +529,7 @@ describe("archive/query/archive-view/text search", () => {
           ]),
         ).resolves.toBe(0);
       } finally {
-        restoreEnv("WIKIGRAPH_STATE_DIR", previousStateDir);
+        restoreWikiGraphStateDir(previousStateDir);
         await document.release();
       }
     });
@@ -535,8 +537,8 @@ describe("archive/query/archive-view/text search", () => {
 
   it("groups field-level hits into one object search result", async () => {
     await withTempDir("wikigraph-archive-view-", async (path) => {
-      const previousStateDir = process.env.WIKIGRAPH_STATE_DIR;
-      process.env.WIKIGRAPH_STATE_DIR = `${path}/state`;
+      const previousStateDir = getWikiGraphStateDirectoryPathForTesting();
+      setWikiGraphStateDirectoryPathForTesting(`${path}/state`);
       const document = await DirectoryDocument.open(`${path}/document`);
 
       try {
@@ -567,7 +569,7 @@ describe("archive/query/archive-view/text search", () => {
           }),
         ]);
       } finally {
-        restoreEnv("WIKIGRAPH_STATE_DIR", previousStateDir);
+        restoreWikiGraphStateDir(previousStateDir);
         await document.release();
       }
     });
@@ -575,8 +577,8 @@ describe("archive/query/archive-view/text search", () => {
 
   it("refreshes cached search results after archive cache invalidation", async () => {
     await withTempDir("wikigraph-archive-view-", async (path) => {
-      const previousStateDir = process.env.WIKIGRAPH_STATE_DIR;
-      process.env.WIKIGRAPH_STATE_DIR = `${path}/state`;
+      const previousStateDir = getWikiGraphStateDirectoryPathForTesting();
+      setWikiGraphStateDirectoryPathForTesting(`${path}/state`);
       const document = await DirectoryDocument.open(`${path}/document`);
 
       try {
@@ -614,7 +616,7 @@ describe("archive/query/archive-view/text search", () => {
           }),
         ]);
       } finally {
-        restoreEnv("WIKIGRAPH_STATE_DIR", previousStateDir);
+        restoreWikiGraphStateDir(previousStateDir);
         await document.release();
       }
     });

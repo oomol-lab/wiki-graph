@@ -3,12 +3,14 @@ import {
   DirectoryDocument,
   createEntityWikipageMockFetch,
   findArchiveObjects,
+  getWikiGraphStateDirectoryPathForTesting,
   listArchiveCollection,
   listArchiveEvidence,
   listArchiveObjects,
   readArchivePage,
-  restoreEnv,
+  restoreWikiGraphStateDir,
   seedSourcedDocument,
+  setWikiGraphStateDirectoryPathForTesting,
   setupArchiveViewTestState,
   teardownArchiveViewTestState,
   withTempDir,
@@ -128,8 +130,8 @@ describe("archive/query/archive-view/pages", () => {
 
   it("does not include metadata fields in search", async () => {
     await withTempDir("wikigraph-archive-view-", async (path) => {
-      const previousStateDir = process.env.WIKIGRAPH_STATE_DIR;
-      process.env.WIKIGRAPH_STATE_DIR = `${path}/state`;
+      const previousStateDir = getWikiGraphStateDirectoryPathForTesting();
+      setWikiGraphStateDirectoryPathForTesting(`${path}/state`);
       const document = await DirectoryDocument.open(`${path}/document`);
 
       try {
@@ -161,7 +163,7 @@ describe("archive/query/archive-view/pages", () => {
           }),
         ).resolves.toMatchObject({ items: [] });
       } finally {
-        restoreEnv("WIKIGRAPH_STATE_DIR", previousStateDir);
+        restoreWikiGraphStateDir(previousStateDir);
         await document.release();
       }
     });
@@ -169,8 +171,8 @@ describe("archive/query/archive-view/pages", () => {
 
   it("treats chapter search results as title hits only", async () => {
     await withTempDir("wikigraph-archive-view-", async (path) => {
-      const previousStateDir = process.env.WIKIGRAPH_STATE_DIR;
-      process.env.WIKIGRAPH_STATE_DIR = `${path}/state`;
+      const previousStateDir = getWikiGraphStateDirectoryPathForTesting();
+      setWikiGraphStateDirectoryPathForTesting(`${path}/state`);
       const document = await DirectoryDocument.open(`${path}/document`);
 
       try {
@@ -194,7 +196,7 @@ describe("archive/query/archive-view/pages", () => {
           }),
         );
       } finally {
-        restoreEnv("WIKIGRAPH_STATE_DIR", previousStateDir);
+        restoreWikiGraphStateDir(previousStateDir);
         await document.release();
       }
     });

@@ -7,23 +7,23 @@ import {
   addWikiGraphLibraryArchive,
   parseWikiGraphLibraryUri,
 } from "wiki-graph-core";
+import {
+  getWikiGraphStateDirectoryPathForTesting,
+  setWikiGraphStateDirectoryPathForTesting,
+} from "../../../../../core/src/runtime/common/wiki-graph/dir.js";
 import { resolveArchiveCommandRuntimeArguments } from "./uri.js";
 
 let previousStateDir: string | undefined;
 let tempDir: string;
 
 beforeEach(async () => {
-  previousStateDir = process.env.WIKIGRAPH_STATE_DIR;
+  previousStateDir = getWikiGraphStateDirectoryPathForTesting();
   tempDir = await mkdtemp(join(tmpdir(), "wikigraph-cli-uri-test-"));
-  process.env.WIKIGRAPH_STATE_DIR = join(tempDir, "state");
+  setWikiGraphStateDirectoryPathForTesting(join(tempDir, "state"));
 });
 
 afterEach(async () => {
-  if (previousStateDir === undefined) {
-    delete process.env.WIKIGRAPH_STATE_DIR;
-  } else {
-    process.env.WIKIGRAPH_STATE_DIR = previousStateDir;
-  }
+  setWikiGraphStateDirectoryPathForTesting(previousStateDir);
   await rm(tempDir, { force: true, recursive: true });
 });
 

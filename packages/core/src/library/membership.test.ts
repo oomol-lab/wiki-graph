@@ -22,23 +22,23 @@ import {
   resolveWikiGraphLibraryArchivePath,
   scanWikiGraphLibrary,
 } from "../index.js";
+import {
+  getWikiGraphStateDirectoryPathForTesting,
+  setWikiGraphStateDirectoryPathForTesting,
+} from "../runtime/common/wiki-graph/dir.js";
 import { writeWikgArchive } from "../storage/wikg/index.js";
 
 let previousStateDir: string | undefined;
 let tempDir: string;
 
 beforeEach(async () => {
-  previousStateDir = process.env.WIKIGRAPH_STATE_DIR;
+  previousStateDir = getWikiGraphStateDirectoryPathForTesting();
   tempDir = await mkdtemp(join(tmpdir(), "wikigraph-library-test-"));
-  process.env.WIKIGRAPH_STATE_DIR = join(tempDir, "state");
+  setWikiGraphStateDirectoryPathForTesting(join(tempDir, "state"));
 });
 
 afterEach(async () => {
-  if (previousStateDir === undefined) {
-    delete process.env.WIKIGRAPH_STATE_DIR;
-  } else {
-    process.env.WIKIGRAPH_STATE_DIR = previousStateDir;
-  }
+  setWikiGraphStateDirectoryPathForTesting(previousStateDir);
   await rm(tempDir, { force: true, recursive: true });
 });
 

@@ -1,14 +1,31 @@
 import { homedir } from "os";
 import { join, resolve } from "path";
 
-export function resolveWikiGraphHomeDirectoryPath(): string {
-  const localDataRootPath = process.env.WIKIGRAPH_STATE_DIR;
+declare global {
+  var __WIKIGRAPH_STATE_DIR__: string | undefined;
+}
 
-  if (localDataRootPath !== undefined && localDataRootPath.trim() !== "") {
-    return resolve(localDataRootPath);
+export function resolveWikiGraphHomeDirectoryPath(): string {
+  const injectedStateDirPath = globalThis.__WIKIGRAPH_STATE_DIR__;
+
+  if (
+    injectedStateDirPath !== undefined &&
+    injectedStateDirPath.trim() !== ""
+  ) {
+    return resolve(injectedStateDirPath);
   }
 
   return join(homedir(), ".wikigraph");
+}
+
+export function setWikiGraphStateDirectoryPathForTesting(
+  path: string | undefined,
+): void {
+  globalThis.__WIKIGRAPH_STATE_DIR__ = path;
+}
+
+export function getWikiGraphStateDirectoryPathForTesting(): string | undefined {
+  return globalThis.__WIKIGRAPH_STATE_DIR__;
 }
 
 export function resolveWikiGraphCoreDatabasePath(): string {

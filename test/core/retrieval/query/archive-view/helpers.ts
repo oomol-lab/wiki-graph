@@ -7,6 +7,10 @@ import {
   DirectoryDocument,
 } from "../../../../../packages/core/src/document/index.js";
 import {
+  getWikiGraphStateDirectoryPathForTesting,
+  setWikiGraphStateDirectoryPathForTesting,
+} from "../../../../../packages/core/src/runtime/common/wiki-graph/dir.js";
+import {
   findArchiveObjects,
   grepArchiveObjects,
   isArchiveSearchIndexCurrent,
@@ -29,16 +33,16 @@ import {
 import { deleteArchiveSearchSessions } from "../../../../../packages/core/src/retrieval/query/search-cache/index.js";
 import { withTempDir } from "../../../../helpers/temp.js";
 
-const originalStateDir = process.env.WIKIGRAPH_STATE_DIR;
+const originalStateDir = getWikiGraphStateDirectoryPathForTesting();
 let testStateDir: string | undefined;
 
 export async function setupArchiveViewTestState(): Promise<void> {
   testStateDir = await mkdtemp(join(tmpdir(), "wikigraph-state-"));
-  process.env.WIKIGRAPH_STATE_DIR = testStateDir;
+  setWikiGraphStateDirectoryPathForTesting(testStateDir);
 }
 
 export async function teardownArchiveViewTestState(): Promise<void> {
-  restoreEnv("WIKIGRAPH_STATE_DIR", originalStateDir);
+  restoreWikiGraphStateDir(originalStateDir);
   if (testStateDir !== undefined) {
     await rm(testStateDir, { force: true, recursive: true });
     testStateDir = undefined;
@@ -151,14 +155,14 @@ export async function seedSourcedDocument(
   await rebuildArchiveSearchIndex(document);
 }
 
-export function restoreEnv(name: string, value: string | undefined): void {
-  if (value === undefined) {
-    delete process.env[name];
-    return;
-  }
-
-  process.env[name] = value;
+export function restoreWikiGraphStateDir(value: string | undefined): void {
+  setWikiGraphStateDirectoryPathForTesting(value);
 }
+
+export {
+  getWikiGraphStateDirectoryPathForTesting,
+  setWikiGraphStateDirectoryPathForTesting,
+};
 
 export async function listDocumentTableNames(
   document: DirectoryDocument,

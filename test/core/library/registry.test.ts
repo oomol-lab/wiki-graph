@@ -17,22 +17,22 @@ import {
   removeWikiGraphLibrary,
   replaceWikiGraphLibraryMetadata,
 } from "../../../packages/core/src/index.js";
+import {
+  getWikiGraphStateDirectoryPathForTesting,
+  setWikiGraphStateDirectoryPathForTesting,
+} from "../../../packages/core/src/runtime/common/wiki-graph/dir.js";
 
 describe("wiki graph library registry", () => {
-  const originalStateDir = process.env.WIKIGRAPH_STATE_DIR;
+  const originalStateDir = getWikiGraphStateDirectoryPathForTesting();
   let stateDir: string;
 
   beforeEach(async () => {
     stateDir = await mkdtemp(join(tmpdir(), "wikg-library-"));
-    process.env.WIKIGRAPH_STATE_DIR = stateDir;
+    setWikiGraphStateDirectoryPathForTesting(stateDir);
   });
 
   afterEach(async () => {
-    if (originalStateDir === undefined) {
-      delete process.env.WIKIGRAPH_STATE_DIR;
-    } else {
-      process.env.WIKIGRAPH_STATE_DIR = originalStateDir;
-    }
+    setWikiGraphStateDirectoryPathForTesting(originalStateDir);
     await rm(stateDir, { force: true, recursive: true });
   });
 

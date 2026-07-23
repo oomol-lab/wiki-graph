@@ -70,6 +70,10 @@ $ wg wikg://quickstart.wikg --query alpha
 Alpha is connected to beta.
 ```
 
+## 本地开发
+
+开发 Wiki Graph 本身时，可阅读 [Local CLI Development](./docs/local-cli-development.md)，了解如何把当前 branch 安装成本机 `wg`，或如何通过 pnpm 直接运行当前 checkout 而不做全局安装。
+
 ## 手动 LLM eval
 
 `pnpm eval:llm` 会用真实大语言模型跑一组手动的 summarize/compressor 评估。它不会被 `pnpm test`、`pnpm test:run` 或 CI 自动触发。脚本会输出 case 名称、模型信息、原始输出、最终用户可见输出和基础启发式检查结果，方便在改 prompt 或切模型前人工判断。

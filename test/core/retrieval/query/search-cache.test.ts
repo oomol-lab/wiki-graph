@@ -7,18 +7,22 @@ import {
   createSearchSession,
   deleteArchiveSearchSessions,
 } from "../../../../packages/core/src/retrieval/query/search-cache/index.js";
+import {
+  getWikiGraphStateDirectoryPathForTesting,
+  setWikiGraphStateDirectoryPathForTesting,
+} from "../../../../packages/core/src/runtime/common/wiki-graph/dir.js";
 import { withTempDir } from "../../../helpers/temp.js";
 
-const originalStateDir = process.env.WIKIGRAPH_STATE_DIR;
+const originalStateDir = getWikiGraphStateDirectoryPathForTesting();
 
 describe("archive/query/search-cache", () => {
   afterEach(() => {
-    restoreEnv("WIKIGRAPH_STATE_DIR", originalStateDir);
+    setWikiGraphStateDirectoryPathForTesting(originalStateDir);
   });
 
   it("creates indexes for search session lookup and ranking", async () => {
     await withTempDir("wikigraph-search-cache-", async (path) => {
-      process.env.WIKIGRAPH_STATE_DIR = path;
+      setWikiGraphStateDirectoryPathForTesting(path);
 
       await createSearchSession({
         archiveKey: "archive-key",
@@ -72,7 +76,7 @@ describe("archive/query/search-cache", () => {
 
   it("removes predicate dictionary entries after their triple hits are deleted", async () => {
     await withTempDir("wikigraph-search-cache-", async (path) => {
-      process.env.WIKIGRAPH_STATE_DIR = path;
+      setWikiGraphStateDirectoryPathForTesting(path);
 
       await createSearchSession({
         archiveKey: "archive-a",
@@ -180,13 +184,4 @@ async function listPredicates(path: string): Promise<string[]> {
   } finally {
     await database.close();
   }
-}
-
-function restoreEnv(name: string, value: string | undefined): void {
-  if (value === undefined) {
-    delete process.env[name];
-    return;
-  }
-
-  process.env[name] = value;
 }
