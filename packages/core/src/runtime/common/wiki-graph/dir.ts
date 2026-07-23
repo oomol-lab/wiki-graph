@@ -24,9 +24,7 @@ export function setWikiGraphStateDirectoryPathForTesting(
   globalThis.__WIKIGRAPH_STATE_DIR__ = path;
 }
 
-export function getWikiGraphStateDirectoryPathForTesting():
-  | string
-  | undefined {
+export function getWikiGraphStateDirectoryPathForTesting(): string | undefined {
   return globalThis.__WIKIGRAPH_STATE_DIR__;
 }
 
