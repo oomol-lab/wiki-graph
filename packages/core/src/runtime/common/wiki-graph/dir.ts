@@ -1,7 +1,18 @@
+import { AsyncLocalStorage } from "async_hooks";
 import { homedir } from "os";
 import { join, resolve } from "path";
 
+const testingStateDirectoryPath = new AsyncLocalStorage<{
+  readonly path: string | undefined;
+}>();
+
 export function resolveWikiGraphHomeDirectoryPath(): string {
+  const testingStateDirPath = testingStateDirectoryPath.getStore()?.path;
+
+  if (testingStateDirPath !== undefined && testingStateDirPath.trim() !== "") {
+    return resolve(testingStateDirPath);
+  }
+
   const devStateDirPath = process.env.WIKIGRAPH_DEV;
 
   if (devStateDirPath !== undefined && devStateDirPath.trim() !== "") {
@@ -14,6 +25,8 @@ export function resolveWikiGraphHomeDirectoryPath(): string {
 export function setWikiGraphStateDirectoryPathForTesting(
   path: string | undefined,
 ): void {
+  testingStateDirectoryPath.enterWith({ path });
+
   if (path === undefined) {
     delete process.env.WIKIGRAPH_DEV;
     return;
