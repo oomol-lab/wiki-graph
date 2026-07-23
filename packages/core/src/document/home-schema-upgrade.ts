@@ -63,6 +63,12 @@ export async function ensureWikiGraphHomeSchemaCurrent(): Promise<void> {
 
   const refreshedFingerprint =
     await readHomeSchemaDatabaseFingerprint(coreDatabasePath);
+
+  if (homeSchemaUpgradeInFlight !== undefined) {
+    await homeSchemaUpgradeInFlight;
+    return ensureWikiGraphHomeSchemaCurrent();
+  }
+
   if (
     isCurrentHomeSchemaDatabaseMemo(
       resolvedCoreDatabasePath,
