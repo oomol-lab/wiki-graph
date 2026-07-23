@@ -35,6 +35,13 @@ export function setWikiGraphStateDirectoryPathForTesting(
   process.env.WIKIGRAPH_DEV = path;
 }
 
+export async function withWikiGraphStateDirectoryPathForTesting<T>(
+  path: string | undefined,
+  operation: () => Promise<T> | T,
+): Promise<T> {
+  return await testingStateDirectoryPath.run({ path }, operation);
+}
+
 export function getWikiGraphStateDirectoryPathForTesting(): string | undefined {
   return process.env.WIKIGRAPH_DEV;
 }
