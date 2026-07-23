@@ -87,6 +87,13 @@ non-`fts.db` overlay state is present.
 Pure information commands such as `wg --version` and help rendering must not open
 home SQLite and must not trigger schema upgrade.
 
+After a home `core.sqlite` file is confirmed current, the home gate may memoize
+that result inside the current process for hot gated access. The memo must be
+bound to both the resolved `core.sqlite` path and a file fingerprint (`dev`,
+`ino`, `mtimeMs`, `size`), so replacing, deleting/recreating, or rewriting the
+same path forces the next gated access to re-read the home schema version before
+opening other home SQLite state.
+
 ## Module Boundary
 
 `document` owns low-level SQLite/shared-state opening helpers and the home gate

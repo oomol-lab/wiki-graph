@@ -1,5 +1,5 @@
 import { createWriteStream } from "fs";
-import { mkdir, readFile, stat, writeFile } from "fs/promises";
+import { mkdir, readFile, rm, stat, writeFile } from "fs/promises";
 import { dirname, join } from "path";
 import { finished } from "stream/promises";
 
@@ -94,6 +94,53 @@ describe("schema-upgrade", () => {
     await withTempDir("wikigraph-schema-future-home-", async (home) => {
       setWikiGraphStateDirectoryPathForTesting(home);
       await writeHomeSchemaVersion(home, 999);
+
+      await expect(ensureWikiGraphHomeSchemaCurrent()).rejects.toThrow(
+        "Unsupported Wiki Graph home schema version: 999",
+      );
+    });
+  });
+
+  it("invalidates the home schema memo when core sqlite is replaced by future schema", async () => {
+    await withTempDir("wikigraph-schema-future-home-replace-", async (home) => {
+      setWikiGraphStateDirectoryPathForTesting(home);
+      await ensureWikiGraphHomeSchemaCurrent();
+
+      await rm(join(home, "core.sqlite"), { force: true });
+      await writeHomeSchemaVersion(home, 999);
+
+      await expect(ensureWikiGraphHomeSchemaCurrent()).rejects.toThrow(
+        "Unsupported Wiki Graph home schema version: 999",
+      );
+    });
+  });
+
+  it("invalidates the home schema memo when core sqlite is deleted and recreated as legacy", async () => {
+    await withTempDir(
+      "wikigraph-schema-legacy-home-recreate-",
+      async (home) => {
+        setWikiGraphStateDirectoryPathForTesting(home);
+        await ensureWikiGraphHomeSchemaCurrent();
+
+        await rm(join(home, "core.sqlite"), { force: true });
+        await writeLegacyCoreDatabase(home);
+        await ensureWikiGraphHomeSchemaCurrent();
+
+        await expect(readHomeSchemaVersion(home)).resolves.toBe(2);
+      },
+    );
+  });
+
+  it("does not reuse the home schema memo after switching test home paths", async () => {
+    await withTempDir("wikigraph-schema-home-switch-", async (root) => {
+      const firstHome = join(root, "first-home");
+      const secondHome = join(root, "second-home");
+
+      setWikiGraphStateDirectoryPathForTesting(firstHome);
+      await ensureWikiGraphHomeSchemaCurrent();
+
+      setWikiGraphStateDirectoryPathForTesting(secondHome);
+      await writeHomeSchemaVersion(secondHome, 999);
 
       await expect(ensureWikiGraphHomeSchemaCurrent()).rejects.toThrow(
         "Unsupported Wiki Graph home schema version: 999",
@@ -466,23 +513,27 @@ async function withLegacyHome(
 ): Promise<void> {
   await withTempDir(prefix, async (home) => {
     setWikiGraphStateDirectoryPathForTesting(home);
-    const database = await Database.open(join(home, "core.sqlite"));
-    try {
-      await database.run(`
-        CREATE TABLE config_sections (
-          section TEXT NOT NULL,
-          key TEXT NOT NULL,
-          value_json TEXT NOT NULL,
-          updated_at TEXT NOT NULL,
-          PRIMARY KEY (section, key)
-        )
-      `);
-    } finally {
-      await database.close();
-    }
+    await writeLegacyCoreDatabase(home);
 
     await operation(home);
   });
+}
+
+async function writeLegacyCoreDatabase(home: string): Promise<void> {
+  const database = await Database.open(join(home, "core.sqlite"));
+  try {
+    await database.run(`
+      CREATE TABLE config_sections (
+        section TEXT NOT NULL,
+        key TEXT NOT NULL,
+        value_json TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        PRIMARY KEY (section, key)
+      )
+    `);
+  } finally {
+    await database.close();
+  }
 }
 
 async function withBlockedHomeUpgrade(

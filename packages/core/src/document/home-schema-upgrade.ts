@@ -9,6 +9,7 @@ import {
   resolveWikiGraphStagingDirectoryPath,
   resolveWikiGraphTempRootDirectoryPath,
 } from "../runtime/common/wiki-graph/dir.js";
+import { isNodeError } from "../utils/node-error.js";
 
 import { Database } from "./database.js";
 
@@ -16,7 +17,7 @@ const CURRENT_HOME_SCHEMA_VERSION = 2;
 const LOCK_STALE_TIMEOUT_MS = 5 * 60 * 1000;
 const SEARCH_INDEX_DATABASE_PATH = "fts.db";
 let homeSchemaUpgradeInFlight: Promise<void> | undefined;
-let currentHomeSchemaDatabasePath: string | undefined;
+let currentHomeSchemaDatabaseMemo: HomeSchemaDatabaseMemo | undefined;
 const HOME_SCHEMA_SQL = `
   CREATE TABLE IF NOT EXISTS schema_versions (
     scope TEXT PRIMARY KEY,
@@ -25,22 +26,49 @@ const HOME_SCHEMA_SQL = `
   );
 `;
 
+interface HomeSchemaDatabaseFingerprint {
+  readonly dev: number;
+  readonly ino: number;
+  readonly mtimeMs: number;
+  readonly size: number;
+}
+
+interface HomeSchemaDatabaseMemo {
+  readonly fingerprint: HomeSchemaDatabaseFingerprint;
+  readonly path: string;
+}
+
 export async function ensureWikiGraphHomeSchemaCurrent(): Promise<void> {
   const coreDatabasePath = resolveWikiGraphCoreDatabasePath();
   const resolvedCoreDatabasePath = resolve(coreDatabasePath);
+  const fingerprint = await readHomeSchemaDatabaseFingerprint(coreDatabasePath);
 
-  if (currentHomeSchemaDatabasePath === resolvedCoreDatabasePath) {
+  if (isCurrentHomeSchemaDatabaseMemo(resolvedCoreDatabasePath, fingerprint)) {
     return;
   }
 
   if (homeSchemaUpgradeInFlight !== undefined) {
     await homeSchemaUpgradeInFlight;
-    if (currentHomeSchemaDatabasePath === resolvedCoreDatabasePath) {
+    const refreshedFingerprint =
+      await readHomeSchemaDatabaseFingerprint(coreDatabasePath);
+    if (
+      isCurrentHomeSchemaDatabaseMemo(
+        resolvedCoreDatabasePath,
+        refreshedFingerprint,
+      )
+    ) {
       return;
     }
   }
 
-  if (currentHomeSchemaDatabasePath === resolvedCoreDatabasePath) {
+  const refreshedFingerprint =
+    await readHomeSchemaDatabaseFingerprint(coreDatabasePath);
+  if (
+    isCurrentHomeSchemaDatabaseMemo(
+      resolvedCoreDatabasePath,
+      refreshedFingerprint,
+    )
+  ) {
     return;
   }
 
@@ -50,7 +78,7 @@ export async function ensureWikiGraphHomeSchemaCurrent(): Promise<void> {
         coreDatabasePath,
         CURRENT_HOME_SCHEMA_VERSION,
       );
-      currentHomeSchemaDatabasePath = resolvedCoreDatabasePath;
+      await memoizeCurrentHomeSchemaDatabase(resolvedCoreDatabasePath);
       return;
     }
 
@@ -72,7 +100,7 @@ export async function ensureWikiGraphHomeSchemaCurrent(): Promise<void> {
       );
     }
 
-    currentHomeSchemaDatabasePath = resolvedCoreDatabasePath;
+    await memoizeCurrentHomeSchemaDatabase(resolvedCoreDatabasePath);
   })();
 
   try {
@@ -81,6 +109,77 @@ export async function ensureWikiGraphHomeSchemaCurrent(): Promise<void> {
   } finally {
     homeSchemaUpgradeInFlight = undefined;
   }
+}
+
+async function memoizeCurrentHomeSchemaDatabase(
+  resolvedCoreDatabasePath: string,
+): Promise<void> {
+  const fingerprint = await readHomeSchemaDatabaseFingerprint(
+    resolvedCoreDatabasePath,
+  );
+
+  if (fingerprint === undefined) {
+    currentHomeSchemaDatabaseMemo = undefined;
+    return;
+  }
+
+  currentHomeSchemaDatabaseMemo = {
+    fingerprint,
+    path: resolvedCoreDatabasePath,
+  };
+}
+
+async function readHomeSchemaDatabaseFingerprint(
+  coreDatabasePath: string,
+): Promise<HomeSchemaDatabaseFingerprint | undefined> {
+  try {
+    const stats = await stat(coreDatabasePath);
+
+    return {
+      dev: stats.dev,
+      ino: stats.ino,
+      mtimeMs: stats.mtimeMs,
+      size: stats.size,
+    };
+  } catch (error) {
+    if (isNodeError(error) && error.code === "ENOENT") {
+      return undefined;
+    }
+
+    throw error;
+  }
+}
+
+function isCurrentHomeSchemaDatabaseMemo(
+  resolvedCoreDatabasePath: string,
+  fingerprint: HomeSchemaDatabaseFingerprint | undefined,
+): boolean {
+  if (
+    fingerprint === undefined ||
+    currentHomeSchemaDatabaseMemo === undefined
+  ) {
+    return false;
+  }
+
+  return (
+    currentHomeSchemaDatabaseMemo.path === resolvedCoreDatabasePath &&
+    isSameHomeSchemaDatabaseFingerprint(
+      currentHomeSchemaDatabaseMemo.fingerprint,
+      fingerprint,
+    )
+  );
+}
+
+function isSameHomeSchemaDatabaseFingerprint(
+  left: HomeSchemaDatabaseFingerprint,
+  right: HomeSchemaDatabaseFingerprint,
+): boolean {
+  return (
+    left.dev === right.dev &&
+    left.ino === right.ino &&
+    left.mtimeMs === right.mtimeMs &&
+    left.size === right.size
+  );
 }
 
 export async function readWikiGraphHomeSchemaVersion(
