@@ -59,7 +59,10 @@ export async function findWikiGraphLibraryObjects(
   }
 
   const hits: ArchiveFindHit[] = [];
-  for (const archive of await listReadyLibraryArchives(target)) {
+  for (const archiveId of createSortedArchiveIds(result)) {
+    const archive = await resolveReadableIndexedArchive(target, archiveId, {
+      operation: "searching library objects",
+    });
     const source = createLibrarySource(archive);
     const hydrated = await readLibraryArchiveDocument(
       archive,
@@ -91,7 +94,9 @@ export async function listWikiGraphLibraryObjects(
   });
   const archiveIds = createSortedArchiveIds(result);
   for (const archiveId of archiveIds) {
-    const archive = await resolveReadableIndexedArchive(target, archiveId);
+    const archive = await resolveReadableIndexedArchive(target, archiveId, {
+      operation: "listing library objects",
+    });
     const source = createLibrarySource(archive);
     const hydrated = await readLibraryArchiveDocument(
       archive,
@@ -271,6 +276,13 @@ async function readIndexedArchiveResults<T>(
   );
 
   if (archiveIds.length === 0) {
+    if (!isTripleObjectUri(objectUri)) {
+      throw new Error(`Wiki Graph library object was not found: ${objectUri}`);
+    }
+
+    // Library v1 cannot project every triple occurrence into the index yet.
+    // Keep the archive scan explicit and restricted to triples so entity/chunk
+    // lookups remain index-backed and do not silently regress to full scans.
     return await readUnindexedArchiveResults(target, objectUri, operation);
   }
 
@@ -528,12 +540,13 @@ function createSortedArchiveIds(result: {
 async function resolveReadableIndexedArchive(
   target: ParsedWikiGraphLibraryUri,
   archiveId: number,
+  options: { readonly operation: string },
 ): Promise<WikiGraphLibraryArchiveRecord> {
   const library = await resolveWikiGraphLibrary(target);
   const archive = await getWikiGraphLibraryArchiveById(library, archiveId);
   if (!isReadableLibraryArchive(archive)) {
     throw new Error(
-      `Wiki Graph library archive ${archiveId} is not readable while listing library objects.`,
+      `Wiki Graph library archive ${archiveId} is not readable while ${options.operation}.`,
     );
   }
   return archive;
@@ -569,5 +582,11 @@ function isArchiveObjectNotFoundError(error: unknown): boolean {
   return (
     error instanceof Error &&
     error.message.includes(" was not found in this archive.")
+  );
+}
+
+function isTripleObjectUri(objectUri: string): boolean {
+  return /^wikg:\/\/(?:chapter\/[1-9][0-9]*\/)?triple\/Q[1-9][0-9]*\/[^/]+\/Q[1-9][0-9]*\/?$/u.test(
+    objectUri,
   );
 }

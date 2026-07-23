@@ -102,7 +102,9 @@ vi.mock("../../../packages/core/src/library/search-index.js", () => ({
     (_target, objectUri: string) =>
       Promise.resolve(mocks.objectArchiveIds.get(objectUri) ?? []),
   ),
-  queryWikiGraphLibrarySearchIndex: vi.fn(() => Promise.resolve(undefined)),
+  queryWikiGraphLibrarySearchIndex: vi.fn(() =>
+    Promise.resolve(mocks.listIndexResult),
+  ),
 }));
 
 vi.mock(
@@ -323,6 +325,21 @@ describe("wiki graph library object query aggregation", () => {
     });
   });
 
+  it("does not scan archives for non-indexed entity pages", async () => {
+    const [{ readWikiGraphLibraryPage }, archiveView] = await Promise.all([
+      import("../../../packages/core/src/library/query.js"),
+      import("../../../packages/core/src/retrieval/query/archive-view/index.js"),
+    ]);
+    vi.mocked(archiveView.readArchivePage).mockClear();
+
+    await expect(
+      readWikiGraphLibraryPage(target, "wikg://entity/Q404"),
+    ).rejects.toThrow(
+      "Wiki Graph library object was not found: wikg://entity/Q404",
+    );
+    expect(archiveView.readArchivePage).not.toHaveBeenCalled();
+  });
+
   it("aggregates related items instead of returning the first archive", async () => {
     const { listRelatedWikiGraphLibraryObjects } =
       await import("../../../packages/core/src/library/query.js");
@@ -395,6 +412,50 @@ describe("wiki graph library object query aggregation", () => {
     await expect(
       listWikiGraphLibraryEvidence(target, "wikg://entity/Q1"),
     ).rejects.toThrow("archive 2 is not readable");
+  });
+
+  it.each(["removed", "conflict", "unreadable"])(
+    "fails library list hydration when an indexed archive is %s",
+    async (status) => {
+      const { listWikiGraphLibraryObjects } =
+        await import("../../../packages/core/src/library/query.js");
+
+      seedArchive(2, status);
+      mocks.listIndexResult = {
+        objectHits: [
+          createIndexObjectHit(1, "1"),
+          createIndexObjectHit(2, "1"),
+        ],
+        terms: [],
+        textHits: [],
+      };
+
+      await expect(
+        listWikiGraphLibraryObjects(target, { types: ["chapter-title"] }),
+      ).rejects.toThrow(
+        "Wiki Graph library archive 2 is not readable while listing library objects.",
+      );
+    },
+  );
+
+  it("fails library search hydration when an indexed archive is not readable", async () => {
+    const { findWikiGraphLibraryObjects } =
+      await import("../../../packages/core/src/library/query.js");
+
+    seedArchive(2, "removed");
+    mocks.listIndexResult = {
+      objectHits: [createIndexObjectHit(2, "1")],
+      terms: ["chapter"],
+      textHits: [],
+    };
+
+    await expect(
+      findWikiGraphLibraryObjects(target, "chapter", {
+        types: ["chapter-title"],
+      }),
+    ).rejects.toThrow(
+      "Wiki Graph library archive 2 is not readable while searching library objects.",
+    );
   });
 
   it("lists library objects from the library index instead of archive collection merge", async () => {
