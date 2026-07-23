@@ -1,6 +1,6 @@
 {
   "name": "wiki-graph",
-  "version": "0.3.1",
+  "version": "0.4.0",
   "description": "CLI for building and querying .wikg knowledge-base archives from long-form text and ebooks.",
   "keywords": [
     "wiki-graph",
@@ -30,7 +30,8 @@
   },
   "files": [
     "dist",
-    "LICENSE"
+    "LICENSE",
+    "README.md"
   ],
   "bin": {
     "wg": "dist/cli.js",
