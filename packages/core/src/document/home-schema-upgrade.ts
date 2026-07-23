@@ -5,7 +5,6 @@ import {
   resolveWikiGraphCacheDatabasePath,
   resolveWikiGraphCacheDirectoryPath,
   resolveWikiGraphCoreDatabasePath,
-  resolveWikiGraphHomeDirectoryPath,
   resolveWikiGraphJobsDirectoryPath,
   resolveWikiGraphStagingDirectoryPath,
   resolveWikiGraphTempRootDirectoryPath,
@@ -17,6 +16,7 @@ const CURRENT_HOME_SCHEMA_VERSION = 2;
 const LOCK_STALE_TIMEOUT_MS = 5 * 60 * 1000;
 const SEARCH_INDEX_DATABASE_PATH = "fts.db";
 let homeSchemaUpgradeInFlight: Promise<void> | undefined;
+let currentHomeSchemaDatabasePath: string | undefined;
 const HOME_SCHEMA_SQL = `
   CREATE TABLE IF NOT EXISTS schema_versions (
     scope TEXT PRIMARY KEY,
@@ -26,18 +26,31 @@ const HOME_SCHEMA_SQL = `
 `;
 
 export async function ensureWikiGraphHomeSchemaCurrent(): Promise<void> {
+  const coreDatabasePath = resolveWikiGraphCoreDatabasePath();
+  const resolvedCoreDatabasePath = resolve(coreDatabasePath);
+
+  if (currentHomeSchemaDatabasePath === resolvedCoreDatabasePath) {
+    return;
+  }
+
   if (homeSchemaUpgradeInFlight !== undefined) {
     await homeSchemaUpgradeInFlight;
+    if (currentHomeSchemaDatabasePath === resolvedCoreDatabasePath) {
+      return;
+    }
+  }
+
+  if (currentHomeSchemaDatabasePath === resolvedCoreDatabasePath) {
     return;
   }
 
   homeSchemaUpgradeInFlight = (async () => {
-    const coreDatabasePath = resolveWikiGraphCoreDatabasePath();
     if (!(await pathExists(coreDatabasePath))) {
       await writeHomeSchemaVersion(
         coreDatabasePath,
         CURRENT_HOME_SCHEMA_VERSION,
       );
+      currentHomeSchemaDatabasePath = resolvedCoreDatabasePath;
       return;
     }
 
@@ -58,6 +71,8 @@ export async function ensureWikiGraphHomeSchemaCurrent(): Promise<void> {
         CURRENT_HOME_SCHEMA_VERSION,
       );
     }
+
+    currentHomeSchemaDatabasePath = resolvedCoreDatabasePath;
   })();
 
   try {
@@ -145,8 +160,7 @@ async function writeHomeSchemaVersion(
 }
 
 async function cleanupHomeDerivedData(): Promise<void> {
-  const homeDirectoryPath = resolveWikiGraphHomeDirectoryPath();
-  const cacheDirectoryPath = join(homeDirectoryPath, "cache");
+  const cacheDirectoryPath = resolveWikiGraphCacheDirectoryPath();
   const stagingDirectoryPath = resolveWikiGraphStagingDirectoryPath();
   const jobsDirectoryPath = resolveWikiGraphJobsDirectoryPath();
   const tempDirectoryPath = resolveWikiGraphTempRootDirectoryPath();
