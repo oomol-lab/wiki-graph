@@ -3,7 +3,7 @@
 import { runQueueWorker } from "../commands/index.js";
 
 async function main(): Promise<void> {
-  if (process.env.WIKIGRAPH_INTERNAL_WORKER !== "queue-v1") {
+  if (process.env.WIKIGRAPH_INTERNAL_CHILD !== "queue-worker") {
     process.stderr.write("This Wiki Graph worker entry is internal.\n");
     process.exitCode = 1;
     return;

@@ -1,6 +1,3 @@
-import { spawn } from "child_process";
-import { fileURLToPath } from "url";
-
 import {
   addBuildJob,
   listChapters,
@@ -11,6 +8,7 @@ import { WikiGraphArchiveFile } from "wiki-graph-core";
 
 import type { CLIQueueArguments } from "../../args/index.js";
 import type { CLIConfig } from "../../runtime/config.js";
+import { spawnInternalChild } from "../../runtime/internal-child.js";
 import { createQueueAddEstimate } from "./estimate.js";
 import { writeArchiveAddSummary } from "./output.js";
 
@@ -155,17 +153,8 @@ export function tryStartQueueWorker(): void {
     return;
   }
 
-  const entryPath = fileURLToPath(
-    new URL("../../../queue-worker.js", import.meta.url),
-  );
-
-  const child = spawn(process.execPath, [entryPath], {
+  const child = spawnInternalChild("queue-worker", {
     detached: true,
-    env: {
-      ...process.env,
-      WIKIGRAPH_INTERNAL_WORKER: "queue-v1",
-    },
-    stdio: "ignore",
   });
 
   child.unref();

@@ -1,13 +1,16 @@
-import { tryRunWikiGraphGc } from "wiki-graph-core/gc";
+import type { GcRunReport } from "wiki-graph-core/gc";
 
 import type { CLIGcArguments } from "../args/index.js";
+import { runInternalChildJSON } from "../runtime/internal-child.js";
 import { writeTextToStdout } from "../support/index.js";
 import { formatCLIJSON } from "../support/index.js";
 
 export async function runGcCommand(args: CLIGcArguments): Promise<void> {
-  const report = await tryRunWikiGraphGc({
-    dryRun: args.dryRun === true,
-    force: args.force === true,
+  const report = await runInternalChildJSON<GcRunReport>("gc-worker", {
+    args: [
+      ...(args.dryRun === true ? ["--dry-run"] : []),
+      ...(args.force === true ? ["--force"] : []),
+    ],
   });
 
   if (args.json === true) {

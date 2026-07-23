@@ -1,6 +1,7 @@
 import { defineConfig } from "tsup";
 
 const CJS_DATA_DIR_BANNER = [
+  "globalThis.__WIKIGRAPH_CLI_DIST_DIR__ ??= __dirname;",
   'globalThis.__WIKIGRAPH_DATA_DIR__ ??= require("path").resolve(',
   "  __dirname,",
   '  "data",',
@@ -9,6 +10,7 @@ const CJS_DATA_DIR_BANNER = [
 const ESM_DATA_DIR_BANNER = [
   'import { fileURLToPath as __WIKIGRAPH_FILE_URL_TO_PATH__ } from "url";',
   'import { resolve as __WIKIGRAPH_RESOLVE__ } from "path";',
+  'globalThis.__WIKIGRAPH_CLI_DIST_DIR__ ??= __WIKIGRAPH_RESOLVE__(__WIKIGRAPH_FILE_URL_TO_PATH__(new URL(".", import.meta.url)));',
   'globalThis.__WIKIGRAPH_DATA_DIR__ ??= __WIKIGRAPH_RESOLVE__(__WIKIGRAPH_FILE_URL_TO_PATH__(new URL("./data", import.meta.url)));',
 ].join("\n");
 const SHARED_OPTIONS = {
@@ -48,6 +50,7 @@ export default defineConfig([
     dts: true,
     entry: {
       cli: "src/bin/cli.ts",
+      "gc-worker": "src/bin/gc-worker.ts",
       index: "src/index.ts",
       "queue-worker": "src/bin/queue-worker.ts",
     },

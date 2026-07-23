@@ -1,6 +1,7 @@
+#!/usr/bin/env node
+
 import { enableDevStateDirectory } from "../runtime/dev-state.js";
 
 enableDevStateDirectory();
-const { main } = await import("../app/index.js");
 
-void main();
+await import("./queue-worker.js");
