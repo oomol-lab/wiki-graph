@@ -18,7 +18,10 @@ import {
   SEARCH_INDEX_DATABASE_PATH,
 } from "../../../../packages/core/src/storage/wikg/archive/constants.js";
 import { createWikgMutationTokenContent } from "../../../../packages/core/src/storage/wikg/archive/manifest.js";
-import { readWikgArchiveEntry } from "../../../../packages/core/src/storage/wikg/index.js";
+import {
+  readWikgArchiveEntry,
+  readWikgArchiveMutationToken,
+} from "../../../../packages/core/src/storage/wikg/index.js";
 import {
   resolveWikiGraphHomeDirectoryPath,
   setWikiGraphStateDirectoryPathForTesting,
@@ -40,9 +43,13 @@ describe("schema-upgrade", () => {
       setWikiGraphStateDirectoryPathForTesting(join(root, "home"));
       const archivePath = join(root, "book.wikg");
       await writeLegacyArchive(archivePath);
+      const mutationToken = await readWikgArchiveMutationToken(archivePath);
 
       await ensureWikiGraphArchiveSchemaCurrent(archivePath);
 
+      await expect(readWikgArchiveMutationToken(archivePath)).resolves.toBe(
+        mutationToken,
+      );
       await expect(
         readWikiGraphArchiveSchemaVersion(archivePath),
       ).resolves.toBe(2);

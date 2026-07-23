@@ -100,12 +100,17 @@ export async function upgradeWikiGraphArchiveSchema(
     `.${getArchiveBasename(resolvedArchivePath)}.${process.pid}.${randomUUID()}.upgrade.tmp`,
   );
 
-  await writeWikgArchiveWithOverlays(resolvedArchivePath, temporaryPath, [
-    {
-      entryPath: SEARCH_INDEX_DATABASE_PATH,
-      kind: "deleted",
-    },
-  ]);
+  await writeWikgArchiveWithOverlays(
+    resolvedArchivePath,
+    temporaryPath,
+    [
+      {
+        entryPath: SEARCH_INDEX_DATABASE_PATH,
+        kind: "deleted",
+      },
+    ],
+    { preserveMutationToken: true },
+  );
   await rename(temporaryPath, resolvedArchivePath);
   await cleanupArchiveDerivedData(archiveKey);
 }

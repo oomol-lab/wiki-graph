@@ -72,6 +72,7 @@ export async function writeWikgArchiveWithOverlays(
   inputPath: string,
   outputPath: string,
   overlays: readonly WikgArchiveOverlay[],
+  options: { readonly preserveMutationToken?: boolean } = {},
 ): Promise<void> {
   await mkdir(dirname(outputPath), { recursive: true });
 
@@ -110,6 +111,22 @@ export async function writeWikgArchiveWithOverlays(
       const overlay = overlayByPath.get(entryPath);
 
       if (entryPath === WIKG_MUTATION_TOKEN_PATH) {
+        if (options.preserveMutationToken === true) {
+          const sourceEntry = sourceEntries.find(
+            (candidate) =>
+              normalizeArchivePath(candidate.fileName) === entryPath,
+          );
+
+          if (sourceEntry !== undefined) {
+            outputZipFile.addBuffer(
+              await readArchiveEntryBufferFromFile(sourceFile, sourceEntry),
+              entryPath,
+              { compress: false },
+            );
+            continue;
+          }
+        }
+
         outputZipFile.addBuffer(createWikgMutationTokenContent(), entryPath, {
           compress: false,
         });
