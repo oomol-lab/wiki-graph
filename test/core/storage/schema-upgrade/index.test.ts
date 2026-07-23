@@ -7,6 +7,17 @@ import { ZipFile } from "yazl";
 import { describe, expect, it, beforeEach, afterEach } from "vitest";
 
 import { Database } from "../../../../packages/core/src/document/index.js";
+import { WikipageCache } from "../../../../packages/core/src/external/wikipage/cache.js";
+import {
+  ensureDefaultWikiGraphLibrary,
+  parseWikiGraphLibraryUri,
+} from "../../../../packages/core/src/library/registry.js";
+import { withWikiGraphLibraryLock } from "../../../../packages/core/src/library/lock.js";
+import { readWikiGraphLibraryIndexState } from "../../../../packages/core/src/library/search-index.js";
+import { openContinuationCursorDatabase } from "../../../../packages/core/src/retrieval/query/continuation-cursor/store.js";
+import { openSearchSessionDatabase } from "../../../../packages/core/src/retrieval/query/search-cache/database.js";
+import { tryAcquireGcLock } from "../../../../packages/core/src/runtime/gc/lock.js";
+import { openBuildQueueDatabase } from "../../../../packages/core/src/runtime/jobs/database.js";
 import {
   ensureWikiGraphArchiveSchemaCurrent,
   ensureWikiGraphHomeSchemaCurrent,
@@ -22,6 +33,8 @@ import {
   readWikgArchiveEntry,
   readWikgArchiveMutationToken,
 } from "../../../../packages/core/src/storage/wikg/index.js";
+import { createArchiveKey } from "../../../../packages/core/src/storage/wikg/wikg-coordinator/archive-key.js";
+import { withStateDatabase } from "../../../../packages/core/src/storage/wikg/wikg-coordinator/state.js";
 import {
   resolveWikiGraphHomeDirectoryPath,
   setWikiGraphStateDirectoryPathForTesting,
@@ -62,6 +75,29 @@ describe("schema-upgrade", () => {
       await expect(
         readWikgArchiveEntry(archivePath, WIKG_MANIFEST_PATH),
       ).resolves.toBeInstanceOf(Uint8Array);
+    });
+  });
+
+  it("rejects a future archive schema version", async () => {
+    await withTempDir("wikigraph-schema-future-archive-", async (root) => {
+      setWikiGraphStateDirectoryPathForTesting(join(root, "home"));
+      const archivePath = join(root, "book.wikg");
+      await writeArchiveWithSchemaVersion(archivePath, 999);
+
+      await expect(
+        ensureWikiGraphArchiveSchemaCurrent(archivePath),
+      ).rejects.toThrow("Unsupported Wiki Graph archive schema version: 999");
+    });
+  });
+
+  it("rejects a future home schema version", async () => {
+    await withTempDir("wikigraph-schema-future-home-", async (home) => {
+      setWikiGraphStateDirectoryPathForTesting(home);
+      await writeHomeSchemaVersion(home, 999);
+
+      await expect(ensureWikiGraphHomeSchemaCurrent()).rejects.toThrow(
+        "Unsupported Wiki Graph home schema version: 999",
+      );
     });
   });
 
@@ -241,6 +277,179 @@ describe("schema-upgrade", () => {
     });
   });
 
+  it.each([
+    ["archive_owners"],
+    ["entry_locks"],
+    ["entry_sqlite_leases"],
+    ["archive_commit_locks"],
+  ])("rejects an archive upgrade with active %s", async (tableName) => {
+    await withTempDir("wikigraph-schema-archive-block-", async (root) => {
+      setWikiGraphStateDirectoryPathForTesting(join(root, "home"));
+      const archivePath = join(root, "book.wikg");
+      await writeLegacyArchive(archivePath);
+      await writeActiveCoordinatorState(join(root, "home"), {
+        archiveKey: createArchiveKey(archivePath),
+        tableName,
+      });
+
+      await expect(
+        ensureWikiGraphArchiveSchemaCurrent(archivePath),
+      ).rejects.toThrow("active coordinator state");
+    });
+  });
+
+  it("rejects an archive upgrade with a non-fts overlay", async () => {
+    await withTempDir(
+      "wikigraph-schema-archive-overlay-block-",
+      async (root) => {
+        setWikiGraphStateDirectoryPathForTesting(join(root, "home"));
+        const archivePath = join(root, "book.wikg");
+        await writeLegacyArchive(archivePath);
+        await writeHomeSchemaVersion(join(root, "home"), 2);
+        await writeCoordinatorOverlay(join(root, "home"), {
+          archiveKey: createArchiveKey(archivePath),
+          entryPath: "database.db",
+        });
+
+        await expect(
+          ensureWikiGraphArchiveSchemaCurrent(archivePath),
+        ).rejects.toThrow("non-derived overlay state");
+      },
+    );
+  });
+
+  it("rejects a home upgrade with an active GC lock", async () => {
+    await withBlockedHomeUpgrade("gc", async (home) => {
+      await writeActiveGcLock(home);
+
+      await expect(ensureWikiGraphHomeSchemaCurrent()).rejects.toThrow(
+        "active GC lock",
+      );
+    });
+  });
+
+  it("rejects a home upgrade with an active build job", async () => {
+    await withBlockedHomeUpgrade("job", async (home) => {
+      await writeBuildQueue(home, { activeJob: true });
+
+      await expect(ensureWikiGraphHomeSchemaCurrent()).rejects.toThrow(
+        "active build jobs",
+      );
+    });
+  });
+
+  it("rejects a home upgrade with an active worker lease", async () => {
+    await withBlockedHomeUpgrade("worker", async (home) => {
+      await writeBuildQueue(home, { activeWorkerLease: true });
+
+      await expect(ensureWikiGraphHomeSchemaCurrent()).rejects.toThrow(
+        "active build worker lease",
+      );
+    });
+  });
+
+  it.each([
+    ["archive_owners"],
+    ["entry_locks"],
+    ["entry_sqlite_leases"],
+    ["archive_commit_locks"],
+  ])("rejects a home upgrade with active %s", async (tableName) => {
+    await withBlockedHomeUpgrade(`coordinator-${tableName}`, async (home) => {
+      await writeActiveCoordinatorState(home, {
+        archiveKey: "archive-key",
+        tableName,
+      });
+
+      await expect(ensureWikiGraphHomeSchemaCurrent()).rejects.toThrow(
+        "active coordinator state",
+      );
+    });
+  });
+
+  it("rejects a home upgrade with a non-fts overlay", async () => {
+    await withBlockedHomeUpgrade("overlay", async (home) => {
+      await writeCoordinatorOverlay(home, {
+        archiveKey: "archive-key",
+        entryPath: "database.db",
+      });
+
+      await expect(ensureWikiGraphHomeSchemaCurrent()).rejects.toThrow(
+        "non-derived coordinator overlays",
+      );
+    });
+  });
+
+  it("keeps core registry tables and constraints available after home upgrade", async () => {
+    await withLegacyHome("wikigraph-schema-core-registry-", async (home) => {
+      const library = await ensureDefaultWikiGraphLibrary();
+      const target = parseWikiGraphLibraryUri("wikg://lib/index");
+      expect(target).toBeDefined();
+      await readWikiGraphLibraryIndexState(target!);
+      await withWikiGraphLibraryLock(library.id, "read", () =>
+        Promise.resolve(),
+      );
+
+      const database = await Database.open(join(home, "core.sqlite"), "", {
+        readonly: true,
+      });
+      try {
+        for (const tableName of [
+          "libraries",
+          "library_metadata",
+          "library_archives",
+          "library_locks",
+        ]) {
+          await expect(hasTable(database, tableName)).resolves.toBe(true);
+        }
+        await expect(
+          hasIndex(database, "idx_libraries_single_default"),
+        ).resolves.toBe(true);
+        await expect(
+          hasIndex(database, "idx_library_archives_library"),
+        ).resolves.toBe(true);
+      } finally {
+        await database.close();
+      }
+    });
+  });
+
+  it.each([
+    [
+      "search-sessions.sqlite",
+      async () => await closeDatabase(await openSearchSessionDatabase()),
+    ],
+    [
+      "continuation-cursors.sqlite",
+      async () => await closeDatabase(await openContinuationCursorDatabase()),
+    ],
+    [
+      "cache/cache.sqlite",
+      async () => await (await WikipageCache.open()).close(),
+    ],
+    [
+      "jobs/job.sqlite",
+      async () => await closeDatabase(await openBuildQueueDatabase()),
+    ],
+    ["tmp/gc.sqlite", async () => await (await tryAcquireGcLock())?.()],
+    [
+      "staging/staging.sqlite",
+      async () => await withStateDatabase(() => Promise.resolve()),
+    ],
+    [
+      "staging/library/<library-id>/index/fts.db",
+      async () => {
+        const target = parseWikiGraphLibraryUri("wikg://lib/index");
+        expect(target).toBeDefined();
+        await readWikiGraphLibraryIndexState(target!);
+      },
+    ],
+  ])("opens %s only after the home schema gate", async (_name, open) => {
+    await withLegacyHome("wikigraph-schema-gate-", async (home) => {
+      await open();
+      await expect(readHomeSchemaVersion(home)).resolves.toBe(2);
+    });
+  });
+
   it("resolves the legacy home env fallback", async () => {
     await withTempDir("wikigraph-schema-home-env-", async (home) => {
       process.env.WIKIGRAPH_STATE_DIR = home;
@@ -251,7 +460,263 @@ describe("schema-upgrade", () => {
   });
 });
 
+async function withLegacyHome(
+  prefix: string,
+  operation: (home: string) => Promise<void>,
+): Promise<void> {
+  await withTempDir(prefix, async (home) => {
+    setWikiGraphStateDirectoryPathForTesting(home);
+    const database = await Database.open(join(home, "core.sqlite"));
+    try {
+      await database.run(`
+        CREATE TABLE config_sections (
+          section TEXT NOT NULL,
+          key TEXT NOT NULL,
+          value_json TEXT NOT NULL,
+          updated_at TEXT NOT NULL,
+          PRIMARY KEY (section, key)
+        )
+      `);
+    } finally {
+      await database.close();
+    }
+
+    await operation(home);
+  });
+}
+
+async function withBlockedHomeUpgrade(
+  prefix: string,
+  operation: (home: string) => Promise<void>,
+): Promise<void> {
+  await withLegacyHome(`wikigraph-schema-block-${prefix}-`, operation);
+}
+
+async function closeDatabase(database: Database): Promise<void> {
+  await database.close();
+}
+
+async function readHomeSchemaVersion(
+  home: string,
+): Promise<number | undefined> {
+  const database = await Database.open(join(home, "core.sqlite"), "", {
+    readonly: true,
+  });
+  try {
+    return await database.queryOne(
+      "SELECT version FROM schema_versions WHERE scope = ?",
+      ["home"],
+      (row) => Number(row.version),
+    );
+  } finally {
+    await database.close();
+  }
+}
+
+async function writeHomeSchemaVersion(
+  home: string,
+  version: number,
+): Promise<void> {
+  await mkdir(home, { recursive: true });
+  const database = await Database.open(join(home, "core.sqlite"));
+  try {
+    await database.run(`
+      CREATE TABLE schema_versions (
+        scope TEXT PRIMARY KEY,
+        version INTEGER NOT NULL,
+        updated_at TEXT NOT NULL
+      )
+    `);
+    await database.run(
+      "INSERT INTO schema_versions (scope, version, updated_at) VALUES ('home', ?, 'now')",
+      [version],
+    );
+  } finally {
+    await database.close();
+  }
+}
+
+async function hasTable(
+  database: Database,
+  tableName: string,
+): Promise<boolean> {
+  return (
+    (await database.queryOne(
+      "SELECT 1 AS present FROM sqlite_master WHERE type = 'table' AND name = ?",
+      [tableName],
+      () => true,
+    )) === true
+  );
+}
+
+async function hasIndex(
+  database: Database,
+  indexName: string,
+): Promise<boolean> {
+  return (
+    (await database.queryOne(
+      "SELECT 1 AS present FROM sqlite_master WHERE type = 'index' AND name = ?",
+      [indexName],
+      () => true,
+    )) === true
+  );
+}
+
+async function writeActiveGcLock(home: string): Promise<void> {
+  await mkdir(join(home, "tmp"), { recursive: true });
+  const database = await Database.open(join(home, "tmp", "gc.sqlite"));
+  try {
+    await database.run(`
+      CREATE TABLE gc_locks (
+        scope TEXT PRIMARY KEY,
+        owner_id TEXT NOT NULL,
+        owner_pid INTEGER NOT NULL,
+        heartbeat_at INTEGER NOT NULL,
+        created_at INTEGER NOT NULL
+      )
+    `);
+    await database.run(
+      "INSERT INTO gc_locks (scope, owner_id, owner_pid, heartbeat_at, created_at) VALUES ('global', 'owner', ?, ?, ?)",
+      [process.pid, Date.now(), Date.now()],
+    );
+  } finally {
+    await database.close();
+  }
+}
+
+async function writeBuildQueue(
+  home: string,
+  options: {
+    readonly activeJob?: boolean;
+    readonly activeWorkerLease?: boolean;
+  },
+): Promise<void> {
+  await mkdir(join(home, "jobs"), { recursive: true });
+  const database = await Database.open(join(home, "jobs", "job.sqlite"));
+  try {
+    await database.run(`
+      CREATE TABLE build_jobs (
+        job_id TEXT PRIMARY KEY,
+        state TEXT NOT NULL
+      )
+    `);
+    await database.run(`
+      CREATE TABLE build_worker_lease (
+        id INTEGER PRIMARY KEY,
+        owner_pid INTEGER,
+        heartbeat_at INTEGER
+      )
+    `);
+    if (options.activeJob === true) {
+      await database.run(
+        "INSERT INTO build_jobs (job_id, state) VALUES ('job', 'running')",
+      );
+    }
+    if (options.activeWorkerLease === true) {
+      await database.run(
+        "INSERT INTO build_worker_lease (id, owner_pid, heartbeat_at) VALUES (1, ?, ?)",
+        [process.pid, Date.now()],
+      );
+    }
+  } finally {
+    await database.close();
+  }
+}
+
+async function writeActiveCoordinatorState(
+  home: string,
+  input: { readonly archiveKey: string; readonly tableName: string },
+): Promise<void> {
+  await mkdir(join(home, "staging"), { recursive: true });
+  const database = await Database.open(join(home, "staging", "staging.sqlite"));
+  try {
+    await createCoordinatorStateTable(database, input.tableName);
+    const entryPathColumn =
+      input.tableName === "entry_locks" ||
+      input.tableName === "entry_sqlite_leases"
+        ? ", entry_path, mode"
+        : "";
+    const entryPathValues =
+      input.tableName === "entry_locks" ||
+      input.tableName === "entry_sqlite_leases"
+        ? ", 'fts.db', 'read'"
+        : "";
+    await database.run(
+      `INSERT INTO ${input.tableName} (archive_key${entryPathColumn}, owner_id, owner_pid, heartbeat_at, created_at) VALUES (?${entryPathValues}, 'owner', ?, ?, ?)`,
+      [input.archiveKey, process.pid, Date.now(), Date.now()],
+    );
+  } finally {
+    await database.close();
+  }
+}
+
+async function writeCoordinatorOverlay(
+  home: string,
+  input: { readonly archiveKey: string; readonly entryPath: string },
+): Promise<void> {
+  await mkdir(join(home, "staging"), { recursive: true });
+  const database = await Database.open(join(home, "staging", "staging.sqlite"));
+  try {
+    await database.run(`
+      CREATE TABLE entry_overlays (
+        archive_key TEXT NOT NULL,
+        archive_path TEXT NOT NULL,
+        entry_path TEXT NOT NULL,
+        kind TEXT NOT NULL,
+        workspace_path TEXT,
+        updated_at INTEGER NOT NULL,
+        PRIMARY KEY (archive_key, entry_path)
+      )
+    `);
+    await database.run(
+      "INSERT INTO entry_overlays (archive_key, archive_path, entry_path, kind, workspace_path, updated_at) VALUES (?, ?, ?, 'file', NULL, ?)",
+      [input.archiveKey, join(home, "book.wikg"), input.entryPath, Date.now()],
+    );
+  } finally {
+    await database.close();
+  }
+}
+
+async function createCoordinatorStateTable(
+  database: Database,
+  tableName: string,
+): Promise<void> {
+  if (tableName === "archive_commit_locks") {
+    await database.run(`
+      CREATE TABLE archive_commit_locks (
+        archive_key TEXT PRIMARY KEY,
+        owner_id TEXT NOT NULL,
+        owner_pid INTEGER NOT NULL,
+        heartbeat_at INTEGER NOT NULL,
+        created_at INTEGER NOT NULL
+      )
+    `);
+    return;
+  }
+
+  const entryColumns =
+    tableName === "entry_locks" || tableName === "entry_sqlite_leases"
+      ? ", entry_path TEXT NOT NULL, mode TEXT NOT NULL"
+      : "";
+  await database.run(`
+    CREATE TABLE ${tableName} (
+      archive_key TEXT NOT NULL${entryColumns},
+      owner_id TEXT NOT NULL,
+      owner_pid INTEGER NOT NULL,
+      heartbeat_at INTEGER NOT NULL,
+      created_at INTEGER NOT NULL
+    )
+  `);
+}
+
 async function writeLegacyArchive(archivePath: string): Promise<void> {
+  await writeArchiveWithSchemaVersion(archivePath, 1);
+}
+
+async function writeArchiveWithSchemaVersion(
+  archivePath: string,
+  schemaVersion: number,
+): Promise<void> {
   await mkdir(dirname(archivePath), { recursive: true });
 
   const zipFile = new ZipFile();
@@ -263,7 +728,10 @@ async function writeLegacyArchive(archivePath: string): Promise<void> {
     },
   );
   zipFile.addBuffer(
-    Buffer.from('{"formatVersion":1}\n', "utf8"),
+    Buffer.from(
+      `${JSON.stringify({ formatVersion: 1, schemaVersion })}\n`,
+      "utf8",
+    ),
     WIKG_MANIFEST_PATH,
     {
       compress: false,

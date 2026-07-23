@@ -1,15 +1,12 @@
 import { randomUUID } from "crypto";
-import { mkdir, rename, rm, stat } from "fs/promises";
+import { rename, rm, stat } from "fs/promises";
 import { dirname, join, resolve } from "path";
 
 import { Database } from "../../document/database.js";
+import { ensureWikiGraphHomeSchemaCurrent } from "../../document/home-schema-upgrade.js";
 import {
-  resolveWikiGraphCacheDatabasePath,
-  resolveWikiGraphCoreDatabasePath,
   resolveWikiGraphHomeDirectoryPath,
-  resolveWikiGraphJobsDirectoryPath,
   resolveWikiGraphStagingDirectoryPath,
-  resolveWikiGraphTempRootDirectoryPath,
 } from "../../runtime/common/wiki-graph/dir.js";
 import {
   SEARCH_INDEX_DATABASE_PATH,
@@ -24,17 +21,13 @@ import {
 import { writeWikgArchiveWithOverlays } from "../wikg/archive/write.js";
 import { createArchiveKey } from "../wikg/wikg-coordinator/archive-key.js";
 
+export {
+  ensureWikiGraphHomeSchemaCurrent,
+  readWikiGraphHomeSchemaVersion,
+} from "../../document/home-schema-upgrade.js";
+
 const CURRENT_ARCHIVE_SCHEMA_VERSION = 2;
-const CURRENT_HOME_SCHEMA_VERSION = 2;
 const LOCK_STALE_TIMEOUT_MS = 5 * 60 * 1000;
-let homeSchemaUpgradeInFlight: Promise<void> | undefined;
-const HOME_SCHEMA_SQL = `
-  CREATE TABLE IF NOT EXISTS schema_versions (
-    scope TEXT PRIMARY KEY,
-    version INTEGER NOT NULL,
-    updated_at TEXT NOT NULL
-  );
-`;
 
 export async function ensureWikiGraphArchiveSchemaCurrent(
   archivePath: string,
@@ -115,116 +108,6 @@ export async function upgradeWikiGraphArchiveSchema(
   await cleanupArchiveDerivedData(archiveKey);
 }
 
-export async function ensureWikiGraphHomeSchemaCurrent(): Promise<void> {
-  if (homeSchemaUpgradeInFlight !== undefined) {
-    await homeSchemaUpgradeInFlight;
-    return;
-  }
-
-  homeSchemaUpgradeInFlight = (async () => {
-    const coreDatabasePath = resolveWikiGraphCoreDatabasePath();
-    const schemaVersion =
-      await readWikiGraphHomeSchemaVersion(coreDatabasePath);
-
-    if (schemaVersion > CURRENT_HOME_SCHEMA_VERSION) {
-      throw new Error(
-        `Unsupported Wiki Graph home schema version: ${schemaVersion}.`,
-      );
-    }
-
-    if (schemaVersion < CURRENT_HOME_SCHEMA_VERSION) {
-      await assertHomeUpgradeSafe();
-      await cleanupHomeDerivedData();
-      await writeHomeSchemaVersion(
-        coreDatabasePath,
-        CURRENT_HOME_SCHEMA_VERSION,
-      );
-    }
-  })();
-
-  try {
-    await homeSchemaUpgradeInFlight;
-    return;
-  } finally {
-    homeSchemaUpgradeInFlight = undefined;
-  }
-}
-
-export async function readWikiGraphHomeSchemaVersion(
-  coreDatabasePath = resolveWikiGraphCoreDatabasePath(),
-): Promise<number> {
-  if (!(await pathExists(coreDatabasePath))) {
-    return 0;
-  }
-
-  const database = await Database.open(coreDatabasePath, "", {
-    readonly: true,
-  });
-
-  try {
-    if (!(await tableExists(database, "schema_versions"))) {
-      return 1;
-    }
-
-    const version = await database.queryOne(
-      "SELECT version FROM schema_versions WHERE scope = ?",
-      ["home"],
-      (row) => Number(row.version),
-    );
-
-    return version ?? 1;
-  } finally {
-    await database.close();
-  }
-}
-
-async function writeHomeSchemaVersion(
-  coreDatabasePath: string,
-  version: number,
-): Promise<void> {
-  await mkdir(dirname(coreDatabasePath), { recursive: true });
-  const database = await Database.open(coreDatabasePath);
-
-  try {
-    await database.run(HOME_SCHEMA_SQL);
-    await database.run(
-      `
-        INSERT INTO schema_versions (scope, version, updated_at)
-        VALUES (?, ?, ?)
-        ON CONFLICT(scope) DO UPDATE SET
-          version = excluded.version,
-          updated_at = excluded.updated_at
-      `,
-      ["home", version, new Date().toISOString()],
-    );
-  } finally {
-    await database.close();
-  }
-}
-
-async function cleanupHomeDerivedData(): Promise<void> {
-  const homeDirectoryPath = resolveWikiGraphHomeDirectoryPath();
-  const cacheDirectoryPath = join(homeDirectoryPath, "cache");
-  const stagingDirectoryPath = resolveWikiGraphStagingDirectoryPath();
-  const jobsDirectoryPath = resolveWikiGraphJobsDirectoryPath();
-  const tempDirectoryPath = resolveWikiGraphTempRootDirectoryPath();
-
-  await deletePathIfExists(join(cacheDirectoryPath, "search-sessions.sqlite"));
-  await deletePathIfExists(
-    join(cacheDirectoryPath, "continuation-cursors.sqlite"),
-  );
-  await deletePathIfExists(resolveWikiGraphCacheDatabasePath());
-  await deletePathIfExists(join(stagingDirectoryPath, "library"));
-  await deletePathIfExists(join(tempDirectoryPath, "gc.sqlite"));
-  await deletePathIfExists(join(tempDirectoryPath, "gc.last-run"));
-  await deletePathIfExists(join(jobsDirectoryPath, "cache"));
-
-  const stagingDatabasePath = join(stagingDirectoryPath, "staging.sqlite");
-  if (await pathExists(stagingDatabasePath)) {
-    await removeArchiveSearchIndexOverlays(stagingDatabasePath);
-  }
-}
-
 async function cleanupArchiveDerivedData(archiveKey: string): Promise<void> {
   const cacheDirectoryPath = join(resolveWikiGraphHomeDirectoryPath(), "cache");
   await deletePathIfExists(join(cacheDirectoryPath, "search-sessions.sqlite"));
@@ -303,220 +186,6 @@ async function assertArchiveUpgradeSafe(archiveKey: string): Promise<void> {
       if (problematicOverlay !== undefined) {
         throw new Error(
           `Cannot upgrade archive with non-derived overlay state: ${archiveKey}.`,
-        );
-      }
-    }
-  } finally {
-    await database.close();
-  }
-}
-
-async function assertHomeUpgradeSafe(): Promise<void> {
-  await assertCoreLocksSafe();
-  await assertGcLockSafe();
-  await assertCoordinatorStateSafe();
-  await assertBuildQueueSafe();
-}
-
-async function assertCoreLocksSafe(): Promise<void> {
-  const coreDatabasePath = resolveWikiGraphCoreDatabasePath();
-
-  if (!(await pathExists(coreDatabasePath))) {
-    return;
-  }
-
-  const database = await Database.open(coreDatabasePath, "", {
-    readonly: true,
-  });
-
-  try {
-    if (!(await tableExists(database, "library_locks"))) {
-      return;
-    }
-
-    const rows = await database.queryAll(
-      `
-        SELECT owner_pid, heartbeat_at
-        FROM library_locks
-      `,
-      undefined,
-      (row) => ({
-        heartbeatAt: Number(row.heartbeat_at),
-        ownerPid: Number(row.owner_pid),
-      }),
-    );
-
-    if (rows.some((row) => isActiveLock(row.ownerPid, row.heartbeatAt))) {
-      throw new Error("Cannot upgrade home with active library locks.");
-    }
-  } finally {
-    await database.close();
-  }
-}
-
-async function assertGcLockSafe(): Promise<void> {
-  const gcDatabasePath = join(
-    resolveWikiGraphTempRootDirectoryPath(),
-    "gc.sqlite",
-  );
-
-  if (!(await pathExists(gcDatabasePath))) {
-    return;
-  }
-
-  const database = await Database.open(gcDatabasePath, "", {
-    readonly: true,
-  });
-
-  try {
-    if (!(await tableExists(database, "gc_locks"))) {
-      return;
-    }
-
-    const rows = await database.queryAll(
-      "SELECT owner_pid, heartbeat_at FROM gc_locks",
-      undefined,
-      (row) => ({
-        heartbeatAt: Number(row.heartbeat_at),
-        ownerPid: Number(row.owner_pid),
-      }),
-    );
-
-    if (rows.some((row) => isActiveLock(row.ownerPid, row.heartbeatAt))) {
-      throw new Error("Cannot upgrade home with an active GC lock.");
-    }
-  } finally {
-    await database.close();
-  }
-}
-
-async function assertCoordinatorStateSafe(): Promise<void> {
-  const stagingDatabasePath = join(
-    resolveWikiGraphStagingDirectoryPath(),
-    "staging.sqlite",
-  );
-
-  if (!(await pathExists(stagingDatabasePath))) {
-    return;
-  }
-
-  const database = await Database.open(stagingDatabasePath, "", {
-    readonly: true,
-  });
-
-  try {
-    for (const tableName of [
-      "archive_owners",
-      "entry_locks",
-      "entry_sqlite_leases",
-      "archive_commit_locks",
-    ]) {
-      if (!(await tableExists(database, tableName))) {
-        continue;
-      }
-
-      const rows = await database.queryAll(
-        `
-          SELECT owner_pid, heartbeat_at
-          FROM ${tableName}
-        `,
-        undefined,
-        (row) => ({
-          heartbeatAt: Number(row.heartbeat_at),
-          ownerPid: Number(row.owner_pid),
-        }),
-      );
-
-      if (rows.some((row) => isActiveLock(row.ownerPid, row.heartbeatAt))) {
-        throw new Error(
-          `Cannot upgrade home with active coordinator state: ${tableName}.`,
-        );
-      }
-    }
-
-    if (!(await tableExists(database, "entry_overlays"))) {
-      return;
-    }
-
-    const overlays = await database.queryAll(
-      `
-        SELECT entry_path, workspace_path
-        FROM entry_overlays
-      `,
-      undefined,
-      (row) => ({
-        entryPath: String(row.entry_path),
-        workspacePath:
-          row.workspace_path === null ? undefined : String(row.workspace_path),
-      }),
-    );
-
-    const problematicOverlay = overlays.find(
-      (overlay) => overlay.entryPath !== SEARCH_INDEX_DATABASE_PATH,
-    );
-    if (problematicOverlay !== undefined) {
-      throw new Error(
-        "Cannot upgrade home with non-derived coordinator overlays.",
-      );
-    }
-  } finally {
-    await database.close();
-  }
-}
-
-async function assertBuildQueueSafe(): Promise<void> {
-  const jobsDatabasePath = join(
-    resolveWikiGraphJobsDirectoryPath(),
-    "job.sqlite",
-  );
-
-  if (!(await pathExists(jobsDatabasePath))) {
-    return;
-  }
-
-  const database = await Database.open(jobsDatabasePath, "", {
-    readonly: true,
-  });
-
-  try {
-    if (await tableExists(database, "build_jobs")) {
-      const activeJobs = await database.queryAll(
-        `
-          SELECT job_id
-          FROM build_jobs
-          WHERE state IN ('queued', 'running', 'canceling', 'paused')
-        `,
-        undefined,
-        (row) => String(row.job_id),
-      );
-
-      if (activeJobs.length > 0) {
-        throw new Error("Cannot upgrade home with active build jobs.");
-      }
-    }
-
-    if (await tableExists(database, "build_worker_lease")) {
-      const lease = await database.queryOne(
-        `
-          SELECT owner_pid, heartbeat_at
-          FROM build_worker_lease
-          WHERE id = 1
-        `,
-        undefined,
-        (row) => ({
-          heartbeatAt:
-            row.heartbeat_at === null ? undefined : Number(row.heartbeat_at),
-          ownerPid: row.owner_pid === null ? undefined : Number(row.owner_pid),
-        }),
-      );
-
-      if (
-        lease?.ownerPid !== undefined &&
-        lease.heartbeatAt !== undefined &&
-        isActiveLock(lease.ownerPid, lease.heartbeatAt)
-      ) {
-        throw new Error(
-          "Cannot upgrade home with an active build worker lease.",
         );
       }
     }

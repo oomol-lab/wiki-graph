@@ -2,6 +2,7 @@ import { mkdir, readFile, rename, rm, writeFile } from "fs/promises";
 import { dirname, posix, resolve } from "path";
 
 import type { DocumentFileStore } from "../../../document/directory/index.js";
+import { ensureWikiGraphHomeSchemaCurrent } from "../../../document/home-schema-upgrade.js";
 
 import { readWikgArchiveEntry, WikgArchiveReader } from "../archive/index.js";
 
@@ -281,6 +282,10 @@ export class WikgDocumentFileStore implements DocumentFileStore {
     entryPath: string,
     options: { readonly createIfMissing: boolean; readonly readonly: boolean },
   ): Promise<string> {
+    if (entryPath === SEARCH_INDEX_DATABASE_ENTRY_PATH) {
+      await ensureWikiGraphHomeSchemaCurrent();
+    }
+
     return await withEntryLock(
       this.#archiveKey,
       entryPath,

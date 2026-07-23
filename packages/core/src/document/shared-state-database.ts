@@ -12,8 +12,10 @@ import { dirname, resolve } from "path";
 import { setTimeout as sleep } from "timers/promises";
 
 import { isNodeError } from "../utils/node-error.js";
-import { ensureWikiGraphHomeSchemaCurrent } from "../storage/schema-upgrade/index.js";
-import { resolveWikiGraphCoreDatabasePath } from "./../runtime/common/wiki-graph/dir.js";
+import {
+  ensureWikiGraphHomeSchemaCurrent,
+  isWikiGraphHomeSchemaGateDatabasePath,
+} from "./home-schema-upgrade.js";
 
 import { Database } from "./database.js";
 
@@ -40,7 +42,7 @@ export async function openSharedStateDatabase(
 function ensureWikiGraphHomeSchemaCurrentForPath(
   databasePath: string,
 ): Promise<void> {
-  if (resolve(databasePath) !== resolve(resolveWikiGraphCoreDatabasePath())) {
+  if (!isWikiGraphHomeSchemaGateDatabasePath(databasePath)) {
     return Promise.resolve();
   }
 

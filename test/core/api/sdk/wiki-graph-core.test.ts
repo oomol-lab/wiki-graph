@@ -1,7 +1,7 @@
 import { join } from "path";
 import { stat } from "fs/promises";
 
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 
 import {
   WikiGraph,
@@ -11,9 +11,14 @@ import {
 } from "wiki-graph-core";
 import { tryRunWikiGraphGc } from "wiki-graph-core/gc";
 import { runBuildJobWorker } from "wiki-graph-core/worker";
+import { setWikiGraphStateDirectoryPathForTesting } from "../../../../packages/core/src/runtime/common/wiki-graph/dir.js";
 import { withTempDir } from "../../../helpers/temp.js";
 
 describe("wiki-graph-core sdk", () => {
+  afterEach(() => {
+    setWikiGraphStateDirectoryPathForTesting(undefined);
+  });
+
   it("exports the main SDK surface without CLI entrypoints", () => {
     expect(typeof WikiGraph).toBe("function");
     expect(typeof WikiGraphArchive).toBe("function");
@@ -30,6 +35,7 @@ describe("wiki-graph-core sdk", () => {
 
   it("can create and reopen an archive from the SDK", async () => {
     await withTempDir("wikigraph-sdk-", async (path) => {
+      setWikiGraphStateDirectoryPathForTesting(join(path, "state"));
       const archivePath = join(path, "note.wikg");
       const app = new WikiGraph({});
 

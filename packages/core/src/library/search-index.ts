@@ -3,6 +3,7 @@ import { mkdir, readdir, rm, stat, writeFile } from "fs/promises";
 import { join } from "path";
 
 import { Database, getNumber, getString } from "../document/database.js";
+import { ensureWikiGraphHomeSchemaCurrent } from "../document/home-schema-upgrade.js";
 import { SEARCH_INDEX_SCHEMA_SQL } from "../document/schema.js";
 import { openSharedStateDatabase } from "../document/index.js";
 import { WikiGraphArchiveFile } from "../storage/wikg/index.js";
@@ -652,6 +653,7 @@ class LibraryIndexDocument {
     operation: (database: Database) => Promise<T> | T,
     readonly: boolean,
   ): Promise<T> {
+    await ensureWikiGraphHomeSchemaCurrent();
     await mkdir(createLibraryIndexDirectory(this.#library), {
       recursive: true,
     });

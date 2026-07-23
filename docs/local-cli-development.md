@@ -129,3 +129,9 @@ text, archive operations, state handling, or bug fixes in the current checkout.
 Use the install workflow only when the question is about the packaged command
 itself: global `wg` resolution, npm package layout, `dist` artifacts, executable
 metadata, or previewing an unreleased branch outside this repository.
+
+## Related Maintainer Docs
+
+- [Schema Upgrade Maintenance](./schema-upgrade.md): how archive/home schema
+  gates, version bumps, upgrader tests, and persistent-state boundaries are
+  maintained.
