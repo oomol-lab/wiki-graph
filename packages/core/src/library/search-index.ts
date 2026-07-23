@@ -13,11 +13,15 @@ import {
   markDirtySearchIndexChapters,
   readSearchIndexFingerprintFromDatabase,
   readSearchIndexStatus,
+  SEARCH_OBJECT_PROPERTY_KIND,
   SEARCH_OBJECT_PROPERTY_OWNER_KIND,
   type SearchIndexInput,
   type SearchIndexObjectHit,
   type SearchIndexProgressReporter,
   type SearchIndexTextHit,
+  type SearchObjectPropertyKind,
+  type SearchObjectPropertyOwnerKind,
+  type TextSentenceKind,
 } from "../retrieval/search-index/index.js";
 import { readPathSize } from "../runtime/gc/files.js";
 import type { GcContext, GcJobResult } from "../runtime/gc/index.js";
@@ -64,6 +68,10 @@ export interface WikiGraphLibraryIndexQueryResult {
   readonly objectHits: readonly WikiGraphLibraryIndexObjectHit[];
   readonly terms: readonly string[];
   readonly textHits: readonly WikiGraphLibraryIndexTextHit[];
+}
+
+export interface WikiGraphLibraryIndexListOptions {
+  readonly includeText?: boolean;
 }
 
 export type WikiGraphLibraryIndexObjectHit = SearchIndexObjectHit & {
@@ -239,6 +247,89 @@ export async function queryWikiGraphLibrarySearchIndex(
         ...formatLibraryHitSource(sourceByArchiveId, hit.archiveId),
       })),
     };
+  });
+}
+
+export async function listWikiGraphLibrarySearchIndex(
+  target: ParsedWikiGraphLibraryUri,
+  options: WikiGraphLibraryIndexListOptions = {},
+): Promise<WikiGraphLibraryIndexQueryResult> {
+  const library = await resolveWikiGraphLibrary(target);
+
+  return await withWikiGraphLibraryLock(library.id, "read", async () => {
+    const state = await assertWikiGraphLibraryIndexReady(target);
+    const sourceByArchiveId = new Map(
+      state.sources.map((source) => [source.archiveId, source]),
+    );
+
+    return await new LibraryIndexDocument(library).readSearchIndexDatabase(
+      async (database) => {
+        const objectHits = await database.queryAll(
+          `
+            SELECT DISTINCT
+              archive_id,
+              owner_kind,
+              owner_id,
+              property_kind,
+              chapter_id
+            FROM search_object_properties_records
+            WHERE owner_kind != ? OR property_kind = ?
+            ORDER BY archive_id, COALESCE(chapter_id, 0), owner_kind, owner_id, property_kind
+          `,
+          [
+            SEARCH_OBJECT_PROPERTY_OWNER_KIND.chunk,
+            SEARCH_OBJECT_PROPERTY_KIND.label,
+          ],
+          (row): WikiGraphLibraryIndexObjectHit => {
+            const archiveId = getNumber(row, "archive_id");
+            return {
+              ...formatLibraryHitSource(sourceByArchiveId, archiveId),
+              archiveId,
+              ownerId: String(row.owner_id),
+              ownerKind: getNumber(
+                row,
+                "owner_kind",
+              ) as SearchObjectPropertyOwnerKind,
+              propertyKind: getNumber(
+                row,
+                "property_kind",
+              ) as SearchObjectPropertyKind,
+              score: 0,
+              ...(row.chapter_id === null
+                ? {}
+                : { chapterId: getNumber(row, "chapter_id") }),
+            };
+          },
+        );
+
+        const textHits =
+          options.includeText === true
+            ? await database.queryAll(
+                `
+                  SELECT archive_id, kind, chapter_id, sentence_index, words_count
+                  FROM text_sentence_records
+                  ORDER BY archive_id, chapter_id, sentence_index, kind
+                `,
+                undefined,
+                (row): WikiGraphLibraryIndexTextHit => {
+                  const archiveId = getNumber(row, "archive_id");
+                  return {
+                    ...formatLibraryHitSource(sourceByArchiveId, archiveId),
+                    archiveId,
+                    chapterId: getNumber(row, "chapter_id"),
+                    kind: getNumber(row, "kind") as TextSentenceKind,
+                    rank: 0,
+                    score: 0,
+                    sentenceIndex: getNumber(row, "sentence_index"),
+                    wordsCount: getNumber(row, "words_count"),
+                  };
+                },
+              )
+            : [];
+
+        return { objectHits, terms: [], textHits };
+      },
+    );
   });
 }
 

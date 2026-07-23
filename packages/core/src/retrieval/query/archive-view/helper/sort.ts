@@ -82,6 +82,7 @@ export function compareListPosition(
     compareNumbers(getPositionFragment(left), getPositionFragment(right)) ||
     compareNumbers(getPositionSentence(left), getPositionSentence(right)) ||
     compareNumbers(getTypeOrder(left.type), getTypeOrder(right.type)) ||
+    compareNumbers(left.archiveId ?? 0, right.archiveId ?? 0) ||
     left.id.localeCompare(right.id)
   );
 }

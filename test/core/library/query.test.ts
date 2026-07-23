@@ -3,6 +3,11 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => {
   const archives = new Map<number, Record<string, unknown>>();
   const objectArchiveIds = new Map<string, readonly number[]>();
+  let listIndexResult: {
+    readonly objectHits: readonly Record<string, unknown>[];
+    readonly terms: readonly string[];
+    readonly textHits: readonly Record<string, unknown>[];
+  };
   const pages = new Map<string, Record<string, unknown>>();
   const evidence = new Map<string, readonly Record<string, unknown>[]>();
   const related = new Map<string, readonly Record<string, unknown>[]>();
@@ -18,11 +23,18 @@ const mocks = vi.hoisted(() => {
     archives,
     evidence,
     objectArchiveIds,
+    get listIndexResult() {
+      return listIndexResult;
+    },
+    set listIndexResult(value: typeof listIndexResult) {
+      listIndexResult = value;
+    },
     packs,
     pages,
     related,
     reset() {
       archives.clear();
+      listIndexResult = { objectHits: [], terms: [], textHits: [] };
       objectArchiveIds.clear();
       pages.clear();
       evidence.clear();
@@ -83,6 +95,9 @@ vi.mock("../../../packages/core/src/library/search-index.js", () => ({
   assertWikiGraphLibraryIndexReady: vi.fn(() =>
     Promise.resolve({ status: "current" }),
   ),
+  listWikiGraphLibrarySearchIndex: vi.fn(() =>
+    Promise.resolve(mocks.listIndexResult),
+  ),
   listWikiGraphLibraryIndexArchiveIdsForObject: vi.fn(
     (_target, objectUri: string) =>
       Promise.resolve(mocks.objectArchiveIds.get(objectUri) ?? []),
@@ -132,6 +147,29 @@ vi.mock(
         }
         return Promise.resolve(page);
       },
+    ),
+  }),
+);
+
+vi.mock(
+  "../../../packages/core/src/retrieval/query/archive-view/search/hydration.js",
+  () => ({
+    hydrateSearchIndexHits: vi.fn(
+      (
+        _document: { readonly path: string },
+        result: { readonly objectHits: readonly Record<string, unknown>[] },
+      ) =>
+        Promise.resolve(
+          result.objectHits.map((hit) => ({
+            chapter: Number(hit.ownerId),
+            field: "title" as const,
+            id: `wikg://chapter/${String(hit.ownerId)}/title`,
+            position: { chapter: Number(hit.ownerId) },
+            snippet: `Chapter ${String(hit.ownerId)}`,
+            title: `Chapter ${String(hit.ownerId)}`,
+            type: "chapter-title" as const,
+          })),
+        ),
     ),
   }),
 );
@@ -358,7 +396,60 @@ describe("wiki graph library object query aggregation", () => {
       listWikiGraphLibraryEvidence(target, "wikg://entity/Q1"),
     ).rejects.toThrow("archive 2 is not readable");
   });
+
+  it("lists library objects from the library index instead of archive collection merge", async () => {
+    const [{ listWikiGraphLibraryObjects }, archiveView] = await Promise.all([
+      import("../../../packages/core/src/library/query.js"),
+      import("../../../packages/core/src/retrieval/query/archive-view/index.js"),
+    ]);
+
+    mocks.listIndexResult = {
+      objectHits: [createIndexObjectHit(2, "1"), createIndexObjectHit(1, "1")],
+      terms: [],
+      textHits: [],
+    };
+
+    const result = await listWikiGraphLibraryObjects(target, {
+      limit: 10,
+      types: ["chapter-title"],
+    });
+
+    expect(archiveView.listArchiveCollection).not.toHaveBeenCalled();
+    expect(result.items.map((item) => [item.id, item.archiveId])).toStrictEqual(
+      [
+        ["wikg://chapter/1/title", 1],
+        ["wikg://chapter/1/title", 2],
+      ],
+    );
+  });
+
+  it("requests text sentence hits only for text-stream library list types", async () => {
+    const [{ listWikiGraphLibraryObjects }, searchIndex] = await Promise.all([
+      import("../../../packages/core/src/library/query.js"),
+      import("../../../packages/core/src/library/search-index.js"),
+    ]);
+
+    await listWikiGraphLibraryObjects(target, { types: ["source"] });
+
+    expect(searchIndex.listWikiGraphLibrarySearchIndex).toHaveBeenCalledWith(
+      target,
+      { includeText: true },
+    );
+  });
 });
+
+function createIndexObjectHit(archiveId: number, ownerId: string) {
+  return {
+    archiveId,
+    archiveUri: `wikg://lib/archive-${archiveId}`,
+    chapterId: Number(ownerId),
+    libraryArchiveUri: `wikg://lib/archive-${archiveId}`,
+    ownerId,
+    ownerKind: 1,
+    propertyKind: 1,
+    score: 0,
+  };
+}
 
 function createEntityPage(id: string) {
   return {

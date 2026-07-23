@@ -1,7 +1,6 @@
 import { WikiGraphArchiveFile } from "../storage/wikg/index.js";
 import type { ReadonlyDocument } from "../document/index.js";
 import {
-  listArchiveCollection,
   listArchiveEvidence,
   listRelatedArchiveObjects,
   packArchiveContext,
@@ -42,6 +41,7 @@ import {
 import {
   assertWikiGraphLibraryIndexReady,
   listWikiGraphLibraryIndexArchiveIdsForObject,
+  listWikiGraphLibrarySearchIndex,
   queryWikiGraphLibrarySearchIndex,
 } from "./search-index.js";
 
@@ -85,17 +85,29 @@ export async function listWikiGraphLibraryObjects(
   target: ParsedWikiGraphLibraryUri,
   options: ArchiveCollectionOptions = {},
 ): Promise<ArchiveCollectionResult> {
-  await assertWikiGraphLibraryIndexReady(target);
-
   const hits: ArchiveFindHit[] = [];
-  for (const archive of await listReadyLibraryArchives(target)) {
+  const result = await listWikiGraphLibrarySearchIndex(target, {
+    includeText: shouldListTextStreams(options),
+  });
+  const archiveIds = createSortedArchiveIds(result);
+  for (const archiveId of archiveIds) {
+    const archive = await resolveReadableIndexedArchive(target, archiveId);
     const source = createLibrarySource(archive);
-    const result = await readLibraryArchiveDocument(
+    const hydrated = await readLibraryArchiveDocument(
       archive,
-      async (document) => await listArchiveCollection(document, options),
+      async (document) =>
+        await hydrateSearchIndexHits(document, {
+          objectHits: result.objectHits.filter(
+            (hit) => hit.archiveId === archive.id,
+          ),
+          terms: result.terms,
+          textHits: result.textHits.filter(
+            (hit) => hit.archiveId === archive.id,
+          ),
+        }),
     );
 
-    hits.push(...result.items.map((item) => ({ ...item, ...source })));
+    hits.push(...hydrated.map((hit) => ({ ...hit, ...source })));
   }
 
   return createCollectionResult(hits, options);
@@ -492,6 +504,39 @@ async function listReadyLibraryArchives(
   return (await listWikiGraphLibraryArchives(target)).filter(
     isReadableLibraryArchive,
   );
+}
+
+function shouldListTextStreams(options: ArchiveCollectionOptions): boolean {
+  return (
+    options.types !== undefined &&
+    options.types.some((type) => type === "source" || type === "summary")
+  );
+}
+
+function createSortedArchiveIds(result: {
+  readonly objectHits: readonly { readonly archiveId: number }[];
+  readonly textHits: readonly { readonly archiveId: number }[];
+}): readonly number[] {
+  return [
+    ...new Set([
+      ...result.objectHits.map((hit) => hit.archiveId),
+      ...result.textHits.map((hit) => hit.archiveId),
+    ]),
+  ].sort((left, right) => left - right);
+}
+
+async function resolveReadableIndexedArchive(
+  target: ParsedWikiGraphLibraryUri,
+  archiveId: number,
+): Promise<WikiGraphLibraryArchiveRecord> {
+  const library = await resolveWikiGraphLibrary(target);
+  const archive = await getWikiGraphLibraryArchiveById(library, archiveId);
+  if (!isReadableLibraryArchive(archive)) {
+    throw new Error(
+      `Wiki Graph library archive ${archiveId} is not readable while listing library objects.`,
+    );
+  }
+  return archive;
 }
 
 function isReadableLibraryArchive(
