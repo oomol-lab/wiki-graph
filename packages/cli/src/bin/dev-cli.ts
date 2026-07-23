@@ -6,7 +6,7 @@ declare global {
 
 globalThis.__WIKIGRAPH_STATE_DIR__ = resolve(
   import.meta.dirname,
-  "../../../.wikigraph/state",
+  "../../../../.wikigraph/state",
 );
 
 const { main } = await import("../app/index.js");

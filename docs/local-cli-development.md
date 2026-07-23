@@ -70,10 +70,10 @@ The extra `--` is passed to the CLI and changes the parsed command.
 
 The installed CLI stores local runtime state under `~/.wikigraph`. The
 development CLI entry point is compiled to use the repository-level
-`project/.wikigraph/state` directory instead, so users cannot change CLI state
+`.wikigraph/state` directory instead, so users cannot change CLI state
 location through environment variables.
 
-Use `project/.wikigraph/` for local development data:
+Use repository-root `.wikigraph/` for local development data:
 
 ```bash
 mkdir -p .wikigraph/state .wikigraph/out .wikigraph/input
@@ -95,14 +95,15 @@ Recommended subdirectories:
 - `.wikigraph/out/`: generated `.wikg` archives and exported regression output;
 - `.wikigraph/input/`: private or temporary local input files.
 
-Remove all local development state and generated regression output with:
+Remove all local development data with:
 
 ```bash
 pnpm cli:clean-dev-state
 ```
 
-This deletes only `project/.wikigraph/`. It does not affect the installed CLI's
-machine-level `~/.wikigraph` directory.
+This deletes repository-root `.wikigraph/`, including `.wikigraph/state/`,
+`.wikigraph/out/`, and `.wikigraph/input/`. It does not affect the installed
+CLI's machine-level `~/.wikigraph` directory.
 
 For repeated shell use, define a local helper from the repository root:
 
