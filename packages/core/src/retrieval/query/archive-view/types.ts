@@ -75,6 +75,12 @@ export interface ArchiveIndex {
 export interface ArchiveLibrarySourceFields {
   readonly archiveId?: number;
   readonly libraryArchiveUri?: string;
+  readonly sources?: readonly ArchiveLibrarySource[];
+}
+
+export interface ArchiveLibrarySource {
+  readonly archiveId: number;
+  readonly libraryArchiveUri: string;
 }
 
 export interface ArchiveFindHit extends ArchiveLibrarySourceFields {

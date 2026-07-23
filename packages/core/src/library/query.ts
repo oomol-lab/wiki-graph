@@ -21,6 +21,7 @@ import type {
   ArchiveFindHit,
   ArchiveFindOptions,
   ArchiveFindResult,
+  ArchiveLibrarySource,
   ArchiveListItem,
   ArchivePack,
   ArchivePage,
@@ -43,6 +44,8 @@ import {
   listWikiGraphLibraryIndexArchiveIdsForObject,
   queryWikiGraphLibrarySearchIndex,
 } from "./search-index.js";
+
+const DEFAULT_LIBRARY_PAGE_LIMIT = 20;
 
 export async function findWikiGraphLibraryObjects(
   target: ParsedWikiGraphLibraryUri,
@@ -103,7 +106,7 @@ export async function readWikiGraphLibraryPage(
   objectUri: string,
   options: Parameters<typeof readArchivePage>[2] = {},
 ): Promise<ArchivePage> {
-  return await readFirstIndexedArchiveResult(
+  const pages = await readIndexedArchiveResults(
     target,
     objectUri,
     async (document, archive) => ({
@@ -111,6 +114,21 @@ export async function readWikiGraphLibraryPage(
       ...createLibrarySource(archive),
     }),
   );
+
+  const page = createMultiArchivePage(pages);
+  if ((page.type === "entity" || page.type === "triple") && pages.length > 1) {
+    const evidence = await listWikiGraphLibraryEvidence(target, objectUri, {
+      ...createPageEvidenceOptions(options),
+      limit: Number.MAX_SAFE_INTEGER,
+    });
+
+    return {
+      ...page,
+      evidence: createEvidencePreview(evidence, options.evidenceLimit ?? 3),
+    };
+  }
+
+  return page;
 }
 
 export async function listWikiGraphLibraryEvidence(
@@ -118,11 +136,15 @@ export async function listWikiGraphLibraryEvidence(
   objectUri: string,
   options: ArchiveEvidenceOptions = {},
 ): Promise<ArchiveEvidence> {
-  const page = await readFirstIndexedArchiveResult(
+  const results = await readIndexedArchiveResults(
     target,
     objectUri,
     async (document, archive) => {
-      const result = await listArchiveEvidence(document, objectUri, options);
+      const { cursor: _cursor, ...archiveOptions } = options;
+      const result = await listArchiveEvidence(document, objectUri, {
+        ...archiveOptions,
+        limit: Number.MAX_SAFE_INTEGER,
+      });
       const source = createLibrarySource(archive);
 
       return {
@@ -137,7 +159,10 @@ export async function listWikiGraphLibraryEvidence(
     },
   );
 
-  return page;
+  return createEvidenceResult(
+    results.flatMap((result) => result.items),
+    options,
+  );
 }
 
 export async function listRelatedWikiGraphLibraryObjects(
@@ -145,15 +170,15 @@ export async function listRelatedWikiGraphLibraryObjects(
   objectUri: string,
   options: ArchiveRelatedOptions = {},
 ): Promise<ArchiveRelatedResult> {
-  return await readFirstIndexedArchiveResult(
+  const results = await readIndexedArchiveResults(
     target,
     objectUri,
     async (document, archive) => {
-      const result = await listRelatedArchiveObjects(
-        document,
-        objectUri,
-        options,
-      );
+      const { cursor: _cursor, ...archiveOptions } = options;
+      const result = await listRelatedArchiveObjects(document, objectUri, {
+        ...archiveOptions,
+        limit: Number.MAX_SAFE_INTEGER,
+      });
       const source = createLibrarySource(archive);
 
       return {
@@ -167,6 +192,11 @@ export async function listRelatedWikiGraphLibraryObjects(
       };
     },
   );
+
+  return createRelatedResult(
+    results.flatMap((result) => result.items),
+    options,
+  );
 }
 
 export async function packWikiGraphLibraryContext(
@@ -174,7 +204,7 @@ export async function packWikiGraphLibraryContext(
   objectUri: string,
   budget: number,
 ): Promise<ArchivePack> {
-  return await readFirstIndexedArchiveResult(
+  const packs = await readIndexedArchiveResults(
     target,
     objectUri,
     async (document, archive) => {
@@ -188,6 +218,17 @@ export async function packWikiGraphLibraryContext(
       };
     },
   );
+  const [first] = packs;
+
+  if (first === undefined) {
+    throw new Error(`Wiki Graph library object was not found: ${objectUri}`);
+  }
+
+  return {
+    anchor: createMultiArchivePage(packs.map((pack) => pack.anchor)),
+    budget,
+    related: packs.flatMap((pack) => pack.related),
+  };
 }
 
 export async function resolveWikiGraphLibraryQueryTargetById(
@@ -203,41 +244,205 @@ export async function resolveWikiGraphLibraryQueryTargetById(
   );
 }
 
-async function readFirstIndexedArchiveResult<T>(
+async function readIndexedArchiveResults<T>(
   target: ParsedWikiGraphLibraryUri,
   objectUri: string,
   operation: (
     document: ReadonlyDocument,
     archive: WikiGraphLibraryArchiveRecord,
   ) => Promise<T>,
-): Promise<T> {
+): Promise<T[]> {
   const library = await resolveWikiGraphLibrary(target);
   const archiveIds = await listWikiGraphLibraryIndexArchiveIdsForObject(
     target,
     objectUri,
   );
-  let lastError: unknown;
+  const results: T[] = [];
 
   for (const archiveId of archiveIds) {
     const archive = await getWikiGraphLibraryArchiveById(library, archiveId);
     if (!isReadableLibraryArchive(archive)) {
-      continue;
+      throw new Error(
+        `Wiki Graph library archive ${archiveId} is not readable while reading ${objectUri}.`,
+      );
     }
 
     try {
-      return await readLibraryArchiveDocument(
-        archive,
-        async (document) => await operation(document, archive),
+      results.push(
+        await readLibraryArchiveDocument(
+          archive,
+          async (document) => await operation(document, archive),
+        ),
       );
     } catch (error) {
-      lastError = error;
+      throw new Error(
+        `Failed to read Wiki Graph library archive ${archiveId} (${archive.uri}) for ${objectUri}: ${formatErrorMessage(error)}`,
+        { cause: error },
+      );
     }
   }
 
-  if (lastError instanceof Error) {
-    throw lastError;
+  if (results.length === 0) {
+    throw new Error(`Wiki Graph library object was not found: ${objectUri}`);
   }
-  throw new Error(`Wiki Graph library object was not found: ${objectUri}`);
+  return results;
+}
+
+function createMultiArchivePage(pages: readonly ArchivePage[]): ArchivePage {
+  const [first] = pages;
+  if (first === undefined) {
+    throw new Error(
+      "Internal error: cannot merge an empty library page result.",
+    );
+  }
+
+  const sources = createLibrarySources(pages);
+  if (sources.length === 1) {
+    return first;
+  }
+
+  const {
+    archiveId: _archiveId,
+    libraryArchiveUri: _libraryArchiveUri,
+    ...page
+  } = first;
+
+  return { ...page, sources };
+}
+
+function createPageEvidenceOptions(
+  options: Parameters<typeof readArchivePage>[2] = {},
+): ArchiveEvidenceOptions {
+  return {
+    ...(options.evidenceLimit === undefined
+      ? {}
+      : { limit: options.evidenceLimit }),
+    ...(options.order === undefined ? {} : { order: options.order }),
+    ...(options.sourceContext === undefined
+      ? {}
+      : { sourceContext: options.sourceContext }),
+  };
+}
+
+function createEvidenceResult(
+  items: readonly ArchiveEvidenceItem[],
+  options: ArchiveEvidenceOptions,
+): ArchiveEvidence {
+  const limit = options.limit ?? DEFAULT_LIBRARY_PAGE_LIMIT;
+  const offset = parseLibraryObjectCursor(options.cursor, "evidence");
+  const sorted = [...items].sort((left, right) =>
+    compareLibraryEvidenceItems(left, right, options.order ?? "doc-asc"),
+  );
+  const pageItems = sorted.slice(offset, offset + limit);
+  const nextOffset = offset + pageItems.length;
+
+  return {
+    items: pageItems,
+    limit,
+    nextCursor: nextOffset < sorted.length ? String(nextOffset) : null,
+  };
+}
+
+function createRelatedResult(
+  items: readonly ArchiveListItem[],
+  options: ArchiveRelatedOptions,
+): ArchiveRelatedResult {
+  const limit = options.limit ?? DEFAULT_LIBRARY_PAGE_LIMIT;
+  const offset = parseLibraryObjectCursor(options.cursor, "related");
+  const sorted = [...items].sort((left, right) =>
+    compareLibraryListItems(left, right, options.order ?? "doc-asc"),
+  );
+  const pageItems = sorted.slice(offset, offset + limit);
+  const nextOffset = offset + pageItems.length;
+
+  return {
+    items: pageItems,
+    limit,
+    nextCursor: nextOffset < sorted.length ? String(nextOffset) : null,
+  };
+}
+
+function createEvidencePreview(evidence: ArchiveEvidence, limit: number) {
+  const sources = evidence.items.slice(0, limit);
+
+  return {
+    nextCursor:
+      sources.length < evidence.items.length ? String(sources.length) : null,
+    shown: sources.length,
+    sources,
+    total: evidence.items.length,
+  };
+}
+
+function createLibrarySources(
+  values: readonly {
+    readonly archiveId?: number;
+    readonly libraryArchiveUri?: string;
+  }[],
+): readonly ArchiveLibrarySource[] {
+  const sources = new Map<number, ArchiveLibrarySource>();
+  for (const value of values) {
+    if (
+      value.archiveId === undefined ||
+      value.libraryArchiveUri === undefined
+    ) {
+      continue;
+    }
+    sources.set(value.archiveId, {
+      archiveId: value.archiveId,
+      libraryArchiveUri: value.libraryArchiveUri,
+    });
+  }
+  return [...sources.values()].sort(
+    (left, right) => left.archiveId - right.archiveId,
+  );
+}
+
+function compareLibraryEvidenceItems(
+  left: ArchiveEvidenceItem,
+  right: ArchiveEvidenceItem,
+  order: "doc-asc" | "doc-desc",
+): number {
+  const direction = order === "doc-asc" ? 1 : -1;
+  return (
+    (compareOptionalNumbers(left.archiveId, right.archiveId) ||
+      left.chapterId - right.chapterId ||
+      left.startSentenceIndex - right.startSentenceIndex ||
+      left.endSentenceIndex - right.endSentenceIndex ||
+      left.id.localeCompare(right.id)) * direction
+  );
+}
+
+function compareLibraryListItems(
+  left: ArchiveListItem,
+  right: ArchiveListItem,
+  order: "doc-asc" | "doc-desc",
+): number {
+  const direction = order === "doc-asc" ? 1 : -1;
+  return (
+    (compareOptionalNumbers(left.archiveId, right.archiveId) ||
+      left.id.localeCompare(right.id)) * direction
+  );
+}
+
+function compareOptionalNumbers(
+  left: number | undefined,
+  right: number | undefined,
+): number {
+  return (left ?? Number.MAX_SAFE_INTEGER) - (right ?? Number.MAX_SAFE_INTEGER);
+}
+
+function parseLibraryObjectCursor(
+  cursor: string | undefined,
+  kind: "evidence" | "related",
+): number {
+  if (cursor === undefined) {
+    return 0;
+  }
+  if (!/^(0|[1-9][0-9]*)$/u.test(cursor)) {
+    throw new Error(`Invalid library ${kind} cursor: ${cursor}`);
+  }
+  return Number(cursor);
 }
 
 async function listReadyLibraryArchives(
@@ -262,12 +467,15 @@ async function readLibraryArchiveDocument<T>(
   return await new WikiGraphArchiveFile(archive.path).readDocument(operation);
 }
 
-function createLibrarySource(archive: WikiGraphLibraryArchiveRecord): {
-  readonly archiveId: number;
-  readonly libraryArchiveUri: string;
-} {
+function createLibrarySource(
+  archive: WikiGraphLibraryArchiveRecord,
+): ArchiveLibrarySource {
   return {
     archiveId: archive.id,
     libraryArchiveUri: archive.uri,
   };
+}
+
+function formatErrorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
 }

@@ -163,6 +163,7 @@ export type {
   ArchiveFindPosition,
   ArchiveFindResult,
   ArchiveObjectType,
+  ArchiveLibrarySource,
   ArchivePack,
   ArchivePage,
   ArchiveRelatedResult,
