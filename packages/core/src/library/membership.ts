@@ -47,13 +47,17 @@ const LIBRARY_ARCHIVE_MEMBERSHIP_SCHEMA_SQL = `
     last_scanned_at TEXT,
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL,
-    UNIQUE(library_id, public_id),
-    UNIQUE(library_id, relative_path)
+    UNIQUE(library_id, public_id)
   );
 
   CREATE INDEX IF NOT EXISTS idx_library_archives_library
   ON library_archives(library_id);
+
+  CREATE INDEX IF NOT EXISTS idx_library_archives_library_path
+  ON library_archives(library_id, relative_path);
 `;
+
+type LibraryPathIdentityMode = "trusted" | "untrusted";
 
 type WikiGraphLibraryArchiveStatus = "conflict" | "missing" | "present";
 
@@ -93,7 +97,9 @@ export async function scanWikiGraphLibrary(
 ): Promise<WikiGraphLibraryScanResult> {
   const library = await resolveWikiGraphLibrary(target);
   return await withWikiGraphLibraryLock(library.id, "write", async () => {
-    const result = await scanWikiGraphLibraryUnlocked(target, library);
+    const result = await scanWikiGraphLibraryUnlocked(target, library, {
+      pathIdentity: "trusted",
+    });
 
     await markWikiGraphLibraryIndexDirty(library);
     return result;
@@ -114,7 +120,9 @@ export async function rebindWikiGraphLibrary(input: {
       library,
       input.folderPath,
     );
-    const result = await scanWikiGraphLibraryUnlocked(input.target, rebound);
+    const result = await scanWikiGraphLibraryUnlocked(input.target, rebound, {
+      pathIdentity: "untrusted",
+    });
 
     await markWikiGraphLibraryIndexDirty(rebound);
     return result;
@@ -124,6 +132,7 @@ export async function rebindWikiGraphLibrary(input: {
 async function scanWikiGraphLibraryUnlocked(
   target: ParsedWikiGraphLibraryUri,
   library: WikiGraphLibraryRecord,
+  options: { readonly pathIdentity: LibraryPathIdentityMode },
 ): Promise<WikiGraphLibraryScanResult> {
   const files = await listWikgFiles(library.folderPath);
 
@@ -134,10 +143,11 @@ async function scanWikiGraphLibraryUnlocked(
       const seenArchiveIds = new Set<number>();
 
       for (const file of files) {
-        const existingAtPath = existing.find(
-          (archive) => archive.relativePath === file.relativePath,
-        );
-        if (existingAtPath !== undefined) {
+        const existingAtPath = findExistingArchiveAtPath(existing, file);
+        if (
+          options.pathIdentity === "trusted" &&
+          existingAtPath !== undefined
+        ) {
           await updateLibraryArchiveSeen(database, existingAtPath.id, file, {
             status: "present",
           });
@@ -191,7 +201,8 @@ async function scanWikiGraphLibraryUnlocked(
       for (const archive of existing) {
         if (
           seenArchiveIds.has(archive.id) ||
-          currentPaths.has(archive.relativePath)
+          (options.pathIdentity === "trusted" &&
+            currentPaths.has(archive.relativePath))
         ) {
           continue;
         }
@@ -403,6 +414,7 @@ async function withLibraryArchiveMembershipDatabase<T>(
 
   try {
     await ensureLibraryArchiveMembershipColumns(database);
+    await ensureLibraryArchiveMembershipPathIndex(database);
     return await operation(database);
   } finally {
     await database.close();
@@ -460,7 +472,16 @@ async function ensureLibraryArchiveByRelativePath(
   file: DiscoveredLibraryArchiveFile,
 ): Promise<void> {
   const existing = await database.queryOne(
-    "SELECT id FROM library_archives WHERE library_id = ? AND relative_path = ?",
+    `
+      SELECT id
+      FROM library_archives
+      WHERE library_id = ? AND relative_path = ?
+      ORDER BY CASE status
+        WHEN 'present' THEN 0
+        WHEN 'conflict' THEN 1
+        ELSE 2
+      END, id DESC
+    `,
     [libraryId, file.relativePath],
     (row) => getNumber(row, "id"),
   );
@@ -546,6 +567,11 @@ async function requireLibraryArchiveByRelativePath(
              created_at, updated_at
       FROM library_archives
       WHERE library_id = ? AND relative_path = ?
+      ORDER BY CASE status
+        WHEN 'present' THEN 0
+        WHEN 'conflict' THEN 1
+        ELSE 2
+      END, id DESC
     `,
     [library.id, relativePath],
     (row) => mapLibraryArchiveRecord(library, row, true),
@@ -660,6 +686,25 @@ function mapLibraryArchiveRecord(
     updatedAt: getString(row, "updated_at"),
     uri: `${library.uri}/${publicId}`,
   };
+}
+
+function findExistingArchiveAtPath(
+  archives: readonly WikiGraphLibraryArchiveRecord[],
+  file: DiscoveredLibraryArchiveFile,
+): WikiGraphLibraryArchiveRecord | undefined {
+  return archives
+    .filter((archive) => archive.relativePath === file.relativePath)
+    .sort((a, b) => archivePathMatchRank(a) - archivePathMatchRank(b))[0];
+}
+
+function archivePathMatchRank(archive: WikiGraphLibraryArchiveRecord): number {
+  if (archive.status === "present") {
+    return 0;
+  }
+  if (archive.status === "conflict") {
+    return 1;
+  }
+  return 2;
 }
 
 async function listWikgFiles(
@@ -789,6 +834,93 @@ async function ensureLibraryArchiveMembershipColumns(
       );
     }
   }
+}
+
+async function ensureLibraryArchiveMembershipPathIndex(
+  database: Database,
+): Promise<void> {
+  if (await hasUniqueLibraryArchiveRelativePathIndex(database)) {
+    await rebuildLibraryArchiveMembershipTable(database);
+  }
+  await database.run(
+    `
+      CREATE INDEX IF NOT EXISTS idx_library_archives_library_path
+      ON library_archives(library_id, relative_path)
+    `,
+  );
+}
+
+async function hasUniqueLibraryArchiveRelativePathIndex(
+  database: Database,
+): Promise<boolean> {
+  const indexes = await database.queryAll(
+    "PRAGMA index_list(library_archives)",
+    undefined,
+    (row) => ({
+      name: getString(row, "name"),
+      unique: getNumber(row, "unique") === 1,
+    }),
+  );
+  for (const index of indexes) {
+    if (!index.unique) {
+      continue;
+    }
+    const columns = await database.queryAll(
+      `PRAGMA index_info(${sqlStringLiteral(index.name)})`,
+      undefined,
+      (row) => getString(row, "name"),
+    );
+    if (
+      columns.length === 2 &&
+      columns[0] === "library_id" &&
+      columns[1] === "relative_path"
+    ) {
+      return true;
+    }
+  }
+  return false;
+}
+
+async function rebuildLibraryArchiveMembershipTable(
+  database: Database,
+): Promise<void> {
+  await database.transaction(async () => {
+    await database.run(
+      "ALTER TABLE library_archives RENAME TO library_archives_unique_path_legacy",
+    );
+    await database.run(`
+      CREATE TABLE library_archives (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        library_id INTEGER NOT NULL,
+        public_id TEXT NOT NULL,
+        relative_path TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'present',
+        last_seen_mutation_token TEXT,
+        last_seen_size INTEGER,
+        last_seen_mtime_ms INTEGER,
+        last_scanned_at TEXT,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        UNIQUE(library_id, public_id)
+      )
+    `);
+    await database.run(`
+      INSERT INTO library_archives (
+        id, library_id, public_id, relative_path, status,
+        last_seen_mutation_token, last_seen_size, last_seen_mtime_ms,
+        last_scanned_at, created_at, updated_at
+      )
+      SELECT id, library_id, public_id, relative_path, status,
+        last_seen_mutation_token, last_seen_size, last_seen_mtime_ms,
+        last_scanned_at, created_at, updated_at
+      FROM library_archives_unique_path_legacy
+    `);
+    await database.run("DROP TABLE library_archives_unique_path_legacy");
+  });
+}
+
+function sqlStringLiteral(value: string): string {
+  return `'${value.replace(/'/gu, "''")}'`;
 }
 
 async function createUniqueLibraryArchivePublicId(
