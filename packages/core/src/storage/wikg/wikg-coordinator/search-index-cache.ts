@@ -7,6 +7,7 @@ import {
   Database as DocumentDatabase,
   DirectoryDocument,
 } from "../../../document/index.js";
+import { ensureWikiGraphHomeSchemaCurrent } from "../../../document/home-schema-upgrade.js";
 import { readSearchIndexFingerprintFromDatabase } from "../../../retrieval/search-index/index.js";
 
 import {
@@ -62,6 +63,7 @@ export async function readSearchIndexCacheStatus(
 async function readSearchIndexCacheFingerprint(
   databasePath: string,
 ): Promise<string | undefined> {
+  await ensureWikiGraphHomeSchemaCurrent();
   const database = await DocumentDatabase.open(databasePath, "", {
     readonly: true,
   });
