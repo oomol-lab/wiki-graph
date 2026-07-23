@@ -1,4 +1,5 @@
 import { join } from "path";
+import { rm } from "fs/promises";
 
 import { afterEach, describe, expect, it } from "vitest";
 
@@ -135,7 +136,40 @@ describe("archive/query/search-cache", () => {
       await expect(listPredicates(path)).resolves.toStrictEqual(["mentions"]);
     });
   });
+
+  it("recreates the search session database when only the init marker remains", async () => {
+    await withTempDir("wikigraph-search-cache-marker-", async (path) => {
+      setWikiGraphStateDirectoryPathForTesting(path);
+
+      await createEmptySession("archive-a", "query-a");
+      await rm(join(path, "cache", "search-sessions.sqlite"));
+
+      await createEmptySession("archive-b", "query-b");
+
+      await expect(listTableNamesAt(path)).resolves.toEqual(
+        expect.arrayContaining(["search_sessions", "search_results"]),
+      );
+    });
+  });
 });
+
+async function createEmptySession(
+  archiveKey: string,
+  query: string,
+): Promise<void> {
+  await createSearchSession({
+    archiveKey,
+    chapters: null,
+    items: [],
+    lens: "broad",
+    match: "any",
+    order: "rank",
+    query,
+    revisionScope: JSON.stringify({ chaptersRevision: 0, scope: "all" }),
+    terms: [query],
+    types: null,
+  });
+}
 
 async function listIndexNames(database: Database): Promise<string[]> {
   return await database.queryAll(
@@ -162,6 +196,20 @@ async function listTableNames(database: Database): Promise<string[]> {
     undefined,
     (row) => String(row.name),
   );
+}
+
+async function listTableNamesAt(path: string): Promise<string[]> {
+  const database = await Database.open(
+    join(path, "cache", "search-sessions.sqlite"),
+    "",
+    { readonly: true },
+  );
+
+  try {
+    return await listTableNames(database);
+  } finally {
+    await database.close();
+  }
 }
 
 async function listPredicates(path: string): Promise<string[]> {

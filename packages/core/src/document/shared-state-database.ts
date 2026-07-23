@@ -57,7 +57,7 @@ export async function ensureSharedStateDatabaseInitialized(
   const markerPath = createInitMarkerPath(resolvedDatabasePath);
   const schemaHash = hashSchema(schemaSql);
 
-  if (await hasInitMarker(markerPath, schemaHash)) {
+  if (await hasInitMarker(resolvedDatabasePath, markerPath, schemaHash)) {
     await hardenSharedStateFile(resolvedDatabasePath);
     await hardenSharedStateFile(markerPath);
     return;
@@ -65,7 +65,7 @@ export async function ensureSharedStateDatabaseInitialized(
 
   await mkdir(dirname(resolvedDatabasePath), { recursive: true });
   await withInitLock(resolvedDatabasePath, async () => {
-    if (await hasInitMarker(markerPath, schemaHash)) {
+    if (await hasInitMarker(resolvedDatabasePath, markerPath, schemaHash)) {
       await hardenSharedStateFile(resolvedDatabasePath);
       await hardenSharedStateFile(markerPath);
       return;
@@ -234,9 +234,14 @@ function isProcessAlive(pid: number): boolean {
 }
 
 async function hasInitMarker(
+  databasePath: string,
   markerPath: string,
   schemaHash: string,
 ): Promise<boolean> {
+  if (!(await pathIsRegularFile(databasePath))) {
+    return false;
+  }
+
   try {
     return (await readFile(markerPath, "utf8")).trim() === schemaHash;
   } catch (error) {
@@ -250,6 +255,18 @@ async function hasInitMarker(
 
 function createInitMarkerPath(databasePath: string): string {
   return `${databasePath}.initialized`;
+}
+
+async function pathIsRegularFile(path: string): Promise<boolean> {
+  try {
+    return (await stat(path)).isFile();
+  } catch (error) {
+    if (isNodeError(error) && error.code === "ENOENT") {
+      return false;
+    }
+
+    throw error;
+  }
 }
 
 async function hardenSharedStateFile(path: string): Promise<void> {
