@@ -47,7 +47,7 @@
   },
   "scripts": {
     "build": "rimraf dist && tsup --config tsup.config.ts && node ../../scripts/copy-package-data.mjs ../core/data dist/data",
-    "dev": "tsx src/bin/cli.ts"
+    "dev": "WIKIGRAPH_STATE_DIR=../../.wikigraph/state tsx src/bin/cli.ts"
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^3.0.68",
