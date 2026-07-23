@@ -13,11 +13,13 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import {
   addWikiGraphLibraryArchive,
+  createWikiGraphLibrary,
   ensureDefaultWikiGraphLibrary,
   isWikiGraphLibraryUri,
   moveWikiGraphLibraryArchive,
   parseLocatedWikiGraphUri,
   parseWikiGraphLibraryUri,
+  removeWikiGraphLibrary,
   removeWikiGraphLibraryArchive,
   resolveWikiGraphLibraryArchivePath,
   scanWikiGraphLibrary,
@@ -27,6 +29,7 @@ import {
   setWikiGraphStateDirectoryPathForTesting,
 } from "../runtime/common/wiki-graph/dir.js";
 import { writeWikgArchive } from "../storage/wikg/index.js";
+import { acquireWikiGraphLibraryLock } from "./lock.js";
 
 let previousStateDir: string | undefined;
 let tempDir: string;
@@ -180,6 +183,27 @@ describe("library archive membership", () => {
     });
     expect(removed.publicId).toBe(added.publicId);
     await expect(readFile(moved.path, "utf8")).rejects.toThrow();
+  });
+
+  it("requires the library write lock when removing a library registry", async () => {
+    const library = await createWikiGraphLibrary({
+      folderPath: join(tempDir, "locked-library"),
+    });
+    const target = parseWikiGraphLibraryUri(library.uri);
+    expect(target).toBeDefined();
+    const release = await acquireWikiGraphLibraryLock(library.id, "write");
+
+    try {
+      await expect(removeWikiGraphLibrary(target!)).rejects.toThrow(
+        `Wiki Graph library is locked for write: ${library.id}.`,
+      );
+    } finally {
+      await release();
+    }
+
+    await expect(removeWikiGraphLibrary(target!)).resolves.toMatchObject({
+      id: library.id,
+    });
   });
 });
 

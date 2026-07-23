@@ -33,6 +33,9 @@ const archiveMaintenanceMockState = vi.hoisted(() => ({
 }));
 
 vi.mock("../../../packages/core/src/index.js", () => ({
+  formatLocatedWikiGraphUri: (path: string, objectUri?: string) =>
+    objectUri === undefined ? `wikg://${path}` : `wikg://${path}/${objectUri}`,
+  markWikiGraphLibraryIndexDirty: vi.fn(() => Promise.resolve()),
   WikiGraph: class {
     public async openSession(
       path: string,

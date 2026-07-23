@@ -30,6 +30,8 @@ import {
   writeTextToStdout,
 } from "../../support/index.js";
 import { formatCLIJSON } from "../../support/index.js";
+import { readArchiveDocument, writeArchiveDocument } from "./run/document.js";
+import { resolveArchiveRuntimeLocation } from "./run/uri.js";
 
 export async function runArchiveChapterCommand(
   args: CLIArchiveChapterArguments,
@@ -63,14 +65,12 @@ export async function runArchiveChapterCommand(
       });
       return;
     case "list":
-      await new WikiGraphArchiveFile(args.path).readDocument(
-        async (document) => {
-          await writeChapterList(
-            await listChapters(document),
-            args.json ?? false,
-          );
-        },
-      );
+      await readArchiveDocument(args.path, async (document) => {
+        await writeChapterList(
+          await listChapters(document),
+          args.json ?? false,
+        );
+      });
       return;
     case "move":
       await runEditableCommand(args.path, async (document) => {
@@ -218,34 +218,36 @@ export async function runArchiveChapterCommand(
       return;
     case "tree":
       if (args.treeAction === "apply") {
-        await runEditableCommand(args.path, async (document) => {
-          if (args.dryRun !== true) {
-            await assertNoActiveBuildJobConflicts({
-              archivePath: args.path,
-              operation: "Changing chapter tree",
-              scope: { kind: "archive" },
-            });
-          }
-          await writeChapterTreeApplyResult(
-            await applyChapterTree(
-              document,
-              parseChapterTreeInput(JSON.parse(await readContentText(args))),
-              { dryRun: args.dryRun ?? false },
-            ),
-            args.dryRun ?? false,
-          );
-        });
+        await runEditableCommand(
+          args.path,
+          async (document) => {
+            if (args.dryRun !== true) {
+              await assertNoActiveBuildJobConflicts({
+                archivePath: args.path,
+                operation: "Changing chapter tree",
+                scope: { kind: "archive" },
+              });
+            }
+            await writeChapterTreeApplyResult(
+              await applyChapterTree(
+                document,
+                parseChapterTreeInput(JSON.parse(await readContentText(args))),
+                { dryRun: args.dryRun ?? false },
+              ),
+              args.dryRun ?? false,
+            );
+          },
+          { markLibraryDirty: args.dryRun !== true },
+        );
         return;
       }
 
-      await new WikiGraphArchiveFile(args.path).readDocument(
-        async (document) => {
-          await writeChapterTree(
-            await getChapterTree(document),
-            args.json ?? false,
-          );
-        },
-      );
+      await readArchiveDocument(args.path, async (document) => {
+        await writeChapterTree(
+          await getChapterTree(document),
+          args.json ?? false,
+        );
+      });
       return;
   }
 }
@@ -272,8 +274,15 @@ async function resolveOptionalChapterPath(
 async function runEditableCommand(
   path: string,
   operation: (document: DirectoryDocument) => Promise<void> | void,
+  options: { readonly markLibraryDirty?: boolean } = {},
 ): Promise<void> {
-  await new WikiGraphArchiveFile(path).write(operation);
+  if (options.markLibraryDirty === false) {
+    const location = await resolveArchiveRuntimeLocation(path);
+    await new WikiGraphArchiveFile(location.archivePath).write(operation);
+    return;
+  }
+
+  await writeArchiveDocument(path, operation);
 }
 
 async function readContentText(

@@ -16,6 +16,7 @@ import {
 } from "../runtime/common/wiki-graph/dir.js";
 import { WIKI_GRAPH_ARCHIVE_EXTENSION } from "../runtime/common/wiki-graph/uri.js";
 import { isNodeError } from "../utils/node-error.js";
+import { withWikiGraphLibraryLock } from "./lock.js";
 
 const DEFAULT_LIBRARY_FOLDER_NAME = "default-library";
 const PUBLIC_ID_BYTES = 6;
@@ -310,12 +311,15 @@ export async function removeWikiGraphLibrary(
     );
   }
 
-  await withLibraryRegistryDatabase(async (database) => {
-    await database.transaction(async () => {
-      await database.run("DELETE FROM library_metadata WHERE library_id = ?", [
-        library.id,
-      ]);
-      await database.run("DELETE FROM libraries WHERE id = ?", [library.id]);
+  await withWikiGraphLibraryLock(library.id, "write", async () => {
+    await withLibraryRegistryDatabase(async (database) => {
+      await database.transaction(async () => {
+        await database.run(
+          "DELETE FROM library_metadata WHERE library_id = ?",
+          [library.id],
+        );
+        await database.run("DELETE FROM libraries WHERE id = ?", [library.id]);
+      });
     });
   });
 

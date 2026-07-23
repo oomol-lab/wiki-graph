@@ -4,6 +4,7 @@ import {
   parseLocatedWikiGraphUri,
   requireLocatedObjectOrArchiveUri,
   resolveWikiGraphLibraryArchivePath,
+  type ParsedWikiGraphLibraryUri,
   type QueryIndexScope,
 } from "wiki-graph-core";
 
@@ -13,6 +14,7 @@ export interface ArchiveRuntimeLocation {
   readonly archiveKey: string;
   readonly archivePath: string;
   readonly indexScope: QueryIndexScope;
+  readonly libraryDirtyTarget?: ParsedWikiGraphLibraryUri;
   readonly locatedUri: string;
 }
 
@@ -34,14 +36,29 @@ export async function resolveArchiveRuntimeLocation(
 
   const parsed = parseLocatedWikiGraphUri(uriOrPath);
   const archiveLocator = parsed.archivePath ?? uriOrPath;
-  const archivePath = archiveLocator.startsWith("wikg://lib/")
-    ? await resolveWikiGraphLibraryArchivePath(archiveLocator)
-    : archiveLocator;
+  const libraryArchiveTarget = archiveLocator.startsWith("wikg://lib/")
+    ? parseWikiGraphLibraryUri(archiveLocator)
+    : undefined;
+  const archivePath =
+    libraryArchiveTarget?.kind === "archive"
+      ? await resolveWikiGraphLibraryArchivePath(archiveLocator)
+      : archiveLocator;
 
   return {
     archiveKey: archivePath,
     archivePath,
     indexScope: { archiveKey: archivePath, archivePath, kind: "archive-index" },
+    ...(libraryArchiveTarget?.kind === "archive"
+      ? {
+          libraryDirtyTarget: {
+            isDefault: libraryArchiveTarget.isDefault,
+            kind: "scope",
+            ...(libraryArchiveTarget.publicId === undefined
+              ? {}
+              : { publicId: libraryArchiveTarget.publicId }),
+          },
+        }
+      : {}),
     locatedUri: formatLocatedWikiGraphUri(archivePath, parsed.objectUri),
   };
 }

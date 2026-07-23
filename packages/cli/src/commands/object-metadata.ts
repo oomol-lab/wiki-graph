@@ -4,6 +4,7 @@ import { ObjectMetadataKind, type ObjectMetadataTarget } from "wiki-graph-core";
 import { WikiGraphArchiveFile } from "wiki-graph-core";
 
 import type { CLIObjectMetadataArguments } from "../args/index.js";
+import { writeArchiveDocument } from "./archive-command/run/document.js";
 import {
   readTextStreamFromStdin,
   writeTextToStdout,
@@ -30,56 +31,48 @@ export async function runObjectMetadataCommand(
       const value = await readMetadataInput(args, { jsonRequired: true });
       const map = parseMetadataMap(value);
 
-      await new WikiGraphArchiveFile(args.archivePath).write(
-        async (document) => {
-          await document.metadata.replaceMap(target, map);
-          await writeMetadataMap(
-            await document.metadata.getMap(args.objectPath),
-            args.json ?? false,
-          );
-        },
-      );
+      await writeArchiveDocument(args.archivePath, async (document) => {
+        await document.metadata.replaceMap(target, map);
+        await writeMetadataMap(
+          await document.metadata.getMap(args.objectPath),
+          args.json ?? false,
+        );
+      });
       return;
     }
     case "put": {
       const key = normalizeMetadataKey(args.key);
       const value = await readMetadataInput(args, { jsonRequired: false });
 
-      await new WikiGraphArchiveFile(args.archivePath).write(
-        async (document) => {
-          await document.metadata.put(target, key, value);
-          await writeMetadataMap(
-            await document.metadata.getMap(args.objectPath),
-            args.json ?? false,
-          );
-        },
-      );
+      await writeArchiveDocument(args.archivePath, async (document) => {
+        await document.metadata.put(target, key, value);
+        await writeMetadataMap(
+          await document.metadata.getMap(args.objectPath),
+          args.json ?? false,
+        );
+      });
       return;
     }
     case "delete":
-      await new WikiGraphArchiveFile(args.archivePath).write(
-        async (document) => {
-          await document.metadata.deleteKey(
-            args.objectPath,
-            normalizeMetadataKey(args.key),
-          );
-          await writeMetadataMap(
-            await document.metadata.getMap(args.objectPath),
-            args.json ?? false,
-          );
-        },
-      );
+      await writeArchiveDocument(args.archivePath, async (document) => {
+        await document.metadata.deleteKey(
+          args.objectPath,
+          normalizeMetadataKey(args.key),
+        );
+        await writeMetadataMap(
+          await document.metadata.getMap(args.objectPath),
+          args.json ?? false,
+        );
+      });
       return;
     case "clear":
-      await new WikiGraphArchiveFile(args.archivePath).write(
-        async (document) => {
-          await document.metadata.clear(args.objectPath);
-          await writeMetadataMap(
-            await document.metadata.getMap(args.objectPath),
-            args.json ?? false,
-          );
-        },
-      );
+      await writeArchiveDocument(args.archivePath, async (document) => {
+        await document.metadata.clear(args.objectPath);
+        await writeMetadataMap(
+          await document.metadata.getMap(args.objectPath),
+          args.json ?? false,
+        );
+      });
       return;
   }
 }

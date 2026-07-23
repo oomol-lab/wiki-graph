@@ -120,5 +120,21 @@ describe("cli/args/archive index", () => {
     expect(() =>
       parseCLIArguments(["wikg://lib/index", "enable", "--to", "x.wikg"]),
     ).toThrow("The `enable` command does not support --to.");
+    expect(() => parseCLIArguments(["wikg://lib/index", "embed"])).toThrow(
+      "The library index wikg://lib/index does not support `embed`.\nSee: wg wikg://lib/index embed --help",
+    );
+    expect(() => parseCLIArguments(["wikg://lib/index", "external"])).toThrow(
+      "The library index wikg://lib/index does not support `external`.\nSee: wg wikg://lib/index external --help",
+    );
+    expect(() =>
+      parseCLIArguments(["wikg://lib/team.lib/index", "embed"]),
+    ).toThrow(
+      "The library index wikg://lib/team.lib/index does not support `embed`.\nSee: wg wikg://lib/team.lib/index embed --help",
+    );
+    expect(() =>
+      parseCLIArguments(["wikg://lib/team.lib/index", "external"]),
+    ).toThrow(
+      "The library index wikg://lib/team.lib/index does not support `external`.\nSee: wg wikg://lib/team.lib/index external --help",
+    );
   });
 });

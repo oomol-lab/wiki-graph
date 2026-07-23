@@ -13,6 +13,7 @@ import {
   ProgressOutputWriter,
   type ProgressCounter,
 } from "../../runtime/index.js";
+import { writeArchiveDocument } from "./run/document.js";
 
 const INDEX_PROGRESS_OUTPUT_INTERVAL_MS = 6_000;
 
@@ -59,7 +60,8 @@ async function enableIndex(args: CLIArchiveIndexArguments): Promise<void> {
     throttleMs: INDEX_PROGRESS_OUTPUT_INTERVAL_MS,
   });
 
-  await new WikiGraphArchiveFile(args.archivePath).write(
+  await writeArchiveDocument(
+    args.archivePath,
     async (document) => {
       await writer.write({
         json: { type: "started" },
@@ -122,7 +124,8 @@ async function enableIndex(args: CLIArchiveIndexArguments): Promise<void> {
 async function embedIndex(args: CLIArchiveIndexArguments): Promise<void> {
   let built = false;
 
-  await new WikiGraphArchiveFile(args.archivePath).write(
+  await writeArchiveDocument(
+    args.archivePath,
     async (document) => {
       await setFtsIndexEmbedded(document, true);
       if (await isArchiveSearchIndexCurrent(document)) {
@@ -147,7 +150,8 @@ async function embedIndex(args: CLIArchiveIndexArguments): Promise<void> {
 }
 
 async function externalizeIndex(args: CLIArchiveIndexArguments): Promise<void> {
-  await new WikiGraphArchiveFile(args.archivePath).write(
+  await writeArchiveDocument(
+    args.archivePath,
     async (document) => {
       await setFtsIndexEmbedded(document, false);
       await document.deleteSearchIndexDatabase();
@@ -162,7 +166,8 @@ async function externalizeIndex(args: CLIArchiveIndexArguments): Promise<void> {
 }
 
 async function disableIndex(args: CLIArchiveIndexArguments): Promise<void> {
-  await new WikiGraphArchiveFile(args.archivePath).write(
+  await writeArchiveDocument(
+    args.archivePath,
     async (document) => {
       await document.deleteSearchIndexDatabase();
       const settings = await readArchiveIndexSettings(document);

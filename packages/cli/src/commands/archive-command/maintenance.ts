@@ -1,5 +1,4 @@
 import { WikiGraph } from "wiki-graph-core";
-import { WikiGraphArchiveFile } from "wiki-graph-core";
 import type { BookMeta } from "wiki-graph-core";
 
 import type {
@@ -9,6 +8,7 @@ import type {
 } from "../../args/index.js";
 import { writeBinaryToStdout, writeTextToStdout } from "../../support/index.js";
 import { formatCLIJSON } from "../../support/index.js";
+import { writeArchiveDocument } from "./run/document.js";
 
 export async function runArchiveMetaCommand(
   args: CLIArchiveMetadataArguments,
@@ -51,7 +51,7 @@ async function updateArchiveMeta(
   path: string,
   patch: ArchiveMetaPatch,
 ): Promise<void> {
-  await new WikiGraphArchiveFile(path).write(async (document) => {
+  await writeArchiveDocument(path, async (document) => {
     const meta = await document.readBookMeta();
 
     if (meta === undefined) {
