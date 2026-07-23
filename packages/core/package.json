@@ -1,6 +1,6 @@
 {
   "name": "wiki-graph-core",
-  "version": "0.3.1",
+  "version": "0.4.0",
   "description": "Core SDK for building and querying .wikg knowledge-base archives.",
   "keywords": [
     "wiki-graph",
@@ -31,7 +31,8 @@
   "files": [
     "data",
     "dist",
-    "LICENSE"
+    "LICENSE",
+    "README.md"
   ],
   "exports": {
     ".": {
