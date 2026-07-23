@@ -181,19 +181,21 @@ async function openLibraryLockDatabase(): Promise<Database> {
 }
 
 async function ensureLibraryLockColumns(database: Database): Promise<void> {
-  const columns = new Set(
-    (
-      await database.queryAll(
-        "PRAGMA table_info(library_locks)",
-        undefined,
-        (row) => getString(row, "name"),
-      )
-    ).values(),
-  );
-
-  if (!columns.has("heartbeat_at")) {
-    await database.run(
-      "ALTER TABLE library_locks ADD COLUMN heartbeat_at INTEGER NOT NULL DEFAULT 0",
+  await database.transaction(async () => {
+    const columns = new Set(
+      (
+        await database.queryAll(
+          "PRAGMA table_info(library_locks)",
+          undefined,
+          (row) => getString(row, "name"),
+        )
+      ).values(),
     );
-  }
+
+    if (!columns.has("heartbeat_at")) {
+      await database.run(
+        "ALTER TABLE library_locks ADD COLUMN heartbeat_at INTEGER NOT NULL DEFAULT 0",
+      );
+    }
+  });
 }
