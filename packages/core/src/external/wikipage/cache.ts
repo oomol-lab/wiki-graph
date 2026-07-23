@@ -16,6 +16,7 @@ import type {
   DisambiguationProfileError,
   DisambiguationProfile,
   DisambiguationProfileMeaning,
+  EnrichmentStore,
 } from "./types.js";
 
 type SqlRow = Record<string, unknown>;
@@ -58,7 +59,7 @@ ON disambiguation_cache(checked_at);
 `;
 const WIKIPAGE_CACHE_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 
-export class WikipageCache {
+export class WikipageCache implements EnrichmentStore {
   readonly #database: Database;
 
   public constructor(database: Database) {

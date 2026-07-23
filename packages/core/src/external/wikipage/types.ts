@@ -1,3 +1,10 @@
+import type {
+  ParsedDisambiguationPage,
+  SupportedWiki,
+  WikidataEntityInfo,
+  WikiPageInfo,
+} from "./wikimedia-client/index.js";
+
 export interface WikipageResolverOptions {
   readonly cacheDatabasePath?: string;
   readonly concurrency?: number;
@@ -12,6 +19,41 @@ export interface WikipageResolverOptions {
   readonly retryTimes?: number;
   readonly userAgent?: string;
   readonly wiki?: string;
+}
+
+export interface WikiClient {
+  /** Runtime adapter for reading Wikimedia/Wikidata data; local CLI uses WikimediaClient. */
+  readonly getEntities: (
+    qids: readonly string[],
+  ) => Promise<ReadonlyMap<string, WikidataEntityInfo>>;
+  readonly getPagesByTitles: (
+    titles: readonly string[],
+    wiki?: SupportedWiki,
+  ) => Promise<ReadonlyMap<string, WikiPageInfo>>;
+  readonly parseDisambiguationPage: (
+    title: string,
+    wiki: SupportedWiki,
+  ) => Promise<ParsedDisambiguationPage>;
+}
+
+export interface EnrichmentStore {
+  /** Runtime adapter for enrichment cache reads and writes; local CLI uses WikipageCache. */
+  readonly getQids: (
+    qids: readonly string[],
+    language: string,
+  ) => Promise<ReadonlyMap<string, CachedQidRecord>>;
+  readonly putQids: (
+    records: readonly CachedQidRecord[],
+    language: string,
+  ) => Promise<void>;
+  readonly getDisambiguations: (
+    qids: readonly string[],
+    wiki: string,
+  ) => Promise<ReadonlyMap<string, CachedDisambiguationRecord>>;
+  readonly putDisambiguations: (
+    records: readonly CachedDisambiguationRecord[],
+    wiki: string,
+  ) => Promise<void>;
 }
 
 export type WikipageResolveProgressDetail =

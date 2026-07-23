@@ -16,7 +16,9 @@ import type {
   DisambiguationLinkedQid,
   DisambiguationPageText,
   DisambiguationProfileNormalizer,
+  EnrichmentStore,
   QidResolution,
+  WikiClient,
   WikipageResolveProgressReporter,
   WikipageResolverOptions,
 } from "./types.js";
@@ -32,32 +34,32 @@ const DEFAULT_USER_AGENT =
 const DISAMBIGUATION_PROFILE_ERROR_RETRY_DELAY_MS = 6 * 60 * 60 * 1_000;
 
 export class WikipageResolver {
-  readonly #cache: WikipageCache;
-  readonly #client: WikimediaClient;
+  readonly #client: WikiClient;
   readonly #maxBatchSize: number;
   readonly #language: string;
   readonly #normalizer: DisambiguationProfileNormalizer | undefined;
-  readonly #ownsCache: boolean;
+  readonly #ownsStore: boolean;
   readonly #progress: WikipageResolveProgressReporter | undefined;
+  readonly #store: EnrichmentStore;
   readonly #wiki: string;
 
   public constructor(input: {
-    readonly cache: WikipageCache;
-    readonly client: WikimediaClient;
+    readonly client: WikiClient;
     readonly language: string;
     readonly maxBatchSize: number;
     readonly normalizer: DisambiguationProfileNormalizer | undefined;
-    readonly ownsCache: boolean;
+    readonly ownsStore?: boolean;
     readonly progress: WikipageResolveProgressReporter | undefined;
+    readonly store: EnrichmentStore;
     readonly wiki: string;
   }) {
-    this.#cache = input.cache;
     this.#client = input.client;
     this.#language = input.language;
     this.#maxBatchSize = input.maxBatchSize;
     this.#normalizer = input.normalizer;
-    this.#ownsCache = input.ownsCache;
+    this.#ownsStore = input.ownsStore ?? false;
     this.#progress = input.progress;
+    this.#store = input.store;
     this.#wiki = input.wiki;
   }
 
@@ -69,7 +71,6 @@ export class WikipageResolver {
     const cache = await WikipageCache.open(options.cacheDatabasePath);
 
     return new WikipageResolver({
-      cache,
       client: new WikimediaClient({
         concurrency: options.concurrency ?? DEFAULT_CONCURRENCY,
         language,
@@ -86,15 +87,16 @@ export class WikipageResolver {
       language,
       maxBatchSize: normalizeBatchSize(options.maxBatchSize),
       normalizer: options.normalizer,
-      ownsCache: true,
+      ownsStore: true,
       progress: options.progress,
+      store: cache,
       wiki,
     });
   }
 
   public async close(): Promise<void> {
-    if (this.#ownsCache) {
-      await this.#cache.close();
+    if (this.#ownsStore && isClosableStore(this.#store)) {
+      await this.#store.close();
     }
   }
 
@@ -143,7 +145,7 @@ export class WikipageResolver {
   async #resolveQidRecords(
     qids: readonly string[],
   ): Promise<ReadonlyMap<string, CachedQidRecord>> {
-    const cached = new Map(await this.#cache.getQids(qids, this.#language));
+    const cached = new Map(await this.#store.getQids(qids, this.#language));
     const missing = qids.filter((qid) => !cached.has(qid));
     let resolvedQids = cached.size;
     let resolvedEntities = 0;
@@ -160,7 +162,7 @@ export class WikipageResolver {
         createQidRecord(qid, entityInfos.get(qid), pageInfos, now),
       );
 
-      await this.#cache.putQids(records, this.#language);
+      await this.#store.putQids(records, this.#language);
       for (const record of records) {
         cached.set(record.qid, record);
       }
@@ -210,7 +212,7 @@ export class WikipageResolver {
   ): Promise<ReadonlyMap<string, CachedDisambiguationRecord>> {
     const qids = records.map((record) => record.qid);
     const cached = new Map(
-      await this.#cache.getDisambiguations(qids, this.#wiki),
+      await this.#store.getDisambiguations(qids, this.#wiki),
     );
     const missing = records.filter((record) => !cached.has(record.qid));
     let resolvedPages = cached.size;
@@ -224,7 +226,7 @@ export class WikipageResolver {
     for (const record of missing) {
       const expansion = await this.#expandDisambiguation(record);
 
-      await this.#cache.putDisambiguations([expansion], this.#wiki);
+      await this.#store.putDisambiguations([expansion], this.#wiki);
       cached.set(record.qid, expansion);
       resolvedPages += 1;
       await this.#reportProgress(
@@ -449,6 +451,12 @@ function toSitelink(page: CachedPageRecord): {
     title: page.title,
     wiki: page.wiki,
   };
+}
+
+function isClosableStore(
+  store: EnrichmentStore,
+): store is EnrichmentStore & { readonly close: () => Promise<void> } {
+  return "close" in store && typeof store.close === "function";
 }
 
 function pageKey(wiki: SupportedWiki, title: string): string {

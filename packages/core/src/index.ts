@@ -135,7 +135,9 @@ export {
   type DisambiguationProfileMeaning,
   type DisambiguationProfileNormalizer,
   type DisambiguationProfileNormalizerInput,
+  type EnrichmentStore,
   type QidResolution,
+  type WikiClient,
   type WikipageResolverOptions,
   type WikipageSitelink,
 } from "./external/wikipage/index.js";

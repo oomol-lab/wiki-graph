@@ -7,15 +7,25 @@ import type {
 } from "../wikipage/index.js";
 import type { WikimatchCandidate, WikimatchQidOption } from "./types.js";
 
+type WikimatchEnrichmentResolver = Pick<WikipageResolver, "resolveQids">;
+
 export async function enrichWikimatchCandidates(
   candidates: readonly WikimatchCandidate[],
   options: {
     readonly progress?: WikipageResolveProgressReporter;
+    readonly resolver?: WikimatchEnrichmentResolver;
     readonly resolverOptions?: Omit<WikipageResolverOptions, "progress">;
   } = {},
 ): Promise<readonly WikimatchCandidate[]> {
   if (candidates.length === 0) {
     return [];
+  }
+
+  if (options.resolver !== undefined) {
+    return applyQidResolutions(
+      candidates,
+      await options.resolver.resolveQids(listQids(candidates)),
+    );
   }
 
   const resolver = await WikipageResolver.open({

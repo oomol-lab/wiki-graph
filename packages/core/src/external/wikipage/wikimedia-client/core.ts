@@ -1,6 +1,7 @@
 import { getLogger } from "../../../runtime/common/logging.js";
 import { formatError } from "../../../utils/node-error.js";
 import type { WikipageFetchLog } from "../fetch-log.js";
+import type { WikiClient } from "../types.js";
 import { RateLimiter, parseRetryAfterMs } from "../rate-limiter.js";
 import { renderDisambiguationHtml } from "./html.js";
 import {
@@ -31,7 +32,7 @@ import {
   wikiApiBaseURL,
 } from "./wiki.js";
 
-export class WikimediaClient {
+export class WikimediaClient implements WikiClient {
   readonly #fetch: typeof fetch;
   readonly #language: string;
   readonly #limiter: RateLimiter;
