@@ -13,6 +13,7 @@ import {
   putWikiGraphLibraryMetadata,
   readWikiGraphLibraryIndexState,
   rebuildWikiGraphLibraryIndex,
+  rebindWikiGraphLibrary,
   removeWikiGraphLibrary,
   removeWikiGraphLibraryArchive,
   replaceWikiGraphLibraryMetadata,
@@ -67,6 +68,17 @@ export async function runLibraryCommand(
     }
     case "scan": {
       const result = await scanWikiGraphLibrary(args.target);
+      await writeLibraryArchives(result.archives, args.json ?? false);
+      return;
+    }
+    case "rebind": {
+      if (args.path === undefined) {
+        throw new Error("Missing --path <directory> for library rebind.");
+      }
+      const result = await rebindWikiGraphLibrary({
+        folderPath: args.path,
+        target: args.target,
+      });
       await writeLibraryArchives(result.archives, args.json ?? false);
       return;
     }

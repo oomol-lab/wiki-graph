@@ -26,6 +26,23 @@ Notes:
 Examples:
   {{ commandName }} wikg://lib create --path ./research-library
   {{ commandName }} wikg://lib create --path ./research-library --json
+{% elif target.kind == "scope" and predicate == "rebind" %}
+Purpose:
+  Bind this library to an existing directory, then scan/reconcile `.wikg` files in that directory.
+
+Usage:
+  {{ commandName }} {{ uri }} rebind --path <existing-directory> [--json]
+
+Notes:
+  - Use this after you manually move, sync, or restore a library folder outside Wiki Graph.
+  - `--path` must already exist, be an accessible directory, and not be bound to another library.
+  - The command updates only this library registry's folder path, preserving the library id, public id, default marker, and metadata.
+  - The command does not copy, move, or delete files from the old or new folder.
+  - After updating the folder path, it runs the same scan/reconcile lifecycle used by `scan`.
+
+Examples:
+  {{ commandName }} {{ uri }} rebind --path ~/Library/Mobile\ Documents/wiki-library
+  {{ commandName }} {{ uri }} rebind --path /Volumes/Archive/wiki-library --json
 {% elif target.kind == "scope" and predicate == "get" %}
 Purpose:
   Read a specific object in this library scope.

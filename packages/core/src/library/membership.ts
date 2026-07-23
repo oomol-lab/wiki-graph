@@ -26,6 +26,7 @@ import { isNodeError } from "../utils/node-error.js";
 import {
   parseWikiGraphLibraryUri,
   resolveWikiGraphLibrary,
+  updateWikiGraphLibraryFolderPathForRebind,
   type ParsedWikiGraphLibraryUri,
   type WikiGraphLibraryRecord,
 } from "./registry.js";
@@ -95,6 +96,27 @@ export async function scanWikiGraphLibrary(
     const result = await scanWikiGraphLibraryUnlocked(target, library);
 
     await markWikiGraphLibraryIndexDirty(library);
+    return result;
+  });
+}
+
+export async function rebindWikiGraphLibrary(input: {
+  readonly target: ParsedWikiGraphLibraryUri;
+  readonly folderPath: string;
+}): Promise<WikiGraphLibraryScanResult> {
+  if (input.target.kind !== "scope" || input.target.objectUri !== undefined) {
+    throw new Error("Library rebind requires a library scope URI.");
+  }
+
+  const library = await resolveWikiGraphLibrary(input.target);
+  return await withWikiGraphLibraryLock(library.id, "write", async () => {
+    const rebound = await updateWikiGraphLibraryFolderPathForRebind(
+      library,
+      input.folderPath,
+    );
+    const result = await scanWikiGraphLibraryUnlocked(input.target, rebound);
+
+    await markWikiGraphLibraryIndexDirty(rebound);
     return result;
   });
 }

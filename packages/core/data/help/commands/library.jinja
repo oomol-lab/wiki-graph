@@ -38,6 +38,7 @@ Default behavior:
 
 Use when:
   - You need the library entry point before future library-level archive enumeration or search.
+  - You already moved or prepared a library folder and need Wiki Graph to bind this library to that existing directory.
 {% if target.isDefault %}
   - You need to create another library registry.
 {% else %}
@@ -53,9 +54,11 @@ Usage:
 {% if target.isDefault %}
   {{ commandName }} wikg://lib
   {{ commandName }} wikg://lib create --path <folder> [--json]
+  {{ commandName }} wikg://lib rebind --path <existing-directory> [--json]
   {{ commandName }} wikg://lib/meta [--json]
 {% else %}
   {{ commandName }} {{ uri }}
+  {{ commandName }} {{ uri }} rebind --path <existing-directory> [--json]
   {{ commandName }} {{ uri }} remove [--json]
   {{ commandName }} {{ uri }}/meta [--json]
 {% endif %}
@@ -63,7 +66,9 @@ Usage:
 Predicate commands:
 {% if target.isDefault %}
   - create: create a non-default library registry and an empty folder. Help: {{ commandName }} wikg://lib create --help
+  - rebind: bind the default library to an existing directory, then scan/reconcile its `.wikg` files. Help: {{ commandName }} wikg://lib rebind --help
 {% else %}
+  - rebind: bind this library to an existing directory, then scan/reconcile its `.wikg` files. Help: {{ commandName }} {{ uri }} rebind --help
   - remove: remove this library registry without deleting its folder. Help: {{ commandName }} {{ uri }} remove --help
 {% endif %}
 {% endif %}

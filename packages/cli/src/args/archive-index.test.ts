@@ -137,4 +137,60 @@ describe("cli/args/archive index", () => {
       "The library index wikg://lib/team.lib/index does not support `external`.\nSee: wg wikg://lib/team.lib/index external --help",
     );
   });
+
+  it("parses library rebind only on library scope URIs", () => {
+    expect(
+      parseCLIArguments(["wikg://lib", "rebind", "--path", "/tmp/library"]),
+    ).toStrictEqual({
+      args: {
+        action: "rebind",
+        json: undefined,
+        path: "/tmp/library",
+        target: { isDefault: true, kind: "scope" },
+      },
+      help: false,
+      kind: "library",
+    });
+    expect(
+      parseCLIArguments([
+        "wikg://lib/team.lib",
+        "rebind",
+        "--path",
+        "/tmp/team",
+        "--json",
+      ]),
+    ).toStrictEqual({
+      args: {
+        action: "rebind",
+        json: true,
+        path: "/tmp/team",
+        target: { isDefault: false, kind: "scope", publicId: "team" },
+      },
+      help: false,
+      kind: "library",
+    });
+    expect(() => parseCLIArguments(["wikg://lib", "rebind"])).toThrow(
+      "Missing --path <directory>.",
+    );
+    expect(() =>
+      parseCLIArguments([
+        "wikg://lib/archive123",
+        "rebind",
+        "--path",
+        "/tmp/x",
+      ]),
+    ).toThrow(
+      "The library archive wikg://lib/archive123 does not support `rebind`.",
+    );
+    expect(() =>
+      parseCLIArguments([
+        "wikg://lib/team.lib/archive123",
+        "rebind",
+        "--path",
+        "/tmp/x",
+      ]),
+    ).toThrow(
+      "The library archive wikg://lib/team.lib/archive123 does not support `rebind`.",
+    );
+  });
 });

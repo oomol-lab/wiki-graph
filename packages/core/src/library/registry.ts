@@ -1,5 +1,6 @@
 import { randomBytes } from "crypto";
-import { mkdir, stat } from "fs/promises";
+import { constants } from "fs";
+import { access, mkdir, stat } from "fs/promises";
 import { join, resolve } from "path";
 
 import {
@@ -324,6 +325,57 @@ export async function removeWikiGraphLibrary(
   });
 
   return library;
+}
+
+export async function updateWikiGraphLibraryFolderPathForRebind(
+  library: WikiGraphLibraryRecord,
+  inputFolderPath: string,
+): Promise<WikiGraphLibraryRecord> {
+  const folderPath = resolve(inputFolderPath);
+  let folderStats;
+  try {
+    folderStats = await stat(folderPath);
+  } catch (error) {
+    if (isNodeError(error) && error.code === "ENOENT") {
+      throw new Error(`Library rebind --path does not exist: ${folderPath}`);
+    }
+    throw new Error(
+      `Library rebind --path is not accessible: ${folderPath}: ${error instanceof Error ? error.message : String(error)}`,
+    );
+  }
+  if (!folderStats.isDirectory()) {
+    throw new Error(
+      `Library rebind --path must be an existing directory: ${folderPath}`,
+    );
+  }
+  try {
+    await access(folderPath, constants.R_OK);
+  } catch (error) {
+    throw new Error(
+      `Library rebind --path is not accessible: ${folderPath}: ${error instanceof Error ? error.message : String(error)}`,
+    );
+  }
+
+  return await withLibraryRegistryDatabase(async (database) => {
+    return await database.transaction(async () => {
+      const existing = await database.queryOne(
+        "SELECT id FROM libraries WHERE folder_path = ?",
+        [folderPath],
+        (row) => getNumber(row, "id"),
+      );
+      if (existing !== undefined && existing !== library.id) {
+        throw new Error(
+          `Library rebind --path is already bound to another library: ${folderPath}`,
+        );
+      }
+
+      await database.run(
+        "UPDATE libraries SET folder_path = ?, updated_at = ? WHERE id = ?",
+        [folderPath, new Date().toISOString(), library.id],
+      );
+      return await requireLibraryRecordById(database, library.id);
+    });
+  });
 }
 
 export async function getWikiGraphLibraryMetadata(

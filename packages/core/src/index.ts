@@ -63,6 +63,7 @@ export {
   readWikiGraphLibraryIndexState,
   readWikiGraphLibraryPage,
   rebuildWikiGraphLibraryIndex,
+  rebindWikiGraphLibrary,
   removeWikiGraphLibraryArchive,
   removeWikiGraphLibrary,
   replaceWikiGraphLibraryMetadata,

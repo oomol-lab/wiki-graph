@@ -35,6 +35,7 @@ const LIBRARY_SCOPE_ACTIONS = new Set([
   "create",
   "get",
   "list",
+  "rebind",
   "remove",
   "scan",
 ]);
@@ -431,6 +432,20 @@ function parseLibraryScopeArguments(
         help: false,
         kind: "library",
       };
+    case "rebind":
+      rejectExtraPositionals(action, tail, 0, helpRoute);
+      if (values.path === undefined) {
+        throw new Error(
+          withHelpRoute("Missing --path <directory>.", helpRoute),
+        );
+      }
+      rejectArchiveFlag(action, "--input", values.input, helpRoute);
+      rejectArchiveFlag(action, "--to", values.to, helpRoute);
+      return {
+        args: { action, json: values.json, path: values.path, target },
+        help: false,
+        kind: "library",
+      };
     case "get":
     case "list":
     case "scan":
@@ -527,6 +542,7 @@ function parseLibraryMetadataArguments(
     case "remove":
     case "add":
     case "move":
+    case "rebind":
     case "disable-index":
     case "enable-index":
     case "get-index":
@@ -593,6 +609,7 @@ function isLibraryAction(action: string): action is CLILibraryAction {
     action === "list" ||
     action === "move" ||
     action === "put" ||
+    action === "rebind" ||
     action === "remove" ||
     action === "scan" ||
     action === "set"

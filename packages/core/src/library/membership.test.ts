@@ -15,13 +15,17 @@ import {
   addWikiGraphLibraryArchive,
   createWikiGraphLibrary,
   ensureDefaultWikiGraphLibrary,
+  getWikiGraphLibraryMetadata,
   isWikiGraphLibraryUri,
   moveWikiGraphLibraryArchive,
   parseLocatedWikiGraphUri,
   parseWikiGraphLibraryUri,
+  putWikiGraphLibraryMetadata,
+  rebindWikiGraphLibrary,
   removeWikiGraphLibrary,
   removeWikiGraphLibraryArchive,
   resolveWikiGraphLibraryArchivePath,
+  resolveWikiGraphLibrary,
   scanWikiGraphLibrary,
 } from "../index.js";
 import { withWikiGraphStateDirectoryPathForTesting } from "../runtime/common/wiki-graph/dir.js";
@@ -209,7 +213,162 @@ describe("library archive membership", () => {
       });
     });
   });
+
+  it("rebinds the default library to an existing folder while preserving registry identity and metadata", async () => {
+    await withLibraryTestState(async (tempDir) => {
+      const library = await ensureDefaultWikiGraphLibrary();
+      const target = parseWikiGraphLibraryUri("wikg://lib");
+      expect(target).toBeDefined();
+      await putWikiGraphLibraryMetadata(target!, "owner", "default-team");
+      await writeFile(join(library.folderPath, "old-only.wikg"), "old");
+
+      const newFolder = join(tempDir, "icloud-library");
+      await mkdir(newFolder);
+      await createTestWikgArchive(tempDir, join(newFolder, "synced.wikg"));
+
+      const result = await rebindWikiGraphLibrary({
+        folderPath: newFolder,
+        target: target!,
+      });
+      const rebound = await ensureDefaultWikiGraphLibrary();
+
+      expect(rebound).toMatchObject({
+        id: library.id,
+        isDefault: true,
+        publicId: library.publicId,
+        uri: library.uri,
+      });
+      expect(rebound.folderPath).toBe(newFolder);
+      await expect(
+        readFile(join(library.folderPath, "old-only.wikg"), "utf8"),
+      ).resolves.toBe("old");
+      await expect(
+        readFile(join(newFolder, "synced.wikg")),
+      ).resolves.toBeDefined();
+      await expect(getDefaultMetadata(target!)).resolves.toStrictEqual({
+        owner: "default-team",
+      });
+      expect(result.archives).toContainEqual(
+        expect.objectContaining({
+          relativePath: "synced.wikg",
+          status: "present",
+        }),
+      );
+    });
+  });
+
+  it("rebinds only the addressed non-default library and rejects invalid folder targets", async () => {
+    await withLibraryTestState(async (tempDir) => {
+      const defaultLibrary = await ensureDefaultWikiGraphLibrary();
+      const teamLibrary = await createWikiGraphLibrary({
+        folderPath: join(tempDir, "team-old"),
+      });
+      const otherLibrary = await createWikiGraphLibrary({
+        folderPath: join(tempDir, "other-bound"),
+      });
+      const teamTarget = parseWikiGraphLibraryUri(teamLibrary.uri);
+      expect(teamTarget).toBeDefined();
+      const newFolder = join(tempDir, "team-new");
+      await mkdir(newFolder);
+
+      await expect(
+        rebindWikiGraphLibrary({
+          folderPath: join(tempDir, "missing"),
+          target: teamTarget!,
+        }),
+      ).rejects.toThrow("does not exist");
+      const fileTarget = join(tempDir, "not-directory");
+      await writeFile(fileTarget, "file");
+      await expect(
+        rebindWikiGraphLibrary({ folderPath: fileTarget, target: teamTarget! }),
+      ).rejects.toThrow("must be an existing directory");
+      await expect(
+        rebindWikiGraphLibrary({
+          folderPath: otherLibrary.folderPath,
+          target: teamTarget!,
+        }),
+      ).rejects.toThrow("already bound to another library");
+
+      await rebindWikiGraphLibrary({
+        folderPath: newFolder,
+        target: teamTarget!,
+      });
+
+      await expect(resolveWikiGraphLibrary(teamTarget!)).resolves.toMatchObject(
+        {
+          folderPath: newFolder,
+          id: teamLibrary.id,
+        },
+      );
+      await expect(
+        resolveWikiGraphLibrary(parseWikiGraphLibraryUri("wikg://lib")!),
+      ).resolves.toMatchObject({ folderPath: defaultLibrary.folderPath });
+    });
+  });
+
+  it("preserves archive public ids when rebind scan sees a moved mutation token", async () => {
+    await withLibraryTestState(async (tempDir) => {
+      const library = await ensureDefaultWikiGraphLibrary();
+      const target = parseWikiGraphLibraryUri("wikg://lib");
+      expect(target).toBeDefined();
+      await createTestWikgArchive(
+        tempDir,
+        join(library.folderPath, "old.wikg"),
+      );
+      const first = await scanWikiGraphLibrary(target!);
+      const oldArchive = first.archives.find(
+        (archive) => archive.relativePath === "old.wikg",
+      );
+      expect(oldArchive?.lastSeenMutationToken).toBeDefined();
+
+      const newFolder = join(tempDir, "new-library-folder");
+      await mkdir(newFolder);
+      await rename(
+        join(library.folderPath, "old.wikg"),
+        join(newFolder, "renamed.wikg"),
+      );
+
+      const rebound = await rebindWikiGraphLibrary({
+        folderPath: newFolder,
+        target: target!,
+      });
+      const renamed = rebound.archives.find(
+        (archive) => archive.relativePath === "renamed.wikg",
+      );
+
+      expect(renamed?.publicId).toBe(oldArchive?.publicId);
+      expect(renamed?.status).toBe("present");
+      expect(
+        rebound.archives.some((archive) => archive.relativePath === "old.wikg"),
+      ).toBe(false);
+    });
+  });
+
+  it("rejects rebind on library archive URI targets", async () => {
+    await withLibraryTestState(async (tempDir) => {
+      const target = parseWikiGraphLibraryUri("wikg://lib");
+      expect(target).toBeDefined();
+      const source = join(tempDir, "source.wikg");
+      await writeFile(source, "content");
+      const added = await addWikiGraphLibraryArchive({
+        inputPath: source,
+        target: target!,
+      });
+      const archiveTarget = parseWikiGraphLibraryUri(added.uri);
+      expect(archiveTarget?.kind).toBe("archive");
+
+      await expect(
+        rebindWikiGraphLibrary({ folderPath: tempDir, target: archiveTarget! }),
+      ).rejects.toThrow("requires a library scope URI");
+    });
+  });
 });
+
+async function getDefaultMetadata(
+  target: NonNullable<ReturnType<typeof parseWikiGraphLibraryUri>>,
+): Promise<Readonly<Record<string, unknown>>> {
+  return await getWikiGraphLibraryMetadata(target);
+}
 
 describe("library URI locators", () => {
   it("separates library archives from library scopes", () => {
