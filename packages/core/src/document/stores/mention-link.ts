@@ -94,6 +94,26 @@ export class MentionLinkStore implements ReadonlyMentionLinkStore {
     return row === undefined ? undefined : await this.#hydrateEvidence(row);
   }
 
+  public async listAll(): Promise<MentionLinkRecord[]> {
+    const rows = await this.#database.queryAll(
+      `
+        SELECT
+          id,
+          source_mention_id,
+          target_mention_id,
+          predicate,
+          confidence,
+          note
+        FROM mention_links
+        ORDER BY id
+      `,
+      [],
+      mapMentionLinkRow,
+    );
+
+    return await this.#hydrateEvidenceMany(rows);
+  }
+
   public async listByTriple(input: {
     readonly objectQid: string;
     readonly predicate: string;

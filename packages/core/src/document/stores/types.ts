@@ -64,6 +64,7 @@ export interface ReadonlyMentionStore {
 
 export interface ReadonlyMentionLinkStore {
   getById(linkId: string): Promise<MentionLinkRecord | undefined>;
+  listAll(): Promise<MentionLinkRecord[]>;
   listByTriple(input: {
     readonly objectQid: string;
     readonly predicate: string;

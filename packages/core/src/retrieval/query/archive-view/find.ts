@@ -122,51 +122,55 @@ export async function findTriples(
   );
   const hitsByTriple = new Map<string, ArchiveFindHit[]>();
 
-  for (const chapter of await listChapters(document)) {
-    for (const link of await document.mentionLinks.listByChapter(
-      chapter.chapterId,
-    )) {
-      const [source, target] = await Promise.all([
-        getMentionForTripleSearch(document, mentionsById, link.sourceMentionId),
-        getMentionForTripleSearch(document, mentionsById, link.targetMentionId),
-      ]);
-
-      if (source === undefined || target === undefined) {
-        continue;
-      }
-
-      const text = `${source.surface} ${link.predicate} ${target.surface}`;
-      const match = scoreLexicalText(text, search);
-
-      if (match === undefined) {
-        continue;
-      }
-
-      const id = formatTripleUri(source.qid, link.predicate, target.qid);
-      const next = {
-        chapter: source.chapterId,
-        evidenceLinks: [link],
-        field: "content" as const,
-        id,
-        ...createFindMatchFields(match),
-        position: {
-          chapter: source.chapterId,
-          sentence: source.sentenceIndex ?? 0,
-        },
-        snippet: link.note ?? text,
-        title: text,
-        triple: {
-          objectLabel: target.surface,
-          predicate: link.predicate,
-          subjectLabel: source.surface,
-        },
-        type: "triple" as const,
-      };
-      const values = hitsByTriple.get(id) ?? [];
-
-      values.push(next);
-      hitsByTriple.set(id, values);
+  for (const link of await document.mentionLinks.listAll()) {
+    if (
+      !mentionsById.has(link.sourceMentionId) &&
+      !mentionsById.has(link.targetMentionId) &&
+      scoreLexicalText(link.predicate, search) === undefined
+    ) {
+      continue;
     }
+
+    const [source, target] = await Promise.all([
+      getMentionForTripleSearch(document, mentionsById, link.sourceMentionId),
+      getMentionForTripleSearch(document, mentionsById, link.targetMentionId),
+    ]);
+
+    if (source === undefined || target === undefined) {
+      continue;
+    }
+
+    const text = `${source.surface} ${link.predicate} ${target.surface}`;
+    const match = scoreLexicalText(text, search);
+
+    if (match === undefined) {
+      continue;
+    }
+
+    const id = formatTripleUri(source.qid, link.predicate, target.qid);
+    const next = {
+      chapter: source.chapterId,
+      evidenceLinks: [link],
+      field: "content" as const,
+      id,
+      ...createFindMatchFields(match),
+      position: {
+        chapter: source.chapterId,
+        sentence: source.sentenceIndex ?? 0,
+      },
+      snippet: link.note ?? text,
+      title: text,
+      triple: {
+        objectLabel: target.surface,
+        predicate: link.predicate,
+        subjectLabel: source.surface,
+      },
+      type: "triple" as const,
+    };
+    const values = hitsByTriple.get(id) ?? [];
+
+    values.push(next);
+    hitsByTriple.set(id, values);
   }
 
   return [...hitsByTriple.values()].map(groupTripleEvidenceHits);

@@ -42,6 +42,10 @@ export class EmptySnapshotMentionLinkStore implements ReadonlyMentionLinkStore {
     return Promise.resolve(undefined);
   }
 
+  public listAll(): Promise<MentionLinkRecord[]> {
+    return Promise.resolve([]);
+  }
+
   public listByTriple(_input: {
     readonly objectQid: string;
     readonly predicate: string;
