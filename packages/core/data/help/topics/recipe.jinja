@@ -24,6 +24,13 @@ Choose your starting point:
     Inspect before querying, generating, or editing.
       {{ commandName }} wikg://book.wikg inspect
 
+  - User gave you a folder of `.wikg` archives:
+    Bind or create a library, scan memberships, then inspect the library index before library-wide query.
+      {{ commandName }} wikg://lib rebind --path ./library-folder
+      {{ commandName }} wikg://lib scan
+      {{ commandName }} wikg://lib/index --help
+      {{ commandName }} help library
+
   - User gave you source content and needs a reusable knowledge-base archive:
     Create an empty `.wikg` archive, or create one while importing an EPUB.
       {{ commandName }} wikg://book.wikg create
@@ -49,6 +56,11 @@ After inspect:
     Read readiness before deciding whether to keep the index local or embed it:
       {{ commandName }} help readiness
 
+  - If library-wide query reports a missing or dirty index, inspect the library index target and rebuild it when appropriate.
+    {{ commandName }} wikg://lib/index --help
+    {{ commandName }} wikg://lib/index enable --help
+    {{ commandName }} help library
+
   - If Reading Graph data is missing, chunk `--query`, related expansion, and pack may be unavailable or incomplete.
     Inspect job help before starting generated work.
       {{ commandName }} wikg://local/job --help
@@ -69,6 +81,15 @@ Finding material:
   - Need document structure, chapter readiness, or chapter-local scope:
     {{ commandName }} wikg://book.wikg/chapter
     {{ commandName }} wikg://book.wikg/chapter/part
+
+  - Need to search across all archives in a managed library:
+    Use library-wide scopes after enabling the library index.
+      {{ commandName }} wikg://lib/index enable
+      {{ commandName }} wikg://lib/entity --query "attention" --evidence 2
+      {{ commandName }} wikg://lib/triple --query "attention memory" --evidence 2
+      {{ commandName }} wikg://lib/chunk --query "attention memory" --evidence 2
+    Use a library archive shortcut when one member archive is the right scope.
+      {{ commandName }} wikg://lib/<archive-id>/entity --query "attention"
 
   - Need to understand a concept, person, place, term, or object:
     Use `--query` on entity scopes with source evidence, then ground, expand, or pack from the entity URI.
@@ -137,6 +158,8 @@ Finding material:
   - Need more results from a paged response:
     Continue with the cursor returned by the previous command.
       {{ commandName }} next <cursor>
+    Add the archive or library URI when you want a cursor scope safety check.
+      {{ commandName }} next wikg://lib <cursor>
 
 When to read deeper:
   - URI details, scope/object routing, pagination, and short URI handling:
@@ -147,5 +170,7 @@ When to read deeper:
     {{ commandName }} help config
   - FTS index, LLM, WikiSpine, and generated-data prerequisites:
     {{ commandName }} help readiness
+  - Library registry, membership, aggregate index, and rebind:
+    {{ commandName }} help library
   - Workers, cache, logs, workspaces, failures, and JSONL progress:
     {{ commandName }} help runtime

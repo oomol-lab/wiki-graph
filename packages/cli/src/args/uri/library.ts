@@ -156,6 +156,19 @@ function parseLibraryHelpArguments(
   action: string,
   explicitAction: string | undefined,
 ): ParsedCLIArguments {
+  if (
+    target.kind === "scope" &&
+    target.objectUri === undefined &&
+    action === "search" &&
+    explicitAction === undefined
+  ) {
+    return {
+      help: true,
+      helpText: renderLibraryUriHelpText(uri, target),
+      kind: "help",
+    };
+  }
+
   if (target.kind === "scope" && target.objectUri === "wikg://index") {
     if (explicitAction === undefined) {
       return {
@@ -191,6 +204,14 @@ function parseLibraryHelpArguments(
         helpText: renderUriHelpText(helpTarget, uri),
         kind: "help",
       };
+    }
+    if (isReadOnlyLibraryChapterHelpTarget(helpTarget)) {
+      throw new Error(
+        withHelpRoute(
+          `The library-wide chapter target ${uri} is read-only and does not support \`${action}\`. Use a standalone archive URI or a library archive shortcut such as wikg://lib/<archive-id>/chapter/... for chapter maintenance.`,
+          formatWikiGraphHelpCommand(uri),
+        ),
+      );
     }
     if (!isUriHelpPredicate(helpTarget, action)) {
       throw new Error(
@@ -242,9 +263,13 @@ function classifyLibraryObjectHelpTarget(objectUri: string): UriHelpTargetName {
       case "chapter-resource":
         switch (chapterTarget.resource) {
           case "source":
-            return "chapter-source-object";
+            return hasObjectUriFragment(objectUri)
+              ? "chapter-source-range-object"
+              : "chapter-source-object";
           case "summary":
-            return "chapter-summary-object";
+            return hasObjectUriFragment(objectUri)
+              ? "chapter-summary-range-object"
+              : "chapter-summary-object";
           case "title":
             return "chapter-title-object";
         }
@@ -292,6 +317,23 @@ function classifyLibraryObjectHelpTarget(objectUri: string): UriHelpTargetName {
   }
 
   return "archive-scope";
+}
+
+function hasObjectUriFragment(objectUri: string): boolean {
+  return objectUri.includes("#");
+}
+
+function isReadOnlyLibraryChapterHelpTarget(
+  targetName: UriHelpTargetName,
+): boolean {
+  return (
+    targetName === "chapter-collection-scope" ||
+    targetName === "chapter-scope" ||
+    targetName === "chapter-source-object" ||
+    targetName === "chapter-summary-object" ||
+    targetName === "chapter-title-object" ||
+    targetName === "chapter-tree-object"
+  );
 }
 
 function parseLibraryQueryArguments(
@@ -826,6 +868,14 @@ function validateLibraryActionForTarget(
   if (action === "create" && !target.isDefault) {
     throw new Error(
       withHelpRoute("Create libraries from wikg://lib.", helpRoute),
+    );
+  }
+  if (action === "remove" && target.isDefault) {
+    throw new Error(
+      withHelpRoute(
+        "The default library cannot be removed. Use a non-default library URI such as wikg://lib/<lib-id>.lib for library registry removal.",
+        helpRoute,
+      ),
     );
   }
 }

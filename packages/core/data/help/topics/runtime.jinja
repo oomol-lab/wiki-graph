@@ -46,10 +46,25 @@ Workspace behavior:
   - Failed and canceled jobs keep their workspace for debugging until cleanup.
   - Job events, logs, and LLM cache are kept until the job record is cleaned.
 
+Local state map:
+  - `~/.wikigraph/core.sqlite`: home registry and shared local state.
+  - `~/.wikigraph/cache/search-sessions.sqlite`: search query cache sessions used by paged search results.
+  - `~/.wikigraph/cache/continuation-cursors.sqlite`: opaque `wg next` continuation cursor records.
+  - `~/.wikigraph/cache/cache.sqlite`: Wikipedia page and other reusable local cache records.
+  - `~/.wikigraph/jobs`: durable generation job records, events, workspaces, caches, and logs.
+  - `~/.wikigraph/jobs/work`: per-job workspaces; failed and canceled jobs keep these for debugging.
+  - `~/.wikigraph/jobs/cache`: per-job LLM/cache artifacts kept with job records until cleanup.
+  - `~/.wikigraph/jobs/logs`: per-job diagnostic logs.
+  - `~/.wikigraph/staging`: archive coordinator state, materialized archive entries, local archive index staging, and library aggregate indexes.
+  - Search query caches and continuation cursors are local derived state; use `{{ commandName }} next --help` for cursor continuation and `{{ commandName }} gc --help` for cleanup.
+  - Do not manually delete active job, staging, or cursor state while commands are running; prefer `{{ commandName }} gc` and command-specific cleanup paths.
+
 In-place archive edits:
   - Mutating `.wikg` commands go through the archive coordinator.
   - Active generation jobs block destructive chapter maintenance edits for the same chapter.
   - Archive writes are coordinated through `~/.wikigraph/staging`.
+  - Library aggregate indexes are local derived state under staging and can be removed by cleanup when orphaned.
+  - Library cursors store the library index scope and re-check index freshness before continuing.
 
 Where to go next:
   - Need the normal workflow before debugging:
@@ -60,3 +75,5 @@ Where to go next:
     {{ commandName }} help format
   - Need URI command routing:
     {{ commandName }} help uri
+  - Need library registry, membership, index, or rebind behavior:
+    {{ commandName }} help library

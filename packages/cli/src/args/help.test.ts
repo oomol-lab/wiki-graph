@@ -3,6 +3,7 @@ import { parseCLIArguments } from "./index.js";
 import {
   renderArchiveMaintenanceChapterActionHelpText,
   renderArchiveMaintenanceCommandHelpText,
+  renderGcCommandHelpText,
   renderHelpTopicText,
   renderLibraryPredicateHelpText,
   renderLibraryUriHelpText,
@@ -73,12 +74,158 @@ describe("cli/args/help", () => {
       ),
       kind: "help",
     });
+    expect(
+      parseCLIArguments(["wikg://book.wikg/meta", "--help"]),
+    ).toStrictEqual({
+      help: true,
+      helpText: renderUriHelpText("metadata-object", "wikg://book.wikg/meta"),
+      kind: "help",
+    });
+    expect(
+      parseCLIArguments(["wikg://book.wikg/entity/Q42/meta", "--help"]),
+    ).toStrictEqual({
+      help: true,
+      helpText: renderUriHelpText(
+        "metadata-object",
+        "wikg://book.wikg/entity/Q42/meta",
+      ),
+      kind: "help",
+    });
+    expect(() =>
+      parseCLIArguments([
+        "wikg://book.wikg/entity/Q42/meta",
+        "evidence",
+        "--help",
+      ]),
+    ).toThrow("does not support `evidence`");
+    expect(
+      renderUriPredicateHelpText(
+        "metadata-object",
+        "put",
+        "wikg://book.wikg/entity/Q42/meta",
+      ),
+    ).toContain("`--json` controls output shape");
+    expect(
+      parseCLIArguments([
+        "wikg://book.wikg/chapter/part/source#1..2",
+        "--help",
+      ]),
+    ).toStrictEqual({
+      help: true,
+      helpText: renderUriHelpText(
+        "chapter-source-range-object",
+        "wikg://book.wikg/chapter/part/source#1..2",
+      ),
+      kind: "help",
+    });
+    expect(
+      parseCLIArguments(["wikg://book.wikg/chapter/part/summary#1", "--help"]),
+    ).toStrictEqual({
+      help: true,
+      helpText: renderUriHelpText(
+        "chapter-summary-range-object",
+        "wikg://book.wikg/chapter/part/summary#1",
+      ),
+      kind: "help",
+    });
+    expect(
+      parseCLIArguments(["wikg://book.wikg/chapter/part/source#1..2"]),
+    ).toMatchObject({
+      args: {
+        action: "get",
+        objectId: "wikg://book.wikg/chapter/part/source#1..2",
+      },
+      help: false,
+      kind: "archive",
+    });
+    expect(() =>
+      parseCLIArguments([
+        "wikg://book.wikg/chapter/part/source#1..2",
+        "set",
+        "--help",
+      ]),
+    ).toThrow("does not support `set`");
+    expect(
+      renderUriPredicateHelpText(
+        "chapter-scope",
+        "move",
+        "wikg://book.wikg/chapter/part",
+      ),
+    ).toContain("--root");
+    expect(
+      renderUriPredicateHelpText(
+        "chapter-scope",
+        "remove",
+        "wikg://book.wikg/chapter/part",
+      ),
+    ).toContain("--recursive");
+    expect(
+      renderUriPredicateHelpText(
+        "chapter-scope",
+        "reset",
+        "wikg://book.wikg/chapter/part",
+      ),
+    ).toContain("planned|source|reading-graph");
+    expect(
+      renderUriPredicateHelpText(
+        "chapter-scope",
+        "reset",
+        "wikg://book.wikg/chapter/part",
+      ),
+    ).toContain("not supported reset targets");
+    const libraryChapterHelp = parseCLIArguments([
+      "wikg://lib/chapter",
+      "--help",
+    ]);
+    expect(libraryChapterHelp).toStrictEqual({
+      help: true,
+      helpText: renderUriHelpText(
+        "chapter-collection-scope",
+        "wikg://lib/chapter",
+      ),
+      kind: "help",
+    });
+    if (libraryChapterHelp.kind !== "help") {
+      throw new Error("Expected help result.");
+    }
+    expect(libraryChapterHelp.helpText).toContain("read-only aggregate views");
+    expect(libraryChapterHelp.helpText).not.toContain(
+      "add: create a child object",
+    );
+    expect(() =>
+      parseCLIArguments(["wikg://lib/chapter", "add", "--help"]),
+    ).toThrow("library-wide chapter target");
+    expect(() =>
+      parseCLIArguments(["wikg://book.wikg/chapter", "move", "--help"]),
+    ).toThrow("does not support `move`");
+    expect(() =>
+      parseCLIArguments(["wikg://lib/chapter/part/source", "set", "--help"]),
+    ).toThrow("library-wide chapter target");
+    expect(
+      renderUriPredicateHelpText(
+        "chapter-collection-scope",
+        "add",
+        "wikg://lib/archive123/chapter",
+      ),
+    ).toContain("wikg://lib/<archive-id>/chapter/part");
+    expect(
+      renderUriPredicateHelpText(
+        "chapter-title-object",
+        "clear",
+        "wikg://book.wikg/chapter/part/title",
+      ),
+    ).toContain("does not delete the chapter");
   });
 
   it("prints help topic pages", () => {
     expect(parseCLIArguments(["help", "runtime"])).toStrictEqual({
       help: true,
       helpText: renderHelpTopicText("runtime"),
+      kind: "help",
+    });
+    expect(parseCLIArguments(["help", "library"])).toStrictEqual({
+      help: true,
+      helpText: renderHelpTopicText("library"),
       kind: "help",
     });
     expect(() => parseCLIArguments(["help", "object"])).toThrow(
@@ -131,7 +278,7 @@ describe("cli/args/help", () => {
 
   it("rejects invalid help usage", () => {
     expect(() => parseCLIArguments(["help", "unknown"])).toThrow(
-      "Invalid help topic: unknown. Expected one of format, config, runtime, uri, recipe, readiness.\nSee: wg --help",
+      "Invalid help topic: unknown. Expected one of format, config, runtime, uri, recipe, readiness, library.\nSee: wg --help",
     );
     expect(() =>
       parseCLIArguments(["help", "object", "entity", "extra"]),
@@ -154,6 +301,7 @@ describe("cli/args/help", () => {
     expect(rootHelpText).toContain("wg help [topic]");
     expect(rootHelpText).toContain("wg help recipe");
     expect(rootHelpText).toContain("wg help readiness");
+    expect(rootHelpText).toContain("wg help library");
     expect(rootHelpText).toContain("Core concepts:");
     expect(rootHelpText).toContain("knowledge-base archives");
     expect(rootHelpText).toContain("Do not edit archive internals:");
@@ -200,7 +348,12 @@ describe("cli/args/help", () => {
       "Runtime and Debug Behavior",
     );
     expect(renderHelpTopicText("config")).toContain("Configuration");
-    expect(renderHelpTopicText("readiness")).toContain("FTS readiness:");
+    expect(renderHelpTopicText("readiness")).toContain(
+      "Archive FTS readiness:",
+    );
+    expect(renderHelpTopicText("readiness")).toContain(
+      "Library index readiness:",
+    );
     expect(renderHelpTopicText("readiness")).toContain(
       "Without a current index",
     );
@@ -216,11 +369,26 @@ describe("cli/args/help", () => {
     expect(renderHelpTopicText("readiness")).toContain(
       "wg <archive-uri>/index embed --help",
     );
+    expect(renderHelpTopicText("readiness")).toContain(
+      "wg wikg://lib/index enable --help",
+    );
     expect(renderHelpTopicText("readiness")).toContain("LLM readiness:");
     expect(renderHelpTopicText("readiness")).toContain("WikiSpine readiness:");
     expect(renderHelpTopicText("readiness")).toContain("provider fetch");
     expect(renderHelpTopicText("readiness")).toContain(
+      "If the selected provider fails its config test",
+    );
+    expect(renderHelpTopicText("readiness")).toContain(
       wikispineRuntimeGuideUrl,
+    );
+    expect(renderHelpTopicText("config")).toContain(
+      "`cli` requires a `wikispine` executable on PATH",
+    );
+    expect(renderHelpTopicText("config")).toContain(
+      "CLI help does not install the local WikiSpine runtime",
+    );
+    expect(renderHelpTopicText("config")).toContain(
+      "`set <json>` and `set --json-input <json>` cannot set a real `apiKey`",
     );
     expect(renderHelpTopicText("config")).toContain(wikispineRuntimeGuideUrl);
     expect(
@@ -247,6 +415,9 @@ describe("cli/args/help", () => {
     expect(uriHelpText).toContain(
       "wg wikg://local/job add --input <archive-uri|chapter-uri>",
     );
+    expect(uriHelpText).toContain("Library locators:");
+    expect(uriHelpText).toContain("wikg://lib/<archive-id>/");
+    expect(uriHelpText).toContain("wg next <uri> <cursor>");
     expect(uriHelpText).toContain("wg help format");
     expect(uriHelpText).not.toContain("JSONL contains object records");
     expect(renderHelpTopicText("format")).toContain("Command output shapes:");
@@ -316,6 +487,80 @@ describe("cli/args/help", () => {
     expect(
       renderUriHelpText("entity-object", "wikg://book.wikg/entity/Q8018"),
     ).toContain("supports `--reverse` without `--query`");
+    expect(renderUriHelpText("entity-scope", "wikg://lib/entity")).toContain(
+      "Library context:",
+    );
+    expect(
+      renderUriHelpText("entity-scope", "wikg://book.wikg/chapter/part/entity"),
+    ).toContain(
+      "This chapter-qualified scope covers the selected chapter subtree",
+    );
+    expect(
+      renderUriHelpText(
+        "entity-scope",
+        "wikg:///library/chapter/book.wikg/entity",
+      ),
+    ).not.toContain(
+      "This chapter-qualified scope covers the selected chapter subtree",
+    );
+    expect(
+      renderUriHelpText("index-object", "wikg://book.wikg/index"),
+    ).toContain("status, readiness, storage policy, and materialization state");
+    expect(
+      renderUriPredicateHelpText("index-object", "enable", "wikg://lib/index"),
+    ).toContain("Build or rebuild this library's aggregate search index");
+    expect(
+      renderUriPredicateHelpText("index-object", "enable", "wikg://lib/index"),
+    ).not.toContain(
+      "Use `embed` when the index should travel with the archive",
+    );
+    expect(
+      renderUriPredicateHelpText(
+        "index-object",
+        "external",
+        "wikg://book.wikg/index",
+      ),
+    ).toContain("does not guarantee a current local materialization");
+    expect(
+      renderUriHelpText("local-config-namespace", "wikg://local/config"),
+    ).toContain("Local config namespace");
+    expect(
+      renderUriPredicateHelpText(
+        "entity-object",
+        "evidence",
+        "wikg://lib/entity/Q8018",
+      ),
+    ).toContain("aggregate library index");
+    expect(
+      renderUriHelpText("entity-object", "wikg://lib/entity/Q8018"),
+    ).toContain("aggregate views over matching entities");
+    expect(
+      renderUriHelpText("job-collection-scope", "wikg://local/job"),
+    ).toContain("generation jobs can consume model/runtime cost");
+    expect(
+      renderUriPredicateHelpText(
+        "job-collection-scope",
+        "clean",
+        "wikg://local/job",
+      ),
+    ).toContain("succeeded, failed, and canceled jobs");
+    expect(
+      renderUriPredicateHelpText(
+        "local-config-section",
+        "test",
+        "wikg://local/config/concurrent",
+      ),
+    ).toContain("Validate this local concurrency config section");
+    expect(renderUriHelpText("triple-scope", "wikg://lib/triple")).toContain(
+      "Library-wide scopes such as `wikg://lib/triple`",
+    );
+    expect(
+      renderUriPredicateHelpText(
+        "triple-object",
+        "evidence",
+        "wikg://lib/triple/Q8018/discusses/Q123",
+      ),
+    ).toContain("wikg://lib/<archive-id>/triple/Q8018/discusses/Q123");
     expect(renderHelpTopicText("format")).toContain(
       "Avoid `--all | head` as a preview pattern.",
     );
@@ -338,6 +583,10 @@ describe("cli/args/help", () => {
     );
     expect(renderHelpTopicText("recipe")).toContain("When to read deeper:");
     expect(renderHelpTopicText("recipe")).toContain("wg help readiness");
+    expect(renderHelpTopicText("recipe")).toContain("wg help library");
+    expect(renderHelpTopicText("recipe")).toContain(
+      "User gave you a folder of `.wikg` archives:",
+    );
     expect(renderHelpTopicText("recipe")).toContain(
       "Read the chapter object and use Unix pipes or redirection.",
     );
@@ -412,6 +661,13 @@ describe("cli/args/help", () => {
         "wikg://local/job",
       ),
     ).toContain("does not update `wikg://local/config/llm`");
+    expect(renderHelpTopicText("runtime")).toContain("Local state map:");
+    expect(renderHelpTopicText("runtime")).toContain(
+      "~/.wikigraph/cache/continuation-cursors.sqlite",
+    );
+    expect(renderGcCommandHelpText()).toContain(
+      "expired continuation cursor state under `~/.wikigraph/cache`",
+    );
     expect(
       renderArchiveMaintenanceChapterActionHelpText("set-summary"),
     ).toContain("The chapter must be `reading-graph`");
@@ -430,6 +686,23 @@ describe("cli/args/help", () => {
     expect(renderArchiveMaintenanceCommandHelpText("meta")).toContain(
       "<object-uri>/meta put <key>",
     );
+    expect(renderArchiveMaintenanceCommandHelpText("meta")).toContain(
+      "<object-uri>/meta put <key> <value> [--json]",
+    );
+    expect(
+      renderUriPredicateHelpText(
+        "metadata-object",
+        "clear",
+        "wikg://book.wikg/meta",
+      ),
+    ).toContain("wikg://book.wikg/meta clear [--json]");
+    expect(
+      renderUriPredicateHelpText(
+        "local-config-section",
+        "put",
+        "wikg://local/config/concurrent",
+      ),
+    ).toContain("wg wikg://local/config/concurrent put <key> <value> [--json]");
   });
 
   it("renders library help through templates", () => {
@@ -452,24 +725,70 @@ describe("cli/args/help", () => {
     expect(scopeHelpText).toContain("wg wikg://lib scan [--json]");
     expect(scopeHelpText).toContain("wg wikg://lib/index [--json]");
     expect(scopeHelpText).toContain(".lib` suffix");
+    expect(scopeHelpText).not.toContain("future `wikg://lib/<archive-id>/`");
+    expect(scopeHelpText).toContain(
+      "This is not a list of all library registries.",
+    );
+    expect(scopeHelpText).toContain("broad library index search");
+    expect(scopeHelpText).toContain("wg wikg://lib --query <query>");
+    expect(
+      parseCLIArguments(["wikg://lib", "--query", "attention", "--help"]),
+    ).toStrictEqual({
+      help: true,
+      helpText: scopeHelpText,
+      kind: "help",
+    });
+    expect(() => parseCLIArguments(["wikg://lib", "remove", "--help"])).toThrow(
+      "default library cannot be removed",
+    );
+    expect(scopeHelpText).toContain("wg help library");
     expect(metadataHelpText).toContain("Library metadata object");
     expect(metadataHelpText).toContain("Metadata keys are free-form");
     expect(createHelpText).toContain("Library Predicate Command");
     expect(createHelpText).toContain("Create a non-default library registry");
+    expect(createHelpText).toContain(
+      "does not expose a list-all-library-registries command",
+    );
     expect(
       renderLibraryPredicateHelpText(
         "wikg://lib",
         { isDefault: true, kind: "scope" },
         "list",
       ),
-    ).toContain("List archive memberships in this library scope");
+    ).toContain("not all library registries");
+    expect(
+      renderLibraryPredicateHelpText(
+        "wikg://lib/index",
+        { isDefault: true, kind: "scope", objectUri: "wikg://index" },
+        "enable",
+      ),
+    ).toContain("Rebuild holds the library write lock");
+    expect(
+      renderLibraryPredicateHelpText(
+        "wikg://lib/index",
+        { isDefault: true, kind: "scope", objectUri: "wikg://index" },
+        "enable",
+      ),
+    ).toContain("wg help readiness");
     expect(
       renderLibraryUriHelpText("wikg://lib/index", {
         isDefault: true,
         kind: "scope",
         objectUri: "wikg://index",
       }),
-    ).toContain("Library index object");
+    ).toContain("aggregate index");
+    expect(renderHelpTopicText("library")).toContain("Library Management");
+    expect(renderHelpTopicText("library")).toContain(
+      "Library archive shortcuts:",
+    );
+    expect(renderHelpTopicText("library")).toContain(
+      "Library index lifecycle:",
+    );
+    expect(renderHelpTopicText("library")).toContain("Registry discovery:");
+    expect(renderHelpTopicText("library")).toContain("Concurrency:");
+    expect(renderHelpTopicText("library")).toContain(
+      "aggregate views over matching objects",
+    );
     expect(
       renderLibraryPredicateHelpText(
         "wikg://lib/meta",

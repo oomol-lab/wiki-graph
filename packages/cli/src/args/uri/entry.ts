@@ -189,6 +189,9 @@ function classifyArchiveUriHelpTarget(uri: string): UriHelpTargetName {
 
   const path = stripObjectUriPrefix(objectUri);
 
+  if (parseMetadataTarget(objectUri) !== undefined) {
+    return "metadata-object";
+  }
   if (path === "cover") {
     return "cover-object";
   }
@@ -209,9 +212,13 @@ function classifyArchiveUriHelpTarget(uri: string): UriHelpTargetName {
       case "chapter-resource":
         switch (chapterTarget.resource) {
           case "source":
-            return "chapter-source-object";
+            return hasUriFragment(uri)
+              ? "chapter-source-range-object"
+              : "chapter-source-object";
           case "summary":
-            return "chapter-summary-object";
+            return hasUriFragment(uri)
+              ? "chapter-summary-range-object"
+              : "chapter-summary-object";
           case "title":
             return "chapter-title-object";
         }
@@ -264,6 +271,10 @@ function classifyArchiveUriHelpTarget(uri: string): UriHelpTargetName {
       CLI_HELP_ROUTES.uri,
     ),
   );
+}
+
+function hasUriFragment(uri: string): boolean {
+  return uri.includes("#");
 }
 
 function parseArchiveUriTargetArguments(

@@ -22,6 +22,8 @@ Notes:
   - The folder is not scanned, and contained `.wikg` files are not registered in this stage.
   - Registry data is stored in the global core database, not in the library folder.
   - Text output is the new public library URI. With `--json`, output includes the public id, URI, folder path, default marker, staging path, and timestamps.
+  - Save the emitted URI or public id if you need to address this non-default library later.
+  - The current CLI does not expose a list-all-library-registries command.
 
 Examples:
   {{ commandName }} wikg://lib create --path ./research-library
@@ -35,7 +37,7 @@ Usage:
 
 Notes:
   - The status tells whether the library index is current, dirty, missing, or disabled.
-  - Library-wide query and list commands require a current library index.
+  - Library-wide `--query` and naked scope enumeration require a current library index.
   - Run `enable` when the status says the index needs to be built or rebuilt.
 {% elif target.kind == "scope" and target.objectUri == "wikg://index" and predicate == "enable" %}
 Purpose:
@@ -50,6 +52,8 @@ Notes:
   - Progress is emitted as text by default, or line-delimited events with `--jsonl`.
   - `--json` is not supported for enable because progress is streamed.
   - Library indexes are local derived state under Wiki Graph staging, not files inside the library folder.
+  - Rebuild holds the library write lock; concurrent `scan`, `add`, `rebind`, `disable`, archive `move`, or archive `remove` commands for the same library cannot run at the same time.
+  - Archive writes can mark the aggregate index dirty; rebuild again before relying on library-wide query when status reports dirty or stale.
 {% elif target.kind == "scope" and target.objectUri == "wikg://index" and predicate == "disable" %}
 Purpose:
   Disable this library index and remove its current local materialization.
@@ -59,8 +63,9 @@ Usage:
 
 Notes:
   - This does not delete the library registry, metadata, folder, or managed `.wikg` archives.
-  - Library-wide query and list commands will fail until the index is enabled again.
+  - Library-wide `--query` and naked scope enumeration will fail until the index is enabled again.
   - Library indexes do not support archive-style `embed` or `external` modes.
+  - Disable holds the library write lock and cannot run concurrently with membership changes or index rebuild for the same library.
 {% elif target.kind == "scope" and predicate == "add" %}
 Purpose:
   Copy a `.wikg` archive into this library folder and register it as a managed archive member.
@@ -75,6 +80,7 @@ Notes:
   - Parent directories for `--to` are created as needed.
   - Existing target files are not overwritten.
   - Adding an archive marks the library index dirty.
+  - The command holds the library write lock and cannot run concurrently with `scan`, `rebind`, archive moves/removes, or index rebuild for the same library.
 {% elif target.kind == "scope" and predicate == "scan" %}
 Purpose:
   Reconcile this library registry with `.wikg` files currently under the library folder.
@@ -87,6 +93,7 @@ Notes:
   - Registered files that are no longer present remain visible as missing/stale instead of being deleted silently.
   - When a moved archive can be matched by its stable mutation token, scan preserves its archive id and updates the relative path.
   - Scan marks the library index dirty when membership changes.
+  - Scan holds the library write lock and cannot run concurrently with membership changes or index rebuild for the same library.
 {% elif target.kind == "scope" and predicate == "rebind" %}
 Purpose:
   Bind this library to an existing directory, then scan/reconcile `.wikg` files in that directory.
@@ -100,6 +107,7 @@ Notes:
   - The command updates only this library registry's folder path, preserving the library id, public id, default marker, and metadata.
   - The command does not copy, move, or delete files from the old or new folder.
   - After updating the folder path, it runs the same scan/reconcile lifecycle used by `scan`.
+  - Rebind holds the library write lock and cannot run concurrently with membership changes or index rebuild for the same library.
 
 Examples:
   {{ commandName }} {{ uri }} rebind --path ~/Library/Mobile\ Documents/wiki-library
@@ -114,6 +122,7 @@ Usage:
 Notes:
   - For a bare library URI, this reads the same membership listing as the default command.
   - For concrete library-wide objects such as `{{ uri }}/entity/<qid>`, use the object URI directly or ask that URI for help.
+  - This is not a list of all library registries; use known `wikg://lib/<lib-id>.lib` URIs for non-default libraries.
 {% elif target.kind == "scope" and predicate == "list" %}
 Purpose:
   List archive memberships in this library scope.
@@ -124,6 +133,7 @@ Usage:
 Notes:
   - The output includes registered archive ids, relative paths, and membership status.
   - Use `scan` when the folder contents changed outside Wiki Graph.
+  - This lists archive memberships in this library, not all library registries.
 {% elif target.kind == "scope" and predicate == "remove" %}
 Purpose:
   Remove this non-default library registry.
@@ -136,6 +146,7 @@ Notes:
   - Removing a library deletes its core registry record, metadata, membership records, and local derived index state.
   - Removing a library does not delete the library folder or any `.wikg` files in it.
   - `--confirm` is required.
+  - Remove holds the library write lock and cannot run concurrently with membership changes or index rebuild for the same library.
 {% elif target.kind == "archive" and predicate == "get" %}
 Purpose:
   Read this library archive membership record.
@@ -158,6 +169,7 @@ Notes:
   - The archive public id and internal membership id stay the same.
   - The target path must not already exist.
   - Moving an archive marks the library index dirty.
+  - Move holds the library write lock and cannot run concurrently with library scan, add, rebind, remove, or index rebuild for the same library.
 {% elif target.kind == "archive" and predicate == "remove" %}
 Purpose:
   Delete this managed `.wikg` file from the library folder and unregister it.
@@ -170,6 +182,7 @@ Notes:
   - If the registered file is already missing, the command can still clean the registry entry.
   - This does not delete empty parent directories.
   - Removing an archive marks the library index dirty.
+  - Remove holds the library write lock and cannot run concurrently with library scan, add, rebind, move, or index rebuild for the same library.
 {% elif target.kind == "metadata" and predicate == "set" %}
 Purpose:
   Replace the whole library metadata map.
@@ -177,11 +190,12 @@ Purpose:
 Usage:
   {{ commandName }} {{ uri }} set <json> [--json]
   {{ commandName }} {{ uri }} set --json-input <json> [--json]
-  {{ commandName }} {{ uri }} set --json --input <path|-> [--json]
+  {{ commandName }} {{ uri }} set --input <path|-> [--json]
 
 Notes:
   - `set` requires a JSON object.
   - Metadata keys are free-form user fields.
+  - `--json` controls output shape; it is not JSON input.
   - System registry fields such as id, public id, folder path, default marker, and staging path cannot be modified through metadata.
   - With `--json`, success output is the resulting metadata map.
 {% elif target.kind == "metadata" and predicate == "get" %}
@@ -201,13 +215,13 @@ Purpose:
 
 Usage:
   {{ commandName }} {{ uri }} put <key> <value> [--json]
-  {{ commandName }} {{ uri }} put <key> --json <value>
   {{ commandName }} {{ uri }} put <key> --json-input <value> [--json]
   {{ commandName }} {{ uri }} put <key> --input <path|-> [--json]
 
 Notes:
   - Without JSON input, the value is stored as a string.
   - With JSON input, the value is parsed as JSON.
+  - `--json` controls output shape; it is not JSON input.
   - Metadata keys are command arguments, not URI segments.
   - System registry fields such as id, public id, folder path, default marker, and staging path cannot be modified through metadata.
 {% elif target.kind == "metadata" and predicate == "delete" %}
@@ -236,4 +250,8 @@ This library target does not support `{{ predicate }}`.
 
 Related help:
   - {{ commandName }} {{ uri }} --help
+  - {{ commandName }} help library
+{% if target.kind == "scope" and target.objectUri == "wikg://index" %}
+  - {{ commandName }} help readiness
+{% endif %}
   - {{ commandName }} help uri

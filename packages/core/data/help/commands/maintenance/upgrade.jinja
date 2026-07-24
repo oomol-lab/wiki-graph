@@ -15,12 +15,21 @@ Targets:
   - Library: wikg://lib or wikg://lib/<lib-id>.lib
 
 Notes:
+  - This maintenance command accepts filesystem paths. URI-targeted archive/object commands still require Wiki Graph URIs; see `{{ commandName }} help uri`.
+  - Home state may be schema-gated automatically before real commands, but this command is the explicit recovery and batch-upgrade entry point.
   - Internal SQLite files are part of the home target and are not user-facing upgrade targets.
   - Standalone .wikg, home, and library targets are upgraded in place and do not support --output.
   - Library archive member URIs such as wikg://lib/<archive-id>/ are not standalone upgrade targets; upgrade the whole library.
+  - Library upgrade covers the registry and managed archive members for that library.
 
 Examples:
   {{ commandName }} maintenance upgrade ~/.wikigraph
   {{ commandName }} maintenance upgrade ./book.wikg
   {{ commandName }} maintenance upgrade wikg://lib
   {{ commandName }} maintenance upgrade ./book.sdpub --output ./book.wikg
+
+Related help:
+  - URI target forms and path conversion:
+    {{ commandName }} help uri
+  - Library upgrade scope:
+    {{ commandName }} help library

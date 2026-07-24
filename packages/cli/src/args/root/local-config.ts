@@ -45,6 +45,17 @@ export function parseLocalConfigUriFirstArguments(
       : formatWikiGraphHelpCommand(uri, action);
 
   if (section === undefined) {
+    if (
+      values.help === true &&
+      explicitAction === undefined &&
+      uri === "wikg://local/config"
+    ) {
+      return {
+        help: true,
+        helpText: renderUriHelpText("local-config-namespace", uri),
+        kind: "help",
+      };
+    }
     throw new Error(
       withHelpRoute(
         "Expected a local config section URI such as wikg://local/config/llm.",

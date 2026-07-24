@@ -1,0 +1,84 @@
+Help Type: topic
+Topic: library
+
+Library Management
+
+Purpose:
+  Libraries let Wiki Graph manage a folder of `.wikg` archives and query them through one aggregate index.
+  Use this page to distinguish library registries, archive memberships, library archive shortcuts, and library index lifecycle.
+
+Core model:
+  - A library registry records one managed folder, its public id, metadata, default marker, and local staging identity.
+  - The default library is addressed as `wikg://lib`.
+  - A non-default library is addressed as `wikg://lib/<lib-id>.lib`.
+  - The `.lib` suffix keeps library ids distinct from archive member shortcuts.
+  - `{{ commandName }} wikg://lib` lists archive memberships in the default library; it does not list all library registries.
+
+Registry discovery:
+  - `{{ commandName }} wikg://lib create --path <folder>` prints the new non-default library URI.
+  - With `--json`, create output includes the public id, URI, folder path, default marker, and staging path.
+  - Keep that emitted URI or public id in your workflow if you need to address a non-default library later.
+  - The current CLI exposes the default library as `wikg://lib` and known non-default libraries as `wikg://lib/<lib-id>.lib`.
+  - It does not expose a list-all-library-registries command; `{{ commandName }} wikg://lib` is a membership listing for the default library.
+
+Library folders:
+  - `{{ commandName }} wikg://lib create --path <folder>` creates a non-default library registry and an empty folder.
+  - `{{ commandName }} wikg://lib rebind --path <existing-directory>` binds the default library to an existing folder without copying or deleting files.
+  - `{{ commandName }} wikg://lib/<lib-id>.lib rebind --path <existing-directory>` rebinds that non-default library.
+  - Use rebind after a manual move, sync restore, or mount path change.
+
+Archive memberships:
+  - `{{ commandName }} <library-uri> scan` recursively discovers `.wikg` files under the bound folder and reconciles registry state.
+  - `{{ commandName }} <library-uri> add --input <path> [--to <relative-wikg-path>]` copies one `.wikg` file into the folder and registers it.
+  - `{{ commandName }} <library-archive-uri> move --to <relative-wikg-path>` moves or renames one managed archive inside the same folder.
+  - `{{ commandName }} <library-archive-uri> remove --confirm` deletes one managed archive file and unregisters it.
+  - Missing registered files remain visible as missing or stale until scan, move, remove, or rebind resolves them.
+
+Library archive shortcuts:
+  - `wikg://lib/<archive-id>/` addresses one archive membership in the default library.
+  - `wikg://lib/<lib-id>.lib/<archive-id>/` addresses one archive membership in a non-default library.
+  - Add normal archive object suffixes after the trailing slash to query that archive's contents:
+    {{ commandName }} wikg://lib/<archive-id>/chapter
+    {{ commandName }} wikg://lib/<archive-id>/entity --query "term"
+    {{ commandName }} wikg://lib/<archive-id>/triple --query "term"
+  - `{{ commandName }} <library-archive-uri> --help` explains membership actions such as `move` and `remove`.
+  - `{{ commandName }} <library-archive-uri>/entity --help` explains the archive object scope reached through that library shortcut.
+
+Library-wide query:
+  - `{{ commandName }} wikg://lib/entity --query <query>` searches across present archive members through the library index.
+  - `{{ commandName }} wikg://lib/triple --query <query>` searches library-wide Knowledge Graph triples.
+  - `{{ commandName }} wikg://lib/chunk --query <query>` searches library-wide Reading Graph chunks.
+  - Library-wide object predicates such as `evidence`, `related`, and `pack` use the same aggregate library index.
+  - Library-wide object URIs such as `wikg://lib/entity/<qid>` are aggregate views over matching objects from present archive members.
+  - Evidence and related output should be interpreted with the returned archive/member provenance; cite the specific returned evidence or member, not just the library-wide URI.
+  - To force one managed archive member, use a library archive shortcut such as `wikg://lib/<archive-id>/entity/<qid>`.
+
+Library index lifecycle:
+  - `{{ commandName }} <library-uri>/index` reads library index status.
+  - `{{ commandName }} <library-uri>/index enable` rebuilds the aggregate index from registered present archives.
+  - `{{ commandName }} <library-uri>/index disable` removes the local library index materialization.
+  - Library indexes are local derived state under Wiki Graph staging, not files inside the library folder.
+  - `scan`, `add`, archive `move`, archive `remove`, and archive writes can make the aggregate index dirty.
+  - Enable the library index again when library-wide query reports that the index is missing, dirty, or stale.
+  - Library indexes do not support archive-style `embed` or `external` modes.
+
+Concurrency:
+  - Library registry and membership writes hold the library write lock.
+  - `scan`, `add`, `rebind`, library archive `move`, library archive `remove`, and library index `enable` or `disable` cannot run concurrently for the same library.
+  - Library-wide `--query`, naked scope enumeration, evidence, related, and pack commands read the current aggregate index.
+  - If a write marks the aggregate index dirty, rebuild it with `{{ commandName }} <library-uri>/index enable` before relying on library-wide query results.
+
+Upgrade and cleanup:
+  - Upgrade a whole library with `{{ commandName }} maintenance upgrade wikg://lib` or `{{ commandName }} maintenance upgrade wikg://lib/<lib-id>.lib`.
+  - Library archive member URIs such as `wikg://lib/<archive-id>/` are not standalone upgrade targets.
+  - Runtime cleanup may remove orphaned local index staging, but it does not delete managed `.wikg` files.
+
+Where to go next:
+  - Concrete library scope and predicate commands:
+    {{ commandName }} wikg://lib --help
+  - URI grammar, library archive shortcuts, and pagination:
+    {{ commandName }} help uri
+  - Archive and library index readiness:
+    {{ commandName }} help readiness
+  - Local staging, cursor scope, and cleanup behavior:
+    {{ commandName }} help runtime

@@ -118,7 +118,8 @@ export function parseChapterTarget(
 function parseChapterPathAndSuffix(
   value: string,
 ): { readonly chapterPath: string; readonly suffix?: string } | undefined {
-  const parts = value.replace(/\/+$/u, "").split("/");
+  const pathWithoutFragment = value.replace(/#.*$/u, "");
+  const parts = pathWithoutFragment.replace(/\/+$/u, "").split("/");
   const suffixStart = parts.findIndex((part) =>
     [
       "chunk",

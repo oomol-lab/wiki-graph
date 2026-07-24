@@ -127,19 +127,47 @@ Purpose:
   Move this chapter in the chapter tree.
 
 Usage:
-  {{ commandName }} {{ uri }} move [--parent <chapter-uri>] [--after <chapter-uri>] [--before <chapter-uri>]
+  {{ commandName }} {{ uri }} move --parent <chapter-uri> [--first|--last] [--json]
+  {{ commandName }} {{ uri }} move --root [--first|--last] [--json]
+  {{ commandName }} {{ uri }} move --before <chapter-uri> [--json]
+  {{ commandName }} {{ uri }} move --after <chapter-uri> [--json]
+  {{ commandName }} {{ uri }} move --first [--json]
+  {{ commandName }} {{ uri }} move --last [--json]
+
+Notes:
+  - Moves only the chapter tree node. Source text, Reading Graph data, and summary stay attached to the same internal chapter record.
+  - `--parent <chapter-uri>` moves the chapter under another chapter.
+  - `--root` moves the chapter to the top level.
+  - `--before <chapter-uri>` or `--after <chapter-uri>` moves the chapter next to the target chapter.
+  - `--first` or `--last` moves within the target parent when combined with `--parent` or `--root`.
+  - Without `--parent` or `--root`, `--first` and `--last` reorder within the current parent.
+  - Cannot move a chapter into or next to its own descendant.
 {% elif predicate == "remove" %}
 Purpose:
   Remove this chapter.
 
 Usage:
-  {{ commandName }} {{ uri }} remove [--confirm]
+  {{ commandName }} {{ uri }} remove [--recursive] [--json]
+
+Notes:
+  - Removes the target chapter from the TOC tree.
+  - Removes that chapter's source text, Reading Graph data, and summary.
+  - Fails when the chapter has children unless `--recursive` is provided.
+  - With `--recursive`, removes the whole selected subtree and its stored data.
+  - This is a destructive in-place edit. Read the chapter tree first when the archive is important.
 {% elif predicate == "reset" %}
 Purpose:
   Delete later-stage artifacts for this chapter.
 
 Usage:
-  {{ commandName }} {{ uri }} reset --to source|reading-graph|reading-summary|knowledge-graph [--confirm]
+  {{ commandName }} {{ uri }} reset --to planned|source|reading-graph [--json]
+
+Notes:
+  - `planned` deletes source text, Reading Graph data, and summary.
+  - `source` keeps source text and deletes Reading Graph data and summary.
+  - `reading-graph` keeps source text and Reading Graph data, and deletes summary.
+  - `reading-summary` and `knowledge-graph` are not supported reset targets.
+  - Reset is destructive and may discard generated work.
 {% elif predicate == "set" %}
 {% if target.name == "chapter-tree-object" %}
 Purpose:
@@ -192,6 +220,21 @@ Usage:
 Notes:
   - This changes what the job will generate when resumed or picked up by a worker.
   - Use `{{ commandName }} {{ uri }} --help` to inspect the current job target first.
+{% elif target.name == "metadata-object" %}
+Purpose:
+  Replace this metadata map with a JSON object.
+
+Usage:
+  {{ commandName }} {{ uri }} set <json> [--json]
+  {{ commandName }} {{ uri }} set --input <path|-> [--json]
+  {{ commandName }} {{ uri }} set --json-input <json> [--json]
+
+Notes:
+  - Metadata shape depends on whether this is archive metadata or object metadata.
+  - `--json-input <json>` reads an inline JSON object.
+  - `--input <path|->` reads a JSON object from a file or stdin.
+  - `--json` controls output shape; it is not JSON input.
+  - `put`, `delete`, and `clear` are usually safer for single-key metadata edits.
 {% elif target.name == "local-config-section" %}
 Purpose:
   Replace this entire local config section with a JSON object.
@@ -248,19 +291,6 @@ Examples:
   {{ commandName }} {{ uri }} set '{"job":3,"request":6}'
   {{ commandName }} {{ uri }} set --json-input '{"job":2,"request":4}'
 {% endif %}
-{% elif "/meta" in uri %}
-Purpose:
-  Replace this metadata object from a JSON object or input value.
-
-Usage:
-  {{ commandName }} {{ uri }} set <json> [--json]
-  {{ commandName }} {{ uri }} set --input <path|-> [--json]
-  {{ commandName }} {{ uri }} set --json-input <json> [--json]
-
-Notes:
-  - Metadata shape depends on whether this is archive metadata or object metadata.
-  - Use `--input -` when metadata JSON should come from stdin.
-  - `put`, `delete`, and `clear` are usually safer for single-key metadata edits.
 {% else %}
 Purpose:
   This URI target has no generic `set` behavior.
@@ -272,26 +302,55 @@ Notes:
   - `set` is target-specific. Use the URI help page to find the writable child resource or supported predicate.
 {% endif %}
 {% elif predicate == "clear" %}
+{% if target.name == "chapter-title-object" %}
+Purpose:
+  Remove this chapter's explicit title.
+{% elif target.name == "metadata-object" %}
+Purpose:
+  Clear this metadata map.
+{% else %}
 Purpose:
   Clear this writable resource or local config section.
+{% endif %}
 
 Usage:
-  {{ commandName }} {{ uri }} clear
+  {{ commandName }} {{ uri }} clear{% if target.name == "metadata-object" %} [--json]{% endif %}
 
-{% if target.name == "local-config-section" %}
+{% if target.name == "chapter-title-object" %}
+Notes:
+  - Removes the explicit title for this chapter.
+  - This does not delete the chapter, source text, Reading Graph data, or summary.
+{% elif target.name == "metadata-object" %}
+Notes:
+  - Clears all metadata keys for this metadata object.
+  - No confirmation prompt is shown.
+  - This does not delete the archive object or generated graph data.
+{% elif target.name == "local-config-section" %}
 Notes:
   - Clears every key in this local config section, including secrets.
   - No confirmation prompt is shown.
   - Success output is the now-empty JSON object: `{}`.
-{% elif "/meta" in uri %}
-Notes:
-  - Clears all metadata keys for this metadata object.
-  - No confirmation prompt is shown.
 {% else %}
 Notes:
   - This predicate is only available on URI targets that explicitly support clearing.
 {% endif %}
 {% elif predicate == "enable" %}
+{% if target.name == "index-object" and libraryContext.isLibraryWide %}
+Purpose:
+  Build or rebuild this library's aggregate search index.
+
+Usage:
+  {{ commandName }} {{ uri }} enable [--jsonl]
+
+Notes:
+  - This is a full rebuild from registered present archives.
+  - Missing or unreadable library archive members are skipped and reported.
+  - Progress is emitted as text by default, or line-delimited events with `--jsonl`.
+  - `--json` is not supported for enable because progress is streamed.
+  - Library indexes are local derived state under Wiki Graph staging, not files inside the library folder.
+  - Rebuild holds the library write lock; concurrent `scan`, `add`, `rebind`, `disable`, archive `move`, or archive `remove` commands for the same library cannot run at the same time.
+  - Archive writes can mark the aggregate index dirty; rebuild again before relying on library-wide query when status reports dirty or stale.
+{% else %}
 Purpose:
   Enable searchable FTS index support for this archive on this machine.
 
@@ -307,7 +366,21 @@ Notes:
   - Text success output is a short status summary.
   - With `--jsonl`, progress is emitted as line-delimited event records such as step/status/error records.
   - After enable succeeds, `--query`, `related --query`, and `evidence --query` become available.
+{% endif %}
 {% elif predicate == "disable" %}
+{% if target.name == "index-object" and libraryContext.isLibraryWide %}
+Purpose:
+  Disable this library index and remove its current local materialization.
+
+Usage:
+  {{ commandName }} {{ uri }} disable [--json]
+
+Notes:
+  - This does not delete the library registry, metadata, folder, or managed `.wikg` archives.
+  - Library-wide `--query` and naked scope enumeration will fail until the index is enabled again.
+  - Library indexes do not support archive-style `embed` or `external` modes.
+  - Disable holds the library write lock and cannot run concurrently with membership changes or index rebuild for the same library.
+{% else %}
 Purpose:
   Disable searchable FTS index support for this archive and remove the current index materialization.
 
@@ -318,7 +391,19 @@ Notes:
   - Disabling removes the current local or embedded index materialization.
   - After disable succeeds, `--query`, `related --query`, and `evidence --query` are unavailable until `enable` or `embed` is run again.
   - Use this when intentionally dropping index state, not as routine cleanup after generation.
+{% endif %}
 {% elif predicate == "embed" %}
+{% if target.name == "index-object" and libraryContext.isLibraryWide %}
+Purpose:
+  This library index does not support embedded archive index storage.
+
+Usage:
+  {{ commandName }} {{ uri }} enable --help
+
+Notes:
+  - Library indexes are local derived state under Wiki Graph staging.
+  - Use `enable` to build the library index or `disable` to remove it.
+{% else %}
 Purpose:
   Use an archive-embedded searchable FTS index.
 
@@ -330,7 +415,19 @@ Notes:
   - After embedding, CLI archive writes keep the embedded index synchronized automatically.
   - This makes the archive more portable, but increases archive size.
   - Use it when distributing a `.wikg` with keyword retrieval ready for another machine.
+{% endif %}
 {% elif predicate == "external" %}
+{% if target.name == "index-object" and libraryContext.isLibraryWide %}
+Purpose:
+  This library index does not support archive externalization.
+
+Usage:
+  {{ commandName }} {{ uri }} enable --help
+
+Notes:
+  - Library indexes are already local derived state under Wiki Graph staging.
+  - Use `enable` to build the library index or `disable` to remove it.
+{% else %}
 Purpose:
   Use external local-cache storage for the searchable FTS index.
 
@@ -340,13 +437,23 @@ Usage:
 Notes:
   - This switches the index storage policy back to local cache outside the `.wikg` archive.
   - The archive no longer carries embedded index data.
-  - If query support is needed on this machine after externalizing, run `{{ commandName }} {{ uri }} enable`.
+  - Externalizing does not guarantee a current local materialization on this machine.
+  - Run `{{ commandName }} {{ uri }} enable` to build or repair local query support after switching to external storage.
+{% endif %}
 {% elif predicate == "clean" %}
 Purpose:
   Remove completed local generation jobs.
 
 Usage:
   {{ commandName }} {{ uri }} clean
+
+Notes:
+  - Removes succeeded, failed, and canceled jobs whose status has not changed for at least seven days.
+  - Deletes those job records plus their workspace, cache, log, and event files.
+  - Does not remove waiting, running, paused, or recently finished jobs.
+  - Does not stop workers or cancel active jobs.
+  - Does not support `--json`, `--jsonl`, `--dry-run`, or `--confirm`; output is a short text count.
+  - Use `{{ commandName }} gc --help` for broader runtime cleanup and dry-run support.
 {% elif predicate == "watch" %}
 Purpose:
   Follow durable local job progress.
@@ -378,14 +485,30 @@ Purpose:
 Usage:
   {{ commandName }} {{ uri }} boost
 {% elif predicate == "put" %}
+{% if target.name == "metadata-object" %}
+Purpose:
+  Set one metadata key.
+
+Usage:
+  {{ commandName }} {{ uri }} put <key> <value> [--json]
+  {{ commandName }} {{ uri }} put <key> --json-input <json> [--json]
+  {{ commandName }} {{ uri }} put <key> --input <path|-> [--json]
+
+Notes:
+  - Positional `<value>` is stored as a string.
+  - `--json-input <json>` stores a JSON value.
+  - `--input <path|->` reads a value from a file or stdin.
+  - `--json` controls output shape; it is not JSON input.
+  - Metadata keys are command arguments, not URI segments.
+{% else %}
 Purpose:
   Set one key in this local config section.
 
 Usage:
-  {{ commandName }} {{ uri }} put <key> <value>
-  {{ commandName }} {{ uri }} put <key> --json-input <json>
+  {{ commandName }} {{ uri }} put <key> <value> [--json]
+  {{ commandName }} {{ uri }} put <key> --json-input <json> [--json]
 {% if "/llm" in uri %}
-  {{ commandName }} {{ uri }} put <key> --secret
+  {{ commandName }} {{ uri }} put <key> --secret [--json]
 {% endif %}
 
 {% if target.name == "local-config-section" %}
@@ -408,12 +531,25 @@ Keys:
 Notes:
   - Positional `<value>` is stored as a string.
   - `--json-input` stores a JSON value and is useful for numeric config sections.
+  - `--json` controls output shape; it is not JSON input.
 {% if "/llm" in uri %}
   - `--secret` reads the value from an interactive terminal without echoing it; use it for `apiKey`.
 {% endif %}
   - Success output is the full section JSON with sensitive values masked.
 {% endif %}
+{% endif %}
 {% elif predicate == "delete" %}
+{% if target.name == "metadata-object" %}
+Purpose:
+  Delete one metadata key.
+
+Usage:
+  {{ commandName }} {{ uri }} delete <key> [--json]
+
+Notes:
+  - Deletes the key if present; deleting an absent key leaves the metadata map unchanged.
+  - Metadata keys are command arguments, not URI segments.
+{% else %}
 Purpose:
   Delete one key from this local config section.
 
@@ -426,21 +562,54 @@ Notes:
   - Success output is the full section JSON after deletion.
   - Key aliases are normalized where supported, for example `api-key` to `apiKey`.
 {% endif %}
+{% endif %}
 {% elif predicate == "test" %}
+{% if "/concurrent" in uri %}
+Purpose:
+  Validate this local concurrency config section.
+{% else %}
 Purpose:
   Test connectivity for this local config section.
+{% endif %}
 
 Usage:
   {{ commandName }} {{ uri }} test [--json]
 
 Notes:
+{% if "/concurrent" in uri %}
+  - Validates that configured `job` and `request` limits are positive integers.
+  - This does not contact an external service.
+{% else %}
   - For `llm`, this sends a small request to the configured model.
   - For `wikispine`, this checks the built-in fetch service or local `wikispine` command.
+{% endif %}
   - Text success output is intentionally short.
   - With `--json`, success and failure both return `{ "ok": true|false, ... }`; failures set a non-zero exit code.
   - Without `--json`, failures print the command error. Use `{{ commandName }} help readiness` and `{{ commandName }} help config` to recover.
 {% if "/wikispine" in uri %}
   - Runtime setup and recovery guide: https://raw.githubusercontent.com/oomol-lab/wiki-graph/refs/heads/main/docs/wikispine-runtime.md
+{% endif %}
+{% endif %}
+
+{% if libraryContext.isLibraryUri %}
+Library context:
+  - This predicate runs through a library URI, not a standalone `.wikg` locator.
+{% if libraryContext.isLibraryWide %}
+  - Library-wide object predicates use the aggregate library index and may fail when that index is missing, dirty, or stale.
+  - Interpret results with the returned archive/member provenance; cite the specific returned evidence or member.
+{% endif %}
+{% if target.name == "chapter-collection-scope" or target.name == "chapter-scope" or target.name == "chapter-source-object" or target.name == "chapter-summary-object" or target.name == "chapter-title-object" or target.name == "chapter-tree-object" or target.name == "chapter-state-object" %}
+  - Library archive shortcuts such as `wikg://lib/<archive-id>/chapter/part` apply the predicate to one managed archive.
+{% elif target.name == "triple-object" or target.name == "triple-scope" %}
+  - Library archive shortcuts such as `wikg://lib/<archive-id>/triple/Q8018/discusses/Q123` apply the predicate to one managed archive.
+{% elif target.name == "chunk-object" or target.name == "chunk-scope" %}
+  - Library archive shortcuts such as `wikg://lib/<archive-id>/chunk/12` apply the predicate to one managed archive.
+{% elif target.name == "index-object" and libraryContext.isLibraryWide %}
+  - Library index shortcuts such as `wikg://lib/index` apply the predicate to the aggregate library index.
+{% elif target.name == "index-object" %}
+  - Library archive shortcuts such as `wikg://lib/<archive-id>/index` apply the predicate to one managed archive.
+{% else %}
+  - Library archive shortcuts such as `wikg://lib/<archive-id>/entity/Q8018` apply the predicate to one managed archive.
 {% endif %}
 {% endif %}
 
@@ -458,4 +627,7 @@ Related help:
 {% endif %}
 {% if target.name == "local-config-section" %}
   - {{ commandName }} help config
+{% endif %}
+{% if libraryContext.isLibraryUri %}
+  - {{ commandName }} help library
 {% endif %}
