@@ -449,6 +449,8 @@ describe("cli/args/help", () => {
 
     expect(scopeHelpText).toContain("Library scope");
     expect(scopeHelpText).toContain("wg wikg://lib create --path <folder>");
+    expect(scopeHelpText).toContain("wg wikg://lib scan [--json]");
+    expect(scopeHelpText).toContain("wg wikg://lib/index [--json]");
     expect(scopeHelpText).toContain(".lib` suffix");
     expect(metadataHelpText).toContain("Library metadata object");
     expect(metadataHelpText).toContain("Metadata keys are free-form");
@@ -460,7 +462,14 @@ describe("cli/args/help", () => {
         { isDefault: true, kind: "scope" },
         "list",
       ),
-    ).toContain("Enumerate objects in this library scope");
+    ).toContain("List archive memberships in this library scope");
+    expect(
+      renderLibraryUriHelpText("wikg://lib/index", {
+        isDefault: true,
+        kind: "scope",
+        objectUri: "wikg://index",
+      }),
+    ).toContain("Library index object");
     expect(
       renderLibraryPredicateHelpText(
         "wikg://lib/meta",

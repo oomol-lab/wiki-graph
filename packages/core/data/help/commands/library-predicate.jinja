@@ -26,6 +26,67 @@ Notes:
 Examples:
   {{ commandName }} wikg://lib create --path ./research-library
   {{ commandName }} wikg://lib create --path ./research-library --json
+{% elif target.kind == "scope" and target.objectUri == "wikg://index" and predicate == "get" %}
+Purpose:
+  Read this library index status.
+
+Usage:
+  {{ commandName }} {{ uri }} [--json]
+
+Notes:
+  - The status tells whether the library index is current, dirty, missing, or disabled.
+  - Library-wide query and list commands require a current library index.
+  - Run `enable` when the status says the index needs to be built or rebuilt.
+{% elif target.kind == "scope" and target.objectUri == "wikg://index" and predicate == "enable" %}
+Purpose:
+  Build or rebuild this library's aggregate search index.
+
+Usage:
+  {{ commandName }} {{ uri }} enable [--jsonl]
+
+Notes:
+  - This is a full rebuild from registered present archives.
+  - Missing or unreadable library archive members are skipped and reported.
+  - Progress is emitted as text by default, or line-delimited events with `--jsonl`.
+  - `--json` is not supported for enable because progress is streamed.
+  - Library indexes are local derived state under Wiki Graph staging, not files inside the library folder.
+{% elif target.kind == "scope" and target.objectUri == "wikg://index" and predicate == "disable" %}
+Purpose:
+  Disable this library index and remove its current local materialization.
+
+Usage:
+  {{ commandName }} {{ uri }} disable [--json]
+
+Notes:
+  - This does not delete the library registry, metadata, folder, or managed `.wikg` archives.
+  - Library-wide query and list commands will fail until the index is enabled again.
+  - Library indexes do not support archive-style `embed` or `external` modes.
+{% elif target.kind == "scope" and predicate == "add" %}
+Purpose:
+  Copy a `.wikg` archive into this library folder and register it as a managed archive member.
+
+Usage:
+  {{ commandName }} {{ uri }} add --input <path> [--to <relative-wikg-path>] [--json]
+
+Notes:
+  - `--input` is a normal filesystem path, not a `wikg://` archive URI.
+  - Without `--to`, the archive is copied to the library folder using its basename.
+  - `--to` must be a relative `.wikg` path inside the library folder.
+  - Parent directories for `--to` are created as needed.
+  - Existing target files are not overwritten.
+  - Adding an archive marks the library index dirty.
+{% elif target.kind == "scope" and predicate == "scan" %}
+Purpose:
+  Reconcile this library registry with `.wikg` files currently under the library folder.
+
+Usage:
+  {{ commandName }} {{ uri }} scan [--json]
+
+Notes:
+  - Scan recursively discovers `.wikg` files in the bound library folder.
+  - Registered files that are no longer present remain visible as missing/stale instead of being deleted silently.
+  - When a moved archive can be matched by its stable mutation token, scan preserves its archive id and updates the relative path.
+  - Scan marks the library index dirty when membership changes.
 {% elif target.kind == "scope" and predicate == "rebind" %}
 Purpose:
   Bind this library to an existing directory, then scan/reconcile `.wikg` files in that directory.
@@ -45,36 +106,70 @@ Examples:
   {{ commandName }} {{ uri }} rebind --path /Volumes/Archive/wiki-library --json
 {% elif target.kind == "scope" and predicate == "get" %}
 Purpose:
-  Read a specific object in this library scope.
+  Read this library scope.
 
 Usage:
   {{ commandName }} {{ uri }} get [--json]
 
 Notes:
-  - This follows the normal URI scope contract.
-  - First-stage library support does not yet enumerate library members, so the help page is present even if the command currently returns an empty scope result.
+  - For a bare library URI, this reads the same membership listing as the default command.
+  - For concrete library-wide objects such as `{{ uri }}/entity/<qid>`, use the object URI directly or ask that URI for help.
 {% elif target.kind == "scope" and predicate == "list" %}
 Purpose:
-  Enumerate objects in this library scope.
+  List archive memberships in this library scope.
 
 Usage:
   {{ commandName }} {{ uri }} list [--json]
 
 Notes:
-  - This follows the normal URI scope contract.
-  - First-stage library support does not yet enumerate library members, so the help page is present even if the command currently returns an empty scope result.
+  - The output includes registered archive ids, relative paths, and membership status.
+  - Use `scan` when the folder contents changed outside Wiki Graph.
 {% elif target.kind == "scope" and predicate == "remove" %}
 Purpose:
   Remove this non-default library registry.
 
 Usage:
-  {{ commandName }} {{ uri }} remove [--json]
+  {{ commandName }} {{ uri }} remove --confirm [--json]
 
 Notes:
   - The default library is system-managed and cannot be removed.
-  - Removing a library deletes the core registry record and library metadata.
-  - Removing a library does not delete, inspect, scan, or clean the library folder.
-  - First-stage library support does not remove library index or archive membership because those are not created yet.
+  - Removing a library deletes its core registry record, metadata, membership records, and local derived index state.
+  - Removing a library does not delete the library folder or any `.wikg` files in it.
+  - `--confirm` is required.
+{% elif target.kind == "archive" and predicate == "get" %}
+Purpose:
+  Read this library archive membership record.
+
+Usage:
+  {{ commandName }} {{ uri }} [--json]
+
+Notes:
+  - This reads membership information, not archive content.
+  - Add archive object suffixes such as `/chapter`, `/entity`, or `/triple` to query the managed archive contents.
+{% elif target.kind == "archive" and predicate == "move" %}
+Purpose:
+  Move or rename this managed archive inside the same library folder.
+
+Usage:
+  {{ commandName }} {{ uri }} move --to <relative-wikg-path> [--json]
+
+Notes:
+  - `--to` must be a relative `.wikg` path inside the library folder.
+  - The archive public id and internal membership id stay the same.
+  - The target path must not already exist.
+  - Moving an archive marks the library index dirty.
+{% elif target.kind == "archive" and predicate == "remove" %}
+Purpose:
+  Delete this managed `.wikg` file from the library folder and unregister it.
+
+Usage:
+  {{ commandName }} {{ uri }} remove --confirm [--json]
+
+Notes:
+  - `--confirm` is required.
+  - If the registered file is already missing, the command can still clean the registry entry.
+  - This does not delete empty parent directories.
+  - Removing an archive marks the library index dirty.
 {% elif target.kind == "metadata" and predicate == "set" %}
 Purpose:
   Replace the whole library metadata map.

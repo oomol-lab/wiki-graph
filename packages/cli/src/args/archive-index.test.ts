@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { parseCLIArguments } from "./index.js";
-import { renderUriPredicateHelpText } from "./help.js";
+import {
+  renderLibraryPredicateHelpText,
+  renderLibraryUriHelpText,
+  renderUriHelpText,
+  renderUriPredicateHelpText,
+} from "./help.js";
 
 describe("cli/args/archive index", () => {
   it("parses archive index object commands", () => {
@@ -114,6 +119,45 @@ describe("cli/args/archive index", () => {
       help: false,
       kind: "library",
     });
+    expect(parseCLIArguments(["wikg://lib/index", "--help"])).toStrictEqual({
+      help: true,
+      helpText: renderLibraryUriHelpText("wikg://lib/index", {
+        isDefault: true,
+        kind: "scope",
+        objectUri: "wikg://index",
+      }),
+      kind: "help",
+    });
+    expect(
+      parseCLIArguments(["wikg://lib/index", "enable", "--help"]),
+    ).toStrictEqual({
+      help: true,
+      helpText: renderLibraryPredicateHelpText(
+        "wikg://lib/index",
+        {
+          isDefault: true,
+          kind: "scope",
+          objectUri: "wikg://index",
+        },
+        "enable",
+      ),
+      kind: "help",
+    });
+    expect(
+      parseCLIArguments(["wikg://lib/index", "disable", "--help"]),
+    ).toStrictEqual({
+      help: true,
+      helpText: renderLibraryPredicateHelpText(
+        "wikg://lib/index",
+        {
+          isDefault: true,
+          kind: "scope",
+          objectUri: "wikg://index",
+        },
+        "disable",
+      ),
+      kind: "help",
+    });
     expect(() =>
       parseCLIArguments(["wikg://lib/index", "enable", "--json"]),
     ).toThrow("Use --jsonl for line-delimited progress output.");
@@ -136,6 +180,63 @@ describe("cli/args/archive index", () => {
     ).toThrow(
       "The library index wikg://lib/team.lib/index does not support `external`.\nSee: wg wikg://lib/team.lib/index external --help",
     );
+  });
+
+  it("renders library v1 management help without routing to execution", () => {
+    expect(parseCLIArguments(["wikg://lib", "scan", "--help"])).toStrictEqual({
+      help: true,
+      helpText: renderLibraryPredicateHelpText(
+        "wikg://lib",
+        { isDefault: true, kind: "scope" },
+        "scan",
+      ),
+      kind: "help",
+    });
+    expect(parseCLIArguments(["wikg://lib", "add", "--help"])).toStrictEqual({
+      help: true,
+      helpText: renderLibraryPredicateHelpText(
+        "wikg://lib",
+        { isDefault: true, kind: "scope" },
+        "add",
+      ),
+      kind: "help",
+    });
+    expect(
+      parseCLIArguments(["wikg://lib/archive123", "remove", "--help"]),
+    ).toStrictEqual({
+      help: true,
+      helpText: renderLibraryPredicateHelpText(
+        "wikg://lib/archive123",
+        {
+          archivePublicId: "archive123",
+          isDefault: true,
+          kind: "archive",
+        },
+        "remove",
+      ),
+      kind: "help",
+    });
+  });
+
+  it("renders library-wide object help through URI help templates", () => {
+    expect(
+      parseCLIArguments(["wikg://lib/entity/Q23", "--help"]),
+    ).toStrictEqual({
+      help: true,
+      helpText: renderUriHelpText("entity-object", "wikg://lib/entity/Q23"),
+      kind: "help",
+    });
+    expect(
+      parseCLIArguments(["wikg://lib/entity/Q23", "evidence", "--help"]),
+    ).toStrictEqual({
+      help: true,
+      helpText: renderUriPredicateHelpText(
+        "entity-object",
+        "evidence",
+        "wikg://lib/entity/Q23",
+      ),
+      kind: "help",
+    });
   });
 
   it("parses library rebind only on library scope URIs", () => {

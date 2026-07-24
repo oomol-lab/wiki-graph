@@ -75,6 +75,8 @@ export type UriHelpPredicateName =
   | "test"
   | "watch";
 
+export type LibraryHelpPredicateName = CLILibraryAction | "disable" | "enable";
+
 interface UriHelpTarget {
   readonly name: UriHelpTargetName;
   readonly predicates: readonly UriHelpPredicateName[];
@@ -288,7 +290,7 @@ export function renderLibraryUriHelpText(
 export function renderLibraryPredicateHelpText(
   uri: string,
   target: ParsedWikiGraphLibraryUri,
-  predicate: CLILibraryAction,
+  predicate: LibraryHelpPredicateName,
 ): string {
   return renderHelpTemplate("help/commands/library-predicate", {
     predicate,

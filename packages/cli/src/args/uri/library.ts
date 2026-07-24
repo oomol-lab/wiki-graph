@@ -7,6 +7,10 @@ import { withHelpRoute } from "../../support/index.js";
 import {
   renderLibraryPredicateHelpText,
   renderLibraryUriHelpText,
+  renderUriHelpText,
+  renderUriPredicateHelpText,
+  isUriHelpPredicate,
+  type UriHelpTargetName,
 } from "../help.js";
 import type {
   ArchiveArgumentValues,
@@ -21,6 +25,8 @@ import {
   stripObjectUriPrefix,
 } from "../helpers.js";
 import { parseArchiveArguments } from "../archive.js";
+import { parseChapterTarget } from "./chapter/target.js";
+import { isTripleScopePath } from "./triple-pattern.js";
 
 const LIBRARY_ARCHIVE_ACTIONS = new Set(["get", "move", "remove"]);
 const LIBRARY_METADATA_ACTIONS = new Set([
@@ -65,14 +71,6 @@ export function parseLibraryUriFirstArguments(
     throw new Error(`Expected a Wiki Graph library URI: ${uri}`);
   }
 
-  if (values.help === true && explicitAction === undefined) {
-    return {
-      help: true,
-      helpText: renderLibraryUriHelpText(uri, target),
-      kind: "help",
-    };
-  }
-
   const action =
     explicitAction ??
     (target.kind === "scope" &&
@@ -84,6 +82,10 @@ export function parseLibraryUriFirstArguments(
         : target.kind === "archive"
           ? "get"
           : "list");
+
+  if (values.help === true) {
+    return parseLibraryHelpArguments(uri, target, action, explicitAction);
+  }
 
   if (target.kind === "scope" && target.objectUri === "wikg://index") {
     return parseLibraryIndexArguments(
@@ -118,14 +120,6 @@ export function parseLibraryUriFirstArguments(
   }
   validateLibraryActionForTarget(uri, target, action);
 
-  if (values.help === true) {
-    return {
-      help: true,
-      helpText: renderLibraryPredicateHelpText(uri, target, action),
-      kind: "help",
-    };
-  }
-
   if (target.kind === "archive") {
     return parseLibraryArchiveArguments(
       uri,
@@ -153,6 +147,150 @@ export function parseLibraryUriFirstArguments(
     explicitAction === undefined ? [] : positionals.slice(2),
     values,
   );
+}
+
+function parseLibraryHelpArguments(
+  uri: string,
+  target: ParsedWikiGraphLibraryUri,
+  action: string,
+  explicitAction: string | undefined,
+): ParsedCLIArguments {
+  if (target.kind === "scope" && target.objectUri === "wikg://index") {
+    if (explicitAction === undefined) {
+      return {
+        help: true,
+        helpText: renderLibraryUriHelpText(uri, target),
+        kind: "help",
+      };
+    }
+    if (!LIBRARY_INDEX_ACTIONS.has(action)) {
+      throw new Error(
+        withHelpRoute(
+          `The library index ${uri} does not support \`${action}\`.`,
+          formatWikiGraphHelpCommand(uri),
+        ),
+      );
+    }
+    return {
+      help: true,
+      helpText: renderLibraryPredicateHelpText(
+        uri,
+        target,
+        action as CLILibraryAction,
+      ),
+      kind: "help",
+    };
+  }
+
+  if (target.kind === "scope" && target.objectUri !== undefined) {
+    const helpTarget = classifyLibraryObjectHelpTarget(target.objectUri);
+    if (explicitAction === undefined) {
+      return {
+        help: true,
+        helpText: renderUriHelpText(helpTarget, uri),
+        kind: "help",
+      };
+    }
+    if (!isUriHelpPredicate(helpTarget, action)) {
+      throw new Error(
+        withHelpRoute(
+          `The library URI target ${uri} does not support \`${action}\`.`,
+          formatWikiGraphHelpCommand(uri),
+        ),
+      );
+    }
+    return {
+      help: true,
+      helpText: renderUriPredicateHelpText(helpTarget, action, uri),
+      kind: "help",
+    };
+  }
+
+  if (!isLibraryAction(action)) {
+    throw new Error(
+      withHelpRoute(
+        `The library URI target ${uri} does not support \`${action}\`.`,
+        formatWikiGraphHelpCommand(uri),
+      ),
+    );
+  }
+  validateLibraryActionForTarget(uri, target, action);
+  return {
+    help: true,
+    helpText:
+      explicitAction === undefined
+        ? renderLibraryUriHelpText(uri, target)
+        : renderLibraryPredicateHelpText(uri, target, action),
+    kind: "help",
+  };
+}
+
+function classifyLibraryObjectHelpTarget(objectUri: string): UriHelpTargetName {
+  const path = stripObjectUriPrefix(objectUri);
+  const chapterTarget = parseChapterTarget(objectUri);
+  if (chapterTarget !== undefined) {
+    switch (chapterTarget.kind) {
+      case "collection":
+        return "chapter-collection-scope";
+      case "chapter":
+        return "chapter-scope";
+      case "tree":
+        return "chapter-tree-object";
+      case "chapter-state":
+        return "chapter-state-object";
+      case "chapter-resource":
+        switch (chapterTarget.resource) {
+          case "source":
+            return "chapter-source-object";
+          case "summary":
+            return "chapter-summary-object";
+          case "title":
+            return "chapter-title-object";
+        }
+        break;
+      case "lens":
+      case "chapter-lens":
+        switch (chapterTarget.lens) {
+          case "chunk":
+            return "chunk-scope";
+          case "entity":
+            return "entity-scope";
+          case "source":
+            return "chapter-source-object";
+          case "summary":
+            return "chapter-summary-object";
+          case "triple":
+            return "triple-scope";
+        }
+        break;
+      case "triple-pattern-lens":
+      case "chapter-triple-pattern-lens":
+        return "triple-scope";
+    }
+  }
+  if (path === "chunk") {
+    return "chunk-scope";
+  }
+  if (/^chunk\/.+$/u.test(path)) {
+    return "chunk-object";
+  }
+  if (path === "entity") {
+    return "entity-scope";
+  }
+  if (/^entity\/[^/]+\/wikipage$/u.test(path)) {
+    return "entity-wikipage-object";
+  }
+  if (/^entity\/.+$/u.test(path)) {
+    return "entity-object";
+  }
+  if (isTripleScopePath(path)) {
+    return "triple-scope";
+  }
+  if (/^triple(?:\/.*)?$/u.test(path)) {
+    return "triple-object";
+  }
+
+  return "archive-scope";
 }
 
 function parseLibraryQueryArguments(

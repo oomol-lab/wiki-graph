@@ -29,15 +29,54 @@ Predicate commands:
   - put: write one metadata key. Help: {{ commandName }} {{ uri }} put --help
   - delete: delete one metadata key. Help: {{ commandName }} {{ uri }} delete --help
   - clear: clear the metadata map. Help: {{ commandName }} {{ uri }} clear --help
+{% elif target.kind == "archive" %}
+Library archive membership
+
+Default behavior:
+  - `{{ commandName }} {{ uri }}` reads the registry entry for this library archive member.
+  - The membership entry identifies the archive id, relative path, status, and containing library.
+  - Add archive object suffixes such as `/chapter`, `/entity`, or `/triple` when you want to query the archive contents.
+
+Use when:
+  - You need to inspect, move, or remove one archive that is already managed by a library.
+
+Usage:
+  {{ commandName }} {{ uri }} [--json]
+  {{ commandName }} {{ uri }} move --to <relative-wikg-path> [--json]
+  {{ commandName }} {{ uri }} remove --confirm [--json]
+
+Predicate commands:
+  - move: move or rename this archive inside the same library folder without changing its archive id. Help: {{ commandName }} {{ uri }} move --help
+  - remove: delete this archive file from the library folder and unregister it. Help: {{ commandName }} {{ uri }} remove --help
+{% elif target.kind == "scope" and target.objectUri == "wikg://index" %}
+Library index object
+
+Default behavior:
+  - `{{ commandName }} {{ uri }}` reads this library index status.
+  - Library index data is stored in local Wiki Graph staging state, not in the library folder.
+  - Library-wide `--query`, list, evidence, related, and pack commands require a current library index.
+
+Use when:
+  - You need to build, inspect, or drop the aggregate search index for a library.
+
+Usage:
+  {{ commandName }} {{ uri }} [--json]
+  {{ commandName }} {{ uri }} enable [--jsonl]
+  {{ commandName }} {{ uri }} disable [--json]
+
+Predicate commands:
+  - enable: rebuild this library index from registered present archives. Help: {{ commandName }} {{ uri }} enable --help
+  - disable: remove this library index materialization. Help: {{ commandName }} {{ uri }} disable --help
 {% else %}
 Library scope
 
 Default behavior:
-  - `{{ commandName }} {{ uri }}` enumerates objects in this library scope.
-  - First-stage library support does not scan the library folder, so the scope can be empty even when the folder contains `.wikg` files.
+  - `{{ commandName }} {{ uri }}` lists archive memberships registered in this library.
+  - `{{ commandName }} {{ uri }} scan` reconciles membership with `.wikg` files currently under the library folder.
+  - Library-wide object scopes such as `/entity` and `/triple` query the library index after it is enabled.
 
 Use when:
-  - You need the library entry point before future library-level archive enumeration or search.
+  - You need to manage a folder of `.wikg` archives as one library.
   - You already moved or prepared a library folder and need Wiki Graph to bind this library to that existing directory.
 {% if target.isDefault %}
   - You need to create another library registry.
@@ -54,20 +93,32 @@ Usage:
 {% if target.isDefault %}
   {{ commandName }} wikg://lib
   {{ commandName }} wikg://lib create --path <folder> [--json]
+  {{ commandName }} wikg://lib scan [--json]
+  {{ commandName }} wikg://lib add --input <path> [--to <relative-wikg-path>] [--json]
   {{ commandName }} wikg://lib rebind --path <existing-directory> [--json]
+  {{ commandName }} wikg://lib/index [--json]
+  {{ commandName }} wikg://lib/entity --query <query>
   {{ commandName }} wikg://lib/meta [--json]
 {% else %}
   {{ commandName }} {{ uri }}
+  {{ commandName }} {{ uri }} scan [--json]
+  {{ commandName }} {{ uri }} add --input <path> [--to <relative-wikg-path>] [--json]
   {{ commandName }} {{ uri }} rebind --path <existing-directory> [--json]
-  {{ commandName }} {{ uri }} remove [--json]
+  {{ commandName }} {{ uri }} remove --confirm [--json]
+  {{ commandName }} {{ uri }}/index [--json]
+  {{ commandName }} {{ uri }}/entity --query <query>
   {{ commandName }} {{ uri }}/meta [--json]
 {% endif %}
 
 Predicate commands:
 {% if target.isDefault %}
   - create: create a non-default library registry and an empty folder. Help: {{ commandName }} wikg://lib create --help
+  - scan: reconcile registered archive memberships with `.wikg` files under the library folder. Help: {{ commandName }} wikg://lib scan --help
+  - add: copy a `.wikg` file into the library folder and register it. Help: {{ commandName }} wikg://lib add --help
   - rebind: bind the default library to an existing directory, then scan/reconcile its `.wikg` files. Help: {{ commandName }} wikg://lib rebind --help
 {% else %}
+  - scan: reconcile registered archive memberships with `.wikg` files under the library folder. Help: {{ commandName }} {{ uri }} scan --help
+  - add: copy a `.wikg` file into the library folder and register it. Help: {{ commandName }} {{ uri }} add --help
   - rebind: bind this library to an existing directory, then scan/reconcile its `.wikg` files. Help: {{ commandName }} {{ uri }} rebind --help
   - remove: remove this library registry without deleting its folder. Help: {{ commandName }} {{ uri }} remove --help
 {% endif %}

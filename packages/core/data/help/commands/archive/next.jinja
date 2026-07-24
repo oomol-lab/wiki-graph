@@ -10,19 +10,22 @@ Use when:
 
 Usage:
   {{ commandName }} next <cursor> [--limit <n>] [--json|--jsonl] [--help|-h]
-  {{ commandName }} next <archive-uri> <cursor> [--limit <n>] [--json|--jsonl] [--help|-h]
+  {{ commandName }} next <uri> <cursor> [--limit <n>] [--json|--jsonl] [--help|-h]
 
 Returns:
   - The next result page for the cursor.
 
 Notes:
   - Cursors are opaque short tokens stored in local Wiki Graph state.
-  - Passing `<archive-uri>` is optional; when provided, it must match the archive stored in the cursor.
+  - A cursor stores the index scope that produced it, such as a standalone archive index or a library index.
+  - Passing `<uri>` is optional; when provided, it is used only as a safety check and must match the cursor's stored index scope.
+  - Library cursors re-check that the library index is still current before continuing.
   - Use `--limit` to override the next page size.
 
 Examples:
   {{ commandName }} next c_7Kp9x2aQ
   {{ commandName }} next wikg:///books/book.wikg c_7Kp9x2aQ
+  {{ commandName }} next wikg://lib c_7Kp9x2aQ
 
 Related help:
   - URI scopes, pagination, JSON, and JSONL result shapes:

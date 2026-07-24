@@ -25,7 +25,7 @@ Generation job behavior:
   - Reading Graph, Reading Summary, and Knowledge Graph generation run as device-local jobs.
   - Generation jobs consume LLM tokens, may incur provider charges, and can run for minutes to hours on large archives.
   - `wikg://local/job add` requires `--accept-cost` as an explicit cost/time acknowledgement.
-  - Job records live under `~/.{{ commandName }}/jobs`.
+  - Job records live under `~/.wikigraph/jobs`.
   - `wikg://local/job add`, `wikg://local/job/<job-id> resume`, `wikg://local/job/<job-id> boost`, and `wikg://local/job/<job-id>/target set` try to start a transient worker.
   - The worker exits after idle time; it is not intended to be a permanent daemon.
   - `wikg://local/job/<job-id> watch --jsonl` is the stable agent-facing progress stream.
@@ -41,7 +41,7 @@ Progress and diagnostics:
 Workspace behavior:
   - Archive creation and EPUB import use temporary workspaces.
   - `transform --digest-dir <path>` uses the provided digest workspace for source digest runs.
-  - Generation jobs use per-job directories under `~/.{{ commandName }}/jobs/work`, `~/.{{ commandName }}/jobs/cache`, and `~/.{{ commandName }}/jobs/logs`.
+  - Generation jobs use per-job directories under `~/.wikigraph/jobs/work`, `~/.wikigraph/jobs/cache`, and `~/.wikigraph/jobs/logs`.
   - Succeeded jobs delete their workspace by default.
   - Failed and canceled jobs keep their workspace for debugging until cleanup.
   - Job events, logs, and LLM cache are kept until the job record is cleaned.
@@ -49,7 +49,7 @@ Workspace behavior:
 In-place archive edits:
   - Mutating `.wikg` commands go through the archive coordinator.
   - Active generation jobs block destructive chapter maintenance edits for the same chapter.
-  - Archive writes are coordinated through `~/.{{ commandName }}/staging`.
+  - Archive writes are coordinated through `~/.wikigraph/staging`.
 
 Where to go next:
   - Need the normal workflow before debugging:
