@@ -1,18 +1,20 @@
 import { execFileSync } from "child_process";
-import { rmSync } from "fs";
-import { delimiter, join, resolve } from "path";
+import { delimiter, resolve } from "path";
+import {
+  getLocalGlobalDir,
+  removeLocalInstallState,
+} from "./local-cli-install-state.mjs";
 
 const workspaceRoot = resolve(import.meta.dirname, "..");
 const globalBinDir = execFileSync("pnpm", ["bin", "--global"], {
   cwd: workspaceRoot,
   encoding: "utf8",
 }).trim();
-const localGlobalDir = join(globalBinDir, ".wiki-graph-local-global");
+const localGlobalDir = getLocalGlobalDir(globalBinDir);
 const pnpmGlobalEnv = {
   ...process.env,
   PATH: [globalBinDir, process.env.PATH].filter(Boolean).join(delimiter),
 };
-
 try {
   execFileSync(
     "pnpm",
@@ -31,5 +33,5 @@ try {
     },
   );
 } finally {
-  rmSync(localGlobalDir, { force: true, recursive: true });
+  removeLocalInstallState(globalBinDir);
 }

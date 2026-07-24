@@ -1,6 +1,10 @@
 import { execFileSync } from "child_process";
 import { mkdirSync } from "fs";
 import { delimiter, isAbsolute, join, resolve } from "path";
+import {
+  getLocalGlobalDir,
+  removeLocalInstallState,
+} from "./local-cli-install-state.mjs";
 
 const workspaceRoot = resolve(import.meta.dirname, "..");
 const cliRoot = join(workspaceRoot, "packages", "cli");
@@ -8,7 +12,7 @@ const globalBinDir = execFileSync("pnpm", ["bin", "--global"], {
   cwd: workspaceRoot,
   encoding: "utf8",
 }).trim();
-const localGlobalDir = join(globalBinDir, ".wiki-graph-local-global");
+const localGlobalDir = getLocalGlobalDir(globalBinDir);
 const packRoot = join(localGlobalDir, "packs");
 const pnpmGlobalEnv = {
   ...process.env,
@@ -30,12 +34,13 @@ function readTarballPath(packOutput) {
   return isAbsolute(filename) ? filename : join(packRoot, filename);
 }
 
-mkdirSync(packRoot, { recursive: true });
-
 execFileSync("pnpm", ["build"], {
   cwd: workspaceRoot,
   stdio: "inherit",
 });
+
+removeLocalInstallState(globalBinDir);
+mkdirSync(packRoot, { recursive: true });
 
 const packOutput = execFileSync(
   "pnpm",
