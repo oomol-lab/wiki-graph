@@ -272,7 +272,7 @@ describe("archive/query/archive-view/index", () => {
     });
   });
 
-  it("marks the FTS index outdated when indexed content changes without a chapters revision bump", async () => {
+  it("does not rebuild index projections while checking search index status", async () => {
     await withTempDir("wikigraph-archive-view-", async (path) => {
       const document = await DirectoryDocument.open(`${path}/document`);
 
@@ -302,6 +302,10 @@ describe("archive/query/archive-view/index", () => {
           draft.addSentence("New sentence after index build.", 5);
           await draft.commit();
         });
+
+        await expect(isArchiveSearchIndexCurrent(document)).resolves.toBe(true);
+
+        await markDirtySearchIndexChapters(document, [1]);
 
         await expect(isArchiveSearchIndexCurrent(document)).resolves.toBe(
           false,

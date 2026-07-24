@@ -1,19 +1,11 @@
 import { mkdir, rename, rm } from "fs/promises";
 import { dirname } from "path";
 
-import { createArchiveSearchIndexFingerprint } from "../../../retrieval/query/index.js";
-import { createWikiGraphTempDirectory } from "../../../runtime/common/wiki-graph/temp.js";
-import {
-  Database as DocumentDatabase,
-  DirectoryDocument,
-} from "../../../document/index.js";
+import { Database as DocumentDatabase } from "../../../document/index.js";
 import { ensureWikiGraphHomeSchemaCurrent } from "../../../document/home-schema-upgrade.js";
 import { readSearchIndexFingerprintFromDatabase } from "../../../retrieval/search-index/index.js";
 
-import {
-  extractWikgArchive,
-  readWikgArchiveMutationToken,
-} from "../archive/index.js";
+import { readWikgArchiveMutationToken } from "../archive/index.js";
 
 import { createArchiveSignature, pathExists } from "./archive-key.js";
 import {
@@ -45,16 +37,16 @@ export async function readSearchIndexCacheStatus(
   }
 
   try {
-    const [indexedFingerprint, currentFingerprint] = await Promise.all([
-      readSearchIndexCacheFingerprint(overlay.workspacePath),
-      createCurrentArchiveSearchIndexFingerprint(overlay.archivePath),
-    ]);
+    const indexedFingerprint = await readSearchIndexCacheFingerprint(
+      overlay.workspacePath,
+    );
+    const currentSignature = await createArchiveSignature(overlay.archivePath);
 
     if (indexedFingerprint === undefined) {
       return "dirty";
     }
 
-    return indexedFingerprint === currentFingerprint ? "current" : "dirty";
+    return overlay.archiveSignature === currentSignature ? "current" : "dirty";
   } catch {
     return "dirty";
   }
@@ -72,25 +64,6 @@ async function readSearchIndexCacheFingerprint(
     return await readSearchIndexFingerprintFromDatabase(database);
   } finally {
     await database.close();
-  }
-}
-
-async function createCurrentArchiveSearchIndexFingerprint(
-  archivePath: string,
-): Promise<string> {
-  const directoryPath = await createWikiGraphTempDirectory("archive-open");
-
-  try {
-    await extractWikgArchive(archivePath, directoryPath);
-    const document = await DirectoryDocument.open(directoryPath);
-
-    try {
-      return await createArchiveSearchIndexFingerprint(document);
-    } finally {
-      await document.release();
-    }
-  } finally {
-    await rm(directoryPath, { force: true, recursive: true });
   }
 }
 

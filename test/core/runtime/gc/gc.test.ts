@@ -336,7 +336,7 @@ describe("gc", () => {
     });
   });
 
-  it("removes external fts sqlite cache when the archive fingerprint changes", async () => {
+  it("removes external fts sqlite cache when the archive signature changes", async () => {
     await withTempDir("wikigraph-gc-", async (path) => {
       setWikiGraphStateDirectoryPathForTesting(join(path, "state"));
       const { archivePath, ftsPath } =

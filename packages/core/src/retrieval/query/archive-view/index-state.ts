@@ -61,10 +61,7 @@ export async function isArchiveSearchIndexCurrent(
 export async function readArchiveSearchIndexStatus(
   document: ReadonlyDocument,
 ): Promise<"current" | "dirty" | "missing"> {
-  return await readSearchIndexStatus(
-    document,
-    await buildArchiveIndexProjection(document),
-  );
+  return await readSearchIndexStatus(document);
 }
 
 export async function clearDirtyArchiveSearchIndex(
