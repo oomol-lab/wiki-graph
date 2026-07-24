@@ -47,6 +47,7 @@ web_modules/
 *.tsbuildinfo
 .spinedigest/
 .wikigraph/
+.worktrees/
 test/.reports/
 
 # Optional eslint cache
