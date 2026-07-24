@@ -7,6 +7,7 @@ import { Database } from "../../../../packages/core/src/document/index.js";
 import {
   createSearchSession,
   deleteArchiveSearchSessions,
+  readEntitySearchSessionPage,
 } from "../../../../packages/core/src/retrieval/query/search-cache/index.js";
 import {
   getWikiGraphStateDirectoryPathForTesting,
@@ -134,6 +135,43 @@ describe("archive/query/search-cache", () => {
       await deleteArchiveSearchSessions("archive-a");
 
       await expect(listPredicates(path)).resolves.toStrictEqual(["mentions"]);
+    });
+  });
+
+  it("keeps same-qid entity hits isolated by archive id", async () => {
+    await withTempDir("wikigraph-search-cache-", async (path) => {
+      setWikiGraphStateDirectoryPathForTesting(path);
+
+      const sessionId = await createSearchSession({
+        archiveKey: "library-key",
+        chapters: null,
+        entityHits: [
+          { archiveId: 1, propertyTopScores: [1], qid: "Q1" },
+          { archiveId: 2, propertyTopScores: [1], qid: "Q1" },
+        ],
+        items: [],
+        lens: "broad",
+        match: "any",
+        order: "rank",
+        query: "query",
+        revisionScope: JSON.stringify({ libraryRevision: 1, scope: "all" }),
+        terms: ["query"],
+        types: ["entity"],
+      });
+
+      const page = await readEntitySearchSessionPage(
+        sessionId,
+        0,
+        10,
+        "library-key",
+      );
+
+      expect(page.items.map((item) => [item.id, item.archiveId])).toStrictEqual(
+        [
+          ["wikg://entity/Q1", 1],
+          ["wikg://entity/Q1", 2],
+        ],
+      );
     });
   });
 

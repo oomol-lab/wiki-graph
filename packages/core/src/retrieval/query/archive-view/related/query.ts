@@ -103,7 +103,7 @@ export async function filterAndSortEntityRelatedTriplesByQuery(
       .map(
         (hit) =>
           [
-            createSentenceHitKey(hit.chapterId, hit.sentenceIndex),
+            createSentenceHitKey(0, hit.chapterId, hit.sentenceIndex),
             hit.score,
           ] as const,
       ),
@@ -139,7 +139,7 @@ export async function filterAndSortEntityRelatedTriplesByQuery(
         ...(item.evidenceLinks ?? []).flatMap((link) =>
           link.evidenceSentenceIds.flatMap(([chapterId, sentenceIndex]) => {
             const score = sentenceScores.get(
-              createSentenceHitKey(chapterId, sentenceIndex),
+              createSentenceHitKey(0, chapterId, sentenceIndex),
             );
 
             return score === undefined ? [] : [score];

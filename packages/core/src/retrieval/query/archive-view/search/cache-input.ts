@@ -56,18 +56,24 @@ export function createEntitySearchCacheInput(
   readonly evidenceEvents: readonly SearchEvidenceHitEventInput[];
 } {
   const evidenceEvents: SearchEvidenceHitEventInput[] = [];
-  const evidenceScoresByQid = new Map<string, number[]>();
-  const propertyScoresByQid = new Map<string, number[]>();
+  const evidenceScoresByEntity = new Map<string, number[]>();
+  const propertyScoresByEntity = new Map<string, number[]>();
+  const entitiesByKey = new Map<
+    string,
+    { readonly archiveId: number; readonly qid: string }
+  >();
 
   for (const hit of indexResult?.objectHits ?? []) {
     if (hit.ownerKind !== SEARCH_OBJECT_PROPERTY_OWNER_KIND.entity) {
       continue;
     }
 
-    const scores = propertyScoresByQid.get(hit.ownerId) ?? [];
+    const key = createScopedObjectKey(hit.archiveId, hit.ownerId);
+    const scores = propertyScoresByEntity.get(key) ?? [];
 
     scores.push(hit.score);
-    propertyScoresByQid.set(hit.ownerId, scores);
+    propertyScoresByEntity.set(key, scores);
+    entitiesByKey.set(key, { archiveId: hit.archiveId, qid: hit.ownerId });
   }
 
   for (const hit of hits) {
@@ -81,7 +87,9 @@ export function createEntitySearchCacheInput(
       continue;
     }
 
-    const scores = evidenceScoresByQid.get(qid) ?? [];
+    const archiveId = hit.archiveId ?? 0;
+    const key = createScopedObjectKey(archiveId, qid);
+    const scores = evidenceScoresByEntity.get(key) ?? [];
 
     for (const evidenceMention of hit.evidenceMentions) {
       const sentenceIndex = evidenceMention.mention.sentenceIndex;
@@ -93,6 +101,7 @@ export function createEntitySearchCacheInput(
       const score = evidenceMention.match.score ?? hit.score ?? 0;
 
       evidenceEvents.push({
+        archiveId,
         chapterId: evidenceMention.mention.chapterId,
         evidenceId: evidenceMention.mention.id,
         evidenceKind: SEARCH_EVIDENCE_KIND.mention,
@@ -102,20 +111,30 @@ export function createEntitySearchCacheInput(
       scores.push(score);
     }
 
-    evidenceScoresByQid.set(qid, scores);
+    evidenceScoresByEntity.set(key, scores);
+    entitiesByKey.set(key, { archiveId, qid });
   }
 
   const qids = new Set([
-    ...evidenceScoresByQid.keys(),
-    ...propertyScoresByQid.keys(),
+    ...evidenceScoresByEntity.keys(),
+    ...propertyScoresByEntity.keys(),
   ]);
 
   return {
-    entityHits: [...qids].map((qid) => ({
-      evidenceTopScores: evidenceScoresByQid.get(qid) ?? [],
-      propertyTopScores: propertyScoresByQid.get(qid) ?? [],
-      qid,
-    })),
+    entityHits: [...qids].map((key) => {
+      const entity = entitiesByKey.get(key);
+
+      if (entity === undefined) {
+        throw new Error("Internal error: missing scoped entity key.");
+      }
+
+      return {
+        archiveId: entity.archiveId,
+        evidenceTopScores: evidenceScoresByEntity.get(key) ?? [],
+        propertyTopScores: propertyScoresByEntity.get(key) ?? [],
+        qid: entity.qid,
+      };
+    }),
     evidenceEvents,
   };
 }
@@ -154,14 +173,17 @@ export async function createSentenceEvidenceSearchCacheInput(
 
   const sourceHitScores = new Map<string, number>();
   const chapterIds = new Set<number>();
+  const archiveIds = new Set<number>();
 
   for (const hit of sourceHits) {
     sourceHitScores.set(
-      createSentenceHitKey(hit.chapterId, hit.sentenceIndex),
+      createSentenceHitKey(hit.archiveId, hit.chapterId, hit.sentenceIndex),
       hit.score,
     );
     chapterIds.add(hit.chapterId);
+    archiveIds.add(hit.archiveId);
   }
+  const archiveId = archiveIds.size === 1 ? ([...archiveIds][0] ?? 0) : 0;
 
   const evidenceEvents: SearchEvidenceHitEventInput[] = [];
   const entityEvidenceScoresByQid = new Map<string, number[]>();
@@ -183,7 +205,7 @@ export async function createSentenceEvidenceSearchCacheInput(
       }
 
       const score = sourceHitScores.get(
-        createSentenceHitKey(chapterId, mention.sentenceIndex),
+        createSentenceHitKey(archiveId, chapterId, mention.sentenceIndex),
       );
 
       if (score === undefined) {
@@ -191,6 +213,7 @@ export async function createSentenceEvidenceSearchCacheInput(
       }
 
       evidenceEvents.push({
+        archiveId,
         chapterId,
         evidenceId: mention.id,
         evidenceKind: SEARCH_EVIDENCE_KIND.mention,
@@ -206,7 +229,7 @@ export async function createSentenceEvidenceSearchCacheInput(
     for (const chunk of await document.chunks.listBySerial(chapterId)) {
       for (const [, sentenceIndex] of chunk.sentenceIds) {
         const score = sourceHitScores.get(
-          createSentenceHitKey(chapterId, sentenceIndex),
+          createSentenceHitKey(archiveId, chapterId, sentenceIndex),
         );
 
         if (score === undefined) {
@@ -214,6 +237,7 @@ export async function createSentenceEvidenceSearchCacheInput(
         }
 
         evidenceEvents.push({
+          archiveId,
           chapterId,
           evidenceId: String(chunk.id),
           evidenceKind: SEARCH_EVIDENCE_KIND.chunk,
@@ -244,7 +268,7 @@ export async function createSentenceEvidenceSearchCacheInput(
         sentenceIndex,
       ] of link.evidenceSentenceIds) {
         const score = sourceHitScores.get(
-          createSentenceHitKey(evidenceChapterId, sentenceIndex),
+          createSentenceHitKey(archiveId, evidenceChapterId, sentenceIndex),
         );
 
         if (score === undefined) {
@@ -252,6 +276,7 @@ export async function createSentenceEvidenceSearchCacheInput(
         }
 
         evidenceEvents.push({
+          archiveId,
           chapterId: evidenceChapterId,
           evidenceId: link.id,
           evidenceKind: SEARCH_EVIDENCE_KIND.mentionLink,
@@ -276,18 +301,21 @@ export async function createSentenceEvidenceSearchCacheInput(
   return {
     chunkHits: [...chunkEvidenceScoresById.entries()].map(
       ([chunkId, scores]) => ({
+        archiveId,
         chunkId,
         evidenceTopScores: scores,
       }),
     ),
     entityHits: [...entityEvidenceScoresByQid.entries()].map(
       ([qid, scores]) => ({
+        archiveId,
         evidenceTopScores: scores,
         qid,
       }),
     ),
     evidenceEvents,
     tripleHits: [...tripleEvidenceScoresByKey.values()].map((hit) => ({
+      archiveId,
       evidenceTopScores: hit.scores,
       objectQid: hit.objectQid,
       predicate: hit.predicate,
@@ -297,8 +325,13 @@ export async function createSentenceEvidenceSearchCacheInput(
 }
 
 export function createSentenceHitKey(
+  archiveId: number,
   chapterId: number,
   sentenceIndex: number,
 ): string {
-  return `${chapterId}:${sentenceIndex}`;
+  return `${archiveId}:${chapterId}:${sentenceIndex}`;
+}
+
+function createScopedObjectKey(archiveId: number, objectId: string): string {
+  return `${archiveId}:${objectId}`;
 }

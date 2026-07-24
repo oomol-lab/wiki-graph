@@ -8,6 +8,10 @@ import { SEARCH_INDEX_SCHEMA_SQL } from "../document/schema.js";
 import { openSharedStateDatabase } from "../document/index.js";
 import { WikiGraphArchiveFile } from "../storage/wikg/index.js";
 import { streamArchiveIndexProjection } from "../retrieval/query/archive-view/index-state.js";
+import type {
+  ArchiveFindMatch,
+  ArchiveFindObjectType,
+} from "../retrieval/query/archive-view/types.js";
 import {
   markDirtySearchIndexChapters,
   finalizeSearchIndexReplacement,
@@ -77,8 +81,17 @@ export interface WikiGraphLibraryIndexListOptions {
 }
 
 export interface WikiGraphLibraryIndexQueryOptions {
+  readonly match?: ArchiveFindMatch;
   readonly objectHitLimit?: number;
+  readonly textAfter?: {
+    readonly archiveId: number;
+    readonly chapterId: number;
+    readonly kind: TextSentenceKind;
+    readonly rank: number;
+    readonly sentenceIndex: number;
+  };
   readonly textHitLimit?: number;
+  readonly types?: readonly ArchiveFindObjectType[] | null;
 }
 
 export type WikiGraphLibraryIndexObjectHit = SearchIndexObjectHit & {

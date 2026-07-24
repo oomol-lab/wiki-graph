@@ -51,6 +51,7 @@ export async function readSearchSessionChunkBucketPage(
     return await database.queryAll(
       `
         SELECT
+          archive_id,
           chunk_id,
           result_score
         FROM search_chunk_hits
@@ -61,26 +62,40 @@ export async function readSearchSessionChunkBucketPage(
               : `
                 AND (
                   result_score < ?
-                  OR (result_score = ? AND chunk_id > ?)
+                  OR (
+                    result_score = ?
+                    AND (
+                      archive_id > ?
+                      OR (archive_id = ? AND chunk_id > ?)
+                    )
+                  )
                 )
               `
           }
-        ORDER BY result_score DESC, chunk_id
+        ORDER BY result_score DESC, archive_id, chunk_id
         LIMIT ?
       `,
       [
         sessionId,
         ...(after === undefined
           ? []
-          : [after.score, after.score, after.chunkId]),
+          : [
+              after.score,
+              after.score,
+              after.archiveId,
+              after.archiveId,
+              after.chunkId,
+            ]),
         limit + 1,
       ],
       (row) => {
+        const archiveId = getNumber(row, "archive_id");
         const chunkId = getNumber(row, "chunk_id");
 
         return {
           field: "title",
           id: `wikg://chunk/${chunkId}`,
+          ...(archiveId === 0 ? {} : { archiveId }),
           score: getNumber(row, "result_score"),
           snippet: `chunk ${chunkId}`,
           title: `chunk ${chunkId}`,

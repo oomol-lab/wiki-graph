@@ -22,7 +22,11 @@ import {
 import { readTextStreamRange } from "../text-streams.js";
 import { TEXT_ONLY_SEARCH_CACHE_WINDOW } from "../helpers.js";
 import { isArchiveSearchIndexCurrent } from "../index-state.js";
-import type { ArchiveFindHit, ArchiveFindOptions } from "../types.js";
+import type {
+  ArchiveFindHit,
+  ArchiveFindOptions,
+  EvidenceReadContext,
+} from "../types.js";
 
 export async function findArchiveObjectsIndexed(
   document: ReadonlyDocument,
@@ -87,6 +91,10 @@ export async function hydrateSearchIndexHits(
     ]),
   );
   const hits: ArchiveFindHit[] = [];
+  const context: EvidenceReadContext = {
+    chapters: new Map(),
+    streamIndexes: new Map(),
+  };
 
   for (const hit of result.objectHits) {
     const hydrated = await hydrateSearchObjectHit(document, chapters, hit);
@@ -102,7 +110,12 @@ export async function hydrateSearchIndexHits(
       : result.textHits.slice(0, options.textHitLimit);
 
   for (const hit of textHits) {
-    const hydrated = await hydrateSearchTextHit(document, chapters, hit);
+    const hydrated = await hydrateSearchTextHit(
+      document,
+      chapters,
+      hit,
+      context,
+    );
 
     if (hydrated !== undefined) {
       hits.push(withSearchTerms(hydrated, result.terms));
@@ -178,6 +191,7 @@ export async function hydrateSearchObjectHit(
 
       return {
         chapter: chapter.chapterId,
+        ...createArchiveScopeFields(hit.archiveId),
         field: "title",
         id: `${chapter.uri}/title`,
         matchCount: 1,
@@ -201,6 +215,7 @@ export async function hydrateSearchObjectHit(
 
       return {
         chapter: node.sentenceId[0],
+        ...createArchiveScopeFields(hit.archiveId),
         field: isLabel ? "title" : "content",
         id: formatNodeId(node.id),
         matchCount: 1,
@@ -221,6 +236,7 @@ export async function hydrateSearchObjectHit(
 
       return {
         chapter: first.chapterId,
+        ...createArchiveScopeFields(hit.archiveId),
         evidenceMentions: mentions.map((mention) =>
           createUnscoredEntityEvidenceMention(mention),
         ),
@@ -254,6 +270,7 @@ export async function hydrateSearchTextHit(
   document: ReadonlyDocument,
   chapters: ReadonlyMap<number, ChapterEntry>,
   hit: SearchIndexTextHit,
+  context?: EvidenceReadContext,
 ): Promise<ArchiveFindHit | undefined> {
   const stream =
     hit.kind === TEXT_SENTENCE_KIND.source
@@ -271,10 +288,12 @@ export async function hydrateSearchTextHit(
     stream,
     hit.sentenceIndex,
     hit.sentenceIndex,
+    context,
   );
 
   return {
     chapter: hit.chapterId,
+    ...createArchiveScopeFields(hit.archiveId),
     field: stream,
     id: formatTextStreamRangeUri(
       chapter.path,
@@ -292,4 +311,10 @@ export async function hydrateSearchTextHit(
     title: chapter.title ?? chapter.uri,
     type: stream,
   };
+}
+
+function createArchiveScopeFields(
+  archiveId: number,
+): Pick<ArchiveFindHit, "archiveId"> | Record<string, never> {
+  return archiveId === 0 ? {} : { archiveId };
 }

@@ -313,11 +313,12 @@ export async function readEntitySearchSessionPage(
     const rows = await database.queryAll(
       `
         SELECT
+          archive_id,
           qid,
           result_score
         FROM search_entity_hits
         WHERE session_id = ?
-        ORDER BY result_score DESC, qid
+        ORDER BY result_score DESC, archive_id, qid
         LIMIT ? OFFSET ?
       `,
       [sessionId, limit + 1, offset],

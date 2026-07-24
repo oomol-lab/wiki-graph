@@ -27,6 +27,7 @@ export type SearchEvidenceKind =
   (typeof SEARCH_EVIDENCE_KIND)[keyof typeof SEARCH_EVIDENCE_KIND];
 
 export interface SearchEvidenceHitEventInput {
+  readonly archiveId?: number;
   readonly chapterId: number;
   readonly evidenceId: string;
   readonly evidenceKind: SearchEvidenceKind;
@@ -35,12 +36,14 @@ export interface SearchEvidenceHitEventInput {
 }
 
 export interface SearchEntityHitInput {
+  readonly archiveId?: number;
   readonly evidenceTopScores?: readonly number[];
   readonly propertyTopScores?: readonly number[];
   readonly qid: string;
 }
 
 export interface SearchTripleHitInput {
+  readonly archiveId?: number;
   readonly evidenceTopScores: readonly number[];
   readonly objectQid: string;
   readonly predicate: string;
@@ -48,6 +51,7 @@ export interface SearchTripleHitInput {
 }
 
 export interface SearchChunkHitInput {
+  readonly archiveId?: number;
   readonly chunkId: number;
   readonly evidenceTopScores?: readonly number[];
   readonly propertyTopScores?: readonly number[];
@@ -124,22 +128,26 @@ export type BucketSearchCursor =
     };
 
 export interface SearchChapterTitleCursorKey {
+  readonly archiveId: number;
   readonly chapterId: number;
   readonly score: number;
 }
 
 export interface SearchObjectCursorKey {
+  readonly archiveId: number;
   readonly id: string;
   readonly kind: "entity" | "triple";
   readonly score: number;
 }
 
 export interface SearchChunkCursorKey {
+  readonly archiveId: number;
   readonly chunkId: number;
   readonly score: number;
 }
 
 export interface SearchTextCursorKey {
+  readonly archiveId: number;
   readonly chapterId: number;
   readonly kind: number;
   readonly rank: number;

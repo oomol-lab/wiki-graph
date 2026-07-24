@@ -205,6 +205,7 @@ async function readChapterTitleBucketPage(
         ? {
             bucket: 0,
             key: {
+              archiveId: last.archiveId,
               chapterId: parseSearchPropertyIntegerOwnerId(last.ownerId),
               score: last.score,
             },
@@ -244,6 +245,7 @@ async function readObjectBucketPage(
         ? {
             bucket: 1,
             key: {
+              archiveId: getHitArchiveId(last),
               id: getObjectBucketCursorId(last),
               kind: last.type === "triple" ? "triple" : "entity",
               score: last.score ?? 0,
@@ -322,6 +324,7 @@ async function readChunkBucketPage(
         ? {
             bucket: 2,
             key: {
+              archiveId: getHitArchiveId(last),
               chunkId: parseSearchPropertyIntegerOwnerId(
                 last.id.slice("wikg://chunk/".length),
               ),
@@ -349,6 +352,7 @@ async function readTextBucketPage(
       ? {}
       : {
           textAfter: {
+            archiveId: after.archiveId,
             chapterId: after.chapterId,
             kind: after.kind as SearchIndexTextHit["kind"],
             rank: after.rank,
@@ -388,6 +392,7 @@ async function readTextBucketPage(
         ? {
             bucket: 3,
             key: {
+              archiveId: last.archiveId,
               chapterId: last.chapterId,
               kind: last.kind,
               rank: last.rank,
@@ -400,6 +405,10 @@ async function readTextBucketPage(
 
 function createBucketQueryWindow(limit: number): number {
   return Math.max(limit + 1, limit * 3 + 1, 100);
+}
+
+function getHitArchiveId(hit: ArchiveFindHit): number {
+  return hit.archiveId ?? 0;
 }
 
 export function tryDecodeBucketSearchSessionCursor(cursor: string):

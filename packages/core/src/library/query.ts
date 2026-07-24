@@ -10,7 +10,45 @@ import {
   createCollectionResult,
   createFindResult,
 } from "../retrieval/query/archive-view/helper/results.js";
+import {
+  BROAD_FIND_LENS_HINT,
+  DEFAULT_FIND_LIMIT,
+} from "../retrieval/query/archive-view/helper/constants.js";
+import { createLexicalQuery } from "../retrieval/query/lexical-search.js";
+import {
+  compareChapterTitleIndexHits,
+  compareTextIndexHits,
+  getObjectBucketCursorId,
+  isAfterChapterTitleKey,
+  isAfterTextKey,
+} from "../retrieval/query/archive-view/search/bucket-order.js";
+import {
+  hydrateCachedChunkBucketHit,
+  hydrateCachedObjectBucketHit,
+} from "../retrieval/query/archive-view/search/bucket-hydration.js";
 import { hydrateSearchIndexHits } from "../retrieval/query/archive-view/search/hydration.js";
+import { tryDecodeBucketSearchSessionCursor } from "../retrieval/query/archive-view/search/buckets.js";
+import {
+  createSearchSession,
+  encodeBucketSearchSessionCursor,
+  populateSearchSessionObjectCaches,
+  readSearchSessionChunkBucketPage,
+  readSearchSessionDescriptor,
+  readSearchSessionMetadataForCursor,
+  readSearchSessionObjectBucketPage,
+  type BucketSearchCursor,
+  type SearchChapterTitleCursorKey,
+  type SearchChunkCursorKey,
+  type SearchObjectCursorKey,
+  type SearchSessionDescriptor,
+  type SearchTextCursorKey,
+} from "../retrieval/query/search-cache/index.js";
+import {
+  SEARCH_INDEX_FTS_HIT_LIMIT,
+  SEARCH_OBJECT_PROPERTY_OWNER_KIND,
+  type SearchIndexObjectHit,
+  type SearchIndexTextHit,
+} from "../retrieval/search-index/index.js";
 import type {
   ArchiveCollectionOptions,
   ArchiveCollectionResult,
@@ -54,6 +92,10 @@ export async function findWikiGraphLibraryObjects(
   query: string,
   options: ArchiveFindOptions = {},
 ): Promise<ArchiveFindResult> {
+  if (shouldUseLibraryBucketedSearch(options)) {
+    return await findWikiGraphLibraryObjectsBucketed(target, query, options);
+  }
+
   const indexHitLimit = createLibraryQueryIndexHitLimit(options);
   const result = await queryWikiGraphLibrarySearchIndex(target, query, {
     objectHitLimit: indexHitLimit,
@@ -90,12 +132,344 @@ export async function findWikiGraphLibraryObjects(
   return createFindResult(query, hits, options, result.terms);
 }
 
+function shouldUseLibraryBucketedSearch(options: ArchiveFindOptions): boolean {
+  return options.types === undefined && options.triplePattern === undefined;
+}
+
 function createLibraryQueryIndexHitLimit(options: ArchiveFindOptions): number {
   return Math.max(
     (options.limit ?? DEFAULT_LIBRARY_PAGE_LIMIT) *
       LIBRARY_QUERY_INDEX_LIMIT_MULTIPLIER,
     LIBRARY_QUERY_INDEX_MIN_LIMIT,
   );
+}
+
+async function findWikiGraphLibraryObjectsBucketed(
+  target: ParsedWikiGraphLibraryUri,
+  query: string,
+  options: ArchiveFindOptions,
+): Promise<ArchiveFindResult> {
+  const limit = options.limit ?? DEFAULT_FIND_LIMIT;
+  const search = createLexicalQuery(query);
+
+  if (search === undefined) {
+    return createFindResult(query, [], options);
+  }
+  if (options.cursor !== undefined) {
+    const cursor = tryDecodeBucketSearchSessionCursor(options.cursor);
+
+    if (cursor === undefined) {
+      throw new Error("Invalid search cursor.");
+    }
+    return await readLibraryBucketedSearchResultPage(target, cursor, {
+      ...options,
+      limit,
+    });
+  }
+
+  const state = await assertWikiGraphLibraryIndexReady(target);
+  const archiveKey = createLibrarySearchArchiveKey(target);
+  const sessionId = await createSearchSession({
+    archiveKey,
+    chapters: options.chapters ?? null,
+    lens: "broad",
+    match: options.match ?? "any",
+    order: options.order ?? "doc-asc",
+    query,
+    revisionScope: state.sourceFingerprint,
+    terms: search.terms,
+    types: null,
+  });
+  const descriptor = await readSearchSessionDescriptor(sessionId, archiveKey);
+
+  return await readLibraryBucketedSearchResultPage(
+    target,
+    {
+      createdAt: descriptor.createdAt,
+      cursor: { bucket: 0 },
+      sessionId,
+    },
+    { ...options, limit },
+  );
+}
+
+async function readLibraryBucketedSearchResultPage(
+  target: ParsedWikiGraphLibraryUri,
+  cursor: {
+    readonly createdAt: number;
+    readonly cursor: BucketSearchCursor;
+    readonly sessionId: string;
+  },
+  options: ArchiveFindOptions & { readonly limit: number },
+): Promise<ArchiveFindResult> {
+  const archiveKey = createLibrarySearchArchiveKey(target);
+  const session = await readSearchSessionMetadataForCursor(
+    cursor.sessionId,
+    archiveKey,
+    cursor.createdAt,
+  );
+  const items: ArchiveFindHit[] = [];
+  let bucketCursor: BucketSearchCursor | undefined = cursor.cursor;
+
+  while (bucketCursor !== undefined && items.length < options.limit) {
+    const remaining = options.limit - items.length;
+    const page = await readLibraryBucketPage(
+      target,
+      session,
+      bucketCursor,
+      remaining,
+    );
+
+    items.push(...page.items);
+    bucketCursor = page.nextCursor;
+  }
+
+  return {
+    chapters: session.chapters,
+    items,
+    lens: "broad",
+    lensHint: BROAD_FIND_LENS_HINT,
+    limit: options.limit,
+    match: session.match as ArchiveFindResult["match"],
+    nextCursor:
+      bucketCursor === undefined
+        ? null
+        : encodeBucketSearchSessionCursor(
+            cursor.sessionId,
+            bucketCursor,
+            session.createdAt,
+          ),
+    order: options.order ?? "doc-asc",
+    query: session.query,
+    terms: session.terms,
+    types: null,
+  };
+}
+
+async function readLibraryBucketPage(
+  target: ParsedWikiGraphLibraryUri,
+  session: SearchSessionDescriptor,
+  cursor: BucketSearchCursor,
+  limit: number,
+): Promise<{
+  readonly items: readonly ArchiveFindHit[];
+  readonly nextCursor: BucketSearchCursor | undefined;
+}> {
+  switch (cursor.bucket) {
+    case 0:
+      return await readLibraryChapterTitleBucketPage(
+        target,
+        session,
+        cursor.key,
+        limit,
+      );
+    case 1:
+      return await readLibraryObjectBucketPage(
+        target,
+        session,
+        cursor.key,
+        limit,
+      );
+    case 2:
+      return await readLibraryChunkBucketPage(
+        target,
+        session,
+        cursor.key,
+        limit,
+      );
+    case 3:
+      return await readLibraryTextBucketPage(
+        target,
+        session,
+        cursor.key,
+        limit,
+      );
+  }
+}
+
+async function readLibraryChapterTitleBucketPage(
+  target: ParsedWikiGraphLibraryUri,
+  session: SearchSessionDescriptor,
+  after: SearchChapterTitleCursorKey | undefined,
+  limit: number,
+): Promise<{
+  readonly items: readonly ArchiveFindHit[];
+  readonly nextCursor: BucketSearchCursor | undefined;
+}> {
+  const result = await queryWikiGraphLibrarySearchIndex(target, session.query, {
+    match: session.match as ArchiveFindResult["match"],
+    objectHitLimit: SEARCH_INDEX_FTS_HIT_LIMIT,
+    textHitLimit: 0,
+    types: ["chapter-title"],
+  });
+  const hits = [...(result?.objectHits ?? [])]
+    .filter(
+      (hit) => hit.ownerKind === SEARCH_OBJECT_PROPERTY_OWNER_KIND.chapter,
+    )
+    .sort(compareChapterTitleIndexHits)
+    .filter((hit) => isAfterChapterTitleKey(hit, after));
+  const page = hits.slice(0, limit + 1);
+  const items = await hydrateLibraryIndexHits(target, {
+    objectHits: page.slice(0, limit),
+    terms: session.terms,
+    textHits: [],
+  });
+  const last = page.at(limit - 1);
+
+  return {
+    items,
+    nextCursor:
+      page.length > limit && last !== undefined
+        ? {
+            bucket: 0,
+            key: {
+              archiveId: last.archiveId,
+              chapterId: Number(last.ownerId),
+              score: last.score,
+            },
+          }
+        : { bucket: 1 },
+  };
+}
+
+async function readLibraryObjectBucketPage(
+  target: ParsedWikiGraphLibraryUri,
+  session: SearchSessionDescriptor,
+  after: SearchObjectCursorKey | undefined,
+  limit: number,
+): Promise<{
+  readonly items: readonly ArchiveFindHit[];
+  readonly nextCursor: BucketSearchCursor | undefined;
+}> {
+  if (!session.objectCachesPopulated) {
+    await populateLibraryObjectBucketCaches(target, session);
+  }
+  const page = await readSearchSessionObjectBucketPage(
+    session.sessionId,
+    1,
+    after,
+    limit,
+  );
+  const items = page.slice(0, limit);
+  const hydrated = await hydrateLibraryCachedHits(
+    target,
+    items,
+    async (document, hit) => await hydrateCachedObjectBucketHit(document, hit),
+  );
+  const last = items.at(-1);
+
+  return {
+    items: hydrated,
+    nextCursor:
+      page.length > limit && last !== undefined
+        ? {
+            bucket: 1,
+            key: {
+              archiveId: getLibraryHitArchiveId(last),
+              id: getObjectBucketCursorId(last),
+              kind: last.type === "triple" ? "triple" : "entity",
+              score: last.score ?? 0,
+            },
+          }
+        : { bucket: 2 },
+  };
+}
+
+async function readLibraryChunkBucketPage(
+  target: ParsedWikiGraphLibraryUri,
+  session: SearchSessionDescriptor,
+  after: SearchChunkCursorKey | undefined,
+  limit: number,
+): Promise<{
+  readonly items: readonly ArchiveFindHit[];
+  readonly nextCursor: BucketSearchCursor | undefined;
+}> {
+  const page = await readSearchSessionChunkBucketPage(
+    session.sessionId,
+    after,
+    limit,
+  );
+  const items = page.slice(0, limit);
+  const hydrated = await hydrateLibraryCachedHits(
+    target,
+    items,
+    async (document, hit) => await hydrateCachedChunkBucketHit(document, hit),
+  );
+  const last = items.at(-1);
+
+  return {
+    items: hydrated,
+    nextCursor:
+      page.length > limit && last !== undefined
+        ? {
+            bucket: 2,
+            key: {
+              archiveId: getLibraryHitArchiveId(last),
+              chunkId: Number(last.id.slice("wikg://chunk/".length)),
+              score: last.score ?? 0,
+            },
+          }
+        : { bucket: 3 },
+  };
+}
+
+async function readLibraryTextBucketPage(
+  target: ParsedWikiGraphLibraryUri,
+  session: SearchSessionDescriptor,
+  after: SearchTextCursorKey | undefined,
+  limit: number,
+): Promise<{
+  readonly items: readonly ArchiveFindHit[];
+  readonly nextCursor: BucketSearchCursor | undefined;
+}> {
+  const result = await queryWikiGraphLibrarySearchIndex(target, session.query, {
+    match: session.match as ArchiveFindResult["match"],
+    objectHitLimit: 0,
+    ...(after === undefined
+      ? {}
+      : {
+          textAfter: {
+            archiveId: after.archiveId,
+            chapterId: after.chapterId,
+            kind: after.kind as SearchIndexTextHit["kind"],
+            rank: after.rank,
+            sentenceIndex: after.sentenceIndex,
+          },
+        }),
+    textHitLimit: createLibraryBucketQueryWindow(limit),
+    types: ["source", "summary"],
+  });
+  const hits = [...(result?.textHits ?? [])]
+    .sort(compareTextIndexHits)
+    .filter((hit) => isAfterTextKey(hit, after));
+  const page = hits.slice(0, limit + 1);
+  const items = await hydrateLibraryIndexHits(target, {
+    objectHits: [],
+    terms: session.terms,
+    textHits: page.slice(0, limit),
+  });
+  const last = page.at(limit - 1);
+
+  return {
+    items,
+    nextCursor:
+      page.length > limit && last !== undefined
+        ? {
+            bucket: 3,
+            key: {
+              archiveId: last.archiveId,
+              chapterId: last.chapterId,
+              kind: last.kind,
+              rank: last.rank,
+              sentenceIndex: last.sentenceIndex,
+            },
+          }
+        : undefined,
+  };
+}
+
+function createLibraryBucketQueryWindow(limit: number): number {
+  return Math.max(limit + 1, limit * 3 + 1, 100);
 }
 
 export async function listWikiGraphLibraryObjects(
@@ -539,6 +913,130 @@ function shouldListTextStreams(options: ArchiveCollectionOptions): boolean {
   );
 }
 
+async function populateLibraryObjectBucketCaches(
+  target: ParsedWikiGraphLibraryUri,
+  session: SearchSessionDescriptor,
+): Promise<void> {
+  const result = await queryWikiGraphLibrarySearchIndex(target, session.query, {
+    match: session.match as ArchiveFindResult["match"],
+    objectHitLimit: SEARCH_INDEX_FTS_HIT_LIMIT,
+    textHitLimit: 0,
+    types: null,
+  });
+  const entityScores = new Map<string, number[]>();
+  const chunkScores = new Map<string, number[]>();
+
+  for (const hit of result?.objectHits ?? []) {
+    if (hit.ownerKind === SEARCH_OBJECT_PROPERTY_OWNER_KIND.entity) {
+      const key = createLibraryScopedObjectKey(hit.archiveId, hit.ownerId);
+      const scores = entityScores.get(key) ?? [];
+
+      scores.push(hit.score);
+      entityScores.set(key, scores);
+      continue;
+    }
+    if (hit.ownerKind === SEARCH_OBJECT_PROPERTY_OWNER_KIND.chunk) {
+      const key = createLibraryScopedObjectKey(hit.archiveId, hit.ownerId);
+      const scores = chunkScores.get(key) ?? [];
+
+      scores.push(hit.score);
+      chunkScores.set(key, scores);
+    }
+  }
+
+  await populateSearchSessionObjectCaches({
+    chunkHits: [...chunkScores].map(([key, propertyTopScores]) => {
+      const { archiveId, objectId } = parseLibraryScopedObjectKey(key);
+
+      return {
+        archiveId,
+        chunkId: Number(objectId),
+        propertyTopScores,
+      };
+    }),
+    entityHits: [...entityScores].map(([key, propertyTopScores]) => {
+      const { archiveId, objectId } = parseLibraryScopedObjectKey(key);
+
+      return {
+        archiveId,
+        propertyTopScores,
+        qid: objectId,
+      };
+    }),
+    sessionId: session.sessionId,
+  });
+}
+
+async function hydrateLibraryIndexHits(
+  target: ParsedWikiGraphLibraryUri,
+  result: {
+    readonly objectHits: readonly SearchIndexObjectHit[];
+    readonly terms: readonly string[];
+    readonly textHits: readonly SearchIndexTextHit[];
+  },
+): Promise<readonly ArchiveFindHit[]> {
+  const hits: ArchiveFindHit[] = [];
+
+  for (const archiveId of createSortedArchiveIds(result)) {
+    const archive = await resolveReadableIndexedArchive(target, archiveId, {
+      operation: "searching library objects",
+    });
+    const source = createLibrarySource(archive);
+    const hydrated = await readLibraryArchiveDocument(
+      archive,
+      async (document) =>
+        await hydrateSearchIndexHits(document, {
+          objectHits: result.objectHits.filter(
+            (hit) => hit.archiveId === archive.id,
+          ),
+          terms: result.terms,
+          textHits: result.textHits.filter(
+            (hit) => hit.archiveId === archive.id,
+          ),
+        }),
+    );
+
+    hits.push(...hydrated.map((hit) => ({ ...hit, ...source })));
+  }
+
+  return hits;
+}
+
+async function hydrateLibraryCachedHits(
+  target: ParsedWikiGraphLibraryUri,
+  hits: readonly ArchiveFindHit[],
+  hydrate: (
+    document: ReadonlyDocument,
+    hit: ArchiveFindHit,
+  ) => Promise<ArchiveFindHit | undefined>,
+): Promise<readonly ArchiveFindHit[]> {
+  const hydrated: ArchiveFindHit[] = [];
+
+  for (const archiveId of [
+    ...new Set(hits.map((hit) => getLibraryHitArchiveId(hit))),
+  ].sort((left, right) => left - right)) {
+    const archive = await resolveReadableIndexedArchive(target, archiveId, {
+      operation: "searching library objects",
+    });
+    const source = createLibrarySource(archive);
+    const archiveHits = hits.filter(
+      (hit) => getLibraryHitArchiveId(hit) === archiveId,
+    );
+
+    await readLibraryArchiveDocument(archive, async (document) => {
+      for (const hit of archiveHits) {
+        const item = await hydrate(document, hit);
+
+        if (item !== undefined) {
+          hydrated.push({ ...item, ...source });
+        }
+      }
+    });
+  }
+
+  return hydrated;
+}
+
 function createSortedArchiveIds(result: {
   readonly objectHits: readonly { readonly archiveId: number }[];
   readonly textHits: readonly { readonly archiveId: number }[];
@@ -549,6 +1047,44 @@ function createSortedArchiveIds(result: {
       ...result.textHits.map((hit) => hit.archiveId),
     ]),
   ].sort((left, right) => left - right);
+}
+
+function createLibrarySearchArchiveKey(
+  target: ParsedWikiGraphLibraryUri,
+): string {
+  return target.isDefault
+    ? "library:default"
+    : `library:${target.publicId ?? "unknown"}`;
+}
+
+function getLibraryHitArchiveId(hit: ArchiveFindHit): number {
+  if (hit.archiveId === undefined) {
+    throw new Error("Internal error: library search hit is missing archiveId.");
+  }
+  return hit.archiveId;
+}
+
+function createLibraryScopedObjectKey(
+  archiveId: number,
+  objectId: string,
+): string {
+  return `${archiveId}:${objectId}`;
+}
+
+function parseLibraryScopedObjectKey(key: string): {
+  readonly archiveId: number;
+  readonly objectId: string;
+} {
+  const separator = key.indexOf(":");
+
+  if (separator <= 0) {
+    throw new Error(`Invalid library search cache key: ${key}`);
+  }
+
+  return {
+    archiveId: Number(key.slice(0, separator)),
+    objectId: key.slice(separator + 1),
+  };
 }
 
 async function resolveReadableIndexedArchive(

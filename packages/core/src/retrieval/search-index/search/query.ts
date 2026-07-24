@@ -40,6 +40,7 @@ export async function querySearchIndex(
     readonly match?: ArchiveFindMatch;
     readonly objectHitLimit?: number;
     readonly textAfter?: {
+      readonly archiveId: number;
       readonly chapterId: number;
       readonly kind: TextSentenceKind;
       readonly rank: number;
@@ -153,7 +154,7 @@ async function queryObjectRows(
         ON r.id = search_object_properties_fts.rowid
       WHERE search_object_properties_fts MATCH ?
         ${createChapterSql(options.chapters)}
-      ORDER BY rank ASC, r.chapter_id, r.owner_kind, r.owner_id, r.property_kind
+      ORDER BY rank ASC, r.archive_id, r.chapter_id, r.owner_kind, r.owner_id, r.property_kind
       ${createLimitSql(options.objectHitLimit)}
     `,
     [
@@ -181,6 +182,7 @@ async function queryTextRows(
   options: {
     readonly chapters?: readonly number[];
     readonly textAfter?: {
+      readonly archiveId: number;
       readonly chapterId: number;
       readonly kind: TextSentenceKind;
       readonly rank: number;
@@ -231,10 +233,17 @@ async function queryTextRows(
           : `
             WHERE (
               rank > ?
-              OR (rank = ? AND chapter_id > ?)
-              OR (rank = ? AND chapter_id = ? AND sentence_index > ?)
+              OR (rank = ? AND archive_id > ?)
+              OR (rank = ? AND archive_id = ? AND chapter_id > ?)
               OR (
                 rank = ?
+                AND archive_id = ?
+                AND chapter_id = ?
+                AND sentence_index > ?
+              )
+              OR (
+                rank = ?
+                AND archive_id = ?
                 AND chapter_id = ?
                 AND sentence_index = ?
                 AND kind > ?
@@ -242,7 +251,7 @@ async function queryTextRows(
             )
           `
       }
-      ORDER BY rank ASC, chapter_id, sentence_index, kind
+      ORDER BY rank ASC, archive_id, chapter_id, sentence_index, kind
       ${createLimitSql(options.textHitLimit)}
     `,
     [
@@ -255,11 +264,16 @@ async function queryTextRows(
         : [
             after.rank,
             after.rank,
+            after.archiveId,
+            after.rank,
+            after.archiveId,
             after.chapterId,
             after.rank,
+            after.archiveId,
             after.chapterId,
             after.sentenceIndex,
             after.rank,
+            after.archiveId,
             after.chapterId,
             after.sentenceIndex,
             after.kind,

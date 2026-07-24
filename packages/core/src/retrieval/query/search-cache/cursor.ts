@@ -145,6 +145,7 @@ function isChapterTitleCursorKey(
   return (
     typeof value === "object" &&
     value !== null &&
+    typeof (value as SearchChapterTitleCursorKey).archiveId === "number" &&
     typeof (value as SearchChapterTitleCursorKey).chapterId === "number" &&
     typeof (value as SearchChapterTitleCursorKey).score === "number"
   );
@@ -154,6 +155,7 @@ function isObjectCursorKey(value: unknown): value is SearchObjectCursorKey {
   return (
     typeof value === "object" &&
     value !== null &&
+    typeof (value as SearchObjectCursorKey).archiveId === "number" &&
     typeof (value as SearchObjectCursorKey).id === "string" &&
     ((value as SearchObjectCursorKey).kind === "entity" ||
       (value as SearchObjectCursorKey).kind === "triple") &&
@@ -165,6 +167,7 @@ function isChunkCursorKey(value: unknown): value is SearchChunkCursorKey {
   return (
     typeof value === "object" &&
     value !== null &&
+    typeof (value as SearchChunkCursorKey).archiveId === "number" &&
     typeof (value as SearchChunkCursorKey).chunkId === "number" &&
     typeof (value as SearchChunkCursorKey).score === "number"
   );
@@ -174,6 +177,7 @@ function isTextCursorKey(value: unknown): value is SearchTextCursorKey {
   return (
     typeof value === "object" &&
     value !== null &&
+    typeof (value as SearchTextCursorKey).archiveId === "number" &&
     typeof (value as SearchTextCursorKey).chapterId === "number" &&
     typeof (value as SearchTextCursorKey).kind === "number" &&
     typeof (value as SearchTextCursorKey).rank === "number" &&

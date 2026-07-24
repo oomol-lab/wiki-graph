@@ -16,6 +16,8 @@ import type {
   SearchTripleHitInput,
 } from "./types.js";
 
+const SINGLE_ARCHIVE_SCOPE_ID = 0;
+
 export async function insertSearchEvidenceHitEvent(
   database: Database,
   sessionId: string,
@@ -25,16 +27,18 @@ export async function insertSearchEvidenceHitEvent(
     `
       INSERT OR REPLACE INTO search_evidence_hit_events (
         session_id,
+        archive_id,
         evidence_kind,
         evidence_id,
         chapter_id,
         sentence_index,
         score
       )
-      VALUES (?, ?, ?, ?, ?, ?)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
     `,
     [
       sessionId,
+      event.archiveId ?? SINGLE_ARCHIVE_SCOPE_ID,
       event.evidenceKind,
       event.evidenceId,
       event.chapterId,
@@ -53,9 +57,9 @@ export async function upsertSearchEntityHit(
     `
       SELECT property_top_scores_json, evidence_top_scores_json
       FROM search_entity_hits
-      WHERE session_id = ? AND qid = ?
+      WHERE session_id = ? AND archive_id = ? AND qid = ?
     `,
-    [sessionId, hit.qid],
+    [sessionId, hit.archiveId ?? SINGLE_ARCHIVE_SCOPE_ID, hit.qid],
     (row) => ({
       evidenceTopScores: parseNumberArray(
         getString(row, "evidence_top_scores_json"),
@@ -81,6 +85,7 @@ export async function upsertSearchEntityHit(
     `
       INSERT INTO search_entity_hits (
         session_id,
+        archive_id,
         qid,
         property_top_scores_json,
         evidence_top_scores_json,
@@ -88,8 +93,8 @@ export async function upsertSearchEntityHit(
         evidence_score,
         result_score
       )
-      VALUES (?, ?, ?, ?, ?, ?, ?)
-      ON CONFLICT(session_id, qid) DO UPDATE SET
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(session_id, archive_id, qid) DO UPDATE SET
         property_top_scores_json = excluded.property_top_scores_json,
         evidence_top_scores_json = excluded.evidence_top_scores_json,
         property_score = excluded.property_score,
@@ -98,6 +103,7 @@ export async function upsertSearchEntityHit(
     `,
     [
       sessionId,
+      hit.archiveId ?? SINGLE_ARCHIVE_SCOPE_ID,
       hit.qid,
       JSON.stringify(propertyTopScores),
       JSON.stringify(evidenceTopScores),
@@ -119,11 +125,18 @@ export async function upsertSearchTripleHit(
       SELECT evidence_top_scores_json
       FROM search_triple_hits
       WHERE session_id = ?
+        AND archive_id = ?
         AND subject_qid = ?
         AND predicate_id = ?
         AND object_qid = ?
     `,
-    [sessionId, hit.subjectQid, predicateId, hit.objectQid],
+    [
+      sessionId,
+      hit.archiveId ?? SINGLE_ARCHIVE_SCOPE_ID,
+      hit.subjectQid,
+      predicateId,
+      hit.objectQid,
+    ],
     (row) => ({
       evidenceTopScores: parseNumberArray(
         getString(row, "evidence_top_scores_json"),
@@ -140,20 +153,22 @@ export async function upsertSearchTripleHit(
     `
       INSERT INTO search_triple_hits (
         session_id,
+        archive_id,
         subject_qid,
         predicate_id,
         object_qid,
         evidence_top_scores_json,
         result_score
       )
-      VALUES (?, ?, ?, ?, ?, ?)
-      ON CONFLICT(session_id, subject_qid, predicate_id, object_qid)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(session_id, archive_id, subject_qid, predicate_id, object_qid)
       DO UPDATE SET
         evidence_top_scores_json = excluded.evidence_top_scores_json,
         result_score = excluded.result_score
     `,
     [
       sessionId,
+      hit.archiveId ?? SINGLE_ARCHIVE_SCOPE_ID,
       hit.subjectQid,
       predicateId,
       hit.objectQid,
@@ -172,9 +187,9 @@ export async function upsertSearchChunkHit(
     `
       SELECT property_top_scores_json, evidence_top_scores_json
       FROM search_chunk_hits
-      WHERE session_id = ? AND chunk_id = ?
+      WHERE session_id = ? AND archive_id = ? AND chunk_id = ?
     `,
-    [sessionId, hit.chunkId],
+    [sessionId, hit.archiveId ?? SINGLE_ARCHIVE_SCOPE_ID, hit.chunkId],
     (row) => ({
       evidenceTopScores: parseNumberArray(
         getString(row, "evidence_top_scores_json"),
@@ -200,6 +215,7 @@ export async function upsertSearchChunkHit(
     `
       INSERT INTO search_chunk_hits (
         session_id,
+        archive_id,
         chunk_id,
         property_top_scores_json,
         evidence_top_scores_json,
@@ -207,8 +223,8 @@ export async function upsertSearchChunkHit(
         evidence_score,
         result_score
       )
-      VALUES (?, ?, ?, ?, ?, ?, ?)
-      ON CONFLICT(session_id, chunk_id) DO UPDATE SET
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(session_id, archive_id, chunk_id) DO UPDATE SET
         property_top_scores_json = excluded.property_top_scores_json,
         evidence_top_scores_json = excluded.evidence_top_scores_json,
         property_score = excluded.property_score,
@@ -217,6 +233,7 @@ export async function upsertSearchChunkHit(
     `,
     [
       sessionId,
+      hit.archiveId ?? SINGLE_ARCHIVE_SCOPE_ID,
       hit.chunkId,
       JSON.stringify(propertyTopScores),
       JSON.stringify(evidenceTopScores),
@@ -250,8 +267,8 @@ export async function readEntitySearchEvidenceMentions(
         WHERE event.session_id = ?
           AND event.evidence_kind = ?
           AND event.evidence_id IN (${placeholders})
-        ORDER BY event.score DESC, event.chapter_id, event.sentence_index,
-          event.evidence_id
+        ORDER BY event.score DESC, event.archive_id, event.chapter_id,
+          event.sentence_index, event.evidence_id
         LIMIT ?
       `,
       [sessionId, SEARCH_EVIDENCE_KIND.mention, ...mentionIds, limit],
@@ -268,6 +285,7 @@ export async function readEntitySearchEvidenceMentions(
 export function mapEntitySearchObjectRow(
   row: Record<string, SqlBindValue>,
 ): ArchiveFindHit {
+  const archiveId = getNumber(row, "archive_id");
   const qid = getString(row, "qid");
 
   return {
@@ -279,6 +297,7 @@ export function mapEntitySearchObjectRow(
     },
     field: "title",
     id: `wikg://entity/${qid}`,
+    ...(archiveId === SINGLE_ARCHIVE_SCOPE_ID ? {} : { archiveId }),
     score: getNumber(row, "result_score"),
     snippet: qid,
     title: qid,
@@ -295,6 +314,7 @@ export async function readSearchSessionEntityBucketRows(
   return await database.queryAll(
     `
       SELECT
+        archive_id,
         qid,
         result_score
       FROM search_entity_hits
@@ -308,14 +328,20 @@ export async function readSearchSessionEntityBucketRows(
                 OR (
                   result_score = ?
                   AND (
-                    ? < ?
-                    OR (? = ? AND qid > ?)
+                    archive_id > ?
+                    OR (
+                      archive_id = ?
+                      AND (
+                        ? < ?
+                        OR (? = ? AND qid > ?)
+                      )
+                    )
                   )
                 )
               )
             `
         }
-      ORDER BY result_score DESC, qid
+      ORDER BY result_score DESC, archive_id, qid
       LIMIT ?
     `,
     [
@@ -325,6 +351,8 @@ export async function readSearchSessionEntityBucketRows(
         : [
             after.score,
             after.score,
+            after.archiveId,
+            after.archiveId,
             getObjectBucketKindOrder(after.kind),
             SEARCH_OBJECT_BUCKET_KIND.entity,
             getObjectBucketKindOrder(after.kind),
@@ -346,6 +374,7 @@ export async function readSearchSessionTripleBucketRows(
   return await database.queryAll(
     `
       SELECT
+        search_triple_hits.archive_id AS archive_id,
         search_triple_hits.subject_qid AS subject_qid,
         predicate_dictionary.value AS predicate,
         search_triple_hits.object_qid AS object_qid,
@@ -363,21 +392,27 @@ export async function readSearchSessionTripleBucketRows(
                 OR (
                   search_triple_hits.result_score = ?
                   AND (
-                    ? < ?
+                    search_triple_hits.archive_id > ?
                     OR (
-                      ? = ?
+                      search_triple_hits.archive_id = ?
                       AND (
-                        search_triple_hits.subject_qid || char(31) ||
-                        predicate_dictionary.value || char(31) ||
-                        search_triple_hits.object_qid
-                      ) > ?
+                        ? < ?
+                        OR (
+                          ? = ?
+                          AND (
+                            search_triple_hits.subject_qid || char(31) ||
+                            predicate_dictionary.value || char(31) ||
+                            search_triple_hits.object_qid
+                          ) > ?
+                        )
+                      )
                     )
                   )
-                )
               )
             `
         }
       ORDER BY search_triple_hits.result_score DESC,
+        search_triple_hits.archive_id,
         search_triple_hits.subject_qid,
         predicate_dictionary.value,
         search_triple_hits.object_qid
@@ -390,6 +425,8 @@ export async function readSearchSessionTripleBucketRows(
         : [
             after.score,
             after.score,
+            after.archiveId,
+            after.archiveId,
             getObjectBucketKindOrder(after.kind),
             SEARCH_OBJECT_BUCKET_KIND.triple,
             getObjectBucketKindOrder(after.kind),
@@ -399,6 +436,7 @@ export async function readSearchSessionTripleBucketRows(
       limit,
     ],
     (row) => {
+      const archiveId = getNumber(row, "archive_id");
       const subjectQid = getString(row, "subject_qid");
       const predicate = getString(row, "predicate");
       const objectQid = getString(row, "object_qid");
@@ -407,6 +445,7 @@ export async function readSearchSessionTripleBucketRows(
       return {
         field: "content",
         id: `wikg://triple/${subjectQid}/${encodeURIComponent(predicate)}/${objectQid}`,
+        ...(archiveId === SINGLE_ARCHIVE_SCOPE_ID ? {} : { archiveId }),
         score: getNumber(row, "result_score"),
         snippet: title,
         title,
@@ -427,6 +466,8 @@ export function compareObjectBucketHits(
 ): number {
   return (
     (right.score ?? 0) - (left.score ?? 0) ||
+    (left.archiveId ?? SINGLE_ARCHIVE_SCOPE_ID) -
+      (right.archiveId ?? SINGLE_ARCHIVE_SCOPE_ID) ||
     getObjectBucketKindOrder(getObjectBucketHitKind(left)) -
       getObjectBucketKindOrder(getObjectBucketHitKind(right)) ||
     getObjectBucketHitKey(left).localeCompare(getObjectBucketHitKey(right))

@@ -16,6 +16,7 @@ export function compareChapterTitleIndexHits(
 ): number {
   return (
     compareNumbers(right.score, left.score) ||
+    compareNumbers(left.archiveId, right.archiveId) ||
     compareNumbers(
       parseSearchPropertyIntegerOwnerId(left.ownerId),
       parseSearchPropertyIntegerOwnerId(right.ownerId),
@@ -29,6 +30,7 @@ export function compareTextIndexHits(
 ): number {
   return (
     compareNumbers(left.rank, right.rank) ||
+    compareNumbers(left.archiveId, right.archiveId) ||
     compareNumbers(left.chapterId, right.chapterId) ||
     compareNumbers(left.sentenceIndex, right.sentenceIndex) ||
     compareNumbers(left.kind, right.kind)
@@ -47,6 +49,7 @@ export function isAfterChapterTitleKey(
     compareChapterTitleIndexHits(
       {
         ...hit,
+        archiveId: key.archiveId,
         ownerId: String(key.chapterId),
         score: key.score,
       },
@@ -66,7 +69,7 @@ export function isAfterTextKey(
   return (
     compareTextIndexHits(
       {
-        archiveId: 0,
+        archiveId: key.archiveId,
         chapterId: key.chapterId,
         kind: key.kind as SearchIndexTextHit["kind"],
         rank: key.rank,
