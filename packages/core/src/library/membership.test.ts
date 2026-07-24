@@ -14,6 +14,7 @@ import { describe, expect, it } from "vitest";
 import {
   addWikiGraphLibraryArchive,
   createWikiGraphLibrary,
+  disableWikiGraphLibraryIndex,
   ensureDefaultWikiGraphLibrary,
   getWikiGraphLibraryMetadata,
   isWikiGraphLibraryUri,
@@ -21,16 +22,21 @@ import {
   parseLocatedWikiGraphUri,
   parseWikiGraphLibraryUri,
   putWikiGraphLibraryMetadata,
+  queryWikiGraphLibrarySearchIndex,
   rebindWikiGraphLibrary,
+  rebuildWikiGraphLibraryIndex,
   removeWikiGraphLibrary,
   removeWikiGraphLibraryArchive,
   resolveWikiGraphLibraryArchivePath,
   resolveWikiGraphLibrary,
   scanWikiGraphLibrary,
 } from "../index.js";
+import { Database } from "../document/database.js";
 import { withWikiGraphStateDirectoryPathForTesting } from "../runtime/common/wiki-graph/dir.js";
+import { resolveWikiGraphCoreDatabasePath } from "../runtime/common/wiki-graph/dir.js";
 import { writeWikgArchive } from "../storage/wikg/index.js";
 import { acquireWikiGraphLibraryLock } from "./lock.js";
+import { listWikiGraphLibrarySearchIndex } from "./search-index.js";
 
 describe("library archive membership", () => {
   it("scans nested .wikg files and reports missing registered files", async () => {
@@ -191,7 +197,7 @@ describe("library archive membership", () => {
     });
   });
 
-  it("requires the library write lock when removing a library registry", async () => {
+  it("waits for the library write lock when removing a library registry", async () => {
     await withLibraryTestState(async (tempDir) => {
       const library = await createWikiGraphLibrary({
         folderPath: join(tempDir, "locked-library"),
@@ -199,18 +205,123 @@ describe("library archive membership", () => {
       const target = parseWikiGraphLibraryUri(library.uri);
       expect(target).toBeDefined();
       const release = await acquireWikiGraphLibraryLock(library.id, "write");
+      const removal = removeWikiGraphLibrary(target!);
+      let settled = false;
+      void removal.finally(() => {
+        settled = true;
+      });
 
       try {
-        await expect(removeWikiGraphLibrary(target!)).rejects.toThrow(
-          `Wiki Graph library is locked for write: ${library.id}.`,
-        );
+        await delay(20);
+        expect(settled).toBe(false);
       } finally {
         await release();
       }
 
-      await expect(removeWikiGraphLibrary(target!)).resolves.toMatchObject({
+      await expect(removal).resolves.toMatchObject({
         id: library.id,
       });
+    });
+  });
+
+  it("allows concurrent library read locks", async () => {
+    await withLibraryTestState(async (tempDir) => {
+      const library = await createWikiGraphLibrary({
+        folderPath: join(tempDir, "readable-library"),
+      });
+      const firstRelease = await acquireWikiGraphLibraryLock(
+        library.id,
+        "read",
+      );
+
+      try {
+        const secondRelease = await acquireWikiGraphLibraryLock(
+          library.id,
+          "read",
+        );
+        await secondRelease();
+      } finally {
+        await firstRelease();
+      }
+    });
+  });
+
+  it("allows concurrent library index read and query operations", async () => {
+    await withLibraryTestState(async () => {
+      const target = parseWikiGraphLibraryUri("wikg://lib");
+      expect(target).toBeDefined();
+      await rebuildWikiGraphLibraryIndex(target!);
+
+      await expect(
+        Promise.all([
+          listWikiGraphLibrarySearchIndex(target!),
+          queryWikiGraphLibrarySearchIndex(target!, "anything"),
+        ]),
+      ).resolves.toBeDefined();
+    });
+  });
+
+  it("waits for foreground library index reads behind a write coordination window", async () => {
+    await withLibraryTestState(async () => {
+      const target = parseWikiGraphLibraryUri("wikg://lib");
+      expect(target).toBeDefined();
+      const library = await ensureDefaultWikiGraphLibrary();
+      await rebuildWikiGraphLibraryIndex(target!);
+      const release = await acquireWikiGraphLibraryLock(library.id, "write");
+      const query = queryWikiGraphLibrarySearchIndex(target!, "anything");
+      let settled = false;
+      void query.finally(() => {
+        settled = true;
+      });
+
+      try {
+        await delay(20);
+        expect(settled).toBe(false);
+      } finally {
+        await release();
+      }
+
+      await expect(query).resolves.toBeDefined();
+    });
+  });
+
+  it("coordinates library index disable behind active read paths", async () => {
+    await withLibraryTestState(async () => {
+      const target = parseWikiGraphLibraryUri("wikg://lib");
+      expect(target).toBeDefined();
+      const library = await ensureDefaultWikiGraphLibrary();
+      await rebuildWikiGraphLibraryIndex(target!);
+      const release = await acquireWikiGraphLibraryLock(library.id, "read");
+      const disable = disableWikiGraphLibraryIndex(target!);
+      let settled = false;
+      void disable.finally(() => {
+        settled = true;
+      });
+
+      try {
+        await delay(20);
+        expect(settled).toBe(false);
+      } finally {
+        await release();
+      }
+
+      await expect(disable).resolves.toMatchObject({ status: "disabled" });
+      await expect(
+        queryWikiGraphLibrarySearchIndex(target!, "anything"),
+      ).rejects.toThrow("Wiki Graph library index is disabled");
+    });
+  });
+
+  it("cleans stale library state locks before acquiring a foreground lock", async () => {
+    await withLibraryTestState(async (tempDir) => {
+      const library = await createWikiGraphLibrary({
+        folderPath: join(tempDir, "stale-library"),
+      });
+      await insertStaleStateLock(library.id);
+
+      const release = await acquireWikiGraphLibraryLock(library.id, "write");
+
+      await release();
     });
   });
 
@@ -653,4 +764,42 @@ async function createTestWikgArchive(
   const sourceDir = await mkdtemp(join(tempDir, "wikg-source-"));
   await writeFile(join(sourceDir, "database.db"), "test", "utf8");
   await writeWikgArchive(sourceDir, path);
+}
+
+async function insertStaleStateLock(libraryId: number): Promise<void> {
+  const database = await Database.open(
+    resolveWikiGraphCoreDatabasePath(),
+    `
+      CREATE TABLE IF NOT EXISTS state_locks (
+        scope TEXT NOT NULL,
+        resource_key TEXT NOT NULL,
+        mode TEXT NOT NULL,
+        owner_id TEXT NOT NULL,
+        owner_pid INTEGER NOT NULL,
+        heartbeat_at INTEGER NOT NULL,
+        created_at INTEGER NOT NULL,
+        PRIMARY KEY (scope, resource_key, owner_id)
+      );
+    `,
+  );
+
+  try {
+    const staleAt = Date.now() - 10 * 60 * 1000;
+    await database.run(
+      `
+        INSERT INTO state_locks (
+          scope, resource_key, mode, owner_id, owner_pid, heartbeat_at, created_at
+        ) VALUES ('library', ?, 'write', 'stale-owner', 999999, ?, ?)
+      `,
+      [String(libraryId), staleAt, staleAt],
+    );
+  } finally {
+    await database.close();
+  }
+}
+
+async function delay(ms: number): Promise<void> {
+  await new Promise<void>((resolveDelay) => {
+    setTimeout(resolveDelay, ms);
+  });
 }

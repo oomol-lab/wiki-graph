@@ -165,14 +165,18 @@ describe("gc", () => {
       const validPath = join(library.stagingPath, "index");
       const orphanPath = join(path, "state", "staging", "library", "999");
       const lockedPath = join(path, "state", "staging", "library", "1000");
+      const stateLockedPath = join(path, "state", "staging", "library", "1001");
 
       await mkdir(validPath, { recursive: true });
       await mkdir(orphanPath, { recursive: true });
       await mkdir(lockedPath, { recursive: true });
+      await mkdir(stateLockedPath, { recursive: true });
       await writeFile(join(validPath, "fts.db"), "valid", "utf8");
       await writeFile(join(orphanPath, "fts.db"), "orphan", "utf8");
       await writeFile(join(lockedPath, "fts.db"), "locked", "utf8");
+      await writeFile(join(stateLockedPath, "fts.db"), "state-locked", "utf8");
       await insertLibraryLock(1000);
+      await insertStateLibraryLock(1001);
 
       const report = await tryRunWikiGraphGc();
       const libraryIndexJob = report.jobs.find(
@@ -180,10 +184,11 @@ describe("gc", () => {
       );
 
       expect(report.skipped).toBe(false);
-      expect(libraryIndexJob).toMatchObject({ removed: 1, scanned: 3 });
+      expect(libraryIndexJob).toMatchObject({ removed: 1, scanned: 4 });
       await expect(stat(validPath)).resolves.toBeDefined();
       await expect(stat(orphanPath)).rejects.toThrow();
       await expect(stat(lockedPath)).resolves.toBeDefined();
+      await expect(stat(stateLockedPath)).resolves.toBeDefined();
     });
   });
 
@@ -871,6 +876,37 @@ INSERT INTO library_locks (
 ) VALUES (?, 'write', 'test-owner', ?, ?, ?)
 `,
       [libraryId, process.pid, Date.now(), Date.now()],
+    );
+  } finally {
+    await database.close();
+  }
+}
+
+async function insertStateLibraryLock(libraryId: number): Promise<void> {
+  const database = await openStateDatabase(
+    "core.sqlite",
+    `
+CREATE TABLE IF NOT EXISTS state_locks (
+  scope TEXT NOT NULL,
+  resource_key TEXT NOT NULL,
+  mode TEXT NOT NULL,
+  owner_id TEXT NOT NULL,
+  owner_pid INTEGER NOT NULL,
+  heartbeat_at INTEGER NOT NULL,
+  created_at INTEGER NOT NULL,
+  PRIMARY KEY (scope, resource_key, owner_id)
+);
+`,
+  );
+
+  try {
+    await database.run(
+      `
+INSERT INTO state_locks (
+  scope, resource_key, mode, owner_id, owner_pid, heartbeat_at, created_at
+) VALUES ('library', ?, 'write', 'test-owner', ?, ?, ?)
+`,
+      [String(libraryId), process.pid, Date.now(), Date.now()],
     );
   } finally {
     await database.close();

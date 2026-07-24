@@ -447,7 +447,7 @@ describe("schema-upgrade", () => {
           "libraries",
           "library_metadata",
           "library_archives",
-          "library_locks",
+          "state_locks",
         ]) {
           await expect(hasTable(database, tableName)).resolves.toBe(true);
         }

@@ -306,14 +306,33 @@ async function assertCoreLocksSafe(): Promise<void> {
   });
 
   try {
-    if (!(await tableExists(database, "library_locks"))) {
+    if (await tableExists(database, "library_locks")) {
+      const rows = await database.queryAll(
+        `
+          SELECT owner_pid, heartbeat_at
+          FROM library_locks
+        `,
+        undefined,
+        (row) => ({
+          heartbeatAt: Number(row.heartbeat_at),
+          ownerPid: Number(row.owner_pid),
+        }),
+      );
+
+      if (rows.some((row) => isActiveLock(row.ownerPid, row.heartbeatAt))) {
+        throw new Error("Cannot upgrade home with active library locks.");
+      }
+    }
+
+    if (!(await tableExists(database, "state_locks"))) {
       return;
     }
 
-    const rows = await database.queryAll(
+    const stateLockRows = await database.queryAll(
       `
         SELECT owner_pid, heartbeat_at
-        FROM library_locks
+        FROM state_locks
+        WHERE scope = 'library'
       `,
       undefined,
       (row) => ({
@@ -322,7 +341,9 @@ async function assertCoreLocksSafe(): Promise<void> {
       }),
     );
 
-    if (rows.some((row) => isActiveLock(row.ownerPid, row.heartbeatAt))) {
+    if (
+      stateLockRows.some((row) => isActiveLock(row.ownerPid, row.heartbeatAt))
+    ) {
       throw new Error("Cannot upgrade home with active library locks.");
     }
   } finally {
