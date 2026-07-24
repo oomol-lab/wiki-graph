@@ -43,6 +43,8 @@ export {
   createWikiGraphLibrary,
   deleteWikiGraphLibraryMetadataKey,
   ensureDefaultWikiGraphLibrary,
+  ensureLibraryManagedArchiveHasNoSearchIndex,
+  finalizeWikiGraphLibraryArchiveWrite,
   formatWikiGraphLibraryUri,
   getWikiGraphLibraryArchive,
   getWikiGraphLibraryArchiveById,

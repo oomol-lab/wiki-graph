@@ -1,4 +1,5 @@
 import {
+  finalizeWikiGraphLibraryArchiveWrite,
   markWikiGraphLibraryIndexDirty,
   WikiGraphArchiveFile,
   type DirectoryDocument,
@@ -27,6 +28,12 @@ export async function writeArchiveDocument<T>(
   );
 
   if (location.libraryDirtyTarget !== undefined) {
+    if (location.libraryArchiveTarget !== undefined) {
+      await finalizeWikiGraphLibraryArchiveWrite({
+        target: location.libraryArchiveTarget,
+      });
+    }
+
     try {
       await markWikiGraphLibraryIndexDirty(location.libraryDirtyTarget);
     } catch (error) {

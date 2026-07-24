@@ -11,6 +11,7 @@ const mocks = vi.hoisted(() => ({
 let restoreStderrWrite: (() => void) | undefined;
 
 vi.mock("wiki-graph-core", () => ({
+  finalizeWikiGraphLibraryArchiveWrite: vi.fn(() => Promise.resolve(false)),
   markWikiGraphLibraryIndexDirty: vi.fn(),
   WikiGraphArchiveFile: class {
     public readonly archivePath: string;
