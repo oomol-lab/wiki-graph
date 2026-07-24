@@ -10,6 +10,7 @@ import {
   renderUriHelpText,
   renderUriPredicateHelpText,
   isUriHelpPredicate,
+  type LibraryHelpPredicateName,
   type UriHelpTargetName,
 } from "../help.js";
 import type {
@@ -176,7 +177,7 @@ function parseLibraryHelpArguments(
       helpText: renderLibraryPredicateHelpText(
         uri,
         target,
-        action as CLILibraryAction,
+        action as LibraryHelpPredicateName,
       ),
       kind: "help",
     };
