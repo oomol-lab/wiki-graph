@@ -458,6 +458,27 @@ describe("wiki graph library object query aggregation", () => {
     );
   });
 
+  it("bounds library query index hits by the requested page size before hydration", async () => {
+    const [{ findWikiGraphLibraryObjects }, searchIndex] = await Promise.all([
+      import("../../../packages/core/src/library/query.js"),
+      import("../../../packages/core/src/library/search-index.js"),
+    ]);
+
+    mocks.listIndexResult = {
+      objectHits: [createIndexObjectHit(1, "1")],
+      terms: ["chapter"],
+      textHits: [],
+    };
+
+    await findWikiGraphLibraryObjects(target, "chapter", { limit: 5 });
+
+    expect(searchIndex.queryWikiGraphLibrarySearchIndex).toHaveBeenCalledWith(
+      target,
+      "chapter",
+      { objectHitLimit: 100, textHitLimit: 100 },
+    );
+  });
+
   it("lists library objects from the library index instead of archive collection merge", async () => {
     const [{ listWikiGraphLibraryObjects }, archiveView] = await Promise.all([
       import("../../../packages/core/src/library/query.js"),

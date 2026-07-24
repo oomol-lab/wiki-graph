@@ -9,13 +9,14 @@ import {
   TEXT_SENTENCE_KIND,
   type SearchIndexInput,
   type SearchIndexProgressReporter,
+  type SearchIndexWriteBatch,
   writeArchiveIndexProjection,
 } from "../../search-index/search/index.js";
 
-import { createTextStreamIndex } from "./text-streams.js";
 import type { ArchiveTextStreamKind } from "./types.js";
 
 const SEARCH_INDEX_REBUILD_ATTEMPTS = 2;
+const ARCHIVE_INDEX_BATCH_RECORDS = 512;
 
 export async function rebuildArchiveSearchIndex(
   document: Document,
@@ -88,14 +89,33 @@ export async function buildArchiveIndexProjection(
 ): Promise<SearchIndexInput> {
   const objectProperties: SearchIndexInput["objectProperties"][number][] = [];
   const textSentences: SearchIndexInput["textSentences"][number][] = [];
+
+  for await (const batch of streamArchiveIndexProjection(
+    document,
+    SINGLE_ARCHIVE_INDEX_ID,
+    progress,
+  )) {
+    objectProperties.push(...batch.objectProperties);
+    textSentences.push(...batch.textSentences);
+  }
+
+  return { objectProperties, textSentences };
+}
+
+export async function* streamArchiveIndexProjection(
+  document: ReadonlyDocument,
+  archiveId: number,
+  progress?: SearchIndexProgressReporter,
+): AsyncIterable<SearchIndexWriteBatch> {
   const chapters = await listChapters(document);
   let chapterDone = 0;
+  let batch = createEmptySearchIndexBatch();
 
   for (const chapter of chapters) {
     const title = chapter.title ?? `[chapter ${chapter.chapterId}]`;
 
-    objectProperties.push({
-      archiveId: SINGLE_ARCHIVE_INDEX_ID,
+    batch = appendObjectProperty(batch, {
+      archiveId,
       chapterId: chapter.chapterId,
       ownerId: String(chapter.chapterId),
       ownerKind: SEARCH_OBJECT_PROPERTY_OWNER_KIND.chapter,
@@ -103,22 +123,74 @@ export async function buildArchiveIndexProjection(
       text: title,
     });
 
-    textSentences.push(
-      ...(await createTextStreamSearchIndexRecords(
-        document,
-        chapter.chapterId,
-        "summary",
-        title,
-      )),
-    );
-    textSentences.push(
-      ...(await createTextStreamSearchIndexRecords(
-        document,
-        chapter.chapterId,
-        "source",
-        title,
-      )),
-    );
+    for await (const record of streamTextStreamSearchIndexRecords(
+      document,
+      archiveId,
+      chapter.chapterId,
+      "summary",
+    )) {
+      batch = appendTextSentence(batch, record);
+      if (countSearchIndexBatchRecords(batch) >= ARCHIVE_INDEX_BATCH_RECORDS) {
+        yield batch;
+        batch = createEmptySearchIndexBatch();
+      }
+    }
+
+    for await (const record of streamTextStreamSearchIndexRecords(
+      document,
+      archiveId,
+      chapter.chapterId,
+      "source",
+    )) {
+      batch = appendTextSentence(batch, record);
+      if (countSearchIndexBatchRecords(batch) >= ARCHIVE_INDEX_BATCH_RECORDS) {
+        yield batch;
+        batch = createEmptySearchIndexBatch();
+      }
+    }
+
+    for (const node of await document.chunks.listBySerial(chapter.chapterId)) {
+      batch = appendObjectProperty(batch, {
+        archiveId,
+        chapterId: node.sentenceId[0],
+        ownerId: String(node.id),
+        ownerKind: SEARCH_OBJECT_PROPERTY_OWNER_KIND.chunk,
+        propertyKind: SEARCH_OBJECT_PROPERTY_KIND.label,
+        text: node.label,
+      });
+      batch = appendObjectProperty(batch, {
+        archiveId,
+        chapterId: node.sentenceId[0],
+        ownerId: String(node.id),
+        ownerKind: SEARCH_OBJECT_PROPERTY_OWNER_KIND.chunk,
+        propertyKind: SEARCH_OBJECT_PROPERTY_KIND.content,
+        text: node.content,
+      });
+
+      if (countSearchIndexBatchRecords(batch) >= ARCHIVE_INDEX_BATCH_RECORDS) {
+        yield batch;
+        batch = createEmptySearchIndexBatch();
+      }
+    }
+
+    for (const mention of await document.mentions.listByChapter(
+      chapter.chapterId,
+    )) {
+      batch = appendObjectProperty(batch, {
+        archiveId,
+        chapterId: mention.chapterId,
+        ownerId: mention.qid,
+        ownerKind: SEARCH_OBJECT_PROPERTY_OWNER_KIND.entity,
+        propertyKind: SEARCH_OBJECT_PROPERTY_KIND.surface,
+        text: mention.surface,
+      });
+
+      if (countSearchIndexBatchRecords(batch) >= ARCHIVE_INDEX_BATCH_RECORDS) {
+        yield batch;
+        batch = createEmptySearchIndexBatch();
+      }
+    }
+
     chapterDone += 1;
     await progress?.({
       done: chapterDone,
@@ -128,56 +200,67 @@ export async function buildArchiveIndexProjection(
     });
   }
 
-  for (const node of await document.chunks.listAll()) {
-    objectProperties.push({
-      archiveId: SINGLE_ARCHIVE_INDEX_ID,
-      chapterId: node.sentenceId[0],
-      ownerId: String(node.id),
-      ownerKind: SEARCH_OBJECT_PROPERTY_OWNER_KIND.chunk,
-      propertyKind: SEARCH_OBJECT_PROPERTY_KIND.label,
-      text: node.label,
-    });
-    objectProperties.push({
-      archiveId: SINGLE_ARCHIVE_INDEX_ID,
-      chapterId: node.sentenceId[0],
-      ownerId: String(node.id),
-      ownerKind: SEARCH_OBJECT_PROPERTY_OWNER_KIND.chunk,
-      propertyKind: SEARCH_OBJECT_PROPERTY_KIND.content,
-      text: node.content,
-    });
+  if (countSearchIndexBatchRecords(batch) > 0) {
+    yield batch;
   }
-
-  for (const mention of await document.mentions.listAll()) {
-    objectProperties.push({
-      archiveId: SINGLE_ARCHIVE_INDEX_ID,
-      chapterId: mention.chapterId,
-      ownerId: mention.qid,
-      ownerKind: SEARCH_OBJECT_PROPERTY_OWNER_KIND.entity,
-      propertyKind: SEARCH_OBJECT_PROPERTY_KIND.surface,
-      text: mention.surface,
-    });
-  }
-
-  return { objectProperties, textSentences };
 }
 
-async function createTextStreamSearchIndexRecords(
+function createEmptySearchIndexBatch(): SearchIndexWriteBatch {
+  return { objectProperties: [], textSentences: [] };
+}
+
+function appendTextSentence(
+  batch: SearchIndexWriteBatch,
+  record: SearchIndexWriteBatch["textSentences"][number],
+): SearchIndexWriteBatch {
+  (
+    batch.textSentences as SearchIndexWriteBatch["textSentences"][number][]
+  ).push(record);
+  return batch;
+}
+
+function appendObjectProperty(
+  batch: SearchIndexWriteBatch,
+  record: SearchIndexWriteBatch["objectProperties"][number],
+): SearchIndexWriteBatch {
+  (
+    batch.objectProperties as SearchIndexWriteBatch["objectProperties"][number][]
+  ).push(record);
+  return batch;
+}
+
+function countSearchIndexBatchRecords(batch: SearchIndexWriteBatch): number {
+  return batch.objectProperties.length + batch.textSentences.length;
+}
+
+async function* streamTextStreamSearchIndexRecords(
   document: ReadonlyDocument,
+  archiveId: number,
   chapterId: number,
   stream: ArchiveTextStreamKind,
-  _title: string,
-): Promise<SearchIndexInput["textSentences"]> {
-  const index = await createTextStreamIndex(document, chapterId, stream);
+): AsyncIterable<SearchIndexWriteBatch["textSentences"][number]> {
+  const fragments =
+    stream === "summary"
+      ? document.getSummaryFragments(chapterId)
+      : document.getSerialFragments(chapterId);
+  let globalIndex = 0;
 
-  return index.sentences.map((sentence) => ({
-    archiveId: SINGLE_ARCHIVE_INDEX_ID,
-    chapterId,
-    kind:
-      stream === "source"
-        ? TEXT_SENTENCE_KIND.source
-        : TEXT_SENTENCE_KIND.summary,
-    sentenceIndex: sentence.globalIndex,
-    text: sentence.text,
-    wordsCount: sentence.wordsCount,
-  }));
+  for (const fragmentId of await fragments.listFragmentIds()) {
+    const fragment = await fragments.getFragment(fragmentId);
+
+    for (const sentence of fragment.sentences) {
+      yield {
+        archiveId,
+        chapterId,
+        kind:
+          stream === "source"
+            ? TEXT_SENTENCE_KIND.source
+            : TEXT_SENTENCE_KIND.summary,
+        sentenceIndex: globalIndex,
+        text: sentence.text,
+        wordsCount: sentence.wordsCount,
+      };
+      globalIndex += 1;
+    }
+  }
 }

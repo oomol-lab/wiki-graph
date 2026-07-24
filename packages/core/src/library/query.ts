@@ -46,13 +46,19 @@ import {
 } from "./search-index.js";
 
 const DEFAULT_LIBRARY_PAGE_LIMIT = 20;
+const LIBRARY_QUERY_INDEX_LIMIT_MULTIPLIER = 20;
+const LIBRARY_QUERY_INDEX_MIN_LIMIT = 100;
 
 export async function findWikiGraphLibraryObjects(
   target: ParsedWikiGraphLibraryUri,
   query: string,
   options: ArchiveFindOptions = {},
 ): Promise<ArchiveFindResult> {
-  const result = await queryWikiGraphLibrarySearchIndex(target, query);
+  const indexHitLimit = createLibraryQueryIndexHitLimit(options);
+  const result = await queryWikiGraphLibrarySearchIndex(target, query, {
+    objectHitLimit: indexHitLimit,
+    textHitLimit: indexHitLimit,
+  });
 
   if (result === undefined) {
     return createFindResult(query, [], options);
@@ -82,6 +88,14 @@ export async function findWikiGraphLibraryObjects(
   }
 
   return createFindResult(query, hits, options, result.terms);
+}
+
+function createLibraryQueryIndexHitLimit(options: ArchiveFindOptions): number {
+  return Math.max(
+    (options.limit ?? DEFAULT_LIBRARY_PAGE_LIMIT) *
+      LIBRARY_QUERY_INDEX_LIMIT_MULTIPLIER,
+    LIBRARY_QUERY_INDEX_MIN_LIMIT,
+  );
 }
 
 export async function listWikiGraphLibraryObjects(

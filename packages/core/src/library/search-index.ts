@@ -7,21 +7,23 @@ import { ensureWikiGraphHomeSchemaCurrent } from "../document/home-schema-upgrad
 import { SEARCH_INDEX_SCHEMA_SQL } from "../document/schema.js";
 import { openSharedStateDatabase } from "../document/index.js";
 import { WikiGraphArchiveFile } from "../storage/wikg/index.js";
-import { buildArchiveIndexProjection } from "../retrieval/query/archive-view/index-state.js";
+import { streamArchiveIndexProjection } from "../retrieval/query/archive-view/index-state.js";
 import {
   markDirtySearchIndexChapters,
+  finalizeSearchIndexReplacement,
+  prepareSearchIndexReplacement,
   readSearchIndexFingerprintFromDatabase,
   readSearchIndexStatus,
-  replaceSearchIndex,
   SEARCH_OBJECT_PROPERTY_KIND,
   SEARCH_OBJECT_PROPERTY_OWNER_KIND,
-  type SearchIndexInput,
   type SearchIndexObjectHit,
   type SearchIndexProgressReporter,
   type SearchIndexTextHit,
+  type SearchIndexWriteCounters,
   type SearchObjectPropertyKind,
   type SearchObjectPropertyOwnerKind,
   type TextSentenceKind,
+  writeSearchIndexBatch,
 } from "../retrieval/search-index/index.js";
 import { readPathSize } from "../runtime/gc/files.js";
 import type { GcContext, GcJobResult } from "../runtime/gc/index.js";
@@ -72,6 +74,11 @@ export interface WikiGraphLibraryIndexQueryResult {
 
 export interface WikiGraphLibraryIndexListOptions {
   readonly includeText?: boolean;
+}
+
+export interface WikiGraphLibraryIndexQueryOptions {
+  readonly objectHitLimit?: number;
+  readonly textHitLimit?: number;
 }
 
 export type WikiGraphLibraryIndexObjectHit = SearchIndexObjectHit & {
@@ -145,9 +152,9 @@ export async function rebuildWikiGraphLibraryIndex(
     const indexFingerprint =
       createLibraryIndexSearchFingerprint(sourceFingerprint);
 
-    await replaceSearchIndex(
-      document as never,
-      streamLibraryIndexProjection(present, progress),
+    await replaceLibrarySearchIndex(
+      document,
+      present,
       indexFingerprint,
       progress,
     );
@@ -219,6 +226,7 @@ export async function assertWikiGraphLibraryIndexReady(
 export async function queryWikiGraphLibrarySearchIndex(
   target: ParsedWikiGraphLibraryUri,
   query: string,
+  options: WikiGraphLibraryIndexQueryOptions = {},
 ): Promise<WikiGraphLibraryIndexQueryResult | undefined> {
   const library = await resolveWikiGraphLibrary(target);
 
@@ -232,6 +240,7 @@ export async function queryWikiGraphLibrarySearchIndex(
     const result = await querySearchIndex(
       new LibraryIndexDocument(library) as never,
       query,
+      options,
     );
 
     if (result === undefined) {
@@ -437,37 +446,36 @@ export async function runLibraryIndexGc(
   return { freedBytes, removed, scanned };
 }
 
-async function* streamLibraryIndexProjection(
+async function replaceLibrarySearchIndex(
+  document: LibraryIndexDocument,
   archives: readonly WikiGraphLibraryArchiveRecord[],
+  fingerprint: string,
   progress?: SearchIndexProgressReporter,
-): AsyncIterable<SearchIndexInput> {
-  let done = 0;
+): Promise<void> {
+  await document.writeSearchIndexDatabase(async (database) => {
+    await prepareSearchIndexReplacement(database, progress);
 
-  for (const archive of archives) {
-    yield await new WikiGraphArchiveFile(archive.path).readDocument(
-      async (document) => {
-        const projection = await buildArchiveIndexProjection(document);
+    let counters: SearchIndexWriteCounters = { objectDone: 0, textDone: 0 };
+    for (const archive of archives) {
+      await new WikiGraphArchiveFile(archive.path).readDocument(
+        async (archiveDocument) => {
+          for await (const batch of streamArchiveIndexProjection(
+            archiveDocument,
+            archive.id,
+          )) {
+            counters = await writeSearchIndexBatch(
+              database,
+              batch,
+              counters,
+              progress,
+            );
+          }
+        },
+      );
+    }
 
-        return {
-          objectProperties: projection.objectProperties.map((record) => ({
-            ...record,
-            archiveId: archive.id,
-          })),
-          textSentences: projection.textSentences.map((record) => ({
-            ...record,
-            archiveId: archive.id,
-          })),
-        };
-      },
-    );
-    done += 1;
-    await progress?.({
-      done,
-      phase: "collecting",
-      total: archives.length,
-      unit: "chapter",
-    });
-  }
+    await finalizeSearchIndexReplacement(database, fingerprint, 0, progress);
+  });
 }
 
 function createLibraryIndexSearchFingerprint(

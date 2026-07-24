@@ -23,6 +23,7 @@ import {
   readArchivePage,
   rebuildArchiveSearchIndex,
 } from "../../../../../packages/core/src/retrieval/query/view.js";
+import { streamArchiveIndexProjection } from "../../../../../packages/core/src/retrieval/query/archive-view/index-state.js";
 import {
   isSearchIndexCurrent,
   markDirtySearchIndexChapters,
@@ -69,6 +70,7 @@ export {
   readArchiveText,
   rebuildArchiveSearchIndex,
   SEARCH_INDEX_FTS_HIT_LIMIT,
+  streamArchiveIndexProjection,
   withTempDir,
 };
 

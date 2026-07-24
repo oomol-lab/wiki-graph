@@ -1,8 +1,10 @@
 export {
   createSearchIndexFingerprint,
   ensureSearchIndex,
+  finalizeSearchIndexReplacement,
   isSearchIndexCurrent,
   markDirtySearchIndexChapters,
+  prepareSearchIndexReplacement,
   querySearchIndex,
   readArchiveIndexSettings,
   readSearchIndexFingerprintFromDatabase,
@@ -14,6 +16,7 @@ export {
   SINGLE_ARCHIVE_INDEX_ID,
   setFtsIndexEmbedded,
   TEXT_SENTENCE_KIND,
+  writeSearchIndexBatch,
 } from "./search/index.js";
 export type {
   ArchiveIndexSettings,
@@ -25,6 +28,7 @@ export type {
   SearchIndexQueryResult,
   SearchIndexStatus,
   SearchIndexTextHit,
+  SearchIndexWriteCounters,
   SearchObjectPropertyKind,
   SearchObjectPropertyOwnerKind,
   TextSentenceKind,

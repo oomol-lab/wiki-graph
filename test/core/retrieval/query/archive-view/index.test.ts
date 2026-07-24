@@ -17,6 +17,7 @@ import {
   rebuildArchiveSearchIndex,
   seedSourcedDocument,
   setupArchiveViewTestState,
+  streamArchiveIndexProjection,
   teardownArchiveViewTestState,
   withTempDir,
 } from "./helpers.js";
@@ -121,6 +122,59 @@ describe("archive/query/archive-view/index", () => {
 
         await expect(isSearchIndexCurrent(document)).resolves.toBe(true);
         await expect(countSearchIndexRows(document)).resolves.toBe(0);
+      } finally {
+        await document.release();
+      }
+    });
+  });
+
+  it("streams archive index projection in bounded batches", async () => {
+    await withTempDir("wikigraph-archive-view-", async (path) => {
+      const document = await DirectoryDocument.open(`${path}/document`);
+
+      try {
+        await document.openSession(async (openedDocument) => {
+          await openedDocument.createSerial();
+          const draft = await openedDocument
+            .getSerialFragments(1)
+            .createDraft();
+
+          for (let index = 0; index < 1100; index += 1) {
+            draft.addSentence(`Streaming sentence ${index}.`, 3);
+          }
+          await draft.commit();
+          await openedDocument.writeToc({
+            items: [{ children: [], serialId: 1, title: "Streaming" }],
+            version: 1,
+          });
+        });
+
+        const batches = [];
+        for await (const batch of streamArchiveIndexProjection(document, 7)) {
+          batches.push(batch);
+        }
+
+        expect(batches.length).toBeGreaterThan(1);
+        for (const batch of batches) {
+          expect(
+            batch.objectProperties.length + batch.textSentences.length,
+          ).toBeLessThanOrEqual(512);
+        }
+        expect(
+          batches
+            .flatMap((batch) => batch.textSentences)
+            .map((record) => ({
+              archiveId: record.archiveId,
+              chapterId: record.chapterId,
+              sentenceIndex: record.sentenceIndex,
+            })),
+        ).toEqual(
+          Array.from({ length: 1100 }, (_, index) => ({
+            archiveId: 7,
+            chapterId: 1,
+            sentenceIndex: index,
+          })),
+        );
       } finally {
         await document.release();
       }
