@@ -114,6 +114,20 @@ describe("cli/library args", () => {
 
   it("parses library archive member commands and rejects unsupported inspect", () => {
     expect(
+      parseCLIArguments(["wikg://lib/archive123", "--json"]),
+    ).toMatchObject({
+      args: {
+        action: "get",
+        json: true,
+        target: {
+          archivePublicId: "archive123",
+          isDefault: true,
+          kind: "archive",
+        },
+      },
+      kind: "library",
+    });
+    expect(
       parseCLIArguments(["wikg://lib/archive123", "remove", "--confirm"]),
     ).toMatchObject({
       args: {
@@ -145,9 +159,6 @@ describe("cli/library args", () => {
     expect(() =>
       parseCLIArguments(["wikg://lib/archive123", "remove"]),
     ).toThrow("Missing --confirm");
-    expect(() => parseCLIArguments(["wikg://lib/archive123"])).toThrow(
-      "requires an explicit action: move or remove",
-    );
     expect(() => parseCLIArguments(["wikg://lib/meta", "move"])).toThrow(
       "does not support `move`",
     );
@@ -183,6 +194,28 @@ describe("cli/library args", () => {
       args: {
         action: "list",
         archivePath: expect.stringContaining("lib/book.wikg") as string,
+      },
+      kind: "archive",
+    });
+  });
+
+  it("routes library root query through archive search arguments", () => {
+    expect(
+      parseCLIArguments([
+        "wikg://lib",
+        "--query",
+        "曹操",
+        "--limit",
+        "5",
+        "--json",
+      ]),
+    ).toMatchObject({
+      args: {
+        action: "search",
+        archivePath: "wikg://lib",
+        format: "json",
+        limit: 5,
+        query: "曹操",
       },
       kind: "archive",
     });

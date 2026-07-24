@@ -9,11 +9,10 @@ import { openSharedStateDatabase } from "../document/index.js";
 import { WikiGraphArchiveFile } from "../storage/wikg/index.js";
 import { buildArchiveIndexProjection } from "../retrieval/query/archive-view/index-state.js";
 import {
-  createSearchIndexFingerprint,
-  ensureSearchIndex,
   markDirtySearchIndexChapters,
   readSearchIndexFingerprintFromDatabase,
   readSearchIndexStatus,
+  replaceSearchIndex,
   SEARCH_OBJECT_PROPERTY_KIND,
   SEARCH_OBJECT_PROPERTY_OWNER_KIND,
   type SearchIndexInput,
@@ -141,18 +140,20 @@ export async function rebuildWikiGraphLibraryIndex(
     const present = archives.filter(
       (archive) => archive.exists && archive.status === "present",
     );
-    const projection = await buildLibraryIndexProjection(present, progress);
     const document = new LibraryIndexDocument(library);
     const sourceFingerprint = createLibraryIndexSourceFingerprint(sources);
+    const indexFingerprint =
+      createLibraryIndexSearchFingerprint(sourceFingerprint);
 
-    await ensureSearchIndex(document as never, projection, progress);
+    await replaceSearchIndex(
+      document as never,
+      streamLibraryIndexProjection(present, progress),
+      indexFingerprint,
+      progress,
+    );
     await document.writeSearchIndexDatabase(async (database) => {
       await setStateValue(database, "sourceFingerprint", sourceFingerprint);
-      await setStateValue(
-        database,
-        "libraryFingerprint",
-        createSearchIndexFingerprint(projection),
-      );
+      await setStateValue(database, "libraryFingerprint", indexFingerprint);
     });
 
     return await readWikiGraphLibraryIndexState(target);
@@ -436,31 +437,27 @@ export async function runLibraryIndexGc(
   return { freedBytes, removed, scanned };
 }
 
-async function buildLibraryIndexProjection(
+async function* streamLibraryIndexProjection(
   archives: readonly WikiGraphLibraryArchiveRecord[],
   progress?: SearchIndexProgressReporter,
-): Promise<SearchIndexInput> {
-  const objectProperties: SearchIndexInput["objectProperties"][number][] = [];
-  const textSentences: SearchIndexInput["textSentences"][number][] = [];
+): AsyncIterable<SearchIndexInput> {
   let done = 0;
 
   for (const archive of archives) {
-    await new WikiGraphArchiveFile(archive.path).readDocument(
+    yield await new WikiGraphArchiveFile(archive.path).readDocument(
       async (document) => {
         const projection = await buildArchiveIndexProjection(document);
 
-        objectProperties.push(
-          ...projection.objectProperties.map((record) => ({
+        return {
+          objectProperties: projection.objectProperties.map((record) => ({
             ...record,
             archiveId: archive.id,
           })),
-        );
-        textSentences.push(
-          ...projection.textSentences.map((record) => ({
+          textSentences: projection.textSentences.map((record) => ({
             ...record,
             archiveId: archive.id,
           })),
-        );
+        };
       },
     );
     done += 1;
@@ -471,8 +468,16 @@ async function buildLibraryIndexProjection(
       unit: "chapter",
     });
   }
+}
 
-  return { objectProperties, textSentences };
+function createLibraryIndexSearchFingerprint(
+  sourceFingerprint: string,
+): string {
+  return createHash("sha256")
+    .update("library-index")
+    .update("\0")
+    .update(sourceFingerprint)
+    .digest("hex");
 }
 
 function formatLibraryHitSource(
