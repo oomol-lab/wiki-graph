@@ -22,7 +22,7 @@ import {
 } from "../helpers.js";
 import { parseArchiveArguments } from "../archive.js";
 
-const LIBRARY_ARCHIVE_ACTIONS = new Set(["move", "remove"]);
+const LIBRARY_ARCHIVE_ACTIONS = new Set(["get", "move", "remove"]);
 const LIBRARY_METADATA_ACTIONS = new Set([
   "clear",
   "delete",
@@ -73,24 +73,17 @@ export function parseLibraryUriFirstArguments(
     };
   }
 
-  if (target.kind === "archive" && explicitAction === undefined) {
-    throw new Error(
-      withHelpRoute(
-        `The library archive ${uri} requires an explicit action: move or remove.`,
-        formatWikiGraphHelpCommand(uri),
-      ),
-    );
-  }
-
   const action =
     explicitAction ??
     (target.kind === "scope" &&
-    target.objectUri !== undefined &&
-    target.objectUri !== "wikg://index"
+    ((target.objectUri !== undefined && target.objectUri !== "wikg://index") ||
+      values.query !== undefined)
       ? resolveImplicitLibraryQueryAction(target.objectUri, values.query)
       : target.kind === "metadata" || target.objectUri === "wikg://index"
         ? "get"
-        : "list");
+        : target.kind === "archive"
+          ? "get"
+          : "list");
 
   if (target.kind === "scope" && target.objectUri === "wikg://index") {
     return parseLibraryIndexArguments(
@@ -102,7 +95,10 @@ export function parseLibraryUriFirstArguments(
     );
   }
 
-  if (target.kind === "scope" && target.objectUri !== undefined) {
+  if (
+    target.kind === "scope" &&
+    (target.objectUri !== undefined || action === "search")
+  ) {
     return parseLibraryQueryArguments(
       uri,
       target,
@@ -174,13 +170,18 @@ function parseLibraryQueryArguments(
       ),
     );
   }
-  if (target.objectUri === undefined) {
+  if (target.objectUri === undefined && action !== "search") {
     throw new Error("Internal error: missing library query object URI.");
   }
 
   const parsed = parseArchiveArguments(
     action as "evidence" | "get" | "list" | "pack" | "related" | "search",
-    [formatTemporaryLocatedLibraryQueryUri(target.objectUri), ...tail],
+    [
+      target.objectUri === undefined
+        ? "wikg://__library_index__.wikg"
+        : formatTemporaryLocatedLibraryQueryUri(target.objectUri),
+      ...tail,
+    ],
     values,
     formatWikiGraphHelpCommand(uri, action),
     {
@@ -230,8 +231,11 @@ function formatTemporaryLocatedLibraryQueryUri(objectUri: string): string {
 }
 
 function getLibraryQueryDefaultKinds(
-  objectUri: string,
+  objectUri: string | undefined,
 ): readonly CLIObjectKind[] | undefined {
+  if (objectUri === undefined) {
+    return undefined;
+  }
   const path = stripObjectUriPrefix(objectUri);
   const [head] = path.split("/");
 
@@ -254,9 +258,12 @@ function getLibraryQueryDefaultKinds(
 }
 
 function resolveImplicitLibraryQueryAction(
-  objectUri: string,
+  objectUri: string | undefined,
   query: string | undefined,
 ): "get" | "list" | "search" {
+  if (objectUri === undefined) {
+    return query === undefined ? "list" : "search";
+  }
   const path = stripObjectUriPrefix(objectUri);
   if (/^(?:chapter|chunk|entity|source|summary|triple)$/u.test(path)) {
     return query === undefined ? "list" : "search";
@@ -341,6 +348,16 @@ function parseLibraryArchiveArguments(
   rejectArchiveFlag(action, "--json-input", values["json-input"], helpRoute);
   rejectArchiveBooleanFlag(action, "--jsonl", values.jsonl, helpRoute);
   rejectExtraPositionals(action, tail, 0, helpRoute);
+
+  if (action === "get") {
+    rejectArchiveFlag(action, "--to", values.to, helpRoute);
+    rejectArchiveBooleanFlag(action, "--confirm", values.confirm, helpRoute);
+    return {
+      args: { action, json: values.json, target },
+      help: false,
+      kind: "library",
+    };
+  }
 
   if (action === "remove") {
     if (values.confirm !== true) {

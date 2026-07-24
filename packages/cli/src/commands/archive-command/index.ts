@@ -57,8 +57,8 @@ export async function runArchiveCommand(
   const libraryTarget = parseWikiGraphLibraryUri(args.archivePath);
   if (
     libraryTarget?.kind === "scope" &&
-    libraryTarget.objectUri !== undefined &&
-    libraryTarget.objectUri !== "wikg://index"
+    libraryTarget.objectUri !== "wikg://index" &&
+    (libraryTarget.objectUri !== undefined || args.action === "search")
   ) {
     await runLibraryIndexArchiveCommand(args, libraryTarget);
     return;
@@ -327,7 +327,10 @@ async function runLibraryIndexArchiveCommand(
   target: NonNullable<ReturnType<typeof parseWikiGraphLibraryUri>>,
 ): Promise<void> {
   const library = await resolveWikiGraphLibrary(target);
-  const objectUri = getObjectUri(args.objectId ?? args.archivePath);
+  const objectUri =
+    target.objectUri === undefined && args.objectId === undefined
+      ? "wikg://"
+      : getObjectUri(args.objectId ?? args.archivePath);
   const context = {
     ...createArchiveOutputContext(args),
     archiveKey: args.archivePath,
