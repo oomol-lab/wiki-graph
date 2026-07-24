@@ -88,6 +88,14 @@ export function parseLibraryUriFirstArguments(
     return parseLibraryHelpArguments(uri, target, action, explicitAction);
   }
 
+  if (target.kind === "archive" && action === "inspect") {
+    return parseLibraryArchiveInspectArguments(
+      uri,
+      explicitAction === undefined ? [] : positionals.slice(2),
+      values,
+    );
+  }
+
   if (target.kind === "scope" && target.objectUri === "wikg://index") {
     return parseLibraryIndexArguments(
       uri,
@@ -156,6 +164,14 @@ function parseLibraryHelpArguments(
   action: string,
   explicitAction: string | undefined,
 ): ParsedCLIArguments {
+  if (target.kind === "archive" && action === "inspect") {
+    return {
+      help: true,
+      helpText: renderUriPredicateHelpText("archive-scope", "inspect", uri),
+      kind: "help",
+    };
+  }
+
   if (
     target.kind === "scope" &&
     target.objectUri === undefined &&
@@ -563,6 +579,19 @@ function parseLibraryArchiveArguments(
     help: false,
     kind: "library",
   };
+}
+
+function parseLibraryArchiveInspectArguments(
+  uri: string,
+  tail: readonly string[],
+  values: ArchiveArgumentValues,
+): ParsedCLIArguments {
+  return parseArchiveArguments(
+    "inspect",
+    [uri, ...tail],
+    values,
+    formatWikiGraphHelpCommand(uri, "inspect"),
+  );
 }
 
 function parseLibraryScopeArguments(

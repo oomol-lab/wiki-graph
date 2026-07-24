@@ -38,17 +38,20 @@ Library archive membership
 Default behavior:
   - `{{ commandName }} {{ uri }}` reads the registry entry for this library archive member.
   - The membership entry identifies the archive id, relative path, status, and containing library.
+  - `{{ commandName }} {{ uri }} inspect` checks readiness for this managed archive's contents, not the library registry.
   - Add archive object suffixes such as `/chapter`, `/entity`, or `/triple` when you want to query the archive contents.
 
 Use when:
-  - You need to inspect, move, or remove one archive that is already managed by a library.
+  - You need to inspect readiness, move, or remove one archive that is already managed by a library.
 
 Usage:
   {{ commandName }} {{ uri }} [--json]
+  {{ commandName }} {{ uri }} inspect [--json]
   {{ commandName }} {{ uri }} move --to <relative-wikg-path> [--json]
   {{ commandName }} {{ uri }} remove --confirm [--json]
 
 Predicate commands:
+  - inspect: inspect this managed archive's archive readiness. Help: {{ commandName }} {{ uri }} inspect --help
   - move: move or rename this archive inside the same library folder without changing its archive id. Help: {{ commandName }} {{ uri }} move --help
   - remove: delete this archive file from the library folder and unregister it. Help: {{ commandName }} {{ uri }} remove --help
 {% elif target.kind == "scope" and target.objectUri == "wikg://index" %}

@@ -71,6 +71,7 @@ export async function resolveArchiveCommandRuntimeArguments(
   if (
     args.action === "create" ||
     args.action === "export" ||
+    args.action === "inspect" ||
     args.action === "next"
   ) {
     return args;

@@ -98,6 +98,9 @@ Notes:
   - Run this before broad Reading Graph, Reading Summary, or Knowledge Graph work.
   - The report includes content counts, FTS index readiness, generation coverage, retrieval guidance, recommended next commands, planning estimates, and concurrency hints.
   - Use `--json` for a machine-readable report with the same recommendations.
+{% if libraryContext.isArchiveShortcut %}
+  - This library archive shortcut inspects one managed archive's readiness; it is not a library-level health report.
+{% endif %}
 {% elif predicate == "add" and target.name == "chapter-collection-scope" %}
 Purpose:
   Add a chapter to the archive.

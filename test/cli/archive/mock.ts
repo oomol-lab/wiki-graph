@@ -1,5 +1,6 @@
 import { vi } from "vitest";
 import type * as CLISupport from "../../../packages/cli/src/support/index.js";
+import type * as WikiGraphCore from "wiki-graph-core";
 import type {
   ArchiveBacklinks,
   ArchiveCollectionResult,
@@ -463,6 +464,19 @@ export function parseJSONLLastLine(text: string | undefined): unknown {
 
   return JSON.parse(line) as unknown;
 }
+
+vi.mock("wiki-graph-core", async (importOriginal) => {
+  const actual = await importOriginal<typeof WikiGraphCore>();
+
+  return {
+    ...actual,
+    resolveWikiGraphLibraryArchivePath: vi.fn((uri: string) => {
+      const archiveId = uri.split("/").at(-1) ?? "archive";
+
+      return Promise.resolve(`/tmp/library/${archiveId}.wikg`);
+    }),
+  };
+});
 
 vi.mock(
   "../../../packages/core/src/storage/wikg/wiki-graph-archive-file.js",

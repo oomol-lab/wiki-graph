@@ -24,7 +24,10 @@ import {
 } from "../../../../../core/src/runtime/common/wiki-graph/dir.js";
 import { readWikgArchiveEntry } from "../../../../../core/src/storage/wikg/archive/index.js";
 import { runArchiveChapterCommand } from "../chapter.js";
-import { resolveArchiveCommandRuntimeArguments } from "./uri.js";
+import {
+  resolveArchiveCommandRuntimeArguments,
+  resolveArchiveRuntimeLocation,
+} from "./uri.js";
 
 let previousStateDir: string | undefined;
 let tempDir: string;
@@ -64,6 +67,29 @@ describe("archive-command URI runtime resolution", () => {
       archivePath: `wikg://${archive.path}/entity/Q23`,
       format: "json",
       objectId: `wikg://${archive.path}/entity/Q23`,
+    });
+  });
+
+  it("keeps library archive inspect arguments displayable while runtime resolution can find the archive", async () => {
+    const target = parseWikiGraphLibraryUri("wikg://lib");
+    expect(target).toBeDefined();
+    const archive = await addTestArchiveToLibrary(target!);
+
+    await expect(
+      resolveArchiveCommandRuntimeArguments({
+        action: "inspect",
+        archivePath: archive.uri,
+      }),
+    ).resolves.toStrictEqual({
+      action: "inspect",
+      archivePath: archive.uri,
+    });
+
+    await expect(
+      resolveArchiveRuntimeLocation(archive.uri),
+    ).resolves.toMatchObject({
+      archivePath: archive.path,
+      locatedUri: `wikg://${archive.path}`,
     });
   });
 

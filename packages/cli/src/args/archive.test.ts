@@ -522,6 +522,45 @@ describe("cli/args/archive", () => {
       help: false,
       kind: "archive",
     });
+    expect(
+      parseCLIArguments(["wikg://lib/archive123", "inspect"]),
+    ).toStrictEqual({
+      args: {
+        action: "inspect",
+        archivePath: "wikg://lib/archive123",
+      },
+      help: false,
+      kind: "archive",
+    });
+    expect(
+      parseCLIArguments([
+        "wikg://lib/team.lib/archive123",
+        "inspect",
+        "--json",
+      ]),
+    ).toStrictEqual({
+      args: {
+        action: "inspect",
+        archivePath: "wikg://lib/team.lib/archive123",
+        json: true,
+      },
+      help: false,
+      kind: "archive",
+    });
+    expect(() =>
+      parseCLIArguments([
+        "wikg://lib/archive123",
+        "inspect",
+        "--query",
+        "agent",
+      ]),
+    ).toThrow("The `inspect` command does not support --query.");
+    expect(() =>
+      parseCLIArguments(["wikg://lib/archive123", "inspect", "--jsonl"]),
+    ).toThrow("The `inspect` command does not support --jsonl.");
+    expect(() =>
+      parseCLIArguments(["wikg://lib/archive123", "inspect", "--evidence"]),
+    ).toThrow("The `inspect` command does not support --evidence.");
     expect(() =>
       parseCLIArguments(["wikg://book.wikg/chapter/part", "inspect"]),
     ).toThrow("`chapter/<path>` inspect is not available");

@@ -782,6 +782,12 @@ describe("cli/args/help", () => {
       "Library archive shortcuts:",
     );
     expect(renderHelpTopicText("library")).toContain(
+      "wikg://lib/<archive-id> inspect",
+    );
+    expect(renderHelpTopicText("library")).toContain(
+      "not a library-level health report",
+    );
+    expect(renderHelpTopicText("library")).toContain(
       "Library index lifecycle:",
     );
     expect(renderHelpTopicText("library")).toContain("Registry discovery:");
@@ -796,6 +802,37 @@ describe("cli/args/help", () => {
         "get",
       ),
     ).toContain("Read this library metadata map");
+    const archiveMemberHelp = parseCLIArguments([
+      "wikg://lib/archive123",
+      "--help",
+    ]);
+    const archiveMemberInspectHelp = parseCLIArguments([
+      "wikg://lib/archive123",
+      "inspect",
+      "--help",
+    ]);
+    expect(archiveMemberHelp).toMatchObject({ help: true, kind: "help" });
+    expect(archiveMemberInspectHelp).toMatchObject({
+      help: true,
+      kind: "help",
+    });
+    if (!archiveMemberHelp.help || !archiveMemberInspectHelp.help) {
+      throw new Error("Expected library archive help output.");
+    }
+    expect(archiveMemberHelp.helpText).toContain(
+      "reads the registry entry for this library archive member",
+    );
+    expect(archiveMemberHelp.helpText).toContain("inspect [--json]");
+    expect(archiveMemberHelp.helpText).toContain("not the library registry");
+    expect(archiveMemberInspectHelp.helpText).toContain(
+      "URI Predicate Command",
+    );
+    expect(archiveMemberInspectHelp.helpText).toContain(
+      "wikg://lib/archive123 inspect [--json]",
+    );
+    expect(archiveMemberInspectHelp.helpText).toContain(
+      "not a library-level health report",
+    );
   });
 
   it("supports a first-contact recovery chain from root help to parse failures", () => {

@@ -103,7 +103,7 @@ async function createArchiveInspectReport(
   document: ReadonlyDocument,
   args: CLIArchiveArguments,
 ): Promise<InspectReport> {
-  const archiveUri = formatWikiGraphCommandUri(args.archivePath);
+  const archiveUri = formatArchiveInspectCommandUri(args.archivePath);
   const scopeUri =
     args.chapterId === undefined
       ? archiveUri
@@ -205,6 +205,14 @@ async function createArchiveInspectReport(
     performanceHints,
     help: { readiness: "wg help readiness" },
   };
+}
+
+function formatArchiveInspectCommandUri(archivePath: string): string {
+  if (archivePath.startsWith("wikg://lib/")) {
+    return archivePath;
+  }
+
+  return formatWikiGraphCommandUri(archivePath);
 }
 
 function formatArchiveInspectText(report: InspectReport): string {

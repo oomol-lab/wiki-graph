@@ -265,6 +265,57 @@ describe("cli/archive/object", () => {
     expect(archiveMockState.textWrites[0]).toContain("Archive Inspect");
   });
 
+  it("inspects a library archive shortcut without leaking the resolved path", async () => {
+    await runArchiveCommand({
+      action: "inspect",
+      archivePath: "wikg://lib/archive123",
+    });
+
+    expect(archiveMockState.readCalls).toStrictEqual([
+      "/tmp/library/archive123.wikg",
+    ]);
+    expect(archiveMockState.textWrites[0]).toContain(
+      "URI: wikg://lib/archive123",
+    );
+    expect(archiveMockState.textWrites[0]).toContain(
+      "Command: wg wikg://lib/archive123/index enable",
+    );
+    expect(archiveMockState.textWrites[0]).toContain(
+      "--input wikg://lib/archive123 --task reading-graph",
+    );
+    expect(archiveMockState.textWrites[0]).not.toContain(
+      "/tmp/library/archive123.wikg",
+    );
+  });
+
+  it("prints library archive shortcut inspect JSON with the shortcut URI", async () => {
+    await runArchiveCommand({
+      action: "inspect",
+      archivePath: "wikg://lib/archive123",
+      json: true,
+    });
+
+    const output = JSON.parse(archiveMockState.textWrites[0] ?? "") as {
+      readonly index?: { readonly fixCommand?: string };
+      readonly improvements?: readonly { readonly command?: string }[];
+      readonly uri?: string;
+    };
+
+    expect(archiveMockState.readCalls).toStrictEqual([
+      "/tmp/library/archive123.wikg",
+    ]);
+    expect(output.uri).toBe("wikg://lib/archive123");
+    expect(output.index?.fixCommand).toBe(
+      "wg wikg://lib/archive123/index enable",
+    );
+    expect(archiveMockState.textWrites[0]).not.toContain(
+      "/tmp/library/archive123.wikg",
+    );
+    expect(
+      output.improvements?.map((item) => item.command).join("\n"),
+    ).toContain("--input wikg://lib/archive123 --task reading-graph");
+  });
+
   it("prints request and job performance hints for multi-chapter generation", async () => {
     archiveMockState.inspectChapters = [
       {
