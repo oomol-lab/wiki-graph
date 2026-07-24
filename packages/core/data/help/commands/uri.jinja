@@ -53,7 +53,7 @@ URI type:
 Default behavior:
   - `{{ commandName }} {{ uri }}` enumerates Reading Graph chunks.
   - `{{ commandName }} {{ uri }} --query <query>` applies keyword retrieval to chunks in this scope.
-{% if "/chapter/" in uri %}
+{% if uriContext.isChapterQualified %}
   - This chapter-qualified scope covers the selected chapter subtree by default.
   - Use `--depth 0` for only the selected chapter, or `--depth 1` for the selected chapter plus direct children.
 {% endif %}
@@ -70,7 +70,7 @@ URI type:
 Default behavior:
   - `{{ commandName }} {{ uri }}` enumerates Knowledge Graph entities.
   - `{{ commandName }} {{ uri }} --query <query>` applies keyword retrieval to entities in this scope.
-{% if "/chapter/" in uri %}
+{% if uriContext.isChapterQualified %}
   - This chapter-qualified scope covers the selected chapter subtree by default.
   - Use `--depth 0` for only the selected chapter, or `--depth 1` for the selected chapter plus direct children.
 {% endif %}
@@ -87,7 +87,7 @@ URI type:
 Default behavior:
   - `{{ commandName }} {{ uri }}` enumerates Knowledge Graph triples matching this scope or pattern.
   - `{{ commandName }} {{ uri }} --query <query>` applies keyword retrieval to triples in this scope.
-{% if "/chapter/" in uri %}
+{% if uriContext.isChapterQualified %}
   - This chapter-qualified scope covers the selected chapter subtree by default.
   - Use `--depth 0` for only the selected chapter, or `--depth 1` for the selected chapter plus direct children.
 {% endif %}

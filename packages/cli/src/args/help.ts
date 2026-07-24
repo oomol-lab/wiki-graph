@@ -1,4 +1,8 @@
-import { parseWikiGraphLibraryUri, resolveDataDirPath } from "wiki-graph-core";
+import {
+  parseLocatedWikiGraphUri,
+  parseWikiGraphLibraryUri,
+  resolveDataDirPath,
+} from "wiki-graph-core";
 import { createEnv } from "wiki-graph-core";
 
 import { CLI_FULL_COMMAND, CLI_PRIMARY_COMMAND } from "wiki-graph-core";
@@ -12,6 +16,7 @@ import type {
   CLIArchiveMaintenanceCommand,
   CLILibraryAction,
 } from "./types.js";
+import { parseChapterTarget } from "./uri/chapter/target.js";
 
 export const HELP_TOPICS = [
   "format",
@@ -275,6 +280,7 @@ export function renderUriHelpText(
   return renderHelpTemplate("help/commands/uri", {
     libraryContext: getLibraryHelpContext(uri),
     target: requireUriHelpTarget(targetName),
+    uriContext: getUriHelpContext(uri),
     uri,
   });
 }
@@ -299,6 +305,7 @@ export function renderUriPredicateHelpText(
     libraryContext: getLibraryHelpContext(uri),
     predicate,
     target,
+    uriContext: getUriHelpContext(uri),
     uri,
   });
 }
@@ -394,6 +401,37 @@ function getLibraryHelpContext(uri: string): {
     isLibraryUri: true,
     isLibraryWide: target.kind === "scope" && target.objectUri !== undefined,
   };
+}
+
+function getUriHelpContext(uri: string): {
+  readonly isChapterQualified: boolean;
+} {
+  const objectUri = getHelpObjectUri(uri);
+  const target =
+    objectUri === undefined ? undefined : parseChapterTarget(objectUri);
+
+  return {
+    isChapterQualified:
+      target?.kind === "chapter-lens" ||
+      target?.kind === "chapter-triple-pattern-lens",
+  };
+}
+
+function getHelpObjectUri(uri: string): string | undefined {
+  try {
+    const libraryTarget = parseWikiGraphLibraryUri(uri);
+    if (libraryTarget?.objectUri !== undefined) {
+      return libraryTarget.objectUri;
+    }
+  } catch {
+    // Fall through to the generic URI parser.
+  }
+
+  try {
+    return parseLocatedWikiGraphUri(uri).objectUri;
+  } catch {
+    return undefined;
+  }
 }
 
 function renderHelpTemplate(

@@ -496,8 +496,24 @@ describe("cli/args/help", () => {
       "This chapter-qualified scope covers the selected chapter subtree",
     );
     expect(
+      renderUriHelpText(
+        "entity-scope",
+        "wikg:///library/chapter/book.wikg/entity",
+      ),
+    ).not.toContain(
+      "This chapter-qualified scope covers the selected chapter subtree",
+    );
+    expect(
       renderUriHelpText("index-object", "wikg://book.wikg/index"),
     ).toContain("status, readiness, storage policy, and materialization state");
+    expect(
+      renderUriPredicateHelpText("index-object", "enable", "wikg://lib/index"),
+    ).toContain("Build or rebuild this library's aggregate search index");
+    expect(
+      renderUriPredicateHelpText("index-object", "enable", "wikg://lib/index"),
+    ).not.toContain(
+      "Use `embed` when the index should travel with the archive",
+    );
     expect(
       renderUriPredicateHelpText(
         "index-object",
@@ -670,6 +686,23 @@ describe("cli/args/help", () => {
     expect(renderArchiveMaintenanceCommandHelpText("meta")).toContain(
       "<object-uri>/meta put <key>",
     );
+    expect(renderArchiveMaintenanceCommandHelpText("meta")).toContain(
+      "<object-uri>/meta put <key> <value> [--json]",
+    );
+    expect(
+      renderUriPredicateHelpText(
+        "metadata-object",
+        "clear",
+        "wikg://book.wikg/meta",
+      ),
+    ).toContain("wikg://book.wikg/meta clear [--json]");
+    expect(
+      renderUriPredicateHelpText(
+        "local-config-section",
+        "put",
+        "wikg://local/config/concurrent",
+      ),
+    ).toContain("wg wikg://local/config/concurrent put <key> <value> [--json]");
   });
 
   it("renders library help through templates", () => {
@@ -692,6 +725,7 @@ describe("cli/args/help", () => {
     expect(scopeHelpText).toContain("wg wikg://lib scan [--json]");
     expect(scopeHelpText).toContain("wg wikg://lib/index [--json]");
     expect(scopeHelpText).toContain(".lib` suffix");
+    expect(scopeHelpText).not.toContain("future `wikg://lib/<archive-id>/`");
     expect(scopeHelpText).toContain(
       "This is not a list of all library registries.",
     );

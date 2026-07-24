@@ -314,7 +314,7 @@ Purpose:
 {% endif %}
 
 Usage:
-  {{ commandName }} {{ uri }} clear
+  {{ commandName }} {{ uri }} clear{% if target.name == "metadata-object" %} [--json]{% endif %}
 
 {% if target.name == "chapter-title-object" %}
 Notes:
@@ -335,6 +335,22 @@ Notes:
   - This predicate is only available on URI targets that explicitly support clearing.
 {% endif %}
 {% elif predicate == "enable" %}
+{% if target.name == "index-object" and libraryContext.isLibraryWide %}
+Purpose:
+  Build or rebuild this library's aggregate search index.
+
+Usage:
+  {{ commandName }} {{ uri }} enable [--jsonl]
+
+Notes:
+  - This is a full rebuild from registered present archives.
+  - Missing or unreadable library archive members are skipped and reported.
+  - Progress is emitted as text by default, or line-delimited events with `--jsonl`.
+  - `--json` is not supported for enable because progress is streamed.
+  - Library indexes are local derived state under Wiki Graph staging, not files inside the library folder.
+  - Rebuild holds the library write lock; concurrent `scan`, `add`, `rebind`, `disable`, archive `move`, or archive `remove` commands for the same library cannot run at the same time.
+  - Archive writes can mark the aggregate index dirty; rebuild again before relying on library-wide query when status reports dirty or stale.
+{% else %}
 Purpose:
   Enable searchable FTS index support for this archive on this machine.
 
@@ -350,7 +366,21 @@ Notes:
   - Text success output is a short status summary.
   - With `--jsonl`, progress is emitted as line-delimited event records such as step/status/error records.
   - After enable succeeds, `--query`, `related --query`, and `evidence --query` become available.
+{% endif %}
 {% elif predicate == "disable" %}
+{% if target.name == "index-object" and libraryContext.isLibraryWide %}
+Purpose:
+  Disable this library index and remove its current local materialization.
+
+Usage:
+  {{ commandName }} {{ uri }} disable [--json]
+
+Notes:
+  - This does not delete the library registry, metadata, folder, or managed `.wikg` archives.
+  - Library-wide `--query` and naked scope enumeration will fail until the index is enabled again.
+  - Library indexes do not support archive-style `embed` or `external` modes.
+  - Disable holds the library write lock and cannot run concurrently with membership changes or index rebuild for the same library.
+{% else %}
 Purpose:
   Disable searchable FTS index support for this archive and remove the current index materialization.
 
@@ -361,7 +391,19 @@ Notes:
   - Disabling removes the current local or embedded index materialization.
   - After disable succeeds, `--query`, `related --query`, and `evidence --query` are unavailable until `enable` or `embed` is run again.
   - Use this when intentionally dropping index state, not as routine cleanup after generation.
+{% endif %}
 {% elif predicate == "embed" %}
+{% if target.name == "index-object" and libraryContext.isLibraryWide %}
+Purpose:
+  This library index does not support embedded archive index storage.
+
+Usage:
+  {{ commandName }} {{ uri }} enable --help
+
+Notes:
+  - Library indexes are local derived state under Wiki Graph staging.
+  - Use `enable` to build the library index or `disable` to remove it.
+{% else %}
 Purpose:
   Use an archive-embedded searchable FTS index.
 
@@ -373,7 +415,19 @@ Notes:
   - After embedding, CLI archive writes keep the embedded index synchronized automatically.
   - This makes the archive more portable, but increases archive size.
   - Use it when distributing a `.wikg` with keyword retrieval ready for another machine.
+{% endif %}
 {% elif predicate == "external" %}
+{% if target.name == "index-object" and libraryContext.isLibraryWide %}
+Purpose:
+  This library index does not support archive externalization.
+
+Usage:
+  {{ commandName }} {{ uri }} enable --help
+
+Notes:
+  - Library indexes are already local derived state under Wiki Graph staging.
+  - Use `enable` to build the library index or `disable` to remove it.
+{% else %}
 Purpose:
   Use external local-cache storage for the searchable FTS index.
 
@@ -385,6 +439,7 @@ Notes:
   - The archive no longer carries embedded index data.
   - Externalizing does not guarantee a current local materialization on this machine.
   - Run `{{ commandName }} {{ uri }} enable` to build or repair local query support after switching to external storage.
+{% endif %}
 {% elif predicate == "clean" %}
 Purpose:
   Remove completed local generation jobs.
@@ -450,10 +505,10 @@ Purpose:
   Set one key in this local config section.
 
 Usage:
-  {{ commandName }} {{ uri }} put <key> <value>
-  {{ commandName }} {{ uri }} put <key> --json-input <json>
+  {{ commandName }} {{ uri }} put <key> <value> [--json]
+  {{ commandName }} {{ uri }} put <key> --json-input <json> [--json]
 {% if "/llm" in uri %}
-  {{ commandName }} {{ uri }} put <key> --secret
+  {{ commandName }} {{ uri }} put <key> --secret [--json]
 {% endif %}
 
 {% if target.name == "local-config-section" %}
@@ -476,6 +531,7 @@ Keys:
 Notes:
   - Positional `<value>` is stored as a string.
   - `--json-input` stores a JSON value and is useful for numeric config sections.
+  - `--json` controls output shape; it is not JSON input.
 {% if "/llm" in uri %}
   - `--secret` reads the value from an interactive terminal without echoing it; use it for `apiKey`.
 {% endif %}
@@ -548,6 +604,10 @@ Library context:
   - Library archive shortcuts such as `wikg://lib/<archive-id>/triple/Q8018/discusses/Q123` apply the predicate to one managed archive.
 {% elif target.name == "chunk-object" or target.name == "chunk-scope" %}
   - Library archive shortcuts such as `wikg://lib/<archive-id>/chunk/12` apply the predicate to one managed archive.
+{% elif target.name == "index-object" and libraryContext.isLibraryWide %}
+  - Library index shortcuts such as `wikg://lib/index` apply the predicate to the aggregate library index.
+{% elif target.name == "index-object" %}
+  - Library archive shortcuts such as `wikg://lib/<archive-id>/index` apply the predicate to one managed archive.
 {% else %}
   - Library archive shortcuts such as `wikg://lib/<archive-id>/entity/Q8018` apply the predicate to one managed archive.
 {% endif %}
