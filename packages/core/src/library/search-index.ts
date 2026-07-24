@@ -81,6 +81,7 @@ export interface WikiGraphLibraryIndexListOptions {
 }
 
 export interface WikiGraphLibraryIndexQueryOptions {
+  readonly chapters?: readonly number[];
   readonly match?: ArchiveFindMatch;
   readonly objectHitLimit?: number;
   readonly textAfter?: {

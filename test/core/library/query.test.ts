@@ -173,6 +173,7 @@ vi.mock(
           })),
         ),
     ),
+    parseSearchPropertyIntegerOwnerId: vi.fn((value: string) => Number(value)),
   }),
 );
 
@@ -488,6 +489,72 @@ describe("wiki graph library object query aggregation", () => {
         textHitLimit: 100,
         types: ["source", "summary"],
       }),
+    );
+  });
+
+  it("keeps library bucket searches scoped to requested chapters", async () => {
+    const [{ findWikiGraphLibraryObjects }, searchIndex] = await Promise.all([
+      import("../../../packages/core/src/library/query.js"),
+      import("../../../packages/core/src/library/search-index.js"),
+    ]);
+    vi.mocked(searchIndex.queryWikiGraphLibrarySearchIndex).mockClear();
+
+    mocks.listIndexResult = {
+      objectHits: [createIndexObjectHit(1, "7")],
+      terms: ["chapter"],
+      textHits: [],
+    };
+
+    await findWikiGraphLibraryObjects(target, "chapter", {
+      chapters: [7],
+      limit: 5,
+    });
+
+    expect(searchIndex.queryWikiGraphLibrarySearchIndex).toHaveBeenCalledWith(
+      target,
+      "chapter",
+      expect.objectContaining({
+        chapters: [7],
+        types: ["chapter-title"],
+      }),
+    );
+    expect(searchIndex.queryWikiGraphLibrarySearchIndex).toHaveBeenCalledWith(
+      target,
+      "chapter",
+      expect.objectContaining({
+        chapters: [7],
+        types: null,
+      }),
+    );
+  });
+
+  it("rejects library search cursors with mismatched result types", async () => {
+    const { findWikiGraphLibraryObjects } =
+      await import("../../../packages/core/src/library/query.js");
+
+    mocks.listIndexResult = {
+      objectHits: [createIndexObjectHit(1, "1"), createIndexObjectHit(1, "2")],
+      terms: ["chapter"],
+      textHits: [],
+    };
+
+    const firstPage = await findWikiGraphLibraryObjects(target, "chapter", {
+      limit: 1,
+      types: ["chapter-title"],
+    });
+
+    expect(firstPage.nextCursor).not.toBeNull();
+    if (firstPage.nextCursor === null) {
+      throw new Error("Expected a next cursor.");
+    }
+    await expect(
+      findWikiGraphLibraryObjects(target, "chapter", {
+        cursor: firstPage.nextCursor,
+        limit: 1,
+        types: ["entity"],
+      }),
+    ).rejects.toThrow(
+      "Search cursor does not match the requested result types.",
     );
   });
 
