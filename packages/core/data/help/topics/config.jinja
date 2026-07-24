@@ -47,9 +47,9 @@ Operations:
 Secret handling:
   - `apiKey` is read through an interactive hidden prompt.
   - `apiKey` is masked as `****` in command output.
-  - `set --json` cannot set a real `apiKey`.
-  - `set --json` may include `"apiKey":"****"` to preserve an existing secret.
-  - Omitting `apiKey` from `set --json` removes it from the section.
+  - `set <json>` and `set --json-input <json>` cannot set a real `apiKey`.
+  - Those JSON inputs may include `"apiKey":"****"` to preserve an existing secret.
+  - Omitting `apiKey` from those JSON inputs removes it from the section.
 
 Minimum LLM-backed operation configuration:
   - `llm.provider`
@@ -74,6 +74,13 @@ Examples:
 WikiSpine:
   Knowledge Graph builds require WikiSpine. If `wikispine` is missing,
   configure one provider and run the config test before starting Knowledge Graph work.
+  - `fetch` uses the built-in service endpoint and requires network access to that service.
+  - `cli` requires a `wikispine` executable on PATH and any local runtime/data it needs.
+  - Test `cli` from the same shell that runs Wiki Graph; a different terminal or service environment may have a different PATH.
+  - If `{{ commandName }} wikg://local/config/wikispine test` fails for `cli`, check PATH first or switch to `fetch`.
+  - If the test fails for `fetch`, check network access or switch to `cli` in environments with a prepared local runtime.
+  - CLI help does not install the local WikiSpine runtime; use `fetch` unless the local runtime is already prepared.
+  - Knowledge Graph jobs should not be started until this test succeeds.
   Runtime setup and recovery guide:
     https://raw.githubusercontent.com/oomol-lab/wiki-graph/refs/heads/main/docs/wikispine-runtime.md
 

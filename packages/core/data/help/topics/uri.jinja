@@ -8,7 +8,8 @@ Purpose:
   Use this page to choose a target, understand scope/object behavior, and select retrieval shape.
 
 Archive locator:
-  - Archive/object command URIs must contain a `.wikg` locator.
+  - Normal archive/object command URIs contain a `.wikg` locator.
+  - Library URIs and local runtime URIs are separate URI families and do not contain `.wikg` locators.
   - Do not pass a bare filesystem path as a command target.
     /Users/me/book.wikg -> wikg:///Users/me/book.wikg
     ./book.wikg -> wikg://book.wikg
@@ -18,6 +19,18 @@ Archive locator:
   - Relative archive locators use `wikg://`, for example `wikg://book.wikg`.
   - Home archive locators may start with `wikg://~/`; `~` is expanded only in that leading form.
   - The first path segment ending in `.wikg` is the archive/object boundary.
+
+Library locators:
+  - `wikg://lib` addresses the default library.
+  - `wikg://lib/<lib-id>.lib` addresses a non-default library.
+  - `wikg://lib/<archive-id>/` addresses one archive membership in the default library.
+  - `wikg://lib/<lib-id>.lib/<archive-id>/` addresses one archive membership in a non-default library.
+  - Add ordinary archive object suffixes after the trailing slash to query a managed archive:
+    wikg://lib/<archive-id>/chapter
+    wikg://lib/<archive-id>/entity
+    wikg://lib/<archive-id>/triple
+  - Library-wide scopes such as `wikg://lib/entity` query the aggregate library index.
+  - Read `{{ commandName }} help library` before managing registry, membership, rebind, or library index lifecycle.
 
 Short and located URIs:
   Commands may return short object URIs without local file paths:
@@ -50,12 +63,12 @@ Common command shapes:
   {{ commandName }} <archive-uri> export --output-format <format>
   {{ commandName }} <archive-uri> inspect
   {{ commandName }} transform [options]
+  {{ commandName }} wikg://lib --help
+  {{ commandName }} wikg://lib/entity --query <query>
+  {{ commandName }} wikg://lib/<archive-id>/entity --query <query>
   {{ commandName }} wikg://local/job
   {{ commandName }} wikg://local/job add --input <archive-uri|chapter-uri> --task <reading-graph|reading-summary|knowledge-graph> --accept-cost
   {{ commandName }} wikg://local/job/<job-id>
-  {{ commandName }} <object-uri> related
-  {{ commandName }} <object-uri> evidence
-  {{ commandName }} <object-uri> pack --budget 5000
 
 Scope URIs:
   Scope URIs enumerate objects by default. With `--query <query>`, they apply keyword retrieval within that scope.
@@ -108,7 +121,8 @@ Object boundaries:
   - `chapter/<path>` is a scope, not an object.
   - `chapter/<path>/title` is the queryable chapter title object.
   - Whole `source` and `summary` objects are readable text streams, not collection scopes.
-  - Chapter-qualified object/resource URIs do not expand to subtrees and do not support `--depth`.
+  - Chapter-qualified scope URIs such as `<chapter-uri>/chunk`, `<chapter-uri>/entity`, and `<chapter-uri>/triple` expand to the chapter subtree and support `--depth`.
+  - Chapter-qualified resource and object URIs such as `/source`, `/summary`, `/title`, `/state`, `/chunk/<id>`, `/entity/<qid>`, and complete `/triple/<subject>/<predicate>/<object>` do not expand to subtrees and do not support `--depth`.
   - `move`, `remove`, and `reset` are chapter node maintenance predicates; they target the chapter node itself, not the subtree. Use `remove --recursive` for explicit recursive deletion.
   - Ranged fragments such as `/source#4..8` and `/summary#4..8` are structured range objects.
   - Source and summary range numbers are 1-based and inclusive. `/source#1..2` means the first two source sentences.
@@ -151,6 +165,7 @@ Entity-grounded evidence:
 Pagination:
   - Use default paging or `--limit <n>` while exploring.
   - Use `{{ commandName }} next <cursor>` to continue a paged result.
+  - Use `{{ commandName }} next <uri> <cursor>` when you want the cursor's stored index scope checked against the archive or library URI you expect.
   - Use `--all` only when you intentionally need every item from the selected scope.
   - Prefer the narrowest scope before using `--all`.
   - Read `{{ commandName }} help format` before choosing text, `--json`, `--jsonl`, or `--all --jsonl` for machine consumption.
@@ -166,6 +181,7 @@ Recovery hints:
     {{ commandName }} help readiness
     {{ commandName }} help runtime
   - URI rejected: convert bare filesystem paths to Wiki Graph URIs, and prepend the archive locator to short object URIs.
+  - Library URI rejected: check whether you meant a non-default library id with `.lib` or an archive member shortcut with a trailing slash.
   - Help did not appear: append `--help` to the URI or URI-bound predicate you are trying to inspect.
 
 Job URIs:
@@ -184,3 +200,5 @@ Related help:
     {{ commandName }} help format
   - Local jobs, cache, logs, and runtime debugging:
     {{ commandName }} help runtime
+  - Library registry, membership, aggregate index, and rebind:
+    {{ commandName }} help library

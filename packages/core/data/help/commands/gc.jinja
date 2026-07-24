@@ -21,10 +21,11 @@ Options:
 
 Managed areas:
   - Wiki Graph coordinator workspace files and cached SQLite databases.
-  - Search query cache.
+  - Search query cache and expired continuation cursor state under `~/.wikigraph/cache`.
   - Expired Wikipedia page cache.
   - Completed build job records and their durable event, cache, log, and workspace files.
   - Wiki Graph controlled temporary directories under the state directory.
+  - Orphaned library aggregate index staging that is no longer tied to a registered library.
 
 Output:
   Text output reports scanned resources, removed resources, and freed disk space.

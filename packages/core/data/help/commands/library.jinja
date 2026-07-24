@@ -16,13 +16,16 @@ Usage:
   {{ commandName }} {{ uri }} [--json]
   {{ commandName }} {{ uri }} set <json> [--json]
   {{ commandName }} {{ uri }} set --json-input <json> [--json]
-  {{ commandName }} {{ uri }} set --json --input <path|->
+  {{ commandName }} {{ uri }} set --input <path|-> [--json]
   {{ commandName }} {{ uri }} put <key> <value> [--json]
-  {{ commandName }} {{ uri }} put <key> --json <value>
   {{ commandName }} {{ uri }} put <key> --json-input <value> [--json]
   {{ commandName }} {{ uri }} put <key> --input <path|-> [--json]
   {{ commandName }} {{ uri }} delete <key> [--json]
   {{ commandName }} {{ uri }} clear [--json]
+
+Input notes:
+  - `--json` controls output shape; it is not JSON input.
+  - Use `--json-input` when a metadata value itself is JSON.
 
 Predicate commands:
   - set: replace the whole metadata map. Help: {{ commandName }} {{ uri }} set --help
@@ -54,7 +57,7 @@ Library index object
 Default behavior:
   - `{{ commandName }} {{ uri }}` reads this library index status.
   - Library index data is stored in local Wiki Graph staging state, not in the library folder.
-  - Library-wide `--query`, list, evidence, related, and pack commands require a current library index.
+  - Library-wide `--query`, scope enumeration, evidence, related, and pack commands require a current library index.
 
 Use when:
   - You need to build, inspect, or drop the aggregate search index for a library.
@@ -67,13 +70,18 @@ Usage:
 Predicate commands:
   - enable: rebuild this library index from registered present archives. Help: {{ commandName }} {{ uri }} enable --help
   - disable: remove this library index materialization. Help: {{ commandName }} {{ uri }} disable --help
+
+Related help:
+  - Library registry, membership, aggregate index, and rebind concepts: {{ commandName }} help library
 {% else %}
 Library scope
 
 Default behavior:
   - `{{ commandName }} {{ uri }}` lists archive memberships registered in this library.
+  - This is not a list of all library registries.
+  - `{{ commandName }} {{ uri }} --query <query>` runs a broad library index search across indexed object types.
   - `{{ commandName }} {{ uri }} scan` reconciles membership with `.wikg` files currently under the library folder.
-  - Library-wide object scopes such as `/entity` and `/triple` query the library index after it is enabled.
+  - Library-wide object scopes such as `/entity` and `/triple` query one object type through the library index after it is enabled.
 
 Use when:
   - You need to manage a folder of `.wikg` archives as one library.
@@ -87,26 +95,35 @@ Use when:
 URI forms:
   - `{{ commandName }} wikg://lib` addresses the default library.
   - `{{ commandName }} wikg://lib/<lib-id>.lib` addresses a non-default library.
+  - `{{ commandName }} wikg://lib/<archive-id>/` addresses one archive membership in the default library.
   - Non-default library URIs require the `.lib` suffix so future `wikg://lib/<archive-id>/` archive shortcuts remain unambiguous.
 
 Usage:
 {% if target.isDefault %}
   {{ commandName }} wikg://lib
+  {{ commandName }} wikg://lib --query <query>
+  {{ commandName }} wikg://lib/chapter --query <query>
+  {{ commandName }} wikg://lib/chunk --query <query>
   {{ commandName }} wikg://lib create --path <folder> [--json]
   {{ commandName }} wikg://lib scan [--json]
   {{ commandName }} wikg://lib add --input <path> [--to <relative-wikg-path>] [--json]
   {{ commandName }} wikg://lib rebind --path <existing-directory> [--json]
   {{ commandName }} wikg://lib/index [--json]
   {{ commandName }} wikg://lib/entity --query <query>
+  {{ commandName }} wikg://lib/triple --query <query>
   {{ commandName }} wikg://lib/meta [--json]
 {% else %}
   {{ commandName }} {{ uri }}
+  {{ commandName }} {{ uri }} --query <query>
+  {{ commandName }} {{ uri }}/chapter --query <query>
+  {{ commandName }} {{ uri }}/chunk --query <query>
   {{ commandName }} {{ uri }} scan [--json]
   {{ commandName }} {{ uri }} add --input <path> [--to <relative-wikg-path>] [--json]
   {{ commandName }} {{ uri }} rebind --path <existing-directory> [--json]
   {{ commandName }} {{ uri }} remove --confirm [--json]
   {{ commandName }} {{ uri }}/index [--json]
   {{ commandName }} {{ uri }}/entity --query <query>
+  {{ commandName }} {{ uri }}/triple --query <query>
   {{ commandName }} {{ uri }}/meta [--json]
 {% endif %}
 
@@ -122,4 +139,7 @@ Predicate commands:
   - rebind: bind this library to an existing directory, then scan/reconcile its `.wikg` files. Help: {{ commandName }} {{ uri }} rebind --help
   - remove: remove this library registry without deleting its folder. Help: {{ commandName }} {{ uri }} remove --help
 {% endif %}
+
+Related help:
+  - Library registry, membership, aggregate index, and rebind concepts: {{ commandName }} help library
 {% endif %}

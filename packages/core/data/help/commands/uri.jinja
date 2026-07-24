@@ -16,6 +16,12 @@ Default behavior:
 
 Use when:
   - You need the archive entry point before narrowing to chapters, chunks, entities, triples, source, or summaries.
+
+Common child targets:
+  - `{{ commandName }} {{ uri }}/chapter --help`: chapter tree, chapter paths, and chapter-scoped retrieval.
+  - `{{ commandName }} {{ uri }}/index --help`: archive search index status and lifecycle.
+  - `{{ commandName }} {{ uri }}/meta --help`: archive metadata.
+  - `{{ commandName }} {{ uri }}/cover --help`: raw cover resource.
 {% elif target.name == "chapter-collection-scope" %}
 URI type:
   Chapter collection scope
@@ -24,6 +30,7 @@ Default behavior:
   - `{{ commandName }} {{ uri }}` enumerates chapters.
   - `{{ commandName }} {{ uri }} --query <query>` applies keyword retrieval to chapter objects.
   - Chapter collection scope covers the full chapter tree by default; use `--depth 0` for root-level chapters only.
+  - Chapter path URIs are the public CLI handles; internal chapter ids are not command targets.
 
 Use when:
   - You need chapter URIs, chapter readiness, or a starting point for chapter-scoped retrieval.
@@ -35,6 +42,7 @@ Default behavior:
   - `{{ commandName }} {{ uri }}` enumerates objects inside this chapter subtree.
   - `{{ commandName }} {{ uri }} --query <query>` applies keyword retrieval inside this chapter subtree.
   - Use `--depth 0` to restrict the scope to this chapter only; `--depth 1` includes direct children.
+  - The path in this URI is the public CLI handle for the chapter; internal chapter ids are not command targets.
 
 Use when:
   - You already selected a chapter and want local source, summary, chunk, entity, or triple objects.
@@ -45,9 +53,16 @@ URI type:
 Default behavior:
   - `{{ commandName }} {{ uri }}` enumerates Reading Graph chunks.
   - `{{ commandName }} {{ uri }} --query <query>` applies keyword retrieval to chunks in this scope.
+{% if "/chapter/" in uri %}
+  - This chapter-qualified scope covers the selected chapter subtree by default.
+  - Use `--depth 0` for only the selected chapter, or `--depth 1` for the selected chapter plus direct children.
+{% endif %}
 
 Use when:
   - You need candidate Reading Graph chunks before selecting a concrete chunk URI.
+{% if libraryContext.isLibraryWide %}
+  - Open returned chunk object URIs for `evidence`, `related`, or `pack`.
+{% endif %}
 {% elif target.name == "entity-scope" %}
 URI type:
   Entity scope
@@ -55,9 +70,16 @@ URI type:
 Default behavior:
   - `{{ commandName }} {{ uri }}` enumerates Knowledge Graph entities.
   - `{{ commandName }} {{ uri }} --query <query>` applies keyword retrieval to entities in this scope.
+{% if "/chapter/" in uri %}
+  - This chapter-qualified scope covers the selected chapter subtree by default.
+  - Use `--depth 0` for only the selected chapter, or `--depth 1` for the selected chapter plus direct children.
+{% endif %}
 
 Use when:
   - You need candidate entities before selecting a concrete entity URI.
+{% if libraryContext.isLibraryWide %}
+  - Open returned entity object URIs for `evidence`, `related`, or `pack`.
+{% endif %}
 {% elif target.name == "triple-scope" %}
 URI type:
   Triple scope
@@ -65,9 +87,16 @@ URI type:
 Default behavior:
   - `{{ commandName }} {{ uri }}` enumerates Knowledge Graph triples matching this scope or pattern.
   - `{{ commandName }} {{ uri }} --query <query>` applies keyword retrieval to triples in this scope.
+{% if "/chapter/" in uri %}
+  - This chapter-qualified scope covers the selected chapter subtree by default.
+  - Use `--depth 0` for only the selected chapter, or `--depth 1` for the selected chapter plus direct children.
+{% endif %}
 
 Use when:
   - You need relation candidates or a triple pattern such as `_` placeholders.
+{% if libraryContext.isLibraryWide %}
+  - Open returned triple object URIs for `evidence`; expand related context through the subject or object entity.
+{% endif %}
 {% elif target.name == "chapter-source-object" %}
 URI type:
   Chapter source object
@@ -80,6 +109,17 @@ Default behavior:
 
 Use when:
   - You need continuous original wording from a selected chapter.
+{% elif target.name == "chapter-source-range-object" %}
+URI type:
+  Chapter source range object
+
+Default behavior:
+  - `{{ commandName }} {{ uri }}` reads a structured source sentence range.
+  - Range sentence numbers are 1-based. `#1` is the first sentence; `#1..2` is the first two sentences.
+  - Source range fragments support `--json`.
+
+Use when:
+  - You need bounded original wording with machine-readable range metadata.
 {% elif target.name == "chapter-summary-object" or target.name == "summary-object" %}
 URI type:
   Summary object
@@ -92,6 +132,17 @@ Default behavior:
 
 Use when:
   - You need compact readable prose before tracing source evidence.
+{% elif target.name == "chapter-summary-range-object" %}
+URI type:
+  Summary range object
+
+Default behavior:
+  - `{{ commandName }} {{ uri }}` reads a structured summary sentence range.
+  - Range sentence numbers are 1-based. `#1` is the first sentence; `#1..2` is the first two sentences.
+  - Summary range fragments support `--json`.
+
+Use when:
+  - You need a bounded summary excerpt with machine-readable range metadata.
 {% elif target.name == "chapter-title-object" %}
 URI type:
   Chapter title object
@@ -169,10 +220,11 @@ URI type:
   Index object
 
 Default behavior:
-  - `{{ commandName }} {{ uri }}` reads the archive FTS index policy.
+  - `{{ commandName }} {{ uri }}` reads archive FTS index status, readiness, storage policy, and materialization state.
+  - Use this page when `inspect`, `--query`, `related`, or `evidence` reports missing, stale, or unavailable index support.
 
 Use when:
-  - You need to inspect, enable, disable, embed, or externalize searchable FTS index support.
+  - You need to inspect currentness, enable, disable, embed, or externalize searchable FTS index support.
 {% elif target.name == "job-collection-scope" %}
 URI type:
   Local job collection scope
@@ -182,6 +234,9 @@ Default behavior:
 
 Use when:
   - You need to inspect, add, or clean local generation jobs.
+  - Read `{{ commandName }} {{ uri }} add --help` before enqueueing work; generation jobs can consume model/runtime cost and require `--accept-cost`.
+  - Use `{{ commandName }} wikg://local/job/<job-id> watch --jsonl` for stable progress streaming.
+  - Use `{{ commandName }} help runtime` for worker, log, and local state behavior.
 {% elif target.name == "job-object" %}
 URI type:
   Local job object
@@ -200,6 +255,21 @@ Default behavior:
 
 Use when:
   - You need to change an active job target.
+{% elif target.name == "local-config-namespace" %}
+URI type:
+  Local config namespace
+
+Default behavior:
+  - `{{ commandName }} {{ uri }} --help` lists available local config sections.
+  - `{{ commandName }} {{ uri }}` is not a readable config object; operate on a child section.
+
+Use when:
+  - You need to discover configurable sections before reading or editing one.
+
+Sections:
+  - `{{ commandName }} wikg://local/config/llm --help`
+  - `{{ commandName }} wikg://local/config/concurrent --help`
+  - `{{ commandName }} wikg://local/config/wikispine --help`
 {% elif target.name == "local-config-section" %}
 URI type:
   Local config section
@@ -214,13 +284,77 @@ Use when:
 WikiSpine runtime guide:
   https://raw.githubusercontent.com/oomol-lab/wiki-graph/refs/heads/main/docs/wikispine-runtime.md
 {% endif %}
+{% elif target.name == "metadata-object" %}
+URI type:
+  Metadata object
+
+Default behavior:
+  - `{{ commandName }} {{ uri }}` reads metadata attached to this archive or object.
+  - Use `--json` for a stable machine-readable metadata map.
+
+Use when:
+  - You need to read, replace, edit, clear, or delete metadata without changing the underlying source or generated graph data.
+
+Input notes:
+  - `put <key> <value>` stores a string value.
+  - `put <key> --json-input <json>` stores a JSON value.
+  - `--json` controls output shape; it is not JSON input.
+{% endif %}
+
+{% if libraryContext.isLibraryUri %}
+Library context:
+  - This target is addressed through a library URI, not a standalone `.wikg` locator.
+{% if target.name == "chapter-collection-scope" or target.name == "chapter-scope" or target.name == "chapter-source-object" or target.name == "chapter-source-range-object" or target.name == "chapter-summary-object" or target.name == "chapter-summary-range-object" or target.name == "chapter-title-object" or target.name == "chapter-tree-object" or target.name == "chapter-state-object" %}
+{% if libraryContext.isLibraryWide %}
+  - Library-wide chapter URIs are read-only aggregate views over present archive members.
+{% endif %}
+  - Library archive shortcuts such as `wikg://lib/<archive-id>/chapter` query or maintain one managed archive through its membership id.
+  - Use a standalone archive URI or library archive shortcut for chapter maintenance writes.
+{% elif target.name == "triple-scope" or target.name == "triple-object" %}
+{% if libraryContext.isLibraryWide %}
+  - Library-wide scopes such as `wikg://lib/triple` use the aggregate library index.
+{% endif %}
+  - Library archive shortcuts such as `wikg://lib/<archive-id>/triple` query one managed archive through its membership id.
+{% if target.name == "triple-object" and libraryContext.isLibraryWide %}
+  - Library-wide triple object URIs are aggregate views over matching triples from present archive members.
+  - Interpret evidence with the returned archive/member provenance; use a library archive shortcut when you need one member only.
+{% endif %}
+{% elif target.name == "chunk-scope" or target.name == "chunk-object" %}
+{% if libraryContext.isLibraryWide %}
+  - Library-wide scopes such as `wikg://lib/chunk` use the aggregate library index.
+{% endif %}
+  - Library archive shortcuts such as `wikg://lib/<archive-id>/chunk` query one managed archive through its membership id.
+{% if target.name == "chunk-object" and libraryContext.isLibraryWide %}
+  - Library-wide chunk object URIs are aggregate views over matching chunks from present archive members.
+  - Interpret related and pack output with the returned archive/member provenance; use a library archive shortcut when you need one member only.
+{% endif %}
+{% else %}
+{% if libraryContext.isLibraryWide %}
+  - Library-wide scopes such as `wikg://lib/entity` use the aggregate library index.
+{% endif %}
+  - Library archive shortcuts such as `wikg://lib/<archive-id>/entity` query one managed archive through its membership id.
+{% if target.name == "entity-object" and libraryContext.isLibraryWide %}
+  - Library-wide entity object URIs are aggregate views over matching entities from present archive members.
+  - Interpret evidence, related, and pack output with the returned archive/member provenance; use a library archive shortcut when you need one member only.
+{% endif %}
+{% endif %}
+  - Read `{{ commandName }} help library` for registry, membership, aggregate index, and rebind behavior.
 {% endif %}
 
 Predicate commands:
+{% if libraryContext.isLibraryWide and (target.name == "chapter-collection-scope" or target.name == "chapter-scope" or target.name == "chapter-source-object" or target.name == "chapter-source-range-object" or target.name == "chapter-summary-object" or target.name == "chapter-summary-range-object" or target.name == "chapter-title-object" or target.name == "chapter-tree-object") %}
+  This library-wide chapter target is read-only. Use a standalone archive URI or a library archive shortcut such as `wikg://lib/<archive-id>/chapter/...` for chapter maintenance.
+{% else %}
 {% if target.predicates.length %}
 {% for predicate in target.predicates %}
 {% if predicate == "add" %}
-  - add: create a child object or local job. Help: {{ commandName }} {{ uri }} add --help
+{% if target.name == "job-collection-scope" %}
+  - add: enqueue a local generation job. Help: {{ commandName }} {{ uri }} add --help
+{% elif target.name == "chapter-collection-scope" %}
+  - add: create a chapter. Help: {{ commandName }} {{ uri }} add --help
+{% else %}
+  - add: create a child object. Help: {{ commandName }} {{ uri }} add --help
+{% endif %}
 {% elif predicate == "boost" %}
   - boost: move a waiting job forward. Help: {{ commandName }} {{ uri }} boost --help
 {% elif predicate == "cancel" %}
@@ -228,11 +362,19 @@ Predicate commands:
 {% elif predicate == "clean" %}
   - clean: remove completed local jobs. Help: {{ commandName }} {{ uri }} clean --help
 {% elif predicate == "clear" %}
+{% if target.name == "metadata-object" %}
+  - clear: clear this metadata map. Help: {{ commandName }} {{ uri }} clear --help
+{% else %}
   - clear: clear a writable resource or config section. Help: {{ commandName }} {{ uri }} clear --help
+{% endif %}
 {% elif predicate == "create" %}
   - create: create the archive; use `--replace` only when discarding an existing archive. Help: {{ commandName }} {{ uri }} create --help
 {% elif predicate == "delete" %}
+{% if target.name == "metadata-object" %}
+  - delete: delete one metadata key. Help: {{ commandName }} {{ uri }} delete --help
+{% else %}
   - delete: delete a config key. Help: {{ commandName }} {{ uri }} delete --help
+{% endif %}
 {% elif predicate == "disable" %}
   - disable: disable searchable index support and remove index materialization. Help: {{ commandName }} {{ uri }} disable --help
 {% elif predicate == "embed" %}
@@ -254,7 +396,11 @@ Predicate commands:
 {% elif predicate == "pause" %}
   - pause: pause a local job. Help: {{ commandName }} {{ uri }} pause --help
 {% elif predicate == "put" %}
+{% if target.name == "metadata-object" %}
+  - put: set one metadata key. Help: {{ commandName }} {{ uri }} put --help
+{% else %}
   - put: set one config key. Help: {{ commandName }} {{ uri }} put --help
+{% endif %}
 {% elif predicate == "related" %}
   - related: expand from this object to nearby objects; supports `--reverse` without `--query`. Help: {{ commandName }} {{ uri }} related --help
 {% elif predicate == "remove" %}
@@ -264,7 +410,17 @@ Predicate commands:
 {% elif predicate == "resume" %}
   - resume: resume a local job. Help: {{ commandName }} {{ uri }} resume --help
 {% elif predicate == "set" %}
+{% if target.name == "local-config-section" %}
+  - set: replace this local config section with a JSON object. Help: {{ commandName }} {{ uri }} set --help
+{% elif target.name == "job-target-object" %}
+  - set: change this local job target. Help: {{ commandName }} {{ uri }} set --help
+{% else %}
+{% if target.name == "metadata-object" %}
+  - set: replace this metadata map. Help: {{ commandName }} {{ uri }} set --help
+{% else %}
   - set: modify this writable target. Help: {{ commandName }} {{ uri }} set --help
+{% endif %}
+{% endif %}
 {% elif predicate == "test" %}
   - test: test local config connectivity. Help: {{ commandName }} {{ uri }} test --help
 {% elif predicate == "watch" %}
@@ -273,4 +429,5 @@ Predicate commands:
 {% endfor %}
 {% else %}
   This URI has no additional predicate commands. Use the naked URI command shown above.
+{% endif %}
 {% endif %}

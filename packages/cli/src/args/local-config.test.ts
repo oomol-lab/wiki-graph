@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { renderUriHelpText } from "./help.js";
 import { parseCLIArguments } from "./index.js";
 
 describe("cli/args/local config", () => {
@@ -82,6 +83,14 @@ describe("cli/args/local config", () => {
     expect(() => parseCLIArguments(["wikg://local/config"])).toThrow(
       "Expected a local config section URI",
     );
+    expect(parseCLIArguments(["wikg://local/config", "--help"])).toStrictEqual({
+      help: true,
+      helpText: renderUriHelpText(
+        "local-config-namespace",
+        "wikg://local/config",
+      ),
+      kind: "help",
+    });
     expect(() => parseCLIArguments(["wikg://local/config/llm", "get"])).toThrow(
       "This command form is not available.",
     );

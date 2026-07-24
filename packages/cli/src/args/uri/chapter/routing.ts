@@ -108,6 +108,7 @@ export function parseArchiveChapterUriArguments(
       );
     case "chapter-resource":
       return parseChapterResourceUriArguments(
+        uri,
         archivePath,
         target.chapterPath,
         target.resource,
@@ -366,6 +367,7 @@ function parseChapterStateUriArguments(
 }
 
 function parseChapterResourceUriArguments(
+  uri: string,
   archivePath: string,
   chapterPath: string,
   resource: "source" | "summary" | "title",
@@ -422,9 +424,11 @@ function parseChapterResourceUriArguments(
 
   if (action === "get") {
     const objectUri =
-      resource === "source"
-        ? formatLocatedChapterSourceCollectionUri(archivePath, chapterPath)
-        : formatLocatedChapterResourceUri(archivePath, chapterPath, resource);
+      uri.includes("#") && (resource === "source" || resource === "summary")
+        ? uri
+        : resource === "source"
+          ? formatLocatedChapterSourceCollectionUri(archivePath, chapterPath)
+          : formatLocatedChapterResourceUri(archivePath, chapterPath, resource);
 
     return parseArchiveArguments(
       "get",

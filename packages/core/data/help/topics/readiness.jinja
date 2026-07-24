@@ -10,8 +10,8 @@ Purpose:
 Start with inspect:
   {{ commandName }} <archive-uri> inspect
 
-FTS readiness:
-  `--query` uses the archive FTS index. Without a current index, keyword retrieval is unavailable for scopes, evidence, and related results.
+Archive FTS readiness:
+  Archive `--query` uses that archive's FTS index. Without a current index, keyword retrieval is unavailable for archive scopes, evidence, and related results.
 
   Default behavior:
     `{{ commandName }} <archive-uri>/index enable` enables the searchable index as local cache outside the `.wikg` archive.
@@ -32,6 +32,26 @@ FTS readiness:
     {{ commandName }} <archive-uri>/index disable --help
     {{ commandName }} <archive-uri>/index embed --help
     {{ commandName }} <archive-uri>/index external --help
+
+Library index readiness:
+  Library-wide scopes use an aggregate library index instead of one standalone archive index.
+  Without a current library index, library-wide `--query`, evidence, related, pack, and scope enumeration may be unavailable.
+
+  Default behavior:
+    `{{ commandName }} wikg://lib/index enable` rebuilds the default library index from registered present archives.
+    `{{ commandName }} wikg://lib/<lib-id>.lib/index enable` rebuilds a non-default library index.
+    The index is local derived state under Wiki Graph staging, not a file inside the library folder.
+
+  Dirty behavior:
+    `scan`, `add`, archive `move`, archive `remove`, archive writes, and membership changes can mark the aggregate index dirty.
+    Re-enable the library index when library-wide query reports that it is missing, dirty, or stale.
+    Library indexes do not support archive-style `embed` or `external` modes.
+
+  Commands:
+    {{ commandName }} wikg://lib/index
+    {{ commandName }} wikg://lib/index enable --help
+    {{ commandName }} wikg://lib/index disable --help
+    {{ commandName }} help library
 
 Generation readiness:
   Reading Graph, Reading Summary, and Knowledge Graph data are generated artifacts.
@@ -77,11 +97,19 @@ WikiSpine readiness:
     {{ commandName }} wikg://local/config/wikispine put provider cli
     {{ commandName }} wikg://local/config/wikispine test
 
+  Recovery:
+    Use `fetch` when network access to the built-in service is available.
+    Use `cli` only when a local `wikispine` executable and its runtime/data are prepared.
+    Test `cli` from the same shell that runs Wiki Graph so PATH and runtime files match the job environment.
+    CLI help does not install the local WikiSpine runtime; use the guide below when preparing a local setup.
+    If the selected provider fails its config test, fix that provider or switch providers before starting Knowledge Graph jobs.
+
   Runtime setup and recovery guide:
     https://raw.githubusercontent.com/oomol-lab/wiki-graph/refs/heads/main/docs/wikispine-runtime.md
 
 How to choose:
   - Need keyword retrieval on this machine: enable local index.
+  - Need keyword retrieval across a managed folder: enable the library index.
   - Need to send a more self-contained `.wikg`: consider embedding the index.
   - Need to intentionally drop query support or index materialization: disable index.
   - Need generated Reading Graph or summaries: configure LLM and use local jobs.
@@ -97,3 +125,5 @@ Where to go next:
     {{ commandName }} help runtime
   - URI and predicate help for index/job/config targets:
     {{ commandName }} <uri> --help
+  - Library registry, membership, and aggregate index lifecycle:
+    {{ commandName }} help library

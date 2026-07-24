@@ -1,4 +1,4 @@
-import { resolveDataDirPath } from "wiki-graph-core";
+import { parseWikiGraphLibraryUri, resolveDataDirPath } from "wiki-graph-core";
 import { createEnv } from "wiki-graph-core";
 
 import { CLI_FULL_COMMAND, CLI_PRIMARY_COMMAND } from "wiki-graph-core";
@@ -20,6 +20,7 @@ export const HELP_TOPICS = [
   "uri",
   "recipe",
   "readiness",
+  "library",
 ] as const;
 
 export type HelpTopic = (typeof HELP_TOPICS)[number];
@@ -28,7 +29,9 @@ export type UriHelpTargetName =
   | "archive-scope"
   | "chapter-collection-scope"
   | "chapter-scope"
+  | "chapter-source-range-object"
   | "chapter-source-object"
+  | "chapter-summary-range-object"
   | "chapter-summary-object"
   | "chapter-title-object"
   | "chapter-tree-object"
@@ -43,7 +46,9 @@ export type UriHelpTargetName =
   | "job-collection-scope"
   | "job-object"
   | "job-target-object"
+  | "local-config-namespace"
   | "local-config-section"
+  | "metadata-object"
   | "summary-object"
   | "triple-scope"
   | "triple-object";
@@ -89,13 +94,15 @@ const URI_HELP_TARGETS: readonly UriHelpTarget[] = [
   },
   {
     name: "chapter-collection-scope",
-    predicates: ["add", "move", "remove", "reset"],
+    predicates: ["add"],
   },
   {
     name: "chapter-scope",
     predicates: ["move", "remove", "reset"],
   },
+  { name: "chapter-source-range-object", predicates: [] },
   { name: "chapter-source-object", predicates: ["set"] },
+  { name: "chapter-summary-range-object", predicates: [] },
   { name: "chapter-summary-object", predicates: ["set"] },
   { name: "chapter-title-object", predicates: ["clear", "set"] },
   { name: "chapter-tree-object", predicates: ["set"] },
@@ -123,8 +130,16 @@ const URI_HELP_TARGETS: readonly UriHelpTarget[] = [
   },
   { name: "job-target-object", predicates: ["set"] },
   {
+    name: "local-config-namespace",
+    predicates: [],
+  },
+  {
     name: "local-config-section",
     predicates: ["clear", "delete", "put", "set", "test"],
+  },
+  {
+    name: "metadata-object",
+    predicates: ["clear", "delete", "put", "set"],
   },
   { name: "summary-object", predicates: [] },
   { name: "triple-scope", predicates: [] },
@@ -180,6 +195,10 @@ const HELP_TOPIC_METADATA: readonly {
     name: "readiness",
     summary: "Search index, LLM, WikiSpine, and generated-data prerequisites.",
   },
+  {
+    name: "library",
+    summary: "Library registries, archive memberships, aggregate indexes, and rebind.",
+  },
 ] as const;
 
 const ARCHIVE_MAINTENANCE_COMMAND_METADATA: readonly {
@@ -207,6 +226,7 @@ const HELP_TOPIC_TEMPLATE_NAMES: Readonly<Record<HelpTopic, string>> = {
   uri: "help/topics/uri",
   recipe: "help/topics/recipe",
   readiness: "help/topics/readiness",
+  library: "help/topics/library",
 };
 
 let helpTemplateEnvironment: ReturnType<typeof createEnv> | undefined;
@@ -252,6 +272,7 @@ export function renderUriHelpText(
   uri: string,
 ): string {
   return renderHelpTemplate("help/commands/uri", {
+    libraryContext: getLibraryHelpContext(uri),
     target: requireUriHelpTarget(targetName),
     uri,
   });
@@ -274,6 +295,7 @@ export function renderUriPredicateHelpText(
   }
 
   return renderHelpTemplate("help/commands/predicate", {
+    libraryContext: getLibraryHelpContext(uri),
     predicate,
     target,
     uri,
@@ -343,6 +365,34 @@ function requireUriHelpTarget(name: UriHelpTargetName): UriHelpTarget {
   }
 
   return target;
+}
+
+function getLibraryHelpContext(uri: string): {
+  readonly isArchiveShortcut: boolean;
+  readonly isLibraryUri: boolean;
+  readonly isLibraryWide: boolean;
+} {
+  const target = (() => {
+    try {
+      return parseWikiGraphLibraryUri(uri);
+    } catch {
+      return undefined;
+    }
+  })();
+
+  if (target === undefined) {
+    return {
+      isArchiveShortcut: false,
+      isLibraryUri: false,
+      isLibraryWide: false,
+    };
+  }
+
+  return {
+    isArchiveShortcut: target.kind === "archive",
+    isLibraryUri: true,
+    isLibraryWide: target.kind === "scope" && target.objectUri !== undefined,
+  };
 }
 
 function renderHelpTemplate(
