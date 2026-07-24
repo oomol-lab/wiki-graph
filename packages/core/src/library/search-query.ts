@@ -260,13 +260,11 @@ async function readLibraryObjectBucketPage(
   readonly items: readonly ArchiveFindHit[];
   readonly nextCursor: BucketSearchCursor | undefined;
 }> {
-  let deferredChunkHits: readonly SearchChunkHitInput[] = [];
-
   if (!session.objectCachesPopulated) {
     const input = await createLibraryObjectBucketCacheInput(target, session);
 
-    deferredChunkHits = input.chunkHits;
     await populateSearchSessionObjectCaches({
+      chunkHits: input.chunkHits,
       entityHits: input.entityHits,
       sessionId: session.sessionId,
     });
@@ -286,17 +284,6 @@ async function readLibraryObjectBucketPage(
     async (document, hit) => await hydrateCachedObjectBucketHit(document, hit),
   );
   const last = page.at(Math.min(limit, page.length) - 1);
-
-  if (
-    page.length <= limit &&
-    deferredChunkHits.length > 0 &&
-    shouldReadLibraryBucket(session, "node")
-  ) {
-    await populateSearchSessionObjectCaches({
-      chunkHits: deferredChunkHits,
-      sessionId: session.sessionId,
-    });
-  }
 
   return {
     items: hydrated,

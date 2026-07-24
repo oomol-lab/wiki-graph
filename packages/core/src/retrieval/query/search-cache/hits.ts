@@ -408,6 +408,7 @@ export async function readSearchSessionTripleBucketRows(
                       )
                     )
                   )
+                )
               )
             `
         }

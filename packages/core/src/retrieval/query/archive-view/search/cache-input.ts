@@ -176,14 +176,17 @@ export async function createSentenceEvidenceSearchCacheInput(
   const archiveIds = new Set<number>();
 
   for (const hit of sourceHits) {
-    sourceHitScores.set(
-      createSentenceHitKey(hit.archiveId, hit.chapterId, hit.sentenceIndex),
-      hit.score,
-    );
     chapterIds.add(hit.chapterId);
     archiveIds.add(hit.archiveId);
   }
   const archiveId = archiveIds.size === 1 ? ([...archiveIds][0] ?? 0) : 0;
+
+  for (const hit of sourceHits) {
+    sourceHitScores.set(
+      createSentenceHitKey(archiveId, hit.chapterId, hit.sentenceIndex),
+      hit.score,
+    );
+  }
 
   const evidenceEvents: SearchEvidenceHitEventInput[] = [];
   const entityEvidenceScoresByQid = new Map<string, number[]>();

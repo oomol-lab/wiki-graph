@@ -7,6 +7,8 @@ import type { Database } from "../../../document/index.js";
 
 import { SEARCH_SESSION_SCHEMA_SQL } from "./schema.js";
 
+let currentSearchSessionSchemaPath: string | undefined;
+
 export async function openSearchSessionDatabase(): Promise<Database> {
   const path = getSearchSessionDatabasePath();
   const database = await openSharedStateDatabase(
@@ -14,7 +16,12 @@ export async function openSearchSessionDatabase(): Promise<Database> {
     SEARCH_SESSION_SCHEMA_SQL,
   );
 
+  if (currentSearchSessionSchemaPath === path) {
+    return database;
+  }
+
   if (await isSearchSessionSchemaCurrent(database)) {
+    currentSearchSessionSchemaPath = path;
     return database;
   }
 
@@ -22,6 +29,7 @@ export async function openSearchSessionDatabase(): Promise<Database> {
   await rm(path, { force: true });
   await rm(`${path}.initialized`, { force: true });
 
+  currentSearchSessionSchemaPath = path;
   return await openSharedStateDatabase(path, SEARCH_SESSION_SCHEMA_SQL);
 }
 

@@ -8,7 +8,9 @@ import {
   createSearchSession,
   deleteArchiveSearchSessions,
   readEntitySearchSessionPage,
+  readSearchSessionObjectBucketPage,
 } from "../../../../packages/core/src/retrieval/query/search-cache/index.js";
+import { getObjectBucketCursorId } from "../../../../packages/core/src/retrieval/query/archive-view/search/bucket-order.js";
 import {
   getWikiGraphStateDirectoryPathForTesting,
   setWikiGraphStateDirectoryPathForTesting,
@@ -172,6 +174,65 @@ describe("archive/query/search-cache", () => {
           ["wikg://entity/Q1", 2],
         ],
       );
+    });
+  });
+
+  it("reads triple bucket rows after a cursor", async () => {
+    await withTempDir("wikigraph-search-cache-", async (path) => {
+      setWikiGraphStateDirectoryPathForTesting(path);
+
+      const sessionId = await createSearchSession({
+        archiveKey: "archive-key",
+        chapters: null,
+        items: [],
+        lens: "broad",
+        match: "any",
+        order: "rank",
+        query: "query",
+        revisionScope: JSON.stringify({ chaptersRevision: 0, scope: "all" }),
+        terms: ["query"],
+        tripleHits: [
+          {
+            evidenceTopScores: [3],
+            objectQid: "Q2",
+            predicate: "mentions",
+            subjectQid: "Q1",
+          },
+          {
+            evidenceTopScores: [2],
+            objectQid: "Q3",
+            predicate: "mentions",
+            subjectQid: "Q1",
+          },
+        ],
+        types: null,
+      });
+      const firstPage = await readSearchSessionObjectBucketPage(
+        sessionId,
+        1,
+        undefined,
+        1,
+      );
+      const first = firstPage[0];
+
+      if (first === undefined) {
+        throw new Error("Expected a first triple bucket hit.");
+      }
+      const secondPage = await readSearchSessionObjectBucketPage(
+        sessionId,
+        1,
+        {
+          archiveId: first.archiveId ?? 0,
+          id: getObjectBucketCursorId(first),
+          kind: "triple",
+          score: first.score ?? 0,
+        },
+        1,
+      );
+
+      expect(secondPage.map((item) => item.id)).toStrictEqual([
+        "wikg://triple/Q1/mentions/Q3",
+      ]);
     });
   });
 
