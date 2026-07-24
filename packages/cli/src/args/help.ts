@@ -197,7 +197,8 @@ const HELP_TOPIC_METADATA: readonly {
   },
   {
     name: "library",
-    summary: "Library registries, archive memberships, aggregate indexes, and rebind.",
+    summary:
+      "Library registries, archive memberships, aggregate indexes, and rebind.",
   },
 ] as const;
 

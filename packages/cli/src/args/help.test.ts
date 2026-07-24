@@ -74,13 +74,13 @@ describe("cli/args/help", () => {
       ),
       kind: "help",
     });
-    expect(parseCLIArguments(["wikg://book.wikg/meta", "--help"])).toStrictEqual(
-      {
-        help: true,
-        helpText: renderUriHelpText("metadata-object", "wikg://book.wikg/meta"),
-        kind: "help",
-      },
-    );
+    expect(
+      parseCLIArguments(["wikg://book.wikg/meta", "--help"]),
+    ).toStrictEqual({
+      help: true,
+      helpText: renderUriHelpText("metadata-object", "wikg://book.wikg/meta"),
+      kind: "help",
+    });
     expect(
       parseCLIArguments(["wikg://book.wikg/entity/Q42/meta", "--help"]),
     ).toStrictEqual({
@@ -92,7 +92,11 @@ describe("cli/args/help", () => {
       kind: "help",
     });
     expect(() =>
-      parseCLIArguments(["wikg://book.wikg/entity/Q42/meta", "evidence", "--help"]),
+      parseCLIArguments([
+        "wikg://book.wikg/entity/Q42/meta",
+        "evidence",
+        "--help",
+      ]),
     ).toThrow("does not support `evidence`");
     expect(
       renderUriPredicateHelpText(
@@ -115,10 +119,7 @@ describe("cli/args/help", () => {
       kind: "help",
     });
     expect(
-      parseCLIArguments([
-        "wikg://book.wikg/chapter/part/summary#1",
-        "--help",
-      ]),
+      parseCLIArguments(["wikg://book.wikg/chapter/part/summary#1", "--help"]),
     ).toStrictEqual({
       help: true,
       helpText: renderUriHelpText(
@@ -178,7 +179,10 @@ describe("cli/args/help", () => {
     ]);
     expect(libraryChapterHelp).toStrictEqual({
       help: true,
-      helpText: renderUriHelpText("chapter-collection-scope", "wikg://lib/chapter"),
+      helpText: renderUriHelpText(
+        "chapter-collection-scope",
+        "wikg://lib/chapter",
+      ),
       kind: "help",
     });
     if (libraryChapterHelp.kind !== "help") {
@@ -195,11 +199,7 @@ describe("cli/args/help", () => {
       parseCLIArguments(["wikg://book.wikg/chapter", "move", "--help"]),
     ).toThrow("does not support `move`");
     expect(() =>
-      parseCLIArguments([
-        "wikg://lib/chapter/part/source",
-        "set",
-        "--help",
-      ]),
+      parseCLIArguments(["wikg://lib/chapter/part/source", "set", "--help"]),
     ).toThrow("library-wide chapter target");
     expect(
       renderUriPredicateHelpText(
@@ -487,15 +487,14 @@ describe("cli/args/help", () => {
     expect(
       renderUriHelpText("entity-object", "wikg://book.wikg/entity/Q8018"),
     ).toContain("supports `--reverse` without `--query`");
+    expect(renderUriHelpText("entity-scope", "wikg://lib/entity")).toContain(
+      "Library context:",
+    );
     expect(
-      renderUriHelpText("entity-scope", "wikg://lib/entity"),
-    ).toContain("Library context:");
-    expect(
-      renderUriHelpText(
-        "entity-scope",
-        "wikg://book.wikg/chapter/part/entity",
-      ),
-    ).toContain("This chapter-qualified scope covers the selected chapter subtree");
+      renderUriHelpText("entity-scope", "wikg://book.wikg/chapter/part/entity"),
+    ).toContain(
+      "This chapter-qualified scope covers the selected chapter subtree",
+    );
     expect(
       renderUriHelpText("index-object", "wikg://book.wikg/index"),
     ).toContain("status, readiness, storage policy, and materialization state");
@@ -536,9 +535,9 @@ describe("cli/args/help", () => {
         "wikg://local/config/concurrent",
       ),
     ).toContain("Validate this local concurrency config section");
-    expect(
-      renderUriHelpText("triple-scope", "wikg://lib/triple"),
-    ).toContain("Library-wide scopes such as `wikg://lib/triple`");
+    expect(renderUriHelpText("triple-scope", "wikg://lib/triple")).toContain(
+      "Library-wide scopes such as `wikg://lib/triple`",
+    );
     expect(
       renderUriPredicateHelpText(
         "triple-object",
@@ -705,9 +704,9 @@ describe("cli/args/help", () => {
       helpText: scopeHelpText,
       kind: "help",
     });
-    expect(() =>
-      parseCLIArguments(["wikg://lib", "remove", "--help"]),
-    ).toThrow("default library cannot be removed");
+    expect(() => parseCLIArguments(["wikg://lib", "remove", "--help"])).toThrow(
+      "default library cannot be removed",
+    );
     expect(scopeHelpText).toContain("wg help library");
     expect(metadataHelpText).toContain("Library metadata object");
     expect(metadataHelpText).toContain("Metadata keys are free-form");
