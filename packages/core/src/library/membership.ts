@@ -21,7 +21,11 @@ import {
 import { openSharedStateDatabase } from "../document/index.js";
 import { resolveWikiGraphCoreDatabasePath } from "../runtime/common/wiki-graph/dir.js";
 import { WIKI_GRAPH_ARCHIVE_EXTENSION } from "../runtime/common/wiki-graph/uri.js";
-import { readWikgArchiveMutationToken } from "../storage/wikg/index.js";
+import {
+  readWikgArchiveEntry,
+  readWikgArchiveMutationToken,
+  WikiGraphArchiveFile,
+} from "../storage/wikg/index.js";
 import { isNodeError } from "../utils/node-error.js";
 import {
   parseWikiGraphLibraryUri,
@@ -34,6 +38,7 @@ import { markWikiGraphLibraryIndexDirty } from "./search-index.js";
 import { withWikiGraphLibraryLock } from "./lock.js";
 
 const PUBLIC_ID_BYTES = 6;
+const SEARCH_INDEX_ARCHIVE_ENTRY_PATH = "fts.db";
 const LIBRARY_ARCHIVES_TABLE_COLUMNS_SQL = `
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     library_id INTEGER NOT NULL,
@@ -313,7 +318,7 @@ export async function addWikiGraphLibraryArchive(input: {
     );
     await copyFile(sourcePath, targetPath, constants.COPYFILE_EXCL);
     await assertInsideLibrary(await realpath(targetPath), library.folderPath);
-    const targetFile = await inspectLibraryArchiveFile(
+    const targetFile = await ensureLibraryArchiveFileHasNoSearchIndexAndInspect(
       library.folderPath,
       targetRelativePath,
     );
@@ -337,6 +342,58 @@ export async function addWikiGraphLibraryArchive(input: {
     await markWikiGraphLibraryIndexDirty(library);
     return archive;
   });
+}
+
+export async function finalizeWikiGraphLibraryArchiveWrite(input: {
+  readonly target: ParsedWikiGraphLibraryUri;
+}): Promise<boolean> {
+  if (input.target.kind !== "archive") {
+    throw new Error("Expected a Wiki Graph library archive URI.");
+  }
+
+  const library = await resolveWikiGraphLibrary(input.target);
+  return await withWikiGraphLibraryLock(library.id, "write", async () => {
+    const archive = await resolveLibraryArchiveTarget(input.target, library);
+    const removed = await ensureLibraryManagedArchiveHasNoSearchIndex(
+      archive.path,
+    );
+    const refreshedFile = await inspectLibraryArchiveFile(
+      library.folderPath,
+      archive.relativePath,
+    );
+
+    await withLibraryArchiveMembershipDatabase(async (database) => {
+      await updateLibraryArchiveSeen(database, archive.id, refreshedFile, {
+        status: "present",
+      });
+    });
+
+    return removed;
+  });
+}
+
+export async function ensureLibraryManagedArchiveHasNoSearchIndex(
+  archivePath: string,
+): Promise<boolean> {
+  if ((await readOptionalWikgMutationToken(archivePath)) === undefined) {
+    return false;
+  }
+
+  const searchIndex = await readWikgArchiveEntry(
+    archivePath,
+    SEARCH_INDEX_ARCHIVE_ENTRY_PATH,
+  );
+  if (searchIndex === undefined) {
+    return false;
+  }
+
+  await new WikiGraphArchiveFile(archivePath).write(
+    async (document) => {
+      await document.deleteSearchIndexDatabase();
+    },
+    { searchIndexWritebackPolicy: "archive" },
+  );
+  return true;
 }
 
 export async function removeWikiGraphLibraryArchive(input: {
@@ -719,9 +776,22 @@ async function listWikgFiles(
   await walkLibraryDirectory(root, root, relativePaths);
   const files: DiscoveredLibraryArchiveFile[] = [];
   for (const relativePath of relativePaths.sort((a, b) => a.localeCompare(b))) {
-    files.push(await inspectLibraryArchiveFile(root, relativePath));
+    files.push(
+      await ensureLibraryArchiveFileHasNoSearchIndexAndInspect(
+        root,
+        relativePath,
+      ),
+    );
   }
   return files;
+}
+
+async function ensureLibraryArchiveFileHasNoSearchIndexAndInspect(
+  root: string,
+  relativePath: string,
+): Promise<DiscoveredLibraryArchiveFile> {
+  await ensureLibraryManagedArchiveHasNoSearchIndex(join(root, relativePath));
+  return await inspectLibraryArchiveFile(root, relativePath);
 }
 
 async function walkLibraryDirectory(

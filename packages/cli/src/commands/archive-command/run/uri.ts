@@ -14,6 +14,7 @@ export interface ArchiveRuntimeLocation {
   readonly archiveKey: string;
   readonly archivePath: string;
   readonly indexScope: QueryIndexScope;
+  readonly libraryArchiveTarget?: ParsedWikiGraphLibraryUri;
   readonly libraryDirtyTarget?: ParsedWikiGraphLibraryUri;
   readonly locatedUri: string;
 }
@@ -50,6 +51,7 @@ export async function resolveArchiveRuntimeLocation(
     indexScope: { archiveKey: archivePath, archivePath, kind: "archive-index" },
     ...(libraryArchiveTarget?.kind === "archive"
       ? {
+          libraryArchiveTarget,
           libraryDirtyTarget: {
             isDefault: libraryArchiveTarget.isDefault,
             kind: "scope",

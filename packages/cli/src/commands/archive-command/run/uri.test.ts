@@ -9,15 +9,20 @@ import {
   createWikiGraphLibrary,
   DirectoryDocument,
   parseWikiGraphLibraryUri,
+  readArchiveIndexSettings,
   readWikiGraphLibraryIndexState,
+  rebuildArchiveSearchIndex,
   rebuildWikiGraphLibraryIndex,
+  setFtsIndexEmbedded,
   TOC_FILE_VERSION,
+  WikiGraphArchiveFile,
   writeWikgArchive,
 } from "wiki-graph-core";
 import {
   getWikiGraphStateDirectoryPathForTesting,
   setWikiGraphStateDirectoryPathForTesting,
 } from "../../../../../core/src/runtime/common/wiki-graph/dir.js";
+import { readWikgArchiveEntry } from "../../../../../core/src/storage/wikg/archive/index.js";
 import { runArchiveChapterCommand } from "../chapter.js";
 import { resolveArchiveCommandRuntimeArguments } from "./uri.js";
 
@@ -150,6 +155,40 @@ describe("archive-command URI runtime resolution", () => {
       readWikiGraphLibraryIndexState(target!),
     ).resolves.toMatchObject({
       status: "current",
+    });
+  });
+
+  it("removes embedded FTS from library archive URI writes without changing the policy", async () => {
+    const target = parseWikiGraphLibraryUri("wikg://lib");
+    expect(target).toBeDefined();
+    const archive = await addTestArchiveToLibrary(target!);
+
+    await new WikiGraphArchiveFile(archive.path).write(
+      async (document) => {
+        await setFtsIndexEmbedded(document, true);
+        await rebuildArchiveSearchIndex(document);
+      },
+      { searchIndexWritebackPolicy: "archive" },
+    );
+    await expect(
+      readWikgArchiveEntry(archive.path, "fts.db"),
+    ).resolves.toBeDefined();
+
+    await runArchiveChapterCommand({ action: "add", path: archive.uri });
+
+    await expect(readWikgArchiveEntry(archive.path, "fts.db")).resolves.toBe(
+      undefined,
+    );
+    await expect(
+      new WikiGraphArchiveFile(archive.path).readDocument(
+        async (document) =>
+          (await readArchiveIndexSettings(document)).ftsEmbedded,
+      ),
+    ).resolves.toBe(true);
+    await expect(
+      readWikiGraphLibraryIndexState(target!),
+    ).resolves.toMatchObject({
+      status: "dirty",
     });
   });
 });
