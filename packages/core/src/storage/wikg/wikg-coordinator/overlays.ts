@@ -336,11 +336,23 @@ export async function isDirtyOverlay(overlay: EntryOverlay): Promise<boolean> {
   if (overlay.workspaceIdentity === undefined) return false;
   const file = await resolveWorkspaceSnapshot(overlay.workspaceIdentity);
   if (file === undefined) return false;
-  const content = await file.read();
-  const bytes =
-    typeof content === "string" ? new TextEncoder().encode(content) : content;
-  return (
-    createPortableHash("sha256").update(bytes).digest("hex") !==
-    overlay.baseDigest
-  );
+  return (await readFileDigest(file)) !== overlay.baseDigest;
+}
+
+export async function readFileDigest(file: File): Promise<string> {
+  const reader = await file.openReader();
+  const hash = createPortableHash("sha256");
+  try {
+    for (let offset = 0; offset < reader.size; ) {
+      const content = await reader.read(
+        offset,
+        Math.min(64 * 1024, reader.size - offset),
+      );
+      hash.update(content);
+      offset += content.byteLength;
+    }
+    return hash.digest("hex");
+  } finally {
+    await reader.close();
+  }
 }

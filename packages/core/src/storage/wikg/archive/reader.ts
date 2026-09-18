@@ -62,6 +62,12 @@ export class WikgArchiveReader {
       ? undefined
       : await this.#reader.readEntry(hostName);
   }
+
+  public async copyEntry(entryPath: string, target: File): Promise<boolean> {
+    const hostName = this.#entries.get(normalizeArchivePath(entryPath));
+    if (hostName === undefined) return false;
+    return await this.#reader.copyEntry(hostName, target);
+  }
 }
 
 export async function listWikgArchiveEntries(

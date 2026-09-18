@@ -1,5 +1,6 @@
 import {
   getWikiGraphPlatform,
+  isHostFileEmpty,
   resolveHostFile,
 } from "../runtime/platform/index.js";
 import type {
@@ -28,12 +29,7 @@ const SQLITE_BUSY_TIMEOUT_MS = 15 * 60 * 1000;
 type DatabaseOperationScope = symbol;
 
 async function isMissingOrEmptyFile(file: File): Promise<boolean> {
-  if (file.size !== undefined) return file.size === 0;
-  if (file.getSize !== undefined) return (await file.getSize()) === 0;
-  const content = await file.read();
-  return typeof content === "string"
-    ? content.length === 0
-    : content.byteLength === 0;
+  return await isHostFileEmpty(file);
 }
 
 export class Database {

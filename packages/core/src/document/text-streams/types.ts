@@ -11,6 +11,8 @@ export type TextStreamName = keyof typeof TEXT_STREAM_KIND;
 export interface TextSentenceLocation {
   readonly byteLength: number;
   readonly byteOffset: number;
+  readonly characterLength: number;
+  readonly characterOffset: number;
   readonly sentenceIndex: number;
   readonly wordsCount: number;
 }
@@ -65,6 +67,7 @@ export interface ReadonlySerialTextStream {
   ): Promise<readonly SentenceRecord[]>;
   listFragmentIds(): Promise<readonly number[]>;
   listSentences?(): Promise<readonly SentenceRecord[]>;
+  getSentenceCount?(): Promise<number>;
   readText?(): Promise<string | undefined>;
   readTextInRange?(
     startSentenceIndex: number,

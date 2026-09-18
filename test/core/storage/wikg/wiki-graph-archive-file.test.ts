@@ -1,6 +1,6 @@
 import { mkdir, rename } from "fs/promises";
 import { join } from "path";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { DirectoryDocument } from "../../../../packages/core/src/document/index.js";
 import { WikiGraphArchiveFile } from "../../../../packages/core/src/storage/wikg/wiki-graph-archive-file.js";
@@ -13,6 +13,7 @@ import {
   isArchiveSearchIndexCurrent,
   rebuildArchiveSearchIndex,
 } from "../../../../packages/core/src/retrieval/query/index.js";
+import { readArchivePage } from "../../../../packages/core/src/retrieval/query/view.js";
 import {
   installWikiGraphPlatform,
   withWikiGraphStorage,
@@ -75,6 +76,13 @@ describe("wikg/wiki-graph-archive-file", () => {
             const reader = await nodeWikiGraphPlatform.zip.open(file);
             return {
               close: async () => await reader.close(),
+              copyEntry: async (name, target) => {
+                readEntries.push(name);
+                if (name === sentinel) {
+                  throw new Error(`Unrelated ZIP entry was read: ${name}`);
+                }
+                return await reader.copyEntry(name, target);
+              },
               listEntries: async () => await reader.listEntries(),
               readEntry: async (name) => {
                 readEntries.push(name);
@@ -94,6 +102,57 @@ describe("wikg/wiki-graph-archive-file", () => {
         ),
       ).resolves.toMatchObject({ items: [{ title: "Original" }] });
       expect(readEntries).not.toContain(sentinel);
+    });
+  });
+
+  it("range-reads and appends archive text without whole snapshot reads", async () => {
+    await withArchiveFixture(async ({ archive }) => {
+      // eslint-disable-next-line @typescript-eslint/unbound-method -- the mock restores the original receiver with call().
+      const originalRead = NodeFile.prototype.read;
+      const read = vi
+        .spyOn(NodeFile.prototype, "read")
+        .mockImplementation(function (this: NodeFile, options) {
+          if (this.path.includes(".wikg-work")) {
+            return Promise.reject(
+              new Error(`Whole workspace snapshot read: ${this.path}`),
+            );
+          }
+          return originalRead.call(this, options);
+        });
+      try {
+        const file = new WikiGraphArchiveFile(archive);
+        await expect(
+          file.readDocument(
+            async (document) =>
+              await readArchivePage(
+                document,
+                "wikg://chapter/chapter/source#1",
+              ),
+          ),
+        ).resolves.toMatchObject({
+          fragment: { text: "Persistent archive cache source." },
+        });
+
+        await file.write(async (document) => {
+          const draft = await document.getSerialFragments(1).createDraft();
+          draft.addSentence("追加正文。", 2);
+          await draft.commit();
+        });
+
+        await expect(
+          file.readDocument(
+            async (document) =>
+              await readArchivePage(
+                document,
+                "wikg://chapter/chapter/source#2",
+              ),
+          ),
+        ).resolves.toMatchObject({
+          fragment: { text: "追加正文。" },
+        });
+      } finally {
+        read.mockRestore();
+      }
     });
   });
 

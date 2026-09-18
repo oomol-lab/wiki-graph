@@ -494,6 +494,7 @@ export {
   type HostLifecycleProvider,
   type HostResourceProvider,
   type HostZipEntry,
+  type HostZipWriteEntry,
   type HostZipProvider,
   type HostZipReader,
   type WikiGraphPlatform,

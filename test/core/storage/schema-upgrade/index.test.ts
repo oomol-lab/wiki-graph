@@ -45,6 +45,33 @@ import {
 import { withTempDir } from "../../../helpers/temp.js";
 
 describe("schema-upgrade", () => {
+  it("upgrades v4 sentence character positions for Unicode ranges", async () => {
+    await withFixture(async ({ archive, root }) => {
+      await new WikiGraphArchiveFile(archive).write(async (document) => {
+        const draft = await document.getSerialFragments(1).createDraft();
+        draft.addSentence("Alpha.", 1);
+        draft.addSentence("朱元璋。", 2);
+        await draft.commit();
+      });
+      await removeTextCharacterColumns(archive, root);
+      await rewriteManifest(archive, 4, false);
+
+      await expect(
+        upgradeWikiGraphArchiveSchema(archive),
+      ).resolves.toMatchObject({ changed: true, schemaChanged: true });
+      await expect(readWikiGraphArchiveSchemaVersion(archive)).resolves.toBe(5);
+      await new WikiGraphArchiveFile(archive).readDocument(async (document) => {
+        await expect(
+          document.getSerialFragments(1).readTextInRangeWithOffsets(1, 1),
+        ).resolves.toEqual({
+          sourceEnd: 10,
+          sourceStart: 6,
+          text: "朱元璋。",
+        });
+      });
+    });
+  });
+
   it("upgrades a copied v3 archive and supports source provenance", async () => {
     await withFixture(async ({ archive, root }) => {
       const firstDigest = "a".repeat(64);
@@ -98,7 +125,7 @@ describe("schema-upgrade", () => {
       });
       await expect(
         readWikiGraphArchiveSchemaVersion(upgradedArchive),
-      ).resolves.toBe(4);
+      ).resolves.toBe(5);
       await expect(readWikgArchiveMutationToken(upgradedArchive)).resolves.toBe(
         sourceToken,
       );
@@ -427,7 +454,7 @@ describe("schema-upgrade", () => {
       ).resolves.toMatchObject({ changed: true, schemaChanged: true });
 
       await expect(readWikiGraphHomeSchemaVersion()).resolves.toBe(4);
-      await expect(readWikiGraphArchiveSchemaVersion(archive)).resolves.toBe(4);
+      await expect(readWikiGraphArchiveSchemaVersion(archive)).resolves.toBe(5);
       await expect(readWikgArchiveMutationToken(archive)).resolves.toBe(
         mutationToken,
       );
@@ -910,6 +937,37 @@ async function removeSourceArtifactShortUidColumn(
       FROM source_artifacts;
       DROP TABLE source_artifacts;
       ALTER TABLE source_artifacts_legacy RENAME TO source_artifacts;
+    `);
+  } finally {
+    await database.close();
+  }
+  const databaseBytes = await readFile(databasePath);
+  await nodeWikiGraphPlatform.zip.write(
+    archive,
+    entries.map((entry) =>
+      entry.name === "database.db"
+        ? { data: databaseBytes, name: entry.name }
+        : entry,
+    ),
+  );
+}
+
+async function removeTextCharacterColumns(
+  archive: NodeFile,
+  root: string,
+): Promise<void> {
+  const entries = await readZipEntries(archive);
+  const databaseEntry = entries.find((entry) => entry.name === "database.db");
+  if (databaseEntry === undefined) {
+    throw new Error("Fixture archive has no database.db entry.");
+  }
+  const databasePath = join(root, "v4-database.db");
+  await writeFile(databasePath, databaseEntry.data);
+  const database = await Database.open(new NodeFile(databasePath));
+  try {
+    await database.execute(`
+      ALTER TABLE text_sentence_records DROP COLUMN character_offset;
+      ALTER TABLE text_sentence_records DROP COLUMN character_length;
     `);
   } finally {
     await database.close();

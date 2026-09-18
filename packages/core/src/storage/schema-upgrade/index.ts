@@ -40,7 +40,7 @@ export {
   readWikiGraphHomeSchemaVersion,
 } from "../../document/home-schema-upgrade.js";
 
-export const CURRENT_ARCHIVE_SCHEMA_VERSION = 4;
+export const CURRENT_ARCHIVE_SCHEMA_VERSION = 5;
 
 export interface WikiGraphArchiveSchemaUpgradeResult {
   readonly changed: boolean;
@@ -111,6 +111,7 @@ export async function upgradeWikiGraphArchiveSchema(
       const repairedToc = await repairChapterToc(workspace);
       const schemaChanged = schemaVersion < CURRENT_ARCHIVE_SCHEMA_VERSION;
       const databaseResult = await upgradeArchiveDatabase(workspace, {
+        addCharacterOffsets: schemaVersion < 5,
         refreshArtifacts: schemaVersion < 3,
       });
 
@@ -251,19 +252,49 @@ function normalizeLegacyTocItem(
 
 async function upgradeArchiveDatabase(
   workspace: Directory,
-  options: { readonly refreshArtifacts: boolean },
+  options: {
+    readonly addCharacterOffsets: boolean;
+    readonly refreshArtifacts: boolean;
+  },
 ): Promise<{ readonly repairedTextWords: boolean }> {
   if ((await workspace.getFile("database.db")) === undefined) {
     return { repairedTextWords: false };
   }
   const document = await DirectoryDocument.open(workspace);
   try {
+    if (options.addCharacterOffsets) {
+      await addTextSentenceCharacterColumns(document);
+    }
     const repairedTextWords = await repairTextSentenceWordCounts(document);
     if (options.refreshArtifacts) await refreshChapterArtifacts(document);
     return { repairedTextWords };
   } finally {
     await document.release();
   }
+}
+
+async function addTextSentenceCharacterColumns(
+  document: DirectoryDocument,
+): Promise<void> {
+  await document.readDatabase(async (database) => {
+    const columns = new Set(
+      await database.queryAll(
+        "PRAGMA table_info(text_sentence_records)",
+        undefined,
+        (row) => String(row.name),
+      ),
+    );
+    if (!columns.has("character_offset")) {
+      await database.run(
+        "ALTER TABLE text_sentence_records ADD COLUMN character_offset INTEGER NOT NULL DEFAULT 0",
+      );
+    }
+    if (!columns.has("character_length")) {
+      await database.run(
+        "ALTER TABLE text_sentence_records ADD COLUMN character_length INTEGER NOT NULL DEFAULT 0",
+      );
+    }
+  });
 }
 
 async function refreshChapterArtifacts(
@@ -289,13 +320,16 @@ async function repairTextSentenceWordCounts(
 ): Promise<boolean> {
   const rows = await document.readDatabase(async (database) =>
     database.queryAll(
-      `SELECT kind, chapter_id, sentence_index, words_count, byte_offset, byte_length
+      `SELECT kind, chapter_id, sentence_index, words_count, byte_offset, byte_length,
+              character_offset, character_length
        FROM text_sentence_records ORDER BY kind, chapter_id, sentence_index`,
       undefined,
       (row) => ({
         byteLength: Number(row.byte_length),
         byteOffset: Number(row.byte_offset),
         chapterId: Number(row.chapter_id),
+        characterLength: Number(row.character_length),
+        characterOffset: Number(row.character_offset),
         kind: Number(row.kind),
         sentenceIndex: Number(row.sentence_index),
         wordsCount: Number(row.words_count),
@@ -304,10 +338,15 @@ async function repairTextSentenceWordCounts(
   );
   let cachedTextKey: string | undefined;
   let cachedText: Uint8Array | undefined;
+  let cachedByteEnd = 0;
+  let cachedCharacterEnd = 0;
+  let repairedTextWords = false;
   const updates: Array<{
     readonly chapterId: number;
     readonly kind: number;
     readonly sentenceIndex: number;
+    readonly characterLength: number;
+    readonly characterOffset: number;
     readonly wordsCount: number;
   }> = [];
 
@@ -323,13 +362,37 @@ async function repairTextSentenceWordCounts(
           : await document.getSummaryFragments(row.chapterId).readText();
       cachedText =
         text === undefined ? undefined : new TextEncoder().encode(text);
+      cachedByteEnd = 0;
+      cachedCharacterEnd = 0;
     }
     if (cachedText === undefined) continue;
+    const characterOffset =
+      cachedCharacterEnd +
+      Array.from(
+        new TextDecoder().decode(
+          cachedText.subarray(cachedByteEnd, row.byteOffset),
+        ),
+      ).length;
     const sentence = new TextDecoder().decode(
       cachedText.subarray(row.byteOffset, row.byteOffset + row.byteLength),
     );
+    const characterLength = Array.from(sentence).length;
     const wordsCount = countTextWords(sentence);
-    if (wordsCount !== row.wordsCount) updates.push({ ...row, wordsCount });
+    cachedByteEnd = row.byteOffset + row.byteLength;
+    cachedCharacterEnd = characterOffset + characterLength;
+    if (wordsCount !== row.wordsCount) repairedTextWords = true;
+    if (
+      wordsCount !== row.wordsCount ||
+      characterOffset !== row.characterOffset ||
+      characterLength !== row.characterLength
+    ) {
+      updates.push({
+        ...row,
+        characterLength,
+        characterOffset,
+        wordsCount,
+      });
+    }
   }
 
   if (updates.length === 0) return false;
@@ -337,10 +400,13 @@ async function repairTextSentenceWordCounts(
     await database.transaction(async () => {
       for (const update of updates) {
         await database.run(
-          `UPDATE text_sentence_records SET words_count = ?
+          `UPDATE text_sentence_records
+           SET words_count = ?, character_offset = ?, character_length = ?
            WHERE kind = ? AND chapter_id = ? AND sentence_index = ?`,
           [
             update.wordsCount,
+            update.characterOffset,
+            update.characterLength,
             update.kind,
             update.chapterId,
             update.sentenceIndex,
@@ -349,7 +415,7 @@ async function repairTextSentenceWordCounts(
       }
     });
   });
-  return true;
+  return repairedTextWords;
 }
 
 function getTextStreamName(kind: number): "source" | "summary" | undefined {

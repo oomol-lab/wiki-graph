@@ -1,5 +1,8 @@
 import type { Directory, File } from "../../runtime/platform/index.js";
-import { getRelativeFile } from "../../runtime/platform/index.js";
+import {
+  getRelativeFile,
+  readHostFileSize,
+} from "../../runtime/platform/index.js";
 import type { DocumentFileStore } from "./types.js";
 
 /** Document file store backed exclusively by a host Directory tree. */
@@ -49,7 +52,7 @@ export class DirectoryFileStore implements DocumentFileStore {
   public async getFileSize(path: string): Promise<number | undefined> {
     const file = await getRelativeFile(this.#root, this.#relative(path));
     if (!file) return undefined;
-    return file.getSize === undefined ? file.size : await file.getSize();
+    return await readHostFileSize(file);
   }
   public async readFileRange(
     path: string,

@@ -4,8 +4,8 @@ import {
   resolveHostFile,
   type Directory,
   type File,
-  type HostZipEntry,
   type HostZipReader,
+  type HostZipWriteEntry,
 } from "../../../runtime/platform/index.js";
 import {
   LEGACY_SEARCH_INDEX_DATABASE_PATH,
@@ -37,21 +37,29 @@ export async function writeWikgArchiveFromDirectory(
 ): Promise<void> {
   const documentDirectory = await resolveHostDirectory(documentDirectoryRef);
   const outputFile = await resolveHostFile(outputFileRef);
-  const entries = new Map<string, Uint8Array>();
-  entries.set(WIKG_MUTATION_TOKEN_PATH, createWikgMutationTokenContent());
-  entries.set(
-    WIKG_MANIFEST_PATH,
-    new TextEncoder().encode(WIKG_MANIFEST_CONTENT),
-  );
+  const entries = new Map<string, HostZipWriteEntry>();
+  entries.set(WIKG_MUTATION_TOKEN_PATH, {
+    data: createWikgMutationTokenContent(),
+    name: WIKG_MUTATION_TOKEN_PATH,
+  });
+  entries.set(WIKG_MANIFEST_PATH, {
+    data: new TextEncoder().encode(WIKG_MANIFEST_CONTENT),
+    name: WIKG_MANIFEST_PATH,
+  });
   for (const entry of await listHostDocumentFiles(documentDirectory)) {
     if (
       isWikgArchivePath(entry.name) &&
       shouldWriteDocumentFile({ archivePath: entry.name })
     ) {
-      entries.set(entry.name, entry.data);
+      entries.set(entry.name, entry);
     }
   }
-  await writeEntries(outputFile, entries);
+  await getWikiGraphPlatform().zip.write(
+    outputFile,
+    sortArchiveEntryPathsForWrite(entries.keys()).map(
+      (name) => entries.get(name) as HostZipWriteEntry,
+    ),
+  );
 }
 
 export async function writeWikgArchiveWithOverlays(
@@ -104,7 +112,7 @@ export async function writeWikgArchiveWithOverlays(
 
     await getWikiGraphPlatform().zip.write(
       outputFile,
-      (async function* (): AsyncGenerator<HostZipEntry> {
+      (async function* (): AsyncGenerator<HostZipWriteEntry> {
         for (const name of sortArchiveEntryPathsForWrite(paths)) {
           if (name === WIKG_MUTATION_TOKEN_PATH) {
             yield {
@@ -127,14 +135,7 @@ export async function writeWikgArchiveWithOverlays(
             if (data !== undefined) yield { data, name };
             continue;
           }
-          const content = await source.file.read();
-          yield {
-            data:
-              typeof content === "string"
-                ? new TextEncoder().encode(content)
-                : content,
-            name,
-          };
+          yield { file: source.file, name };
         }
       })(),
     );
@@ -152,38 +153,18 @@ async function readArchiveEntry(
   return hostName === undefined ? undefined : await reader.readEntry(hostName);
 }
 
-async function writeEntries(
-  outputFile: File,
-  entries: ReadonlyMap<string, Uint8Array>,
-): Promise<void> {
-  await getWikiGraphPlatform().zip.write(
-    outputFile,
-    sortArchiveEntryPathsForWrite(entries.keys()).map((name) => ({
-      data: entries.get(name) as Uint8Array,
-      name,
-    })),
-  );
-}
-
 async function listHostDocumentFiles(
   directory: Directory,
   prefix = "",
-): Promise<HostZipEntry[]> {
-  const output: HostZipEntry[] = [];
+): Promise<HostZipWriteEntry[]> {
+  const output: HostZipWriteEntry[] = [];
   const children = [...(await directory.list())].sort((left, right) =>
     left.name.localeCompare(right.name),
   );
   for (const child of children) {
     const name = prefix === "" ? child.name : `${prefix}/${child.name}`;
     if ("read" in child) {
-      const content = await child.read();
-      output.push({
-        data:
-          typeof content === "string"
-            ? new TextEncoder().encode(content)
-            : content,
-        name,
-      });
+      output.push({ file: child, name });
     } else {
       output.push(...(await listHostDocumentFiles(child, name)));
     }

@@ -42,6 +42,8 @@ export class TextStreamDraft {
     location?: {
       readonly byteOffset: number;
       readonly byteLength: number;
+      readonly characterOffset?: number;
+      readonly characterLength?: number;
     },
   ): SentenceId {
     this.#assertActive();
@@ -52,6 +54,12 @@ export class TextStreamDraft {
       Object.assign(sentence, {
         byteLength: location.byteLength,
         byteOffset: location.byteOffset,
+        ...(location.characterLength === undefined
+          ? {}
+          : { characterLength: location.characterLength }),
+        ...(location.characterOffset === undefined
+          ? {}
+          : { characterOffset: location.characterOffset }),
       });
     }
 

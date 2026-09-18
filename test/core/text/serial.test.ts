@@ -127,6 +127,58 @@ describe("serial", () => {
     });
   });
 
+  it("reads late Unicode ranges without scanning the text prefix", async () => {
+    await withTempDir("wikigraph-serial-late-range-", async (path) => {
+      const prefix = `${"a".repeat(512 * 1024)}.`;
+      const target = "朱元璋抵达洪都。";
+      const initial = await DirectoryDocument.open(path);
+      try {
+        await initial.serials.createWithId(1);
+        const draft = await initial.getSerialFragments(1).createDraft();
+        draft.addSentence(prefix, 1);
+        draft.addSentence(target, 4);
+        await draft.commit();
+      } finally {
+        await initial.release();
+      }
+
+      let rangeBytesRead = 0;
+      class MeasuredRangeFileStore extends DirectoryFileStore {
+        public override async readFile(pathname: string) {
+          if (pathname.startsWith("texts/")) {
+            throw new Error("whole-file read is not allowed");
+          }
+          return await super.readFile(pathname);
+        }
+
+        public override async readFileRange(
+          pathname: string,
+          offset: number,
+          length: number,
+        ) {
+          rangeBytesRead += length;
+          return await super.readFileRange(pathname, offset, length);
+        }
+      }
+
+      const document = await DirectoryDocument.openFileStore(
+        new MeasuredRangeFileStore(new NodeDirectory(path)),
+      );
+      try {
+        await expect(
+          document.getSerialFragments(1).readTextInRangeWithOffsets(1, 1),
+        ).resolves.toEqual({
+          sourceEnd: Array.from(prefix + target).length,
+          sourceStart: Array.from(prefix).length,
+          text: target,
+        });
+        expect(rangeBytesRead).toBe(new TextEncoder().encode(target).length);
+      } finally {
+        await document.release();
+      }
+    });
+  });
+
   it("emits advance for a single fragment before completion", async () => {
     await withTempDir("wikigraph-serial-", async (path) => {
       const document = await DirectoryDocument.open(path);

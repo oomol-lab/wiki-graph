@@ -41,6 +41,7 @@ import {
   publishDeleteOverlay,
   publishFileOverlay,
   readOverlay,
+  readFileDigest,
   resolveOverlayFile,
   restoreOverlay,
 } from "./overlays.js";
@@ -179,6 +180,106 @@ export class HostWikgArchiveSession {
       "read",
       this.#owner,
       async () => await this.#readEntryUnlocked(entryPath),
+    );
+  }
+
+  public async getEntrySize(path: string): Promise<number | undefined> {
+    const entryPath = normalizeArchivePath(path);
+    return await withEntryLock(
+      this.#archiveKey,
+      entryPath,
+      "write",
+      this.#owner,
+      async () => {
+        const file = await this.#materializeEntryUnlocked(entryPath);
+        if (file === undefined) return undefined;
+        const reader = await file.openReader();
+        try {
+          return reader.size;
+        } finally {
+          await reader.close();
+        }
+      },
+    );
+  }
+
+  public async readEntryRange(
+    path: string,
+    offset: number,
+    length: number,
+  ): Promise<Uint8Array | undefined> {
+    const entryPath = normalizeArchivePath(path);
+    return await withEntryLock(
+      this.#archiveKey,
+      entryPath,
+      "write",
+      this.#owner,
+      async () => {
+        const file = await this.#materializeEntryUnlocked(entryPath);
+        if (file === undefined) return undefined;
+        const reader = await file.openReader();
+        try {
+          return await reader.read(offset, length);
+        } finally {
+          await reader.close();
+        }
+      },
+    );
+  }
+
+  public async appendEntry(path: string, content: Uint8Array): Promise<void> {
+    const entryPath = normalizeArchivePath(path);
+    await withEntryLock(
+      this.#archiveKey,
+      entryPath,
+      "write",
+      this.#owner,
+      async () => {
+        const source = await this.#materializeEntryUnlocked(entryPath);
+        const previous = await readOverlay(this.#archiveKey, entryPath);
+        const snapshot = await createWorkspaceSnapshot(
+          this.#archiveKey,
+          entryPath,
+        );
+        try {
+          const writer = await snapshot.file.openWriter();
+          try {
+            if (source !== undefined) {
+              const reader = await source.openReader();
+              try {
+                for (let offset = 0; offset < reader.size; ) {
+                  const chunk = await reader.read(
+                    offset,
+                    Math.min(64 * 1024, reader.size - offset),
+                  );
+                  await writer.write(chunk);
+                  offset += chunk.byteLength;
+                }
+              } finally {
+                await reader.close();
+              }
+            }
+            await writer.write(content);
+            await writer.commit();
+          } catch (error) {
+            await writer.abort().catch(() => undefined);
+            throw error;
+          }
+          await publishFileOverlay({
+            archiveIdentity: this.#archive.identity,
+            archiveKey: this.#archiveKey,
+            entryPath,
+            owner: this.#owner,
+            workspaceFile: snapshot.file,
+            workspacePath: snapshot.relativePath,
+          });
+        } catch (error) {
+          await removeWorkspaceSnapshot(snapshot.relativePath);
+          throw error;
+        }
+        await this.#recordChange(entryPath, previous);
+        this.#modifiedEntryPaths.add(entryPath);
+      },
     );
   }
 
@@ -456,6 +557,53 @@ export class HostWikgArchiveSession {
       return await readBytes(await resolveOverlayFile(overlay));
     }
     return await this.#readArchiveEntry(entryPath);
+  }
+
+  async #materializeEntryUnlocked(
+    entryPath: string,
+  ): Promise<File | undefined> {
+    const existing = await readOverlay(this.#archiveKey, entryPath);
+    if (existing?.kind === "deleted") {
+      this.#observedDirtyEntryPaths.add(entryPath);
+      return undefined;
+    }
+    if (existing?.kind === "file") {
+      if (await isDirtyOverlay(existing)) {
+        this.#observedDirtyEntryPaths.add(entryPath);
+      }
+      this.#materializedEntryPaths.add(entryPath);
+      return await resolveOverlayFile(existing);
+    }
+
+    const snapshot = await createWorkspaceSnapshot(this.#archiveKey, entryPath);
+    try {
+      const reader = await WikgArchiveReader.open(this.#archive);
+      let copied: boolean;
+      try {
+        copied = await reader.copyEntry(entryPath, snapshot.file);
+      } finally {
+        await reader.close();
+      }
+      if (!copied) {
+        await removeWorkspaceSnapshot(snapshot.relativePath);
+        return undefined;
+      }
+      await publishFileOverlay({
+        archiveIdentity: this.#archive.identity,
+        archiveKey: this.#archiveKey,
+        baseDigest: await readFileDigest(snapshot.file),
+        entryPath,
+        owner: this.#owner,
+        workspaceFile: snapshot.file,
+        workspacePath: snapshot.relativePath,
+      });
+    } catch (error) {
+      await removeWorkspaceSnapshot(snapshot.relativePath);
+      throw error;
+    }
+    await this.#recordChange(entryPath, existing);
+    this.#materializedEntryPaths.add(entryPath);
+    return snapshot.file;
   }
 
   async #readArchiveEntry(entryPath: string): Promise<Uint8Array | undefined> {

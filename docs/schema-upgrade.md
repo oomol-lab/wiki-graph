@@ -61,6 +61,12 @@ existing source/summary text and structured archive data; provenance tables are
 initialized in the extracted upgrade workspace and the resulting database is
 written back only by the explicit archive upgrader.
 
+The v4 -> v5 archive upgrader adds `character_offset` and `character_length`
+to `text_sentence_records` and reconstructs them from the preserved source and
+summary streams. These code-point positions let range retrieval return source
+locators without scanning every byte before a late sentence. The embedded
+search index remains derived data and is invalidated during the archive rewrite.
+
 Archive upgraders must refuse active coordinator state for the target archive
 and non-search-index overlays, because those can represent uncommitted important
 data. This check uses the current host-neutral coordinator state in

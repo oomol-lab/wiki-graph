@@ -112,18 +112,25 @@ export interface HostZipEntry {
   readonly name: string;
 }
 
+export type HostZipWriteEntry =
+  | HostZipEntry
+  | { readonly file: File; readonly name: string };
+
 /** Lazily reads entries from one host-owned ZIP archive. */
 export interface HostZipReader {
   close(): Promise<void>;
+  /** Copies one uncompressed entry into a transactional host file. */
+  copyEntry(name: string, target: File): Promise<boolean>;
   listEntries(): Promise<readonly string[]>;
   readEntry(name: string): Promise<Uint8Array | undefined>;
 }
 
 export interface HostZipProvider {
   open(file: File): Promise<HostZipReader>;
+  /** Writes entries while allowing large payloads to remain file-backed. */
   write(
     file: File,
-    entries: Iterable<HostZipEntry> | AsyncIterable<HostZipEntry>,
+    entries: Iterable<HostZipWriteEntry> | AsyncIterable<HostZipWriteEntry>,
   ): Promise<void>;
 }
 

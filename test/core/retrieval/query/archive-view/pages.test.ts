@@ -391,6 +391,39 @@ describe("archive/query/archive-view/pages", () => {
     });
   });
 
+  it("reads a public source range without building the full text index", async () => {
+    await withTempDir("wikigraph-archive-view-range-", async (path) => {
+      const document = await DirectoryDocument.open(`${path}/document`);
+      try {
+        await seedSourcedDocument(document);
+        const serial = document.getSerialFragments(1);
+        const listFragmentIds = vi
+          .spyOn(serial, "listFragmentIds")
+          .mockRejectedValue(new Error("full index must not be built"));
+        const getFragment = vi
+          .spyOn(serial, "getFragment")
+          .mockRejectedValue(new Error("full fragment must not be read"));
+
+        const page = await readArchivePage(
+          document,
+          "wikg://chapter/introduction/source#2",
+        );
+
+        expect(page).toMatchObject({
+          fragment: {
+            id: "wikg://chapter/introduction/source#2",
+            text: "朱元璋知道了这个消息，随后亲自来到洪都。",
+          },
+          type: "fragment",
+        });
+        expect(listFragmentIds).not.toHaveBeenCalled();
+        expect(getFragment).not.toHaveBeenCalled();
+      } finally {
+        await document.release();
+      }
+    });
+  });
+
   it("rejects malformed source sentence ranges", async () => {
     await withTempDir("wikigraph-archive-view-", async (path) => {
       const document = await DirectoryDocument.open(`${path}/document`);

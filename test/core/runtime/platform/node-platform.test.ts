@@ -15,6 +15,7 @@ import type {
   FileWriter,
   HostZipEntry,
 } from "../../../../packages/core/src/runtime/platform/index.js";
+import { copyFileContent } from "../../../../packages/core/src/runtime/platform/index.js";
 import { withTempDir } from "../../../helpers/temp.js";
 
 describe("Node File/Directory adapter", () => {
@@ -128,6 +129,71 @@ describe("Node File/Directory adapter", () => {
         "original",
       );
     });
+  });
+
+  it("uses FileReader size when optional size metadata is absent", async () => {
+    await withTempDir("wikigraph-platform-size-", async (path) => {
+      const root = new NodeDirectory(path);
+      const backing = await root.createFile("text.txt");
+      const file: File = {
+        identity: backing.identity,
+        name: backing.name,
+        openReader: async () => await backing.openReader(),
+        openWriter: async () => await backing.openWriter(),
+        read: () => Promise.reject(new Error("whole-file read is forbidden")),
+      };
+      const directory: Directory = {
+        identity: root.identity,
+        name: root.name,
+        createDirectory: async (name) => await root.createDirectory(name),
+        createFile: () => Promise.resolve(file),
+        getDirectory: async (name) => await root.getDirectory(name),
+        getFile: (name) =>
+          Promise.resolve(name === "text.txt" ? file : undefined),
+        list: () => Promise.resolve([file]),
+        remove: async (name, options) => await root.remove(name, options),
+      };
+      const store = new DirectoryFileStore(directory);
+
+      await store.appendFile("text.txt", new TextEncoder().encode("你好"));
+      await store.appendFile("text.txt", new TextEncoder().encode(" world"));
+
+      await expect(store.getFileSize("text.txt")).resolves.toBe(12);
+      await expect(backing.read({ encoding: "utf8" })).resolves.toBe(
+        "你好 world",
+      );
+    });
+  });
+
+  it("closes the source reader when the target writer cannot open", async () => {
+    let closed = false;
+    const source: File = {
+      identity: "source",
+      name: "source",
+      openReader: () =>
+        Promise.resolve({
+          close: () => {
+            closed = true;
+            return Promise.resolve();
+          },
+          read: () => Promise.resolve(new Uint8Array()),
+          size: 0,
+        }),
+      openWriter: () => Promise.reject(new Error("unused")),
+      read: () => Promise.resolve(new Uint8Array()),
+    };
+    const target: File = {
+      identity: "target",
+      name: "target",
+      openReader: () => Promise.reject(new Error("unused")),
+      openWriter: () => Promise.reject(new Error("writer unavailable")),
+      read: () => Promise.resolve(new Uint8Array()),
+    };
+
+    await expect(copyFileContent(source, target)).rejects.toThrow(
+      "writer unavailable",
+    );
+    expect(closed).toBe(true);
   });
 
   it("rejects absolute and parent-directory child names", async () => {
