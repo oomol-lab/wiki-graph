@@ -66,11 +66,13 @@ export class DirectoryFileStore implements DocumentFileStore {
     }
   }
   public async appendFile(path: string, content: Uint8Array): Promise<void> {
-    const file = await this.#getOrCreateFile(this.#relative(path));
+    const relative = this.#relative(path);
+    const existing = await getRelativeFile(this.#root, relative);
+    const file = existing ?? (await this.#getOrCreateFile(relative));
     const writer = await file.openWriter();
     try {
-      const reader = await file.openReader().catch(() => undefined);
-      if (reader !== undefined) {
+      if (existing !== undefined) {
+        const reader = await file.openReader();
         try {
           for (let offset = 0; offset < reader.size; ) {
             const chunk = await reader.read(
