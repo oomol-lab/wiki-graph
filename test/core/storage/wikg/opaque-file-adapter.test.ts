@@ -226,6 +226,7 @@ function wrapFile(backing: NodeFile): File {
     getSize: async () => await backing.getSize(),
     identity: backing.identity,
     name: backing.name,
+    openReader: async () => await backing.openReader(),
     openWriter: async () => await backing.openWriter(),
     read: async (options) => await backing.read(options),
   };

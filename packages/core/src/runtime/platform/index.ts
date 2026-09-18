@@ -10,6 +10,7 @@ import type {
 export type {
   Directory,
   File,
+  FileReader,
   FileWriter,
   HostAsyncContext,
   HostAsyncContextProvider,

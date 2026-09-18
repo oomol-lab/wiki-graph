@@ -66,6 +66,14 @@ absolute path; browser and extension hosts can back them with IndexedDB,
 OPFS, or another scoped store. The `wiki-graph` CLI supplies the Node adapter.
 Each `File.identity` and `Directory.identity` is a stable, opaque coordination
 key—not a path or URI.
+Hosts implement four independent `File` access modes: `read()` reads the
+complete file; `openReader()` returns a bounded byte-range reader; `write()`
+appends sequential data to a transactional writer; and `writeAt()` writes bytes
+at an absolute offset in that writer. A reader rejects ranges outside its
+reported size. A writer publishes its complete snapshot only on `commit()` and
+discards it on `abort()`; positioned writes do not advance its sequential
+write position. ZIP and SQLite remain separate platform providers, so their
+storage strategies are chosen by the host rather than by `File`.
 Archive SQLite workspaces are created only below the supplied `documentStore`
 and are removed after the archive session settles. Derived search indexes are
 kept there as persistent caches under opaque, path-free keys; they remain

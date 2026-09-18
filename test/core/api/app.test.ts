@@ -326,6 +326,7 @@ function createUnreadFile(name: string): File {
   return {
     identity: `test:${name}`,
     name,
+    openReader: () => Promise.reject(new Error("not used")),
     openWriter: () => Promise.reject(new Error("not used")),
     read: () => Promise.reject(new Error("not used")),
   };

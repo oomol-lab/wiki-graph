@@ -370,6 +370,7 @@ describe("facade/import", () => {
           file: {
             identity: "test:source",
             name: "source.txt",
+            openReader: () => Promise.reject(new Error("not used")),
             openWriter: () => Promise.reject(new Error("not used")),
             read: () => Promise.reject(new Error("not used")),
           },

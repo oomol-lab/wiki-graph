@@ -1,6 +1,6 @@
 {
   "name": "wiki-graph",
-  "version": "0.6.0",
+  "version": "0.6.1",
   "description": "CLI for building and querying .wikg knowledge-base archives from long-form text and ebooks.",
   "keywords": [
     "wiki-graph",
@@ -73,7 +73,7 @@
     "wiki-graph-core": "workspace:*"
   },
   "peerDependencies": {
-    "wiki-graph-core": "^0.6.0"
+    "wiki-graph-core": "^0.6.1"
   },
   "peerDependenciesMeta": {
     "wiki-graph-core": {
