@@ -24,6 +24,7 @@ import {
   withWikiGraphStorage,
   type Directory,
   type File,
+  type FileReader,
   type FileWriter,
   type HostDatabaseConnection,
   type HostDatabaseRow,
@@ -57,6 +58,43 @@ export class NodeFile implements File {
         ? undefined
         : { encoding: options.encoding as BufferEncoding },
     );
+  }
+
+  public async openReader(): Promise<FileReader> {
+    const handle = await fsPromises.open(this.path, "r");
+    let closed = false;
+    try {
+      const { size } = await handle.stat();
+      return {
+        size,
+        close: async () => {
+          if (!closed) await handle.close();
+          closed = true;
+        },
+        read: async (offset, length) => {
+          if (closed) throw new Error("Cannot read from a closed FileReader");
+          assertFileRange(offset, length, size);
+          const buffer = Buffer.allocUnsafe(length);
+          let bytesRead = 0;
+          while (bytesRead < length) {
+            const result = await handle.read(
+              buffer,
+              bytesRead,
+              length - bytesRead,
+              offset + bytesRead,
+            );
+            if (result.bytesRead === 0) {
+              throw new Error("File changed while reading its byte range");
+            }
+            bytesRead += result.bytesRead;
+          }
+          return new Uint8Array(buffer.buffer, buffer.byteOffset, bytesRead);
+        },
+      };
+    } catch (error) {
+      await handle.close();
+      throw error;
+    }
   }
 
   public async getSize(): Promise<number> {
@@ -102,6 +140,11 @@ export class NodeFile implements File {
         if (typeof data === "string") await handle.write(data);
         else await handle.write(Buffer.from(data));
       },
+      writeAt: async (offset, data) => {
+        if (closed) throw new Error("Cannot write to a closed FileWriter");
+        assertFileOffset(offset);
+        await handle.write(Buffer.from(data), 0, data.byteLength, offset);
+      },
       commit: async () => {
         if (!closed) {
           await handle.close();
@@ -117,6 +160,24 @@ export class NodeFile implements File {
         closed = true;
       },
     };
+  }
+}
+
+function assertFileRange(offset: number, length: number, size: number): void {
+  assertFileOffset(offset);
+  if (!Number.isSafeInteger(length) || length < 0) {
+    throw new RangeError(
+      "File read length must be a non-negative safe integer",
+    );
+  }
+  if (offset > size || length > size - offset) {
+    throw new RangeError("File read range exceeds the file size");
+  }
+}
+
+function assertFileOffset(offset: number): void {
+  if (!Number.isSafeInteger(offset) || offset < 0) {
+    throw new RangeError("File offset must be a non-negative safe integer");
   }
 }
 

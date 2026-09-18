@@ -5,6 +5,7 @@ import { describe, expect, it } from "vitest";
 import {
   createNodeWikiGraphStorage,
   NodeDirectory,
+  NodeFile,
   nodeWikiGraphPlatform,
 } from "../../../../packages/cli/src/runtime/node-platform.js";
 import { DirectoryFileStore } from "../../../../packages/core/src/document/directory/directory-file-store.js";
@@ -48,6 +49,47 @@ describe("Node File/Directory adapter", () => {
       await expect(stored!.read({ encoding: "utf8" })).resolves.toBe(
         "chapter one",
       );
+    });
+  });
+
+  it("reads byte ranges without materializing the whole file", async () => {
+    await withTempDir("wikigraph-platform-", async (path) => {
+      const file = new NodeFile(join(path, "range.txt"));
+      const writer = await file.openWriter();
+      await writer.write("alpha beta gamma");
+      await writer.commit();
+
+      const reader = await file.openReader();
+      try {
+        expect(reader.size).toBe(16);
+        await expect(reader.read(6, 4)).resolves.toEqual(
+          new TextEncoder().encode("beta"),
+        );
+        await expect(reader.read(16, 0)).resolves.toEqual(new Uint8Array());
+        await expect(reader.read(15, 2)).rejects.toThrow("exceeds");
+      } finally {
+        await reader.close();
+      }
+      await expect(reader.read(0, 1)).rejects.toThrow("closed FileReader");
+    });
+  });
+
+  it("supports positioned writes before transactional commit", async () => {
+    await withTempDir("wikigraph-platform-", async (path) => {
+      const root = new NodeDirectory(path);
+      const file = await root.createFile("positions.bin");
+      const writer = await file.openWriter();
+
+      await writer.writeAt(4, new Uint8Array([5, 6]));
+      await writer.writeAt(1, new Uint8Array([2, 3, 4]));
+      await expect(writer.writeAt(-1, new Uint8Array())).rejects.toThrow(
+        "offset",
+      );
+      await writer.commit();
+
+      expect(Array.from((await file.read()) as Uint8Array)).toEqual([
+        0, 2, 3, 4, 5, 6,
+      ]);
     });
   });
 
@@ -310,10 +352,12 @@ function createWriterProbe(
         activeWrites -= 1;
       }
     },
+    writeAt: () => Promise.resolve(),
   };
   const file: File = {
     identity: "writer-probe",
     name: "probe.zip",
+    openReader: () => Promise.reject(new Error("not used")),
     openWriter: () => Promise.resolve(writer),
     read: () => Promise.resolve(new Uint8Array()),
   };

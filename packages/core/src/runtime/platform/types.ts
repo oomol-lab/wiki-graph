@@ -9,13 +9,31 @@ export interface File {
   getSize?(): Promise<number>;
   getLastModified?(): Promise<number | undefined>;
   read(options?: { readonly encoding?: string }): Promise<Uint8Array | string>;
+  openReader(): Promise<FileReader>;
   openWriter(): Promise<FileWriter>;
+}
+
+/** Random-access reader for a host-owned file snapshot. */
+export interface FileReader {
+  readonly size: number;
+  /** Reads exactly `length` bytes; ranges outside `[0, size]` are rejected. */
+  read(offset: number, length: number): Promise<Uint8Array>;
+  /** Releases host resources. Calling close repeatedly is allowed. */
+  close(): Promise<void>;
 }
 
 /** Transactional writer supplied by the host file system. */
 export interface FileWriter {
+  /** Appends to the writer's sequential output position. */
   write(data: Uint8Array | string): Promise<void>;
+  /**
+   * Writes at an absolute byte offset without advancing the sequential
+   * position. It replaces overlapping bytes and zero-fills any extended gap.
+   */
+  writeAt(offset: number, data: Uint8Array): Promise<void>;
+  /** Atomically publishes the complete written file; later terminal calls are no-ops. */
   commit(): Promise<void>;
+  /** Discards all written data without publishing it; later terminal calls are no-ops. */
   abort(): Promise<void>;
 }
 

@@ -483,6 +483,7 @@ export {
   installWikiGraphStorage,
   type Directory,
   type File,
+  type FileReader,
   type FileWriter,
   type HostAsyncContext,
   type HostAsyncContextProvider,

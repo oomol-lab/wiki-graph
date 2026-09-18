@@ -58,6 +58,7 @@ await wikiGraph.openSession(archive, (session) => session.readMeta());
 
 `File`/`Directory` 是平台原语，Core 不解析它们背后的 URI 或绝对路径。浏览器、Extension 等宿主可以使用 IndexedDB、OPFS 或其他受限存储；`wiki-graph` CLI 提供 Node 适配器。
 每个 `File.identity` 和 `Directory.identity` 都是稳定、不透明的协调标识，而不是路径或 URI。归档使用的 SQLite 工作区只会创建在传入的 `documentStore` 下，并在会话完成后清理。派生搜索索引也保存在该目录中，但使用不含路径的 opaque key 作为持久缓存；它不会写入 `.wikg`，且随时可以重建。
+宿主需要实现四种彼此独立的 `File` 访问方式：`read()` 读取完整文件；`openReader()` 返回按字节范围读取的 reader；writer 的 `write()` 顺序追加数据；`writeAt()` 在该 writer 的绝对 offset 写入字节。reader 会拒绝超出其 `size` 的范围。writer 只有在 `commit()` 时才原子发布完整 snapshot，`abort()` 会放弃 snapshot；位置写入不会推进顺序 `write()` 的位置。ZIP 和 SQLite 仍是独立的平台 provider，其底层存储策略由宿主自行决定，不属于 `File` 的职责。
 `WikiGraphPlatform` 是进程级宿主基础设施，负责异步上下文、数据库、ZIP、资源解析和执行实例存活探测；应用在 import 后安装一次即可。ZIP reader 只列出 entry 名，并在实际访问时按需读取 entry 数据，宿主不应要求 Core 为普通读取加载整份归档。lifecycle provider 为每个运行中的宿主实例提供 opaque ID，并能判断先前记录的实例是否仍然存活，使 archive session 可以在进程异常退出后接管已发布的工作。两个存储目录根则归各自的 `WikiGraph` 实例所有，并发运行多个实例时不会互相覆盖。
 
 ```ts

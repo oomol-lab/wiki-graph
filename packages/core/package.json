@@ -1,6 +1,6 @@
 {
   "name": "wiki-graph-core",
-  "version": "0.6.0",
+  "version": "0.6.1",
   "description": "Core SDK for building and querying .wikg knowledge-base archives.",
   "keywords": [
     "wiki-graph",
