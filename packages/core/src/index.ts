@@ -494,6 +494,7 @@ export {
   type HostLifecycleProvider,
   type HostResourceProvider,
   type HostZipEntry,
+  type HostZipRangeEntry,
   type HostZipWriteEntry,
   type HostZipProvider,
   type HostZipReader,

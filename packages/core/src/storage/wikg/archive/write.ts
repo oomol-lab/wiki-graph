@@ -131,8 +131,24 @@ export async function writeWikgArchiveWithOverlays(
           const source = entries.get(name);
           if (source === undefined || source.kind === "deleted") continue;
           if (source.kind === "archive") {
-            const data = await reader.readEntry(source.hostName);
-            if (data !== undefined) yield { data, name };
+            const size = await reader.getEntrySize(source.hostName);
+            if (size !== undefined) {
+              yield {
+                name,
+                size,
+                read: async (offset, length) => {
+                  const content = await reader.readEntryRange(
+                    source.hostName,
+                    offset,
+                    length,
+                  );
+                  if (content === undefined) {
+                    throw new Error(`Archive entry disappeared: ${name}.`);
+                  }
+                  return content;
+                },
+              };
+            }
             continue;
           }
           yield { file: source.file, name };

@@ -24,6 +24,7 @@ export type {
   HostTemplateProvider,
   HostTemplateEnvironment,
   HostZipEntry,
+  HostZipRangeEntry,
   HostZipWriteEntry,
   HostZipProvider,
   HostZipReader,

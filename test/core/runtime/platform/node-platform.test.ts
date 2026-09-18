@@ -242,6 +242,14 @@ describe("Node File/Directory adapter", () => {
         { data: new TextEncoder().encode("beta"), name: "nested/b.txt" },
       ]);
       const reader = await nodeWikiGraphPlatform.zip.open(zipFile);
+      await expect(reader.getEntrySize("a.txt")).resolves.toBe(5);
+      await expect(reader.getEntrySize("missing.txt")).resolves.toBeUndefined();
+      await expect(reader.readEntryRange("a.txt", 1, 3)).resolves.toEqual(
+        new TextEncoder().encode("lph"),
+      );
+      await expect(reader.readEntryRange("a.txt", 4, 2)).rejects.toThrow(
+        "exceeds",
+      );
       const entries = await Promise.all(
         (await reader.listEntries()).map(async (name) => ({
           data: (await reader.readEntry(name)) as Uint8Array,

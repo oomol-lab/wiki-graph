@@ -83,7 +83,10 @@ describe("wikg/wiki-graph-archive-file", () => {
                 }
                 return await reader.copyEntry(name, target);
               },
+              getEntrySize: async (name) => await reader.getEntrySize(name),
               listEntries: async () => await reader.listEntries(),
+              readEntryRange: async (name, offset, length) =>
+                await reader.readEntryRange(name, offset, length),
               readEntry: async (name) => {
                 readEntries.push(name);
                 if (name === sentinel) {
@@ -105,54 +108,162 @@ describe("wikg/wiki-graph-archive-file", () => {
     });
   });
 
-  it("range-reads and appends archive text without whole snapshot reads", async () => {
+  it("range-reads a late archive snippet without materializing its prefix", async () => {
+    const prefix = `${"a".repeat(512 * 1024)}.`;
+    const target = "朱元璋抵达洪都。";
+    await withArchiveFixture(
+      async ({ archive }) => {
+        const initialReader = await nodeWikiGraphPlatform.zip.open(archive);
+        const textEntry = (await initialReader.listEntries()).find((entry) =>
+          entry.startsWith("texts/"),
+        );
+        await initialReader.close();
+        expect(textEntry).toBeDefined();
+
+        let textRangeBytesRead = 0;
+        installWikiGraphPlatform({
+          ...nodeWikiGraphPlatform,
+          zip: {
+            ...nodeWikiGraphPlatform.zip,
+            open: async (file) => {
+              const reader = await nodeWikiGraphPlatform.zip.open(file);
+              return {
+                close: async () => await reader.close(),
+                copyEntry: async (name, destination) => {
+                  if (name === textEntry) {
+                    throw new Error(`Whole text entry copied: ${name}`);
+                  }
+                  return await reader.copyEntry(name, destination);
+                },
+                getEntrySize: async (name) => await reader.getEntrySize(name),
+                listEntries: async () => await reader.listEntries(),
+                readEntry: async (name) => {
+                  if (name === textEntry) {
+                    throw new Error(`Whole text entry read: ${name}`);
+                  }
+                  return await reader.readEntry(name);
+                },
+                readEntryRange: async (name, offset, length) => {
+                  const content = await reader.readEntryRange(
+                    name,
+                    offset,
+                    length,
+                  );
+                  if (name === textEntry) {
+                    textRangeBytesRead += content?.byteLength ?? 0;
+                  }
+                  return content;
+                },
+              };
+            },
+          },
+        });
+
+        // eslint-disable-next-line @typescript-eslint/unbound-method -- the mock restores the original receiver with call().
+        const originalRead = NodeFile.prototype.read;
+        const read = vi
+          .spyOn(NodeFile.prototype, "read")
+          .mockImplementation(function (this: NodeFile, options) {
+            if (this.path === archive.path) {
+              return Promise.reject(
+                new Error(`Whole archive file read: ${this.path}`),
+              );
+            }
+            return originalRead.call(this, options);
+          });
+        try {
+          const file = new WikiGraphArchiveFile(archive);
+          await expect(
+            file.readDocument(
+              async (document) =>
+                await readArchivePage(
+                  document,
+                  "wikg://chapter/chapter/source#2",
+                ),
+            ),
+          ).resolves.toMatchObject({
+            fragment: { text: target },
+          });
+          expect(textRangeBytesRead).toBe(
+            new TextEncoder().encode(target).length,
+          );
+        } finally {
+          read.mockRestore();
+        }
+      },
+      {
+        sentences: [
+          [prefix, 1],
+          [target, 4],
+        ],
+      },
+    );
+  });
+
+  it("appends archive text through a range-backed transactional settlement", async () => {
     await withArchiveFixture(async ({ archive }) => {
-      // eslint-disable-next-line @typescript-eslint/unbound-method -- the mock restores the original receiver with call().
-      const originalRead = NodeFile.prototype.read;
-      const read = vi
-        .spyOn(NodeFile.prototype, "read")
-        .mockImplementation(function (this: NodeFile, options) {
-          if (this.path.includes(".wikg-work")) {
-            return Promise.reject(
-              new Error(`Whole workspace snapshot read: ${this.path}`),
-            );
-          }
-          return originalRead.call(this, options);
-        });
-      try {
-        const file = new WikiGraphArchiveFile(archive);
-        await expect(
-          file.readDocument(
-            async (document) =>
-              await readArchivePage(
-                document,
-                "wikg://chapter/chapter/source#1",
-              ),
-          ),
-        ).resolves.toMatchObject({
-          fragment: { text: "Persistent archive cache source." },
-        });
+      const initialReader = await nodeWikiGraphPlatform.zip.open(archive);
+      const textEntry = (await initialReader.listEntries()).find((entry) =>
+        entry.startsWith("texts/"),
+      );
+      await initialReader.close();
+      expect(textEntry).toBeDefined();
 
-        await file.write(async (document) => {
-          const draft = await document.getSerialFragments(1).createDraft();
-          draft.addSentence("追加正文。", 2);
-          await draft.commit();
-        });
+      let rangedTextBytes = 0;
+      installWikiGraphPlatform({
+        ...nodeWikiGraphPlatform,
+        zip: {
+          ...nodeWikiGraphPlatform.zip,
+          open: async (file) => {
+            const reader = await nodeWikiGraphPlatform.zip.open(file);
+            return {
+              close: async () => await reader.close(),
+              copyEntry: async (name, destination) => {
+                if (name === textEntry) {
+                  throw new Error(`Whole text entry copied: ${name}`);
+                }
+                return await reader.copyEntry(name, destination);
+              },
+              getEntrySize: async (name) => await reader.getEntrySize(name),
+              listEntries: async () => await reader.listEntries(),
+              readEntry: async (name) => {
+                if (name === textEntry) {
+                  throw new Error(`Whole text entry read: ${name}`);
+                }
+                return await reader.readEntry(name);
+              },
+              readEntryRange: async (name, offset, length) => {
+                const content = await reader.readEntryRange(
+                  name,
+                  offset,
+                  length,
+                );
+                if (name === textEntry) {
+                  rangedTextBytes += content?.byteLength ?? 0;
+                }
+                return content;
+              },
+            };
+          },
+        },
+      });
 
-        await expect(
-          file.readDocument(
-            async (document) =>
-              await readArchivePage(
-                document,
-                "wikg://chapter/chapter/source#2",
-              ),
-          ),
-        ).resolves.toMatchObject({
-          fragment: { text: "追加正文。" },
-        });
-      } finally {
-        read.mockRestore();
-      }
+      const file = new WikiGraphArchiveFile(archive);
+      await file.write(async (document) => {
+        const draft = await document.getSerialFragments(1).createDraft();
+        draft.addSentence("追加正文。", 2);
+        await draft.commit();
+      });
+
+      expect(rangedTextBytes).toBe(
+        new TextEncoder().encode("Persistent archive cache source.").length,
+      );
+      await expect(
+        new WikiGraphArchiveFile(archive).readDocument(
+          async (document) =>
+            await readArchivePage(document, "wikg://chapter/chapter/source#2"),
+        ),
+      ).resolves.toMatchObject({ fragment: { text: "追加正文。" } });
     });
   });
 
@@ -355,6 +466,9 @@ async function withArchiveFixture(
     readonly archive: NodeFile;
     readonly root: string;
   }) => Promise<void>,
+  options: {
+    readonly sentences?: ReadonlyArray<readonly [text: string, words: number]>;
+  } = {},
 ): Promise<void> {
   await withTempDir("wikigraph-host-archive-", async (root) => {
     const stateRoot = join(root, "state");
@@ -371,7 +485,11 @@ async function withArchiveFixture(
             const draft = await openedDocument
               .getSerialFragments(1)
               .createDraft();
-            draft.addSentence("Persistent archive cache source.", 4);
+            for (const [text, words] of options.sentences ?? [
+              ["Persistent archive cache source.", 4] as const,
+            ]) {
+              draft.addSentence(text, words);
+            }
             await draft.commit();
           });
           await document.writeToc({

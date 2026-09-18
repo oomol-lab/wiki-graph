@@ -478,7 +478,17 @@ async function openNodeZip(file: File): Promise<HostZipReader> {
       await copyNodeZipEntry(zipFile, entry, target);
       return true;
     },
+    getEntrySize: (name) => {
+      if (closed) throw new Error("Cannot read a closed ZIP archive");
+      return Promise.resolve(entries.get(name)?.uncompressedSize);
+    },
     listEntries: () => Promise.resolve([...entries.keys()]),
+    readEntryRange: async (name, offset, length) => {
+      if (closed) throw new Error("Cannot read a closed ZIP archive");
+      const entry = entries.get(name);
+      if (entry === undefined) return undefined;
+      return await readNodeZipEntryRange(zipFile, entry, offset, length);
+    },
     readEntry: async (name) => {
       if (closed) throw new Error("Cannot read a closed ZIP archive");
       const entry = entries.get(name);
@@ -511,18 +521,81 @@ async function readNodeZipEntry(
   return await collectNodeStream(await openNodeZipEntryStream(zipFile, entry));
 }
 
+async function readNodeZipEntryRange(
+  zipFile: yauzl.ZipFile,
+  entry: yauzl.Entry,
+  offset: number,
+  length: number,
+): Promise<Uint8Array> {
+  assertFileRange(offset, length, entry.uncompressedSize);
+  if (length === 0) return new Uint8Array();
+  if (entry.compressionMethod !== 0) {
+    const content = await collectDecodedNodeStreamRange(
+      await openNodeZipEntryStream(zipFile, entry),
+      offset,
+      length,
+    );
+    return new Uint8Array(
+      content.buffer,
+      content.byteOffset,
+      content.byteLength,
+    );
+  }
+  const content = await collectNodeStream(
+    await openNodeZipEntryStream(zipFile, entry, {
+      decompress: null,
+      decrypt: null,
+      end: offset + length,
+      start: offset,
+    }),
+  );
+  return new Uint8Array(content.buffer, content.byteOffset, content.byteLength);
+}
+
+async function collectDecodedNodeStreamRange(
+  input: NodeJS.ReadableStream,
+  offset: number,
+  length: number,
+): Promise<Buffer> {
+  const chunks: Buffer[] = [];
+  const end = offset + length;
+  let position = 0;
+  let collected = 0;
+  for await (const value of input) {
+    const chunk = Buffer.isBuffer(value) ? value : Buffer.from(value);
+    const chunkEnd = position + chunk.byteLength;
+    if (chunkEnd > offset && position < end) {
+      const selected = chunk.subarray(
+        Math.max(0, offset - position),
+        Math.min(chunk.byteLength, end - position),
+      );
+      chunks.push(selected);
+      collected += selected.byteLength;
+    }
+    position = chunkEnd;
+    if (position >= end) break;
+  }
+  if (collected !== length) {
+    throw new Error("ZIP entry changed while reading its byte range");
+  }
+  return Buffer.concat(chunks, collected);
+}
+
 async function openNodeZipEntryStream(
   zipFile: yauzl.ZipFile,
   entry: yauzl.Entry,
+  options?: yauzl.ZipFileOptions,
 ): Promise<NodeJS.ReadableStream> {
   return await new Promise<NodeJS.ReadableStream>((resolve, reject) => {
-    zipFile.openReadStream(entry, (error, opened) => {
+    const callback = (error: Error | null, opened: Readable) => {
       if (error || opened === undefined) {
         reject(error ?? new Error(`Cannot read ZIP entry: ${entry.fileName}`));
       } else {
         resolve(opened);
       }
-    });
+    };
+    if (options === undefined) zipFile.openReadStream(entry, callback);
+    else zipFile.openReadStream(entry, options, callback);
   });
 }
 
@@ -584,10 +657,16 @@ async function addNodeZipEntries(
         result.value.name,
         { compress: false },
       );
-    } else {
+    } else if ("data" in result.value) {
       zipFile.addBuffer(Buffer.from(result.value.data), result.value.name, {
         compress: false,
       });
+    } else {
+      zipFile.addReadStream(
+        createNodeRangeReadStream(result.value),
+        result.value.name,
+        { compress: false, size: result.value.size },
+      );
     }
   }
 }
@@ -607,6 +686,23 @@ function createNodeFileReadStream(file: File): Readable {
         }
       } finally {
         await reader.close();
+      }
+    })(),
+  );
+}
+
+function createNodeRangeReadStream(
+  entry: Extract<HostZipWriteEntry, { readonly size: number }>,
+): Readable {
+  return Readable.from(
+    (async function* () {
+      for (let offset = 0; offset < entry.size; ) {
+        const chunk = await entry.read(
+          offset,
+          Math.min(64 * 1024, entry.size - offset),
+        );
+        offset += chunk.byteLength;
+        yield chunk;
       }
     })(),
   );

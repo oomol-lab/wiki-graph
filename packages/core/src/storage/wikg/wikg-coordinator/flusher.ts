@@ -172,8 +172,20 @@ async function* createArchiveEntries(
       yield { file: await resolveOverlayFile(overlay), name: path };
       continue;
     }
-    const content = await reader.readEntry(path);
-    if (content !== undefined) yield { data: content, name: path };
+    const size = await reader.getEntrySize(path);
+    if (size !== undefined) {
+      yield {
+        name: path,
+        size,
+        read: async (offset, length) => {
+          const content = await reader.readEntryRange(path, offset, length);
+          if (content === undefined) {
+            throw new Error(`Archive entry disappeared: ${path}.`);
+          }
+          return content;
+        },
+      };
+    }
   }
 }
 

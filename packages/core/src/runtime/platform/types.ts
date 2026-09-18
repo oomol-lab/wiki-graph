@@ -112,8 +112,16 @@ export interface HostZipEntry {
   readonly name: string;
 }
 
+export interface HostZipRangeEntry {
+  readonly name: string;
+  readonly size: number;
+  /** Reads exactly `length` uncompressed entry bytes. */
+  read(offset: number, length: number): Promise<Uint8Array>;
+}
+
 export type HostZipWriteEntry =
   | HostZipEntry
+  | HostZipRangeEntry
   | { readonly file: File; readonly name: string };
 
 /** Lazily reads entries from one host-owned ZIP archive. */
@@ -121,7 +129,14 @@ export interface HostZipReader {
   close(): Promise<void>;
   /** Copies one uncompressed entry into a transactional host file. */
   copyEntry(name: string, target: File): Promise<boolean>;
+  getEntrySize(name: string): Promise<number | undefined>;
   listEntries(): Promise<readonly string[]>;
+  /** Reads exactly `length` uncompressed bytes from one entry. */
+  readEntryRange(
+    name: string,
+    offset: number,
+    length: number,
+  ): Promise<Uint8Array | undefined>;
   readEntry(name: string): Promise<Uint8Array | undefined>;
 }
 
