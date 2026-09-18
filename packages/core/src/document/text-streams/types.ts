@@ -25,6 +25,13 @@ export interface TextStreamFileAccess {
   ensureDirectory(path: string): Promise<void>;
   listFiles(path: string): Promise<readonly string[]>;
   readFile(path: string): Promise<Uint8Array | undefined>;
+  getFileSize?(path: string): Promise<number | undefined>;
+  readFileRange?(
+    path: string,
+    offset: number,
+    length: number,
+  ): Promise<Uint8Array | undefined>;
+  appendFile?(path: string, content: Uint8Array): Promise<void>;
   writeFile(
     path: string,
     content: string | Uint8Array,

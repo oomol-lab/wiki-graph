@@ -1,5 +1,29 @@
 import type { Directory, File } from "./types.js";
 
+export async function copyFileContent(
+  source: File,
+  target: File,
+): Promise<void> {
+  const reader = await source.openReader();
+  const writer = await target.openWriter();
+  try {
+    for (let offset = 0; offset < reader.size; ) {
+      const chunk = await reader.read(
+        offset,
+        Math.min(64 * 1024, reader.size - offset),
+      );
+      await writer.write(chunk);
+      offset += chunk.byteLength;
+    }
+    await writer.commit();
+  } catch (error) {
+    await writer.abort().catch(() => undefined);
+    throw error;
+  } finally {
+    await reader.close();
+  }
+}
+
 export async function readFileText(file: File): Promise<string> {
   const content = await file.read({ encoding: "utf8" });
   return typeof content === "string"

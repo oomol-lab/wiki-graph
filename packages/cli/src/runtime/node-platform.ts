@@ -64,7 +64,10 @@ export class NodeFile implements File {
     const handle = await fsPromises.open(this.path, "r");
     let closed = false;
     try {
-      const { size } = await handle.stat();
+      const stats = await handle.stat();
+      if (!stats.isFile())
+        throw new Error("File reader requires a regular file");
+      const { size } = stats;
       return {
         size,
         close: async () => {
@@ -143,7 +146,20 @@ export class NodeFile implements File {
       writeAt: async (offset, data) => {
         if (closed) throw new Error("Cannot write to a closed FileWriter");
         assertFileOffset(offset);
-        await handle.write(Buffer.from(data), 0, data.byteLength, offset);
+        const buffer = Buffer.from(data);
+        let written = 0;
+        while (written < buffer.byteLength) {
+          const result = await handle.write(
+            buffer,
+            written,
+            buffer.byteLength - written,
+            offset + written,
+          );
+          if (result.bytesWritten === 0) {
+            throw new Error("File writer made no progress");
+          }
+          written += result.bytesWritten;
+        }
       },
       commit: async () => {
         if (!closed) {

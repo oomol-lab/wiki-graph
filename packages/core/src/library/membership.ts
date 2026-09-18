@@ -1,10 +1,10 @@
 import {
+  copyFileContent,
   ensureRelativeFile,
   getHostEntryLastModified,
   getRelativeFile,
   isDirectory,
   readHostEntrySize,
-  writeFileContent,
   type Directory,
   type File,
 } from "../runtime/platform/index.js";
@@ -303,8 +303,7 @@ export async function addWikiGraphLibraryArchive(input: {
       );
     }
     const target = await ensureRelativeFile(library.folder, targetRelativePath);
-    const content = await input.inputFile.read();
-    await writeFileContent(target, content);
+    await copyFileContent(input.inputFile, target);
     const targetFile = await ensureLibraryArchiveFileHasNoSearchIndexAndInspect(
       library.folder,
       targetRelativePath,
@@ -434,7 +433,7 @@ export async function moveWikiGraphLibraryArchive(input: {
       throw new Error(`Wiki Graph library archive is missing: ${archive.uri}`);
     }
     const target = await ensureRelativeFile(library.folder, targetRelativePath);
-    await writeFileContent(target, await archive.file.read());
+    await copyFileContent(archive.file, target);
     await removeRelativeFile(library.folder, archive.relativePath);
     const targetFile = await inspectLibraryArchiveFile(
       library.folder,

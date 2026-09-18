@@ -166,6 +166,15 @@ export class DirectoryDocument implements Document {
           },
           listFiles: async (path) => await fileStore.listFiles(path),
           readFile: async (path) => await fileStore.readFile(path),
+          ...(fileStore.getFileSize === undefined
+            ? {}
+            : { getFileSize: fileStore.getFileSize.bind(fileStore) }),
+          ...(fileStore.readFileRange === undefined
+            ? {}
+            : { readFileRange: fileStore.readFileRange.bind(fileStore) }),
+          ...(fileStore.appendFile === undefined
+            ? {}
+            : { appendFile: fileStore.appendFile.bind(fileStore) }),
           writeFile: async (path, content, options) => {
             await fileStore.writeFile(path, content, options);
           },

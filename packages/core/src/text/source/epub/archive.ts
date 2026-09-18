@@ -26,10 +26,21 @@ export class EpubArchive {
   }
 
   public static async open(file: File): Promise<EpubArchive> {
-    const content = await file.read();
-    const bytes =
-      typeof content === "string" ? new TextEncoder().encode(content) : content;
-    const digest = createHash("sha256").update(bytes).digest("hex");
+    const rangeReader = await file.openReader();
+    const hash = createHash("sha256");
+    try {
+      for (let offset = 0; offset < rangeReader.size; ) {
+        const chunk = await rangeReader.read(
+          offset,
+          Math.min(64 * 1024, rangeReader.size - offset),
+        );
+        hash.update(chunk);
+        offset += chunk.byteLength;
+      }
+    } finally {
+      await rangeReader.close();
+    }
+    const digest = hash.digest("hex");
     const reader = await getWikiGraphPlatform().zip.open(file);
     try {
       const entries = new Map<string, string>();
