@@ -31,6 +31,7 @@ export type {
 } from "./types.js";
 export {
   appendFileText,
+  copyFileContent,
   getHostEntryLastModified,
   isDirectory,
   readFileText,

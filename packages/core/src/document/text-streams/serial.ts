@@ -88,7 +88,11 @@ export class SerialTextStream implements ReadonlySerialTextStream {
       throw new RangeError(`Sentence ${sentenceIndex} does not exist`);
     }
 
-    return this.#readSentenceLocation(location, await this.#readContent());
+    return this.#readSentenceLocation(
+      location,
+      await this.#readContentRange(location.byteOffset, location.byteLength),
+      location.byteOffset,
+    );
   }
 
   public async listFragmentIds(): Promise<readonly number[]> {
@@ -97,9 +101,16 @@ export class SerialTextStream implements ReadonlySerialTextStream {
 
   public async listSentences(): Promise<readonly SentenceRecord[]> {
     const rows = await this.#listSentenceLocations();
-    const content = await this.#readContent();
-
-    return rows.map((row) => this.#readSentenceLocation(row, content));
+    const first = rows[0];
+    const last = rows.at(-1);
+    if (first === undefined || last === undefined) return [];
+    const content = await this.#readContentRange(
+      first.byteOffset,
+      last.byteOffset + last.byteLength - first.byteOffset,
+    );
+    return rows.map((row) =>
+      this.#readSentenceLocation(row, content, first.byteOffset),
+    );
   }
 
   public async listSentencesInRange(
@@ -126,9 +137,16 @@ export class SerialTextStream implements ReadonlySerialTextStream {
       ],
       mapTextSentenceLocation,
     );
-    const content = await this.#readContent();
-
-    return rows.map((row) => this.#readSentenceLocation(row, content));
+    const first = rows[0];
+    const last = rows.at(-1);
+    if (first === undefined || last === undefined) return [];
+    const content = await this.#readContentRange(
+      first.byteOffset,
+      last.byteOffset + last.byteLength - first.byteOffset,
+    );
+    return rows.map((row) =>
+      this.#readSentenceLocation(row, content, first.byteOffset),
+    );
   }
 
   public async readTextInRange(
@@ -174,13 +192,12 @@ export class SerialTextStream implements ReadonlySerialTextStream {
       return undefined;
     }
 
-    const content = await this.#readContent();
-    const text = new TextDecoder().decode(
-      content.subarray(first.byteOffset, last.byteOffset + last.byteLength),
+    const content = await this.#readContentRange(
+      first.byteOffset,
+      last.byteOffset + last.byteLength - first.byteOffset,
     );
-    const sourceStart = Array.from(
-      new TextDecoder().decode(content.subarray(0, first.byteOffset)),
-    ).length;
+    const text = new TextDecoder().decode(content);
+    const sourceStart = await this.#countCharactersBefore(first.byteOffset);
 
     return {
       sourceEnd: sourceStart + Array.from(text).length,
@@ -219,12 +236,13 @@ export class SerialTextStream implements ReadonlySerialTextStream {
   #readSentenceLocation(
     location: TextSentenceLocation,
     content: Uint8Array,
+    contentOffset = 0,
   ): SentenceRecord {
     return new Sentence(
       new TextDecoder().decode(
         content.subarray(
-          location.byteOffset,
-          location.byteOffset + location.byteLength,
+          location.byteOffset - contentOffset,
+          location.byteOffset - contentOffset + location.byteLength,
         ),
       ),
       location.wordsCount,
@@ -286,21 +304,24 @@ export class SerialTextStream implements ReadonlySerialTextStream {
 
     draftState.draftOpen = false;
 
-    const existing = await this.#fileAccess.readFile(this.#getTextPath());
-    const existingBuffer = existing ?? new Uint8Array();
     const text =
       textOverride === ""
         ? sentences.map(getSentenceRawText).join("")
         : textOverride;
     const appendBuffer = new TextEncoder().encode(text);
-    let offset = existingBuffer.length;
+    let offset = await this.#fileSize();
 
     await this.#fileAccess.ensureDirectory(this.#getDirectoryPath());
-    await this.#fileAccess.writeFile(
-      this.#getTextPath(),
-      concatenateBytes(existingBuffer, appendBuffer),
-      { overwrite: true },
-    );
+    if (this.#fileAccess.appendFile !== undefined) {
+      await this.#fileAccess.appendFile(this.#getTextPath(), appendBuffer);
+    } else {
+      const existing = await this.#fileAccess.readFile(this.#getTextPath());
+      await this.#fileAccess.writeFile(
+        this.#getTextPath(),
+        concatenateBytes(existing ?? new Uint8Array(), appendBuffer),
+        { overwrite: true },
+      );
+    }
 
     if (sentences.length === 0) {
       return undefined;
@@ -422,6 +443,59 @@ export class SerialTextStream implements ReadonlySerialTextStream {
     const content = await this.#fileAccess.readFile(this.#getTextPath());
 
     return content ?? new Uint8Array();
+  }
+
+  async #fileSize(): Promise<number> {
+    if (this.#fileAccess.getFileSize !== undefined) {
+      return (await this.#fileAccess.getFileSize(this.#getTextPath())) ?? 0;
+    }
+    const content = await this.#fileAccess.readFile(this.#getTextPath());
+    return content?.byteLength ?? 0;
+  }
+
+  async #readContentRange(offset: number, length: number): Promise<Uint8Array> {
+    const content =
+      this.#fileAccess.readFileRange === undefined
+        ? await this.#readContent()
+        : await this.#fileAccess.readFileRange(
+            this.#getTextPath(),
+            offset,
+            length,
+          );
+    if (content === undefined) return new Uint8Array();
+    if (this.#fileAccess.readFileRange === undefined) {
+      return content.subarray(offset, offset + length);
+    }
+    return content;
+  }
+
+  async #countCharactersBefore(byteOffset: number): Promise<number> {
+    if (byteOffset === 0) return 0;
+    if (this.#fileAccess.readFileRange === undefined) {
+      const content = await this.#readContent();
+      return Array.from(
+        new TextDecoder().decode(content.subarray(0, byteOffset)),
+      ).length;
+    }
+    let count = 0;
+    let offset = 0;
+    const decoder = new TextDecoder();
+    while (offset < byteOffset) {
+      const length = Math.min(64 * 1024, byteOffset - offset);
+      const chunk = await this.#fileAccess.readFileRange(
+        this.#getTextPath(),
+        offset,
+        length,
+      );
+      if (chunk === undefined) break;
+      if (chunk.byteLength === 0) break;
+      count += Array.from(
+        decoder.decode(chunk, { stream: offset + length < byteOffset }),
+      ).length;
+      offset += chunk.byteLength;
+    }
+    count += Array.from(decoder.decode()).length;
+    return count;
   }
 
   #getDirectoryPath(): string {

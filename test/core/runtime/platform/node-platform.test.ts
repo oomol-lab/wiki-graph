@@ -11,6 +11,7 @@ import {
 import { DirectoryFileStore } from "../../../../packages/core/src/document/directory/directory-file-store.js";
 import type {
   File,
+  Directory,
   FileWriter,
   HostZipEntry,
 } from "../../../../packages/core/src/runtime/platform/index.js";
@@ -90,6 +91,42 @@ describe("Node File/Directory adapter", () => {
       expect(Array.from((await file.read()) as Uint8Array)).toEqual([
         0, 2, 3, 4, 5, 6,
       ]);
+    });
+  });
+
+  it("aborts append when an existing file reader cannot open", async () => {
+    await withTempDir("wikigraph-platform-", async (path) => {
+      const root = new NodeDirectory(path);
+      const backing = await root.createFile("text.txt");
+      const writer = await backing.openWriter();
+      await writer.write("original");
+      await writer.commit();
+      const failingFile: File = {
+        identity: backing.identity,
+        name: backing.name,
+        openReader: () => Promise.reject(new Error("reader unavailable")),
+        openWriter: async () => await backing.openWriter(),
+        read: async (options) => await backing.read(options),
+      };
+      const directory: Directory = {
+        identity: root.identity,
+        name: root.name,
+        createDirectory: async (name) => await root.createDirectory(name),
+        createFile: async (name) => await root.createFile(name),
+        getDirectory: async (name) => await root.getDirectory(name),
+        getFile: async (name) =>
+          name === "text.txt" ? failingFile : await root.getFile(name),
+        list: async () => await root.list(),
+        remove: async (name, options) => await root.remove(name, options),
+      };
+      const store = new DirectoryFileStore(directory);
+
+      await expect(
+        store.appendFile("text.txt", new TextEncoder().encode(" appended")),
+      ).rejects.toThrow("reader unavailable");
+      await expect(backing.read({ encoding: "utf8" })).resolves.toBe(
+        "original",
+      );
     });
   });
 

@@ -8,11 +8,11 @@ type PlainTextSourceFormat = "markdown" | "txt";
 const ROOT_SECTION_ID = "root";
 
 class PlainTextSection implements SourceSection {
-  readonly #text: string;
+  readonly #file: File;
   readonly #sectionId: string;
 
-  public constructor(text: string, sectionId = ROOT_SECTION_ID) {
-    this.#text = text;
+  public constructor(file: File, sectionId = ROOT_SECTION_ID) {
+    this.#file = file;
     this.#sectionId = sectionId;
   }
 
@@ -29,7 +29,7 @@ class PlainTextSection implements SourceSection {
     return [];
   }
   public open(): Promise<SourceTextStream> {
-    return Promise.resolve(iterateTextLines(this.#text));
+    return Promise.resolve(iterateFileLines(this.#file));
   }
 }
 
@@ -38,16 +38,10 @@ class PlainTextDocument implements SourceDocument {
   readonly #file: File;
   readonly #sourceFormat: PlainTextSourceFormat;
 
-  public constructor(
-    file: File,
-    sourceFormat: PlainTextSourceFormat,
-    content: Uint8Array | string,
-  ) {
+  public constructor(file: File, sourceFormat: PlainTextSourceFormat) {
     this.#file = file;
     this.#sourceFormat = sourceFormat;
-    this.#section = new PlainTextSection(
-      typeof content === "string" ? content : new TextDecoder().decode(content),
-    );
+    this.#section = new PlainTextSection(file);
   }
 
   public readMeta(): Promise<BookMeta> {
@@ -86,19 +80,35 @@ export class PlainTextSourceAdapter implements SourceAdapter {
     file: File,
     operation: (document: SourceDocument) => Promise<T>,
   ): Promise<T> {
-    const content = await file.read({ encoding: "utf8" });
-    return await operation(
-      new PlainTextDocument(file, this.#sourceFormat, content),
-    );
+    const reader = await file.openReader();
+    await reader.close();
+    return await operation(new PlainTextDocument(file, this.#sourceFormat));
   }
 }
 
 export const TXT_SOURCE_ADAPTER = new PlainTextSourceAdapter("txt");
 export const MARKDOWN_SOURCE_ADAPTER = new PlainTextSourceAdapter("markdown");
 
-async function* iterateTextLines(text: string): AsyncIterable<string> {
-  for (const line of text.match(/.*(?:\r?\n|$)/gu) ?? []) {
-    if (line !== "") yield line;
+async function* iterateFileLines(file: File): AsyncIterable<string> {
+  const reader = await file.openReader();
+  const decoder = new TextDecoder();
+  let pending = "";
+  try {
+    for (let offset = 0; offset < reader.size; ) {
+      const chunk = await reader.read(
+        offset,
+        Math.min(64 * 1024, reader.size - offset),
+      );
+      offset += chunk.byteLength;
+      pending += decoder.decode(chunk, { stream: offset < reader.size });
+      const lines = pending.split(/(?<=\n)/u);
+      pending = lines.pop() ?? "";
+      for (const line of lines) if (line !== "") yield line;
+    }
+    pending += decoder.decode();
+    if (pending !== "") yield pending;
+  } finally {
+    await reader.close();
   }
 }
 

@@ -9,6 +9,7 @@ import {
 import { getFixturePath, readStreamText } from "../../../helpers/fixtures.js";
 import { withTempDir } from "../../../helpers/temp.js";
 import { NodeFile } from "../../../../packages/cli/src/runtime/node-platform.js";
+import type { File } from "../../../../packages/core/src/runtime/platform/index.js";
 
 describe("source/plain-text", () => {
   it("reads txt fixtures as a single root section", async () => {
@@ -53,6 +54,26 @@ describe("source/plain-text", () => {
         expect(text).toContain("雨后石阶会打滑");
       },
     );
+  });
+
+  it("reads source text through range reads", async () => {
+    const backing = new NodeFile(
+      getFixturePath("sample-observatory-guide.txt"),
+    );
+    const file: File = {
+      identity: backing.identity,
+      name: backing.name,
+      openReader: async () => await backing.openReader(),
+      openWriter: async () => await backing.openWriter(),
+      read: () => Promise.reject(new Error("whole-file read is not allowed")),
+    };
+
+    await TXT_SOURCE_ADAPTER.openSession(file, async (document) => {
+      const [section] = await document.readSections();
+      expect(await readStreamText(await section!.open())).toContain(
+        "Checklist",
+      );
+    });
   });
 
   it("rejects directory inputs", async () => {

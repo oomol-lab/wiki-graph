@@ -46,6 +46,53 @@ export class DirectoryFileStore implements DocumentFileStore {
       ? new TextEncoder().encode(content)
       : content;
   }
+  public async getFileSize(path: string): Promise<number | undefined> {
+    const file = await getRelativeFile(this.#root, this.#relative(path));
+    if (!file) return undefined;
+    return file.getSize === undefined ? file.size : await file.getSize();
+  }
+  public async readFileRange(
+    path: string,
+    offset: number,
+    length: number,
+  ): Promise<Uint8Array | undefined> {
+    const file = await getRelativeFile(this.#root, this.#relative(path));
+    if (!file) return undefined;
+    const reader = await file.openReader();
+    try {
+      return await reader.read(offset, length);
+    } finally {
+      await reader.close();
+    }
+  }
+  public async appendFile(path: string, content: Uint8Array): Promise<void> {
+    const relative = this.#relative(path);
+    const existing = await getRelativeFile(this.#root, relative);
+    const file = existing ?? (await this.#getOrCreateFile(relative));
+    const writer = await file.openWriter();
+    try {
+      if (existing !== undefined) {
+        const reader = await file.openReader();
+        try {
+          for (let offset = 0; offset < reader.size; ) {
+            const chunk = await reader.read(
+              offset,
+              Math.min(64 * 1024, reader.size - offset),
+            );
+            await writer.write(chunk);
+            offset += chunk.byteLength;
+          }
+        } finally {
+          await reader.close();
+        }
+      }
+      await writer.write(content);
+      await writer.commit();
+    } catch (error) {
+      await writer.abort();
+      throw error;
+    }
+  }
   public async writeFile(
     path: string,
     content: string | Uint8Array,
