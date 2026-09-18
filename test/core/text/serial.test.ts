@@ -73,6 +73,11 @@ vi.mock("../../../packages/core/src/graph/topology/index.js", () => ({
 import { DirectoryDocument } from "../../../packages/core/src/document/index.js";
 import { DirectoryFileStore } from "../../../packages/core/src/document/directory/directory-file-store.js";
 import { NodeDirectory } from "../../../packages/cli/src/runtime/node-platform.js";
+import type { NodeFile } from "../../../packages/cli/src/runtime/node-platform.js";
+import type {
+  Directory,
+  File,
+} from "../../../packages/core/src/runtime/platform/index.js";
 import {
   SerialGeneration,
   writeSerialSource,
@@ -173,6 +178,74 @@ describe("serial", () => {
           text: target,
         });
         expect(rangeBytesRead).toBe(new TextEncoder().encode(target).length);
+      } finally {
+        await document.release();
+      }
+    });
+  });
+
+  it("appends Unicode drafts through files with only reader-based size", async () => {
+    await withTempDir("wikigraph-serial-minimal-file-", async (path) => {
+      const document = await DirectoryDocument.open(
+        wrapMinimalDirectory(new NodeDirectory(path)),
+      );
+      const firstText = "你😀。";
+      const secondText = "A𠮷B。";
+      try {
+        await document.serials.createWithId(1);
+        const firstDraft = await document.getSerialFragments(1).createDraft();
+        firstDraft.addSentence(firstText, 2);
+        await firstDraft.commit();
+
+        const secondDraft = await document.getSerialFragments(1).createDraft();
+        secondDraft.addSentence(secondText, 3);
+        await secondDraft.commit();
+
+        const serial = document.getSerialFragments(1);
+        const sentences = await serial.listSentencesInRange(0, 1);
+        expect(sentences.map((sentence) => sentence.text)).toEqual([
+          firstText,
+          secondText,
+        ]);
+        const locations = await document.readDatabase(
+          async (database) =>
+            await database.queryAll(
+              `SELECT sentence_index, byte_offset, byte_length,
+                    character_offset, character_length
+             FROM text_sentence_records
+             WHERE kind = 1 AND chapter_id = 1
+             ORDER BY sentence_index`,
+              undefined,
+              (row) => ({
+                byteLength: Number(row.byte_length),
+                byteOffset: Number(row.byte_offset),
+                characterLength: Number(row.character_length),
+                characterOffset: Number(row.character_offset),
+                sentenceIndex: Number(row.sentence_index),
+              }),
+            ),
+        );
+        expect(locations).toEqual([
+          {
+            byteLength: new TextEncoder().encode(firstText).length,
+            byteOffset: 0,
+            characterLength: 3,
+            characterOffset: 0,
+            sentenceIndex: 0,
+          },
+          {
+            byteLength: new TextEncoder().encode(secondText).length,
+            byteOffset: new TextEncoder().encode(firstText).length,
+            characterLength: 4,
+            characterOffset: 3,
+            sentenceIndex: 1,
+          },
+        ]);
+        await expect(serial.readTextInRangeWithOffsets(1, 1)).resolves.toEqual({
+          sourceEnd: 7,
+          sourceStart: 3,
+          text: secondText,
+        });
       } finally {
         await document.release();
       }
@@ -488,6 +561,48 @@ describe("serial", () => {
     });
   });
 });
+
+function wrapMinimalDirectory(backing: NodeDirectory): Directory {
+  return {
+    createDirectory: async (name) =>
+      wrapMinimalDirectory(
+        (await backing.createDirectory(name)) as NodeDirectory,
+      ),
+    createFile: async (name) =>
+      wrapMinimalFile((await backing.createFile(name)) as NodeFile),
+    getDirectory: async (name) => {
+      const directory = await backing.getDirectory(name);
+      return directory === undefined
+        ? undefined
+        : wrapMinimalDirectory(directory as NodeDirectory);
+    },
+    getFile: async (name) => {
+      const file = await backing.getFile(name);
+      return file === undefined ? undefined : wrapMinimalFile(file as NodeFile);
+    },
+    identity: backing.identity,
+    list: async () =>
+      (await backing.list()).map((entry) =>
+        entry instanceof NodeDirectory
+          ? wrapMinimalDirectory(entry)
+          : wrapMinimalFile(entry as NodeFile),
+      ),
+    name: backing.name,
+    remove: async (name, options) => await backing.remove(name, options),
+  };
+}
+
+function wrapMinimalFile(backing: NodeFile): File {
+  return new Proxy(backing, {
+    get: (target, property, receiver) => {
+      if (property === "getSize" || property === "size") return undefined;
+      if (property === "read") {
+        return () => Promise.reject(new Error("whole-file read is forbidden"));
+      }
+      return Reflect.get(target, property, receiver) as unknown;
+    },
+  });
+}
 
 function createSentenceStream(
   sentences: ReadonlyArray<ReaderSegment>,
