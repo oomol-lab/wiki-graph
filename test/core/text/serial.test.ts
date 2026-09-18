@@ -71,6 +71,8 @@ vi.mock("../../../packages/core/src/graph/topology/index.js", () => ({
 }));
 
 import { DirectoryDocument } from "../../../packages/core/src/document/index.js";
+import { DirectoryFileStore } from "../../../packages/core/src/document/directory/directory-file-store.js";
+import { NodeDirectory } from "../../../packages/cli/src/runtime/node-platform.js";
 import {
   SerialGeneration,
   writeSerialSource,
@@ -84,6 +86,45 @@ describe("serial", () => {
     readerSegmentMock.mockReset();
     compressTextMock.mockResolvedValue("");
     readerFragmentSummaryMock.mockReturnValue("");
+  });
+
+  it("reads sentence ranges without whole-file reads", async () => {
+    await withTempDir("wikigraph-serial-", async (path) => {
+      const initial = await DirectoryDocument.open(path);
+      try {
+        await initial.serials.createWithId(1);
+        await writeSerialSource(initial, 1, ["Alpha beta. Gamma delta."]);
+      } finally {
+        await initial.release();
+      }
+
+      class RangeOnlyFileStore extends DirectoryFileStore {
+        public override async readFile(pathname: string) {
+          if (pathname.startsWith("texts/")) {
+            throw new Error("whole-file read is not allowed");
+          }
+          return await super.readFile(pathname);
+        }
+      }
+
+      const document = await DirectoryDocument.openFileStore(
+        new RangeOnlyFileStore(new NodeDirectory(path)),
+      );
+      try {
+        const serial = document.getSerialFragments(1);
+        await expect(serial.getSentence(0)).resolves.toMatchObject({
+          text: "Alpha beta.",
+        });
+        await expect(serial.listSentencesInRange(1, 1)).resolves.toMatchObject([
+          { text: "Gamma delta." },
+        ]);
+        await expect(serial.readTextInRange(1, 1)).resolves.toBe(
+          "Gamma delta.",
+        );
+      } finally {
+        await document.release();
+      }
+    });
   });
 
   it("emits advance for a single fragment before completion", async () => {

@@ -137,9 +137,16 @@ export class SerialTextStream implements ReadonlySerialTextStream {
       ],
       mapTextSentenceLocation,
     );
-    const content = await this.#readContent();
-
-    return rows.map((row) => this.#readSentenceLocation(row, content));
+    const first = rows[0];
+    const last = rows.at(-1);
+    if (first === undefined || last === undefined) return [];
+    const content = await this.#readContentRange(
+      first.byteOffset,
+      last.byteOffset + last.byteLength - first.byteOffset,
+    );
+    return rows.map((row) =>
+      this.#readSentenceLocation(row, content, first.byteOffset),
+    );
   }
 
   public async readTextInRange(
