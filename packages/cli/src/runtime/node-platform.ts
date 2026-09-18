@@ -6,7 +6,7 @@ import * as fsPromises from "node:fs/promises";
 import * as os from "node:os";
 import * as pathModule from "node:path";
 import * as process from "node:process";
-import { type Readable, Writable } from "node:stream";
+import { Readable, Writable } from "node:stream";
 import { pipeline } from "node:stream/promises";
 import * as sqlite3 from "sqlite3";
 import * as yauzl from "yauzl";
@@ -29,7 +29,7 @@ import {
   type HostDatabaseConnection,
   type HostDatabaseRow,
   type HostDatabaseValue,
-  type HostZipEntry,
+  type HostZipWriteEntry,
   type HostZipReader,
   type WikiGraphPlatform,
   type WikiGraphStorage,
@@ -471,7 +471,24 @@ async function openNodeZip(file: File): Promise<HostZipReader> {
       closed = true;
       return Promise.resolve();
     },
+    copyEntry: async (name, target) => {
+      if (closed) throw new Error("Cannot read a closed ZIP archive");
+      const entry = entries.get(name);
+      if (entry === undefined) return false;
+      await copyNodeZipEntry(zipFile, entry, target);
+      return true;
+    },
+    getEntrySize: (name) => {
+      if (closed) throw new Error("Cannot read a closed ZIP archive");
+      return Promise.resolve(entries.get(name)?.uncompressedSize);
+    },
     listEntries: () => Promise.resolve([...entries.keys()]),
+    readEntryRange: async (name, offset, length) => {
+      if (closed) throw new Error("Cannot read a closed ZIP archive");
+      const entry = entries.get(name);
+      if (entry === undefined) return undefined;
+      return await readNodeZipEntryRange(zipFile, entry, offset, length);
+    },
     readEntry: async (name) => {
       if (closed) throw new Error("Cannot read a closed ZIP archive");
       const entry = entries.get(name);
@@ -481,25 +498,110 @@ async function openNodeZip(file: File): Promise<HostZipReader> {
   };
 }
 
+async function copyNodeZipEntry(
+  zipFile: yauzl.ZipFile,
+  entry: yauzl.Entry,
+  target: File,
+): Promise<void> {
+  const writer = await target.openWriter();
+  try {
+    const stream = await openNodeZipEntryStream(zipFile, entry);
+    await writeNodeStream(stream, writer);
+    await writer.commit();
+  } catch (error) {
+    await writer.abort().catch(() => undefined);
+    throw error;
+  }
+}
+
 async function readNodeZipEntry(
   zipFile: yauzl.ZipFile,
   entry: yauzl.Entry,
 ): Promise<Uint8Array> {
-  const stream = await new Promise<NodeJS.ReadableStream>((resolve, reject) => {
-    zipFile.openReadStream(entry, (error, opened) => {
+  return await collectNodeStream(await openNodeZipEntryStream(zipFile, entry));
+}
+
+async function readNodeZipEntryRange(
+  zipFile: yauzl.ZipFile,
+  entry: yauzl.Entry,
+  offset: number,
+  length: number,
+): Promise<Uint8Array> {
+  assertFileRange(offset, length, entry.uncompressedSize);
+  if (length === 0) return new Uint8Array();
+  if (entry.compressionMethod !== 0) {
+    const content = await collectDecodedNodeStreamRange(
+      await openNodeZipEntryStream(zipFile, entry),
+      offset,
+      length,
+    );
+    return new Uint8Array(
+      content.buffer,
+      content.byteOffset,
+      content.byteLength,
+    );
+  }
+  const content = await collectNodeStream(
+    await openNodeZipEntryStream(zipFile, entry, {
+      decompress: null,
+      decrypt: null,
+      end: offset + length,
+      start: offset,
+    }),
+  );
+  return new Uint8Array(content.buffer, content.byteOffset, content.byteLength);
+}
+
+async function collectDecodedNodeStreamRange(
+  input: NodeJS.ReadableStream,
+  offset: number,
+  length: number,
+): Promise<Buffer> {
+  const chunks: Buffer[] = [];
+  const end = offset + length;
+  let position = 0;
+  let collected = 0;
+  for await (const value of input) {
+    const chunk = Buffer.isBuffer(value) ? value : Buffer.from(value);
+    const chunkEnd = position + chunk.byteLength;
+    if (chunkEnd > offset && position < end) {
+      const selected = chunk.subarray(
+        Math.max(0, offset - position),
+        Math.min(chunk.byteLength, end - position),
+      );
+      chunks.push(selected);
+      collected += selected.byteLength;
+    }
+    position = chunkEnd;
+    if (position >= end) break;
+  }
+  if (collected !== length) {
+    throw new Error("ZIP entry changed while reading its byte range");
+  }
+  return Buffer.concat(chunks, collected);
+}
+
+async function openNodeZipEntryStream(
+  zipFile: yauzl.ZipFile,
+  entry: yauzl.Entry,
+  options?: yauzl.ZipFileOptions,
+): Promise<NodeJS.ReadableStream> {
+  return await new Promise<NodeJS.ReadableStream>((resolve, reject) => {
+    const callback = (error: Error | null, opened: Readable) => {
       if (error || opened === undefined) {
         reject(error ?? new Error(`Cannot read ZIP entry: ${entry.fileName}`));
       } else {
         resolve(opened);
       }
-    });
+    };
+    if (options === undefined) zipFile.openReadStream(entry, callback);
+    else zipFile.openReadStream(entry, options, callback);
   });
-  return await collectNodeStream(stream);
 }
 
 async function writeNodeZip(
   file: File,
-  entries: Iterable<HostZipEntry> | AsyncIterable<HostZipEntry>,
+  entries: Iterable<HostZipWriteEntry> | AsyncIterable<HostZipWriteEntry>,
 ): Promise<void> {
   const zipFile = new yazl.ZipFile();
   const writer = await file.openWriter();
@@ -507,8 +609,8 @@ async function writeNodeZip(
   const outputDone = writeNodeStream(outputStream, writer);
   const entryState = { cancelled: false, complete: false };
   let iterator:
-    | Iterator<HostZipEntry>
-    | AsyncIterator<HostZipEntry>
+    | Iterator<HostZipWriteEntry>
+    | AsyncIterator<HostZipWriteEntry>
     | undefined;
 
   try {
@@ -539,7 +641,7 @@ async function writeNodeZip(
 
 async function addNodeZipEntries(
   zipFile: yazl.ZipFile,
-  iterator: Iterator<HostZipEntry> | AsyncIterator<HostZipEntry>,
+  iterator: Iterator<HostZipWriteEntry> | AsyncIterator<HostZipWriteEntry>,
   state: { cancelled: boolean; complete: boolean },
 ): Promise<void> {
   while (!state.cancelled) {
@@ -549,25 +651,76 @@ async function addNodeZipEntries(
       state.complete = true;
       return;
     }
-    zipFile.addBuffer(Buffer.from(result.value.data), result.value.name, {
-      compress: false,
-    });
+    if ("file" in result.value) {
+      zipFile.addReadStream(
+        createNodeFileReadStream(result.value.file),
+        result.value.name,
+        { compress: false },
+      );
+    } else if ("data" in result.value) {
+      zipFile.addBuffer(Buffer.from(result.value.data), result.value.name, {
+        compress: false,
+      });
+    } else {
+      zipFile.addReadStream(
+        createNodeRangeReadStream(result.value),
+        result.value.name,
+        { compress: false, size: result.value.size },
+      );
+    }
   }
 }
 
+function createNodeFileReadStream(file: File): Readable {
+  return Readable.from(
+    (async function* () {
+      const reader = await file.openReader();
+      try {
+        for (let offset = 0; offset < reader.size; ) {
+          const chunk = await reader.read(
+            offset,
+            Math.min(64 * 1024, reader.size - offset),
+          );
+          offset += chunk.byteLength;
+          yield chunk;
+        }
+      } finally {
+        await reader.close();
+      }
+    })(),
+  );
+}
+
+function createNodeRangeReadStream(
+  entry: Extract<HostZipWriteEntry, { readonly size: number }>,
+): Readable {
+  return Readable.from(
+    (async function* () {
+      for (let offset = 0; offset < entry.size; ) {
+        const chunk = await entry.read(
+          offset,
+          Math.min(64 * 1024, entry.size - offset),
+        );
+        offset += chunk.byteLength;
+        yield chunk;
+      }
+    })(),
+  );
+}
+
 function getNodeZipEntryIterator(
-  entries: Iterable<HostZipEntry> | AsyncIterable<HostZipEntry>,
-): Iterator<HostZipEntry> | AsyncIterator<HostZipEntry> {
-  const asyncIterator = (entries as AsyncIterable<HostZipEntry>)[
+  entries: Iterable<HostZipWriteEntry> | AsyncIterable<HostZipWriteEntry>,
+): Iterator<HostZipWriteEntry> | AsyncIterator<HostZipWriteEntry> {
+  const asyncIterator = (entries as AsyncIterable<HostZipWriteEntry>)[
     Symbol.asyncIterator
   ];
   return asyncIterator === undefined
-    ? (entries as Iterable<HostZipEntry>)[Symbol.iterator]()
+    ? (entries as Iterable<HostZipWriteEntry>)[Symbol.iterator]()
     : asyncIterator.call(entries);
 }
 
 function closeNodeZipEntryIterator(
-  iterator: Iterator<HostZipEntry> | AsyncIterator<HostZipEntry>,
+  iterator: Iterator<HostZipWriteEntry> | AsyncIterator<HostZipWriteEntry>,
 ): void {
   if (iterator.return === undefined) return;
   try {
@@ -660,7 +813,10 @@ export const nodeWikiGraphPlatform: WikiGraphPlatform = {
     createEnvironment: (options) =>
       new Environment(new NodeTemplateLoader(), options),
   },
-  zip: { open: openNodeZip, write: writeNodeZip },
+  zip: {
+    open: openNodeZip,
+    write: writeNodeZip,
+  },
 };
 
 class NodeTemplateLoader extends Loader {

@@ -108,6 +108,26 @@ export class HostWikgDocumentFileStore implements DocumentFileStore {
     return await this.#session.readEntry(toEntryPath(path));
   }
 
+  public async getFileSize(path: string): Promise<number | undefined> {
+    return await this.#session.getEntrySize(toEntryPath(path));
+  }
+
+  public async readFileRange(
+    path: string,
+    offset: number,
+    length: number,
+  ): Promise<Uint8Array | undefined> {
+    return await this.#session.readEntryRange(
+      toEntryPath(path),
+      offset,
+      length,
+    );
+  }
+
+  public async appendFile(path: string, content: Uint8Array): Promise<void> {
+    await this.#session.appendEntry(toEntryPath(path), content);
+  }
+
   public async writeFile(
     path: string,
     content: string | Uint8Array,

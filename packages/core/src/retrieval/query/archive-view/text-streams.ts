@@ -98,13 +98,19 @@ export async function readTextStreamRange(
   readonly startSentenceIndex: number;
   readonly text: string;
 }> {
-  const index = await getTextStreamIndex(document, chapterId, stream, context);
   const chapter = await getTextStreamChapter(document, chapterId, context);
-  if (index.sentences.length === 0) {
+  const serial = getTextStreamSerial(document, chapterId, stream);
+  const index =
+    serial.getSentenceCount === undefined
+      ? await getTextStreamIndex(document, chapterId, stream, context)
+      : undefined;
+  const sentenceCount =
+    index?.sentences.length ?? (await serial.getSentenceCount?.()) ?? 0;
+  if (sentenceCount === 0) {
     throw new Error(`Chapter ${chapter.uri} has no ${stream} text.`);
   }
 
-  const lastSentenceIndex = index.sentences.length - 1;
+  const lastSentenceIndex = sentenceCount - 1;
   if (startSentenceIndex > lastSentenceIndex) {
     throw new Error(
       `${stream} range ${formatTextStreamRangeUri(chapter.path, stream, startSentenceIndex, endSentenceIndex)} is out of bounds. Last sentence number is ${lastSentenceIndex + 1}.`,
@@ -113,7 +119,6 @@ export async function readTextStreamRange(
 
   const start = clampInteger(startSentenceIndex, 0, lastSentenceIndex);
   const end = clampInteger(endSentenceIndex, start, lastSentenceIndex);
-  const sentences = index.sentences.slice(start, end + 1);
   const rawRange = await readTextStreamRawRange(
     document,
     chapterId,
@@ -122,7 +127,13 @@ export async function readTextStreamRange(
     end,
   );
   const normalizedRange = normalizeRenderedTextStreamRange(rawRange?.text);
-  const text = normalizedRange?.text ?? joinTextStreamSentences(sentences);
+  const text =
+    normalizedRange?.text ??
+    joinTextStreamSentences(
+      serial.listSentencesInRange === undefined
+        ? (index?.sentences.slice(start, end + 1) ?? [])
+        : await serial.listSentencesInRange(start, end),
+    );
   const sourceStart =
     rawRange?.sourceStart === undefined
       ? undefined

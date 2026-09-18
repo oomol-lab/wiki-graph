@@ -3,6 +3,7 @@ import {
   getRelativeFile,
   getWikiGraphPlatform,
   getWikiGraphStorage,
+  isHostFileEmpty,
   type File,
 } from "../../../runtime/platform/index.js";
 import { createPortableHash } from "../../../utils/crypto.js";
@@ -125,12 +126,7 @@ function createArchiveKey(archive: File): string {
 }
 
 async function isEmpty(file: File): Promise<boolean> {
-  if (file.getSize !== undefined) return (await file.getSize()) === 0;
-  if (file.size !== undefined) return file.size === 0;
-  const content = await file.read();
-  return typeof content === "string"
-    ? content.length === 0
-    : content.byteLength === 0;
+  return await isHostFileEmpty(file);
 }
 
 async function tableExists(database: Database, name: string): Promise<boolean> {

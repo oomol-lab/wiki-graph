@@ -9,8 +9,11 @@ import { TextStreamDraft } from "./draft.js";
 import {
   getSentenceByteLength,
   getSentenceByteOffset,
+  getSentenceCharacterLength,
+  getSentenceCharacterOffset,
   getSentenceRawText,
   hasSentenceByteOffset,
+  hasSentenceCharacterOffset,
   splitTextIntoSentenceSpans,
 } from "./sentence.js";
 import {
@@ -113,6 +116,20 @@ export class SerialTextStream implements ReadonlySerialTextStream {
     );
   }
 
+  public async getSentenceCount(): Promise<number> {
+    return (
+      (await this.#database.queryOne(
+        `
+          SELECT COUNT(*) AS sentence_count
+          FROM text_sentence_records
+          WHERE kind = ? AND chapter_id = ?
+        `,
+        [TEXT_STREAM_KIND[this.#stream], this.#serialId],
+        (row) => Number(row.sentence_count),
+      )) ?? 0
+    );
+  }
+
   public async listSentencesInRange(
     startSentenceIndex: number,
     endSentenceIndex: number,
@@ -123,7 +140,8 @@ export class SerialTextStream implements ReadonlySerialTextStream {
 
     const rows = await this.#database.queryAll(
       `
-        SELECT sentence_index, byte_offset, byte_length, words_count
+        SELECT sentence_index, byte_offset, byte_length,
+               character_offset, character_length, words_count
         FROM text_sentence_records
         WHERE kind = ? AND chapter_id = ?
           AND sentence_index BETWEEN ? AND ?
@@ -171,7 +189,8 @@ export class SerialTextStream implements ReadonlySerialTextStream {
 
     const rows = await this.#database.queryAll(
       `
-        SELECT sentence_index, byte_offset, byte_length, words_count
+        SELECT sentence_index, byte_offset, byte_length,
+               character_offset, character_length, words_count
         FROM text_sentence_records
         WHERE kind = ? AND chapter_id = ?
           AND sentence_index BETWEEN ? AND ?
@@ -197,7 +216,7 @@ export class SerialTextStream implements ReadonlySerialTextStream {
       last.byteOffset + last.byteLength - first.byteOffset,
     );
     const text = new TextDecoder().decode(content);
-    const sourceStart = await this.#countCharactersBefore(first.byteOffset);
+    const sourceStart = first.characterOffset;
 
     return {
       sourceEnd: sourceStart + Array.from(text).length,
@@ -211,7 +230,8 @@ export class SerialTextStream implements ReadonlySerialTextStream {
   ): Promise<TextSentenceLocation | undefined> {
     return await this.#database.queryOne(
       `
-        SELECT sentence_index, byte_offset, byte_length, words_count
+        SELECT sentence_index, byte_offset, byte_length,
+               character_offset, character_length, words_count
         FROM text_sentence_records
         WHERE kind = ? AND chapter_id = ? AND sentence_index = ?
       `,
@@ -223,7 +243,8 @@ export class SerialTextStream implements ReadonlySerialTextStream {
   async #listSentenceLocations(): Promise<readonly TextSentenceLocation[]> {
     return await this.#database.queryAll(
       `
-        SELECT sentence_index, byte_offset, byte_length, words_count
+        SELECT sentence_index, byte_offset, byte_length,
+               character_offset, character_length, words_count
         FROM text_sentence_records
         WHERE kind = ? AND chapter_id = ?
         ORDER BY sentence_index
@@ -269,6 +290,8 @@ export class SerialTextStream implements ReadonlySerialTextStream {
       draft.addSentence(sentence.text, sentence.wordsCount, {
         byteOffset: sentence.byteOffset,
         byteLength: sentence.byteLength,
+        characterOffset: sentence.characterOffset,
+        characterLength: sentence.characterLength,
       });
     }
 
@@ -310,6 +333,7 @@ export class SerialTextStream implements ReadonlySerialTextStream {
         : textOverride;
     const appendBuffer = new TextEncoder().encode(text);
     let offset = await this.#fileSize();
+    let characterOffset = await this.#fileCharacterSize(offset);
 
     await this.#fileAccess.ensureDirectory(this.#getDirectoryPath());
     if (this.#fileAccess.appendFile !== undefined) {
@@ -337,6 +361,9 @@ export class SerialTextStream implements ReadonlySerialTextStream {
       const length = getSentenceByteLength(sentence);
       const explicitOffset = getSentenceByteOffset(sentence);
       const sentenceOffset = offset + explicitOffset;
+      const characterLength = getSentenceCharacterLength(sentence);
+      const explicitCharacterOffset = getSentenceCharacterOffset(sentence);
+      const sentenceCharacterOffset = characterOffset + explicitCharacterOffset;
 
       await this.#database.run(
         `
@@ -346,9 +373,11 @@ export class SerialTextStream implements ReadonlySerialTextStream {
             sentence_index,
             words_count,
             byte_offset,
-            byte_length
+            byte_length,
+            character_offset,
+            character_length
           )
-          VALUES (?, ?, ?, ?, ?, ?)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?)
         `,
         [
           TEXT_STREAM_KIND[this.#stream],
@@ -357,10 +386,15 @@ export class SerialTextStream implements ReadonlySerialTextStream {
           sentence.wordsCount,
           sentenceOffset,
           length,
+          sentenceCharacterOffset,
+          characterLength,
         ],
       );
       if (!hasSentenceByteOffset(sentence)) {
         offset += length;
+      }
+      if (!hasSentenceCharacterOffset(sentence)) {
+        characterOffset += characterLength;
       }
     }
 
@@ -469,33 +503,49 @@ export class SerialTextStream implements ReadonlySerialTextStream {
     return content;
   }
 
-  async #countCharactersBefore(byteOffset: number): Promise<number> {
-    if (byteOffset === 0) return 0;
-    if (this.#fileAccess.readFileRange === undefined) {
-      const content = await this.#readContent();
-      return Array.from(
-        new TextDecoder().decode(content.subarray(0, byteOffset)),
-      ).length;
+  async #fileCharacterSize(fileSize: number): Promise<number> {
+    const last = await this.#database.queryOne(
+      `
+        SELECT sentence_index, byte_offset, byte_length,
+               character_offset, character_length, words_count
+        FROM text_sentence_records
+        WHERE kind = ? AND chapter_id = ?
+        ORDER BY sentence_index DESC
+        LIMIT 1
+      `,
+      [TEXT_STREAM_KIND[this.#stream], this.#serialId],
+      mapTextSentenceLocation,
+    );
+    if (last === undefined) {
+      return await this.#countCharactersInRange(0, fileSize);
     }
-    let count = 0;
-    let offset = 0;
+    const byteEnd = last.byteOffset + last.byteLength;
+    return (
+      last.characterOffset +
+      last.characterLength +
+      (await this.#countCharactersInRange(byteEnd, fileSize - byteEnd))
+    );
+  }
+
+  async #countCharactersInRange(
+    offset: number,
+    length: number,
+  ): Promise<number> {
     const decoder = new TextDecoder();
-    while (offset < byteOffset) {
-      const length = Math.min(64 * 1024, byteOffset - offset);
-      const chunk = await this.#fileAccess.readFileRange(
-        this.#getTextPath(),
-        offset,
-        length,
+    let count = 0;
+    for (let consumed = 0; consumed < length; ) {
+      const chunkLength = Math.min(64 * 1024, length - consumed);
+      const chunk = await this.#readContentRange(
+        offset + consumed,
+        chunkLength,
       );
-      if (chunk === undefined) break;
-      if (chunk.byteLength === 0) break;
       count += Array.from(
-        decoder.decode(chunk, { stream: offset + length < byteOffset }),
+        decoder.decode(chunk, { stream: consumed + chunkLength < length }),
       ).length;
-      offset += chunk.byteLength;
+      consumed += chunk.byteLength;
+      if (chunk.byteLength === 0) break;
     }
-    count += Array.from(decoder.decode()).length;
-    return count;
+    return count + Array.from(decoder.decode()).length;
   }
 
   #getDirectoryPath(): string {
@@ -532,6 +582,8 @@ function mapTextSentenceLocation(
   return {
     byteLength: Number(row.byte_length),
     byteOffset: Number(row.byte_offset),
+    characterLength: Number(row.character_length),
+    characterOffset: Number(row.character_offset),
     sentenceIndex: Number(row.sentence_index),
     wordsCount: Number(row.words_count),
   };

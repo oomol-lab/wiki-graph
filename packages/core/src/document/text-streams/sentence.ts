@@ -10,6 +10,8 @@ export async function splitTextIntoSentenceSpans(
     SentenceRecord & {
       readonly byteOffset: number;
       readonly byteLength: number;
+      readonly characterOffset: number;
+      readonly characterLength: number;
     }
   >
 > {
@@ -21,13 +23,23 @@ export async function splitTextIntoSentenceSpans(
     SentenceRecord & {
       readonly byteOffset: number;
       readonly byteLength: number;
+      readonly characterOffset: number;
+      readonly characterLength: number;
     }
   > = [];
+  let previousEnd = 0;
+  let characterOffset = 0;
 
   for (const segment of createSentenceSegmenter().segment(text)) {
     const rawText = segment.segment;
+    characterOffset += Array.from(
+      text.slice(previousEnd, segment.index),
+    ).length;
+    const characterLength = Array.from(rawText).length;
+    previousEnd = segment.index + rawText.length;
 
     if (rawText.trim() === "") {
+      characterOffset += characterLength;
       continue;
     }
     const sentence = new Sentence(rawText, countTextWords(rawText));
@@ -35,13 +47,18 @@ export async function splitTextIntoSentenceSpans(
     Object.assign(sentence, {
       byteLength: utf8ByteLength(rawText),
       byteOffset: utf8ByteLength(text.slice(0, segment.index)),
+      characterLength,
+      characterOffset,
     });
     spans.push(
       sentence as unknown as SentenceRecord & {
         readonly byteOffset: number;
         readonly byteLength: number;
+        readonly characterOffset: number;
+        readonly characterLength: number;
       },
     );
+    characterOffset += characterLength;
   }
 
   return spans;
@@ -55,6 +72,8 @@ async function splitTextIntoCustomSentenceSpans(
     SentenceRecord & {
       readonly byteOffset: number;
       readonly byteLength: number;
+      readonly characterOffset: number;
+      readonly characterLength: number;
     }
   >
 > {
@@ -62,16 +81,26 @@ async function splitTextIntoCustomSentenceSpans(
     SentenceRecord & {
       readonly byteOffset: number;
       readonly byteLength: number;
+      readonly characterOffset: number;
+      readonly characterLength: number;
     }
   > = [];
+  let previousEnd = 0;
+  let characterOffset = 0;
 
   for await (const segment of segmenter.pipe([text])) {
     const rawText = text.slice(
       segment.offset,
       segment.offset + segment.text.length,
     );
+    characterOffset += Array.from(
+      text.slice(previousEnd, segment.offset),
+    ).length;
+    const characterLength = Array.from(rawText).length;
+    previousEnd = segment.offset + rawText.length;
 
     if (rawText.trim() === "") {
+      characterOffset += characterLength;
       continue;
     }
     const sentence = new Sentence(rawText, segment.wordsCount);
@@ -79,13 +108,18 @@ async function splitTextIntoCustomSentenceSpans(
     Object.assign(sentence, {
       byteLength: utf8ByteLength(rawText),
       byteOffset: utf8ByteLength(text.slice(0, segment.offset)),
+      characterLength,
+      characterOffset,
     });
     spans.push(
       sentence as unknown as SentenceRecord & {
         readonly byteOffset: number;
         readonly byteLength: number;
+        readonly characterOffset: number;
+        readonly characterLength: number;
       },
     );
+    characterOffset += characterLength;
   }
 
   return spans;
@@ -120,6 +154,27 @@ export function getSentenceByteLength(sentence: SentenceRecord): number {
   return typeof value === "number"
     ? value
     : utf8ByteLength(getSentenceRawText(sentence));
+}
+
+export function getSentenceCharacterOffset(sentence: SentenceRecord): number {
+  const value = (sentence as { readonly characterOffset?: unknown })
+    .characterOffset;
+  return typeof value === "number" ? value : 0;
+}
+
+export function hasSentenceCharacterOffset(sentence: SentenceRecord): boolean {
+  return (
+    typeof (sentence as { readonly characterOffset?: unknown })
+      .characterOffset === "number"
+  );
+}
+
+export function getSentenceCharacterLength(sentence: SentenceRecord): number {
+  const value = (sentence as { readonly characterLength?: unknown })
+    .characterLength;
+  return typeof value === "number"
+    ? value
+    : Array.from(getSentenceRawText(sentence)).length;
 }
 
 function utf8ByteLength(value: string): number {

@@ -1,4 +1,4 @@
-import type { File } from "../../runtime/platform/index.js";
+import { isHostFileEmpty, type File } from "../../runtime/platform/index.js";
 import { Database } from "../database.js";
 import {
   SEARCH_INDEX_SCHEMA_SQL,
@@ -97,12 +97,7 @@ async function withSearchIndexLifecycleLock<T>(
 }
 
 async function isMissingOrEmptyFile(file: File): Promise<boolean> {
-  if (file.size !== undefined) return file.size === 0;
-  if (file.getSize !== undefined) return (await file.getSize()) === 0;
-  const content = await file.read();
-  return typeof content === "string"
-    ? content.length === 0
-    : content.byteLength === 0;
+  return await isHostFileEmpty(file);
 }
 
 async function isSearchIndexDatabaseCompatible(

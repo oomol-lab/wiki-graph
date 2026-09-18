@@ -305,6 +305,8 @@ export const SCHEMA_SQL = `
     words_count INTEGER NOT NULL DEFAULT 0,
     byte_offset INTEGER NOT NULL DEFAULT 0,
     byte_length INTEGER NOT NULL DEFAULT 0,
+    character_offset INTEGER NOT NULL DEFAULT 0,
+    character_length INTEGER NOT NULL DEFAULT 0,
     UNIQUE(kind, chapter_id, sentence_index)
   );
 

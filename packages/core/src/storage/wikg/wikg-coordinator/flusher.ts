@@ -2,7 +2,7 @@ import {
   getWikiGraphPlatform,
   resolveHostFile,
   type File,
-  type HostZipEntry,
+  type HostZipWriteEntry,
 } from "../../../runtime/platform/index.js";
 import {
   WIKG_MANIFEST_CONTENT,
@@ -152,7 +152,7 @@ async function* createArchiveEntries(
   overlays: ReadonlyMap<string, EntryOverlay>,
   paths: ReadonlySet<string>,
   mutationToken: Uint8Array,
-): AsyncGenerator<HostZipEntry> {
+): AsyncGenerator<HostZipWriteEntry> {
   for (const path of sortArchiveEntryPathsForWrite(paths)) {
     if (!isWikgArchivePath(path)) continue;
     if (path === WIKG_MUTATION_TOKEN_PATH) {
@@ -169,19 +169,23 @@ async function* createArchiveEntries(
     const overlay = overlays.get(path);
     if (overlay?.kind === "deleted") continue;
     if (overlay?.kind === "file") {
-      const file = await resolveOverlayFile(overlay);
-      const content = await file.read();
-      yield {
-        data:
-          typeof content === "string"
-            ? new TextEncoder().encode(content)
-            : content,
-        name: path,
-      };
+      yield { file: await resolveOverlayFile(overlay), name: path };
       continue;
     }
-    const content = await reader.readEntry(path);
-    if (content !== undefined) yield { data: content, name: path };
+    const size = await reader.getEntrySize(path);
+    if (size !== undefined) {
+      yield {
+        name: path,
+        size,
+        read: async (offset, length) => {
+          const content = await reader.readEntryRange(path, offset, length);
+          if (content === undefined) {
+            throw new Error(`Archive entry disappeared: ${path}.`);
+          }
+          return content;
+        },
+      };
+    }
   }
 }
 

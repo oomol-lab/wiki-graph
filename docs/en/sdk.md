@@ -81,12 +81,17 @@ outside the `.wikg` archive and can be rebuilt at any time.
 `WikiGraphPlatform` is process-wide host infrastructure for async context,
 database, ZIP, resource resolution, and execution-liveness operations, so an
 application installs it once after import. Its ZIP reader lists entry names and
-reads entry data on demand; hosts must not require Core to load the complete
-archive for an ordinary read. Its lifecycle provider gives each running host
-instance an opaque ID and reports whether a previously recorded instance is
-still alive, allowing archive sessions to recover published work after a crash.
-The two storage roots belong to each `WikiGraph` instance and remain isolated
-when instances run concurrently.
+reads small entry data on demand. `getEntrySize()` and `readEntryRange()` expose
+random access to uncompressed entry bytes, while `copyEntry()` extracts a whole
+entry into a transactional host `File`. ZIP writes accept byte-backed,
+file-backed, or range-backed entries. The host owns how those operations stream,
+cache, or materialize ZIP data; Core uses range access for large document entries
+and does not load them or workspace snapshots into one buffer. Its lifecycle
+provider gives each running host instance an
+opaque ID and reports whether a previously recorded instance is still alive,
+allowing archive sessions to recover published work after a crash. The two
+storage roots belong to each `WikiGraph` instance and remain isolated when
+instances run concurrently.
 
 ```ts
 import { WikiGraph, type File } from "wiki-graph-core";

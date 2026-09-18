@@ -62,6 +62,30 @@ export class WikgArchiveReader {
       ? undefined
       : await this.#reader.readEntry(hostName);
   }
+
+  public async copyEntry(entryPath: string, target: File): Promise<boolean> {
+    const hostName = this.#entries.get(normalizeArchivePath(entryPath));
+    if (hostName === undefined) return false;
+    return await this.#reader.copyEntry(hostName, target);
+  }
+
+  public async getEntrySize(entryPath: string): Promise<number | undefined> {
+    const hostName = this.#entries.get(normalizeArchivePath(entryPath));
+    return hostName === undefined
+      ? undefined
+      : await this.#reader.getEntrySize(hostName);
+  }
+
+  public async readEntryRange(
+    entryPath: string,
+    offset: number,
+    length: number,
+  ): Promise<Uint8Array | undefined> {
+    const hostName = this.#entries.get(normalizeArchivePath(entryPath));
+    return hostName === undefined
+      ? undefined
+      : await this.#reader.readEntryRange(hostName, offset, length);
+  }
 }
 
 export async function listWikgArchiveEntries(

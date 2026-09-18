@@ -24,6 +24,8 @@ export type {
   HostTemplateProvider,
   HostTemplateEnvironment,
   HostZipEntry,
+  HostZipRangeEntry,
+  HostZipWriteEntry,
   HostZipProvider,
   HostZipReader,
   WikiGraphPlatform,
@@ -33,9 +35,11 @@ export {
   appendFileText,
   copyFileContent,
   getHostEntryLastModified,
+  isHostFileEmpty,
   isDirectory,
   readFileText,
   readHostEntrySize,
+  readHostFileSize,
   writeFileContent,
 } from "./files.js";
 

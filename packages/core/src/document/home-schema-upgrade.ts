@@ -3,6 +3,7 @@ import {
   getRelativeFile,
   getWikiGraphPlatform,
   getWikiGraphStorage,
+  isHostFileEmpty,
   isDirectory,
   type Directory,
   type File,
@@ -407,12 +408,7 @@ function isFresh(heartbeat: number | undefined): boolean {
 }
 
 async function isEmpty(file: File): Promise<boolean> {
-  if (file.getSize !== undefined) return (await file.getSize()) === 0;
-  if (file.size !== undefined) return file.size === 0;
-  const content = await file.read();
-  return typeof content === "string"
-    ? content.length === 0
-    : content.byteLength === 0;
+  return await isHostFileEmpty(file);
 }
 
 async function readTableColumns(

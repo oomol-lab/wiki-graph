@@ -25,6 +25,8 @@ export async function writeLegacySourceTextStream(
       words_count INTEGER NOT NULL DEFAULT 0,
       byte_offset INTEGER NOT NULL DEFAULT 0,
       byte_length INTEGER NOT NULL DEFAULT 0,
+      character_offset INTEGER NOT NULL DEFAULT 0,
+      character_length INTEGER NOT NULL DEFAULT 0,
       UNIQUE(kind, chapter_id, sentence_index)
     )
   `);
@@ -41,11 +43,13 @@ export async function writeLegacySourceTextStream(
   );
 
   let byteOffset = 0;
+  let characterOffset = 0;
   let sentenceIndex = 0;
 
   for (const fragment of input.fragments) {
     for (const sentence of fragment.content.sentences) {
       const byteLength = new TextEncoder().encode(sentence.text).byteLength;
+      const characterLength = Array.from(sentence.text).length;
 
       await database.run(
         `
@@ -55,9 +59,11 @@ export async function writeLegacySourceTextStream(
             sentence_index,
             words_count,
             byte_offset,
-            byte_length
+            byte_length,
+            character_offset,
+            character_length
           )
-          VALUES (1, ?, ?, ?, ?, ?)
+          VALUES (1, ?, ?, ?, ?, ?, ?, ?)
         `,
         [
           input.serialId,
@@ -65,10 +71,13 @@ export async function writeLegacySourceTextStream(
           sentence.wordsCount,
           byteOffset,
           byteLength,
+          characterOffset,
+          characterLength,
         ],
       );
 
       byteOffset += byteLength;
+      characterOffset += characterLength;
       sentenceIndex += 1;
     }
   }
