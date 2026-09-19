@@ -45,7 +45,7 @@ import {
   installWikiGraphPlatform,
   WikiGraph,
   type Directory,
-  type File,
+  type ReadonlyFile,
   type WikiGraphPlatform,
 } from "wiki-graph-core";
 
@@ -57,7 +57,7 @@ const storage = {
 };
 const wikiGraph = new WikiGraph({ storage });
 
-const archive = myArchiveFile satisfies File;
+const archive = myArchiveFile satisfies ReadonlyFile;
 await wikiGraph.openSession(archive, (session) => session.readMeta());
 ```
 
@@ -99,7 +99,7 @@ storage roots belong to each `WikiGraph` instance and remain isolated when
 instances run concurrently.
 
 ```ts
-import { WikiGraph, type File } from "wiki-graph-core";
+import { WikiGraph, type File, type ReadonlyFile } from "wiki-graph-core";
 
 const wikiGraph = new WikiGraph({ storage });
 const outputArchive = myOutputArchiveFile satisfies File;
@@ -115,7 +115,8 @@ await wikiGraph.digestTextStreamSession(
   },
 );
 
-await wikiGraph.openSession(outputArchive, async (archive) => {
+const readableArchive: ReadonlyFile = outputArchive;
+await wikiGraph.openSession(readableArchive, async (archive) => {
   console.log(await archive.readMeta());
 });
 ```

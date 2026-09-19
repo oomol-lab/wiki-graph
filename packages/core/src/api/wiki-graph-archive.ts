@@ -1,5 +1,9 @@
 import type { ReadonlyDocument } from "../document/index.js";
-import type { Directory, File } from "../runtime/platform/index.js";
+import type {
+  Directory,
+  File,
+  ReadonlyFile,
+} from "../runtime/platform/index.js";
 import { isDirectory } from "../runtime/platform/index.js";
 import { writeEpub, writePlainText } from "../text/output/index.js";
 import type {
@@ -19,12 +23,12 @@ import type { WikiGraphSerialEntry } from "./types.js";
 
 export class WikiGraphArchive {
   readonly #document: ReadonlyDocument;
-  readonly #source: Directory | File;
+  readonly #source: Directory | ReadonlyFile;
   readonly #sourceKind: "archive" | "directory";
 
   public constructor(
     document: ReadonlyDocument,
-    source: Directory | File,
+    source: Directory | ReadonlyFile,
     options: { readonly sourceKind?: "archive" | "directory" } = {},
   ) {
     this.#document = document;

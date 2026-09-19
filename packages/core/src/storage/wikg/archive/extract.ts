@@ -2,19 +2,19 @@ import {
   ensureRelativeDirectory,
   readHostZipEntries,
   resolveHostDirectory,
-  resolveHostFile,
+  resolveHostReadonlyFile,
   type Directory,
-  type File,
+  type ReadonlyFile,
 } from "../../../runtime/platform/index.js";
 import { isWikgArchivePath, normalizeArchivePath } from "./paths.js";
 import { WIKG_MANIFEST_PATH, WIKG_MUTATION_TOKEN_PATH } from "./constants.js";
 import { parseWikgManifest, parseWikgMutationToken } from "./manifest.js";
 
 export async function extractWikgArchive(
-  inputFileRef: File | string,
+  inputFileRef: ReadonlyFile | string,
   outputDirectoryRef: Directory | string,
 ): Promise<void> {
-  const inputFile = await resolveHostFile(inputFileRef);
+  const inputFile = await resolveHostReadonlyFile(inputFileRef);
   const outputDirectory = await resolveHostDirectory(outputDirectoryRef);
   const archiveEntries = await readHostZipEntries(inputFile);
   const entries = new Map(

@@ -18,6 +18,36 @@ import { withTempDir } from "../../helpers/temp.js";
 afterEach(() => installWikiGraphPlatform(nodeWikiGraphPlatform));
 
 describe("database lifecycle", () => {
+  it("releases the file store when the database provider open fails", async () => {
+    await withTempDir("wikigraph-database-open-failure-", async (path) => {
+      let fileStoreCloses = 0;
+      const backing = new DirectoryFileStore(new NodeDirectory(path));
+      const fileStore = new Proxy(backing, {
+        get(target, property, receiver) {
+          if (property === "close") {
+            return () => {
+              fileStoreCloses += 1;
+              return Promise.resolve();
+            };
+          }
+          const value = Reflect.get(target, property, receiver) as unknown;
+          return typeof value === "function" ? value.bind(target) : value;
+        },
+      }) as DocumentFileStore;
+      installWikiGraphPlatform({
+        ...nodeWikiGraphPlatform,
+        database: {
+          open: () => Promise.reject(new Error("provider open failed")),
+        },
+      });
+
+      await expect(DirectoryDocument.openFileStore(fileStore)).rejects.toThrow(
+        "provider open failed",
+      );
+      expect(fileStoreCloses).toBe(1);
+    });
+  });
+
   it.each(["PRAGMA", "schema"] as const)(
     "closes the host connection when %s initialization fails",
     async (failure) => {
@@ -148,9 +178,133 @@ describe("database lifecycle", () => {
       expect(deleteFile).not.toHaveBeenCalled();
     });
   });
+
+  it("closes the search-index connection when the operation fails", async () => {
+    await withTempDir("wikigraph-search-operation-", async (path) => {
+      let activeConnections = 0;
+      installTrackedDatabasePlatform({
+        onClose: () => {
+          activeConnections -= 1;
+        },
+        onOpen: () => {
+          activeConnections += 1;
+        },
+      });
+      const fileStore = new DirectoryFileStore(new NodeDirectory(path));
+
+      await expect(
+        openSearchIndexDatabase({
+          documentPath: "",
+          fileStore,
+          operation: () => {
+            throw new Error("operation failed");
+          },
+          readonly: false,
+        }),
+      ).rejects.toThrow("operation failed");
+      expect(activeConnections).toBe(0);
+    });
+  });
+
+  it("releases the file store when database close fails", async () => {
+    await withTempDir("wikigraph-database-close-failure-", async (path) => {
+      let activeConnections = 0;
+      let fileStoreCloses = 0;
+      installTrackedDatabasePlatform({
+        failClose: true,
+        onClose: () => {
+          activeConnections -= 1;
+        },
+        onOpen: () => {
+          activeConnections += 1;
+        },
+      });
+      const backing = new DirectoryFileStore(new NodeDirectory(path));
+      const fileStore = new Proxy(backing, {
+        get(target, property, receiver) {
+          if (property === "close") {
+            return async () => {
+              fileStoreCloses += 1;
+              await target.close();
+            };
+          }
+          const value = Reflect.get(target, property, receiver) as unknown;
+          return typeof value === "function" ? value.bind(target) : value;
+        },
+      }) as DocumentFileStore;
+      const document = await DirectoryDocument.openFileStore(fileStore);
+
+      await expect(document.release()).rejects.toThrow("close failed");
+      expect(activeConnections).toBe(0);
+      expect(fileStoreCloses).toBe(1);
+    });
+  });
+
+  it("keeps shared provider sessions alive until every owner closes", async () => {
+    await withTempDir("wikigraph-database-shared-owner-", async (path) => {
+      const file = await new NodeDirectory(path).createFile("database.db");
+      let references = 0;
+      let sharedConnection: HostDatabaseConnection | undefined;
+      let underlyingCloses = 0;
+      installWikiGraphPlatform({
+        ...nodeWikiGraphPlatform,
+        database: {
+          open: async (_file, options) => {
+            sharedConnection ??= await nodeWikiGraphPlatform.database.open(
+              file,
+              options.mode === "readonly"
+                ? { create: true, mode: "readwrite" }
+                : options,
+            );
+            references += 1;
+            const connection = sharedConnection;
+            let closed = false;
+            return {
+              close: async () => {
+                if (closed) return;
+                closed = true;
+                references -= 1;
+                if (references === 0) {
+                  await connection.close();
+                  underlyingCloses += 1;
+                  sharedConnection = undefined;
+                }
+              },
+              execute: async (sql) => await connection.execute(sql),
+              queryAll: async (sql, params) =>
+                await connection.queryAll(sql, params),
+              queryOne: async (sql, params) =>
+                await connection.queryOne(sql, params),
+              run: async (sql, params) => await connection.run(sql, params),
+            };
+          },
+        },
+      });
+
+      const first = await Database.open(
+        file,
+        "CREATE TABLE markers (value INTEGER)",
+        { create: true, mode: "readwrite" },
+      );
+      const second = await Database.open(file, "", { mode: "readonly" });
+      await first.close();
+      expect(underlyingCloses).toBe(0);
+      await expect(
+        second.queryOne(
+          "SELECT COUNT(*) AS count FROM markers",
+          undefined,
+          (row) => Number(row.count),
+        ),
+      ).resolves.toBe(0);
+      await second.close();
+      expect(references).toBe(0);
+      expect(underlyingCloses).toBe(1);
+    });
+  });
 });
 
 function installTrackedDatabasePlatform(input: {
+  readonly failClose?: boolean;
   readonly failRun?: string;
   readonly onClose: () => void;
   readonly onOpen: () => void;
@@ -175,6 +329,9 @@ function installTrackedDatabasePlatform(input: {
               await connection.close();
             } finally {
               input.onClose();
+            }
+            if (input.failClose === true) {
+              throw new Error("close failed");
             }
           },
           execute: async (sql) => await connection.execute(sql),

@@ -142,21 +142,23 @@ export class DirectoryDocument implements Document {
 
       const shouldInitializeDatabaseSchema =
         fileStore.initializeDatabaseSchema();
-      database = await Database.open(
-        databasePath,
-        shouldInitializeDatabaseSchema ? SCHEMA_SQL : "",
-        {
-          ...(fileStore.openDatabaseReadonly()
-            ? { mode: "readonly" as const }
-            : {
-                create: shouldInitializeDatabaseSchema,
-                mode: "readwrite" as const,
-              }),
-          onWrite: () => {
-            fileStore.markDatabaseDirty?.();
-          },
-        },
-      );
+      const onWrite = () => {
+        fileStore.markDatabaseDirty?.();
+      };
+      database = fileStore.openDatabaseReadonly()
+        ? await Database.open(databasePath, "", {
+            mode: "readonly",
+            onWrite,
+          })
+        : await Database.open(
+            databasePath,
+            shouldInitializeDatabaseSchema ? SCHEMA_SQL : "",
+            {
+              create: shouldInitializeDatabaseSchema,
+              mode: "readwrite",
+              onWrite,
+            },
+          );
       if (shouldInitializeDatabaseSchema) {
         await initializeDocumentSchema(database);
       }

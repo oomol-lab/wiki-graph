@@ -4,7 +4,10 @@ import { afterEach, describe, expect, it } from "vitest";
 
 import { WikiGraphArchive } from "../../../../packages/core/src/api/wiki-graph-archive.js";
 import { WikiGraph } from "../../../../packages/core/src/api/app.js";
-import { DirectoryDocument } from "../../../../packages/core/src/document/index.js";
+import {
+  Database,
+  DirectoryDocument,
+} from "../../../../packages/core/src/document/index.js";
 import {
   installWikiGraphPlatform,
   type Directory,
@@ -15,6 +18,7 @@ import {
   withWikiGraphStorage,
 } from "../../../../packages/core/src/runtime/platform/index.js";
 import { WikiGraphArchiveFile } from "../../../../packages/core/src/storage/wikg/wiki-graph-archive-file.js";
+import { WikgArchiveReader } from "../../../../packages/core/src/storage/wikg/archive/reader.js";
 import {
   installNodeWikiGraphPlatform,
   NodeDirectory,
@@ -28,6 +32,67 @@ afterEach(() => {
 });
 
 describe("opaque archive File adapter", () => {
+  it("opens archives through a minimal ReadonlyFile capability", async () => {
+    await withTempDir("wikigraph-readonly-file-", async (path) => {
+      const archivePath = await createSeedArchive(path);
+      const databaseFile = new NodeFile(`${path}/readonly.sqlite`);
+      const writableDatabase = await Database.open(
+        databaseFile,
+        "CREATE TABLE marker (value INTEGER)",
+        { create: true, mode: "readwrite" },
+      );
+      await writableDatabase.close();
+      await mkdir(`${path}/storage/library`, { recursive: true });
+      await mkdir(`${path}/storage/documents`, { recursive: true });
+      const archive = wrapReadonlyFile(new NodeFile(archivePath));
+      const readonlyDatabaseFile = wrapReadonlyFile(databaseFile);
+      const storage = {
+        documentStore: wrapDirectory(
+          new NodeDirectory(`${path}/storage/documents`),
+        ),
+        library: wrapDirectory(new NodeDirectory(`${path}/storage/library`)),
+      };
+      installWikiGraphPlatform(opaqueNodePlatform);
+
+      await withWikiGraphStorage(storage, async () => {
+        await expect(
+          new WikiGraph({ storage }).openSession(
+            archive,
+            async (opened) => (await opened.readMeta())?.title,
+          ),
+        ).resolves.toBe("Before");
+        await expect(
+          new WikiGraphArchiveFile(archive).read(
+            async (opened) => (await opened.readMeta())?.title,
+          ),
+        ).resolves.toBe("Before");
+        const reader = await WikgArchiveReader.open(archive);
+        try {
+          expect(reader.listEntries()).toContain("database.db");
+        } finally {
+          await reader.close();
+        }
+        const database = await Database.open(readonlyDatabaseFile, "", {
+          mode: "readonly",
+        });
+        try {
+          await expect(
+            database.queryOne(
+              "SELECT COUNT(*) AS count FROM marker",
+              undefined,
+              (row) => Number(row.count),
+            ),
+          ).resolves.toBe(0);
+        } finally {
+          await database.close();
+        }
+      });
+
+      expect("openWriter" in archive).toBe(false);
+      expect(await storage.documentStore.list()).toEqual([]);
+    });
+  });
+
   it("keeps a NodeDirectory archive File independent from the current directory", async () => {
     await withTempDir("wikigraph-node-directory-file-", async (path) => {
       const targetDirectoryPath = `${path}/target`;
@@ -222,6 +287,17 @@ describe("opaque archive File adapter", () => {
 });
 
 const backingFiles = new WeakMap<ReadonlyFile, NodeFile>();
+function wrapReadonlyFile(backing: NodeFile): ReadonlyFile {
+  const file: ReadonlyFile = {
+    identity: backing.identity,
+    kind: "file",
+    name: backing.name,
+    openReader: async () => await backing.openReader(),
+  };
+  backingFiles.set(file, backing);
+  return file;
+}
+
 function wrapFile(backing: NodeFile): File {
   const file: File = {
     identity: backing.identity,

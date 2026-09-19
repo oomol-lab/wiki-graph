@@ -90,6 +90,16 @@ export async function resolveHostFile(file: File | string): Promise<File> {
   return resolved;
 }
 
+/** Resolve an opaque read capability without requiring a writable host file. */
+export async function resolveHostReadonlyFile(
+  file: ReadonlyFile | string,
+): Promise<ReadonlyFile> {
+  if (typeof file !== "string") return file;
+  const resolved = await getWikiGraphPlatform().resources.getFile(file);
+  if (resolved === undefined) throw new Error("Host file is unavailable");
+  return resolved;
+}
+
 /** Resolve an opaque persisted identity into its host directory capability. */
 export async function resolveHostDirectory(
   directory: Directory | string,

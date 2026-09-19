@@ -40,7 +40,7 @@ import {
   installWikiGraphPlatform,
   WikiGraph,
   type Directory,
-  type File,
+  type ReadonlyFile,
   type WikiGraphPlatform,
 } from "wiki-graph-core";
 
@@ -52,7 +52,7 @@ const storage = {
 };
 const wikiGraph = new WikiGraph({ storage });
 
-const archive = myArchiveFile satisfies File;
+const archive = myArchiveFile satisfies ReadonlyFile;
 await wikiGraph.openSession(archive, (session) => session.readMeta());
 ```
 
@@ -62,7 +62,7 @@ await wikiGraph.openSession(archive, (session) => session.readMeta());
 `WikiGraphPlatform` 是进程级宿主基础设施，负责异步上下文、数据库、ZIP、资源解析和执行实例存活探测；应用在 import 后安装一次即可。ZIP reader 按需读取小 entry，并通过 `getEntrySize()` 与 `readEntryRange()` 随机访问 entry 解压后的字节；`copyEntry()` 用于将整个 entry 复制到事务式 host `File`。ZIP 写入接受 byte-backed、file-backed 和 range-backed entry。如何流式处理、缓存或物化 ZIP 数据由宿主负责；Core 对大型正文 entry 使用 range access，不会把它或 workspace snapshot 聚合成单个 buffer。lifecycle provider 为每个运行中的宿主实例提供 opaque ID，并能判断先前记录的实例是否仍然存活，使 archive session 可以在进程异常退出后接管已发布的工作。两个存储目录根则归各自的 `WikiGraph` 实例所有，并发运行多个实例时不会互相覆盖。
 
 ```ts
-import { WikiGraph, type File } from "wiki-graph-core";
+import { WikiGraph, type File, type ReadonlyFile } from "wiki-graph-core";
 
 const wikiGraph = new WikiGraph({ storage });
 const outputArchive = myOutputArchiveFile satisfies File;
@@ -78,7 +78,8 @@ await wikiGraph.digestTextStreamSession(
   },
 );
 
-await wikiGraph.openSession(outputArchive, async (archive) => {
+const readableArchive: ReadonlyFile = outputArchive;
+await wikiGraph.openSession(readableArchive, async (archive) => {
   console.log(await archive.readMeta());
 });
 ```

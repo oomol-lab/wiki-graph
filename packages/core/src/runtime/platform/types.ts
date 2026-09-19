@@ -107,6 +107,12 @@ export type HostDatabaseOpenOptions =
   | { readonly mode: "readwrite"; readonly create: boolean };
 
 export interface HostDatabaseProvider {
+  /**
+   * Returns a connection handle owned exclusively by this open call. Core
+   * closes that handle exactly once. Providers may share an underlying
+   * database session only when their handles are independently reference
+   * counted, so closing one owner cannot invalidate another owner.
+   */
   open(
     file: ReadonlyFile,
     options: { readonly mode: "readonly" },

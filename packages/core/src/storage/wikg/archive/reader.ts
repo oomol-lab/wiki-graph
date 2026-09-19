@@ -3,9 +3,10 @@ import {
   getWikiGraphPlatform,
   readFileText,
   resolveHostDirectory,
-  resolveHostFile,
+  resolveHostReadonlyFile,
   type Directory,
   type File,
+  type ReadonlyFile,
   type HostZipReader,
 } from "../../../runtime/platform/index.js";
 import { WIKG_MANIFEST_PATH, WIKG_MUTATION_TOKEN_PATH } from "./constants.js";
@@ -29,8 +30,10 @@ export class WikgArchiveReader {
     this.#entries = entries;
   }
 
-  public static async open(fileRef: File | string): Promise<WikgArchiveReader> {
-    const file = await resolveHostFile(fileRef);
+  public static async open(
+    fileRef: ReadonlyFile | string,
+  ): Promise<WikgArchiveReader> {
+    const file = await resolveHostReadonlyFile(fileRef);
     const reader = await getWikiGraphPlatform().zip.open(file);
     try {
       const entries = new Map<string, string>();
@@ -89,7 +92,7 @@ export class WikgArchiveReader {
 }
 
 export async function listWikgArchiveEntries(
-  file: File | string,
+  file: ReadonlyFile | string,
 ): Promise<readonly string[]> {
   const reader = await WikgArchiveReader.open(file);
   try {
@@ -100,7 +103,7 @@ export async function listWikgArchiveEntries(
 }
 
 export async function readWikgArchiveEntry(
-  file: File | string,
+  file: ReadonlyFile | string,
   entryPath: string,
 ): Promise<Uint8Array | undefined> {
   const reader = await WikgArchiveReader.open(file);
@@ -112,10 +115,10 @@ export async function readWikgArchiveEntry(
 }
 
 export async function readWikgArchiveMutationToken(
-  file: File | string,
+  file: ReadonlyFile | string,
 ): Promise<string> {
   const reader = await getWikiGraphPlatform().zip.open(
-    await resolveHostFile(file),
+    await resolveHostReadonlyFile(file),
   );
   try {
     const hostName = (await reader.listEntries()).find(

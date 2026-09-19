@@ -50,18 +50,20 @@ async function openSearchIndexDatabaseLocked<T>(input: {
     shouldInitialize = true;
   }
 
-  const database = await Database.open(
-    databasePath,
-    shouldInitialize ? SEARCH_INDEX_SCHEMA_SQL : "",
-    {
-      ...(input.readonly
-        ? { mode: "readonly" as const }
-        : { create: shouldInitialize, mode: "readwrite" as const }),
-      onWrite: () => {
-        input.fileStore.markSearchIndexDatabaseDirty?.();
-      },
-    },
-  );
+  const onWrite = () => {
+    input.fileStore.markSearchIndexDatabaseDirty?.();
+  };
+  const database = input.readonly
+    ? await Database.open(databasePath, "", { mode: "readonly", onWrite })
+    : await Database.open(
+        databasePath,
+        shouldInitialize ? SEARCH_INDEX_SCHEMA_SQL : "",
+        {
+          create: shouldInitialize,
+          mode: "readwrite",
+          onWrite,
+        },
+      );
 
   try {
     if (!input.readonly) {

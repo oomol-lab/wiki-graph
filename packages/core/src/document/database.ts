@@ -1,10 +1,11 @@
 import {
   getWikiGraphPlatform,
   isHostFileEmpty,
-  resolveHostFile,
+  resolveHostReadonlyFile,
 } from "../runtime/platform/index.js";
 import type {
   File,
+  ReadonlyFile,
   HostAsyncContext,
   HostDatabaseConnection,
   HostDatabaseOpenOptions,
@@ -30,7 +31,7 @@ const SQLITE_BUSY_TIMEOUT_MS = 15 * 60 * 1000;
 
 type DatabaseOperationScope = symbol;
 
-async function isMissingOrEmptyFile(file: File): Promise<boolean> {
+async function isMissingOrEmptyFile(file: ReadonlyFile): Promise<boolean> {
   try {
     return await isHostFileEmpty(file);
   } catch (error) {
@@ -59,11 +60,28 @@ export class Database {
   }
 
   public static async open(
+    databaseFileRef: ReadonlyFile | string,
+    schemaSql: string,
+    options: {
+      readonly mode: "readonly";
+      readonly onWrite?: () => void;
+    },
+  ): Promise<Database>;
+  public static async open(
     databaseFileRef: File | string,
+    schemaSql: string,
+    options: {
+      readonly mode: "readwrite";
+      readonly create: boolean;
+      readonly onWrite?: () => void;
+    },
+  ): Promise<Database>;
+  public static async open(
+    databaseFileRef: ReadonlyFile | string,
     schemaSql: string,
     options: HostDatabaseOpenOptions & { readonly onWrite?: () => void },
   ): Promise<Database> {
-    const databaseFile = await resolveHostFile(databaseFileRef);
+    const databaseFile = await resolveHostReadonlyFile(databaseFileRef);
     const shouldMarkSchemaWritten =
       options.mode === "readwrite" &&
       options.create &&
@@ -74,7 +92,7 @@ export class Database {
         ? await getWikiGraphPlatform().database.open(databaseFile, {
             mode: "readonly",
           })
-        : await getWikiGraphPlatform().database.open(databaseFile, {
+        : await getWikiGraphPlatform().database.open(databaseFile as File, {
             create: options.create,
             mode: "readwrite",
           });
