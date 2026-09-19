@@ -26,14 +26,14 @@ async function withDocument(
 }
 
 describe("DirectoryDocument search index cache", () => {
-  it("deletes incompatible cache on read", async () => {
+  it("preserves incompatible cache on readonly access", async () => {
     await withDocument(async (document, path) => {
       await writeIncompatibleCache(document);
 
       await expect(
         document.readSearchIndexDatabase(() => "unreachable"),
       ).rejects.toThrow("Search index cache is missing: index.db");
-      await expect(stat(join(path, "index.db"))).rejects.toThrow();
+      await expect(stat(join(path, "index.db"))).resolves.toBeDefined();
     });
   });
 

@@ -32,6 +32,7 @@ import { resolveExtractionPrompt } from "./prompts.js";
 import {
   type Directory,
   type File,
+  type ReadonlyFile,
   type WikiGraphStorage,
   withWikiGraphStorage,
 } from "../runtime/platform/index.js";
@@ -181,7 +182,7 @@ export class WikiGraph {
   }
 
   public async openSession<T>(
-    file: File,
+    file: ReadonlyFile,
     operation: (digest: WikiGraphArchive) => Promise<T> | T,
     _options: WikiGraphOpenSessionOptions = {},
   ): Promise<T> {

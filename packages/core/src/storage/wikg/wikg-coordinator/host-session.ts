@@ -2,12 +2,14 @@ import type {
   File,
   FileReader,
   FileWriter,
+  ReadonlyFile,
 } from "../../../runtime/platform/index.js";
 import {
   ensureRelativeDirectory,
   ensureRelativeFile,
   getRelativeDirectory,
   getWikiGraphStorage,
+  readFileBytes,
 } from "../../../runtime/platform/index.js";
 import type { DocumentFileStore } from "../../../document/directory/index.js";
 import { createPortableHash } from "../../../utils/crypto.js";
@@ -66,7 +68,7 @@ interface SessionChange {
 
 /** Run one archive operation within a durable, host-neutral session. */
 export async function withHostArchiveSession<T>(
-  archive: File,
+  archive: ReadonlyFile,
   operation: (session: HostWikgArchiveSession) => Promise<T> | T,
 ): Promise<T> {
   const session = await HostWikgArchiveSession.open(archive);
@@ -82,7 +84,8 @@ export async function withHostArchiveSession<T>(
 
 /** Coordinates logical archive state without observing host locations. */
 export class HostWikgArchiveSession {
-  readonly #archive: File;
+  readonly #archive: ReadonlyFile;
+  readonly #writable: boolean;
   readonly #archiveKey: string;
   readonly #owner: CoordinatorOwner;
   readonly #heartbeat: ReturnType<typeof globalThis.setInterval>;
@@ -102,12 +105,13 @@ export class HostWikgArchiveSession {
 
   // eslint-disable-next-line no-restricted-syntax -- constructors cannot use JavaScript #private syntax.
   private constructor(input: {
-    readonly archive: File;
+    readonly archive: ReadonlyFile;
     readonly archiveKey: string;
     readonly initialSearchCacheKey: string;
     readonly owner: CoordinatorOwner;
   }) {
     this.#archive = input.archive;
+    this.#writable = isWritableFile(input.archive);
     this.#archiveKey = input.archiveKey;
     this.#initialSearchCacheKey = input.initialSearchCacheKey;
     this.#searchCacheKey = input.initialSearchCacheKey;
@@ -119,7 +123,9 @@ export class HostWikgArchiveSession {
     }, OWNER_HEARTBEAT_INTERVAL_MS);
   }
 
-  public static async open(archive: File): Promise<HostWikgArchiveSession> {
+  public static async open(
+    archive: ReadonlyFile,
+  ): Promise<HostWikgArchiveSession> {
     const validationReader = await WikgArchiveReader.open(archive);
     await validationReader.close();
     const archiveKey = createPortableHash("sha256")
@@ -128,7 +134,9 @@ export class HostWikgArchiveSession {
     const owner = createCoordinatorOwner();
     await registerArchiveOwner(archiveKey, owner);
     try {
-      await reapArchive(archiveKey, owner, archive);
+      if (isWritableFile(archive)) {
+        await reapArchive(archiveKey, owner, archive);
+      }
       const mutationToken = await readWikgArchiveMutationToken(archive);
       return new HostWikgArchiveSession({
         archive,
@@ -287,7 +295,6 @@ export class HostWikgArchiveSession {
             archiveKey: this.#archiveKey,
             entryPath,
             owner: this.#owner,
-            workspaceFile: snapshot.file,
             workspacePath: snapshot.relativePath,
           });
         } catch (error) {
@@ -339,7 +346,6 @@ export class HostWikgArchiveSession {
             archiveKey: this.#archiveKey,
             entryPath,
             owner: this.#owner,
-            workspaceFile: snapshot.file,
             workspacePath: snapshot.relativePath,
           });
         } catch (error) {
@@ -430,7 +436,6 @@ export class HostWikgArchiveSession {
                 .digest("hex"),
               entryPath,
               owner: this.#owner,
-              workspaceFile: snapshot.file,
               workspacePath: snapshot.relativePath,
             });
           } catch (error) {
@@ -520,6 +525,16 @@ export class HostWikgArchiveSession {
       for (const entryPath of [...this.#leasedEntryPaths]) {
         await this.releaseDatabaseLease(entryPath);
       }
+      if (!this.#writable) {
+        for (const entryPath of this.#materializedEntryPaths) {
+          const overlay = await readOverlay(this.#archiveKey, entryPath);
+          if (overlay !== undefined) {
+            await deleteCleanOverlayIfUnused(overlay);
+          }
+        }
+        return;
+      }
+      const writableArchive = requireWritableFile(this.#archive);
       if (!this.#aborted) {
         for (const entryPath of this.#materializedEntryPaths) {
           const overlay = await readOverlay(this.#archiveKey, entryPath);
@@ -536,13 +551,13 @@ export class HostWikgArchiveSession {
             this.#archiveKey,
             this.#owner,
             requested,
-            this.#archive,
+            writableArchive,
           );
           if (mutationToken !== undefined) {
             this.#searchCacheKey = createSearchCacheKey(mutationToken);
           }
         }
-        await reapArchive(this.#archiveKey, this.#owner, this.#archive);
+        await reapArchive(this.#archiveKey, this.#owner, writableArchive);
         await this.#settleSearchIndexCache();
         for (const entryPath of this.#materializedEntryPaths) {
           const overlay = await readOverlay(this.#archiveKey, entryPath);
@@ -718,6 +733,17 @@ export class HostWikgArchiveSession {
   }
 }
 
+function isWritableFile(file: ReadonlyFile): file is File {
+  return "openWriter" in file && typeof file.openWriter === "function";
+}
+
+function requireWritableFile(file: ReadonlyFile): File {
+  if (!isWritableFile(file)) {
+    throw new TypeError("Archive write requires a writable File capability.");
+  }
+  return file;
+}
+
 async function copyReaderToWriter(
   reader: FileReader,
   writer: FileWriter,
@@ -767,10 +793,7 @@ async function replaceFile(
 }
 
 async function readBytes(file: File): Promise<Uint8Array> {
-  const content = await file.read();
-  return typeof content === "string"
-    ? new TextEncoder().encode(content)
-    : content;
+  return await readFileBytes(file);
 }
 
 function isSqliteEntry(entryPath: string): boolean {

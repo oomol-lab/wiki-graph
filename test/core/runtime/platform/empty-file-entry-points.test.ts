@@ -28,6 +28,7 @@ describe("empty host file entry points", () => {
       const database = await Database.open(
         probe.file,
         "CREATE TABLE marker (value INTEGER)",
+        { create: true, mode: "readwrite" },
       );
       await database.close();
 
@@ -192,6 +193,7 @@ function replaceFiles(
       return file === undefined ? undefined : replace(file);
     },
     identity: backing.identity,
+    kind: "directory",
     list: async () =>
       (await backing.list()).map((entry) =>
         entry instanceof NodeDirectory

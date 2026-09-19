@@ -50,7 +50,7 @@ export async function readWikiGraphHomeSchemaVersion(): Promise<number> {
     "core.sqlite",
   );
   if (file === undefined || (await isEmpty(file))) return 0;
-  const database = await Database.open(file, "", { readonly: true });
+  const database = await Database.open(file, "", { mode: "readonly" });
   try {
     if (!(await tableExists(database, "schema_versions"))) return 1;
     return (
@@ -116,7 +116,10 @@ async function upgradeHomeSchemaFromV3ToV4(file: File): Promise<void> {
 }
 
 async function migrateLibraryDirectoryIdentities(file: File): Promise<void> {
-  const database = await Database.open(file);
+  const database = await Database.open(file, "", {
+    create: false,
+    mode: "readwrite",
+  });
   try {
     if (!(await tableExists(database, "libraries"))) return;
     const columns = await readTableColumns(database, "libraries");
@@ -178,7 +181,10 @@ async function writeHomeSchemaVersion(
   file: File,
   version: number,
 ): Promise<void> {
-  const database = await Database.open(file);
+  const database = await Database.open(file, "", {
+    create: true,
+    mode: "readwrite",
+  });
   try {
     await database.execute(HOME_SCHEMA_SQL);
     await database.run(
@@ -278,7 +284,7 @@ async function assertHomeUpgradeSafe(root: Directory): Promise<void> {
 
 async function assertBuildQueueSafe(file: File | undefined): Promise<void> {
   if (file === undefined || (await isEmpty(file))) return;
-  const database = await Database.open(file, "", { readonly: true });
+  const database = await Database.open(file, "", { mode: "readonly" });
   try {
     if (await tableExists(database, "build_worker_lease")) {
       const columns = await readTableColumns(database, "build_worker_lease");
@@ -313,7 +319,7 @@ async function assertCoordinatorInactive(
   label: string,
 ): Promise<void> {
   if (file === undefined || (await isEmpty(file))) return;
-  const database = await Database.open(file, "", { readonly: true });
+  const database = await Database.open(file, "", { mode: "readonly" });
   try {
     if (await tableExists(database, "archive_owners")) {
       const columns = await readTableColumns(database, "archive_owners");
@@ -381,7 +387,7 @@ async function assertNoFreshRows(
   tables: readonly (readonly [string, string])[],
 ): Promise<void> {
   if (file === undefined || (await isEmpty(file))) return;
-  const database = await Database.open(file, "", { readonly: true });
+  const database = await Database.open(file, "", { mode: "readonly" });
   try {
     for (const [table, message] of tables) {
       if (!(await tableExists(database, table))) continue;

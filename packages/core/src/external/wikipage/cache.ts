@@ -69,7 +69,10 @@ export class WikipageCache implements EnrichmentStore {
             "cache/cache.sqlite",
             WIKIPAGE_CACHE_SCHEMA_SQL,
           )
-        : await Database.open(file, WIKIPAGE_CACHE_SCHEMA_SQL);
+        : await Database.open(file, WIKIPAGE_CACHE_SCHEMA_SQL, {
+            create: true,
+            mode: "readwrite",
+          });
 
     try {
       await migrateWikipageCacheSchema(database);

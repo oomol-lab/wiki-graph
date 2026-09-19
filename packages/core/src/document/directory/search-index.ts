@@ -40,32 +40,35 @@ async function openSearchIndexDatabaseLocked<T>(input: {
     !shouldInitialize &&
     !(await isSearchIndexDatabaseCompatible(databasePath))
   ) {
-    await deleteSearchIndexDatabaseFile(input.fileStore, input.documentPath);
     if (input.readonly) {
       throw new Error("Search index cache is missing: index.db");
     }
+    await deleteSearchIndexDatabaseFile(input.fileStore, input.documentPath);
     databasePath = await input.fileStore.resolveSearchIndexDatabasePath(
       input.documentPath,
     );
     shouldInitialize = true;
   }
 
-  const database = await Database.open(
-    databasePath,
-    shouldInitialize ? SEARCH_INDEX_SCHEMA_SQL : "",
-    {
-      onWrite: () => {
-        input.fileStore.markSearchIndexDatabaseDirty?.();
-      },
-      readonly: input.readonly,
-    },
-  );
-
-  if (!input.readonly) {
-    await migrateSearchIndexSchema(database);
-  }
+  const onWrite = () => {
+    input.fileStore.markSearchIndexDatabaseDirty?.();
+  };
+  const database = input.readonly
+    ? await Database.open(databasePath, "", { mode: "readonly", onWrite })
+    : await Database.open(
+        databasePath,
+        shouldInitialize ? SEARCH_INDEX_SCHEMA_SQL : "",
+        {
+          create: shouldInitialize,
+          mode: "readwrite",
+          onWrite,
+        },
+      );
 
   try {
+    if (!input.readonly) {
+      await migrateSearchIndexSchema(database);
+    }
     return await input.operation(database);
   } finally {
     await database.close();
@@ -104,7 +107,7 @@ async function isSearchIndexDatabaseCompatible(
   databasePath: File,
 ): Promise<boolean> {
   const database = await Database.open(databasePath, "", {
-    readonly: true,
+    mode: "readonly",
   }).catch(() => undefined);
 
   if (database === undefined) {

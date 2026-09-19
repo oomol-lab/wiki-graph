@@ -45,7 +45,7 @@ import {
   installWikiGraphPlatform,
   WikiGraph,
   type Directory,
-  type File,
+  type ReadonlyFile,
   type WikiGraphPlatform,
 } from "wiki-graph-core";
 
@@ -57,27 +57,32 @@ const storage = {
 };
 const wikiGraph = new WikiGraph({ storage });
 
-const archive = myArchiveFile satisfies File;
+const archive = myArchiveFile satisfies ReadonlyFile;
 await wikiGraph.openSession(archive, (session) => session.readMeta());
 ```
 
 `File`/`Directory` are platform primitives. Core never interprets their URI or
 absolute path; browser and extension hosts can back them with IndexedDB,
 OPFS, or another scoped store. The `wiki-graph` CLI supplies the Node adapter.
-Each `File.identity` and `Directory.identity` is a stable, opaque coordination
-key—not a path or URI.
-Hosts implement four independent `File` access modes: `read()` reads the
-complete file; `openReader()` returns a bounded byte-range reader; `write()`
-appends sequential data to a transactional writer; and `writeAt()` writes bytes
-at an absolute offset in that writer. A reader rejects ranges outside its
-reported size. A writer publishes its complete snapshot only on `commit()` and
-discards it on `abort()`; positioned writes do not advance its sequential
-write position. ZIP and SQLite remain separate platform providers, so their
-storage strategies are chosen by the host rather than by `File`.
+Each external `File.identity` and `Directory.identity` is a stable, opaque
+coordination key—not a path or URI. Registered library folders are external
+capabilities because they can be rebound. Core-managed resources are persisted
+as a storage-root-relative locator instead: build-job resources are relative
+to `library`, and archive workspace snapshots are relative to `documentStore`.
+`File` and `Directory` have a required `kind` discriminant and a single optional
+asynchronous mtime query. `ReadonlyFile` supplies a bounded snapshot reader;
+its reader is the only source of snapshot size. `File` adds a transactional
+writer. Whole-file `read()` and text encoding are not storage primitives: Core
+helpers read small control files through the range reader and decode text above
+the storage layer. A reader rejects ranges outside its reported snapshot size.
+A writer publishes only on `commit()` and discards on `abort()`; `writeAt()`
+does not advance sequential `write()`. ZIP and SQLite remain separate providers.
+Database opens use explicit `{ mode, create }` options, so readonly opens never
+create files.
 Archive SQLite workspaces are created only below the supplied `documentStore`
 and are removed after the archive session settles. Derived search indexes are
-kept there as persistent caches under opaque, path-free keys; they remain
-outside the `.wikg` archive and can be rebuilt at any time.
+kept there as persistent caches addressed relative to that storage root; they
+remain outside the `.wikg` archive and can be rebuilt at any time.
 `WikiGraphPlatform` is process-wide host infrastructure for async context,
 database, ZIP, resource resolution, and execution-liveness operations, so an
 application installs it once after import. Its ZIP reader lists entry names and
@@ -94,7 +99,7 @@ storage roots belong to each `WikiGraph` instance and remain isolated when
 instances run concurrently.
 
 ```ts
-import { WikiGraph, type File } from "wiki-graph-core";
+import { WikiGraph, type File, type ReadonlyFile } from "wiki-graph-core";
 
 const wikiGraph = new WikiGraph({ storage });
 const outputArchive = myOutputArchiveFile satisfies File;
@@ -110,7 +115,8 @@ await wikiGraph.digestTextStreamSession(
   },
 );
 
-await wikiGraph.openSession(outputArchive, async (archive) => {
+const readableArchive: ReadonlyFile = outputArchive;
+await wikiGraph.openSession(readableArchive, async (archive) => {
   console.log(await archive.readMeta());
 });
 ```

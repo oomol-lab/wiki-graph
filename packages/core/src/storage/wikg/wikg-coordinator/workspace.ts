@@ -1,6 +1,7 @@
 import {
   ensureRelativeDirectory,
   getRelativeDirectory,
+  getRelativeFile,
   getWikiGraphStorage,
   resolveHostFile,
   type File,
@@ -27,8 +28,17 @@ export async function createWorkspaceSnapshot(
 }
 
 export async function resolveWorkspaceSnapshot(
-  identity: string,
+  identity: string | undefined,
+  relativePath?: string,
 ): Promise<File | undefined> {
+  if (relativePath !== undefined) {
+    const managed = await getRelativeFile(
+      getWikiGraphStorage().documentStore,
+      relativePath,
+    );
+    if (managed !== undefined) return managed;
+  }
+  if (identity === undefined) return undefined;
   try {
     return await resolveHostFile(identity);
   } catch {

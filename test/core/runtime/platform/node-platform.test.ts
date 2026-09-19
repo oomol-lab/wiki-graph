@@ -15,7 +15,12 @@ import type {
   FileWriter,
   HostZipEntry,
 } from "../../../../packages/core/src/runtime/platform/index.js";
-import { copyFileContent } from "../../../../packages/core/src/runtime/platform/index.js";
+import {
+  appendFileText,
+  copyFileContent,
+  readFileBytes,
+  readFileText,
+} from "../../../../packages/core/src/runtime/platform/index.js";
 import { withTempDir } from "../../../helpers/temp.js";
 
 describe("Node File/Directory adapter", () => {
@@ -48,9 +53,7 @@ describe("Node File/Directory adapter", () => {
       const stored = await directory.getFile("chapter.txt");
       expect(stored).toBeDefined();
       expect(stored!.name).toBe("chapter.txt");
-      await expect(stored!.read({ encoding: "utf8" })).resolves.toBe(
-        "chapter one",
-      );
+      await expect(readFileText(stored!)).resolves.toBe("chapter one");
     });
   });
 
@@ -89,9 +92,7 @@ describe("Node File/Directory adapter", () => {
       );
       await writer.commit();
 
-      expect(Array.from((await file.read()) as Uint8Array)).toEqual([
-        0, 2, 3, 4, 5, 6,
-      ]);
+      expect(Array.from(await readFileBytes(file))).toEqual([0, 2, 3, 4, 5, 6]);
     });
   });
 
@@ -104,13 +105,14 @@ describe("Node File/Directory adapter", () => {
       await writer.commit();
       const failingFile: File = {
         identity: backing.identity,
+        kind: "file",
         name: backing.name,
         openReader: () => Promise.reject(new Error("reader unavailable")),
         openWriter: async () => await backing.openWriter(),
-        read: async (options) => await backing.read(options),
       };
       const directory: Directory = {
         identity: root.identity,
+        kind: "directory",
         name: root.name,
         createDirectory: async (name) => await root.createDirectory(name),
         createFile: async (name) => await root.createFile(name),
@@ -125,9 +127,7 @@ describe("Node File/Directory adapter", () => {
       await expect(
         store.appendFile("text.txt", new TextEncoder().encode(" appended")),
       ).rejects.toThrow("reader unavailable");
-      await expect(backing.read({ encoding: "utf8" })).resolves.toBe(
-        "original",
-      );
+      await expect(readFileText(backing)).resolves.toBe("original");
     });
   });
 
@@ -137,13 +137,14 @@ describe("Node File/Directory adapter", () => {
       const backing = await root.createFile("text.txt");
       const file: File = {
         identity: backing.identity,
+        kind: "file",
         name: backing.name,
         openReader: async () => await backing.openReader(),
         openWriter: async () => await backing.openWriter(),
-        read: () => Promise.reject(new Error("whole-file read is forbidden")),
       };
       const directory: Directory = {
         identity: root.identity,
+        kind: "directory",
         name: root.name,
         createDirectory: async (name) => await root.createDirectory(name),
         createFile: () => Promise.resolve(file),
@@ -159,9 +160,7 @@ describe("Node File/Directory adapter", () => {
       await store.appendFile("text.txt", new TextEncoder().encode(" world"));
 
       await expect(store.getFileSize("text.txt")).resolves.toBe(12);
-      await expect(backing.read({ encoding: "utf8" })).resolves.toBe(
-        "你好 world",
-      );
+      await expect(readFileText(backing)).resolves.toBe("你好 world");
     });
   });
 
@@ -169,6 +168,7 @@ describe("Node File/Directory adapter", () => {
     let closed = false;
     const source: File = {
       identity: "source",
+      kind: "file",
       name: "source",
       openReader: () =>
         Promise.resolve({
@@ -180,17 +180,40 @@ describe("Node File/Directory adapter", () => {
           size: 0,
         }),
       openWriter: () => Promise.reject(new Error("unused")),
-      read: () => Promise.resolve(new Uint8Array()),
     };
     const target: File = {
       identity: "target",
+      kind: "file",
       name: "target",
       openReader: () => Promise.reject(new Error("unused")),
       openWriter: () => Promise.reject(new Error("writer unavailable")),
-      read: () => Promise.resolve(new Uint8Array()),
     };
 
     await expect(copyFileContent(source, target)).rejects.toThrow(
+      "writer unavailable",
+    );
+    expect(closed).toBe(true);
+  });
+
+  it("closes the append reader when the writer cannot open", async () => {
+    let closed = false;
+    const file: File = {
+      identity: "append",
+      kind: "file",
+      name: "append",
+      openReader: () =>
+        Promise.resolve({
+          close: () => {
+            closed = true;
+            return Promise.resolve();
+          },
+          read: () => Promise.resolve(new Uint8Array()),
+          size: 0,
+        }),
+      openWriter: () => Promise.reject(new Error("writer unavailable")),
+    };
+
+    await expect(appendFileText(file, "next")).rejects.toThrow(
       "writer unavailable",
     );
     expect(closed).toBe(true);
@@ -225,7 +248,10 @@ describe("Node File/Directory adapter", () => {
     await withTempDir("wikigraph-host-services-", async (path) => {
       const root = new NodeDirectory(path);
       const databaseFile = await root.createFile("host.sqlite");
-      const database = await nodeWikiGraphPlatform.database.open(databaseFile);
+      const database = await nodeWikiGraphPlatform.database.open(databaseFile, {
+        create: true,
+        mode: "readwrite",
+      });
       try {
         await database.execute("CREATE TABLE records (value TEXT NOT NULL)");
         await database.run("INSERT INTO records (value) VALUES (?)", ["ok"]);
@@ -467,10 +493,10 @@ function createWriterProbe(
   };
   const file: File = {
     identity: "writer-probe",
+    kind: "file",
     name: "probe.zip",
     openReader: () => Promise.reject(new Error("not used")),
     openWriter: () => Promise.resolve(writer),
-    read: () => Promise.resolve(new Uint8Array()),
   };
   return {
     get abortCalls() {

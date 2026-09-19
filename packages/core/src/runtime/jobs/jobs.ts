@@ -5,6 +5,10 @@ import {
   createJobEvents,
   createJobLog,
   createJobWorkspace,
+  getJobCachePath,
+  getJobEventsPath,
+  getJobLogPath,
+  getJobWorkspacePath,
 } from "./paths.js";
 import { createArchiveKey } from "./helpers.js";
 import { BuildJobStoppedError } from "./progress.js";
@@ -56,10 +60,12 @@ export async function addBuildJob(
       }
 
       const jobId = options.jobId ?? randomUuid();
-      const workspace = await createJobWorkspace(jobId);
-      const cache = await createJobCache(jobId);
-      const log = await createJobLog(jobId);
-      const events = await createJobEvents(jobId);
+      await Promise.all([
+        createJobWorkspace(jobId),
+        createJobCache(jobId),
+        createJobLog(jobId),
+        createJobEvents(jobId),
+      ]);
       const queueRank =
         options.boost === true
           ? (await readMinQueueRank(state)) - 1
@@ -80,10 +86,10 @@ INSERT INTO build_jobs (
           options.chapterId,
           options.target,
           queueRank,
-          workspace.identity,
-          cache.identity,
-          log.identity,
-          events.identity,
+          getJobWorkspacePath(jobId),
+          getJobCachePath(jobId),
+          getJobLogPath(jobId),
+          getJobEventsPath(jobId),
           options.llmJSON ?? null,
           options.prompt ?? null,
           now,

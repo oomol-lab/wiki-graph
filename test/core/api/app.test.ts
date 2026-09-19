@@ -325,10 +325,10 @@ describe("facade/app", () => {
 function createUnreadFile(name: string): File {
   return {
     identity: `test:${name}`,
+    kind: "file",
     name,
     openReader: () => Promise.reject(new Error("not used")),
     openWriter: () => Promise.reject(new Error("not used")),
-    read: () => Promise.reject(new Error("not used")),
   };
 }
 
@@ -341,6 +341,7 @@ function createStorage(name: string): WikiGraphStorage {
 
 class MemoryDirectory implements Directory {
   public readonly identity: string;
+  public readonly kind = "directory" as const;
   public readonly name: string;
 
   public constructor(name: string) {

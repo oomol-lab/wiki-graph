@@ -1,15 +1,21 @@
-/** A host-owned file whose identity remains opaque to Core. */
-export interface File {
+/** A host-owned resource capability whose identity remains opaque to Core. */
+export interface Entry {
   /** Stable opaque identity used only for coordination; it must not be a path. */
   readonly identity: string;
   /** Logical entry name only; never a URI or operating-system path. */
   readonly name: string;
-  readonly size?: number;
-  readonly lastModified?: number;
-  getSize?(): Promise<number>;
+  readonly kind: "directory" | "file";
   getLastModified?(): Promise<number | undefined>;
-  read(options?: { readonly encoding?: string }): Promise<Uint8Array | string>;
+}
+
+/** A host-owned read capability whose identity remains opaque to Core. */
+export interface ReadonlyFile extends Entry {
+  readonly kind: "file";
   openReader(): Promise<FileReader>;
+}
+
+/** Writable host file capability. */
+export interface File extends ReadonlyFile {
   openWriter(): Promise<FileWriter>;
 }
 
@@ -38,12 +44,8 @@ export interface FileWriter {
 }
 
 /** Directory tree supplied by the host. Only relative child names are used. */
-export interface Directory {
-  /** Stable opaque identity used only for coordination; it must not be a path. */
-  readonly identity: string;
-  readonly name: string;
-  readonly lastModified?: number;
-  getLastModified?(): Promise<number | undefined>;
+export interface Directory extends Entry {
+  readonly kind: "directory";
   getFile(name: string): Promise<File | undefined>;
   getDirectory(name: string): Promise<Directory | undefined>;
   list(): Promise<ReadonlyArray<File | Directory>>;
@@ -100,10 +102,24 @@ export interface HostDatabaseConnection {
   run(sql: string, params?: readonly HostDatabaseValue[]): Promise<void>;
 }
 
+export type HostDatabaseOpenOptions =
+  | { readonly mode: "readonly" }
+  | { readonly mode: "readwrite"; readonly create: boolean };
+
 export interface HostDatabaseProvider {
+  /**
+   * Returns a connection handle owned exclusively by this open call. Core
+   * closes that handle exactly once. Providers may share an underlying
+   * database session only when their handles are independently reference
+   * counted, so closing one owner cannot invalidate another owner.
+   */
+  open(
+    file: ReadonlyFile,
+    options: { readonly mode: "readonly" },
+  ): Promise<HostDatabaseConnection>;
   open(
     file: File,
-    options?: { readonly readonly?: boolean },
+    options: { readonly mode: "readwrite"; readonly create: boolean },
   ): Promise<HostDatabaseConnection>;
 }
 
@@ -122,7 +138,7 @@ export interface HostZipRangeEntry {
 export type HostZipWriteEntry =
   | HostZipEntry
   | HostZipRangeEntry
-  | { readonly file: File; readonly name: string };
+  | { readonly file: ReadonlyFile; readonly name: string };
 
 /** Lazily reads entries from one host-owned ZIP archive. */
 export interface HostZipReader {
@@ -141,7 +157,7 @@ export interface HostZipReader {
 }
 
 export interface HostZipProvider {
-  open(file: File): Promise<HostZipReader>;
+  open(file: ReadonlyFile): Promise<HostZipReader>;
   /** Writes entries while allowing large payloads to remain file-backed. */
   write(
     file: File,

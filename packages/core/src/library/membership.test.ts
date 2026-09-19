@@ -243,13 +243,8 @@ describe("library archive membership", () => {
       const source = join(tempDir, "source.wikg");
       await writeFile(source, "content");
 
-      class RangeOnlyNodeFile extends NodeFile {
-        public override async read(): Promise<Uint8Array | string> {
-          throw new Error("whole-file read is not allowed");
-        }
-      }
       const added = await addWikiGraphLibraryArchive({
-        inputFile: new RangeOnlyNodeFile(source),
+        inputFile: new NodeFile(source),
         target: target!,
         to: "nested/book.wikg",
       });
@@ -1129,6 +1124,7 @@ async function insertStaleStateLock(libraryId: number): Promise<void> {
         PRIMARY KEY (scope, resource_key, owner_id)
       );
     `,
+    { create: true, mode: "readwrite" },
   );
 
   try {

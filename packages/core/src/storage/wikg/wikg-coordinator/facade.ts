@@ -1,5 +1,5 @@
 import type { DocumentFileStore } from "../../../document/directory/index.js";
-import type { File } from "../../../runtime/platform/index.js";
+import type { ReadonlyFile } from "../../../runtime/platform/index.js";
 
 import {
   HostWikgArchiveSession,
@@ -10,7 +10,7 @@ import type { WorkspaceWritebackPolicy } from "./types.js";
 /** Coordinates archive access without observing the host File implementation. */
 export class WikgCoordinator {
   public createFileStore(
-    _archive: File,
+    _archive: ReadonlyFile,
     options: {
       readonly readonlyDatabase?: boolean;
       readonly searchIndexWritebackPolicy?: WorkspaceWritebackPolicy;
@@ -24,7 +24,7 @@ export class WikgCoordinator {
   }
 
   public async withArchiveSession<T>(
-    archive: File,
+    archive: ReadonlyFile,
     operation: (session: HostWikgArchiveSession) => Promise<T> | T,
   ): Promise<T> {
     return await withHostArchiveSession(archive, operation);

@@ -1,4 +1,4 @@
-import type { File } from "../../runtime/platform/index.js";
+import type { File, ReadonlyFile } from "../../runtime/platform/index.js";
 
 import { DirectoryDocument } from "../../document/index.js";
 import { WikiGraphArchive } from "../../api/wiki-graph-archive.js";
@@ -12,11 +12,11 @@ import type { HostWikgArchiveSession } from "./wikg-coordinator/host-session.js"
 const archiveFileQueues = new Map<string, Promise<void>>();
 
 /** A .wikg archive exposed to Core as an opaque host File capability. */
-export class WikiGraphArchiveFile {
-  readonly #file: File;
+export class WikiGraphArchiveFile<TFile extends ReadonlyFile = ReadonlyFile> {
+  readonly #file: TFile;
   readonly #coordinator = new WikgCoordinator();
 
-  public constructor(file: File) {
+  public constructor(file: TFile) {
     this.#file = file;
   }
 
@@ -58,11 +58,13 @@ export class WikiGraphArchiveFile {
   }
 
   public async write<T>(
+    this: WikiGraphArchiveFile<File>,
     operation: (document: DirectoryDocument) => Promise<T> | T,
     options: { readonly searchIndexWritebackPolicy?: "archive" | "cache" } = {},
   ): Promise<T> {
+    const file = requireWritableFile(this.#file);
     return await withSerializedArchiveFileSession(
-      this.#file,
+      file,
       this.#coordinator,
       async (session) => {
         const fileStore = session.createFileStore({
@@ -87,8 +89,22 @@ export class WikiGraphArchiveFile {
   }
 }
 
+function requireWritableFile(file: ReadonlyFile): File {
+  if (!isWritableFile(file)) {
+    throw new TypeError("Archive write requires a writable File capability.");
+  }
+  return file;
+}
+
+function isWritableFile(file: ReadonlyFile): file is File {
+  return (
+    "openWriter" in file &&
+    typeof (file as Partial<File>).openWriter === "function"
+  );
+}
+
 async function withSerializedArchiveFileSession<T>(
-  file: File,
+  file: ReadonlyFile,
   coordinator: WikgCoordinator,
   operation: (session: HostWikgArchiveSession) => Promise<T> | T,
 ): Promise<T> {
@@ -99,7 +115,7 @@ async function withSerializedArchiveFileSession<T>(
 }
 
 async function withSerializedArchiveFileAccess<T>(
-  file: File,
+  file: ReadonlyFile,
   operation: () => Promise<T>,
 ): Promise<T> {
   const identity = file.identity;

@@ -1,6 +1,6 @@
 import { mkdir, rename } from "fs/promises";
 import { join } from "path";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 
 import { DirectoryDocument } from "../../../../packages/core/src/document/index.js";
 import { WikiGraphArchiveFile } from "../../../../packages/core/src/storage/wikg/wiki-graph-archive-file.js";
@@ -11,6 +11,7 @@ import {
 import { replaceChapterFtsIndexArtifact } from "../../../../packages/core/src/retrieval/index-artifact/index.js";
 import {
   isArchiveSearchIndexCurrent,
+  listArchiveEvidence,
   rebuildArchiveSearchIndex,
 } from "../../../../packages/core/src/retrieval/query/index.js";
 import { readArchivePage } from "../../../../packages/core/src/retrieval/query/view.js";
@@ -159,43 +160,121 @@ describe("wikg/wiki-graph-archive-file", () => {
           },
         });
 
-        // eslint-disable-next-line @typescript-eslint/unbound-method -- the mock restores the original receiver with call().
-        const originalRead = NodeFile.prototype.read;
-        const read = vi
-          .spyOn(NodeFile.prototype, "read")
-          .mockImplementation(function (this: NodeFile, options) {
-            if (this.path === archive.path) {
-              return Promise.reject(
-                new Error(`Whole archive file read: ${this.path}`),
-              );
-            }
-            return originalRead.call(this, options);
-          });
-        try {
-          const file = new WikiGraphArchiveFile(archive);
-          await expect(
-            file.readDocument(
-              async (document) =>
-                await readArchivePage(
-                  document,
-                  "wikg://chapter/chapter/source#2",
-                ),
-            ),
-          ).resolves.toMatchObject({
-            fragment: { text: target },
-          });
-          expect(textRangeBytesRead).toBe(
-            new TextEncoder().encode(target).length,
-          );
-        } finally {
-          read.mockRestore();
-        }
+        const file = new WikiGraphArchiveFile(archive);
+        await expect(
+          file.readDocument(
+            async (document) =>
+              await readArchivePage(
+                document,
+                "wikg://chapter/chapter/source#2",
+              ),
+          ),
+        ).resolves.toMatchObject({
+          fragment: { text: target },
+        });
+        expect(textRangeBytesRead).toBe(
+          new TextEncoder().encode(target).length,
+        );
       },
       {
         sentences: [
           [prefix, 1],
           [target, 4],
         ],
+      },
+    );
+  });
+
+  it("keeps public retrieval bounded when archive text rejects whole-entry reads", async () => {
+    await withArchiveFixture(
+      async ({ archive }) => {
+        const initialReader = await nodeWikiGraphPlatform.zip.open(archive);
+        const textEntries = new Set(
+          (await initialReader.listEntries()).filter((entry) =>
+            entry.startsWith("texts/"),
+          ),
+        );
+        await initialReader.close();
+        expect(textEntries.size).toBeGreaterThan(0);
+
+        installWikiGraphPlatform({
+          ...nodeWikiGraphPlatform,
+          zip: {
+            ...nodeWikiGraphPlatform.zip,
+            open: async (file) => {
+              const reader = await nodeWikiGraphPlatform.zip.open(file);
+              return {
+                close: async () => await reader.close(),
+                copyEntry: async (name, destination) => {
+                  if (textEntries.has(name)) {
+                    throw new Error(`Whole text entry copied: ${name}`);
+                  }
+                  return await reader.copyEntry(name, destination);
+                },
+                getEntrySize: async (name) => await reader.getEntrySize(name),
+                listEntries: async () => await reader.listEntries(),
+                readEntry: async (name) => {
+                  if (textEntries.has(name)) {
+                    throw new Error(`Whole text entry read: ${name}`);
+                  }
+                  return await reader.readEntry(name);
+                },
+                readEntryRange: async (name, offset, length) =>
+                  await reader.readEntryRange(name, offset, length),
+              };
+            },
+          },
+        });
+
+        await new WikiGraphArchiveFile(archive).readDocument(
+          async (document) => {
+            for (const uri of [
+              "wikg://chunk/100",
+              "wikg://entity/Q1",
+              "wikg://triple/Q1/mentions/Q2",
+              "wikg://entity/Q3",
+            ]) {
+              await expect(
+                listArchiveEvidence(document, uri, { sourceContext: 0 }),
+              ).resolves.toMatchObject({
+                items: [{ type: "source" }],
+              });
+            }
+            await expect(
+              readArchivePage(document, "node:100"),
+            ).resolves.toMatchObject({
+              sourceFragments: [{ text: "Bounded archive source." }],
+              type: "node",
+            });
+            const sourcePage = await readArchivePage(
+              document,
+              "wikg://chapter/chapter/source#1",
+              {
+                backlinks: true,
+              },
+            );
+            expect(sourcePage).toHaveProperty("backlinks");
+            if (
+              !("backlinks" in sourcePage) ||
+              sourcePage.backlinks === undefined
+            ) {
+              throw new Error("Expected source backlinks.");
+            }
+            expect(
+              sourcePage.backlinks.chunks.items.map((item) => item.id),
+            ).toContain("node:100");
+            expect(
+              sourcePage.backlinks.entities.items.map((item) => item.id),
+            ).toContain("wikg://entity/Q1");
+            expect(
+              sourcePage.backlinks.triples.items.map((item) => item.id),
+            ).toContain("wikg://triple/Q1/mentions/Q2");
+          },
+        );
+      },
+      {
+        seedRetrieval: true,
+        sentences: [["Bounded archive source.", 3]],
       },
     );
   });
@@ -467,6 +546,7 @@ async function withArchiveFixture(
     readonly root: string;
   }) => Promise<void>,
   options: {
+    readonly seedRetrieval?: boolean;
     readonly sentences?: ReadonlyArray<readonly [text: string, words: number]>;
   } = {},
 ): Promise<void> {
@@ -491,6 +571,53 @@ async function withArchiveFixture(
               draft.addSentence(text, words);
             }
             await draft.commit();
+            if (options.seedRetrieval === true) {
+              await openedDocument.chunks.save({
+                content: "Bounded node summary.",
+                generation: 0,
+                id: 100,
+                label: "Bounded node",
+                sentenceId: [1, 0],
+                sentenceIds: [[1, 0]],
+                wordsCount: 3,
+                weight: 1,
+              });
+              await openedDocument.mentions.saveMany([
+                {
+                  chapterId: 1,
+                  id: "bounded-source",
+                  qid: "Q1",
+                  rangeEnd: 7,
+                  rangeStart: 0,
+                  sentenceIndex: 0,
+                  surface: "Bounded",
+                },
+                {
+                  chapterId: 1,
+                  id: "bounded-target",
+                  qid: "Q2",
+                  rangeEnd: 14,
+                  rangeStart: 8,
+                  sentenceIndex: 0,
+                  surface: "archive",
+                },
+                {
+                  chapterId: 1,
+                  id: "legacy-offset-only",
+                  qid: "Q3",
+                  rangeEnd: 22,
+                  rangeStart: 16,
+                  surface: "source",
+                },
+              ]);
+              await openedDocument.mentionLinks.save({
+                evidenceSentenceIds: [[1, 0]],
+                id: "bounded-link",
+                predicate: "mentions",
+                sourceMentionId: "bounded-source",
+                targetMentionId: "bounded-target",
+              });
+            }
           });
           await document.writeToc({
             items: [

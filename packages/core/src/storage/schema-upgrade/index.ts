@@ -8,6 +8,9 @@ import {
   ensureRelativeDirectory,
   getWikiGraphPlatform,
   getWikiGraphStorage,
+  isDirectory,
+  readFileBytes,
+  readFileText,
   readHostZipEntries,
   resolveHostFile,
   type Directory,
@@ -191,14 +194,8 @@ async function mergeWorkspaceEntries(
 ): Promise<void> {
   for (const child of await root.list()) {
     const name = prefix === "" ? child.name : `${prefix}/${child.name}`;
-    if ("read" in child) {
-      const content = await child.read();
-      entries.set(
-        name,
-        typeof content === "string"
-          ? new TextEncoder().encode(content)
-          : content,
-      );
+    if (!isDirectory(child)) {
+      entries.set(name, await readFileBytes(child));
     } else {
       await mergeWorkspaceEntries(entries, child, name);
     }
@@ -208,11 +205,9 @@ async function mergeWorkspaceEntries(
 async function repairChapterToc(workspace: Directory): Promise<boolean> {
   const tocFile = await workspace.getFile("toc.json");
   if (tocFile === undefined) return false;
-  const content = await tocFile.read({ encoding: "utf8" });
+  const content = await readFileText(tocFile);
   try {
-    const raw = JSON.parse(
-      typeof content === "string" ? content : new TextDecoder().decode(content),
-    ) as unknown;
+    const raw = JSON.parse(content) as unknown;
     if (!isMutableTocFile(raw)) return false;
     const mutable = normalizeLegacyToc(raw);
     if (!ensureChapterKeys(mutable.items)) return false;

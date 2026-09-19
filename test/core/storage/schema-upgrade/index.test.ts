@@ -145,7 +145,7 @@ describe("schema-upgrade", () => {
       await writer.write(databaseBytes!);
       await writer.commit();
       const database = await Database.open(databaseFile, "", {
-        readonly: true,
+        mode: "readonly",
       });
       try {
         const artifactColumns = await database.queryAll(
@@ -370,7 +370,7 @@ describe("schema-upgrade", () => {
           const database = await Database.open(
             new NodeFile(join(statePath, "core.sqlite")),
             "",
-            { readonly: true },
+            { mode: "readonly" },
           );
           try {
             const columns = await database.queryAll(
@@ -486,7 +486,10 @@ describe("schema-upgrade", () => {
           await expect(readWikiGraphHomeSchemaVersion()).resolves.toBe(3);
 
           const file = new NodeFile(join(statePath, "core.sqlite"));
-          const database = await Database.open(file);
+          const database = await Database.open(file, "", {
+            create: false,
+            mode: "readwrite",
+          });
           try {
             await expect(
               database.queryOne(
@@ -560,7 +563,7 @@ describe("schema-upgrade", () => {
             const database = await Database.open(
               new NodeFile(join(statePath, "core.sqlite")),
               "",
-              { readonly: true },
+              { mode: "readonly" },
             );
             try {
               const columns = await database.queryAll(
@@ -630,7 +633,7 @@ describe("schema-upgrade", () => {
           const database = await Database.open(
             new NodeFile(join(statePath, "core.sqlite")),
             "",
-            { readonly: true },
+            { mode: "readonly" },
           );
           try {
             const columns = await database.queryAll(
@@ -661,6 +664,8 @@ describe("schema-upgrade", () => {
       await mkdir(join(statePath, "jobs"), { recursive: true });
       const jobs = await Database.open(
         new NodeFile(join(statePath, "jobs/job.sqlite")),
+        "",
+        { create: true, mode: "readwrite" },
       );
       try {
         await jobs.execute(`
@@ -705,6 +710,8 @@ describe("schema-upgrade", () => {
       await mkdir(join(statePath, "jobs"), { recursive: true });
       const jobs = await Database.open(
         new NodeFile(join(statePath, "jobs/job.sqlite")),
+        "",
+        { create: true, mode: "readwrite" },
       );
       try {
         await jobs.execute(`
@@ -746,6 +753,8 @@ describe("schema-upgrade", () => {
       await mkdir(statePath, { recursive: true });
       const database = await Database.open(
         new NodeFile(join(statePath, "core.sqlite")),
+        "",
+        { create: true, mode: "readwrite" },
       );
       try {
         await database.execute(`
@@ -819,7 +828,7 @@ describe("schema-upgrade", () => {
       const coordinator = await Database.open(
         new NodeFile(join(statePath, "tmp/wikg-coordinator.sqlite")),
         "",
-        { readonly: true },
+        { mode: "readonly" },
       );
       try {
         await expect(
@@ -919,7 +928,10 @@ async function removeSourceArtifactShortUidColumn(
 
   const databasePath = join(root, "v3-database.db");
   await writeFile(databasePath, databaseEntry.data);
-  const database = await Database.open(new NodeFile(databasePath));
+  const database = await Database.open(new NodeFile(databasePath), "", {
+    create: false,
+    mode: "readwrite",
+  });
   try {
     await database.execute(`
       PRAGMA foreign_keys = OFF;
@@ -963,7 +975,10 @@ async function removeTextCharacterColumns(
   }
   const databasePath = join(root, "v4-database.db");
   await writeFile(databasePath, databaseEntry.data);
-  const database = await Database.open(new NodeFile(databasePath));
+  const database = await Database.open(new NodeFile(databasePath), "", {
+    create: false,
+    mode: "readwrite",
+  });
   try {
     await database.execute(`
       ALTER TABLE text_sentence_records DROP COLUMN character_offset;
@@ -1007,6 +1022,8 @@ async function createV3Home(
   await mkdir(statePath, { recursive: true });
   const database = await Database.open(
     new NodeFile(join(statePath, "core.sqlite")),
+    "",
+    { create: true, mode: "readwrite" },
   );
   try {
     await database.execute(`
@@ -1078,6 +1095,7 @@ function failFirstDirectoryList(directory: Directory): Directory {
     getDirectory: async (name) => await directory.getDirectory(name),
     getFile: async (name) => await directory.getFile(name),
     identity: directory.identity,
+    kind: "directory",
     list: async () => {
       if (shouldFail) {
         shouldFail = false;
@@ -1105,6 +1123,8 @@ async function createDerivedHomeState(statePath: string): Promise<void> {
   await mkdir(join(statePath, "jobs"), { recursive: true });
   const jobs = await Database.open(
     new NodeFile(join(statePath, "jobs/job.sqlite")),
+    "",
+    { create: true, mode: "readwrite" },
   );
   try {
     await jobs.execute(`
@@ -1124,6 +1144,8 @@ async function createDerivedHomeState(statePath: string): Promise<void> {
   await mkdir(join(statePath, "staging"), { recursive: true });
   const legacy = await Database.open(
     new NodeFile(join(statePath, "staging/staging.sqlite")),
+    "",
+    { create: true, mode: "readwrite" },
   );
   try {
     await legacy.execute(`
@@ -1156,6 +1178,8 @@ async function seedCurrentCoordinator(
   await mkdir(join(statePath, "tmp"), { recursive: true });
   const database = await Database.open(
     new NodeFile(join(statePath, "tmp/wikg-coordinator.sqlite")),
+    "",
+    { create: true, mode: "readwrite" },
   );
   const archiveKey = createPortableHash("sha256")
     .update(input.archiveIdentity)

@@ -135,6 +135,14 @@ Hosts that need to accept a v3 home implement the resource adapter's
 `resolveLegacyDirectory` hook; this keeps legacy location syntax outside Core's
 normal file and directory operations.
 
+After v4, registered library folders remain opaque host capabilities because
+the default library can also be rebound. Build queue rows store deterministic
+`library`-root-relative locators for workspace, cache, log, and event resources.
+Opening an older queue migrates those four derived columns in place.
+Coordinator snapshot rows use `documentStore`-relative paths; the old workspace
+identity remains a read-only compatibility fallback for already persisted
+overlays.
+
 Before changing the registry or deleting derived state, the upgrader rejects
 fresh library/state/GC locks, an active build worker lease, and live
 legacy or current coordinator owners. Once those checks pass, cross-version

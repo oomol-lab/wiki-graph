@@ -273,6 +273,7 @@ async function insertStateLock(
   const database = await Database.open(
     databasePath,
     STATE_LOCK_TEST_SCHEMA_SQL,
+    { create: true, mode: "readwrite" },
   );
 
   try {
@@ -299,6 +300,7 @@ async function countStateLocks(databasePath: string): Promise<number> {
   const database = await Database.open(
     databasePath,
     STATE_LOCK_TEST_SCHEMA_SQL,
+    { create: true, mode: "readwrite" },
   );
 
   try {
@@ -318,6 +320,7 @@ async function listStateLockOwnerIds(databasePath: string): Promise<string[]> {
   const database = await Database.open(
     databasePath,
     STATE_LOCK_TEST_SCHEMA_SQL,
+    { create: true, mode: "readwrite" },
   );
 
   try {

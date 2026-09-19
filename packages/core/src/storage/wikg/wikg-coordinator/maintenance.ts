@@ -25,7 +25,7 @@ export async function assertArchiveUpgradeCoordinatorSafe(
   if (state === undefined || (await isEmpty(state))) return;
 
   const archiveKey = createArchiveKey(archive);
-  const database = await Database.open(state, "", { readonly: true });
+  const database = await Database.open(state, "", { mode: "readonly" });
   try {
     if (await tableExists(database, "archive_owners")) {
       const owners = await database.queryAll(
@@ -89,7 +89,10 @@ export async function clearArchiveUpgradeDerivedOverlays(
   if (state === undefined || (await isEmpty(state))) return;
 
   const archiveKey = createArchiveKey(archive);
-  const database = await Database.open(state);
+  const database = await Database.open(state, "", {
+    create: false,
+    mode: "readwrite",
+  });
   try {
     if (!(await tableExists(database, "entry_overlays"))) return;
     const overlays = await database.queryAll(

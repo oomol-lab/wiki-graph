@@ -630,7 +630,10 @@ async function openStateDatabase(
   await mkdir(dirname(join(stateDirPath, databaseName)), {
     recursive: true,
   });
-  return await Database.open(join(stateDirPath, databaseName), schemaSql);
+  return await Database.open(join(stateDirPath, databaseName), schemaSql, {
+    create: true,
+    mode: "readwrite",
+  });
 }
 
 function restoreWikiGraphStateDir(value: string | undefined): void {

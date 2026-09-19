@@ -261,7 +261,7 @@ export async function countStructuredCacheRowsForQuery(
   const database = await Database.open(
     join(statePath, "cache", "search-sessions.sqlite"),
     "",
-    { readonly: true },
+    { mode: "readonly" },
   );
 
   try {
@@ -310,7 +310,7 @@ export async function countSearchSessionsForQuery(
   const database = await Database.open(
     join(statePath, "cache", "search-sessions.sqlite"),
     "",
-    { readonly: true },
+    { mode: "readonly" },
   );
 
   try {

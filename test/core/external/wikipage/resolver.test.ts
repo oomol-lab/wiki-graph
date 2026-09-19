@@ -672,6 +672,7 @@ CREATE TABLE disambiguation_cache (
   checked_at TEXT NOT NULL
 );
 `,
+        { create: true, mode: "readwrite" },
       );
 
       try {
@@ -857,7 +858,10 @@ async function readProfileError(
   cacheDatabasePath: string,
   qid: string,
 ): Promise<Record<string, unknown> | undefined> {
-  const database = await Database.open(cacheDatabasePath);
+  const database = await Database.open(cacheDatabasePath, "", {
+    create: false,
+    mode: "readwrite",
+  });
 
   try {
     const value = await database.queryOne(
@@ -885,7 +889,10 @@ async function expireProfileError(
   cacheDatabasePath: string,
   qid: string,
 ): Promise<void> {
-  const database = await Database.open(cacheDatabasePath);
+  const database = await Database.open(cacheDatabasePath, "", {
+    create: false,
+    mode: "readwrite",
+  });
 
   try {
     await database.run(

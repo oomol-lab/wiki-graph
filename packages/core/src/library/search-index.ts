@@ -836,11 +836,13 @@ class LibraryIndexDocument {
     operation: (database: Database) => Promise<T> | T,
     readonly: boolean,
   ): Promise<T> {
-    const database = await Database.open(
-      await createLibraryIndexDatabaseFile(this.#library),
-      readonly ? "" : SEARCH_INDEX_SCHEMA_SQL,
-      { readonly },
-    );
+    const file = await createLibraryIndexDatabaseFile(this.#library);
+    const database = readonly
+      ? await Database.open(file, "", { mode: "readonly" })
+      : await Database.open(file, SEARCH_INDEX_SCHEMA_SQL, {
+          create: true,
+          mode: "readwrite",
+        });
 
     try {
       return await operation(database);

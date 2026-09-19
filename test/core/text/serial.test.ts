@@ -132,6 +132,52 @@ describe("serial", () => {
     });
   });
 
+  it("resolves fragment boundaries without materializing the text stream", async () => {
+    await withTempDir("wikigraph-serial-fragments-", async (path) => {
+      const initial = await DirectoryDocument.open(path);
+      try {
+        await initial.serials.createWithId(1);
+        const draft = await initial.getSerialFragments(1).createDraft();
+        draft.addSentence("First.", 400);
+        draft.addSentence("Second.", 300);
+        draft.addSentence("Third.", 300);
+        await draft.commit();
+      } finally {
+        await initial.release();
+      }
+
+      class RangeOnlyFileStore extends DirectoryFileStore {
+        public override async readFile(pathname: string) {
+          if (pathname.startsWith("texts/")) {
+            throw new Error("whole-file read is not allowed");
+          }
+          return await super.readFile(pathname);
+        }
+      }
+
+      const document = await DirectoryDocument.openFileStore(
+        new RangeOnlyFileStore(new NodeDirectory(path)),
+      );
+      try {
+        const serial = document.getSerialFragments(1);
+        await expect(serial.listFragmentIds()).resolves.toEqual([0, 1]);
+        await expect(serial.getFragmentRangeForSentence?.(2)).resolves.toEqual({
+          endSentenceIndex: 2,
+          startSentenceIndex: 1,
+        });
+        await expect(serial.getFragment(1)).resolves.toMatchObject({
+          fragmentId: 1,
+          sentences: [{ text: "Second." }, { text: "Third." }],
+        });
+        await expect(serial.getFragment(2)).rejects.toThrow(
+          "Fragment 2 does not exist",
+        );
+      } finally {
+        await document.release();
+      }
+    });
+  });
+
   it("reads late Unicode ranges without scanning the text prefix", async () => {
     await withTempDir("wikigraph-serial-late-range-", async (path) => {
       const prefix = `${"a".repeat(512 * 1024)}.`;
@@ -581,6 +627,7 @@ function wrapMinimalDirectory(backing: NodeDirectory): Directory {
       return file === undefined ? undefined : wrapMinimalFile(file as NodeFile);
     },
     identity: backing.identity,
+    kind: "directory",
     list: async () =>
       (await backing.list()).map((entry) =>
         entry instanceof NodeDirectory

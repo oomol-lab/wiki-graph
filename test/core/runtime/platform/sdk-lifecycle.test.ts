@@ -85,6 +85,7 @@ function createStorage(name: string): WikiGraphStorage {
 
 class MemoryDirectory implements Directory {
   public readonly identity: string;
+  public readonly kind = "directory" as const;
   public readonly name: string;
 
   public constructor(name: string) {

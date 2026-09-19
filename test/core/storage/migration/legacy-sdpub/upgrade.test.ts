@@ -206,7 +206,10 @@ async function seedLegacyDocument(documentPath: string): Promise<void> {
     "Summary sentence one.\nSummary sentence two.",
   );
 
-  const database = await Database.open(`${documentPath}/database.db`);
+  const database = await Database.open(`${documentPath}/database.db`, "", {
+    create: true,
+    mode: "readwrite",
+  });
 
   try {
     await database.run("CREATE TABLE serials (id INTEGER PRIMARY KEY)");
@@ -278,7 +281,10 @@ async function pointLegacyDerivedDataAtFragment(
   documentPath: string,
   fragmentId: number,
 ): Promise<void> {
-  const database = await Database.open(`${documentPath}/database.db`);
+  const database = await Database.open(`${documentPath}/database.db`, "", {
+    create: false,
+    mode: "readwrite",
+  });
 
   try {
     await database.run("UPDATE chunks SET fragment_id = ?", [fragmentId]);

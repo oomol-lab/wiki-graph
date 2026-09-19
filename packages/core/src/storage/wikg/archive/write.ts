@@ -1,11 +1,14 @@
 import {
   getWikiGraphPlatform,
+  isDirectory,
   resolveHostDirectory,
   resolveHostFile,
+  resolveHostReadonlyFile,
   type Directory,
   type File,
   type HostZipReader,
   type HostZipWriteEntry,
+  type ReadonlyFile,
 } from "../../../runtime/platform/index.js";
 import {
   LEGACY_SEARCH_INDEX_DATABASE_PATH,
@@ -63,12 +66,12 @@ export async function writeWikgArchiveFromDirectory(
 }
 
 export async function writeWikgArchiveWithOverlays(
-  inputFileRef: File | string,
+  inputFileRef: ReadonlyFile | string,
   outputFileRef: File | string,
   overlays: readonly WikgArchiveOverlay[],
   options: { readonly preserveMutationToken?: boolean } = {},
 ): Promise<void> {
-  const inputFile = await resolveHostFile(inputFileRef);
+  const inputFile = await resolveHostReadonlyFile(inputFileRef);
   const outputFile = await resolveHostFile(outputFileRef);
   const reader = await getWikiGraphPlatform().zip.open(inputFile);
   try {
@@ -179,7 +182,7 @@ async function listHostDocumentFiles(
   );
   for (const child of children) {
     const name = prefix === "" ? child.name : `${prefix}/${child.name}`;
-    if ("read" in child) {
+    if (!isDirectory(child)) {
       output.push({ file: child, name });
     } else {
       output.push(...(await listHostDocumentFiles(child, name)));

@@ -5,7 +5,6 @@ import type {
 } from "../../../../document/index.js";
 import type { GraphNode } from "../../../../graph/reading.js";
 
-import { getTextStreamIndex } from "../text-streams.js";
 import type { EvidenceReadContext, SourceEvidenceRange } from "../types.js";
 
 export function createNodeEvidenceRanges(
@@ -207,7 +206,7 @@ export async function createExpandedSourceEvidenceRanges(
   document: ReadonlyDocument,
   ranges: readonly SourceEvidenceRange[],
   sourceContext: number,
-  context: EvidenceReadContext,
+  _context: EvidenceReadContext,
 ): Promise<SourceEvidenceRange[]> {
   const expanded = await Promise.all(
     ranges.map(async (range) => {
@@ -215,13 +214,14 @@ export async function createExpandedSourceEvidenceRanges(
         return range;
       }
 
-      const sourceIndex = await getTextStreamIndex(
-        document,
-        range.chapterId,
-        "source",
-        context,
-      );
-      const lastSentenceIndex = Math.max(0, sourceIndex.sentences.length - 1);
+      const serial = document.getSerialFragments(range.chapterId);
+      if (serial.getSentenceCount === undefined) {
+        throw new Error(
+          "Source text stream does not support bounded sentence counting.",
+        );
+      }
+      const sentenceCount = await serial.getSentenceCount();
+      const lastSentenceIndex = Math.max(0, sentenceCount - 1);
 
       return {
         ...range,
@@ -248,31 +248,12 @@ async function findSentenceIndexAtOffset(
   offset: number,
 ): Promise<number> {
   const serial = document.getSerialFragments(chapterId);
-  const sentences =
-    serial.listSentences === undefined ? [] : await serial.listSentences();
-
-  if (sentences.length === 0) {
-    return 0;
+  if (serial.findSentenceIndexAtCharacterOffset === undefined) {
+    throw new Error(
+      "Source text stream does not support bounded character-offset lookup.",
+    );
   }
-  let cursor = 0;
-
-  for (let index = 0; index < sentences.length; index += 1) {
-    const sentence = sentences[index];
-
-    if (sentence === undefined) {
-      continue;
-    }
-
-    const nextCursor = cursor + sentence.text.length;
-
-    if (offset <= nextCursor) {
-      return index;
-    }
-
-    cursor = nextCursor + 1;
-  }
-
-  return Math.max(0, sentences.length - 1);
+  return (await serial.findSentenceIndexAtCharacterOffset(offset)) ?? 0;
 }
 
 function mergeEvidenceRanges(

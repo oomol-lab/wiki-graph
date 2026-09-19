@@ -73,7 +73,10 @@ export async function withCoordinatorState<T>(
       getWikiGraphStorage().library,
       "tmp/wikg-coordinator.sqlite",
     );
-    const database = await Database.open(file, STATE_SCHEMA_SQL);
+    const database = await Database.open(file, STATE_SCHEMA_SQL, {
+      create: true,
+      mode: "readwrite",
+    });
     try {
       return await operation(database);
     } finally {
