@@ -127,6 +127,27 @@ describe("database lifecycle", () => {
       expect(activeConnections).toBe(0);
     });
   });
+
+  it("does not delete an incompatible search index in readonly mode", async () => {
+    await withTempDir("wikigraph-search-readonly-", async (path) => {
+      const root = new NodeDirectory(path);
+      await root.createFile("index.db");
+      const fileStore = new DirectoryFileStore(root);
+      const deleteFile = vi
+        .spyOn(fileStore, "deleteFile")
+        .mockRejectedValue(new Error("readonly index must not be deleted"));
+
+      await expect(
+        openSearchIndexDatabase({
+          documentPath: "",
+          fileStore,
+          operation: () => undefined,
+          readonly: true,
+        }),
+      ).rejects.toThrow("Search index cache is missing: index.db");
+      expect(deleteFile).not.toHaveBeenCalled();
+    });
+  });
 });
 
 function installTrackedDatabasePlatform(input: {

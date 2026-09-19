@@ -40,10 +40,10 @@ async function openSearchIndexDatabaseLocked<T>(input: {
     !shouldInitialize &&
     !(await isSearchIndexDatabaseCompatible(databasePath))
   ) {
-    await deleteSearchIndexDatabaseFile(input.fileStore, input.documentPath);
     if (input.readonly) {
       throw new Error("Search index cache is missing: index.db");
     }
+    await deleteSearchIndexDatabaseFile(input.fileStore, input.documentPath);
     databasePath = await input.fileStore.resolveSearchIndexDatabasePath(
       input.documentPath,
     );

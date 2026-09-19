@@ -11,7 +11,7 @@ import {
 } from "./helpers.js";
 import { formatNodeId, parseWikiGraphReference } from "./references.js";
 import type { WikiGraphReference } from "./references.js";
-import { createTextStreamIndex, getTextStreamSerial } from "./text-streams.js";
+import { getTextStreamSerial } from "./text-streams.js";
 import type {
   ArchiveBacklinkBucket,
   ArchiveBacklinks,
@@ -139,16 +139,10 @@ async function createTextStreamRangeSentenceKeySet(
     reference.chapterId,
     reference.stream,
   );
-  const sentenceCount =
-    serial.getSentenceCount === undefined
-      ? (
-          await createTextStreamIndex(
-            document,
-            reference.chapterId,
-            reference.stream,
-          )
-        ).sentences.length
-      : await serial.getSentenceCount();
+  if (serial.getSentenceCount === undefined) {
+    throw new Error("Text stream does not support bounded sentence counting.");
+  }
+  const sentenceCount = await serial.getSentenceCount();
   const lastSentenceIndex = Math.max(0, sentenceCount - 1);
   const start = clampInteger(
     reference.startSentenceIndex,

@@ -11,11 +11,10 @@ import {
   formatNodeId,
   formatTextStreamRangeUri,
 } from "./references.js";
-import { createTextStreamIndex, readSourceFragment } from "./text-streams.js";
+import { readSourceFragment } from "./text-streams.js";
 import type {
   ArchiveNodeLabel,
   ArchiveNodeSourceFragment,
-  ArchiveTextStreamIndex,
   ChapterState,
   PositionedNodeLabel,
 } from "./types.js";
@@ -130,40 +129,23 @@ async function collectNodeSourceFragmentIds(
 ): Promise<readonly (readonly [number, number, number])[]> {
   const seen = new Set<string>();
   const fragmentIds: (readonly [number, number, number])[] = [];
-  const indexes = new Map<number, Promise<ArchiveTextStreamIndex>>();
 
   for (const [chapterId, sentenceIndex] of node.sentenceIds) {
     const serial = document.getSerialFragments(chapterId);
-    const direct = await serial.getFragmentRangeForSentence?.(sentenceIndex);
-    if (direct !== undefined) {
-      const key = `${chapterId}:${direct.startSentenceIndex}`;
-      if (!seen.has(key)) {
-        seen.add(key);
-        fragmentIds.push([
-          chapterId,
-          direct.startSentenceIndex,
-          direct.endSentenceIndex,
-        ]);
-      }
-      continue;
+    if (serial.getFragmentRangeForSentence === undefined) {
+      throw new Error(
+        "Source text stream does not support bounded fragment lookup.",
+      );
     }
-    let index = indexes.get(chapterId);
-    if (index === undefined) {
-      index = createTextStreamIndex(document, chapterId, "source");
-      indexes.set(chapterId, index);
-    }
-    const sentence = (await index).sentences[sentenceIndex];
-    if (sentence === undefined) continue;
-    const key = `${chapterId}:${sentence.fragmentId}`;
+    const range = await serial.getFragmentRangeForSentence(sentenceIndex);
+    if (range === undefined) continue;
+    const key = `${chapterId}:${range.startSentenceIndex}`;
     if (!seen.has(key)) {
       seen.add(key);
-      const fragmentSentences = (await index).sentences.filter(
-        (candidate) => candidate.fragmentId === sentence.fragmentId,
-      );
       fragmentIds.push([
         chapterId,
-        sentence.fragmentId,
-        fragmentSentences.at(-1)?.globalIndex ?? sentence.globalIndex,
+        range.startSentenceIndex,
+        range.endSentenceIndex,
       ]);
     }
   }

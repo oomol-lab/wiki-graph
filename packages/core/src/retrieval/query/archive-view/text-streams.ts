@@ -100,12 +100,10 @@ export async function readTextStreamRange(
 }> {
   const chapter = await getTextStreamChapter(document, chapterId, context);
   const serial = getTextStreamSerial(document, chapterId, stream);
-  const index =
-    serial.getSentenceCount === undefined
-      ? await getTextStreamIndex(document, chapterId, stream, context)
-      : undefined;
-  const sentenceCount =
-    index?.sentences.length ?? (await serial.getSentenceCount?.()) ?? 0;
+  if (serial.getSentenceCount === undefined) {
+    throw new Error("Text stream does not support bounded sentence counting.");
+  }
+  const sentenceCount = await serial.getSentenceCount();
   if (sentenceCount === 0) {
     throw new Error(`Chapter ${chapter.uri} has no ${stream} text.`);
   }
@@ -127,13 +125,15 @@ export async function readTextStreamRange(
     end,
   );
   const normalizedRange = normalizeRenderedTextStreamRange(rawRange?.text);
-  const text =
-    normalizedRange?.text ??
-    joinTextStreamSentences(
-      serial.listSentencesInRange === undefined
-        ? (index?.sentences.slice(start, end + 1) ?? [])
-        : await serial.listSentencesInRange(start, end),
-    );
+  const listSentencesInRange = serial.listSentencesInRange?.bind(serial);
+  if (normalizedRange === undefined && listSentencesInRange === undefined) {
+    throw new Error("Text stream does not support bounded sentence reads.");
+  }
+  const sentences =
+    normalizedRange === undefined && listSentencesInRange !== undefined
+      ? await listSentencesInRange(start, end)
+      : [];
+  const text = normalizedRange?.text ?? joinTextStreamSentences(sentences);
   const sourceStart =
     rawRange?.sourceStart === undefined
       ? undefined

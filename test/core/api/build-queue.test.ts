@@ -1,6 +1,6 @@
 import { access, writeFile } from "fs/promises";
 
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { Database } from "../../../packages/core/src/document/index.js";
 import {
@@ -28,7 +28,10 @@ import type {
 import {
   getNodeResourcePath,
   NodeFile,
+  nodeWikiGraphPlatform,
 } from "../../../packages/cli/src/runtime/node-platform.js";
+import { readBuildJobForStopCheck } from "../../../packages/core/src/runtime/jobs/jobs.js";
+import { installWikiGraphPlatform } from "../../../packages/core/src/runtime/platform/index.js";
 import {
   getWikiGraphStateDirectoryPathForTesting,
   setWikiGraphStateDirectoryPathForTesting,
@@ -65,6 +68,30 @@ async function assertNoActiveBuildJobConflicts(input: {
 describe("facade/build-queue", () => {
   afterEach(() => {
     restoreWikiGraphStateDir(originalStateDir);
+    installWikiGraphPlatform(nodeWikiGraphPlatform);
+  });
+
+  it("opens stop-check reads without creating or migrating the build queue", async () => {
+    await withTempDir("wikigraph-build-queue-readonly-", async (path) => {
+      useStateDir(`${path}/state`);
+      const job = await addBuildJob({
+        archivePath: `${path}/book.wikg`,
+        chapterId: 1,
+        target: "reading-summary",
+      });
+      const database = { ...nodeWikiGraphPlatform.database };
+      const open = vi.spyOn(database, "open");
+      installWikiGraphPlatform({
+        ...nodeWikiGraphPlatform,
+        database,
+      });
+
+      await expect(readBuildJobForStopCheck(job.jobId)).resolves.toMatchObject({
+        jobId: job.jobId,
+      });
+      expect(open).toHaveBeenCalledTimes(1);
+      expect(open.mock.calls[0]?.[1]).toStrictEqual({ mode: "readonly" });
+    });
   });
 
   it("merges active reading lane jobs for an archive chapter", async () => {

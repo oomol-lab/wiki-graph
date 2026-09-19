@@ -1,5 +1,5 @@
-import { openWikiGraphStateDatabase } from "../../document/index.js";
-import type { Database } from "../../document/index.js";
+import { Database, openWikiGraphStateDatabase } from "../../document/index.js";
+import { getRelativeFile, getWikiGraphStorage } from "../platform/index.js";
 import { BUILD_QUEUE_SCHEMA_SQL } from "./schema.js";
 import { getNumber, getString, hydrateBuildJob, mapBuildJob } from "./row.js";
 import type { BuildJob } from "./types.js";
@@ -101,5 +101,12 @@ export async function openBuildQueueDatabase(): Promise<Database> {
 }
 
 export async function openReadonlyBuildQueueDatabase(): Promise<Database> {
-  return await openBuildQueueDatabase();
+  const file = await getRelativeFile(
+    getWikiGraphStorage().library,
+    "jobs/job.sqlite",
+  );
+  if (file === undefined) {
+    throw new Error("Build queue is unavailable: jobs/job.sqlite");
+  }
+  return await Database.open(file, "", { mode: "readonly" });
 }
