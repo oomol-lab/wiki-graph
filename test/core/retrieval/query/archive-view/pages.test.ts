@@ -120,6 +120,9 @@ describe("archive/query/archive-view/pages", () => {
           );
         });
         const listByQid = vi.spyOn(document.mentions, "listByQid");
+        const listFragmentIds = vi
+          .spyOn(document.getSerialFragments(1), "listFragmentIds")
+          .mockRejectedValue(new Error("evidence must not build a full index"));
 
         const page = await readArchivePage(document, "wikg://entity/Q999", {
           evidenceLimit: 2,
@@ -136,6 +139,7 @@ describe("archive/query/archive-view/pages", () => {
           mentionCount: 4,
           type: "entity",
         });
+        expect(listFragmentIds).not.toHaveBeenCalled();
       } finally {
         await document.release();
       }
@@ -470,6 +474,11 @@ describe("archive/query/archive-view/pages", () => {
 
       try {
         await seedSourcedDocument(document);
+        const listFragmentIds = vi
+          .spyOn(document.getSerialFragments(1), "listFragmentIds")
+          .mockRejectedValue(
+            new Error("node page must not build a full index"),
+          );
 
         const page = await readArchivePage(document, "node:100");
 
@@ -489,6 +498,7 @@ describe("archive/query/archive-view/pages", () => {
         );
         expect(page.title).toBe("Wiki pages");
         expect(JSON.stringify(page)).not.toContain("sentence:");
+        expect(listFragmentIds).not.toHaveBeenCalled();
       } finally {
         await document.release();
       }

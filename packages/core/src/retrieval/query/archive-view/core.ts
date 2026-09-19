@@ -98,32 +98,24 @@ export async function readNodeSourceFragments(
   );
 
   return await Promise.all(
-    fragmentIds.map(async ([chapterId, fragmentId]) => {
+    fragmentIds.map(async ([chapterId, fragmentId, fragmentEnd]) => {
       const fragment = await readSourceFragment(
         document,
         chapterId,
         fragmentId,
       );
-      const index = await createTextStreamIndex(document, chapterId, "source");
-      const fragmentSentences = index.sentences.filter(
-        (sentence) => sentence.fragmentId === fragmentId,
-      );
-      const firstSentence = fragmentSentences[0];
-      const lastSentence = fragmentSentences[fragmentSentences.length - 1];
       const text = truncateSourceExcerpt(fragment.text);
       const chapter = chapters.get(chapterId);
 
       return {
         id:
-          firstSentence === undefined ||
-          lastSentence === undefined ||
           chapter === undefined
             ? fragment.id
             : formatTextStreamRangeUri(
                 chapter.path,
                 "source",
-                firstSentence.globalIndex,
-                lastSentence.globalIndex,
+                fragmentId,
+                fragmentEnd,
               ),
         text,
         truncated: text.length < fragment.text.length,
@@ -135,34 +127,46 @@ export async function readNodeSourceFragments(
 async function collectNodeSourceFragmentIds(
   document: ReadonlyDocument,
   node: Pick<GraphNode, "sentenceIds">,
-): Promise<readonly (readonly [number, number])[]> {
+): Promise<readonly (readonly [number, number, number])[]> {
   const seen = new Set<string>();
-  const fragmentIds: (readonly [number, number])[] = [];
+  const fragmentIds: (readonly [number, number, number])[] = [];
   const indexes = new Map<number, Promise<ArchiveTextStreamIndex>>();
 
   for (const [chapterId, sentenceIndex] of node.sentenceIds) {
+    const serial = document.getSerialFragments(chapterId);
+    const direct = await serial.getFragmentRangeForSentence?.(sentenceIndex);
+    if (direct !== undefined) {
+      const key = `${chapterId}:${direct.startSentenceIndex}`;
+      if (!seen.has(key)) {
+        seen.add(key);
+        fragmentIds.push([
+          chapterId,
+          direct.startSentenceIndex,
+          direct.endSentenceIndex,
+        ]);
+      }
+      continue;
+    }
     let index = indexes.get(chapterId);
-
     if (index === undefined) {
       index = createTextStreamIndex(document, chapterId, "source");
       indexes.set(chapterId, index);
     }
-
     const sentence = (await index).sentences[sentenceIndex];
-
-    if (sentence === undefined) {
-      continue;
-    }
-
-    const fragmentId = sentence.fragmentId;
-    const key = `${chapterId}:${fragmentId}`;
-
+    if (sentence === undefined) continue;
+    const key = `${chapterId}:${sentence.fragmentId}`;
     if (!seen.has(key)) {
       seen.add(key);
-      fragmentIds.push([chapterId, fragmentId]);
+      const fragmentSentences = (await index).sentences.filter(
+        (candidate) => candidate.fragmentId === sentence.fragmentId,
+      );
+      fragmentIds.push([
+        chapterId,
+        sentence.fragmentId,
+        fragmentSentences.at(-1)?.globalIndex ?? sentence.globalIndex,
+      ]);
     }
   }
-
   return fragmentIds;
 }
 

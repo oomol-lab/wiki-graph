@@ -1,5 +1,6 @@
 import {
   getWikiGraphPlatform,
+  isDirectory,
   resolveHostDirectory,
   resolveHostFile,
   type Directory,
@@ -179,7 +180,7 @@ async function listHostDocumentFiles(
   );
   for (const child of children) {
     const name = prefix === "" ? child.name : `${prefix}/${child.name}`;
-    if ("read" in child) {
+    if (!isDirectory(child)) {
       output.push({ file: child, name });
     } else {
       output.push(...(await listHostDocumentFiles(child, name)));

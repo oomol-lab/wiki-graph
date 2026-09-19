@@ -6,6 +6,7 @@ import type {
 import type { GraphNode } from "../../../../graph/reading.js";
 
 import { getTextStreamIndex } from "../text-streams.js";
+
 import type { EvidenceReadContext, SourceEvidenceRange } from "../types.js";
 
 export function createNodeEvidenceRanges(
@@ -215,13 +216,19 @@ export async function createExpandedSourceEvidenceRanges(
         return range;
       }
 
-      const sourceIndex = await getTextStreamIndex(
-        document,
-        range.chapterId,
-        "source",
-        context,
-      );
-      const lastSentenceIndex = Math.max(0, sourceIndex.sentences.length - 1);
+      const serial = document.getSerialFragments(range.chapterId);
+      const sentenceCount =
+        serial.getSentenceCount === undefined
+          ? (
+              await getTextStreamIndex(
+                document,
+                range.chapterId,
+                "source",
+                context,
+              )
+            ).sentences.length
+          : await serial.getSentenceCount();
+      const lastSentenceIndex = Math.max(0, sentenceCount - 1);
 
       return {
         ...range,
@@ -248,6 +255,8 @@ async function findSentenceIndexAtOffset(
   offset: number,
 ): Promise<number> {
   const serial = document.getSerialFragments(chapterId);
+  const indexed = await serial.findSentenceIndexAtCharacterOffset?.(offset);
+  if (indexed !== undefined) return indexed;
   const sentences =
     serial.listSentences === undefined ? [] : await serial.listSentences();
 

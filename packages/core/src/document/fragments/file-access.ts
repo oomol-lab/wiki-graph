@@ -4,6 +4,7 @@ import {
   getRelativeDirectory,
   getRelativeFile,
   isDirectory,
+  readFileBytes,
   writeFileContent,
   type Directory,
 } from "../../runtime/platform/index.js";
@@ -29,10 +30,7 @@ export function createDirectoryFragmentAccess(root: Directory): {
       readFile: async (path) => {
         const file = await getRelativeFile(root, path);
         if (file === undefined) return undefined;
-        const content = await file.read();
-        return typeof content === "string"
-          ? new TextEncoder().encode(content)
-          : content;
+        return await readFileBytes(file);
       },
     },
     writer: {

@@ -6,31 +6,47 @@ import {
   type File,
 } from "../platform/index.js";
 
+export function getJobWorkspacePath(jobId: string): string {
+  return `jobs/work/${jobId}`;
+}
+
+export function getJobCachePath(jobId: string): string {
+  return `jobs/cache/${jobId}`;
+}
+
+export function getJobLogPath(jobId: string): string {
+  return `jobs/logs/${jobId}`;
+}
+
+export function getJobEventsPath(jobId: string): string {
+  return `jobs/events/${jobId}.ndjson`;
+}
+
 export async function createJobWorkspace(jobId: string): Promise<Directory> {
   return await ensureRelativeDirectory(
     getWikiGraphStorage().library,
-    `jobs/work/${jobId}`,
+    getJobWorkspacePath(jobId),
   );
 }
 
 export async function createJobCache(jobId: string): Promise<Directory> {
   return await ensureRelativeDirectory(
     getWikiGraphStorage().library,
-    `jobs/cache/${jobId}`,
+    getJobCachePath(jobId),
   );
 }
 
 export async function createJobLog(jobId: string): Promise<Directory> {
   return await ensureRelativeDirectory(
     getWikiGraphStorage().library,
-    `jobs/logs/${jobId}`,
+    getJobLogPath(jobId),
   );
 }
 
 export async function createJobEvents(jobId: string): Promise<File> {
   return await ensureRelativeFile(
     getWikiGraphStorage().library,
-    `jobs/events/${jobId}.ndjson`,
+    getJobEventsPath(jobId),
   );
 }
 

@@ -74,14 +74,15 @@ export class SerialTextStream implements ReadonlySerialTextStream {
   }
 
   public async getFragment(fragmentId: number): Promise<FragmentRecord> {
-    const fragments = await this.#listFragments();
-    const fragment = fragments.find((item) => item.fragmentId === fragmentId);
-
-    if (fragment === undefined) {
+    const range = await this.getFragmentRangeForSentence(fragmentId);
+    if (range?.startSentenceIndex !== fragmentId) {
       throw new Error(`Fragment ${fragmentId} does not exist`);
     }
-
-    return fragment;
+    const sentences = await this.listSentencesInRange(
+      range.startSentenceIndex,
+      range.endSentenceIndex,
+    );
+    return { fragmentId, sentences, serialId: this.#serialId, summary: "" };
   }
 
   public async getSentence(sentenceIndex: number): Promise<SentenceRecord> {
@@ -99,7 +100,20 @@ export class SerialTextStream implements ReadonlySerialTextStream {
   }
 
   public async listFragmentIds(): Promise<readonly number[]> {
-    return (await this.#listFragments()).map((fragment) => fragment.fragmentId);
+    return await this.#database.queryAll(
+      `${createFragmentGroupsCte()}
+       SELECT MIN(sentence_index) AS fragment_id
+       FROM fragment_groups
+       GROUP BY fragment_number
+       ORDER BY fragment_id`,
+      [
+        TEXT_STREAM_KIND[this.#stream],
+        this.#serialId,
+        DEFAULT_FRAGMENT_WORDS_COUNT,
+        DEFAULT_FRAGMENT_WORDS_COUNT,
+      ],
+      (row) => Number(row.fragment_id),
+    );
   }
 
   public async listSentences(): Promise<readonly SentenceRecord[]> {
@@ -127,6 +141,57 @@ export class SerialTextStream implements ReadonlySerialTextStream {
         [TEXT_STREAM_KIND[this.#stream], this.#serialId],
         (row) => Number(row.sentence_count),
       )) ?? 0
+    );
+  }
+
+  public async findSentenceIndexAtCharacterOffset(
+    offset: number,
+  ): Promise<number | undefined> {
+    return await this.#database.queryOne(
+      `
+        SELECT sentence_index
+        FROM text_sentence_records
+        WHERE kind = ? AND chapter_id = ?
+          AND character_offset <= ?
+        ORDER BY character_offset DESC, sentence_index DESC
+        LIMIT 1
+      `,
+      [TEXT_STREAM_KIND[this.#stream], this.#serialId, Math.max(0, offset)],
+      (row) => Number(row.sentence_index),
+    );
+  }
+
+  public async getFragmentRangeForSentence(
+    sentenceIndex: number,
+  ): Promise<
+    | { readonly endSentenceIndex: number; readonly startSentenceIndex: number }
+    | undefined
+  > {
+    return await this.#database.queryOne(
+      `${createFragmentGroupsCte()},
+       target_fragment AS (
+         SELECT fragment_number
+         FROM fragment_groups
+         WHERE sentence_index = ?
+       )
+       SELECT MIN(sentence_index) AS start_sentence_index,
+              MAX(sentence_index) AS end_sentence_index
+       FROM fragment_groups
+       WHERE fragment_number = (SELECT fragment_number FROM target_fragment)`,
+      [
+        TEXT_STREAM_KIND[this.#stream],
+        this.#serialId,
+        DEFAULT_FRAGMENT_WORDS_COUNT,
+        DEFAULT_FRAGMENT_WORDS_COUNT,
+        sentenceIndex,
+      ],
+      (row) =>
+        row.start_sentence_index === null
+          ? undefined
+          : {
+              endSentenceIndex: Number(row.end_sentence_index),
+              startSentenceIndex: Number(row.start_sentence_index),
+            },
     );
   }
 
@@ -408,50 +473,6 @@ export class SerialTextStream implements ReadonlySerialTextStream {
     };
   }
 
-  async #listFragments(): Promise<readonly FragmentRecord[]> {
-    const sentences = await this.listSentences();
-    const fragments: FragmentRecord[] = [];
-    let current: SentenceRecord[] = [];
-    let currentWords = 0;
-    let fragmentStart = 0;
-
-    for (let index = 0; index < sentences.length; index += 1) {
-      const sentence = sentences[index];
-
-      if (sentence === undefined) {
-        continue;
-      }
-      if (
-        current.length > 0 &&
-        currentWords + sentence.wordsCount > DEFAULT_FRAGMENT_WORDS_COUNT
-      ) {
-        fragments.push({
-          fragmentId: fragmentStart,
-          sentences: current,
-          serialId: this.#serialId,
-          summary: "",
-        });
-        fragmentStart = index;
-        current = [];
-        currentWords = 0;
-      }
-
-      current.push(sentence);
-      currentWords += sentence.wordsCount;
-    }
-
-    if (current.length > 0) {
-      fragments.push({
-        fragmentId: fragmentStart,
-        sentences: current,
-        serialId: this.#serialId,
-        summary: "",
-      });
-    }
-
-    return fragments;
-  }
-
   async #peekNextIndex(): Promise<number> {
     const draftState = this.#getDraftState();
 
@@ -567,6 +588,37 @@ export class SerialTextStream implements ReadonlySerialTextStream {
 
     return state;
   }
+}
+
+function createFragmentGroupsCte(): string {
+  return `
+    WITH RECURSIVE ordered_sentences AS (
+      SELECT sentence_index, words_count,
+             ROW_NUMBER() OVER (ORDER BY sentence_index) AS ordinal
+      FROM text_sentence_records
+      WHERE kind = ? AND chapter_id = ?
+    ),
+    fragment_groups (
+      ordinal, sentence_index, fragment_words, fragment_number
+    ) AS (
+      SELECT ordinal, sentence_index, words_count, 0
+      FROM ordered_sentences
+      WHERE ordinal = 1
+      UNION ALL
+      SELECT next.ordinal,
+             next.sentence_index,
+             CASE
+               WHEN grouped.fragment_words + next.words_count > ?
+                 THEN next.words_count
+               ELSE grouped.fragment_words + next.words_count
+             END,
+             grouped.fragment_number + CASE
+               WHEN grouped.fragment_words + next.words_count > ? THEN 1
+               ELSE 0
+             END
+      FROM fragment_groups AS grouped
+      JOIN ordered_sentences AS next ON next.ordinal = grouped.ordinal + 1
+    )`;
 }
 
 function concatenateBytes(left: Uint8Array, right: Uint8Array): Uint8Array {

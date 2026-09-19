@@ -371,9 +371,9 @@ describe("facade/digest", () => {
 function createUnreadFile(name: string): File {
   return {
     identity: `test:${name}`,
+    kind: "file",
     name,
     openReader: () => Promise.reject(new Error("not used")),
     openWriter: () => Promise.reject(new Error("not used")),
-    read: () => Promise.reject(new Error("not used")),
   };
 }

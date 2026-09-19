@@ -134,6 +134,7 @@ export class DirectoryDocument implements Document {
     resolvedDocumentPath: string,
     fileStore: DocumentFileStore,
   ): Promise<DirectoryDocument> {
+    let database: Database | undefined;
     try {
       const databasePath =
         await fileStore.resolveDatabasePath(resolvedDocumentPath);
@@ -141,14 +142,19 @@ export class DirectoryDocument implements Document {
 
       const shouldInitializeDatabaseSchema =
         fileStore.initializeDatabaseSchema();
-      const database = await Database.open(
+      database = await Database.open(
         databasePath,
         shouldInitializeDatabaseSchema ? SCHEMA_SQL : "",
         {
+          ...(fileStore.openDatabaseReadonly()
+            ? { mode: "readonly" as const }
+            : {
+                create: shouldInitializeDatabaseSchema,
+                mode: "readwrite" as const,
+              }),
           onWrite: () => {
             fileStore.markDatabaseDirty?.();
           },
-          readonly: fileStore.openDatabaseReadonly(),
         },
       );
       if (shouldInitializeDatabaseSchema) {
@@ -192,7 +198,8 @@ export class DirectoryDocument implements Document {
 
       return document;
     } catch (error) {
-      await fileStore.close();
+      await database?.close().catch(() => undefined);
+      await fileStore.close().catch(() => undefined);
       throw error;
     }
   }

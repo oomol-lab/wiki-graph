@@ -1,5 +1,6 @@
 import type { ReadonlyDocument } from "../document/index.js";
 import type { Directory, File } from "../runtime/platform/index.js";
+import { isDirectory } from "../runtime/platform/index.js";
 import { writeEpub, writePlainText } from "../text/output/index.js";
 import type {
   BookMeta,
@@ -62,7 +63,7 @@ export class WikiGraphArchive {
       return WIKG_FORMAT_VERSION;
     }
     const source = this.#source;
-    if (!("read" in source)) {
+    if (isDirectory(source)) {
       throw new Error("Archive source must be a host File.");
     }
     const manifest = await readWikgArchiveEntry(source, "manifest.json");
@@ -143,7 +144,7 @@ export class WikiGraphArchive {
   }
 
   public async saveAs(file: File): Promise<void> {
-    if (this.#sourceKind !== "directory" || "read" in this.#source) {
+    if (this.#sourceKind !== "directory" || !isDirectory(this.#source)) {
       throw new Error("saveAs(file) is unavailable for an opened archive.");
     }
     await flushDocument(this.#document);

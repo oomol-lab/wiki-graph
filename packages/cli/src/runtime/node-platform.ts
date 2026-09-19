@@ -25,8 +25,10 @@ import {
   type Directory,
   type File,
   type FileReader,
+  type ReadonlyFile,
   type FileWriter,
   type HostDatabaseConnection,
+  type HostDatabaseOpenOptions,
   type HostDatabaseRow,
   type HostDatabaseValue,
   type HostZipWriteEntry,
@@ -38,6 +40,7 @@ import { normalizeTemplateName } from "../../../core/src/runtime/common/template
 
 /** Install the Node implementation used by the CLI and its workers. */
 export class NodeFile implements File {
+  public readonly kind = "file" as const;
   public readonly identity: string;
   public readonly name: string;
 
@@ -47,17 +50,6 @@ export class NodeFile implements File {
   ) {
     this.identity = encodeNodeResourceIdentity("file", path);
     this.name = name;
-  }
-
-  public async read(options?: {
-    readonly encoding?: string;
-  }): Promise<Uint8Array | string> {
-    return await fsPromises.readFile(
-      this.path,
-      options?.encoding === undefined
-        ? undefined
-        : { encoding: options.encoding as BufferEncoding },
-    );
   }
 
   public async openReader(): Promise<FileReader> {
@@ -96,22 +88,6 @@ export class NodeFile implements File {
       };
     } catch (error) {
       await handle.close();
-      throw error;
-    }
-  }
-
-  public async getSize(): Promise<number> {
-    try {
-      return (await fsPromises.stat(this.path)).size;
-    } catch (error) {
-      if (
-        typeof error === "object" &&
-        error !== null &&
-        "code" in error &&
-        error.code === "ENOENT"
-      ) {
-        return 0;
-      }
       throw error;
     }
   }
@@ -198,6 +174,7 @@ function assertFileOffset(offset: number): void {
 }
 
 export class NodeDirectory implements Directory {
+  public readonly kind = "directory" as const;
   public readonly identity: string;
   public readonly name: string;
 
@@ -395,19 +372,20 @@ class NodeDatabaseConnection implements HostDatabaseConnection {
 }
 
 async function openNodeDatabase(
-  file: File,
-  options: { readonly readonly?: boolean } = {},
+  file: ReadonlyFile,
+  options: HostDatabaseOpenOptions,
 ): Promise<NodeDatabaseConnection> {
   const flags =
-    (options.readonly === true
+    (options.mode === "readonly"
       ? nodeSqlite3.OPEN_READONLY
-      : nodeSqlite3.OPEN_READWRITE | nodeSqlite3.OPEN_CREATE) |
+      : nodeSqlite3.OPEN_READWRITE |
+        (options.create ? nodeSqlite3.OPEN_CREATE : 0)) |
     nodeSqlite3.OPEN_FULLMUTEX;
   return new NodeDatabaseConnection(await openNativeNodeDatabase(file, flags));
 }
 
 async function openNativeNodeDatabase(
-  file: File,
+  file: ReadonlyFile,
   flags: number,
 ): Promise<sqlite3.Database> {
   if (!(file instanceof NodeFile)) {
@@ -421,7 +399,7 @@ async function openNativeNodeDatabase(
   });
 }
 
-async function openNodeZip(file: File): Promise<HostZipReader> {
+async function openNodeZip(file: ReadonlyFile): Promise<HostZipReader> {
   if (!(file instanceof NodeFile)) {
     throw new TypeError("The Node ZIP adapter requires a NodeFile");
   }
@@ -671,7 +649,7 @@ async function addNodeZipEntries(
   }
 }
 
-function createNodeFileReadStream(file: File): Readable {
+function createNodeFileReadStream(file: ReadonlyFile): Readable {
   return Readable.from(
     (async function* () {
       const reader = await file.openReader();

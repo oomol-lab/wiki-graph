@@ -3,6 +3,7 @@ import {
   getWikiGraphStorage,
   resolveHostFile,
   type File,
+  type HostDatabaseOpenOptions,
 } from "../runtime/platform/index.js";
 import { ensureWikiGraphHomeSchemaCurrent } from "./home-schema-upgrade.js";
 import { Database } from "./database.js";
@@ -11,7 +12,10 @@ import { Database } from "./database.js";
 export async function openWikiGraphStateDatabase(
   relativeName: string,
   schemaSql: string,
-  options: { readonly readonly?: boolean } = {},
+  options: HostDatabaseOpenOptions = {
+    create: true,
+    mode: "readwrite",
+  },
 ): Promise<Database> {
   await ensureWikiGraphHomeSchemaCurrent();
   const file = await ensureRelativeFile(
@@ -25,7 +29,10 @@ export async function openWikiGraphStateDatabase(
 export async function openSharedStateDatabase(
   fileRef: File | string,
   schemaSql: string,
-  options: { readonly readonly?: boolean } = {},
+  options: HostDatabaseOpenOptions = {
+    create: true,
+    mode: "readwrite",
+  },
 ): Promise<Database> {
   return await Database.open(
     await resolveHostFile(fileRef),

@@ -31,7 +31,11 @@ describe("cli/maintenance upgrade", () => {
 
 async function createV3HomeWithStaleJob(stateDir: string): Promise<void> {
   await mkdir(join(stateDir, "jobs"), { recursive: true });
-  const core = await Database.open(new NodeFile(join(stateDir, "core.sqlite")));
+  const core = await Database.open(
+    new NodeFile(join(stateDir, "core.sqlite")),
+    "",
+    { create: true, mode: "readwrite" },
+  );
   try {
     await core.execute(`
       CREATE TABLE schema_versions (
@@ -47,6 +51,8 @@ async function createV3HomeWithStaleJob(stateDir: string): Promise<void> {
 
   const jobs = await Database.open(
     new NodeFile(join(stateDir, "jobs/job.sqlite")),
+    "",
+    { create: true, mode: "readwrite" },
   );
   try {
     await jobs.execute(`
@@ -68,7 +74,7 @@ async function readHomeSchemaVersion(stateDir: string): Promise<number> {
   const database = await Database.open(
     new NodeFile(join(stateDir, "core.sqlite")),
     "",
-    { readonly: true },
+    { mode: "readonly" },
   );
   try {
     return await database

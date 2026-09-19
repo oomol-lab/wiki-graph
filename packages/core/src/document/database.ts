@@ -7,7 +7,9 @@ import type {
   File,
   HostAsyncContext,
   HostDatabaseConnection,
+  HostDatabaseOpenOptions,
 } from "../runtime/platform/index.js";
+import { isHostError } from "../utils/host-error.js";
 interface DatabaseBackend {
   close(): Promise<void>;
   execute(sql: string): Promise<void>;
@@ -29,7 +31,12 @@ const SQLITE_BUSY_TIMEOUT_MS = 15 * 60 * 1000;
 type DatabaseOperationScope = symbol;
 
 async function isMissingOrEmptyFile(file: File): Promise<boolean> {
-  return await isHostFileEmpty(file);
+  try {
+    return await isHostFileEmpty(file);
+  } catch (error) {
+    if (isHostError(error) && error.code === "ENOENT") return true;
+    throw error;
+  }
 }
 
 export class Database {
@@ -53,40 +60,53 @@ export class Database {
 
   public static async open(
     databaseFileRef: File | string,
-    schemaSql = "",
-    options: {
-      readonly onWrite?: () => void;
-      readonly readonly?: boolean;
-    } = {},
+    schemaSql: string,
+    options: HostDatabaseOpenOptions & { readonly onWrite?: () => void },
   ): Promise<Database> {
     const databaseFile = await resolveHostFile(databaseFileRef);
     const shouldMarkSchemaWritten =
-      options.readonly !== true &&
+      options.mode === "readwrite" &&
+      options.create &&
       schemaSql.trim() !== "" &&
       (await isMissingOrEmptyFile(databaseFile));
-    const database = new HostDatabaseBackend(
-      await getWikiGraphPlatform().database.open(databaseFile, options),
+    const connection =
+      options.mode === "readonly"
+        ? await getWikiGraphPlatform().database.open(databaseFile, {
+            mode: "readonly",
+          })
+        : await getWikiGraphPlatform().database.open(databaseFile, {
+            create: options.create,
+            mode: "readwrite",
+          });
+    const openedDatabase = new Database(
+      new HostDatabaseBackend(connection),
+      options,
     );
-    const openedDatabase = new Database(database, options);
-
-    await openedDatabase.#executeSql(
-      `PRAGMA busy_timeout = ${SQLITE_BUSY_TIMEOUT_MS}`,
-    );
-    if (options.readonly !== true && schemaSql.trim() !== "") {
-      await openedDatabase.#executeSql(schemaSql);
-      if (shouldMarkSchemaWritten) {
-        openedDatabase.#markWritten();
+    try {
+      await openedDatabase.#executeSql(
+        `PRAGMA busy_timeout = ${SQLITE_BUSY_TIMEOUT_MS}`,
+      );
+      if (options.mode === "readwrite" && schemaSql.trim() !== "") {
+        await openedDatabase.#executeSql(schemaSql);
+        if (shouldMarkSchemaWritten) {
+          openedDatabase.#markWritten();
+        }
       }
+      return openedDatabase;
+    } catch (error) {
+      await openedDatabase.close().catch(() => undefined);
+      throw error;
     }
-
-    return openedDatabase;
   }
 
   public static async initialize(
     databaseFileRef: File | string,
     schemaSql: string,
   ): Promise<void> {
-    const database = await Database.open(databaseFileRef);
+    const database = await Database.open(databaseFileRef, "", {
+      create: true,
+      mode: "readwrite",
+    });
 
     try {
       if (schemaSql.trim() !== "") {

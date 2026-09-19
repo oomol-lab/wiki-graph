@@ -1,6 +1,7 @@
 import type {
   Directory,
   File,
+  ReadonlyFile,
   HostAsyncContext,
   HostZipEntry,
   WikiGraphPlatform,
@@ -9,12 +10,15 @@ import type {
 
 export type {
   Directory,
+  Entry,
   File,
   FileReader,
   FileWriter,
+  ReadonlyFile,
   HostAsyncContext,
   HostAsyncContextProvider,
   HostDatabaseConnection,
+  HostDatabaseOpenOptions,
   HostDatabaseProvider,
   HostDatabaseRow,
   HostDatabaseValue,
@@ -38,6 +42,7 @@ export {
   isHostFileEmpty,
   isDirectory,
   readFileText,
+  readFileBytes,
   readHostEntrySize,
   readHostFileSize,
   writeFileContent,
@@ -61,7 +66,9 @@ export function getWikiGraphPlatform(): WikiGraphPlatform {
 }
 
 /** Materialize a ZIP only for workflows that inherently consume every entry. */
-export async function readHostZipEntries(file: File): Promise<HostZipEntry[]> {
+export async function readHostZipEntries(
+  file: ReadonlyFile,
+): Promise<HostZipEntry[]> {
   const reader = await getWikiGraphPlatform().zip.open(file);
   try {
     const entries: HostZipEntry[] = [];

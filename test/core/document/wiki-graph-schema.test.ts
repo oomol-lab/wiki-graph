@@ -10,7 +10,10 @@ import { withTempDir } from "../../helpers/temp.js";
 describe("document/wiki-graph-schema", () => {
   it("migrates serial state knowledge graph readiness", async () => {
     await withTempDir("wikigraph-wiki-graph-schema-", async (path) => {
-      const database = await Database.open(`${path}/database.db`);
+      const database = await Database.open(`${path}/database.db`, "", {
+        create: true,
+        mode: "readwrite",
+      });
 
       try {
         await database.run(`
@@ -76,7 +79,10 @@ describe("document/wiki-graph-schema", () => {
 
   it("creates mention evidence tables, indexes, and entity relation views", async () => {
     await withTempDir("wikigraph-wiki-graph-schema-", async (path) => {
-      const database = await Database.open(`${path}/database.db`, SCHEMA_SQL);
+      const database = await Database.open(`${path}/database.db`, SCHEMA_SQL, {
+        create: true,
+        mode: "readwrite",
+      });
 
       try {
         await database.run("INSERT INTO serials (id) VALUES (1)");

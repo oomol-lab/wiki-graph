@@ -839,7 +839,7 @@ class LibraryIndexDocument {
     const database = await Database.open(
       await createLibraryIndexDatabaseFile(this.#library),
       readonly ? "" : SEARCH_INDEX_SCHEMA_SQL,
-      { readonly },
+      readonly ? { mode: "readonly" } : { create: true, mode: "readwrite" },
     );
 
     try {

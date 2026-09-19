@@ -62,10 +62,10 @@ describe("source/plain-text", () => {
     );
     const file: File = {
       identity: backing.identity,
+      kind: "file",
       name: backing.name,
       openReader: async () => await backing.openReader(),
       openWriter: async () => await backing.openWriter(),
-      read: () => Promise.reject(new Error("whole-file read is not allowed")),
     };
 
     await TXT_SOURCE_ADAPTER.openSession(file, async (document) => {

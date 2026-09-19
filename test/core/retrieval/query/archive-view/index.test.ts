@@ -203,6 +203,7 @@ describe("archive/query/archive-view/index", () => {
             chapter_id INTEGER
           );
         `,
+        { create: true, mode: "readwrite" },
       );
 
       try {

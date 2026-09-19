@@ -10,6 +10,7 @@ import {
   type Directory,
   type File,
   type HostDatabaseConnection,
+  type ReadonlyFile,
   type WikiGraphPlatform,
   withWikiGraphStorage,
 } from "../../../../packages/core/src/runtime/platform/index.js";
@@ -220,15 +221,14 @@ describe("opaque archive File adapter", () => {
   });
 });
 
-const backingFiles = new WeakMap<File, NodeFile>();
+const backingFiles = new WeakMap<ReadonlyFile, NodeFile>();
 function wrapFile(backing: NodeFile): File {
   const file: File = {
-    getSize: async () => await backing.getSize(),
     identity: backing.identity,
+    kind: "file",
     name: backing.name,
     openReader: async () => await backing.openReader(),
     openWriter: async () => await backing.openWriter(),
-    read: async (options) => await backing.read(options),
   };
   backingFiles.set(file, backing);
   return file;
@@ -251,6 +251,7 @@ function wrapDirectory(backing: NodeDirectory): Directory {
       return value === undefined ? undefined : wrapFile(value as NodeFile);
     },
     identity: backing.identity,
+    kind: "directory",
     list: async () =>
       (await backing.list()).map((entry) =>
         entry instanceof NodeDirectory
@@ -266,8 +267,12 @@ function wrapDirectory(backing: NodeDirectory): Directory {
 const opaqueNodePlatform: WikiGraphPlatform = {
   asyncContext: nodeWikiGraphPlatform.asyncContext,
   database: {
-    open: async (file, options): Promise<HostDatabaseConnection> =>
-      await nodeWikiGraphPlatform.database.open(unwrapFile(file), options),
+    open: async (file, options): Promise<HostDatabaseConnection> => {
+      const unwrapped = unwrapFile(file);
+      return options.mode === "readonly"
+        ? await nodeWikiGraphPlatform.database.open(unwrapped, options)
+        : await nodeWikiGraphPlatform.database.open(unwrapped, options);
+    },
   },
   lifecycle: nodeWikiGraphPlatform.lifecycle,
   resources: {
@@ -292,7 +297,7 @@ const opaqueNodePlatform: WikiGraphPlatform = {
   },
 };
 
-function unwrapFile(file: File): NodeFile {
+function unwrapFile(file: ReadonlyFile): NodeFile {
   const backing = backingFiles.get(file);
   if (backing === undefined) throw new TypeError("Unknown opaque File");
   return backing;

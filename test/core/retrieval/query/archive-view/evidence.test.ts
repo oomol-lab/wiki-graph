@@ -260,7 +260,6 @@ describe("archive/query/archive-view/evidence", () => {
             targetMentionId: "m2",
           });
         });
-
         await expect(
           listArchiveEvidence(document, "wikg://chunk/100"),
         ).resolves.toMatchObject({
@@ -674,6 +673,11 @@ describe("archive/query/archive-view/evidence", () => {
             targetMentionId: "backlink-target",
           });
         });
+        const listFragmentIds = vi
+          .spyOn(document.getSerialFragments(1), "listFragmentIds")
+          .mockRejectedValue(
+            new Error("backlinks must not build a full text index"),
+          );
 
         await expect(
           readArchivePage(document, "wikg://chapter/introduction/source#1", {
@@ -718,6 +722,7 @@ describe("archive/query/archive-view/evidence", () => {
           },
           type: "fragment",
         });
+        expect(listFragmentIds).not.toHaveBeenCalled();
 
         const result = await listArchiveCollection(document, {
           backlinks: true,

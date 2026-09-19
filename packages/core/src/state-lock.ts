@@ -264,7 +264,10 @@ async function openStateLockDatabase(options: {
   readonly stateDatabaseName?: string;
 }): Promise<Database> {
   if (options.databaseFile !== undefined) {
-    return await Database.open(options.databaseFile, STATE_LOCK_SCHEMA_SQL);
+    return await Database.open(options.databaseFile, STATE_LOCK_SCHEMA_SQL, {
+      create: true,
+      mode: "readwrite",
+    });
   }
   if (options.stateDatabaseName !== undefined) {
     return await openWikiGraphStateDatabase(

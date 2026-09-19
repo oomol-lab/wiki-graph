@@ -77,10 +77,27 @@ export async function readMinQueueRank(state: Database): Promise<number> {
 }
 
 export async function openBuildQueueDatabase(): Promise<Database> {
-  return await openWikiGraphStateDatabase(
+  const database = await openWikiGraphStateDatabase(
     "jobs/job.sqlite",
     BUILD_QUEUE_SCHEMA_SQL,
   );
+  try {
+    await database.run(`
+      UPDATE build_jobs
+      SET workspace_path = 'jobs/work/' || job_id,
+          cache_path = 'jobs/cache/' || job_id,
+          log_path = 'jobs/logs/' || job_id,
+          events_path = 'jobs/events/' || job_id || '.ndjson'
+      WHERE workspace_path NOT LIKE 'jobs/work/%'
+         OR cache_path NOT LIKE 'jobs/cache/%'
+         OR log_path NOT LIKE 'jobs/logs/%'
+         OR events_path NOT LIKE 'jobs/events/%'
+    `);
+    return database;
+  } catch (error) {
+    await database.close().catch(() => undefined);
+    throw error;
+  }
 }
 
 export async function openReadonlyBuildQueueDatabase(): Promise<Database> {

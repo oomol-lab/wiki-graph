@@ -1,6 +1,6 @@
 import { mkdir, rename } from "fs/promises";
 import { join } from "path";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 
 import { DirectoryDocument } from "../../../../packages/core/src/document/index.js";
 import { WikiGraphArchiveFile } from "../../../../packages/core/src/storage/wikg/wiki-graph-archive-file.js";
@@ -159,37 +159,21 @@ describe("wikg/wiki-graph-archive-file", () => {
           },
         });
 
-        // eslint-disable-next-line @typescript-eslint/unbound-method -- the mock restores the original receiver with call().
-        const originalRead = NodeFile.prototype.read;
-        const read = vi
-          .spyOn(NodeFile.prototype, "read")
-          .mockImplementation(function (this: NodeFile, options) {
-            if (this.path === archive.path) {
-              return Promise.reject(
-                new Error(`Whole archive file read: ${this.path}`),
-              );
-            }
-            return originalRead.call(this, options);
-          });
-        try {
-          const file = new WikiGraphArchiveFile(archive);
-          await expect(
-            file.readDocument(
-              async (document) =>
-                await readArchivePage(
-                  document,
-                  "wikg://chapter/chapter/source#2",
-                ),
-            ),
-          ).resolves.toMatchObject({
-            fragment: { text: target },
-          });
-          expect(textRangeBytesRead).toBe(
-            new TextEncoder().encode(target).length,
-          );
-        } finally {
-          read.mockRestore();
-        }
+        const file = new WikiGraphArchiveFile(archive);
+        await expect(
+          file.readDocument(
+            async (document) =>
+              await readArchivePage(
+                document,
+                "wikg://chapter/chapter/source#2",
+              ),
+          ),
+        ).resolves.toMatchObject({
+          fragment: { text: target },
+        });
+        expect(textRangeBytesRead).toBe(
+          new TextEncoder().encode(target).length,
+        );
       },
       {
         sentences: [

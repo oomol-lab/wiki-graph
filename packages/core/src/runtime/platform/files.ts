@@ -1,7 +1,7 @@
-import type { Directory, File } from "./types.js";
+import type { Directory, File, ReadonlyFile } from "./types.js";
 
 export async function copyFileContent(
-  source: File,
+  source: ReadonlyFile,
   target: File,
 ): Promise<void> {
   const reader = await source.openReader();
@@ -26,9 +26,7 @@ export async function copyFileContent(
   }
 }
 
-export async function readHostFileSize(file: File): Promise<number> {
-  if (file.size !== undefined) return file.size;
-  if (file.getSize !== undefined) return await file.getSize();
+export async function readHostFileSize(file: ReadonlyFile): Promise<number> {
   const reader = await file.openReader();
   try {
     return reader.size;
@@ -37,15 +35,30 @@ export async function readHostFileSize(file: File): Promise<number> {
   }
 }
 
-export async function isHostFileEmpty(file: File): Promise<boolean> {
+export async function isHostFileEmpty(file: ReadonlyFile): Promise<boolean> {
   return (await readHostFileSize(file)) === 0;
 }
 
-export async function readFileText(file: File): Promise<string> {
-  const content = await file.read({ encoding: "utf8" });
-  return typeof content === "string"
-    ? content
-    : new TextDecoder().decode(content);
+export async function readFileText(file: ReadonlyFile): Promise<string> {
+  return new TextDecoder().decode(await readFileBytes(file));
+}
+
+export async function readFileBytes(file: ReadonlyFile): Promise<Uint8Array> {
+  const reader = await file.openReader();
+  try {
+    const output = new Uint8Array(reader.size);
+    for (let offset = 0; offset < reader.size; ) {
+      const chunk = await reader.read(
+        offset,
+        Math.min(64 * 1024, reader.size - offset),
+      );
+      output.set(chunk, offset);
+      offset += chunk.byteLength;
+    }
+    return output;
+  } finally {
+    await reader.close();
+  }
 }
 
 export async function writeFileContent(
@@ -66,17 +79,32 @@ export async function appendFileText(
   file: File,
   content: string,
 ): Promise<void> {
-  let current = "";
+  const reader = await file.openReader().catch(() => undefined);
+  let writer: Awaited<ReturnType<File["openWriter"]>> | undefined;
   try {
-    current = await readFileText(file);
-  } catch {
-    // A newly created host File can legitimately have no backing bytes yet.
+    writer = await file.openWriter();
+    if (reader !== undefined) {
+      for (let offset = 0; offset < reader.size; ) {
+        const chunk = await reader.read(
+          offset,
+          Math.min(64 * 1024, reader.size - offset),
+        );
+        await writer.write(chunk);
+        offset += chunk.byteLength;
+      }
+    }
+    await writer.write(content);
+    await writer.commit();
+  } catch (error) {
+    await writer?.abort().catch(() => undefined);
+    throw error;
+  } finally {
+    await reader?.close();
   }
-  await writeFileContent(file, `${current}${content}`);
 }
 
 export async function readHostEntrySize(
-  entry: File | Directory,
+  entry: ReadonlyFile | Directory,
 ): Promise<number> {
   if (isDirectory(entry)) {
     let size = 0;
@@ -88,13 +116,13 @@ export async function readHostEntrySize(
 }
 
 export async function getHostEntryLastModified(
-  entry: File | Directory,
+  entry: ReadonlyFile | Directory,
 ): Promise<number | undefined> {
-  return entry.getLastModified === undefined
-    ? entry.lastModified
-    : await entry.getLastModified();
+  return await entry.getLastModified?.();
 }
 
-export function isDirectory(entry: File | Directory): entry is Directory {
-  return "list" in entry;
+export function isDirectory(
+  entry: ReadonlyFile | Directory,
+): entry is Directory {
+  return entry.kind === "directory";
 }

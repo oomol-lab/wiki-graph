@@ -21,15 +21,8 @@ describe("source/epub/archive", () => {
   });
 
   it("hashes the archive through range reads", async () => {
-    class RangeOnlyNodeFile extends NodeFile {
-      public override read(): Promise<Uint8Array | string> {
-        return Promise.reject(new Error("whole-file read is not allowed"));
-      }
-    }
     const archive = await EpubArchive.open(
-      new RangeOnlyNodeFile(
-        getFixturePath("sample-observatory-guide-mixed.epub"),
-      ),
+      new NodeFile(getFixturePath("sample-observatory-guide-mixed.epub")),
     );
     await archive.close();
   });

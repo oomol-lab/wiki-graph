@@ -68,6 +68,15 @@ export interface ReadonlySerialTextStream {
   listFragmentIds(): Promise<readonly number[]>;
   listSentences?(): Promise<readonly SentenceRecord[]>;
   getSentenceCount?(): Promise<number>;
+  findSentenceIndexAtCharacterOffset?(
+    offset: number,
+  ): Promise<number | undefined>;
+  getFragmentRangeForSentence?(
+    sentenceIndex: number,
+  ): Promise<
+    | { readonly endSentenceIndex: number; readonly startSentenceIndex: number }
+    | undefined
+  >;
   readText?(): Promise<string | undefined>;
   readTextInRange?(
     startSentenceIndex: number,

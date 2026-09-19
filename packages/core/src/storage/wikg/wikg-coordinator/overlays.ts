@@ -106,7 +106,6 @@ export async function publishFileOverlay(input: {
   readonly baseDigest?: string;
   readonly entryPath: string;
   readonly owner: CoordinatorOwner;
-  readonly workspaceFile: File;
   readonly workspacePath: string;
 }): Promise<EntryOverlay | undefined> {
   return await withCoordinatorState(async (database) => {
@@ -121,7 +120,7 @@ export async function publishFileOverlay(input: {
 INSERT INTO entry_overlays (
   archive_key, archive_identity, entry_path, kind, workspace_identity,
   workspace_path, base_digest, owner_id, updated_at
-) VALUES (?, ?, ?, 'file', ?, ?, ?, ?, ?)
+) VALUES (?, ?, ?, 'file', NULL, ?, ?, ?, ?)
 ON CONFLICT(archive_key, entry_path)
 DO UPDATE SET archive_identity = excluded.archive_identity,
               kind = excluded.kind,
@@ -135,7 +134,6 @@ DO UPDATE SET archive_identity = excluded.archive_identity,
           input.archiveKey,
           input.archiveIdentity,
           input.entryPath,
-          input.workspaceFile.identity,
           input.workspacePath,
           input.baseDigest ?? null,
           input.owner.ownerId,
@@ -302,10 +300,10 @@ WHERE archive_key = ? AND entry_path = ?
 }
 
 export async function resolveOverlayFile(overlay: EntryOverlay): Promise<File> {
-  if (overlay.workspaceIdentity === undefined) {
-    throw new Error(`Missing workspace identity for ${overlay.entryPath}.`);
-  }
-  const file = await resolveWorkspaceSnapshot(overlay.workspaceIdentity);
+  const file = await resolveWorkspaceSnapshot(
+    overlay.workspaceIdentity,
+    overlay.workspacePath,
+  );
   if (file === undefined) {
     throw new Error(
       `Published workspace snapshot is unavailable: ${overlay.entryPath}.`,
@@ -324,6 +322,7 @@ function sameOverlay(
     left.kind === right.kind &&
     left.baseDigest === right.baseDigest &&
     left.workspaceIdentity === right.workspaceIdentity &&
+    left.workspacePath === right.workspacePath &&
     left.ownerId === right.ownerId &&
     left.updatedAt === right.updatedAt
   );
@@ -333,8 +332,10 @@ export async function isDirtyOverlay(overlay: EntryOverlay): Promise<boolean> {
   if (overlay.kind === "deleted" || overlay.baseDigest === undefined) {
     return true;
   }
-  if (overlay.workspaceIdentity === undefined) return false;
-  const file = await resolveWorkspaceSnapshot(overlay.workspaceIdentity);
+  const file = await resolveWorkspaceSnapshot(
+    overlay.workspaceIdentity,
+    overlay.workspacePath,
+  );
   if (file === undefined) return false;
   return (await readFileDigest(file)) !== overlay.baseDigest;
 }

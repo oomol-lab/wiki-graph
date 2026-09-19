@@ -1,6 +1,8 @@
 import type { Directory, File } from "../../runtime/platform/index.js";
 import {
   getRelativeFile,
+  isDirectory,
+  readFileBytes,
   readHostFileSize,
 } from "../../runtime/platform/index.js";
 import type { DocumentFileStore } from "./types.js";
@@ -44,10 +46,7 @@ export class DirectoryFileStore implements DocumentFileStore {
   public async readFile(path: string): Promise<Uint8Array | undefined> {
     const file = await getRelativeFile(this.#root, this.#relative(path));
     if (!file) return undefined;
-    const content = await file.read();
-    return typeof content === "string"
-      ? new TextEncoder().encode(content)
-      : content;
+    return await readFileBytes(file);
   }
   public async getFileSize(path: string): Promise<number | undefined> {
     const file = await getRelativeFile(this.#root, this.#relative(path));
@@ -128,7 +127,7 @@ export class DirectoryFileStore implements DocumentFileStore {
   public async listFiles(path: string): Promise<readonly string[]> {
     const directory = await this.#getOrCreateDirectory(this.#relative(path));
     return (await directory.list())
-      .filter((entry): entry is File => "read" in entry)
+      .filter((entry): entry is File => !isDirectory(entry))
       .map((entry) => entry.name);
   }
 

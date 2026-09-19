@@ -54,18 +54,19 @@ async function openSearchIndexDatabaseLocked<T>(input: {
     databasePath,
     shouldInitialize ? SEARCH_INDEX_SCHEMA_SQL : "",
     {
+      ...(input.readonly
+        ? { mode: "readonly" as const }
+        : { create: shouldInitialize, mode: "readwrite" as const }),
       onWrite: () => {
         input.fileStore.markSearchIndexDatabaseDirty?.();
       },
-      readonly: input.readonly,
     },
   );
 
-  if (!input.readonly) {
-    await migrateSearchIndexSchema(database);
-  }
-
   try {
+    if (!input.readonly) {
+      await migrateSearchIndexSchema(database);
+    }
     return await input.operation(database);
   } finally {
     await database.close();
@@ -104,7 +105,7 @@ async function isSearchIndexDatabaseCompatible(
   databasePath: File,
 ): Promise<boolean> {
   const database = await Database.open(databasePath, "", {
-    readonly: true,
+    mode: "readonly",
   }).catch(() => undefined);
 
   if (database === undefined) {

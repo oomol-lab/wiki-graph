@@ -3,7 +3,10 @@ import type { File } from "../../../../runtime/platform/index.js";
 import { listTableColumns, listTableNames } from "./database.js";
 
 export async function migrateLegacyDatabase(databaseFile: File): Promise<void> {
-  const database = await Database.open(databaseFile);
+  const database = await Database.open(databaseFile, "", {
+    create: false,
+    mode: "readwrite",
+  });
 
   try {
     await migrateKnowledgeEdges(database);

@@ -8,6 +8,7 @@ import {
   ensureRelativeFile,
   getRelativeDirectory,
   getWikiGraphStorage,
+  readFileBytes,
 } from "../../../runtime/platform/index.js";
 import type { DocumentFileStore } from "../../../document/directory/index.js";
 import { createPortableHash } from "../../../utils/crypto.js";
@@ -287,7 +288,6 @@ export class HostWikgArchiveSession {
             archiveKey: this.#archiveKey,
             entryPath,
             owner: this.#owner,
-            workspaceFile: snapshot.file,
             workspacePath: snapshot.relativePath,
           });
         } catch (error) {
@@ -339,7 +339,6 @@ export class HostWikgArchiveSession {
             archiveKey: this.#archiveKey,
             entryPath,
             owner: this.#owner,
-            workspaceFile: snapshot.file,
             workspacePath: snapshot.relativePath,
           });
         } catch (error) {
@@ -430,7 +429,6 @@ export class HostWikgArchiveSession {
                 .digest("hex"),
               entryPath,
               owner: this.#owner,
-              workspaceFile: snapshot.file,
               workspacePath: snapshot.relativePath,
             });
           } catch (error) {
@@ -767,10 +765,7 @@ async function replaceFile(
 }
 
 async function readBytes(file: File): Promise<Uint8Array> {
-  const content = await file.read();
-  return typeof content === "string"
-    ? new TextEncoder().encode(content)
-    : content;
+  return await readFileBytes(file);
 }
 
 function isSqliteEntry(entryPath: string): boolean {

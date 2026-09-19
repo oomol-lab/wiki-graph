@@ -81,7 +81,10 @@ export async function migrateLegacyTextStorage(
     const databaseFile = await workspace.getFile("database.db");
     if (databaseFile === undefined)
       throw new Error("Legacy database is missing.");
-    const database = await Database.open(databaseFile);
+    const database = await Database.open(databaseFile, "", {
+      create: false,
+      mode: "readwrite",
+    });
 
     try {
       await writeLegacySourceTextStream(database, workspace, {

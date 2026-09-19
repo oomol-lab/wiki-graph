@@ -1086,6 +1086,7 @@ async function forceRunningPid(
   const database = await Database.open(
     databasePath,
     "CREATE TABLE IF NOT EXISTS build_jobs (job_id TEXT PRIMARY KEY);",
+    { create: true, mode: "readwrite" },
   );
 
   try {
@@ -1108,6 +1109,7 @@ async function lockSqliteDatabaseBriefly(
   const database = await Database.open(
     databasePath,
     "CREATE TABLE IF NOT EXISTS build_jobs (job_id TEXT PRIMARY KEY);",
+    { create: true, mode: "readwrite" },
   );
 
   await database.run("BEGIN EXCLUSIVE");

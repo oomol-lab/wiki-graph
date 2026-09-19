@@ -225,7 +225,7 @@ async function readTextStreamRawRange(
   return text === undefined ? undefined : { text };
 }
 
-function getTextStreamSerial(
+export function getTextStreamSerial(
   document: ReadonlyDocument,
   chapterId: number,
   stream: ArchiveTextStreamKind,
