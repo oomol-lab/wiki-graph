@@ -15,7 +15,7 @@ import {
   parseWikgManifest,
   parseWikgMutationToken,
 } from "./manifest.js";
-import { isWikgArchivePath, normalizeArchivePath } from "./paths.js";
+import { isReadableWikgArchivePath, normalizeArchivePath } from "./paths.js";
 
 export class WikgArchiveReader {
   readonly #entries: ReadonlyMap<string, string>;
@@ -39,7 +39,9 @@ export class WikgArchiveReader {
       const entries = new Map<string, string>();
       for (const hostName of await reader.listEntries()) {
         const name = normalizeArchivePath(hostName);
-        if (name !== "" && isWikgArchivePath(name)) entries.set(name, hostName);
+        if (name !== "" && isReadableWikgArchivePath(name)) {
+          entries.set(name, hostName);
+        }
       }
       await assertCurrentArchive(reader, entries);
       return new WikgArchiveReader(reader, entries);

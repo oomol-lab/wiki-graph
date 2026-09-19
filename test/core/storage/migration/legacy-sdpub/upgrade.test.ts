@@ -193,15 +193,17 @@ describe("legacy-sdpub/upgrade", () => {
       const document = await DirectoryDocument.open(extractedPath);
       try {
         await document.openSession(async (openedDocument) => {
-          await expect(
-            openedDocument.mentions.getById("legacy-offset"),
-          ).resolves.toMatchObject({
-            chapterId: 1,
-            rangeEnd: 34,
-            rangeStart: 25,
-            sentenceIndex: 2,
-            surface: "Augustine",
-          });
+          for (const mentionId of ["legacy-offset", "legacy-indexed"]) {
+            await expect(
+              openedDocument.mentions.getById(mentionId),
+            ).resolves.toMatchObject({
+              chapterId: 1,
+              rangeEnd: 34,
+              rangeStart: 25,
+              sentenceIndex: 2,
+              surface: "Augustine",
+            });
+          }
         });
       } finally {
         await document.release();
@@ -375,8 +377,27 @@ async function seedLegacyOffsetMention(documentPath: string): Promise<void> {
       `INSERT INTO mentions (
          id, chapter_id, fragment_id, sentence_index, range_start, range_end,
          surface, qid
-       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-      ["legacy-offset", 1, 1, null, 60, 69, "Augustine", "Q1"],
+       ) VALUES
+         (?, ?, ?, ?, ?, ?, ?, ?),
+         (?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        "legacy-offset",
+        1,
+        1,
+        null,
+        60,
+        69,
+        "Augustine",
+        "Q1",
+        "legacy-indexed",
+        1,
+        1,
+        1,
+        60,
+        69,
+        "Augustine",
+        "Q1",
+      ],
     );
   } finally {
     await database.close();

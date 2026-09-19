@@ -2,7 +2,10 @@ import { mkdir, rename } from "fs/promises";
 import { join } from "path";
 import { afterEach, describe, expect, it } from "vitest";
 
-import { DirectoryDocument } from "../../../../packages/core/src/document/index.js";
+import {
+  Database,
+  DirectoryDocument,
+} from "../../../../packages/core/src/document/index.js";
 import { WikiGraphArchiveFile } from "../../../../packages/core/src/storage/wikg/wiki-graph-archive-file.js";
 import { withHostArchiveSession } from "../../../../packages/core/src/storage/wikg/wikg-coordinator/host-session.js";
 import { withCoordinatorState } from "../../../../packages/core/src/storage/wikg/wikg-coordinator/state.js";
@@ -21,6 +24,9 @@ import {
   getWikiGraphStorage,
   installWikiGraphPlatform,
   withWikiGraphStorage,
+  type Directory,
+  type File,
+  type HostZipWriteEntry,
 } from "../../../../packages/core/src/runtime/platform/index.js";
 import {
   createNodeWikiGraphStorage,
@@ -309,6 +315,96 @@ describe("wikg/wiki-graph-archive-file", () => {
         ],
       },
     );
+  });
+
+  it.each(["index.db", "fts.db"] as const)(
+    "materializes archive search entry %s through bounded ranges",
+    async (entryName) => {
+      await withArchiveFixture(async ({ archive, root }) => {
+        const source = new NodeFile(join(root, `${entryName}.source`));
+        const sourceSize = await createLargeSearchDatabase(source);
+        await addArchiveEntry(archive, entryName, source);
+        const rangeLengths: number[] = [];
+
+        installWikiGraphPlatform({
+          ...nodeWikiGraphPlatform,
+          zip: {
+            ...nodeWikiGraphPlatform.zip,
+            open: async (file) => {
+              const reader = await nodeWikiGraphPlatform.zip.open(file);
+              return {
+                close: async () => await reader.close(),
+                copyEntry: async (name, target) => {
+                  if (name === entryName) {
+                    throw new Error(`Whole search entry copied: ${name}`);
+                  }
+                  return await reader.copyEntry(name, target);
+                },
+                getEntrySize: async (name) => await reader.getEntrySize(name),
+                listEntries: async () => await reader.listEntries(),
+                readEntry: async (name) => {
+                  if (name === entryName) {
+                    throw new Error(`Whole search entry read: ${name}`);
+                  }
+                  return await reader.readEntry(name);
+                },
+                readEntryRange: async (name, offset, length) => {
+                  if (name === entryName) rangeLengths.push(length);
+                  return await reader.readEntryRange(name, offset, length);
+                },
+              };
+            },
+          },
+        });
+
+        await withHostArchiveSession(archive, async (session) => {
+          const cache = await session.materializeSearchIndexCache({
+            createIfMissing: false,
+          });
+          await expect(readSearchMarker(cache)).resolves.toBe(1);
+        });
+
+        expect(rangeLengths.length).toBeGreaterThan(1);
+        expect(Math.max(...rangeLengths)).toBeLessThanOrEqual(64 * 1024);
+        expect(rangeLengths.reduce((sum, length) => sum + length, 0)).toBe(
+          sourceSize,
+        );
+      });
+    },
+  );
+
+  it("copies a persistent search cache through bounded file reads", async () => {
+    await withArchiveFixture(async ({ archive }) => {
+      let sourceSize = 0;
+      await withHostArchiveSession(archive, async (session) => {
+        const cache = await session.materializeSearchIndexCache({
+          createIfMissing: true,
+        });
+        sourceSize = await createLargeSearchDatabase(cache);
+        session.markSearchIndexCacheDirty(cache);
+      });
+
+      const storage = getWikiGraphStorage();
+      const rangeLengths: number[] = [];
+      const documentStore = wrapPersistentCacheReaders(
+        storage.documentStore,
+        (length) => rangeLengths.push(length),
+      );
+      await withWikiGraphStorage({ ...storage, documentStore }, async () => {
+        await withHostArchiveSession(archive, async (session) => {
+          const cache = await session.materializeSearchIndexCache({
+            createIfMissing: false,
+          });
+          await expect(readSearchMarker(cache)).resolves.toBe(1);
+        });
+      });
+
+      expect(rangeLengths.length).toBeGreaterThan(1);
+      expect(Math.max(...rangeLengths)).toBeLessThanOrEqual(64 * 1024);
+      expect(rangeLengths.reduce((sum, length) => sum + length, 0)).toBe(
+        sourceSize,
+      );
+    });
   });
 
   it("preserves operation errors and unregisters owners when cleanup fails", async () => {
@@ -712,4 +808,149 @@ async function withArchiveFixture(
       },
     );
   });
+}
+
+function createLargeTestPayload(): Uint8Array {
+  const content = new Uint8Array(2 * 64 * 1024 + 17);
+  for (let index = 0; index < content.byteLength; index += 1) {
+    content[index] = index % 251;
+  }
+  return content;
+}
+
+async function addArchiveEntry(
+  archive: File,
+  entryName: string,
+  source: File,
+): Promise<void> {
+  const reader = await nodeWikiGraphPlatform.zip.open(archive);
+  try {
+    const names = await reader.listEntries();
+    async function* entries(): AsyncGenerator<HostZipWriteEntry> {
+      for (const name of names) {
+        if (name === entryName) continue;
+        const size = await reader.getEntrySize(name);
+        if (size === undefined) continue;
+        yield {
+          name,
+          size,
+          read: async (offset, length) => {
+            const data = await reader.readEntryRange(name, offset, length);
+            if (data === undefined) {
+              throw new Error(`Archive entry disappeared: ${name}`);
+            }
+            return data;
+          },
+        };
+      }
+      yield { file: source, name: entryName };
+    }
+    await nodeWikiGraphPlatform.zip.write(archive, entries());
+  } finally {
+    await reader.close();
+  }
+}
+
+async function createLargeSearchDatabase(file: File): Promise<number> {
+  const database = await Database.open(file, "", {
+    create: true,
+    mode: "readwrite",
+  });
+  try {
+    await database.run(
+      "CREATE TABLE bounded_search_test (id INTEGER PRIMARY KEY, payload BLOB)",
+    );
+    await database.run(
+      "INSERT INTO bounded_search_test (id, payload) VALUES (1, ?)",
+      [createLargeTestPayload()],
+    );
+  } finally {
+    await database.close();
+  }
+  const reader = await file.openReader();
+  try {
+    return reader.size;
+  } finally {
+    await reader.close();
+  }
+}
+
+async function readSearchMarker(file: File): Promise<number> {
+  const database = await Database.open(file, "", { mode: "readonly" });
+  try {
+    return (
+      (await database.queryOne(
+        "SELECT COUNT(*) AS count FROM bounded_search_test",
+        undefined,
+        (row) => Number(row.count),
+      )) ?? 0
+    );
+  } finally {
+    await database.close();
+  }
+}
+
+function wrapPersistentCacheReaders(
+  root: Directory,
+  onRead: (length: number) => void,
+): Directory {
+  const wrapDirectory = (
+    directory: Directory,
+    relativePath: string,
+  ): Directory => ({
+    createDirectory: async (name) =>
+      wrapDirectory(
+        await directory.createDirectory(name),
+        join(relativePath, name),
+      ),
+    createFile: async (name) => await directory.createFile(name),
+    getDirectory: async (name) => {
+      const child = await directory.getDirectory(name);
+      return child === undefined
+        ? undefined
+        : wrapDirectory(child, join(relativePath, name));
+    },
+    getFile: async (name) => {
+      const file = await directory.getFile(name);
+      if (
+        file === undefined ||
+        name !== "index.db" ||
+        !relativePath.startsWith(".wikg-cache/")
+      ) {
+        return file;
+      }
+      return wrapBoundedReader(file, onRead);
+    },
+    getLastModified: async () => await directory.getLastModified?.(),
+    identity: directory.identity,
+    kind: "directory",
+    list: async () => await directory.list(),
+    name: directory.name,
+    remove: async (name, options) => await directory.remove(name, options),
+  });
+  return wrapDirectory(root, "");
+}
+
+function wrapBoundedReader(file: File, onRead: (length: number) => void): File {
+  return {
+    getLastModified: async () => await file.getLastModified?.(),
+    identity: file.identity,
+    kind: "file",
+    name: file.name,
+    openReader: async () => {
+      const reader = await file.openReader();
+      return {
+        close: async () => await reader.close(),
+        read: async (offset, length) => {
+          if (length === reader.size) {
+            throw new Error("Whole persistent search cache read");
+          }
+          onRead(length);
+          return await reader.read(offset, length);
+        },
+        size: reader.size,
+      };
+    },
+    openWriter: async () => await file.openWriter(),
+  };
 }

@@ -189,25 +189,23 @@ async function migrateLegacyMentions(
     const fragmentId = Number(row.fragment_id);
     const legacyRangeStart = Number(row.range_start ?? 0);
     const legacyRangeEnd = Number(row.range_end ?? 0);
-    const location =
+    const location = locateSentenceAtCharacterOffset(
+      remaps,
+      chapterId,
+      fragmentId,
+      legacyRangeStart,
+    );
+    const sentenceIndex =
       row.sentence_index === null || row.sentence_index === undefined
-        ? locateSentenceAtCharacterOffset(
+        ? location.sentenceIndex
+        : remapSentenceIndex(
             remaps,
             chapterId,
             fragmentId,
-            legacyRangeStart,
-          )
-        : undefined;
-    const sentenceIndex =
-      location?.sentenceIndex ??
-      remapSentenceIndex(
-        remaps,
-        chapterId,
-        fragmentId,
-        Number(row.sentence_index),
-      );
-    const rangeStart = legacyRangeStart - (location?.sentenceOffset ?? 0);
-    const rangeEnd = legacyRangeEnd - (location?.sentenceOffset ?? 0);
+            Number(row.sentence_index),
+          );
+    const rangeStart = legacyRangeStart - location.sentenceOffset;
+    const rangeEnd = legacyRangeEnd - location.sentenceOffset;
 
     await database.run(
       `
