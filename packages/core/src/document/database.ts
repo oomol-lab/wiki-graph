@@ -96,11 +96,12 @@ export class Database {
             create: options.create,
             mode: "readwrite",
           });
-    const openedDatabase = new Database(
-      new HostDatabaseBackend(connection),
-      options,
-    );
+    let openedDatabase: Database | undefined;
     try {
+      openedDatabase = new Database(
+        new HostDatabaseBackend(connection),
+        options,
+      );
       await openedDatabase.#executeSql(
         `PRAGMA busy_timeout = ${SQLITE_BUSY_TIMEOUT_MS}`,
       );
@@ -112,7 +113,11 @@ export class Database {
       }
       return openedDatabase;
     } catch (error) {
-      await openedDatabase.close().catch(() => undefined);
+      if (openedDatabase === undefined) {
+        await connection.close().catch(() => undefined);
+      } else {
+        await openedDatabase.close().catch(() => undefined);
+      }
       throw error;
     }
   }

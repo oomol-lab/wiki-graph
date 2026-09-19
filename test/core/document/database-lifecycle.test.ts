@@ -88,6 +88,37 @@ describe("database lifecycle", () => {
     },
   );
 
+  it("closes the host connection when wrapper initialization fails", async () => {
+    await withTempDir("wikigraph-database-wrapper-failure-", async (path) => {
+      const file = await new NodeDirectory(path).createFile("database.db");
+      let closes = 0;
+      const connection: HostDatabaseConnection = {
+        close: () => {
+          closes += 1;
+          return Promise.resolve();
+        },
+        execute: () => Promise.resolve(),
+        queryAll: () => Promise.resolve([]),
+        queryOne: () => Promise.resolve(undefined),
+        run: () => Promise.resolve(),
+      };
+      installWikiGraphPlatform({
+        ...nodeWikiGraphPlatform,
+        asyncContext: {
+          create: () => {
+            throw new Error("wrapper initialization failed");
+          },
+        },
+        database: { open: () => Promise.resolve(connection) },
+      });
+
+      await expect(
+        Database.open(file, "", { create: true, mode: "readwrite" }),
+      ).rejects.toThrow("wrapper initialization failed");
+      expect(closes).toBe(1);
+    });
+  });
+
   it("closes the database and file store when document initialization fails", async () => {
     await withTempDir("wikigraph-document-lifecycle-", async (path) => {
       let activeConnections = 0;
