@@ -5,6 +5,7 @@ import type {
   ReadonlyFile,
 } from "../../../runtime/platform/index.js";
 import {
+  copyFileContent,
   ensureRelativeDirectory,
   ensureRelativeFile,
   getRelativeDirectory,
@@ -72,14 +73,25 @@ export async function withHostArchiveSession<T>(
   operation: (session: HostWikgArchiveSession) => Promise<T> | T,
 ): Promise<T> {
   const session = await HostWikgArchiveSession.open(archive);
+  const failures: unknown[] = [];
+  let result: T | undefined;
   try {
-    return await operation(session);
+    result = await operation(session);
   } catch (error) {
-    await session.abort();
-    throw error;
-  } finally {
-    await session.close();
+    failures.push(error);
+    try {
+      await session.abort();
+    } catch (abortError) {
+      failures.push(abortError);
+    }
   }
+  try {
+    await session.close();
+  } catch (closeError) {
+    failures.push(closeError);
+  }
+  if (failures.length > 0) throw failures[0];
+  return result as T;
 }
 
 /** Coordinates logical archive state without observing host locations. */
@@ -417,23 +429,27 @@ export class HostWikgArchiveSession {
             return await resolveOverlayFile(existing);
           }
 
-          const content = await this.#readArchiveEntry(entryPath);
-          if (content === undefined && !options.createIfMissing) {
-            throw new Error(`Archive SQLite entry is missing: ${entryPath}`);
-          }
-          const bytes = content ?? new Uint8Array();
           const snapshot = await createWorkspaceSnapshot(
             this.#archiveKey,
             entryPath,
           );
           try {
-            await replaceFile(snapshot.file, bytes);
+            const copied = await this.#copyArchiveEntry(
+              entryPath,
+              snapshot.file,
+            );
+            if (!copied) {
+              if (!options.createIfMissing) {
+                throw new Error(
+                  `Archive SQLite entry is missing: ${entryPath}`,
+                );
+              }
+              await replaceFile(snapshot.file, new Uint8Array());
+            }
             await publishFileOverlay({
               archiveIdentity: this.#archive.identity,
               archiveKey: this.#archiveKey,
-              baseDigest: createPortableHash("sha256")
-                .update(bytes)
-                .digest("hex"),
+              baseDigest: await hashFile(snapshot.file),
               entryPath,
               owner: this.#owner,
               workspacePath: snapshot.relativePath,
@@ -463,23 +479,41 @@ export class HostWikgArchiveSession {
           this.#initialSearchCacheKey,
           false,
         );
-    const content =
-      (persistent === undefined ? undefined : await readBytes(persistent)) ??
-      (await this.readEntry(SEARCH_INDEX_DATABASE_ENTRY_PATH)) ??
-      (await this.readEntry(LEGACY_SEARCH_INDEX_DATABASE_ENTRY_PATH));
-    if (content === undefined && !options.createIfMissing) {
-      throw new Error(
-        `Archive SQLite entry is missing: ${SEARCH_INDEX_DATABASE_ENTRY_PATH}`,
-      );
-    }
     const snapshot = await createWorkspaceSnapshot(
       this.#archiveKey,
       SEARCH_INDEX_DATABASE_ENTRY_PATH,
     );
-    await replaceFile(snapshot.file, content ?? new Uint8Array());
+    let copiedFromArchive = false;
+    try {
+      if (persistent !== undefined) {
+        await copyFileContent(persistent, snapshot.file);
+      } else {
+        copiedFromArchive = await this.#copyArchiveEntry(
+          SEARCH_INDEX_DATABASE_ENTRY_PATH,
+          snapshot.file,
+        );
+        if (!copiedFromArchive) {
+          copiedFromArchive = await this.#copyArchiveEntry(
+            LEGACY_SEARCH_INDEX_DATABASE_ENTRY_PATH,
+            snapshot.file,
+          );
+        }
+        if (!copiedFromArchive) {
+          if (!options.createIfMissing) {
+            throw new Error(
+              `Archive SQLite entry is missing: ${SEARCH_INDEX_DATABASE_ENTRY_PATH}`,
+            );
+          }
+          await replaceFile(snapshot.file, new Uint8Array());
+        }
+      }
+    } catch (error) {
+      await removeWorkspaceSnapshot(snapshot.relativePath);
+      throw error;
+    }
     this.#searchCacheFile = snapshot.file;
     this.#searchCacheWorkspacePath = snapshot.relativePath;
-    if (persistent === undefined && content !== undefined) {
+    if (copiedFromArchive) {
       this.#searchCacheDirty = true;
     }
     return snapshot.file;
@@ -521,6 +555,7 @@ export class HostWikgArchiveSession {
     if (this.#closed) return;
     this.#closed = true;
     globalThis.clearInterval(this.#heartbeat);
+    const failures: unknown[] = [];
     try {
       for (const entryPath of [...this.#leasedEntryPaths]) {
         await this.releaseDatabaseLease(entryPath);
@@ -532,10 +567,8 @@ export class HostWikgArchiveSession {
             await deleteCleanOverlayIfUnused(overlay);
           }
         }
-        return;
-      }
-      const writableArchive = requireWritableFile(this.#archive);
-      if (!this.#aborted) {
+      } else if (!this.#aborted) {
+        const writableArchive = requireWritableFile(this.#archive);
         for (const entryPath of this.#materializedEntryPaths) {
           const overlay = await readOverlay(this.#archiveKey, entryPath);
           if (overlay !== undefined && (await isDirtyOverlay(overlay))) {
@@ -569,11 +602,19 @@ export class HostWikgArchiveSession {
       }
     } catch (error) {
       await this.#rollbackChanges().catch(() => undefined);
-      throw error;
-    } finally {
-      await this.#cleanupSearchCacheWorkspace();
-      await unregisterArchiveOwner(this.#archiveKey, this.#owner.ownerId);
+      failures.push(error);
     }
+    try {
+      await this.#cleanupSearchCacheWorkspace();
+    } catch (error) {
+      failures.push(error);
+    }
+    try {
+      await unregisterArchiveOwner(this.#archiveKey, this.#owner.ownerId);
+    } catch (error) {
+      failures.push(error);
+    }
+    if (failures.length > 0) throw failures[0];
   }
 
   async #readEntryUnlocked(entryPath: string): Promise<Uint8Array | undefined> {
@@ -635,6 +676,39 @@ export class HostWikgArchiveSession {
       );
     } finally {
       await archiveReader.close();
+    }
+  }
+
+  async #copyArchiveEntry(entryPath: string, target: File): Promise<boolean> {
+    const reader = await WikgArchiveReader.open(this.#archive);
+    try {
+      const size = await reader.getEntrySize(entryPath);
+      if (size === undefined) return false;
+      const writer = await target.openWriter();
+      try {
+        await copyRangeToWriter(
+          size,
+          async (offset, length) => {
+            const chunk = await reader.readEntryRange(
+              entryPath,
+              offset,
+              length,
+            );
+            if (chunk === undefined) {
+              throw new Error(`Archive entry disappeared: ${entryPath}.`);
+            }
+            return chunk;
+          },
+          writer,
+        );
+        await writer.commit();
+        return true;
+      } catch (error) {
+        await writer.abort().catch(() => undefined);
+        throw error;
+      }
+    } finally {
+      await reader.close();
     }
   }
 
@@ -703,7 +777,7 @@ export class HostWikgArchiveSession {
     if (persistent === undefined) {
       throw new Error("Could not create the persistent search index cache");
     }
-    await replaceFile(persistent, await readBytes(this.#searchCacheFile));
+    await copyFileContent(this.#searchCacheFile, persistent);
   }
 
   async #getPersistentSearchIndexCache(
@@ -794,6 +868,26 @@ async function replaceFile(
 
 async function readBytes(file: File): Promise<Uint8Array> {
   return await readFileBytes(file);
+}
+
+async function hashFile(file: ReadonlyFile): Promise<string> {
+  const hash = createPortableHash("sha256");
+  const reader = await file.openReader();
+  try {
+    for (let offset = 0; offset < reader.size; ) {
+      const chunk = await reader.read(
+        offset,
+        Math.min(64 * 1024, reader.size - offset),
+      );
+      if (chunk.byteLength === 0)
+        throw new Error("FileReader made no progress");
+      hash.update(chunk);
+      offset += chunk.byteLength;
+    }
+    return hash.digest("hex");
+  } finally {
+    await reader.close();
+  }
 }
 
 function isSqliteEntry(entryPath: string): boolean {

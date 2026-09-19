@@ -1,4 +1,4 @@
-import type { Directory, File, ReadonlyFile } from "./types.js";
+import type { Directory, File, HostError, ReadonlyFile } from "./types.js";
 
 export async function copyFileContent(
   source: ReadonlyFile,
@@ -79,7 +79,10 @@ export async function appendFileText(
   file: File,
   content: string,
 ): Promise<void> {
-  const reader = await file.openReader().catch(() => undefined);
+  const reader = await file.openReader().catch((error: unknown) => {
+    if ((error as HostError | undefined)?.code === "ENOENT") return undefined;
+    throw error;
+  });
   let writer: Awaited<ReturnType<File["openWriter"]>> | undefined;
   try {
     writer = await file.openWriter();

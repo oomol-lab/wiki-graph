@@ -1,6 +1,6 @@
 import { access } from "fs/promises";
 import { join } from "path";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import {
   createNodeWikiGraphStorage,
@@ -217,6 +217,51 @@ describe("Node File/Directory adapter", () => {
       "writer unavailable",
     );
     expect(closed).toBe(true);
+  });
+
+  it("does not replace a file when its append reader fails", async () => {
+    const openWriter = vi.fn<() => Promise<FileWriter>>();
+    const file: File = {
+      identity: "append-reader-failure",
+      kind: "file",
+      name: "events.jsonl",
+      openReader: () => Promise.reject(new Error("remote read failed")),
+      openWriter,
+    };
+
+    await expect(appendFileText(file, "next")).rejects.toThrow(
+      "remote read failed",
+    );
+    expect(openWriter).not.toHaveBeenCalled();
+  });
+
+  it("appends to a new file after an explicit missing-file error", async () => {
+    let committed = false;
+    const write = vi.fn<(_: Uint8Array | string) => Promise<void>>(() =>
+      Promise.resolve(),
+    );
+    const missing = Object.assign(new Error("missing"), { code: "ENOENT" });
+    const file: File = {
+      identity: "new-append-file",
+      kind: "file",
+      name: "events.jsonl",
+      openReader: () => Promise.reject(missing),
+      openWriter: () =>
+        Promise.resolve({
+          abort: () => Promise.resolve(),
+          commit: () => {
+            committed = true;
+            return Promise.resolve();
+          },
+          write,
+          writeAt: () => Promise.resolve(),
+        }),
+    };
+
+    await appendFileText(file, "next");
+
+    expect(write).toHaveBeenCalledWith("next");
+    expect(committed).toBe(true);
   });
 
   it("rejects absolute and parent-directory child names", async () => {

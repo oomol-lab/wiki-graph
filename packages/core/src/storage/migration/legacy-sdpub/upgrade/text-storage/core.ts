@@ -73,6 +73,34 @@ export async function migrateLegacyTextStorage(
     }
 
     remaps.set(serialId, {
+      locateAtCharacterOffset: (fragmentId, offset) => {
+        const fragment = fragments.find(
+          (candidate) => candidate.fragmentId === fragmentId,
+        );
+        if (fragment === undefined) return undefined;
+        let cursor = 0;
+        let last:
+          | {
+              readonly sentenceIndex: number;
+              readonly sentenceOffset: number;
+            }
+          | undefined;
+        for (
+          let localSentenceIndex = 0;
+          localSentenceIndex < fragment.content.sentences.length;
+          localSentenceIndex += 1
+        ) {
+          const sentence = fragment.content.sentences[localSentenceIndex];
+          if (sentence === undefined) continue;
+          const mapped = sentenceMap.get(`${fragmentId}:${localSentenceIndex}`);
+          if (mapped === undefined) continue;
+          last = { sentenceIndex: mapped, sentenceOffset: cursor };
+          const nextCursor = cursor + sentence.text.length;
+          if (Math.max(0, offset) <= nextCursor) return last;
+          cursor = nextCursor + 1;
+        }
+        return last;
+      },
       get: (fragmentId, sentenceIndex) =>
         sentenceMap.get(`${fragmentId}:${sentenceIndex}`),
       serialId,

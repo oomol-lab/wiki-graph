@@ -13,6 +13,15 @@ export interface LegacyFragmentRecord {
 }
 
 export interface SentenceIndexRemap {
+  locateAtCharacterOffset(
+    fragmentId: number,
+    offset: number,
+  ):
+    | {
+        readonly sentenceIndex: number;
+        readonly sentenceOffset: number;
+      }
+    | undefined;
   get(fragmentId: number, sentenceIndex: number): number | undefined;
   readonly serialId: number;
 }

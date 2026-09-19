@@ -1,4 +1,6 @@
 import {
+  LEGACY_SEARCH_INDEX_DATABASE_PATH,
+  SEARCH_INDEX_DATABASE_PATH,
   WIKG_ARCHIVE_PATTERNS,
   WIKG_MUTATION_TOKEN_PATH,
 } from "./constants.js";
@@ -33,6 +35,15 @@ export function assertSafeRelativePath(path: string): void {
 
 export function isWikgArchivePath(archivePath: string): boolean {
   return WIKG_ARCHIVE_PATTERNS.some((pattern) => pattern.test(archivePath));
+}
+
+/** Reads legacy embedded search caches without making writers preserve them. */
+export function isReadableWikgArchivePath(archivePath: string): boolean {
+  return (
+    isWikgArchivePath(archivePath) ||
+    archivePath === SEARCH_INDEX_DATABASE_PATH ||
+    archivePath === LEGACY_SEARCH_INDEX_DATABASE_PATH
+  );
 }
 
 export function sortArchiveEntriesForWrite<

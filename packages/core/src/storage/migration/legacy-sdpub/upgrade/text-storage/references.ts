@@ -186,15 +186,26 @@ async function migrateLegacyMentions(
 
   for (const row of rows) {
     const chapterId = Number(row.chapter_id);
+    const fragmentId = Number(row.fragment_id);
+    const legacyRangeStart = Number(row.range_start ?? 0);
+    const legacyRangeEnd = Number(row.range_end ?? 0);
+    const location = locateSentenceAtCharacterOffset(
+      remaps,
+      chapterId,
+      fragmentId,
+      legacyRangeStart,
+    );
     const sentenceIndex =
       row.sentence_index === null || row.sentence_index === undefined
-        ? null
+        ? location.sentenceIndex
         : remapSentenceIndex(
             remaps,
             chapterId,
-            Number(row.fragment_id),
+            fragmentId,
             Number(row.sentence_index),
           );
+    const rangeStart = legacyRangeStart - location.sentenceOffset;
+    const rangeEnd = legacyRangeEnd - location.sentenceOffset;
 
     await database.run(
       `
@@ -208,8 +219,8 @@ async function migrateLegacyMentions(
         getRequiredSqlBindValue(row.id),
         chapterId,
         sentenceIndex,
-        row.range_start ?? 0,
-        row.range_end ?? 0,
+        rangeStart,
+        rangeEnd,
         row.surface ?? "",
         row.qid ?? "",
         row.confidence ?? null,
@@ -219,6 +230,23 @@ async function migrateLegacyMentions(
   }
 
   await database.run("DROP TABLE legacy_mentions");
+}
+
+function locateSentenceAtCharacterOffset(
+  remaps: ReadonlyMap<number, SentenceIndexRemap>,
+  serialId: number,
+  fragmentId: number,
+  offset: number,
+): { readonly sentenceIndex: number; readonly sentenceOffset: number } {
+  const location = remaps
+    .get(serialId)
+    ?.locateAtCharacterOffset(fragmentId, offset);
+  if (location === undefined) {
+    throw new Error(
+      `Cannot remap legacy mention offset ${serialId}:${fragmentId}:${offset}.`,
+    );
+  }
+  return location;
 }
 
 async function migrateLegacyMentionLinkEvidenceSentences(
