@@ -156,6 +156,59 @@ describe("legacy-sdpub/upgrade", () => {
     });
   });
 
+  it("maps legacy fragment-relative mention offsets before dropping fragment ids", async () => {
+    await withTempDir("wikigraph-legacy-mention-offset-", async (path) => {
+      const documentPath = `${path}/legacy-document`;
+      const legacyArchivePath = `${path}/mention-offset.sdpub`;
+      const migratedArchivePath = `${path}/mention-offset.wikg`;
+      const extractedPath = `${path}/extracted`;
+
+      await seedLegacyDocument(documentPath);
+      await writeTextFile(
+        `${documentPath}/fragments/serial-1/fragment_1.json`,
+        JSON.stringify({
+          sentences: [
+            { text: "First unrelated fragment sentence.", wordsCount: 4 },
+            { text: "Second fragment mentions Augustine.", wordsCount: 4 },
+            { text: "Third unrelated fragment sentence.", wordsCount: 4 },
+          ],
+          summary: "",
+        }),
+      );
+      await seedLegacyOffsetMention(documentPath);
+      await writeLegacyArchive(documentPath, legacyArchivePath, {
+        manifest: false,
+      });
+
+      await migrateLegacySdpubToWikg(
+        new NodeFile(legacyArchivePath),
+        new NodeFile(migratedArchivePath),
+      );
+      await mkdir(extractedPath, { recursive: true });
+      await extractWikgArchive(
+        new NodeFile(migratedArchivePath),
+        new NodeDirectory(extractedPath),
+      );
+
+      const document = await DirectoryDocument.open(extractedPath);
+      try {
+        await document.openSession(async (openedDocument) => {
+          await expect(
+            openedDocument.mentions.getById("legacy-offset"),
+          ).resolves.toMatchObject({
+            chapterId: 1,
+            rangeEnd: 34,
+            rangeStart: 25,
+            sentenceIndex: 2,
+            surface: "Augustine",
+          });
+        });
+      } finally {
+        await document.release();
+      }
+    });
+  });
+
   it("rejects unsupported legacy inputs", async () => {
     await withTempDir("wikigraph-legacy-sdpub-", async (path) => {
       const archivePath = `${path}/broken.sdpub`;
@@ -292,6 +345,38 @@ async function pointLegacyDerivedDataAtFragment(
     await database.run(
       "INSERT INTO fragment_groups (serial_id, group_id, fragment_id) VALUES (1, 0, ?)",
       [fragmentId],
+    );
+  } finally {
+    await database.close();
+  }
+}
+
+async function seedLegacyOffsetMention(documentPath: string): Promise<void> {
+  const database = await Database.open(`${documentPath}/database.db`, "", {
+    create: false,
+    mode: "readwrite",
+  });
+  try {
+    await database.run(`
+      CREATE TABLE mentions (
+        id TEXT PRIMARY KEY,
+        chapter_id INTEGER NOT NULL,
+        fragment_id INTEGER NOT NULL,
+        sentence_index INTEGER,
+        range_start INTEGER NOT NULL,
+        range_end INTEGER NOT NULL,
+        surface TEXT NOT NULL,
+        qid TEXT NOT NULL,
+        confidence REAL,
+        note TEXT
+      )
+    `);
+    await database.run(
+      `INSERT INTO mentions (
+         id, chapter_id, fragment_id, sentence_index, range_start, range_end,
+         surface, qid
+       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      ["legacy-offset", 1, 1, null, 60, 69, "Augustine", "Q1"],
     );
   } finally {
     await database.close();

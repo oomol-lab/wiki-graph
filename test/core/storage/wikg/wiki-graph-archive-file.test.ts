@@ -4,6 +4,8 @@ import { afterEach, describe, expect, it } from "vitest";
 
 import { DirectoryDocument } from "../../../../packages/core/src/document/index.js";
 import { WikiGraphArchiveFile } from "../../../../packages/core/src/storage/wikg/wiki-graph-archive-file.js";
+import { withHostArchiveSession } from "../../../../packages/core/src/storage/wikg/wikg-coordinator/host-session.js";
+import { withCoordinatorState } from "../../../../packages/core/src/storage/wikg/wikg-coordinator/state.js";
 import {
   readWikgArchiveEntry,
   writeWikgArchive,
@@ -16,6 +18,7 @@ import {
 } from "../../../../packages/core/src/retrieval/query/index.js";
 import { readArchivePage } from "../../../../packages/core/src/retrieval/query/view.js";
 import {
+  getWikiGraphStorage,
   installWikiGraphPlatform,
   withWikiGraphStorage,
 } from "../../../../packages/core/src/runtime/platform/index.js";
@@ -194,8 +197,13 @@ describe("wikg/wiki-graph-archive-file", () => {
             entry.startsWith("texts/"),
           ),
         );
+        const databaseEntry = (await initialReader.listEntries()).find(
+          (entry) => entry === "database.db",
+        );
         await initialReader.close();
         expect(textEntries.size).toBeGreaterThan(0);
+        expect(databaseEntry).toBeDefined();
+        let databaseRangeBytes = 0;
 
         installWikiGraphPlatform({
           ...nodeWikiGraphPlatform,
@@ -209,6 +217,9 @@ describe("wikg/wiki-graph-archive-file", () => {
                   if (textEntries.has(name)) {
                     throw new Error(`Whole text entry copied: ${name}`);
                   }
+                  if (name === databaseEntry) {
+                    throw new Error(`Whole database entry copied: ${name}`);
+                  }
                   return await reader.copyEntry(name, destination);
                 },
                 getEntrySize: async (name) => await reader.getEntrySize(name),
@@ -217,10 +228,22 @@ describe("wikg/wiki-graph-archive-file", () => {
                   if (textEntries.has(name)) {
                     throw new Error(`Whole text entry read: ${name}`);
                   }
+                  if (name === databaseEntry) {
+                    throw new Error(`Whole database entry read: ${name}`);
+                  }
                   return await reader.readEntry(name);
                 },
-                readEntryRange: async (name, offset, length) =>
-                  await reader.readEntryRange(name, offset, length),
+                readEntryRange: async (name, offset, length) => {
+                  const content = await reader.readEntryRange(
+                    name,
+                    offset,
+                    length,
+                  );
+                  if (name === databaseEntry) {
+                    databaseRangeBytes += content?.byteLength ?? 0;
+                  }
+                  return content;
+                },
               };
             },
           },
@@ -234,18 +257,22 @@ describe("wikg/wiki-graph-archive-file", () => {
               "wikg://triple/Q1/mentions/Q2",
               "wikg://entity/Q3",
             ]) {
-              await expect(
-                listArchiveEvidence(document, uri, { sourceContext: 0 }),
-              ).resolves.toMatchObject({
+              const evidence = await listArchiveEvidence(document, uri);
+              expect(evidence).toMatchObject({
                 items: [{ type: "source" }],
               });
+              expect(evidence.items[0]?.source).toContain("After context.");
             }
-            await expect(
-              readArchivePage(document, "node:100"),
-            ).resolves.toMatchObject({
-              sourceFragments: [{ text: "Bounded archive source." }],
+            const nodePage = await readArchivePage(document, "node:100");
+            expect(nodePage).toMatchObject({
               type: "node",
             });
+            if (!("sourceFragments" in nodePage)) {
+              throw new Error("Expected node source fragments.");
+            }
+            expect(nodePage.sourceFragments[0]?.text).toContain(
+              "Bounded archive source.",
+            );
             const sourcePage = await readArchivePage(
               document,
               "wikg://chapter/chapter/source#1",
@@ -271,12 +298,62 @@ describe("wikg/wiki-graph-archive-file", () => {
             ).toContain("wikg://triple/Q1/mentions/Q2");
           },
         );
+        expect(databaseRangeBytes).toBeGreaterThan(0);
       },
       {
         seedRetrieval: true,
-        sentences: [["Bounded archive source.", 3]],
+        sentences: [
+          ["Before context.", 2],
+          ["Bounded archive source.", 3],
+          ["After context.", 2],
+        ],
       },
     );
+  });
+
+  it("preserves operation errors and unregisters owners when cleanup fails", async () => {
+    await withArchiveFixture(async ({ archive }) => {
+      const storage = getWikiGraphStorage();
+      let failCleanup = false;
+      const documentStore = new Proxy(storage.documentStore, {
+        get(target, property, receiver) {
+          if (property === "getDirectory") {
+            return async (name: string) => {
+              if (failCleanup && name === ".wikg-work") {
+                throw new Error("workspace cleanup failed");
+              }
+              return await target.getDirectory(name);
+            };
+          }
+          const value = Reflect.get(target, property, receiver) as unknown;
+          return typeof value === "function" ? value.bind(target) : value;
+        },
+      });
+
+      await withWikiGraphStorage({ ...storage, documentStore }, async () => {
+        await expect(
+          withHostArchiveSession(archive, async (session) => {
+            await session.materializeSearchIndexCache({
+              createIfMissing: true,
+            });
+            failCleanup = true;
+            throw new Error("operation failed");
+          }),
+        ).rejects.toThrow("operation failed");
+        failCleanup = false;
+      });
+
+      await expect(
+        withCoordinatorState(
+          async (database) =>
+            (await database.queryOne(
+              "SELECT COUNT(*) AS count FROM archive_owners",
+              undefined,
+              (row) => Number(row.count),
+            )) ?? 0,
+        ),
+      ).resolves.toBe(0);
+    });
   });
 
   it("appends archive text through a range-backed transactional settlement", async () => {
