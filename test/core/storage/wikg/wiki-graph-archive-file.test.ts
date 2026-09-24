@@ -118,6 +118,55 @@ describe("wikg/wiki-graph-archive-file", () => {
     });
   });
 
+  it("checks archive entry existence without reading its content", async () => {
+    await withArchiveFixture(async ({ archive, root }) => {
+      const entryName = "cover/data.bin";
+      const source = new NodeFile(join(root, "large-cover.bin"));
+      const writer = await source.openWriter();
+      await writer.write(new Uint8Array(512 * 1024).fill(1));
+      await writer.commit();
+      await addArchiveEntry(archive, entryName, source);
+      let sizeChecks = 0;
+
+      installWikiGraphPlatform({
+        ...nodeWikiGraphPlatform,
+        zip: {
+          ...nodeWikiGraphPlatform.zip,
+          open: async (file) => {
+            const reader = await nodeWikiGraphPlatform.zip.open(file);
+            return {
+              close: async () => await reader.close(),
+              copyEntry: async (name, target) =>
+                await reader.copyEntry(name, target),
+              getEntrySize: async (name) => {
+                if (name === entryName) sizeChecks += 1;
+                return await reader.getEntrySize(name);
+              },
+              listEntries: async () => await reader.listEntries(),
+              readEntry: async (name) => {
+                if (name === entryName) {
+                  throw new Error(`Existing entry content read: ${name}`);
+                }
+                return await reader.readEntry(name);
+              },
+              readEntryRange: async (name, offset, length) =>
+                await reader.readEntryRange(name, offset, length),
+            };
+          },
+        },
+      });
+
+      await expect(
+        withHostArchiveSession(archive, async (session) => {
+          await session.writeEntry(entryName, new Uint8Array([2]), {
+            overwrite: false,
+          });
+        }),
+      ).rejects.toThrow(`File already exists: ${entryName}`);
+      expect(sizeChecks).toBeGreaterThan(0);
+    });
+  });
+
   it("range-reads a late archive snippet without materializing its prefix", async () => {
     const prefix = `${"a".repeat(512 * 1024)}.`;
     const target = "朱元璋抵达洪都。";

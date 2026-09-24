@@ -7,6 +7,7 @@ import {
   NodeDirectory,
   NodeFile,
   nodeWikiGraphPlatform,
+  writeNodeFileHandle,
 } from "../../../../packages/cli/src/runtime/node-platform.js";
 import { DirectoryFileStore } from "../../../../packages/core/src/document/directory/directory-file-store.js";
 import type {
@@ -55,6 +56,22 @@ describe("Node File/Directory adapter", () => {
       expect(stored!.name).toBe("chapter.txt");
       await expect(readFileText(stored!)).resolves.toBe("chapter one");
     });
+  });
+
+  it("retries sequential writes until every byte is written", async () => {
+    const written: number[] = [];
+    const write = vi.fn(
+      (buffer: Uint8Array, offset: number, length: number) => {
+        const bytesWritten = Math.min(2, length);
+        written.push(...buffer.subarray(offset, offset + bytesWritten));
+        return Promise.resolve({ buffer, bytesWritten });
+      },
+    );
+
+    await writeNodeFileHandle({ write } as never, "abcdef");
+
+    expect(write).toHaveBeenCalledTimes(3);
+    expect(new TextDecoder().decode(new Uint8Array(written))).toBe("abcdef");
   });
 
   it("reads byte ranges without materializing the whole file", async () => {
