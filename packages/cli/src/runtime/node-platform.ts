@@ -116,26 +116,12 @@ export class NodeFile implements File {
     return {
       write: async (data) => {
         if (closed) throw new Error("Cannot write to a closed FileWriter");
-        if (typeof data === "string") await handle.write(data);
-        else await handle.write(Buffer.from(data));
+        await writeNodeFileHandle(handle, data);
       },
       writeAt: async (offset, data) => {
         if (closed) throw new Error("Cannot write to a closed FileWriter");
         assertFileOffset(offset);
-        const buffer = Buffer.from(data);
-        let written = 0;
-        while (written < buffer.byteLength) {
-          const result = await handle.write(
-            buffer,
-            written,
-            buffer.byteLength - written,
-            offset + written,
-          );
-          if (result.bytesWritten === 0) {
-            throw new Error("File writer made no progress");
-          }
-          written += result.bytesWritten;
-        }
+        await writeNodeFileHandle(handle, data, offset);
       },
       commit: async () => {
         if (!closed) {
@@ -152,6 +138,28 @@ export class NodeFile implements File {
         closed = true;
       },
     };
+  }
+}
+
+/** @internal Completes writes even when the Node file handle reports a short write. */
+export async function writeNodeFileHandle(
+  handle: Pick<fsPromises.FileHandle, "write">,
+  data: Uint8Array | string,
+  position?: number,
+): Promise<void> {
+  const buffer = Buffer.from(data);
+  let written = 0;
+  while (written < buffer.byteLength) {
+    const result = await handle.write(
+      buffer,
+      written,
+      buffer.byteLength - written,
+      position === undefined ? null : position + written,
+    );
+    if (result.bytesWritten === 0) {
+      throw new Error("File writer made no progress");
+    }
+    written += result.bytesWritten;
   }
 }
 

@@ -343,7 +343,7 @@ export class HostWikgArchiveSession {
           options.overwrite !== true &&
           previous?.kind !== "deleted" &&
           (previous !== undefined ||
-            (await this.#readArchiveEntry(entryPath)) !== undefined)
+            (await this.#getArchiveEntrySize(entryPath)) !== undefined)
         ) {
           throw new Error(`File already exists: ${path}`);
         }
@@ -716,6 +716,15 @@ export class HostWikgArchiveSession {
     const reader = await WikgArchiveReader.open(this.#archive);
     try {
       return await reader.readEntry(entryPath);
+    } finally {
+      await reader.close();
+    }
+  }
+
+  async #getArchiveEntrySize(entryPath: string): Promise<number | undefined> {
+    const reader = await WikgArchiveReader.open(this.#archive);
+    try {
+      return await reader.getEntrySize(entryPath);
     } finally {
       await reader.close();
     }
