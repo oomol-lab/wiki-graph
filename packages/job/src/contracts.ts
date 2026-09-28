@@ -26,9 +26,9 @@ export interface JobReadingChunk {
   readonly content: string;
   readonly generation: number;
   readonly id: string;
-  readonly importance?: "context" | "core" | "detail";
+  readonly importance?: "critical" | "helpful" | "important";
   readonly label: string;
-  readonly retention?: "archive" | "keep" | "temporary";
+  readonly retention?: "detailed" | "focused" | "relevant" | "verbatim";
   readonly sentenceIndex: number;
   readonly sentenceIndexes: readonly number[];
   readonly weight: number;
@@ -230,27 +230,62 @@ export interface ChapterJobArtifact<
   readonly revision: number;
 }
 
+export interface JobMetaObject {
+  readonly chapterId: number;
+  readonly schemaVersion: 1;
+  readonly stream: "knowledge-graph" | "reading-graph" | "summary";
+  readonly type: "meta";
+}
+
+export interface JobParameterObject {
+  readonly language?: string;
+  readonly prompt: string;
+  readonly scope: "knowledge-graph" | "reading-graph" | "summary";
+  readonly type: "parameter";
+}
+
+export type JobSourceFragmentObject = JobSourceFragment & {
+  readonly type: "source-fragment";
+};
+export type JobReadingChunkObject = JobReadingChunk & {
+  readonly type: "reading-chunk";
+};
+export type JobReadingEdgeObject = JobReadingEdge & {
+  readonly type: "reading-edge";
+};
+export type JobFragmentGroupObject = JobFragmentGroup & {
+  readonly type: "fragment-group";
+};
+export type JobSnakeObject = JobSnake & { readonly type: "snake" };
+export type JobSnakeChunkObject = JobSnakeChunk & {
+  readonly type: "snake-chunk";
+};
+export type JobSnakeEdgeObject = JobSnakeEdge & {
+  readonly type: "snake-edge";
+};
+export type JobMentionObject = JobMention & { readonly type: "mention" };
+export type JobMentionLinkObject = JobMentionLink & {
+  readonly type: "mention-link";
+};
+export interface JobSummaryObject {
+  readonly text: string;
+  readonly type: "summary";
+}
+export interface JobEndObject {
+  readonly type: "end";
+}
+
 export type JobObject =
-  | {
-      readonly chapterId: number;
-      readonly schemaVersion: 1;
-      readonly stream: "knowledge-graph" | "reading-graph" | "summary";
-      readonly type: "meta";
-    }
-  | {
-      readonly language?: string;
-      readonly prompt: string;
-      readonly scope: "knowledge-graph" | "reading-graph" | "summary";
-      readonly type: "parameter";
-    }
-  | (JobSourceFragment & { readonly type: "source-fragment" })
-  | (JobReadingChunk & { readonly type: "reading-chunk" })
-  | (JobReadingEdge & { readonly type: "reading-edge" })
-  | (JobFragmentGroup & { readonly type: "fragment-group" })
-  | (JobSnake & { readonly type: "snake" })
-  | (JobSnakeChunk & { readonly type: "snake-chunk" })
-  | (JobSnakeEdge & { readonly type: "snake-edge" })
-  | { readonly text: string; readonly type: "summary" }
-  | (JobMention & { readonly type: "mention" })
-  | (JobMentionLink & { readonly type: "mention-link" })
-  | { readonly type: "end" };
+  | JobEndObject
+  | JobFragmentGroupObject
+  | JobMentionLinkObject
+  | JobMentionObject
+  | JobMetaObject
+  | JobParameterObject
+  | JobReadingChunkObject
+  | JobReadingEdgeObject
+  | JobSnakeChunkObject
+  | JobSnakeEdgeObject
+  | JobSnakeObject
+  | JobSourceFragmentObject
+  | JobSummaryObject;
