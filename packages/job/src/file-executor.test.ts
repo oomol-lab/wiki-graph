@@ -80,7 +80,32 @@ describe("file-based chapter jobs", () => {
     expect(
       records.filter((record) => record.type === "embedding-segment"),
     ).toHaveLength(2);
-    expect(embedTexts).toHaveBeenCalledTimes(2);
+    expect(embedTexts).toHaveBeenCalledTimes(1);
+    expect(embedTexts).toHaveBeenCalledWith(
+      expect.arrayContaining([expect.any(String), expect.any(String)]),
+      undefined,
+    );
+  });
+
+  it("rejects an empty summary embedding input at execution time", async () => {
+    const inputFile = new MemoryJobFile("input.jsonl");
+    await writeChapterJobInput(inputFile, []);
+
+    await expect(
+      executeChapterJobFile({
+        embeddingProvider: {
+          dimensions: 3,
+          embedTexts: () => Promise.resolve({ embeddings: [] }),
+          model: "test-model",
+        },
+        inputFile,
+        kind: "index-embedding-summary",
+        revision: 4,
+        workspace: new MemoryJobDirectory(),
+      }),
+    ).rejects.toThrow(
+      "Summary embedding job requires at least one summary sentence",
+    );
   });
 
   it("rejects records that belong to another job kind", async () => {

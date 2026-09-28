@@ -21,6 +21,7 @@ export class HttpWikimediaResolver implements WikimediaResolver {
 
   public async resolve(
     input: readonly WikimediaResolveInput[],
+    options?: { readonly signal?: AbortSignal },
   ): Promise<readonly WikimediaResolution[]> {
     const response = await this.#fetcher(
       new URL("/v1/qids:resolve", this.#endpoint),
@@ -33,6 +34,7 @@ export class HttpWikimediaResolver implements WikimediaResolver {
             : { Authorization: `Bearer ${this.#token}` }),
         },
         method: "POST",
+        ...(options?.signal === undefined ? {} : { signal: options.signal }),
       },
     );
     if (!response.ok) {

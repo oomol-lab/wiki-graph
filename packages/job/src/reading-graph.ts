@@ -1,219 +1,284 @@
-import { z } from "zod";
-
 import type {
   ChapterJobArtifactRecord,
   JobOptionsRecord,
   JobSourceTextRecord,
 } from "./file-contracts.js";
 import { readChapterJobInput } from "./jsonl.js";
-import { requestJobJson } from "./llm-json.js";
 import type { JobFile } from "./platform.js";
-import type { JobLlm } from "./ports.js";
+import type { JobLlm, JobProgressSink } from "./ports.js";
+import { JOB_LLM_SCOPES } from "./sampling.js";
+import { Reader, type ReaderChunk } from "./reading/index.js";
+import { createReadingLlm } from "./reading/llm.js";
+import type {
+  FragmentRecord,
+  ReadonlySerialFragments,
+} from "./reading/model.js";
+import { Topology } from "./reading/topology/core.js";
 
-const WINDOW_SENTENCES = 24;
-
-const responseSchema = z.object({
-  chunks: z.array(
-    z.object({
-      content: z.string().min(1),
-      importance: z.enum(["critical", "important", "helpful"]).optional(),
-      label: z.string().min(1),
-      retention: z
-        .enum(["verbatim", "detailed", "focused", "relevant"])
-        .optional(),
-      sentenceIndexes: z.array(z.number().int().nonnegative()).min(1),
-      tempId: z.string().min(1),
-      weight: z.number().nonnegative().optional(),
-    }),
-  ),
-  links: z.array(
-    z.object({
-      from: z.string().min(1),
-      strength: z.string().optional(),
-      to: z.string().min(1),
-      weight: z.number().nonnegative().optional(),
-    }),
-  ),
-});
+const DEFAULT_EXTRACTION_PROMPT =
+  "Focus on the main storyline and key character developments. Preserve important dialogues and critical plot points. Background descriptions and minor details can be compressed significantly.";
+const DEFAULT_FRAGMENT_WORDS_COUNT = 320;
+const DEFAULT_GENERATION_DECAY_FACTOR = 0.5;
+const DEFAULT_GROUP_WORDS_COUNT = 3840;
+const DEFAULT_WORKING_MEMORY_CAPACITY = 7;
 
 export async function* buildReadingGraphRecords(options: {
   readonly inputFile: JobFile;
   readonly llm: JobLlm;
+  readonly progress?: JobProgressSink;
   readonly signal?: AbortSignal;
 }): AsyncIterable<ChapterJobArtifactRecord> {
-  const jobOptions = await readOptions(options.inputFile);
+  const input = await readInput(options.inputFile);
+  const extractionPrompt = resolveExtractionPrompt(
+    input.jobOptions.extractionPrompt,
+  );
   yield {
-    ...(jobOptions.language === undefined
+    ...(input.jobOptions.language === undefined
       ? {}
-      : { language: jobOptions.language }),
-    prompt: jobOptions.extractionPrompt ?? "",
+      : { language: input.jobOptions.language }),
+    prompt: extractionPrompt,
     scope: "reading-graph",
     type: "job-parameter",
   };
 
-  let window: JobSourceTextRecord[] = [];
-  let generation = 0;
   let nextChunkId = 1;
-  let nextGroupId = 0;
-  let nextSnakeId = 1;
-  for await (const record of readChapterJobInput(options.inputFile)) {
-    if (record.type !== "source-text") continue;
-    window.push(record);
-    if (window.length < WINDOW_SENTENCES) continue;
-    const result = await extractWindow(
-      window,
-      generation,
-      nextChunkId,
-      options,
-    );
-    yield* result.records;
-    nextChunkId = result.nextChunkId;
-    yield* createTopologyRecords(
-      result.chunkIds,
-      window,
-      nextGroupId,
-      nextSnakeId,
-    );
-    nextGroupId += 1;
-    nextSnakeId += result.chunkIds.length;
-    generation += 1;
-    window = [];
-  }
-  if (window.length > 0) {
-    const result = await extractWindow(
-      window,
-      generation,
-      nextChunkId,
-      options,
-    );
-    yield* result.records;
-    yield* createTopologyRecords(
-      result.chunkIds,
-      window,
-      nextGroupId,
-      nextSnakeId,
-    );
-  }
-}
-
-async function extractWindow(
-  sentences: readonly JobSourceTextRecord[],
-  generation: number,
-  nextChunkId: number,
-  options: {
-    readonly llm: JobLlm;
-    readonly signal?: AbortSignal;
-  },
-): Promise<{
-  readonly chunkIds: readonly string[];
-  readonly nextChunkId: number;
-  readonly records: readonly ChapterJobArtifactRecord[];
-}> {
-  const allowedIndexes = new Set(
-    sentences.map((sentence) => sentence.sentenceIndex),
-  );
-  const response = await requestJobJson({
-    llm: options.llm,
-    messages: [
-      {
-        content: [
-          "Extract a Reading Graph from the numbered source sentences.",
-          "Return JSON with chunks and links. Each chunk must have tempId, label, content and source sentenceIndexes.",
-          "Use retention for reader-focused information and importance for connective information when appropriate.",
-          "Links may only reference tempIds returned in the same response.",
-        ].join(" "),
-        role: "system",
-      },
-      {
-        content: sentences
-          .map((sentence) => `[${sentence.sentenceIndex}] ${sentence.text}`)
-          .join("\n"),
-        role: "user",
-      },
-    ],
-    schema: responseSchema,
-    scope: "reading-graph-extraction",
-    ...(options.signal === undefined ? {} : { signal: options.signal }),
+  const reader = new Reader({
+    attention: {
+      capacity: DEFAULT_WORKING_MEMORY_CAPACITY,
+      generationDecayFactor: DEFAULT_GENERATION_DECAY_FACTOR,
+      idGenerator: () => Promise.resolve(nextChunkId++),
+    },
+    extractionGuidance: extractionPrompt,
+    llm: createReadingLlm(options),
+    scopes: {
+      choice: JOB_LLM_SCOPES.readingGraphEvidenceChoice,
+      extraction: JOB_LLM_SCOPES.readingGraphExtraction,
+    },
+    sentenceTextSource: input.fragments,
+    ...(input.jobOptions.language === undefined
+      ? {}
+      : { userLanguage: input.jobOptions.language }),
   });
-  const ids = new Map<string, string>();
-  const records: ChapterJobArtifactRecord[] = [];
-  for (const chunk of response.chunks) {
-    const sentenceIndexes = [...new Set(chunk.sentenceIndexes)]
-      .filter((index) => allowedIndexes.has(index))
-      .sort((left, right) => left - right);
-    if (sentenceIndexes.length === 0 || ids.has(chunk.tempId)) continue;
-    const id = `chunk-${nextChunkId}`;
-    nextChunkId += 1;
-    ids.set(chunk.tempId, id);
-    records.push({
+  const topology = new Topology(input.fragments, 0, DEFAULT_GROUP_WORDS_COUNT);
+  const allChunks: ReaderChunk[] = [];
+  const successorIdsByChunkId: Record<string, number[] | undefined> =
+    Object.create(null) as Record<string, number[] | undefined>;
+  let completedSentences = 0;
+
+  for (const fragment of createProcessingFragments(input.sentences)) {
+    await options.progress?.throwIfStopped?.();
+    const sentences = fragment.sentences.map((sentence) => ({
+      sentenceId: [0, sentence.sentenceIndex] as const,
+      text: sentence.text,
+      wordsCount: sentence.wordsCount,
+    }));
+    const text = sentences.map((sentence) => sentence.text).join(" ");
+    const userFocused = await reader.extractUserFocused({ sentences, text });
+    const bookCoherence = await reader.extractBookCoherence({
+      sentences,
+      text,
+      userFocusedChunks: userFocused.delta.chunks,
+    });
+    saveDelta(allChunks, successorIdsByChunkId, topology, userFocused.delta);
+    saveDelta(allChunks, successorIdsByChunkId, topology, bookCoherence);
+    reader.completeFragment({
+      allChunks,
+      getSuccessorChunkIds: (chunkId) =>
+        successorIdsByChunkId[String(chunkId)] ?? [],
+    });
+    completedSentences += fragment.sentences.length;
+    await options.progress?.updatePhase?.({
+      done: completedSentences,
+      phase: "reading-extraction",
+      total: input.sentences.length,
+      unit: "sentence",
+    });
+  }
+
+  const result = await topology.finalize();
+  for (const chunk of result.chunks) {
+    yield {
       content: chunk.content,
-      generation,
-      id,
+      generation: chunk.generation,
+      id: `chunk-${chunk.id}`,
       ...(chunk.importance === undefined
         ? {}
         : { importance: chunk.importance }),
       label: chunk.label,
       ...(chunk.retention === undefined ? {} : { retention: chunk.retention }),
-      sentenceIndex: sentenceIndexes[0]!,
-      sentenceIndexes,
+      sentenceIndex: chunk.sentenceId[1],
+      sentenceIndexes: chunk.sentenceIds.map((sentenceId) => sentenceId[1]),
       type: "reading-chunk",
-      weight: chunk.weight ?? 1,
-      wordsCount: sentences
-        .filter((sentence) => sentenceIndexes.includes(sentence.sentenceIndex))
-        .reduce((total, sentence) => total + sentence.wordsCount, 0),
-    });
-  }
-  for (const link of response.links) {
-    const fromChunkId = ids.get(link.from);
-    const toChunkId = ids.get(link.to);
-    if (fromChunkId === undefined || toChunkId === undefined) continue;
-    records.push({
-      fromChunkId,
-      ...(link.strength === undefined ? {} : { strength: link.strength }),
-      toChunkId,
-      type: "reading-edge",
-      weight: link.weight ?? 1,
-    });
-  }
-  return { chunkIds: [...ids.values()], nextChunkId, records };
-}
-
-function* createTopologyRecords(
-  chunkIds: readonly string[],
-  sentences: readonly JobSourceTextRecord[],
-  groupId: number,
-  firstSnakeId: number,
-): Iterable<ChapterJobArtifactRecord> {
-  const first = sentences[0];
-  const last = sentences.at(-1);
-  if (first === undefined || last === undefined) return;
-  yield {
-    endSentenceIndex: last.sentenceIndex,
-    groupId,
-    startSentenceIndex: first.sentenceIndex,
-    type: "fragment-group",
-  };
-  for (let index = 0; index < chunkIds.length; index += 1) {
-    const chunkId = chunkIds[index]!;
-    const snakeId = `snake-${firstSnakeId + index}`;
-    yield {
-      firstLabel: chunkId,
-      groupId,
-      id: snakeId,
-      lastLabel: chunkId,
-      localSnakeId: index,
-      size: 1,
-      type: "snake",
-      weight: 1,
-      wordsCount: 0,
+      weight: chunk.weight,
+      wordsCount: chunk.wordsCount,
     };
-    yield { chunkId, position: 0, snakeId, type: "snake-chunk" };
+  }
+  for (const edge of result.edges) {
+    yield {
+      fromChunkId: `chunk-${edge.fromId}`,
+      ...(edge.strength === undefined ? {} : { strength: edge.strength }),
+      toChunkId: `chunk-${edge.toId}`,
+      type: "reading-edge",
+      weight: edge.weight,
+    };
+  }
+  for (const group of result.sentenceGroups) {
+    yield {
+      endSentenceIndex: group.endSentenceIndex,
+      groupId: group.groupId,
+      startSentenceIndex: group.startSentenceIndex,
+      type: "fragment-group",
+    };
+  }
+  for (const [index, snake] of result.snakes.entries()) {
+    yield {
+      firstLabel: snake.firstLabel,
+      groupId: snake.groupId,
+      id: `snake-${index + 1}`,
+      lastLabel: snake.lastLabel,
+      localSnakeId: snake.localSnakeId,
+      size: snake.size,
+      type: "snake",
+      weight: snake.weight,
+      wordsCount: snake.wordsCount,
+    };
+  }
+  for (const item of result.snakeChunks) {
+    yield {
+      chunkId: `chunk-${item.chunkId}`,
+      position: item.position,
+      snakeId: `snake-${item.snakeIndex + 1}`,
+      type: "snake-chunk",
+    };
+  }
+  for (const edge of result.snakeEdges) {
+    yield {
+      fromSnakeId: `snake-${edge.fromSnakeIndex + 1}`,
+      toSnakeId: `snake-${edge.toSnakeIndex + 1}`,
+      type: "snake-edge",
+      weight: edge.weight,
+    };
   }
 }
 
-async function readOptions(file: JobFile): Promise<JobOptionsRecord> {
-  for await (const record of readChapterJobInput(file)) {
-    if (record.type === "job-options") return record;
+function saveDelta(
+  allChunks: ReaderChunk[],
+  successorIdsByChunkId: Record<string, number[] | undefined>,
+  topology: Topology,
+  delta: Parameters<Topology["accept"]>[0],
+): void {
+  topology.accept(delta);
+  allChunks.push(...delta.chunks);
+  for (const edge of delta.edges) {
+    const successors = successorIdsByChunkId[String(edge.fromId)] ?? [];
+    if (!successors.includes(edge.toId)) {
+      successorIdsByChunkId[String(edge.fromId)] = [
+        ...successors,
+        edge.toId,
+      ].sort((left, right) => left - right);
+    }
   }
-  return { type: "job-options" };
+}
+
+function createProcessingFragments(
+  sentences: readonly JobSourceTextRecord[],
+): readonly { readonly sentences: readonly JobSourceTextRecord[] }[] {
+  const output: Array<{ readonly sentences: readonly JobSourceTextRecord[] }> =
+    [];
+  let pending: JobSourceTextRecord[] = [];
+  let wordsCount = 0;
+  for (const sentence of sentences) {
+    if (
+      pending.length > 0 &&
+      wordsCount + sentence.wordsCount > DEFAULT_FRAGMENT_WORDS_COUNT
+    ) {
+      output.push({ sentences: pending });
+      pending = [];
+      wordsCount = 0;
+    }
+    if (sentence.text.trim() === "") continue;
+    pending.push(sentence);
+    wordsCount += sentence.wordsCount;
+  }
+  if (pending.length > 0) output.push({ sentences: pending });
+  return output;
+}
+
+function resolveExtractionPrompt(prompt: string | undefined): string {
+  const normalized = prompt?.trim();
+  return normalized === undefined || normalized === ""
+    ? DEFAULT_EXTRACTION_PROMPT
+    : normalized;
+}
+
+async function readInput(file: JobFile): Promise<{
+  readonly fragments: InputFragments;
+  readonly jobOptions: JobOptionsRecord;
+  readonly sentences: readonly JobSourceTextRecord[];
+}> {
+  const sentences: JobSourceTextRecord[] = [];
+  let jobOptions: JobOptionsRecord = { type: "job-options" };
+  for await (const record of readChapterJobInput(file)) {
+    if (record.type === "job-options") jobOptions = record;
+    else if (record.type === "source-text") sentences.push(record);
+  }
+  sentences.sort((left, right) => left.sentenceIndex - right.sentenceIndex);
+  return { fragments: new InputFragments(sentences), jobOptions, sentences };
+}
+
+class InputFragments implements ReadonlySerialFragments {
+  readonly #fragments: readonly FragmentRecord[];
+  readonly #sentences: ReadonlyMap<number, JobSourceTextRecord>;
+
+  public constructor(sentences: readonly JobSourceTextRecord[]) {
+    this.#sentences = new Map(
+      sentences.map((sentence) => [sentence.sentenceIndex, sentence]),
+    );
+    const fragmentIds = [
+      ...new Set(
+        sentences.map(
+          (sentence) => sentence.fragmentId ?? sentence.sentenceIndex,
+        ),
+      ),
+    ].sort((left, right) => left - right);
+    this.#fragments = fragmentIds.map((fragmentId) => ({
+      fragmentId,
+      sentences: sentences
+        .filter(
+          (sentence) =>
+            (sentence.fragmentId ?? sentence.sentenceIndex) === fragmentId,
+        )
+        .map((sentence) => ({
+          text: sentence.text,
+          wordsCount: sentence.wordsCount,
+        })),
+      serialId: 0,
+    }));
+  }
+
+  public getFragment(fragmentId: number): Promise<FragmentRecord> {
+    const fragment = this.#fragments.find(
+      (candidate) => candidate.fragmentId === fragmentId,
+    );
+    if (fragment === undefined) {
+      return Promise.reject(new Error(`Unknown fragment ${fragmentId}.`));
+    }
+    return Promise.resolve(fragment);
+  }
+
+  public listFragmentIds(): Promise<readonly number[]> {
+    return Promise.resolve(
+      this.#fragments.map((fragment) => fragment.fragmentId),
+    );
+  }
+
+  public getSentence(sentenceId: readonly [number, number]): Promise<string> {
+    const sentence = this.#sentences.get(sentenceId[1]);
+    if (sentence === undefined) {
+      return Promise.reject(
+        new Error(`Unknown source sentence ${sentenceId[1]}.`),
+      );
+    }
+    return Promise.resolve(sentence.text);
+  }
 }

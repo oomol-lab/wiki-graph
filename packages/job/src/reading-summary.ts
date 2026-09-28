@@ -3,202 +3,351 @@ import type {
   JobFragmentGroupRecord,
   JobOptionsRecord,
   JobReadingChunkRecord,
+  JobSnakeChunkRecord,
+  JobSnakeRecord,
   JobSourceSentenceRecord,
 } from "./file-contracts.js";
 import { readChapterJobInput } from "./jsonl.js";
 import type { JobFile } from "./platform.js";
-import type { JobLlm, JobLlmMessage } from "./ports.js";
+import type { JobLlm, JobProgressSink } from "./ports.js";
+import { JOB_LLM_SCOPES } from "./sampling.js";
+import {
+  expectChunkImportance,
+  expectChunkRetention,
+  type ChunkRecord,
+  type FragmentRecord,
+  type ReadonlySerialFragments,
+  type SentenceGroupRecord,
+} from "./reading/model.js";
+import { createReadingLlm } from "./reading/llm.js";
+import { compressText } from "./summary/editor/compression.js";
+import type { SnakeRecord, SummaryDocument } from "./summary/model.js";
 
 export async function* buildReadingSummaryRecords(options: {
   readonly inputFile: JobFile;
   readonly llm: JobLlm;
+  readonly progress?: JobProgressSink;
   readonly signal?: AbortSignal;
 }): AsyncIterable<ChapterJobArtifactRecord> {
-  const metadata = await inspectInput(options.inputFile);
-  if (metadata.fragmentCount <= 1) {
-    const text = await readSentenceText(options.inputFile);
+  const input = await SummaryInputDocument.read(options.inputFile);
+  const fragmentIds = await input.fragments.listFragmentIds();
+  if (fragmentIds.length <= 1) {
+    const text = await input.fragments.readText();
     if (text !== "") yield { position: 0, text, type: "summary-part" };
     return;
   }
 
-  const groups =
-    metadata.groups.length === 0
-      ? [await wholeInputRange(options.inputFile)]
-      : metadata.groups;
+  const llm = createReadingLlm(options);
+  const groupIds = [
+    ...new Set(input.groups.map((group) => group.groupId)),
+  ].sort((left, right) => left - right);
   let position = 0;
-  for (const group of groups) {
-    if (group === undefined) continue;
-    const input = await readGroupInput(options.inputFile, group);
-    if (input.sentences.length === 0) continue;
-    const markedText = markRetainedSentences(input.sentences, input.chunks);
-    const summary = await compress(markedText, metadata.jobOptions, options);
-    if (summary.trim() === "") continue;
-    yield { position, text: summary.trim(), type: "summary-part" };
-    position += 1;
-  }
-}
-
-async function inspectInput(file: JobFile): Promise<{
-  readonly fragmentCount: number;
-  readonly groups: readonly JobFragmentGroupRecord[];
-  readonly jobOptions: JobOptionsRecord;
-}> {
-  let fragmentCount = 0;
-  const groups: JobFragmentGroupRecord[] = [];
-  let jobOptions: JobOptionsRecord = { type: "job-options" };
-  for await (const record of readChapterJobInput(file)) {
-    if (record.type === "source-fragment") fragmentCount += 1;
-    else if (record.type === "fragment-group") groups.push(record);
-    else if (record.type === "job-options") jobOptions = record;
-  }
-  groups.sort((left, right) => left.groupId - right.groupId);
-  return { fragmentCount, groups, jobOptions };
-}
-
-async function readSentenceText(file: JobFile): Promise<string> {
-  const text: string[] = [];
-  for await (const record of readChapterJobInput(file)) {
-    if (record.type === "source-sentence") text.push(record.text);
-  }
-  return text.join(" ").trim();
-}
-
-async function wholeInputRange(
-  file: JobFile,
-): Promise<JobFragmentGroupRecord | undefined> {
-  let start = Infinity;
-  let end = -1;
-  for await (const record of readChapterJobInput(file)) {
-    if (record.type !== "source-sentence") continue;
-    start = Math.min(start, record.sentenceIndex);
-    end = Math.max(end, record.sentenceIndex);
-  }
-  return end < 0
-    ? undefined
-    : {
-        endSentenceIndex: end,
-        groupId: 0,
-        startSentenceIndex: start,
-        type: "fragment-group",
-      };
-}
-
-async function readGroupInput(
-  file: JobFile,
-  group: JobFragmentGroupRecord,
-): Promise<{
-  readonly chunks: readonly JobReadingChunkRecord[];
-  readonly sentences: readonly JobSourceSentenceRecord[];
-}> {
-  const chunks: JobReadingChunkRecord[] = [];
-  const sentences: JobSourceSentenceRecord[] = [];
-  for await (const record of readChapterJobInput(file)) {
-    if (
-      record.type === "source-sentence" &&
-      record.sentenceIndex >= group.startSentenceIndex &&
-      record.sentenceIndex <= group.endSentenceIndex
-    ) {
-      sentences.push(record);
-    } else if (
-      record.type === "reading-chunk" &&
-      record.sentenceIndexes.some(
-        (index) =>
-          index >= group.startSentenceIndex && index <= group.endSentenceIndex,
-      )
-    ) {
-      chunks.push(record);
-    }
-  }
-  return { chunks, sentences };
-}
-
-function markRetainedSentences(
-  sentences: readonly JobSourceSentenceRecord[],
-  chunks: readonly JobReadingChunkRecord[],
-): string {
-  const bySentence = new Map<number, JobReadingChunkRecord[]>();
-  for (const chunk of chunks) {
-    for (const sentenceIndex of chunk.sentenceIndexes) {
-      const values = bySentence.get(sentenceIndex) ?? [];
-      values.push(chunk);
-      bySentence.set(sentenceIndex, values);
-    }
-  }
-  return sentences
-    .map((sentence) => {
-      const retained = bySentence.get(sentence.sentenceIndex);
-      if (retained === undefined || retained.length === 0) return sentence.text;
-      const retention = strongestRetention(retained);
-      return `<chunk retention="${retention}">${sentence.text}</chunk>`;
-    })
-    .join(" ");
-}
-
-function strongestRetention(
-  chunks: readonly JobReadingChunkRecord[],
-): "detailed" | "focused" | "relevant" | "verbatim" {
-  const rank = { detailed: 3, focused: 2, relevant: 1, verbatim: 4 } as const;
-  let selected: keyof typeof rank = "relevant";
-  for (const chunk of chunks) {
-    const retention =
-      chunk.retention ??
-      (chunk.importance === "critical"
-        ? "detailed"
-        : chunk.importance === "important"
-          ? "focused"
-          : "relevant");
-    if (rank[retention] > rank[selected]) selected = retention;
-  }
-  return selected;
-}
-
-async function compress(
-  markedText: string,
-  jobOptions: JobOptionsRecord,
-  options: { readonly llm: JobLlm; readonly signal?: AbortSignal },
-): Promise<string> {
-  const targetLength = Math.max(1, Math.floor(markedText.length * 0.2));
-  let messages: JobLlmMessage[] = [
-    {
-      content: [
-        "Compress the supplied book segment into continuous prose while preserving marked content.",
-        `Target about ${targetLength} characters.`,
-        "verbatim and detailed chunks have highest priority; focused and relevant chunks may be compressed more aggressively.",
-        "Remove every <chunk> tag from the output.",
-        jobOptions.language === undefined
-          ? "Keep the source language."
-          : `Write in ${jobOptions.language}.`,
-        jobOptions.prompt ?? "",
-        "Return exactly one <final>...</final> block and nothing else.",
-      ]
-        .filter((part) => part !== "")
-        .join(" "),
-      role: "system" as const,
-    },
-    { content: markedText, role: "user" as const },
-  ];
-  const retryMax = 2;
-  for (let retryIndex = 0; retryIndex <= retryMax; retryIndex += 1) {
-    const response = await options.llm.request(messages, {
-      retryIndex,
-      retryMax,
-      scope: "reading-summary-compression",
-      ...(options.signal === undefined ? {} : { signal: options.signal }),
-    });
-    const match = /^\s*<final>([\s\S]*?)<\/final>\s*$/u.exec(response);
-    const text = match?.[1]?.trim();
-    if (text !== undefined && text !== "" && !/<\/?chunk\b/iu.test(text)) {
-      return text;
-    }
-    messages = [
-      ...messages,
-      { content: response, role: "assistant" as const },
-      {
-        content:
-          "The response was invalid. Return exactly one non-empty <final>...</final> block, with plain text and no chunk tags.",
-        role: "user" as const,
+  for (const [index, groupId] of groupIds.entries()) {
+    await options.progress?.throwIfStopped?.();
+    const summary = await compressText({
+      compressionRatio: 0.2,
+      document: input,
+      groupId,
+      llm,
+      maxClues: 10,
+      maxIterations: 5,
+      scopes: {
+        compress: JOB_LLM_SCOPES.readingSummaryCompress,
+        review: JOB_LLM_SCOPES.readingSummaryReview,
+        reviewGuide: JOB_LLM_SCOPES.readingSummaryReviewGuide,
       },
-    ];
+      serialId: 0,
+      ...(input.jobOptions.language === undefined
+        ? {}
+        : { userLanguage: input.jobOptions.language }),
+    });
+    if (summary.trim() !== "") {
+      yield { position, text: summary.trim(), type: "summary-part" };
+      position += 1;
+    }
+    await options.progress?.updatePhase?.({
+      done: index + 1,
+      phase: "summary-compression",
+      total: groupIds.length,
+      unit: "item",
+    });
   }
-  throw new Error("Reading Summary compression returned an invalid response.");
+}
+
+class SummaryInputDocument implements SummaryDocument {
+  public readonly chunks: SummaryChunkStore;
+  public readonly fragmentGroups: SummaryFragmentGroupStore;
+  public readonly fragments: SummaryFragments;
+  public readonly groups: readonly SentenceGroupRecord[];
+  public readonly jobOptions: JobOptionsRecord;
+  public readonly snakeChunks: SummarySnakeChunkStore;
+  public readonly snakes: SummarySnakeStore;
+
+  public constructor(input: {
+    readonly chunks: readonly ChunkRecord[];
+    readonly fragments: SummaryFragments;
+    readonly groups: readonly SentenceGroupRecord[];
+    readonly jobOptions: JobOptionsRecord;
+    readonly snakeChunks: readonly {
+      readonly chunkId: number;
+      readonly snakeId: number;
+    }[];
+    readonly snakes: readonly SnakeRecord[];
+  }) {
+    this.chunks = new SummaryChunkStore(input.chunks);
+    this.fragmentGroups = new SummaryFragmentGroupStore(input.groups);
+    this.fragments = input.fragments;
+    this.groups = input.groups;
+    this.jobOptions = input.jobOptions;
+    this.snakeChunks = new SummarySnakeChunkStore(input.snakeChunks);
+    this.snakes = new SummarySnakeStore(input.snakes);
+  }
+
+  public static async read(file: JobFile): Promise<SummaryInputDocument> {
+    const sourceSentences: JobSourceSentenceRecord[] = [];
+    const fragmentSummaries = new Map<number, string>();
+    const chunkRecords: JobReadingChunkRecord[] = [];
+    const groupRecords: JobFragmentGroupRecord[] = [];
+    const snakeRecords: JobSnakeRecord[] = [];
+    const snakeChunkRecords: JobSnakeChunkRecord[] = [];
+    let jobOptions: JobOptionsRecord = { type: "job-options" };
+    for await (const record of readChapterJobInput(file)) {
+      switch (record.type) {
+        case "job-options":
+          jobOptions = record;
+          break;
+        case "source-fragment":
+          fragmentSummaries.set(record.fragmentId, record.summary);
+          break;
+        case "source-sentence":
+          sourceSentences.push(record);
+          break;
+        case "reading-chunk":
+          chunkRecords.push(record);
+          break;
+        case "fragment-group":
+          groupRecords.push(record);
+          break;
+        case "snake":
+          snakeRecords.push(record);
+          break;
+        case "snake-chunk":
+          snakeChunkRecords.push(record);
+          break;
+        default:
+          break;
+      }
+    }
+    sourceSentences.sort(
+      (left, right) => left.sentenceIndex - right.sentenceIndex,
+    );
+    const chunkIds = new Map(
+      chunkRecords.map((chunk, index) => [chunk.id, index + 1]),
+    );
+    const snakeIds = new Map(
+      snakeRecords.map((snake, index) => [snake.id, index + 1]),
+    );
+    const chunks: ChunkRecord[] = chunkRecords.map((chunk) => ({
+      content: chunk.content,
+      generation: chunk.generation,
+      id: requireId(chunkIds, chunk.id, "chunk"),
+      ...(chunk.importance === undefined
+        ? {}
+        : { importance: expectChunkImportance(chunk.importance) }),
+      label: chunk.label,
+      ...(chunk.retention === undefined
+        ? {}
+        : { retention: expectChunkRetention(chunk.retention) }),
+      sentenceId: [0, chunk.sentenceIndex],
+      sentenceIds: chunk.sentenceIndexes.map(
+        (sentenceIndex) => [0, sentenceIndex] as const,
+      ),
+      weight: chunk.weight,
+      wordsCount: chunk.wordsCount,
+    }));
+    return new SummaryInputDocument({
+      chunks,
+      fragments: new SummaryFragments(sourceSentences, fragmentSummaries),
+      groups: groupRecords.map((group) => ({
+        endSentenceIndex: group.endSentenceIndex,
+        groupId: group.groupId,
+        serialId: 0,
+        startSentenceIndex: group.startSentenceIndex,
+      })),
+      jobOptions,
+      snakeChunks: snakeChunkRecords.map((item) => ({
+        chunkId: requireId(chunkIds, item.chunkId, "chunk"),
+        snakeId: requireId(snakeIds, item.snakeId, "snake"),
+      })),
+      snakes: snakeRecords.map((snake) => ({
+        firstLabel: snake.firstLabel,
+        groupId: snake.groupId,
+        id: requireId(snakeIds, snake.id, "snake"),
+        lastLabel: snake.lastLabel,
+        localSnakeId: snake.localSnakeId,
+        serialId: 0,
+        size: snake.size,
+        weight: snake.weight,
+        wordsCount: snake.wordsCount,
+      })),
+    });
+  }
+
+  public getSerialFragments(_serialId: number): SummaryFragments {
+    return this.fragments;
+  }
+}
+
+class SummaryFragments implements ReadonlySerialFragments {
+  readonly #fragments: readonly FragmentRecord[];
+  readonly #sentences: readonly JobSourceSentenceRecord[];
+
+  public constructor(
+    sentences: readonly JobSourceSentenceRecord[],
+    summaries: ReadonlyMap<number, string>,
+  ) {
+    this.#sentences = sentences;
+    const fragmentIds = [
+      ...new Set(
+        sentences.map(
+          (sentence) => sentence.fragmentId ?? sentence.sentenceIndex,
+        ),
+      ),
+    ].sort((left, right) => left - right);
+    this.#fragments = fragmentIds.map((fragmentId) => ({
+      fragmentId,
+      sentences: sentences
+        .filter(
+          (sentence) =>
+            (sentence.fragmentId ?? sentence.sentenceIndex) === fragmentId,
+        )
+        .map((sentence) => ({
+          text: sentence.text,
+          wordsCount: sentence.wordsCount,
+        })),
+      serialId: 0,
+      summary: summaries.get(fragmentId) ?? "",
+    }));
+  }
+
+  public getFragment(fragmentId: number): Promise<FragmentRecord> {
+    const fragment = this.#fragments.find(
+      (candidate) => candidate.fragmentId === fragmentId,
+    );
+    return fragment === undefined
+      ? Promise.reject(new Error(`Unknown fragment ${fragmentId}.`))
+      : Promise.resolve(fragment);
+  }
+
+  public listFragmentIds(): Promise<readonly number[]> {
+    return Promise.resolve(
+      this.#fragments.map((fragment) => fragment.fragmentId),
+    );
+  }
+
+  public listSentencesInRange(
+    startSentenceIndex: number,
+    endSentenceIndex: number,
+  ): Promise<
+    readonly { readonly text: string; readonly wordsCount: number }[]
+  > {
+    return Promise.resolve(
+      this.#sentences
+        .filter(
+          (sentence) =>
+            sentence.sentenceIndex >= startSentenceIndex &&
+            sentence.sentenceIndex <= endSentenceIndex,
+        )
+        .map((sentence) => ({
+          text: sentence.text,
+          wordsCount: sentence.wordsCount,
+        })),
+    );
+  }
+
+  public readText(): Promise<string> {
+    return Promise.resolve(
+      this.#sentences
+        .map((sentence) => sentence.text)
+        .join(" ")
+        .trim(),
+    );
+  }
+}
+
+class SummaryChunkStore {
+  readonly #byId: ReadonlyMap<number, ChunkRecord>;
+  public constructor(chunks: readonly ChunkRecord[]) {
+    this.#byId = new Map(chunks.map((chunk) => [chunk.id, chunk]));
+  }
+  public getById(chunkId: number): Promise<ChunkRecord | undefined> {
+    return Promise.resolve(this.#byId.get(chunkId));
+  }
+}
+
+class SummaryFragmentGroupStore {
+  readonly #groups: readonly SentenceGroupRecord[];
+  public constructor(groups: readonly SentenceGroupRecord[]) {
+    this.#groups = groups;
+  }
+  public listBySerial(
+    serialId: number,
+  ): Promise<readonly SentenceGroupRecord[]> {
+    return Promise.resolve(
+      this.#groups.filter((group) => group.serialId === serialId),
+    );
+  }
+}
+
+class SummarySnakeStore {
+  readonly #byId: ReadonlyMap<number, SnakeRecord>;
+  readonly #values: readonly SnakeRecord[];
+  public constructor(values: readonly SnakeRecord[]) {
+    this.#values = values;
+    this.#byId = new Map(values.map((snake) => [snake.id, snake]));
+  }
+  public getById(snakeId: number): Promise<SnakeRecord | undefined> {
+    return Promise.resolve(this.#byId.get(snakeId));
+  }
+  public listIdsByGroup(serialId: number, groupId: number): Promise<number[]> {
+    return Promise.resolve(
+      this.#values
+        .filter(
+          (snake) => snake.serialId === serialId && snake.groupId === groupId,
+        )
+        .map((snake) => snake.id),
+    );
+  }
+}
+
+class SummarySnakeChunkStore {
+  readonly #values: readonly {
+    readonly chunkId: number;
+    readonly snakeId: number;
+  }[];
+  public constructor(
+    values: readonly {
+      readonly chunkId: number;
+      readonly snakeId: number;
+    }[],
+  ) {
+    this.#values = values;
+  }
+  public listChunkIds(snakeId: number): Promise<number[]> {
+    return Promise.resolve(
+      this.#values
+        .filter((item) => item.snakeId === snakeId)
+        .map((item) => item.chunkId),
+    );
+  }
+}
+
+function requireId(
+  ids: ReadonlyMap<string, number>,
+  id: string,
+  kind: string,
+): number {
+  const mapped = ids.get(id);
+  if (mapped === undefined) throw new Error(`Unknown ${kind} id ${id}.`);
+  return mapped;
 }

@@ -1,5 +1,6 @@
 import {
   executeChapterJobFile,
+  JOB_LLM_SCOPES,
   type ChapterJobFileExecutor,
   type JobEmbeddingProvider,
   type JobLlm,
@@ -40,9 +41,7 @@ export function createLocalChapterJobFileExecutor(
               ...(requestOptions.retryMax === undefined
                 ? {}
                 : { retryMax: requestOptions.retryMax }),
-              scope: requestOptions.scope.startsWith("reading-summary")
-                ? WikiGraphScope.EditorCompress
-                : WikiGraphScope.ReaderExtraction,
+              scope: mapJobLlmScope(requestOptions.scope),
               ...(requestOptions.signal === undefined
                 ? {}
                 : { signal: requestOptions.signal }),
@@ -58,6 +57,7 @@ export function createLocalChapterJobFileExecutor(
           ? {}
           : { onProgress: input.onProgress }),
         sentences: input.sentences,
+        ...(input.signal === undefined ? {} : { signal: input.signal }),
       });
       return candidates.map((candidate) => ({
         end: candidate.range.end,
@@ -81,4 +81,19 @@ export function createLocalChapterJobFileExecutor(
         : { wikimedia: options.wikimediaResolver }),
       wikispine,
     });
+}
+
+function mapJobLlmScope(scope: string): WikiGraphScope {
+  switch (scope) {
+    case JOB_LLM_SCOPES.readingSummaryCompress:
+      return WikiGraphScope.EditorCompress;
+    case JOB_LLM_SCOPES.readingSummaryReview:
+      return WikiGraphScope.EditorReview;
+    case JOB_LLM_SCOPES.readingSummaryReviewGuide:
+      return WikiGraphScope.EditorReviewGuide;
+    case JOB_LLM_SCOPES.readingGraphEvidenceChoice:
+      return WikiGraphScope.ReaderChoice;
+    default:
+      return WikiGraphScope.ReaderExtraction;
+  }
 }

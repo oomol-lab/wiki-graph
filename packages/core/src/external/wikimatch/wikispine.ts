@@ -16,6 +16,7 @@ export interface MatchWikispineSentenceCandidatesOptions {
   ) => Promise<void> | void;
   readonly provider?: WikispineProvider;
   readonly commandRunner?: WikispineCommandRunner;
+  readonly signal?: AbortSignal;
   readonly sentences: readonly WikimatchSentence[];
 }
 
@@ -32,6 +33,7 @@ export interface TestWikispineRuntimeOptions {
   readonly fetch?: typeof fetch;
   readonly provider?: WikispineProvider;
   readonly commandRunner?: WikispineCommandRunner;
+  readonly signal?: AbortSignal;
 }
 
 /** Host capability for invoking the optional WikiSpine command provider. */
@@ -41,6 +43,7 @@ export interface WikispineCommandRunner {
     readonly command: string;
     readonly input: string;
     readonly onStdout: (chunk: string) => void;
+    readonly signal?: AbortSignal;
   }): Promise<{ readonly exitCode: number | null; readonly stderr: string }>;
 }
 
@@ -95,6 +98,7 @@ export async function matchWikispineSentenceCandidates(
   let candidateIndex = 1;
 
   for (const sentence of options.sentences) {
+    options.signal?.throwIfAborted();
     for (const matched of await matchSentence(sentence, options)) {
       const surface = sentence.text.slice(matched.start, matched.end);
 
@@ -137,7 +141,11 @@ export async function testWikispineRuntime(
 
   if (provider === "fetch") {
     const endpoint = requireEndpoint(options.endpoint);
-    const metadata = await fetchWikispineMetadata(endpoint, options.fetch);
+    const metadata = await fetchWikispineMetadata(
+      endpoint,
+      options.fetch,
+      options.signal,
+    );
 
     await fetchWikispineMatch(
       {
@@ -171,7 +179,7 @@ export async function testWikispineRuntime(
       range: { end: 7, start: 0 },
       text: "北京大学位于北京。",
     },
-    {},
+    options.signal === undefined ? {} : { signal: options.signal },
     options.commandRunner,
   );
 
@@ -188,7 +196,7 @@ async function runWikispineMatch(
   sentence: WikimatchSentence,
   options: Pick<
     MatchWikispineSentenceCandidatesOptions,
-    "commandRunner" | "onProgress"
+    "commandRunner" | "onProgress" | "signal"
   >,
   commandRunner: WikispineCommandRunner | undefined = options.commandRunner,
 ): Promise<readonly WikispineMatchRecord[]> {
@@ -212,6 +220,7 @@ async function runWikispineMatch(
     command,
     input: sentence.text,
     onStdout: (chunk) => parser.push(chunk),
+    ...(options.signal === undefined ? {} : { signal: options.signal }),
   });
   if (result.exitCode !== 0) {
     throw new Error(
@@ -257,6 +266,7 @@ async function fetchWikispineMatch(
     | "includeDisambiguation"
     | "maxCandidatesPerSurface"
     | "onProgress"
+    | "signal"
   >,
   sentence: WikimatchSentence,
 ): Promise<readonly WikispineMatchRecord[]> {
@@ -280,6 +290,7 @@ async function fetchWikispineMatch(
       "content-type": "application/json",
     },
     method: "POST",
+    ...(options.signal === undefined ? {} : { signal: options.signal }),
   });
 
   if (!response.ok) {
@@ -376,8 +387,11 @@ function createWikispineProgressReporter(
 async function fetchWikispineMetadata(
   endpoint: string,
   fetchFn: typeof fetch = fetch,
+  signal?: AbortSignal,
 ): Promise<WikispineMetadata> {
-  const ready = await fetchFn(`${endpoint}/readyz`);
+  const ready = await fetchFn(`${endpoint}/readyz`, {
+    ...(signal === undefined ? {} : { signal }),
+  });
 
   if (!ready.ok) {
     throw new Error(
@@ -387,7 +401,9 @@ async function fetchWikispineMetadata(
     );
   }
 
-  const response = await fetchFn(`${endpoint}/metadata`);
+  const response = await fetchFn(`${endpoint}/metadata`, {
+    ...(signal === undefined ? {} : { signal }),
+  });
 
   if (!response.ok) {
     throw new Error(

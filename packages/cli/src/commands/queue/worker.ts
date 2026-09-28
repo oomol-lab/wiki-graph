@@ -172,6 +172,7 @@ async function executeStep(
   const result = await execution.executor({
     inputFile,
     kind,
+    progress: reporter,
     revision,
     signal: context.signal,
     workspace: outputWorkspace,
@@ -244,9 +245,6 @@ async function openJobExecutor(
       : createStageLLM(stageConfig, {
           cacheDirectory: job.cache,
           logDirectory: job.log,
-          onStreamProgress: async (event) => {
-            await reporter.addOutputCharacters(event.outputCharacters);
-          },
           onTokenUsage: async (usage) => {
             await reporter.addTokenUsage(usage);
           },

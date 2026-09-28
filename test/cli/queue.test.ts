@@ -10,6 +10,7 @@ const queueMockState = vi.hoisted(() => ({
   buildKnowledgeGraphCalls: [] as unknown[],
   buildSummaryCalls: [] as unknown[],
   executedKinds: [] as string[],
+  executedProgress: [] as unknown[],
   chapterStage: "sourced" as "planned" | "sourced" | "graphed" | "summarized",
   chapters: [] as Array<{
     readonly chapterId: number;
@@ -284,6 +285,7 @@ vi.mock("../../packages/core/src/api/index.js", () => ({
     }) =>
       async (execution: {
         readonly kind: string;
+        readonly progress?: unknown;
         readonly revision: number;
         readonly signal?: AbortSignal;
         readonly workspace: {
@@ -291,6 +293,7 @@ vi.mock("../../packages/core/src/api/index.js", () => ({
         };
       }) => {
         queueMockState.executedKinds.push(execution.kind);
+        queueMockState.executedProgress.push(execution.progress);
         queueMockState.stepLog.push(`build-${execution.kind}`);
         if (execution.kind === "knowledge-graph") {
           queueMockState.buildKnowledgeGraphCalls.push(options);
@@ -586,6 +589,7 @@ describe("cli/queue", () => {
     queueMockState.buildKnowledgeGraphCalls.length = 0;
     queueMockState.buildSummaryCalls.length = 0;
     queueMockState.executedKinds.length = 0;
+    queueMockState.executedProgress.length = 0;
     queueMockState.buildInputStage = "sourced";
     queueMockState.chapterStage = "sourced";
     queueMockState.chapters = [];
@@ -1198,6 +1202,7 @@ describe("cli/queue", () => {
     expect(queueMockState.writeCalls).toStrictEqual(["book.wikg", "book.wikg"]);
     expect(queueMockState.buildGraphCalls).toHaveLength(1);
     expect(queueMockState.buildSummaryCalls).toHaveLength(1);
+    expect(queueMockState.executedProgress).toStrictEqual([reporter, reporter]);
     expect(queueMockState.buildGraphCalls[0]).toStrictEqual({
       extractionPrompt: "Keep key beats",
     });
@@ -1208,6 +1213,8 @@ describe("cli/queue", () => {
     };
     expect(stageLLMOptions.cacheDirectory.path).toBe("/tmp/job-cache");
     expect(stageLLMOptions.logDirectory.path).toBe("/tmp/job-logs");
+    expect(stageLLMOptions).not.toHaveProperty("onStreamProgress");
+    expect(stageLLMOptions).toHaveProperty("onTokenUsage");
     expect(queueMockState.inputRevisionRecords).toStrictEqual([
       {
         currentRevision: 1,

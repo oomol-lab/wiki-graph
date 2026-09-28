@@ -14,6 +14,7 @@ import type { JobDirectory, JobFile } from "./platform.js";
 import type { JobEmbeddingProvider } from "./ports.js";
 import type {
   JobLlm,
+  JobProgressSink,
   JobWikimediaResolver,
   JobWikispineMatcher,
 } from "./ports.js";
@@ -26,6 +27,7 @@ export interface ChapterJobFileExecutionOptions {
   readonly embeddingProvider?: JobEmbeddingProvider;
   readonly kind: ChapterJobKind;
   readonly llm?: JobLlm;
+  readonly progress?: JobProgressSink;
   readonly revision: number;
   readonly signal?: AbortSignal;
   readonly wikimedia?: JobWikimediaResolver;
@@ -61,6 +63,7 @@ export async function executeChapterJobFile(
             options.inputFile,
             requireEmbeddingProvider(options.embeddingProvider),
             options.kind === "index-embedding-source" ? "source" : "summary",
+            options.signal,
           ),
         );
         break;
@@ -70,6 +73,9 @@ export async function executeChapterJobFile(
           buildReadingGraphRecords({
             inputFile: options.inputFile,
             llm: requireCapability(options.llm, "LLM"),
+            ...(options.progress === undefined
+              ? {}
+              : { progress: options.progress }),
             ...(options.signal === undefined ? {} : { signal: options.signal }),
           }),
         );
@@ -80,6 +86,9 @@ export async function executeChapterJobFile(
           buildReadingSummaryRecords({
             inputFile: options.inputFile,
             llm: requireCapability(options.llm, "LLM"),
+            ...(options.progress === undefined
+              ? {}
+              : { progress: options.progress }),
             ...(options.signal === undefined ? {} : { signal: options.signal }),
           }),
         );
@@ -90,6 +99,9 @@ export async function executeChapterJobFile(
           buildKnowledgeGraphRecords({
             inputFile: options.inputFile,
             llm: requireCapability(options.llm, "LLM"),
+            ...(options.progress === undefined
+              ? {}
+              : { progress: options.progress }),
             ...(options.signal === undefined ? {} : { signal: options.signal }),
             wikimedia: requireCapability(
               options.wikimedia,
@@ -125,6 +137,7 @@ async function* buildEmbeddingRecords(
   inputFile: JobFile,
   provider: JobEmbeddingProvider,
   source: "source" | "summary",
+  signal?: AbortSignal,
 ): AsyncIterable<ChapterJobArtifactRecord> {
   const segments = streamEmbeddingSegments(
     readEmbeddingSentences(inputFile, source),
@@ -132,6 +145,11 @@ async function* buildEmbeddingRecords(
   const iterator = segments[Symbol.asyncIterator]();
   const first = await iterator.next();
   if (first.done) {
+    if (source === "summary") {
+      throw new Error(
+        "Summary embedding job requires at least one summary sentence.",
+      );
+    }
     yield {
       dimensions: provider.dimensions ?? 0,
       ...(provider.identity === undefined
@@ -145,7 +163,9 @@ async function* buildEmbeddingRecords(
     return;
   }
 
-  const firstRecord = await embedSegment(first.value, provider);
+  let batch = [first.value, ...(await takeSegments(iterator, 15))];
+  let records = await embedSegments(batch, provider, signal);
+  const firstRecord = records[0]!;
   const dimensions = provider.dimensions ?? firstRecord.vector.length;
   if (dimensions <= 0)
     throw new Error("Embedding provider returned no dimensions.");
@@ -158,14 +178,19 @@ async function* buildEmbeddingRecords(
     type: "embedding-metadata",
     version: 1,
   };
-  yield firstRecord;
-
-  while (true) {
-    const next = await iterator.next();
-    if (next.done) return;
-    const record = await embedSegment(next.value, provider);
+  for (const record of records) {
     assertDimensions(record, dimensions);
     yield record;
+  }
+
+  while (true) {
+    batch = await takeSegments(iterator, 16);
+    if (batch.length === 0) return;
+    records = await embedSegments(batch, provider, signal);
+    for (const record of records) {
+      assertDimensions(record, dimensions);
+      yield record;
+    }
   }
 }
 
@@ -180,16 +205,36 @@ async function* readEmbeddingSentences(
   }
 }
 
-async function embedSegment(
-  segment: Omit<JobEmbeddingSegmentRecord, "type" | "vector">,
+async function embedSegments(
+  segments: readonly Omit<JobEmbeddingSegmentRecord, "type" | "vector">[],
   provider: JobEmbeddingProvider,
-): Promise<JobEmbeddingSegmentRecord> {
-  const result = await provider.embedTexts([segment.text]);
-  const vector = result.embeddings[0];
-  if (result.embeddings.length !== 1 || vector === undefined) {
+  signal?: AbortSignal,
+): Promise<readonly JobEmbeddingSegmentRecord[]> {
+  const result = await provider.embedTexts(
+    segments.map((segment) => segment.text),
+    signal === undefined ? undefined : { signal },
+  );
+  if (result.embeddings.length !== segments.length) {
     throw new Error("Embedding provider must return one vector per segment.");
   }
-  return { ...segment, type: "embedding-segment", vector };
+  return segments.map((segment, index) => ({
+    ...segment,
+    type: "embedding-segment",
+    vector: result.embeddings[index]!,
+  }));
+}
+
+async function takeSegments<T>(
+  iterator: AsyncIterator<T>,
+  limit: number,
+): Promise<T[]> {
+  const output: T[] = [];
+  while (output.length < limit) {
+    const next = await iterator.next();
+    if (next.done) break;
+    output.push(next.value);
+  }
+  return output;
 }
 
 function assertDimensions(
