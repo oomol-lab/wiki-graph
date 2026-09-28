@@ -20,6 +20,10 @@ export interface ChapterJobFileExecutionOptions {
   readonly workspace: JobDirectory;
 }
 
+export type ChapterJobFileExecutor = (
+  options: ChapterJobFileExecutionOptions,
+) => Promise<ChapterJobFileResult>;
+
 export async function executeChapterJobFile(
   options: ChapterJobFileExecutionOptions,
 ): Promise<ChapterJobFileResult> {

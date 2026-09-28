@@ -90,6 +90,8 @@ export {
   snapshotSummaryEmbeddingJob,
   writeChapterJobInputFile,
   applyChapterJobArtifactFile,
+  createRemoteChapterJobFileExecutor,
+  executeChapterJobForChapter,
 } from "./chapter-build/index.js";
 export type { ChapterJobInputOptions } from "./chapter-build/index.js";
 export {

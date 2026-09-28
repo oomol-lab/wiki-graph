@@ -425,6 +425,8 @@ export {
   createLocalChapterJobExecutor,
   writeChapterJobInputFile,
   applyChapterJobArtifactFile,
+  createRemoteChapterJobFileExecutor,
+  executeChapterJobForChapter,
 } from "./api/index.js";
 export type {
   BuildChapterGraphArtifactOptions,
