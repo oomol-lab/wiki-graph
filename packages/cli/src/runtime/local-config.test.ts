@@ -12,6 +12,27 @@ describe("runtime/local config", () => {
     expect(parseLocalConfigSection("embedding")).toBe("embeddings");
   });
 
+  it("validates and masks remote job config", () => {
+    expect(
+      validateLocalConfigSection("job", {
+        endpoint: " https://jobs.example.com ",
+        token: " secret ",
+      }),
+    ).toStrictEqual({
+      endpoint: "https://jobs.example.com",
+      token: "secret",
+    });
+    expect(
+      maskLocalConfigSection("job", {
+        endpoint: "https://jobs.example.com",
+        token: "secret",
+      }),
+    ).toStrictEqual({
+      endpoint: "https://jobs.example.com",
+      token: "****",
+    });
+  });
+
   it("validates embeddings config", () => {
     expect(
       validateLocalConfigSection("embeddings", {

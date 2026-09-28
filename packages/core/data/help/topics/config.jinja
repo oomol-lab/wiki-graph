@@ -22,6 +22,16 @@ Sections:
       - `job`: simultaneous generation jobs. Default: 3.
       - `request`: concurrent LLM requests. Default: 6.
 
+  `wikg://local/config/job`
+    Optional remote chapter job service:
+      - `endpoint`: service base URL.
+      - `token`: optional Bearer token.
+
+  `wikg://local/config/wikimedia`
+    Optional remote Wikimedia resolver:
+      - `endpoint`: service base URL.
+      - `token`: optional Bearer token.
+
   `wikg://local/config/wikispine`
     WikiSpine runtime provider for Knowledge Graph builds:
       - `provider`: `cli` or `fetch`.
@@ -33,12 +43,16 @@ Operations:
     {{ commandName }} wikg://local/config/llm
     {{ commandName }} wikg://local/config/embeddings
     {{ commandName }} wikg://local/config/concurrent
+    {{ commandName }} wikg://local/config/job
+    {{ commandName }} wikg://local/config/wikimedia
     {{ commandName }} wikg://local/config/wikispine
 
   Replace a section with a JSON object:
     {{ commandName }} wikg://local/config/llm set '{"provider":"openai","model":"gpt-4.1"}'
     {{ commandName }} wikg://local/config/embeddings set '{"provider":"openai","model":"text-embedding-3-small"}'
     {{ commandName }} wikg://local/config/concurrent set '{"job":3,"request":6}'
+    {{ commandName }} wikg://local/config/job set '{"endpoint":"https://jobs.example.com"}'
+    {{ commandName }} wikg://local/config/wikimedia set '{"endpoint":"https://wikimedia.example.com"}'
     {{ commandName }} wikg://local/config/wikispine set '{"provider":"fetch"}'
 
   Update one key:
@@ -48,6 +62,8 @@ Operations:
     {{ commandName }} wikg://local/config/embeddings put model text-embedding-3-small
     {{ commandName }} wikg://local/config/concurrent put job 3
     {{ commandName }} wikg://local/config/concurrent put request 6
+    {{ commandName }} wikg://local/config/job put endpoint https://jobs.example.com
+    {{ commandName }} wikg://local/config/wikimedia put endpoint https://wikimedia.example.com
     {{ commandName }} wikg://local/config/wikispine put provider cli
     {{ commandName }} wikg://local/config/wikispine put provider fetch
 
@@ -55,9 +71,13 @@ Operations:
     {{ commandName }} wikg://local/config/llm put apiKey --secret
     {{ commandName }} wikg://local/config/embeddings put apiKey --secret
 
+  Store a service token:
+    {{ commandName }} wikg://local/config/job put token --secret
+    {{ commandName }} wikg://local/config/wikimedia put token --secret
+
 Secret handling:
-  - `apiKey` is read through an interactive hidden prompt.
-  - `apiKey` is masked as `****` in command output.
+  - `apiKey` and `token` are read through an interactive hidden prompt.
+  - `apiKey` and `token` are masked as `****` in command output.
   - `set <json>` and `set --json-input <json>` cannot set a real `apiKey`.
   - Those JSON inputs may include `"apiKey":"****"` to preserve an existing secret.
   - Omitting `apiKey` from those JSON inputs removes it from the section.

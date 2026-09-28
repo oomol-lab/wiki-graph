@@ -166,7 +166,9 @@ export interface IndexArtifactEmbeddingSegment {
 }
 
 export interface ReplaceFtsIndexArtifactInput {
-  readonly lexicalRows: readonly IndexArtifactLexicalRow[];
+  readonly lexicalRows:
+    | AsyncIterable<IndexArtifactLexicalRow>
+    | Iterable<IndexArtifactLexicalRow>;
   readonly metadata?: Readonly<Record<string, unknown>>;
   readonly serialId: number;
   readonly sourceRevision: number;
@@ -175,7 +177,9 @@ export interface ReplaceFtsIndexArtifactInput {
 export interface ReplaceEmbeddingIndexArtifactInput {
   readonly kind: "embedding-source" | "embedding-summary";
   readonly metadata?: Readonly<Record<string, unknown>>;
-  readonly segments: readonly IndexArtifactEmbeddingSegment[];
+  readonly segments:
+    | AsyncIterable<IndexArtifactEmbeddingSegment>
+    | Iterable<IndexArtifactEmbeddingSegment>;
   readonly serialId: number;
   readonly sourceRevision: number;
 }

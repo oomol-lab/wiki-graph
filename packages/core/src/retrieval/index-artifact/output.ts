@@ -1,8 +1,4 @@
-import {
-  readFileText,
-  writeFileContent,
-  type File,
-} from "../../runtime/platform/index.js";
+import { readFileText, type File } from "../../runtime/platform/index.js";
 import { z } from "zod";
 
 import type {
@@ -67,23 +63,27 @@ export async function writeIndexArtifactOutput(
   file: File,
   artifact: IndexArtifactOutput,
 ): Promise<void> {
-  const records: unknown[] = [createOutputManifest(artifact)];
-  if ("lexicalRows" in artifact) {
-    records.push(
-      ...artifact.lexicalRows.map((row) => ({
-        type: "lexical-row",
-        ...omitEmptyMetadata(row),
-      })),
-    );
-  } else {
-    records.push(
-      ...artifact.segments.map((segment) => ({ type: "segment", ...segment })),
-    );
+  const writer = await file.openWriter();
+  try {
+    await writer.write(`${JSON.stringify(createOutputManifest(artifact))}\n`);
+    if ("lexicalRows" in artifact) {
+      for await (const row of artifact.lexicalRows) {
+        await writer.write(
+          `${JSON.stringify({ type: "lexical-row", ...omitEmptyMetadata(row) })}\n`,
+        );
+      }
+    } else {
+      for await (const segment of artifact.segments) {
+        await writer.write(
+          `${JSON.stringify({ type: "segment", ...segment })}\n`,
+        );
+      }
+    }
+    await writer.commit();
+  } catch (error) {
+    await writer.abort();
+    throw error;
   }
-  await writeFileContent(
-    file,
-    records.map((record) => JSON.stringify(record)).join("\n") + "\n",
-  );
 }
 
 export async function readIndexArtifactOutput(

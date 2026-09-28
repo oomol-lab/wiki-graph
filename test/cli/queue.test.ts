@@ -9,6 +9,7 @@ const queueMockState = vi.hoisted(() => ({
   buildGraphCalls: [] as unknown[],
   buildKnowledgeGraphCalls: [] as unknown[],
   buildSummaryCalls: [] as unknown[],
+  executedKinds: [] as string[],
   chapterStage: "sourced" as "planned" | "sourced" | "graphed" | "summarized",
   chapters: [] as Array<{
     readonly chapterId: number;
@@ -272,6 +273,49 @@ vi.mock("../../packages/core/src/api/index.js", () => ({
   ),
   cancelBuildJob: vi.fn(),
   cleanBuildJobs: vi.fn(),
+  createLocalChapterJobFileExecutor: vi.fn(
+    (options: {
+      readonly embeddingProvider?: {
+        readonly embedTexts: (
+          texts: readonly string[],
+          options?: { readonly signal?: AbortSignal },
+        ) => Promise<unknown>;
+      };
+    }) =>
+      async (execution: {
+        readonly kind: string;
+        readonly revision: number;
+        readonly signal?: AbortSignal;
+        readonly workspace: {
+          readonly createFile: (name: string) => Promise<unknown>;
+        };
+      }) => {
+        queueMockState.executedKinds.push(execution.kind);
+        queueMockState.stepLog.push(`build-${execution.kind}`);
+        if (execution.kind === "knowledge-graph") {
+          queueMockState.buildKnowledgeGraphCalls.push(options);
+        } else if (
+          execution.kind === "index-embedding-source" ||
+          execution.kind === "index-embedding-summary"
+        ) {
+          await options.embeddingProvider?.embedTexts(
+            [
+              execution.kind === "index-embedding-source"
+                ? "Alpha beta."
+                : "Summary text.",
+            ],
+            execution.signal === undefined
+              ? undefined
+              : { signal: execution.signal },
+          );
+        }
+        return {
+          artifactFile: await execution.workspace.createFile("artifact.jsonl"),
+          revision: execution.revision,
+        };
+      },
+  ),
+  createRemoteChapterJobFileExecutor: vi.fn(),
   commitChapterGraphArtifact: vi.fn(() => {
     queueMockState.stepLog.push("commit-graph");
     queueMockState.commitGraphCalls.push({});
@@ -307,6 +351,15 @@ vi.mock("../../packages/core/src/api/index.js", () => ({
   getBuildJob: vi.fn((jobId: string) => {
     queueMockState.getJobIds.push(jobId);
     return Promise.resolve(queueMockState.job);
+  }),
+  getChapterDetails: vi.fn(() => {
+    if (!queueMockState.serialExists) {
+      return Promise.reject(new Error("Chapter 12 no longer exists."));
+    }
+    return Promise.resolve({
+      chapterId: 12,
+      stage: queueMockState.buildInputStage,
+    });
   }),
   generateChapterKnowledgeGraphArtifactFromSnapshot: vi.fn(
     (_chapterId: number, _snapshot: unknown, options: unknown) => {
@@ -352,6 +405,39 @@ vi.mock("../../packages/core/src/api/index.js", () => ({
     queueMockState.inputRevisionRecords.push(input);
     return Promise.resolve(queueMockState.job);
   }),
+  applyChapterJobArtifactFile: vi.fn(
+    (
+      _document: unknown,
+      _chapterId: number,
+      kind: string,
+      revision: number,
+    ) => {
+      if (kind === "reading-graph") {
+        queueMockState.stepLog.push("commit-graph");
+        queueMockState.commitGraphCalls.push({ kind });
+        queueMockState.buildInputStage = "graphed";
+        queueMockState.revision = revision + 1;
+      } else if (kind === "reading-summary") {
+        queueMockState.stepLog.push("commit-summary");
+        queueMockState.commitSummaryCalls.push({ kind });
+        queueMockState.buildInputStage = "summarized";
+        queueMockState.revision = revision + 1;
+      } else if (kind === "knowledge-graph") {
+        queueMockState.stepLog.push("commit-knowledge-graph");
+        queueMockState.commitKnowledgeGraphCalls.push({ kind });
+      } else {
+        queueMockState.indexArtifactWrites.push({
+          artifact: {
+            kind: kind.replace("index-", ""),
+            serialId: 12,
+            sourceRevision: revision,
+          },
+          kind: kind === "index-fts" ? "fts" : "embedding",
+        });
+      }
+      return Promise.resolve();
+    },
+  ),
   resolveBuildJobId: vi.fn((jobId: string) => {
     queueMockState.resolveJobIds.push(jobId);
     return Promise.resolve(jobId === "job-1-short" ? "job-1-full" : jobId);
@@ -399,6 +485,22 @@ vi.mock("../../packages/core/src/api/index.js", () => ({
       objectsFile: new NodeFile("/tmp/job-workspace/summary-objects.jsonl"),
     });
   }),
+  writeChapterJobInputFile: vi.fn(
+    (
+      _document: unknown,
+      _chapterId: number,
+      kind: string,
+      _file: unknown,
+      options: unknown,
+    ) => {
+      queueMockState.stepLog.push(`snapshot-${kind}`);
+      if (kind === "reading-graph")
+        queueMockState.buildGraphCalls.push(options);
+      if (kind === "reading-summary")
+        queueMockState.buildSummaryCalls.push(options);
+      return Promise.resolve(queueMockState.revision);
+    },
+  ),
   updateBuildJobTarget: vi.fn(),
 }));
 
@@ -483,6 +585,7 @@ describe("cli/queue", () => {
     queueMockState.buildGraphCalls.length = 0;
     queueMockState.buildKnowledgeGraphCalls.length = 0;
     queueMockState.buildSummaryCalls.length = 0;
+    queueMockState.executedKinds.length = 0;
     queueMockState.buildInputStage = "sourced";
     queueMockState.chapterStage = "sourced";
     queueMockState.chapters = [];
@@ -1056,6 +1159,7 @@ describe("cli/queue", () => {
 
     const reporter = {
       addOutputCharacters: vi.fn(() => Promise.resolve()),
+      throwIfStopped: vi.fn(() => Promise.resolve()),
       setTotals: vi.fn(() => Promise.resolve()),
       stepCompleted: vi.fn(() => Promise.resolve()),
       stepStarted: vi.fn(() => Promise.resolve()),
@@ -1072,16 +1176,21 @@ describe("cli/queue", () => {
     expect(queueMockState.stepLog).toStrictEqual([
       "read:start",
       "read:end",
-      "build-graph",
+      "read:start",
+      "read:end",
+      "read:start",
+      "snapshot-reading-graph",
+      "read:end",
+      "build-reading-graph",
       "write:start",
       "commit-graph",
       "write:end",
       "read:start",
       "read:end",
       "read:start",
-      "snapshot-summary",
+      "snapshot-reading-summary",
       "read:end",
-      "build-summary",
+      "build-reading-summary",
       "write:start",
       "commit-summary",
       "write:end",
@@ -1089,23 +1198,16 @@ describe("cli/queue", () => {
     expect(queueMockState.writeCalls).toStrictEqual(["book.wikg", "book.wikg"]);
     expect(queueMockState.buildGraphCalls).toHaveLength(1);
     expect(queueMockState.buildSummaryCalls).toHaveLength(1);
-    const summaryOptions = queueMockState.buildSummaryCalls[0] as {
-      readonly snapshotFile: { readonly path: string };
-      readonly workspace: { readonly path: string };
-    };
-    expect(summaryOptions.snapshotFile.path).toBe(
-      "/tmp/job-workspace/summary-input.json",
-    );
-    expect(summaryOptions.workspace.path).toBe("/tmp/job-workspace");
+    expect(queueMockState.buildGraphCalls[0]).toStrictEqual({
+      extractionPrompt: "Keep key beats",
+    });
+    expect(queueMockState.buildSummaryCalls[0]).toStrictEqual({});
     const stageLLMOptions = queueMockState.createStageLLMCalls[0] as {
       readonly cacheDirectory: { readonly path: string };
       readonly logDirectory: { readonly path: string };
     };
     expect(stageLLMOptions.cacheDirectory.path).toBe("/tmp/job-cache");
     expect(stageLLMOptions.logDirectory.path).toBe("/tmp/job-logs");
-    expect(queueMockState.buildSummaryCalls[0]).not.toHaveProperty(
-      "sourceDocumentPath",
-    );
     expect(queueMockState.inputRevisionRecords).toStrictEqual([
       {
         currentRevision: 1,
@@ -1118,23 +1220,7 @@ describe("cli/queue", () => {
         ownerId: "owner-1",
       },
     ]);
-    expect(queueMockState.inputRevisionAssertions).toStrictEqual([
-      {
-        currentRevision: 1,
-        jobId: "job-1",
-        ownerId: "owner-1",
-      },
-      {
-        currentRevision: 2,
-        jobId: "job-1",
-        ownerId: "owner-1",
-      },
-      {
-        currentRevision: 2,
-        jobId: "job-1",
-        ownerId: "owner-1",
-      },
-    ]);
+    expect(queueMockState.inputRevisionAssertions).toStrictEqual([]);
   });
 
   it("runs FTS index artifact jobs without loading LLM config", async () => {
@@ -1148,6 +1234,7 @@ describe("cli/queue", () => {
 
     const reporter = {
       addOutputCharacters: vi.fn(() => Promise.resolve()),
+      throwIfStopped: vi.fn(() => Promise.resolve()),
       setTotals: vi.fn(() => Promise.resolve()),
       stepCompleted: vi.fn(() => Promise.resolve()),
       stepStarted: vi.fn(() => Promise.resolve()),
@@ -1164,11 +1251,11 @@ describe("cli/queue", () => {
 
     expect(queueMockState.loadRequiredStageConfigCalls).toStrictEqual([]);
     expect(queueMockState.embeddingRequests).toStrictEqual([]);
-    expect(queueMockState.serialFragmentsSentenceListCalls).toBe(1);
-    expect(queueMockState.summaryFragmentsSentenceListCalls).toBe(1);
     expect(queueMockState.stepLog).toStrictEqual([
       "read:start",
+      "snapshot-index-fts",
       "read:end",
+      "build-index-fts",
       "write:start",
       "write:end",
     ]);
@@ -1180,38 +1267,6 @@ describe("cli/queue", () => {
       },
       kind: "fts",
     });
-    expect(
-      (
-        queueMockState.indexArtifactWrites[0] as {
-          readonly artifact: { readonly lexicalRows: readonly unknown[] };
-        }
-      ).artifact.lexicalRows,
-    ).toMatchObject([
-      {
-        rowId: "chapter-title:12",
-        text: "Chapter title",
-      },
-      {
-        rowId: "source-sentence:0",
-        text: "Alpha beta.",
-      },
-      {
-        rowId: "summary-sentence:0",
-        text: "Summary text.",
-      },
-      {
-        rowId: "chunk-label:123",
-        text: "Chunk label",
-      },
-      {
-        rowId: "chunk-content:123",
-        text: "Chunk content.",
-      },
-      {
-        rowId: "mention-surface:mention-1",
-        text: "Alpha",
-      },
-    ]);
     expect(reporter.stepStarted).toHaveBeenCalledWith("index-fts");
     expect(reporter.stepCompleted).toHaveBeenCalledWith("index-fts");
   });
@@ -1233,6 +1288,7 @@ describe("cli/queue", () => {
 
     const reporter = {
       addOutputCharacters: vi.fn(() => Promise.resolve()),
+      throwIfStopped: vi.fn(() => Promise.resolve()),
       setTotals: vi.fn(() => Promise.resolve()),
       stepCompleted: vi.fn(() => Promise.resolve()),
       stepStarted: vi.fn(() => Promise.resolve()),
@@ -1249,7 +1305,9 @@ describe("cli/queue", () => {
 
     expect(queueMockState.stepLog).toStrictEqual([
       "read:start",
+      "snapshot-index-embedding-source",
       "read:end",
+      "build-index-embedding-source",
       "write:start",
       "write:end",
     ]);
@@ -1258,12 +1316,6 @@ describe("cli/queue", () => {
     expect(queueMockState.indexArtifactWrites[0]).toMatchObject({
       artifact: {
         kind: "embedding-source",
-        segments: [
-          {
-            text: "Alpha beta.",
-            vector: [1, 2, 3],
-          },
-        ],
         serialId: 12,
         sourceRevision: 1,
       },
@@ -1276,13 +1328,7 @@ describe("cli/queue", () => {
         ownerId: "owner-1",
       },
     ]);
-    expect(queueMockState.inputRevisionAssertions).toStrictEqual([
-      {
-        currentRevision: 1,
-        jobId: "job-1",
-        ownerId: "owner-1",
-      },
-    ]);
+    expect(queueMockState.inputRevisionAssertions).toStrictEqual([]);
   });
 
   it("runs summary embedding index artifact jobs through JSONL output", async () => {
@@ -1302,6 +1348,7 @@ describe("cli/queue", () => {
 
     const reporter = {
       addOutputCharacters: vi.fn(() => Promise.resolve()),
+      throwIfStopped: vi.fn(() => Promise.resolve()),
       setTotals: vi.fn(() => Promise.resolve()),
       stepCompleted: vi.fn(() => Promise.resolve()),
       stepStarted: vi.fn(() => Promise.resolve()),
@@ -1315,18 +1362,10 @@ describe("cli/queue", () => {
       { signal: new AbortController().signal },
     );
 
-    expect(queueMockState.serialFragmentsSentenceListCalls).toBe(0);
-    expect(queueMockState.summaryFragmentsSentenceListCalls).toBe(1);
     expect(queueMockState.embeddingRequests).toStrictEqual([["Summary text."]]);
     expect(queueMockState.indexArtifactWrites[0]).toMatchObject({
       artifact: {
         kind: "embedding-summary",
-        segments: [
-          {
-            text: "Summary text.",
-            vector: [1, 2, 3],
-          },
-        ],
         serialId: 12,
         sourceRevision: 1,
       },
@@ -1352,6 +1391,7 @@ describe("cli/queue", () => {
 
     const reporter = {
       addOutputCharacters: vi.fn(() => Promise.resolve()),
+      throwIfStopped: vi.fn(() => Promise.resolve()),
       setTotals: vi.fn(() => Promise.resolve()),
       stepCompleted: vi.fn(() => Promise.resolve()),
       stepStarted: vi.fn(() => Promise.resolve()),
@@ -1403,6 +1443,7 @@ describe("cli/queue", () => {
 
     const reporter = {
       addOutputCharacters: vi.fn(() => Promise.resolve()),
+      throwIfStopped: vi.fn(() => Promise.resolve()),
       setTotals: vi.fn(() => Promise.resolve()),
       stepCompleted: vi.fn(() => Promise.resolve()),
       stepStarted: vi.fn(() => Promise.resolve()),
@@ -1430,8 +1471,6 @@ describe("cli/queue", () => {
     ]);
     expect(queueMockState.buildKnowledgeGraphCalls).toHaveLength(1);
     expect(queueMockState.buildKnowledgeGraphCalls[0]).toMatchObject({
-      policyPrompt: "Keep key beats",
-      progressTracker: reporter,
       wikispine: {
         provider: "fetch",
       },
@@ -1439,18 +1478,13 @@ describe("cli/queue", () => {
     const knowledgeGraphOptions = queueMockState
       .buildKnowledgeGraphCalls[0] as {
       readonly wikimediaResolver?: { readonly resolve: unknown };
-      readonly workspace: { readonly path: string };
     };
 
-    expect(knowledgeGraphOptions.workspace.path).toBe("/tmp/job-workspace");
     expect(knowledgeGraphOptions.wikimediaResolver?.resolve).toEqual(
       expect.any(Function),
     );
     expect(queueMockState.commitKnowledgeGraphCalls).toStrictEqual([
-      {
-        chapterId: 12,
-        manifestPath: "/tmp/job-workspace/knowledge-graph/manifest.json",
-      },
+      { kind: "knowledge-graph" },
     ]);
     expect(queueMockState.inputRevisionRecords).toStrictEqual([
       {
@@ -1459,18 +1493,7 @@ describe("cli/queue", () => {
         ownerId: "owner-1",
       },
     ]);
-    expect(queueMockState.inputRevisionAssertions).toStrictEqual([
-      {
-        currentRevision: 1,
-        jobId: "job-1",
-        ownerId: "owner-1",
-      },
-      {
-        currentRevision: 1,
-        jobId: "job-1",
-        ownerId: "owner-1",
-      },
-    ]);
+    expect(queueMockState.inputRevisionAssertions).toStrictEqual([]);
     expect(queueMockState.buildGraphCalls).toStrictEqual([]);
     expect(queueMockState.buildSummaryCalls).toStrictEqual([]);
     expect(queueMockState.commitGraphCalls).toStrictEqual([]);
@@ -1519,6 +1542,7 @@ describe("cli/queue", () => {
 
     const reporter = {
       addOutputCharacters: vi.fn(() => Promise.resolve()),
+      throwIfStopped: vi.fn(() => Promise.resolve()),
       setTotals: vi.fn(() => Promise.resolve()),
       stepCompleted: vi.fn(() => Promise.resolve()),
       stepStarted: vi.fn(() => Promise.resolve()),

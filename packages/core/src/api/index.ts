@@ -77,6 +77,14 @@ export {
   commitChapterSummaryArtifact,
   readChapterBuildInput,
   snapshotChapterSummaryInput,
+  writeChapterJobInputFile,
+  applyChapterJobArtifactFile,
+  createRemoteChapterJobFileExecutor,
+  createLocalChapterJobFileExecutor,
+} from "./chapter-build/index.js";
+export type {
+  ChapterJobInputOptions,
+  LocalChapterJobFileExecutorOptions,
 } from "./chapter-build/index.js";
 export {
   buildChapterKnowledgeGraphArtifact,

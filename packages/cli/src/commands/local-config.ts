@@ -345,6 +345,9 @@ export function mergeMaskedSecretsForSet(
   input: LocalConfigObject,
   current: LocalConfigObject,
 ): LocalConfigObject {
+  if (section === "job" || section === "wikimedia") {
+    return mergeMaskedSecret(section, input, current, "token");
+  }
   if (
     (section !== "llm" && section !== "embeddings") ||
     input.apiKey === undefined
@@ -359,6 +362,24 @@ export function mergeMaskedSecretsForSet(
 
   throw new Error(
     `apiKey is sensitive and cannot be set from JSON. Use \`wg wikg://local/config/${section} put apiKey --secret\`.`,
+  );
+}
+
+function mergeMaskedSecret(
+  section: "job" | "wikimedia",
+  input: LocalConfigObject,
+  current: LocalConfigObject,
+  key: "token",
+): LocalConfigObject {
+  const value = input[key];
+  if (value === undefined) return input;
+  if (typeof value === "string" && /^\*+$/u.test(value)) {
+    return current[key] === undefined
+      ? omitKey(input, key)
+      : { ...input, [key]: current[key] };
+  }
+  throw new Error(
+    `${key} is sensitive and cannot be set from JSON. Use \`wg wikg://local/config/${section} put ${key} --secret\`.`,
   );
 }
 

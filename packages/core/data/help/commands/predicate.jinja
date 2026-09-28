@@ -320,6 +320,17 @@ Schema:
 Notes:
   - `fetch` uses the built-in WikiSpine service endpoint.
   - `cli` runs the local `wikispine` command from PATH.
+{% elif "/job" in uri or "/wikimedia" in uri %}
+Schema:
+  {
+    "endpoint": "<service-base-url>"
+  }
+
+Notes:
+  - Allowed keys: endpoint, token.
+  - `token` is sensitive and cannot be set from JSON.
+  - To add or replace it, use `{{ commandName }} {{ uri }} put token --secret`.
+  - To remove it, use `{{ commandName }} {{ uri }} delete token`.
 {% elif "/concurrent" in uri %}
 Schema:
   {
@@ -344,6 +355,9 @@ Examples:
 {% elif "/wikispine" in uri %}
   {{ commandName }} {{ uri }} set '{"provider":"fetch"}'
   {{ commandName }} {{ uri }} set '{"provider":"cli"}'
+{% elif "/job" in uri or "/wikimedia" in uri %}
+  {{ commandName }} {{ uri }} set '{"endpoint":"https://service.example.com"}'
+  {{ commandName }} {{ uri }} put token --secret
 {% elif "/concurrent" in uri %}
   {{ commandName }} {{ uri }} set '{"job":3,"request":6}'
   {{ commandName }} {{ uri }} set --json-input '{"job":2,"request":4}'
