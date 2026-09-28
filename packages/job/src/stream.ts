@@ -10,7 +10,10 @@ export const CHAPTER_JOB_STREAM_CONTENT_TYPE =
   "application/x-ndjson; charset=utf-8";
 
 type SnapshotOptions =
-  | Pick<ChapterJobSnapshotPayloads["knowledge-graph"], "language" | "policyPrompt">
+  | Pick<
+      ChapterJobSnapshotPayloads["knowledge-graph"],
+      "language" | "policyPrompt" | "stage"
+    >
   | Pick<ChapterJobSnapshotPayloads["reading-graph"], "extractionPrompt" | "language">
   | Pick<ChapterJobSnapshotPayloads["reading-summary"], "language" | "prompt">
   | Record<string, never>;
@@ -103,7 +106,7 @@ function snapshotStart(snapshot: AnyChapterJobSnapshot): SnapshotFrame {
   const options = (() => {
     switch (snapshot.kind) {
       case "knowledge-graph":
-        return pick(snapshot.payload, ["language", "policyPrompt"]);
+        return pick(snapshot.payload, ["language", "policyPrompt", "stage"]);
       case "reading-graph":
         return pick(snapshot.payload, ["extractionPrompt", "language"]);
       case "reading-summary":

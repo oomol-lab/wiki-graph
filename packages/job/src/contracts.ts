@@ -127,6 +127,7 @@ export interface KnowledgeGraphSnapshotPayload {
   readonly fragments: readonly JobSourceFragment[];
   readonly language?: string;
   readonly policyPrompt?: string;
+  readonly stage: "graphed" | "sourced" | "summarized";
 }
 
 export interface FtsSnapshotPayload {

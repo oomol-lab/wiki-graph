@@ -71,10 +71,20 @@ export async function snapshotKnowledgeGraphJob(
       ...(options.policyPrompt === undefined
         ? {}
         : { policyPrompt: options.policyPrompt }),
+      stage: requireBuildableStage(snapshot.details.stage),
     },
     protocol: CHAPTER_JOB_PROTOCOL,
     revision: await document.serials.getRevision(chapterId),
   };
+}
+
+function requireBuildableStage(
+  stage: "graphed" | "planned" | "sourced" | "summarized",
+): "graphed" | "sourced" | "summarized" {
+  if (stage === "planned") {
+    throw new Error("A planned chapter cannot build a Knowledge Graph.");
+  }
+  return stage;
 }
 
 export async function snapshotFtsJob(

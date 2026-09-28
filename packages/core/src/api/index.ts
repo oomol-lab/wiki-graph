@@ -1,4 +1,8 @@
 export {
+  createLocalChapterJobExecutor,
+  type LocalChapterJobExecutorOptions,
+} from "./chapter-build/job-executor.js";
+export {
   WikiGraph,
   type DigestProgressEvent,
   type SerialDiscoveryItem,

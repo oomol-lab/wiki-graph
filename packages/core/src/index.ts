@@ -422,11 +422,13 @@ export {
   snapshotChapterSummaryInput,
   snapshotSourceEmbeddingJob,
   snapshotSummaryEmbeddingJob,
+  createLocalChapterJobExecutor,
 } from "./api/index.js";
 export type {
   BuildChapterGraphArtifactOptions,
   BuildChapterSummaryArtifactOptions,
   ChapterGraphBuildArtifact,
+  LocalChapterJobExecutorOptions,
 } from "./api/index.js";
 export {
   buildChapterKnowledgeGraphArtifact,

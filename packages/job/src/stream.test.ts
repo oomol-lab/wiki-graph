@@ -58,6 +58,7 @@ function snapshotFixtures(): readonly AnyChapterJobSnapshot[] {
         fragments: [{ fragmentId: 0, sentences: [sentence], summary: "Hello" }],
         language: "en",
         policyPrompt: "policy",
+        stage: "sourced",
       },
     },
     {
