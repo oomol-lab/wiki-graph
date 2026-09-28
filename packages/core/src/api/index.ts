@@ -76,7 +76,13 @@ export {
   commitChapterGraphArtifact,
   commitChapterSummaryArtifact,
   readChapterBuildInput,
+  snapshotFtsJob,
+  snapshotKnowledgeGraphJob,
+  snapshotReadingGraphJob,
+  snapshotReadingSummaryJob,
   snapshotChapterSummaryInput,
+  snapshotSourceEmbeddingJob,
+  snapshotSummaryEmbeddingJob,
 } from "./chapter-build/index.js";
 export {
   buildChapterKnowledgeGraphArtifact,

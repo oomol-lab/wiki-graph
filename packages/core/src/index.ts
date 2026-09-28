@@ -414,7 +414,13 @@ export {
   commitChapterGraphArtifact,
   commitChapterSummaryArtifact,
   readChapterBuildInput,
+  snapshotFtsJob,
+  snapshotKnowledgeGraphJob,
+  snapshotReadingGraphJob,
+  snapshotReadingSummaryJob,
   snapshotChapterSummaryInput,
+  snapshotSourceEmbeddingJob,
+  snapshotSummaryEmbeddingJob,
 } from "./api/index.js";
 export type {
   BuildChapterGraphArtifactOptions,
