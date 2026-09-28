@@ -1,30 +1,15 @@
-export { runWikipageCacheGc, WikipageCache } from "./cache.js";
 export {
-  createDisambiguationProfileNormalizer,
-  type CreateDisambiguationProfileNormalizerOptions,
-} from "./normalizer.js";
-export { RateLimiter, parseRetryAfterMs } from "./rate-limiter.js";
-export { WikipageResolver } from "./resolver.js";
-export { WikimediaClient } from "./wikimedia-client/index.js";
+  LocalWikimediaRequestGate,
+  openWikimediaResolver,
+  runWikimediaCacheGc,
+  SqliteWikimediaCache,
+  type OpenWikimediaResolver,
+  type WikimediaRuntimeOptions,
+} from "./local.js";
 export type {
-  CachedDisambiguationRecord,
-  CachedPageRecord,
-  CachedQidRecord,
-  DisambiguationExpansion,
-  DisambiguationLinkedQid,
-  DisambiguationPageText,
-  DisambiguationMeaningPriority,
-  DisambiguationProfile,
-  DisambiguationProfileError,
-  DisambiguationProfileMeaning,
-  DisambiguationProfileNormalizer,
-  DisambiguationProfileNormalizerInput,
-  EnrichmentStore,
-  QidResolution,
-  WikiClient,
-  WikipageResolveProgress,
-  WikipageResolveProgressDetail,
-  WikipageResolveProgressReporter,
-  WikipageResolverOptions,
-  WikipageSitelink,
-} from "./types.js";
+  WikimediaDisambiguationItem,
+  WikimediaLanguageProfile,
+  WikimediaResolution,
+  WikimediaResolveInput,
+  WikimediaResolver,
+} from "./provider.js";

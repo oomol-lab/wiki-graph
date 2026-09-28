@@ -1,4 +1,4 @@
-import type { DisambiguationExpansion } from "../wikipage/index.js";
+import type { WikimediaDisambiguationItem } from "../wikipage/index.js";
 
 export interface WikimatchCandidate {
   readonly hasMoreOptions?: boolean;
@@ -16,10 +16,11 @@ export interface WikimatchSentence {
 
 export interface WikimatchQidOption {
   readonly description?: string;
-  readonly disambiguation?: DisambiguationExpansion;
+  readonly disambiguation?: readonly WikimediaDisambiguationItem[];
   readonly isDisambiguation?: boolean;
   readonly label?: string;
   readonly qid: string;
+  readonly url?: string;
 }
 
 export interface WikimatchTextRange {

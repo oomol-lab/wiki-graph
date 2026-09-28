@@ -43,6 +43,10 @@ const queueMockState = vi.hoisted(() => ({
       readonly endpoint?: string;
       readonly provider?: "cli" | "fetch";
     };
+    readonly wikimedia?: {
+      readonly endpoint: string;
+      readonly token?: string;
+    };
   },
   loadRequiredStageConfigCalls: [] as unknown[],
   loadRequiredStageConfigError: undefined as Error | undefined,
@@ -1382,6 +1386,9 @@ describe("cli/queue", () => {
 
   it("runs knowledge graph work without reading graph or summary builds", async () => {
     queueMockState.cliConfig = {
+      wikimedia: {
+        endpoint: "https://wikimedia.example.test",
+      },
       wikispine: {
         provider: "fetch",
       },
@@ -1431,16 +1438,12 @@ describe("cli/queue", () => {
     });
     const knowledgeGraphOptions = queueMockState
       .buildKnowledgeGraphCalls[0] as {
-      readonly resolverOptions?: Record<string, unknown>;
+      readonly wikimediaResolver?: { readonly resolve: unknown };
       readonly workspace: { readonly path: string };
     };
 
     expect(knowledgeGraphOptions.workspace.path).toBe("/tmp/job-workspace");
-    const resolverLogDirectory = knowledgeGraphOptions.resolverOptions?.[
-      "logDirectory"
-    ] as { readonly path: string };
-    expect(resolverLogDirectory.path).toBe("/tmp/job-logs");
-    expect(knowledgeGraphOptions.resolverOptions?.normalizer).toEqual(
+    expect(knowledgeGraphOptions.wikimediaResolver?.resolve).toEqual(
       expect.any(Function),
     );
     expect(queueMockState.commitKnowledgeGraphCalls).toStrictEqual([

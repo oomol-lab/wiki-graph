@@ -91,7 +91,7 @@ function formatEntityWikipageLocaleLines(
   }
 
   return [
-    `${locale.title}  ${locale.url}`,
+    `${locale.label}  ${locale.url}`,
     ...(locale.description === undefined ? [] : [locale.description]),
   ];
 }

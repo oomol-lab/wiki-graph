@@ -19,6 +19,10 @@ export default defineConfig({
         "./packages/core/src/index.ts",
         import.meta.url,
       ).pathname,
+      "wiki-graph-wikimedia": new URL(
+        "./packages/wikimedia/src/index.ts",
+        import.meta.url,
+      ).pathname,
     },
   },
   test: {

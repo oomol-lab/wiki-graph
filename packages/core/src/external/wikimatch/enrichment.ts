@@ -1,51 +1,31 @@
-import { WikipageResolver } from "../wikipage/index.js";
-
 import type {
-  QidResolution,
-  WikipageResolverOptions,
-  WikipageResolveProgressReporter,
+  WikimediaResolution,
+  WikimediaResolver,
 } from "../wikipage/index.js";
 import type { WikimatchCandidate, WikimatchQidOption } from "./types.js";
-
-type WikimatchEnrichmentResolver = Pick<WikipageResolver, "resolveQids">;
 
 export async function enrichWikimatchCandidates(
   candidates: readonly WikimatchCandidate[],
   options: {
-    readonly progress?: WikipageResolveProgressReporter;
-    readonly resolver?: WikimatchEnrichmentResolver;
-    readonly resolverOptions?: Omit<WikipageResolverOptions, "progress">;
-  } = {},
+    readonly language?: string;
+    readonly resolver: WikimediaResolver;
+  },
 ): Promise<readonly WikimatchCandidate[]> {
   if (candidates.length === 0) {
     return [];
   }
 
-  if (options.resolver !== undefined) {
-    return applyQidResolutions(
-      candidates,
-      await options.resolver.resolveQids(listQids(candidates)),
-    );
-  }
-
-  const resolver = await WikipageResolver.open({
-    ...(options.resolverOptions ?? {}),
-    ...(options.progress === undefined ? {} : { progress: options.progress }),
-  });
-
-  try {
-    return applyQidResolutions(
-      candidates,
-      await resolver.resolveQids(listQids(candidates)),
-    );
-  } finally {
-    await resolver.close();
-  }
+  return applyQidResolutions(
+    candidates,
+    await options.resolver.resolve(listQids(candidates)),
+    options.language,
+  );
 }
 
 export function applyQidResolutions(
   candidates: readonly WikimatchCandidate[],
-  resolutions: readonly QidResolution[],
+  resolutions: readonly WikimediaResolution[],
+  language = "zh",
 ): readonly WikimatchCandidate[] {
   const resolutionsByQid = new Map(
     resolutions.map((resolution) => [resolution.qid, resolution]),
@@ -54,40 +34,49 @@ export function applyQidResolutions(
   return candidates.map((candidate) => ({
     ...candidate,
     qidOptions: candidate.qidOptions.map((option) =>
-      enrichQidOption(option, resolutionsByQid.get(option.qid)),
+      enrichQidOption(option, resolutionsByQid.get(option.qid), language),
     ),
   }));
 }
 
 function enrichQidOption(
   option: WikimatchQidOption,
-  resolution: QidResolution | undefined,
+  resolution: WikimediaResolution | undefined,
+  language: string,
 ): WikimatchQidOption {
   if (resolution === undefined) {
     return option;
   }
 
+  const profile = language === "en" ? resolution.en : resolution.zh;
+
   return {
     ...option,
-    ...(resolution.description === undefined
+    ...(profile.description === null
       ? {}
-      : { description: resolution.description }),
+      : { description: profile.description }),
     ...(resolution.disambiguation === undefined
       ? {}
       : { disambiguation: resolution.disambiguation }),
-    isDisambiguation: resolution.isDisambiguation,
-    ...(resolution.label === undefined ? {} : { label: resolution.label }),
+    ...(profile.label === null ? {} : { label: profile.label }),
+    ...(profile.url === null ? {} : { url: profile.url }),
   };
 }
 
 function listQids(
   candidates: readonly WikimatchCandidate[],
-): readonly string[] {
+): readonly { readonly disambiguation: boolean; readonly qid: string }[] {
   return [
-    ...new Set(
+    ...new Map(
       candidates.flatMap((candidate) =>
-        candidate.qidOptions.map((option) => option.qid),
+        candidate.qidOptions.map((option) => [
+          option.qid,
+          {
+            disambiguation: option.isDisambiguation === true,
+            qid: option.qid,
+          },
+        ]),
       ),
-    ),
+    ).values(),
   ];
 }

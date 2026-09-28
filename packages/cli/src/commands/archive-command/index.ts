@@ -19,10 +19,12 @@ import {
   listArchiveSourceLocators,
   isSourceLocatorScopeUri,
   rebuildArchiveSearchIndex,
+  openWikimediaResolver,
   WikiGraphArchiveFile,
   type ArchiveFindOptions,
   type ArchiveRelatedResult,
   type ReadonlyDocument,
+  type WikimediaResolver,
 } from "wiki-graph-core";
 
 import type { CLIArchiveArguments } from "../../args/index.js";
@@ -246,17 +248,20 @@ export async function runArchiveCommand(
               ? createArchiveOutputContext(args)
               : createArchiveOutputContext({ ...args, evidenceLimit });
 
-          await writePage(
-            await readArchivePage(document, objectUri, {
-              ...(args.backlinks === undefined
-                ? {}
-                : { backlinks: args.backlinks }),
-              ...(evidenceLimit === undefined ? {} : { evidenceLimit }),
-              ...(args.reverse === true ? { order: "doc-desc" } : {}),
-              ...createOptionalSourceContext(args),
-            }),
-            outputContext,
-            args.format ?? "text",
+          await withWikimediaPageOptions(objectUri, async (wikimediaOptions) =>
+            writePage(
+              await readArchivePage(document, objectUri, {
+                ...(args.backlinks === undefined
+                  ? {}
+                  : { backlinks: args.backlinks }),
+                ...(evidenceLimit === undefined ? {} : { evidenceLimit }),
+                ...(args.reverse === true ? { order: "doc-desc" } : {}),
+                ...wikimediaOptions,
+                ...createOptionalSourceContext(args),
+              }),
+              outputContext,
+              args.format ?? "text",
+            ),
           );
         },
       );
@@ -640,17 +645,20 @@ async function runLibraryIndexArchiveCommand(
       }
 
       const evidenceLimit = getSingleObjectEvidenceLimit(args, objectUri);
-      await writePage(
-        await readWikiGraphLibraryPage(target, objectUri, {
-          ...(args.backlinks === undefined
-            ? {}
-            : { backlinks: args.backlinks }),
-          ...(evidenceLimit === undefined ? {} : { evidenceLimit }),
-          ...(args.reverse === true ? { order: "doc-desc" } : {}),
-          ...createOptionalSourceContext(args),
-        }),
-        evidenceLimit === undefined ? context : { ...context, evidenceLimit },
-        args.format ?? "text",
+      await withWikimediaPageOptions(objectUri, async (wikimediaOptions) =>
+        writePage(
+          await readWikiGraphLibraryPage(target, objectUri, {
+            ...(args.backlinks === undefined
+              ? {}
+              : { backlinks: args.backlinks }),
+            ...(evidenceLimit === undefined ? {} : { evidenceLimit }),
+            ...(args.reverse === true ? { order: "doc-desc" } : {}),
+            ...wikimediaOptions,
+            ...createOptionalSourceContext(args),
+          }),
+          evidenceLimit === undefined ? context : { ...context, evidenceLimit },
+          args.format ?? "text",
+        ),
       );
       return;
     }
@@ -771,6 +779,37 @@ async function createSearchFindOptions(
           ),
         }),
   };
+}
+
+async function withWikimediaPageOptions<T>(
+  objectUri: string,
+  operation: (
+    options:
+      | Record<string, never>
+      | { readonly wikimediaResolver: WikimediaResolver },
+  ) => Promise<T>,
+): Promise<T> {
+  if (!objectUri.endsWith("/wikipage")) {
+    return await operation({});
+  }
+
+  const config = await loadCLIConfig();
+  const resolver = await openWikimediaResolver(
+    config.wikimedia === undefined
+      ? { kind: "local" }
+      : {
+          endpoint: config.wikimedia.endpoint,
+          kind: "remote",
+          ...(config.wikimedia.token === undefined
+            ? {}
+            : { token: config.wikimedia.token }),
+        },
+  );
+  try {
+    return await operation({ wikimediaResolver: resolver });
+  } finally {
+    await resolver.close();
+  }
 }
 
 function requireLibraryObjectUri(

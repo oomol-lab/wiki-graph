@@ -9,7 +9,6 @@ import { countUniqueQids, screenCandidates } from "./candidates.js";
 import { createWikimatchSentences, joinFragmentText } from "./fragments.js";
 import { judgeCandidates } from "./mentions.js";
 import { createKnowledgeGraphParameterInput } from "./parameter.js";
-import { createEnrichmentProgressReporter } from "./progress.js";
 import { discoverMentionLinks } from "./relations.js";
 import { snapshotChapterKnowledgeGraphInput } from "./snapshot.js";
 import type {
@@ -100,14 +99,8 @@ export async function generateChapterKnowledgeGraphArtifactFromSnapshot(
   const enrichedCandidates = await enrichWikimatchCandidates(
     screenedCandidates,
     {
-      ...(options.progressTracker === undefined
-        ? {}
-        : {
-            progress: createEnrichmentProgressReporter(options.progressTracker),
-          }),
-      ...(options.resolverOptions === undefined
-        ? {}
-        : { resolverOptions: options.resolverOptions }),
+      ...(options.language === undefined ? {} : { language: options.language }),
+      resolver: options.wikimediaResolver,
     },
   );
   await options.progressTracker?.throwIfStopped();
@@ -144,9 +137,7 @@ export async function generateChapterKnowledgeGraphArtifactFromSnapshot(
     mentions,
     parameter: createKnowledgeGraphParameterInput({
       policyPrompt,
-      ...(options.resolverOptions === undefined
-        ? {}
-        : { resolverOptions: options.resolverOptions }),
+      ...(options.language === undefined ? {} : { language: options.language }),
     }),
     workspace: options.workspace,
   });

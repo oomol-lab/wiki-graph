@@ -6,6 +6,7 @@ import { isAbsolute, join, resolve } from "path";
 const packageRoot = resolve(import.meta.dirname, "..");
 const coreRoot = join(packageRoot, "packages", "core");
 const cliRoot = join(packageRoot, "packages", "cli");
+const wikimediaRoot = join(packageRoot, "packages", "wikimedia");
 const tempRoot = mkdtempSync(join(tmpdir(), "wiki-graph-pack-"));
 const cliInstallRoot = join(tempRoot, "cli-install");
 const coreInstallRoot = join(tempRoot, "core-install");
@@ -109,7 +110,7 @@ function assertModuleMissing(cwd, specifier) {
   );
 }
 
-function writeInstallWorkspace(cwd, name) {
+function writeInstallWorkspace(cwd, name, overrides = {}) {
   mkdirSync(cwd, { recursive: true });
   writeFileSync(
     join(cwd, "package.json"),
@@ -118,9 +119,18 @@ function writeInstallWorkspace(cwd, name) {
       private: true,
     }),
   );
+  const overrideLines = Object.entries(overrides).map(
+    ([packageName, version]) =>
+      `  ${JSON.stringify(packageName)}: ${JSON.stringify(version)}`,
+  );
   writeFileSync(
     join(cwd, "pnpm-workspace.yaml"),
-    "allowBuilds:\n  sqlite3: true\n",
+    [
+      "allowBuilds:",
+      "  sqlite3: true",
+      ...(overrideLines.length === 0 ? [] : ["overrides:", ...overrideLines]),
+      "",
+    ].join("\n"),
   );
 }
 
@@ -132,10 +142,13 @@ function installTarballs(cwd, tarballPaths) {
 }
 
 try {
+  const wikimediaTarballPath = packPackage(wikimediaRoot);
   const coreTarballPath = packPackage(coreRoot);
   const cliTarballPath = packPackage(cliRoot);
 
-  writeInstallWorkspace(cliInstallRoot, "wiki-graph-cli-pack-smoke");
+  writeInstallWorkspace(cliInstallRoot, "wiki-graph-cli-pack-smoke", {
+    "wiki-graph-wikimedia": `file:${wikimediaTarballPath}`,
+  });
   installTarballs(cliInstallRoot, [cliTarballPath]);
 
   assertModuleMissing(cliInstallRoot, "wiki-graph-core");
@@ -159,7 +172,9 @@ try {
     );
   }
 
-  writeInstallWorkspace(coreInstallRoot, "wiki-graph-core-pack-smoke");
+  writeInstallWorkspace(coreInstallRoot, "wiki-graph-core-pack-smoke", {
+    "wiki-graph-wikimedia": `file:${wikimediaTarballPath}`,
+  });
   installTarballs(coreInstallRoot, [coreTarballPath]);
 
   assertCommonJsExport(coreInstallRoot, "wiki-graph-core", "WikiGraph");
@@ -181,7 +196,9 @@ try {
     "runBuildJobWorker",
   );
 
-  writeInstallWorkspace(sdkInstallRoot, "wiki-graph-sdk-pack-smoke");
+  writeInstallWorkspace(sdkInstallRoot, "wiki-graph-sdk-pack-smoke", {
+    "wiki-graph-wikimedia": `file:${wikimediaTarballPath}`,
+  });
   installTarballs(sdkInstallRoot, [coreTarballPath, cliTarballPath]);
 
   assertCommonJsExport(sdkInstallRoot, "wiki-graph", "runWikiGraphCLICaptured");

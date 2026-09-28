@@ -22,7 +22,8 @@
     "paths": {
       "wiki-graph-core": ["packages/core/src/index.ts"],
       "wiki-graph-core/gc": ["packages/core/src/gc.ts"],
-      "wiki-graph-core/worker": ["packages/core/src/worker.ts"]
+      "wiki-graph-core/worker": ["packages/core/src/worker.ts"],
+      "wiki-graph-wikimedia": ["packages/wikimedia/src/index.ts"]
     }
   },
   "include": [
@@ -30,6 +31,7 @@
     "test/**/*.ts",
     "eslint.config.mjs",
     "packages/*/tsup.config.ts",
+    "scripts/**/*.ts",
     "evals/**/*.ts",
     "vitest.config.ts"
   ],

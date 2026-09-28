@@ -4,7 +4,7 @@ import type {
   MentionRecord,
 } from "../../document/index.js";
 import type { GuaranteedRequestController } from "../../external/guaranteed/index.js";
-import type { WikipageResolverOptions } from "../../external/wikipage/index.js";
+import type { WikimediaResolver } from "../../external/wikipage/index.js";
 import type { MatchWikispineSentenceCandidatesOptions } from "../../external/wikimatch/index.js";
 import type { BuildJobProgressReporter } from "../../runtime/jobs/index.js";
 import type { ChapterDetails } from "../../document/chapter/index.js";
@@ -39,13 +39,14 @@ export interface BuildChapterKnowledgeGraphArtifactOptions {
 }
 
 export interface GenerateChapterKnowledgeGraphArtifactOptions {
+  readonly language?: string;
   readonly policyPrompt?: string;
   readonly progressTracker?: Pick<
     BuildJobProgressReporter,
     "throwIfStopped" | "updatePhase"
   >;
   readonly request: GuaranteedRequestController;
-  readonly resolverOptions?: Omit<WikipageResolverOptions, "progress">;
+  readonly wikimediaResolver: WikimediaResolver;
   readonly wikispine?: Pick<
     MatchWikispineSentenceCandidatesOptions,
     "command" | "commandRunner" | "dataDir" | "endpoint" | "provider"

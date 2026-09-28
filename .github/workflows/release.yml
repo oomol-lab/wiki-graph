@@ -17,17 +17,19 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 0
 
       - uses: pnpm/action-setup@v4
 
-      - uses: actions/setup-node@v5
+      - uses: actions/setup-node@v6
         with:
-          cache: pnpm
           node-version: 22.14.0
           registry-url: https://registry.npmjs.org
+
+      - name: Install OIDC-compatible npm
+        run: npm install --global npm@11.20.0
 
       - name: Ensure release runs from main
         run: |
@@ -36,49 +38,39 @@ jobs:
             exit 1
           fi
 
-      - name: Read package version
-        id: package
-        run: |
-          VERSION="$(node -p "require('./packages/cli/package.json').version")"
-          CORE_VERSION="$(node -p "require('./packages/core/package.json').version")"
-          if [ "${VERSION}" != "${CORE_VERSION}" ]; then
-            echo "Package versions must match: wiki-graph=${VERSION}, wiki-graph-core=${CORE_VERSION}" >&2
-            exit 1
-          fi
-          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
-          echo "tag=v${VERSION}" >> "$GITHUB_OUTPUT"
-
-      - name: Ensure package versions are not already published
-        run: |
-          for package in wiki-graph wiki-graph-core; do
-            if pnpm view "${package}@${{ steps.package.outputs.version }}" version >/dev/null 2>&1; then
-              echo "${package}@${{ steps.package.outputs.version }} is already published" >&2
-              exit 1
-            fi
-          done
-
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Ensure release tag does not already exist
-        run: |
-          if git rev-parse "${{ steps.package.outputs.tag }}" >/dev/null 2>&1; then
-            echo "Tag ${{ steps.package.outputs.tag }} already exists locally" >&2
-            exit 1
-          fi
-          if git ls-remote --exit-code --tags origin "refs/tags/${{ steps.package.outputs.tag }}" >/dev/null 2>&1; then
-            echo "Tag ${{ steps.package.outputs.tag }} already exists on origin" >&2
-            exit 1
-          fi
+      - name: Verify code quality
+        run: pnpm verify
 
-      - name: Publish package
-        run: |
-          pnpm publish:core
-          pnpm publish:cli
+      - name: Run tests
+        run: pnpm test:run
+
+      - name: Build packages
+        run: pnpm build
+
+      - name: Smoke test packed installation
+        run: pnpm smoke:pack-install
+
+      - name: Publish missing packages
+        run: pnpm release:packages --publish
 
       - name: Create release tag
         run: |
+          VERSION="$(node -p "require('./packages/cli/package.json').version")"
+          TAG="v${VERSION}"
+          TAG_COMMIT="$(git rev-list -n 1 "${TAG}" 2>/dev/null || true)"
+          if [ -n "${TAG_COMMIT}" ]; then
+            if [ "${TAG_COMMIT}" != "${GITHUB_SHA}" ]; then
+              echo "Tag ${TAG} already points to ${TAG_COMMIT}, not ${GITHUB_SHA}" >&2
+              exit 1
+            fi
+            echo "Tag ${TAG} already points to this release commit"
+            exit 0
+          fi
+
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git tag "${{ steps.package.outputs.tag }}"
-          git push origin "${{ steps.package.outputs.tag }}"
+          git tag "${TAG}"
+          git push origin "${TAG}"

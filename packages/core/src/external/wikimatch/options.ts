@@ -1,5 +1,3 @@
-import type { DisambiguationProfile } from "../wikipage/index.js";
-
 import type { WikimatchCandidate, WikimatchQidOption } from "./types.js";
 
 export function countWikimatchCandidateOptions(
@@ -155,49 +153,17 @@ function filterQidOption(
     return allowedQids.has(option.qid) ? option : undefined;
   }
 
-  const profileMeanings = option.disambiguation.profile?.meanings ?? [];
-  const hasProfileMeanings = profileMeanings.length > 0;
-  const linkedQids = hasProfileMeanings
-    ? option.disambiguation.linkedQids
-    : option.disambiguation.linkedQids.filter((item) =>
-        allowedQids.has(item.qid),
-      );
-  const profile = filterDisambiguationProfile(
-    option.disambiguation.profile,
-    allowedQids,
+  const disambiguation = option.disambiguation.filter((item) =>
+    allowedQids.has(item.qid),
   );
-  const hasFilteredProfileMeanings = (profile?.meanings.length ?? 0) > 0;
 
-  if (hasProfileMeanings && !hasFilteredProfileMeanings) {
-    return undefined;
-  }
-  if (linkedQids.length === 0 && !hasFilteredProfileMeanings) {
+  if (disambiguation.length === 0) {
     return undefined;
   }
 
   return {
     ...option,
-    disambiguation: {
-      ...option.disambiguation,
-      linkedQids,
-      ...(profile === undefined ? {} : { profile }),
-    },
-  };
-}
-
-function filterDisambiguationProfile(
-  profile: DisambiguationProfile | undefined,
-  allowedQids: ReadonlySet<string>,
-): DisambiguationProfile | undefined {
-  if (profile === undefined) {
-    return undefined;
-  }
-
-  return {
-    ...profile,
-    meanings: profile.meanings.filter((meaning) =>
-      allowedQids.has(meaning.qid),
-    ),
+    disambiguation,
   };
 }
 
@@ -206,10 +172,5 @@ function listSelectableQids(option: WikimatchQidOption): readonly string[] {
     return [option.qid];
   }
 
-  const profileQids =
-    option.disambiguation.profile?.meanings.map((meaning) => meaning.qid) ?? [];
-
-  return profileQids.length > 0
-    ? [...new Set(profileQids)]
-    : [...new Set(option.disambiguation.linkedQids.map((item) => item.qid))];
+  return [...new Set(option.disambiguation.map((item) => item.qid))];
 }

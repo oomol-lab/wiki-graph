@@ -679,21 +679,25 @@ describe("cli/archive/object", () => {
       objectId: "wikg:///tmp/book.wikg/entity/Q1/wikipage",
     });
 
-    expect(readArchivePage).toHaveBeenCalledWith(
-      {},
-      "wikg://entity/Q1/wikipage",
-      {},
+    expect(readArchivePage).toHaveBeenCalled();
+    const call = vi.mocked(readArchivePage).mock.calls.at(-1);
+    expect(call?.[0]).toEqual({});
+    expect(call?.[1]).toBe("wikg://entity/Q1/wikipage");
+    expect(call?.[2]).toHaveProperty("wikimediaResolver.mode", "local");
+    expect(call?.[2]).toHaveProperty(
+      "wikimediaResolver.resolve",
+      expect.any(Function),
     );
     expect(JSON.parse(archiveMockState.textWrites[0] ?? "")).toStrictEqual({
       en: {
         description: "Ming dynasty general",
-        title: "Xu Da",
+        label: "Xu Da",
         url: "https://en.wikipedia.org/wiki/Xu_Da",
       },
       uri: "wikg://entity/Q1/wikipage",
       zh: {
         description: "明朝军事将领",
-        title: "徐达",
+        label: "徐达",
         url: "https://zh.wikipedia.org/wiki/%E5%BE%90%E8%BE%BE",
       },
     });
