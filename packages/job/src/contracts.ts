@@ -230,6 +230,14 @@ export interface ChapterJobArtifact<
   readonly revision: number;
 }
 
+export type AnyChapterJobArtifact = {
+  readonly [K in ChapterJobKind]: ChapterJobArtifact<K>;
+}[ChapterJobKind];
+
+export type AnyChapterJobSnapshot = {
+  readonly [K in ChapterJobKind]: ChapterJobSnapshot<K>;
+}[ChapterJobKind];
+
 export interface JobMetaObject {
   readonly chapterId: number;
   readonly schemaVersion: 1;

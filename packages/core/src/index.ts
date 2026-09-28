@@ -412,6 +412,7 @@ export {
   buildChapterSummaryArtifactFromReadingGraphObjects,
   buildChapterSummaryArtifactFromSnapshot,
   commitChapterGraphArtifact,
+  commitChapterJobArtifact,
   commitChapterSummaryArtifact,
   readChapterBuildInput,
   snapshotFtsJob,
