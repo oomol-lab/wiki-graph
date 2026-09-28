@@ -138,6 +138,11 @@ export {
   type WikiClient,
   type WikipageResolverOptions,
   type WikipageSitelink,
+  type WikimediaDisambiguationItem,
+  type WikimediaLanguageProfile,
+  type WikimediaResolution,
+  type WikimediaResolveInput,
+  type WikimediaResolver,
 } from "./external/wikipage/index.js";
 export {
   buildWikimatchWindows,

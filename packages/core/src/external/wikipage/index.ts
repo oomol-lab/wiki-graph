@@ -7,6 +7,13 @@ export { RateLimiter, parseRetryAfterMs } from "./rate-limiter.js";
 export { WikipageResolver } from "./resolver.js";
 export { WikimediaClient } from "./wikimedia-client/index.js";
 export type {
+  WikimediaDisambiguationItem,
+  WikimediaLanguageProfile,
+  WikimediaResolution,
+  WikimediaResolveInput,
+  WikimediaResolver,
+} from "./provider.js";
+export type {
   CachedDisambiguationRecord,
   CachedPageRecord,
   CachedQidRecord,
