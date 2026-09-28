@@ -424,6 +424,7 @@ export {
   snapshotSummaryEmbeddingJob,
   createLocalChapterJobExecutor,
   writeChapterJobInputFile,
+  applyChapterJobArtifactFile,
 } from "./api/index.js";
 export type {
   BuildChapterGraphArtifactOptions,

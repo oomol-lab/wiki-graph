@@ -1,12 +1,19 @@
-import { mkdtemp, rm, writeFile } from "fs/promises";
+import { mkdir, mkdtemp, rm, writeFile } from "fs/promises";
 import { tmpdir } from "os";
 import { join } from "path";
 
-import { readChapterJobInput } from "wiki-graph-job";
+import {
+  executeChapterJobFile,
+  readChapterJobInput,
+} from "wiki-graph-job";
 import { describe, expect, it } from "vitest";
 
-import { NodeFile } from "../../../../cli/src/runtime/node-platform.js";
+import {
+  NodeDirectory,
+  NodeFile,
+} from "../../../../cli/src/runtime/node-platform.js";
 import { DirectoryDocument } from "../../document/index.js";
+import { applyChapterJobArtifactFile } from "./job-file-apply.js";
 import { writeChapterJobInputFile } from "./job-file-snapshot.js";
 
 describe("chapter job input files", () => {
@@ -48,6 +55,59 @@ describe("chapter job input files", () => {
             type: "source-sentence",
             wordsCount: 2,
           },
+        ]);
+      } finally {
+        await document.release();
+      }
+    } finally {
+      await rm(path, { force: true, recursive: true });
+    }
+  });
+
+  it("applies a file-based FTS artifact without collecting it in the adapter", async () => {
+    const path = await mkdtemp(join(tmpdir(), "wiki-graph-job-fts-"));
+    try {
+      const document = await DirectoryDocument.open(path);
+      try {
+        const chapterId = await document.openSession(async (openedDocument) => {
+          const id = await openedDocument.createSerial();
+          await openedDocument
+            .getSerialFragments(id)
+            .writeTextStream("Alpha beta. Gamma delta.");
+          return id;
+        });
+        const inputPath = join(path, "input.jsonl");
+        const workspacePath = join(path, "workspace");
+        await writeFile(inputPath, "");
+        await mkdir(workspacePath);
+        const revision = await writeChapterJobInputFile(
+          document,
+          chapterId,
+          "index-fts",
+          new NodeFile(inputPath),
+        );
+        const result = await executeChapterJobFile({
+          inputFile: new NodeFile(inputPath),
+          kind: "index-fts",
+          revision,
+          workspace: new NodeDirectory(workspacePath),
+        });
+
+        await document.openSession(
+          async (openedDocument) =>
+            await applyChapterJobArtifactFile(
+              openedDocument,
+              chapterId,
+              "index-fts",
+              revision,
+              result.artifactFile,
+            ),
+        );
+
+        const rows = await document.indexArtifacts.listLexicalRows(chapterId);
+        expect(rows.map((row) => row.objectKind)).toEqual([
+          "source-sentence",
+          "source-sentence",
         ]);
       } finally {
         await document.release();

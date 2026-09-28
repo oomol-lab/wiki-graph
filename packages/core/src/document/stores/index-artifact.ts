@@ -157,7 +157,7 @@ export class IndexArtifactStore implements ReadonlyIndexArtifactStore {
         [input.serialId],
       );
 
-      for (const row of input.lexicalRows) {
+      for await (const row of input.lexicalRows) {
         await this.#database.run(
           `
             INSERT INTO index_artifact_lexical_rows (
@@ -207,7 +207,7 @@ export class IndexArtifactStore implements ReadonlyIndexArtifactStore {
         [input.serialId, input.kind],
       );
 
-      for (const segment of input.segments) {
+      for await (const segment of input.segments) {
         await this.#database.run(
           `
             INSERT INTO index_artifact_embedding_segments (
