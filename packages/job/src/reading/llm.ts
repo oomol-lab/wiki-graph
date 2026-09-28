@@ -1,5 +1,3 @@
-import nunjucks from "nunjucks";
-
 import type { JobLlm } from "../ports.js";
 import type { JobProgressSink } from "../ports.js";
 import {
@@ -13,6 +11,8 @@ import {
   USER_FOCUSED_PROMPT,
 } from "../prompt-assets.js";
 import { RESPONSE_INTENT_CLASSIFIER_PROMPT } from "../guaranteed/index.js";
+import { JOB_LLM_SCOPES } from "../sampling.js";
+import { renderJobPrompt } from "../template.js";
 import type { ReadingLlm } from "./model.js";
 
 const PROMPTS: Readonly<Record<string, string>> = {
@@ -38,7 +38,7 @@ export function createReadingLlm(input: {
       if (template === undefined) {
         throw new Error(`Unknown Reading Graph prompt ${templateName}.`);
       }
-      return nunjucks.renderString(template, values);
+      return renderJobPrompt(template, values);
     },
     async request(messages, options = {}) {
       const response = await input.llm.request(messages, {
@@ -48,7 +48,7 @@ export function createReadingLlm(input: {
         ...(options.retryMax === undefined
           ? {}
           : { retryMax: options.retryMax }),
-        scope: options.scope ?? "reading-graph",
+        scope: options.scope ?? JOB_LLM_SCOPES.readingGraphExtraction,
         ...(input.signal === undefined ? {} : { signal: input.signal }),
         ...(input.progress?.addTokenUsage === undefined
           ? {}

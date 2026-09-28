@@ -30,6 +30,7 @@ import type {
   JobWikimediaResolver,
   JobWikispineMatcher,
 } from "./ports.js";
+import { JOB_LLM_SCOPES } from "./sampling.js";
 
 const DEFAULT_KNOWLEDGE_GRAPH_RECALL_PROMPT = [
   "Recall only source mentions that should become stable searchable knowledge graph objects.",
@@ -205,8 +206,8 @@ function createGuaranteedRequest(options: {
       retryMax,
       scope:
         messages[0]?.content === RESPONSE_INTENT_CLASSIFIER_PROMPT
-          ? "guaranteed-response-intent"
-          : "knowledge-graph",
+          ? JOB_LLM_SCOPES.guaranteedResponseIntent
+          : JOB_LLM_SCOPES.knowledgeGraph,
       ...(options.signal === undefined ? {} : { signal: options.signal }),
       ...(options.progress?.addTokenUsage === undefined
         ? {}

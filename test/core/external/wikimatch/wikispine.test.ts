@@ -78,12 +78,16 @@ describe("wikimatch/wikispine", () => {
   });
 
   it("matches through the fetch provider", async () => {
-    const requests: Array<{ readonly body: unknown; readonly url: string }> =
-      [];
+    const requests: Array<{
+      readonly body: unknown;
+      readonly signal: AbortSignal | null | undefined;
+      readonly url: string;
+    }> = [];
     const fetchMock: typeof fetch = (input, init) => {
       requests.push({
         body:
           typeof init?.body === "string" ? JSON.parse(init.body) : init?.body,
+        signal: init?.signal,
         url:
           typeof input === "string"
             ? input
@@ -117,6 +121,7 @@ describe("wikimatch/wikispine", () => {
     };
 
     const progress: number[] = [];
+    const signal = new AbortController().signal;
 
     await expect(
       matchWikispineSentenceCandidates({
@@ -128,6 +133,7 @@ describe("wikimatch/wikispine", () => {
           progress.push(event.coveredRangeEnd);
         },
         provider: "fetch",
+        signal,
         sentences: [
           {
             range: { end: 9, start: 5 },
@@ -161,9 +167,33 @@ describe("wikimatch/wikispine", () => {
           },
           text: "北京大学",
         },
+        signal,
         url: "https://wikispine.example/match",
       },
     ]);
+  });
+
+  it("aborts an active CLI provider process", async () => {
+    const tempDir = await mkdtemp(join(tmpdir(), "wikispine-test-"));
+    const commandPath = join(tempDir, "slow-wikispine.mjs");
+    await writeFile(
+      commandPath,
+      [
+        "#!/usr/bin/env node",
+        "process.stdin.resume();",
+        "setInterval(() => {}, 1_000);",
+      ].join("\n"),
+    );
+    await chmod(commandPath, 0o755);
+    const controller = new AbortController();
+    const matching = matchWikispineSentenceCandidates({
+      command: commandPath,
+      commandRunner: nodeWikispineCommandRunner,
+      signal: controller.signal,
+      sentences: [{ range: { end: 4, start: 0 }, text: "北京大学" }],
+    });
+    controller.abort(new Error("job stopped"));
+    await expect(matching).rejects.toThrow("job stopped");
   });
 
   it("rejects CLI matches when progress reporting fails", async () => {

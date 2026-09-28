@@ -10,6 +10,7 @@ import type {
 import { readChapterJobInput } from "./jsonl.js";
 import type { JobFile } from "./platform.js";
 import type { JobLlm, JobProgressSink } from "./ports.js";
+import { JOB_LLM_SCOPES } from "./sampling.js";
 import {
   expectChunkImportance,
   expectChunkRetention,
@@ -51,9 +52,9 @@ export async function* buildReadingSummaryRecords(options: {
       maxClues: 10,
       maxIterations: 5,
       scopes: {
-        compress: "reading-summary-compress",
-        review: "reading-summary-review",
-        reviewGuide: "reading-summary-review-guide",
+        compress: JOB_LLM_SCOPES.readingSummaryCompress,
+        review: JOB_LLM_SCOPES.readingSummaryReview,
+        reviewGuide: JOB_LLM_SCOPES.readingSummaryReviewGuide,
       },
       serialId: 0,
       ...(input.jobOptions.language === undefined

@@ -172,6 +172,7 @@ async function executeStep(
   const result = await execution.executor({
     inputFile,
     kind,
+    progress: reporter,
     revision,
     signal: context.signal,
     workspace: outputWorkspace,

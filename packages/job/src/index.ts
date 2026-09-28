@@ -7,6 +7,7 @@ export * from "./jsonl.js";
 export * from "./knowledge-graph.js";
 export * from "./reading-graph.js";
 export * from "./reading-summary.js";
+export * from "./sampling.js";
 export * from "./platform.js";
 export * from "./ports.js";
 export * from "./tokenizer.js";

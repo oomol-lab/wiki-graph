@@ -6,6 +6,7 @@ import type {
 import { readChapterJobInput } from "./jsonl.js";
 import type { JobFile } from "./platform.js";
 import type { JobLlm, JobProgressSink } from "./ports.js";
+import { JOB_LLM_SCOPES } from "./sampling.js";
 import { Reader, type ReaderChunk } from "./reading/index.js";
 import { createReadingLlm } from "./reading/llm.js";
 import type {
@@ -50,8 +51,8 @@ export async function* buildReadingGraphRecords(options: {
     extractionGuidance: extractionPrompt,
     llm: createReadingLlm(options),
     scopes: {
-      choice: "reading-graph-evidence-choice",
-      extraction: "reading-graph-extraction",
+      choice: JOB_LLM_SCOPES.readingGraphEvidenceChoice,
+      extraction: JOB_LLM_SCOPES.readingGraphExtraction,
     },
     sentenceTextSource: input.fragments,
     ...(input.jobOptions.language === undefined
