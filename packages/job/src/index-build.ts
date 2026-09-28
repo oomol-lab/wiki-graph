@@ -9,6 +9,10 @@ import type {
 } from "./contracts.js";
 import type { JobEmbeddingProvider } from "./ports.js";
 import { createJobSearchTokenPlan } from "./tokenizer.js";
+import type {
+  ChapterJobInputRecord,
+  JobLexicalRowRecord,
+} from "./file-contracts.js";
 
 const DENSE_SEGMENT_TARGET_WORDS = 300;
 const DENSE_SEGMENT_MAX_WORDS = 420;
@@ -75,6 +79,77 @@ export function buildFtsJobArtifact(
     metadata: { source: "chapter-lexical", version: 1 },
   };
   return { ...copyEnvelope(snapshot), payload };
+}
+
+export function createFtsRowsForInputRecord(
+  record: ChapterJobInputRecord,
+): readonly JobLexicalRowRecord[] {
+  switch (record.type) {
+    case "chapter-title":
+      return [
+        withLexicalRowType(
+          createObjectLexicalRow({
+            objectId: String(record.chapterId),
+            objectKind: "chapter-title",
+            rowId: `chapter-title:${record.chapterId}`,
+            text: record.title,
+          }),
+        ),
+      ];
+    case "source-sentence":
+    case "summary-sentence": {
+      const prefix =
+        record.type === "source-sentence"
+          ? "source-sentence"
+          : "summary-sentence";
+      return [
+        withLexicalRowType(
+          createObjectLexicalRow({
+            metadata: { wordsCount: record.wordsCount },
+            objectId: String(record.sentenceIndex),
+            objectKind: prefix,
+            rowId: `${prefix}:${record.sentenceIndex}`,
+            sentenceIndex: record.sentenceIndex,
+            text: record.text,
+          }),
+        ),
+      ];
+    }
+    case "reading-chunk":
+      return [
+        withLexicalRowType(
+          createObjectLexicalRow({
+            metadata: { wordsCount: record.wordsCount },
+            objectId: record.id,
+            objectKind: "chunk-label",
+            rowId: `chunk-label:${record.id}`,
+            text: record.label,
+          }),
+        ),
+        withLexicalRowType(
+          createObjectLexicalRow({
+            metadata: { wordsCount: record.wordsCount },
+            objectId: record.id,
+            objectKind: "chunk-content",
+            rowId: `chunk-content:${record.id}`,
+            text: record.content,
+          }),
+        ),
+      ];
+    case "mention":
+      return [
+        withLexicalRowType(
+          createObjectLexicalRow({
+            objectId: record.qid,
+            objectKind: "mention-surface",
+            rowId: `mention-surface:${record.id}`,
+            text: record.surface,
+          }),
+        ),
+      ];
+    default:
+      return [];
+  }
 }
 
 export async function buildEmbeddingJobArtifact(
@@ -190,6 +265,10 @@ function createObjectLexicalRow(input: {
   };
 }
 
+function withLexicalRowType(row: JobLexicalRow): JobLexicalRowRecord {
+  return { ...row, type: "lexical-row" };
+}
+
 function createEmbeddingSegments(
   sentences: readonly JobSentence[],
 ): readonly Omit<JobEmbeddingSegment, "vector">[] {
@@ -241,6 +320,87 @@ function createEmbeddingSegments(
     ...segment,
     segmentIndex,
   }));
+}
+
+export async function* streamEmbeddingSegments(
+  sentences: AsyncIterable<{
+    readonly sentenceIndex: number;
+    readonly text: string;
+    readonly wordsCount: number;
+  }>,
+): AsyncIterable<Omit<JobEmbeddingSegment, "vector">> {
+  type Sentence = {
+    readonly sentenceIndex: number;
+    readonly text: string;
+    readonly wordsCount: number;
+  };
+  let current: Sentence[] = [];
+  let currentWords = 0;
+  let pending: Sentence[] | undefined;
+  let segmentIndex = 0;
+
+  for await (const input of sentences) {
+    if (input.text.trim() === "") continue;
+    const sentence = {
+      ...input,
+      wordsCount: requireNonNegativeWordsCount(input.wordsCount),
+    };
+    if (
+      current.length > 0 &&
+      (currentWords >= DENSE_SEGMENT_TARGET_WORDS ||
+        (currentWords >= DENSE_SEGMENT_MIN_WORDS &&
+          currentWords + sentence.wordsCount > DENSE_SEGMENT_MAX_WORDS))
+    ) {
+      if (pending !== undefined) {
+        yield createEmbeddingSegment(pending, segmentIndex);
+        segmentIndex += 1;
+      }
+      pending = current;
+      current = overlapRecords(current);
+      currentWords = countWords(current);
+    }
+    current.push(sentence);
+    currentWords += sentence.wordsCount;
+  }
+
+  if (current.length === 0) {
+    if (pending !== undefined) yield createEmbeddingSegment(pending, segmentIndex);
+    return;
+  }
+  if (pending !== undefined && currentWords < DENSE_SEGMENT_MIN_WORDS) {
+    yield createEmbeddingSegment(
+      mergeSentenceRecords(pending, current),
+      segmentIndex,
+    );
+    return;
+  }
+  if (pending !== undefined) {
+    yield createEmbeddingSegment(pending, segmentIndex);
+    segmentIndex += 1;
+  }
+  yield createEmbeddingSegment(current, segmentIndex);
+}
+
+function overlapRecords<T extends { readonly wordsCount: number }>(
+  records: readonly T[],
+): T[] {
+  const start = findSegmentOverlapStart(records, 0, records.length);
+  return records.slice(start);
+}
+
+function countWords(records: readonly { readonly wordsCount: number }[]): number {
+  return records.reduce((sum, record) => sum + record.wordsCount, 0);
+}
+
+function mergeSentenceRecords<T extends { readonly sentenceIndex: number }>(
+  left: readonly T[],
+  right: readonly T[],
+): T[] {
+  return [
+    ...new Map(
+      [...left, ...right].map((record) => [record.sentenceIndex, record]),
+    ).values(),
+  ].sort((a, b) => a.sentenceIndex - b.sentenceIndex);
 }
 
 function requireNonNegativeWordsCount(wordsCount: number): number {

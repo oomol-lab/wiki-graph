@@ -1,6 +1,7 @@
 export * from "./contracts.js";
 export * from "./executor.js";
 export * from "./file-contracts.js";
+export * from "./file-executor.js";
 export * from "./index-build.js";
 export * from "./jsonl.js";
 export * from "./object-codec.js";
