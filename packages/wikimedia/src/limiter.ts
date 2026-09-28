@@ -77,7 +77,7 @@ export class ClusterLimiter {
     );
     // Read the last bucket only after its five-second maturity allowance.
     const now = Date.now();
-    const latestMatureBucket = Math.floor((now - 5_000) / BUCKET_MS);
+    const latestMatureBucket = Math.floor((now - 5_000) / BUCKET_MS) - 1;
     const previous =
       latestMatureBucket >= 0
         ? await this.redis.hGetAll(`wg-wikimedia:stats:${latestMatureBucket}`)
