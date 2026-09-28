@@ -230,19 +230,22 @@ describe("chapter job input files", () => {
       await writeFile(inputPath, "");
       await mkdir(outputPath);
       await writeChapterJobInput(new NodeFile(inputPath), [
-        { text: "Alpha beta.", type: "source-text" },
+        {
+          sentenceIndex: 0,
+          text: "Alpha beta.",
+          type: "source-text",
+          wordsCount: 2,
+        },
       ]);
       const executor = createRemoteChapterJobFileExecutor({
         baseUrl: "https://jobs.example.test",
         fetch: (async (input, init) => {
-          expect(input).toBe(
-            "https://jobs.example.test/v1/jobs/reading-graph",
-          );
+          expect(input).toBe("https://jobs.example.test/v1/jobs/reading-graph");
           expect(new Headers(init?.headers).get("X-Wiki-Graph-Revision")).toBe(
             "7",
           );
           expect(await new Response(init?.body).text()).toBe(
-            '{"text":"Alpha beta.","type":"source-text"}\n',
+            '{"sentenceIndex":0,"text":"Alpha beta.","wordsCount":2,"type":"source-text"}\n',
           );
           return new Response(
             '{"position":0,"text":"Summary.","type":"summary-part"}\n',
@@ -263,9 +266,7 @@ describe("chapter job input files", () => {
       expect(result.revision).toBe(7);
       expect(
         await collect(readChapterJobArtifact(result.artifactFile)),
-      ).toEqual([
-        { position: 0, text: "Summary.", type: "summary-part" },
-      ]);
+      ).toEqual([{ position: 0, text: "Summary.", type: "summary-part" }]);
     } finally {
       await rm(path, { force: true, recursive: true });
     }

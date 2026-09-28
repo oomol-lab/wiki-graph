@@ -1,10 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import type {
-  JobFile,
-  JobFileReader,
-  JobFileWriter,
-} from "./platform.js";
+import type { JobFile, JobFileReader, JobFileWriter } from "./platform.js";
 import {
   readChapterJobArtifact,
   readChapterJobInput,
@@ -51,7 +47,9 @@ describe("chapter job JSONL files", () => {
 
     await writeChapterJobArtifact(file, records);
 
-    await expect(collect(readChapterJobArtifact(file))).resolves.toEqual(records);
+    await expect(collect(readChapterJobArtifact(file))).resolves.toEqual(
+      records,
+    );
   });
 });
 

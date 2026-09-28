@@ -1,7 +1,4 @@
-import {
-  readFileText,
-  type File,
-} from "../../runtime/platform/index.js";
+import { readFileText, type File } from "../../runtime/platform/index.js";
 import { z } from "zod";
 
 import type {
@@ -77,7 +74,9 @@ export async function writeIndexArtifactOutput(
       }
     } else {
       for await (const segment of artifact.segments) {
-        await writer.write(`${JSON.stringify({ type: "segment", ...segment })}\n`);
+        await writer.write(
+          `${JSON.stringify({ type: "segment", ...segment })}\n`,
+        );
       }
     }
     await writer.commit();

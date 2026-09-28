@@ -1,8 +1,4 @@
 export {
-  createLocalChapterJobExecutor,
-  type LocalChapterJobExecutorOptions,
-} from "./chapter-build/job-executor.js";
-export {
   WikiGraph,
   type DigestProgressEvent,
   type SerialDiscoveryItem,
@@ -78,22 +74,19 @@ export {
   buildChapterSummaryArtifactFromReadingGraphObjects,
   buildChapterSummaryArtifactFromSnapshot,
   commitChapterGraphArtifact,
-  commitChapterJobArtifact,
   commitChapterSummaryArtifact,
   readChapterBuildInput,
-  snapshotFtsJob,
-  snapshotKnowledgeGraphJob,
-  snapshotReadingGraphJob,
-  snapshotReadingSummaryJob,
   snapshotChapterSummaryInput,
-  snapshotSourceEmbeddingJob,
-  snapshotSummaryEmbeddingJob,
   writeChapterJobInputFile,
   applyChapterJobArtifactFile,
   createRemoteChapterJobFileExecutor,
   executeChapterJobForChapter,
+  createLocalChapterJobFileExecutor,
 } from "./chapter-build/index.js";
-export type { ChapterJobInputOptions } from "./chapter-build/index.js";
+export type {
+  ChapterJobInputOptions,
+  LocalChapterJobFileExecutorOptions,
+} from "./chapter-build/index.js";
 export {
   buildChapterKnowledgeGraphArtifact,
   clearChapterKnowledgeGraph,

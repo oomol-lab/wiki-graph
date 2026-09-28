@@ -1,5 +1,3 @@
-export const CHAPTER_JOB_PROTOCOL = "wiki-graph-job/v1" as const;
-
 export const CHAPTER_JOB_KINDS = [
   "index-embedding-source",
   "index-embedding-summary",
@@ -111,26 +109,8 @@ export interface JobFtsMention {
   readonly surface: string;
 }
 
-export interface ReadingGraphSnapshotPayload {
-  readonly extractionPrompt?: string;
-  readonly language?: string;
-  readonly sourceText: readonly string[];
-}
-
-export interface ReadingSummarySnapshotPayload {
-  readonly language?: string;
-  readonly prompt?: string;
-  readonly readingGraph: readonly JobObject[];
-}
-
-export interface KnowledgeGraphSnapshotPayload {
-  readonly fragments: readonly JobSourceFragment[];
-  readonly language?: string;
-  readonly policyPrompt?: string;
-  readonly stage: "graphed" | "sourced" | "summarized";
-}
-
 export interface FtsSnapshotPayload {
+  readonly chapterId: number;
   readonly chapterTitles: readonly JobChapterTitle[];
   readonly chunks: readonly JobFtsChunk[];
   readonly mentions: readonly JobFtsMention[];
@@ -140,25 +120,6 @@ export interface FtsSnapshotPayload {
 
 export interface EmbeddingSnapshotPayload {
   readonly sentences: readonly JobSentence[];
-}
-
-export interface ChapterJobSnapshotPayloads {
-  readonly "index-embedding-source": EmbeddingSnapshotPayload;
-  readonly "index-embedding-summary": EmbeddingSnapshotPayload;
-  readonly "index-fts": FtsSnapshotPayload;
-  readonly "knowledge-graph": KnowledgeGraphSnapshotPayload;
-  readonly "reading-graph": ReadingGraphSnapshotPayload;
-  readonly "reading-summary": ReadingSummarySnapshotPayload;
-}
-
-export interface ChapterJobSnapshot<
-  K extends ChapterJobKind = ChapterJobKind,
-> {
-  readonly chapterId: number;
-  readonly kind: K;
-  readonly payload: ChapterJobSnapshotPayloads[K];
-  readonly protocol: typeof CHAPTER_JOB_PROTOCOL;
-  readonly revision: number;
 }
 
 export interface JobIndexMetadata {
@@ -189,18 +150,6 @@ export interface JobEmbeddingSegment {
   readonly wordsCount: number;
 }
 
-export interface ReadingGraphArtifactPayload {
-  readonly objects: readonly JobObject[];
-}
-
-export interface ReadingSummaryArtifactPayload {
-  readonly summary: string;
-}
-
-export interface KnowledgeGraphArtifactPayload {
-  readonly objects: readonly JobObject[];
-}
-
 export interface FtsArtifactPayload {
   readonly lexicalRows: readonly JobLexicalRow[];
   readonly metadata: JobIndexMetadata;
@@ -211,90 +160,3 @@ export interface EmbeddingArtifactPayload {
   readonly metadata: JobIndexMetadata;
   readonly segments: readonly JobEmbeddingSegment[];
 }
-
-export interface ChapterJobArtifactPayloads {
-  readonly "index-embedding-source": EmbeddingArtifactPayload;
-  readonly "index-embedding-summary": EmbeddingArtifactPayload;
-  readonly "index-fts": FtsArtifactPayload;
-  readonly "knowledge-graph": KnowledgeGraphArtifactPayload;
-  readonly "reading-graph": ReadingGraphArtifactPayload;
-  readonly "reading-summary": ReadingSummaryArtifactPayload;
-}
-
-export interface ChapterJobArtifact<
-  K extends ChapterJobKind = ChapterJobKind,
-> {
-  readonly chapterId: number;
-  readonly kind: K;
-  readonly payload: ChapterJobArtifactPayloads[K];
-  readonly protocol: typeof CHAPTER_JOB_PROTOCOL;
-  readonly revision: number;
-}
-
-export type AnyChapterJobArtifact = {
-  readonly [K in ChapterJobKind]: ChapterJobArtifact<K>;
-}[ChapterJobKind];
-
-export type AnyChapterJobSnapshot = {
-  readonly [K in ChapterJobKind]: ChapterJobSnapshot<K>;
-}[ChapterJobKind];
-
-export interface JobMetaObject {
-  readonly chapterId: number;
-  readonly schemaVersion: 1;
-  readonly stream: "knowledge-graph" | "reading-graph" | "summary";
-  readonly type: "meta";
-}
-
-export interface JobParameterObject {
-  readonly language?: string;
-  readonly prompt: string;
-  readonly scope: "knowledge-graph" | "reading-graph" | "summary";
-  readonly type: "parameter";
-}
-
-export type JobSourceFragmentObject = JobSourceFragment & {
-  readonly type: "source-fragment";
-};
-export type JobReadingChunkObject = JobReadingChunk & {
-  readonly type: "reading-chunk";
-};
-export type JobReadingEdgeObject = JobReadingEdge & {
-  readonly type: "reading-edge";
-};
-export type JobFragmentGroupObject = JobFragmentGroup & {
-  readonly type: "fragment-group";
-};
-export type JobSnakeObject = JobSnake & { readonly type: "snake" };
-export type JobSnakeChunkObject = JobSnakeChunk & {
-  readonly type: "snake-chunk";
-};
-export type JobSnakeEdgeObject = JobSnakeEdge & {
-  readonly type: "snake-edge";
-};
-export type JobMentionObject = JobMention & { readonly type: "mention" };
-export type JobMentionLinkObject = JobMentionLink & {
-  readonly type: "mention-link";
-};
-export interface JobSummaryObject {
-  readonly text: string;
-  readonly type: "summary";
-}
-export interface JobEndObject {
-  readonly type: "end";
-}
-
-export type JobObject =
-  | JobEndObject
-  | JobFragmentGroupObject
-  | JobMentionLinkObject
-  | JobMentionObject
-  | JobMetaObject
-  | JobParameterObject
-  | JobReadingChunkObject
-  | JobReadingEdgeObject
-  | JobSnakeChunkObject
-  | JobSnakeEdgeObject
-  | JobSnakeObject
-  | JobSourceFragmentObject
-  | JobSummaryObject;

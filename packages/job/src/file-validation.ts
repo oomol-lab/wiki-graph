@@ -48,7 +48,9 @@ export async function validateChapterJobInputFile(
     if (record.type === "job-options") {
       optionCount += 1;
       if (optionCount > 1) {
-        throw new Error(`${kind} input contains more than one job-options record.`);
+        throw new Error(
+          `${kind} input contains more than one job-options record.`,
+        );
       }
     }
   }

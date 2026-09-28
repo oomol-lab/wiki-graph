@@ -1,8 +1,8 @@
 import type {
-  ChapterJobArtifact,
-  ChapterJobSnapshot,
   EmbeddingArtifactPayload,
+  EmbeddingSnapshotPayload,
   FtsArtifactPayload,
+  FtsSnapshotPayload,
   JobEmbeddingSegment,
   JobLexicalRow,
   JobSentence,
@@ -19,11 +19,10 @@ const DENSE_SEGMENT_MAX_WORDS = 420;
 const DENSE_SEGMENT_OVERLAP_WORDS = 80;
 const DENSE_SEGMENT_MIN_WORDS = 80;
 
-export function buildFtsJobArtifact(
-  snapshot: ChapterJobSnapshot<"index-fts">,
-): ChapterJobArtifact<"index-fts"> {
-  const input = snapshot.payload;
-  const payload: FtsArtifactPayload = {
+export function buildFtsIndexPayload(
+  input: FtsSnapshotPayload,
+): FtsArtifactPayload {
+  return {
     lexicalRows: [
       ...input.chapterTitles.map((chapter) =>
         createObjectLexicalRow({
@@ -35,7 +34,7 @@ export function buildFtsJobArtifact(
       ),
       ...input.sentences.map((sentence, sentenceIndex) =>
         createTextSentenceLexicalRow({
-          chapterId: snapshot.chapterId,
+          chapterId: input.chapterId,
           objectKind: "source-sentence",
           rowPrefix: "source-sentence",
           sentence,
@@ -44,7 +43,7 @@ export function buildFtsJobArtifact(
       ),
       ...input.summarySentences.map((sentence, sentenceIndex) =>
         createTextSentenceLexicalRow({
-          chapterId: snapshot.chapterId,
+          chapterId: input.chapterId,
           objectKind: "summary-sentence",
           rowPrefix: "summary-sentence",
           sentence,
@@ -78,7 +77,6 @@ export function buildFtsJobArtifact(
     ],
     metadata: { source: "chapter-lexical", version: 1 },
   };
-  return { ...copyEnvelope(snapshot), payload };
 }
 
 export function createFtsRowsForInputRecord(
@@ -152,18 +150,14 @@ export function createFtsRowsForInputRecord(
   }
 }
 
-export async function buildEmbeddingJobArtifact(
-  snapshot: ChapterJobSnapshot<
-    "index-embedding-source" | "index-embedding-summary"
-  >,
+export async function buildEmbeddingIndexPayload(
+  input: EmbeddingSnapshotPayload & {
+    readonly source: "source" | "summary";
+  },
   embeddingProvider: JobEmbeddingProvider,
   signal?: AbortSignal,
-): Promise<
-  ChapterJobArtifact<
-    "index-embedding-source" | "index-embedding-summary"
-  >
-> {
-  const segments = createEmbeddingSegments(snapshot.payload.sentences);
+): Promise<EmbeddingArtifactPayload> {
+  const segments = createEmbeddingSegments(input.sentences);
   const embeddings =
     segments.length === 0
       ? []
@@ -178,17 +172,12 @@ export async function buildEmbeddingJobArtifact(
       `Embedding provider returned ${embeddings.length} vectors for ${segments.length} segments.`,
     );
   }
-  const dimensions =
-    embeddingProvider.dimensions ?? embeddings[0]?.length ?? 0;
+  const dimensions = embeddingProvider.dimensions ?? embeddings[0]?.length ?? 0;
   if (segments.length > 0 && dimensions <= 0) {
     throw new Error("Embedding provider returned no usable vector dimensions.");
   }
-  const kind =
-    snapshot.kind === "index-embedding-source"
-      ? "embedding-source"
-      : "embedding-summary";
-  const payload: EmbeddingArtifactPayload = {
-    kind,
+  return {
+    kind: input.source === "source" ? "embedding-source" : "embedding-summary",
     metadata: {
       dimensions,
       ...(embeddingProvider.identity === undefined
@@ -206,18 +195,6 @@ export async function buildEmbeddingJobArtifact(
       }
       return { ...segment, vector };
     }),
-  };
-  return { ...copyEnvelope(snapshot), payload };
-}
-
-function copyEnvelope<K extends ChapterJobSnapshot["kind"]>(
-  snapshot: ChapterJobSnapshot<K>,
-): Pick<ChapterJobArtifact<K>, "chapterId" | "kind" | "protocol" | "revision"> {
-  return {
-    chapterId: snapshot.chapterId,
-    kind: snapshot.kind,
-    protocol: snapshot.protocol,
-    revision: snapshot.revision,
   };
 }
 
@@ -364,7 +341,8 @@ export async function* streamEmbeddingSegments(
   }
 
   if (current.length === 0) {
-    if (pending !== undefined) yield createEmbeddingSegment(pending, segmentIndex);
+    if (pending !== undefined)
+      yield createEmbeddingSegment(pending, segmentIndex);
     return;
   }
   if (pending !== undefined && currentWords < DENSE_SEGMENT_MIN_WORDS) {
@@ -388,7 +366,9 @@ function overlapRecords<T extends { readonly wordsCount: number }>(
   return records.slice(start);
 }
 
-function countWords(records: readonly { readonly wordsCount: number }[]): number {
+function countWords(
+  records: readonly { readonly wordsCount: number }[],
+): number {
   return records.reduce((sum, record) => sum + record.wordsCount, 0);
 }
 

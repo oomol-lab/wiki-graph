@@ -90,7 +90,9 @@ export function createRemoteChapterJobFileExecutor(options: {
     if (response.body === null) {
       throw new Error("Chapter job service returned an empty response body.");
     }
-    const revision = parseResponseRevision(response.headers.get(REVISION_HEADER));
+    const revision = parseResponseRevision(
+      response.headers.get(REVISION_HEADER),
+    );
     if (revision !== execution.revision) {
       throw new Error(
         `Chapter job service returned revision ${revision}; expected ${execution.revision}.`,
@@ -123,7 +125,9 @@ function createFileBody(file: JobFile): ReadableStream<Uint8Array> {
         Math.min(64 * 1024, reader.size - offset),
       );
       if (chunk.byteLength === 0) {
-        controller.error(new Error("Unexpected end of chapter job input file."));
+        controller.error(
+          new Error("Unexpected end of chapter job input file."),
+        );
         return;
       }
       offset += chunk.byteLength;
@@ -159,7 +163,9 @@ function parseResponseRevision(value: string | null): number {
   }
   const revision = Number(value);
   if (!Number.isSafeInteger(revision)) {
-    throw new Error(`Chapter job service returned an invalid ${REVISION_HEADER}.`);
+    throw new Error(
+      `Chapter job service returned an invalid ${REVISION_HEADER}.`,
+    );
   }
   return revision;
 }

@@ -1,10 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 
 import { executeChapterJobFile } from "./file-executor.js";
-import {
-  readChapterJobArtifact,
-  writeChapterJobInput,
-} from "./jsonl.js";
+import { readChapterJobArtifact, writeChapterJobInput } from "./jsonl.js";
 import {
   MemoryJobDirectory,
   MemoryJobFile,
@@ -80,14 +77,21 @@ describe("file-based chapter jobs", () => {
       source: "source",
       type: "embedding-metadata",
     });
-    expect(records.filter((record) => record.type === "embedding-segment")).toHaveLength(2);
+    expect(
+      records.filter((record) => record.type === "embedding-segment"),
+    ).toHaveLength(2);
     expect(embedTexts).toHaveBeenCalledTimes(2);
   });
 
   it("rejects records that belong to another job kind", async () => {
     const inputFile = new MemoryJobFile("input.jsonl");
     await writeChapterJobInput(inputFile, [
-      { text: "Reading Graph input", type: "source-text" },
+      {
+        sentenceIndex: 0,
+        text: "Reading Graph input",
+        type: "source-text",
+        wordsCount: 3,
+      },
     ]);
 
     await expect(

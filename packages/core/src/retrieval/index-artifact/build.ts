@@ -6,14 +6,11 @@ import type {
   SentenceRecord,
 } from "../../document/index.js";
 import {
-  buildEmbeddingJobArtifact,
-  buildFtsJobArtifact,
-  CHAPTER_JOB_PROTOCOL,
+  buildEmbeddingIndexPayload,
+  buildFtsIndexPayload,
 } from "wiki-graph-job";
 import type { TocItem } from "../../text/source/index.js";
-import {
-  type SearchIndexEmbeddingProvider,
-} from "../search-index/index.js";
+import { type SearchIndexEmbeddingProvider } from "../search-index/index.js";
 
 export type EmbeddingIndexArtifactKind =
   | "embedding-source"
@@ -111,25 +108,20 @@ export function createFtsIndexArtifactInput(input: {
   readonly sourceRevision: number;
   readonly summarySentences?: readonly SentenceRecord[];
 }): ReplaceFtsIndexArtifactInput {
-  const artifact = buildFtsJobArtifact({
+  const artifact = buildFtsIndexPayload({
     chapterId: input.serialId,
-    kind: "index-fts",
-    payload: {
-      chapterTitles: input.chapterTitles ?? [],
-      chunks: input.chunks ?? [],
-      mentions: input.mentions ?? [],
-      sentences: input.sentences,
-      summarySentences: input.summarySentences ?? [],
-    },
-    protocol: CHAPTER_JOB_PROTOCOL,
-    revision: input.sourceRevision,
+    chapterTitles: input.chapterTitles ?? [],
+    chunks: input.chunks ?? [],
+    mentions: input.mentions ?? [],
+    sentences: input.sentences,
+    summarySentences: input.summarySentences ?? [],
   });
 
   return {
-    lexicalRows: artifact.payload.lexicalRows,
-    metadata: artifact.payload.metadata,
-    serialId: artifact.chapterId,
-    sourceRevision: artifact.revision,
+    lexicalRows: artifact.lexicalRows,
+    metadata: artifact.metadata,
+    serialId: input.serialId,
+    sourceRevision: input.sourceRevision,
   };
 }
 
@@ -167,27 +159,21 @@ export async function createEmbeddingIndexArtifactInput(input: {
   readonly signal?: AbortSignal;
   readonly sourceRevision: number;
 }): Promise<ReplaceEmbeddingIndexArtifactInput> {
-  const artifact = await buildEmbeddingJobArtifact(
+  const artifact = await buildEmbeddingIndexPayload(
     {
-      chapterId: input.serialId,
-      kind:
-        input.kind === "embedding-source"
-          ? "index-embedding-source"
-          : "index-embedding-summary",
-      payload: { sentences: input.sentences },
-      protocol: CHAPTER_JOB_PROTOCOL,
-      revision: input.sourceRevision,
+      sentences: input.sentences,
+      source: input.kind === "embedding-source" ? "source" : "summary",
     },
     input.embeddingProvider,
     input.signal,
   );
 
   return {
-    kind: artifact.payload.kind,
-    metadata: artifact.payload.metadata,
-    segments: artifact.payload.segments,
-    serialId: artifact.chapterId,
-    sourceRevision: artifact.revision,
+    kind: artifact.kind,
+    metadata: artifact.metadata,
+    segments: artifact.segments,
+    serialId: input.serialId,
+    sourceRevision: input.sourceRevision,
   };
 }
 

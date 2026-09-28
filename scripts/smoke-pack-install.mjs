@@ -5,6 +5,7 @@ import { isAbsolute, join, resolve } from "path";
 
 const packageRoot = resolve(import.meta.dirname, "..");
 const coreRoot = join(packageRoot, "packages", "core");
+const jobRoot = join(packageRoot, "packages", "job");
 const cliRoot = join(packageRoot, "packages", "cli");
 const wikimediaRoot = join(packageRoot, "packages", "wikimedia");
 const tempRoot = mkdtempSync(join(tmpdir(), "wiki-graph-pack-"));
@@ -142,11 +143,13 @@ function installTarballs(cwd, tarballPaths) {
 }
 
 try {
+  const jobTarballPath = packPackage(jobRoot);
   const wikimediaTarballPath = packPackage(wikimediaRoot);
   const coreTarballPath = packPackage(coreRoot);
   const cliTarballPath = packPackage(cliRoot);
 
   writeInstallWorkspace(cliInstallRoot, "wiki-graph-cli-pack-smoke", {
+    "wiki-graph-job": `file:${jobTarballPath}`,
     "wiki-graph-wikimedia": `file:${wikimediaTarballPath}`,
   });
   installTarballs(cliInstallRoot, [cliTarballPath]);
@@ -173,6 +176,7 @@ try {
   }
 
   writeInstallWorkspace(coreInstallRoot, "wiki-graph-core-pack-smoke", {
+    "wiki-graph-job": `file:${jobTarballPath}`,
     "wiki-graph-wikimedia": `file:${wikimediaTarballPath}`,
   });
   installTarballs(coreInstallRoot, [coreTarballPath]);
@@ -197,6 +201,7 @@ try {
   );
 
   writeInstallWorkspace(sdkInstallRoot, "wiki-graph-sdk-pack-smoke", {
+    "wiki-graph-job": `file:${jobTarballPath}`,
     "wiki-graph-wikimedia": `file:${wikimediaTarballPath}`,
   });
   installTarballs(sdkInstallRoot, [coreTarballPath, cliTarballPath]);

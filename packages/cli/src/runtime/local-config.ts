@@ -8,6 +8,7 @@ import type { Database } from "wiki-graph-core";
 export const LOCAL_CONFIG_SECTIONS = [
   "concurrent",
   "embeddings",
+  "job",
   "llm",
   "wikimedia",
   "wikispine",
@@ -98,7 +99,8 @@ export function maskLocalConfigSection(
   value: LocalConfigObject,
 ): LocalConfigObject {
   if (
-    (section !== "llm" &&
+    (section !== "job" &&
+      section !== "llm" &&
       section !== "embeddings" &&
       section !== "wikimedia") ||
     (value.apiKey === undefined && value.token === undefined)
@@ -147,6 +149,8 @@ export function validateLocalConfigSection(
       return validateLLMConfig(value);
     case "concurrent":
       return validateConcurrentConfig(value);
+    case "job":
+      return validateEndpointConfig("job", value);
     case "wikimedia":
       return validateWikimediaConfig(value);
     case "wikispine":
@@ -353,15 +357,22 @@ function validateWikispineConfig(value: LocalConfigObject): LocalConfigObject {
 }
 
 function validateWikimediaConfig(value: LocalConfigObject): LocalConfigObject {
+  return validateEndpointConfig("wikimedia", value);
+}
+
+function validateEndpointConfig(
+  section: "job" | "wikimedia",
+  value: LocalConfigObject,
+): LocalConfigObject {
   const allowedKeys = new Set(["endpoint", "token"]);
   const next: Record<string, unknown> = {};
 
   for (const [key, entry] of Object.entries(value)) {
     if (!allowedKeys.has(key)) {
-      throw new Error(`Unknown wikimedia config key: ${key}`);
+      throw new Error(`Unknown ${section} config key: ${key}`);
     }
     if (typeof entry !== "string" || entry.trim() === "") {
-      throw new Error(`wikimedia.${key} must be a non-empty string.`);
+      throw new Error(`${section}.${key} must be a non-empty string.`);
     }
     next[key] = entry.trim();
   }

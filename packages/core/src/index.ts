@@ -24,6 +24,7 @@ export type {
   LLMTokenUsage,
   LLMTokenUsageCallback,
 } from "./external/llm/index.js";
+export type { ChapterJobFileExecutor, ChapterJobKind } from "wiki-graph-job";
 export {
   WikiGraphScope,
   WIKI_GRAPH_EDITOR_SCOPES,
@@ -412,28 +413,21 @@ export {
   buildChapterSummaryArtifactFromReadingGraphObjects,
   buildChapterSummaryArtifactFromSnapshot,
   commitChapterGraphArtifact,
-  commitChapterJobArtifact,
   commitChapterSummaryArtifact,
   readChapterBuildInput,
-  snapshotFtsJob,
-  snapshotKnowledgeGraphJob,
-  snapshotReadingGraphJob,
-  snapshotReadingSummaryJob,
   snapshotChapterSummaryInput,
-  snapshotSourceEmbeddingJob,
-  snapshotSummaryEmbeddingJob,
-  createLocalChapterJobExecutor,
   writeChapterJobInputFile,
   applyChapterJobArtifactFile,
   createRemoteChapterJobFileExecutor,
   executeChapterJobForChapter,
+  createLocalChapterJobFileExecutor,
 } from "./api/index.js";
 export type {
   BuildChapterGraphArtifactOptions,
   BuildChapterSummaryArtifactOptions,
   ChapterGraphBuildArtifact,
-  LocalChapterJobExecutorOptions,
   ChapterJobInputOptions,
+  LocalChapterJobFileExecutorOptions,
 } from "./api/index.js";
 export {
   buildChapterKnowledgeGraphArtifact,

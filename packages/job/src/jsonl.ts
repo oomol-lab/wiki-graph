@@ -21,7 +21,11 @@ const inputRecordSchema = z.discriminatedUnion("type", [
     prompt: z.string().optional(),
     type: z.literal("job-options"),
   }),
-  z.object({ text: z.string(), type: z.literal("source-text") }),
+  z.object({
+    ...sentenceFields,
+    fragmentId: nonNegativeInteger.optional(),
+    type: z.literal("source-text"),
+  }),
   z.object({
     fragmentId: nonNegativeInteger,
     summary: z.string(),
@@ -114,7 +118,9 @@ export async function* readChapterJobArtifact(
 
 export async function writeChapterJobInput(
   file: JobFile,
-  records: AsyncIterable<ChapterJobInputRecord> | Iterable<ChapterJobInputRecord>,
+  records:
+    | AsyncIterable<ChapterJobInputRecord>
+    | Iterable<ChapterJobInputRecord>,
 ): Promise<void> {
   await writeJsonl(file, records, (record) => inputRecordSchema.parse(record));
 }
@@ -125,7 +131,9 @@ export async function writeChapterJobArtifact(
     | AsyncIterable<ChapterJobArtifactRecord>
     | Iterable<ChapterJobArtifactRecord>,
 ): Promise<void> {
-  await writeJsonl(file, records, (record) => artifactRecordSchema.parse(record));
+  await writeJsonl(file, records, (record) =>
+    artifactRecordSchema.parse(record),
+  );
 }
 
 async function* readJsonl(file: JobFile): AsyncIterable<unknown> {
@@ -135,8 +143,12 @@ async function* readJsonl(file: JobFile): AsyncIterable<unknown> {
   let pending = "";
   try {
     while (offset < reader.size) {
-      const chunk = await reader.read(offset, Math.min(64 * 1024, reader.size - offset));
-      if (chunk.byteLength === 0) throw new Error("Unexpected end of JSONL file.");
+      const chunk = await reader.read(
+        offset,
+        Math.min(64 * 1024, reader.size - offset),
+      );
+      if (chunk.byteLength === 0)
+        throw new Error("Unexpected end of JSONL file.");
       offset += chunk.byteLength;
       pending += decoder.decode(chunk, { stream: offset < reader.size });
       while (true) {
@@ -203,7 +215,9 @@ function readingChunkSchema(): z.ZodObject {
     id: z.string(),
     importance: z.enum(["critical", "helpful", "important"]).optional(),
     label: z.string(),
-    retention: z.enum(["detailed", "focused", "relevant", "verbatim"]).optional(),
+    retention: z
+      .enum(["detailed", "focused", "relevant", "verbatim"])
+      .optional(),
     sentenceIndex: nonNegativeInteger,
     sentenceIndexes: z.array(nonNegativeInteger),
     type: z.literal("reading-chunk"),

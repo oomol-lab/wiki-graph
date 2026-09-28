@@ -12,6 +12,9 @@ import type {
 } from "./contracts.js";
 import type { JobFile } from "./platform.js";
 
+export const CHAPTER_JOB_STREAM_CONTENT_TYPE =
+  "application/x-ndjson; charset=utf-8";
+
 export interface JobOptionsRecord {
   readonly extractionPrompt?: string;
   readonly language?: string;
@@ -21,8 +24,11 @@ export interface JobOptionsRecord {
 }
 
 export interface JobSourceTextRecord {
+  readonly fragmentId?: number;
+  readonly sentenceIndex: number;
   readonly text: string;
   readonly type: "source-text";
+  readonly wordsCount: number;
 }
 
 export interface JobSourceFragmentRecord {

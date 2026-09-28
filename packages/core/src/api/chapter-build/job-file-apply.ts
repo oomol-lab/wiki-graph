@@ -169,11 +169,7 @@ async function applyReadingGraph(
           break;
         case "snake-edge":
           await openedDocument.snakeEdges.save({
-            fromSnakeId: requireMappedId(
-              snakeIds,
-              record.fromSnakeId,
-              "snake",
-            ),
+            fromSnakeId: requireMappedId(snakeIds, record.fromSnakeId, "snake"),
             toSnakeId: requireMappedId(snakeIds, record.toSnakeId, "snake"),
             weight: record.weight,
           });
@@ -240,9 +236,8 @@ async function applyKnowledgeGraph(
 
   await document.openSession(async (openedDocument) => {
     await openedDocument.serials.ensure(chapterId);
-    const existingLinks = await openedDocument.mentionLinks.listByChapter(
-      chapterId,
-    );
+    const existingLinks =
+      await openedDocument.mentionLinks.listByChapter(chapterId);
     if (existingLinks.length > 0 && linkCount === 0) {
       throw new Error(
         `Refusing to replace chapter ${chapterId} knowledge graph with an artifact that contains no mention links.`,
@@ -332,7 +327,9 @@ async function* readEmbeddingSegments(
   }
 }
 
-async function readEmbeddingMetadata(file: JobFile): Promise<
+async function readEmbeddingMetadata(
+  file: JobFile,
+): Promise<
   Extract<ChapterJobArtifactRecord, { readonly type: "embedding-metadata" }>
 > {
   for await (const record of readChapterJobArtifact(file)) {

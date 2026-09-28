@@ -82,10 +82,18 @@ async function* sourceTextRecords(
   chapterId: number,
 ): AsyncIterable<ChapterJobInputRecord> {
   const fragments = document.getSerialFragments(chapterId);
+  let sentenceIndex = 0;
   for (const fragmentId of await fragments.listFragmentIds()) {
     const fragment = await fragments.getFragment(fragmentId);
     for (const sentence of fragment.sentences) {
-      yield { text: sentence.text, type: "source-text" };
+      yield {
+        fragmentId: fragment.fragmentId,
+        sentenceIndex,
+        text: sentence.text,
+        type: "source-text",
+        wordsCount: sentence.wordsCount,
+      };
+      sentenceIndex += 1;
     }
   }
 }
@@ -146,7 +154,9 @@ async function* chapterTitleRecords(
 ): AsyncIterable<ChapterJobInputRecord> {
   const toc = await document.readToc?.();
   if (toc === undefined) return;
-  const chapter = flattenToc(toc.items).find((item) => item.serialId === chapterId);
+  const chapter = flattenToc(toc.items).find(
+    (item) => item.serialId === chapterId,
+  );
   if (chapter?.title !== undefined && chapter.title !== null) {
     yield { chapterId, title: chapter.title, type: "chapter-title" };
   }
