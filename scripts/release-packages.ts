@@ -39,6 +39,10 @@ const releasePackages: readonly ReleasePackage[] = [
     expectedName: "wiki-graph-wikimedia",
   },
   {
+    directory: join(workspaceRoot, "packages", "job"),
+    expectedName: "wiki-graph-job",
+  },
+  {
     directory: join(workspaceRoot, "packages", "core"),
     expectedName: "wiki-graph-core",
   },
@@ -249,8 +253,8 @@ async function release(): Promise<void> {
     }
     return descriptor;
   });
-  const coreVersion = descriptors[1]?.version;
-  const cliVersion = descriptors[2]?.version;
+  const coreVersion = descriptors[2]?.version;
+  const cliVersion = descriptors[3]?.version;
   if (coreVersion !== cliVersion) {
     throw new Error(
       `wiki-graph-core and wiki-graph versions must match: ${coreVersion} != ${cliVersion}`,
