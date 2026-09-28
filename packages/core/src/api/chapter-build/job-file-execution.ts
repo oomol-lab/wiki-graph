@@ -1,5 +1,7 @@
 import {
+  CHAPTER_JOB_EVENT_STREAM_CONTENT_TYPE,
   CHAPTER_JOB_STREAM_CONTENT_TYPE,
+  parseChapterJobStreamEvent,
   type ChapterJobFileExecutionOptions,
   type ChapterJobFileExecutor,
   type ChapterJobFileResult,
@@ -51,9 +53,31 @@ export function createRemoteChapterJobFileExecutor(options: {
       );
     }
     const artifactFile = await execution.workspace.createFile("artifact.jsonl");
-    await writeResponseBody(response.body, artifactFile);
+    if (isEventStream(response.headers.get("Content-Type"))) {
+      const completedRevision = await writeEventResponseBody(
+        response.body,
+        artifactFile,
+        execution.progress,
+      );
+      if (completedRevision !== revision) {
+        throw new Error(
+          `Chapter job stream completed revision ${completedRevision}; expected ${revision}.`,
+        );
+      }
+    } else {
+      await writeResponseBody(response.body, artifactFile);
+    }
     return { artifactFile, revision };
   };
+}
+
+function isEventStream(contentType: string | null): boolean {
+  return (
+    contentType
+      ?.toLowerCase()
+      .startsWith(CHAPTER_JOB_EVENT_STREAM_CONTENT_TYPE.split(";")[0] ?? "") ===
+    true
+  );
 }
 
 function createFileBody(file: JobFile): ReadableStream<Uint8Array> {
@@ -106,6 +130,109 @@ async function writeResponseBody(
     throw error;
   } finally {
     reader.releaseLock();
+  }
+}
+
+async function writeEventResponseBody(
+  body: ReadableStream<Uint8Array>,
+  file: JobFile,
+  progress: ChapterJobFileExecutionOptions["progress"],
+): Promise<number> {
+  const reader = body.getReader();
+  const writer = await file.openWriter();
+  const decoder = new TextDecoder();
+  let pending = "";
+  let completedRevision: number | undefined;
+  try {
+    while (true) {
+      const chunk = await reader.read();
+      if (chunk.done) break;
+      pending += decoder.decode(chunk.value, { stream: true });
+      while (true) {
+        const newline = pending.indexOf("\n");
+        if (newline < 0) break;
+        const line = pending.slice(0, newline).trim();
+        pending = pending.slice(newline + 1);
+        if (line !== "") {
+          completedRevision = await consumeEventLine(
+            line,
+            writer,
+            progress,
+            completedRevision,
+          );
+        }
+      }
+    }
+    pending += decoder.decode();
+    if (pending.trim() !== "") {
+      completedRevision = await consumeEventLine(
+        pending.trim(),
+        writer,
+        progress,
+        completedRevision,
+      );
+    }
+    if (completedRevision === undefined) {
+      throw new Error("Chapter job event stream ended without completion.");
+    }
+    await writer.commit();
+    return completedRevision;
+  } catch (error) {
+    await writer.abort();
+    await reader.cancel(error).catch(() => undefined);
+    throw error;
+  } finally {
+    reader.releaseLock();
+  }
+}
+
+async function consumeEventLine(
+  line: string,
+  writer: Awaited<ReturnType<JobFile["openWriter"]>>,
+  progress: ChapterJobFileExecutionOptions["progress"],
+  completedRevision: number | undefined,
+): Promise<number | undefined> {
+  if (completedRevision !== undefined) {
+    throw new Error("Chapter job event stream continued after completion.");
+  }
+  let value: unknown;
+  try {
+    value = JSON.parse(line);
+  } catch (error) {
+    throw new Error(
+      `Chapter job service returned invalid event JSON: ${error instanceof Error ? error.message : String(error)}`,
+      { cause: error },
+    );
+  }
+  const event = parseChapterJobStreamEvent(value);
+  switch (event.event) {
+    case "output-characters":
+      await progress?.addOutputCharacters?.(event.characters);
+      return undefined;
+    case "token-usage":
+      await progress?.addTokenUsage?.(event.usage);
+      return undefined;
+    case "progress":
+      await progress?.updatePhase?.({
+        done: event.progress.done,
+        ...(event.progress.force === undefined
+          ? {}
+          : { force: event.progress.force }),
+        phase: event.progress.phase,
+        ...(event.progress.phaseDetail === undefined
+          ? {}
+          : { phaseDetail: event.progress.phaseDetail }),
+        total: event.progress.total,
+        unit: event.progress.unit,
+      });
+      return undefined;
+    case "artifact":
+      await writer.write(`${JSON.stringify(event.record)}\n`);
+      return undefined;
+    case "complete":
+      return event.revision;
+    case "error":
+      throw new Error(`Chapter job service failed: ${event.message}`);
   }
 }
 

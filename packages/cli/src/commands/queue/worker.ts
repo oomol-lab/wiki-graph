@@ -245,9 +245,6 @@ async function openJobExecutor(
       : createStageLLM(stageConfig, {
           cacheDirectory: job.cache,
           logDirectory: job.log,
-          onStreamProgress: async (event) => {
-            await reporter.addOutputCharacters(event.outputCharacters);
-          },
           onTokenUsage: async (usage) => {
             await reporter.addTokenUsage(usage);
           },

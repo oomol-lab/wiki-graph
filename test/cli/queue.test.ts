@@ -1213,6 +1213,8 @@ describe("cli/queue", () => {
     };
     expect(stageLLMOptions.cacheDirectory.path).toBe("/tmp/job-cache");
     expect(stageLLMOptions.logDirectory.path).toBe("/tmp/job-logs");
+    expect(stageLLMOptions).not.toHaveProperty("onStreamProgress");
+    expect(stageLLMOptions).toHaveProperty("onTokenUsage");
     expect(queueMockState.inputRevisionRecords).toStrictEqual([
       {
         currentRevision: 1,
