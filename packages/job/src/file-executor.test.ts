@@ -83,6 +83,22 @@ describe("file-based chapter jobs", () => {
     expect(records.filter((record) => record.type === "embedding-segment")).toHaveLength(2);
     expect(embedTexts).toHaveBeenCalledTimes(2);
   });
+
+  it("rejects records that belong to another job kind", async () => {
+    const inputFile = new MemoryJobFile("input.jsonl");
+    await writeChapterJobInput(inputFile, [
+      { text: "Reading Graph input", type: "source-text" },
+    ]);
+
+    await expect(
+      executeChapterJobFile({
+        inputFile,
+        kind: "index-fts",
+        revision: 1,
+        workspace: new MemoryJobDirectory(),
+      }),
+    ).rejects.toThrow("source-text is not valid input for index-fts");
+  });
 });
 
 async function collect<T>(records: AsyncIterable<T>): Promise<readonly T[]> {

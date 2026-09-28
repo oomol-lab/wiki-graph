@@ -9,6 +9,7 @@ import {
   streamEmbeddingSegments,
 } from "./index-build.js";
 import { readChapterJobInput, writeChapterJobArtifact } from "./jsonl.js";
+import { validateChapterJobInputFile } from "./file-validation.js";
 import type { JobDirectory, JobFile } from "./platform.js";
 import type { JobEmbeddingProvider } from "./ports.js";
 
@@ -30,6 +31,7 @@ export async function executeChapterJobFile(
   if ((await options.workspace.list()).length !== 0) {
     throw new Error("Chapter job workspace must be empty.");
   }
+  await validateChapterJobInputFile(options.kind, options.inputFile);
   const artifactFile = await options.workspace.createFile("artifact.jsonl");
   try {
     switch (options.kind) {
