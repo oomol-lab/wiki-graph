@@ -779,8 +779,7 @@ async function createSearchFindOptions(
 async function createWikimediaPageOptions(
   objectUri: string,
 ): Promise<
-  | Record<string, never>
-  | { readonly wikimediaResolver: HttpWikimediaResolver }
+  Record<string, never> | { readonly wikimediaResolver: HttpWikimediaResolver }
 > {
   if (!objectUri.endsWith("/wikipage")) {
     return {};

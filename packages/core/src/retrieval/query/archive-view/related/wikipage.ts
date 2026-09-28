@@ -11,7 +11,9 @@ export async function resolveEntityWikipage(
   readonly zh: ArchiveEntityWikipageLocale | null;
 }> {
   if (options.wikimediaResolver === undefined) {
-    throw new Error("Reading an entity wikipage requires a Wikimedia provider.");
+    throw new Error(
+      "Reading an entity wikipage requires a Wikimedia provider.",
+    );
   }
 
   const [resolution] = await options.wikimediaResolver.resolve([
@@ -27,7 +29,11 @@ export async function resolveEntityWikipage(
 function createEntityWikipageLocale(
   profile: WikimediaLanguageProfile | undefined,
 ): ArchiveEntityWikipageLocale | null {
-  if (profile?.label === null || profile?.url === null || profile === undefined) {
+  if (
+    profile?.label === null ||
+    profile?.url === null ||
+    profile === undefined
+  ) {
     return null;
   }
 
