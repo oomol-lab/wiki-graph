@@ -236,12 +236,20 @@ function parseRecord(value: string): CachedWikimediaQid | undefined {
     const parsed: unknown = JSON.parse(value);
     if (typeof parsed !== "object" || parsed === null) return undefined;
     const record = parsed as Partial<CachedWikimediaQid>;
-    return typeof record.qid === "string" &&
-      typeof record.refreshedAt === "string" &&
-      typeof record.disambiguation === "boolean" &&
-      Array.isArray(record.sites)
-      ? (record as CachedWikimediaQid)
-      : undefined;
+    if (
+      typeof record.qid !== "string" ||
+      typeof record.refreshedAt !== "string" ||
+      typeof record.disambiguation !== "boolean" ||
+      !Array.isArray(record.sites)
+    ) {
+      return undefined;
+    }
+    return {
+      disambiguation: record.disambiguation,
+      qid: record.qid,
+      refreshedAt: record.refreshedAt,
+      sites: record.sites,
+    };
   } catch {
     return undefined;
   }
