@@ -179,7 +179,7 @@ export class MediaWikiClient implements WikimediaClient {
   }
 
   private async get(url: URL): Promise<any> {
-    url.searchParams.set("maxlag", "1");
+    url.searchParams.set("maxlag", "5");
     const response = await this.fetcher(url, {
       headers: { "User-Agent": this.userAgent, "Accept-Encoding": "gzip" },
     });
