@@ -1,7 +1,4 @@
 import {
-  applyChapterJobArtifactFile,
-  createLocalChapterJobFileExecutor,
-  createRemoteChapterJobFileExecutor,
   getBuildJob,
   getChapterDetails,
   openWikimediaResolver,
@@ -10,18 +7,23 @@ import {
   WikiGraphArchiveFile,
   WikiGraphScope,
   withLoggingContext,
-  writeChapterJobInputFile,
   type BuildJob,
   type BuildJobExecutionContext,
   type BuildJobProgressReporter,
-  type ChapterJobInputOptions,
-  type ChapterJobFileExecutor,
-  type ChapterJobKind,
   type Directory,
   type GuaranteedRequest,
   type GuaranteedRequestController,
   type LLMessage,
 } from "wiki-graph-core";
+import {
+  applyChapterJobArtifactFile,
+  createLocalChapterJobFileExecutor,
+  createRemoteChapterJobFileExecutor,
+  writeChapterJobInputFile,
+  type ChapterJobFileExecutor,
+  type ChapterJobInputOptions,
+  type ChapterJobKind,
+} from "wiki-graph-core/worker";
 
 import { buildSearchIndexEmbeddingProvider } from "../../runtime/embedding.js";
 import { loadCLIConfig, type CLIConfig } from "../../runtime/config.js";

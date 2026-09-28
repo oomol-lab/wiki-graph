@@ -80,7 +80,6 @@ export {
   writeChapterJobInputFile,
   applyChapterJobArtifactFile,
   createRemoteChapterJobFileExecutor,
-  executeChapterJobForChapter,
   createLocalChapterJobFileExecutor,
 } from "./chapter-build/index.js";
 export type {

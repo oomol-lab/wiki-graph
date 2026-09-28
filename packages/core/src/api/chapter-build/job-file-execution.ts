@@ -3,59 +3,10 @@ import {
   type ChapterJobFileExecutionOptions,
   type ChapterJobFileExecutor,
   type ChapterJobFileResult,
-  type ChapterJobKind,
   type JobFile,
 } from "wiki-graph-job";
 
-import type { Document } from "../../document/index.js";
-import type { Directory } from "../../runtime/platform/index.js";
-import { applyChapterJobArtifactFile } from "./job-file-apply.js";
-import {
-  type ChapterJobInputOptions,
-  writeChapterJobInputFile,
-} from "./job-file-snapshot.js";
-
 const REVISION_HEADER = "X-Wiki-Graph-Revision";
-
-export async function executeChapterJobForChapter(options: {
-  readonly chapterId: number;
-  readonly document: Document;
-  readonly executor: ChapterJobFileExecutor;
-  readonly inputOptions?: ChapterJobInputOptions;
-  readonly kind: ChapterJobKind;
-  readonly workspace: Directory;
-}): Promise<void> {
-  if ((await options.workspace.list()).length !== 0) {
-    throw new Error("Chapter job coordination workspace must be empty.");
-  }
-  const inputFile = await options.workspace.createFile("input.jsonl");
-  const resultWorkspace = await options.workspace.createDirectory("result");
-  const revision = await writeChapterJobInputFile(
-    options.document,
-    options.chapterId,
-    options.kind,
-    inputFile,
-    options.inputOptions,
-  );
-  const result = await options.executor({
-    inputFile,
-    kind: options.kind,
-    revision,
-    workspace: resultWorkspace,
-  });
-  if (result.revision !== revision) {
-    throw new Error(
-      `Chapter job returned revision ${result.revision}; expected ${revision}.`,
-    );
-  }
-  await applyChapterJobArtifactFile(
-    options.document,
-    options.chapterId,
-    options.kind,
-    revision,
-    result.artifactFile,
-  );
-}
 
 export function createRemoteChapterJobFileExecutor(options: {
   readonly baseUrl: string;
