@@ -79,6 +79,13 @@ export interface JobSummaryPartRecord {
   readonly type: "summary-part";
 }
 
+export interface JobParameterRecord {
+  readonly language?: string;
+  readonly prompt: string;
+  readonly scope: "knowledge-graph" | "reading-graph";
+  readonly type: "job-parameter";
+}
+
 export type JobLexicalRowRecord = JobLexicalRow & {
   readonly type: "lexical-row";
 };
@@ -118,6 +125,7 @@ export type ChapterJobArtifactRecord =
   | JobLexicalRowRecord
   | JobMentionLinkRecord
   | JobMentionRecord
+  | JobParameterRecord
   | JobReadingChunkRecord
   | JobReadingEdgeRecord
   | JobSnakeChunkRecord

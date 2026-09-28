@@ -48,6 +48,12 @@ const inputRecordSchema = z.discriminatedUnion("type", [
 ]);
 
 const artifactRecordSchema = z.discriminatedUnion("type", [
+  z.object({
+    language: z.string().optional(),
+    prompt: z.string(),
+    scope: z.enum(["knowledge-graph", "reading-graph"]),
+    type: z.literal("job-parameter"),
+  }),
   readingChunkSchema(),
   readingEdgeSchema(),
   fragmentGroupSchema(),
@@ -156,13 +162,26 @@ async function writeJsonl<T>(
   const writer = await file.openWriter();
   try {
     for await (const record of records) {
-      await writer.write(`${JSON.stringify(parse(record))}\n`);
+      try {
+        await writer.write(`${JSON.stringify(parse(record))}\n`);
+      } catch (error) {
+        throw new Error(
+          `Invalid JSONL record${recordType(record)}: ${formatError(error)}`,
+          { cause: error },
+        );
+      }
     }
     await writer.commit();
   } catch (error) {
     await writer.abort();
     throw error;
   }
+}
+
+function recordType(record: unknown): string {
+  return typeof record === "object" && record !== null && "type" in record
+    ? ` of type ${String(record.type)}`
+    : "";
 }
 
 function parseLine(line: string): unknown {

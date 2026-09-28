@@ -5,6 +5,7 @@ import { join } from "path";
 import {
   executeChapterJobFile,
   readChapterJobInput,
+  writeChapterJobArtifact,
 } from "wiki-graph-job";
 import { describe, expect, it } from "vitest";
 
@@ -27,6 +28,10 @@ describe("chapter job input files", () => {
           await openedDocument
             .getSerialFragments(id)
             .writeTextStream("Alpha beta. Gamma delta.");
+          await openedDocument.writeToc({
+            items: [{ children: [], serialId: id, title: "Test chapter" }],
+            version: 1,
+          });
           return id;
         });
         const inputPath = join(path, "input.jsonl");
@@ -109,6 +114,103 @@ describe("chapter job input files", () => {
           "source-sentence",
           "source-sentence",
         ]);
+      } finally {
+        await document.release();
+      }
+    } finally {
+      await rm(path, { force: true, recursive: true });
+    }
+  });
+
+  it("applies semantic Reading Graph and summary artifact records", async () => {
+    const path = await mkdtemp(join(tmpdir(), "wiki-graph-job-graph-"));
+    try {
+      const document = await DirectoryDocument.open(path);
+      try {
+        const chapterId = await document.openSession(async (openedDocument) => {
+          const id = await openedDocument.createSerial();
+          await openedDocument
+            .getSerialFragments(id)
+            .writeTextStream("Alpha beta. Gamma delta.");
+          await openedDocument.writeToc({
+            items: [{ children: [], serialId: id, title: "Test chapter" }],
+            version: 1,
+          });
+          return id;
+        });
+        const revision = await document.serials.getRevision(chapterId);
+        const graphPath = join(path, "graph-artifact.jsonl");
+        await writeFile(graphPath, "");
+        await writeChapterJobArtifact(new NodeFile(graphPath), [
+          {
+            prompt: "Extract the graph.",
+            scope: "reading-graph",
+            type: "job-parameter",
+          },
+          {
+            content: "Alpha beta.",
+            generation: 0,
+            id: "chunk-1",
+            label: "Alpha",
+            sentenceIndex: 0,
+            sentenceIndexes: [0],
+            type: "reading-chunk",
+            weight: 1,
+            wordsCount: 2,
+          },
+          {
+            endSentenceIndex: 1,
+            groupId: 0,
+            startSentenceIndex: 0,
+            type: "fragment-group",
+          },
+          {
+            firstLabel: "Alpha",
+            groupId: 0,
+            id: "snake-1",
+            lastLabel: "Alpha",
+            localSnakeId: 0,
+            size: 1,
+            type: "snake",
+            weight: 1,
+            wordsCount: 2,
+          },
+          {
+            chunkId: "chunk-1",
+            position: 0,
+            snakeId: "snake-1",
+            type: "snake-chunk",
+          },
+        ]);
+
+        await applyChapterJobArtifactFile(
+          document,
+          chapterId,
+          "reading-graph",
+          revision,
+          new NodeFile(graphPath),
+        );
+        expect(await document.chunks.listBySerial(chapterId)).toHaveLength(1);
+        expect((await document.serials.getById(chapterId))?.topologyReady).toBe(
+          true,
+        );
+
+        const summaryPath = join(path, "summary-artifact.jsonl");
+        await writeFile(summaryPath, "");
+        await writeChapterJobArtifact(new NodeFile(summaryPath), [
+          { position: 0, text: "First part.", type: "summary-part" },
+          { position: 1, text: "Second part.", type: "summary-part" },
+        ]);
+        await applyChapterJobArtifactFile(
+          document,
+          chapterId,
+          "reading-summary",
+          revision,
+          new NodeFile(summaryPath),
+        );
+        expect(await document.readSummary(chapterId)).toBe(
+          "First part.\n\nSecond part.",
+        );
       } finally {
         await document.release();
       }
