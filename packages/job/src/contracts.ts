@@ -161,15 +161,16 @@ export interface ChapterJobSnapshot<
 }
 
 export interface JobIndexMetadata {
+  readonly [key: string]: unknown;
   readonly dimensions?: number;
   readonly identity?: string;
   readonly model?: string;
-  readonly source: string;
+  readonly source?: string;
   readonly version: number;
 }
 
 export interface JobLexicalRow {
-  readonly metadata?: Readonly<Record<string, unknown>>;
+  readonly metadata: Readonly<Record<string, unknown>>;
   readonly objectId: string;
   readonly objectKind: string;
   readonly rowId: string;

@@ -26,6 +26,7 @@
     "build": "rimraf dist && tsup --config tsup.config.ts"
   },
   "dependencies": {
+    "@noble/hashes": "^2.4.0",
     "zod": "^4.3.6"
   }
 }
