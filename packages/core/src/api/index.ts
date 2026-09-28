@@ -88,7 +88,9 @@ export {
   snapshotChapterSummaryInput,
   snapshotSourceEmbeddingJob,
   snapshotSummaryEmbeddingJob,
+  writeChapterJobInputFile,
 } from "./chapter-build/index.js";
+export type { ChapterJobInputOptions } from "./chapter-build/index.js";
 export {
   buildChapterKnowledgeGraphArtifact,
   clearChapterKnowledgeGraph,
