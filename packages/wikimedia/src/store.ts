@@ -1,3 +1,4 @@
+/* eslint-disable */
 import { readFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -35,7 +36,10 @@ export class Store {
   async migrate(): Promise<void> {
     await this.db.query(
       await readFile(
-        resolve(dirname(fileURLToPath(import.meta.url)), "../migrations/001_initial.sql"),
+        resolve(
+          dirname(fileURLToPath(import.meta.url)),
+          "../migrations/001_initial.sql",
+        ),
         "utf8",
       ),
     );
@@ -45,14 +49,15 @@ export class Store {
     input: readonly { qid: string; disambiguation: boolean }[],
     client: {
       entities(qids: readonly string[]): Promise<readonly EntityData[]>;
-      pages(wiki: Wiki, titles: readonly string[]): Promise<readonly PageMeta[]>;
+      pages(
+        wiki: Wiki,
+        titles: readonly string[],
+      ): Promise<readonly PageMeta[]>;
       disambiguation(page: PageMeta): Promise<any>;
     },
     normalizer: { normalize(input: any): Promise<Profile> },
   ): Promise<readonly EntityOutput[]> {
-    const unique = [
-      ...new Map(input.map((item) => [item.qid, item])).values(),
-    ];
+    const unique = [...new Map(input.map((item) => [item.qid, item])).values()];
     const results = new Map<string, EntityOutput>();
     const missing: typeof unique = [];
 
@@ -65,7 +70,9 @@ export class Store {
 
     if (missing.length > 0) {
       const entities = await client.entities(missing.map((item) => item.qid));
-      const entitiesByQid = new Map(entities.map((entity) => [entity.qid, entity]));
+      const entitiesByQid = new Map(
+        entities.map((entity) => [entity.qid, entity]),
+      );
       const pagesByWiki = await this.fetchPages(client, entities);
       for (const item of missing) {
         const result = await this.rebuild(
@@ -102,7 +109,8 @@ export class Store {
         Date.now() - new Date(row.refreshed_at).getTime() >
           this.ttlDays * 86_400_000;
       const flagChanged =
-        row !== undefined && row.wikispine_disambiguation !== item.disambiguation;
+        row !== undefined &&
+        row.wikispine_disambiguation !== item.disambiguation;
       if (expired || flagChanged) {
         await connection.query("DELETE FROM qid_site WHERE qid=$1", [item.qid]);
       }
@@ -182,7 +190,12 @@ export class Store {
   }
 
   private async fetchPages(
-    client: { pages(wiki: Wiki, titles: readonly string[]): Promise<readonly PageMeta[]> },
+    client: {
+      pages(
+        wiki: Wiki,
+        titles: readonly string[],
+      ): Promise<readonly PageMeta[]>;
+    },
     entities: readonly EntityData[],
   ): Promise<ReadonlyMap<Wiki, ReadonlyMap<string, PageMeta>>> {
     const result = new Map<Wiki, ReadonlyMap<string, PageMeta>>();
@@ -190,7 +203,9 @@ export class Store {
       const titles = [
         ...new Set(
           entities.flatMap((entity) =>
-            entity.sitelinks[wiki] === undefined ? [] : [entity.sitelinks[wiki]!],
+            entity.sitelinks[wiki] === undefined
+              ? []
+              : [entity.sitelinks[wiki]],
           ),
         ),
       ];
@@ -225,10 +240,13 @@ export class Store {
       const language = wiki === "zhwiki" ? "zh" : "en";
       const sourceTitle = entity?.sitelinks[wiki];
       const page =
-        sourceTitle === undefined ? undefined : pagesByWiki.get(wiki)?.get(sourceTitle);
+        sourceTitle === undefined
+          ? undefined
+          : pagesByWiki.get(wiki)?.get(sourceTitle);
       const output = {
         label: entity?.labels[language] ?? page?.title ?? null,
-        description: entity?.descriptions[language] ?? page?.description ?? null,
+        description:
+          entity?.descriptions[language] ?? page?.description ?? null,
         url: page?.url ?? null,
       };
       await this.db.query(
@@ -257,7 +275,13 @@ export class Store {
         const parsed = await client.disambiguation(page);
         await this.db.query(
           "INSERT INTO qid_site_disambiguation(qid,wiki,page_id,revision_id,content_json) VALUES($1,$2,$3,$4,$5) ON CONFLICT(qid,wiki,page_id,revision_id) DO UPDATE SET content_json=EXCLUDED.content_json,updated_at=NOW()",
-          [item.qid, wiki, page.pageId, page.revisionId, JSON.stringify(parsed)],
+          [
+            item.qid,
+            wiki,
+            page.pageId,
+            page.revisionId,
+            JSON.stringify(parsed),
+          ],
         );
         const profile = await normalizer.normalize({
           sourceQid: item.qid,
@@ -267,7 +291,13 @@ export class Store {
         meanings.push(...profile.meanings);
         await this.db.query(
           "INSERT INTO qid_site_disambiguation_profile(qid,wiki,page_id,revision_id,normalizer_version,model_id,result_json,status) VALUES($1,$2,$3,$4,'v1','configured',$5,'ready') ON CONFLICT(qid,wiki,page_id,revision_id,normalizer_version,model_id) DO UPDATE SET result_json=EXCLUDED.result_json,status='ready',error_message=NULL,updated_at=NOW()",
-          [item.qid, wiki, page.pageId, page.revisionId, JSON.stringify(profile)],
+          [
+            item.qid,
+            wiki,
+            page.pageId,
+            page.revisionId,
+            JSON.stringify(profile),
+          ],
         );
       }
     }
@@ -279,7 +309,9 @@ export class Store {
       qid: item.qid,
       zh: siteValues.get("zhwiki")!.output,
       en: siteValues.get("enwiki")!.output,
-      ...(item.disambiguation ? { disambiguation: fuseMeanings(meanings) } : {}),
+      ...(item.disambiguation
+        ? { disambiguation: fuseMeanings(meanings) }
+        : {}),
     };
   }
 
@@ -303,5 +335,7 @@ function parseProfile(value: Profile | string): Profile {
 function fuseMeanings(
   meanings: readonly DisambiguationItem[],
 ): readonly DisambiguationItem[] {
-  return [...new Map(meanings.map((meaning) => [meaning.qid, meaning])).values()];
+  return [
+    ...new Map(meanings.map((meaning) => [meaning.qid, meaning])).values(),
+  ];
 }

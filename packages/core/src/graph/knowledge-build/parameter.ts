@@ -10,13 +10,11 @@ import type {
 export function createKnowledgeGraphParameterInput(
   options: Pick<
     GenerateChapterKnowledgeGraphArtifactOptions,
-    "policyPrompt" | "resolverOptions"
+    "language" | "policyPrompt"
   > & { readonly policyPrompt: string },
 ): GraphBuildParameterInput {
   return {
-    language:
-      normalizeLanguageCode(options.resolverOptions?.language) ??
-      LanguageCode.Chinese,
+    language: normalizeLanguageCode(options.language) ?? LanguageCode.Chinese,
     prompt: options.policyPrompt,
   };
 }

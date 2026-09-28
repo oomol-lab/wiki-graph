@@ -424,44 +424,12 @@ function createInput(): {
       qidOptions: [
         {
           description: "Wikimedia disambiguation page",
-          disambiguation: {
-            checkedAt: "2026-06-26T00:00:00.000Z",
-            disambiguationQid: "Q48397",
-            linkedQids: [
-              {
-                qid: "Q15175",
-                title: "Guangdong",
-              },
-              {
-                qid: "Q308",
-                title: "Mercury (planet)",
-              },
-            ],
-            pages: [
-              {
-                linkedQids: [
-                  {
-                    qid: "Q308",
-                    title: "Mercury (planet)",
-                  },
-                ],
-                text: "* [[Mercury (planet)|wikg://qid=Q308]], the first planet from the Sun",
-                title: "Mercury",
-                wiki: "enwiki",
-              },
-            ],
-            profile: {
-              meanings: [
-                {
-                  information: "the first planet from the Sun",
-                  name: "Mercury (planet)",
-                  priority: "primary",
-                  qid: "Q308",
-                },
-              ],
-              sourceQid: "Q48397",
+          disambiguation: [
+            {
+              information: "the first planet from the Sun",
+              qid: "Q308",
             },
-          },
+          ],
           isDisambiguation: true,
           label: "Mercury",
           qid: "Q48397",

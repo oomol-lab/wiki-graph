@@ -2,10 +2,13 @@ import { describe, expect, it, vi } from "vitest";
 
 import { applyQidResolutions, enrichWikimatchCandidates } from "./index.js";
 
-import type { QidResolution } from "../wikipage/index.js";
+import type {
+  WikimediaResolution,
+  WikimediaResolveInput,
+} from "../wikipage/index.js";
 
 describe("wikimatch/enrichment", () => {
-  it("adds descriptions and disambiguation information to qid options", () => {
+  it("adds language profiles and disambiguation information to qid options", () => {
     const [candidate] = applyQidResolutions(
       [
         {
@@ -19,33 +22,10 @@ describe("wikimatch/enrichment", () => {
         },
       ],
       [
+        resolution("Q1087564", "朱元璋", "2006 Chinese television series"),
         {
-          description: "2006 Chinese television series",
-          isDisambiguation: false,
-          label: "朱元璋",
-          qid: "Q1087564",
-        },
-        {
-          disambiguation: {
-            checkedAt: "2026-06-27T00:00:00.000Z",
-            disambiguationQid: "Q18165423",
-            linkedQids: [{ qid: "Q9957", title: "朱元璋" }],
-            pages: [],
-            profile: {
-              meanings: [
-                {
-                  information: "明朝开国皇帝",
-                  name: "朱元璋",
-                  priority: "primary",
-                  qid: "Q9957",
-                },
-              ],
-              sourceQid: "Q18165423",
-            },
-          },
-          isDisambiguation: true,
-          label: "朱元璋",
-          qid: "Q18165423",
+          ...resolution("Q18165423", "朱元璋", null),
+          disambiguation: [{ information: "明朝开国皇帝", qid: "Q9957" }],
         },
       ],
     );
@@ -58,23 +38,7 @@ describe("wikimatch/enrichment", () => {
         qid: "Q1087564",
       },
       {
-        disambiguation: {
-          checkedAt: "2026-06-27T00:00:00.000Z",
-          disambiguationQid: "Q18165423",
-          linkedQids: [{ qid: "Q9957", title: "朱元璋" }],
-          pages: [],
-          profile: {
-            meanings: [
-              {
-                information: "明朝开国皇帝",
-                name: "朱元璋",
-                priority: "primary",
-                qid: "Q9957",
-              },
-            ],
-            sourceQid: "Q18165423",
-          },
-        },
+        disambiguation: [{ information: "明朝开国皇帝", qid: "Q9957" }],
         isDisambiguation: true,
         label: "朱元璋",
         qid: "Q18165423",
@@ -82,20 +46,17 @@ describe("wikimatch/enrichment", () => {
     ]);
   });
 
-  it("uses an injected resolver without closing external resources", async () => {
-    const resolveQids = vi.fn(
-      (qids: readonly string[]): Promise<readonly QidResolution[]> =>
+  it("passes WikiSpine disambiguation flags to the injected resolver", async () => {
+    const resolve = vi.fn(
+      (
+        input: readonly WikimediaResolveInput[],
+      ): Promise<readonly WikimediaResolution[]> =>
         Promise.resolve(
-          qids.map((qid) => ({
-            description: `description for ${qid}`,
-            isDisambiguation: false,
-            label: `label for ${qid}`,
-            qid,
-          })),
+          input.map(({ qid }) =>
+            resolution(qid, `label for ${qid}`, `description for ${qid}`),
+          ),
         ),
     );
-    const close = vi.fn();
-    const resolver = { close, resolveQids };
 
     await expect(
       enrichWikimatchCandidates(
@@ -103,15 +64,15 @@ describe("wikimatch/enrichment", () => {
           {
             id: "c1",
             qidOptions: [
-              { isDisambiguation: false, qid: "Q1" },
+              { isDisambiguation: true, qid: "Q1" },
               { isDisambiguation: false, qid: "Q2" },
-              { isDisambiguation: false, qid: "Q1" },
+              { isDisambiguation: true, qid: "Q1" },
             ],
             range: { end: 8, start: 0 },
             surface: "universe",
           },
         ],
-        { resolver },
+        { resolver: { resolve } },
       ),
     ).resolves.toMatchObject([
       {
@@ -135,8 +96,22 @@ describe("wikimatch/enrichment", () => {
       },
     ]);
 
-    expect(resolveQids).toHaveBeenCalledTimes(1);
-    expect(resolveQids).toHaveBeenCalledWith(["Q1", "Q2"]);
-    expect(close).not.toHaveBeenCalled();
+    expect(resolve).toHaveBeenCalledTimes(1);
+    expect(resolve).toHaveBeenCalledWith([
+      { disambiguation: true, qid: "Q1" },
+      { disambiguation: false, qid: "Q2" },
+    ]);
   });
 });
+
+function resolution(
+  qid: string,
+  label: string,
+  description: string | null,
+): WikimediaResolution {
+  return {
+    en: { description: null, label: null, url: null },
+    qid,
+    zh: { description, label, url: null },
+  };
+}

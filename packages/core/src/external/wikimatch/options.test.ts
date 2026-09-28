@@ -33,22 +33,22 @@ describe("wikimatch/options", () => {
     ]);
   });
 
-  it("uses linked qids only as fallback when no profile meanings exist", () => {
+  it("keeps an empty disambiguation list empty", () => {
     const candidate = disambiguationCandidate(0);
 
-    expect(countWikimatchCandidateOptions(candidate)).toBe(1);
-    expect(listCandidateSelectableQids(candidate)).toStrictEqual(["Q-linked"]);
+    expect(countWikimatchCandidateOptions(candidate)).toBe(0);
+    expect(listCandidateSelectableQids(candidate)).toStrictEqual([]);
   });
 
-  it("keeps linked qids for audit while filtering by profile meanings", () => {
+  it("filters disambiguation meanings by qid", () => {
     const filtered = filterCandidateQidOptions(
       disambiguationCandidate(3),
       new Set(["Q2"]),
     );
 
     expect(listCandidateSelectableQids(filtered)).toStrictEqual(["Q2"]);
-    expect(filtered.qidOptions[0]?.disambiguation?.linkedQids).toStrictEqual([
-      { qid: "Q-linked", title: "Linked only" },
+    expect(filtered.qidOptions[0]?.disambiguation).toStrictEqual([
+      { information: "Information 2", qid: "Q2" },
     ]);
   });
 
@@ -68,21 +68,10 @@ function disambiguationCandidate(count: number): WikimatchCandidate {
     id: "c1",
     qidOptions: [
       {
-        disambiguation: {
-          checkedAt: "2026-06-27T00:00:00.000Z",
-          disambiguationQid: "Q100",
-          linkedQids: [{ qid: "Q-linked", title: "Linked only" }],
-          pages: [],
-          profile: {
-            meanings: Array.from({ length: count }, (_, index) => ({
-              information: `Information ${index + 1}`,
-              name: `Meaning ${index + 1}`,
-              priority: "other",
-              qid: `Q${index + 1}`,
-            })),
-            sourceQid: "Q100",
-          },
-        },
+        disambiguation: Array.from({ length: count }, (_, index) => ({
+          information: `Information ${index + 1}`,
+          qid: `Q${index + 1}`,
+        })),
         isDisambiguation: true,
         label: "Example",
         qid: "Q100",

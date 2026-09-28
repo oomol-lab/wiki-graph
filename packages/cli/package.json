@@ -65,6 +65,7 @@
     "saxes": "^6.0.0",
     "sqlite3": "^6.0.1",
     "tinyld": "^1.3.4",
+    "wiki-graph-wikimedia": "workspace:*",
     "yauzl": "^3.3.0",
     "yazl": "^3.3.1",
     "zod": "^4.3.6"

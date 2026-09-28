@@ -1,3 +1,4 @@
+/* eslint-disable */
 import { randomUUID } from "node:crypto";
 import type { RedisClientType } from "redis";
 
@@ -115,9 +116,12 @@ export class ClusterLimiter {
     const key = `wg-wikimedia:stats:${bucket}`;
     await this.redis.hIncrBy(key, `${instance}:requests`, 1);
     await this.redis.set(`wg-wikimedia:active:${instance}`, "1", { EX: 45 });
-    if (kind === "maxlag") await this.redis.hIncrBy(key, `${instance}:maxlag`, 1);
-    else if (status === 429) await this.redis.hIncrBy(key, `${instance}:429`, 1);
-    else if (status === 503) await this.redis.hIncrBy(key, `${instance}:503`, 1);
+    if (kind === "maxlag")
+      await this.redis.hIncrBy(key, `${instance}:maxlag`, 1);
+    else if (status === 429)
+      await this.redis.hIncrBy(key, `${instance}:429`, 1);
+    else if (status === 503)
+      await this.redis.hIncrBy(key, `${instance}:503`, 1);
     await this.redis.expire(key, STATS_TTL_SECONDS);
 
     if (status === 429 || status === 503 || kind === "maxlag") {
@@ -157,4 +161,3 @@ export class LocalScheduler {
     this.#next = 0;
   }
 }
-

@@ -519,16 +519,9 @@ function formatQidOptions(options: readonly WikimatchQidOption[]): {
 
   for (const option of options) {
     if (option.disambiguation !== undefined) {
-      const profileMeanings = option.disambiguation.profile?.meanings ?? [];
       disambiguationOptions.push({
         ...(option.label === undefined ? {} : { label: option.label }),
-        meanings:
-          profileMeanings.length > 0
-            ? profileMeanings.map(formatMeaningForPrompt)
-            : option.disambiguation.linkedQids.map((item) => ({
-                name: item.title,
-                qid: item.qid,
-              })),
+        meanings: option.disambiguation.map(formatMeaningForPrompt),
       });
       continue;
     }
@@ -549,13 +542,10 @@ function formatQidOptions(options: readonly WikimatchQidOption[]): {
 }
 
 function formatMeaningForPrompt(
-  meaning: NonNullable<
-    NonNullable<WikimatchQidOption["disambiguation"]>["profile"]
-  >["meanings"][number],
+  meaning: NonNullable<WikimatchQidOption["disambiguation"]>[number],
 ): object {
   return {
     ...(meaning.information === "" ? {} : { information: meaning.information }),
-    name: meaning.name,
     qid: meaning.qid,
   };
 }

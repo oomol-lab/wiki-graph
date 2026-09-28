@@ -45,6 +45,7 @@ describe("facade/knowledge-graph-build", () => {
           request: () => {
             throw new Error("LLM should not be called for empty snapshots.");
           },
+          wikimediaResolver: { resolve: () => Promise.resolve([]) },
           workspace: new NodeDirectory(path),
         },
       );
@@ -82,6 +83,7 @@ describe("facade/knowledge-graph-build", () => {
         {
           policyPrompt: "Recall entities.",
           request: () => Promise.resolve("{}"),
+          wikimediaResolver: { resolve: () => Promise.resolve([]) },
           workspace: new NodeDirectory(""),
         },
       ),
@@ -179,15 +181,10 @@ describe("facade/knowledge-graph-build", () => {
           id: "c1",
           qidOptions: [
             {
-              disambiguation: {
-                checkedAt: "2026-06-27T00:00:00.000Z",
-                disambiguationQid: "Q1",
-                linkedQids: Array.from({ length: 40 }, (_value, index) => ({
-                  qid: `Q${index + 1}`,
-                  title: `Option ${index + 1}`,
-                })),
-                pages: [],
-              },
+              disambiguation: Array.from({ length: 40 }, (_value, index) => ({
+                information: `Option ${index + 1}`,
+                qid: `Q${index + 1}`,
+              })),
               isDisambiguation: true,
               label: "舰队",
               qid: "Q1",

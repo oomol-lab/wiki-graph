@@ -115,6 +115,9 @@ importers:
       tinyld:
         specifier: ^1.3.4
         version: 1.3.4
+      wiki-graph-wikimedia:
+        specifier: workspace:*
+        version: link:../wikimedia
       yauzl:
         specifier: ^3.3.0
         version: 3.3.0

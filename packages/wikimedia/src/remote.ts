@@ -5,24 +5,32 @@ import type {
 } from "wiki-graph-core";
 
 export class HttpWikimediaResolver implements WikimediaResolver {
+  readonly #endpoint: string;
+  readonly #fetcher: typeof fetch;
+  readonly #token: string | undefined;
+
   public constructor(
-    private readonly endpoint: string,
-    private readonly token?: string,
-    private readonly fetcher: typeof fetch = fetch,
-  ) {}
+    endpoint: string,
+    token?: string,
+    fetcher: typeof fetch = fetch,
+  ) {
+    this.#endpoint = endpoint;
+    this.#token = token;
+    this.#fetcher = fetcher;
+  }
 
   public async resolve(
     input: readonly WikimediaResolveInput[],
   ): Promise<readonly WikimediaResolution[]> {
-    const response = await this.fetcher(
-      new URL("/v1/qids:resolve", this.endpoint),
+    const response = await this.#fetcher(
+      new URL("/v1/qids:resolve", this.#endpoint),
       {
         body: JSON.stringify({ entities: input }),
         headers: {
           "Content-Type": "application/json",
-          ...(this.token === undefined
+          ...(this.#token === undefined
             ? {}
-            : { Authorization: `Bearer ${this.token}` }),
+            : { Authorization: `Bearer ${this.#token}` }),
         },
         method: "POST",
       },
@@ -30,12 +38,25 @@ export class HttpWikimediaResolver implements WikimediaResolver {
     if (!response.ok) {
       throw new Error(`wg-wikimedia ${response.status}`);
     }
-    const payload = (await response.json()) as {
-      readonly results?: readonly WikimediaResolution[];
-    };
-    if (!Array.isArray(payload.results)) {
+    const results = readResults(await response.json());
+    if (results === undefined) {
       throw new Error("wg-wikimedia returned invalid results");
     }
-    return payload.results;
+    return results;
   }
+}
+
+function readResults(
+  payload: unknown,
+): readonly WikimediaResolution[] | undefined {
+  if (
+    typeof payload !== "object" ||
+    payload === null ||
+    !("results" in payload) ||
+    !Array.isArray(payload.results)
+  ) {
+    return undefined;
+  }
+
+  return payload.results as readonly WikimediaResolution[];
 }

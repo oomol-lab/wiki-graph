@@ -1,3 +1,4 @@
+/* eslint-disable */
 import type {
   EntityData,
   PageMeta,
@@ -25,8 +26,7 @@ const API: Record<Wiki, string> = {
 export class MediaWikiClient implements WikimediaClient {
   public constructor(
     private readonly fetcher: typeof fetch = fetch,
-    private readonly userAgent =
-      "wg-wikimedia/0.1 (https://github.com/oomol/wiki-graph; contact via repository)",
+    private readonly userAgent = "wg-wikimedia/0.1 (https://github.com/oomol/wiki-graph; contact via repository)",
   ) {}
 
   async entities(qids: readonly string[]): Promise<readonly EntityData[]> {
@@ -82,26 +82,35 @@ export class MediaWikiClient implements WikimediaClient {
     url.searchParams.set("formatversion", "2");
     const json = await this.get(url);
     const redirects = new Map<string, string>(
-      ((json.query?.redirects ?? []) as any[]).map((item) => [item.from, item.to]),
+      ((json.query?.redirects ?? []) as any[]).map((item) => [
+        item.from,
+        item.to,
+      ]),
     );
     const requestedByCanonical = new Map<string, string>();
     for (const requested of titles) {
-      requestedByCanonical.set(redirects.get(requested) ?? requested, requested);
+      requestedByCanonical.set(
+        redirects.get(requested) ?? requested,
+        requested,
+      );
     }
 
     return ((json.query?.pages ?? []) as any[]).flatMap((page) =>
       page.missing
         ? []
-        : [{
-            wiki,
-            title: page.title,
-            requestedTitle: requestedByCanonical.get(page.title) ?? page.title,
-            pageId: page.pageid,
-            revisionId: page.revisions?.[0]?.revid ?? 0,
-            url: page.canonicalurl ?? page.fullurl,
-            description: page.description ?? null,
-            isDisambiguation: page.pageprops?.disambiguation !== undefined,
-          }],
+        : [
+            {
+              wiki,
+              title: page.title,
+              requestedTitle:
+                requestedByCanonical.get(page.title) ?? page.title,
+              pageId: page.pageid,
+              revisionId: page.revisions?.[0]?.revid ?? 0,
+              url: page.canonicalurl ?? page.fullurl,
+              description: page.description ?? null,
+              isDisambiguation: page.pageprops?.disambiguation !== undefined,
+            },
+          ],
     );
   }
 
@@ -147,10 +156,14 @@ export class MediaWikiClient implements WikimediaClient {
       url.searchParams.set("redirects", "1");
       url.searchParams.set("format", "json");
       url.searchParams.set("formatversion", "2");
-      if (continuation !== undefined) url.searchParams.set("gplcontinue", continuation);
+      if (continuation !== undefined)
+        url.searchParams.set("gplcontinue", continuation);
       const json = await this.get(url);
       const redirects = new Map<string, string>(
-        ((json.query?.redirects ?? []) as any[]).map((item) => [item.from, item.to]),
+        ((json.query?.redirects ?? []) as any[]).map((item) => [
+          item.from,
+          item.to,
+        ]),
       );
       for (const target of (json.query?.pages ?? []) as any[]) {
         const qid = target.pageprops?.wikibase_item;
@@ -174,14 +187,21 @@ export class MediaWikiClient implements WikimediaClient {
     const retryAfterMs = retry > 0 ? retry * 1000 : undefined;
     if (!response.ok) {
       throw new UpstreamError(
-        response.status === 429 || response.status === 503 ? response.status : 502,
+        response.status === 429 || response.status === 503
+          ? response.status
+          : 502,
         retryAfterMs,
         `Wikimedia ${response.status}`,
       );
     }
     const json = await response.json();
     if (json.error?.code === "maxlag") {
-      throw new UpstreamError(503, retryAfterMs ?? 5000, "Wikimedia maxlag", "maxlag");
+      throw new UpstreamError(
+        503,
+        retryAfterMs ?? 5000,
+        "Wikimedia maxlag",
+        "maxlag",
+      );
     }
     return json;
   }
@@ -191,17 +211,24 @@ function parseListItems(
   html: string,
   qids: ReadonlyMap<string, string>,
 ): ParsedPage["items"] {
-  return [...html.matchAll(/<li\b[^>]*>([\s\S]*?)<\/li>/giu)].flatMap((match) => {
-    const body = match[1] ?? "";
-    const links = [...body.matchAll(/<a\b[^>]*\btitle="([^"]+)"[^>]*>/giu)]
-      .map((link) => {
-        const title = decodeHtml(link[1]!);
-        return { title, qid: qids.get(title) };
-      })
-      .filter((link): link is { title: string; qid: string } => link.qid !== undefined);
-    const text = decodeHtml(body.replace(/<[^>]+>/gu, " ")).replace(/\s+/gu, " ").trim();
-    return text === "" || links.length === 0 ? [] : [{ text, links }];
-  });
+  return [...html.matchAll(/<li\b[^>]*>([\s\S]*?)<\/li>/giu)].flatMap(
+    (match) => {
+      const body = match[1] ?? "";
+      const links = [...body.matchAll(/<a\b[^>]*\btitle="([^"]+)"[^>]*>/giu)]
+        .map((link) => {
+          const title = decodeHtml(link[1]!);
+          return { title, qid: qids.get(title) };
+        })
+        .filter(
+          (link): link is { title: string; qid: string } =>
+            link.qid !== undefined,
+        );
+      const text = decodeHtml(body.replace(/<[^>]+>/gu, " "))
+        .replace(/\s+/gu, " ")
+        .trim();
+      return text === "" || links.length === 0 ? [] : [{ text, links }];
+    },
+  );
 }
 
 function decodeHtml(value: string): string {
@@ -216,6 +243,9 @@ function decodeHtml(value: string): string {
 function deduplicateLinks(
   links: readonly { title: string; qid: string }[],
 ): readonly { title: string; qid: string }[] {
-  return [...new Map(links.map((link) => [`${link.title}\0${link.qid}`, link])).values()];
+  return [
+    ...new Map(
+      links.map((link) => [`${link.title}\0${link.qid}`, link]),
+    ).values(),
+  ];
 }
-

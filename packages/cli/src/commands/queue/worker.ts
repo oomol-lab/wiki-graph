@@ -1,4 +1,5 @@
 import { WikiGraphScope } from "wiki-graph-core";
+import { HttpWikimediaResolver } from "wiki-graph-wikimedia";
 import { withLoggingContext } from "wiki-graph-core";
 import {
   assertBuildJobInputRevision,
@@ -9,7 +10,6 @@ import {
   commitChapterSummaryArtifact,
   createEmbeddingIndexArtifactInput,
   createFtsIndexArtifactInput,
-  createDisambiguationProfileNormalizer,
   generateChapterKnowledgeGraphArtifactFromSnapshot,
   getBuildJob,
   readIndexArtifactOutput,
@@ -216,6 +216,7 @@ async function executeGenerationBuildJob(
   }
   if (job.target === "knowledge-graph") {
     const wikispine = requireKnowledgeGraphWikispineConfig(config);
+    const wikimedia = requireKnowledgeGraphWikimediaConfig(config);
 
     await reporter.stepStarted("knowledge-graph");
     const knowledgeGraphInput = await new WikiGraphArchiveFile(
@@ -231,10 +232,10 @@ async function executeGenerationBuildJob(
         policyPrompt: knowledgeGraphRecallPrompt,
         progressTracker: reporter,
         request,
-        resolverOptions: {
-          logDirectory: job.log,
-          normalizer: createDisambiguationProfileNormalizer({ request }),
-        },
+        wikimediaResolver: new HttpWikimediaResolver(
+          wikimedia.endpoint,
+          wikimedia.token,
+        ),
         wikispine: {
           ...wikispine,
           ...(wikispine.provider === "cli"
@@ -643,6 +644,24 @@ export function requireKnowledgeGraphWikispineConfig(
       [
         "Knowledge Graph requires WikiSpine.",
         "Configure `wikg://local/config/wikispine` with provider `cli` or `fetch`, then run `wg wikg://local/config/wikispine test`.",
+      ].join(" "),
+      CLI_HELP_ROUTES.config,
+    ),
+  );
+}
+
+export function requireKnowledgeGraphWikimediaConfig(
+  config: CLIConfig,
+): NonNullable<CLIConfig["wikimedia"]> {
+  if (config.wikimedia !== undefined) {
+    return config.wikimedia;
+  }
+
+  throw new Error(
+    withHelpRoute(
+      [
+        "Knowledge Graph requires wg-wikimedia.",
+        "Configure `wikg://local/config/wikimedia` with the service endpoint.",
       ].join(" "),
       CLI_HELP_ROUTES.config,
     ),

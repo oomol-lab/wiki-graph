@@ -436,7 +436,12 @@ describe("wikipage/resolver", () => {
             id: "c1",
             qidOptions: [
               {
-                disambiguation: disambiguation!,
+                disambiguation: disambiguation!.profile!.meanings.map(
+                  (meaning) => ({
+                    information: meaning.information,
+                    qid: meaning.qid,
+                  }),
+                ),
                 isDisambiguation: true,
                 label: "阳山",
                 qid: "Q15880244",

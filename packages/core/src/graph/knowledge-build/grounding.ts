@@ -230,19 +230,13 @@ function getOptionRecallScore(
   const directScore =
     recallCounts.get(createSurfaceQidKey(surface, option.qid)) ?? 0;
   const disambiguationScore =
-    option.disambiguation?.linkedQids.reduce(
-      (total, item) =>
-        total + (recallCounts.get(createSurfaceQidKey(surface, item.qid)) ?? 0),
-      0,
-    ) ?? 0;
-  const profileScore =
-    option.disambiguation?.profile?.meanings.reduce(
+    option.disambiguation?.reduce(
       (total, item) =>
         total + (recallCounts.get(createSurfaceQidKey(surface, item.qid)) ?? 0),
       0,
     ) ?? 0;
 
-  return directScore + disambiguationScore + profileScore;
+  return directScore + disambiguationScore;
 }
 
 function createSurfaceQidKey(surface: string, qid: string): string {

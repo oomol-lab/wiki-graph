@@ -58,6 +58,10 @@ export interface CLIConfig {
   readonly wikispine?: {
     readonly provider?: "cli" | "fetch";
   };
+  readonly wikimedia?: {
+    readonly endpoint: string;
+    readonly token?: string;
+  };
 }
 
 type InlineLLMConfig = NonNullable<CLIConfig["llm"]>;
@@ -65,12 +69,14 @@ type InlineLLMConfig = NonNullable<CLIConfig["llm"]>;
 export async function loadCLIConfig(options?: {
   readonly llmJSON?: string;
 }): Promise<CLIConfig> {
-  const [embedding, localLLM, concurrent, wikispine] = await Promise.all([
-    readLocalConfigSection("embeddings"),
-    readLocalConfigSection("llm"),
-    readLocalConfigSection("concurrent"),
-    readLocalConfigSection("wikispine"),
-  ]);
+  const [embedding, localLLM, concurrent, wikimedia, wikispine] =
+    await Promise.all([
+      readLocalConfigSection("embeddings"),
+      readLocalConfigSection("llm"),
+      readLocalConfigSection("concurrent"),
+      readLocalConfigSection("wikimedia"),
+      readLocalConfigSection("wikispine"),
+    ]);
   const inlineLLMConfig =
     options?.llmJSON === undefined
       ? undefined
@@ -91,6 +97,7 @@ export async function loadCLIConfig(options?: {
   const requestConcurrent = readPositiveInteger(concurrent.request);
   const jobConcurrent = readPositiveInteger(concurrent.job);
   const wikispineConfig = createWikispineConfig(wikispine);
+  const wikimediaConfig = createWikimediaConfig(wikimedia);
   const embeddingConfig = createEmbeddingConfig(embedding);
 
   return {
@@ -106,8 +113,23 @@ export async function loadCLIConfig(options?: {
         }),
     ...(embeddingConfig === undefined ? {} : { embedding: embeddingConfig }),
     ...(llm === undefined ? {} : { llm }),
+    ...(wikimediaConfig === undefined ? {} : { wikimedia: wikimediaConfig }),
     ...(wikispineConfig === undefined ? {} : { wikispine: wikispineConfig }),
   };
+}
+
+function createWikimediaConfig(
+  input: Record<string, unknown> | undefined,
+): CLIConfig["wikimedia"] | undefined {
+  const endpoint = readString(input?.endpoint);
+  const token = readString(input?.token);
+
+  return endpoint === undefined
+    ? undefined
+    : {
+        endpoint,
+        ...(token === undefined ? {} : { token }),
+      };
 }
 
 function createEmbeddingConfig(

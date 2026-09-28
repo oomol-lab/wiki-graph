@@ -47,10 +47,7 @@ describe("wikimatch/option-narrowing", () => {
     expect(request).toHaveBeenCalledTimes(3);
     expect(
       result.candidate.qidOptions.flatMap(
-        (option) =>
-          option.disambiguation?.profile?.meanings.map(
-            (meaning) => meaning.qid,
-          ) ?? [],
+        (option) => option.disambiguation?.map((meaning) => meaning.qid) ?? [],
       ),
     ).toStrictEqual(["Q2", "Q3"]);
   });
@@ -75,24 +72,10 @@ function disambiguationCandidate(count: number): WikimatchCandidate {
     id: "c1",
     qidOptions: [
       {
-        disambiguation: {
-          checkedAt: "2026-06-27T00:00:00.000Z",
-          disambiguationQid: "Q100",
-          linkedQids: Array.from({ length: count }, (_, index) => ({
-            qid: `Q${index + 1}`,
-            title: `Meaning ${index + 1}`,
-          })),
-          pages: [],
-          profile: {
-            meanings: Array.from({ length: count }, (_, index) => ({
-              information: `Information ${index + 1}`,
-              name: `Meaning ${index + 1}`,
-              priority: "other",
-              qid: `Q${index + 1}`,
-            })),
-            sourceQid: "Q100",
-          },
-        },
+        disambiguation: Array.from({ length: count }, (_, index) => ({
+          information: `Information ${index + 1}`,
+          qid: `Q${index + 1}`,
+        })),
         isDisambiguation: true,
         label: "朱元璋",
         qid: "Q100",

@@ -9,6 +9,7 @@ export const LOCAL_CONFIG_SECTIONS = [
   "concurrent",
   "embeddings",
   "llm",
+  "wikimedia",
   "wikispine",
 ] as const;
 
@@ -97,15 +98,18 @@ export function maskLocalConfigSection(
   value: LocalConfigObject,
 ): LocalConfigObject {
   if (
-    (section !== "llm" && section !== "embeddings") ||
-    value.apiKey === undefined
+    (section !== "llm" &&
+      section !== "embeddings" &&
+      section !== "wikimedia") ||
+    (value.apiKey === undefined && value.token === undefined)
   ) {
     return value;
   }
 
   return {
     ...value,
-    apiKey: "****",
+    ...(value.apiKey === undefined ? {} : { apiKey: "****" }),
+    ...(value.token === undefined ? {} : { token: "****" }),
   };
 }
 
@@ -143,6 +147,8 @@ export function validateLocalConfigSection(
       return validateLLMConfig(value);
     case "concurrent":
       return validateConcurrentConfig(value);
+    case "wikimedia":
+      return validateWikimediaConfig(value);
     case "wikispine":
       return validateWikispineConfig(value);
   }
@@ -341,6 +347,23 @@ function validateWikispineConfig(value: LocalConfigObject): LocalConfigObject {
     }
 
     next[key] = normalized;
+  }
+
+  return next;
+}
+
+function validateWikimediaConfig(value: LocalConfigObject): LocalConfigObject {
+  const allowedKeys = new Set(["endpoint", "token"]);
+  const next: Record<string, unknown> = {};
+
+  for (const [key, entry] of Object.entries(value)) {
+    if (!allowedKeys.has(key)) {
+      throw new Error(`Unknown wikimedia config key: ${key}`);
+    }
+    if (typeof entry !== "string" || entry.trim() === "") {
+      throw new Error(`wikimedia.${key} must be a non-empty string.`);
+    }
+    next[key] = entry.trim();
   }
 
   return next;
