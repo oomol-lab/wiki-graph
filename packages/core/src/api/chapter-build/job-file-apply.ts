@@ -35,7 +35,7 @@ export async function applyChapterJobArtifactFile(
   switch (kind) {
     case "index-fts":
       await document.indexArtifacts.replaceFts({
-        lexicalRows: readLexicalRows(artifactFile),
+        lexicalRows: readLexicalRows(artifactFile, chapterId),
         metadata: { source: "chapter-lexical", version: 1 },
         serialId: chapterId,
         sourceRevision: revision,
@@ -247,6 +247,16 @@ async function applyKnowledgeGraph(
       (await openedDocument.indexArtifacts.get(chapterId, "fts")) !== undefined;
     await openedDocument.clearSerialKnowledgeGraph(chapterId);
 
+    const mentionIds = new Map<string, string>();
+    const linkIds = new Map<string, string>();
+    for await (const record of readChapterJobArtifact(file)) {
+      if (record.type === "mention") {
+        mentionIds.set(record.id, `m${chapterId}-${mentionIds.size + 1}`);
+      } else if (record.type === "mention-link") {
+        linkIds.set(record.id, `l${chapterId}-${linkIds.size + 1}`);
+      }
+    }
+
     for await (const record of readChapterJobArtifact(file)) {
       if (record.type === "mention") {
         await openedDocument.mentions.save({
@@ -257,7 +267,7 @@ async function applyKnowledgeGraph(
           ...(record.fragmentId === undefined
             ? {}
             : { fragmentId: record.fragmentId }),
-          id: record.id,
+          id: requireMappedStringId(mentionIds, record.id, "mention"),
           ...(record.note === undefined ? {} : { note: record.note }),
           qid: record.qid,
           rangeEnd: record.rangeEnd,
@@ -275,11 +285,19 @@ async function applyKnowledgeGraph(
           evidenceSentenceIds: record.evidenceSentenceIndexes.map(
             (sentenceIndex) => [chapterId, sentenceIndex] as const,
           ),
-          id: record.id,
+          id: requireMappedStringId(linkIds, record.id, "mention link"),
           ...(record.note === undefined ? {} : { note: record.note }),
           predicate: record.predicate,
-          sourceMentionId: record.sourceMentionId,
-          targetMentionId: record.targetMentionId,
+          sourceMentionId: requireMappedStringId(
+            mentionIds,
+            record.sourceMentionId,
+            "source mention",
+          ),
+          targetMentionId: requireMappedStringId(
+            mentionIds,
+            record.targetMentionId,
+            "target mention",
+          ),
         });
       }
     }
@@ -297,6 +315,16 @@ async function applyKnowledgeGraph(
   });
 }
 
+function requireMappedStringId(
+  ids: ReadonlyMap<string, string>,
+  id: string,
+  kind: string,
+): string {
+  const mapped = ids.get(id);
+  if (mapped === undefined) throw new Error(`Unknown ${kind} id ${id}.`);
+  return mapped;
+}
+
 function requireMappedId(
   ids: ReadonlyMap<string, number>,
   id: string,
@@ -309,11 +337,15 @@ function requireMappedId(
 
 async function* readLexicalRows(
   file: JobFile,
+  chapterId: number,
 ): AsyncIterable<IndexArtifactLexicalRow> {
   for await (const record of readChapterJobArtifact(file)) {
     if (record.type !== "lexical-row") continue;
     const { type: _, ...row } = record;
-    yield row;
+    yield row.objectKind === "source-sentence" ||
+    row.objectKind === "summary-sentence"
+      ? { ...row, objectId: `${chapterId}:${row.sentenceIndex}` }
+      : row;
   }
 }
 

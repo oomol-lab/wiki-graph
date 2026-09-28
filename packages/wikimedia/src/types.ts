@@ -26,6 +26,7 @@ export interface WikimediaResolution {
 export interface WikimediaResolver {
   readonly resolve: (
     input: readonly WikimediaResolveInput[],
+    options?: { readonly signal?: AbortSignal },
   ) => Promise<readonly WikimediaResolution[]>;
 }
 

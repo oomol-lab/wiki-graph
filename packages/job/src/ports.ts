@@ -19,6 +19,7 @@ export interface JobLlm {
       readonly retryMax?: number;
       readonly scope: string;
       readonly signal?: AbortSignal;
+      readonly onTokenUsage?: (usage: JobLlmUsage) => Promise<void> | void;
     },
   ): Promise<string>;
 }
@@ -55,6 +56,7 @@ export interface JobWikispineMatcher {
       readonly range: { readonly end: number; readonly start: number };
       readonly text: string;
     }[];
+    readonly signal?: AbortSignal;
   }): Promise<readonly JobWikispineMatch[]>;
 }
 
@@ -80,6 +82,7 @@ export interface JobWikimediaResolver {
       readonly disambiguation: boolean;
       readonly qid: string;
     }[],
+    options?: { readonly signal?: AbortSignal },
   ): Promise<readonly JobWikimediaResolution[]>;
 }
 
@@ -91,7 +94,9 @@ export type JobProgressPhase =
   | "matching"
   | "narrowing"
   | "relation-discovery"
-  | "screening";
+  | "reading-extraction"
+  | "screening"
+  | "summary-compression";
 
 export interface JobProgressSink {
   addOutputCharacters?(characters: number): Promise<void> | void;

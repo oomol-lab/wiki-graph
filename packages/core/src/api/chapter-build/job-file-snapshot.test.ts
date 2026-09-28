@@ -117,6 +117,10 @@ describe("chapter job input files", () => {
           "source-sentence",
           "source-sentence",
         ]);
+        expect(rows.map((row) => row.objectId)).toEqual([
+          `${chapterId}:0`,
+          `${chapterId}:1`,
+        ]);
       } finally {
         await document.release();
       }
@@ -214,6 +218,76 @@ describe("chapter job input files", () => {
         expect(await document.readSummary(chapterId)).toBe(
           "First part.\n\nSecond part.",
         );
+      } finally {
+        await document.release();
+      }
+    } finally {
+      await rm(path, { force: true, recursive: true });
+    }
+  });
+
+  it("namespaces Knowledge Graph artifact ids by chapter", async () => {
+    const path = await mkdtemp(join(tmpdir(), "wiki-graph-job-knowledge-"));
+    try {
+      const document = await DirectoryDocument.open(path);
+      try {
+        const chapterIds = await document.openSession(
+          async (openedDocument) => [
+            await openedDocument.createSerial(),
+            await openedDocument.createSerial(),
+          ],
+        );
+        for (const chapterId of chapterIds) {
+          const artifactPath = join(path, `knowledge-${chapterId}.jsonl`);
+          await writeFile(artifactPath, "");
+          await writeChapterJobArtifact(new NodeFile(artifactPath), [
+            {
+              prompt: "Recall entities.",
+              scope: "knowledge-graph",
+              type: "job-parameter",
+            },
+            {
+              id: "mention-1",
+              qid: "Q1",
+              rangeEnd: 5,
+              rangeStart: 0,
+              sentenceIndex: 0,
+              surface: "Alpha",
+              type: "mention",
+            },
+            {
+              id: "mention-2",
+              qid: "Q2",
+              rangeEnd: 10,
+              rangeStart: 6,
+              sentenceIndex: 0,
+              surface: "Beta",
+              type: "mention",
+            },
+            {
+              evidenceSentenceIndexes: [0],
+              id: "link-1",
+              predicate: "related to",
+              sourceMentionId: "mention-1",
+              targetMentionId: "mention-2",
+              type: "mention-link",
+            },
+          ]);
+          await applyChapterJobArtifactFile(
+            document,
+            chapterId,
+            "knowledge-graph",
+            await document.serials.getRevision(chapterId),
+            new NodeFile(artifactPath),
+          );
+        }
+
+        expect(
+          (await document.mentions.listAll()).map((mention) => mention.id),
+        ).toEqual(["m1-1", "m1-2", "m2-1", "m2-2"]);
+        expect(
+          (await document.mentionLinks.listAll()).map((link) => link.id),
+        ).toEqual(["l1-1", "l2-1"]);
       } finally {
         await document.release();
       }

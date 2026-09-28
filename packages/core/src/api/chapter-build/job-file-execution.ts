@@ -32,6 +32,7 @@ export function createRemoteChapterJobFileExecutor(options: {
         [REVISION_HEADER]: String(execution.revision),
       },
       method: "POST",
+      ...(execution.signal === undefined ? {} : { signal: execution.signal }),
     } as RequestInit & { readonly duplex: "half" });
     if (!response.ok) {
       throw new Error(
