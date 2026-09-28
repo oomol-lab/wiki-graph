@@ -1,6 +1,8 @@
-import { WikiGraphScope } from "wiki-graph-core";
-import { HttpWikimediaResolver } from "wiki-graph-wikimedia";
-import { withLoggingContext } from "wiki-graph-core";
+import {
+  openWikimediaResolver,
+  WikiGraphScope,
+  withLoggingContext,
+} from "wiki-graph-core";
 import {
   assertBuildJobInputRevision,
   buildChapterGraphArtifact,
@@ -216,56 +218,70 @@ async function executeGenerationBuildJob(
   }
   if (job.target === "knowledge-graph") {
     const wikispine = requireKnowledgeGraphWikispineConfig(config);
-    const wikimedia = requireKnowledgeGraphWikimediaConfig(config);
-
-    await reporter.stepStarted("knowledge-graph");
-    const knowledgeGraphInput = await new WikiGraphArchiveFile(
-      job.archive,
-    ).readDocument(async (document) => {
-      await assertCurrentBuildInputRevision(job, document);
-      return await snapshotChapterKnowledgeGraphInput(document, job.chapterId);
-    });
-    const artifact = await generateChapterKnowledgeGraphArtifactFromSnapshot(
-      job.chapterId,
-      knowledgeGraphInput,
-      {
-        policyPrompt: knowledgeGraphRecallPrompt,
-        progressTracker: reporter,
-        request,
-        wikimediaResolver: new HttpWikimediaResolver(
-          wikimedia.endpoint,
-          wikimedia.token,
-        ),
-        wikispine: {
-          ...wikispine,
-          ...(wikispine.provider === "cli"
-            ? { commandRunner: nodeWikispineCommandRunner }
-            : {}),
-        },
-        workspace: job.workspace,
-      },
+    const wikimediaResolver = await openWikimediaResolver(
+      config.wikimedia === undefined
+        ? { kind: "local", llmRequest: request }
+        : {
+            endpoint: config.wikimedia.endpoint,
+            kind: "remote",
+            ...(config.wikimedia.token === undefined
+              ? {}
+              : { token: config.wikimedia.token }),
+          },
     );
 
-    await reporter.updatePhase({
-      done: 0,
-      phase: "committing",
-      total: 1,
-      unit: "item",
-    });
-    await new WikiGraphArchiveFile(job.archive).write(async (document) => {
+    try {
+      await reporter.stepStarted("knowledge-graph");
+      const knowledgeGraphInput = await new WikiGraphArchiveFile(
+        job.archive,
+      ).readDocument(async (document) => {
+        await assertCurrentBuildInputRevision(job, document);
+        return await snapshotChapterKnowledgeGraphInput(
+          document,
+          job.chapterId,
+        );
+      });
+      const artifact = await generateChapterKnowledgeGraphArtifactFromSnapshot(
+        job.chapterId,
+        knowledgeGraphInput,
+        {
+          policyPrompt: knowledgeGraphRecallPrompt,
+          progressTracker: reporter,
+          request,
+          wikimediaResolver,
+          wikispine: {
+            ...wikispine,
+            ...(wikispine.provider === "cli"
+              ? { commandRunner: nodeWikispineCommandRunner }
+              : {}),
+          },
+          workspace: job.workspace,
+        },
+      );
+
+      await reporter.updatePhase({
+        done: 0,
+        phase: "committing",
+        total: 1,
+        unit: "item",
+      });
+      await new WikiGraphArchiveFile(job.archive).write(async (document) => {
+        assertJobStillRunning(await getBuildJob(job.jobId));
+        await assertCurrentBuildInputRevision(job, document);
+        await commitChapterKnowledgeGraphArtifact(document, artifact);
+      });
+      await reporter.updatePhase({
+        done: 1,
+        phase: "committing",
+        total: 1,
+        unit: "item",
+      });
+      await reporter.stepCompleted("knowledge-graph");
       assertJobStillRunning(await getBuildJob(job.jobId));
-      await assertCurrentBuildInputRevision(job, document);
-      await commitChapterKnowledgeGraphArtifact(document, artifact);
-    });
-    await reporter.updatePhase({
-      done: 1,
-      phase: "committing",
-      total: 1,
-      unit: "item",
-    });
-    await reporter.stepCompleted("knowledge-graph");
-    assertJobStillRunning(await getBuildJob(job.jobId));
-    return;
+      return;
+    } finally {
+      await wikimediaResolver.close();
+    }
   }
   if (details.stage === "sourced") {
     let graphWords = 0;
@@ -644,24 +660,6 @@ export function requireKnowledgeGraphWikispineConfig(
       [
         "Knowledge Graph requires WikiSpine.",
         "Configure `wikg://local/config/wikispine` with provider `cli` or `fetch`, then run `wg wikg://local/config/wikispine test`.",
-      ].join(" "),
-      CLI_HELP_ROUTES.config,
-    ),
-  );
-}
-
-export function requireKnowledgeGraphWikimediaConfig(
-  config: CLIConfig,
-): NonNullable<CLIConfig["wikimedia"]> {
-  if (config.wikimedia !== undefined) {
-    return config.wikimedia;
-  }
-
-  throw new Error(
-    withHelpRoute(
-      [
-        "Knowledge Graph requires wg-wikimedia.",
-        "Configure `wikg://local/config/wikimedia` with the service endpoint.",
       ].join(" "),
       CLI_HELP_ROUTES.config,
     ),

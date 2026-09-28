@@ -19,12 +19,13 @@ import {
   listArchiveSourceLocators,
   isSourceLocatorScopeUri,
   rebuildArchiveSearchIndex,
+  openWikimediaResolver,
   WikiGraphArchiveFile,
   type ArchiveFindOptions,
   type ArchiveRelatedResult,
   type ReadonlyDocument,
+  type WikimediaResolver,
 } from "wiki-graph-core";
-import { HttpWikimediaResolver } from "wiki-graph-wikimedia";
 
 import type { CLIArchiveArguments } from "../../args/index.js";
 import { loadCLIConfig } from "../../runtime/config.js";
@@ -247,18 +248,20 @@ export async function runArchiveCommand(
               ? createArchiveOutputContext(args)
               : createArchiveOutputContext({ ...args, evidenceLimit });
 
-          await writePage(
-            await readArchivePage(document, objectUri, {
-              ...(args.backlinks === undefined
-                ? {}
-                : { backlinks: args.backlinks }),
-              ...(evidenceLimit === undefined ? {} : { evidenceLimit }),
-              ...(args.reverse === true ? { order: "doc-desc" } : {}),
-              ...(await createWikimediaPageOptions(objectUri)),
-              ...createOptionalSourceContext(args),
-            }),
-            outputContext,
-            args.format ?? "text",
+          await withWikimediaPageOptions(objectUri, async (wikimediaOptions) =>
+            writePage(
+              await readArchivePage(document, objectUri, {
+                ...(args.backlinks === undefined
+                  ? {}
+                  : { backlinks: args.backlinks }),
+                ...(evidenceLimit === undefined ? {} : { evidenceLimit }),
+                ...(args.reverse === true ? { order: "doc-desc" } : {}),
+                ...wikimediaOptions,
+                ...createOptionalSourceContext(args),
+              }),
+              outputContext,
+              args.format ?? "text",
+            ),
           );
         },
       );
@@ -642,18 +645,20 @@ async function runLibraryIndexArchiveCommand(
       }
 
       const evidenceLimit = getSingleObjectEvidenceLimit(args, objectUri);
-      await writePage(
-        await readWikiGraphLibraryPage(target, objectUri, {
-          ...(args.backlinks === undefined
-            ? {}
-            : { backlinks: args.backlinks }),
-          ...(evidenceLimit === undefined ? {} : { evidenceLimit }),
-          ...(args.reverse === true ? { order: "doc-desc" } : {}),
-          ...(await createWikimediaPageOptions(objectUri)),
-          ...createOptionalSourceContext(args),
-        }),
-        evidenceLimit === undefined ? context : { ...context, evidenceLimit },
-        args.format ?? "text",
+      await withWikimediaPageOptions(objectUri, async (wikimediaOptions) =>
+        writePage(
+          await readWikiGraphLibraryPage(target, objectUri, {
+            ...(args.backlinks === undefined
+              ? {}
+              : { backlinks: args.backlinks }),
+            ...(evidenceLimit === undefined ? {} : { evidenceLimit }),
+            ...(args.reverse === true ? { order: "doc-desc" } : {}),
+            ...wikimediaOptions,
+            ...createOptionalSourceContext(args),
+          }),
+          evidenceLimit === undefined ? context : { ...context, evidenceLimit },
+          args.format ?? "text",
+        ),
       );
       return;
     }
@@ -776,26 +781,35 @@ async function createSearchFindOptions(
   };
 }
 
-async function createWikimediaPageOptions(
+async function withWikimediaPageOptions<T>(
   objectUri: string,
-): Promise<
-  Record<string, never> | { readonly wikimediaResolver: HttpWikimediaResolver }
-> {
+  operation: (
+    options:
+      | Record<string, never>
+      | { readonly wikimediaResolver: WikimediaResolver },
+  ) => Promise<T>,
+): Promise<T> {
   if (!objectUri.endsWith("/wikipage")) {
-    return {};
+    return await operation({});
   }
 
   const config = await loadCLIConfig();
-  if (config.wikimedia === undefined) {
-    return {};
+  const resolver = await openWikimediaResolver(
+    config.wikimedia === undefined
+      ? { kind: "local" }
+      : {
+          endpoint: config.wikimedia.endpoint,
+          kind: "remote",
+          ...(config.wikimedia.token === undefined
+            ? {}
+            : { token: config.wikimedia.token }),
+        },
+  );
+  try {
+    return await operation({ wikimediaResolver: resolver });
+  } finally {
+    await resolver.close();
   }
-
-  return {
-    wikimediaResolver: new HttpWikimediaResolver(
-      config.wikimedia.endpoint,
-      config.wikimedia.token,
-    ),
-  };
 }
 
 function requireLibraryObjectUri(

@@ -5,6 +5,7 @@ import type {
   ParsedPage,
   Wiki,
   WikimediaClient,
+  WikimediaRequestGate,
 } from "./types.js";
 
 export class UpstreamError extends Error {
@@ -27,6 +28,10 @@ export class MediaWikiClient implements WikimediaClient {
   public constructor(
     private readonly fetcher: typeof fetch = fetch,
     private readonly userAgent = "wg-wikimedia/0.1 (https://github.com/oomol/wiki-graph; contact via repository)",
+    private readonly gate: WikimediaRequestGate = {
+      use: async <T>(operation: () => Promise<T>) => await operation(),
+    },
+    private readonly retryTimes = 3,
   ) {}
 
   async entities(qids: readonly string[]): Promise<readonly EntityData[]> {
@@ -58,9 +63,6 @@ export class MediaWikiClient implements WikimediaClient {
           zhwiki: entity.sitelinks?.zhwiki?.title,
           enwiki: entity.sitelinks?.enwiki?.title,
         },
-        // Kept for adapter compatibility. Resolve uses the WikiSpine flag
-        // supplied by the caller rather than re-deriving it from live data.
-        wikispineDisambiguation: false,
       };
     });
   }
@@ -180,31 +182,65 @@ export class MediaWikiClient implements WikimediaClient {
 
   private async get(url: URL): Promise<any> {
     url.searchParams.set("maxlag", "5");
-    const response = await this.fetcher(url, {
-      headers: { "User-Agent": this.userAgent, "Accept-Encoding": "gzip" },
-    });
-    const retry = Number(response.headers.get("retry-after") ?? 0);
-    const retryAfterMs = retry > 0 ? retry * 1000 : undefined;
-    if (!response.ok) {
-      throw new UpstreamError(
-        response.status === 429 || response.status === 503
-          ? response.status
-          : 502,
-        retryAfterMs,
-        `Wikimedia ${response.status}`,
-      );
+    let lastError: unknown;
+    for (let attempt = 0; attempt <= this.retryTimes; attempt += 1) {
+      try {
+        return await this.gate.use(async () => {
+          const response = await this.fetcher(url, {
+            headers: {
+              "Accept-Encoding": "gzip",
+              "User-Agent": this.userAgent,
+            },
+          });
+          const retry = Number(response.headers.get("retry-after") ?? 0);
+          const retryAfterMs = retry > 0 ? retry * 1000 : undefined;
+          if (!response.ok) {
+            throw new UpstreamError(
+              response.status === 429 || response.status === 503
+                ? response.status
+                : 502,
+              retryAfterMs,
+              `Wikimedia ${response.status}`,
+            );
+          }
+          const json = await response.json();
+          if (json.error?.code === "maxlag") {
+            throw new UpstreamError(
+              503,
+              retryAfterMs ?? 5000,
+              "Wikimedia maxlag",
+              "maxlag",
+            );
+          }
+          return json;
+        });
+      } catch (error) {
+        lastError = error;
+        if (!isRetryable(error) || attempt >= this.retryTimes) throw error;
+        await delay(retryDelay(error, attempt));
+      }
     }
-    const json = await response.json();
-    if (json.error?.code === "maxlag") {
-      throw new UpstreamError(
-        503,
-        retryAfterMs ?? 5000,
-        "Wikimedia maxlag",
-        "maxlag",
-      );
-    }
-    return json;
+    throw lastError;
   }
+}
+
+function isRetryable(error: unknown): boolean {
+  return (
+    error instanceof TypeError ||
+    (error instanceof UpstreamError &&
+      [429, 500, 502, 503, 504].includes(error.status))
+  );
+}
+
+function retryDelay(error: unknown, attempt: number): number {
+  if (error instanceof UpstreamError && error.retryAfterMs !== undefined) {
+    return error.retryAfterMs;
+  }
+  return 1_000 * 2 ** attempt;
+}
+
+async function delay(ms: number): Promise<void> {
+  await new Promise<void>((resolve) => setTimeout(resolve, ms));
 }
 
 function parseListItems(

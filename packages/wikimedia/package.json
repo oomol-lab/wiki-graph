@@ -12,7 +12,6 @@
   "types": "./dist/index.d.ts",
   "files": [
     "dist",
-    "migrations",
     "README.md"
   ],
   "exports": {
@@ -27,11 +26,6 @@
     "build": "rimraf dist && tsup --config tsup.config.ts"
   },
   "dependencies": {
-    "pg": "^8.16.3",
-    "redis": "^5.10.0",
-    "wiki-graph-core": "workspace:*"
-  },
-  "devDependencies": {
-    "@types/pg": "^8.15.6"
+    "zod": "^4.3.6"
   }
 }

@@ -46,6 +46,7 @@ describe("gc", () => {
         "search-cache",
         "library-index",
         "build-queue",
+        "wikimedia-cache",
         "tmp",
       ]);
       expect(report.removed).toBeGreaterThanOrEqual(3);

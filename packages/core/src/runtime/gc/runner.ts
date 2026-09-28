@@ -9,6 +9,7 @@ import { runSearchCacheGc } from "../../retrieval/query/index.js";
 import { runBuildQueueGc } from "../../api/index.js";
 import { runWikgCoordinatorGc } from "../../storage/wikg/index.js";
 import { runLibraryIndexGc } from "../../library/index.js";
+import { runWikimediaCacheGc } from "../../external/wikipage/index.js";
 import { formatError } from "../../utils/host-error.js";
 
 import { tryAcquireGcLock } from "./lock.js";
@@ -36,6 +37,10 @@ const GC_JOBS: readonly NamedGcJob[] = [
   {
     name: "build-queue",
     run: runBuildQueueGc,
+  },
+  {
+    name: "wikimedia-cache",
+    run: runWikimediaCacheGc,
   },
   {
     name: "tmp",

@@ -5,7 +5,6 @@ export default defineConfig({
   clean: true,
   dts: true,
   entry: { index: "src/index.ts" },
-  external: ["pg", "redis", "wiki-graph-core"],
   format: ["esm"],
   platform: "node",
   sourcemap: true,

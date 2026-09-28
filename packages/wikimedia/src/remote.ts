@@ -2,7 +2,7 @@ import type {
   WikimediaResolution,
   WikimediaResolveInput,
   WikimediaResolver,
-} from "wiki-graph-core";
+} from "./types.js";
 
 export class HttpWikimediaResolver implements WikimediaResolver {
   readonly #endpoint: string;

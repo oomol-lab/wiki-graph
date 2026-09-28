@@ -122,6 +122,13 @@ export type {
   WikimediaResolver,
 } from "./external/wikipage/index.js";
 export {
+  LocalWikimediaRequestGate,
+  openWikimediaResolver,
+  SqliteWikimediaCache,
+  type OpenWikimediaResolver,
+  type WikimediaRuntimeOptions,
+} from "./external/wikipage/index.js";
+export {
   buildWikimatchWindows,
   judgeWikimatchPolicy,
   parsePolicyResponse,

@@ -57,6 +57,17 @@ jobs:
             fi
           done
 
+      - name: Check Wikimedia package version
+        id: wikimedia
+        run: |
+          VERSION="$(node -p "require('./packages/wikimedia/package.json').version")"
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+          if pnpm view "wiki-graph-wikimedia@${VERSION}" version >/dev/null 2>&1; then
+            echo "publish=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "publish=true" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
@@ -71,7 +82,11 @@ jobs:
             exit 1
           fi
 
-      - name: Publish package
+      - name: Publish Wikimedia package
+        if: steps.wikimedia.outputs.publish == 'true'
+        run: pnpm publish:wikimedia
+
+      - name: Publish core and CLI packages
         run: |
           pnpm publish:core
           pnpm publish:cli

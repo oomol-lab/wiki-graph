@@ -679,10 +679,14 @@ describe("cli/archive/object", () => {
       objectId: "wikg:///tmp/book.wikg/entity/Q1/wikipage",
     });
 
-    expect(readArchivePage).toHaveBeenCalledWith(
-      {},
-      "wikg://entity/Q1/wikipage",
-      {},
+    expect(readArchivePage).toHaveBeenCalled();
+    const call = vi.mocked(readArchivePage).mock.calls.at(-1);
+    expect(call?.[0]).toEqual({});
+    expect(call?.[1]).toBe("wikg://entity/Q1/wikipage");
+    expect(call?.[2]).toHaveProperty("wikimediaResolver.mode", "local");
+    expect(call?.[2]).toHaveProperty(
+      "wikimediaResolver.resolve",
+      expect.any(Function),
     );
     expect(JSON.parse(archiveMockState.textWrites[0] ?? "")).toStrictEqual({
       en: {

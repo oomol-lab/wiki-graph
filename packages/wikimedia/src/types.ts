@@ -1,15 +1,34 @@
-import type {
-  WikimediaDisambiguationItem,
-  WikimediaLanguageProfile,
-  WikimediaResolution,
-  WikimediaResolveInput,
-} from "wiki-graph-core";
-
 export type Wiki = "zhwiki" | "enwiki";
-export type ResolveInput = WikimediaResolveInput;
-export type SiteOutput = WikimediaLanguageProfile;
-export type DisambiguationItem = WikimediaDisambiguationItem;
-export type EntityOutput = WikimediaResolution;
+
+export interface WikimediaResolveInput {
+  readonly disambiguation: boolean;
+  readonly qid: string;
+}
+
+export interface WikimediaLanguageProfile {
+  readonly description: string | null;
+  readonly label: string | null;
+  readonly url: string | null;
+}
+
+export interface WikimediaDisambiguationItem {
+  readonly information: string;
+  readonly qid: string;
+}
+
+export interface WikimediaResolution {
+  readonly disambiguation?: readonly WikimediaDisambiguationItem[];
+  readonly en: WikimediaLanguageProfile;
+  readonly qid: string;
+  readonly zh: WikimediaLanguageProfile;
+}
+
+export interface WikimediaResolver {
+  readonly resolve: (
+    input: readonly WikimediaResolveInput[],
+  ) => Promise<readonly WikimediaResolution[]>;
+}
+
 export interface PageMeta {
   readonly wiki: Wiki;
   readonly title: string;
@@ -20,36 +39,78 @@ export interface PageMeta {
   readonly description: string | null;
   readonly isDisambiguation: boolean;
 }
+
 export interface EntityData {
   readonly qid: string;
   readonly labels: Partial<Record<"zh" | "en", string>>;
   readonly descriptions: Partial<Record<"zh" | "en", string>>;
   readonly sitelinks: Partial<Record<Wiki, string>>;
-  readonly wikispineDisambiguation: boolean;
 }
+
 export interface ParsedPage {
   readonly title: string;
   readonly pageId: number;
   readonly revisionId: number;
   readonly text: string;
-  readonly links: readonly { title: string; qid: string }[];
+  readonly links: readonly { readonly title: string; readonly qid: string }[];
   readonly items: readonly {
-    text: string;
-    links: readonly { title: string; qid: string }[];
+    readonly text: string;
+    readonly links: readonly { readonly title: string; readonly qid: string }[];
   }[];
 }
-export interface Profile {
-  readonly meanings: readonly DisambiguationItem[];
+
+export interface DisambiguationProfile {
+  readonly meanings: readonly WikimediaDisambiguationItem[];
 }
+
+export interface CachedWikimediaSite {
+  readonly output: WikimediaLanguageProfile;
+  readonly page?: PageMeta;
+  readonly parsedPage?: ParsedPage;
+  readonly profile?: DisambiguationProfile;
+  readonly sourceTitle?: string;
+  readonly wiki: Wiki;
+}
+
+export interface CachedWikimediaQid {
+  readonly disambiguation: boolean;
+  readonly qid: string;
+  readonly refreshedAt: string;
+  readonly sites: readonly CachedWikimediaSite[];
+}
+
+export interface WikimediaCache {
+  readonly get: (
+    qids: readonly string[],
+  ) => Promise<ReadonlyMap<string, CachedWikimediaQid>>;
+  readonly put: (records: readonly CachedWikimediaQid[]) => Promise<void>;
+}
+
+export interface WikimediaRequestGate {
+  readonly use: <T>(operation: () => Promise<T>) => Promise<T>;
+}
+
 export interface WikimediaClient {
   entities(qids: readonly string[]): Promise<readonly EntityData[]>;
   pages(wiki: Wiki, titles: readonly string[]): Promise<readonly PageMeta[]>;
   disambiguation(page: PageMeta): Promise<ParsedPage>;
 }
-export interface ProfileNormalizer {
-  normalize(input: {
-    sourceQid: string;
-    wiki: Wiki;
-    page: ParsedPage;
-  }): Promise<Profile>;
+
+export interface WikimediaLlmMessage {
+  readonly content: string;
+  readonly role: "assistant" | "system" | "user";
+}
+
+export type WikimediaLlmRequest = (
+  messages: readonly WikimediaLlmMessage[],
+  retryIndex: number,
+  retryMax: number,
+) => Promise<string | undefined>;
+
+export interface DisambiguationNormalizer {
+  readonly normalize: (input: {
+    readonly page: ParsedPage;
+    readonly sourceQid: string;
+    readonly wiki: Wiki;
+  }) => Promise<DisambiguationProfile>;
 }
