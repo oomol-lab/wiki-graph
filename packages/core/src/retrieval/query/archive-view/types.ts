@@ -369,7 +369,7 @@ export type ArchivePage = ArchiveLibrarySourceFields &
 
 export interface ArchiveEntityWikipageLocale {
   readonly description?: string;
-  readonly title: string;
+  readonly label: string;
   readonly url: string;
 }
 

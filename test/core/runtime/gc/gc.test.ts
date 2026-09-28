@@ -13,7 +13,6 @@ import { addBuildJob } from "../../../../packages/core/src/api/index.js";
 import { createWikiGraphLibrary } from "../../../../packages/core/src/index.js";
 import { tryRunWikiGraphGc } from "../../../../packages/core/src/runtime/gc/index.js";
 import { createSearchSession } from "../../../../packages/core/src/retrieval/query/index.js";
-import { WikipageCache } from "../../../../packages/core/src/external/wikipage/index.js";
 import { withTempDir } from "../../../helpers/temp.js";
 import {
   getNodeResourcePath,
@@ -46,7 +45,6 @@ describe("gc", () => {
         "wikg-coordinator",
         "search-cache",
         "library-index",
-        "wikipage-cache",
         "build-queue",
         "tmp",
       ]);
@@ -61,82 +59,6 @@ describe("gc", () => {
         countRows("cache/search-sessions.sqlite", "search_sessions"),
       ).resolves.toBe(0);
       await expect(countRows("jobs/job.sqlite", "build_jobs")).resolves.toBe(0);
-    });
-  });
-
-  it("removes expired wikipage cache entries", async () => {
-    await withTempDir("wikigraph-gc-", async (path) => {
-      setWikiGraphStateDirectoryPathForTesting(join(path, "state"));
-      await createWikipageCacheRows(
-        new Date(Date.now() - 40 * 24 * 60 * 60 * 1000).toISOString(),
-      );
-
-      const report = await tryRunWikiGraphGc();
-
-      expect(report.skipped).toBe(false);
-      expect(
-        report.jobs.find((item) => item.name === "wikipage-cache"),
-      ).toMatchObject({
-        removed: 2,
-        scanned: 2,
-      });
-      await expect(countRows("cache/cache.sqlite", "qid_cache")).resolves.toBe(
-        0,
-      );
-      await expect(
-        countRows("cache/cache.sqlite", "disambiguation_cache"),
-      ).resolves.toBe(0);
-    });
-  });
-
-  it("keeps fresh wikipage cache entries during forced GC", async () => {
-    await withTempDir("wikigraph-gc-", async (path) => {
-      setWikiGraphStateDirectoryPathForTesting(join(path, "state"));
-      await createWikipageCacheRows(new Date().toISOString());
-
-      const report = await tryRunWikiGraphGc({ force: true });
-
-      expect(report.skipped).toBe(false);
-      expect(
-        report.jobs.find((item) => item.name === "wikipage-cache"),
-      ).toMatchObject({
-        removed: 0,
-        scanned: 2,
-      });
-      await expect(countRows("cache/cache.sqlite", "qid_cache")).resolves.toBe(
-        1,
-      );
-      await expect(
-        countRows("cache/cache.sqlite", "disambiguation_cache"),
-      ).resolves.toBe(1);
-    });
-  });
-
-  it("reports expired wikipage cache entries during dry-run GC", async () => {
-    await withTempDir("wikigraph-gc-", async (path) => {
-      setWikiGraphStateDirectoryPathForTesting(join(path, "state"));
-      await createWikipageCacheRows(
-        new Date(Date.now() - 40 * 24 * 60 * 60 * 1000).toISOString(),
-      );
-
-      const report = await tryRunWikiGraphGc({ dryRun: true });
-
-      expect(report.skipped).toBe(false);
-      const wikipageCacheJob = report.jobs.find(
-        (item) => item.name === "wikipage-cache",
-      );
-
-      expect(wikipageCacheJob).toMatchObject({
-        removed: 2,
-        scanned: 2,
-      });
-      expect(wikipageCacheJob?.freedBytes).toBeGreaterThan(0);
-      await expect(countRows("cache/cache.sqlite", "qid_cache")).resolves.toBe(
-        1,
-      );
-      await expect(
-        countRows("cache/cache.sqlite", "disambiguation_cache"),
-      ).resolves.toBe(1);
     });
   });
 
@@ -388,51 +310,6 @@ async function createExpiredSearchSession(): Promise<void> {
     );
   } finally {
     await database.close();
-  }
-}
-
-async function createWikipageCacheRows(checkedAt: string): Promise<void> {
-  const cache = await WikipageCache.open();
-
-  try {
-    await cache.putQids(
-      [
-        {
-          checkedAt,
-          description: "test entity",
-          label: "Entity",
-          qid: "Q1",
-          sitelinks: [
-            {
-              isDisambiguation: true,
-              title: "Entity",
-              wiki: "enwiki",
-            },
-          ],
-          updatedAt: checkedAt,
-        },
-      ],
-      "en",
-    );
-    await cache.putDisambiguations(
-      [
-        {
-          checkedAt,
-          disambiguationQid: "Q1",
-          pages: [
-            {
-              linkedQids: [],
-              text: "Entity page text.",
-              title: "Entity",
-              wiki: "enwiki",
-            },
-          ],
-        },
-      ],
-      "enwiki",
-    );
-  } finally {
-    await cache.close();
   }
 }
 

@@ -5,7 +5,6 @@ import {
   buildChapterKnowledgeGraphArtifact,
   clearChapterKnowledgeGraph,
   commitChapterKnowledgeGraphArtifact,
-  createEnrichmentProgressReporter,
   generateChapterKnowledgeGraphArtifactFromSnapshot,
   groundWikimatchCandidates,
 } from "../../../packages/core/src/api/index.js";
@@ -88,65 +87,6 @@ describe("facade/knowledge-graph-build", () => {
         },
       ),
     ).rejects.toThrow("belongs to chapter 1, not chapter 2");
-  });
-
-  it("reports enrichment progress across resolver subphases", async () => {
-    const phases: unknown[] = [];
-    let stopChecks = 0;
-    const reporter = createEnrichmentProgressReporter({
-      throwIfStopped: () => {
-        stopChecks += 1;
-        return Promise.resolve();
-      },
-      updatePhase: (input) => {
-        phases.push(input);
-        return Promise.resolve();
-      },
-    });
-
-    await reporter({ detail: "entity", done: 50, total: 100 });
-    await reporter({ detail: "page", done: 10, total: 20 });
-    await reporter({ detail: "disambiguation-page", done: 8, total: 12 });
-    await reporter({ detail: "linked-page", done: 40, total: 120 });
-    await reporter({ detail: "qid", done: 75, total: 100 });
-
-    expect(stopChecks).toBe(5);
-    expect(phases).toStrictEqual([
-      {
-        done: 50,
-        phase: "enrichment",
-        phaseDetail: "entity",
-        total: 100,
-        unit: "record",
-      },
-      {
-        done: 10,
-        phase: "enrichment",
-        phaseDetail: "page",
-        total: 20,
-        unit: "page",
-      },
-      {
-        done: 8,
-        phase: "enrichment",
-        phaseDetail: "disambiguation",
-        total: 12,
-        unit: "page",
-      },
-      {
-        done: 40,
-        phase: "enrichment",
-        phaseDetail: "linked",
-        total: 120,
-        unit: "page",
-      },
-      {
-        done: 75,
-        phase: "enrichment",
-        total: 100,
-        unit: "qid",
-      },
-    ]);
   });
 
   it("grounds oversized candidate pages without narrowing", async () => {

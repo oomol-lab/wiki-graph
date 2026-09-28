@@ -687,13 +687,13 @@ describe("cli/archive/object", () => {
     expect(JSON.parse(archiveMockState.textWrites[0] ?? "")).toStrictEqual({
       en: {
         description: "Ming dynasty general",
-        title: "Xu Da",
+        label: "Xu Da",
         url: "https://en.wikipedia.org/wiki/Xu_Da",
       },
       uri: "wikg://entity/Q1/wikipage",
       zh: {
         description: "明朝军事将领",
-        title: "徐达",
+        label: "徐达",
         url: "https://zh.wikipedia.org/wiki/%E5%BE%90%E8%BE%BE",
       },
     });

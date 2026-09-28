@@ -1,8 +1,4 @@
-import { WikipageResolver } from "../../../../external/wikipage/index.js";
-import type {
-  QidResolution,
-  WikipageSitelink,
-} from "../../../../external/wikipage/index.js";
+import type { WikimediaLanguageProfile } from "../../../../external/wikipage/index.js";
 
 import type { ArchiveEntityWikipageLocale } from "../types.js";
 import type { ArchivePageOptions } from "../pages.js";
@@ -14,62 +10,32 @@ export async function resolveEntityWikipage(
   readonly en: ArchiveEntityWikipageLocale | null;
   readonly zh: ArchiveEntityWikipageLocale | null;
 }> {
-  const [en, zh] = await Promise.all([
-    resolveEntityWikipageLocale(qid, "en", "enwiki", options),
-    resolveEntityWikipageLocale(qid, "zh", "zhwiki", options),
+  if (options.wikimediaResolver === undefined) {
+    throw new Error("Reading an entity wikipage requires a Wikimedia provider.");
+  }
+
+  const [resolution] = await options.wikimediaResolver.resolve([
+    { disambiguation: false, qid },
   ]);
 
-  return { en, zh };
-}
-
-async function resolveEntityWikipageLocale(
-  qid: string,
-  language: "en" | "zh",
-  wiki: "enwiki" | "zhwiki",
-  options: ArchivePageOptions,
-): Promise<ArchiveEntityWikipageLocale | null> {
-  const resolver = await WikipageResolver.open({
-    ...options.wikipageResolverOptions,
-    language,
-    wiki,
-  });
-
-  try {
-    const [resolution] = await resolver.resolveQids([qid]);
-
-    if (resolution === undefined) {
-      return null;
-    }
-
-    return createEntityWikipageLocale(resolution, wiki);
-  } finally {
-    await resolver.close();
-  }
+  return {
+    en: createEntityWikipageLocale(resolution?.en),
+    zh: createEntityWikipageLocale(resolution?.zh),
+  };
 }
 
 function createEntityWikipageLocale(
-  resolution: QidResolution,
-  wiki: "enwiki" | "zhwiki",
+  profile: WikimediaLanguageProfile | undefined,
 ): ArchiveEntityWikipageLocale | null {
-  const sitelink =
-    resolution.sitelinks?.find((item) => item.wiki === wiki) ??
-    (resolution.sitelink?.wiki === wiki ? resolution.sitelink : undefined);
-
-  if (sitelink === undefined) {
+  if (profile?.label === null || profile?.url === null || profile === undefined) {
     return null;
   }
 
   return {
-    ...(resolution.description === undefined
+    ...(profile.description === null
       ? {}
-      : { description: resolution.description }),
-    title: sitelink.title,
-    url: formatWikipediaPageUrl(sitelink),
+      : { description: profile.description }),
+    label: profile.label,
+    url: profile.url,
   };
-}
-
-function formatWikipediaPageUrl(sitelink: WikipageSitelink): string {
-  const language = sitelink.wiki === "zhwiki" ? "zh" : "en";
-
-  return `https://${language}.wikipedia.org/wiki/${encodeURIComponent(sitelink.title.replaceAll(" ", "_"))}`;
 }

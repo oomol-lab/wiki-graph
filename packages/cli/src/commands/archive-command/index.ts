@@ -24,6 +24,7 @@ import {
   type ArchiveRelatedResult,
   type ReadonlyDocument,
 } from "wiki-graph-core";
+import { HttpWikimediaResolver } from "wiki-graph-wikimedia";
 
 import type { CLIArchiveArguments } from "../../args/index.js";
 import { loadCLIConfig } from "../../runtime/config.js";
@@ -253,6 +254,7 @@ export async function runArchiveCommand(
                 : { backlinks: args.backlinks }),
               ...(evidenceLimit === undefined ? {} : { evidenceLimit }),
               ...(args.reverse === true ? { order: "doc-desc" } : {}),
+              ...(await createWikimediaPageOptions(objectUri)),
               ...createOptionalSourceContext(args),
             }),
             outputContext,
@@ -647,6 +649,7 @@ async function runLibraryIndexArchiveCommand(
             : { backlinks: args.backlinks }),
           ...(evidenceLimit === undefined ? {} : { evidenceLimit }),
           ...(args.reverse === true ? { order: "doc-desc" } : {}),
+          ...(await createWikimediaPageOptions(objectUri)),
           ...createOptionalSourceContext(args),
         }),
         evidenceLimit === undefined ? context : { ...context, evidenceLimit },
@@ -770,6 +773,29 @@ async function createSearchFindOptions(
             config.embedding,
           ),
         }),
+  };
+}
+
+async function createWikimediaPageOptions(
+  objectUri: string,
+): Promise<
+  | Record<string, never>
+  | { readonly wikimediaResolver: HttpWikimediaResolver }
+> {
+  if (!objectUri.endsWith("/wikipage")) {
+    return {};
+  }
+
+  const config = await loadCLIConfig();
+  if (config.wikimedia === undefined) {
+    return {};
+  }
+
+  return {
+    wikimediaResolver: new HttpWikimediaResolver(
+      config.wikimedia.endpoint,
+      config.wikimedia.token,
+    ),
   };
 }
 

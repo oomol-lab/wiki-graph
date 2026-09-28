@@ -1,7 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   DirectoryDocument,
-  createEntityWikipageMockFetch,
   findArchiveObjects,
   getWikiGraphStateDirectoryPathForTesting,
   listArchiveCollection,
@@ -15,8 +14,6 @@ import {
   teardownArchiveViewTestState,
   withTempDir,
 } from "./helpers.js";
-import { NodeFile } from "../../../../../packages/cli/src/runtime/node-platform.js";
-
 beforeEach(setupArchiveViewTestState);
 afterEach(teardownArchiveViewTestState);
 
@@ -155,24 +152,36 @@ describe("archive/query/archive-view/pages", () => {
 
         await expect(
           readArchivePage(document, "wikg://entity/Q1/wikipage", {
-            wikipageResolverOptions: {
-              cacheDatabaseFile: new NodeFile(`${path}/wikipage-cache.sqlite`),
-              fetch: createEntityWikipageMockFetch(),
-              minRequestIntervalMs: 0,
-              retryBaseDelayMs: 0,
+            wikimediaResolver: {
+              resolve: () =>
+                Promise.resolve([
+                  {
+                    en: {
+                      description: "Ming dynasty general",
+                      label: "Xu Da",
+                      url: "https://en.wikipedia.org/wiki/Xu_Da",
+                    },
+                    qid: "Q1",
+                    zh: {
+                      description: "明朝军事将领",
+                      label: "徐达",
+                      url: "https://zh.wikipedia.org/wiki/%E5%BE%90%E8%BE%BE",
+                    },
+                  },
+                ]),
             },
           }),
         ).resolves.toStrictEqual({
           en: {
             description: "Ming dynasty general",
-            title: "Xu Da",
+            label: "Xu Da",
             url: "https://en.wikipedia.org/wiki/Xu_Da",
           },
           id: "wikg://entity/Q1/wikipage",
           type: "entity-wikipage",
           zh: {
             description: "明朝军事将领",
-            title: "徐达",
+            label: "徐达",
             url: "https://zh.wikipedia.org/wiki/%E5%BE%90%E8%BE%BE",
           },
         });

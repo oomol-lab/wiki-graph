@@ -82,7 +82,6 @@ export {
   buildChapterKnowledgeGraphArtifact,
   clearChapterKnowledgeGraph,
   commitChapterKnowledgeGraphArtifact,
-  createEnrichmentProgressReporter,
   generateChapterKnowledgeGraphArtifact,
   generateChapterKnowledgeGraphArtifactFromSnapshot,
   groundWikimatchCandidates,
