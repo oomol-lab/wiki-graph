@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
+import type { WikimediaServiceError } from "./remote.js";
 import { HttpWikimediaResolver } from "./remote.js";
 
 describe("HttpWikimediaResolver", () => {
@@ -55,5 +56,30 @@ describe("HttpWikimediaResolver", () => {
     expect(new Headers(init?.headers).get("Authorization")).toBe(
       "Bearer api-key",
     );
+  });
+
+  it("preserves service error details and request identifiers", async () => {
+    const resolver = new HttpWikimediaResolver(
+      "https://service.example",
+      "api-key",
+      vi.fn<typeof fetch>().mockResolvedValue(
+        Response.json(
+          { detail: "Wikimedia 414" },
+          {
+            headers: { "x-wg-request-id": "wikimedia-request-1" },
+            status: 502,
+          },
+        ),
+      ),
+    );
+
+    await expect(resolver.resolve([])).rejects.toMatchObject({
+      detail: "Wikimedia 414",
+      message:
+        "wg-wikimedia 502: Wikimedia 414 (requestId=wikimedia-request-1)",
+      name: "WikimediaServiceError",
+      requestId: "wikimedia-request-1",
+      status: 502,
+    } satisfies Partial<WikimediaServiceError>);
   });
 });
