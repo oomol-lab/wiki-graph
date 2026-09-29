@@ -72,7 +72,7 @@ describe("runtime/config", () => {
 
           await expect(loadCLIConfig()).resolves.toMatchObject({
             wikimedia: {
-              endpoint: "https://pdf-craft-api.oomol.dev/v1/wikimedia",
+              endpoint: "https://pdf-craft-api.oomol.dev/v1/wg-wikimedia",
               token: "dev-key",
             },
             wikispine: {
@@ -97,7 +97,7 @@ describe("runtime/config", () => {
         await putLocalConfigValue("wikimedia", "token", "prod-key");
         await expect(loadCLIConfig()).resolves.toMatchObject({
           wikimedia: {
-            endpoint: "https://api.pdfcraft.ai/v1/wikimedia",
+            endpoint: "https://api.pdfcraft.ai/v1/wg-wikimedia",
             token: "prod-key",
           },
         });

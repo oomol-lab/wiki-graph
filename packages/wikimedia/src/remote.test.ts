@@ -41,7 +41,7 @@ describe("HttpWikimediaResolver", () => {
       .fn<typeof fetch>()
       .mockResolvedValue(Response.json({ results: [] }));
     const resolver = new HttpWikimediaResolver(
-      "https://pdf-craft-api.oomol.dev/v1/wikimedia/",
+      "https://pdf-craft-api.oomol.dev/v1/wg-wikimedia/",
       "api-key",
       fetcher,
     );
@@ -50,7 +50,7 @@ describe("HttpWikimediaResolver", () => {
 
     const [url, init] = fetcher.mock.calls[0] ?? [];
     expect(url).toStrictEqual(
-      new URL("https://pdf-craft-api.oomol.dev/v1/wikimedia/qids:resolve"),
+      new URL("https://pdf-craft-api.oomol.dev/v1/wg-wikimedia/qids:resolve"),
     );
     expect(new Headers(init?.headers).get("Authorization")).toBe(
       "Bearer api-key",

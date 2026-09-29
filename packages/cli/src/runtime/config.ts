@@ -73,7 +73,7 @@ export interface CLIConfig {
   };
 }
 
-export type HostedProviderScope = "wikimedia" | "wikispine";
+export type HostedProviderScope = "wg-wikimedia" | "wikispine";
 
 type InlineLLMConfig = NonNullable<CLIConfig["llm"]>;
 
@@ -160,7 +160,8 @@ function createWikimediaConfig(
     );
   }
   return {
-    endpoint: endpoint ?? resolveHostedProviderEndpoint("wikimedia", envPolicy),
+    endpoint:
+      endpoint ?? resolveHostedProviderEndpoint("wg-wikimedia", envPolicy),
     token,
   };
 }
