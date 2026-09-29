@@ -30,6 +30,12 @@ describe("HttpWikimediaResolver", () => {
     expect(fetcher).not.toHaveBeenCalled();
   });
 
+  it("reports an omitted API key as a configuration error", () => {
+    expect(
+      () => new HttpWikimediaResolver("https://service.example", undefined),
+    ).toThrow("requires a Bearer API key");
+  });
+
   it("preserves a gateway scope and sends the API key", async () => {
     const fetcher = vi
       .fn<typeof fetch>()

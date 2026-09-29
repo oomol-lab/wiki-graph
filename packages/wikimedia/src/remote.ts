@@ -11,7 +11,7 @@ export class HttpWikimediaResolver implements WikimediaResolver {
 
   public constructor(
     endpoint: string,
-    token: string,
+    token: string | undefined,
     fetcher: typeof fetch = fetch,
   ) {
     this.#endpoint = endpoint;
@@ -43,9 +43,9 @@ export class HttpWikimediaResolver implements WikimediaResolver {
   }
 }
 
-function requireToken(token: string): string {
-  const normalized = token.trim();
-  if (normalized === "") {
+function requireToken(token: string | undefined): string {
+  const normalized = token?.trim();
+  if (normalized === undefined || normalized === "") {
     throw new Error("wg-wikimedia requires a Bearer API key");
   }
   return normalized;

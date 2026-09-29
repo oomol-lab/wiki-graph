@@ -140,6 +140,7 @@ describe("wikimatch/wikispine", () => {
             text: "北京大学",
           },
         ],
+        token: "api-key",
       }),
     ).resolves.toStrictEqual([
       {
@@ -262,6 +263,7 @@ describe("wikimatch/wikispine", () => {
             text: "北京大学",
           },
         ],
+        token: "api-key",
       }),
     ).rejects.toThrow("progress stopped");
   });
@@ -311,6 +313,7 @@ describe("wikimatch/wikispine", () => {
           text: "北京大学",
         },
       ],
+      token: "api-key",
     });
 
     expect(requests).toStrictEqual([
@@ -331,6 +334,7 @@ describe("wikimatch/wikispine", () => {
             text: "北京大学",
           },
         ],
+        token: "api-key",
       }),
     ).rejects.toThrow(
       "https://raw.githubusercontent.com/oomol-lab/wiki-graph/refs/heads/main/docs/wikispine-runtime.md",

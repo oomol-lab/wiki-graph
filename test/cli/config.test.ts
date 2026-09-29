@@ -43,6 +43,7 @@ describe("cli/config", () => {
       },
       wikispine: {
         provider: "fetch",
+        token: "local-wikispine-key",
       },
     };
 
@@ -58,7 +59,9 @@ describe("cli/config", () => {
         request: 6,
       },
       wikispine: {
+        endpoint: "https://api.pdfcraft.ai/v1/wikispine",
         provider: "fetch",
+        token: "local-wikispine-key",
       },
     });
   });
