@@ -44,6 +44,7 @@ const queueMockState = vi.hoisted(() => ({
       readonly dataDir?: string;
       readonly endpoint?: string;
       readonly provider?: "cli" | "fetch";
+      readonly token?: string;
     };
     readonly wikimedia?: {
       readonly endpoint: string;
