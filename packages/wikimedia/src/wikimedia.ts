@@ -23,6 +23,7 @@ const API: Record<Wiki, string> = {
   zhwiki: "https://zh.wikipedia.org/w/api.php",
   enwiki: "https://en.wikipedia.org/w/api.php",
 };
+const API_BATCH_SIZE = 50;
 
 export class MediaWikiClient implements WikimediaClient {
   public constructor(
@@ -36,6 +37,16 @@ export class MediaWikiClient implements WikimediaClient {
 
   async entities(qids: readonly string[]): Promise<readonly EntityData[]> {
     if (qids.length === 0) return [];
+    const entities: EntityData[] = [];
+    for (const batch of batches(qids, API_BATCH_SIZE)) {
+      entities.push(...(await this.entitiesBatch(batch)));
+    }
+    return entities;
+  }
+
+  private async entitiesBatch(
+    qids: readonly string[],
+  ): Promise<readonly EntityData[]> {
     const url = new URL("https://www.wikidata.org/w/api.php");
     url.searchParams.set("action", "wbgetentities");
     url.searchParams.set("ids", qids.join("|"));
@@ -72,6 +83,17 @@ export class MediaWikiClient implements WikimediaClient {
     titles: readonly string[],
   ): Promise<readonly PageMeta[]> {
     if (titles.length === 0) return [];
+    const pages: PageMeta[] = [];
+    for (const batch of batches(titles, API_BATCH_SIZE)) {
+      pages.push(...(await this.pagesBatch(wiki, batch)));
+    }
+    return pages;
+  }
+
+  private async pagesBatch(
+    wiki: Wiki,
+    titles: readonly string[],
+  ): Promise<readonly PageMeta[]> {
     const url = new URL(API[wiki]);
     url.searchParams.set("action", "query");
     url.searchParams.set("titles", titles.join("|"));
@@ -204,12 +226,15 @@ export class MediaWikiClient implements WikimediaClient {
             );
           }
           const json = await response.json();
-          if (json.error?.code === "maxlag") {
+          if (json.error !== undefined) {
+            const code = readErrorText(json.error.code) ?? "unknown";
+            const detail = readErrorText(json.error.info);
+            const isMaxlag = code === "maxlag";
             throw new UpstreamError(
-              503,
-              retryAfterMs ?? 5000,
-              "Wikimedia maxlag",
-              "maxlag",
+              isMaxlag ? 503 : 502,
+              isMaxlag ? (retryAfterMs ?? 5000) : retryAfterMs,
+              `Wikimedia ${code}${detail === undefined ? "" : `: ${detail}`}`,
+              isMaxlag ? "maxlag" : "http",
             );
           }
           return json;
@@ -222,6 +247,23 @@ export class MediaWikiClient implements WikimediaClient {
     }
     throw lastError;
   }
+}
+
+function batches<T>(
+  values: readonly T[],
+  size: number,
+): readonly (readonly T[])[] {
+  const result: T[][] = [];
+  for (let offset = 0; offset < values.length; offset += size) {
+    result.push(values.slice(offset, offset + size));
+  }
+  return result;
+}
+
+function readErrorText(value: unknown): string | undefined {
+  return typeof value === "string" && value.trim() !== ""
+    ? value.trim()
+    : undefined;
 }
 
 function isRetryable(error: unknown): boolean {

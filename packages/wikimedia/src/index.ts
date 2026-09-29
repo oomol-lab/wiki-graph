@@ -1,5 +1,5 @@
 export { LlmDisambiguationNormalizer } from "./normalizer.js";
-export { HttpWikimediaResolver } from "./remote.js";
+export { HttpWikimediaResolver, WikimediaServiceError } from "./remote.js";
 export { DirectWikimediaResolver } from "./resolver.js";
 export { MediaWikiClient, UpstreamError } from "./wikimedia.js";
 export type {

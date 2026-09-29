@@ -4,6 +4,26 @@ import type {
   WikimediaResolver,
 } from "./types.js";
 
+export class WikimediaServiceError extends Error {
+  public readonly detail: string | undefined;
+  public readonly requestId: string | undefined;
+  public readonly status: number;
+
+  public constructor(
+    status: number,
+    detail: string | undefined,
+    requestId: string | undefined,
+  ) {
+    super(
+      `wg-wikimedia ${status}${detail === undefined ? "" : `: ${detail}`}${requestId === undefined ? "" : ` (requestId=${requestId})`}`,
+    );
+    this.name = "WikimediaServiceError";
+    this.status = status;
+    this.detail = detail;
+    this.requestId = requestId;
+  }
+}
+
 export class HttpWikimediaResolver implements WikimediaResolver {
   readonly #endpoint: string;
   readonly #fetcher: typeof fetch;
@@ -33,13 +53,37 @@ export class HttpWikimediaResolver implements WikimediaResolver {
       ...(options?.signal === undefined ? {} : { signal: options.signal }),
     });
     if (!response.ok) {
-      throw new Error(`wg-wikimedia ${response.status}`);
+      throw new WikimediaServiceError(
+        response.status,
+        await readErrorDetail(response),
+        response.headers.get("x-wg-request-id") ??
+          response.headers.get("x-fc-request-id") ??
+          undefined,
+      );
     }
     const results = readResults(await response.json());
     if (results === undefined) {
       throw new Error("wg-wikimedia returned invalid results");
     }
     return results;
+  }
+}
+
+async function readErrorDetail(
+  response: Response,
+): Promise<string | undefined> {
+  const text = (await response.text()).slice(0, 16_384);
+  if (text.trim() === "") return undefined;
+  try {
+    const value: unknown = JSON.parse(text);
+    return typeof value === "object" &&
+      value !== null &&
+      "detail" in value &&
+      typeof value.detail === "string"
+      ? value.detail
+      : text;
+  } catch {
+    return text;
   }
 }
 
