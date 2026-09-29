@@ -125,18 +125,19 @@ WikiSpine readiness:
   WikiSpine provides entity candidate lookup for Knowledge Graph construction.
 
   Provider choices:
-  - `fetch`: use the built-in WikiSpine HTTP service. This is usually easier for Agents and hosted setups.
+  - `fetch`: use the hosted WikiSpine HTTP service with a WikiGraph API key. This is usually easier for Agents and hosted setups.
   - `cli`: run the local `wikispine` command from PATH. This is useful for offline or locally controlled environments, but requires local runtime setup and data.
 
   Configure one provider, then test it:
     {{ commandName }} wikg://local/config/wikispine put provider fetch
+    {{ commandName }} wikg://local/config/wikispine put token --secret
     {{ commandName }} wikg://local/config/wikispine test
 
     {{ commandName }} wikg://local/config/wikispine put provider cli
     {{ commandName }} wikg://local/config/wikispine test
 
   Recovery:
-    Use `fetch` when network access to the built-in service is available.
+    Use `fetch` when network access and an API key for the hosted service are available.
     Use `cli` only when a local `wikispine` executable and its runtime/data are prepared.
     Test `cli` from the same shell that runs Wiki Graph so PATH and runtime files match the job environment.
     CLI help does not install the local WikiSpine runtime; use the guide below when preparing a local setup.

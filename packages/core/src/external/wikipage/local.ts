@@ -37,7 +37,7 @@ export type WikimediaRuntimeOptions =
       readonly endpoint: string;
       readonly fetch?: typeof fetch;
       readonly kind: "remote";
-      readonly token?: string;
+      readonly token: string;
     };
 
 export interface OpenWikimediaResolver extends WikimediaResolver {

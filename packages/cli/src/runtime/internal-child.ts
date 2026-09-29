@@ -6,6 +6,7 @@ import {
   getCLICwd,
   getCLIDevProjectRoot,
   getCLIEnv,
+  getCLIEnvPolicy,
   getCLIStateDir,
 } from "./context.js";
 import { DANGEROUS_RUNTIME_ENV_NAMES } from "./entry-context.js";
@@ -97,6 +98,10 @@ function createInternalChildCommand(
         kind,
         "--wikigraph-state-dir",
         stateDir,
+        "--wikigraph-env-policy",
+        getCLIEnvPolicy(),
+        "--wikigraph-dev-project-root",
+        devProjectRoot,
         ...args,
       ],
       command: process.execPath,

@@ -314,13 +314,32 @@ Notes:
 {% elif "/wikispine" in uri %}
 Schema:
   {
-    "provider": "fetch|cli"
+    "provider": "fetch|cli",
+    "endpoint": "<optional-service-base-url>"
   }
 
 Notes:
-  - `fetch` uses the built-in WikiSpine service endpoint.
+  - Allowed keys: provider, endpoint, token.
+  - `fetch` uses the hosted WikiSpine endpoint by default and requires its Bearer API key.
   - `cli` runs the local `wikispine` command from PATH.
-{% elif "/job" in uri or "/wikimedia" in uri %}
+  - `token` is sensitive and cannot be set from JSON.
+  - To add or replace it, use `{{ commandName }} {{ uri }} put token --secret`.
+  - To remove it, use `{{ commandName }} {{ uri }} delete token`.
+{% elif "/wikimedia" in uri %}
+Schema:
+  {
+    "endpoint": "<optional-service-base-url>"
+  }
+
+Notes:
+  - Allowed keys: endpoint, token.
+  - An empty section uses direct local Wikimedia access. Setting `token` enables the hosted resolver; `endpoint` is optional.
+  - Remote access requires `token`; `endpoint` alone is incomplete.
+  - `pnpm dev` defaults to `https://pdf-craft-api.oomol.dev`; built CLI artifacts default to `https://api.pdfcraft.ai`.
+  - `token` is sensitive and cannot be set from JSON.
+  - To add or replace it, use `{{ commandName }} {{ uri }} put token --secret`.
+  - To remove it, use `{{ commandName }} {{ uri }} delete token`.
+{% elif "/job" in uri %}
 Schema:
   {
     "endpoint": "<service-base-url>"
@@ -328,7 +347,7 @@ Schema:
 
 Notes:
   - Allowed keys: endpoint, token.
-  - `token` is sensitive and cannot be set from JSON.
+  - `token` is optional and sensitive; it cannot be set from JSON.
   - To add or replace it, use `{{ commandName }} {{ uri }} put token --secret`.
   - To remove it, use `{{ commandName }} {{ uri }} delete token`.
 {% elif "/concurrent" in uri %}

@@ -49,7 +49,7 @@ export interface GenerateChapterKnowledgeGraphArtifactOptions {
   readonly wikimediaResolver: WikimediaResolver;
   readonly wikispine?: Pick<
     MatchWikispineSentenceCandidatesOptions,
-    "command" | "commandRunner" | "dataDir" | "endpoint" | "provider"
+    "command" | "commandRunner" | "dataDir" | "endpoint" | "provider" | "token"
   >;
   readonly workspace: Directory;
 }

@@ -21,7 +21,13 @@ export interface LocalChapterJobFileExecutorOptions {
   readonly wikimediaResolver?: WikimediaResolver;
   readonly wikispine?: Pick<
     MatchWikispineSentenceCandidatesOptions,
-    "command" | "commandRunner" | "dataDir" | "endpoint" | "fetch" | "provider"
+    | "command"
+    | "commandRunner"
+    | "dataDir"
+    | "endpoint"
+    | "fetch"
+    | "provider"
+    | "token"
   >;
 }
 

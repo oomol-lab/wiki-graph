@@ -102,7 +102,8 @@ export function maskLocalConfigSection(
     (section !== "job" &&
       section !== "llm" &&
       section !== "embeddings" &&
-      section !== "wikimedia") ||
+      section !== "wikimedia" &&
+      section !== "wikispine") ||
     (value.apiKey === undefined && value.token === undefined)
   ) {
     return value;
@@ -333,7 +334,7 @@ function validateConcurrentConfig(value: LocalConfigObject): LocalConfigObject {
 }
 
 function validateWikispineConfig(value: LocalConfigObject): LocalConfigObject {
-  const allowedKeys = new Set(["provider"]);
+  const allowedKeys = new Set(["endpoint", "provider", "token"]);
   const allowedProviders = new Set(["cli", "fetch"]);
   const next: Record<string, unknown> = {};
 

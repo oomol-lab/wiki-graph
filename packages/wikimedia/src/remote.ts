@@ -7,15 +7,15 @@ import type {
 export class HttpWikimediaResolver implements WikimediaResolver {
   readonly #endpoint: string;
   readonly #fetcher: typeof fetch;
-  readonly #token: string | undefined;
+  readonly #token: string;
 
   public constructor(
     endpoint: string,
-    token?: string,
+    token: string | undefined,
     fetcher: typeof fetch = fetch,
   ) {
     this.#endpoint = endpoint;
-    this.#token = token;
+    this.#token = requireToken(token);
     this.#fetcher = fetcher;
   }
 
@@ -23,20 +23,15 @@ export class HttpWikimediaResolver implements WikimediaResolver {
     input: readonly WikimediaResolveInput[],
     options?: { readonly signal?: AbortSignal },
   ): Promise<readonly WikimediaResolution[]> {
-    const response = await this.#fetcher(
-      new URL("/v1/qids:resolve", this.#endpoint),
-      {
-        body: JSON.stringify({ entities: input }),
-        headers: {
-          "Content-Type": "application/json",
-          ...(this.#token === undefined
-            ? {}
-            : { Authorization: `Bearer ${this.#token}` }),
-        },
-        method: "POST",
-        ...(options?.signal === undefined ? {} : { signal: options.signal }),
+    const response = await this.#fetcher(resolveEndpoint(this.#endpoint), {
+      body: JSON.stringify({ entities: input }),
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${this.#token}`,
       },
-    );
+      method: "POST",
+      ...(options?.signal === undefined ? {} : { signal: options.signal }),
+    });
     if (!response.ok) {
       throw new Error(`wg-wikimedia ${response.status}`);
     }
@@ -46,6 +41,21 @@ export class HttpWikimediaResolver implements WikimediaResolver {
     }
     return results;
   }
+}
+
+function requireToken(token: string | undefined): string {
+  const normalized = token?.trim();
+  if (normalized === undefined || normalized === "") {
+    throw new Error("wg-wikimedia requires a Bearer API key");
+  }
+  return normalized;
+}
+
+function resolveEndpoint(endpoint: string): URL {
+  const url = new URL(endpoint);
+  const prefix = url.pathname.replace(/\/+$/u, "");
+  url.pathname = prefix === "" ? "/v1/qids:resolve" : `${prefix}/qids:resolve`;
+  return url;
 }
 
 function readResults(

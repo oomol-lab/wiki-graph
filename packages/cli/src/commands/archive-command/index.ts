@@ -800,9 +800,7 @@ async function withWikimediaPageOptions<T>(
       : {
           endpoint: config.wikimedia.endpoint,
           kind: "remote",
-          ...(config.wikimedia.token === undefined
-            ? {}
-            : { token: config.wikimedia.token }),
+          token: config.wikimedia.token,
         },
   );
   try {

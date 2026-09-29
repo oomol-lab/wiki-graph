@@ -55,6 +55,10 @@ vi.mock("../archive-output/index.js", () => ({
   writePage: vi.fn(),
 }));
 
+vi.mock("../../runtime/config.js", () => ({
+  loadCLIConfig: vi.fn().mockResolvedValue({}),
+}));
+
 vi.mock("../convert.js", () => ({ runConvertCommand: vi.fn() }));
 vi.mock("./create.js", () => ({ createArchive: vi.fn() }));
 vi.mock("./inspect.js", () => ({ writeArchiveInspectReport: vi.fn() }));

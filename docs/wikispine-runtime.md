@@ -2,10 +2,11 @@
 
 WikiGraph can create archives, build Reading Graph data, and build Reading Summary data without WikiSpine. WikiSpine is required only for Knowledge Graph generation.
 
-The WikiGraph CLI stores only one WikiSpine setting:
+The hosted provider requires a WikiGraph API key:
 
 ```bash
 wg wikg://local/config/wikispine put provider fetch
+wg wikg://local/config/wikispine put token --secret
 wg wikg://local/config/wikispine test
 ```
 
@@ -20,10 +21,11 @@ Use `fetch` for the fastest setup. Use `cli` when source text must stay local, n
 
 ## Fetch Provider
 
-`fetch` sends WikiSpine match requests to the WikiGraph built-in WikiSpine service. No endpoint is configured by the user.
+`fetch` sends WikiSpine match requests to the hosted WikiGraph provider through the public API gateway. `pnpm dev` uses `https://pdf-craft-api.oomol.dev/v1/wikispine`; built CLI artifacts use `https://api.pdfcraft.ai/v1/wikispine`. Requests use the configured token as a Bearer API key.
 
 ```bash
 wg wikg://local/config/wikispine put provider fetch
+wg wikg://local/config/wikispine put token --secret
 wg wikg://local/config/wikispine test
 ```
 
@@ -38,6 +40,7 @@ Use this provider when:
 If `fetch` fails:
 
 - confirm the machine has network access;
+- confirm the configured API key is valid;
 - rerun `wg wikg://local/config/wikispine test --json` to capture the structured failure;
 - try again later if the built-in service is unavailable;
 - switch to `cli` if the text is private or the service is not reachable from the current environment.
@@ -103,9 +106,15 @@ When you pass a known `--version`, WikiSpine verifies the downloaded archive aga
 
 ## Self-Hosting
 
-Current WikiGraph CLI configuration does not accept a custom WikiSpine endpoint. Use the built-in `fetch` provider or the local `cli` provider.
+The `fetch` provider accepts a custom endpoint while retaining the same Bearer-token contract:
 
-If your deployment needs a private or regional WikiSpine service, track the current WikiGraph release notes or runtime guide for the supported connection mechanism. Do not write `endpoint`, `command`, or `dataDir` into `wikg://local/config/wikispine`; these keys are rejected by current CLI config validation.
+```bash
+wg wikg://local/config/wikispine put endpoint https://wikispine.example.com/v1
+wg wikg://local/config/wikispine put token --secret
+wg wikg://local/config/wikispine test
+```
+
+The CLI configuration accepts `provider`, `endpoint`, and `token`. Runtime-only command and data-directory overrides remain SDK concerns and are not accepted as CLI configuration keys.
 
 ## Troubleshooting Flow
 
@@ -120,6 +129,7 @@ If the config object is empty, choose one provider:
 
 ```bash
 wg wikg://local/config/wikispine put provider fetch
+wg wikg://local/config/wikispine put token --secret
 ```
 
 or:

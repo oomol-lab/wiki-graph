@@ -44,6 +44,7 @@ const queueMockState = vi.hoisted(() => ({
       readonly dataDir?: string;
       readonly endpoint?: string;
       readonly provider?: "cli" | "fetch";
+      readonly token?: string;
     };
     readonly wikimedia?: {
       readonly endpoint: string;
@@ -1435,9 +1436,11 @@ describe("cli/queue", () => {
     queueMockState.cliConfig = {
       wikimedia: {
         endpoint: "https://wikimedia.example.test",
+        token: "wikimedia-key",
       },
       wikispine: {
         provider: "fetch",
+        token: "wikispine-key",
       },
     };
     queueMockState.job = {
@@ -1480,6 +1483,7 @@ describe("cli/queue", () => {
     expect(queueMockState.buildKnowledgeGraphCalls[0]).toMatchObject({
       wikispine: {
         provider: "fetch",
+        token: "wikispine-key",
       },
     });
     const knowledgeGraphOptions = queueMockState

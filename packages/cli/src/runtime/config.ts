@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 import { CLI_HELP_ROUTES, withHelpRoute } from "../support/index.js";
+import { getCLIEnvPolicy } from "./context.js";
 import { readLocalConfigSection } from "./local-config.js";
 
 const CLI_PROVIDER_VALUES = [
@@ -59,14 +60,20 @@ export interface CLIConfig {
     readonly job?: number;
     readonly request?: number;
   };
-  readonly wikispine?: {
-    readonly provider?: "cli" | "fetch";
-  };
+  readonly wikispine?:
+    | { readonly provider: "cli" }
+    | {
+        readonly endpoint: string;
+        readonly provider: "fetch";
+        readonly token: string;
+      };
   readonly wikimedia?: {
     readonly endpoint: string;
-    readonly token?: string;
+    readonly token: string;
   };
 }
+
+export type HostedProviderScope = "wikimedia" | "wikispine";
 
 type InlineLLMConfig = NonNullable<CLIConfig["llm"]>;
 
@@ -101,8 +108,9 @@ export async function loadCLIConfig(options?: {
   });
   const requestConcurrent = readPositiveInteger(concurrent.request);
   const jobConcurrent = readPositiveInteger(concurrent.job);
-  const wikispineConfig = createWikispineConfig(wikispine);
-  const wikimediaConfig = createWikimediaConfig(wikimedia);
+  const envPolicy = getCLIEnvPolicy();
+  const wikispineConfig = resolveWikispineConfig(wikispine, envPolicy);
+  const wikimediaConfig = createWikimediaConfig(wikimedia, envPolicy);
   const embeddingConfig = createEmbeddingConfig(embedding);
   const jobConfig = createEndpointConfig(job);
 
@@ -137,16 +145,24 @@ function createEndpointConfig(
 
 function createWikimediaConfig(
   input: Record<string, unknown> | undefined,
+  envPolicy: "development" | "production",
 ): CLIConfig["wikimedia"] | undefined {
   const endpoint = readString(input?.endpoint);
   const token = readString(input?.token);
 
-  return endpoint === undefined
-    ? undefined
-    : {
-        endpoint,
-        ...(token === undefined ? {} : { token }),
-      };
+  if (endpoint === undefined && token === undefined) return undefined;
+  if (token === undefined) {
+    throw new Error(
+      withHelpRoute(
+        "Remote Wikimedia access requires an API key. Configure `wikg://local/config/wikimedia` token with `put token --secret`.",
+        CLI_HELP_ROUTES.config,
+      ),
+    );
+  }
+  return {
+    endpoint: endpoint ?? resolveHostedProviderEndpoint("wikimedia", envPolicy),
+    token,
+  };
 }
 
 function createEmbeddingConfig(
@@ -337,16 +353,44 @@ function readProvider(value: unknown): CLIProvider | undefined {
   return parsed.success ? parsed.data : undefined;
 }
 
-function createWikispineConfig(
+export function resolveWikispineConfig(
   value: Record<string, unknown>,
+  envPolicy: "development" | "production" = getCLIEnvPolicy(),
 ): CLIConfig["wikispine"] | undefined {
   const provider = readWikispineProvider(value.provider);
+  const endpoint = readString(value.endpoint);
+  const token = readString(value.token);
 
   if (provider === undefined) {
     return undefined;
   }
 
-  return { provider };
+  if (provider === "cli") return { provider };
+  if (token === undefined) {
+    throw new Error(
+      withHelpRoute(
+        "Remote WikiSpine access requires an API key. Configure `wikg://local/config/wikispine` token with `put token --secret`.",
+        CLI_HELP_ROUTES.config,
+      ),
+    );
+  }
+
+  return {
+    endpoint: endpoint ?? resolveHostedProviderEndpoint("wikispine", envPolicy),
+    provider,
+    token,
+  };
+}
+
+export function resolveHostedProviderEndpoint(
+  scope: HostedProviderScope,
+  envPolicy: "development" | "production" = getCLIEnvPolicy(),
+): string {
+  const origin =
+    envPolicy === "development"
+      ? "https://pdf-craft-api.oomol.dev"
+      : "https://api.pdfcraft.ai";
+  return `${origin}/v1/${scope}`;
 }
 
 function readWikispineProvider(value: unknown): "cli" | "fetch" | undefined {
