@@ -135,7 +135,7 @@ describe("llm/client", () => {
     aiMockState.streamTextError = undefined;
   });
 
-  it("uses generateText by default", async () => {
+  it("uses streamText by default", async () => {
     const llm = new LLM({
       model: {
         modelId: "test-model",
@@ -150,20 +150,20 @@ describe("llm/client", () => {
           role: "user",
         },
       ]),
-    ).resolves.toBe("generated response");
+    ).resolves.toBe("streamed response");
 
     expect(llm.config.concurrent).toBe(6);
-    expect(llm.config.stream).toBe(false);
+    expect(llm.config.stream).toBe(true);
     expect(llm.config.timeout).toBe(360000);
-    expect(aiMockState.generateTextCalls).toHaveLength(1);
+    expect(aiMockState.generateTextCalls).toHaveLength(0);
     expect(
-      aiMockState.generateTextCalls[0] as {
+      aiMockState.streamTextCalls[0] as {
         readonly timeout: number;
       },
     ).toMatchObject({
       timeout: 360000,
     });
-    expect(aiMockState.streamTextCalls).toHaveLength(0);
+    expect(aiMockState.streamTextCalls).toHaveLength(1);
   });
 
   it("reports token usage when the provider returns it", async () => {
@@ -173,6 +173,7 @@ describe("llm/client", () => {
         modelId: "test-model",
         provider: "test-provider",
       } as never,
+      stream: false,
       onTokenUsage: (usage) => {
         usages.push(usage);
       },
@@ -204,6 +205,7 @@ describe("llm/client", () => {
           modelId: "test-model",
           provider: "test-provider",
         } as never,
+        stream: false,
       });
 
       await expect(
@@ -228,6 +230,7 @@ describe("llm/client", () => {
         modelId: "test-model",
         provider: "test-provider",
       } as never,
+      stream: false,
     });
 
     await llm.request([
@@ -269,6 +272,7 @@ describe("llm/client", () => {
           modelId: "test-model",
           provider: "test-provider",
         } as never,
+        stream: false,
       });
       const messages = [
         {
@@ -301,6 +305,7 @@ describe("llm/client", () => {
           modelId: "test-model",
           provider: "test-provider",
         } as never,
+        stream: false,
       });
       const messages = [
         {
@@ -330,6 +335,7 @@ describe("llm/client", () => {
           modelId: "test-model",
           provider: "test-provider",
         } as never,
+        stream: false,
       });
       const messages = [
         {
@@ -359,6 +365,7 @@ describe("llm/client", () => {
         modelId: "test-model",
         provider: "test-provider",
       } as never,
+      stream: false,
     });
 
     await llm.request([
@@ -444,6 +451,7 @@ describe("llm/client", () => {
         modelId: "test-model",
         provider: "test-provider",
       } as never,
+      stream: false,
     });
     let preparedTasks = 0;
     const requests = Array.from({ length: 5 }, (_value, index) =>
@@ -505,6 +513,7 @@ describe("llm/client", () => {
           topP: 0.9,
         },
       },
+      stream: false,
     });
 
     await llm.request(
@@ -537,6 +546,7 @@ describe("llm/client", () => {
         modelId: "test-model",
         provider: "test-provider",
       } as never,
+      stream: false,
       timeout: 45000,
     });
 
@@ -565,6 +575,7 @@ describe("llm/client", () => {
         modelId: "test-model",
         provider: "test-provider",
       } as never,
+      stream: false,
     });
 
     await expect(
@@ -613,6 +624,7 @@ describe("llm/client", () => {
         provider: "test-provider",
       } as never,
       retryIntervalSeconds: 0,
+      stream: false,
     });
 
     await expect(
@@ -639,6 +651,7 @@ describe("llm/client", () => {
         provider: "test-provider",
       } as never,
       retryIntervalSeconds: 0,
+      stream: false,
     });
 
     await expect(
@@ -666,6 +679,7 @@ describe("llm/client", () => {
           provider: "test-provider",
         } as never,
         retryIntervalSeconds: 0,
+        stream: false,
       });
 
       await expect(
@@ -701,6 +715,7 @@ describe("llm/client", () => {
           provider: "test-provider",
         } as never,
         retryIntervalSeconds: 0,
+        stream: false,
       });
 
       await expect(
@@ -729,6 +744,7 @@ describe("llm/client", () => {
         provider: "test-provider",
       } as never,
       retryIntervalSeconds: 0,
+      stream: false,
     });
 
     await expect(
@@ -771,6 +787,7 @@ describe("llm/client", () => {
           provider: "test-provider",
         } as never,
         retryIntervalSeconds: 0,
+        stream: false,
       });
 
       await expect(
@@ -812,6 +829,7 @@ describe("llm/client", () => {
         provider: "test-provider",
       } as never,
       retryIntervalSeconds: 0,
+      stream: false,
     });
 
     await expect(
@@ -851,6 +869,7 @@ describe("llm/client", () => {
           provider: "test-provider",
         } as never,
         retryIntervalSeconds: 0,
+        stream: false,
       });
 
       const request = llm.request([

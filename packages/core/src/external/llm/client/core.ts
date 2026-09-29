@@ -91,7 +91,7 @@ export class LLM<S extends string> {
     const temperature = options.temperature ?? 0.6;
     const topP = options.topP ?? 0.6;
     const sampling = options.sampling;
-    const stream = options.stream ?? false;
+    const stream = options.stream ?? true;
     const modelInfo = resolveModelInfo(options.model);
 
     this.config = Object.freeze({
