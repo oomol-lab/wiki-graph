@@ -4,12 +4,8 @@ import { createInterface } from "readline/promises";
 import { generateText } from "ai";
 
 import type { CLILocalConfigArguments } from "../args/index.js";
-import type { CLIProvider } from "../runtime/config.js";
-import {
-  DEFAULT_WIKISPINE_FETCH_ENDPOINT,
-  testWikispineRuntime,
-  type WikispineProvider,
-} from "wiki-graph-core";
+import { resolveWikispineConfig, type CLIProvider } from "../runtime/config.js";
+import { testWikispineRuntime, type WikispineProvider } from "wiki-graph-core";
 import { buildLLMOptions } from "../runtime/llm.js";
 import { nodeWikispineCommandRunner } from "../runtime/wikispine.js";
 import { embedQueryText, readEmbeddingConfig } from "../runtime/embedding.js";
@@ -238,17 +234,21 @@ async function runWikispineConfigTest(
 
   try {
     const provider = parseWikispineProvider(wikispine.provider);
+    const resolved = resolveWikispineConfig({ ...wikispine, provider });
+    if (resolved === undefined) {
+      throw new Error("WikiSpine provider is not configured.");
+    }
     const result = await testWikispineRuntime({
-      provider,
+      ...resolved,
       ...(provider === "cli"
         ? { commandRunner: nodeWikispineCommandRunner }
         : {}),
     });
     const output = {
       durationMs: result.durationMs,
-      ...(provider === "fetch"
+      ...(resolved.provider === "fetch"
         ? {
-            endpoint: DEFAULT_WIKISPINE_FETCH_ENDPOINT,
+            endpoint: resolved.endpoint,
           }
         : {}),
       ...(result.metadata === undefined ? {} : { metadata: result.metadata }),
@@ -345,7 +345,7 @@ export function mergeMaskedSecretsForSet(
   input: LocalConfigObject,
   current: LocalConfigObject,
 ): LocalConfigObject {
-  if (section === "job" || section === "wikimedia") {
+  if (section === "job" || section === "wikimedia" || section === "wikispine") {
     return mergeMaskedSecret(section, input, current, "token");
   }
   if (
@@ -366,7 +366,7 @@ export function mergeMaskedSecretsForSet(
 }
 
 function mergeMaskedSecret(
-  section: "job" | "wikimedia",
+  section: "job" | "wikimedia" | "wikispine",
   input: LocalConfigObject,
   current: LocalConfigObject,
   key: "token",

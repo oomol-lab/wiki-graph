@@ -18,6 +18,7 @@ export interface MatchWikispineSentenceCandidatesOptions {
   readonly commandRunner?: WikispineCommandRunner;
   readonly signal?: AbortSignal;
   readonly sentences: readonly WikimatchSentence[];
+  readonly token?: string;
 }
 
 export type WikispineProvider = "cli" | "fetch";
@@ -34,6 +35,7 @@ export interface TestWikispineRuntimeOptions {
   readonly provider?: WikispineProvider;
   readonly commandRunner?: WikispineCommandRunner;
   readonly signal?: AbortSignal;
+  readonly token?: string;
 }
 
 /** Host capability for invoking the optional WikiSpine command provider. */
@@ -89,7 +91,7 @@ interface WikispineMetadata {
 const WIKISPINE_RUNTIME_GUIDE_URL =
   "https://raw.githubusercontent.com/oomol-lab/wiki-graph/refs/heads/main/docs/wikispine-runtime.md";
 export const DEFAULT_WIKISPINE_FETCH_ENDPOINT =
-  "https://wikispi-service-cxbfjlteab.cn-hangzhou.fcapp.run";
+  "https://api.pdfcraft.ai/v1/wikispine";
 
 export async function matchWikispineSentenceCandidates(
   options: MatchWikispineSentenceCandidatesOptions,
@@ -141,10 +143,12 @@ export async function testWikispineRuntime(
 
   if (provider === "fetch") {
     const endpoint = requireEndpoint(options.endpoint);
+    const token = requireToken(options.token);
     const metadata = await fetchWikispineMetadata(
       endpoint,
       options.fetch,
       options.signal,
+      token,
     );
 
     await fetchWikispineMatch(
@@ -152,6 +156,7 @@ export async function testWikispineRuntime(
         ...options,
         endpoint,
         maxCandidatesPerSurface: 1,
+        token,
       },
       {
         id: "test",
@@ -267,10 +272,12 @@ async function fetchWikispineMatch(
     | "maxCandidatesPerSurface"
     | "onProgress"
     | "signal"
+    | "token"
   >,
   sentence: WikimatchSentence,
 ): Promise<readonly WikispineMatchRecord[]> {
   const endpoint = requireEndpoint(options.endpoint);
+  const token = requireToken(options.token);
   const response = await (options.fetch ?? fetch)(`${endpoint}/match`, {
     body: JSON.stringify({
       options: {
@@ -288,6 +295,7 @@ async function fetchWikispineMatch(
     headers: {
       accept: "application/x-ndjson",
       "content-type": "application/json",
+      authorization: `Bearer ${token}`,
     },
     method: "POST",
     ...(options.signal === undefined ? {} : { signal: options.signal }),
@@ -386,10 +394,14 @@ function createWikispineProgressReporter(
 
 async function fetchWikispineMetadata(
   endpoint: string,
-  fetchFn: typeof fetch = fetch,
-  signal?: AbortSignal,
+  fetchFn: typeof fetch | undefined,
+  signal: AbortSignal | undefined,
+  token: string,
 ): Promise<WikispineMetadata> {
-  const ready = await fetchFn(`${endpoint}/readyz`, {
+  const request = fetchFn ?? fetch;
+  const headers = { authorization: `Bearer ${token}` };
+  const ready = await request(`${endpoint}/readyz`, {
+    headers,
     ...(signal === undefined ? {} : { signal }),
   });
 
@@ -401,7 +413,8 @@ async function fetchWikispineMetadata(
     );
   }
 
-  const response = await fetchFn(`${endpoint}/metadata`, {
+  const response = await request(`${endpoint}/metadata`, {
+    headers,
     ...(signal === undefined ? {} : { signal }),
   });
 
@@ -595,6 +608,18 @@ function requireEndpoint(endpoint: string | undefined): string {
     );
   }
 
+  return normalized;
+}
+
+function requireToken(token: string | undefined): string {
+  const normalized = token?.trim();
+  if (normalized === undefined || normalized === "") {
+    throw new Error(
+      formatWikispineRuntimeError(
+        "WikiSpine fetch provider requires a Bearer API key.",
+      ),
+    );
+  }
   return normalized;
 }
 

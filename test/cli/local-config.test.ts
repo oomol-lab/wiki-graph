@@ -69,10 +69,14 @@ describe("cli/local-config", () => {
   it("validates wikispine provider values at write time", () => {
     expect(
       validateLocalConfigSection("wikispine", {
+        endpoint: "https://pdf-craft-api.oomol.dev/v1/wikispine",
         provider: "fetch",
+        token: "api-key",
       }),
     ).toStrictEqual({
+      endpoint: "https://pdf-craft-api.oomol.dev/v1/wikispine",
       provider: "fetch",
+      token: "api-key",
     });
     expect(
       validateLocalConfigSection("wikispine", {
@@ -85,8 +89,14 @@ describe("cli/local-config", () => {
       validateLocalConfigSection("wikispine", { provider: "unknown" }),
     ).toThrow("Unknown wikispine.provider: unknown");
     expect(() =>
-      validateLocalConfigSection("wikispine", { endpoint: "not a url" }),
-    ).toThrow("Unknown wikispine config key: endpoint");
+      validateLocalConfigSection("wikispine", { unknown: "value" }),
+    ).toThrow("Unknown wikispine config key: unknown");
+    expect(
+      maskLocalConfigSection("wikispine", {
+        provider: "fetch",
+        token: "api-key",
+      }),
+    ).toStrictEqual({ provider: "fetch", token: "****" });
   });
 
   it("preserves masked apiKey during llm set --json", () => {

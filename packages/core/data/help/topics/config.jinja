@@ -29,13 +29,14 @@ Sections:
 
   `wikg://local/config/wikimedia`
     Optional remote Wikimedia resolver:
-      - `endpoint`: service base URL.
-      - `token`: optional Bearer token.
+      - `endpoint`: optional service base URL; defaults to the current development or production gateway.
+      - `token`: required Bearer API key. A configured token enables remote resolution; an empty section keeps direct local Wikimedia access.
 
   `wikg://local/config/wikispine`
     WikiSpine runtime provider for Knowledge Graph builds:
       - `provider`: `cli` or `fetch`.
-      - `fetch` uses the built-in WikiSpine service endpoint.
+      - `endpoint`: optional service base URL for `fetch`; defaults to the current development or production gateway.
+      - `token`: required Bearer API key for `fetch`.
       - `cli` runs the local `wikispine` command from PATH.
 
 Operations:
@@ -52,8 +53,7 @@ Operations:
     {{ commandName }} wikg://local/config/embeddings set '{"provider":"openai","model":"text-embedding-3-small"}'
     {{ commandName }} wikg://local/config/concurrent set '{"job":3,"request":6}'
     {{ commandName }} wikg://local/config/job set '{"endpoint":"https://jobs.example.com"}'
-    {{ commandName }} wikg://local/config/wikimedia set '{"endpoint":"https://wikimedia.example.com"}'
-    {{ commandName }} wikg://local/config/wikispine set '{"provider":"fetch"}'
+    Sensitive tokens cannot be supplied by `set`; configure remote Wikimedia and WikiSpine incrementally with `put`.
 
   Update one key:
     {{ commandName }} wikg://local/config/llm put provider openai
@@ -64,8 +64,10 @@ Operations:
     {{ commandName }} wikg://local/config/concurrent put request 6
     {{ commandName }} wikg://local/config/job put endpoint https://jobs.example.com
     {{ commandName }} wikg://local/config/wikimedia put endpoint https://wikimedia.example.com
+    {{ commandName }} wikg://local/config/wikimedia put token --secret
     {{ commandName }} wikg://local/config/wikispine put provider cli
     {{ commandName }} wikg://local/config/wikispine put provider fetch
+    {{ commandName }} wikg://local/config/wikispine put token --secret
 
   Store the API key:
     {{ commandName }} wikg://local/config/llm put apiKey --secret
@@ -74,6 +76,7 @@ Operations:
   Store a service token:
     {{ commandName }} wikg://local/config/job put token --secret
     {{ commandName }} wikg://local/config/wikimedia put token --secret
+    {{ commandName }} wikg://local/config/wikispine put token --secret
 
 Secret handling:
   - `apiKey` and `token` are read through an interactive hidden prompt.
@@ -116,16 +119,22 @@ Examples:
   {{ commandName }} wikg://local/config/embeddings put apiKey --secret
   {{ commandName }} wikg://local/config/embeddings test
   {{ commandName }} wikg://local/config/wikispine put provider fetch
+  {{ commandName }} wikg://local/config/wikispine put token --secret
   {{ commandName }} wikg://local/config/wikispine test
+
+Hosted provider environments:
+  - `pnpm dev` uses `https://pdf-craft-api.oomol.dev`.
+  - Built CLI artifacts use `https://api.pdfcraft.ai`.
+  - An explicit provider endpoint overrides these defaults.
 
 WikiSpine:
   Knowledge Graph builds require WikiSpine. If `wikispine` is missing,
   configure one provider and run the config test before starting Knowledge Graph work.
-  - `fetch` uses the built-in service endpoint and requires network access to that service.
+  - `fetch` uses the hosted service endpoint and requires network access plus a configured API key.
   - `cli` requires a `wikispine` executable on PATH and any local runtime/data it needs.
   - Test `cli` from the same shell that runs Wiki Graph; a different terminal or service environment may have a different PATH.
   - If `{{ commandName }} wikg://local/config/wikispine test` fails for `cli`, check PATH first or switch to `fetch`.
-  - If the test fails for `fetch`, check network access or switch to `cli` in environments with a prepared local runtime.
+  - If the test fails for `fetch`, check network access and the API key, or switch to `cli` in environments with a prepared local runtime.
   - CLI help does not install the local WikiSpine runtime; use `fetch` unless the local runtime is already prepared.
   - Knowledge Graph jobs should not be started until this test succeeds.
   Runtime setup and recovery guide:

@@ -15,6 +15,7 @@ describe("runtime/internal-child", () => {
     await withRuntimeContext(
       {
         devProjectRoot: "/repo",
+        envPolicy: "development",
         stateDir: join("/repo", ".wikigraph", "state"),
       },
       () => {
@@ -28,6 +29,10 @@ describe("runtime/internal-child", () => {
             "queue-worker",
             "--wikigraph-state-dir",
             join("/repo", ".wikigraph", "state"),
+            "--wikigraph-env-policy",
+            "development",
+            "--wikigraph-dev-project-root",
+            "/repo",
             "--flag",
           ],
           command: process.execPath,

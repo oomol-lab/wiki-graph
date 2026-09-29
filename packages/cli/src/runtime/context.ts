@@ -52,6 +52,10 @@ export function getCLIStateDir(): string | undefined {
   return cliRuntimeContext.getStore()?.stateDir;
 }
 
+export function getCLIEnvPolicy(): "development" | "production" {
+  return cliRuntimeContext.getStore()?.envPolicy ?? "production";
+}
+
 export function isCLIQueueAutostartEnabled(): boolean {
   return (
     queueAutostartForTesting ??
