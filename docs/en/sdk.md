@@ -178,6 +178,10 @@ Wiki Graph does not automatically read `OPENAI_API_KEY` or any CLI provider
 configuration. Your application owns credential loading and must pass its fully
 configured AI SDK `LanguageModel` through the `WikiGraph` `llm` option.
 
+LLM transport streams by default so long generations keep delivering data
+through HTTP proxies. Applications may set `llm.stream` to `false` for a
+provider that cannot stream, but non-streaming requests are discouraged.
+
 ## Queue Control
 
 Queue control belongs to the main SDK because callers may add, inspect, pause, resume, cancel, and clean jobs from an application process.

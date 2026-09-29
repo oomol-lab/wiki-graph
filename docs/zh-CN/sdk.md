@@ -140,6 +140,10 @@ Wiki Graph 不会自动读取 `OPENAI_API_KEY` 或任何 CLI provider 配置。�
 凭据，并且必须通过 `WikiGraph` 的 `llm` option 传入已配置好的 AI SDK
 `LanguageModel`。
 
+LLM 传输默认使用流式请求，让长时间生成能持续通过 HTTP 代理传输数据。如果
+provider 不支持流式传输，应用仍可将 `llm.stream` 设为 `false`，但不推荐使用非流式
+请求。
+
 ## 队列控制
 
 队列控制属于主 SDK，因为应用进程可能需要添加、查看、暂停、恢复、取消和清理任务。

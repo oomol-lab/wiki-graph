@@ -1,7 +1,7 @@
 import { Writable } from "stream";
 import { createInterface } from "readline/promises";
 
-import { generateText } from "ai";
+import { streamText } from "ai";
 
 import type { CLILocalConfigArguments } from "../args/index.js";
 import { resolveWikispineConfig, type CLIProvider } from "../runtime/config.js";
@@ -172,7 +172,7 @@ async function runLLMConfigTest(args: CLILocalConfigArguments): Promise<void> {
     const options = buildLLMOptions({
       llm: llmConfig,
     });
-    const result = await generateText({
+    const result = streamText({
       maxRetries: 0,
       messages: [
         {
@@ -183,12 +183,14 @@ async function runLLMConfigTest(args: CLILocalConfigArguments): Promise<void> {
       model: options.model,
       temperature: 0,
     });
+    const responseChunks: string[] = [];
+    for await (const chunk of result.textStream) responseChunks.push(chunk);
     const output = {
       durationMs: Date.now() - startedAt,
       model: llmConfig.model,
       ok: true,
       provider: llmConfig.provider,
-      response: result.text.trim(),
+      response: responseChunks.join("").trim(),
     };
 
     if (args.json === true) {
