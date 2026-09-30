@@ -8,7 +8,6 @@ import type { Database } from "wiki-graph-core";
 export const LOCAL_CONFIG_SECTIONS = [
   "concurrent",
   "embeddings",
-  "job",
   "llm",
   "wikimedia",
   "wikispine",
@@ -99,8 +98,7 @@ export function maskLocalConfigSection(
   value: LocalConfigObject,
 ): LocalConfigObject {
   if (
-    (section !== "job" &&
-      section !== "llm" &&
+    (section !== "llm" &&
       section !== "embeddings" &&
       section !== "wikimedia" &&
       section !== "wikispine") ||
@@ -150,8 +148,6 @@ export function validateLocalConfigSection(
       return validateLLMConfig(value);
     case "concurrent":
       return validateConcurrentConfig(value);
-    case "job":
-      return validateEndpointConfig("job", value);
     case "wikimedia":
       return validateWikimediaConfig(value);
     case "wikispine":
@@ -362,7 +358,7 @@ function validateWikimediaConfig(value: LocalConfigObject): LocalConfigObject {
 }
 
 function validateEndpointConfig(
-  section: "job" | "wikimedia",
+  section: "wikimedia",
   value: LocalConfigObject,
 ): LocalConfigObject {
   const allowedKeys = new Set(["endpoint", "token"]);

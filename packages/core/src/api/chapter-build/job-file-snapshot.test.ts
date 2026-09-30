@@ -4,10 +4,8 @@ import { join } from "path";
 
 import {
   executeChapterJobFile,
-  readChapterJobArtifact,
   readChapterJobInput,
   writeChapterJobArtifact,
-  writeChapterJobInput,
 } from "wiki-graph-job";
 import { describe, expect, it } from "vitest";
 
@@ -17,7 +15,6 @@ import {
 } from "../../../../cli/src/runtime/node-platform.js";
 import { DirectoryDocument } from "../../document/index.js";
 import { applyChapterJobArtifactFile } from "./job-file-apply.js";
-import { createRemoteChapterJobFileExecutor } from "./job-file-execution.js";
 import { writeChapterJobInputFile } from "./job-file-snapshot.js";
 
 describe("chapter job input files", () => {
@@ -291,147 +288,6 @@ describe("chapter job input files", () => {
       } finally {
         await document.release();
       }
-    } finally {
-      await rm(path, { force: true, recursive: true });
-    }
-  });
-
-  it("streams job files through the remote HTTP adapter", async () => {
-    const path = await mkdtemp(join(tmpdir(), "wiki-graph-job-http-"));
-    try {
-      const inputPath = join(path, "input.jsonl");
-      const outputPath = join(path, "output");
-      await writeFile(inputPath, "");
-      await mkdir(outputPath);
-      await writeChapterJobInput(new NodeFile(inputPath), [
-        {
-          sentenceIndex: 0,
-          text: "Alpha beta.",
-          type: "source-text",
-          wordsCount: 2,
-        },
-      ]);
-      const executor = createRemoteChapterJobFileExecutor({
-        baseUrl: "https://jobs.example.test",
-        fetch: (async (input, init) => {
-          expect(input).toBe("https://jobs.example.test/v1/jobs/reading-graph");
-          expect(new Headers(init?.headers).get("X-Wiki-Graph-Revision")).toBe(
-            "7",
-          );
-          expect(await new Response(init?.body).text()).toBe(
-            '{"sentenceIndex":0,"text":"Alpha beta.","wordsCount":2,"type":"source-text"}\n',
-          );
-          return new Response(
-            [
-              JSON.stringify({
-                event: "progress",
-                progress: {
-                  done: 1,
-                  phase: "reading-extraction",
-                  total: 2,
-                  unit: "sentence",
-                },
-              }),
-              JSON.stringify({
-                event: "token-usage",
-                usage: { inputTokens: 10, outputTokens: 4 },
-              }),
-              JSON.stringify({
-                characters: 16,
-                event: "output-characters",
-              }),
-              JSON.stringify({
-                event: "artifact",
-                record: {
-                  position: 0,
-                  text: "Summary.",
-                  type: "summary-part",
-                },
-              }),
-              JSON.stringify({ event: "complete", revision: 7 }),
-              "",
-            ].join("\n"),
-            {
-              headers: {
-                "Content-Type":
-                  "application/x-wiki-graph-job-events+jsonl; charset=utf-8",
-                "X-Wiki-Graph-Revision": "7",
-              },
-              status: 200,
-            },
-          );
-        }) as typeof fetch,
-      });
-
-      const phases: unknown[] = [];
-      const usage: unknown[] = [];
-      const characters: number[] = [];
-
-      const result = await executor({
-        inputFile: new NodeFile(inputPath),
-        kind: "reading-graph",
-        progress: {
-          addOutputCharacters(value) {
-            characters.push(value);
-          },
-          addTokenUsage(value) {
-            usage.push(value);
-          },
-          updatePhase(value) {
-            phases.push(value);
-          },
-        },
-        revision: 7,
-        workspace: new NodeDirectory(outputPath),
-      });
-      expect(result.revision).toBe(7);
-      expect(
-        await collect(readChapterJobArtifact(result.artifactFile)),
-      ).toEqual([{ position: 0, text: "Summary.", type: "summary-part" }]);
-      expect(phases).toEqual([
-        {
-          done: 1,
-          phase: "reading-extraction",
-          total: 2,
-          unit: "sentence",
-        },
-      ]);
-      expect(usage).toEqual([{ inputTokens: 10, outputTokens: 4 }]);
-      expect(characters).toEqual([16]);
-    } finally {
-      await rm(path, { force: true, recursive: true });
-    }
-  });
-
-  it("accepts legacy raw artifact responses", async () => {
-    const path = await mkdtemp(join(tmpdir(), "wiki-graph-job-legacy-http-"));
-    try {
-      const inputPath = join(path, "input.jsonl");
-      const outputPath = join(path, "output");
-      await writeFile(inputPath, "");
-      await mkdir(outputPath);
-      const executor = createRemoteChapterJobFileExecutor({
-        baseUrl: "https://jobs.example.test",
-        fetch: (() =>
-          Promise.resolve(
-            new Response(
-              '{"position":0,"text":"Summary.","type":"summary-part"}\n',
-              {
-                headers: { "X-Wiki-Graph-Revision": "7" },
-                status: 200,
-              },
-            ),
-          )) as typeof fetch,
-      });
-      const result = await executor({
-        inputFile: new NodeFile(inputPath),
-        kind: "reading-graph",
-        revision: 7,
-        workspace: new NodeDirectory(outputPath),
-      });
-      expect(
-        await collect(readChapterJobArtifact(result.artifactFile)),
-      ).toEqual([{ position: 0, text: "Summary.", type: "summary-part" }]);
     } finally {
       await rm(path, { force: true, recursive: true });
     }

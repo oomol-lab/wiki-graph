@@ -18,7 +18,6 @@ import {
 import {
   applyChapterJobArtifactFile,
   createLocalChapterJobFileExecutor,
-  createRemoteChapterJobFileExecutor,
   writeChapterJobInputFile,
   type ChapterJobFileExecutor,
   type ChapterJobInputOptions,
@@ -221,18 +220,6 @@ async function openJobExecutor(
   signal: AbortSignal,
   reporter: BuildJobProgressReporter,
 ): Promise<OpenedExecutor> {
-  if (config.job !== undefined) {
-    return {
-      async close() {},
-      executor: createRemoteChapterJobFileExecutor({
-        baseUrl: config.job.endpoint,
-        ...(config.job.token === undefined ? {} : { token: config.job.token }),
-      }),
-      ...(job.prompt === undefined ? {} : { extractionPrompt: job.prompt }),
-      ...(job.prompt === undefined ? {} : { knowledgeGraphPrompt: job.prompt }),
-    };
-  }
-
   const generation = !job.target.startsWith("index-");
   const stageConfig = generation
     ? await loadRequiredStageConfig({

@@ -36,10 +36,6 @@ const inlineLLMConfigSchema = z.object({
 export type CLIProvider = z.infer<typeof cliProviderSchema>;
 
 export interface CLIConfig {
-  readonly job?: {
-    readonly endpoint: string;
-    readonly token?: string;
-  };
   readonly embedding?: {
     readonly apiKey?: string;
     readonly baseURL?: string;
@@ -80,12 +76,11 @@ type InlineLLMConfig = NonNullable<CLIConfig["llm"]>;
 export async function loadCLIConfig(options?: {
   readonly llmJSON?: string;
 }): Promise<CLIConfig> {
-  const [embedding, localLLM, concurrent, job, wikimedia, wikispine] =
+  const [embedding, localLLM, concurrent, wikimedia, wikispine] =
     await Promise.all([
       readLocalConfigSection("embeddings"),
       readLocalConfigSection("llm"),
       readLocalConfigSection("concurrent"),
-      readLocalConfigSection("job"),
       readLocalConfigSection("wikimedia"),
       readLocalConfigSection("wikispine"),
     ]);
@@ -112,7 +107,6 @@ export async function loadCLIConfig(options?: {
   const wikispineConfig = resolveWikispineConfig(wikispine, envPolicy);
   const wikimediaConfig = createWikimediaConfig(wikimedia, envPolicy);
   const embeddingConfig = createEmbeddingConfig(embedding);
-  const jobConfig = createEndpointConfig(job);
 
   return {
     ...(jobConcurrent === undefined && requestConcurrent === undefined
@@ -126,21 +120,10 @@ export async function loadCLIConfig(options?: {
           },
         }),
     ...(embeddingConfig === undefined ? {} : { embedding: embeddingConfig }),
-    ...(jobConfig === undefined ? {} : { job: jobConfig }),
     ...(llm === undefined ? {} : { llm }),
     ...(wikimediaConfig === undefined ? {} : { wikimedia: wikimediaConfig }),
     ...(wikispineConfig === undefined ? {} : { wikispine: wikispineConfig }),
   };
-}
-
-function createEndpointConfig(
-  input: Record<string, unknown> | undefined,
-): { readonly endpoint: string; readonly token?: string } | undefined {
-  const endpoint = readString(input?.endpoint);
-  const token = readString(input?.token);
-  return endpoint === undefined
-    ? undefined
-    : { endpoint, ...(token === undefined ? {} : { token }) };
 }
 
 function createWikimediaConfig(
