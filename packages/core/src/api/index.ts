@@ -79,7 +79,6 @@ export {
   snapshotChapterSummaryInput,
   writeChapterJobInputFile,
   applyChapterJobArtifactFile,
-  createRemoteChapterJobFileExecutor,
   createLocalChapterJobFileExecutor,
 } from "./chapter-build/index.js";
 export type {

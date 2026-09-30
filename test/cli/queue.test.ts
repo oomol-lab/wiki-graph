@@ -319,7 +319,6 @@ vi.mock("../../packages/core/src/api/index.js", () => ({
         };
       },
   ),
-  createRemoteChapterJobFileExecutor: vi.fn(),
   commitChapterGraphArtifact: vi.fn(() => {
     queueMockState.stepLog.push("commit-graph");
     queueMockState.commitGraphCalls.push({});

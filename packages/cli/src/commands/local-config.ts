@@ -347,7 +347,7 @@ export function mergeMaskedSecretsForSet(
   input: LocalConfigObject,
   current: LocalConfigObject,
 ): LocalConfigObject {
-  if (section === "job" || section === "wikimedia" || section === "wikispine") {
+  if (section === "wikimedia" || section === "wikispine") {
     return mergeMaskedSecret(section, input, current, "token");
   }
   if (
@@ -368,7 +368,7 @@ export function mergeMaskedSecretsForSet(
 }
 
 function mergeMaskedSecret(
-  section: "job" | "wikimedia" | "wikispine",
+  section: "wikimedia" | "wikispine",
   input: LocalConfigObject,
   current: LocalConfigObject,
   key: "token",

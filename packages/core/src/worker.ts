@@ -1,7 +1,6 @@
 export {
   applyChapterJobArtifactFile,
   createLocalChapterJobFileExecutor,
-  createRemoteChapterJobFileExecutor,
   runBuildJobWorker,
   writeChapterJobInputFile,
 } from "./api/index.js";

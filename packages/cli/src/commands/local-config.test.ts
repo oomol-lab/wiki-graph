@@ -20,17 +20,4 @@ describe("commands/local-config", () => {
       provider: "openai",
     });
   });
-
-  it("preserves masked remote job tokens on section set", () => {
-    expect(
-      mergeMaskedSecretsForSet(
-        "job",
-        { endpoint: "https://jobs.example.com", token: "****" },
-        { token: "existing-token" },
-      ),
-    ).toStrictEqual({
-      endpoint: "https://jobs.example.com",
-      token: "existing-token",
-    });
-  });
 });
