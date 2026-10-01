@@ -39,9 +39,8 @@ describe("cli/archive/create", () => {
 
       expect(archiveMockState.convertCalls).toStrictEqual([
         expect.objectContaining({
-          inputPath: "/tmp/book.epub",
-          outputFormat: "wikg",
-          outputPath: archivePath,
+          input: { format: "epub", path: "/tmp/book.epub" },
+          output: { format: "wikg", path: archivePath },
           targetStage: "sourced",
         }),
       ]);
@@ -88,14 +87,14 @@ describe("cli/archive/create", () => {
       });
 
       const [convertCall] = archiveMockState.convertCalls as Array<{
-        readonly outputPath: string;
+        readonly output: { readonly path: string };
       }>;
 
       if (convertCall === undefined) {
         throw new Error("Expected create to call convert.");
       }
-      expect(convertCall.outputPath).not.toBe(archivePath);
-      expect(convertCall.outputPath).toContain("existing.wikg");
+      expect(convertCall.output.path).not.toBe(archivePath);
+      expect(convertCall.output.path).toContain("existing.wikg");
       expect(archiveMockState.textWrites[0]).toBe("<archive>\n");
     } finally {
       await rm(directoryPath, { force: true, recursive: true });

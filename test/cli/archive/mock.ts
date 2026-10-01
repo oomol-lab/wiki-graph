@@ -743,6 +743,28 @@ vi.mock("../../../packages/cli/src/commands/convert.js", () => ({
   }),
 }));
 
+vi.mock("../../../packages/sdk/src/conversions.js", () => ({
+  WikiGraphConversionManager: class {
+    public async convert(options: {
+      readonly output: { readonly path: string };
+    }): Promise<{
+      readonly inputFormat: "epub";
+      readonly outputFormat: "wikg";
+      readonly outputPath: string;
+    }> {
+      archiveMockState.convertCalls.push(options);
+      const { writeFile: writeOutputFile } = await import("fs/promises");
+
+      await writeOutputFile(options.output.path, "created");
+      return {
+        inputFormat: "epub",
+        outputFormat: "wikg",
+        outputPath: options.output.path,
+      };
+    }
+  },
+}));
+
 function createArchiveMockDocument(): unknown {
   const document = {};
 
