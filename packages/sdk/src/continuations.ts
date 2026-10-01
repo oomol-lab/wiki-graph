@@ -11,7 +11,6 @@ import {
   listWikiGraphLibraryArchiveMembers,
   listWikiGraphLibraryEvidence,
   listWikiGraphLibraryObjects,
-  parseWikiGraphLibraryUri,
   readContinuationCursor,
   resolveWikiGraphLibraryQueryTargetById,
   WikiGraphArchiveFile,
@@ -52,6 +51,7 @@ export interface WikiGraphContinuationContext {
   readonly format: ContinuationCursor["format"];
   readonly ids?: readonly string[];
   readonly indexScope: QueryIndexScope;
+  readonly libraryQuery?: "archive-members" | "objects";
   readonly order?: "doc-asc" | "doc-desc";
   readonly query?: string;
   readonly role?: "any" | "object" | "self" | "subject" | undefined;
@@ -258,7 +258,7 @@ async function continueLibraryCursor(
   );
   switch (cursor.kind) {
     case "collection":
-      return await (isLibraryArchiveMemberCursor(cursor)
+      return await (requireLibraryQuery(cursor) === "archive-members"
         ? listWikiGraphLibraryArchiveMembers(
             target,
             createCollectionOptions(cursor, limit),
@@ -268,7 +268,7 @@ async function continueLibraryCursor(
             createCollectionOptions(cursor, limit),
           ));
     case "search":
-      return await (isLibraryArchiveMemberCursor(cursor)
+      return await (requireLibraryQuery(cursor) === "archive-members"
         ? findWikiGraphLibraryArchiveMembers(
             target,
             cursor.query ?? "",
@@ -384,12 +384,17 @@ async function createFindOptions(
   };
 }
 
-function isLibraryArchiveMemberCursor(cursor: ContinuationCursor): boolean {
-  const target = parseWikiGraphLibraryUri(cursor.archivePath);
-  return (
-    target?.kind === "scope" &&
-    target.objectUri === undefined &&
-    cursor.archiveKey === cursor.archivePath
+function requireLibraryQuery(
+  cursor: ContinuationCursor,
+): "archive-members" | "objects" {
+  if (
+    (cursor.kind === "collection" || cursor.kind === "search") &&
+    cursor.libraryQuery !== undefined
+  ) {
+    return cursor.libraryQuery;
+  }
+  throw new Error(
+    "Library continuation cursor is missing its typed query variant.",
   );
 }
 
@@ -481,6 +486,7 @@ function createContinuationPayload(
         ids: context.ids ?? null,
         indexScope: context.indexScope,
         kind: "collection",
+        ...createLibraryQueryPayload(context),
         order: context.order ?? "doc-asc",
         ...(context.sourceContext === undefined
           ? {}
@@ -507,6 +513,7 @@ function createContinuationPayload(
         format: context.format,
         indexScope: context.indexScope,
         kind: "search",
+        ...createLibraryQueryPayload(context),
         ...(context.query === undefined ? {} : { query: context.query }),
         ...(context.skipUnindexed === undefined
           ? {}
@@ -528,4 +535,16 @@ function requireTargetUri(
 ): string {
   if (context.targetUri !== undefined) return context.targetUri;
   throw new Error(`${label} continuation cursors require a target URI.`);
+}
+
+function createLibraryQueryPayload(context: WikiGraphContinuationContext): {
+  readonly libraryQuery?: "archive-members" | "objects";
+} {
+  if (context.indexScope.kind !== "library-index") return {};
+  if (context.libraryQuery !== undefined) {
+    return { libraryQuery: context.libraryQuery };
+  }
+  throw new Error(
+    "Library collection and search continuations require an explicit query variant.",
+  );
 }

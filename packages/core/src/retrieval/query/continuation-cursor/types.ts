@@ -31,6 +31,7 @@ export type ContinuationCursor =
       readonly format: "json" | "jsonl" | "text";
       readonly ids: readonly string[] | null;
       readonly kind: "collection";
+      readonly libraryQuery?: "archive-members" | "objects";
       readonly order: "doc-asc" | "doc-desc";
       readonly sourceContext?: number;
       readonly triplePattern?: {
@@ -47,6 +48,7 @@ export type ContinuationCursor =
       readonly evidenceLimit?: number;
       readonly format: "json" | "jsonl" | "text";
       readonly kind: "search";
+      readonly libraryQuery?: "archive-members" | "objects";
       readonly query?: string;
       readonly skipUnindexed?: boolean;
       readonly sourceContext?: number;

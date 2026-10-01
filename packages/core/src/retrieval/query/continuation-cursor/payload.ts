@@ -19,6 +19,9 @@ export function createCursorPayload(input: ContinuationCursor): object {
           ? {}
           : { evidenceLimit: input.evidenceLimit }),
         ids: input.ids,
+        ...(input.libraryQuery === undefined
+          ? {}
+          : { libraryQuery: input.libraryQuery }),
         order: input.order,
         ...(input.sourceContext === undefined
           ? {}
@@ -39,6 +42,9 @@ export function createCursorPayload(input: ContinuationCursor): object {
         ...(input.evidenceLimit === undefined
           ? {}
           : { evidenceLimit: input.evidenceLimit }),
+        ...(input.libraryQuery === undefined
+          ? {}
+          : { libraryQuery: input.libraryQuery }),
         ...(input.query === undefined ? {} : { query: input.query }),
         ...(input.skipUnindexed === undefined
           ? {}
@@ -121,6 +127,7 @@ export function parseContinuationCursorRecord(record: {
       ids: getPayloadStringArrayOrNull(payload, "ids"),
       indexScope,
       kind: "collection",
+      ...getPayloadOptionalLibraryQuery(payload),
       order: getPayloadOrder(payload),
       ...getPayloadOptionalInteger(payload, "sourceContext", "sourceContext"),
       ...getPayloadOptionalTriplePattern(payload),
@@ -139,6 +146,7 @@ export function parseContinuationCursorRecord(record: {
       format: record.format,
       indexScope,
       kind: "search",
+      ...getPayloadOptionalLibraryQuery(payload),
       ...getPayloadOptionalString(payload, "query"),
       ...getPayloadOptionalBoolean(payload, "skipUnindexed"),
       ...getPayloadOptionalInteger(payload, "sourceContext", "sourceContext"),
@@ -385,6 +393,17 @@ function getPayloadOptionalRelatedRole(
     return { role: value };
   }
 
+  throw new Error("Invalid continuation cursor payload.");
+}
+
+function getPayloadOptionalLibraryQuery(
+  payload: Readonly<Record<string, unknown>>,
+): { readonly libraryQuery?: "archive-members" | "objects" } {
+  const value = payload.libraryQuery;
+  if (value === undefined) return {};
+  if (value === "archive-members" || value === "objects") {
+    return { libraryQuery: value };
+  }
   throw new Error("Invalid continuation cursor payload.");
 }
 

@@ -83,6 +83,24 @@ describe("continuation cursor payload", () => {
     });
   });
 
+  it("round-trips the typed library query variant", () => {
+    const cursor: ContinuationCursor = {
+      archiveKey: "wikg://lib",
+      archivePath: "wikg://lib",
+      chapters: null,
+      cursor: "raw-cursor",
+      format: "json",
+      ids: null,
+      indexScope: { kind: "library-index", libraryId: 42 },
+      kind: "collection",
+      libraryQuery: "archive-members",
+      order: "doc-asc",
+      types: null,
+    };
+
+    expect(roundTripCursor(cursor)).toStrictEqual(cursor);
+  });
+
   it("round-trips skip-unindexed search cursors", () => {
     const cursor: ContinuationCursor = {
       archiveKey: "archive-key",

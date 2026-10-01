@@ -245,6 +245,7 @@ describe("WikiGraphSDK delivery operations", () => {
           kind: "library-index",
           libraryId: library.snapshot.id,
         },
+        libraryQuery: "archive-members",
         order: "doc-asc",
         types: null,
       },
