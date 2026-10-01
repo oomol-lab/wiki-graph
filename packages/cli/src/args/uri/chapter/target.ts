@@ -2,7 +2,7 @@ import {
   parseChapterPath,
   type ArchiveTriplePattern,
   type IndexArtifactKind,
-} from "wiki-graph-core";
+} from "wiki-graph-sdk";
 
 import type { ArchiveUriLens, ChapterStateUriTarget } from "../../types.js";
 import {

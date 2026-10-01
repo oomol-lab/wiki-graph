@@ -1,5 +1,5 @@
-import { type ArchiveEvidenceItem } from "wiki-graph-core";
-import { CLI_PRIMARY_COMMAND } from "wiki-graph-core";
+import { type ArchiveEvidenceItem } from "wiki-graph-sdk";
+import { CLI_PRIMARY_COMMAND } from "../../../support/command.js";
 
 import type { ArchiveOutputEvidencePreview } from "../object/types.js";
 import { formatScoredLines } from "./lines.js";

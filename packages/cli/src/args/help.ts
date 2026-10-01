@@ -1,12 +1,14 @@
 import {
+  createNodeTemplateEnvironment,
   formatWikiGraphLibraryUri,
   parseWikiGraphLibraryUri,
-  resolveDataDirPath,
-} from "wiki-graph-core";
-import { createEnv } from "wiki-graph-core";
+} from "wiki-graph-sdk";
+import { existsSync } from "fs";
+import { dirname, join, parse, resolve } from "path";
 
-import { CLI_FULL_COMMAND, CLI_PRIMARY_COMMAND } from "wiki-graph-core";
-import type { ParsedWikiGraphLibraryUri } from "wiki-graph-core";
+import { CLI_FULL_COMMAND, CLI_PRIMARY_COMMAND } from "../support/command.js";
+import { getCLIDevProjectRoot } from "../runtime/context.js";
+import type { ParsedWikiGraphLibraryUri } from "wiki-graph-sdk";
 import { CLI_FORMATS, parseLocatedWikiGraphUri } from "../support/index.js";
 import { CLI_HELP_ROUTES, withHelpRoute } from "../support/index.js";
 import { formatCliCommand, formatShellArgument } from "../support/index.js";
@@ -254,7 +256,9 @@ const HELP_TOPIC_TEMPLATE_NAMES: Readonly<Record<HelpTopic, string>> = {
   library: "help/topics/library",
 };
 
-let helpTemplateEnvironment: ReturnType<typeof createEnv> | undefined;
+let helpTemplateEnvironment:
+  | ReturnType<typeof createNodeTemplateEnvironment>
+  | undefined;
 
 export function renderMainHelpText(): string {
   return renderHelpTemplate("help/commands/root");
@@ -534,10 +538,47 @@ function renderHelpTemplate(
   });
 }
 
-function getHelpTemplateEnvironment(): ReturnType<typeof createEnv> {
-  helpTemplateEnvironment ??= createEnv(resolveDataDirPath(), {
-    autoescape: false,
-  });
+function getHelpTemplateEnvironment(): ReturnType<
+  typeof createNodeTemplateEnvironment
+> {
+  helpTemplateEnvironment ??= createNodeTemplateEnvironment(
+    resolveCLIDataDirectory(),
+    {
+      autoescape: false,
+    },
+  );
 
   return helpTemplateEnvironment;
+}
+
+function resolveCLIDataDirectory(): string {
+  const distDirectory = (
+    globalThis as { readonly __WIKIGRAPH_CLI_DIST_DIR__?: unknown }
+  ).__WIKIGRAPH_CLI_DIST_DIR__;
+  const explicitProjectRoot = getCLIDevProjectRoot();
+  const candidates = [
+    typeof distDirectory === "string"
+      ? resolve(distDirectory, "data")
+      : undefined,
+    explicitProjectRoot === undefined
+      ? undefined
+      : resolve(explicitProjectRoot, "packages", "cli", "data"),
+  ];
+
+  let directory = process.cwd();
+  const root = parse(directory).root;
+  while (true) {
+    candidates.push(join(directory, "packages", "cli", "data"));
+    if (directory === root) break;
+    directory = dirname(directory);
+  }
+
+  const dataDirectory = candidates.find(
+    (candidate): candidate is string =>
+      candidate !== undefined && existsSync(join(candidate, "help")),
+  );
+  if (dataDirectory === undefined) {
+    throw new Error("Could not locate CLI help data directory.");
+  }
+  return dataDirectory;
 }

@@ -9,12 +9,11 @@ import {
   type File,
 } from "../runtime/platform/index.js";
 import { isHostError } from "../utils/host-error.js";
+import { WikiGraphError } from "../runtime/common/error.js";
 import { getNumber, getString, Database } from "./database.js";
 
 const CURRENT_HOME_SCHEMA_VERSION = 4;
 const LOCK_STALE_TIMEOUT_MS = 5 * 60 * 1000;
-const HOME_UPGRADE_RECOVERY =
-  "Stop the active operation, then run `wg maintenance upgrade home`. See: `wg maintenance upgrade --help`.";
 const HOME_SCHEMA_SQL = `
   CREATE TABLE IF NOT EXISTS schema_versions (
     scope TEXT PRIMARY KEY,
@@ -404,7 +403,7 @@ async function assertNoFreshRows(
 }
 
 function homeUpgradeBlocked(message: string): Error {
-  return new Error(`${message} ${HOME_UPGRADE_RECOVERY}`);
+  return new WikiGraphError("home_upgrade_blocked", message);
 }
 
 function isFresh(heartbeat: number | undefined): boolean {

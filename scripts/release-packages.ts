@@ -47,6 +47,10 @@ const releasePackages: readonly ReleasePackage[] = [
     expectedName: "wiki-graph-core",
   },
   {
+    directory: join(workspaceRoot, "packages", "sdk"),
+    expectedName: "wiki-graph-sdk",
+  },
+  {
     directory: join(workspaceRoot, "packages", "cli"),
     expectedName: "wiki-graph",
   },
@@ -253,11 +257,10 @@ async function release(): Promise<void> {
     }
     return descriptor;
   });
-  const coreVersion = descriptors[2]?.version;
-  const cliVersion = descriptors[3]?.version;
-  if (coreVersion !== cliVersion) {
+  const publicVersions = descriptors.slice(2).map(({ version }) => version);
+  if (new Set(publicVersions).size !== 1) {
     throw new Error(
-      `wiki-graph-core and wiki-graph versions must match: ${coreVersion} != ${cliVersion}`,
+      `wiki-graph-core, wiki-graph-sdk, and wiki-graph versions must match: ${publicVersions.join(" != ")}`,
     );
   }
 

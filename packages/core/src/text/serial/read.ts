@@ -15,10 +15,13 @@ export async function readSerial(
   const summary = await document.readSummary(serialId);
 
   if (summary === undefined) {
-    throw new Error(
-      `Chapter ${serialId} summary is missing. Run \`wg wikg://local/job add --input <chapter-uri> --task reading-summary --accept-cost\` before export, or inspect the chapter with \`wg <archive-uri>/chapter/${serialId}/source get\`.`,
+    throw new WikiGraphError(
+      "chapter_summary_missing_source",
+      `Chapter ${serialId} summary is missing.`,
+      { chapterId: serialId },
     );
   }
 
   return new Serial(document, serialId, summary);
 }
+import { WikiGraphError } from "../../runtime/common/error.js";

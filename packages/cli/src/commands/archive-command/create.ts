@@ -7,7 +7,7 @@ import {
   formatLocatedWikiGraphUri,
   TOC_FILE_VERSION,
   writeWikgArchive,
-} from "wiki-graph-core";
+} from "wiki-graph-sdk";
 import { NodeDirectory, NodeFile } from "../../runtime/node-platform.js";
 
 import type { CLIArchiveArguments } from "../../args/index.js";

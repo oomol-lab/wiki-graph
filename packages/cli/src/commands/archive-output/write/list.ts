@@ -1,4 +1,4 @@
-import type { ArchiveRelatedResult } from "wiki-graph-core";
+import type { ArchiveRelatedResult } from "wiki-graph-sdk";
 
 import { formatCLIJSON, writeTextToStdout } from "../../../support/index.js";
 import { createOutputContinuationCursor } from "../object/cursor.js";

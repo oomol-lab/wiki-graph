@@ -1,4 +1,4 @@
-import type { BuildJobTarget, ChapterEntry } from "wiki-graph-core";
+import type { BuildJobTarget, ChapterEntry } from "wiki-graph-sdk";
 
 import type { CLIConfig } from "../../runtime/config.js";
 import {

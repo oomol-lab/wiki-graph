@@ -1,4 +1,6 @@
 import { AsyncLocalStorage } from "async_hooks";
+import { withWikiGraphSDKRuntimeContext } from "wiki-graph-sdk";
+import { createWikiGraphSDK, type WikiGraphSDK } from "wiki-graph-sdk";
 
 export interface WikiGraphCLIRuntimeContext {
   readonly argv: readonly string[];
@@ -7,6 +9,7 @@ export interface WikiGraphCLIRuntimeContext {
   readonly env: NodeJS.ProcessEnv;
   readonly envPolicy: "development" | "production";
   readonly queueAutostart: boolean;
+  readonly sdk?: WikiGraphSDK | undefined;
   readonly signal?: AbortSignal | undefined;
   readonly stateDir?: string | undefined;
   readonly stderr: NodeJS.WritableStream;
@@ -25,11 +28,42 @@ export async function withWikiGraphCLIRuntimeContext<T>(
   context: WikiGraphCLIRuntimeContext,
   operation: () => Promise<T> | T,
 ): Promise<T> {
-  return await cliRuntimeContext.run(context, operation);
+  return await cliRuntimeContext.run(
+    context,
+    async () =>
+      await withWikiGraphSDKRuntimeContext(
+        {
+          cwd: context.cwd,
+          env: context.env,
+          envPolicy: context.envPolicy,
+          ...(context.stateDir === undefined
+            ? {}
+            : { stateDir: context.stateDir }),
+        },
+        operation,
+      ),
+  );
 }
 
 export function getCLIArgv(): readonly string[] {
   return cliRuntimeContext.getStore()?.argv ?? process.argv.slice(2);
+}
+
+export function getWikiGraphSDK(): WikiGraphSDK {
+  const context = cliRuntimeContext.getStore();
+  return (
+    context?.sdk ??
+    createWikiGraphSDK({
+      ...(context?.cwd === undefined ? {} : { cwd: context.cwd }),
+      ...(context?.env === undefined ? {} : { env: context.env }),
+      ...(context?.envPolicy === undefined
+        ? {}
+        : { envPolicy: context.envPolicy }),
+      ...(context?.stateDir === undefined
+        ? {}
+        : { stateDir: context.stateDir }),
+    })
+  );
 }
 
 export function getCLICwd(): string {

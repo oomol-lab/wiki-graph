@@ -4,7 +4,7 @@ import {
   resolveChapterPathReadonly,
   type ChapterEntry,
   type ReadonlyDocument,
-} from "wiki-graph-core";
+} from "wiki-graph-sdk";
 
 import type { CLIArchiveArguments } from "../../../args/index.js";
 

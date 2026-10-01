@@ -22,7 +22,16 @@
     "paths": {
       "wiki-graph-core": ["packages/core/src/index.ts"],
       "wiki-graph-core/gc": ["packages/core/src/gc.ts"],
+      "wiki-graph-core/platform": ["packages/core/src/platform.ts"],
       "wiki-graph-core/worker": ["packages/core/src/worker.ts"],
+      "wiki-graph-sdk": ["packages/sdk/src/index.ts"],
+      "wiki-graph-sdk/entry-context": ["packages/sdk/src/entry-context.ts"],
+      "wiki-graph-sdk/gc": ["packages/sdk/src/gc.ts"],
+      "wiki-graph-sdk/local-config": ["packages/sdk/src/local-config.ts"],
+      "wiki-graph-sdk/node-platform": ["packages/sdk/src/node-platform.ts"],
+      "wiki-graph-sdk/planning": ["packages/sdk/src/planning.ts"],
+      "wiki-graph-sdk/wikispine": ["packages/sdk/src/wikispine.ts"],
+      "wiki-graph-sdk/worker": ["packages/sdk/src/worker.ts"],
       "wiki-graph-job": ["packages/job/src/index.ts"],
       "wiki-graph-wikimedia": ["packages/wikimedia/src/index.ts"]
     }

@@ -71,6 +71,26 @@ $ wg wikg://quickstart.wikg --query alpha
 Alpha is connected to beta.
 ```
 
+### Node.js SDK
+
+Applications can use the same local configuration, libraries, and durable job
+runtime without spawning the CLI or parsing stdout:
+
+```bash
+$ npm install wiki-graph-sdk
+```
+
+```ts
+import { createWikiGraphSDK } from "wiki-graph-sdk";
+
+const wikiGraph = createWikiGraphSDK();
+const jobs = await wikiGraph.jobs.list();
+wikiGraph.close();
+```
+
+For runtime-neutral archive and retrieval primitives, including browser and
+extension hosts with custom storage adapters, use `wiki-graph-core`.
+
 ## Local Development
 
 When developing Wiki Graph itself, see [Local CLI Development](./docs/local-cli-development.md) for how to install the current branch as `wg` or run the current checkout through pnpm without a global install.

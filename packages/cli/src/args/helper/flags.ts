@@ -1,5 +1,5 @@
 import { CLI_HELP_ROUTES, withHelpRoute } from "../../support/index.js";
-import { WIKI_GRAPH_URI_PREFIX } from "wiki-graph-core";
+import { WIKI_GRAPH_URI_PREFIX } from "wiki-graph-sdk";
 import type {
   ArchiveArgumentValues,
   ArchiveMetaFlagValues,

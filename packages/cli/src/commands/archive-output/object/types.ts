@@ -1,4 +1,4 @@
-import type { QueryIndexScope } from "wiki-graph-core";
+import type { QueryIndexScope } from "wiki-graph-sdk";
 import type { CLIArchiveArguments } from "../../../args/index.js";
 
 export type ResultFormat = "json" | "jsonl" | "text";

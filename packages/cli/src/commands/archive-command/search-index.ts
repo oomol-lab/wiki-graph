@@ -5,7 +5,7 @@ import {
   readSearchIndexCapabilityStatus,
   rebuildArchiveSearchIndex,
   WikiGraphArchiveFile,
-} from "wiki-graph-core";
+} from "wiki-graph-sdk";
 
 import type { CLIArchiveIndexArguments } from "../../args/index.js";
 import { writeTextToStdout } from "../../support/index.js";

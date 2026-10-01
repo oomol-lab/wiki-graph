@@ -7,15 +7,15 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   findWikiGraphLibraryObjects,
   listWikiGraphLibraryObjects,
-} from "wiki-graph-core";
-import type * as WikiGraphCore from "wiki-graph-core";
+} from "wiki-graph-sdk";
+import type * as WikiGraphCore from "wiki-graph-sdk";
 import { setWikiGraphStateDirectoryPathForTesting } from "../../../../../test/helpers/wiki-graph-storage.js";
 import { parseCLIArguments } from "../../args/index.js";
 import { writeFindHits } from "../archive-output/index.js";
 import { runArchiveCommand } from "./index.js";
 import type * as ArchiveRun from "./run/index.js";
 
-vi.mock("wiki-graph-core", async (importOriginal) => {
+vi.mock("wiki-graph-sdk", async (importOriginal) => {
   const actual = await importOriginal<typeof WikiGraphCore>();
   return {
     ...actual,

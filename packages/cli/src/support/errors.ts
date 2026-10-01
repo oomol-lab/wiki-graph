@@ -1,4 +1,4 @@
-import { CLI_PRIMARY_COMMAND } from "wiki-graph-core";
+import { CLI_PRIMARY_COMMAND } from "./command.js";
 
 export const CLI_HELP_ROUTES = {
   command: `${CLI_PRIMARY_COMMAND} --help`,

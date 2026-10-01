@@ -1,7 +1,7 @@
 import type {
   ArchiveSourceLocator,
   ArchiveSourceLocatorResult,
-} from "wiki-graph-core";
+} from "wiki-graph-sdk";
 
 import { formatCLIJSON, writeTextToStdout } from "../../../support/index.js";
 import { createOutputContinuationCursor } from "../object/cursor.js";

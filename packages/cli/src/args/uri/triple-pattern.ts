@@ -1,4 +1,4 @@
-import type { ArchiveTriplePattern } from "wiki-graph-core";
+import type { ArchiveTriplePattern } from "wiki-graph-sdk";
 
 import type { ArchiveUriLens } from "../types.js";
 

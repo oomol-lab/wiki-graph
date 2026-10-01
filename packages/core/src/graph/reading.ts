@@ -285,8 +285,10 @@ async function requireChapter(
   const serial = await document.serials.getById(chapterId);
 
   if (serial === undefined) {
-    throw new Error(
-      `Chapter ${chapterId} does not exist. Use \`wg <archive-uri>/chapter list\` to discover chapter ids.`,
+    throw new WikiGraphError(
+      "chapter_not_found_ids",
+      `Chapter ${chapterId} does not exist.`,
+      { chapterId },
     );
   }
 }
@@ -299,8 +301,10 @@ async function requireChapterNode(
   const chunk = await document.chunks.getById(nodeId);
 
   if (chunk === undefined || chunk.sentenceId[0] !== chapterId) {
-    throw new Error(
-      `Graph node ${nodeId} does not exist in chapter ${chapterId}. Use \`wg <archive-uri>/chapter/${chapterId}/chunk list\` to discover chunk ids.`,
+    throw new WikiGraphError(
+      "graph_node_not_found",
+      `Graph node ${nodeId} does not exist in chapter ${chapterId}.`,
+      { chapterId, nodeId },
     );
   }
 
@@ -343,3 +347,4 @@ function compareNeighbor(left: GraphNeighbor, right: GraphNeighbor): number {
 
   return right.edge.weight - left.edge.weight || left.node.id - right.node.id;
 }
+import { WikiGraphError } from "../runtime/common/error.js";

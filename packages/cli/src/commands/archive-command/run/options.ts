@@ -4,7 +4,7 @@ import {
   type ArchiveCollectionResult,
   type ArchiveFindOptions,
   type ArchiveFindResult,
-} from "wiki-graph-core";
+} from "wiki-graph-sdk";
 
 import type { CLIArchiveArguments } from "../../../args/index.js";
 import {

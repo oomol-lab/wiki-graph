@@ -1,21 +1,15 @@
 import {
-  boostBuildJob,
-  cancelBuildJob,
   cleanBuildJobs,
   formatLocatedChapterUri,
   formatLocatedWikiGraphUri,
-  getBuildJob,
-  listBuildJobs,
-  pauseBuildJob,
   resolveChapterPathReadonly,
   resolveBuildJobId,
-  resumeBuildJob,
-  updateBuildJobTarget,
   WikiGraphArchiveFile,
-} from "wiki-graph-core";
+} from "wiki-graph-sdk";
 
 import type { CLIQueueArguments } from "../../args/index.js";
 import { loadCLIConfig } from "../../runtime/config.js";
+import { getWikiGraphSDK } from "../../runtime/context.js";
 import { loadRequiredStageConfig } from "../../runtime/index.js";
 import { writeTextToStdout } from "../../support/index.js";
 import {
@@ -94,20 +88,22 @@ export async function runQueueCommand(args: CLIQueueArguments): Promise<void> {
     }
     case "list":
       await writeJobList(
-        await listBuildJobs({
-          ...(args.activeOnly === undefined
-            ? {}
-            : { activeOnly: args.activeOnly }),
-          ...(args.all === undefined ? {} : { all: args.all }),
-          ...(args.archivePath === undefined
-            ? {}
-            : { archive: new NodeFile(args.archivePath) }),
-        }),
+        (
+          await getWikiGraphSDK().jobs.list({
+            ...(args.activeOnly === undefined
+              ? {}
+              : { activeOnly: args.activeOnly }),
+            ...(args.all === undefined ? {} : { all: args.all }),
+            ...(args.archivePath === undefined
+              ? {}
+              : { archive: new NodeFile(args.archivePath) }),
+          })
+        ).map((job) => job.snapshot),
         { json: args.json ?? false },
       );
       return;
     case "status":
-      await writeJobStatus(await getBuildJob(await resolveQueueJobId(args)), {
+      await writeJobStatus(await (await getQueueJob(args)).status(), {
         json: args.json ?? false,
       });
       return;
@@ -118,29 +114,24 @@ export async function runQueueCommand(args: CLIQueueArguments): Promise<void> {
       });
       return;
     case "pause":
-      await writeJobSummary(await pauseBuildJob(await resolveQueueJobId(args)));
+      await writeJobSummary(await (await getQueueJob(args)).pause());
       return;
     case "resume":
-      await writeJobSummary(
-        await resumeBuildJob(await resolveQueueJobId(args)),
-      );
+      await writeJobSummary(await (await getQueueJob(args)).resume());
       tryStartQueueWorker();
       return;
     case "cancel":
-      await writeJobSummary(
-        await cancelBuildJob(await resolveQueueJobId(args)),
-      );
+      await writeJobSummary(await (await getQueueJob(args)).cancel());
       return;
     case "boost":
-      await writeJobSummary(await boostBuildJob(await resolveQueueJobId(args)));
+      await writeJobSummary(await (await getQueueJob(args)).boost());
       tryStartQueueWorker();
       return;
     case "target":
       await writeJobSummary(
-        await updateBuildJobTarget(
-          await resolveQueueJobId(args),
-          args.target ?? "reading-summary",
-        ),
+        await (
+          await getQueueJob(args)
+        ).setTarget(args.target ?? "reading-summary"),
       );
       tryStartQueueWorker();
       return;
@@ -160,6 +151,10 @@ function requiresLLMConfig(target: NonNullable<CLIQueueArguments["target"]>) {
 
 async function resolveQueueJobId(args: CLIQueueArguments): Promise<string> {
   return await resolveBuildJobId(args.jobId!);
+}
+
+async function getQueueJob(args: CLIQueueArguments) {
+  return await getWikiGraphSDK().jobs.get(await resolveQueueJobId(args));
 }
 
 async function resolveQueueChapterIds(

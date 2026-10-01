@@ -4,6 +4,7 @@ import type {
   SerialRecord,
 } from "../../document/index.js";
 import type { SerialGenerationOptions } from "./options.js";
+import { WikiGraphError } from "../../runtime/common/error.js";
 
 export function resolveDocument(options: SerialGenerationOptions): Document {
   const document = options.document ?? options.workspace;
@@ -22,8 +23,10 @@ export async function getSerialRecord(
   const record = await document.serials.getById(serialId);
 
   if (record === undefined) {
-    throw new Error(
-      `Chapter ${serialId} does not exist. Use \`wg <archive-uri>/chapter list\` to discover chapter ids.`,
+    throw new WikiGraphError(
+      "chapter_not_found_ids",
+      `Chapter ${serialId} does not exist.`,
+      { chapterId: serialId },
     );
   }
 

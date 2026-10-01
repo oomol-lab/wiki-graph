@@ -1,4 +1,4 @@
-import type { GcRunReport } from "wiki-graph-core/gc";
+import type { GcRunReport } from "wiki-graph-sdk/gc";
 
 import type { CLIGcArguments } from "../args/index.js";
 import { runInternalChildJSON } from "../runtime/internal-child.js";

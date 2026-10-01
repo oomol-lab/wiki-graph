@@ -1,5 +1,5 @@
-import type { ArchiveFindResult } from "wiki-graph-core";
-import { CLI_PRIMARY_COMMAND } from "wiki-graph-core";
+import type { ArchiveFindResult } from "wiki-graph-sdk";
+import { CLI_PRIMARY_COMMAND } from "../../../support/command.js";
 
 export function formatNextCursor(nextCursor: string | null): string {
   if (nextCursor === null) {

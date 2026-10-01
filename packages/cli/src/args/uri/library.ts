@@ -2,7 +2,7 @@ import {
   parseWikiGraphLibraryUri,
   type ArchiveTriplePattern,
   type ParsedWikiGraphLibraryUri,
-} from "wiki-graph-core";
+} from "wiki-graph-sdk";
 
 import { withHelpRoute } from "../../support/index.js";
 import {

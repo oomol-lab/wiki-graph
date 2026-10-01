@@ -1,23 +1,16 @@
 import {
-  getBuildJob,
-  readBuildJobEvents,
   type BuildJobEvent,
   type BuildJobProgressCounter,
-  type BuildJobState,
   type BuildJobTarget,
-} from "wiki-graph-core";
+} from "wiki-graph-sdk";
 
 import {
   ProgressOutputWriter,
   type ProgressCounter,
   type ProgressMetricGroup,
 } from "../../runtime/index.js";
+import { getCLISignal, getWikiGraphSDK } from "../../runtime/context.js";
 
-const TERMINAL_STATES = new Set<BuildJobState>([
-  "succeeded",
-  "failed",
-  "canceled",
-]);
 const PROGRESS_OUTPUT_INTERVAL_MS = 6_000;
 
 export async function watchBuildJob(
@@ -27,35 +20,18 @@ export async function watchBuildJob(
     readonly jsonl: boolean;
   },
 ): Promise<void> {
-  let seenSeq = 0;
   const writer = new ProgressOutputWriter({
     jsonl: options.jsonl,
     throttleMs: PROGRESS_OUTPUT_INTERVAL_MS,
   });
 
-  if (options.from === "now") {
-    const job = await getBuildJob(jobId);
-    const events = await readBuildJobEvents(job);
-
-    seenSeq = events.at(-1)?.seq ?? 0;
-  }
-
-  while (true) {
-    const job = await getBuildJob(jobId);
-    const events = (await readBuildJobEvents(job)).filter(
-      (event) => event.seq > seenSeq,
-    );
-
-    for (const event of events) {
-      seenSeq = Math.max(seenSeq, event.seq);
-      await writer.write(formatWatchOutputEvent(event));
-    }
-
-    if (TERMINAL_STATES.has(job.state)) {
-      return;
-    }
-
-    await delay(1_000);
+  const job = await getWikiGraphSDK().jobs.get(jobId);
+  const signal = getCLISignal();
+  for await (const event of job.events({
+    from: options.from,
+    ...(signal === undefined ? {} : { signal }),
+  })) {
+    await writer.write(formatWatchOutputEvent(event));
   }
 }
 
@@ -191,10 +167,4 @@ function formatProgressTokenMetrics(
   ];
 
   return metrics.length === 0 ? undefined : { metrics, name: "tokens" };
-}
-
-async function delay(ms: number): Promise<void> {
-  await new Promise<void>((resolveDelay) => {
-    setTimeout(resolveDelay, ms);
-  });
 }

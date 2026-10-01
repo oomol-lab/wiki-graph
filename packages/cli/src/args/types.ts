@@ -6,7 +6,7 @@ import type {
   ChapterStage,
   IndexArtifactKind,
   ParsedWikiGraphLibraryUri,
-} from "wiki-graph-core";
+} from "wiki-graph-sdk";
 
 export interface CLIArguments {
   readonly digestDirPath?: string;

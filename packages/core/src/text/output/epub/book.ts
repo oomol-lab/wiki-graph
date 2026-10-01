@@ -72,8 +72,10 @@ async function collectSections(
       const summary = await document.readSummary(item.serialId);
 
       if (summary === undefined) {
-        throw new Error(
-          `Chapter ${item.serialId} summary is missing. Run \`wg wikg://local/job add --input <chapter-uri> --task reading-summary --accept-cost\` before export, or inspect the archive with \`wg <archive-uri>/chapter/tree get\`.`,
+        throw new WikiGraphError(
+          "chapter_summary_missing_tree",
+          `Chapter ${item.serialId} summary is missing.`,
+          { chapterId: item.serialId },
         );
       }
 
@@ -95,3 +97,4 @@ async function collectSections(
 
   return sections;
 }
+import { WikiGraphError } from "../../../runtime/common/error.js";

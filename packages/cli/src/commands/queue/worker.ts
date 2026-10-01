@@ -14,7 +14,7 @@ import {
   type GuaranteedRequest,
   type GuaranteedRequestController,
   type LLMessage,
-} from "wiki-graph-core";
+} from "wiki-graph-sdk";
 import {
   applyChapterJobArtifactFile,
   createLocalChapterJobFileExecutor,
@@ -22,7 +22,7 @@ import {
   type ChapterJobFileExecutor,
   type ChapterJobInputOptions,
   type ChapterJobKind,
-} from "wiki-graph-core/worker";
+} from "wiki-graph-sdk/worker";
 
 import { buildSearchIndexEmbeddingProvider } from "../../runtime/embedding.js";
 import { loadCLIConfig, type CLIConfig } from "../../runtime/config.js";

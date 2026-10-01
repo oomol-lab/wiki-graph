@@ -1,6 +1,6 @@
 {
   "name": "wiki-graph",
-  "version": "0.6.1",
+  "version": "0.7.0",
   "description": "CLI for building and querying .wikg knowledge-base archives from long-form text and ebooks.",
   "keywords": [
     "wiki-graph",
@@ -47,7 +47,7 @@
     "./package.json": "./package.json"
   },
   "scripts": {
-    "build": "rimraf dist && tsup --config tsup.config.ts && node ../../scripts/copy-package-data.mjs ../core/data dist/data",
+    "build": "rimraf dist && tsup --config tsup.config.ts && node ../../scripts/copy-package-data.mjs ../core/data dist/data && node ../../scripts/copy-package-data.mjs data dist/data --merge",
     "dev": "tsx src/bin/dev-cli.ts"
   },
   "dependencies": {
@@ -65,20 +65,10 @@
     "saxes": "^6.0.0",
     "sqlite3": "^6.0.1",
     "tinyld": "^1.3.4",
+    "wiki-graph-sdk": "workspace:*",
     "wiki-graph-wikimedia": "workspace:*",
     "yauzl": "^3.3.0",
     "yazl": "^3.3.1",
     "zod": "^4.3.6"
-  },
-  "devDependencies": {
-    "wiki-graph-core": "workspace:*"
-  },
-  "peerDependencies": {
-    "wiki-graph-core": "^0.6.1"
-  },
-  "peerDependenciesMeta": {
-    "wiki-graph-core": {
-      "optional": true
-    }
   }
 }

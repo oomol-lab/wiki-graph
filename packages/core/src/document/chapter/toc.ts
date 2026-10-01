@@ -25,8 +25,9 @@ function assertChapterKeys(items: MutableTocFile["items"]): void {
   const visit = (nodes: MutableTocFile["items"]): void => {
     for (const item of nodes) {
       if (item.key === undefined) {
-        throw new Error(
-          "Missing chapter key in TOC. Run a writable chapter operation or `wg maintenance upgrade` before using read-only chapter paths.",
+        throw new WikiGraphError(
+          "chapter_key_missing",
+          "Missing chapter key in TOC. A writable chapter operation or home schema upgrade is required before using read-only chapter paths.",
         );
       }
       if (existingKeys.has(item.key)) {
@@ -276,3 +277,4 @@ export async function resolveChapterStage(
 
   return "planned";
 }
+import { WikiGraphError } from "../../runtime/common/error.js";

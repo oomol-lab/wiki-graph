@@ -1,5 +1,5 @@
 import type { CLILegacyArguments } from "../args/index.js";
-import { migrateLegacySdpubToWikg } from "wiki-graph-core";
+import { migrateLegacySdpubToWikg } from "wiki-graph-sdk";
 import { resolve } from "path";
 import { NodeFile } from "../runtime/node-platform.js";
 

@@ -6,8 +6,9 @@ export default defineConfig({
   dts: true,
   entry: { index: "src/index.ts" },
   format: ["esm"],
-  platform: "node",
+  platform: "neutral",
   sourcemap: true,
   splitting: false,
-  target: "node22",
+  target: "es2022",
+  tsconfig: "tsconfig.portable.json",
 });

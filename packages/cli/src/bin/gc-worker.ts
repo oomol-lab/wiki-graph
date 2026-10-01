@@ -6,7 +6,7 @@ import { withWorkerEntryRuntime } from "../runtime/worker-entry.js";
 import { formatCLIJSON } from "../support/index.js";
 
 installNodeWikiGraphPlatform();
-const { tryRunWikiGraphGc } = await import("wiki-graph-core/gc");
+const { tryRunWikiGraphGc } = await import("wiki-graph-sdk/gc");
 
 async function main(): Promise<void> {
   await withWorkerEntryRuntime("gc-worker", async ({ argv }) => {

@@ -1,5 +1,5 @@
-import { WikiGraph } from "wiki-graph-core";
-import type { BookMeta } from "wiki-graph-core";
+import { WikiGraph } from "wiki-graph-sdk";
+import type { BookMeta } from "wiki-graph-sdk";
 
 import type {
   ArchiveMetaPatch,

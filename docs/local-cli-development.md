@@ -32,11 +32,10 @@ This workflow is useful for:
 - checking package contents, `dist` output, shebangs, and `bin` entries;
 - testing how a normal user will experience the CLI after installation.
 
-This workflow previews the CLI package only. It does not create or install a
-`wiki-graph-core` tarball, and it is not the SDK integration workflow. The
-packaged `wg` command is self-contained for normal CLI use, but the
-`wiki-graph` package's programmatic runner entry still expects applications that
-use it as an SDK surface to install `wiki-graph-core` as well.
+This workflow previews the CLI package only. The installed package resolves its
+`wiki-graph-sdk` and `wiki-graph-core` runtime dependencies automatically.
+Applications should use `wiki-graph-sdk`, rather than the CLI runner, for typed
+programmatic access.
 
 It is not the default regression workflow for agents or parallel worktrees. A
 global install is shared by all shells and worktrees on the same machine, so one
@@ -144,14 +143,15 @@ When validating package installation boundaries, use the pack smoke workflow:
 pnpm smoke:pack-install
 ```
 
-That workflow separately packs and installs `wiki-graph-core` and `wiki-graph`
-in temporary projects so it can validate CLI-only, core-only, and combined SDK
-installation scenarios. For manual tarball inspection, build first and pack the
-two packages explicitly:
+That workflow separately packs and installs `wiki-graph-core`,
+`wiki-graph-sdk`, and `wiki-graph` in temporary projects so it can validate
+Core-only, SDK-only, and CLI installation scenarios. For manual tarball
+inspection, build first and pack the three packages explicitly:
 
 ```bash
 pnpm build
 pnpm --filter wiki-graph-core pack --pack-destination /tmp/wiki-graph-packs
+pnpm --filter wiki-graph-sdk pack --pack-destination /tmp/wiki-graph-packs
 pnpm --filter wiki-graph pack --pack-destination /tmp/wiki-graph-packs
 ```
 

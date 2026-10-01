@@ -1,4 +1,4 @@
-import type { SearchIndexEmbeddingProvider } from "wiki-graph-core";
+import type { SearchIndexEmbeddingProvider } from "wiki-graph-sdk";
 
 import { embed, embedMany } from "ai";
 import { createOpenAI } from "@ai-sdk/openai";

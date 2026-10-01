@@ -38,8 +38,9 @@ const forbiddenCapabilities = new Set([
   "system_homedir",
   "system_tmpdir",
 ]);
-// These packages are part of Core's existing browser-capable surface. Their
-// published ESM/browser bundles contain optional feature probes such as
+// These packages are part of the audited browser-capable surface of the public
+// SDK packages. Their published ESM/browser bundles contain optional feature
+// probes such as
 // `process`/`Buffer` (or legacy CommonJS wrappers) that are never executed by
 // the imported APIs. We still inspect their complete import graph and reject
 // every forbidden Node module; the narrow exception only avoids treating an
@@ -324,6 +325,21 @@ async function packageRoot(name, fromDirectory) {
   return undefined;
 }
 
+async function findPackageFile(fromDirectory) {
+  let directory = resolve(fromDirectory);
+  while (true) {
+    const candidate = join(directory, "package.json");
+    try {
+      await readFile(candidate);
+      return candidate;
+    } catch {
+      const parent = dirname(directory);
+      if (parent === directory) return undefined;
+      directory = parent;
+    }
+  }
+}
+
 function splitPackageSpecifier(specifier) {
   const parts = specifier.split("/");
   const packageName = specifier.startsWith("@")
@@ -454,32 +470,28 @@ const extensions = artifactMode ? [".js", ".cjs", ".mjs", ".d.ts"] : [".ts"];
 for (const file of await collect(target, extensions))
   await scanFile(file, { artifact: artifactMode, follow: true });
 if (!artifactMode) {
-  let packageFile = join(repositoryRoot, "..", "packages/core/package.json");
-  try {
-    await readFile(join(target, "package.json"));
-    packageFile = join(target, "package.json");
-  } catch {
-    /* source directory */
-  }
-  const manifest = JSON.parse(await readFile(packageFile, "utf8"));
-  // Always inspect the dependency runtime graph. Core's own build must not
-  // silently downgrade this check: transitive Node imports/globals are just
-  // as non-portable as direct ones.
-  const strictDependencyScan = true;
-  for (const dependency of Object.keys(manifest.dependencies ?? {})) {
-    if (isForbiddenModule(dependency))
-      report(packageFile, `depends on forbidden module ${dependency}`);
-    else
-      await scanDependency(
-        dependency,
-        dirname(packageFile),
-        [],
-        strictDependencyScan,
-      );
+  const packageFile = await findPackageFile(target);
+  if (packageFile !== undefined) {
+    const manifest = JSON.parse(await readFile(packageFile, "utf8"));
+    // Always inspect the dependency runtime graph. A package build must not
+    // silently downgrade this check: transitive Node imports/globals are just
+    // as non-portable as direct ones.
+    const strictDependencyScan = true;
+    for (const dependency of Object.keys(manifest.dependencies ?? {})) {
+      if (isForbiddenModule(dependency))
+        report(packageFile, `depends on forbidden module ${dependency}`);
+      else
+        await scanDependency(
+          dependency,
+          dirname(packageFile),
+          [],
+          strictDependencyScan,
+        );
+    }
   }
 }
 if (violations.length > 0) {
-  console.error("wiki-graph-core portability check failed:");
+  console.error("runtime portability check failed:");
   for (const violation of violations) console.error(`- ${violation}`);
   process.exitCode = 1;
 }

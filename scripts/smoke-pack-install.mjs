@@ -6,6 +6,7 @@ import { isAbsolute, join, resolve } from "path";
 const packageRoot = resolve(import.meta.dirname, "..");
 const coreRoot = join(packageRoot, "packages", "core");
 const jobRoot = join(packageRoot, "packages", "job");
+const sdkRoot = join(packageRoot, "packages", "sdk");
 const cliRoot = join(packageRoot, "packages", "cli");
 const wikimediaRoot = join(packageRoot, "packages", "wikimedia");
 const tempRoot = mkdtempSync(join(tmpdir(), "wiki-graph-pack-"));
@@ -87,28 +88,11 @@ function assertEsmExport(cwd, specifier, exportName) {
   );
 }
 
-function assertModuleMissing(cwd, specifier) {
-  execFileSync(
-    process.execPath,
-    [
-      "-e",
-      [
-        "try {",
-        `  require.resolve(${JSON.stringify(specifier)});`,
-        `  throw new Error(${JSON.stringify(`Module ${specifier} should not be installed`)});`,
-        "} catch (error) {",
-        "  if (error && error.code === 'MODULE_NOT_FOUND') {",
-        "    process.exit(0);",
-        "  }",
-        "  throw error;",
-        "}",
-      ].join(" "),
-    ],
-    {
-      cwd,
-      stdio: "inherit",
-    },
-  );
+function runNodeScript(cwd, args) {
+  execFileSync(process.execPath, args, {
+    cwd,
+    stdio: "inherit",
+  });
 }
 
 function writeInstallWorkspace(cwd, name, overrides = {}) {
@@ -146,15 +130,16 @@ try {
   const jobTarballPath = packPackage(jobRoot);
   const wikimediaTarballPath = packPackage(wikimediaRoot);
   const coreTarballPath = packPackage(coreRoot);
+  const sdkTarballPath = packPackage(sdkRoot);
   const cliTarballPath = packPackage(cliRoot);
 
   writeInstallWorkspace(cliInstallRoot, "wiki-graph-cli-pack-smoke", {
     "wiki-graph-job": `file:${jobTarballPath}`,
     "wiki-graph-wikimedia": `file:${wikimediaTarballPath}`,
+    "wiki-graph-core": `file:${coreTarballPath}`,
+    "wiki-graph-sdk": `file:${sdkTarballPath}`,
   });
   installTarballs(cliInstallRoot, [cliTarballPath]);
-
-  assertModuleMissing(cliInstallRoot, "wiki-graph-core");
 
   for (const command of ["wg", "wikigraph"]) {
     execFileSync(
@@ -174,6 +159,22 @@ try {
       },
     );
   }
+  runNodeScript(cliInstallRoot, [
+    "--input-type=module",
+    "-e",
+    [
+      'import { runWikiGraphCLICaptured } from "wiki-graph";',
+      'import { existsSync, mkdirSync } from "fs";',
+      'import { join } from "path";',
+      'const cwd = join(process.cwd(), "programmatic-cli");',
+      'const stateDir = join(process.cwd(), "programmatic-cli-state");',
+      "mkdirSync(cwd, { recursive: true });",
+      "mkdirSync(stateDir, { recursive: true });",
+      'const result = await runWikiGraphCLICaptured({ argv: ["wikg://book.wikg", "create"], cwd, stateDir });',
+      "if (result.exitCode !== 0) throw new Error(`Programmatic CLI create failed: ${result.stderr}`);",
+      'if (!existsSync(join(cwd, "book.wikg"))) throw new Error("Programmatic CLI did not create book.wikg");',
+    ].join("\n"),
+  ]);
 
   writeInstallWorkspace(coreInstallRoot, "wiki-graph-core-pack-smoke", {
     "wiki-graph-job": `file:${jobTarballPath}`,
@@ -203,13 +204,81 @@ try {
   writeInstallWorkspace(sdkInstallRoot, "wiki-graph-sdk-pack-smoke", {
     "wiki-graph-job": `file:${jobTarballPath}`,
     "wiki-graph-wikimedia": `file:${wikimediaTarballPath}`,
+    "wiki-graph-core": `file:${coreTarballPath}`,
   });
-  installTarballs(sdkInstallRoot, [coreTarballPath, cliTarballPath]);
+  installTarballs(sdkInstallRoot, [sdkTarballPath]);
 
-  assertCommonJsExport(sdkInstallRoot, "wiki-graph", "runWikiGraphCLICaptured");
-  assertEsmExport(sdkInstallRoot, "wiki-graph", "runWikiGraphCLICaptured");
-  assertCommonJsExport(sdkInstallRoot, "wiki-graph", "Language");
-  assertEsmExport(sdkInstallRoot, "wiki-graph", "Language");
+  assertCommonJsExport(sdkInstallRoot, "wiki-graph-sdk", "createWikiGraphSDK");
+  assertEsmExport(sdkInstallRoot, "wiki-graph-sdk", "createWikiGraphSDK");
+  assertCommonJsExport(sdkInstallRoot, "wiki-graph-sdk", "WikiGraph");
+  assertEsmExport(sdkInstallRoot, "wiki-graph-sdk", "WikiGraph");
+  assertCommonJsExport(
+    sdkInstallRoot,
+    "wiki-graph-sdk/node-platform",
+    "NodeFile",
+  );
+  assertEsmExport(sdkInstallRoot, "wiki-graph-sdk/node-platform", "NodeFile");
+  runNodeScript(sdkInstallRoot, [
+    "-e",
+    [
+      'const { createWikiGraphSDK } = require("wiki-graph-sdk");',
+      'const { readLocalConfigSection } = require("wiki-graph-sdk/local-config");',
+      'const { tryRunWikiGraphGc } = require("wiki-graph-sdk/gc");',
+      'const { runBuildJobWorker } = require("wiki-graph-sdk/worker");',
+      'const { mkdirSync } = require("fs");',
+      'const { join } = require("path");',
+      "void (async () => {",
+      '  const root = join(process.cwd(), "runtime-smoke-cjs");',
+      '  mkdirSync(join(root, "sdk"), { recursive: true });',
+      '  const sdk = createWikiGraphSDK({ stateDir: join(root, "sdk") });',
+      "  const expectedJobConcurrency = 700000 + process.pid;",
+      '  await sdk.config.put("concurrent", "job", expectedJobConcurrency);',
+      '  const childConfig = await sdk.run(() => readLocalConfigSection("concurrent"));',
+      '  if (childConfig.job !== expectedJobConcurrency) throw new Error("CommonJS local-config did not inherit SDK stateDir");',
+      "  sdk.close();",
+      '  const report = await tryRunWikiGraphGc({ dryRun: true, stateDir: join(root, "gc") });',
+      '  if (report.skipped !== false) throw new Error("CommonJS SDK GC smoke was unexpectedly skipped");',
+      "  let executed = false;",
+      "  await runBuildJobWorker({",
+      "    concurrency: 1,",
+      "    executeJob: () => { executed = true; return Promise.resolve(); },",
+      "    idleTimeoutMs: 0,",
+      '    stateDir: join(root, "worker"),',
+      "  });",
+      '  if (executed) throw new Error("CommonJS SDK worker smoke unexpectedly found a queued job");',
+      "})().catch((error) => { console.error(error); process.exitCode = 1; });",
+    ].join("\n"),
+  ]);
+  runNodeScript(sdkInstallRoot, [
+    "--input-type=module",
+    "-e",
+    [
+      'import { createWikiGraphSDK } from "wiki-graph-sdk";',
+      'import { tryRunWikiGraphGc } from "wiki-graph-sdk/gc";',
+      'import { readLocalConfigSection } from "wiki-graph-sdk/local-config";',
+      'import { runBuildJobWorker } from "wiki-graph-sdk/worker";',
+      'import { mkdirSync } from "fs";',
+      'import { join } from "path";',
+      'const root = join(process.cwd(), "runtime-smoke");',
+      'mkdirSync(join(root, "sdk"), { recursive: true });',
+      'const sdk = createWikiGraphSDK({ stateDir: join(root, "sdk") });',
+      "const expectedJobConcurrency = 800000 + process.pid;",
+      'await sdk.config.put("concurrent", "job", expectedJobConcurrency);',
+      'const childConfig = await sdk.run(() => readLocalConfigSection("concurrent"));',
+      'if (childConfig.job !== expectedJobConcurrency) throw new Error("ESM local-config did not inherit SDK stateDir");',
+      "sdk.close();",
+      'const report = await tryRunWikiGraphGc({ dryRun: true, stateDir: join(root, "gc") });',
+      'if (report.skipped !== false) throw new Error("SDK GC smoke was unexpectedly skipped");',
+      "let executed = false;",
+      "await runBuildJobWorker({",
+      "  concurrency: 1,",
+      "  executeJob: () => { executed = true; return Promise.resolve(); },",
+      "  idleTimeoutMs: 0,",
+      '  stateDir: join(root, "worker"),',
+      "});",
+      'if (executed) throw new Error("SDK worker smoke unexpectedly found a queued job");',
+    ].join("\n"),
+  ]);
 } finally {
   for (const tarballPath of packedTarballs) {
     rmSync(tarballPath, { force: true });

@@ -1,4 +1,4 @@
-import type { ArchiveFindEvidencePreview, ArchivePage } from "wiki-graph-core";
+import type { ArchiveFindEvidencePreview, ArchivePage } from "wiki-graph-sdk";
 
 import {
   formatCLIJSON,

@@ -48,14 +48,16 @@ export {
   writeFileContent,
 } from "./files.js";
 
-let installedPlatform: WikiGraphPlatform | undefined;
+/** Shared by independently bundled CommonJS package entry points. */
+const RUNTIME_STATE_KEY = Symbol.for("wiki-graph-core.runtime.v1");
 
 /** Install the process-default platform services used by Core. */
 export function installWikiGraphPlatform(platform: WikiGraphPlatform): void {
-  installedPlatform = platform;
+  getRuntimeState().installedPlatform = platform;
 }
 
 export function getWikiGraphPlatform(): WikiGraphPlatform {
+  const { installedPlatform } = getRuntimeState();
   if (installedPlatform === undefined) {
     throw new Error(
       "No WikiGraph runtime platform has been installed. Provide a runtime adapter before using wiki-graph-core.",
@@ -240,6 +242,7 @@ class DeferredHostAsyncContext<T> {
     if (this.#impl !== undefined) {
       return this.#impl;
     }
+    const { installedPlatform } = getRuntimeState();
     if (installedPlatform === undefined) {
       return undefined;
     }
@@ -253,12 +256,32 @@ class DeferredHostAsyncContext<T> {
   }
 }
 
-const storageContext = new DeferredHostAsyncContext<WikiGraphStorage>();
-let installedStorage: WikiGraphStorage | undefined;
+interface WikiGraphRuntimeState {
+  installedPlatform?: WikiGraphPlatform;
+  installedStorage?: WikiGraphStorage;
+  readonly storageContext: DeferredHostAsyncContext<WikiGraphStorage>;
+}
+
+function getRuntimeState(): WikiGraphRuntimeState {
+  const runtimeGlobal = globalThis as unknown as Record<PropertyKey, unknown>;
+  const existing = runtimeGlobal[RUNTIME_STATE_KEY];
+  if (existing !== undefined) return existing as WikiGraphRuntimeState;
+
+  const state: WikiGraphRuntimeState = {
+    storageContext: new DeferredHostAsyncContext<WikiGraphStorage>(),
+  };
+  Object.defineProperty(runtimeGlobal, RUNTIME_STATE_KEY, {
+    configurable: false,
+    enumerable: false,
+    value: state,
+    writable: false,
+  });
+  return state;
+}
 
 /** Install process-default storage, primarily for CLI bootstrap. */
 export function installWikiGraphStorage(storage: WikiGraphStorage): void {
-  installedStorage = storage;
+  getRuntimeState().installedStorage = storage;
 }
 
 export async function withWikiGraphStorage<T>(
@@ -268,10 +291,11 @@ export async function withWikiGraphStorage<T>(
   if (storage === undefined) {
     return await operation();
   }
-  return await storageContext.run(storage, operation);
+  return await getRuntimeState().storageContext.run(storage, operation);
 }
 
 export function getWikiGraphStorage(): WikiGraphStorage {
+  const { installedStorage, storageContext } = getRuntimeState();
   const storage = storageContext.getStore() ?? installedStorage;
   if (storage === undefined) {
     throw new Error(

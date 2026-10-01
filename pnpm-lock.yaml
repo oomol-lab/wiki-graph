@@ -115,6 +115,9 @@ importers:
       tinyld:
         specifier: ^1.3.4
         version: 1.3.4
+      wiki-graph-sdk:
+        specifier: workspace:*
+        version: link:../sdk
       wiki-graph-wikimedia:
         specifier: workspace:*
         version: link:../wikimedia
@@ -127,10 +130,6 @@ importers:
       zod:
         specifier: ^4.3.6
         version: 4.3.6
-    devDependencies:
-      wiki-graph-core:
-        specifier: workspace:*
-        version: link:../core
 
   packages/core:
     dependencies:
@@ -195,6 +194,24 @@ importers:
       nunjucks:
         specifier: ^3.2.4
         version: 3.2.4
+
+  packages/sdk:
+    dependencies:
+      nunjucks:
+        specifier: ^3.2.4
+        version: 3.2.4
+      sqlite3:
+        specifier: ^6.0.1
+        version: 6.0.1(supports-color@7.2.0)
+      wiki-graph-core:
+        specifier: workspace:*
+        version: link:../core
+      yauzl:
+        specifier: ^3.3.0
+        version: 3.3.0
+      yazl:
+        specifier: ^3.3.1
+        version: 3.3.1
 
   packages/wikimedia:
     dependencies:

@@ -1,8 +1,8 @@
 import { rm } from "fs/promises";
 import { resolve } from "path";
 
-import { WikiGraph, type WikiGraphOptions } from "wiki-graph-core";
-import type { WikiGraphArchive } from "wiki-graph-core";
+import { WikiGraph, type WikiGraphOptions } from "wiki-graph-sdk";
+import type { WikiGraphArchive } from "wiki-graph-sdk";
 
 import type { CLIArguments } from "../args/index.js";
 import { loadCLIConfig, type CLIConfig } from "../runtime/config.js";

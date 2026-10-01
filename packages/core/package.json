@@ -1,7 +1,7 @@
 {
   "name": "wiki-graph-core",
-  "version": "0.6.1",
-  "description": "Core SDK for building and querying .wikg knowledge-base archives.",
+  "version": "0.7.0",
+  "description": "Runtime-neutral engine for building and querying .wikg knowledge-base archives.",
   "keywords": [
     "wiki-graph",
     "knowledge-graph",
@@ -44,6 +44,12 @@
       "require": "./dist/gc.cjs",
       "default": "./dist/gc.js"
     },
+    "./platform": {
+      "types": "./dist/platform.d.ts",
+      "import": "./dist/platform.js",
+      "require": "./dist/platform.cjs",
+      "default": "./dist/platform.js"
+    },
     "./worker": {
       "types": "./dist/worker.d.ts",
       "import": "./dist/worker.js",
@@ -53,7 +59,7 @@
     "./package.json": "./package.json"
   },
   "scripts": {
-    "build": "tsc -p tsconfig.portable.json --noEmit && node ../../scripts/check-core-portability.mjs && rimraf dist && tsup --config tsup.config.ts && node ../../scripts/check-core-portability.mjs dist --artifact"
+    "build": "tsc -p tsconfig.portable.json --noEmit && node ../../scripts/check-package-portability.mjs src && rimraf dist && tsup --config tsup.config.ts && node ../../scripts/check-package-portability.mjs dist --artifact"
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^3.0.68",

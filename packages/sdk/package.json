@@ -1,0 +1,97 @@
+{
+  "name": "wiki-graph-sdk",
+  "version": "0.7.0",
+  "description": "Node.js SDK for running Wiki Graph programmatically with local config, libraries, and jobs.",
+  "keywords": [
+    "wiki-graph",
+    "knowledge-graph",
+    "llm",
+    "sdk",
+    "wikg"
+  ],
+  "license": "Apache-2.0",
+  "type": "module",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/oomol-lab/wiki-graph.git"
+  },
+  "bugs": {
+    "url": "https://github.com/oomol-lab/wiki-graph/issues"
+  },
+  "homepage": "https://github.com/oomol-lab/wiki-graph",
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "publishConfig": {
+    "access": "public"
+  },
+  "files": [
+    "dist",
+    "LICENSE",
+    "README.md"
+  ],
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs",
+      "default": "./dist/index.js"
+    },
+    "./entry-context": {
+      "types": "./dist/entry-context.d.ts",
+      "import": "./dist/entry-context.js",
+      "require": "./dist/entry-context.cjs",
+      "default": "./dist/entry-context.js"
+    },
+    "./gc": {
+      "types": "./dist/gc.d.ts",
+      "import": "./dist/gc.js",
+      "require": "./dist/gc.cjs",
+      "default": "./dist/gc.js"
+    },
+    "./local-config": {
+      "types": "./dist/local-config.d.ts",
+      "import": "./dist/local-config.js",
+      "require": "./dist/local-config.cjs",
+      "default": "./dist/local-config.js"
+    },
+    "./node-platform": {
+      "types": "./dist/node-platform.d.ts",
+      "import": "./dist/node-platform.js",
+      "require": "./dist/node-platform.cjs",
+      "default": "./dist/node-platform.js"
+    },
+    "./planning": {
+      "types": "./dist/planning.d.ts",
+      "import": "./dist/planning.js",
+      "require": "./dist/planning.cjs",
+      "default": "./dist/planning.js"
+    },
+    "./wikispine": {
+      "types": "./dist/wikispine.d.ts",
+      "import": "./dist/wikispine.js",
+      "require": "./dist/wikispine.cjs",
+      "default": "./dist/wikispine.js"
+    },
+    "./worker": {
+      "types": "./dist/worker.d.ts",
+      "import": "./dist/worker.js",
+      "require": "./dist/worker.cjs",
+      "default": "./dist/worker.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "scripts": {
+    "build": "rimraf dist && tsup --config tsup.config.ts && node ../../scripts/copy-package-data.mjs ../core/data dist/data"
+  },
+  "dependencies": {
+    "nunjucks": "^3.2.4",
+    "sqlite3": "^6.0.1",
+    "wiki-graph-core": "workspace:*",
+    "yauzl": "^3.3.0",
+    "yazl": "^3.3.1"
+  }
+}

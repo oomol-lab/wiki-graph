@@ -31,12 +31,9 @@ export {
   WIKI_GRAPH_SCOPES,
 } from "./runtime/common/llm-scope.js";
 export { withLoggingContext } from "./runtime/common/logging.js";
-export {
-  CLI_FULL_COMMAND,
-  CLI_PRIMARY_COMMAND,
-} from "./runtime/common/cli-command.js";
+export * from "./runtime/common/error.js";
 export { resolveDataDirPath } from "./runtime/common/data-dir.js";
-export { createEnv } from "./runtime/common/template.js";
+export { createEnv, normalizeTemplateName } from "./runtime/common/template.js";
 export {
   clearWikiGraphLibraryMetadata,
   addWikiGraphLibraryArchive,
@@ -469,6 +466,7 @@ export {
   getWikiGraphStorage,
   installWikiGraphPlatform,
   installWikiGraphStorage,
+  withWikiGraphStorage,
   type Directory,
   type Entry,
   type File,
@@ -478,6 +476,7 @@ export {
   type HostAsyncContext,
   type HostAsyncContextProvider,
   type HostDatabaseConnection,
+  type HostDatabaseOpenOptions,
   type HostDatabaseProvider,
   type HostDatabaseRow,
   type HostDatabaseValue,

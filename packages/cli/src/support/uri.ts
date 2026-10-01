@@ -5,7 +5,7 @@ import {
   formatWikiGraphCommandUri as formatPortableWikiGraphCommandUri,
   parseLocatedWikiGraphUri as parsePortableLocatedWikiGraphUri,
   type LocatedWikiGraphUri,
-} from "wiki-graph-core";
+} from "wiki-graph-sdk";
 
 import { getCLICwd, getCLIEnvValue } from "../runtime/context.js";
 

@@ -6,3 +6,4 @@ export * from "./shell.js";
 export * from "./tree.js";
 export * from "./uri.js";
 export * from "./version.js";
+export * from "./command.js";

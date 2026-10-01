@@ -7,10 +7,7 @@ import {
   parseLocalConfigSection,
   type LocalConfigSection,
 } from "../../runtime/local-config.js";
-import {
-  parseWikiGraphUriSyntax,
-  WIKI_GRAPH_URI_PREFIX,
-} from "wiki-graph-core";
+import { parseWikiGraphUriSyntax, WIKI_GRAPH_URI_PREFIX } from "wiki-graph-sdk";
 import type { CLIArchiveAction } from "../types.js";
 
 export function validateArchiveCommandUriInput(

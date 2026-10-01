@@ -4,7 +4,7 @@ import {
   WikiGraphArchiveFile,
   type BuildJob,
   type ChapterEntry,
-} from "wiki-graph-core";
+} from "wiki-graph-sdk";
 
 import {
   formatCLIJSON,

@@ -1,4 +1,4 @@
-import type { ChapterStage } from "wiki-graph-core";
+import type { ChapterStage } from "wiki-graph-sdk";
 
 import { withHelpRoute } from "../../../support/index.js";
 
