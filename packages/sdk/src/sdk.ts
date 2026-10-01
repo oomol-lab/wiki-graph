@@ -3,6 +3,7 @@ import { WikiGraph } from "wiki-graph-core";
 import { WikiGraphArchiveManager } from "./archives.js";
 import { WikiGraphConversionManager } from "./conversions.js";
 import { WikiGraphConfigManager } from "./config.js";
+import { WikiGraphContinuationManager } from "./continuations.js";
 import { WikiGraphJobManager, type WikiGraphJobRuntime } from "./jobs.js";
 import { WikiGraphLibraryManager } from "./libraries.js";
 import { WikiGraphMaintenanceManager } from "./maintenance.js";
@@ -30,6 +31,7 @@ export class WikiGraphSDK implements WikiGraphJobRuntime {
   public readonly archives: WikiGraphArchiveManager;
   public readonly conversions: WikiGraphConversionManager;
   public readonly config: WikiGraphConfigManager;
+  public readonly continuations: WikiGraphContinuationManager;
   public readonly jobs: WikiGraphJobManager;
   public readonly libraries: WikiGraphLibraryManager;
   public readonly maintenance: WikiGraphMaintenanceManager;
@@ -45,6 +47,7 @@ export class WikiGraphSDK implements WikiGraphJobRuntime {
     this.archives = new WikiGraphArchiveManager(this);
     this.conversions = new WikiGraphConversionManager(this);
     this.config = new WikiGraphConfigManager(this);
+    this.continuations = new WikiGraphContinuationManager(this);
     this.jobs = new WikiGraphJobManager(this);
     this.libraries = new WikiGraphLibraryManager(this);
     this.maintenance = new WikiGraphMaintenanceManager(this);

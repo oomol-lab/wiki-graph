@@ -4,6 +4,7 @@ import { join } from "path";
 import { afterEach, describe, expect, it } from "vitest";
 
 import {
+  createContinuationCursor,
   DirectoryDocument,
   TOC_FILE_VERSION,
   writeWikgArchive,
@@ -73,6 +74,39 @@ describe("WikiGraphSDK delivery operations", () => {
     sdk.close();
   });
 
+  it("atomically rejects concurrent no-replace archive creation", async () => {
+    const root = await mkdtemp(join(tmpdir(), "wiki-graph-sdk-create-race-"));
+    temporaryDirectories.push(root);
+    await mkdir(join(root, "state"));
+    const sdk = createWikiGraphSDK({
+      cwd: root,
+      stateDir: join(root, "state"),
+    });
+
+    for (let round = 0; round < 10; round += 1) {
+      const path = `race-${round}.wikg`;
+      const results = await Promise.allSettled([
+        sdk.archives.create({ path }),
+        sdk.archives.create({ path }),
+      ]);
+      expect(
+        results.filter((result) => result.status === "fulfilled"),
+      ).toHaveLength(1);
+      const rejected = results.filter(
+        (result): result is PromiseRejectedResult =>
+          result.status === "rejected",
+      );
+      expect(rejected).toHaveLength(1);
+      const reason: unknown = rejected[0]?.reason;
+      expect(reason).toMatchObject({ code: "WIKI_GRAPH_ARCHIVE_EXISTS" });
+    }
+
+    expect(
+      (await readdir(root)).filter((name) => name.includes("tmp.wikg")),
+    ).toEqual([]);
+    sdk.close();
+  });
+
   it("owns chapter, index, and queue planning semantics", async () => {
     const root = await mkdtemp(join(tmpdir(), "wiki-graph-sdk-delivery-"));
     temporaryDirectories.push(root);
@@ -121,6 +155,47 @@ describe("WikiGraphSDK delivery operations", () => {
       target: "index-fts",
     });
 
+    sdk.close();
+  });
+
+  it("restores and dispatches continuation cursors through the public SDK", async () => {
+    const root = await mkdtemp(join(tmpdir(), "wiki-graph-sdk-next-"));
+    temporaryDirectories.push(root);
+    await mkdir(join(root, "state"));
+    const sdk = createWikiGraphSDK({
+      cwd: root,
+      stateDir: join(root, "state"),
+    });
+    await sdk.archives.create({ path: "book.wikg" });
+    const archive = await sdk.archives.open("book.wikg");
+    await archive.addChapter({ title: "First" });
+    await archive.addChapter({ title: "Second" });
+    const first = await archive.list({ limit: 1, types: ["chapter-title"] });
+    if (!("nextCursor" in first) || first.nextCursor === null) {
+      throw new Error("Expected a collection continuation cursor.");
+    }
+    const cursor = await sdk.run(
+      async () =>
+        await createContinuationCursor({
+          archiveKey: archive.archiveKey,
+          archivePath: archive.path,
+          chapters: null,
+          cursor: first.nextCursor!,
+          format: "json",
+          ids: null,
+          indexScope: archive.indexScope,
+          kind: "collection",
+          order: "doc-asc",
+          types: ["chapter-title"],
+        }),
+    );
+
+    const next = await sdk.continuations.next({ cursor, limit: 1 });
+    expect(next).toMatchObject({ kind: "collection", limit: 1 });
+    expect(next.result.items).toHaveLength(1);
+    await expect(
+      sdk.continuations.next({ archive: "other.wikg", cursor }),
+    ).rejects.toThrow("belongs to");
     sdk.close();
   });
 });

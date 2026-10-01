@@ -1,5 +1,5 @@
 import { randomUUID } from "crypto";
-import { mkdtemp, rename, rm, stat } from "fs/promises";
+import { link, mkdtemp, rename, rm, stat } from "fs/promises";
 import { tmpdir } from "os";
 import { basename, dirname, join } from "path";
 import { Readable } from "stream";
@@ -236,11 +236,10 @@ export class WikiGraphArchiveManager {
       if (options.replace !== true && (await nodePathExists(path))) {
         throw new WikiGraphArchiveExistsError(path);
       }
-      const outputPath =
-        options.replace === true
-          ? join(dirname(path), `.${basename(path)}.${randomUUID()}.tmp.wikg`)
-          : path;
-      let completed = false;
+      const outputPath = join(
+        dirname(path),
+        `.${basename(path)}.${randomUUID()}.tmp.wikg`,
+      );
       try {
         if (options.importPath === undefined) {
           await createEmptyArchiveFile(outputPath);
@@ -254,13 +253,23 @@ export class WikiGraphArchiveManager {
             targetStage: "sourced",
           });
         }
-        if (outputPath !== path) await rename(outputPath, path);
-        completed = true;
+        if (options.replace === true) {
+          await rename(outputPath, path);
+        } else {
+          try {
+            // A hard-link is an atomic no-clobber publish because the private
+            // temporary file lives beside the target on the same filesystem.
+            await link(outputPath, path);
+          } catch (error) {
+            if (isNodeEEXISTError(error)) {
+              throw new WikiGraphArchiveExistsError(path);
+            }
+            throw error;
+          }
+        }
         return { locatedUri: formatLocatedWikiGraphUri(path), path };
       } finally {
-        if (!completed || outputPath !== path) {
-          await rm(outputPath, { force: true, recursive: true });
-        }
+        await rm(outputPath, { force: true, recursive: true });
       }
     }, options.signal);
   }
@@ -1099,6 +1108,14 @@ async function createEmptyArchiveFile(path: string): Promise<void> {
   } finally {
     await rm(directoryPath, { force: true, recursive: true });
   }
+}
+
+function isNodeEEXISTError(error: unknown): error is NodeJS.ErrnoException {
+  return (
+    error instanceof Error &&
+    "code" in error &&
+    (error as NodeJS.ErrnoException).code === "EEXIST"
+  );
 }
 
 async function nodePathExists(path: string): Promise<boolean> {

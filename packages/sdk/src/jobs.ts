@@ -2,6 +2,7 @@ import {
   addBuildJob,
   boostBuildJob,
   cancelBuildJob,
+  formatLocatedChapterUri,
   getBuildJob,
   listBuildJobs,
   listChapters,
@@ -20,7 +21,7 @@ import {
   type ChapterEntry,
 } from "wiki-graph-core";
 
-import { NodeFile } from "./node-platform.js";
+import { getNodeResourcePath, NodeFile } from "./node-platform.js";
 import { resolveWikiGraphArchiveLocation } from "./archives.js";
 import { requireKnowledgeGraphWikispineConfig } from "./default-worker.js";
 import { loadWikiGraphRuntimeConfig } from "./runtime-config.js";
@@ -96,6 +97,12 @@ export interface WikiGraphJobListOptions extends Omit<
   "archive"
 > {
   readonly archive?: string | BuildJobListOptions["archive"];
+}
+
+export interface WikiGraphJobChapterReference {
+  readonly locatedUri: string;
+  readonly title: string | null;
+  readonly uri: string;
 }
 
 export interface WikiGraphJobEnqueueOptions {
@@ -203,6 +210,61 @@ export class WikiGraphJobManager {
       return await this.#backend.list(normalized);
     });
     return jobs.map((job) => this.#createHandle(job));
+  }
+
+  public async resolveChapters(
+    jobs: readonly BuildJob[],
+  ): Promise<ReadonlyMap<string, WikiGraphJobChapterReference>> {
+    return await this.#runtime.run(async () => {
+      const jobsByArchive = new Map<string, BuildJob[]>();
+      for (const job of jobs) {
+        const archivePath = getBuildJobArchivePath(job);
+        const grouped = jobsByArchive.get(archivePath) ?? [];
+        grouped.push(job);
+        jobsByArchive.set(archivePath, grouped);
+      }
+      const entries = (
+        await Promise.all(
+          [...jobsByArchive].map(async ([archivePath, archiveJobs]) => {
+            try {
+              const chapters = await new WikiGraphArchiveFile(
+                new NodeFile(archivePath),
+              ).readDocument(async (document) => await listChapters(document));
+              const chaptersById = new Map(
+                chapters.map((chapter) => [chapter.chapterId, chapter]),
+              );
+              return archiveJobs.flatMap((job) => {
+                const chapter = chaptersById.get(job.chapterId);
+                return chapter === undefined
+                  ? []
+                  : [
+                      [
+                        job.jobId,
+                        {
+                          locatedUri: formatLocatedChapterUri(
+                            archivePath,
+                            chapter.path,
+                          ),
+                          title: chapter.title,
+                          uri: chapter.uri,
+                        },
+                      ] as const,
+                    ];
+              });
+            } catch {
+              return [];
+            }
+          }),
+        )
+      ).flat();
+      return new Map(entries);
+    });
+  }
+
+  public async resolveChapter(
+    job: BuildJob,
+  ): Promise<WikiGraphJobChapterReference | undefined> {
+    return (await this.resolveChapters([job])).get(job.jobId);
   }
 
   public async enqueue(
@@ -340,6 +402,15 @@ export class WikiGraphJobManager {
   #createHandle(snapshot: BuildJob): WikiGraphJob {
     return new WikiGraphJob(this, this.#runtime, this.#backend, snapshot);
   }
+}
+
+function getBuildJobArchivePath(job: BuildJob): string {
+  const record = job as unknown as Record<string, unknown>;
+  if (record.archive !== undefined) {
+    return getNodeResourcePath(record.archive as BuildJob["archive"]);
+  }
+  if (typeof record.archivePath === "string") return record.archivePath;
+  throw new TypeError("Build job is missing archive");
 }
 
 export class WikiGraphJob {

@@ -1,5 +1,6 @@
 export * from "./archives.js";
 export * from "./config.js";
+export * from "./continuations.js";
 export * from "./conversions.js";
 export * from "./default-worker.js";
 export * from "./entry-context.js";
@@ -22,7 +23,6 @@ export {
   LLMPaymentRequiredError,
   WIKI_GRAPH_URI_PREFIX,
   WikiGraph,
-  WikiGraphArchiveFile,
   WikiGraphError,
   addChapter,
   applyChapterTree,
@@ -32,9 +32,6 @@ export {
   createContinuationCursor,
   deleteArchiveSearchSessions,
   ensureWikiGraphHomeSchemaCurrent,
-  findArchiveObjects,
-  findWikiGraphLibraryArchiveMembers,
-  findWikiGraphLibraryObjects,
   formatError,
   formatLocatedChapterResourceUri,
   formatLocatedChapterSourceCollectionUri,
@@ -47,16 +44,8 @@ export {
   isArchiveSearchIndexCurrent,
   isSourceLocatorScopeUri,
   isWikiGraphLibraryUri,
-  listArchiveCollection,
-  listArchiveEvidence,
   listArchiveQueryableChapterIds,
-  listArchiveSourceLocators,
   listChapters,
-  listRelatedArchiveObjects,
-  listRelatedWikiGraphLibraryObjects,
-  listWikiGraphLibraryArchiveMembers,
-  listWikiGraphLibraryEvidence,
-  listWikiGraphLibraryObjects,
   migrateLegacySdpubToWikg,
   moveChapter,
   openWikimediaResolver,
@@ -68,7 +57,6 @@ export {
   parseWikiGraphLibraryUri,
   parseWikiGraphUriSyntax,
   readArchiveText,
-  readContinuationCursor,
   readSearchIndexCapabilityStatus,
   readWikiGraphLibraryIndexState,
   rebuildArchiveSearchIndex,
@@ -77,7 +65,6 @@ export {
   resetChapter,
   resolveBuildJobId,
   resolveChapterPathReadonly,
-  resolveWikiGraphLibraryQueryTargetById,
   setChapterSource,
   setChapterSummary,
   setChapterTitle,
