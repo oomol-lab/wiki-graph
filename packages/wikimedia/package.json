@@ -23,7 +23,7 @@
     "./package.json": "./package.json"
   },
   "scripts": {
-    "build": "rimraf dist && tsup --config tsup.config.ts"
+    "build": "tsc -p tsconfig.portable.json --noEmit && node ../../scripts/check-package-portability.mjs src && rimraf dist && tsup --config tsup.config.ts && node ../../scripts/check-package-portability.mjs dist --artifact"
   },
   "dependencies": {
     "zod": "^4.3.6"

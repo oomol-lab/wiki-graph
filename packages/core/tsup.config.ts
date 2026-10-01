@@ -8,6 +8,7 @@ const SHARED_OPTIONS = {
   sourcemap: true,
   splitting: false,
   target: "es2022",
+  tsconfig: "tsconfig.portable.json",
 } as const;
 const ENTRY = {
   gc: "src/gc.ts",

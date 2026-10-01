@@ -7,7 +7,7 @@ import { describe, expect, it } from "vitest";
 
 const execFileAsync = promisify(execFile);
 
-describe("core portability gate", () => {
+describe("package portability gate", () => {
   it("rejects a static Node import in isolation", async () => {
     await expectRejected({ "forbidden.ts": 'import "node:fs";\n' });
   });
@@ -70,6 +70,16 @@ describe("core portability gate", () => {
       });
     },
   );
+
+  it("finds the owning package manifest from a source directory", async () => {
+    await withFixture(async (fixture) => {
+      await writeFixture(fixture, {
+        "package.json": JSON.stringify({ dependencies: { sqlite3: "1.0.0" } }),
+        "src/index.ts": "export const portable = true;\n",
+      });
+      await expectGateFailure(join(fixture, "src"), false, "package.json");
+    });
+  });
 
   it("does not exempt platform implementation folders", async () => {
     await expectRejected({
@@ -209,7 +219,7 @@ async function expectGateFailure(
     await execFileAsync(
       "node",
       [
-        "scripts/check-core-portability.mjs",
+        "scripts/check-package-portability.mjs",
         fixture,
         ...(artifact ? ["--artifact"] : []),
       ],
