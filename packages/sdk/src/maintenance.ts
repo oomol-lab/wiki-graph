@@ -1,5 +1,3 @@
-import { resolve } from "path";
-
 import {
   parseWikiGraphLibraryUri,
   upgradeWikiGraphMaintenanceTarget,
@@ -8,7 +6,7 @@ import {
 
 import type { WikiGraphJobRuntime } from "./jobs.js";
 import { NodeFile } from "./node-platform.js";
-import { getWikiGraphSDKRuntimeContext } from "./runtime-context.js";
+import { resolveWikiGraphRuntimePath } from "./runtime-path.js";
 
 export type WikiGraphMaintenanceTarget =
   | { readonly kind: "archive"; readonly path: string }
@@ -41,7 +39,7 @@ export class WikiGraphMaintenanceManager {
           target: parsed,
         });
       }
-      const path = resolve(getWikiGraphSDKRuntimeContext().cwd, target.path);
+      const path = resolveWikiGraphRuntimePath(target.path);
       return await upgradeWikiGraphMaintenanceTarget({
         file: new NodeFile(path),
         kind: "archive",

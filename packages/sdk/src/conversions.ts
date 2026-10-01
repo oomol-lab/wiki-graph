@@ -1,5 +1,4 @@
 import { rm } from "fs/promises";
-import { resolve } from "path";
 
 import {
   WikiGraph,
@@ -11,8 +10,8 @@ import {
 import { buildWikiGraphLLMOptions } from "./llm.js";
 import { NodeDirectory, NodeFile } from "./node-platform.js";
 import { loadWikiGraphRuntimeConfig } from "./runtime-config.js";
-import { getWikiGraphSDKRuntimeContext } from "./runtime-context.js";
 import type { WikiGraphJobRuntime } from "./jobs.js";
+import { resolveWikiGraphRuntimePath } from "./runtime-path.js";
 
 export type WikiGraphConversionFormat = "epub" | "markdown" | "txt" | "wikg";
 export type WikiGraphSourceFormat = Exclude<WikiGraphConversionFormat, "wikg">;
@@ -93,7 +92,7 @@ export class WikiGraphConversionManager {
         throw new Error("wikg input requires a file path.");
       }
       await app.openSession(
-        new NodeFile(resolveRuntimePath(options.input.path)),
+        new NodeFile(resolveWikiGraphRuntimePath(options.input.path)),
         write,
       );
     } else if ("stream" in options.input) {
@@ -115,7 +114,7 @@ export class WikiGraphConversionManager {
     } else {
       const digestOptions = {
         ...(documentDirectory === undefined ? {} : { documentDirectory }),
-        file: new NodeFile(resolveRuntimePath(options.input.path)),
+        file: new NodeFile(resolveWikiGraphRuntimePath(options.input.path)),
         ...(options.onProgress === undefined
           ? {}
           : { onProgress: options.onProgress }),
@@ -148,7 +147,7 @@ async function prepareDigestDirectory(
   const normalized = path?.trim();
   if (!required || normalized === undefined || normalized === "")
     return undefined;
-  const resolved = resolveRuntimePath(normalized);
+  const resolved = resolveWikiGraphRuntimePath(normalized);
   await rm(resolved, { force: true, recursive: true });
   return new NodeDirectory(resolved);
 }
@@ -158,12 +157,8 @@ async function writeArchive(
   path: string,
   format: WikiGraphConversionFormat,
 ): Promise<void> {
-  const file = new NodeFile(resolveRuntimePath(path));
+  const file = new NodeFile(resolveWikiGraphRuntimePath(path));
   if (format === "epub") await archive.exportEpub(file);
   else if (format === "wikg") await archive.saveAs(file);
   else await archive.exportText(file);
-}
-
-function resolveRuntimePath(path: string): string {
-  return resolve(getWikiGraphSDKRuntimeContext().cwd, path);
 }

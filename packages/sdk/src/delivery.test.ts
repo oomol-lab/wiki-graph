@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, rm } from "fs/promises";
+import { access, mkdir, mkdtemp, readdir, rm } from "fs/promises";
 import { tmpdir } from "os";
 import { join } from "path";
 import { afterEach, describe, expect, it } from "vitest";
@@ -26,6 +26,53 @@ afterEach(async () => {
 });
 
 describe("WikiGraphSDK delivery operations", () => {
+  it("creates, rejects, atomically replaces, and cleans failed archive writes", async () => {
+    const root = await mkdtemp(join(tmpdir(), "wiki-graph-sdk-create-"));
+    temporaryDirectories.push(root);
+    await mkdir(join(root, "state"));
+    const sdk = createWikiGraphSDK({
+      cwd: root,
+      stateDir: join(root, "state"),
+    });
+
+    const created = await sdk.archives.create({ path: "book.wikg" });
+    expect(created.path).toBe(join(root, "book.wikg"));
+    await expect(access(created.path)).resolves.toBeUndefined();
+    const archive = await sdk.archives.open("book.wikg");
+    await archive.addChapter({ source: "Keep me.", title: "Existing" });
+    await expect(
+      sdk.archives.create({ path: "book.wikg" }),
+    ).rejects.toMatchObject({ code: "WIKI_GRAPH_ARCHIVE_EXISTS" });
+    expect(await archive.listChapters()).toHaveLength(1);
+
+    await expect(
+      sdk.archives.create({
+        importPath: "missing.epub",
+        path: "book.wikg",
+        replace: true,
+      }),
+    ).rejects.toThrow();
+    expect(
+      await (await sdk.archives.open("book.wikg")).listChapters(),
+    ).toHaveLength(1);
+    expect(
+      (await readdir(root)).filter((name) => name.includes("tmp.wikg")),
+    ).toEqual([]);
+
+    await sdk.archives.create({ path: "book.wikg", replace: true });
+    expect(await (await sdk.archives.open("book.wikg")).listChapters()).toEqual(
+      [],
+    );
+
+    await expect(
+      sdk.archives.create({ importPath: "missing.epub", path: "failed.wikg" }),
+    ).rejects.toThrow();
+    await expect(access(join(root, "failed.wikg"))).rejects.toMatchObject({
+      code: "ENOENT",
+    });
+    sdk.close();
+  });
+
   it("owns chapter, index, and queue planning semantics", async () => {
     const root = await mkdtemp(join(tmpdir(), "wiki-graph-sdk-delivery-"));
     temporaryDirectories.push(root);

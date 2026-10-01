@@ -25,6 +25,7 @@ import { resolveWikiGraphArchiveLocation } from "./archives.js";
 import { requireKnowledgeGraphWikispineConfig } from "./default-worker.js";
 import { loadWikiGraphRuntimeConfig } from "./runtime-config.js";
 import { loadRequiredStageConfig } from "./stage.js";
+import { resolveWikiGraphRuntimePath } from "./runtime-path.js";
 
 const TERMINAL_STATES = new Set(["canceled", "failed", "succeeded"]);
 const TERMINAL_EVENT_GRACE_READS = 3;
@@ -168,7 +169,7 @@ export class WikiGraphJobManager {
           ...options,
           archive:
             typeof options.archive === "string"
-              ? new NodeFile(options.archive)
+              ? new NodeFile(resolveWikiGraphRuntimePath(options.archive))
               : options.archive,
         }),
     );
@@ -184,23 +185,23 @@ export class WikiGraphJobManager {
   public async list(
     options: WikiGraphJobListOptions = {},
   ): Promise<readonly WikiGraphJob[]> {
-    const normalized: BuildJobListOptions = {
-      ...(options.activeOnly === undefined
-        ? {}
-        : { activeOnly: options.activeOnly }),
-      ...(options.all === undefined ? {} : { all: options.all }),
-      ...(options.archive === undefined
-        ? {}
-        : {
-            archive:
-              typeof options.archive === "string"
-                ? new NodeFile(options.archive)
-                : options.archive,
-          }),
-    };
-    const jobs = await this.#runtime.run(
-      async () => await this.#backend.list(normalized),
-    );
+    const jobs = await this.#runtime.run(async () => {
+      const normalized: BuildJobListOptions = {
+        ...(options.activeOnly === undefined
+          ? {}
+          : { activeOnly: options.activeOnly }),
+        ...(options.all === undefined ? {} : { all: options.all }),
+        ...(options.archive === undefined
+          ? {}
+          : {
+              archive:
+                typeof options.archive === "string"
+                  ? new NodeFile(resolveWikiGraphRuntimePath(options.archive))
+                  : options.archive,
+            }),
+      };
+      return await this.#backend.list(normalized);
+    });
     return jobs.map((job) => this.#createHandle(job));
   }
 

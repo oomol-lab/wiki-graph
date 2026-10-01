@@ -45,6 +45,7 @@ import { mkdir } from "fs/promises";
 
 import type { WikiGraphJobRuntime } from "./jobs.js";
 import { NodeDirectory, NodeFile } from "./node-platform.js";
+import { resolveWikiGraphRuntimePath } from "./runtime-path.js";
 
 export type WikiGraphLibraryTarget = ParsedWikiGraphLibraryUri | string;
 
@@ -67,11 +68,11 @@ export class WikiGraphLibraryManager {
   }
 
   public async create(folder: string): Promise<WikiGraphLibrary> {
-    await mkdir(folder);
-    const record = await this.#runtime.run(
-      async () =>
-        await createWikiGraphLibrary({ folder: new NodeDirectory(folder) }),
-    );
+    const record = await this.#runtime.run(async () => {
+      const path = resolveWikiGraphRuntimePath(folder);
+      await mkdir(path);
+      return await createWikiGraphLibrary({ folder: new NodeDirectory(path) });
+    });
     return new WikiGraphLibrary(this.#runtime, record);
   }
 
@@ -91,7 +92,9 @@ export class WikiGraphLibraryManager {
     return await this.#runtime.run(
       async () =>
         await addWikiGraphLibraryArchive({
-          inputFile: new NodeFile(options.inputPath),
+          inputFile: new NodeFile(
+            resolveWikiGraphRuntimePath(options.inputPath),
+          ),
           target: requireLibraryTarget(options.target),
           ...(options.to === undefined ? {} : { to: options.to }),
         }),
@@ -112,7 +115,7 @@ export class WikiGraphLibraryManager {
     return await this.#runtime.run(
       async () =>
         await rebindWikiGraphLibrary({
-          folder: new NodeDirectory(folder),
+          folder: new NodeDirectory(resolveWikiGraphRuntimePath(folder)),
           target: requireLibraryTarget(target),
         }),
     );

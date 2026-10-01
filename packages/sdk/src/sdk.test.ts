@@ -5,6 +5,7 @@ import { afterEach, describe, expect, it } from "vitest";
 
 import {
   createWikiGraphSDK,
+  getNodeResourcePath,
   getWikiGraphStorage,
   NodeDirectory,
   WikiGraphSDK,
@@ -124,6 +125,118 @@ describe("WikiGraphSDK", () => {
     ).resolves.toBeUndefined();
     await expect(first.config.get("concurrent")).resolves.toEqual({ job: 1 });
     await expect(second.config.get("concurrent")).resolves.toEqual({ job: 2 });
+    first.close();
+    second.close();
+  });
+
+  it("resolves library and job paths within each configured cwd", async () => {
+    const root = await mkdtemp(join(tmpdir(), "wiki-graph-sdk-manager-paths-"));
+    const firstCwd = join(root, "first-cwd");
+    const secondCwd = join(root, "second-cwd");
+    const firstStateDir = join(root, "first-state");
+    const secondStateDir = join(root, "second-state");
+    tempDirectories.push(root);
+    await Promise.all(
+      [firstCwd, secondCwd, firstStateDir, secondStateDir].map(
+        async (path) => await mkdir(path, { recursive: true }),
+      ),
+    );
+    const first = createWikiGraphSDK({
+      cwd: firstCwd,
+      stateDir: firstStateDir,
+    });
+    const second = createWikiGraphSDK({
+      cwd: secondCwd,
+      stateDir: secondStateDir,
+    });
+    const [firstLibrary, secondLibrary] = await Promise.all([
+      first.libraries.create("library"),
+      second.libraries.create("library"),
+    ]);
+    await Promise.all([
+      first.archives.create({ path: "book.wikg" }),
+      second.archives.create({ path: "book.wikg" }),
+    ]);
+    const [firstChapter, secondChapter] = await Promise.all([
+      (await first.archives.open("book.wikg")).addChapter({ source: "First" }),
+      (await second.archives.open("book.wikg")).addChapter({
+        source: "Second",
+      }),
+    ]);
+    const [firstJob, secondJob] = await Promise.all([
+      first.jobs.create({
+        archive: "book.wikg",
+        chapterId: firstChapter.chapterId,
+        target: "index-fts",
+      }),
+      second.jobs.create({
+        archive: "book.wikg",
+        chapterId: secondChapter.chapterId,
+        target: "index-fts",
+      }),
+    ]);
+
+    await expect(access(join(firstCwd, "library"))).resolves.toBeUndefined();
+    await expect(access(join(secondCwd, "library"))).resolves.toBeUndefined();
+    expect(getNodeResourcePath(firstJob.snapshot.archive)).toBe(
+      join(firstCwd, "book.wikg"),
+    );
+    expect(getNodeResourcePath(secondJob.snapshot.archive)).toBe(
+      join(secondCwd, "book.wikg"),
+    );
+    const firstJobs = await first.jobs.list({ all: true });
+    const secondJobs = await second.jobs.list({ all: true });
+    expect(firstJobs.map((job) => job.id)).toContain(firstJob.id);
+    expect(secondJobs.map((job) => job.id)).toContain(secondJob.id);
+    expect(
+      (await first.jobs.list({ all: true, archive: "book.wikg" })).map(
+        (job) => job.id,
+      ),
+    ).toContain(firstJob.id);
+    expect(
+      (await second.jobs.list({ all: true, archive: "book.wikg" })).map(
+        (job) => job.id,
+      ),
+    ).toContain(secondJob.id);
+    const [firstMember, secondMember] = await Promise.all([
+      first.libraries.addArchive({
+        inputPath: "book.wikg",
+        target: firstLibrary.uri,
+        to: "member.wikg",
+      }),
+      second.libraries.addArchive({
+        inputPath: "book.wikg",
+        target: secondLibrary.uri,
+        to: "member.wikg",
+      }),
+    ]);
+    expect(getNodeResourcePath(firstMember.file!)).toBe(
+      join(firstCwd, "library", "member.wikg"),
+    );
+    expect(getNodeResourcePath(secondMember.file!)).toBe(
+      join(secondCwd, "library", "member.wikg"),
+    );
+    await Promise.all([
+      mkdir(join(firstCwd, "rebound")),
+      mkdir(join(secondCwd, "rebound")),
+    ]);
+    await Promise.all([
+      first.libraries.rebind(firstLibrary.uri, "rebound"),
+      second.libraries.rebind(secondLibrary.uri, "rebound"),
+    ]);
+    expect(
+      getNodeResourcePath(
+        (await first.libraries.get(firstLibrary.uri)).snapshot.folder,
+      ),
+    ).toBe(join(firstCwd, "rebound"));
+    expect(
+      getNodeResourcePath(
+        (await second.libraries.get(secondLibrary.uri)).snapshot.folder,
+      ),
+    ).toBe(join(secondCwd, "rebound"));
+    await expect(access(join(process.cwd(), "library"))).rejects.toMatchObject({
+      code: "ENOENT",
+    });
     first.close();
     second.close();
   });

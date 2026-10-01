@@ -1,5 +1,7 @@
-import { homedir } from "os";
-import { isAbsolute, resolve } from "path";
+import { randomUUID } from "crypto";
+import { mkdtemp, rename, rm, stat } from "fs/promises";
+import { tmpdir } from "os";
+import { basename, dirname, join } from "path";
 import { Readable } from "stream";
 
 import {
@@ -8,6 +10,7 @@ import {
   assertNoActiveBuildJobConflicts,
   assertNoActiveBuildJobs,
   deleteArchiveSearchSessions,
+  DirectoryDocument,
   finalizeWikiGraphLibraryArchiveWrite,
   findArchiveObjects,
   formatLocatedWikiGraphUri,
@@ -38,6 +41,8 @@ import {
   getChapterTree,
   WikiGraph,
   WikiGraphArchiveFile,
+  TOC_FILE_VERSION,
+  writeWikgArchive,
   type ArchiveCollectionOptions,
   type ArchiveCollectionResult,
   type ArchiveEvidence,
@@ -53,7 +58,6 @@ import {
   type ChapterStage,
   type ChapterTree,
   type ChapterTreeApplyResult,
-  type DirectoryDocument,
   type File,
   type IndexArtifactKind,
   ObjectMetadataKind,
@@ -64,11 +68,17 @@ import {
   type SearchIndexEmbeddingProvider,
   type WikimediaResolver,
   type WikiGraphArchive,
+  type WikiGraphProgressCallback,
 } from "wiki-graph-core";
 
 import type { WikiGraphJobRuntime } from "./jobs.js";
-import { getWikiGraphSDKRuntimeContext } from "./runtime-context.js";
-import { getNodeResourcePath, NodeFile } from "./node-platform.js";
+import { WikiGraphConversionManager } from "./conversions.js";
+import {
+  getNodeResourcePath,
+  NodeDirectory,
+  NodeFile,
+} from "./node-platform.js";
+import { resolveWikiGraphRuntimePath } from "./runtime-path.js";
 
 export interface WikiGraphOperationOptions {
   readonly signal?: AbortSignal;
@@ -94,6 +104,29 @@ export interface WikiGraphArchiveLocation {
   readonly libraryArchiveTarget?: ParsedWikiGraphLibraryUri;
   readonly libraryDirtyTarget?: ParsedWikiGraphLibraryUri;
   readonly locatedUri: string;
+}
+
+export interface WikiGraphArchiveCreateOptions extends WikiGraphOperationOptions {
+  readonly importPath?: string;
+  readonly onProgress?: WikiGraphProgressCallback;
+  readonly path: string;
+  readonly replace?: boolean;
+}
+
+export interface WikiGraphArchiveCreateResult {
+  readonly locatedUri: string;
+  readonly path: string;
+}
+
+export class WikiGraphArchiveExistsError extends Error {
+  public readonly code = "WIKI_GRAPH_ARCHIVE_EXISTS";
+  public readonly path: string;
+
+  public constructor(path: string) {
+    super(`Archive already exists: ${path}`);
+    this.name = "WikiGraphArchiveExistsError";
+    this.path = path;
+  }
 }
 
 export interface WikiGraphArchiveWriteOptions extends WikiGraphOperationOptions {
@@ -193,6 +226,43 @@ export class WikiGraphArchiveManager {
 
   public constructor(runtime: WikiGraphJobRuntime) {
     this.#runtime = runtime;
+  }
+
+  public async create(
+    options: WikiGraphArchiveCreateOptions,
+  ): Promise<WikiGraphArchiveCreateResult> {
+    return await this.#runtime.run(async () => {
+      const path = resolveWikiGraphRuntimePath(options.path);
+      if (options.replace !== true && (await nodePathExists(path))) {
+        throw new WikiGraphArchiveExistsError(path);
+      }
+      const outputPath =
+        options.replace === true
+          ? join(dirname(path), `.${basename(path)}.${randomUUID()}.tmp.wikg`)
+          : path;
+      let completed = false;
+      try {
+        if (options.importPath === undefined) {
+          await createEmptyArchiveFile(outputPath);
+        } else {
+          await new WikiGraphConversionManager(this.#runtime).convert({
+            input: { format: "epub", path: options.importPath },
+            ...(options.onProgress === undefined
+              ? {}
+              : { onProgress: options.onProgress }),
+            output: { format: "wikg", path: outputPath },
+            targetStage: "sourced",
+          });
+        }
+        if (outputPath !== path) await rename(outputPath, path);
+        completed = true;
+        return { locatedUri: formatLocatedWikiGraphUri(path), path };
+      } finally {
+        if (!completed || outputPath !== path) {
+          await rm(outputPath, { force: true, recursive: true });
+        }
+      }
+    }, options.signal);
   }
 
   public async open(
@@ -890,13 +960,13 @@ export async function resolveWikiGraphArchiveLocation(
   uriOrPath: string,
 ): Promise<WikiGraphArchiveLocation> {
   if (!uriOrPath.startsWith("wikg://")) {
-    return createPathLocation(resolveNodeArchivePath(uriOrPath));
+    return createPathLocation(resolveWikiGraphRuntimePath(uriOrPath));
   }
   const parsed = parseLocatedWikiGraphUri(uriOrPath);
   const portableArchiveLocator = parsed.archivePath ?? uriOrPath;
   const archiveLocator = portableArchiveLocator.startsWith("wikg://lib/")
     ? portableArchiveLocator
-    : resolveNodeArchivePath(portableArchiveLocator);
+    : resolveWikiGraphRuntimePath(portableArchiveLocator);
   const libraryArchiveTarget = archiveLocator.startsWith("wikg://lib/")
     ? parseWikiGraphLibraryUri(archiveLocator)
     : undefined;
@@ -924,18 +994,6 @@ export async function resolveWikiGraphArchiveLocation(
       : {}),
     locatedUri: formatLocatedWikiGraphUri(archivePath, parsed.objectUri),
   };
-}
-
-function resolveNodeArchivePath(locator: string): string {
-  const context = getWikiGraphSDKRuntimeContext();
-  const environmentHome = context.env.HOME?.trim();
-  const home =
-    environmentHome === undefined || environmentHome === ""
-      ? homedir()
-      : environmentHome;
-  if (locator === "~") return home;
-  if (locator.startsWith("~/")) return resolve(home, locator.slice(2));
-  return isAbsolute(locator) ? locator : resolve(context.cwd, locator);
 }
 
 async function ensureArchiveSearchIndex(
@@ -1021,6 +1079,44 @@ function createPathLocation(path: string): WikiGraphArchiveLocation {
     indexScope: { archiveKey: path, archivePath: path, kind: "archive-index" },
     locatedUri: formatLocatedWikiGraphUri(path),
   };
+}
+
+async function createEmptyArchiveFile(path: string): Promise<void> {
+  const directoryPath = await mkdtemp(
+    join(tmpdir(), "wikigraph-archive-write-"),
+  );
+  try {
+    const directory = new NodeDirectory(directoryPath);
+    const document = await DirectoryDocument.open(directory);
+    try {
+      await document.openSession(async (openedDocument) => {
+        await openedDocument.writeToc({ items: [], version: TOC_FILE_VERSION });
+      });
+    } finally {
+      await document.release();
+    }
+    await writeWikgArchive(directory, new NodeFile(path));
+  } finally {
+    await rm(directoryPath, { force: true, recursive: true });
+  }
+}
+
+async function nodePathExists(path: string): Promise<boolean> {
+  try {
+    await stat(path);
+    return true;
+  } catch (error) {
+    if (isNodeENOENTError(error)) return false;
+    throw error;
+  }
+}
+
+function isNodeENOENTError(error: unknown): error is NodeJS.ErrnoException {
+  return (
+    error instanceof Error &&
+    "code" in error &&
+    (error as NodeJS.ErrnoException).code === "ENOENT"
+  );
 }
 
 function parseObjectMetadataTarget(objectPath: string): ObjectMetadataTarget {

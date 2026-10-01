@@ -19,9 +19,7 @@ export * from "./wikispine.js";
 // Curated Core surface used by the Node delivery API. Keep this list explicit:
 // the SDK is not a second wildcard entry point for wiki-graph-core.
 export {
-  DirectoryDocument,
   LLMPaymentRequiredError,
-  TOC_FILE_VERSION,
   WIKI_GRAPH_URI_PREFIX,
   WikiGraph,
   WikiGraphArchiveFile,
@@ -85,7 +83,6 @@ export {
   setChapterTitle,
   testWikispineRuntime,
   upgradeWikiGraphMaintenanceTarget,
-  writeWikgArchive,
 } from "wiki-graph-core";
 export type {
   ArchiveBacklinkBucket,
@@ -116,6 +113,7 @@ export type {
   ChapterTree,
   ChapterTreeApplyResult,
   ContinuationCursor,
+  DirectoryDocument,
   File,
   IndexArtifactCoverageRecord,
   IndexArtifactKind,
