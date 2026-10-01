@@ -18,10 +18,14 @@ export async function runNextArchivePage(
   const page = await getWikiGraphSDK().continuations.next({
     ...(args.cursor === undefined ? {} : { archive: args.archivePath }),
     cursor: cursorId,
+    ...(args.format === undefined ? {} : { format: args.format }),
     ...(args.limit === undefined ? {} : { limit: args.limit }),
   });
   const format = args.format ?? page.format;
-  const context = createCursorOutputContext(page.cursor, format, page.limit);
+  const context = {
+    ...createCursorOutputContext(page.cursor, format, page.limit),
+    continuationCursorIsDurable: true,
+  };
 
   switch (page.kind) {
     case "source-locators":

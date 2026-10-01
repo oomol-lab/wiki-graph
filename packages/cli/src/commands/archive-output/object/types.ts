@@ -97,6 +97,7 @@ export interface ArchiveOutputContext {
     | "related"
     | "search"
     | "source-locators";
+  readonly continuationCursorIsDurable?: boolean;
   readonly evidenceDisabled?: boolean;
   readonly evidenceLimit?: number;
   readonly format: ResultFormat;
