@@ -203,6 +203,33 @@ try {
   );
   assertEsmExport(sdkInstallRoot, "wiki-graph-sdk/node-platform", "NodeFile");
   runNodeScript(sdkInstallRoot, [
+    "-e",
+    [
+      'const { createWikiGraphSDK } = require("wiki-graph-sdk");',
+      'const { tryRunWikiGraphGc } = require("wiki-graph-sdk/gc");',
+      'const { runBuildJobWorker } = require("wiki-graph-sdk/worker");',
+      'const { mkdirSync } = require("fs");',
+      'const { join } = require("path");',
+      "void (async () => {",
+      '  const root = join(process.cwd(), "runtime-smoke-cjs");',
+      '  mkdirSync(join(root, "sdk"), { recursive: true });',
+      '  const sdk = createWikiGraphSDK({ stateDir: join(root, "sdk") });',
+      '  await sdk.config.get("concurrent");',
+      "  sdk.close();",
+      '  const report = await tryRunWikiGraphGc({ dryRun: true, stateDir: join(root, "gc") });',
+      '  if (report.skipped !== false) throw new Error("CommonJS SDK GC smoke was unexpectedly skipped");',
+      "  let executed = false;",
+      "  await runBuildJobWorker({",
+      "    concurrency: 1,",
+      "    executeJob: () => { executed = true; return Promise.resolve(); },",
+      "    idleTimeoutMs: 0,",
+      '    stateDir: join(root, "worker"),',
+      "  });",
+      '  if (executed) throw new Error("CommonJS SDK worker smoke unexpectedly found a queued job");',
+      "})().catch((error) => { console.error(error); process.exitCode = 1; });",
+    ].join("\n"),
+  ]);
+  runNodeScript(sdkInstallRoot, [
     "--input-type=module",
     "-e",
     [
