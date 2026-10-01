@@ -4,21 +4,30 @@ import {
   cancelBuildJob,
   getBuildJob,
   listBuildJobs,
+  listChapters,
   pauseBuildJob,
   readBuildJobEvents,
   resumeBuildJob,
   updateBuildJobTarget,
+  resolveChapterPathReadonly,
+  WikiGraphArchiveFile,
   type AddBuildJobOptions,
   type BuildJob,
   type BuildJobEvent,
   type BuildJobEventChunk,
   type BuildJobListOptions,
   type BuildJobTarget,
+  type ChapterEntry,
 } from "wiki-graph-core";
 
 import { NodeFile } from "./node-platform.js";
+import { resolveWikiGraphArchiveLocation } from "./archives.js";
+import { requireKnowledgeGraphWikispineConfig } from "./default-worker.js";
+import { loadWikiGraphRuntimeConfig } from "./runtime-config.js";
+import { loadRequiredStageConfig } from "./stage.js";
 
 const TERMINAL_STATES = new Set(["canceled", "failed", "succeeded"]);
+const TERMINAL_EVENT_GRACE_READS = 3;
 
 export interface WikiGraphJobBackend {
   add(options: AddBuildJobOptions): Promise<BuildJob>;
@@ -55,7 +64,7 @@ async function readIncrementalBuildJobEvents(
   try {
     reader = await job.events.openReader();
   } catch {
-    return { cursor: 0, events: [] };
+    return { cursor, events: await readBuildJobEvents(job) };
   }
   try {
     const offset = cursor <= reader.size ? cursor : 0;
@@ -86,6 +95,37 @@ export interface WikiGraphJobListOptions extends Omit<
   "archive"
 > {
   readonly archive?: string | BuildJobListOptions["archive"];
+}
+
+export interface WikiGraphJobEnqueueOptions {
+  readonly archive: string;
+  readonly boost?: boolean;
+  readonly chapterId?: number;
+  readonly chapterIds?: readonly number[];
+  readonly chapterPath?: string;
+  readonly depth?: number;
+  readonly llmJSON?: string;
+  readonly prompt?: string;
+  readonly target?: BuildJobTarget;
+}
+
+export interface WikiGraphJobEnqueueResult {
+  readonly created: readonly {
+    readonly chapter: ChapterEntry;
+    readonly job: WikiGraphJob;
+  }[];
+  readonly skipped: readonly {
+    readonly chapter: ChapterEntry;
+    readonly reason: string;
+  }[];
+}
+
+export interface WikiGraphJobEnqueuePlan {
+  readonly ready: readonly ChapterEntry[];
+  readonly skipped: readonly {
+    readonly chapter: ChapterEntry;
+    readonly reason: string;
+  }[];
 }
 
 export interface WikiGraphJobEventsOptions {
@@ -164,6 +204,128 @@ export class WikiGraphJobManager {
     return jobs.map((job) => this.#createHandle(job));
   }
 
+  public async enqueue(
+    options: WikiGraphJobEnqueueOptions,
+  ): Promise<WikiGraphJobEnqueueResult> {
+    return await this.#runtime.run(async () => {
+      const location = await resolveWikiGraphArchiveLocation(options.archive);
+      const target = options.target ?? "reading-summary";
+      await validateQueueTargetConfig(target, options.llmJSON);
+      const selectedExplicitly =
+        options.chapterId !== undefined ||
+        options.chapterIds !== undefined ||
+        options.chapterPath !== undefined ||
+        options.depth !== undefined;
+      const candidates = await new WikiGraphArchiveFile(
+        location.archiveFile,
+      ).readDocument(async (document) => {
+        const chapters = await listChapters(document);
+        const selected = await selectQueueChapters(document, chapters, options);
+        const checked = await Promise.all(
+          selected.map(async (chapter) => ({
+            chapter,
+            reason: await readQueueReadinessReason(document, chapter, target),
+          })),
+        );
+        return checked;
+      });
+      const created: Array<{ chapter: ChapterEntry; job: WikiGraphJob }> = [];
+      const skipped: Array<{ chapter: ChapterEntry; reason: string }> = [];
+      for (const candidate of candidates) {
+        if (candidate.reason !== undefined) {
+          if (selectedExplicitly && candidates.length === 1) {
+            throw new Error(
+              formatQueueReadinessError(
+                candidate.chapter,
+                target,
+                candidate.reason,
+              ),
+            );
+          }
+          skipped.push({
+            chapter: candidate.chapter,
+            reason: candidate.reason,
+          });
+          continue;
+        }
+        try {
+          created.push({
+            chapter: candidate.chapter,
+            job: await this.create({
+              archive: location.archiveFile,
+              boost: options.boost ?? false,
+              chapterId: candidate.chapter.chapterId,
+              ...(options.llmJSON === undefined
+                ? {}
+                : { llmJSON: options.llmJSON }),
+              ...(options.prompt === undefined
+                ? {}
+                : { prompt: options.prompt }),
+              target,
+            }),
+          });
+        } catch (error) {
+          if (selectedExplicitly && candidates.length === 1) throw error;
+          skipped.push({
+            chapter: candidate.chapter,
+            reason: error instanceof Error ? error.message : String(error),
+          });
+        }
+      }
+      return { created, skipped };
+    });
+  }
+
+  public async planEnqueue(
+    options: WikiGraphJobEnqueueOptions,
+  ): Promise<WikiGraphJobEnqueuePlan> {
+    return await this.#runtime.run(async () => {
+      const location = await resolveWikiGraphArchiveLocation(options.archive);
+      const target = options.target ?? "reading-summary";
+      await validateQueueTargetConfig(target, options.llmJSON);
+      const selectedExplicitly =
+        options.chapterId !== undefined ||
+        options.chapterIds !== undefined ||
+        options.chapterPath !== undefined ||
+        options.depth !== undefined;
+      const candidates = await new WikiGraphArchiveFile(
+        location.archiveFile,
+      ).readDocument(async (document) => {
+        const chapters = await listChapters(document);
+        const selected = await selectQueueChapters(document, chapters, options);
+        return await Promise.all(
+          selected.map(async (chapter) => ({
+            chapter,
+            reason: await readQueueReadinessReason(document, chapter, target),
+          })),
+        );
+      });
+      if (
+        selectedExplicitly &&
+        candidates.length === 1 &&
+        candidates[0]?.reason !== undefined
+      ) {
+        throw new Error(
+          formatQueueReadinessError(
+            candidates[0].chapter,
+            target,
+            candidates[0].reason,
+          ),
+        );
+      }
+      return {
+        ready: candidates
+          .filter((item) => item.reason === undefined)
+          .map((item) => item.chapter),
+        skipped: candidates.flatMap((item) =>
+          item.reason === undefined
+            ? []
+            : [{ chapter: item.chapter, reason: item.reason }],
+        ),
+      };
+    });
+  }
+
   public close(): void {
     for (const controller of this.#subscriptions) controller.abort();
     this.#subscriptions.clear();
@@ -239,25 +401,35 @@ export class WikiGraphJob {
     let job = this.#snapshot;
     if (options.from === "now") {
       job = await this.status();
-      const chunk = await this.#readEventChunk(job, cursor);
+      const chunk = await this.#readEventChunkSafely(job, cursor);
       const events = chunk.events;
       cursor = chunk.cursor;
       seenSeq = events.at(-1)?.seq ?? 0;
+      if (isTerminalState(job.state)) return;
     }
 
+    let terminalReadsWithoutEvent = 0;
     while (options.signal?.aborted !== true) {
-      const chunk = await this.#readEventChunk(job, cursor);
+      const chunk = await this.#readEventChunkSafely(job, cursor);
       const events = chunk.events;
       cursor = chunk.cursor;
+      let sawTerminalEvent = false;
       for (const event of events) {
         if (event.seq <= seenSeq) continue;
         seenSeq = event.seq;
+        sawTerminalEvent ||= isTerminalEvent(event);
         yield event;
       }
-      if (hasTerminalEvent(events, job.state)) return;
-      await wait(options.pollIntervalMs ?? 1_000, options.signal);
-      if (options.signal?.aborted) return;
+      if (sawTerminalEvent) return;
+
       job = await this.status();
+      if (isTerminalState(job.state)) {
+        terminalReadsWithoutEvent += 1;
+        if (terminalReadsWithoutEvent >= TERMINAL_EVENT_GRACE_READS) return;
+      } else {
+        terminalReadsWithoutEvent = 0;
+      }
+      await wait(options.pollIntervalMs ?? 1_000, options.signal);
     }
   }
 
@@ -307,6 +479,130 @@ export class WikiGraphJob {
       return { cursor: 0, events: events ?? [] };
     });
   }
+
+  async #readEventChunkSafely(
+    job: BuildJob,
+    cursor: number,
+  ): Promise<BuildJobEventChunk> {
+    try {
+      return await this.#readEventChunk(job, cursor);
+    } catch {
+      return { cursor, events: [] };
+    }
+  }
+}
+
+async function selectQueueChapters(
+  document: Parameters<typeof listChapters>[0],
+  chapters: readonly ChapterEntry[],
+  options: WikiGraphJobEnqueueOptions,
+): Promise<readonly ChapterEntry[]> {
+  const ids =
+    options.chapterIds ??
+    (options.chapterId === undefined ? undefined : [options.chapterId]);
+  if (ids !== undefined) {
+    const selected = new Set(ids);
+    for (const id of selected) requireQueueChapter(chapters, id);
+    return chapters.filter((chapter) => selected.has(chapter.chapterId));
+  }
+  if (options.chapterPath === undefined) {
+    return options.depth === undefined
+      ? chapters
+      : chapters.filter((chapter) => chapter.depth <= options.depth!);
+  }
+  const rootId = await resolveChapterPathReadonly(
+    document,
+    options.chapterPath,
+  );
+  const root = requireQueueChapter(chapters, rootId);
+  const prefix = `${root.path}/`;
+  return chapters.filter(
+    (chapter) =>
+      chapter.chapterId === rootId ||
+      (chapter.path.startsWith(prefix) &&
+        (options.depth === undefined ||
+          chapter.depth - root.depth <= options.depth)),
+  );
+}
+
+async function validateQueueTargetConfig(
+  target: BuildJobTarget,
+  llmJSON: string | undefined,
+): Promise<void> {
+  const config =
+    target === "knowledge-graph" ||
+    target === "reading-graph" ||
+    target === "reading-summary"
+      ? await loadRequiredStageConfig({
+          ...(llmJSON === undefined ? {} : { llmJSON }),
+        })
+      : await loadWikiGraphRuntimeConfig({
+          ...(llmJSON === undefined ? {} : { llmJSON }),
+        });
+  if (
+    (target === "index-embedding-source" ||
+      target === "index-embedding-summary") &&
+    config.embedding === undefined
+  ) {
+    throw new Error(
+      "Missing embeddings configuration. Configure `wikg://local/config/embeddings` before queueing embedding index artifact jobs.",
+    );
+  }
+  if (target === "knowledge-graph")
+    requireKnowledgeGraphWikispineConfig(config);
+}
+
+function requireQueueChapter(
+  chapters: readonly ChapterEntry[],
+  chapterId: number,
+): ChapterEntry {
+  const chapter = chapters.find((entry) => entry.chapterId === chapterId);
+  if (chapter === undefined)
+    throw new Error(`Chapter ${chapterId} does not exist.`);
+  return chapter;
+}
+
+async function readQueueReadinessReason(
+  document: Parameters<typeof listChapters>[0],
+  chapter: ChapterEntry,
+  target: BuildJobTarget,
+): Promise<string | undefined> {
+  if (chapter.stage === "planned") {
+    return "planned";
+  }
+  if (target === "index-embedding-summary") {
+    const summary = await document.readSummary(chapter.chapterId);
+    if (summary === undefined || summary.trim() === "") {
+      return "missing summary";
+    }
+  }
+  if (target === "knowledge-graph" || target === "reading-graph") {
+    const [artifact, revision] = await Promise.all([
+      document.indexArtifacts.get(chapter.chapterId, "fts"),
+      document.serials.getRevision(chapter.chapterId),
+    ]);
+    if (artifact?.sourceRevision !== revision) {
+      return "missing current FTS index artifact";
+    }
+  }
+  return undefined;
+}
+
+function formatQueueReadinessError(
+  chapter: ChapterEntry,
+  target: BuildJobTarget,
+  reason: string,
+): string {
+  if (reason === "planned") {
+    return `Chapter ${chapter.uri} is planned. Set source before queueing a build job.`;
+  }
+  if (reason === "missing summary") {
+    return `Chapter ${chapter.uri} has no summary. Build a reading summary before queueing a summary embedding index artifact job.`;
+  }
+  if (reason === "missing current FTS index artifact") {
+    return `Chapter ${chapter.uri} needs a current FTS index artifact before queueing ${target}.`;
+  }
+  return reason;
 }
 
 async function wait(milliseconds: number, signal?: AbortSignal): Promise<void> {
@@ -326,17 +622,15 @@ async function wait(milliseconds: number, signal?: AbortSignal): Promise<void> {
   });
 }
 
-function hasTerminalEvent(
-  events: readonly BuildJobEvent[],
-  state: BuildJob["state"],
-): boolean {
-  if (!TERMINAL_STATES.has(state)) return false;
-  return events.some(
-    (event) =>
-      (event.type === "canceled" ||
-        event.type === "failed" ||
-        event.type === "succeeded") &&
-      event.state === state,
+function isTerminalState(state: BuildJob["state"]): boolean {
+  return TERMINAL_STATES.has(state);
+}
+
+function isTerminalEvent(event: BuildJobEvent): boolean {
+  return (
+    event.type === "canceled" ||
+    event.type === "failed" ||
+    event.type === "succeeded"
   );
 }
 

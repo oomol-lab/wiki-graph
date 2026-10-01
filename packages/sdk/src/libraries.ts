@@ -101,9 +101,7 @@ export class WikiGraphLibraryManager {
   public async assertCurrent(target: WikiGraphLibraryTarget): Promise<void> {
     await this.#runtime.run(
       async () =>
-        await assertWikiGraphLibrarySchemaCurrent(
-          requireLibraryTarget(target),
-        ),
+        await assertWikiGraphLibrarySchemaCurrent(requireLibraryTarget(target)),
     );
   }
 
@@ -279,7 +277,10 @@ export class WikiGraphLibraryManager {
   ): Promise<ArchiveCollectionResult> {
     return await this.#runtime.run(
       async () =>
-        await listWikiGraphLibraryObjects(requireLibraryTarget(target), options),
+        await listWikiGraphLibraryObjects(
+          requireLibraryTarget(target),
+          options,
+        ),
     );
   }
 

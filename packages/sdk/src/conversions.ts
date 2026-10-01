@@ -11,6 +11,8 @@ import {
 import { buildWikiGraphLLMOptions } from "./llm.js";
 import { NodeDirectory, NodeFile } from "./node-platform.js";
 import { loadWikiGraphRuntimeConfig } from "./runtime-config.js";
+import { getWikiGraphSDKRuntimeContext } from "./runtime-context.js";
+import type { WikiGraphJobRuntime } from "./jobs.js";
 
 export type WikiGraphConversionFormat = "epub" | "markdown" | "txt" | "wikg";
 export type WikiGraphSourceFormat = Exclude<WikiGraphConversionFormat, "wikg">;
@@ -43,7 +45,19 @@ export interface WikiGraphConversionResult {
 }
 
 export class WikiGraphConversionManager {
+  readonly #runtime: WikiGraphJobRuntime;
+
+  public constructor(runtime: WikiGraphJobRuntime) {
+    this.#runtime = runtime;
+  }
+
   public async convert(
+    options: WikiGraphConversionOptions,
+  ): Promise<WikiGraphConversionResult> {
+    return await this.#runtime.run(async () => await this.#convert(options));
+  }
+
+  async #convert(
     options: WikiGraphConversionOptions,
   ): Promise<WikiGraphConversionResult> {
     const targetStage = options.targetStage ?? "summarized";
@@ -51,7 +65,9 @@ export class WikiGraphConversionManager {
       throw new Error("targetStage is only supported for wikg output.");
     }
     if (options.targetStage !== undefined && options.input.format === "wikg") {
-      throw new Error("targetStage is only supported when creating a wikg archive.");
+      throw new Error(
+        "targetStage is only supported when creating a wikg archive.",
+      );
     }
 
     const requiresDigest = options.input.format !== "wikg";
@@ -76,7 +92,10 @@ export class WikiGraphConversionManager {
       if (!("path" in options.input)) {
         throw new Error("wikg input requires a file path.");
       }
-      await app.openSession(new NodeFile(options.input.path), write);
+      await app.openSession(
+        new NodeFile(resolveRuntimePath(options.input.path)),
+        write,
+      );
     } else if ("stream" in options.input) {
       await app.digestTextStreamSession(
         {
@@ -96,7 +115,7 @@ export class WikiGraphConversionManager {
     } else {
       const digestOptions = {
         ...(documentDirectory === undefined ? {} : { documentDirectory }),
-        file: new NodeFile(options.input.path),
+        file: new NodeFile(resolveRuntimePath(options.input.path)),
         ...(options.onProgress === undefined
           ? {}
           : { onProgress: options.onProgress }),
@@ -127,8 +146,9 @@ async function prepareDigestDirectory(
   required: boolean,
 ): Promise<NodeDirectory | undefined> {
   const normalized = path?.trim();
-  if (!required || normalized === undefined || normalized === "") return undefined;
-  const resolved = resolve(normalized);
+  if (!required || normalized === undefined || normalized === "")
+    return undefined;
+  const resolved = resolveRuntimePath(normalized);
   await rm(resolved, { force: true, recursive: true });
   return new NodeDirectory(resolved);
 }
@@ -138,8 +158,12 @@ async function writeArchive(
   path: string,
   format: WikiGraphConversionFormat,
 ): Promise<void> {
-  const file = new NodeFile(path);
+  const file = new NodeFile(resolveRuntimePath(path));
   if (format === "epub") await archive.exportEpub(file);
   else if (format === "wikg") await archive.saveAs(file);
   else await archive.exportText(file);
+}
+
+function resolveRuntimePath(path: string): string {
+  return resolve(getWikiGraphSDKRuntimeContext().cwd, path);
 }

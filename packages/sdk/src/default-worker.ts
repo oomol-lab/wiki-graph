@@ -47,15 +47,15 @@ export async function runWikiGraphQueueWorker(
 ): Promise<void> {
   const config = await loadWikiGraphRuntimeConfig();
   await runBuildJobWorker({
-      concurrency: config.concurrent?.job ?? DEFAULT_GENERATION_JOB_CONCURRENCY,
-      executeJob: async (job, reporter, context) => {
-        await withLoggingContext(
-          { logDirectory: job.log, operation: "build-job" },
-          async () => await executeBuildJob(job, reporter, context),
-        );
-      },
-      ...(options.signal === undefined ? {} : { signal: options.signal }),
-    });
+    concurrency: config.concurrent?.job ?? DEFAULT_GENERATION_JOB_CONCURRENCY,
+    executeJob: async (job, reporter, context) => {
+      await withLoggingContext(
+        { logDirectory: job.log, operation: "build-job" },
+        async () => await executeBuildJob(job, reporter, context),
+      );
+    },
+    ...(options.signal === undefined ? {} : { signal: options.signal }),
+  });
 }
 
 async function executeBuildJob(

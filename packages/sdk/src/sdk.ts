@@ -8,7 +8,7 @@ import { WikiGraphLibraryManager } from "./libraries.js";
 import { WikiGraphMaintenanceManager } from "./maintenance.js";
 import {
   createNodeWikiGraphStorage,
-  installNodeWikiGraphPlatform,
+  ensureNodeWikiGraphPlatform,
   withNodeWikiGraphStorage,
 } from "./node-platform.js";
 import {
@@ -35,7 +35,7 @@ export class WikiGraphSDK implements WikiGraphJobRuntime {
   public readonly maintenance: WikiGraphMaintenanceManager;
 
   public constructor(options: WikiGraphSDKOptions = {}) {
-    installNodeWikiGraphPlatform();
+    ensureNodeWikiGraphPlatform();
     this.#context = {
       cwd: options.cwd ?? process.cwd(),
       env: { ...process.env, ...options.env },
@@ -43,7 +43,7 @@ export class WikiGraphSDK implements WikiGraphJobRuntime {
       ...(options.stateDir === undefined ? {} : { stateDir: options.stateDir }),
     };
     this.archives = new WikiGraphArchiveManager(this);
-    this.conversions = new WikiGraphConversionManager();
+    this.conversions = new WikiGraphConversionManager(this);
     this.config = new WikiGraphConfigManager(this);
     this.jobs = new WikiGraphJobManager(this);
     this.libraries = new WikiGraphLibraryManager(this);
@@ -62,11 +62,15 @@ export class WikiGraphSDK implements WikiGraphJobRuntime {
     signal?: AbortSignal,
   ): Promise<T> {
     throwIfAborted(signal);
-    const result = await withNodeWikiGraphStorage(
-      this.#context.stateDir,
-      async () =>
-        await withWikiGraphSDKRuntimeContext(this.#context, operation),
-    );
+    const runWithContext = async (): Promise<T> =>
+      await withWikiGraphSDKRuntimeContext(this.#context, operation);
+    const result =
+      this.#context.stateDir === undefined
+        ? await runWithContext()
+        : await withNodeWikiGraphStorage(
+            this.#context.stateDir,
+            runWithContext,
+          );
     throwIfAborted(signal);
     return result;
   }

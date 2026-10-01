@@ -1,4 +1,13 @@
+import { homedir } from "os";
+import { isAbsolute, resolve } from "path";
+import { Readable } from "stream";
+
 import {
+  addChapter,
+  applyChapterTree,
+  assertNoActiveBuildJobConflicts,
+  assertNoActiveBuildJobs,
+  deleteArchiveSearchSessions,
   finalizeWikiGraphLibraryArchiveWrite,
   findArchiveObjects,
   formatLocatedWikiGraphUri,
@@ -10,15 +19,23 @@ import {
   listArchiveSourceLocators,
   listChapters,
   listRelatedArchiveObjects,
+  moveChapter,
   packArchiveContext,
   parseLocatedWikiGraphUri,
   parseWikiGraphLibraryUri,
   readArchivePage,
+  readSearchIndexCapabilityStatus,
   readWikiGraphLibraryIndexState,
   rebuildArchiveSearchIndex,
   rebuildWikiGraphLibraryIndex,
+  removeChapter,
+  resetChapter,
   resolveChapterPathReadonly,
   resolveWikiGraphLibraryArchiveFile,
+  setChapterSource,
+  setChapterSummary,
+  setChapterTitle,
+  getChapterTree,
   WikiGraph,
   WikiGraphArchiveFile,
   type ArchiveCollectionOptions,
@@ -32,8 +49,13 @@ import {
   type ArchiveSourceLocatorResult,
   type BookMeta,
   type ChapterEntry,
+  type ChapterDetails,
+  type ChapterStage,
+  type ChapterTree,
+  type ChapterTreeApplyResult,
   type DirectoryDocument,
   type File,
+  type IndexArtifactKind,
   ObjectMetadataKind,
   type ObjectMetadataTarget,
   type ParsedWikiGraphLibraryUri,
@@ -52,6 +74,18 @@ export interface WikiGraphOperationOptions {
   readonly signal?: AbortSignal;
 }
 
+type SearchIndexCapabilityStatus = Awaited<
+  ReturnType<typeof readSearchIndexCapabilityStatus>
+>;
+type SearchIndexProgressEvent = Parameters<
+  NonNullable<Parameters<typeof rebuildArchiveSearchIndex>[1]>
+>[0];
+export type WikiGraphChapterResetStage = Exclude<ChapterStage, "summarized">;
+export type WikiGraphChapterSourceOptions = NonNullable<
+  Parameters<typeof setChapterSource>[3]
+>;
+export type WikiGraphChapterTreeInput = Parameters<typeof applyChapterTree>[1];
+
 export interface WikiGraphArchiveLocation {
   readonly archiveFile: File;
   readonly archiveKey: string;
@@ -64,7 +98,42 @@ export interface WikiGraphArchiveLocation {
 
 export interface WikiGraphArchiveWriteOptions extends WikiGraphOperationOptions {
   readonly onIndexSyncError?: (error: unknown) => void;
+  readonly refreshLibraryIndex?: boolean;
   readonly searchIndexWritebackPolicy?: "archive" | "cache";
+}
+
+export interface WikiGraphArchiveIndexStatus {
+  readonly capabilities: SearchIndexCapabilityStatus;
+  readonly current: boolean;
+}
+
+export interface WikiGraphArchiveIndexSyncOptions extends WikiGraphOperationOptions {
+  readonly onProgress?: (
+    event: SearchIndexProgressEvent,
+  ) => void | Promise<void>;
+  readonly skipUnindexed?: boolean;
+}
+
+export interface WikiGraphChapterArtifactStatus {
+  readonly artifact?: {
+    readonly createdAt: string;
+    readonly metadata: Readonly<Record<string, unknown>>;
+    readonly sourceRevision: number;
+  };
+  readonly chapterId: number;
+  readonly current: boolean;
+  readonly kind: IndexArtifactKind;
+  readonly missing: boolean;
+  readonly revision: number;
+}
+
+export interface WikiGraphChapterMoveOptions {
+  readonly afterPath?: string;
+  readonly beforePath?: string;
+  readonly first?: boolean;
+  readonly last?: boolean;
+  readonly parentPath?: string;
+  readonly root?: boolean;
 }
 
 export interface WikiGraphArchiveScopeOptions {
@@ -236,6 +305,301 @@ export class WikiGraphArchiveHandle {
         searchIndexWritebackPolicy: "cache",
         ...(options.signal === undefined ? {} : { signal: options.signal }),
       },
+    );
+  }
+
+  public async getSearchIndexStatus(
+    options: WikiGraphOperationOptions = {},
+  ): Promise<WikiGraphArchiveIndexStatus> {
+    return await this.readDocument(
+      async (document) => ({
+        capabilities: await readSearchIndexCapabilityStatus(document),
+        current: await isArchiveSearchIndexCurrent(document),
+      }),
+      options,
+    );
+  }
+
+  public async syncSearchIndex(
+    options: WikiGraphArchiveIndexSyncOptions = {},
+  ): Promise<{ readonly rebuilt: boolean }> {
+    const rebuilt = await this.writeDocument(
+      async (document) => {
+        const scope =
+          options.skipUnindexed === true
+            ? { chapters: await listArchiveQueryableChapterIds(document) }
+            : {};
+        if (scope.chapters?.length === 0) {
+          throw new Error(
+            "Wiki Graph index cache is not ready. No chapters have a current FTS artifact or source embedding artifact.",
+          );
+        }
+        if (await isArchiveSearchIndexCurrent(document, scope)) return false;
+        await rebuildArchiveSearchIndex(document, options.onProgress, scope);
+        return true;
+      },
+      {
+        searchIndexWritebackPolicy: "cache",
+        ...(options.signal === undefined ? {} : { signal: options.signal }),
+      },
+    );
+    await this.#runtime.run(
+      async () => await deleteArchiveSearchSessions(this.path),
+      options.signal,
+    );
+    return { rebuilt };
+  }
+
+  public async cleanSearchIndex(
+    options: WikiGraphOperationOptions = {},
+  ): Promise<WikiGraphArchiveIndexStatus> {
+    const status = await this.writeDocument(
+      async (document) => {
+        await document.deleteSearchIndexDatabase();
+        return {
+          capabilities: {
+            dense: { current: false },
+            indexes: "missing" as const,
+          },
+          current: false,
+        };
+      },
+      {
+        searchIndexWritebackPolicy: "cache",
+        ...(options.signal === undefined ? {} : { signal: options.signal }),
+      },
+    );
+    await this.#runtime.run(
+      async () => await deleteArchiveSearchSessions(this.path),
+      options.signal,
+    );
+    return status;
+  }
+
+  public async listChapters(
+    options: WikiGraphOperationOptions = {},
+  ): Promise<readonly ChapterEntry[]> {
+    return await this.readDocument(
+      async (document) => await listChapters(document),
+      options,
+    );
+  }
+
+  public async getChapter(
+    path: string,
+    options: WikiGraphOperationOptions = {},
+  ): Promise<ChapterEntry> {
+    return await this.readDocument(async (document) => {
+      const chapterId = await resolveChapterPathReadonly(document, path);
+      return requireChapter(await listChapters(document), chapterId);
+    }, options);
+  }
+
+  public async addChapter(options: {
+    readonly parentPath?: string;
+    readonly source?: string;
+    readonly title?: string;
+  }): Promise<ChapterDetails> {
+    return await this.writeDocument(async (document) => {
+      const parentChapterId = await resolveOptionalChapterPath(
+        document,
+        options.parentPath,
+      );
+      await assertNoActiveBuildJobConflicts({
+        archive: this.#location.archiveFile,
+        operation: "Adding chapter",
+        scope: { kind: "archive" },
+      });
+      let details = await addChapter(document, {
+        ...(parentChapterId === undefined ? {} : { parentChapterId }),
+        ...(options.title === undefined ? {} : { title: options.title }),
+      });
+      if (options.source !== undefined) {
+        details = await setChapterSource(
+          document,
+          details.chapterId,
+          asTextStream(options.source),
+        );
+      }
+      return details;
+    });
+  }
+
+  public async getChapterArtifact(
+    path: string,
+    kind: IndexArtifactKind,
+  ): Promise<WikiGraphChapterArtifactStatus> {
+    return await this.readDocument(async (document) => {
+      const chapterId = await resolveChapterPathReadonly(document, path);
+      const [artifact, revision] = await Promise.all([
+        document.indexArtifacts.get(chapterId, kind),
+        document.serials.getRevision(chapterId),
+      ]);
+      return {
+        ...(artifact === undefined
+          ? {}
+          : {
+              artifact: {
+                createdAt: artifact.createdAt,
+                metadata: artifact.metadata,
+                sourceRevision: artifact.sourceRevision,
+              },
+            }),
+        chapterId,
+        current: artifact?.sourceRevision === revision,
+        kind,
+        missing: artifact === undefined,
+        revision,
+      };
+    });
+  }
+
+  public async deleteChapterArtifact(
+    path: string,
+    kind: IndexArtifactKind,
+  ): Promise<{
+    readonly chapterId: number;
+    readonly deleted: true;
+    readonly kind: IndexArtifactKind;
+  }> {
+    return await this.writeDocument(async (document) => {
+      const chapterId = await resolveChapterPathReadonly(document, path);
+      await document.indexArtifacts.delete(chapterId, kind);
+      return { chapterId, deleted: true, kind };
+    });
+  }
+
+  public async moveChapter(
+    path: string,
+    options: WikiGraphChapterMoveOptions,
+  ): Promise<ChapterDetails> {
+    return await this.writeDocument(async (document) => {
+      const chapterId = await resolveChapterPathReadonly(document, path);
+      const [afterChapterId, beforeChapterId, parentChapterId] =
+        await Promise.all([
+          resolveOptionalChapterPath(document, options.afterPath),
+          resolveOptionalChapterPath(document, options.beforePath),
+          resolveOptionalChapterPath(document, options.parentPath),
+        ]);
+      await assertNoActiveBuildJobConflicts({
+        archive: this.#location.archiveFile,
+        operation: "Moving chapter",
+        scope: { kind: "archive" },
+      });
+      return await moveChapter(document, chapterId, {
+        ...(afterChapterId === undefined ? {} : { afterChapterId }),
+        ...(beforeChapterId === undefined ? {} : { beforeChapterId }),
+        ...(parentChapterId === undefined ? {} : { parentChapterId }),
+        ...(options.first === undefined ? {} : { first: options.first }),
+        ...(options.last === undefined ? {} : { last: options.last }),
+        ...(options.root === undefined ? {} : { root: options.root }),
+      });
+    });
+  }
+
+  public async removeChapter(path: string, recursive = false): Promise<void> {
+    await this.writeDocument(async (document) => {
+      const chapterId = await resolveChapterPathReadonly(document, path);
+      await assertNoActiveBuildJobConflicts({
+        archive: this.#location.archiveFile,
+        operation: "Removing chapter",
+        scope: { kind: "archive" },
+      });
+      await removeChapter(document, chapterId, { recursive });
+    });
+  }
+
+  public async resetChapter(
+    path: string,
+    stage: WikiGraphChapterResetStage,
+  ): Promise<ChapterDetails> {
+    return await this.writeDocument(async (document) => {
+      const chapterId = await resolveChapterPathReadonly(document, path);
+      await assertChapterResetAllowed(
+        this.#location.archiveFile,
+        chapterId,
+        stage,
+      );
+      return await resetChapter(document, chapterId, stage);
+    });
+  }
+
+  public async setChapterSource(
+    path: string,
+    source: string,
+    options: WikiGraphChapterSourceOptions = {},
+  ): Promise<ChapterDetails> {
+    return await this.writeDocument(async (document) => {
+      const chapterId = await resolveChapterPathReadonly(document, path);
+      await assertNoActiveBuildJobs({
+        archive: this.#location.archiveFile,
+        chapterIds: [chapterId],
+        operation: "Setting chapter source",
+      });
+      return await setChapterSource(
+        document,
+        chapterId,
+        asTextStream(source),
+        options,
+      );
+    });
+  }
+
+  public async setChapterSummary(
+    path: string,
+    summary: string,
+  ): Promise<ChapterDetails> {
+    return await this.writeDocument(async (document) => {
+      const chapterId = await resolveChapterPathReadonly(document, path);
+      await assertNoActiveBuildJobs({
+        archive: this.#location.archiveFile,
+        chapterIds: [chapterId],
+        operation: "Setting chapter summary",
+        requiresTarget: "reading-summary",
+      });
+      return await setChapterSummary(document, chapterId, summary);
+    });
+  }
+
+  public async setChapterTitle(
+    path: string,
+    title: Parameters<typeof setChapterTitle>[2],
+  ): Promise<ChapterDetails> {
+    return await this.writeDocument(async (document) => {
+      const chapterId = await resolveChapterPathReadonly(document, path);
+      await assertNoActiveBuildJobs({
+        archive: this.#location.archiveFile,
+        chapterIds: [chapterId],
+        operation: "Setting chapter title",
+      });
+      return await setChapterTitle(document, chapterId, title);
+    });
+  }
+
+  public async getChapterTree(): Promise<ChapterTree> {
+    return await this.readDocument(
+      async (document) => await getChapterTree(document),
+    );
+  }
+
+  public async applyChapterTree(
+    tree: WikiGraphChapterTreeInput,
+    options: { readonly dryRun?: boolean } = {},
+  ): Promise<ChapterTreeApplyResult> {
+    return await this.writeDocument(
+      async (document) => {
+        if (options.dryRun !== true) {
+          await assertNoActiveBuildJobConflicts({
+            archive: this.#location.archiveFile,
+            operation: "Changing chapter tree",
+            scope: { kind: "archive" },
+          });
+        }
+        return await applyChapterTree(document, tree, {
+          dryRun: options.dryRun ?? false,
+        });
+      },
+      { refreshLibraryIndex: options.dryRun !== true },
     );
   }
 
@@ -467,7 +831,9 @@ export class WikiGraphArchiveHandle {
               searchIndexWritebackPolicy: options.searchIndexWritebackPolicy,
             }),
       });
-      await this.#refreshLibraryIndex(options.onIndexSyncError);
+      if (options.refreshLibraryIndex !== false) {
+        await this.#refreshLibraryIndex(options.onIndexSyncError);
+      }
       return result;
     }, options.signal);
   }
@@ -718,5 +1084,56 @@ function withoutOperationAndScope<
   } = options;
   return rest;
 }
-import { homedir } from "os";
-import { isAbsolute, resolve } from "path";
+
+async function resolveOptionalChapterPath(
+  document: ReadonlyDocument,
+  path: string | undefined,
+): Promise<number | undefined> {
+  return path === undefined
+    ? undefined
+    : await resolveChapterPathReadonly(document, path);
+}
+
+function requireChapter(
+  chapters: readonly ChapterEntry[],
+  chapterId: number,
+): ChapterEntry {
+  const chapter = chapters.find((entry) => entry.chapterId === chapterId);
+  if (chapter === undefined) {
+    throw new Error(`Chapter internal id ${chapterId} does not exist.`);
+  }
+  return chapter;
+}
+
+function asTextStream(text: string): AsyncIterable<string> {
+  return Readable.from([text]);
+}
+
+async function assertChapterResetAllowed(
+  archive: File,
+  chapterId: number,
+  stage: WikiGraphChapterResetStage,
+): Promise<void> {
+  if (stage === "planned") {
+    await assertNoActiveBuildJobs({
+      archive,
+      chapterIds: [chapterId],
+      operation: "Resetting chapter to planned",
+    });
+    return;
+  }
+  if (stage === "sourced") {
+    await assertNoActiveBuildJobs({
+      archive,
+      chapterIds: [chapterId],
+      operation: "Resetting chapter graph",
+      requiresTarget: "reading-graph",
+    });
+  }
+  await assertNoActiveBuildJobs({
+    archive,
+    chapterIds: [chapterId],
+    operation: "Resetting chapter summary",
+    requiresTarget: "reading-summary",
+  });
+}
