@@ -1705,6 +1705,13 @@ describe("cli/queue", () => {
         },
         type: "status_snapshot",
       },
+      {
+        at: 2,
+        jobId: "job-1",
+        seq: 2,
+        state: "succeeded",
+        type: "succeeded",
+      },
     ];
 
     await runQueueCommand({
@@ -1716,6 +1723,7 @@ describe("cli/queue", () => {
 
     expect(queueMockState.textWrites).toStrictEqual([
       "extracting words 128/2431 [tokens output: 614]\n",
+      "succeeded\n",
     ]);
   });
 
@@ -1728,6 +1736,13 @@ describe("cli/queue", () => {
         step: "knowledge-graph",
         type: "step_started",
       },
+      {
+        at: 2,
+        jobId: "job-1",
+        seq: 2,
+        state: "succeeded",
+        type: "succeeded",
+      },
     ];
 
     await runQueueCommand({
@@ -1739,6 +1754,7 @@ describe("cli/queue", () => {
 
     expect(queueMockState.textWrites).toStrictEqual([
       "knowledge-graph started\nsteps: matching -> screening -> enrichment -> grounding -> relation-discovery -> committing\n",
+      "succeeded\n",
     ]);
   });
 
@@ -1760,6 +1776,13 @@ describe("cli/queue", () => {
         step: "knowledge-graph",
         type: "status_snapshot",
       },
+      {
+        at: 2,
+        jobId: "job-1",
+        seq: 2,
+        state: "succeeded",
+        type: "succeeded",
+      },
     ];
 
     await runQueueCommand({
@@ -1769,7 +1792,10 @@ describe("cli/queue", () => {
       jsonl: false,
     });
 
-    expect(queueMockState.textWrites).toStrictEqual(["committing items 1/1\n"]);
+    expect(queueMockState.textWrites).toStrictEqual([
+      "committing items 1/1\n",
+      "succeeded\n",
+    ]);
   });
 
   it("prints knowledge graph phase progress without word counters", async () => {
@@ -1836,6 +1862,13 @@ describe("cli/queue", () => {
         },
         type: "status_snapshot",
       },
+      {
+        at: 2,
+        jobId: "job-1",
+        seq: 2,
+        state: "succeeded",
+        type: "succeeded",
+      },
     ];
 
     await runQueueCommand({
@@ -1847,6 +1880,7 @@ describe("cli/queue", () => {
 
     expect(queueMockState.textWrites).toStrictEqual([
       "enrichment linked-page 25/80 pages [tokens output: 6500]\n",
+      "succeeded\n",
     ]);
   });
 
@@ -1868,6 +1902,13 @@ describe("cli/queue", () => {
         step: "knowledge-graph",
         type: "status_snapshot",
       },
+      {
+        at: 2,
+        jobId: "job-1",
+        seq: 2,
+        state: "succeeded",
+        type: "succeeded",
+      },
     ];
 
     await runQueueCommand({
@@ -1879,6 +1920,7 @@ describe("cli/queue", () => {
 
     expect(queueMockState.textWrites).toStrictEqual([
       "matching text 128/4096 chars\n",
+      "succeeded\n",
     ]);
   });
 

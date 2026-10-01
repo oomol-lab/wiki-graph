@@ -3,7 +3,12 @@ import { tmpdir } from "os";
 import { join } from "path";
 import { afterEach, describe, expect, it } from "vitest";
 
-import { createWikiGraphSDK, WikiGraphSDK } from "./index.js";
+import {
+  createWikiGraphSDK,
+  getWikiGraphStorage,
+  NodeDirectory,
+  WikiGraphSDK,
+} from "./index.js";
 
 const tempDirectories: string[] = [];
 
@@ -40,4 +45,34 @@ describe("WikiGraphSDK", () => {
     });
     reopened.close();
   });
+
+  it("binds each public core instance to its own state directory", async () => {
+    const firstStateDir = await mkdtemp(
+      join(tmpdir(), "wiki-graph-sdk-first-"),
+    );
+    const secondStateDir = await mkdtemp(
+      join(tmpdir(), "wiki-graph-sdk-second-"),
+    );
+    tempDirectories.push(firstStateDir, secondStateDir);
+    const first = createWikiGraphSDK({ stateDir: firstStateDir });
+    const second = createWikiGraphSDK({ stateDir: secondStateDir });
+
+    const [firstLibrary, secondLibrary] = await Promise.all([
+      readCoreLibraryIdentity(first),
+      readCoreLibraryIdentity(second),
+    ]);
+
+    expect(firstLibrary).toBe(new NodeDirectory(firstStateDir).identity);
+    expect(secondLibrary).toBe(new NodeDirectory(secondStateDir).identity);
+    expect(firstLibrary).not.toBe(secondLibrary);
+    first.close();
+    second.close();
+  });
 });
+
+async function readCoreLibraryIdentity(sdk: WikiGraphSDK): Promise<string> {
+  return await sdk.core.digestTextStreamSession(
+    { stream: [], targetStage: "planned", title: "Storage probe" },
+    () => getWikiGraphStorage().library.identity,
+  );
+}

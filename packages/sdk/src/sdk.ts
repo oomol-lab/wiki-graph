@@ -4,6 +4,7 @@ import { WikiGraphConfigManager } from "./config.js";
 import { WikiGraphJobManager, type WikiGraphJobRuntime } from "./jobs.js";
 import { WikiGraphLibraryManager } from "./libraries.js";
 import {
+  createNodeWikiGraphStorage,
   installNodeWikiGraphPlatform,
   withNodeWikiGraphStorage,
 } from "./node-platform.js";
@@ -41,7 +42,9 @@ export class WikiGraphSDK implements WikiGraphJobRuntime {
   }
 
   public get core(): WikiGraph {
-    this.#core ??= new WikiGraph({});
+    this.#core ??= new WikiGraph({
+      storage: createNodeWikiGraphStorage(this.#context.stateDir),
+    });
     return this.#core;
   }
 
