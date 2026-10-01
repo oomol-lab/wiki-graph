@@ -1,55 +1,31 @@
 import {
-  finalizeWikiGraphLibraryArchiveWrite,
-  readWikiGraphLibraryIndexState,
-  rebuildWikiGraphLibraryIndex,
-  WikiGraphArchiveFile,
   type DirectoryDocument,
   type ReadonlyDocument,
+  type WikiGraphArchiveWriteOptions,
 } from "wiki-graph-sdk";
 
-import { resolveArchiveRuntimeLocation } from "./uri.js";
+import { getWikiGraphSDK } from "../../../runtime/context.js";
 
 export async function readArchiveDocument<T>(
   path: string,
   operation: (document: ReadonlyDocument) => Promise<T> | T,
 ): Promise<T> {
-  const location = await resolveArchiveRuntimeLocation(path);
-  return await new WikiGraphArchiveFile(location.archiveFile).readDocument(
-    operation,
-  );
+  return await (
+    await getWikiGraphSDK().archives.open(path)
+  ).readDocument(operation);
 }
 
 export async function writeArchiveDocument<T>(
   path: string,
   operation: (document: DirectoryDocument) => Promise<T> | T,
-  options: Parameters<WikiGraphArchiveFile["write"]>[1] = {},
+  options: WikiGraphArchiveWriteOptions = {},
 ): Promise<T> {
-  const location = await resolveArchiveRuntimeLocation(path);
-  const result = await new WikiGraphArchiveFile(location.archiveFile).write(
-    operation,
-    options,
-  );
-
-  if (location.libraryDirtyTarget !== undefined) {
-    if (location.libraryArchiveTarget !== undefined) {
-      await finalizeWikiGraphLibraryArchiveWrite({
-        target: location.libraryArchiveTarget,
-      });
-    }
-
-    try {
-      const state = await readWikiGraphLibraryIndexState(
-        location.libraryDirtyTarget,
-      );
-      if (state.status !== "missing") {
-        await rebuildWikiGraphLibraryIndex(location.libraryDirtyTarget);
-      }
-    } catch (error) {
-      reportLibraryIndexSyncFailure(error);
-    }
-  }
-
-  return result;
+  return await (
+    await getWikiGraphSDK().archives.open(path)
+  ).writeDocument(operation, {
+    ...options,
+    onIndexSyncError: reportLibraryIndexSyncFailure,
+  });
 }
 
 function reportLibraryIndexSyncFailure(error: unknown): void {

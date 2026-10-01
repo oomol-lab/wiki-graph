@@ -1,31 +1,16 @@
-import { mkdir, readFile } from "fs/promises";
+import { readFile } from "fs/promises";
 
 import {
-  addWikiGraphLibraryArchive,
-  assertWikiGraphLibrarySchemaCurrent,
-  clearWikiGraphLibraryMetadata,
-  createWikiGraphLibrary,
-  deleteWikiGraphLibraryMetadataKey,
-  getWikiGraphLibraryMetadata,
-  getWikiGraphLibraryArchive,
-  listWikiGraphLibraryObjects,
-  listWikiGraphLibraries,
-  listWikiGraphLibraryArchives,
-  moveWikiGraphLibraryArchive,
-  cleanWikiGraphLibraryIndex,
   formatWikiGraphLibraryUri,
-  putWikiGraphLibraryMetadata,
-  readWikiGraphLibraryIndexState,
-  rebuildWikiGraphLibraryIndex,
-  rebindWikiGraphLibrary,
-  removeWikiGraphLibrary,
-  removeWikiGraphLibraryArchive,
-  replaceWikiGraphLibraryMetadata,
-  resolveWikiGraphLibrary,
-  scanWikiGraphLibrary,
   type File,
+  type ParsedWikiGraphLibraryUri,
+  type WikiGraphLibraryArchiveRecord,
+  type WikiGraphLibraryIndexState,
+  type WikiGraphLibraryRecord,
+  type WikiGraphLibraryScanResult,
 } from "wiki-graph-sdk";
 import type { CLILibraryArguments } from "../args/index.js";
+import { getWikiGraphSDK } from "../runtime/context.js";
 import type { RenderTreeNode } from "../support/index.js";
 import {
   formatCLIJSON,
@@ -34,11 +19,7 @@ import {
   writeTextToStdout,
 } from "../support/index.js";
 import { createCollectionFindResult } from "./archive-command/run/index.js";
-import {
-  getNodeResourcePath,
-  NodeDirectory,
-  NodeFile,
-} from "../runtime/node-platform.js";
+import { getNodeResourcePath } from "../runtime/node-platform.js";
 import { writeFindHits } from "./archive-output/index.js";
 import {
   ProgressOutputWriter,
@@ -50,13 +31,14 @@ const INDEX_PROGRESS_OUTPUT_INTERVAL_MS = 6_000;
 export async function runLibraryCommand(
   args: CLILibraryArguments,
 ): Promise<void> {
+  const libraries = getWikiGraphSDK().libraries;
   if (
     args.action !== "add" &&
     args.action !== "create" &&
     args.action !== "scan" &&
     args.action !== "rebind"
   ) {
-    await assertWikiGraphLibrarySchemaCurrent(args.target);
+    await libraries.assertCurrent(args.target);
   }
 
   switch (args.action) {
@@ -65,8 +47,8 @@ export async function runLibraryCommand(
         throw new Error("Missing --input <path> for library add.");
       }
       await writeLibraryArchive(
-        await addWikiGraphLibraryArchive({
-          inputFile: new NodeFile(args.inputPath),
+        await libraries.addArchive({
+          inputPath: args.inputPath,
           target: args.target,
           ...(args.to === undefined ? {} : { to: args.to }),
         }),
@@ -78,24 +60,23 @@ export async function runLibraryCommand(
       if (args.path === undefined) {
         throw new Error("Missing --path <folder> for library create.");
       }
-      await mkdir(args.path);
-      const library = await createWikiGraphLibrary({
-        folder: new NodeDirectory(args.path),
-      });
-      await writeLibrary(library, args.json ?? false);
+      await writeLibrary(
+        (await libraries.create(args.path)).snapshot,
+        args.json ?? false,
+      );
       return;
     }
     case "list": {
       if (args.target.kind === "registry") {
         await writeLibraries(
-          await listWikiGraphLibraries(),
+          (await libraries.list()).map((library) => library.snapshot),
           args.json ?? false,
         );
         return;
       }
       if (args.target.kind === "archive-collection") {
         await writeLibraryArchives(
-          await listWikiGraphLibraryArchives(args.target),
+          await (await libraries.get(formatWikiGraphLibraryUri(args.target.publicId))).archives(),
           args.json ?? false,
         );
         return;
@@ -106,7 +87,7 @@ export async function runLibraryCommand(
     case "scan": {
       await writeScanResult(
         "scan",
-        async () => await scanWikiGraphLibrary(args.target),
+        async () => await libraries.scan(args.target),
         args.json ?? false,
         args.jsonl ?? false,
       );
@@ -119,11 +100,7 @@ export async function runLibraryCommand(
       }
       await writeScanResult(
         "path set",
-        async () =>
-          await rebindWikiGraphLibrary({
-            folder: new NodeDirectory(folderPath),
-            target: args.target,
-          }),
+        async () => await libraries.rebind(args.target, folderPath),
         args.json ?? false,
         args.jsonl ?? false,
       );
@@ -131,7 +108,7 @@ export async function runLibraryCommand(
     }
     case "archive-tree": {
       await writeLibraryArchiveTree(
-        await listWikiGraphLibraryArchives(args.target),
+        await (await libraries.get(formatWikiGraphLibraryUri(args.target.publicId))).archives(),
         {
           ...(args.depth === undefined ? {} : { depth: args.depth }),
           json: args.json ?? false,
@@ -142,7 +119,7 @@ export async function runLibraryCommand(
     }
     case "get-index": {
       await writeLibraryIndexState(
-        await readWikiGraphLibraryIndexState(args.target),
+        await libraries.indexState(args.target),
         args.json ?? false,
       );
       return;
@@ -158,7 +135,7 @@ export async function runLibraryCommand(
         kind: "lifecycle",
         text: "library index cache sync started\nsteps: collecting -> clearing -> indexing-text -> indexing-objects -> indexing-dense -> finalizing",
       });
-      const state = await rebuildWikiGraphLibraryIndex(
+      const state = await libraries.rebuildIndex(
         args.target,
         async (event) => {
           const counters =
@@ -192,7 +169,7 @@ export async function runLibraryCommand(
     }
     case "clean-index": {
       await writeLibraryIndexState(
-        await cleanWikiGraphLibraryIndex(args.target),
+        await libraries.cleanIndex(args.target),
         args.json ?? false,
       );
       return;
@@ -200,13 +177,13 @@ export async function runLibraryCommand(
     case "remove": {
       if (args.target.kind === "archive") {
         await writeLibraryArchive(
-          await removeWikiGraphLibraryArchive({ target: args.target }),
+          await libraries.removeArchive(args.target),
           args.json ?? false,
           "Removed library archive",
         );
         return;
       }
-      const library = await removeWikiGraphLibrary(args.target);
+      const library = await libraries.remove(args.target);
       await writeTextToStdout(
         args.json === true
           ? formatCLIJSON({ removed: library.uri })
@@ -217,35 +194,35 @@ export async function runLibraryCommand(
     case "get": {
       if (args.target.kind === "path") {
         await writeLibraryPath(
-          await resolveWikiGraphLibrary(args.target),
+          (await libraries.get(formatWikiGraphLibraryUri(args.target.publicId))).snapshot,
           args.json ?? false,
         );
         return;
       }
       if (args.target.kind === "archive-path") {
         await writeLibraryArchivePath(
-          await getWikiGraphLibraryArchive({ ...args.target, kind: "archive" }),
+          await libraries.getArchive({ ...args.target, kind: "archive" }),
           args.json ?? false,
         );
         return;
       }
       if (args.target.kind === "metadata") {
         await writeMetadataMap(
-          await getWikiGraphLibraryMetadata(args.target),
+          await libraries.getMetadata(args.target),
           args.json ?? false,
         );
         return;
       }
       if (args.target.kind === "archive") {
         await writeLibraryArchivePage(
-          await getWikiGraphLibraryArchive(args.target),
+          await libraries.getArchive(args.target),
           args.json ?? false,
         );
         return;
       }
       if (args.target.kind === "archive-collection") {
         await writeLibraryArchives(
-          await listWikiGraphLibraryArchives(args.target),
+          await (await libraries.get(formatWikiGraphLibraryUri(args.target.publicId))).archives(),
           args.json ?? false,
         );
         return;
@@ -259,7 +236,7 @@ export async function runLibraryCommand(
           throw new Error("Missing path value for library archive path set.");
         }
         await writeLibraryArchive(
-          await moveWikiGraphLibraryArchive({
+          await libraries.moveArchive({
             target: { ...args.target, kind: "archive" },
             to: args.to,
           }),
@@ -270,7 +247,7 @@ export async function runLibraryCommand(
       }
       const value = await readMetadataInput(args, { jsonRequired: true });
       await writeMetadataMap(
-        await replaceWikiGraphLibraryMetadata(
+        await libraries.replaceMetadata(
           args.target,
           parseMetadataMap(value),
         ),
@@ -280,7 +257,7 @@ export async function runLibraryCommand(
     }
     case "put": {
       await writeMetadataMap(
-        await putWikiGraphLibraryMetadata(
+        await libraries.putMetadata(
           args.target,
           normalizeMetadataKey(args.key),
           await readMetadataInput(args, { jsonRequired: false }),
@@ -291,7 +268,7 @@ export async function runLibraryCommand(
     }
     case "delete": {
       await writeMetadataMap(
-        await deleteWikiGraphLibraryMetadataKey(
+        await libraries.deleteMetadata(
           args.target,
           normalizeMetadataKey(args.key),
         ),
@@ -301,7 +278,7 @@ export async function runLibraryCommand(
     }
     case "clear": {
       await writeMetadataMap(
-        await clearWikiGraphLibraryMetadata(args.target),
+        await libraries.clearMetadata(args.target),
         args.json ?? false,
       );
       return;
@@ -310,7 +287,7 @@ export async function runLibraryCommand(
 }
 
 async function writeLibrary(
-  library: Awaited<ReturnType<typeof createWikiGraphLibrary>>,
+  library: WikiGraphLibraryRecord,
   json: boolean,
 ): Promise<void> {
   if (json) {
@@ -331,7 +308,7 @@ async function writeLibrary(
 }
 
 async function writeLibraries(
-  libraries: Awaited<ReturnType<typeof listWikiGraphLibraries>>,
+  libraries: readonly WikiGraphLibraryRecord[],
   json: boolean,
 ): Promise<void> {
   if (json) {
@@ -362,7 +339,7 @@ async function writeLibraries(
 }
 
 async function writeLibraryPath(
-  library: Awaited<ReturnType<typeof resolveWikiGraphLibrary>>,
+  library: WikiGraphLibraryRecord,
   json: boolean,
 ): Promise<void> {
   if (json) {
@@ -378,7 +355,7 @@ async function writeLibraryPath(
 }
 
 async function writeLibraryArchivePath(
-  archive: Awaited<ReturnType<typeof getWikiGraphLibraryArchive>>,
+  archive: WikiGraphLibraryArchiveRecord,
   json: boolean,
 ): Promise<void> {
   if (json) {
@@ -392,7 +369,7 @@ async function writeLibraryArchivePath(
 
 async function writeScanResult(
   label: string,
-  operation: () => Promise<Awaited<ReturnType<typeof scanWikiGraphLibrary>>>,
+  operation: () => Promise<WikiGraphLibraryScanResult>,
   json: boolean,
   jsonl: boolean,
 ): Promise<void> {
@@ -437,7 +414,7 @@ async function writeScanResult(
 }
 
 async function writeLibraryArchives(
-  archives: Awaited<ReturnType<typeof listWikiGraphLibraryArchives>>,
+  archives: readonly WikiGraphLibraryArchiveRecord[],
   json: boolean,
 ): Promise<void> {
   if (json) {
@@ -456,30 +433,34 @@ async function writeLibraryArchives(
 }
 
 async function writeLibraryScopeCollection(
-  target: Parameters<typeof listWikiGraphLibraryObjects>[0],
+  target: ParsedWikiGraphLibraryUri,
   json: boolean,
 ): Promise<void> {
-  const library = await resolveWikiGraphLibrary(target);
+  const manager = getWikiGraphSDK().libraries;
+  const library = await manager.get(formatWikiGraphLibraryUri(target.publicId));
   const baseUri = formatWikiGraphLibraryUri(target.publicId);
   const context = {
     archiveKey: `${baseUri}#scope`,
     archivePath: baseUri,
     continuationKind: "collection" as const,
     format: json ? ("json" as const) : ("text" as const),
-    indexScope: { kind: "library-index" as const, libraryId: library.id },
+    indexScope: {
+      kind: "library-index" as const,
+      libraryId: library.snapshot.id,
+    },
     limit: 20,
     types: null,
   };
 
   await writeFindHits(
-    createCollectionFindResult(await listWikiGraphLibraryObjects(target)),
+    createCollectionFindResult(await manager.objects(target)),
     context,
     json ? "json" : "text",
   );
 }
 
 async function writeLibraryArchive(
-  archive: Awaited<ReturnType<typeof addWikiGraphLibraryArchive>>,
+  archive: WikiGraphLibraryArchiveRecord,
   json: boolean,
   label = "Added library archive",
 ): Promise<void> {
@@ -493,7 +474,7 @@ async function writeLibraryArchive(
 }
 
 async function writeLibraryArchivePage(
-  archive: Awaited<ReturnType<typeof getWikiGraphLibraryArchive>>,
+  archive: WikiGraphLibraryArchiveRecord,
   json: boolean,
 ): Promise<void> {
   if (json) {
@@ -519,7 +500,7 @@ async function writeLibraryArchivePage(
 }
 
 function formatLibraryArchiveJSON(
-  archive: Awaited<ReturnType<typeof addWikiGraphLibraryArchive>>,
+  archive: WikiGraphLibraryArchiveRecord,
 ): object {
   return {
     uri: archive.uri,
@@ -539,7 +520,7 @@ function formatLibraryArchiveJSON(
 }
 
 function formatLibraryArchivePageJSON(
-  archive: Awaited<ReturnType<typeof getWikiGraphLibraryArchive>>,
+  archive: WikiGraphLibraryArchiveRecord,
 ): object {
   return {
     uri: archive.uri,
@@ -571,11 +552,11 @@ interface ArchiveTreeNode {
   readonly children: Map<string, ArchiveTreeNode>;
   readonly name: string;
   readonly path: string;
-  archive?: Awaited<ReturnType<typeof getWikiGraphLibraryArchive>>;
+  archive?: WikiGraphLibraryArchiveRecord;
 }
 
 async function writeLibraryArchiveTree(
-  archives: Awaited<ReturnType<typeof listWikiGraphLibraryArchives>>,
+  archives: readonly WikiGraphLibraryArchiveRecord[],
   options: {
     readonly depth?: number;
     readonly json: boolean;
@@ -612,7 +593,7 @@ function isArchiveTreePathSelected(path: string, parent: string): boolean {
 
 function insertArchiveTreeNode(
   root: ArchiveTreeNode,
-  archive: Awaited<ReturnType<typeof getWikiGraphLibraryArchive>>,
+  archive: WikiGraphLibraryArchiveRecord,
 ): void {
   let current = root;
   const parts = archive.relativePath.split("/");
@@ -675,7 +656,7 @@ function formatArchiveTreeRenderNode(node: ArchiveTreeNode): RenderTreeNode {
 }
 
 async function writeLibraryIndexState(
-  state: Awaited<ReturnType<typeof readWikiGraphLibraryIndexState>>,
+  state: WikiGraphLibraryIndexState,
   json: boolean,
 ): Promise<void> {
   if (json) {

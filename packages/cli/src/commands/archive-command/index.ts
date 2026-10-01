@@ -1,35 +1,19 @@
 import {
-  listArchiveCollection,
-  listArchiveEvidence,
-  listRelatedArchiveObjects,
-  findWikiGraphLibraryObjects,
   formatWikiGraphLibraryUri,
-  isArchiveSearchIndexCurrent,
-  listRelatedWikiGraphLibraryObjects,
-  listWikiGraphLibraryEvidence,
-  listWikiGraphLibraryObjects,
-  packArchiveContext,
-  packWikiGraphLibraryContext,
   parseWikiGraphLibraryUri,
-  readArchivePage,
-  readWikiGraphLibraryPage,
-  resolveWikiGraphLibrary,
-  findArchiveObjects,
-  listArchiveQueryableChapterIds,
-  listArchiveSourceLocators,
   isSourceLocatorScopeUri,
-  rebuildArchiveSearchIndex,
   openWikimediaResolver,
-  WikiGraphArchiveFile,
   type ArchiveFindOptions,
   type ArchiveRelatedResult,
-  type ReadonlyDocument,
+  type ArchiveCollectionResult,
+  type ArchiveSourceLocatorResult,
   type WikimediaResolver,
 } from "wiki-graph-sdk";
 
 import type { CLIArchiveArguments } from "../../args/index.js";
 import { loadCLIConfig } from "../../runtime/config.js";
 import { buildSearchIndexEmbeddingProvider } from "../../runtime/embedding.js";
+import { getWikiGraphSDK } from "../../runtime/context.js";
 import { formatCliCommand } from "../../support/index.js";
 import { runConvertCommand } from "../convert.js";
 import { createArchive } from "./create.js";
@@ -55,7 +39,6 @@ import {
   createFindOptions,
   createOptionalEvidenceLimit,
   createOptionalSourceContext,
-  getArchivePath,
   getObjectUri,
   getSingleObjectEvidenceLimit,
   isArchiveRootGet,
@@ -65,8 +48,6 @@ import {
   runNextArchivePage,
   writeArchiveRoot,
 } from "./run/index.js";
-import { resolveArchiveChapterScope } from "./run/scope.js";
-import type { ChapterScopeResolution } from "./run/scope.js";
 
 export async function runArchiveCommand(
   args: CLIArchiveArguments,
@@ -116,327 +97,256 @@ export async function runArchiveCommand(
       );
       return;
     case "search":
-      await ensureArchiveQueryIndexCache(args);
-      await readArchiveDocument(
-        getArchivePath(args.archivePath),
-        async (document) => {
-          const scopedArgs = await createScopedQueryArgs(document, args);
-          const context = createArchiveOutputContext(scopedArgs);
-          const findOptions = await createSearchFindOptions(scopedArgs);
-
-          if (args.all === true) {
-            await writeAllFindHits(
-              async (cursor) =>
-                await findArchiveObjects(document, scopedArgs.query!, {
-                  ...findOptions,
-                  ...(cursor === undefined ? {} : { cursor }),
-                }),
-              context,
-              args.format ?? "text",
-            );
-            return;
-          }
-
-          await writeFindHits(
-            await findArchiveObjects(document, scopedArgs.query!, findOptions),
-            context,
-            args.format ?? "text",
-          );
-        },
-      );
+      await runArchiveSearch(args);
       return;
     case "list":
-      if (args.query !== undefined) {
-        await ensureArchiveQueryIndexCache(args);
-      }
-      await readArchiveDocument(
-        getArchivePath(args.archivePath),
-        async (document) => {
-          const objectUri = getObjectUri(args.archivePath);
-          if (isSourceLocatorScopeUri(objectUri)) {
-            const context = createArchiveOutputContext(args, {
-              continuationKind: "source-locators",
-              targetUri: objectUri,
-            });
-            const readPage = async (cursor: string | undefined) =>
-              await listArchiveSourceLocators(document, objectUri, {
-                ...(cursor === undefined ? {} : { cursor }),
-                ...(args.limit === undefined ? {} : { limit: args.limit }),
-              });
-
-            if (args.all === true) {
-              await writeAllSourceLocators(
-                readPage,
-                args.cursor,
-                context,
-                args.format ?? "text",
-              );
-              return;
-            }
-
-            await writeSourceLocators(
-              await readPage(args.cursor),
-              context,
-              args.format ?? "text",
-            );
-            return;
-          }
-
-          const scope = await resolveArchiveChapterScope(document, args);
-          const scopedArgs =
-            scope === undefined
-              ? args
-              : { ...args, chapters: scope.chapterIds };
-          const context = createArchiveOutputContext(scopedArgs, {
-            continuationKind: "collection",
-          });
-
-          if (args.all === true) {
-            if (args.limit !== undefined) {
-              await writeAllFindHits(
-                async (cursor) =>
-                  createCollectionFindResult(
-                    await listArchiveCollection(document, {
-                      ...createCollectionOptions(scopedArgs),
-                      ...(cursor === undefined ? {} : { cursor }),
-                    }),
-                  ),
-                context,
-                args.format ?? "text",
-              );
-              return;
-            }
-
-            await writeFindHitsWithoutContinuation(
-              createCollectionFindResult(
-                await listArchiveCollection(document, {
-                  ...createCollectionOptions(scopedArgs),
-                  limit: ALL_COLLECTION_OUTPUT_LIMIT,
-                }),
-              ),
-              context,
-              args.format ?? "text",
-            );
-            return;
-          }
-
-          await writeFindHits(
-            createCollectionFindResult(
-              await listArchiveCollection(
-                document,
-                createCollectionOptions(scopedArgs),
-              ),
-            ),
-            context,
-            args.format ?? "text",
-          );
-        },
-      );
+      await runArchiveList(args);
       return;
     case "get":
       if (isArchiveRootGet(args)) {
         await writeArchiveRoot(args);
         return;
       }
-      await readArchiveDocument(
-        getArchivePath(args.archivePath),
-        async (document) => {
-          const objectUri = getObjectUri(args.objectId!);
-          const evidenceLimit = getSingleObjectEvidenceLimit(args, objectUri);
-          const outputContext =
-            evidenceLimit === undefined
-              ? createArchiveOutputContext(args)
-              : createArchiveOutputContext({ ...args, evidenceLimit });
-
-          await withWikimediaPageOptions(objectUri, async (wikimediaOptions) =>
-            writePage(
-              await readArchivePage(document, objectUri, {
-                ...(args.backlinks === undefined
-                  ? {}
-                  : { backlinks: args.backlinks }),
-                ...(evidenceLimit === undefined ? {} : { evidenceLimit }),
-                ...(args.reverse === true ? { order: "doc-desc" } : {}),
-                ...wikimediaOptions,
-                ...createOptionalSourceContext(args),
-              }),
-              outputContext,
-              args.format ?? "text",
-            ),
-          );
-        },
-      );
+      await runArchiveGet(args);
       return;
     case "related":
-      if (args.query !== undefined) {
-        await ensureArchiveQueryIndexCache(args);
-      }
-      await readArchiveDocument(
-        getArchivePath(args.archivePath),
-        async (document) => {
-          const context = createArchiveOutputContext(args, {
-            continuationKind: "related",
-            targetUri: getObjectUri(args.objectId!),
-          });
-          const readPage = async (
-            cursor: string | undefined,
-          ): Promise<ArchiveRelatedResult> =>
-            await listRelatedArchiveObjects(
-              document,
-              getObjectUri(args.objectId!),
-              {
-                ...(cursor === undefined ? {} : { cursor }),
-                ...createOptionalEvidenceLimit(args),
-                ...(args.limit === undefined ? {} : { limit: args.limit }),
-                ...(args.reverse === true ? { order: "doc-desc" } : {}),
-                ...(args.query === undefined ? {} : { query: args.query }),
-                ...(args.role === undefined ? {} : { role: args.role }),
-                ...(args.skipUnindexed === true ? { skipUnindexed: true } : {}),
-                ...createOptionalSourceContext(args),
-              },
-            );
-
-          if (args.all === true) {
-            await writeAllRelatedItems(
-              readPage,
-              args.cursor,
-              context,
-              args.format ?? "text",
-            );
-            return;
-          }
-
-          await writeList(
-            await readPage(args.cursor),
-            context,
-            args.format ?? "text",
-          );
-        },
-      );
+      await runArchiveRelated(args);
       return;
     case "evidence":
-      if (args.query !== undefined) {
-        await ensureArchiveQueryIndexCache(args);
-      }
-      await readArchiveDocument(
-        getArchivePath(args.archivePath),
-        async (document) => {
-          const context = createArchiveOutputContext(args, {
-            continuationKind: "evidence",
-            targetUri: getObjectUri(args.objectId!),
-          });
-
-          if (args.all === true) {
-            await writeAllEvidence(
-              async (cursor) =>
-                await listArchiveEvidence(
-                  document,
-                  getObjectUri(args.objectId!),
-                  {
-                    ...(cursor === undefined ? {} : { cursor }),
-                    ...(args.limit === undefined ? {} : { limit: args.limit }),
-                    ...(args.reverse === true ? { order: "doc-desc" } : {}),
-                    ...(args.query === undefined ? {} : { query: args.query }),
-                    ...(args.skipUnindexed === true
-                      ? { skipUnindexed: true }
-                      : {}),
-                    ...createOptionalSourceContext(args),
-                  },
-                ),
-              args.cursor,
-              context,
-              args.format ?? "text",
-            );
-            return;
-          }
-
-          await writeEvidence(
-            await listArchiveEvidence(document, getObjectUri(args.objectId!), {
-              ...(args.cursor === undefined ? {} : { cursor: args.cursor }),
-              ...(args.limit === undefined ? {} : { limit: args.limit }),
-              ...(args.reverse === true ? { order: "doc-desc" } : {}),
-              ...(args.query === undefined ? {} : { query: args.query }),
-              ...(args.skipUnindexed === true ? { skipUnindexed: true } : {}),
-              ...createOptionalSourceContext(args),
-            }),
-            context,
-            args.format ?? "text",
-          );
-        },
-      );
+      await runArchiveEvidence(args);
       return;
     case "next":
       await runNextArchivePage(args);
       return;
     case "pack":
-      await readArchiveDocument(
-        getArchivePath(args.archivePath),
-        async (document) => {
-          await writePack(
-            await packArchiveContext(
-              document,
-              getObjectUri(args.objectId!),
-              args.budget ?? 5000,
-            ),
-            createArchiveOutputContext(args),
-            args.format ?? "text",
-          );
-        },
+      await writePack(
+        await (
+          await getWikiGraphSDK().archives.open(args.archivePath)
+        ).pack(getObjectUri(args.objectId!), args.budget ?? 5000),
+        createArchiveOutputContext(args),
+        args.format ?? "text",
       );
       return;
   }
 }
 
-async function ensureArchiveQueryIndexCache(
-  args: CLIArchiveArguments,
-): Promise<void> {
-  const location = await resolveArchiveRuntimeLocation(args.archivePath);
-
-  await new WikiGraphArchiveFile(location.archiveFile).write(
-    async (document) => {
-      const scopedArgs = await createScopedQueryArgs(document, args);
-      const options =
-        scopedArgs.chapters === undefined
-          ? {}
-          : { chapters: scopedArgs.chapters };
-
-      if (await isArchiveSearchIndexCurrent(document, options)) {
-        return;
-      }
-
-      try {
-        await rebuildArchiveSearchIndex(document, undefined, options);
-      } catch (error) {
-        if (isArchiveQueryNotReadyError(error)) {
-          throw createArchiveQueryNotReadyError(args, error.message);
-        }
-        throw error;
-      }
-    },
-    { searchIndexWritebackPolicy: "cache" },
+async function runArchiveList(args: CLIArchiveArguments): Promise<void> {
+  const archive = await getWikiGraphSDK().archives.open(args.archivePath);
+  const objectUri = getObjectUri(args.archivePath);
+  if (isSourceLocatorScopeUri(objectUri)) {
+    const context = createArchiveOutputContext(args, {
+      continuationKind: "source-locators",
+      targetUri: objectUri,
+    });
+    const readPage = async (
+      cursor: string | undefined,
+    ): Promise<ArchiveSourceLocatorResult> =>
+      (await archive.list({
+        ...(cursor === undefined ? {} : { cursor }),
+        ...(args.limit === undefined ? {} : { limit: args.limit }),
+      })) as ArchiveSourceLocatorResult;
+    if (args.all === true) {
+      await writeAllSourceLocators(
+        readPage,
+        args.cursor,
+        context,
+        args.format ?? "text",
+      );
+      return;
+    }
+    await writeSourceLocators(
+      await readPage(args.cursor),
+      context,
+      args.format ?? "text",
+    );
+    return;
+  }
+  const scope = await archive.resolveScope({
+    ...(args.depth === undefined ? {} : { depth: args.depth }),
+  });
+  const scopedArgs =
+    scope === undefined ? args : { ...args, chapters: scope.chapterIds };
+  if (args.query !== undefined) {
+    const config = await loadCLIConfig();
+    await archive.ensureSearchIndex({
+      ...(scopedArgs.chapters === undefined
+        ? {}
+        : { chapters: scopedArgs.chapters }),
+      ...(config.embedding === undefined
+        ? {}
+        : {
+            embeddingProvider: buildSearchIndexEmbeddingProvider(
+              config.embedding,
+            ),
+          }),
+    });
+  }
+  const context = createArchiveOutputContext(scopedArgs, {
+    continuationKind: "collection",
+  });
+  const readPage = async (
+    cursor: string | undefined,
+    limit = args.limit,
+  ): Promise<ArchiveCollectionResult> =>
+    (await archive.list({
+      ...createCollectionOptions(scopedArgs),
+      ...(cursor === undefined ? {} : { cursor }),
+      ...(limit === undefined ? {} : { limit }),
+    })) as ArchiveCollectionResult;
+  if (args.all === true) {
+    if (args.limit !== undefined) {
+      await writeAllFindHits(
+        async (cursor) => createCollectionFindResult(await readPage(cursor)),
+        context,
+        args.format ?? "text",
+      );
+      return;
+    }
+    await writeFindHitsWithoutContinuation(
+      createCollectionFindResult(
+        await readPage(undefined, ALL_COLLECTION_OUTPUT_LIMIT),
+      ),
+      context,
+      args.format ?? "text",
+    );
+    return;
+  }
+  await writeFindHits(
+    createCollectionFindResult(await readPage(args.cursor)),
+    context,
+    args.format ?? "text",
   );
 }
 
-async function createScopedQueryArgs(
-  document: ReadonlyDocument,
-  args: CLIArchiveArguments,
-): Promise<CLIArchiveArguments> {
-  const scope = await resolveArchiveChapterScope(document, args);
-  if (args.skipUnindexed !== true) {
-    return applyChapterScope(args, scope);
-  }
-
-  const queryableChapters = await listArchiveQueryableChapterIds(document, {
-    ...(scope === undefined ? {} : { chapters: scope.chapterIds }),
+async function runArchiveSearch(args: CLIArchiveArguments): Promise<void> {
+  const archive = await getWikiGraphSDK().archives.open(args.archivePath);
+  const scope = await archive.resolveScope({
+    ...(args.depth === undefined ? {} : { depth: args.depth }),
   });
-
-  if (queryableChapters.length === 0) {
-    throw createArchiveQueryNotReadyError(
-      args,
-      "Wiki Graph query is not ready. No chapters in this scope have a current FTS artifact or source embedding artifact.",
+  const scopedArgs =
+    scope === undefined ? args : { ...args, chapters: scope.chapterIds };
+  const context = createArchiveOutputContext(scopedArgs);
+  const findOptions = await createSearchFindOptions(scopedArgs);
+  const { archiveKey: _archiveKey, chapters, ...options } = findOptions;
+  const readPage = async (cursor: string | undefined) =>
+    await archive.search(scopedArgs.query!, {
+      ...options,
+      ...(chapters === undefined ? {} : { chapters }),
+      ...(cursor === undefined ? {} : { cursor }),
+    });
+  try {
+    if (args.all === true) {
+      await writeAllFindHits(
+        readPage,
+        context,
+        args.format ?? "text",
+      );
+      return;
+    }
+    await writeFindHits(
+      await readPage(args.cursor),
+      context,
+      args.format ?? "text",
     );
+  } catch (error) {
+    if (isArchiveQueryNotReadyError(error)) {
+      throw createArchiveQueryNotReadyError(args, error.message);
+    }
+    throw error;
   }
+}
 
-  return { ...args, chapters: queryableChapters };
+async function runArchiveGet(args: CLIArchiveArguments): Promise<void> {
+  const objectUri = getObjectUri(args.objectId!);
+  const evidenceLimit = getSingleObjectEvidenceLimit(args, objectUri);
+  const context =
+    evidenceLimit === undefined
+      ? createArchiveOutputContext(args)
+      : createArchiveOutputContext({ ...args, evidenceLimit });
+  const archive = await getWikiGraphSDK().archives.open(args.archivePath);
+  await withWikimediaPageOptions(objectUri, async (wikimediaOptions) =>
+    writePage(
+      await archive.page(objectUri, {
+        ...(args.backlinks === undefined
+          ? {}
+          : { backlinks: args.backlinks }),
+        ...(evidenceLimit === undefined ? {} : { evidenceLimit }),
+        ...(args.reverse === true ? { order: "doc-desc" } : {}),
+        ...wikimediaOptions,
+        ...createOptionalSourceContext(args),
+      }),
+      context,
+      args.format ?? "text",
+    ),
+  );
+}
+
+async function runArchiveRelated(args: CLIArchiveArguments): Promise<void> {
+  const objectUri = getObjectUri(args.objectId!);
+  const context = createArchiveOutputContext(args, {
+    continuationKind: "related",
+    targetUri: objectUri,
+  });
+  const archive = await getWikiGraphSDK().archives.open(args.archivePath);
+  const readPage = async (
+    cursor: string | undefined,
+  ): Promise<ArchiveRelatedResult> =>
+    await archive.related(objectUri, {
+      ...(cursor === undefined ? {} : { cursor }),
+      ...createOptionalEvidenceLimit(args),
+      ...(args.limit === undefined ? {} : { limit: args.limit }),
+      ...(args.reverse === true ? { order: "doc-desc" } : {}),
+      ...(args.query === undefined ? {} : { query: args.query }),
+      ...(args.role === undefined ? {} : { role: args.role }),
+      ...(args.skipUnindexed === true ? { skipUnindexed: true } : {}),
+      ...createOptionalSourceContext(args),
+    });
+  if (args.all === true) {
+    await writeAllRelatedItems(
+      readPage,
+      args.cursor,
+      context,
+      args.format ?? "text",
+    );
+    return;
+  }
+  await writeList(
+    await readPage(args.cursor),
+    context,
+    args.format ?? "text",
+  );
+}
+
+async function runArchiveEvidence(args: CLIArchiveArguments): Promise<void> {
+  const objectUri = getObjectUri(args.objectId!);
+  const context = createArchiveOutputContext(args, {
+    continuationKind: "evidence",
+    targetUri: objectUri,
+  });
+  const archive = await getWikiGraphSDK().archives.open(args.archivePath);
+  const readPage = async (cursor: string | undefined) =>
+    await archive.evidence(objectUri, {
+      ...(cursor === undefined ? {} : { cursor }),
+      ...(args.limit === undefined ? {} : { limit: args.limit }),
+      ...(args.reverse === true ? { order: "doc-desc" } : {}),
+      ...(args.query === undefined ? {} : { query: args.query }),
+      ...(args.skipUnindexed === true ? { skipUnindexed: true } : {}),
+      ...createOptionalSourceContext(args),
+    });
+  if (args.all === true) {
+    await writeAllEvidence(
+      readPage,
+      args.cursor,
+      context,
+      args.format ?? "text",
+    );
+    return;
+  }
+  await writeEvidence(
+    await readPage(args.cursor),
+    context,
+    args.format ?? "text",
+  );
 }
 
 function createArchiveQueryNotReadyError(
@@ -469,18 +379,14 @@ function isArchiveQueryNotReadyError(error: unknown): error is Error {
   return error instanceof Error && error.name === "ArchiveQueryNotReadyError";
 }
 
-function applyChapterScope(
-  args: CLIArchiveArguments,
-  scope: ChapterScopeResolution | undefined,
-): CLIArchiveArguments {
-  return scope === undefined ? args : { ...args, chapters: scope.chapterIds };
-}
-
 async function runLibraryIndexArchiveCommand(
   args: CLIArchiveArguments,
   target: NonNullable<ReturnType<typeof parseWikiGraphLibraryUri>>,
 ): Promise<void> {
-  const library = await resolveWikiGraphLibrary(target);
+  const libraries = getWikiGraphSDK().libraries;
+  const library = await libraries.get(
+    formatWikiGraphLibraryUri(target.publicId),
+  );
   const isLibraryRootCollection =
     target.objectUri === undefined && args.objectId === undefined;
   const objectUri = isLibraryRootCollection
@@ -492,7 +398,10 @@ async function runLibraryIndexArchiveCommand(
       ? `${formatWikiGraphLibraryUri(target.publicId)}#scope`
       : args.archivePath,
     archivePath: args.archivePath,
-    indexScope: { kind: "library-index" as const, libraryId: library.id },
+    indexScope: {
+      kind: "library-index" as const,
+      libraryId: library.snapshot.id,
+    },
   };
 
   switch (args.action) {
@@ -502,7 +411,7 @@ async function runLibraryIndexArchiveCommand(
         if (args.all === true) {
           await writeAllFindHits(
             async (cursor) =>
-              await findWikiGraphLibraryObjects(target, args.query!, {
+              await libraries.search(target, args.query!, {
                 ...findOptions,
                 ...(cursor === undefined ? {} : { cursor }),
               }),
@@ -512,7 +421,7 @@ async function runLibraryIndexArchiveCommand(
           return;
         }
         await writeFindHits(
-          await findWikiGraphLibraryObjects(target, args.query!, findOptions),
+          await libraries.search(target, args.query!, findOptions),
           context,
           args.format ?? "text",
         );
@@ -521,7 +430,7 @@ async function runLibraryIndexArchiveCommand(
       if (args.all === true) {
         await writeAllFindHits(
           async (cursor) =>
-            await findWikiGraphLibraryObjects(target, args.query!, {
+            await libraries.search(target, args.query!, {
               ...findOptions,
               ...(cursor === undefined ? {} : { cursor }),
             }),
@@ -532,7 +441,7 @@ async function runLibraryIndexArchiveCommand(
       }
 
       await writeFindHits(
-        await findWikiGraphLibraryObjects(target, args.query!, findOptions),
+        await libraries.search(target, args.query!, findOptions),
         context,
         args.format ?? "text",
       );
@@ -549,7 +458,7 @@ async function runLibraryIndexArchiveCommand(
             await writeAllFindHits(
               async (cursor) =>
                 createCollectionFindResult(
-                  await listWikiGraphLibraryObjects(target, {
+                  await libraries.objects(target, {
                     ...createCollectionOptions(args),
                     ...(cursor === undefined ? {} : { cursor }),
                   }),
@@ -562,7 +471,7 @@ async function runLibraryIndexArchiveCommand(
 
           await writeFindHitsWithoutContinuation(
             createCollectionFindResult(
-              await listWikiGraphLibraryObjects(target, {
+              await libraries.objects(target, {
                 ...createCollectionOptions(args),
                 limit: ALL_COLLECTION_OUTPUT_LIMIT,
               }),
@@ -574,7 +483,7 @@ async function runLibraryIndexArchiveCommand(
         }
         await writeFindHits(
           createCollectionFindResult(
-            await listWikiGraphLibraryObjects(
+            await libraries.objects(
               target,
               createCollectionOptions(args),
             ),
@@ -589,7 +498,7 @@ async function runLibraryIndexArchiveCommand(
           await writeAllFindHits(
             async (cursor) =>
               createCollectionFindResult(
-                await listWikiGraphLibraryObjects(target, {
+                await libraries.objects(target, {
                   ...createCollectionOptions(args),
                   ...(cursor === undefined ? {} : { cursor }),
                 }),
@@ -602,7 +511,7 @@ async function runLibraryIndexArchiveCommand(
 
         await writeFindHitsWithoutContinuation(
           createCollectionFindResult(
-            await listWikiGraphLibraryObjects(target, {
+            await libraries.objects(target, {
               ...createCollectionOptions(args),
               limit: ALL_COLLECTION_OUTPUT_LIMIT,
             }),
@@ -615,7 +524,7 @@ async function runLibraryIndexArchiveCommand(
 
       await writeFindHits(
         createCollectionFindResult(
-          await listWikiGraphLibraryObjects(
+          await libraries.objects(
             target,
             createCollectionOptions(args),
           ),
@@ -633,7 +542,7 @@ async function runLibraryIndexArchiveCommand(
         };
         await writeFindHits(
           createCollectionFindResult(
-            await listWikiGraphLibraryObjects(
+            await libraries.objects(
               target,
               createCollectionOptions(args),
             ),
@@ -647,7 +556,7 @@ async function runLibraryIndexArchiveCommand(
       const evidenceLimit = getSingleObjectEvidenceLimit(args, objectUri);
       await withWikimediaPageOptions(objectUri, async (wikimediaOptions) =>
         writePage(
-          await readWikiGraphLibraryPage(target, objectUri, {
+          await libraries.page(target, objectUri, {
             ...(args.backlinks === undefined
               ? {}
               : { backlinks: args.backlinks }),
@@ -672,7 +581,7 @@ async function runLibraryIndexArchiveCommand(
       const readPage = async (
         cursor: string | undefined,
       ): Promise<ArchiveRelatedResult> =>
-        await listRelatedWikiGraphLibraryObjects(target, concreteObjectUri, {
+        await libraries.related(target, concreteObjectUri, {
           ...(cursor === undefined ? {} : { cursor }),
           ...createOptionalEvidenceLimit(args),
           ...(args.limit === undefined ? {} : { limit: args.limit }),
@@ -711,7 +620,7 @@ async function runLibraryIndexArchiveCommand(
       if (args.all === true) {
         await writeAllEvidence(
           async (cursor) =>
-            await listWikiGraphLibraryEvidence(target, concreteObjectUri, {
+            await libraries.evidence(target, concreteObjectUri, {
               ...(cursor === undefined ? {} : { cursor }),
               ...(args.limit === undefined ? {} : { limit: args.limit }),
               ...(args.reverse === true ? { order: "doc-desc" } : {}),
@@ -727,7 +636,7 @@ async function runLibraryIndexArchiveCommand(
       }
 
       await writeEvidence(
-        await listWikiGraphLibraryEvidence(target, concreteObjectUri, {
+        await libraries.evidence(target, concreteObjectUri, {
           ...(args.cursor === undefined ? {} : { cursor: args.cursor }),
           ...(args.limit === undefined ? {} : { limit: args.limit }),
           ...(args.reverse === true ? { order: "doc-desc" } : {}),
@@ -743,7 +652,7 @@ async function runLibraryIndexArchiveCommand(
     case "pack": {
       const concreteObjectUri = requireLibraryObjectUri("pack", objectUri);
       await writePack(
-        await packWikiGraphLibraryContext(
+        await libraries.pack(
           target,
           concreteObjectUri,
           args.budget ?? 5000,

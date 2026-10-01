@@ -1,14 +1,12 @@
-import {
-  parseWikiGraphLibraryUri,
-  upgradeWikiGraphMaintenanceTarget,
-  type WikiGraphMaintenanceUpgradeResult,
+import type {
+  WikiGraphMaintenanceTarget,
+  WikiGraphMaintenanceUpgradeResult,
 } from "wiki-graph-sdk";
 
 import type { CLIMaintenanceArguments } from "../args/index.js";
 import { isWikiGraphHomeTarget } from "../runtime/home-target.js";
+import { getWikiGraphSDK } from "../runtime/context.js";
 import { formatCLIJSON, writeTextToStdout } from "../support/index.js";
-import { NodeFile } from "../runtime/node-platform.js";
-import { resolve } from "path";
 
 export async function runMaintenanceCommand(
   args: CLIMaintenanceArguments,
@@ -20,7 +18,7 @@ export async function runMaintenanceCommand(
           "Legacy sdpub migration is available through `wg legacy migrate`.",
         );
       }
-      const result = await upgradeWikiGraphMaintenanceTarget(
+      const result = await getWikiGraphSDK().maintenance.upgrade(
         parseMaintenanceTarget(args.target),
       );
       await writeTextToStdout(
@@ -55,19 +53,15 @@ function formatMaintenanceUpgradeResult(
   }
 }
 
-function parseMaintenanceTarget(target: string) {
+function parseMaintenanceTarget(target: string): WikiGraphMaintenanceTarget {
   if (isWikiGraphHomeTarget(target)) {
     return { kind: "home" as const };
   }
   if (target.startsWith("wikg://lib")) {
-    const parsed = parseWikiGraphLibraryUri(target);
-    if (parsed === undefined || parsed.kind === "archive") {
-      throw new Error(`Invalid Wiki Graph library upgrade target: ${target}`);
-    }
-    return { kind: "library" as const, target: parsed };
+    return { kind: "library", uri: target };
   }
   if (!target.endsWith(".wikg")) {
     throw new Error(`Unsupported maintenance upgrade target: ${target}`);
   }
-  return { file: new NodeFile(resolve(target)), kind: "archive" as const };
+  return { kind: "archive", path: target };
 }

@@ -1,4 +1,3 @@
-import { WikiGraph } from "wiki-graph-sdk";
 import type { BookMeta } from "wiki-graph-sdk";
 
 import type {
@@ -8,9 +7,7 @@ import type {
 } from "../../args/index.js";
 import { writeBinaryToStdout, writeTextToStdout } from "../../support/index.js";
 import { formatCLIJSON } from "../../support/index.js";
-import { writeArchiveDocument } from "./run/document.js";
-import { resolveArchiveRuntimeLocation } from "./run/uri.js";
-import { NodeFile } from "../../runtime/node-platform.js";
+import { getWikiGraphSDK } from "../../runtime/context.js";
 
 export async function runArchiveMetaCommand(
   args: CLIArchiveMetadataArguments,
@@ -20,53 +17,46 @@ export async function runArchiveMetaCommand(
     return;
   }
 
-  const app = new WikiGraph({});
-  const location = await resolveArchiveRuntimeLocation(args.inputPath);
-  await app.openSession(new NodeFile(location.archivePath), async (digest) => {
-    await writeArchiveMeta(await digest.readMeta(), {
-      json: args.json ?? false,
-    });
+  const archive = await getWikiGraphSDK().archives.open(args.inputPath);
+  await writeArchiveMeta(await archive.readBookMeta(), {
+    json: args.json ?? false,
   });
 }
 
 export async function runArchiveCoverCommand(
   args: CLIArchiveCoverArguments,
 ): Promise<void> {
-  const app = new WikiGraph({});
-  const location = await resolveArchiveRuntimeLocation(args.inputPath);
-  await app.openSession(new NodeFile(location.archivePath), async (digest) => {
-    if (process.stdout.isTTY === true) {
-      throw new Error(
-        "Refusing to write binary cover data to an interactive terminal. Redirect stdout or pipe it.",
-      );
-    }
+  const archive = await getWikiGraphSDK().archives.open(args.inputPath);
+  if (process.stdout.isTTY === true) {
+    throw new Error(
+      "Refusing to write binary cover data to an interactive terminal. Redirect stdout or pipe it.",
+    );
+  }
 
-    const cover = await digest.readCover();
+  const cover = await archive.readCover();
 
-    if (cover === undefined) {
-      throw new Error("Document cover is missing.");
-    }
+  if (cover === undefined) {
+    throw new Error("Document cover is missing.");
+  }
 
-    await writeBinaryToStdout(cover.data);
-  });
+  await writeBinaryToStdout(cover.data);
 }
 
 async function updateArchiveMeta(
   path: string,
   patch: ArchiveMetaPatch,
 ): Promise<void> {
-  await writeArchiveDocument(path, async (document) => {
-    const meta = await document.readBookMeta();
+  const archive = await getWikiGraphSDK().archives.open(path);
+  const meta = await archive.readBookMeta();
 
-    if (meta === undefined) {
-      throw new Error("Archive metadata is missing.");
-    }
+  if (meta === undefined) {
+    throw new Error("Archive metadata is missing.");
+  }
 
-    const updatedMeta = applyArchiveMetaPatch(meta, patch);
+  const updatedMeta = applyArchiveMetaPatch(meta, patch);
 
-    await document.replaceBookMeta(updatedMeta);
-    await writeArchiveMeta(updatedMeta, { json: false });
-  });
+  await archive.replaceBookMeta(updatedMeta);
+  await writeArchiveMeta(updatedMeta, { json: false });
 }
 
 async function writeArchiveMeta(

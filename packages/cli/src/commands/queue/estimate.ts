@@ -8,8 +8,9 @@ import {
   formatGenerationPlanningDuration,
   formatGenerationPlanningModel,
   planGenerationTask,
+  toCLIGenerationPerformanceHints,
+  type CLIGenerationPerformanceHint,
   type GenerationConcurrency,
-  type GenerationPerformanceHint,
   type GenerationPlanningCost,
 } from "../../runtime/index.js";
 
@@ -17,7 +18,7 @@ export interface QueueAddEstimate {
   readonly chapters: number;
   readonly concurrent: GenerationConcurrency;
   readonly includesPrerequisites: boolean;
-  readonly performanceHints: readonly GenerationPerformanceHint[];
+  readonly performanceHints: readonly CLIGenerationPerformanceHint[];
   readonly planning: GenerationPlanningCost;
   readonly steps: readonly QueueAddEstimateStep[];
   readonly target: BuildJobTarget;
@@ -62,12 +63,12 @@ export function createQueueAddEstimate(input: {
     chapters: input.chapters.length,
     concurrent,
     includesPrerequisites: steps.some((step) => step.prerequisite),
-    performanceHints: createGenerationPerformanceHints({
+    performanceHints: toCLIGenerationPerformanceHints(createGenerationPerformanceHints({
       chapters: workChapters,
       concurrent,
       hasJobWork: steps.length > 0,
       hasRequestWork: usesProvider,
-    }),
+    })),
     planning: sumGenerationPlanningCosts(model, steps),
     steps,
     target: input.target,
@@ -265,7 +266,7 @@ export function formatQueueAddEstimateLines(
 }
 
 function formatQueuePerformanceHintLines(
-  hints: readonly GenerationPerformanceHint[],
+  hints: readonly CLIGenerationPerformanceHint[],
 ): readonly string[] {
   if (hints.length === 0) {
     return [];

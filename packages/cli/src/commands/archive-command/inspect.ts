@@ -16,7 +16,8 @@ import {
   formatGenerationPlanningDuration,
   formatGenerationPlanningModel,
   planGenerationTask,
-  type GenerationPerformanceHint,
+  toCLIGenerationPerformanceHints,
+  type CLIGenerationPerformanceHint,
   type GenerationPlanningCost,
 } from "../../runtime/index.js";
 import {
@@ -100,7 +101,7 @@ interface InspectReport {
   };
   readonly retrievalGuidance: readonly string[];
   readonly improvements: readonly InspectImprovement[];
-  readonly performanceHints: readonly GenerationPerformanceHint[];
+  readonly performanceHints: readonly CLIGenerationPerformanceHint[];
   readonly help: {
     readonly readiness: string;
     readonly summaryCoverage: string;
@@ -209,7 +210,7 @@ async function createArchiveInspectReport(
     knowledgeGraphCovered,
     readingGraphCovered,
   });
-  const performanceHints = createGenerationPerformanceHints({
+  const performanceHints = toCLIGenerationPerformanceHints(createGenerationPerformanceHints({
     chapters: Math.max(
       0,
       ...improvements.map((improvement) => improvement.missingChapters ?? 0),
@@ -221,7 +222,7 @@ async function createArchiveInspectReport(
     hasRequestWork: improvements.some(
       (improvement) => improvement.planning !== undefined,
     ),
-  });
+  }));
 
   return {
     uri: scopeUri,
@@ -767,7 +768,7 @@ function formatInspectImprovement(
 }
 
 function formatInspectPerformanceHints(
-  hints: readonly GenerationPerformanceHint[],
+  hints: readonly CLIGenerationPerformanceHint[],
 ): readonly string[] {
   if (hints.length === 0) {
     return [];
