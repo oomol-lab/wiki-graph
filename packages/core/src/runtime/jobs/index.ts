@@ -33,5 +33,9 @@ export {
   assertNoActiveBuildJobs,
 } from "./conflicts.js";
 export { runBuildJobWorker } from "./worker.js";
-export { readBuildJobEvents } from "./events.js";
+export {
+  readBuildJobEventChunk,
+  readBuildJobEvents,
+  type BuildJobEventChunk,
+} from "./events.js";
 export { cleanBuildJobs, runBuildQueueGc } from "./gc.js";

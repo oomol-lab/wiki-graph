@@ -40,11 +40,35 @@
       "require": "./dist/index.cjs",
       "default": "./dist/index.js"
     },
+    "./archives": {
+      "types": "./dist/archives.d.ts",
+      "import": "./dist/archives.js",
+      "require": "./dist/archives.cjs",
+      "default": "./dist/archives.js"
+    },
+    "./default-worker": {
+      "types": "./dist/default-worker.d.ts",
+      "import": "./dist/default-worker.js",
+      "require": "./dist/default-worker.cjs",
+      "default": "./dist/default-worker.js"
+    },
+    "./conversions": {
+      "types": "./dist/conversions.d.ts",
+      "import": "./dist/conversions.js",
+      "require": "./dist/conversions.cjs",
+      "default": "./dist/conversions.js"
+    },
     "./entry-context": {
       "types": "./dist/entry-context.d.ts",
       "import": "./dist/entry-context.js",
       "require": "./dist/entry-context.cjs",
       "default": "./dist/entry-context.js"
+    },
+    "./embedding": {
+      "types": "./dist/embedding.d.ts",
+      "import": "./dist/embedding.js",
+      "require": "./dist/embedding.cjs",
+      "default": "./dist/embedding.js"
     },
     "./gc": {
       "types": "./dist/gc.d.ts",
@@ -58,6 +82,18 @@
       "require": "./dist/local-config.cjs",
       "default": "./dist/local-config.js"
     },
+    "./llm": {
+      "types": "./dist/llm.d.ts",
+      "import": "./dist/llm.js",
+      "require": "./dist/llm.cjs",
+      "default": "./dist/llm.js"
+    },
+    "./maintenance": {
+      "types": "./dist/maintenance.d.ts",
+      "import": "./dist/maintenance.js",
+      "require": "./dist/maintenance.cjs",
+      "default": "./dist/maintenance.js"
+    },
     "./node-platform": {
       "types": "./dist/node-platform.d.ts",
       "import": "./dist/node-platform.js",
@@ -69,6 +105,18 @@
       "import": "./dist/planning.js",
       "require": "./dist/planning.cjs",
       "default": "./dist/planning.js"
+    },
+    "./runtime-config": {
+      "types": "./dist/runtime-config.d.ts",
+      "import": "./dist/runtime-config.js",
+      "require": "./dist/runtime-config.cjs",
+      "default": "./dist/runtime-config.js"
+    },
+    "./stage": {
+      "types": "./dist/stage.d.ts",
+      "import": "./dist/stage.js",
+      "require": "./dist/stage.cjs",
+      "default": "./dist/stage.js"
     },
     "./wikispine": {
       "types": "./dist/wikispine.d.ts",
@@ -88,10 +136,16 @@
     "build": "rimraf dist && tsup --config tsup.config.ts && node ../../scripts/copy-package-data.mjs ../core/data dist/data"
   },
   "dependencies": {
+    "@ai-sdk/anthropic": "^3.0.68",
+    "@ai-sdk/google": "^3.0.61",
+    "@ai-sdk/openai": "^3.0.52",
+    "@ai-sdk/openai-compatible": "^2.0.41",
+    "ai": "^6.0.154",
     "nunjucks": "^3.2.4",
     "sqlite3": "^6.0.1",
     "wiki-graph-core": "workspace:*",
     "yauzl": "^3.3.0",
-    "yazl": "^3.3.1"
+    "yazl": "^3.3.1",
+    "zod": "^4.3.6"
   }
 }

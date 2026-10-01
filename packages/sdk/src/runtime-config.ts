@@ -1,17 +1,16 @@
 import { z } from "zod";
 
-import { CLI_HELP_ROUTES, withHelpRoute } from "../support/index.js";
-import { getCLIEnvPolicy } from "./context.js";
 import { readLocalConfigSection } from "./local-config.js";
+import { getWikiGraphSDKRuntimeContext } from "./runtime-context.js";
 
-const CLI_PROVIDER_VALUES = [
+const WIKI_GRAPH_PROVIDER_VALUES = [
   "anthropic",
   "google",
   "openai",
   "openai-compatible",
 ] as const;
 
-const cliProviderSchema = z.enum(CLI_PROVIDER_VALUES);
+const wikiGraphProviderSchema = z.enum(WIKI_GRAPH_PROVIDER_VALUES);
 const inlineLLMConfigSchema = z.object({
   apiKey: z.string().min(1).optional(),
   baseURL: z.string().min(1).optional(),
@@ -25,17 +24,17 @@ const inlineLLMConfigSchema = z.object({
       chatCompletionsUrl: z.string().min(1).optional(),
       model: z.string().min(1).optional(),
       name: z.string().min(1).optional(),
-      provider: cliProviderSchema.optional(),
+      provider: wikiGraphProviderSchema.optional(),
     })
     .optional(),
   model: z.string().min(1).optional(),
   name: z.string().min(1).optional(),
-  provider: cliProviderSchema.optional(),
+  provider: wikiGraphProviderSchema.optional(),
 });
 
-export type CLIProvider = z.infer<typeof cliProviderSchema>;
+export type WikiGraphProvider = z.infer<typeof wikiGraphProviderSchema>;
 
-export interface CLIConfig {
+export interface WikiGraphRuntimeConfig {
   readonly embedding?: {
     readonly apiKey?: string;
     readonly baseURL?: string;
@@ -49,7 +48,7 @@ export interface CLIConfig {
     readonly baseURL?: string;
     readonly model?: string;
     readonly name?: string;
-    readonly provider?: CLIProvider;
+    readonly provider?: WikiGraphProvider;
   };
   readonly prompt?: string;
   readonly concurrent?: {
@@ -71,11 +70,11 @@ export interface CLIConfig {
 
 export type HostedProviderScope = "wg-wikimedia" | "wikispine";
 
-type InlineLLMConfig = NonNullable<CLIConfig["llm"]>;
+type InlineLLMConfig = NonNullable<WikiGraphRuntimeConfig["llm"]>;
 
-export async function loadCLIConfig(options?: {
+export async function loadWikiGraphRuntimeConfig(options?: {
   readonly llmJSON?: string;
-}): Promise<CLIConfig> {
+}): Promise<WikiGraphRuntimeConfig> {
   const [embedding, localLLM, concurrent, wikimedia, wikispine] =
     await Promise.all([
       readLocalConfigSection("embeddings"),
@@ -103,7 +102,7 @@ export async function loadCLIConfig(options?: {
   });
   const requestConcurrent = readPositiveInteger(concurrent.request);
   const jobConcurrent = readPositiveInteger(concurrent.job);
-  const envPolicy = getCLIEnvPolicy();
+  const envPolicy = getWikiGraphSDKRuntimeContext().envPolicy;
   const wikispineConfig = resolveWikispineConfig(wikispine, envPolicy);
   const wikimediaConfig = createWikimediaConfig(wikimedia, envPolicy);
   const embeddingConfig = createEmbeddingConfig(embedding);
@@ -129,17 +128,14 @@ export async function loadCLIConfig(options?: {
 function createWikimediaConfig(
   input: Record<string, unknown> | undefined,
   envPolicy: "development" | "production",
-): CLIConfig["wikimedia"] | undefined {
+): WikiGraphRuntimeConfig["wikimedia"] | undefined {
   const endpoint = readString(input?.endpoint);
   const token = readString(input?.token);
 
   if (endpoint === undefined && token === undefined) return undefined;
   if (token === undefined) {
     throw new Error(
-      withHelpRoute(
-        "Remote Wikimedia access requires an API key. Configure `wikg://local/config/wikimedia` token with `put token --secret`.",
-        CLI_HELP_ROUTES.config,
-      ),
+      "Remote Wikimedia access requires an API key. Configure `wikg://local/config/wikimedia` token with `put token --secret`.",
     );
   }
   return {
@@ -151,7 +147,7 @@ function createWikimediaConfig(
 
 function createEmbeddingConfig(
   input: Record<string, unknown> | undefined,
-): CLIConfig["embedding"] | undefined {
+): WikiGraphRuntimeConfig["embedding"] | undefined {
   const value = input ?? {};
   const provider = readEmbeddingProvider(value.provider);
   const apiKey = readString(value.apiKey);
@@ -188,12 +184,7 @@ function parseInlineLLMConfig(value: string): InlineLLMConfig | undefined {
   const normalized = normalizeString(value);
 
   if (normalized === undefined) {
-    throw new Error(
-      withHelpRoute(
-        "--llm must be a non-empty JSON object.",
-        CLI_HELP_ROUTES.config,
-      ),
-    );
+    throw new Error("--llm must be a non-empty JSON object.");
   }
 
   let parsedJson: unknown;
@@ -201,26 +192,16 @@ function parseInlineLLMConfig(value: string): InlineLLMConfig | undefined {
   try {
     parsedJson = JSON.parse(normalized);
   } catch (error) {
-    throw new Error(
-      withHelpRoute(
-        `Invalid --llm JSON: ${formatError(error)}`,
-        CLI_HELP_ROUTES.config,
-      ),
-    );
+    throw new Error(`Invalid --llm JSON: ${formatError(error)}`);
   }
 
   const parsed = inlineLLMConfigSchema.safeParse(parsedJson);
 
   if (!parsed.success) {
     throw new Error(
-      withHelpRoute(
-        `Invalid --llm config: ${parsed.error.issues
-          .map(
-            (issue) => `${issue.path.join(".") || "<root>"}: ${issue.message}`,
-          )
-          .join("; ")}`,
-        CLI_HELP_ROUTES.config,
-      ),
+      `Invalid --llm config: ${parsed.error.issues
+        .map((issue) => `${issue.path.join(".") || "<root>"}: ${issue.message}`)
+        .join("; ")}`,
     );
   }
 
@@ -236,12 +217,7 @@ function parseInlineLLMConfig(value: string): InlineLLMConfig | undefined {
   });
 
   if (config === undefined) {
-    throw new Error(
-      withHelpRoute(
-        "--llm must contain at least one supported LLM field.",
-        CLI_HELP_ROUTES.config,
-      ),
-    );
+    throw new Error("--llm must contain at least one supported LLM field.");
   }
 
   return config;
@@ -251,8 +227,8 @@ function inferInlineProvider(input: {
   readonly baseURL?: string | undefined;
   readonly baseUrl?: string | undefined;
   readonly chatCompletionsUrl?: string | undefined;
-  readonly provider?: CLIProvider | undefined;
-}): CLIProvider | undefined {
+  readonly provider?: WikiGraphProvider | undefined;
+}): WikiGraphProvider | undefined {
   if (
     input.provider === undefined &&
     (input.baseURL !== undefined ||
@@ -276,10 +252,7 @@ function inferBaseURLFromChatCompletionsURL(input: {
 
   if (!input.chatCompletionsUrl.endsWith(suffix)) {
     throw new Error(
-      withHelpRoute(
-        "--llm chatCompletionsUrl must end with /chat/completions when baseURL is not provided.",
-        CLI_HELP_ROUTES.config,
-      ),
+      "--llm chatCompletionsUrl must end with /chat/completions when baseURL is not provided.",
     );
   }
 
@@ -306,8 +279,8 @@ function createLLMConfig(input: {
   readonly baseURL: string | undefined;
   readonly model: string | undefined;
   readonly name: string | undefined;
-  readonly provider: CLIProvider | undefined;
-}): CLIConfig["llm"] {
+  readonly provider: WikiGraphProvider | undefined;
+}): WikiGraphRuntimeConfig["llm"] {
   if (
     input.apiKey === undefined &&
     input.baseURL === undefined &&
@@ -327,20 +300,21 @@ function createLLMConfig(input: {
   };
 }
 
-function readProvider(value: unknown): CLIProvider | undefined {
+function readProvider(value: unknown): WikiGraphProvider | undefined {
   if (typeof value !== "string") {
     return undefined;
   }
 
-  const parsed = cliProviderSchema.safeParse(value);
+  const parsed = wikiGraphProviderSchema.safeParse(value);
 
   return parsed.success ? parsed.data : undefined;
 }
 
 export function resolveWikispineConfig(
   value: Record<string, unknown>,
-  envPolicy: "development" | "production" = getCLIEnvPolicy(),
-): CLIConfig["wikispine"] | undefined {
+  envPolicy: "development" | "production" = getWikiGraphSDKRuntimeContext()
+    .envPolicy,
+): WikiGraphRuntimeConfig["wikispine"] | undefined {
   const provider = readWikispineProvider(value.provider);
   const endpoint = readString(value.endpoint);
   const token = readString(value.token);
@@ -352,10 +326,7 @@ export function resolveWikispineConfig(
   if (provider === "cli") return { provider };
   if (token === undefined) {
     throw new Error(
-      withHelpRoute(
-        "Remote WikiSpine access requires an API key. Configure `wikg://local/config/wikispine` token with `put token --secret`.",
-        CLI_HELP_ROUTES.config,
-      ),
+      "Remote WikiSpine access requires an API key. Configure `wikg://local/config/wikispine` token with `put token --secret`.",
     );
   }
 
@@ -368,7 +339,8 @@ export function resolveWikispineConfig(
 
 export function resolveHostedProviderEndpoint(
   scope: HostedProviderScope,
-  envPolicy: "development" | "production" = getCLIEnvPolicy(),
+  envPolicy: "development" | "production" = getWikiGraphSDKRuntimeContext()
+    .envPolicy,
 ): string {
   const origin =
     envPolicy === "development"

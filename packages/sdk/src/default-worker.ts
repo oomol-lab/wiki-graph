@@ -3,7 +3,6 @@ import {
   getChapterDetails,
   openWikimediaResolver,
   recordBuildJobInputRevision,
-  runBuildJobWorker,
   WikiGraphArchiveFile,
   WikiGraphScope,
   withLoggingContext,
@@ -14,7 +13,7 @@ import {
   type GuaranteedRequest,
   type GuaranteedRequestController,
   type LLMessage,
-} from "wiki-graph-sdk";
+} from "wiki-graph-core";
 import {
   applyChapterJobArtifactFile,
   createLocalChapterJobFileExecutor,
@@ -22,28 +21,32 @@ import {
   type ChapterJobFileExecutor,
   type ChapterJobInputOptions,
   type ChapterJobKind,
-} from "wiki-graph-sdk/worker";
+} from "wiki-graph-core/worker";
 
-import { buildSearchIndexEmbeddingProvider } from "../../runtime/embedding.js";
-import { loadCLIConfig, type CLIConfig } from "../../runtime/config.js";
+import { buildSearchIndexEmbeddingProvider } from "./embedding.js";
+import {
+  loadWikiGraphRuntimeConfig,
+  type WikiGraphRuntimeConfig,
+} from "./runtime-config.js";
 import {
   createStageLLM,
-  DEFAULT_GENERATION_JOB_CONCURRENCY,
   loadRequiredStageConfig,
   resolveExtractionPrompt,
   resolveKnowledgeGraphRecallPrompt,
-} from "../../runtime/index.js";
-import { nodeWikispineCommandRunner } from "../../runtime/wikispine.js";
-import { CLI_HELP_ROUTES, withHelpRoute } from "../../support/index.js";
+} from "./stage.js";
+import { DEFAULT_GENERATION_JOB_CONCURRENCY } from "./planning.js";
+import { nodeWikispineCommandRunner } from "./wikispine.js";
+import { runBuildJobWorker } from "./worker.js";
 
-export async function runQueueWorker(): Promise<void> {
-  const config = await loadCLIConfig();
-  const controller = new AbortController();
-  const stop = (): void => controller.abort();
-  process.once("SIGINT", stop);
-  process.once("SIGTERM", stop);
-  try {
-    await runBuildJobWorker({
+export interface WikiGraphQueueWorkerOptions {
+  readonly signal?: AbortSignal;
+}
+
+export async function runWikiGraphQueueWorker(
+  options: WikiGraphQueueWorkerOptions = {},
+): Promise<void> {
+  const config = await loadWikiGraphRuntimeConfig();
+  await runBuildJobWorker({
       concurrency: config.concurrent?.job ?? DEFAULT_GENERATION_JOB_CONCURRENCY,
       executeJob: async (job, reporter, context) => {
         await withLoggingContext(
@@ -51,12 +54,8 @@ export async function runQueueWorker(): Promise<void> {
           async () => await executeBuildJob(job, reporter, context),
         );
       },
-      signal: controller.signal,
+      ...(options.signal === undefined ? {} : { signal: options.signal }),
     });
-  } finally {
-    process.removeListener("SIGINT", stop);
-    process.removeListener("SIGTERM", stop);
-  }
 }
 
 async function executeBuildJob(
@@ -64,7 +63,7 @@ async function executeBuildJob(
   reporter: BuildJobProgressReporter,
   context: BuildJobExecutionContext,
 ): Promise<void> {
-  const config = await loadCLIConfig({
+  const config = await loadWikiGraphRuntimeConfig({
     ...(job.llmJSON === undefined ? {} : { llmJSON: job.llmJSON }),
   });
   const execution = await openJobExecutor(
@@ -216,7 +215,7 @@ interface OpenedExecutor {
 
 async function openJobExecutor(
   job: BuildJob,
-  config: CLIConfig,
+  config: WikiGraphRuntimeConfig,
   signal: AbortSignal,
   reporter: BuildJobProgressReporter,
 ): Promise<OpenedExecutor> {
@@ -344,28 +343,19 @@ async function assertCurrentFtsArtifact(job: BuildJob): Promise<void> {
   });
 }
 
-function requireEmbeddingConfig(config: CLIConfig) {
+function requireEmbeddingConfig(config: WikiGraphRuntimeConfig) {
   if (config.embedding !== undefined) return config.embedding;
   throw new Error(
-    withHelpRoute(
-      "Missing embeddings configuration. Configure `wikg://local/config/embeddings` before building embedding index artifacts.",
-      CLI_HELP_ROUTES.config,
-    ),
+    "Missing embeddings configuration. Configure `wikg://local/config/embeddings` before building embedding index artifacts.",
   );
 }
 
 export function requireKnowledgeGraphWikispineConfig(
-  config: CLIConfig,
-): NonNullable<CLIConfig["wikispine"]> {
+  config: WikiGraphRuntimeConfig,
+): NonNullable<WikiGraphRuntimeConfig["wikispine"]> {
   if (config.wikispine?.provider !== undefined) return config.wikispine;
   throw new Error(
-    withHelpRoute(
-      [
-        "Knowledge Graph requires WikiSpine.",
-        "Configure `wikg://local/config/wikispine` with provider `cli` or `fetch`, then run `wg wikg://local/config/wikispine test`.",
-      ].join(" "),
-      CLI_HELP_ROUTES.config,
-    ),
+    "Knowledge Graph requires WikiSpine. Configure `wikg://local/config/wikispine` with provider `cli` or `fetch` and test the provider before running the worker.",
   );
 }
 

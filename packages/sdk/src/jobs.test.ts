@@ -17,6 +17,46 @@ const runtime: WikiGraphJobRuntime = {
 };
 
 describe("WikiGraphJob events", () => {
+  it("advances an incremental event cursor instead of rereading history", async () => {
+    const running = createJob("running");
+    const succeeded = createJob("succeeded");
+    const terminalEvent: BuildJobEvent = {
+      at: 3,
+      jobId: running.jobId,
+      seq: 1,
+      state: "succeeded",
+      type: "succeeded",
+    };
+    const cursors: number[] = [];
+    let reads = 0;
+    const readEvents = vi.fn(() => Promise.resolve([]));
+    const backend = createBackend(running, {
+      get: () => Promise.resolve(reads === 0 ? running : succeeded),
+      readEventChunk: (_job, cursor) => {
+        cursors.push(cursor);
+        reads += 1;
+        return Promise.resolve(
+          reads === 1
+            ? { cursor: 24, events: [] }
+            : { cursor: 61, events: [terminalEvent] },
+        );
+      },
+      readEvents,
+    });
+    const handle = await new WikiGraphJobManager(runtime, backend).get(
+      running.jobId,
+    );
+
+    const events: BuildJobEvent[] = [];
+    for await (const event of handle.events({ pollIntervalMs: 0 })) {
+      events.push(event);
+    }
+
+    expect(events).toEqual([terminalEvent]);
+    expect(cursors).toEqual([0, 24]);
+    expect(readEvents).not.toHaveBeenCalled();
+  });
+
   it("removes each abort listener after a polling timeout", async () => {
     let reads = 0;
     let observedEnoughReads: (() => void) | undefined;

@@ -24,7 +24,8 @@ export interface GenerationPlanningCost {
 }
 
 export interface GenerationPerformanceHint {
-  readonly command: string;
+  readonly configKey: "job" | "request";
+  readonly configValue: number;
   readonly current: number;
   readonly kind: "job" | "request";
   readonly message: string;
@@ -82,7 +83,8 @@ export function createGenerationPerformanceHints(input: {
 
   if (input.hasRequestWork && recommendedRequest !== undefined) {
     hints.push({
-      command: `wg wikg://local/config/concurrent put request ${recommendedRequest}`,
+      configKey: "request",
+      configValue: recommendedRequest,
       current: input.concurrent.request,
       kind: "request",
       message:
@@ -93,7 +95,8 @@ export function createGenerationPerformanceHints(input: {
 
   if (input.concurrent.job < 4 && input.chapters > 1) {
     hints.push({
-      command: "wg wikg://local/config/concurrent put job 4",
+      configKey: "job",
+      configValue: 4,
       current: input.concurrent.job,
       kind: "job",
       message:

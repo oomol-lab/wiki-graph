@@ -47,6 +47,7 @@ export {
   getBuildJob,
   listBuildJobs,
   pauseBuildJob,
+  readBuildJobEventChunk,
   readBuildJobEvents,
   recordBuildJobInputRevision,
   resumeBuildJob,
@@ -57,6 +58,7 @@ export {
 } from "../runtime/jobs/index.js";
 export type {
   AddBuildJobOptions,
+  BuildJobEventChunk,
   BuildJobConflictScope,
   BuildJobExecutionContext,
   BuildJob,

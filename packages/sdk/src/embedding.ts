@@ -1,28 +1,27 @@
-import type { SearchIndexEmbeddingProvider } from "wiki-graph-sdk";
+import type { SearchIndexEmbeddingProvider } from "wiki-graph-core";
 
 import { embed, embedMany } from "ai";
 import { createOpenAI } from "@ai-sdk/openai";
 import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
 
-import { CLI_HELP_ROUTES, withHelpRoute } from "../support/index.js";
 import { readLocalConfigSection } from "./local-config.js";
 
-export type CLIEmbeddingProvider = "openai" | "openai-compatible";
+export type WikiGraphEmbeddingProvider = "openai" | "openai-compatible";
 
-export interface CLIEmbeddingConfig {
+export interface WikiGraphEmbeddingConfig {
   readonly apiKey?: string;
   readonly baseURL?: string;
   readonly dimensions?: number;
   readonly model?: string;
   readonly name?: string;
-  readonly provider?: CLIEmbeddingProvider;
+  readonly provider?: WikiGraphEmbeddingProvider;
 }
 
 export interface QueryEmbeddingResult {
   readonly dimensions: number;
   readonly embedding: readonly number[];
   readonly model: string;
-  readonly provider: CLIEmbeddingProvider;
+  readonly provider: WikiGraphEmbeddingProvider;
   readonly usage?: {
     readonly tokens?: number;
   };
@@ -30,7 +29,7 @@ export interface QueryEmbeddingResult {
 
 const EMBEDDING_BATCH_SIZE = 10;
 
-export async function readEmbeddingConfig(): Promise<CLIEmbeddingConfig> {
+export async function readWikiGraphEmbeddingConfig(): Promise<WikiGraphEmbeddingConfig> {
   const config = await readLocalConfigSection("embeddings");
 
   return {
@@ -49,7 +48,7 @@ export async function readEmbeddingConfig(): Promise<CLIEmbeddingConfig> {
 
 export async function embedQueryText(
   value: string,
-  config: CLIEmbeddingConfig = {},
+  config: WikiGraphEmbeddingConfig = {},
 ): Promise<QueryEmbeddingResult> {
   const normalized = value.trim();
 
@@ -79,7 +78,7 @@ export async function embedQueryText(
 }
 
 export function buildSearchIndexEmbeddingProvider(
-  config: CLIEmbeddingConfig,
+  config: WikiGraphEmbeddingConfig,
 ): SearchIndexEmbeddingProvider {
   const provider = requireEmbeddingProvider(config.provider);
   const model = requireEmbeddingModel(config.model);
@@ -119,9 +118,9 @@ export function buildSearchIndexEmbeddingProvider(
 }
 
 function createEmbeddingIdentity(
-  provider: CLIEmbeddingProvider,
+  provider: WikiGraphEmbeddingProvider,
   model: string,
-  config: CLIEmbeddingConfig,
+  config: WikiGraphEmbeddingConfig,
 ): string {
   return JSON.stringify({
     ...(config.baseURL === undefined ? {} : { baseURL: config.baseURL }),
@@ -145,22 +144,19 @@ function* chunkTexts(
 export async function embedQueryTextWithLocalConfig(
   value: string,
 ): Promise<QueryEmbeddingResult> {
-  return await embedQueryText(value, await readEmbeddingConfig());
+  return await embedQueryText(value, await readWikiGraphEmbeddingConfig());
 }
 
 function createEmbeddingModel(
-  provider: CLIEmbeddingProvider,
+  provider: WikiGraphEmbeddingProvider,
   model: string,
-  config: CLIEmbeddingConfig,
+  config: WikiGraphEmbeddingConfig,
 ) {
   switch (provider) {
     case "openai": {
       if (config.baseURL !== undefined) {
         throw new Error(
-          withHelpRoute(
-            "openai does not accept embeddings.baseURL. Use openai-compatible for third-party OpenAI-style embeddings APIs.",
-            CLI_HELP_ROUTES.config,
-          ),
+          "openai does not accept embeddings.baseURL. Use openai-compatible for third-party OpenAI-style embeddings APIs.",
         );
       }
 
@@ -171,12 +167,7 @@ function createEmbeddingModel(
     }
     case "openai-compatible": {
       if (config.baseURL === undefined) {
-        throw new Error(
-          withHelpRoute(
-            "openai-compatible requires embeddings.baseURL.",
-            CLI_HELP_ROUTES.config,
-          ),
-        );
+        throw new Error("openai-compatible requires embeddings.baseURL.");
       }
 
       return createOpenAICompatible({
@@ -189,8 +180,8 @@ function createEmbeddingModel(
 }
 
 function createEmbeddingProviderOptions(
-  provider: CLIEmbeddingProvider,
-  config: CLIEmbeddingConfig,
+  provider: WikiGraphEmbeddingProvider,
+  config: WikiGraphEmbeddingConfig,
 ): Record<string, { readonly dimensions: number }> | undefined {
   if (config.dimensions === undefined) {
     return undefined;
@@ -204,8 +195,8 @@ function createEmbeddingProviderOptions(
 }
 
 function getEmbeddingProviderOptionsName(
-  provider: CLIEmbeddingProvider,
-  _config: CLIEmbeddingConfig,
+  provider: WikiGraphEmbeddingProvider,
+  _config: WikiGraphEmbeddingConfig,
 ): string {
   if (provider === "openai") {
     return "openai";
@@ -214,17 +205,14 @@ function getEmbeddingProviderOptionsName(
 }
 
 function requireEmbeddingProvider(
-  provider: CLIEmbeddingProvider | undefined,
-): CLIEmbeddingProvider {
+  provider: WikiGraphEmbeddingProvider | undefined,
+): WikiGraphEmbeddingProvider {
   if (provider !== undefined) {
     return provider;
   }
 
   throw new Error(
-    withHelpRoute(
-      "Missing embeddings configuration. Configure `wikg://local/config/embeddings` with provider and model.",
-      CLI_HELP_ROUTES.config,
-    ),
+    "Missing embeddings configuration. Configure `wikg://local/config/embeddings` with provider and model.",
   );
 }
 
@@ -234,14 +222,11 @@ function requireEmbeddingModel(model: string | undefined): string {
   }
 
   throw new Error(
-    withHelpRoute(
-      "Missing embeddings.model. Configure `wikg://local/config/embeddings` before using Dense search.",
-      CLI_HELP_ROUTES.config,
-    ),
+    "Missing embeddings.model. Configure `wikg://local/config/embeddings` before using Dense search.",
   );
 }
 
-function parseEmbeddingProvider(value: string): CLIEmbeddingProvider {
+function parseEmbeddingProvider(value: string): WikiGraphEmbeddingProvider {
   switch (value) {
     case "openai":
     case "openai-compatible":

@@ -18,6 +18,39 @@ export async function readBuildJobEvents(
     .map((line) => JSON.parse(line) as BuildJobEvent);
 }
 
+export interface BuildJobEventChunk {
+  /** Byte offset to pass to the next incremental read. */
+  readonly cursor: number;
+  readonly events: readonly BuildJobEvent[];
+}
+
+/** Read only events appended after a prior byte cursor. */
+export async function readBuildJobEventChunk(
+  job: Pick<BuildJob, "events">,
+  cursor = 0,
+): Promise<BuildJobEventChunk> {
+  let reader: Awaited<ReturnType<typeof job.events.openReader>>;
+  try {
+    reader = await job.events.openReader();
+  } catch {
+    return { cursor: 0, events: [] };
+  }
+  try {
+    const offset = cursor <= reader.size ? cursor : 0;
+    const bytes = await reader.read(offset, reader.size - offset);
+    const content = new TextDecoder().decode(bytes);
+    return {
+      cursor: reader.size,
+      events: content
+        .split("\n")
+        .filter((line) => line.trim() !== "")
+        .map((line) => JSON.parse(line) as BuildJobEvent),
+    };
+  } finally {
+    await reader.close();
+  }
+}
+
 export async function appendBuildJobEvent(
   job: Pick<BuildJob, "events" | "jobId">,
   event: BuildJobEvent,

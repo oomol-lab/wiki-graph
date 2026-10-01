@@ -11,6 +11,7 @@ import {
   type AddBuildJobOptions,
   type BuildJob,
   type BuildJobEvent,
+  type BuildJobEventChunk,
   type BuildJobListOptions,
   type BuildJobTarget,
 } from "wiki-graph-core";
@@ -26,7 +27,8 @@ export interface WikiGraphJobBackend {
   get(jobId: string): Promise<BuildJob>;
   list(options: BuildJobListOptions): Promise<readonly BuildJob[]>;
   pause(jobId: string): Promise<BuildJob>;
-  readEvents(job: BuildJob): Promise<readonly BuildJobEvent[]>;
+  readEventChunk?(job: BuildJob, cursor: number): Promise<BuildJobEventChunk>;
+  readEvents?(job: BuildJob): Promise<readonly BuildJobEvent[]>;
   resume(jobId: string): Promise<BuildJob>;
   setTarget(jobId: string, target: BuildJobTarget): Promise<BuildJob>;
 }
@@ -38,10 +40,39 @@ const CORE_BUILD_JOB_BACKEND: WikiGraphJobBackend = {
   get: async (jobId) => await getBuildJob(jobId),
   list: async (options) => await listBuildJobs(options),
   pause: async (jobId) => await pauseBuildJob(jobId),
+  readEventChunk: async (job, cursor) =>
+    await readIncrementalBuildJobEvents(job, cursor),
   readEvents: async (job) => await readBuildJobEvents(job),
   resume: async (jobId) => await resumeBuildJob(jobId),
   setTarget: async (jobId, target) => await updateBuildJobTarget(jobId, target),
 };
+
+async function readIncrementalBuildJobEvents(
+  job: BuildJob,
+  cursor: number,
+): Promise<BuildJobEventChunk> {
+  let reader: Awaited<ReturnType<BuildJob["events"]["openReader"]>>;
+  try {
+    reader = await job.events.openReader();
+  } catch {
+    return { cursor: 0, events: [] };
+  }
+  try {
+    const offset = cursor <= reader.size ? cursor : 0;
+    const content = new TextDecoder().decode(
+      await reader.read(offset, reader.size - offset),
+    );
+    return {
+      cursor: reader.size,
+      events: content
+        .split("\n")
+        .filter((line) => line.trim() !== "")
+        .map((line) => JSON.parse(line) as BuildJobEvent),
+    };
+  } finally {
+    await reader.close();
+  }
+}
 
 export interface WikiGraphJobCreateOptions extends Omit<
   AddBuildJobOptions,
@@ -72,7 +103,7 @@ export interface WikiGraphJobSubscriptionOptions extends WikiGraphJobEventsOptio
 }
 
 export interface WikiGraphJobRuntime {
-  run<T>(operation: () => Promise<T> | T): Promise<T>;
+  run<T>(operation: () => Promise<T> | T, signal?: AbortSignal): Promise<T>;
 }
 
 export class WikiGraphJobManager {
@@ -204,19 +235,20 @@ export class WikiGraphJob {
     options: WikiGraphJobEventsOptions = {},
   ): AsyncIterable<BuildJobEvent> {
     let seenSeq = 0;
+    let cursor = 0;
     let job = this.#snapshot;
     if (options.from === "now") {
       job = await this.status();
-      const events = await this.#runtime.run(
-        async () => await this.#backend.readEvents(job),
-      );
+      const chunk = await this.#readEventChunk(job, cursor);
+      const events = chunk.events;
+      cursor = chunk.cursor;
       seenSeq = events.at(-1)?.seq ?? 0;
     }
 
     while (options.signal?.aborted !== true) {
-      const events = await this.#runtime.run(
-        async () => await this.#backend.readEvents(job),
-      );
+      const chunk = await this.#readEventChunk(job, cursor);
+      const events = chunk.events;
+      cursor = chunk.cursor;
       for (const event of events) {
         if (event.seq <= seenSeq) continue;
         seenSeq = event.seq;
@@ -261,6 +293,19 @@ export class WikiGraphJob {
   async #update(operation: () => Promise<BuildJob>): Promise<BuildJob> {
     this.#snapshot = await this.#runtime.run(operation);
     return this.#snapshot;
+  }
+
+  async #readEventChunk(
+    job: BuildJob,
+    cursor: number,
+  ): Promise<BuildJobEventChunk> {
+    return await this.#runtime.run(async () => {
+      if (this.#backend.readEventChunk !== undefined) {
+        return await this.#backend.readEventChunk(job, cursor);
+      }
+      const events = await this.#backend.readEvents?.(job);
+      return { cursor: 0, events: events ?? [] };
+    });
   }
 }
 

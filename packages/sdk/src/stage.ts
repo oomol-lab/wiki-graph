@@ -3,22 +3,24 @@ export {
   DEFAULT_KNOWLEDGE_GRAPH_RECALL_PROMPT,
   resolveExtractionPrompt,
   resolveKnowledgeGraphRecallPrompt,
-} from "wiki-graph-sdk";
-import type { WikiGraphScope } from "wiki-graph-sdk";
-import { createDefaultWikiGraphSampling } from "wiki-graph-sdk";
-import { LLM } from "wiki-graph-sdk";
+} from "wiki-graph-core";
+import type { WikiGraphScope } from "wiki-graph-core";
+import { createDefaultWikiGraphSampling } from "wiki-graph-core";
+import { LLM } from "wiki-graph-core";
 import type {
   Directory,
   LLMStreamProgressCallback,
   LLMTokenUsageCallback,
-} from "wiki-graph-sdk";
+} from "wiki-graph-core";
 
-import { loadCLIConfig, type CLIConfig } from "./config.js";
-import { CLI_HELP_ROUTES, withHelpRoute } from "../support/index.js";
-import { buildLLMOptions } from "./llm.js";
+import {
+  loadWikiGraphRuntimeConfig,
+  type WikiGraphRuntimeConfig,
+} from "./runtime-config.js";
+import { buildWikiGraphLLMOptions } from "./llm.js";
 
 export function createStageLLM(
-  config: CLIConfig,
+  config: WikiGraphRuntimeConfig,
   options?: {
     readonly cacheDirectory?: Directory;
     readonly logDirectory?: Directory;
@@ -26,7 +28,7 @@ export function createStageLLM(
     readonly onTokenUsage?: LLMTokenUsageCallback;
   },
 ): LLM<WikiGraphScope> {
-  const llmOptions = buildLLMOptions(config);
+  const llmOptions = buildWikiGraphLLMOptions(config);
 
   return new LLM<WikiGraphScope>({
     sampling: createDefaultWikiGraphSampling({
@@ -53,17 +55,14 @@ export function createStageLLM(
 
 export async function loadRequiredStageConfig(options: {
   readonly llmJSON?: string;
-}): Promise<CLIConfig> {
-  const config = await loadCLIConfig({
+}): Promise<WikiGraphRuntimeConfig> {
+  const config = await loadWikiGraphRuntimeConfig({
     ...(options.llmJSON === undefined ? {} : { llmJSON: options.llmJSON }),
   });
 
   if (config.llm?.provider === undefined || config.llm.model === undefined) {
     throw new Error(
-      withHelpRoute(
-        "Missing LLM configuration. Set --llm for one run, or configure `wikg://local/config/llm` with provider and model.",
-        CLI_HELP_ROUTES.config,
-      ),
+      "Missing LLM configuration. Set --llm for one run, or configure `wikg://local/config/llm` with provider and model.",
     );
   }
 

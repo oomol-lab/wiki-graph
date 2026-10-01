@@ -13,8 +13,10 @@ export default defineConfig({
       ...[
         ["gc", "gc.ts"],
         ["local-config", "local-config.ts"],
+        ["maintenance", "maintenance.ts"],
         ["node-platform", "node-platform.ts"],
         ["planning", "planning.ts"],
+        ["runtime-config", "runtime-config.ts"],
         ["wikispine", "wikispine.ts"],
         ["worker", "worker.ts"],
       ].map(([specifier, source]) => ({

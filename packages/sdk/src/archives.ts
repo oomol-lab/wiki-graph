@@ -1,0 +1,722 @@
+import {
+  finalizeWikiGraphLibraryArchiveWrite,
+  findArchiveObjects,
+  formatLocatedWikiGraphUri,
+  isArchiveSearchIndexCurrent,
+  isSourceLocatorScopeUri,
+  listArchiveCollection,
+  listArchiveEvidence,
+  listArchiveQueryableChapterIds,
+  listArchiveSourceLocators,
+  listChapters,
+  listRelatedArchiveObjects,
+  packArchiveContext,
+  parseLocatedWikiGraphUri,
+  parseWikiGraphLibraryUri,
+  readArchivePage,
+  readWikiGraphLibraryIndexState,
+  rebuildArchiveSearchIndex,
+  rebuildWikiGraphLibraryIndex,
+  resolveChapterPathReadonly,
+  resolveWikiGraphLibraryArchiveFile,
+  WikiGraph,
+  WikiGraphArchiveFile,
+  type ArchiveCollectionOptions,
+  type ArchiveCollectionResult,
+  type ArchiveEvidence,
+  type ArchiveFindOptions,
+  type ArchiveFindResult,
+  type ArchivePack,
+  type ArchivePage,
+  type ArchiveRelatedResult,
+  type ArchiveSourceLocatorResult,
+  type BookMeta,
+  type ChapterEntry,
+  type DirectoryDocument,
+  type File,
+  ObjectMetadataKind,
+  type ObjectMetadataTarget,
+  type ParsedWikiGraphLibraryUri,
+  type QueryIndexScope,
+  type ReadonlyDocument,
+  type SearchIndexEmbeddingProvider,
+  type WikimediaResolver,
+  type WikiGraphArchive,
+} from "wiki-graph-core";
+
+import type { WikiGraphJobRuntime } from "./jobs.js";
+import { getWikiGraphSDKRuntimeContext } from "./runtime-context.js";
+import { getNodeResourcePath, NodeFile } from "./node-platform.js";
+
+export interface WikiGraphOperationOptions {
+  readonly signal?: AbortSignal;
+}
+
+export interface WikiGraphArchiveLocation {
+  readonly archiveFile: File;
+  readonly archiveKey: string;
+  readonly archivePath: string;
+  readonly indexScope: QueryIndexScope;
+  readonly libraryArchiveTarget?: ParsedWikiGraphLibraryUri;
+  readonly libraryDirtyTarget?: ParsedWikiGraphLibraryUri;
+  readonly locatedUri: string;
+}
+
+export interface WikiGraphArchiveWriteOptions extends WikiGraphOperationOptions {
+  readonly onIndexSyncError?: (error: unknown) => void;
+  readonly searchIndexWritebackPolicy?: "archive" | "cache";
+}
+
+export interface WikiGraphArchiveScopeOptions {
+  readonly chapters?: readonly number[];
+  readonly depth?: number;
+}
+
+export interface WikiGraphArchiveSearchOptions
+  extends
+    Omit<ArchiveFindOptions, "archiveKey" | "chapters">,
+    WikiGraphArchiveScopeOptions,
+    WikiGraphOperationOptions {
+  readonly embeddingProvider?: SearchIndexEmbeddingProvider;
+}
+
+export interface WikiGraphArchiveListOptions
+  extends
+    Omit<ArchiveCollectionOptions, "chapters">,
+    WikiGraphArchiveScopeOptions,
+    WikiGraphOperationOptions {}
+
+export interface WikiGraphArchivePageOptions extends WikiGraphOperationOptions {
+  readonly backlinks?: boolean;
+  readonly evidenceLimit?: number;
+  readonly order?: "doc-asc" | "doc-desc";
+  readonly sourceContext?: number;
+  readonly wikimediaResolver?: WikimediaResolver;
+}
+
+export interface WikiGraphArchiveRelatedOptions extends WikiGraphOperationOptions {
+  readonly cursor?: string;
+  readonly evidenceLimit?: number;
+  readonly limit?: number;
+  readonly order?: "doc-asc" | "doc-desc";
+  readonly query?: string;
+  readonly role?: "any" | "object" | "self" | "subject";
+  readonly skipUnindexed?: boolean;
+  readonly sourceContext?: number;
+}
+
+export interface WikiGraphArchiveEvidenceOptions extends WikiGraphOperationOptions {
+  readonly cursor?: string;
+  readonly limit?: number;
+  readonly order?: "doc-asc" | "doc-desc";
+  readonly query?: string;
+  readonly skipUnindexed?: boolean;
+  readonly sourceContext?: number;
+}
+
+export interface WikiGraphArchiveScope {
+  readonly chapterIds: readonly number[];
+  readonly entries: readonly ChapterEntry[];
+}
+
+export class WikiGraphArchiveManager {
+  readonly #runtime: WikiGraphJobRuntime;
+
+  public constructor(runtime: WikiGraphJobRuntime) {
+    this.#runtime = runtime;
+  }
+
+  public async open(
+    uriOrPath: string,
+    options: WikiGraphOperationOptions = {},
+  ): Promise<WikiGraphArchiveHandle> {
+    const location = await this.#runtime.run(
+      async () => await resolveWikiGraphArchiveLocation(uriOrPath),
+      options.signal,
+    );
+    return new WikiGraphArchiveHandle(this.#runtime, location);
+  }
+}
+
+export class WikiGraphArchiveHandle {
+  readonly #runtime: WikiGraphJobRuntime;
+  readonly #location: WikiGraphArchiveLocation;
+
+  public constructor(
+    runtime: WikiGraphJobRuntime,
+    location: WikiGraphArchiveLocation,
+  ) {
+    this.#runtime = runtime;
+    this.#location = location;
+  }
+
+  public get archiveKey(): string {
+    return this.#location.archiveKey;
+  }
+
+  public get indexScope(): QueryIndexScope {
+    return this.#location.indexScope;
+  }
+
+  public get locatedUri(): string {
+    return this.#location.locatedUri;
+  }
+
+  public get objectUri(): string {
+    return (
+      parseLocatedWikiGraphUri(this.#location.locatedUri).objectUri ?? "wikg://"
+    );
+  }
+
+  public get path(): string {
+    return this.#location.archivePath;
+  }
+
+  public async search(
+    query: string,
+    options: WikiGraphArchiveSearchOptions = {},
+  ): Promise<ArchiveFindResult> {
+    return await this.writeDocument(
+      async (document) => {
+        const chapters = await this.#resolveQueryChapters(document, options);
+        await ensureArchiveSearchIndex(document, {
+          ...(chapters === undefined ? {} : { chapters }),
+          ...(options.embeddingProvider === undefined
+            ? {}
+            : { embeddingProvider: options.embeddingProvider }),
+        });
+        return await findArchiveObjects(document, query, {
+          ...withoutOperationAndScope(options),
+          archiveKey: this.archiveKey,
+          ...(chapters === undefined ? {} : { chapters }),
+        });
+      },
+      {
+        searchIndexWritebackPolicy: "cache",
+        ...(options.signal === undefined ? {} : { signal: options.signal }),
+      },
+    );
+  }
+
+  public async list(
+    options: WikiGraphArchiveListOptions = {},
+  ): Promise<ArchiveCollectionResult | ArchiveSourceLocatorResult> {
+    return await this.readDocument(async (document) => {
+      if (isSourceLocatorScopeUri(this.objectUri)) {
+        return await listArchiveSourceLocators(document, this.objectUri, {
+          ...(options.cursor === undefined ? {} : { cursor: options.cursor }),
+          ...(options.limit === undefined ? {} : { limit: options.limit }),
+        });
+      }
+      const chapters = await this.#resolveScope(document, options);
+      return await listArchiveCollection(document, {
+        ...withoutOperationAndScope(options),
+        ...(chapters === undefined ? {} : { chapters }),
+      });
+    }, options);
+  }
+
+  public async ensureSearchIndex(
+    options: WikiGraphArchiveScopeOptions &
+      WikiGraphOperationOptions & {
+        readonly embeddingProvider?: SearchIndexEmbeddingProvider;
+      } = {},
+  ): Promise<void> {
+    await this.writeDocument(
+      async (document) => {
+        const chapters = await this.#resolveScope(document, options);
+        await ensureArchiveSearchIndex(document, {
+          ...(chapters === undefined ? {} : { chapters }),
+          ...(options.embeddingProvider === undefined
+            ? {}
+            : { embeddingProvider: options.embeddingProvider }),
+        });
+      },
+      {
+        searchIndexWritebackPolicy: "cache",
+        ...(options.signal === undefined ? {} : { signal: options.signal }),
+      },
+    );
+  }
+
+  public async page(
+    objectUri = this.objectUri,
+    options: WikiGraphArchivePageOptions = {},
+  ): Promise<ArchivePage> {
+    return await this.readDocument(
+      async (document) =>
+        await readArchivePage(document, objectUri, withoutOperation(options)),
+      options,
+    );
+  }
+
+  public async related(
+    objectUri = this.objectUri,
+    options: WikiGraphArchiveRelatedOptions = {},
+  ): Promise<ArchiveRelatedResult> {
+    if (options.query === undefined) {
+      return await this.readDocument(
+        async (document) =>
+          await listRelatedArchiveObjects(
+            document,
+            objectUri,
+            withoutOperation(options),
+          ),
+        options,
+      );
+    }
+    return await this.writeDocument(
+      async (document) => {
+        await ensureArchiveSearchIndex(document);
+        return await listRelatedArchiveObjects(
+          document,
+          objectUri,
+          withoutOperation(options),
+        );
+      },
+      {
+        searchIndexWritebackPolicy: "cache",
+        ...(options.signal === undefined ? {} : { signal: options.signal }),
+      },
+    );
+  }
+
+  public async evidence(
+    objectUri = this.objectUri,
+    options: WikiGraphArchiveEvidenceOptions = {},
+  ): Promise<ArchiveEvidence> {
+    if (options.query === undefined) {
+      return await this.readDocument(
+        async (document) =>
+          await listArchiveEvidence(
+            document,
+            objectUri,
+            withoutOperation(options),
+          ),
+        options,
+      );
+    }
+    return await this.writeDocument(
+      async (document) => {
+        await ensureArchiveSearchIndex(document);
+        return await listArchiveEvidence(
+          document,
+          objectUri,
+          withoutOperation(options),
+        );
+      },
+      {
+        searchIndexWritebackPolicy: "cache",
+        ...(options.signal === undefined ? {} : { signal: options.signal }),
+      },
+    );
+  }
+
+  public async pack(
+    objectUri = this.objectUri,
+    budget = 5_000,
+    options: WikiGraphOperationOptions = {},
+  ): Promise<ArchivePack> {
+    return await this.readDocument(
+      async (document) => await packArchiveContext(document, objectUri, budget),
+      options,
+    );
+  }
+
+  public async getMetadata(
+    objectPath: string,
+    options: WikiGraphOperationOptions = {},
+  ): Promise<Readonly<Record<string, unknown>>> {
+    return await this.readDocument(
+      async (document) => await document.metadata.getMap(objectPath),
+      options,
+    );
+  }
+
+  public async readBookMeta(
+    options: WikiGraphOperationOptions = {},
+  ): Promise<BookMeta | undefined> {
+    return await this.readDocument(
+      async (document) => await document.readBookMeta(),
+      options,
+    );
+  }
+
+  public async replaceBookMeta(
+    meta: BookMeta,
+    options: WikiGraphArchiveWriteOptions = {},
+  ): Promise<BookMeta> {
+    return await this.writeDocument(async (document) => {
+      await document.replaceBookMeta(meta);
+      return meta;
+    }, options);
+  }
+
+  public async readCover(
+    options: WikiGraphOperationOptions = {},
+  ): Promise<Awaited<ReturnType<WikiGraphArchive["readCover"]>>> {
+    const app = new WikiGraph({});
+    return await this.#runtime.run(
+      async () =>
+        await app.openSession(
+          this.#location.archiveFile,
+          async (archive) => await archive.readCover(),
+        ),
+      options.signal,
+    );
+  }
+
+  public async replaceMetadata(
+    objectPath: string,
+    value: Readonly<Record<string, unknown>>,
+    options: WikiGraphArchiveWriteOptions = {},
+  ): Promise<Readonly<Record<string, unknown>>> {
+    return await this.writeDocument(async (document) => {
+      await document.metadata.replaceMap(
+        parseObjectMetadataTarget(objectPath),
+        value,
+      );
+      return await document.metadata.getMap(objectPath);
+    }, options);
+  }
+
+  public async putMetadata(
+    objectPath: string,
+    key: string,
+    value: unknown,
+    options: WikiGraphArchiveWriteOptions = {},
+  ): Promise<Readonly<Record<string, unknown>>> {
+    return await this.writeDocument(async (document) => {
+      await document.metadata.put(
+        parseObjectMetadataTarget(objectPath),
+        key,
+        value,
+      );
+      return await document.metadata.getMap(objectPath);
+    }, options);
+  }
+
+  public async deleteMetadata(
+    objectPath: string,
+    key: string,
+    options: WikiGraphArchiveWriteOptions = {},
+  ): Promise<Readonly<Record<string, unknown>>> {
+    return await this.writeDocument(async (document) => {
+      await document.metadata.deleteKey(objectPath, key);
+      return await document.metadata.getMap(objectPath);
+    }, options);
+  }
+
+  public async clearMetadata(
+    objectPath: string,
+    options: WikiGraphArchiveWriteOptions = {},
+  ): Promise<Readonly<Record<string, unknown>>> {
+    return await this.writeDocument(async (document) => {
+      await document.metadata.clear(objectPath);
+      return await document.metadata.getMap(objectPath);
+    }, options);
+  }
+
+  public async resolveScope(
+    options: WikiGraphArchiveScopeOptions & WikiGraphOperationOptions = {},
+  ): Promise<WikiGraphArchiveScope | undefined> {
+    return await this.readDocument(
+      async (document) =>
+        await resolveArchiveScope(document, this.objectUri, options.depth),
+      options,
+    );
+  }
+
+  public async read<T>(
+    operation: (archive: WikiGraphArchive) => Promise<T> | T,
+    options: WikiGraphOperationOptions = {},
+  ): Promise<T> {
+    return await this.#runtime.run(
+      async () =>
+        await new WikiGraphArchiveFile(this.#location.archiveFile).read(
+          operation,
+        ),
+      options.signal,
+    );
+  }
+
+  public async readDocument<T>(
+    operation: (document: ReadonlyDocument) => Promise<T> | T,
+    options: WikiGraphOperationOptions = {},
+  ): Promise<T> {
+    return await this.#runtime.run(
+      async () =>
+        await new WikiGraphArchiveFile(this.#location.archiveFile).readDocument(
+          operation,
+        ),
+      options.signal,
+    );
+  }
+
+  public async writeDocument<T>(
+    operation: (document: DirectoryDocument) => Promise<T> | T,
+    options: WikiGraphArchiveWriteOptions = {},
+  ): Promise<T> {
+    return await this.#runtime.run(async () => {
+      const result = await new WikiGraphArchiveFile(
+        this.#location.archiveFile,
+      ).write(operation, {
+        ...(options.searchIndexWritebackPolicy === undefined
+          ? {}
+          : {
+              searchIndexWritebackPolicy: options.searchIndexWritebackPolicy,
+            }),
+      });
+      await this.#refreshLibraryIndex(options.onIndexSyncError);
+      return result;
+    }, options.signal);
+  }
+
+  async #resolveScope(
+    document: ReadonlyDocument,
+    options: WikiGraphArchiveScopeOptions,
+  ): Promise<readonly number[] | undefined> {
+    if (options.chapters !== undefined) return options.chapters;
+    return (await resolveArchiveScope(document, this.objectUri, options.depth))
+      ?.chapterIds;
+  }
+
+  async #resolveQueryChapters(
+    document: ReadonlyDocument,
+    options: WikiGraphArchiveSearchOptions,
+  ): Promise<readonly number[] | undefined> {
+    const chapters = await this.#resolveScope(document, options);
+    if (options.skipUnindexed !== true) return chapters;
+    const queryable = await listArchiveQueryableChapterIds(document, {
+      ...(chapters === undefined ? {} : { chapters }),
+    });
+    if (queryable.length === 0) {
+      throw new Error(
+        "Wiki Graph query is not ready. No chapters in this scope have a current FTS artifact or source embedding artifact.",
+      );
+    }
+    return queryable;
+  }
+
+  async #refreshLibraryIndex(
+    onError: ((error: unknown) => void) | undefined,
+  ): Promise<void> {
+    if (this.#location.libraryDirtyTarget === undefined) return;
+    if (this.#location.libraryArchiveTarget !== undefined) {
+      await finalizeWikiGraphLibraryArchiveWrite({
+        target: this.#location.libraryArchiveTarget,
+      });
+    }
+    try {
+      const state = await readWikiGraphLibraryIndexState(
+        this.#location.libraryDirtyTarget,
+      );
+      if (state.status !== "missing") {
+        await rebuildWikiGraphLibraryIndex(this.#location.libraryDirtyTarget);
+      }
+    } catch (error) {
+      onError?.(error);
+    }
+  }
+}
+
+export async function resolveWikiGraphArchiveLocation(
+  uriOrPath: string,
+): Promise<WikiGraphArchiveLocation> {
+  if (!uriOrPath.startsWith("wikg://")) {
+    return createPathLocation(resolveNodeArchivePath(uriOrPath));
+  }
+  const parsed = parseLocatedWikiGraphUri(uriOrPath);
+  const portableArchiveLocator = parsed.archivePath ?? uriOrPath;
+  const archiveLocator = portableArchiveLocator.startsWith("wikg://lib/")
+    ? portableArchiveLocator
+    : resolveNodeArchivePath(portableArchiveLocator);
+  const libraryArchiveTarget = archiveLocator.startsWith("wikg://lib/")
+    ? parseWikiGraphLibraryUri(archiveLocator)
+    : undefined;
+  const archiveFile =
+    libraryArchiveTarget?.kind === "archive"
+      ? await resolveWikiGraphLibraryArchiveFile(archiveLocator)
+      : new NodeFile(archiveLocator);
+  const archivePath = getNodeResourcePath(archiveFile);
+  return {
+    archiveFile,
+    archiveKey: archivePath,
+    archivePath,
+    indexScope: { archiveKey: archivePath, archivePath, kind: "archive-index" },
+    ...(libraryArchiveTarget?.kind === "archive"
+      ? {
+          libraryArchiveTarget,
+          libraryDirtyTarget: {
+            isDefault: libraryArchiveTarget.isDefault,
+            kind: "scope" as const,
+            ...(libraryArchiveTarget.publicId === undefined
+              ? {}
+              : { publicId: libraryArchiveTarget.publicId }),
+          },
+        }
+      : {}),
+    locatedUri: formatLocatedWikiGraphUri(archivePath, parsed.objectUri),
+  };
+}
+
+function resolveNodeArchivePath(locator: string): string {
+  const context = getWikiGraphSDKRuntimeContext();
+  const environmentHome = context.env.HOME?.trim();
+  const home =
+    environmentHome === undefined || environmentHome === ""
+      ? homedir()
+      : environmentHome;
+  if (locator === "~") return home;
+  if (locator.startsWith("~/")) return resolve(home, locator.slice(2));
+  return isAbsolute(locator) ? locator : resolve(context.cwd, locator);
+}
+
+async function ensureArchiveSearchIndex(
+  document: DirectoryDocument,
+  options: {
+    readonly chapters?: readonly number[];
+    readonly embeddingProvider?: SearchIndexEmbeddingProvider;
+  } = {},
+): Promise<void> {
+  const scope =
+    options.chapters === undefined ? {} : { chapters: options.chapters };
+  if (await isArchiveSearchIndexCurrent(document, scope)) return;
+  await rebuildArchiveSearchIndex(document, undefined, {
+    ...scope,
+    ...(options.embeddingProvider === undefined
+      ? {}
+      : { embeddingProvider: options.embeddingProvider }),
+  });
+}
+
+async function resolveArchiveScope(
+  document: ReadonlyDocument,
+  objectUri: string,
+  depth: number | undefined,
+): Promise<WikiGraphArchiveScope | undefined> {
+  const parsed = parseChapterScopePath(objectUri);
+  if (
+    parsed === undefined ||
+    (parsed.kind === "collection" && depth === undefined)
+  ) {
+    return undefined;
+  }
+  const chapters = await listChapters(document);
+  const entries =
+    parsed.kind === "collection"
+      ? chapters.filter((chapter) => chapter.depth <= depth!)
+      : selectChapterSubtree(
+          chapters,
+          await resolveChapterPathReadonly(document, parsed.chapterPath),
+          depth,
+        );
+  return { chapterIds: entries.map((entry) => entry.chapterId), entries };
+}
+
+function parseChapterScopePath(
+  objectUri: string,
+):
+  | { readonly kind: "collection" }
+  | { readonly chapterPath: string; readonly kind: "chapter" }
+  | undefined {
+  if (objectUri === "wikg://chapter" || objectUri === "wikg://chapter/") {
+    return { kind: "collection" };
+  }
+  const match = /^wikg:\/\/chapter\/([^/].*?)(?:\/)?$/u.exec(objectUri);
+  return match?.[1] === undefined
+    ? undefined
+    : { chapterPath: decodeURIComponent(match[1]), kind: "chapter" };
+}
+
+function selectChapterSubtree(
+  chapters: readonly ChapterEntry[],
+  rootChapterId: number,
+  depth: number | undefined,
+): readonly ChapterEntry[] {
+  const root = chapters.find((chapter) => chapter.chapterId === rootChapterId);
+  if (root === undefined) {
+    throw new Error(`Chapter ${rootChapterId} does not exist.`);
+  }
+  const prefix = `${root.path}/`;
+  return chapters.filter(
+    (chapter) =>
+      chapter.chapterId === root.chapterId ||
+      (chapter.path.startsWith(prefix) &&
+        (depth === undefined || chapter.depth - root.depth <= depth)),
+  );
+}
+
+function createPathLocation(path: string): WikiGraphArchiveLocation {
+  return {
+    archiveFile: new NodeFile(path),
+    archiveKey: path,
+    archivePath: path,
+    indexScope: { archiveKey: path, archivePath: path, kind: "archive-index" },
+    locatedUri: formatLocatedWikiGraphUri(path),
+  };
+}
+
+function parseObjectMetadataTarget(objectPath: string): ObjectMetadataTarget {
+  if (objectPath === "") {
+    return { kind: ObjectMetadataKind.Archive, objectPath };
+  }
+  const chapter = /^chapter\/([1-9][0-9]*)(?:\/.*)?$/u.exec(objectPath);
+  if (chapter?.[1] !== undefined) {
+    return {
+      chapterId: Number(chapter[1]),
+      kind: ObjectMetadataKind.Chapter,
+      objectPath,
+    };
+  }
+  const chunk = /^chunk\/([1-9][0-9]*)$/u.exec(objectPath);
+  if (chunk?.[1] !== undefined) {
+    return {
+      chunkId: Number(chunk[1]),
+      kind: ObjectMetadataKind.Chunk,
+      objectPath,
+    };
+  }
+  const entity = /^entity\/(Q[1-9][0-9]*)$/u.exec(objectPath);
+  if (entity?.[1] !== undefined) {
+    return {
+      entityQid: entity[1],
+      kind: ObjectMetadataKind.Entity,
+      objectPath,
+    };
+  }
+  const triple = /^triple\/(Q[1-9][0-9]*)\/([^/]+)\/(Q[1-9][0-9]*)$/u.exec(
+    objectPath,
+  );
+  if (triple?.[1] !== undefined) {
+    return {
+      kind: ObjectMetadataKind.Triple,
+      objectPath,
+      tripleObjectQid: triple[3]!,
+      triplePredicate: decodeURIComponent(triple[2]!),
+      tripleSubjectQid: triple[1],
+    };
+  }
+  return { kind: ObjectMetadataKind.Object, objectPath };
+}
+
+function withoutOperation<T extends WikiGraphOperationOptions>(
+  options: T,
+): Omit<T, "signal"> {
+  const { signal: _signal, ...rest } = options;
+  return rest;
+}
+
+function withoutOperationAndScope<
+  T extends WikiGraphOperationOptions & WikiGraphArchiveScopeOptions,
+>(options: T): Omit<T, "chapters" | "depth" | "signal"> {
+  const {
+    chapters: _chapters,
+    depth: _depth,
+    signal: _signal,
+    ...rest
+  } = options;
+  return rest;
+}
+import { homedir } from "os";
+import { isAbsolute, resolve } from "path";

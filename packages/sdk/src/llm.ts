@@ -1,22 +1,23 @@
-import type { WikiGraphLLMOptions } from "wiki-graph-sdk";
+import type { WikiGraphLLMOptions } from "wiki-graph-core";
 
 import { createAnthropic } from "@ai-sdk/anthropic";
 import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import { createOpenAI } from "@ai-sdk/openai";
 import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
 
-import type { CLIConfig, CLIProvider } from "./config.js";
-import { CLI_HELP_ROUTES, withHelpRoute } from "../support/index.js";
+import type {
+  WikiGraphProvider,
+  WikiGraphRuntimeConfig,
+} from "./runtime-config.js";
 
-export function buildLLMOptions(config: CLIConfig): WikiGraphLLMOptions {
+export function buildWikiGraphLLMOptions(
+  config: WikiGraphRuntimeConfig,
+): WikiGraphLLMOptions {
   const llm = config.llm;
 
   if (llm?.provider === undefined || llm.model === undefined) {
     throw new Error(
-      withHelpRoute(
-        "Missing LLM configuration. Set --llm for one run, or configure `wikg://local/config/llm` with provider and model.",
-        CLI_HELP_ROUTES.config,
-      ),
+      "Missing LLM configuration. Set --llm for one run, or configure `wikg://local/config/llm` with provider and model.",
     );
   }
 
@@ -33,7 +34,7 @@ export function buildLLMOptions(config: CLIConfig): WikiGraphLLMOptions {
 }
 
 function createLanguageModel(
-  provider: CLIProvider,
+  provider: WikiGraphProvider,
   model: string,
   options: {
     readonly apiKey: string | undefined;
@@ -61,10 +62,7 @@ function createLanguageModel(
     case "openai": {
       if (options.baseURL !== undefined) {
         throw new Error(
-          withHelpRoute(
-            "openai does not accept llm.baseURL or baseURL in --llm JSON. Use openai-compatible for third-party OpenAI-style APIs.",
-            CLI_HELP_ROUTES.config,
-          ),
+          "openai does not accept llm.baseURL or baseURL in --llm JSON. Use openai-compatible for third-party OpenAI-style APIs.",
         );
       }
 
@@ -78,10 +76,7 @@ function createLanguageModel(
     case "openai-compatible": {
       if (options.baseURL === undefined) {
         throw new Error(
-          withHelpRoute(
-            "openai-compatible requires llm.baseURL or baseURL in --llm JSON.",
-            CLI_HELP_ROUTES.config,
-          ),
+          "openai-compatible requires llm.baseURL or baseURL in --llm JSON.",
         );
       }
 
