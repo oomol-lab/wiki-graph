@@ -1,4 +1,5 @@
 import {
+  createContinuationCursor,
   findArchiveObjects,
   findWikiGraphLibraryArchiveMembers,
   findWikiGraphLibraryObjects,
@@ -22,6 +23,7 @@ import {
   type ArchiveRelatedResult,
   type ArchiveSourceLocatorResult,
   type ContinuationCursor,
+  type QueryIndexScope,
 } from "wiki-graph-core";
 
 import { resolveWikiGraphArchiveLocation } from "./archives.js";
@@ -35,8 +37,35 @@ export interface WikiGraphContinuationOptions {
   /** Optional archive locator used to verify that the cursor belongs to it. */
   readonly archive?: string;
   readonly cursor: string;
+  readonly format?: ContinuationCursor["format"];
   readonly limit?: number;
   readonly signal?: AbortSignal;
+}
+
+export interface WikiGraphContinuationContext {
+  readonly archiveKey: string;
+  readonly archivePath: string;
+  readonly backlinks?: boolean;
+  readonly chapters?: readonly number[];
+  readonly continuationKind?: ContinuationCursor["kind"];
+  readonly evidenceLimit?: number;
+  readonly format: ContinuationCursor["format"];
+  readonly ids?: readonly string[];
+  readonly indexScope: QueryIndexScope;
+  readonly order?: "doc-asc" | "doc-desc";
+  readonly query?: string;
+  readonly role?: "any" | "object" | "self" | "subject" | undefined;
+  readonly skipUnindexed?: boolean;
+  readonly sourceContext?: number;
+  readonly targetUri?: string;
+  readonly triplePattern?:
+    | {
+        readonly objectQid?: string;
+        readonly predicate?: string;
+        readonly subjectQid?: string;
+      }
+    | undefined;
+  readonly types: readonly string[] | null;
 }
 
 type ContinuationPageBase<TCursor extends ContinuationCursor> = {
@@ -93,10 +122,27 @@ export class WikiGraphContinuationManager {
     );
   }
 
+  public async create(
+    context: WikiGraphContinuationContext,
+    cursor: string | null | undefined,
+  ): Promise<string | null> {
+    if (cursor === null || cursor === undefined) return null;
+    return await this.#runtime.run(
+      async () =>
+        await createContinuationCursor(
+          createContinuationPayload(context, cursor),
+        ),
+    );
+  }
+
   async #next(
     options: WikiGraphContinuationOptions,
   ): Promise<WikiGraphContinuationPage> {
     const cursor = await readContinuationCursor(options.cursor);
+    const continuationCursor =
+      options.format === undefined
+        ? cursor
+        : ({ ...cursor, format: options.format } as ContinuationCursor);
     const limit = options.limit ?? 20;
     if (options.archive !== undefined) {
       const explicit = await resolveWikiGraphArchiveLocation(options.archive);
@@ -112,12 +158,13 @@ export class WikiGraphContinuationManager {
       cursor.indexScope.kind === "library-index"
         ? await continueLibraryCursor(cursor, limit)
         : await continueArchiveCursor(cursor, limit);
+    const durableResult = await persistResultCursor(continuationCursor, result);
     return {
-      cursor,
-      format: cursor.format,
+      cursor: continuationCursor,
+      format: continuationCursor.format,
       kind: cursor.kind,
       limit,
-      result,
+      result: durableResult,
     } as WikiGraphContinuationPage;
   }
 }
@@ -350,4 +397,135 @@ function getCursorArchivePath(cursor: ContinuationCursor): string {
   return cursor.indexScope.kind === "archive-index"
     ? cursor.indexScope.archivePath
     : cursor.archivePath;
+}
+
+async function persistResultCursor<
+  T extends { readonly nextCursor: string | null },
+>(cursor: ContinuationCursor, result: T): Promise<T> {
+  if (result.nextCursor === null) return result;
+  const nextCursor = await createContinuationCursor({
+    ...cursor,
+    cursor: result.nextCursor,
+  });
+  return { ...result, nextCursor };
+}
+
+function createContinuationPayload(
+  context: WikiGraphContinuationContext,
+  cursor: string,
+): ContinuationCursor {
+  switch (context.continuationKind ?? "search") {
+    case "source-locators":
+      return {
+        archiveKey: context.archiveKey,
+        archivePath: context.archivePath,
+        cursor,
+        format: context.format,
+        indexScope: context.indexScope,
+        kind: "source-locators",
+        targetUri: requireTargetUri(context, "Source locator"),
+      };
+    case "evidence":
+      return {
+        archiveKey: context.archiveKey,
+        archivePath: context.archivePath,
+        cursor,
+        format: context.format,
+        indexScope: context.indexScope,
+        kind: "evidence",
+        order: context.order ?? "doc-asc",
+        ...(context.query === undefined ? {} : { query: context.query }),
+        ...(context.skipUnindexed === undefined
+          ? {}
+          : { skipUnindexed: context.skipUnindexed }),
+        ...(context.sourceContext === undefined
+          ? {}
+          : { sourceContext: context.sourceContext }),
+        targetUri: requireTargetUri(context, "Evidence"),
+      };
+    case "related":
+      return {
+        archiveKey: context.archiveKey,
+        archivePath: context.archivePath,
+        cursor,
+        ...(context.evidenceLimit === undefined
+          ? {}
+          : { evidenceLimit: context.evidenceLimit }),
+        format: context.format,
+        indexScope: context.indexScope,
+        kind: "related",
+        order: context.order ?? "doc-asc",
+        ...(context.query === undefined ? {} : { query: context.query }),
+        ...(context.role === undefined ? {} : { role: context.role }),
+        ...(context.skipUnindexed === undefined
+          ? {}
+          : { skipUnindexed: context.skipUnindexed }),
+        ...(context.sourceContext === undefined
+          ? {}
+          : { sourceContext: context.sourceContext }),
+        targetUri: requireTargetUri(context, "Related"),
+      };
+    case "collection":
+      return {
+        archiveKey: context.archiveKey,
+        archivePath: context.archivePath,
+        ...(context.backlinks === undefined
+          ? {}
+          : { backlinks: context.backlinks }),
+        chapters: context.chapters ?? null,
+        cursor,
+        ...(context.evidenceLimit === undefined
+          ? {}
+          : { evidenceLimit: context.evidenceLimit }),
+        format: context.format,
+        ids: context.ids ?? null,
+        indexScope: context.indexScope,
+        kind: "collection",
+        order: context.order ?? "doc-asc",
+        ...(context.sourceContext === undefined
+          ? {}
+          : { sourceContext: context.sourceContext }),
+        ...(context.triplePattern === undefined
+          ? {}
+          : { triplePattern: context.triplePattern }),
+        types: context.types,
+      };
+    case "search":
+      return {
+        archiveKey: context.archiveKey,
+        archivePath: context.archivePath,
+        ...(context.backlinks === undefined
+          ? {}
+          : { backlinks: context.backlinks }),
+        ...(context.chapters === undefined
+          ? {}
+          : { chapters: context.chapters }),
+        cursor,
+        ...(context.evidenceLimit === undefined
+          ? {}
+          : { evidenceLimit: context.evidenceLimit }),
+        format: context.format,
+        indexScope: context.indexScope,
+        kind: "search",
+        ...(context.query === undefined ? {} : { query: context.query }),
+        ...(context.skipUnindexed === undefined
+          ? {}
+          : { skipUnindexed: context.skipUnindexed }),
+        ...(context.sourceContext === undefined
+          ? {}
+          : { sourceContext: context.sourceContext }),
+        ...(context.triplePattern === undefined
+          ? {}
+          : { triplePattern: context.triplePattern }),
+        types: context.types,
+      };
+  }
+}
+
+function requireTargetUri(
+  context: WikiGraphContinuationContext,
+  label: string,
+): string {
+  if (context.targetUri !== undefined) return context.targetUri;
+  throw new Error(`${label} continuation cursors require a target URI.`);
 }

@@ -29,7 +29,6 @@ export {
   assertNoActiveBuildJobConflicts,
   assertNoActiveBuildJobs,
   cleanBuildJobs,
-  createContinuationCursor,
   deleteArchiveSearchSessions,
   ensureWikiGraphHomeSchemaCurrent,
   formatError,

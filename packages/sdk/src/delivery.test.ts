@@ -4,7 +4,6 @@ import { join } from "path";
 import { afterEach, describe, expect, it } from "vitest";
 
 import {
-  createContinuationCursor,
   DirectoryDocument,
   TOC_FILE_VERSION,
   writeWikgArchive,
@@ -168,34 +167,101 @@ describe("WikiGraphSDK delivery operations", () => {
     });
     await sdk.archives.create({ path: "book.wikg" });
     const archive = await sdk.archives.open("book.wikg");
-    await archive.addChapter({ title: "First" });
-    await archive.addChapter({ title: "Second" });
+    for (const title of ["First", "Second", "Third", "Fourth"]) {
+      await archive.addChapter({ title });
+    }
     const first = await archive.list({ limit: 1, types: ["chapter-title"] });
     if (!("nextCursor" in first) || first.nextCursor === null) {
       throw new Error("Expected a collection continuation cursor.");
     }
-    const cursor = await sdk.run(
-      async () =>
-        await createContinuationCursor({
-          archiveKey: archive.archiveKey,
-          archivePath: archive.path,
-          chapters: null,
-          cursor: first.nextCursor!,
-          format: "json",
-          ids: null,
-          indexScope: archive.indexScope,
-          kind: "collection",
-          order: "doc-asc",
-          types: ["chapter-title"],
-        }),
+    const cursor = await sdk.continuations.create(
+      {
+        archiveKey: archive.archiveKey,
+        archivePath: archive.path,
+        continuationKind: "collection",
+        format: "json",
+        indexScope: archive.indexScope,
+        order: "doc-asc",
+        types: ["chapter-title"],
+      },
+      first.nextCursor,
     );
+    if (cursor === null) throw new Error("Expected a durable cursor.");
 
-    const next = await sdk.continuations.next({ cursor, limit: 1 });
-    expect(next).toMatchObject({ kind: "collection", limit: 1 });
-    expect(next.result.items).toHaveLength(1);
+    const second = await sdk.continuations.next({ cursor, limit: 1 });
+    expect(second).toMatchObject({ kind: "collection", limit: 1 });
+    expect(second.result.items).toHaveLength(1);
+    expect(second.result.nextCursor).toMatch(/^c_/u);
+    const third = await sdk.continuations.next({
+      cursor: second.result.nextCursor!,
+      limit: 1,
+    });
+    expect(third.result.items).toHaveLength(1);
+    expect(third.result.nextCursor).toMatch(/^c_/u);
+    const fourth = await sdk.continuations.next({
+      cursor: third.result.nextCursor!,
+      limit: 1,
+    });
+    expect(fourth.result.items).toHaveLength(1);
+    expect(fourth.result.nextCursor).toBeNull();
     await expect(
       sdk.continuations.next({ archive: "other.wikg", cursor }),
     ).rejects.toThrow("belongs to");
+    sdk.close();
+  });
+
+  it("persists library-index continuation pages inside the SDK", async () => {
+    const root = await mkdtemp(join(tmpdir(), "wiki-graph-sdk-library-next-"));
+    temporaryDirectories.push(root);
+    await mkdir(join(root, "state"));
+    const sdk = createWikiGraphSDK({
+      cwd: root,
+      stateDir: join(root, "state"),
+    });
+    const library = await sdk.libraries.create("library");
+    for (const name of ["one", "two", "three"]) {
+      await sdk.archives.create({ path: `${name}.wikg` });
+      await (
+        await sdk.archives.open(`${name}.wikg`)
+      ).addChapter({
+        title: name,
+      });
+      await sdk.libraries.addArchive({
+        inputPath: `${name}.wikg`,
+        target: library.uri,
+      });
+    }
+    const first = await sdk.libraries.archiveMembers(library.uri, { limit: 1 });
+    if (first.nextCursor === null) {
+      throw new Error("Expected a library collection cursor.");
+    }
+    const cursor = await sdk.continuations.create(
+      {
+        archiveKey: library.uri,
+        archivePath: library.uri,
+        continuationKind: "collection",
+        format: "json",
+        indexScope: {
+          kind: "library-index",
+          libraryId: library.snapshot.id,
+        },
+        order: "doc-asc",
+        types: null,
+      },
+      first.nextCursor,
+    );
+    if (cursor === null) throw new Error("Expected a durable cursor.");
+
+    const second = await sdk.continuations.next({ cursor, limit: 1 });
+    expect(second.kind).toBe("collection");
+    expect(second.result.items).toHaveLength(1);
+    expect(second.result.nextCursor).toMatch(/^c_/u);
+    const third = await sdk.continuations.next({
+      cursor: second.result.nextCursor!,
+      limit: 1,
+    });
+    expect(third.result.items).toHaveLength(1);
+    expect(third.result.nextCursor).toBeNull();
     sdk.close();
   });
 });

@@ -6,12 +6,14 @@ import {
   createWikiGraphLibrary,
   deleteWikiGraphLibraryMetadataKey,
   findWikiGraphLibraryObjects,
+  findWikiGraphLibraryArchiveMembers,
   formatWikiGraphLibraryUri,
   getWikiGraphLibraryArchive,
   getWikiGraphLibraryMetadata,
   listRelatedWikiGraphLibraryObjects,
   listWikiGraphLibraries,
   listWikiGraphLibraryArchives,
+  listWikiGraphLibraryArchiveMembers,
   listWikiGraphLibraryEvidence,
   listWikiGraphLibraryObjects,
   moveWikiGraphLibraryArchive,
@@ -274,6 +276,21 @@ export class WikiGraphLibraryManager {
     );
   }
 
+  public async searchArchiveMembers(
+    target: WikiGraphLibraryTarget,
+    query: string,
+    options: ArchiveFindOptions = {},
+  ): Promise<ArchiveFindResult> {
+    return await this.#runtime.run(
+      async () =>
+        await findWikiGraphLibraryArchiveMembers(
+          requireLibraryTarget(target),
+          query,
+          options,
+        ),
+    );
+  }
+
   public async objects(
     target: WikiGraphLibraryTarget,
     options: ArchiveCollectionOptions = {},
@@ -281,6 +298,19 @@ export class WikiGraphLibraryManager {
     return await this.#runtime.run(
       async () =>
         await listWikiGraphLibraryObjects(
+          requireLibraryTarget(target),
+          options,
+        ),
+    );
+  }
+
+  public async archiveMembers(
+    target: WikiGraphLibraryTarget,
+    options: ArchiveCollectionOptions = {},
+  ): Promise<ArchiveCollectionResult> {
+    return await this.#runtime.run(
+      async () =>
+        await listWikiGraphLibraryArchiveMembers(
           requireLibraryTarget(target),
           options,
         ),
