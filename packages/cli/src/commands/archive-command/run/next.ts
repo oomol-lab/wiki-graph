@@ -62,6 +62,10 @@ function createCursorOutputContext(
     format,
     indexScope: cursor.indexScope,
     limit,
+    ...((cursor.kind === "collection" || cursor.kind === "search") &&
+    cursor.libraryQuery !== undefined
+      ? { libraryQuery: cursor.libraryQuery }
+      : {}),
     types:
       cursor.kind === "collection" || cursor.kind === "search"
         ? cursor.types

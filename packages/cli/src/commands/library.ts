@@ -441,7 +441,7 @@ async function writeLibraryScopeCollection(
   const library = await manager.get(formatWikiGraphLibraryUri(target.publicId));
   const baseUri = formatWikiGraphLibraryUri(target.publicId);
   const context = {
-    archiveKey: `${baseUri}#scope`,
+    archiveKey: baseUri,
     archivePath: baseUri,
     continuationKind: "collection" as const,
     format: json ? ("json" as const) : ("text" as const),
@@ -450,6 +450,7 @@ async function writeLibraryScopeCollection(
       libraryId: library.snapshot.id,
     },
     limit: 20,
+    libraryQuery: "objects" as const,
     types: null,
   };
 

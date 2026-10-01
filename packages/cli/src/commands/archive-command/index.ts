@@ -384,14 +384,13 @@ async function runLibraryIndexArchiveCommand(
     : getObjectUri(args.objectId ?? args.archivePath);
   const context = {
     ...createArchiveOutputContext(args),
-    archiveKey: isLibraryRootCollection
-      ? `${formatWikiGraphLibraryUri(target.publicId)}#scope`
-      : args.archivePath,
+    archiveKey: args.archivePath,
     archivePath: args.archivePath,
     indexScope: {
       kind: "library-index" as const,
       libraryId: library.snapshot.id,
     },
+    libraryQuery: "objects" as const,
   };
 
   switch (args.action) {

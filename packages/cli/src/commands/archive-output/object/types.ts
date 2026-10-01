@@ -61,6 +61,7 @@ export interface ArchiveOutputBacklinks {
 
 export interface ArchiveOutputResultPage {
   readonly limit: number;
+  readonly libraryQuery?: "archive-members" | "objects";
   readonly nextCursor: string | null;
   readonly objects: readonly ArchiveOutputObject[];
   readonly warnings?: readonly ArchiveOutputWarning[];
