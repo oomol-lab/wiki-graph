@@ -671,6 +671,11 @@ vi.mock("../../../packages/core/src/api/index.js", () => ({
       archivePath: "/tmp/book.wikg",
       cursor: "raw-search-cursor",
       format: "json",
+      indexScope: {
+        archiveKey: "/tmp/book.wikg",
+        archivePath: "/tmp/book.wikg",
+        kind: "archive-index",
+      },
       kind: "search",
       types: ["entity"],
     }),

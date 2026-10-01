@@ -37,13 +37,17 @@ describe("cli/archive/create", () => {
         json: true,
       });
 
-      expect(archiveMockState.convertCalls).toStrictEqual([
-        expect.objectContaining({
-          input: { format: "epub", path: "/tmp/book.epub" },
-          output: { format: "wikg", path: archivePath },
-          targetStage: "sourced",
-        }),
-      ]);
+      const [convertCall] = archiveMockState.convertCalls as Array<{
+        readonly input: { readonly format: string; readonly path: string };
+        readonly output: { readonly format: string; readonly path: string };
+        readonly targetStage: string;
+      }>;
+      expect(convertCall).toMatchObject({
+        input: { format: "epub", path: "/tmp/book.epub" },
+        output: { format: "wikg" },
+        targetStage: "sourced",
+      });
+      expect(convertCall?.output.path).toContain(".new.wikg.");
       expect(JSON.parse(archiveMockState.textWrites[0] ?? "")).toStrictEqual({
         uri: `wikg://${archivePath}`,
       });
