@@ -1,4 +1,4 @@
-import { formatLocatedWikiGraphUri } from "wiki-graph-core";
+import { formatLocatedWikiGraphUri } from "wiki-graph-sdk";
 
 import type { CLIArchiveArguments } from "../../../args/index.js";
 import { formatCLIJSON, writeTextToStdout } from "../../../support/index.js";

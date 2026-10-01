@@ -1,7 +1,7 @@
 import {
   type ParsedWikiGraphLibraryUri,
   parseWikiGraphLibraryUri,
-} from "wiki-graph-core";
+} from "wiki-graph-sdk";
 
 import {
   isUriHelpPredicate,

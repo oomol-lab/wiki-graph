@@ -2,7 +2,7 @@ import {
   parseWikiGraphLibraryUri,
   upgradeWikiGraphMaintenanceTarget,
   type WikiGraphMaintenanceUpgradeResult,
-} from "wiki-graph-core";
+} from "wiki-graph-sdk";
 
 import type { CLIMaintenanceArguments } from "../args/index.js";
 import { isWikiGraphHomeTarget } from "../runtime/home-target.js";

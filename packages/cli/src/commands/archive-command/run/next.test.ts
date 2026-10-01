@@ -8,11 +8,11 @@ import {
   parseWikiGraphLibraryUri,
   readContinuationCursor,
   resolveWikiGraphLibraryQueryTargetById,
-} from "wiki-graph-core";
+} from "wiki-graph-sdk";
 import { writeFindHits } from "../../archive-output/index.js";
 import { runNextArchivePage } from "./next.js";
 
-vi.mock("wiki-graph-core", () => ({
+vi.mock("wiki-graph-sdk", () => ({
   CLI_PRIMARY_COMMAND: "wg",
   findArchiveObjects: vi.fn(),
   findWikiGraphLibraryArchiveMembers: vi.fn(),

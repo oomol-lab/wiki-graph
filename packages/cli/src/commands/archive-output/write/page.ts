@@ -1,4 +1,4 @@
-import type { ArchivePage } from "wiki-graph-core";
+import type { ArchivePage } from "wiki-graph-sdk";
 
 import { formatCLIJSON, writeTextToStdout } from "../../../support/index.js";
 import {

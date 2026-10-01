@@ -1,5 +1,5 @@
 import { parseArgs } from "util";
-import { isWikiGraphLibraryUri } from "wiki-graph-core";
+import { isWikiGraphLibraryUri } from "wiki-graph-sdk";
 
 import { renderMainHelpText } from "./help.js";
 import { CLI_HELP_ROUTES, withHelpRoute } from "../support/index.js";

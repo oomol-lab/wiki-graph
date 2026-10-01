@@ -5,7 +5,7 @@ import {
   WikiGraphArchiveFile,
   type DirectoryDocument,
   type ReadonlyDocument,
-} from "wiki-graph-core";
+} from "wiki-graph-sdk";
 
 import { resolveArchiveRuntimeLocation } from "./uri.js";
 

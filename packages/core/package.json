@@ -1,7 +1,7 @@
 {
   "name": "wiki-graph-core",
-  "version": "0.6.1",
-  "description": "Core SDK for building and querying .wikg knowledge-base archives.",
+  "version": "0.7.0",
+  "description": "Runtime-neutral engine for building and querying .wikg knowledge-base archives.",
   "keywords": [
     "wiki-graph",
     "knowledge-graph",
@@ -43,6 +43,12 @@
       "import": "./dist/gc.js",
       "require": "./dist/gc.cjs",
       "default": "./dist/gc.js"
+    },
+    "./platform": {
+      "types": "./dist/platform.d.ts",
+      "import": "./dist/platform.js",
+      "require": "./dist/platform.cjs",
+      "default": "./dist/platform.js"
     },
     "./worker": {
       "types": "./dist/worker.d.ts",

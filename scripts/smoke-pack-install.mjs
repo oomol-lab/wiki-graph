@@ -6,6 +6,7 @@ import { isAbsolute, join, resolve } from "path";
 const packageRoot = resolve(import.meta.dirname, "..");
 const coreRoot = join(packageRoot, "packages", "core");
 const jobRoot = join(packageRoot, "packages", "job");
+const sdkRoot = join(packageRoot, "packages", "sdk");
 const cliRoot = join(packageRoot, "packages", "cli");
 const wikimediaRoot = join(packageRoot, "packages", "wikimedia");
 const tempRoot = mkdtempSync(join(tmpdir(), "wiki-graph-pack-"));
@@ -87,30 +88,6 @@ function assertEsmExport(cwd, specifier, exportName) {
   );
 }
 
-function assertModuleMissing(cwd, specifier) {
-  execFileSync(
-    process.execPath,
-    [
-      "-e",
-      [
-        "try {",
-        `  require.resolve(${JSON.stringify(specifier)});`,
-        `  throw new Error(${JSON.stringify(`Module ${specifier} should not be installed`)});`,
-        "} catch (error) {",
-        "  if (error && error.code === 'MODULE_NOT_FOUND') {",
-        "    process.exit(0);",
-        "  }",
-        "  throw error;",
-        "}",
-      ].join(" "),
-    ],
-    {
-      cwd,
-      stdio: "inherit",
-    },
-  );
-}
-
 function writeInstallWorkspace(cwd, name, overrides = {}) {
   mkdirSync(cwd, { recursive: true });
   writeFileSync(
@@ -146,15 +123,16 @@ try {
   const jobTarballPath = packPackage(jobRoot);
   const wikimediaTarballPath = packPackage(wikimediaRoot);
   const coreTarballPath = packPackage(coreRoot);
+  const sdkTarballPath = packPackage(sdkRoot);
   const cliTarballPath = packPackage(cliRoot);
 
   writeInstallWorkspace(cliInstallRoot, "wiki-graph-cli-pack-smoke", {
     "wiki-graph-job": `file:${jobTarballPath}`,
     "wiki-graph-wikimedia": `file:${wikimediaTarballPath}`,
+    "wiki-graph-core": `file:${coreTarballPath}`,
+    "wiki-graph-sdk": `file:${sdkTarballPath}`,
   });
   installTarballs(cliInstallRoot, [cliTarballPath]);
-
-  assertModuleMissing(cliInstallRoot, "wiki-graph-core");
 
   for (const command of ["wg", "wikigraph"]) {
     execFileSync(
@@ -203,13 +181,20 @@ try {
   writeInstallWorkspace(sdkInstallRoot, "wiki-graph-sdk-pack-smoke", {
     "wiki-graph-job": `file:${jobTarballPath}`,
     "wiki-graph-wikimedia": `file:${wikimediaTarballPath}`,
+    "wiki-graph-core": `file:${coreTarballPath}`,
   });
-  installTarballs(sdkInstallRoot, [coreTarballPath, cliTarballPath]);
+  installTarballs(sdkInstallRoot, [sdkTarballPath]);
 
-  assertCommonJsExport(sdkInstallRoot, "wiki-graph", "runWikiGraphCLICaptured");
-  assertEsmExport(sdkInstallRoot, "wiki-graph", "runWikiGraphCLICaptured");
-  assertCommonJsExport(sdkInstallRoot, "wiki-graph", "Language");
-  assertEsmExport(sdkInstallRoot, "wiki-graph", "Language");
+  assertCommonJsExport(sdkInstallRoot, "wiki-graph-sdk", "createWikiGraphSDK");
+  assertEsmExport(sdkInstallRoot, "wiki-graph-sdk", "createWikiGraphSDK");
+  assertCommonJsExport(sdkInstallRoot, "wiki-graph-sdk", "WikiGraph");
+  assertEsmExport(sdkInstallRoot, "wiki-graph-sdk", "WikiGraph");
+  assertCommonJsExport(
+    sdkInstallRoot,
+    "wiki-graph-sdk/node-platform",
+    "NodeFile",
+  );
+  assertEsmExport(sdkInstallRoot, "wiki-graph-sdk/node-platform", "NodeFile");
 } finally {
   for (const tarballPath of packedTarballs) {
     rmSync(tarballPath, { force: true });

@@ -24,7 +24,7 @@ import {
   resolveWikiGraphLibrary,
   scanWikiGraphLibrary,
   type File,
-} from "wiki-graph-core";
+} from "wiki-graph-sdk";
 import type { CLILibraryArguments } from "../args/index.js";
 import type { RenderTreeNode } from "../support/index.js";
 import {

@@ -1,4 +1,4 @@
-import type { ChapterEntry } from "wiki-graph-core";
+import type { ChapterEntry } from "wiki-graph-sdk";
 import { describe, expect, it } from "vitest";
 
 import { selectChapterSubtreeScope, selectRootChapterScope } from "./scope.js";

@@ -13,6 +13,7 @@ const SHARED_OPTIONS = {
 const ENTRY = {
   gc: "src/gc.ts",
   index: "src/index.ts",
+  platform: "src/platform.ts",
   worker: "src/worker.ts",
 } as const;
 

@@ -1,44 +1,82 @@
 English | [中文](../zh-CN/sdk.md)
 
-# SDK
+# Node.js SDK
 
-This document describes how to use Wiki Graph through `wiki-graph-core`. Use
-the SDK when an application needs to create, read, query, or maintain `.wikg`
-archives without shelling out to the `wg` CLI. Core is runtime-neutral: the
-host provides `File` and `Directory` implementations, while the Node-only
-filesystem, SQLite, and ZIP wiring remains private to the CLI.
-
-## Packages
-
-Install the SDK package when code needs programmatic access:
+`wiki-graph-sdk` is the programmatic delivery package behind the `wg` CLI. Use
+it when a Node.js application needs the same local configuration, libraries,
+filesystem defaults, and durable jobs without constructing commands or parsing
+stdout.
 
 ```bash
-$ npm install wiki-graph-core
-# or
-$ pnpm add wiki-graph-core
+$ npm install wiki-graph-sdk
 ```
 
-Install the CLI package when a user should receive the `wg` command:
+The package requires Node.js `>=22.12.0`. It depends on the runtime-neutral
+`wiki-graph-core`; applications do not need to install Core separately.
 
-```bash
-$ npm install -g wiki-graph
-# or
-$ pnpm add --global wiki-graph
+## Runtime Instance
+
+Create one instance for each application runtime context. Explicit options are
+preferred for tests and embedded applications; the defaults match the CLI's
+Node environment.
+
+```ts
+import { createWikiGraphSDK } from "wiki-graph-sdk";
+
+const wikiGraph = createWikiGraphSDK({
+  cwd: process.cwd(),
+  stateDir: "/var/lib/my-app/wiki-graph",
+});
+
+await wikiGraph.config.put("concurrent", "job", 2);
+const libraries = await wikiGraph.libraries.list();
+const jobs = await wikiGraph.jobs.list({ activeOnly: true });
+
+wikiGraph.close();
 ```
 
-The installed CLI command is self-contained for normal `wg` usage. Application
-code should depend on `wiki-graph-core` directly when it needs the core SDK. If
-an application uses the `wiki-graph` package's programmatic CLI runner entry, it
-should install both `wiki-graph` and `wiki-graph-core` so the runner can share
-the same core package as the application.
+The SDK exposes typed methods and class instances. It intentionally does not
+provide `execute(command, args)`: argument parsing, help, terminal remediation,
+exit codes, and JSON/JSONL rendering belong to `wiki-graph`.
 
-## Main SDK
+## Durable Jobs
 
-The main entrypoint is `wiki-graph-core`. It exposes archive sessions, archive query helpers, chapter operations, queue control, and shared types.
+The job manager creates and queries durable work. A `WikiGraphJob` is a handle
+whose lifecycle is independent of any observer.
 
-### Host storage
+```ts
+const job = await wikiGraph.jobs.create({
+  archive: "/data/research.wikg",
+  chapterId: 12,
+  target: "reading-summary",
+});
 
-Before opening or creating archives, install two host-owned directory roots:
+const unsubscribe = job.subscribe((event) => console.log(event));
+await job.pause();
+await job.resume();
+console.log(await job.status());
+
+unsubscribe(); // Stops this observer; it does not cancel durable work.
+await job.cancel(); // Explicitly cancels the job.
+```
+
+Events are also available as an async iterable and accept an `AbortSignal`:
+
+```ts
+for await (const event of job.events({ signal })) console.log(event);
+```
+
+`wikiGraph.config` reads and writes the same local configuration used by the
+CLI. `wikiGraph.libraries` returns typed library instances. SDK results are
+objects, not serialized JSON or terminal text.
+
+## Core for Other JavaScript Hosts
+
+Use `wiki-graph-core` directly only when building a runtime adapter, such as a
+browser or Chrome extension host. Core has no Node dependency and does not own
+local config discovery, filesystem paths, CLI help, or terminal messages. The
+host supplies `File`, `Directory`, database, ZIP, template, async-context, and
+lifecycle implementations through `WikiGraphPlatform`.
 
 ```ts
 import {
@@ -50,203 +88,26 @@ import {
 } from "wiki-graph-core";
 
 installWikiGraphPlatform(myPlatform satisfies WikiGraphPlatform);
-
-const storage = {
-  library: myLibraryDirectory satisfies Directory,
-  documentStore: myDocumentDirectory satisfies Directory,
-};
-const wikiGraph = new WikiGraph({ storage });
-
-const archive = myArchiveFile satisfies ReadonlyFile;
-await wikiGraph.openSession(archive, (session) => session.readMeta());
-```
-
-`File`/`Directory` are platform primitives. Core never interprets their URI or
-absolute path; browser and extension hosts can back them with IndexedDB,
-OPFS, or another scoped store. The `wiki-graph` CLI supplies the Node adapter.
-Each external `File.identity` and `Directory.identity` is a stable, opaque
-coordination key—not a path or URI. Registered library folders are external
-capabilities because they can be rebound. Core-managed resources are persisted
-as a storage-root-relative locator instead: build-job resources are relative
-to `library`, and archive workspace snapshots are relative to `documentStore`.
-`File` and `Directory` have a required `kind` discriminant and a single optional
-asynchronous mtime query. `ReadonlyFile` supplies a bounded snapshot reader;
-its reader is the only source of snapshot size. `File` adds a transactional
-writer. Whole-file `read()` and text encoding are not storage primitives: Core
-helpers read small control files through the range reader and decode text above
-the storage layer. A reader rejects ranges outside its reported snapshot size.
-A writer publishes only on `commit()` and discards on `abort()`; `writeAt()`
-does not advance sequential `write()`. ZIP and SQLite remain separate providers.
-Database opens use explicit `{ mode, create }` options, so readonly opens never
-create files.
-Archive SQLite workspaces are created only below the supplied `documentStore`
-and are removed after the archive session settles. Derived search indexes are
-kept there as persistent caches addressed relative to that storage root; they
-remain outside the `.wikg` archive and can be rebuilt at any time.
-`WikiGraphPlatform` is process-wide host infrastructure for async context,
-database, ZIP, resource resolution, and execution-liveness operations, so an
-application installs it once after import. Its ZIP reader lists entry names and
-reads small entry data on demand. `getEntrySize()` and `readEntryRange()` expose
-random access to uncompressed entry bytes, while `copyEntry()` extracts a whole
-entry into a transactional host `File`. ZIP writes accept byte-backed,
-file-backed, or range-backed entries. The host owns how those operations stream,
-cache, or materialize ZIP data; Core uses range access for large document entries
-and does not load them or workspace snapshots into one buffer. Its lifecycle
-provider gives each running host instance an
-opaque ID and reports whether a previously recorded instance is still alive,
-allowing archive sessions to recover published work after a crash. The two
-storage roots belong to each `WikiGraph` instance and remain isolated when
-instances run concurrently.
-
-```ts
-import { WikiGraph, type File, type ReadonlyFile } from "wiki-graph-core";
-
-const wikiGraph = new WikiGraph({ storage });
-const outputArchive = myOutputArchiveFile satisfies File;
-
-await wikiGraph.digestTextStreamSession(
-  {
-    stream: ["Alpha is connected to beta.\n"],
-    targetStage: "planned",
-    title: "Research note",
-  },
-  async (archive) => {
-    await archive.saveAs(outputArchive);
-  },
-);
-
-const readableArchive: ReadonlyFile = outputArchive;
-await wikiGraph.openSession(readableArchive, async (archive) => {
-  console.log(await archive.readMeta());
-});
-```
-
-`targetStage: "planned"` creates an archive without calling an LLM. Stages that build a Reading Graph, Summary, or Knowledge Graph require LLM configuration.
-
-### Source locators
-
-Source text, evidence, and query results stay focused on readable text. When a
-caller needs imported-file provenance, Core exposes the same independent
-locator collection as the CLI:
-
-```ts
-import {
-  listArchiveSourceLocators,
-  readArchivePage,
-  WikiGraphArchiveFile,
-} from "wiki-graph-core";
-
-const archiveFile = new WikiGraphArchiveFile(myArchiveFile);
-await archiveFile.readDocument(async (document) => {
-  const page = await listArchiveSourceLocators(
-    document,
-    "wikg://chapter/<chapter-path>/source/locators#1..3",
-    { limit: 20 },
-  );
-  const location = await readArchivePage(document, page.items[0]!.uri);
-});
-```
-
-Each item maps a 1-based inclusive Unicode-character `range` to an artifact
-locator `uri`. The optional URI fragment selects source sentences first;
-pagination uses `nextCursor`.
-
-## LLM Configuration
-
-`WikiGraph` accepts any AI SDK `LanguageModel`. The SDK does not read CLI config files; applications pass their own model and runtime options.
-
-```ts
-import { createOpenAI } from "@ai-sdk/openai";
-import { WikiGraph, type Directory } from "wiki-graph-core";
-
-const openai = createOpenAI({
-  apiKey: "<your-openai-api-key>",
-});
-
 const wikiGraph = new WikiGraph({
-  llm: {
-    cacheDirectory: myCacheDirectory satisfies Directory,
-    concurrent: 3,
-    logDirectory: myLogDirectory satisfies Directory,
-    model: openai("gpt-4.1-mini"),
-  },
-  storage,
-});
-```
-
-Wiki Graph does not automatically read `OPENAI_API_KEY` or any CLI provider
-configuration. Your application owns credential loading and must pass its fully
-configured AI SDK `LanguageModel` through the `WikiGraph` `llm` option.
-
-LLM transport streams by default so long generations keep delivering data
-through HTTP proxies. Applications may set `llm.stream` to `false` for a
-provider that cannot stream, but non-streaming requests are discouraged.
-
-## Queue Control
-
-Queue control belongs to the main SDK because callers may add, inspect, pause, resume, cancel, and clean jobs from an application process.
-
-```ts
-import { addBuildJob, listBuildJobs } from "wiki-graph-core";
-
-const job = await addBuildJob({
-  archivePath: "research.wikg",
-  target: "knowledge-graph",
-});
-
-console.log(job.jobId);
-console.log(await listBuildJobs({ archivePath: "research.wikg" }));
-```
-
-Adding a job does not spawn a worker. Process management is intentionally left to the application or CLI.
-
-## Worker SDK
-
-Use `wiki-graph-core/worker` only inside a process that is already meant to run queued build work. This entrypoint does not create a process.
-
-```ts
-import { runBuildJobWorker } from "wiki-graph-core/worker";
-
-await runBuildJobWorker({
-  concurrency: 1,
-  executeJob: async (job, reporter, context) => {
-    // Applications provide the job execution policy here.
-    // The CLI wires this to Wiki Graph's built-in generation pipeline.
-    context.signal.throwIfAborted();
-    await reporter.stepStarted(job.target);
-    await reporter.stepCompleted(job.target);
+  storage: {
+    library: myLibraryDirectory satisfies Directory,
+    documentStore: myDocumentDirectory satisfies Directory,
   },
 });
+
+await wikiGraph.openSession(
+  myArchiveFile satisfies ReadonlyFile,
+  async (archive) => console.log(await archive.readMeta()),
+);
 ```
 
-Most applications should either use the CLI for background generation or provide their own worker process entrypoint that calls this SDK function.
+Browser adapters may back these capabilities with OPFS, IndexedDB, or another
+scoped store. Core treats resource identities as opaque coordination keys and
+keeps ZIP and database access behind host providers.
 
-## GC SDK
-
-Use `wiki-graph-core/gc` inside a process that should perform local Wiki Graph cleanup.
-
-```ts
-import { tryRunWikiGraphGc } from "wiki-graph-core/gc";
-
-const report = await tryRunWikiGraphGc({
-  dryRun: false,
-  force: false,
-});
-
-console.log(report);
-```
-
-The GC SDK runs cleanup in the current process. It does not spawn or schedule another process.
-
-## Process Boundary
-
-The SDK has three process-local surfaces:
-
-- `wiki-graph-core`: application and queue-control APIs.
-- `wiki-graph-core/worker`: build worker APIs for an already-started worker process.
-- `wiki-graph-core/gc`: cleanup APIs for an already-started GC process.
-
-Process creation is outside the SDK. The `wg` CLI uses its own private worker entrypoint for background jobs; applications should do the same if they need background workers.
+Node applications that own worker or cleanup processes can import
+`wiki-graph-sdk/worker` and `wiki-graph-sdk/gc`. These functions run in the
+current process; they do not spawn or schedule another process.
 
 ## Related Documents
 

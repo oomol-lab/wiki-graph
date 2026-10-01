@@ -15,7 +15,7 @@ import {
   resolveWikiGraphLibraryQueryTargetById,
   type ArchiveCollectionOptions,
   type ArchiveFindOptions,
-} from "wiki-graph-core";
+} from "wiki-graph-sdk";
 
 import type { CLIArchiveArguments } from "../../../args/index.js";
 import { loadCLIConfig } from "../../../runtime/config.js";

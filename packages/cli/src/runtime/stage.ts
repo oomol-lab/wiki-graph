@@ -3,15 +3,15 @@ export {
   DEFAULT_KNOWLEDGE_GRAPH_RECALL_PROMPT,
   resolveExtractionPrompt,
   resolveKnowledgeGraphRecallPrompt,
-} from "wiki-graph-core";
-import type { WikiGraphScope } from "wiki-graph-core";
-import { createDefaultWikiGraphSampling } from "wiki-graph-core";
-import { LLM } from "wiki-graph-core";
+} from "wiki-graph-sdk";
+import type { WikiGraphScope } from "wiki-graph-sdk";
+import { createDefaultWikiGraphSampling } from "wiki-graph-sdk";
+import { LLM } from "wiki-graph-sdk";
 import type {
   Directory,
   LLMStreamProgressCallback,
   LLMTokenUsageCallback,
-} from "wiki-graph-core";
+} from "wiki-graph-sdk";
 
 import { loadCLIConfig, type CLIConfig } from "./config.js";
 import { CLI_HELP_ROUTES, withHelpRoute } from "../support/index.js";

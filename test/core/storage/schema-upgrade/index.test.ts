@@ -736,7 +736,7 @@ describe("schema-upgrade", () => {
         createNodeWikiGraphStorage(statePath),
         async () => {
           await expect(ensureWikiGraphHomeSchemaCurrent()).rejects.toThrow(
-            "Cannot upgrade home with an active build worker. Stop the active operation, then run `wg maintenance upgrade home`. See: `wg maintenance upgrade --help`.",
+            "Cannot upgrade home with an active build worker.",
           );
           await expect(readWikiGraphHomeSchemaVersion()).resolves.toBe(3);
           await expect(

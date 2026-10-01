@@ -26,7 +26,8 @@ import {
   ensureWikiGraphHomeSchemaCurrent,
   formatError,
   LLMPaymentRequiredError,
-} from "wiki-graph-core";
+  WikiGraphError,
+} from "wiki-graph-sdk";
 
 export interface WikiGraphCLIDispatchInput {
   readonly argv: readonly string[];
@@ -139,7 +140,7 @@ function formatCLIError(error: unknown, argv: readonly string[]): string {
     return "LLM payment required. Check your provider billing status or account balance.";
   }
 
-  const message = formatError(error);
+  const message = formatTerminalRemediation(error, formatError(error));
   const relativeResolution = hasErrorCode(error, "ENOENT")
     ? getRelativeArchiveUriResolution(argv[0] ?? "")
     : undefined;
@@ -148,6 +149,54 @@ function formatCLIError(error: unknown, argv: readonly string[]): string {
   }
 
   return `${message}\nArchive URI \`${relativeResolution.inputUri}\` is relative to the current working directory:\n  ${relativeResolution.workingDirectory}\nResolved archive path:\n  ${relativeResolution.resolvedArchivePath}\nSee: wg help uri`;
+}
+
+function formatTerminalRemediation(error: unknown, message: string): string {
+  if (error instanceof WikiGraphError) {
+    const chapterId = error.details.chapterId;
+    switch (error.code) {
+      case "chapter_has_children":
+        return `${message} Use --recursive to remove it and its descendants.`;
+      case "chapter_key_missing":
+        return "Missing chapter key in TOC. Run a writable chapter operation or `wg maintenance upgrade` before using read-only chapter paths.";
+      case "chapter_not_found_ids":
+        return `${message} Use \`wg <archive-uri>/chapter list\` to discover chapter ids.`;
+      case "chapter_not_found_uris":
+        return `${message} Use \`wg <archive-uri>/chapter\` to discover chapter URIs.`;
+      case "parent_chapter_not_found":
+        return `${message} Use \`wg <archive-uri>/chapter\` to discover chapter URIs.`;
+      case "chapter_summary_missing_source":
+        return `${message} Run \`wg wikg://local/job add --input <chapter-uri> --task reading-summary --accept-cost\` before export, or inspect the chapter with \`wg <archive-uri>/chapter/${chapterId}/source get\`.`;
+      case "chapter_summary_missing_tree":
+        return `${message} Run \`wg wikg://local/job add --input <chapter-uri> --task reading-summary --accept-cost\` before export, or inspect the archive with \`wg <archive-uri>/chapter/tree get\`.`;
+      case "graph_node_not_found":
+        return `${message} Use \`wg <archive-uri>/chapter/${chapterId}/chunk list\` to discover chunk ids.`;
+      case "home_upgrade_blocked":
+        return `${message} Stop the active operation, then run \`wg maintenance upgrade home\`. See: \`wg maintenance upgrade --help\`.`;
+      case "library_query_unindexed":
+        return `${message} Build missing chapter index artifacts, or rerun with --skip-unindexed to search indexed chapters only.`;
+      case "summary_not_completed":
+        return `${message} Use \`wg wikg://<archive.wikg>/chapter list\` to discover chapter ids, then \`wg wikg://<archive.wikg>/chapter/${chapterId}/summary get\` after summary is ready.`;
+      case "uri_expected":
+        break;
+    }
+  }
+
+  if (
+    message.startsWith(
+      "Expected a Wiki Graph URI with a .wikg archive locator:",
+    ) &&
+    message.includes("\nExample:")
+  ) {
+    return `${message}\nSee: wg help uri`;
+  }
+  const roleMatch =
+    /^Role filtering is only available for related entities: (.+)$/u.exec(
+      message,
+    );
+  return roleMatch === null
+    ? message
+    : `--role is only available for entity related: ${roleMatch[1]}`;
 }
 
 function createCLIErrorObject(

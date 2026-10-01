@@ -299,6 +299,6 @@ describe("cli/archive/evidence pack", () => {
         format: "json",
         query: "RAG",
       }),
-    ).rejects.toThrow("Example: wikg:///tmp/book.wikg\nSee: wg help uri");
+    ).rejects.toThrow("Example: wikg:///tmp/book.wikg");
   });
 });

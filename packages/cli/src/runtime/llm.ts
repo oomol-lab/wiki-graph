@@ -1,4 +1,4 @@
-import type { WikiGraphLLMOptions } from "wiki-graph-core";
+import type { WikiGraphLLMOptions } from "wiki-graph-sdk";
 
 import { createAnthropic } from "@ai-sdk/anthropic";
 import { createGoogleGenerativeAI } from "@ai-sdk/google";

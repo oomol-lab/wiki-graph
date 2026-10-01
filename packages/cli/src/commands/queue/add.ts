@@ -1,14 +1,10 @@
-import {
-  addBuildJob,
-  listChapters,
-  type BuildJob,
-  type ChapterEntry,
-} from "wiki-graph-core";
-import { WikiGraphArchiveFile } from "wiki-graph-core";
+import { listChapters, type BuildJob, type ChapterEntry } from "wiki-graph-sdk";
+import { WikiGraphArchiveFile } from "wiki-graph-sdk";
 
 import type { CLIQueueArguments } from "../../args/index.js";
 import type { CLIConfig } from "../../runtime/config.js";
 import { isCLIQueueAutostartEnabled } from "../../runtime/context.js";
+import { getWikiGraphSDK } from "../../runtime/context.js";
 import { spawnInternalChild } from "../../runtime/internal-child.js";
 import { createQueueAddEstimate } from "./estimate.js";
 import { writeArchiveAddSummary } from "./output.js";
@@ -18,7 +14,7 @@ export async function addChapterJob(
   args: CLIQueueArguments,
   chapterId: number,
 ): Promise<BuildJob> {
-  return await addBuildJob({
+  const job = await getWikiGraphSDK().jobs.create({
     archive: new NodeFile(args.archivePath!),
     boost: args.boost ?? false,
     chapterId,
@@ -26,6 +22,7 @@ export async function addChapterJob(
     ...(args.prompt === undefined ? {} : { prompt: args.prompt }),
     target: args.target ?? "reading-summary",
   });
+  return job.snapshot;
 }
 
 export async function addArchiveJobs(

@@ -5,7 +5,7 @@ import {
   withHelpRoute,
 } from "../support/index.js";
 import { renderArchiveCommandHelpText } from "./help.js";
-import { type ArchiveTriplePattern } from "wiki-graph-core";
+import { type ArchiveTriplePattern } from "wiki-graph-sdk";
 import type {
   ArchiveArgumentValues,
   CLIArchiveAction,

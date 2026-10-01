@@ -1,4 +1,4 @@
-import { parseChapterPath, parseChapterUriPath } from "wiki-graph-core";
+import { parseChapterPath, parseChapterUriPath } from "wiki-graph-sdk";
 
 import {
   parseLocatedWikiGraphUri,

@@ -25,7 +25,7 @@ import {
   type ArchiveRelatedResult,
   type ReadonlyDocument,
   type WikimediaResolver,
-} from "wiki-graph-core";
+} from "wiki-graph-sdk";
 
 import type { CLIArchiveArguments } from "../../args/index.js";
 import { loadCLIConfig } from "../../runtime/config.js";

@@ -1,6 +1,6 @@
 import { Readable, Writable } from "stream";
 
-import { withNodeWikiGraphStorage } from "../runtime/node-platform.js";
+import { createWikiGraphSDK } from "wiki-graph-sdk";
 import { dispatchWikiGraphCLI } from "./dispatch.js";
 import {
   getCLIExitCode,
@@ -91,6 +91,14 @@ export async function runWikiGraphCLIWithEntryPolicy(
     envPolicy: entryContext.envPolicy,
     exitCode: 0,
     queueAutostart: true,
+    sdk: createWikiGraphSDK({
+      cwd: input.cwd ?? process.cwd(),
+      env: entryContext.env,
+      envPolicy: entryContext.envPolicy,
+      ...(entryContext.stateDir === undefined
+        ? {}
+        : { stateDir: entryContext.stateDir }),
+    }),
     signal: input.signal,
     stateDir: entryContext.stateDir,
     stderr,
@@ -101,20 +109,24 @@ export async function runWikiGraphCLIWithEntryPolicy(
     stdoutIsTTY: input.stdoutIsTTY,
   };
 
-  return await withNodeWikiGraphStorage(entryContext.stateDir, async () =>
-    withWikiGraphCLIRuntimeContext(context, async () => {
-      const result = await dispatchWikiGraphCLI({
-        argv,
-        stderr,
-        stdinIsTTY: context.stdinIsTTY ?? stdin.isTTY,
-        stdout,
-      });
-      throwIfAborted(input.signal);
-      const exitCode = normalizeExitCode(getCLIExitCode(), result.exitCode);
+  try {
+    return await context.sdk!.run(async () =>
+      withWikiGraphCLIRuntimeContext(context, async () => {
+        const result = await dispatchWikiGraphCLI({
+          argv,
+          stderr,
+          stdinIsTTY: context.stdinIsTTY ?? stdin.isTTY,
+          stdout,
+        });
+        throwIfAborted(input.signal);
+        const exitCode = normalizeExitCode(getCLIExitCode(), result.exitCode);
 
-      return { exitCode };
-    }),
-  );
+        return { exitCode };
+      }),
+    );
+  } finally {
+    context.sdk!.close();
+  }
 }
 
 export async function runWikiGraphCLICaptured(

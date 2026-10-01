@@ -215,7 +215,9 @@ function rejectRelatedRole(
   id: string,
 ): void {
   if (role !== undefined && role !== "any") {
-    throw new Error(`--role is only available for entity related: ${id}`);
+    throw new Error(
+      `Role filtering is only available for related entities: ${id}`,
+    );
   }
 }
 

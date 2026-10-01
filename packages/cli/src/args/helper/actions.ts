@@ -1,5 +1,5 @@
 import { CLI_HELP_ROUTES, withHelpRoute } from "../../support/index.js";
-import type { BuildJobTarget } from "wiki-graph-core";
+import type { BuildJobTarget } from "wiki-graph-sdk";
 import type {
   CLIArchiveAction,
   CLIArchiveIndexAction,

@@ -1,4 +1,4 @@
-import type { ArchiveEvidence } from "wiki-graph-core";
+import type { ArchiveEvidence } from "wiki-graph-sdk";
 
 import { formatCLIJSON, writeTextToStdout } from "../../../support/index.js";
 import { createOutputContinuationCursor } from "../object/cursor.js";

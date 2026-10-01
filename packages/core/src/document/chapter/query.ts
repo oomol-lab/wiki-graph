@@ -1,4 +1,5 @@
 import type { ReadonlyDocument } from "../index.js";
+import { WikiGraphError } from "../../runtime/common/error.js";
 import type { TocItem } from "../../text/source/index.js";
 import {
   collectChapterEntries,
@@ -22,8 +23,10 @@ export async function getChapterDetails(
   const entry = await findChapterEntry(document, toc.items, chapterId);
 
   if (entry === undefined) {
-    throw new Error(
-      `Chapter ${chapterId} does not exist. Use \`wg <archive-uri>/chapter list\` to discover chapter ids.`,
+    throw new WikiGraphError(
+      "chapter_not_found_ids",
+      `Chapter ${chapterId} does not exist.`,
+      { chapterId },
     );
   }
 
@@ -75,8 +78,10 @@ export async function selectChapterEntries(
   const selectedIds = await collectChapterSubtreeIds(document, chapterId);
 
   if (selectedIds.size === 0) {
-    throw new Error(
-      `Chapter ${chapterId} does not exist. Use \`wg <archive-uri>/chapter list\` to discover chapter ids.`,
+    throw new WikiGraphError(
+      "chapter_not_found_ids",
+      `Chapter ${chapterId} does not exist.`,
+      { chapterId },
     );
   }
 

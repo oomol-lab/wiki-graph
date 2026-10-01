@@ -1,9 +1,8 @@
 import { readFile } from "fs/promises";
 import { Readable } from "stream";
 
-import type { DirectoryDocument, ReadonlyDocument } from "wiki-graph-core";
+import type { DirectoryDocument, ReadonlyDocument } from "wiki-graph-sdk";
 import {
-  addBuildJob,
   addChapter,
   applyChapterTree,
   assertNoActiveBuildJobConflicts,
@@ -27,8 +26,9 @@ import {
   type ChapterDetails,
   type ChapterEntry,
   type IndexArtifactKind,
-} from "wiki-graph-core";
+} from "wiki-graph-sdk";
 import { NodeFile } from "../../runtime/node-platform.js";
+import { getWikiGraphSDK } from "../../runtime/context.js";
 
 import type { CLIArchiveChapterArguments } from "../../args/index.js";
 import type { RenderTreeNode } from "../../support/index.js";
@@ -114,14 +114,14 @@ export async function runArchiveChapterCommand(
         }
         return matched;
       });
-      const job = await addBuildJob({
+      const job = await getWikiGraphSDK().jobs.create({
         archive: new NodeFile(args.path),
         chapterId: chapter.chapterId,
         target: requireIndexArtifactTarget(args.indexArtifactTarget),
       });
 
       tryStartQueueWorker();
-      await writeJobSummary(job, {
+      await writeJobSummary(job.snapshot, {
         chapter,
         json: args.json ?? false,
         watch: true,

@@ -3,7 +3,7 @@ import { clearLine, cursorTo, moveCursor } from "readline";
 import type {
   WikiGraphProgressCallback,
   WikiGraphProgressEvent,
-} from "wiki-graph-core";
+} from "wiki-graph-sdk";
 
 interface SerialState {
   completedFragments: number;

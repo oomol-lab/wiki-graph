@@ -5,42 +5,35 @@ import { streamText } from "ai";
 
 import type { CLILocalConfigArguments } from "../args/index.js";
 import { resolveWikispineConfig, type CLIProvider } from "../runtime/config.js";
-import { testWikispineRuntime, type WikispineProvider } from "wiki-graph-core";
+import { testWikispineRuntime, type WikispineProvider } from "wiki-graph-sdk";
 import { buildLLMOptions } from "../runtime/llm.js";
 import { nodeWikispineCommandRunner } from "../runtime/wikispine.js";
 import { embedQueryText, readEmbeddingConfig } from "../runtime/embedding.js";
-import { setCLIExitCode } from "../runtime/context.js";
+import { getWikiGraphSDK, setCLIExitCode } from "../runtime/context.js";
 import { writeTextToStderr, writeTextToStdout } from "../support/index.js";
 import { formatCLIJSON } from "../support/index.js";
 import {
-  clearLocalConfigSection,
-  deleteLocalConfigValue,
   maskLocalConfigSection,
-  putLocalConfigValue,
-  readLocalConfigSection,
-  replaceLocalConfigSection,
   type LocalConfigObject,
 } from "../runtime/local-config.js";
 
 export async function runLocalConfigCommand(
   args: CLILocalConfigArguments,
 ): Promise<void> {
+  const config = getWikiGraphSDK().config;
   switch (args.action) {
     case "get":
-      await writeConfigObject(
-        args.section,
-        await readLocalConfigSection(args.section),
-      );
+      await writeConfigObject(args.section, await config.get(args.section));
       return;
     case "set":
       await writeConfigObject(
         args.section,
-        await replaceLocalConfigSection(
+        await config.replace(
           args.section,
           mergeMaskedSecretsForSet(
             args.section,
             readJSONInput(args),
-            await readLocalConfigSection(args.section),
+            await config.get(args.section),
           ),
         ),
       );
@@ -54,21 +47,18 @@ export async function runLocalConfigCommand(
 
       await writeConfigObject(
         args.section,
-        await putLocalConfigValue(args.section, key, value),
+        await config.put(args.section, key, value),
       );
       return;
     }
     case "delete":
       await writeConfigObject(
         args.section,
-        await deleteLocalConfigValue(args.section, requireConfigKey(args.key)),
+        await config.delete(args.section, requireConfigKey(args.key)),
       );
       return;
     case "clear":
-      await writeConfigObject(
-        args.section,
-        await clearLocalConfigSection(args.section),
-      );
+      await writeConfigObject(args.section, await config.clear(args.section));
       return;
     case "test":
       await runConfigTest(args);
@@ -157,7 +147,7 @@ async function runLLMConfigTest(args: CLILocalConfigArguments): Promise<void> {
   }
 
   const startedAt = Date.now();
-  const llm = await readLocalConfigSection("llm");
+  const llm = await getWikiGraphSDK().config.get("llm");
 
   try {
     const llmConfig = {
@@ -232,7 +222,7 @@ async function runWikispineConfigTest(
   args: CLILocalConfigArguments,
 ): Promise<void> {
   const startedAt = Date.now();
-  const wikispine = await readLocalConfigSection("wikispine");
+  const wikispine = await getWikiGraphSDK().config.get("wikispine");
 
   try {
     const provider = parseWikispineProvider(wikispine.provider);

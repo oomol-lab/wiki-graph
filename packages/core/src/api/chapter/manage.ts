@@ -55,8 +55,9 @@ export async function addChapter(
     } else if (
       !appendChildToChapter(toc.items, options.parentChapterId, chapterItem)
     ) {
-      throw new Error(
-        "Parent chapter does not exist. Use `wg <archive-uri>/chapter` to discover chapter URIs.",
+      throw new WikiGraphError(
+        "parent_chapter_not_found",
+        "Parent chapter does not exist.",
       );
     }
 
@@ -124,8 +125,9 @@ export async function moveChapter(
     const extracted = extractChapterItem(toc.items, chapterId);
 
     if (extracted.item === undefined) {
-      throw new Error(
-        "Chapter does not exist. Use `wg <archive-uri>/chapter` to discover chapter URIs.",
+      throw new WikiGraphError(
+        "chapter_not_found_uris",
+        "Chapter does not exist.",
       );
     }
 
@@ -155,8 +157,9 @@ export async function removeChapter(
     });
 
     if (!result.removed) {
-      throw new Error(
-        "Chapter does not exist. Use `wg <archive-uri>/chapter` to discover chapter URIs.",
+      throw new WikiGraphError(
+        "chapter_not_found_uris",
+        "Chapter does not exist.",
       );
     }
 
@@ -243,8 +246,9 @@ export async function setChapterTitle(
     const normalizedTitle = normalizeTitle(title);
 
     if (!setChapterTitleInItems(toc.items, chapterId, normalizedTitle)) {
-      throw new Error(
-        "Chapter does not exist. Use `wg <archive-uri>/chapter` to discover chapter URIs.",
+      throw new WikiGraphError(
+        "chapter_not_found_uris",
+        "Chapter does not exist.",
       );
     }
 
@@ -252,3 +256,4 @@ export async function setChapterTitle(
     return await getChapterDetails(openedDocument, chapterId);
   });
 }
+import { WikiGraphError } from "../../runtime/common/error.js";

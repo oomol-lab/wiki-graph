@@ -1,6 +1,6 @@
 {
   "name": "wiki-graph-job",
-  "version": "0.1.0",
+  "version": "0.7.0",
   "description": "Runtime-neutral chapter build engine for Wiki Graph.",
   "license": "Apache-2.0",
   "type": "module",

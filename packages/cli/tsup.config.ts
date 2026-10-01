@@ -23,12 +23,12 @@ const SHARED_OPTIONS = {
   target: "node22",
 } as const;
 const INDEX_EXTERNAL = [
-  "wiki-graph-core",
-  "wiki-graph-core/gc",
-  "wiki-graph-core/worker",
+  "wiki-graph-sdk",
+  "wiki-graph-sdk/gc",
+  "wiki-graph-sdk/worker",
 ];
-const WIKI_GRAPH_CORE_EXTERNAL_PLUGIN = {
-  name: "wiki-graph-core-external",
+const WIKI_GRAPH_SDK_EXTERNAL_PLUGIN = {
+  name: "wiki-graph-sdk-external",
   setup(build: {
     onResolve(
       options: { readonly filter: RegExp },
@@ -38,7 +38,7 @@ const WIKI_GRAPH_CORE_EXTERNAL_PLUGIN = {
       },
     ): void;
   }) {
-    build.onResolve({ filter: /^wiki-graph-core(?:\/.*)?$/ }, (args) => ({
+    build.onResolve({ filter: /^wiki-graph-sdk(?:\/.*)?$/ }, (args) => ({
       external: true,
       path: args.path,
     }));
@@ -57,7 +57,7 @@ export default defineConfig([
     entry: {
       index: "src/index.ts",
     },
-    esbuildPlugins: [WIKI_GRAPH_CORE_EXTERNAL_PLUGIN],
+    esbuildPlugins: [WIKI_GRAPH_SDK_EXTERNAL_PLUGIN],
     external: INDEX_EXTERNAL,
     format: ["cjs"],
     outExtension() {
@@ -91,7 +91,7 @@ export default defineConfig([
     entry: {
       index: "src/index.ts",
     },
-    esbuildPlugins: [WIKI_GRAPH_CORE_EXTERNAL_PLUGIN],
+    esbuildPlugins: [WIKI_GRAPH_SDK_EXTERNAL_PLUGIN],
     external: INDEX_EXTERNAL,
     format: ["esm"],
   },

@@ -1,4 +1,4 @@
-export * from "wiki-graph-core";
+export * from "wiki-graph-sdk";
 export {
   createWikiGraphCLI,
   runWikiGraphCLI,

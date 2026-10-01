@@ -1,7 +1,7 @@
 import { readFile } from "fs/promises";
 
-import { ObjectMetadataKind, type ObjectMetadataTarget } from "wiki-graph-core";
-import { WikiGraphArchiveFile } from "wiki-graph-core";
+import { ObjectMetadataKind, type ObjectMetadataTarget } from "wiki-graph-sdk";
+import { WikiGraphArchiveFile } from "wiki-graph-sdk";
 
 import type { CLIObjectMetadataArguments } from "../args/index.js";
 import { writeArchiveDocument } from "./archive-command/run/document.js";

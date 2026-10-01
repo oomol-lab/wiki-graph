@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   readWikiGraphLibraryIndexState,
   rebuildWikiGraphLibraryIndex,
-} from "wiki-graph-core";
+} from "wiki-graph-sdk";
 import { writeArchiveDocument } from "./document.js";
 import { resolveArchiveRuntimeLocation } from "./uri.js";
 
@@ -13,7 +13,7 @@ const mocks = vi.hoisted(() => ({
 
 let restoreStderrWrite: (() => void) | undefined;
 
-vi.mock("wiki-graph-core", () => ({
+vi.mock("wiki-graph-sdk", () => ({
   finalizeWikiGraphLibraryArchiveWrite: vi.fn(() => Promise.resolve(false)),
   readWikiGraphLibraryIndexState: vi.fn(() =>
     Promise.resolve({ status: "current" }),

@@ -7,7 +7,7 @@ import type {
   ArchiveListItem,
   ArchivePack,
   ArchivePage,
-} from "wiki-graph-core";
+} from "wiki-graph-sdk";
 
 import { createOutputContinuationCursor } from "./cursor.js";
 import type {

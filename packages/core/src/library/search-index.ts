@@ -252,8 +252,10 @@ export async function assertWikiGraphLibraryQueryArtifactsReady(
         try {
           await assertArchiveIndexArtifactsReady(archiveDocument);
         } catch (error) {
-          throw new Error(
-            `Wiki Graph library query is not ready. Archive ${archive.uri} has unindexed chapters. Build missing chapter index artifacts, or rerun with --skip-unindexed to search indexed chapters only.`,
+          throw new WikiGraphError(
+            "library_query_unindexed",
+            `Wiki Graph library query is not ready. Archive ${archive.uri} has unindexed chapters.`,
+            { archiveUri: archive.uri },
             { cause: error },
           );
         }
@@ -851,3 +853,4 @@ class LibraryIndexDocument {
     }
   }
 }
+import { WikiGraphError } from "../runtime/common/error.js";

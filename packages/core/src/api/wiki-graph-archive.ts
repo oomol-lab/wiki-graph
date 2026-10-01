@@ -1,4 +1,5 @@
 import type { ReadonlyDocument } from "../document/index.js";
+import { WikiGraphError } from "../runtime/common/error.js";
 import type {
   Directory,
   File,
@@ -86,8 +87,10 @@ export class WikiGraphArchive {
         throw new Error("Document TOC is missing");
       }
       if (!toc.items.some((item) => hasSerialId(item, serialId))) {
-        throw new Error(
-          `Chapter ${serialId} does not exist. Use \`wg <archive-uri>/chapter list\` to discover chapter ids.`,
+        throw new WikiGraphError(
+          "chapter_not_found_ids",
+          `Chapter ${serialId} does not exist.`,
+          { chapterId: serialId },
         );
       }
 
@@ -130,16 +133,20 @@ export class WikiGraphArchive {
       const record = await document.serials.getById(serialId);
 
       if (record === undefined) {
-        throw new Error(
-          `No completed summary exists for id ${serialId}. Use \`wg wikg://<archive.wikg>/chapter list\` to discover chapter ids, then \`wg wikg://<archive.wikg>/chapter/${serialId}/summary get\` after summary is ready.`,
+        throw new WikiGraphError(
+          "summary_not_completed",
+          `No completed summary exists for id ${serialId}.`,
+          { chapterId: serialId },
         );
       }
 
       const summary = await document.readSummary(serialId);
 
       if (summary === undefined) {
-        throw new Error(
-          `Chapter ${serialId} summary is missing. Run \`wg wikg://local/job add --input <chapter-uri> --task reading-summary --accept-cost\` before export, or inspect the archive with \`wg <archive-uri>/chapter/tree get\`.`,
+        throw new WikiGraphError(
+          "chapter_summary_missing_tree",
+          `Chapter ${serialId} summary is missing.`,
+          { chapterId: serialId },
         );
       }
 

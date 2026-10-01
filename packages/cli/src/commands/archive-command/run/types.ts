@@ -1,4 +1,4 @@
-import type { ArchiveCollectionResult, QueryIndexScope } from "wiki-graph-core";
+import type { ArchiveCollectionResult, QueryIndexScope } from "wiki-graph-sdk";
 
 import type { CLIArchiveArguments } from "../../../args/index.js";
 

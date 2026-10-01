@@ -5,7 +5,7 @@ import {
   type ArchiveTriplePattern,
   type BuildJobTarget,
   type IndexArtifactKind,
-} from "wiki-graph-core";
+} from "wiki-graph-sdk";
 
 import { renderArchiveMaintenanceChapterActionHelpText } from "../../help.js";
 import { CLI_HELP_ROUTES, withHelpRoute } from "../../../support/index.js";

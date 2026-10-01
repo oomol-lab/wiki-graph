@@ -14,8 +14,10 @@ export async function buildSummaryFromDocument(
   const serial = await document.serials.getById(chapterId);
 
   if (serial === undefined) {
-    throw new Error(
-      `Chapter ${chapterId} does not exist. Use \`wg <archive-uri>/chapter list\` to discover chapter ids.`,
+    throw new WikiGraphError(
+      "chapter_not_found_ids",
+      `Chapter ${chapterId} does not exist.`,
+      { chapterId },
     );
   }
   if (!serial.topologyReady) {
@@ -88,3 +90,4 @@ export async function readPassthroughSummary(
     .join(" ")
     .trim();
 }
+import { WikiGraphError } from "../../runtime/common/error.js";

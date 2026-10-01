@@ -1,7 +1,7 @@
 import {
   createContinuationCursor,
   type ContinuationCursor,
-} from "wiki-graph-core";
+} from "wiki-graph-sdk";
 
 import type { ArchiveOutputContext } from "./types.js";
 

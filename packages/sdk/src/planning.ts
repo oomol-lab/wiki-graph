@@ -1,0 +1,196 @@
+import type { BuildJobTarget } from "wiki-graph-core";
+
+/** Cost estimate returned before a durable build job is accepted. */
+
+export interface GenerationConcurrency {
+  readonly job: number;
+  readonly request: number;
+}
+
+export const DEFAULT_GENERATION_JOB_CONCURRENCY = 3;
+export const DEFAULT_GENERATION_REQUEST_CONCURRENCY = 6;
+
+export interface GenerationPlanningCost {
+  readonly model: string;
+  readonly timeSeconds: {
+    readonly max: number;
+    readonly min: number;
+  };
+  readonly tokens: {
+    readonly cacheableInput: number;
+    readonly input: number;
+    readonly output: number;
+  };
+}
+
+export interface GenerationPerformanceHint {
+  readonly command: string;
+  readonly current: number;
+  readonly kind: "job" | "request";
+  readonly message: string;
+  readonly recommended: number;
+}
+
+export function planGenerationTask(
+  task: BuildJobTarget,
+  words: number,
+  chapters: number,
+  concurrent: GenerationConcurrency,
+  model: string,
+): GenerationPlanningCost {
+  const profile = getGenerationPlanningProfile(task);
+  const calls = Math.max(chapters, Math.ceil(words / profile.wordsPerCall));
+  const effectiveConcurrency = Math.max(
+    1,
+    task === "reading-graph" ? 1 : concurrent.request,
+  );
+  const callBatches = Math.ceil(calls / effectiveConcurrency);
+  const wordSeconds = words * profile.secondsPerWord;
+
+  return {
+    model,
+    timeSeconds: {
+      max: Math.ceil(callBatches * profile.maxSecondsPerCall + wordSeconds),
+      min: Math.ceil(callBatches * profile.minSecondsPerCall + wordSeconds),
+    },
+    tokens: {
+      cacheableInput: Math.ceil(words * profile.cacheableInputTokenPerWord),
+      input: Math.ceil(words * profile.inputTokenPerWord),
+      output: Math.ceil(words * profile.outputTokenPerWord),
+    },
+  };
+}
+
+export function createGenerationPerformanceHints(input: {
+  readonly chapters: number;
+  readonly concurrent: GenerationConcurrency;
+  readonly hasJobWork: boolean;
+  readonly hasRequestWork: boolean;
+}): readonly GenerationPerformanceHint[] {
+  if (!input.hasJobWork) {
+    return [];
+  }
+
+  const hints: GenerationPerformanceHint[] = [];
+
+  const recommendedRequest =
+    input.concurrent.request < 4
+      ? DEFAULT_GENERATION_REQUEST_CONCURRENCY
+      : input.concurrent.request < 8
+        ? 8
+        : undefined;
+
+  if (input.hasRequestWork && recommendedRequest !== undefined) {
+    hints.push({
+      command: `wg wikg://local/config/concurrent put request ${recommendedRequest}`,
+      current: input.concurrent.request,
+      kind: "request",
+      message:
+        "LLM request concurrency can often be higher. Use at least 4; 6-8 is usually faster when the provider allows it.",
+      recommended: recommendedRequest,
+    });
+  }
+
+  if (input.concurrent.job < 4 && input.chapters > 1) {
+    hints.push({
+      command: "wg wikg://local/config/concurrent put job 4",
+      current: input.concurrent.job,
+      kind: "job",
+      message:
+        "Multiple chapters need work and job concurrency is below 4. Raising it lets chapter jobs run in parallel.",
+      recommended: 4,
+    });
+  }
+
+  return hints;
+}
+
+export function formatGenerationPlanningModel(
+  llm: { readonly model?: string; readonly provider?: string } | undefined,
+): string {
+  if (llm?.model === undefined) {
+    return "not configured";
+  }
+
+  return llm.provider === undefined
+    ? llm.model
+    : `${llm.provider}/${llm.model}`;
+}
+
+export function formatGenerationPlanningDuration(seconds: number): string {
+  if (seconds < 60) {
+    return `${seconds}s`;
+  }
+
+  const minutes = Math.round(seconds / 60);
+
+  if (minutes < 60) {
+    return `${minutes}m`;
+  }
+
+  return `${Math.round(minutes / 60)}h`;
+}
+
+function getGenerationPlanningProfile(task: BuildJobTarget): {
+  readonly inputTokenPerWord: number;
+  readonly cacheableInputTokenPerWord: number;
+  readonly maxSecondsPerCall: number;
+  readonly minSecondsPerCall: number;
+  readonly outputTokenPerWord: number;
+  readonly secondsPerWord: number;
+  readonly wordsPerCall: number;
+} {
+  switch (task) {
+    case "index-fts":
+      return {
+        cacheableInputTokenPerWord: 0,
+        inputTokenPerWord: 0,
+        maxSecondsPerCall: 1,
+        minSecondsPerCall: 0,
+        outputTokenPerWord: 0,
+        secondsPerWord: 0.0005,
+        wordsPerCall: 100_000,
+      };
+    case "index-embedding-source":
+    case "index-embedding-summary":
+      return {
+        cacheableInputTokenPerWord: 0,
+        inputTokenPerWord: 0,
+        maxSecondsPerCall: 10,
+        minSecondsPerCall: 1,
+        outputTokenPerWord: 0,
+        secondsPerWord: 0.002,
+        wordsPerCall: 10_000,
+      };
+    case "knowledge-graph":
+      return {
+        cacheableInputTokenPerWord: 60,
+        inputTokenPerWord: 80,
+        maxSecondsPerCall: 35,
+        minSecondsPerCall: 15,
+        outputTokenPerWord: 25,
+        secondsPerWord: 0.02,
+        wordsPerCall: 35,
+      };
+    case "reading-graph":
+      return {
+        cacheableInputTokenPerWord: 20,
+        inputTokenPerWord: 25,
+        maxSecondsPerCall: 45,
+        minSecondsPerCall: 15,
+        outputTokenPerWord: 4,
+        secondsPerWord: 0.01,
+        wordsPerCall: 160,
+      };
+    case "reading-summary":
+      return {
+        cacheableInputTokenPerWord: 45,
+        inputTokenPerWord: 55,
+        maxSecondsPerCall: 25,
+        minSecondsPerCall: 10,
+        outputTokenPerWord: 4,
+        secondsPerWord: 0.01,
+        wordsPerCall: 110,
+      };
+  }
+}

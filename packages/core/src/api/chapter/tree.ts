@@ -496,8 +496,10 @@ export function removeChapterFromItems(
   for (const item of items) {
     if (item.serialId === chapterId) {
       if (!options.recursive && item.children.length > 0) {
-        throw new Error(
-          `Chapter ${chapterId} has child chapters. Use --recursive to remove it and its descendants.`,
+        throw new WikiGraphError(
+          "chapter_has_children",
+          `Chapter ${chapterId} has child chapters.`,
+          { chapterId },
         );
       }
 
@@ -583,3 +585,4 @@ interface TocItemMeta {
   readonly path: readonly string[];
   readonly title: string | null;
 }
+import { WikiGraphError } from "../../runtime/common/error.js";

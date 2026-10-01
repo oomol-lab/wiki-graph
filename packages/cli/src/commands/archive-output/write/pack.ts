@@ -1,4 +1,4 @@
-import type { ArchivePack } from "wiki-graph-core";
+import type { ArchivePack } from "wiki-graph-sdk";
 
 import { formatCLIJSON, writeTextToStdout } from "../../../support/index.js";
 import {

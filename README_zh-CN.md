@@ -71,6 +71,24 @@ $ wg wikg://quickstart.wikg --query alpha
 Alpha is connected to beta.
 ```
 
+### Node.js SDK
+
+程序可以使用同一套本地配置、library 和持久化任务运行环境，而无需启动 CLI 或解析 stdout：
+
+```bash
+$ npm install wiki-graph-sdk
+```
+
+```ts
+import { createWikiGraphSDK } from "wiki-graph-sdk";
+
+const wikiGraph = createWikiGraphSDK();
+const jobs = await wikiGraph.jobs.list();
+wikiGraph.close();
+```
+
+如需在浏览器、Chrome extension 等环境中通过自定义存储适配器使用运行时无关的归档和检索能力，请使用 `wiki-graph-core`。
+
 ## 本地开发
 
 开发 Wiki Graph 本身时，可阅读 [Local CLI Development](./docs/local-cli-development.md)，了解如何把当前 branch 安装成本机 `wg`，或如何通过 pnpm 直接运行当前 checkout 而不做全局安装。

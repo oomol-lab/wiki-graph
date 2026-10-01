@@ -2,30 +2,58 @@ import { defineConfig } from "vitest/config";
 
 export default defineConfig({
   resolve: {
-    alias: {
-      "wiki-graph-core/gc": new URL(
-        "./packages/core/src/gc.ts",
-        import.meta.url,
-      ).pathname,
-      "wiki-graph-core/worker": new URL(
-        "./packages/core/src/worker.ts",
-        import.meta.url,
-      ).pathname,
-      "wiki-graph-core/platform": new URL(
-        "./packages/core/src/runtime/platform/index.ts",
-        import.meta.url,
-      ).pathname,
-      "wiki-graph-core": new URL(
-        "./packages/core/src/index.ts",
-        import.meta.url,
-      ).pathname,
-      "wiki-graph-job": new URL("./packages/job/src/index.ts", import.meta.url)
-        .pathname,
-      "wiki-graph-wikimedia": new URL(
-        "./packages/wikimedia/src/index.ts",
-        import.meta.url,
-      ).pathname,
-    },
+    alias: [
+      {
+        find: /^wiki-graph-sdk\/entry-context$/,
+        replacement: new URL(
+          "./packages/sdk/src/entry-context.ts",
+          import.meta.url,
+        ).pathname,
+      },
+      ...[
+        ["gc", "gc.ts"],
+        ["local-config", "local-config.ts"],
+        ["node-platform", "node-platform.ts"],
+        ["planning", "planning.ts"],
+        ["wikispine", "wikispine.ts"],
+        ["worker", "worker.ts"],
+      ].map(([specifier, source]) => ({
+        find: new RegExp(`^wiki-graph-sdk/${specifier}$`),
+        replacement: new URL(`./packages/sdk/src/${source}`, import.meta.url)
+          .pathname,
+      })),
+      {
+        find: /^wiki-graph-sdk$/,
+        replacement: new URL("./packages/sdk/src/index.ts", import.meta.url)
+          .pathname,
+      },
+      ...[
+        ["gc", "gc.ts"],
+        ["worker", "worker.ts"],
+        ["platform", "platform.ts"],
+      ].map(([specifier, source]) => ({
+        find: new RegExp(`^wiki-graph-core/${specifier}$`),
+        replacement: new URL(`./packages/core/src/${source}`, import.meta.url)
+          .pathname,
+      })),
+      {
+        find: /^wiki-graph-core$/,
+        replacement: new URL("./packages/core/src/index.ts", import.meta.url)
+          .pathname,
+      },
+      {
+        find: /^wiki-graph-job$/,
+        replacement: new URL("./packages/job/src/index.ts", import.meta.url)
+          .pathname,
+      },
+      {
+        find: /^wiki-graph-wikimedia$/,
+        replacement: new URL(
+          "./packages/wikimedia/src/index.ts",
+          import.meta.url,
+        ).pathname,
+      },
+    ],
   },
   test: {
     environment: "node",

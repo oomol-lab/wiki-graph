@@ -5,7 +5,7 @@ import {
   type ParsedWikiGraphLibraryUri,
   type QueryIndexScope,
   type File,
-} from "wiki-graph-core";
+} from "wiki-graph-sdk";
 import { parseLocatedWikiGraphUri } from "../../../support/index.js";
 
 import type { CLIArchiveArguments } from "../../../args/index.js";
