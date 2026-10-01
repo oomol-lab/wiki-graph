@@ -38,9 +38,13 @@ import {
   normalizeTemplateName,
 } from "wiki-graph-core/platform";
 
+/** Stable across independently bundled SDK entry points. */
+const NODE_RESOURCE_KIND = Symbol.for("wiki-graph-sdk.node-resource.v1");
+
 /** Install the Node implementation used by the CLI and its workers. */
 export class NodeFile implements File {
   public readonly kind = "file" as const;
+  public readonly [NODE_RESOURCE_KIND] = "file" as const;
   public readonly identity: string;
   public readonly name: string;
 
@@ -183,6 +187,7 @@ function assertFileOffset(offset: number): void {
 
 export class NodeDirectory implements Directory {
   public readonly kind = "directory" as const;
+  public readonly [NODE_RESOURCE_KIND] = "directory" as const;
   public readonly identity: string;
   public readonly name: string;
 
@@ -294,9 +299,8 @@ function decodeNodeResourceIdentity(
 }
 
 export function getNodeResourcePath(resource: File | Directory): string {
-  if (resource instanceof NodeFile || resource instanceof NodeDirectory) {
-    return resource.path;
-  }
+  const brandedPath = getBrandedNodeResourcePath(resource, resource.kind);
+  if (brandedPath !== undefined) return brandedPath;
   if (
     typeof resource === "object" &&
     resource !== null &&
@@ -396,11 +400,12 @@ async function openNativeNodeDatabase(
   file: ReadonlyFile,
   flags: number,
 ): Promise<sqlite3.Database> {
-  if (!(file instanceof NodeFile)) {
+  const path = getBrandedNodeResourcePath(file, "file");
+  if (path === undefined) {
     throw new TypeError("The Node database adapter requires a NodeFile");
   }
   return await new Promise((resolve, reject) => {
-    const database = new nodeSqlite3.Database(file.path, flags, (error) => {
+    const database = new nodeSqlite3.Database(path, flags, (error) => {
       if (error) reject(error);
       else resolve(database);
     });
@@ -408,12 +413,13 @@ async function openNativeNodeDatabase(
 }
 
 async function openNodeZip(file: ReadonlyFile): Promise<HostZipReader> {
-  if (!(file instanceof NodeFile)) {
+  const path = getBrandedNodeResourcePath(file, "file");
+  if (path === undefined) {
     throw new TypeError("The Node ZIP adapter requires a NodeFile");
   }
   const zipFile = await new Promise<yauzl.ZipFile>((resolve, reject) => {
     yauzl.open(
-      file.path,
+      path,
       { autoClose: false, lazyEntries: true },
       (error, opened) => {
         if (error || opened === undefined)
@@ -675,6 +681,21 @@ function createNodeFileReadStream(file: ReadonlyFile): Readable {
       }
     })(),
   );
+}
+
+function getBrandedNodeResourcePath(
+  resource: unknown,
+  kind: "directory" | "file",
+): string | undefined {
+  if (typeof resource !== "object" || resource === null) return undefined;
+  const candidate = resource as {
+    readonly [NODE_RESOURCE_KIND]?: unknown;
+    readonly path?: unknown;
+  };
+  return candidate[NODE_RESOURCE_KIND] === kind &&
+    typeof candidate.path === "string"
+    ? candidate.path
+    : undefined;
 }
 
 function createNodeRangeReadStream(

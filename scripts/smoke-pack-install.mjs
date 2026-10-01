@@ -159,6 +159,22 @@ try {
       },
     );
   }
+  runNodeScript(cliInstallRoot, [
+    "--input-type=module",
+    "-e",
+    [
+      'import { runWikiGraphCLICaptured } from "wiki-graph";',
+      'import { existsSync, mkdirSync } from "fs";',
+      'import { join } from "path";',
+      'const cwd = join(process.cwd(), "programmatic-cli");',
+      'const stateDir = join(process.cwd(), "programmatic-cli-state");',
+      "mkdirSync(cwd, { recursive: true });",
+      "mkdirSync(stateDir, { recursive: true });",
+      'const result = await runWikiGraphCLICaptured({ argv: ["wikg://book.wikg", "create"], cwd, stateDir });',
+      "if (result.exitCode !== 0) throw new Error(`Programmatic CLI create failed: ${result.stderr}`);",
+      'if (!existsSync(join(cwd, "book.wikg"))) throw new Error("Programmatic CLI did not create book.wikg");',
+    ].join("\n"),
+  ]);
 
   writeInstallWorkspace(coreInstallRoot, "wiki-graph-core-pack-smoke", {
     "wiki-graph-job": `file:${jobTarballPath}`,
@@ -206,6 +222,7 @@ try {
     "-e",
     [
       'const { createWikiGraphSDK } = require("wiki-graph-sdk");',
+      'const { readLocalConfigSection } = require("wiki-graph-sdk/local-config");',
       'const { tryRunWikiGraphGc } = require("wiki-graph-sdk/gc");',
       'const { runBuildJobWorker } = require("wiki-graph-sdk/worker");',
       'const { mkdirSync } = require("fs");',
@@ -215,6 +232,7 @@ try {
       '  mkdirSync(join(root, "sdk"), { recursive: true });',
       '  const sdk = createWikiGraphSDK({ stateDir: join(root, "sdk") });',
       '  await sdk.config.get("concurrent");',
+      '  await sdk.run(() => readLocalConfigSection("concurrent"));',
       "  sdk.close();",
       '  const report = await tryRunWikiGraphGc({ dryRun: true, stateDir: join(root, "gc") });',
       '  if (report.skipped !== false) throw new Error("CommonJS SDK GC smoke was unexpectedly skipped");',
@@ -233,10 +251,17 @@ try {
     "--input-type=module",
     "-e",
     [
+      'import { createWikiGraphSDK } from "wiki-graph-sdk";',
       'import { tryRunWikiGraphGc } from "wiki-graph-sdk/gc";',
+      'import { readLocalConfigSection } from "wiki-graph-sdk/local-config";',
       'import { runBuildJobWorker } from "wiki-graph-sdk/worker";',
+      'import { mkdirSync } from "fs";',
       'import { join } from "path";',
       'const root = join(process.cwd(), "runtime-smoke");',
+      'mkdirSync(join(root, "sdk"), { recursive: true });',
+      'const sdk = createWikiGraphSDK({ stateDir: join(root, "sdk") });',
+      'await sdk.run(() => readLocalConfigSection("concurrent"));',
+      "sdk.close();",
       'const report = await tryRunWikiGraphGc({ dryRun: true, stateDir: join(root, "gc") });',
       'if (report.skipped !== false) throw new Error("SDK GC smoke was unexpectedly skipped");',
       "let executed = false;",
