@@ -25,7 +25,7 @@ import {
   type QueryIndexScope,
 } from "wiki-graph-core";
 
-import { resolveWikiGraphArchiveLocation } from "./archives.js";
+import { resolveWikiGraphArchiveLocation } from "./archive/index.js";
 import {
   buildSearchIndexEmbeddingProvider,
   readWikiGraphEmbeddingConfig,

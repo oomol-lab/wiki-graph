@@ -1,4 +1,4 @@
-export * from "./archives.js";
+export * from "./archive/index.js";
 export * from "./config.js";
 export * from "./continuations.js";
 export * from "./conversions.js";
@@ -28,7 +28,6 @@ export {
   applyChapterTree,
   assertNoActiveBuildJobConflicts,
   assertNoActiveBuildJobs,
-  cleanBuildJobs,
   deleteArchiveSearchSessions,
   ensureWikiGraphHomeSchemaCurrent,
   formatError,
@@ -40,11 +39,9 @@ export {
   formatWikiGraphLibraryUri,
   getWikiGraphStorage,
   getChapterTree,
-  isArchiveSearchIndexCurrent,
   isSourceLocatorScopeUri,
   isWikiGraphLibraryUri,
   listArchiveQueryableChapterIds,
-  listChapters,
   migrateLegacySdpubToWikg,
   moveChapter,
   openWikimediaResolver,
@@ -62,8 +59,6 @@ export {
   rebuildWikiGraphLibraryIndex,
   removeChapter,
   resetChapter,
-  resolveBuildJobId,
-  resolveChapterPathReadonly,
   setChapterSource,
   setChapterSummary,
   setChapterTitle,
@@ -99,14 +94,11 @@ export type {
   ChapterTree,
   ChapterTreeApplyResult,
   ContinuationCursor,
-  DirectoryDocument,
   File,
-  IndexArtifactCoverageRecord,
   IndexArtifactKind,
   LocatedWikiGraphUri,
   ParsedWikiGraphLibraryUri,
   QueryIndexScope,
-  ReadonlyDocument,
   SearchIndexEmbeddingProvider,
   WikiGraphLLMOptions,
   WikiGraphLibraryArchiveRecord,

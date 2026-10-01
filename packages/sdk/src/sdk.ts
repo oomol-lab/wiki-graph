@@ -1,6 +1,6 @@
 import { WikiGraph } from "wiki-graph-core";
 
-import { WikiGraphArchiveManager } from "./archives.js";
+import { WikiGraphArchiveManager } from "./archive/index.js";
 import { WikiGraphConversionManager } from "./conversions.js";
 import { WikiGraphConfigManager } from "./config.js";
 import { WikiGraphContinuationManager } from "./continuations.js";

@@ -9,7 +9,7 @@ const ESM_DATA_DIR_BANNER = [
   'globalThis.__WIKIGRAPH_DATA_DIR__ ??= __WIKIGRAPH_RESOLVE__(__WIKIGRAPH_FILE_URL_TO_PATH__(new URL("./data", import.meta.url)));',
 ].join("\n");
 const ENTRY = {
-  archives: "src/archives.ts",
+  archives: "src/archive/index.ts",
   conversions: "src/conversions.ts",
   "default-worker": "src/default-worker.ts",
   embedding: "src/embedding.ts",

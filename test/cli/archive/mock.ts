@@ -722,6 +722,21 @@ vi.mock("../../../packages/cli/src/runtime/config.js", () => ({
   ),
 }));
 
+vi.mock("../../../packages/sdk/src/runtime-config.js", () => ({
+  loadWikiGraphRuntimeConfig: vi.fn(() =>
+    Promise.resolve({
+      concurrent: {
+        job: 2,
+        request: 3,
+      },
+      llm: {
+        model: "gpt-test",
+        provider: "openai-compatible",
+      },
+    }),
+  ),
+}));
+
 vi.mock(
   "../../../packages/cli/src/support/index.js",
   async (importOriginal) => {

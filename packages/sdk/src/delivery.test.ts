@@ -4,7 +4,9 @@ import { join } from "path";
 import { afterEach, describe, expect, it } from "vitest";
 
 import {
+  addChapter,
   DirectoryDocument,
+  setChapterSource,
   TOC_FILE_VERSION,
   writeWikgArchive,
 } from "wiki-graph-core";
@@ -106,6 +108,43 @@ describe("WikiGraphSDK delivery operations", () => {
     sdk.close();
   });
 
+  it("reports archive readiness and improvement semantics through the SDK", async () => {
+    const root = await mkdtemp(join(tmpdir(), "wiki-graph-sdk-inspect-"));
+    temporaryDirectories.push(root);
+    await mkdir(join(root, "state"));
+    await createEmptyArchive(
+      join(root, "book.wikg"),
+      root,
+      "Inspectable source text.",
+    );
+    const sdk = createWikiGraphSDK({
+      cwd: root,
+      stateDir: join(root, "state"),
+    });
+    const archive = await sdk.archives.open("book.wikg");
+
+    const report = await archive.inspect();
+    expect(report.archiveUri).toContain("book.wikg");
+    expect(report).toMatchObject({
+      content: { chapters: { content: 1, planned: 0, total: 1 } },
+      query: { ready: false },
+      searchArtifacts: { status: "incomplete" },
+    });
+    expect(report.searchArtifacts.blockedChapters).toEqual([
+      expect.objectContaining({ chapterId: 1 }),
+    ]);
+    expect(report.improvements).toContainEqual(
+      expect.objectContaining({ kind: "build", task: "index-fts" }),
+    );
+    await expect(archive.inspect({ chapterId: 1 })).resolves.toMatchObject({
+      scope: { chapterId: 1, type: "chapter" },
+    });
+    await expect(archive.inspect({ chapterId: 999 })).rejects.toThrow(
+      "Chapter 999 does not exist",
+    );
+    sdk.close();
+  });
+
   it("owns chapter, index, and queue planning semantics", async () => {
     const root = await mkdtemp(join(tmpdir(), "wiki-graph-sdk-delivery-"));
     temporaryDirectories.push(root);
@@ -153,6 +192,8 @@ describe("WikiGraphSDK delivery operations", () => {
       chapterId: added.chapterId,
       target: "index-fts",
     });
+    await result.created[0]!.job.cancel();
+    expect(await sdk.jobs.clean()).toEqual(expect.any(Number));
 
     sdk.close();
   });
@@ -267,7 +308,11 @@ describe("WikiGraphSDK delivery operations", () => {
   });
 });
 
-async function createEmptyArchive(path: string, root: string): Promise<void> {
+async function createEmptyArchive(
+  path: string,
+  root: string,
+  source?: string,
+): Promise<void> {
   const sourceDirectory = new NodeDirectory(join(root, "source"));
   await mkdir(sourceDirectory.path);
   const document = await DirectoryDocument.open(sourceDirectory);
@@ -275,6 +320,10 @@ async function createEmptyArchive(path: string, root: string): Promise<void> {
     await document.openSession(async (openedDocument) => {
       await openedDocument.writeToc({ items: [], version: TOC_FILE_VERSION });
     });
+    if (source !== undefined) {
+      const chapter = await addChapter(document, { title: "Inspect me" });
+      await setChapterSource(document, chapter.chapterId, [source]);
+    }
   } finally {
     await document.release();
   }

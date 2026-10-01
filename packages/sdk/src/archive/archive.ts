@@ -71,14 +71,18 @@ import {
   type WikiGraphProgressCallback,
 } from "wiki-graph-core";
 
-import type { WikiGraphJobRuntime } from "./jobs.js";
-import { WikiGraphConversionManager } from "./conversions.js";
+import type { WikiGraphJobRuntime } from "../jobs.js";
+import { WikiGraphConversionManager } from "../conversions.js";
 import {
   getNodeResourcePath,
   NodeDirectory,
   NodeFile,
-} from "./node-platform.js";
-import { resolveWikiGraphRuntimePath } from "./runtime-path.js";
+} from "../node-platform.js";
+import { resolveWikiGraphRuntimePath } from "../runtime-path.js";
+import {
+  createWikiGraphArchiveInspectReport,
+  type WikiGraphArchiveInspectReport,
+} from "./inspect.js";
 
 export interface WikiGraphOperationOptions {
   readonly signal?: AbortSignal;
@@ -104,6 +108,7 @@ export interface WikiGraphArchiveLocation {
   readonly libraryArchiveTarget?: ParsedWikiGraphLibraryUri;
   readonly libraryDirtyTarget?: ParsedWikiGraphLibraryUri;
   readonly locatedUri: string;
+  readonly publicArchiveUri?: string;
 }
 
 export interface WikiGraphArchiveCreateOptions extends WikiGraphOperationOptions {
@@ -318,6 +323,21 @@ export class WikiGraphArchiveHandle {
 
   public get path(): string {
     return this.#location.archivePath;
+  }
+
+  public async inspect(
+    options: WikiGraphOperationOptions & { readonly chapterId?: number } = {},
+  ): Promise<WikiGraphArchiveInspectReport> {
+    return await this.readDocument(
+      async (document) =>
+        await createWikiGraphArchiveInspectReport(document, {
+          archiveUri: this.#location.publicArchiveUri ?? this.locatedUri,
+          ...(options.chapterId === undefined
+            ? {}
+            : { chapterId: options.chapterId }),
+        }),
+      options,
+    );
   }
 
   public async search(
@@ -999,6 +1019,7 @@ export async function resolveWikiGraphArchiveLocation(
               ? {}
               : { publicId: libraryArchiveTarget.publicId }),
           },
+          publicArchiveUri: portableArchiveLocator,
         }
       : {}),
     locatedUri: formatLocatedWikiGraphUri(archivePath, parsed.objectUri),

@@ -2,12 +2,14 @@ import {
   addBuildJob,
   boostBuildJob,
   cancelBuildJob,
+  cleanBuildJobs,
   formatLocatedChapterUri,
   getBuildJob,
   listBuildJobs,
   listChapters,
   pauseBuildJob,
   readBuildJobEvents,
+  resolveBuildJobId,
   resumeBuildJob,
   updateBuildJobTarget,
   resolveChapterPathReadonly,
@@ -22,7 +24,7 @@ import {
 } from "wiki-graph-core";
 
 import { getNodeResourcePath, NodeFile } from "./node-platform.js";
-import { resolveWikiGraphArchiveLocation } from "./archives.js";
+import { resolveWikiGraphArchiveLocation } from "./archive/index.js";
 import { requireKnowledgeGraphWikispineConfig } from "./default-worker.js";
 import { loadWikiGraphRuntimeConfig } from "./runtime-config.js";
 import { loadRequiredStageConfig } from "./stage.js";
@@ -183,9 +185,19 @@ export class WikiGraphJobManager {
     return this.#createHandle(job);
   }
 
+  public async clean(): Promise<number> {
+    return await this.#runtime.run(async () => await cleanBuildJobs());
+  }
+
   public async get(jobId: string): Promise<WikiGraphJob> {
     return this.#createHandle(
       await this.#runtime.run(async () => await this.#backend.get(jobId)),
+    );
+  }
+
+  public async resolveId(reference: string): Promise<string> {
+    return await this.#runtime.run(
+      async () => await resolveBuildJobId(reference),
     );
   }
 

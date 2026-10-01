@@ -81,7 +81,6 @@ vi.mock("./run/index.js", async (importOriginal) => {
     runNextArchivePage: vi.fn(),
   };
 });
-vi.mock("./run/scope.js", () => ({ resolveArchiveChapterScope: vi.fn() }));
 
 let testStateDir: string | undefined;
 

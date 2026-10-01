@@ -42,9 +42,7 @@ import {
   getObjectUri,
   getSingleObjectEvidenceLimit,
   isArchiveRootGet,
-  readArchiveDocument,
   resolveArchiveCommandRuntimeArguments,
-  resolveArchiveRuntimeLocation,
   runNextArchivePage,
   writeArchiveRoot,
 } from "./run/index.js";
@@ -89,12 +87,7 @@ export async function runArchiveCommand(
       });
       return;
     case "inspect":
-      await readArchiveDocument(
-        (await resolveArchiveRuntimeLocation(args.archivePath)).archivePath,
-        async (document) => {
-          await writeArchiveInspectReport(document, args);
-        },
-      );
+      await writeArchiveInspectReport(args);
       return;
     case "search":
       await runArchiveSearch(args);

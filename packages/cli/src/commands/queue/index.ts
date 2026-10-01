@@ -1,8 +1,4 @@
-import {
-  cleanBuildJobs,
-  resolveBuildJobId,
-  type WikiGraphJobEnqueueOptions,
-} from "wiki-graph-sdk";
+import type { WikiGraphJobEnqueueOptions } from "wiki-graph-sdk";
 
 import type { CLIQueueArguments } from "../../args/index.js";
 import { loadCLIConfig } from "../../runtime/config.js";
@@ -126,13 +122,15 @@ export async function runQueueCommand(args: CLIQueueArguments): Promise<void> {
       tryStartQueueWorker();
       return;
     case "clean":
-      await writeTextToStdout(`Cleaned ${await cleanBuildJobs()} jobs.\n`);
+      await writeTextToStdout(
+        `Cleaned ${await getWikiGraphSDK().jobs.clean()} jobs.\n`,
+      );
       return;
   }
 }
 
 async function resolveQueueJobId(args: CLIQueueArguments): Promise<string> {
-  return await resolveBuildJobId(args.jobId!);
+  return await getWikiGraphSDK().jobs.resolveId(args.jobId!);
 }
 
 async function getQueueJob(args: CLIQueueArguments) {
