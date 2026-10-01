@@ -68,6 +68,16 @@ vi.mock("../../../packages/core/src/index.js", () => ({
         },
       });
     }
+
+    public async readDocument(
+      operation: (document: MockEditableDocument) => Promise<unknown>,
+    ): Promise<unknown> {
+      archiveMaintenanceMockState.openCalls.push(this.#path);
+      return await operation({
+        readBookMeta: () => Promise.resolve(archiveMaintenanceMockState.meta),
+        replaceBookMeta: () => Promise.resolve(),
+      });
+    }
   },
 }));
 

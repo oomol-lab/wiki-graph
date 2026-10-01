@@ -63,12 +63,14 @@ export function createQueueAddEstimate(input: {
     chapters: input.chapters.length,
     concurrent,
     includesPrerequisites: steps.some((step) => step.prerequisite),
-    performanceHints: toCLIGenerationPerformanceHints(createGenerationPerformanceHints({
-      chapters: workChapters,
-      concurrent,
-      hasJobWork: steps.length > 0,
-      hasRequestWork: usesProvider,
-    })),
+    performanceHints: toCLIGenerationPerformanceHints(
+      createGenerationPerformanceHints({
+        chapters: workChapters,
+        concurrent,
+        hasJobWork: steps.length > 0,
+        hasRequestWork: usesProvider,
+      }),
+    ),
     planning: sumGenerationPlanningCosts(model, steps),
     steps,
     target: input.target,

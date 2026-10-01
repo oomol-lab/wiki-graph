@@ -210,19 +210,21 @@ async function createArchiveInspectReport(
     knowledgeGraphCovered,
     readingGraphCovered,
   });
-  const performanceHints = toCLIGenerationPerformanceHints(createGenerationPerformanceHints({
-    chapters: Math.max(
-      0,
-      ...improvements.map((improvement) => improvement.missingChapters ?? 0),
-    ),
-    concurrent,
-    hasJobWork: improvements.some(
-      (improvement) => improvement.planning !== undefined,
-    ),
-    hasRequestWork: improvements.some(
-      (improvement) => improvement.planning !== undefined,
-    ),
-  }));
+  const performanceHints = toCLIGenerationPerformanceHints(
+    createGenerationPerformanceHints({
+      chapters: Math.max(
+        0,
+        ...improvements.map((improvement) => improvement.missingChapters ?? 0),
+      ),
+      concurrent,
+      hasJobWork: improvements.some(
+        (improvement) => improvement.planning !== undefined,
+      ),
+      hasRequestWork: improvements.some(
+        (improvement) => improvement.planning !== undefined,
+      ),
+    }),
+  );
 
   return {
     uri: scopeUri,

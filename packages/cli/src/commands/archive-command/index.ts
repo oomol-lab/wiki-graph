@@ -236,11 +236,7 @@ async function runArchiveSearch(args: CLIArchiveArguments): Promise<void> {
     });
   try {
     if (args.all === true) {
-      await writeAllFindHits(
-        readPage,
-        context,
-        args.format ?? "text",
-      );
+      await writeAllFindHits(readPage, context, args.format ?? "text");
       return;
     }
     await writeFindHits(
@@ -267,9 +263,7 @@ async function runArchiveGet(args: CLIArchiveArguments): Promise<void> {
   await withWikimediaPageOptions(objectUri, async (wikimediaOptions) =>
     writePage(
       await archive.page(objectUri, {
-        ...(args.backlinks === undefined
-          ? {}
-          : { backlinks: args.backlinks }),
+        ...(args.backlinks === undefined ? {} : { backlinks: args.backlinks }),
         ...(evidenceLimit === undefined ? {} : { evidenceLimit }),
         ...(args.reverse === true ? { order: "doc-desc" } : {}),
         ...wikimediaOptions,
@@ -310,11 +304,7 @@ async function runArchiveRelated(args: CLIArchiveArguments): Promise<void> {
     );
     return;
   }
-  await writeList(
-    await readPage(args.cursor),
-    context,
-    args.format ?? "text",
-  );
+  await writeList(await readPage(args.cursor), context, args.format ?? "text");
 }
 
 async function runArchiveEvidence(args: CLIArchiveArguments): Promise<void> {
@@ -483,10 +473,7 @@ async function runLibraryIndexArchiveCommand(
         }
         await writeFindHits(
           createCollectionFindResult(
-            await libraries.objects(
-              target,
-              createCollectionOptions(args),
-            ),
+            await libraries.objects(target, createCollectionOptions(args)),
           ),
           listContext,
           args.format ?? "text",
@@ -524,10 +511,7 @@ async function runLibraryIndexArchiveCommand(
 
       await writeFindHits(
         createCollectionFindResult(
-          await libraries.objects(
-            target,
-            createCollectionOptions(args),
-          ),
+          await libraries.objects(target, createCollectionOptions(args)),
         ),
         listContext,
         args.format ?? "text",
@@ -542,10 +526,7 @@ async function runLibraryIndexArchiveCommand(
         };
         await writeFindHits(
           createCollectionFindResult(
-            await libraries.objects(
-              target,
-              createCollectionOptions(args),
-            ),
+            await libraries.objects(target, createCollectionOptions(args)),
           ),
           getContext,
           args.format ?? "text",
@@ -652,11 +633,7 @@ async function runLibraryIndexArchiveCommand(
     case "pack": {
       const concreteObjectUri = requireLibraryObjectUri("pack", objectUri);
       await writePack(
-        await libraries.pack(
-          target,
-          concreteObjectUri,
-          args.budget ?? 5000,
-        ),
+        await libraries.pack(target, concreteObjectUri, args.budget ?? 5000),
         context,
         args.format ?? "text",
       );

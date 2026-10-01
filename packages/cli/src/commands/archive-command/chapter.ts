@@ -1,33 +1,17 @@
 import { readFile } from "fs/promises";
-import { Readable } from "stream";
 
-import type { DirectoryDocument, ReadonlyDocument } from "wiki-graph-sdk";
 import {
-  addChapter,
-  applyChapterTree,
-  assertNoActiveBuildJobConflicts,
-  assertNoActiveBuildJobs,
   formatLocatedChapterUri,
-  getChapterTree,
-  listChapters,
-  moveChapter,
   parseChapterTreeInput,
-  removeChapter,
-  resetChapter,
-  resolveChapterPathReadonly,
-  setChapterSource,
-  setChapterSummary,
-  setChapterTitle,
   parseSourceTextJsonl,
-  WikiGraphArchiveFile,
   type BuildJobTarget,
   type ChapterTree,
   type ChapterTreeApplyResult,
   type ChapterDetails,
   type ChapterEntry,
   type IndexArtifactKind,
+  type WikiGraphChapterArtifactStatus,
 } from "wiki-graph-sdk";
-import { NodeFile } from "../../runtime/node-platform.js";
 import { getWikiGraphSDK } from "../../runtime/context.js";
 
 import type { CLIArchiveChapterArguments } from "../../args/index.js";
@@ -41,81 +25,46 @@ import {
 import { formatCLIJSON } from "../../support/index.js";
 import { tryStartQueueWorker } from "../queue/add.js";
 import { writeJobSummary } from "../queue/output.js";
-import { readArchiveDocument, writeArchiveDocument } from "./run/document.js";
-import { resolveArchiveRuntimeLocation } from "./run/uri.js";
 
 export async function runArchiveChapterCommand(
   args: CLIArchiveChapterArguments,
 ): Promise<void> {
+  const sdk = getWikiGraphSDK();
+  const archive = await sdk.archives.open(args.path);
   switch (args.action) {
-    case "add":
-      await runEditableCommand(args.path, async (document) => {
-        const parentChapterId = await resolveOptionalChapterPath(
-          document,
-          args.parentChapterPath,
-        );
-        await assertNoActiveBuildJobConflicts({
-          archive: new NodeFile(args.path),
-          operation: "Adding chapter",
-          scope: { kind: "archive" },
-        });
-        let details = await addChapter(document, {
-          ...(parentChapterId === undefined ? {} : { parentChapterId }),
-          ...(args.title === undefined ? {} : { title: args.title }),
-        });
-
-        if (args.inputPath !== undefined) {
-          details = await setChapterSource(
-            document,
-            details.chapterId,
-            Readable.from([await readRequiredSourceText(args)]),
-          );
-        }
-
-        await writeChapterDetails(details, args.json ?? false, {
-          locatedUri: formatChapterCommandUri(args.path, details.path),
-        });
+    case "add": {
+      const details = await archive.addChapter({
+        ...(args.parentChapterPath === undefined
+          ? {}
+          : { parentPath: args.parentChapterPath }),
+        ...(args.inputPath === undefined
+          ? {}
+          : { source: await readRequiredSourceText(args) }),
+        ...(args.title === undefined ? {} : { title: args.title }),
+      });
+      await writeChapterDetails(details, args.json ?? false, {
+        locatedUri: formatChapterCommandUri(args.path, details.path),
       });
       return;
+    }
     case "list":
-      await readArchiveDocument(args.path, async (document) => {
-        await writeChapterList(
-          await listChapters(document),
-          args.json ?? false,
-        );
-      });
+      await writeChapterList(await archive.listChapters(), args.json ?? false);
       return;
     case "get-index-artifact":
-      await readArchiveDocument(args.path, async (document) => {
-        const chapterId = await resolveRequiredChapterPath(
-          document,
-          args.chapterPath,
-        );
-        await writeIndexArtifactStatus(
-          document,
-          chapterId,
+      await writeIndexArtifactStatus(
+        await archive.getChapterArtifact(
+          requireChapterPath(args.chapterPath),
           requireIndexArtifactKind(args.indexArtifactKind),
-          args.json ?? false,
-        );
-      });
+        ),
+        args.json ?? false,
+      );
       return;
     case "build-index-artifact": {
-      const chapter = await readArchiveDocument(args.path, async (document) => {
-        const chapterId = await resolveRequiredChapterPath(
-          document,
-          args.chapterPath,
-        );
-        const matched = (await listChapters(document)).find(
-          (entry) => entry.chapterId === chapterId,
-        );
-
-        if (matched === undefined) {
-          throw new Error(`Chapter internal id ${chapterId} does not exist.`);
-        }
-        return matched;
-      });
-      const job = await getWikiGraphSDK().jobs.create({
-        archive: new NodeFile(args.path),
+      const chapter = await archive.getChapter(
+        requireChapterPath(args.chapterPath),
+      );
+      const job = await sdk.jobs.create({
+        archive: archive.path,
         chapterId: chapter.chapterId,
         target: requireIndexArtifactTarget(args.indexArtifactTarget),
       });
@@ -128,233 +77,117 @@ export async function runArchiveChapterCommand(
       });
       return;
     }
-    case "delete-index-artifact":
-      await writeArchiveDocument(args.path, async (document) => {
-        const chapterId = await resolveRequiredChapterPath(
-          document,
-          args.chapterPath,
-        );
-        const kind = requireIndexArtifactKind(args.indexArtifactKind);
-
-        await document.indexArtifacts.delete(chapterId, kind);
-        if (args.json === true) {
-          await writeTextToStdout(
-            formatCLIJSON({
-              chapterId,
-              deleted: true,
-              kind,
-            }),
-          );
-          return;
-        }
-        await writeTextToStdout(
-          `Deleted ${formatIndexArtifactKind(kind)} index artifact for chapter ${chapterId}.\n`,
-        );
-      });
+    case "delete-index-artifact": {
+      const deleted = await archive.deleteChapterArtifact(
+        requireChapterPath(args.chapterPath),
+        requireIndexArtifactKind(args.indexArtifactKind),
+      );
+      await writeTextToStdout(
+        args.json === true
+          ? formatCLIJSON(deleted)
+          : `Deleted ${formatIndexArtifactKind(deleted.kind)} index artifact for chapter ${deleted.chapterId}.\n`,
+      );
       return;
+    }
     case "move":
-      await runEditableCommand(args.path, async (document) => {
-        const chapterId = await resolveRequiredChapterPath(
-          document,
-          args.chapterPath,
-        );
-        const afterChapterId = await resolveOptionalChapterPath(
-          document,
-          args.afterChapterPath,
-        );
-        const beforeChapterId = await resolveOptionalChapterPath(
-          document,
-          args.beforeChapterPath,
-        );
-        const parentChapterId = await resolveOptionalChapterPath(
-          document,
-          args.parentChapterPath,
-        );
-        await assertNoActiveBuildJobConflicts({
-          archive: new NodeFile(args.path),
-          operation: "Moving chapter",
-          scope: { kind: "archive" },
-        });
-        const details = await moveChapter(document, chapterId, {
-          ...(afterChapterId === undefined
+      await writeChapterDetails(
+        await archive.moveChapter(requireChapterPath(args.chapterPath), {
+          ...(args.afterChapterPath === undefined
             ? {}
-            : { afterChapterId: afterChapterId }),
-          ...(beforeChapterId === undefined
+            : { afterPath: args.afterChapterPath }),
+          ...(args.beforeChapterPath === undefined
             ? {}
-            : { beforeChapterId: beforeChapterId }),
+            : { beforePath: args.beforeChapterPath }),
           ...(args.first === undefined ? {} : { first: args.first }),
           ...(args.last === undefined ? {} : { last: args.last }),
           ...(args.moveToRoot === undefined ? {} : { root: args.moveToRoot }),
-          ...(parentChapterId === undefined ? {} : { parentChapterId }),
-        });
-
-        await writeChapterDetails(details, args.json ?? false);
-      });
+          ...(args.parentChapterPath === undefined
+            ? {}
+            : { parentPath: args.parentChapterPath }),
+        }),
+        args.json ?? false,
+      );
       return;
     case "remove":
-      await runEditableCommand(args.path, async (document) => {
-        const chapterId = await resolveRequiredChapterPath(
-          document,
-          args.chapterPath,
-        );
-        await assertNoActiveBuildJobConflicts({
-          archive: new NodeFile(args.path),
-          operation: "Removing chapter",
-          scope: { kind: "archive" },
-        });
-        await removeChapter(document, chapterId, {
-          recursive: args.recursive ?? false,
-        });
-        if (args.json === true) {
-          await writeTextToStdout(
-            formatCLIJSON({
+      await archive.removeChapter(
+        requireChapterPath(args.chapterPath),
+        args.recursive ?? false,
+      );
+      await writeTextToStdout(
+        args.json === true
+          ? formatCLIJSON({
               removed: true,
               uri: `wikg://chapter/${args.chapterPath}`,
-            }),
-          );
-          return;
-        }
-        await writeTextToStdout(
-          `Removed chapter wikg://chapter/${args.chapterPath}.\n`,
-        );
-      });
+            })
+          : `Removed chapter wikg://chapter/${args.chapterPath}.\n`,
+      );
       return;
     case "reset":
-      await runEditableCommand(args.path, async (document) => {
-        const chapterId = await resolveRequiredChapterPath(
-          document,
-          args.chapterPath,
-        );
-        await assertResetAllowed(args.path, chapterId, args.resetStage!);
-        const details = await resetChapter(
-          document,
-          chapterId,
+      await writeChapterDetails(
+        await archive.resetChapter(
+          requireChapterPath(args.chapterPath),
           args.resetStage!,
-        );
-
-        await writeChapterDetails(details, args.json ?? false);
-      });
+        ),
+        args.json ?? false,
+      );
       return;
-    case "set-source":
-      await runEditableCommand(args.path, async (document) => {
-        const chapterId = await resolveRequiredChapterPath(
-          document,
-          args.chapterPath,
-        );
-        await assertNoActiveBuildJobs({
-          archive: new NodeFile(args.path),
-          chapterIds: [chapterId],
-          operation: "Setting chapter source",
-        });
-        const sourceText = await readRequiredSourceText(args);
-        const parsed =
-          args.inputFormat === "jsonl"
-            ? parseSourceTextJsonl(sourceText)
-            : undefined;
-        const details = await setChapterSource(
-          document,
-          chapterId,
-          Readable.from([parsed?.text ?? sourceText]),
+    case "set-source": {
+      const sourceText = await readRequiredSourceText(args);
+      const parsed =
+        args.inputFormat === "jsonl"
+          ? parseSourceTextJsonl(sourceText)
+          : undefined;
+      await writeChapterDetails(
+        await archive.setChapterSource(
+          requireChapterPath(args.chapterPath),
+          parsed?.text ?? sourceText,
           parsed === undefined ? {} : { provenance: parsed.provenance },
-        );
-
-        await writeChapterDetails(details, args.json ?? false);
-      });
+        ),
+        args.json ?? false,
+      );
       return;
+    }
     case "set-summary":
-      await runEditableCommand(args.path, async (document) => {
-        const chapterId = await resolveRequiredChapterPath(
-          document,
-          args.chapterPath,
-        );
-        await assertNoActiveBuildJobs({
-          archive: new NodeFile(args.path),
-          chapterIds: [chapterId],
-          operation: "Setting chapter summary",
-          requiresTarget: "reading-summary",
-        });
-        const details = await setChapterSummary(
-          document,
-          chapterId,
+      await writeChapterDetails(
+        await archive.setChapterSummary(
+          requireChapterPath(args.chapterPath),
           await readContentText(args),
-        );
-
-        await writeChapterDetails(details, args.json ?? false);
-      });
+        ),
+        args.json ?? false,
+      );
       return;
     case "set-title":
-      await runEditableCommand(args.path, async (document) => {
-        const chapterId = await resolveRequiredChapterPath(
-          document,
-          args.chapterPath,
-        );
-        await assertNoActiveBuildJobs({
-          archive: new NodeFile(args.path),
-          chapterIds: [chapterId],
-          operation: "Setting chapter title",
-        });
-        const details = await setChapterTitle(
-          document,
-          chapterId,
+      await writeChapterDetails(
+        await archive.setChapterTitle(
+          requireChapterPath(args.chapterPath),
           args.clearTitle === true ? null : args.title,
-        );
-
-        await writeChapterDetails(details, false);
-      });
+        ),
+        false,
+      );
       return;
     case "tree":
       if (args.treeAction === "apply") {
-        await runEditableCommand(
-          args.path,
-          async (document) => {
-            if (args.dryRun !== true) {
-              await assertNoActiveBuildJobConflicts({
-                archive: new NodeFile(args.path),
-                operation: "Changing chapter tree",
-                scope: { kind: "archive" },
-              });
-            }
-            await writeChapterTreeApplyResult(
-              await applyChapterTree(
-                document,
-                parseChapterTreeInput(JSON.parse(await readContentText(args))),
-                { dryRun: args.dryRun ?? false },
-              ),
-              args.dryRun ?? false,
-            );
-          },
-          { markLibraryDirty: args.dryRun !== true },
+        await writeChapterTreeApplyResult(
+          await archive.applyChapterTree(
+            parseChapterTreeInput(JSON.parse(await readContentText(args))),
+            { dryRun: args.dryRun ?? false },
+          ),
+          args.dryRun ?? false,
         );
         return;
       }
-
-      await readArchiveDocument(args.path, async (document) => {
-        await writeChapterTree(
-          await getChapterTree(document),
-          args.json ?? false,
-        );
-      });
+      await writeChapterTree(
+        await archive.getChapterTree(),
+        args.json ?? false,
+      );
       return;
   }
 }
-
-async function resolveRequiredChapterPath(
-  document: ReadonlyDocument,
-  chapterPath: string | undefined,
-): Promise<number> {
+function requireChapterPath(chapterPath: string | undefined): string {
   if (chapterPath === undefined) {
     throw new Error("Missing chapter path.");
   }
-  return await resolveChapterPathReadonly(document, chapterPath);
-}
-
-async function resolveOptionalChapterPath(
-  document: ReadonlyDocument,
-  chapterPath: string | undefined,
-): Promise<number | undefined> {
-  return chapterPath === undefined
-    ? undefined
-    : await resolveChapterPathReadonly(document, chapterPath);
+  return chapterPath;
 }
 
 function requireIndexArtifactKind(
@@ -378,54 +211,31 @@ function requireIndexArtifactTarget(
 }
 
 async function writeIndexArtifactStatus(
-  document: ReadonlyDocument,
-  chapterId: number,
-  kind: IndexArtifactKind,
+  status: WikiGraphChapterArtifactStatus,
   json: boolean,
 ): Promise<void> {
-  const [artifact, revision] = await Promise.all([
-    document.indexArtifacts.get(chapterId, kind),
-    document.serials.getRevision(chapterId),
-  ]);
-  const status = {
-    chapterId,
-    current: artifact?.sourceRevision === revision,
-    kind,
-    missing: artifact === undefined,
-    revision,
-    ...(artifact === undefined
-      ? {}
-      : {
-          artifact: {
-            createdAt: artifact.createdAt,
-            metadata: artifact.metadata,
-            sourceRevision: artifact.sourceRevision,
-          },
-        }),
-  };
-
   if (json) {
     await writeTextToStdout(formatCLIJSON(status));
     return;
   }
 
   const state =
-    artifact === undefined
+    status.artifact === undefined
       ? "missing"
-      : artifact.sourceRevision === revision
+      : status.current
         ? "current"
         : "outdated";
 
   await writeTextToStdout(
     [
-      `Chapter: ${chapterId}`,
-      `Index artifact: ${formatIndexArtifactKind(kind)}`,
+      `Chapter: ${status.chapterId}`,
+      `Index artifact: ${formatIndexArtifactKind(status.kind)}`,
       `State: ${state}`,
-      ...(artifact === undefined
+      ...(status.artifact === undefined
         ? []
         : [
-            `Source revision: ${artifact.sourceRevision}`,
-            `Current revision: ${revision}`,
+            `Source revision: ${status.artifact.sourceRevision}`,
+            `Current revision: ${status.revision}`,
           ]),
     ].join("\n") + "\n",
   );
@@ -440,20 +250,6 @@ function formatIndexArtifactKind(kind: IndexArtifactKind): string {
     case "embedding-summary":
       return "summary embedding";
   }
-}
-
-async function runEditableCommand(
-  path: string,
-  operation: (document: DirectoryDocument) => Promise<void> | void,
-  options: { readonly markLibraryDirty?: boolean } = {},
-): Promise<void> {
-  if (options.markLibraryDirty === false) {
-    const location = await resolveArchiveRuntimeLocation(path);
-    await new WikiGraphArchiveFile(location.archiveFile).write(operation);
-    return;
-  }
-
-  await writeArchiveDocument(path, operation);
 }
 
 async function readContentText(
@@ -661,43 +457,5 @@ function formatStage(stage: ChapterEntry["stage"]): string {
       return "reading-graph";
     case "summarized":
       return "reading-summary";
-  }
-}
-
-async function assertResetAllowed(
-  archivePath: string,
-  chapterId: number,
-  stage: NonNullable<CLIArchiveChapterArguments["resetStage"]>,
-): Promise<void> {
-  switch (stage) {
-    case "planned":
-      await assertNoActiveBuildJobs({
-        archive: new NodeFile(archivePath),
-        chapterIds: [chapterId],
-        operation: "Resetting chapter to planned",
-      });
-      return;
-    case "sourced":
-      await assertNoActiveBuildJobs({
-        archive: new NodeFile(archivePath),
-        chapterIds: [chapterId],
-        operation: "Resetting chapter graph",
-        requiresTarget: "reading-graph",
-      });
-      await assertNoActiveBuildJobs({
-        archive: new NodeFile(archivePath),
-        chapterIds: [chapterId],
-        operation: "Resetting chapter summary",
-        requiresTarget: "reading-summary",
-      });
-      return;
-    case "graphed":
-      await assertNoActiveBuildJobs({
-        archive: new NodeFile(archivePath),
-        chapterIds: [chapterId],
-        operation: "Resetting chapter summary",
-        requiresTarget: "reading-summary",
-      });
-      return;
   }
 }

@@ -18,10 +18,7 @@ export async function resolveArchiveRuntimeLocation(
 export async function resolveArchiveCommandRuntimeArguments(
   args: CLIArchiveArguments,
 ): Promise<CLIArchiveArguments> {
-  if (
-    args.action === "create" ||
-    args.action === "export"
-  ) {
+  if (args.action === "create" || args.action === "export") {
     const location = await resolveArchiveRuntimeLocation(args.archivePath);
     return { ...args, archivePath: location.archivePath };
   }

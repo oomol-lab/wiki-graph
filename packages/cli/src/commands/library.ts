@@ -76,7 +76,9 @@ export async function runLibraryCommand(
       }
       if (args.target.kind === "archive-collection") {
         await writeLibraryArchives(
-          await (await libraries.get(formatWikiGraphLibraryUri(args.target.publicId))).archives(),
+          await (
+            await libraries.get(formatWikiGraphLibraryUri(args.target.publicId))
+          ).archives(),
           args.json ?? false,
         );
         return;
@@ -108,7 +110,9 @@ export async function runLibraryCommand(
     }
     case "archive-tree": {
       await writeLibraryArchiveTree(
-        await (await libraries.get(formatWikiGraphLibraryUri(args.target.publicId))).archives(),
+        await (
+          await libraries.get(formatWikiGraphLibraryUri(args.target.publicId))
+        ).archives(),
         {
           ...(args.depth === undefined ? {} : { depth: args.depth }),
           json: args.json ?? false,
@@ -135,26 +139,23 @@ export async function runLibraryCommand(
         kind: "lifecycle",
         text: "library index cache sync started\nsteps: collecting -> clearing -> indexing-text -> indexing-objects -> indexing-dense -> finalizing",
       });
-      const state = await libraries.rebuildIndex(
-        args.target,
-        async (event) => {
-          const counters =
-            event.done === undefined || event.total === undefined
-              ? []
-              : [formatIndexCounter(event)];
+      const state = await libraries.rebuildIndex(args.target, async (event) => {
+        const counters =
+          event.done === undefined || event.total === undefined
+            ? []
+            : [formatIndexCounter(event)];
 
-          await writer.write({
+        await writer.write({
+          counters,
+          json: {
             counters,
-            json: {
-              counters,
-              phase: event.phase,
-              type: "status_snapshot",
-            },
-            kind: "status",
             phase: event.phase,
-          });
-        },
-      );
+            type: "status_snapshot",
+          },
+          kind: "status",
+          phase: event.phase,
+        });
+      });
       await writer.write({
         json: { status: state.status, type: "completed" },
         kind: "lifecycle",
@@ -194,7 +195,8 @@ export async function runLibraryCommand(
     case "get": {
       if (args.target.kind === "path") {
         await writeLibraryPath(
-          (await libraries.get(formatWikiGraphLibraryUri(args.target.publicId))).snapshot,
+          (await libraries.get(formatWikiGraphLibraryUri(args.target.publicId)))
+            .snapshot,
           args.json ?? false,
         );
         return;
@@ -222,7 +224,9 @@ export async function runLibraryCommand(
       }
       if (args.target.kind === "archive-collection") {
         await writeLibraryArchives(
-          await (await libraries.get(formatWikiGraphLibraryUri(args.target.publicId))).archives(),
+          await (
+            await libraries.get(formatWikiGraphLibraryUri(args.target.publicId))
+          ).archives(),
           args.json ?? false,
         );
         return;
@@ -247,10 +251,7 @@ export async function runLibraryCommand(
       }
       const value = await readMetadataInput(args, { jsonRequired: true });
       await writeMetadataMap(
-        await libraries.replaceMetadata(
-          args.target,
-          parseMetadataMap(value),
-        ),
+        await libraries.replaceMetadata(args.target, parseMetadataMap(value)),
         args.json ?? false,
       );
       return;

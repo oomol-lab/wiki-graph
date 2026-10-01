@@ -115,6 +115,38 @@ vi.mock("../../packages/cli/src/runtime/llm.js", () => ({
   }),
 }));
 
+vi.mock("../../packages/sdk/src/local-config.js", () => ({
+  readLocalConfigSection: vi.fn((section: string) => {
+    const config = cliMockState.config;
+    return Promise.resolve(
+      section === "llm"
+        ? ((config.llm as Record<string, unknown> | undefined) ?? {})
+        : section === "concurrent"
+          ? ((config.concurrent as Record<string, unknown> | undefined) ?? {})
+          : {},
+    );
+  }),
+}));
+
+vi.mock("../../packages/sdk/src/runtime-config.js", () => ({
+  loadWikiGraphRuntimeConfig: vi.fn((options?: unknown) => {
+    cliMockState.loadCLIConfigOptions.push(options);
+    return Promise.resolve(cliMockState.config);
+  }),
+}));
+
+vi.mock("../../packages/sdk/src/llm.js", () => ({
+  buildWikiGraphLLMOptions: vi.fn((config: unknown) => {
+    cliMockState.buildLLMOptionsConfig.push(config);
+    if ((config as { llm?: unknown }).llm === undefined) {
+      throw new Error(
+        "Missing LLM configuration. Set --llm for one run, or configure `wikg://local/config/llm` with provider and model.",
+      );
+    }
+    return mockLLMOptions;
+  }),
+}));
+
 vi.mock("../../packages/cli/src/support/index.js", async (importOriginal) => {
   const actual = await importOriginal<typeof CLISupport>();
 

@@ -17,10 +17,19 @@ import type * as ArchiveRun from "./run/index.js";
 
 vi.mock("wiki-graph-sdk", async (importOriginal) => {
   const actual = await importOriginal<typeof WikiGraphCore>();
+  const findLibraryObjects = vi.fn();
+  const listLibraryObjects = vi.fn();
   return {
     ...actual,
+    createWikiGraphSDK: vi.fn(() => ({
+      libraries: {
+        get: vi.fn(() => Promise.resolve({ snapshot: { id: 42 } })),
+        objects: listLibraryObjects,
+        search: findLibraryObjects,
+      },
+    })),
     findArchiveObjects: vi.fn(),
-    findWikiGraphLibraryObjects: vi.fn(),
+    findWikiGraphLibraryObjects: findLibraryObjects,
     formatWikiGraphLibraryUri: vi.fn((publicId?: string) =>
       publicId === undefined ? "wikg://lib" : `wikg://lib/${publicId}`,
     ),
@@ -29,7 +38,7 @@ vi.mock("wiki-graph-sdk", async (importOriginal) => {
     listRelatedArchiveObjects: vi.fn(),
     listRelatedWikiGraphLibraryObjects: vi.fn(),
     listWikiGraphLibraryEvidence: vi.fn(),
-    listWikiGraphLibraryObjects: vi.fn(),
+    listWikiGraphLibraryObjects: listLibraryObjects,
     packArchiveContext: vi.fn(),
     packWikiGraphLibraryContext: vi.fn(),
     parseLocatedWikiGraphUri: vi.fn((uri: string) => ({
