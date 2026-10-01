@@ -107,7 +107,24 @@ keeps ZIP and database access behind host providers.
 
 Node applications that own worker or cleanup processes can import
 `wiki-graph-sdk/worker` and `wiki-graph-sdk/gc`. These functions run in the
-current process; they do not spawn or schedule another process.
+current process; they do not spawn or schedule another process. Both entry
+points install the Node platform themselves and accept `stateDir` to select the
+same state root as a `WikiGraphSDK` instance:
+
+```ts
+import { tryRunWikiGraphGc } from "wiki-graph-sdk/gc";
+import { runBuildJobWorker } from "wiki-graph-sdk/worker";
+
+await tryRunWikiGraphGc({ dryRun: true, stateDir: "/srv/wiki-graph" });
+await runBuildJobWorker({
+  concurrency: 2,
+  executeJob,
+  stateDir: "/srv/wiki-graph",
+});
+```
+
+When omitted, `stateDir` defaults to `~/.wikigraph`. Storage is scoped to each
+invocation, so concurrent calls using different state roots remain isolated.
 
 ## Related Documents
 

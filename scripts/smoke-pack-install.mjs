@@ -88,6 +88,13 @@ function assertEsmExport(cwd, specifier, exportName) {
   );
 }
 
+function runNodeScript(cwd, args) {
+  execFileSync(process.execPath, args, {
+    cwd,
+    stdio: "inherit",
+  });
+}
+
 function writeInstallWorkspace(cwd, name, overrides = {}) {
   mkdirSync(cwd, { recursive: true });
   writeFileSync(
@@ -195,6 +202,26 @@ try {
     "NodeFile",
   );
   assertEsmExport(sdkInstallRoot, "wiki-graph-sdk/node-platform", "NodeFile");
+  runNodeScript(sdkInstallRoot, [
+    "--input-type=module",
+    "-e",
+    [
+      'import { tryRunWikiGraphGc } from "wiki-graph-sdk/gc";',
+      'import { runBuildJobWorker } from "wiki-graph-sdk/worker";',
+      'import { join } from "path";',
+      'const root = join(process.cwd(), "runtime-smoke");',
+      'const report = await tryRunWikiGraphGc({ dryRun: true, stateDir: join(root, "gc") });',
+      'if (report.skipped !== false) throw new Error("SDK GC smoke was unexpectedly skipped");',
+      "let executed = false;",
+      "await runBuildJobWorker({",
+      "  concurrency: 1,",
+      "  executeJob: () => { executed = true; return Promise.resolve(); },",
+      "  idleTimeoutMs: 0,",
+      '  stateDir: join(root, "worker"),',
+      "});",
+      'if (executed) throw new Error("SDK worker smoke unexpectedly found a queued job");',
+    ].join("\n"),
+  ]);
 } finally {
   for (const tarballPath of packedTarballs) {
     rmSync(tarballPath, { force: true });

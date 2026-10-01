@@ -101,7 +101,24 @@ await wikiGraph.openSession(
 把资源 identity 当作不透明协调键，并把 ZIP 与数据库访问留在宿主 provider 后面。
 
 自行管理 worker 或清理进程的 Node 应用可以导入 `wiki-graph-sdk/worker` 和
-`wiki-graph-sdk/gc`。这些函数在当前进程中执行，不会自行创建或调度进程。
+`wiki-graph-sdk/gc`。这些函数在当前进程中执行，不会自行创建或调度进程。两个入口
+都会自行安装 Node platform，并可通过 `stateDir` 选用与 `WikiGraphSDK` 实例相同的
+状态根目录：
+
+```ts
+import { tryRunWikiGraphGc } from "wiki-graph-sdk/gc";
+import { runBuildJobWorker } from "wiki-graph-sdk/worker";
+
+await tryRunWikiGraphGc({ dryRun: true, stateDir: "/srv/wiki-graph" });
+await runBuildJobWorker({
+  concurrency: 2,
+  executeJob,
+  stateDir: "/srv/wiki-graph",
+});
+```
+
+省略 `stateDir` 时默认使用 `~/.wikigraph`。存储上下文按每次调用隔离，因此使用不同
+状态根目录的并发调用不会相互串用存储。
 
 ## 相关文档
 
