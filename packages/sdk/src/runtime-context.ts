@@ -9,7 +9,26 @@ export interface WikiGraphSDKRuntimeContext {
   readonly stateDir?: string | undefined;
 }
 
-const runtimeContext = new AsyncLocalStorage<WikiGraphSDKRuntimeContext>();
+/** Shared by independently bundled SDK entry points in the same process. */
+const RUNTIME_CONTEXT_KEY = Symbol.for("wiki-graph-sdk.runtime-context.v1");
+const runtimeContext = getRuntimeContextStorage();
+
+function getRuntimeContextStorage(): AsyncLocalStorage<WikiGraphSDKRuntimeContext> {
+  const runtimeGlobal = globalThis as unknown as Record<PropertyKey, unknown>;
+  const existing = runtimeGlobal[RUNTIME_CONTEXT_KEY];
+  if (existing !== undefined) {
+    return existing as AsyncLocalStorage<WikiGraphSDKRuntimeContext>;
+  }
+
+  const storage = new AsyncLocalStorage<WikiGraphSDKRuntimeContext>();
+  Object.defineProperty(runtimeGlobal, RUNTIME_CONTEXT_KEY, {
+    configurable: false,
+    enumerable: false,
+    value: storage,
+    writable: false,
+  });
+  return storage;
+}
 
 export async function withWikiGraphSDKRuntimeContext<T>(
   context: WikiGraphSDKRuntimeContext,
