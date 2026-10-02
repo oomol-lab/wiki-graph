@@ -2,6 +2,15 @@ name: Release
 
 on:
   workflow_dispatch:
+    inputs:
+      authentication:
+        description: npm publishing authentication
+        type: choice
+        required: true
+        default: trusted-publishing
+        options:
+          - trusted-publishing
+          - bootstrap-token
 
 concurrency:
   group: release-${{ github.ref_name }}
@@ -53,8 +62,20 @@ jobs:
       - name: Smoke test packed installation
         run: pnpm smoke:pack-install
 
-      - name: Publish missing packages
+      - name: Publish missing packages with trusted publishing
+        if: inputs.authentication == 'trusted-publishing'
         run: pnpm release:packages --publish
+
+      - name: Publish missing packages with bootstrap token
+        if: inputs.authentication == 'bootstrap-token'
+        run: |
+          if [ -z "${NODE_AUTH_TOKEN}" ]; then
+            echo "The NPM_TOKEN Actions secret is required for bootstrap publishing" >&2
+            exit 1
+          fi
+          pnpm release:packages --publish
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
       - name: Create release tag
         run: |
