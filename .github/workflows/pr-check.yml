@@ -58,6 +58,9 @@ jobs:
       - name: Build package
         run: pnpm build
 
+      - name: Run packed CLI end-to-end tests
+        run: pnpm test:e2e:run
+
       - name: Smoke test packed install
         run: pnpm smoke:pack-install
 

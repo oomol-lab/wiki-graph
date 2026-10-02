@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { resolve } from "path";
+import { join, resolve } from "path";
 import type * as CLIRuntime from "../../packages/cli/src/runtime/index.js";
 import type * as CLISupport from "../../packages/cli/src/support/index.js";
 
@@ -699,6 +699,7 @@ describe("cli/queue", () => {
 
   afterEach(() => {
     setCLIQueueAutostartForTesting(undefined);
+    vi.unstubAllEnvs();
   });
 
   it("checks archive source before the cost gate", async () => {
@@ -1177,6 +1178,46 @@ describe("cli/queue", () => {
       },
       state: "succeeded",
     });
+  });
+
+  it("prints persisted managed resource paths after a worker has exited", async () => {
+    vi.stubEnv("HOME", "/isolated-home");
+    queueMockState.job = {
+      ...queueMockState.job,
+      cache: { identity: "managed:library:jobs/job-1/cache" },
+      events: { identity: "managed:library:jobs/job-1/events.ndjson" },
+      log: { identity: "managed:library:jobs/job-1/logs" },
+      workspace: { identity: "managed:library:jobs/job-1/workspace" },
+    };
+
+    await runQueueCommand({
+      action: "status",
+      jobId: "job-1-short",
+      json: true,
+    });
+
+    expect(JSON.parse(queueMockState.textWrites.join(""))).toMatchObject({
+      archivePath: "book.wikg",
+      cachePath: join("/isolated-home", ".wikigraph/jobs/job-1/cache"),
+      eventsPath: join("/isolated-home", ".wikigraph/jobs/job-1/events.ndjson"),
+      logPath: join("/isolated-home", ".wikigraph/jobs/job-1/logs"),
+      workspacePath: join("/isolated-home", ".wikigraph/jobs/job-1/workspace"),
+    });
+  });
+
+  it("rejects managed resource identities that escape the state directory", async () => {
+    queueMockState.job = {
+      ...queueMockState.job,
+      workspace: { identity: "managed:library:jobs/../outside" },
+    };
+
+    await expect(
+      runQueueCommand({
+        action: "status",
+        jobId: "job-1-short",
+        json: true,
+      }),
+    ).rejects.toThrow("Invalid managed job resource");
   });
 
   it("prints queued resume as resumable work", async () => {

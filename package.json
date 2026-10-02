@@ -38,6 +38,8 @@
     "smoke:pack-install": "node ./scripts/smoke-pack-install.mjs",
     "eval:llm": "tsx ./evals/summarize-self-talk.ts",
     "test": "vitest --passWithNoTests",
+    "test:e2e": "pnpm build && pnpm test:e2e:run",
+    "test:e2e:run": "vitest run --config vitest.e2e.config.ts",
     "test:run": "vitest run --passWithNoTests",
     "test:coverage": "vitest run --coverage --passWithNoTests",
     "test:watch": "vitest --passWithNoTests",

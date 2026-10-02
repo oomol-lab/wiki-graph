@@ -17,7 +17,13 @@ import {
   type QueueAddEstimate,
 } from "./estimate.js";
 import { getNodeResourcePath } from "../../runtime/node-platform.js";
-import { getWikiGraphSDK } from "../../runtime/context.js";
+import {
+  getCLIEnvValue,
+  getCLIStateDir,
+  getWikiGraphSDK,
+} from "../../runtime/context.js";
+import { homedir } from "os";
+import { join } from "path";
 
 type JobChapterReference = WikiGraphJobChapterReference;
 
@@ -401,11 +407,50 @@ function getJobResourcePath(
   const record = job as unknown as Record<string, unknown>;
   const resource = record[resourceKey];
   if (resource !== undefined) {
+    const managedPath = getManagedJobResourcePath(resource);
+    if (managedPath !== undefined) return managedPath;
     return getNodeResourcePath(resource as BuildJob[typeof resourceKey]);
   }
   const legacyPath = record[legacyKey];
   if (typeof legacyPath === "string") return legacyPath;
   return undefined;
+}
+
+function getManagedJobResourcePath(resource: unknown): string | undefined {
+  if (
+    typeof resource !== "object" ||
+    resource === null ||
+    !("identity" in resource) ||
+    typeof resource.identity !== "string" ||
+    !resource.identity.startsWith("managed:library:")
+  ) {
+    return undefined;
+  }
+
+  const relativePath = resource.identity.slice("managed:library:".length);
+  const segments = relativePath.split("/");
+  if (
+    relativePath === "" ||
+    segments.some(
+      (segment) =>
+        segment === "" ||
+        segment === "." ||
+        segment === ".." ||
+        segment.includes("\\"),
+    )
+  ) {
+    throw new TypeError(`Invalid managed job resource: ${resource.identity}`);
+  }
+  const environmentHome = getCLIEnvValue("HOME")?.trim();
+  const stateDirectory =
+    getCLIStateDir() ??
+    join(
+      environmentHome === undefined || environmentHome === ""
+        ? homedir()
+        : environmentHome,
+      ".wikigraph",
+    );
+  return join(stateDirectory, ...segments);
 }
 
 function requireJobResourcePath(
