@@ -77,7 +77,9 @@ export async function listArchiveEvidence(
         if (options.chapters !== undefined) {
           const mentions = filterMentionsByChapterSet(
             filterMentionsByChapter(
-              await document.mentions.listByQid(reference.qid),
+              await document.mentions.listByQid(reference.qid, {
+                order: options.order === "doc-desc" ? "desc" : "asc",
+              }),
               reference.chapterId,
             ),
             new Set(options.chapters),
@@ -160,6 +162,7 @@ export async function listArchiveEvidence(
               document,
               await document.mentionLinks.listByTriple({
                 objectQid: reference.objectQid,
+                order: options.order === "doc-desc" ? "desc" : "asc",
                 predicate: reference.predicate,
                 subjectQid: reference.subjectQid,
               }),

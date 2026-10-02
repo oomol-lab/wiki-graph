@@ -181,6 +181,7 @@ async function listRelatedWikiGraphObjects(
     case "text-stream": {
       rejectRelatedQuery(options.query, uri);
       rejectRelatedRole(options.role, uri);
+      assertRelatedChapterAllowed(reference.chapterId, options.chapters, uri);
       const chapter = await requireChapter(document, reference.chapterId);
 
       return await hydrateRelatedItemsEvidence(
