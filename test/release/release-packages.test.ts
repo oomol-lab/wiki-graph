@@ -3,6 +3,7 @@ import { tmpdir } from "os";
 import { join } from "path";
 import { afterEach, describe, expect, it } from "vitest";
 import {
+  orderPackageDescriptors,
   packageContentDifference,
   packageContentHashes,
 } from "../../scripts/release-packages.js";
@@ -56,5 +57,55 @@ describe("release package comparison", () => {
       "dist/index.js",
       "dist/removed.js",
     ]);
+  });
+});
+
+describe("release package ordering", () => {
+  function descriptor(
+    name: string,
+    dependencyNames: readonly string[] = [],
+    workspaceDependencyNames: readonly string[] = dependencyNames,
+  ) {
+    return {
+      name,
+      version: "1.0.0",
+      dependencyNames,
+      workspaceDependencyNames,
+    };
+  }
+
+  it("orders workspace packages before their dependants", () => {
+    const packages = [
+      descriptor("cli", ["sdk", "provider"]),
+      descriptor("core", ["job", "provider"]),
+      descriptor("sdk", ["core"]),
+      descriptor("provider"),
+      descriptor("job"),
+    ];
+
+    expect(orderPackageDescriptors(packages).map(({ name }) => name)).toEqual([
+      "provider",
+      "job",
+      "core",
+      "sdk",
+      "cli",
+    ]);
+  });
+
+  it("rejects workspace dependencies omitted from the release plan", () => {
+    expect(() =>
+      orderPackageDescriptors([descriptor("core", ["job"])]),
+    ).toThrow(
+      "core depends on workspace package job, but it is missing from the release plan.",
+    );
+  });
+
+  it("rejects dependency cycles", () => {
+    expect(() =>
+      orderPackageDescriptors([
+        descriptor("core", ["sdk"]),
+        descriptor("sdk", ["core"]),
+      ]),
+    ).toThrow("Release package dependency cycle: core, sdk.");
   });
 });

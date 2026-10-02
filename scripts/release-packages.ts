@@ -17,6 +17,8 @@ import { pathToFileURL } from "url";
 interface PackageDescriptor {
   readonly name: string;
   readonly version: string;
+  readonly dependencyNames: readonly string[];
+  readonly workspaceDependencyNames: readonly string[];
 }
 
 interface ReleasePackage {
@@ -69,7 +71,84 @@ function readPackageDescriptor(directory: string): PackageDescriptor {
   ) {
     throw new Error(`Invalid package manifest: ${manifestPath}`);
   }
-  return { name: manifest.name, version: manifest.version };
+  const manifestRecord = manifest as Record<string, unknown>;
+  const dependencyNames = new Set<string>();
+  const workspaceDependencyNames = new Set<string>();
+  for (const field of [
+    "dependencies",
+    "optionalDependencies",
+    "peerDependencies",
+  ] as const) {
+    const dependencies = manifestRecord[field];
+    if (dependencies === undefined) continue;
+    if (
+      typeof dependencies !== "object" ||
+      dependencies === null ||
+      Array.isArray(dependencies)
+    ) {
+      throw new Error(`Invalid ${field} in package manifest: ${manifestPath}`);
+    }
+    for (const [name, specifier] of Object.entries(dependencies)) {
+      if (typeof specifier !== "string") {
+        throw new Error(
+          `Invalid ${field}.${name} in package manifest: ${manifestPath}`,
+        );
+      }
+      dependencyNames.add(name);
+      if (specifier.startsWith("workspace:")) {
+        workspaceDependencyNames.add(name);
+      }
+    }
+  }
+
+  return {
+    name: manifest.name,
+    version: manifest.version,
+    dependencyNames: [...dependencyNames],
+    workspaceDependencyNames: [...workspaceDependencyNames],
+  };
+}
+
+export function orderPackageDescriptors(
+  descriptors: readonly PackageDescriptor[],
+): readonly PackageDescriptor[] {
+  const descriptorsByName = new Map<string, PackageDescriptor>();
+  for (const descriptor of descriptors) {
+    if (descriptorsByName.has(descriptor.name)) {
+      throw new Error(`Duplicate release package: ${descriptor.name}.`);
+    }
+    descriptorsByName.set(descriptor.name, descriptor);
+  }
+
+  for (const descriptor of descriptors) {
+    for (const dependencyName of descriptor.workspaceDependencyNames) {
+      if (!descriptorsByName.has(dependencyName)) {
+        throw new Error(
+          `${descriptor.name} depends on workspace package ${dependencyName}, but it is missing from the release plan.`,
+        );
+      }
+    }
+  }
+
+  const ordered: PackageDescriptor[] = [];
+  const releasedNames = new Set<string>();
+  const remaining = new Map(descriptorsByName);
+  while (remaining.size > 0) {
+    const ready = [...remaining.values()].find((descriptor) =>
+      descriptor.dependencyNames
+        .filter((name) => descriptorsByName.has(name))
+        .every((name) => releasedNames.has(name)),
+    );
+    if (ready === undefined) {
+      throw new Error(
+        `Release package dependency cycle: ${[...remaining.keys()].join(", ")}.`,
+      );
+    }
+    ordered.push(ready);
+    releasedNames.add(ready.name);
+    remaining.delete(ready.name);
+  }
+  return ordered;
 }
 
 function readTarballPath(packOutput: string, destination: string): string {
@@ -257,7 +336,18 @@ async function release(): Promise<void> {
     }
     return descriptor;
   });
-  const publicVersions = descriptors.slice(2).map(({ version }) => version);
+  const synchronizedPackageNames = [
+    "wiki-graph-core",
+    "wiki-graph-sdk",
+    "wiki-graph",
+  ];
+  const publicVersions = synchronizedPackageNames.map((name) => {
+    const descriptor = descriptors.find((candidate) => candidate.name === name);
+    if (descriptor === undefined) {
+      throw new Error(`Missing synchronized release package: ${name}.`);
+    }
+    return descriptor.version;
+  });
   if (new Set(publicVersions).size !== 1) {
     throw new Error(
       `wiki-graph-core, wiki-graph-sdk, and wiki-graph versions must match: ${publicVersions.join(" != ")}`,
@@ -266,10 +356,18 @@ async function release(): Promise<void> {
 
   const tempDirectory = mkdtempSync(join(tmpdir(), "wiki-graph-release-"));
   try {
-    for (const [index, packageConfig] of releasePackages.entries()) {
-      const descriptor = descriptors[index];
-      if (descriptor === undefined) {
-        throw new Error("Release package configuration is incomplete.");
+    const packageConfigsByName = new Map(
+      releasePackages.map((packageConfig) => [
+        packageConfig.expectedName,
+        packageConfig,
+      ]),
+    );
+    for (const descriptor of orderPackageDescriptors(descriptors)) {
+      const packageConfig = packageConfigsByName.get(descriptor.name);
+      if (packageConfig === undefined) {
+        throw new Error(
+          `Missing release package configuration: ${descriptor.name}.`,
+        );
       }
       const localTarball = packPackage(packageConfig.directory, tempDirectory);
       const state = await inspectPackage(
