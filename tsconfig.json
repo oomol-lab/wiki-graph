@@ -51,7 +51,8 @@
     "packages/*/tsup.config.ts",
     "scripts/**/*.ts",
     "evals/**/*.ts",
-    "vitest.config.ts"
+    "vitest.config.ts",
+    "vitest.e2e.config.ts"
   ],
   "exclude": ["packages/*/dist", "dist", "coverage", "node_modules"]
 }

@@ -143,6 +143,22 @@ When validating package installation boundaries, use the pack smoke workflow:
 pnpm smoke:pack-install
 ```
 
+For a black-box regression of the built and packed command, run:
+
+```bash
+pnpm test:e2e
+```
+
+The E2E suite packs the workspace packages, installs `wiki-graph` into a
+temporary project, and invokes only that temporary project's `wg` executable.
+Every case receives a separate temporary home, working directory, state
+directory, and archive. External LLM, WikiSpine, and Wikimedia calls are served
+by local protocol mocks. The suite neither reads `~/.wikigraph` nor replaces a
+machine-level `wg` installation, and it removes its temporary installation and
+case data after detached workers exit.
+
+When the workspace is already built, use `pnpm test:e2e:run` to skip the build.
+
 That workflow separately packs and installs `wiki-graph-core`,
 `wiki-graph-sdk`, and `wiki-graph` in temporary projects so it can validate
 Core-only, SDK-only, and CLI installation scenarios. For manual tarball

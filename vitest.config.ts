@@ -60,6 +60,7 @@ export default defineConfig({
   test: {
     environment: "node",
     setupFiles: [new URL("./test/setup-platform.ts", import.meta.url).pathname],
+    exclude: ["test/e2e/**"],
     fileParallelism: false,
     include: ["test/**/*.test.ts", "packages/*/src/**/*.test.ts"],
     passWithNoTests: true,
