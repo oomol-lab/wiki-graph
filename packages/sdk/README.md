@@ -27,6 +27,22 @@ Job event subscriptions observe durable work without coupling observation to
 cancellation. Call `job.cancel()` explicitly to cancel a job; unsubscribing
 only stops the current listener.
 
+Services that receive chapter job artifacts as files can apply an ordered,
+lazy sequence through the Node delivery boundary without importing Core:
+
+```ts
+import { applyWikiGraphJobArtifacts } from "wiki-graph-sdk/worker";
+
+await applyWikiGraphJobArtifacts({
+  artifacts,
+  stateDir: "/tmp/job/sdk-state",
+  wikgPath: "/tmp/job/archive.wikg",
+});
+```
+
+Each artifact carries its chapter, job kind, and source revision. The operation
+stops before consuming later artifacts when a revision no longer matches.
+
 The SDK intentionally has no `execute(command, args)` API. CLI argument
 parsing, help text, terminal formatting, JSON, and JSONL rendering belong to
 the `wiki-graph` package. SDK methods return typed objects and job events.
