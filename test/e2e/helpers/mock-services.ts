@@ -7,11 +7,17 @@ import {
 
 export interface MockRequest {
   readonly body: unknown;
+  readonly connectionClosed: Promise<void>;
   readonly headers: Readonly<
     Record<string, string | readonly string[] | undefined>
   >;
   readonly method: string;
   readonly path: string;
+}
+
+export interface MockHTTPResponse {
+  readonly body: unknown;
+  readonly status: number;
 }
 
 export interface MockServices {
@@ -21,9 +27,14 @@ export interface MockServices {
 }
 
 export async function startMockServices(options: {
-  readonly respondToLLM: (request: MockRequest) => Promise<string> | string;
+  readonly llmToken?: string;
+  readonly respondToLLM: (
+    request: MockRequest,
+  ) => MockHTTPResponse | Promise<MockHTTPResponse | string> | string;
   readonly respondToWikimedia?: (request: MockRequest) => unknown;
   readonly respondToWikispine?: (request: MockRequest) => string;
+  readonly wikimediaToken?: string;
+  readonly wikispineToken?: string;
 }): Promise<MockServices> {
   const requests: MockRequest[] = [];
   const server = createServer((request, response) => {
@@ -36,8 +47,12 @@ export async function startMockServices(options: {
   ): Promise<void> {
     try {
       const bodyText = await readBody(request);
+      const connectionClosed = new Promise<void>((resolvePromise) => {
+        response.once("close", resolvePromise);
+      });
       const item: MockRequest = {
         body: bodyText === "" ? undefined : JSON.parse(bodyText),
+        connectionClosed,
         headers: request.headers,
         method: request.method ?? "GET",
         path: new URL(request.url ?? "/", "http://localhost").pathname,
@@ -45,7 +60,17 @@ export async function startMockServices(options: {
       requests.push(item);
 
       if (item.path === "/v1/chat/completions") {
+        assertRequest(item, {
+          authorization: `Bearer ${options.llmToken ?? "e2e-key"}`,
+          contentType: "application/json",
+          method: "POST",
+        });
+        readPrompt(item);
         const content = await options.respondToLLM(item);
+        if (typeof content !== "string") {
+          writeJSON(response, content.body, content.status);
+          return;
+        }
         if (isStreamingChatCompletion(item)) {
           writeChatCompletionStream(response, content);
         } else {
@@ -54,11 +79,19 @@ export async function startMockServices(options: {
         return;
       }
       if (item.path === "/wikispine/readyz") {
+        assertRequest(item, {
+          authorization: `Bearer ${options.wikispineToken ?? "e2e-wikispine-token"}`,
+          method: "GET",
+        });
         response.writeHead(200, { "content-type": "text/plain" });
         response.end("ready\n");
         return;
       }
       if (item.path === "/wikispine/metadata") {
+        assertRequest(item, {
+          authorization: `Bearer ${options.wikispineToken ?? "e2e-wikispine-token"}`,
+          method: "GET",
+        });
         writeJSON(response, {
           automaton_shard_count: 1,
           format: "wikispine-runtime-v1",
@@ -69,6 +102,12 @@ export async function startMockServices(options: {
         return;
       }
       if (item.path === "/wikispine/match") {
+        assertRequest(item, {
+          accept: "application/x-ndjson",
+          authorization: `Bearer ${options.wikispineToken ?? "e2e-wikispine-token"}`,
+          contentType: "application/json",
+          method: "POST",
+        });
         response.writeHead(200, {
           "content-type": "application/x-ndjson",
         });
@@ -79,6 +118,11 @@ export async function startMockServices(options: {
         return;
       }
       if (item.path === "/wikimedia/qids:resolve") {
+        assertRequest(item, {
+          authorization: `Bearer ${options.wikimediaToken ?? "e2e-wikimedia-token"}`,
+          contentType: "application/json",
+          method: "POST",
+        });
         writeJSON(
           response,
           options.respondToWikimedia?.(item) ?? { results: [] },
@@ -113,6 +157,40 @@ export async function startMockServices(options: {
     endpoint: `http://127.0.0.1:${address.port}`,
     requests,
   };
+}
+
+function assertRequest(
+  request: MockRequest,
+  expected: {
+    readonly accept?: string;
+    readonly authorization?: string;
+    readonly contentType?: string;
+    readonly method: string;
+  },
+): void {
+  if (request.method !== expected.method) {
+    throw new Error(
+      `${request.path} expected ${expected.method}, received ${request.method}.`,
+    );
+  }
+  if (
+    expected.authorization !== undefined &&
+    request.headers.authorization !== expected.authorization
+  ) {
+    throw new Error(`${request.path} received invalid authorization.`);
+  }
+  if (
+    expected.contentType !== undefined &&
+    request.headers["content-type"] !== expected.contentType
+  ) {
+    throw new Error(`${request.path} received invalid content-type.`);
+  }
+  if (
+    expected.accept !== undefined &&
+    request.headers.accept !== expected.accept
+  ) {
+    throw new Error(`${request.path} received invalid accept header.`);
+  }
 }
 
 export function readPrompt(request: MockRequest): string {

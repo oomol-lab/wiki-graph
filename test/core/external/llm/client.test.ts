@@ -18,6 +18,7 @@ const aiMockState = vi.hoisted(() => ({
     | ((input: unknown) => Promise<{ readonly text: string }>)
     | undefined,
   streamTextCalls: [] as unknown[],
+  streamTextCallbackError: undefined as Error | undefined,
   streamTextError: undefined as Error | undefined,
 }));
 
@@ -63,6 +64,11 @@ vi.mock("ai", () => ({
   streamText: vi.fn((input: unknown) => {
     aiMockState.streamTextCalls.push(input);
     const chunks = ["streamed ", "response"];
+    const onError = (
+      input as {
+        readonly onError?: (event: { readonly error: unknown }) => void;
+      }
+    ).onError;
 
     return {
       totalUsage: Promise.resolve(aiMockState.usage),
@@ -72,6 +78,14 @@ vi.mock("ai", () => ({
 
           return {
             next() {
+              if (aiMockState.streamTextCallbackError !== undefined) {
+                onError?.({ error: aiMockState.streamTextCallbackError });
+                return Promise.resolve({
+                  done: true as const,
+                  value: undefined,
+                });
+              }
+
               if (aiMockState.streamTextError !== undefined) {
                 return Promise.reject(aiMockState.streamTextError);
               }
@@ -132,6 +146,7 @@ describe("llm/client", () => {
     aiMockState.generateTextError = undefined;
     aiMockState.generateTextHandler = undefined;
     aiMockState.streamTextCalls.length = 0;
+    aiMockState.streamTextCallbackError = undefined;
     aiMockState.streamTextError = undefined;
   });
 
@@ -912,6 +927,49 @@ describe("llm/client", () => {
     ).rejects.toMatchObject({
       cause: aiMockState.streamTextError,
       message: "LLM request failed after 6 attempts: terminated",
+    });
+    expect(aiMockState.streamTextCalls).toHaveLength(6);
+  });
+
+  it("retries errors reported by the stream callback", async () => {
+    const { APICallError } = await import("ai");
+    const MockAPICallError = APICallError as unknown as {
+      new (
+        message: string,
+        options?: {
+          cause?: unknown;
+          isRetryable?: boolean;
+          statusCode?: number;
+        },
+      ): Error;
+    };
+
+    aiMockState.streamTextCallbackError = new MockAPICallError(
+      "Rate limit exceeded",
+      {
+        statusCode: 429,
+      },
+    );
+
+    const llm = new LLM({
+      model: {
+        modelId: "test-model",
+        provider: "test-provider",
+      } as never,
+      retryIntervalSeconds: 0,
+      stream: true,
+    });
+
+    await expect(
+      llm.request([
+        {
+          content: "hello",
+          role: "user",
+        },
+      ]),
+    ).rejects.toMatchObject({
+      cause: aiMockState.streamTextCallbackError,
+      message: "LLM request failed after 6 attempts: Rate limit exceeded",
     });
     expect(aiMockState.streamTextCalls).toHaveLength(6);
   });

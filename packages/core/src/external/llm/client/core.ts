@@ -302,12 +302,25 @@ export class LLM<S extends string> {
 
           if (this.#stream) {
             const textChunks: string[] = [];
-            const result = streamText(generationInput);
+            let streamError: unknown;
+            const result = streamText({
+              ...generationInput,
+              onError: ({ error }) => {
+                streamError = error;
+              },
+            });
 
             for await (const chunk of result.textStream) {
               textChunks.push(chunk);
               await this.#emitStreamProgress(chunk.length);
             }
+
+            if (streamError !== undefined) {
+              throw streamError instanceof Error
+                ? streamError
+                : new Error(formatError(streamError), { cause: streamError });
+            }
+
             tokenUsage = await result.totalUsage;
             await this.#emitTokenUsage(tokenUsage);
             return textChunks.join("");

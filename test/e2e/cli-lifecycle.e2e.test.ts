@@ -1,11 +1,47 @@
-import { access } from "fs/promises";
+import { access, readFile } from "fs/promises";
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, inject, it } from "vitest";
 
 import { createCLISandbox } from "./helpers/cli-sandbox.js";
 import { createSourcedArchive } from "./helpers/workflow.js";
 
 describe("packed CLI archive lifecycle", () => {
+  it("installs the consumer project with only wiki-graph as a direct dependency", async () => {
+    const { installRoot } = inject("cliE2E");
+    const manifest: unknown = JSON.parse(
+      await readFile(`${installRoot}/package.json`, "utf8"),
+    );
+    if (
+      typeof manifest !== "object" ||
+      manifest === null ||
+      !("dependencies" in manifest) ||
+      typeof manifest.dependencies !== "object" ||
+      manifest.dependencies === null
+    ) {
+      throw new Error("The temporary CLI install has no dependency map.");
+    }
+
+    expect(Object.keys(manifest.dependencies)).toEqual(["wiki-graph"]);
+    const cliDependency = (manifest.dependencies as Record<string, unknown>)[
+      "wiki-graph"
+    ];
+    expect(typeof cliDependency).toBe("string");
+    expect(cliDependency).toMatch(/wiki-graph-[^/]+\.tgz$/u);
+  });
+
+  it("routes root and URI help through the packed executable", async () => {
+    const sandbox = await createCLISandbox("help-routes");
+    const root = await sandbox.run(["--help"]);
+    expect(root.exitCode, root.stderr).toBe(0);
+    expect(root.stdout).toContain("Wiki Graph CLI");
+    expect(root.stdout).toContain("wg help recipe");
+
+    const uri = await sandbox.run(["wikg://book.wikg", "--help"]);
+    expect(uri.exitCode, uri.stderr).toBe(0);
+    expect(uri.stdout).toContain("Archive scope");
+    expect(uri.stdout).toContain("inspect");
+  });
+
   it("creates, writes, inspects, and reads an isolated archive", async () => {
     const sandbox = await createCLISandbox("archive-lifecycle");
     const source =
@@ -31,6 +67,11 @@ describe("packed CLI archive lifecycle", () => {
     }>([sandbox.archiveUri, "inspect", "--json"]);
     expect(inspect).toMatchObject({ uri: sandbox.archiveUri });
     expect(inspect.content.chapters).toMatchObject({ content: 1, total: 1 });
+
+    const humanInspect = await sandbox.run([sandbox.archiveUri, "inspect"]);
+    expect(humanInspect.exitCode, humanInspect.stderr).toBe(0);
+    expect(humanInspect.stdout).toContain("Archive Inspect");
+    expect(humanInspect.stdout).toContain("Chapters: 1 content / 1 total");
 
     const chapters = await sandbox.runJSON<{
       readonly objects: readonly { readonly uri: string }[];
@@ -61,5 +102,31 @@ describe("packed CLI archive lifecycle", () => {
 
     expect(firstConfig).toEqual({ job: 7 });
     expect(secondConfig).toEqual({});
+  });
+
+  it("returns a non-zero status, stderr, and a help route for missing LLM config", async () => {
+    const sandbox = await createCLISandbox("missing-config");
+    const chapter = await createSourcedArchive(sandbox, {
+      source: "Arthur prepared to leave Earth.",
+      title: "Unconfigured generation",
+    });
+
+    const result = await sandbox.run([
+      "wikg://local/job",
+      "add",
+      "--input",
+      chapter.locatedUri,
+      "--task",
+      "reading-graph",
+      "--accept-cost",
+    ]);
+    expect(result.exitCode).not.toBe(0);
+    expect(result.stdout).toBe("");
+    expect(result.stderr).toContain("Missing LLM configuration");
+    expect(result.stderr).toContain("wikg://local/config/llm");
+
+    const invalid = await sandbox.run([sandbox.archiveUri, "unknown"]);
+    expect(invalid.exitCode).not.toBe(0);
+    expect(invalid.stderr).toContain("--help");
   });
 });

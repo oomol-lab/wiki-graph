@@ -29,10 +29,16 @@ export async function runBuildJobWorker(
   const concurrency = Math.max(1, options.concurrency);
   const idleTimeoutMs = options.idleTimeoutMs ?? 10_000;
   let busySlotCount = 0;
+  let heartbeatTask: Promise<void> | undefined;
   let idleSince = Date.now();
 
   const heartbeat = setInterval(() => {
-    void heartbeatBuildWorker(ownerId).catch(() => undefined);
+    if (heartbeatTask !== undefined) return;
+    const task = heartbeatBuildWorker(ownerId).catch(() => undefined);
+    heartbeatTask = task;
+    void task.finally(() => {
+      if (heartbeatTask === task) heartbeatTask = undefined;
+    });
   }, WORKER_HEARTBEAT_INTERVAL_MS);
 
   try {
@@ -84,6 +90,7 @@ export async function runBuildJobWorker(
     );
   } finally {
     clearInterval(heartbeat);
+    await heartbeatTask;
     await releaseBuildWorkerLease(state, ownerId);
     await state.close();
   }

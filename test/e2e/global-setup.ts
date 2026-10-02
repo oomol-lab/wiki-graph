@@ -1,5 +1,12 @@
 import { execFileSync } from "child_process";
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "fs";
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readdirSync,
+  rmSync,
+  writeFileSync,
+} from "fs";
 import { tmpdir } from "os";
 import { isAbsolute, join, resolve } from "path";
 
@@ -11,68 +18,94 @@ export default function setup({
   readonly provide: (key: "cliE2E", value: CLIContext) => void;
 }): () => Promise<void> {
   const suiteRoot = mkdtempSync(join(tmpdir(), "wiki-graph-cli-e2e-"));
-  const packsRoot = join(suiteRoot, "packs");
-  const installRoot = join(suiteRoot, "install");
-  const packageRoots = {
-    "wiki-graph-core": join(projectRoot, "packages", "core"),
-    "wiki-graph-job": join(projectRoot, "packages", "job"),
-    "wiki-graph-sdk": join(projectRoot, "packages", "sdk"),
-    "wiki-graph-wikimedia": join(projectRoot, "packages", "wikimedia"),
-    "wiki-graph": join(projectRoot, "packages", "cli"),
-  } as const;
+  try {
+    const packsRoot = join(suiteRoot, "packs");
+    const installRoot = join(suiteRoot, "install");
+    const bootstrapRoot = join(suiteRoot, "bootstrap");
+    const packageRoots = {
+      "wiki-graph-core": join(projectRoot, "packages", "core"),
+      "wiki-graph-job": join(projectRoot, "packages", "job"),
+      "wiki-graph-sdk": join(projectRoot, "packages", "sdk"),
+      "wiki-graph-wikimedia": join(projectRoot, "packages", "wikimedia"),
+      "wiki-graph": join(projectRoot, "packages", "cli"),
+    } as const;
 
-  mkdirSync(packsRoot, { recursive: true });
-  const tarballs = Object.fromEntries(
-    Object.entries(packageRoots).map(([name, packageRoot]) => [
-      name,
-      packPackage(packageRoot, packsRoot),
-    ]),
-  );
+    mkdirSync(packsRoot, { recursive: true });
+    const tarballs = Object.fromEntries(
+      Object.entries(packageRoots).map(([name, packageRoot]) => [
+        name,
+        packPackage(packageRoot, packsRoot),
+      ]),
+    );
+    const overrides = Object.fromEntries(
+      Object.entries(tarballs)
+        .filter(([name]) => name !== "wiki-graph")
+        .map(([name, tarball]) => [name, `file:${tarball}`]),
+    );
 
-  mkdirSync(installRoot, { recursive: true });
+    writeInstallWorkspace(installRoot, "wiki-graph-cli-e2e-install", overrides);
+    installTarballs(installRoot, [tarballs["wiki-graph"]!]);
+
+    writeInstallWorkspace(
+      bootstrapRoot,
+      "wiki-graph-cli-e2e-bootstrap",
+      overrides,
+    );
+    installTarballs(bootstrapRoot, [tarballs["wiki-graph-sdk"]!]);
+
+    const cliPath = join(installRoot, "node_modules", ".bin", "wg");
+    provide("cliE2E", { bootstrapRoot, cliPath, installRoot, suiteRoot });
+
+    return async () => {
+      try {
+        await waitForWorkersToExit(suiteRoot, 30_000);
+      } finally {
+        rmSync(suiteRoot, { force: true, recursive: true });
+      }
+    };
+  } catch (error) {
+    rmSync(suiteRoot, { force: true, recursive: true });
+    throw error;
+  }
+}
+
+interface CLIContext {
+  readonly bootstrapRoot: string;
+  readonly cliPath: string;
+  readonly installRoot: string;
+  readonly suiteRoot: string;
+}
+
+function writeInstallWorkspace(
+  root: string,
+  name: string,
+  overrides: Readonly<Record<string, string>>,
+): void {
+  mkdirSync(root, { recursive: true });
   writeFileSync(
-    join(installRoot, "package.json"),
-    JSON.stringify({ name: "wiki-graph-cli-e2e-install", private: true }),
+    join(root, "package.json"),
+    JSON.stringify({ name, private: true }),
   );
   writeFileSync(
-    join(installRoot, "pnpm-workspace.yaml"),
+    join(root, "pnpm-workspace.yaml"),
     [
       "allowBuilds:",
       "  sqlite3: true",
       "overrides:",
-      ...Object.entries(tarballs)
-        .filter(([name]) => name !== "wiki-graph")
-        .map(
-          ([name, tarball]) =>
-            `  ${JSON.stringify(name)}: ${JSON.stringify(`file:${tarball}`)}`,
-        ),
+      ...Object.entries(overrides).map(
+        ([packageName, tarball]) =>
+          `  ${JSON.stringify(packageName)}: ${JSON.stringify(tarball)}`,
+      ),
       "",
     ].join("\n"),
   );
-  execFileSync(
-    "pnpm",
-    ["add", tarballs["wiki-graph"]!, tarballs["wiki-graph-sdk"]!],
-    {
-      cwd: installRoot,
-      stdio: "inherit",
-    },
-  );
-
-  const cliPath = join(installRoot, "node_modules", ".bin", "wg");
-  provide("cliE2E", { cliPath, installRoot, suiteRoot });
-
-  return async () => {
-    // Detached queue workers remain alive for up to ten seconds after their
-    // final job. Keep their isolated homes available until they release them.
-    await delay(11_000);
-    rmSync(suiteRoot, { force: true, recursive: true });
-  };
 }
 
-interface CLIContext {
-  readonly cliPath: string;
-  readonly installRoot: string;
-  readonly suiteRoot: string;
+function installTarballs(root: string, tarballs: readonly string[]): void {
+  execFileSync("pnpm", ["add", "--offline", "--save-exact", ...tarballs], {
+    cwd: root,
+    stdio: "inherit",
+  });
 }
 
 function packPackage(packageRoot: string, packsRoot: string): string {
@@ -105,15 +138,58 @@ function readFilename(value: unknown): string {
   return value.filename;
 }
 
-function delay(milliseconds: number): Promise<void> {
-  return new Promise((resolvePromise) =>
-    setTimeout(resolvePromise, milliseconds),
-  );
+async function waitForWorkersToExit(
+  suiteRoot: string,
+  timeoutMs: number,
+): Promise<void> {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    if (!(await hasActiveWorkerLease(suiteRoot))) return;
+    await new Promise((resolvePromise) => setTimeout(resolvePromise, 100));
+  }
+  throw new Error(`Detached queue workers did not exit within ${timeoutMs}ms.`);
+}
+
+async function hasActiveWorkerLease(suiteRoot: string): Promise<boolean> {
+  const casesRoot = join(suiteRoot, "cases");
+  if (!existsSync(casesRoot)) return false;
+  const { DatabaseSync } = await import("node:sqlite");
+
+  for (const caseName of readdirSync(casesRoot)) {
+    const databasePath = join(
+      casesRoot,
+      caseName,
+      "home",
+      ".wikigraph",
+      "core.sqlite",
+    );
+    if (!existsSync(databasePath)) continue;
+
+    const database = new DatabaseSync(databasePath, { readOnly: true });
+    try {
+      const table = database
+        .prepare(
+          "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'build_worker_lease'",
+        )
+        .get();
+      if (table === undefined) continue;
+      const row = database
+        .prepare("SELECT owner_id FROM build_worker_lease WHERE id = 1")
+        .get() as { readonly owner_id?: unknown } | undefined;
+      if (typeof row?.owner_id === "string" && row.owner_id !== "") {
+        return true;
+      }
+    } finally {
+      database.close();
+    }
+  }
+  return false;
 }
 
 declare module "vitest" {
   export interface ProvidedContext {
     cliE2E: {
+      readonly bootstrapRoot: string;
       readonly cliPath: string;
       readonly installRoot: string;
       readonly suiteRoot: string;

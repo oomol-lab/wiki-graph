@@ -28,6 +28,15 @@ describe("packed CLI Knowledge Graph job", () => {
             qid: "Q42",
             zh: { description: null, label: null, url: null },
           },
+          {
+            en: {
+              description: "1979 novel by Douglas Adams",
+              label: "The Hitchhiker's Guide to the Galaxy",
+              url: "https://en.wikipedia.org/wiki/The_Hitchhiker%27s_Guide_to_the_Galaxy_(novel)",
+            },
+            qid: "Q25169",
+            zh: { description: null, label: null, url: null },
+          },
         ],
       }),
       respondToWikispine: respondToWikispine,
@@ -50,7 +59,7 @@ describe("packed CLI Knowledge Graph job", () => {
       expect(runtimeCheck).toMatchObject({ ok: true, provider: "fetch" });
 
       const chapter = await createSourcedArchive(sandbox, {
-        source: "Douglas Adams wrote novels.",
+        source: "Douglas Adams wrote The Hitchhiker's Guide to the Galaxy.",
         title: "Douglas Adams",
       });
       const indexJob = await enqueueJob(
@@ -91,8 +100,39 @@ describe("packed CLI Knowledge Graph job", () => {
             label: "Douglas Adams",
             uri: "wikg://entity/Q42",
           }),
+          expect.objectContaining({
+            label: "The Hitchhiker's Guide to the Galaxy",
+            uri: "wikg://entity/Q25169",
+          }),
         ]),
       );
+      const entityEvidence = await sandbox.runJSON<{
+        readonly objects: readonly Record<string, unknown>[];
+      }>([`${sandbox.archiveUri}/entity/Q42`, "evidence", "--json"]);
+      expect(JSON.stringify(entityEvidence.objects)).toContain(
+        "Douglas Adams wrote The Hitchhiker's Guide to the Galaxy",
+      );
+      expect(JSON.stringify(entityEvidence.objects)).toContain("/source#");
+
+      const triples = await sandbox.runJSON<{
+        readonly objects: readonly Record<string, unknown>[];
+      }>([`${sandbox.archiveUri}/triple`, "--json"]);
+      expect(triples.objects).toEqual([
+        expect.objectContaining({
+          uri: "wikg://triple/Q42/author/Q25169",
+        }),
+      ]);
+      const evidence = await sandbox.runJSON<{
+        readonly objects: readonly Record<string, unknown>[];
+      }>([
+        `${sandbox.archiveUri}/triple/Q42/author/Q25169`,
+        "evidence",
+        "--json",
+      ]);
+      expect(JSON.stringify(evidence.objects)).toContain(
+        "Douglas Adams wrote The Hitchhiker's Guide to the Galaxy",
+      );
+      expect(JSON.stringify(evidence.objects)).toContain("/source#");
       const inspect = await sandbox.runJSON<{
         readonly coverage: {
           readonly knowledgeGraph: { readonly percent: string };
@@ -136,7 +176,18 @@ function respondToWikispine(request: MockRequest): string {
       },
       type: "match",
     }),
-    JSON.stringify({ type: "done", stats: { matches: 1 } }),
+    JSON.stringify({
+      match: {
+        end:
+          body.text.indexOf("The Hitchhiker's Guide to the Galaxy") +
+          "The Hitchhiker's Guide to the Galaxy".length,
+        qids: [{ disambiguation: false, qid: "Q25169" }],
+        start: body.text.indexOf("The Hitchhiker's Guide to the Galaxy"),
+        surface_id: 2,
+      },
+      type: "match",
+    }),
+    JSON.stringify({ type: "done", stats: { matches: 2 } }),
     "",
   ].join("\n");
 }
@@ -148,12 +199,13 @@ function expectProtocolBodies(requests: readonly MockRequest[]): void {
       typeof request.body === "object" &&
       request.body !== null &&
       "text" in request.body &&
-      request.body.text === "Douglas Adams wrote novels.",
+      request.body.text ===
+        "Douglas Adams wrote The Hitchhiker's Guide to the Galaxy.",
   );
   expect(match).toMatchObject({
     body: {
       options: { include_disambiguation: true },
-      text: "Douglas Adams wrote novels.",
+      text: "Douglas Adams wrote The Hitchhiker's Guide to the Galaxy.",
     },
     method: "POST",
   });
@@ -163,9 +215,16 @@ function expectProtocolBodies(requests: readonly MockRequest[]): void {
     (request) => request.path === "/wikimedia/qids:resolve",
   );
   expect(wikimedia).toMatchObject({
-    body: { entities: [{ disambiguation: false, qid: "Q42" }] },
     method: "POST",
   });
+  expect(
+    (wikimedia?.body as { readonly entities?: readonly unknown[] }).entities,
+  ).toEqual(
+    expect.arrayContaining([
+      { disambiguation: false, qid: "Q42" },
+      { disambiguation: false, qid: "Q25169" },
+    ]),
+  );
 
   const llm = requests.filter(
     (request) => request.path === "/v1/chat/completions",
@@ -181,22 +240,75 @@ function expectProtocolBodies(requests: readonly MockRequest[]): void {
 
 function respondToKnowledgePrompt(prompt: string): string {
   if (prompt.includes("precomputed Wikidata mention candidates")) {
+    const candidateGroups = readCandidateGroups(prompt);
     return JSON.stringify({
-      groups: [
+      groups: candidateGroups.map((group) => ({
+        decisions: group.candidates.map((candidate) => ({
+          candidateId: candidate.candidateId,
+          decision: "recall",
+          qid: candidate.entityOptions[0]!.qid,
+        })),
+        groupId: group.groupId,
+      })),
+    });
+  }
+  if (prompt.includes("Suspicious high-frequency surfaces")) {
+    const surfaceIds = [...prompt.matchAll(/"surfaceId": "(s\d+)"/gu)].map(
+      (match) => match[1]!,
+    );
+    return JSON.stringify({
+      protectedSurfaces: [...new Set(surfaceIds)].map((surfaceId) => ({
+        surfaceId,
+      })),
+    });
+  }
+  if (prompt.includes("semantic relations between grounded entity mentions")) {
+    const sourceMentionId = readMentionId(prompt, "Q42");
+    const targetMentionId = readMentionId(prompt, "Q25169");
+    return JSON.stringify({
+      relations: [
         {
-          decisions: [{ candidateId: "c1", decision: "recall", qid: "Q42" }],
-          groupId: "g1",
+          confidence: 0.99,
+          evidence: {
+            quote: "Douglas Adams wrote The Hitchhiker's Guide to the Galaxy",
+            sentence_id: "S1",
+          },
+          predicate: "author",
+          sourceMentionId,
+          targetMentionId,
         },
       ],
     });
   }
-  if (prompt.includes("Suspicious high-frequency surfaces")) {
-    return JSON.stringify({ protectedSurfaces: [{ surfaceId: "s1" }] });
-  }
-  if (prompt.includes("semantic relations between grounded entity mentions")) {
-    return JSON.stringify({ relations: [] });
-  }
   throw new Error(`Unexpected Knowledge Graph prompt:\n${prompt}`);
+}
+
+function readCandidateGroups(prompt: string): readonly CandidateGroup[] {
+  const lines = prompt
+    .split("\n")
+    .filter((value) => value.startsWith('{"candidates":'));
+  if (lines.length === 0) {
+    throw new Error(`Policy prompt is missing candidate groups:\n${prompt}`);
+  }
+  return lines.map((line) => JSON.parse(line) as CandidateGroup);
+}
+
+interface CandidateGroup {
+  readonly candidates: readonly {
+    readonly candidateId: string;
+    readonly entityOptions: readonly { readonly qid: string }[];
+  }[];
+  readonly groupId: string;
+}
+
+function readMentionId(prompt: string, qid: string): string {
+  const match = new RegExp(`<mention id="([^"]+)" qid="${qid}">`, "u").exec(
+    prompt,
+  );
+  if (match?.[1] === undefined) {
+    throw new Error(`Relation prompt is missing a ${qid} mention:\n${prompt}`);
+  }
+  return match[1];
 }
 
 function expectBearerTokens(requests: readonly MockRequest[]): void {

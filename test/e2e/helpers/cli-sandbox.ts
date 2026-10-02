@@ -1,5 +1,6 @@
 import { spawn } from "child_process";
 import { mkdir, mkdtemp, readFile } from "fs/promises";
+import { fileURLToPath } from "url";
 import { join } from "path";
 import { inject } from "vitest";
 
@@ -36,7 +37,7 @@ const blockedEnvironmentNames = [
 ] as const;
 
 export async function createCLISandbox(name: string): Promise<CLISandbox> {
-  const { cliPath, installRoot, suiteRoot } = inject("cliE2E");
+  const { bootstrapRoot, cliPath, suiteRoot } = inject("cliE2E");
   const casesRoot = join(suiteRoot, "cases");
   await mkdir(casesRoot, { recursive: true });
   const root = await mkdtemp(join(casesRoot, `${sanitizeName(name)}-`));
@@ -98,7 +99,7 @@ export async function createCLISandbox(name: string): Promise<CLISandbox> {
           section,
           JSON.stringify(value),
         ],
-        { cwd: installRoot, env },
+        { cwd: bootstrapRoot, env },
       );
       assertSucceeded(["configure", section], result);
     },
@@ -106,10 +107,11 @@ export async function createCLISandbox(name: string): Promise<CLISandbox> {
 }
 
 export async function readFixture(path: string): Promise<string> {
-  return await readFile(
-    new URL(`../../fixtures/${path}`, import.meta.url),
-    "utf8",
-  );
+  return await readFile(resolveFixturePath(path), "utf8");
+}
+
+export function resolveFixturePath(path: string): string {
+  return fileURLToPath(new URL(`../../fixtures/${path}`, import.meta.url));
 }
 
 export function assertSucceeded(
