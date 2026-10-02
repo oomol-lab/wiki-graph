@@ -153,12 +153,13 @@ The E2E suite packs the workspace packages, installs only `wiki-graph` as the
 temporary consumer project's direct dependency, and invokes only that
 project's `wg` executable. A separate bootstrap project supplies SDK-only test
 setup without changing the CLI consumer dependency graph. Package installation
-is offline after the repository install has populated pnpm's store. Every case
-receives a separate temporary home, working directory, state directory, and
-archive. External LLM, WikiSpine, and Wikimedia calls are served by strict local
-protocol mocks. The suite neither reads `~/.wikigraph` nor replaces a
-machine-level `wg` installation, and it removes its temporary installation and
-case data after the actual detached-worker leases are released.
+prefers pnpm's existing store and fetches metadata or packages that a clean
+runner is missing. Every case receives a separate temporary home, working
+directory, state directory, and archive. External LLM, WikiSpine, and Wikimedia
+calls are served by strict local protocol mocks. The suite neither reads
+`~/.wikigraph` nor replaces a machine-level `wg` installation, and it removes
+its temporary installation and case data after the actual detached-worker
+leases are released.
 
 When the workspace is already built, use `pnpm test:e2e:run` to skip the build.
 

@@ -102,10 +102,14 @@ function writeInstallWorkspace(
 }
 
 function installTarballs(root: string, tarballs: readonly string[]): void {
-  execFileSync("pnpm", ["add", "--offline", "--save-exact", ...tarballs], {
-    cwd: root,
-    stdio: "inherit",
-  });
+  execFileSync(
+    "pnpm",
+    ["add", "--prefer-offline", "--save-exact", ...tarballs],
+    {
+      cwd: root,
+      stdio: "inherit",
+    },
+  );
 }
 
 function packPackage(packageRoot: string, packsRoot: string): string {
