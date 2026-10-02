@@ -42,10 +42,6 @@ describe("Wiki Graph job artifact delivery", () => {
     });
     sdk.close();
 
-    const revisions = await readRevisions(wikgPath, [
-      first.chapterId,
-      second.chapterId,
-    ]);
     const firstArtifact = join(root, "first.jsonl");
     const secondArtifact = join(root, "second.jsonl");
     await writeLexicalArtifact(firstArtifact, "alpha");
@@ -60,14 +56,12 @@ describe("Wiki Graph job artifact delivery", () => {
           artifactPath: firstArtifact,
           chapterId: first.chapterId,
           kind: "index-fts" as const,
-          revision: revisions[0]!,
         };
         yielded.push(second.chapterId);
         yield {
           artifactPath: secondArtifact,
           chapterId: second.chapterId,
           kind: "index-fts" as const,
-          revision: revisions[1]!,
         };
       })(),
       stateDir: join(root, "apply-state"),
@@ -88,7 +82,7 @@ describe("Wiki Graph job artifact delivery", () => {
     );
   });
 
-  it("exposes revision mismatches without consuming later artifacts", async () => {
+  it("applies artifacts against the current chapter revision", async () => {
     const root = await createRoot();
     const wikgPath = join(root, "book.wikg");
     const artifactPath = join(root, "artifact.jsonl");
@@ -100,38 +94,23 @@ describe("Wiki Graph job artifact delivery", () => {
     const archive = await sdk.archives.open(wikgPath);
     const chapter = await archive.addChapter({ source: "Alpha." });
     sdk.close();
-    const [revision] = await readRevisions(wikgPath, [chapter.chapterId]);
     await writeLexicalArtifact(artifactPath, "alpha");
     let consumedLaterArtifact = false;
 
-    await expect(
-      applyWikiGraphJobArtifacts({
-        artifacts: (async function* () {
-          await Promise.resolve();
-          yield {
-            artifactPath,
-            chapterId: chapter.chapterId,
-            kind: "index-fts" as const,
-            revision: revision! + 1,
-          };
-          consumedLaterArtifact = true;
-          yield {
-            artifactPath,
-            chapterId: chapter.chapterId,
-            kind: "index-fts" as const,
-            revision: revision!,
-          };
-        })(),
-        stateDir: join(root, "apply-state"),
-        wikgPath,
-      }),
-    ).rejects.toMatchObject({
-      actualRevision: revision,
-      chapterId: chapter.chapterId,
-      expectedRevision: revision! + 1,
-      name: "WikiGraphJobArtifactRevisionMismatchError",
+    await applyWikiGraphJobArtifacts({
+      artifacts: (async function* () {
+        await Promise.resolve();
+        yield {
+          artifactPath,
+          chapterId: chapter.chapterId,
+          kind: "index-fts" as const,
+        };
+        consumedLaterArtifact = true;
+      })(),
+      stateDir: join(root, "apply-state"),
+      wikgPath,
     });
-    expect(consumedLaterArtifact).toBe(false);
+    expect(consumedLaterArtifact).toBe(true);
   });
 });
 
@@ -139,20 +118,6 @@ async function createRoot(): Promise<string> {
   const root = await mkdtemp(join(tmpdir(), "wiki-graph-sdk-apply-"));
   temporaryDirectories.push(root);
   return root;
-}
-
-async function readRevisions(
-  wikgPath: string,
-  chapterIds: readonly number[],
-): Promise<number[]> {
-  return await new WikiGraphArchiveFile(new NodeFile(wikgPath)).readDocument(
-    async (document) =>
-      await Promise.all(
-        chapterIds.map(
-          async (chapterId) => await document.serials.getRevision(chapterId),
-        ),
-      ),
-  );
 }
 
 async function writeLexicalArtifact(path: string, text: string): Promise<void> {
