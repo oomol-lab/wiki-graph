@@ -6,6 +6,8 @@ import { afterEach, describe, expect, it } from "vitest";
 import {
   addChapter,
   DirectoryDocument,
+  formatLocatedWikiGraphUri,
+  replaceChapterFtsIndexArtifact,
   setChapterSource,
   TOC_FILE_VERSION,
   writeWikgArchive,
@@ -142,6 +144,36 @@ describe("WikiGraphSDK delivery operations", () => {
     await expect(archive.inspect({ chapterId: 999 })).rejects.toThrow(
       "Chapter 999 does not exist",
     );
+    sdk.close();
+  });
+
+  it("prepares related and evidence query indexes within scope", async () => {
+    const root = await mkdtemp(join(tmpdir(), "wiki-graph-sdk-query-scope-"));
+    temporaryDirectories.push(root);
+    const archivePath = join(root, "book.wikg");
+    await mkdir(join(root, "state"));
+    const indexedChapter = await createMixedIndexArchive(archivePath, root);
+    const sdk = createWikiGraphSDK({
+      cwd: root,
+      stateDir: join(root, "state"),
+    });
+    const rootArchive = await sdk.archives.open("book.wikg");
+    const scopedArchive = await sdk.archives.open(
+      formatLocatedWikiGraphUri(archivePath, indexedChapter.uri),
+    );
+
+    const related = await scopedArchive.related("wikg://entity/Q1", {
+      query: "alpha",
+    });
+    expect(Array.isArray(related.items)).toBe(true);
+    await expect(
+      rootArchive.evidence("wikg://entity/Q1", { query: "alpha" }),
+    ).rejects.toThrow("need a current FTS artifact");
+    const evidence = await rootArchive.evidence("wikg://entity/Q1", {
+      query: "alpha",
+      skipUnindexed: true,
+    });
+    expect(Array.isArray(evidence.items)).toBe(true);
     sdk.close();
   });
 
@@ -328,4 +360,43 @@ async function createEmptyArchive(
     await document.release();
   }
   await writeWikgArchive(sourceDirectory, new NodeFile(path));
+}
+
+async function createMixedIndexArchive(
+  path: string,
+  root: string,
+): Promise<{ readonly chapterId: number; readonly uri: string }> {
+  const sourceDirectory = new NodeDirectory(join(root, "mixed-source"));
+  await mkdir(sourceDirectory.path);
+  const document = await DirectoryDocument.open(sourceDirectory);
+  let indexedChapter!: { readonly chapterId: number; readonly uri: string };
+  try {
+    await document.openSession(async (openedDocument) => {
+      await openedDocument.writeToc({ items: [], version: TOC_FILE_VERSION });
+    });
+    indexedChapter = await addChapter(document, { title: "Indexed" });
+    await setChapterSource(document, indexedChapter.chapterId, [
+      "Alpha is available for retrieval.",
+    ]);
+    const unindexedChapter = await addChapter(document, { title: "Unindexed" });
+    await setChapterSource(document, unindexedChapter.chapterId, [
+      "Beta remains unindexed.",
+    ]);
+    await document.openSession(async (openedDocument) => {
+      await openedDocument.mentions.save({
+        chapterId: indexedChapter.chapterId,
+        id: "mention-alpha",
+        qid: "Q1",
+        rangeEnd: 5,
+        rangeStart: 0,
+        sentenceIndex: 0,
+        surface: "Alpha",
+      });
+    });
+    await replaceChapterFtsIndexArtifact(document, indexedChapter.chapterId);
+  } finally {
+    await document.release();
+  }
+  await writeWikgArchive(sourceDirectory, new NodeFile(path));
+  return indexedChapter;
 }

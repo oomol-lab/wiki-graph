@@ -25,7 +25,7 @@
       "wiki-graph-core/platform": ["packages/core/src/platform.ts"],
       "wiki-graph-core/worker": ["packages/core/src/worker.ts"],
       "wiki-graph-sdk": ["packages/sdk/src/index.ts"],
-      "wiki-graph-sdk/archives": ["packages/sdk/src/archives.ts"],
+      "wiki-graph-sdk/archives": ["packages/sdk/src/archive/index.ts"],
       "wiki-graph-sdk/default-worker": ["packages/sdk/src/default-worker.ts"],
       "wiki-graph-sdk/conversions": ["packages/sdk/src/conversions.ts"],
       "wiki-graph-sdk/embedding": ["packages/sdk/src/embedding.ts"],

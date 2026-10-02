@@ -730,7 +730,10 @@ export class WikiGraphArchiveHandle {
     }
     return await this.writeDocument(
       async (document) => {
-        await ensureArchiveSearchIndex(document);
+        const chapters = await this.#resolveQueryChapters(document, options);
+        await ensureArchiveSearchIndex(document, {
+          ...(chapters === undefined ? {} : { chapters }),
+        });
         return await listRelatedArchiveObjects(
           document,
           objectUri,
@@ -761,7 +764,10 @@ export class WikiGraphArchiveHandle {
     }
     return await this.writeDocument(
       async (document) => {
-        await ensureArchiveSearchIndex(document);
+        const chapters = await this.#resolveQueryChapters(document, options);
+        await ensureArchiveSearchIndex(document, {
+          ...(chapters === undefined ? {} : { chapters }),
+        });
         return await listArchiveEvidence(
           document,
           objectUri,
@@ -948,7 +954,9 @@ export class WikiGraphArchiveHandle {
 
   async #resolveQueryChapters(
     document: ReadonlyDocument,
-    options: WikiGraphArchiveSearchOptions,
+    options: WikiGraphArchiveScopeOptions & {
+      readonly skipUnindexed?: boolean;
+    },
   ): Promise<readonly number[] | undefined> {
     const chapters = await this.#resolveScope(document, options);
     if (options.skipUnindexed !== true) return chapters;
