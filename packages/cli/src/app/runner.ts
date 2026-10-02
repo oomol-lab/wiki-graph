@@ -110,19 +110,22 @@ export async function runWikiGraphCLIWithEntryPolicy(
   };
 
   try {
-    return await context.sdk!.run(async () =>
-      withWikiGraphCLIRuntimeContext(context, async () => {
-        const result = await dispatchWikiGraphCLI({
-          argv,
-          stderr,
-          stdinIsTTY: context.stdinIsTTY ?? stdin.isTTY,
-          stdout,
-        });
-        throwIfAborted(input.signal);
-        const exitCode = normalizeExitCode(getCLIExitCode(), result.exitCode);
+    return await context.sdk!.run(
+      async () =>
+        withWikiGraphCLIRuntimeContext(context, async () => {
+          const result = await dispatchWikiGraphCLI({
+            argv,
+            stderr,
+            stdinIsTTY: context.stdinIsTTY ?? stdin.isTTY,
+            stdout,
+          });
+          throwIfAborted(input.signal);
+          const exitCode = normalizeExitCode(getCLIExitCode(), result.exitCode);
 
-        return { exitCode };
-      }),
+          return { exitCode };
+        }),
+      input.signal,
+      { skipHomeBootstrap: true },
     );
   } finally {
     context.sdk!.close();

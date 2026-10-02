@@ -737,6 +737,26 @@ vi.mock("../../../packages/sdk/src/runtime-config.js", () => ({
   ),
 }));
 
+vi.mock("../../../packages/sdk/src/query-runtime.js", () => ({
+  createConfiguredEmbeddingProvider: vi.fn(() => Promise.resolve(undefined)),
+  withConfiguredWikimediaResolver: vi.fn(
+    async (
+      objectUri: string,
+      operation: (options: Record<string, unknown>) => Promise<unknown>,
+    ) =>
+      await operation(
+        objectUri.endsWith("/wikipage")
+          ? {
+              wikimediaResolver: {
+                mode: "local",
+                resolve: vi.fn(),
+              },
+            }
+          : {},
+      ),
+  ),
+}));
+
 vi.mock(
   "../../../packages/cli/src/support/index.js",
   async (importOriginal) => {

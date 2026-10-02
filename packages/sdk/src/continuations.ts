@@ -26,11 +26,8 @@ import {
 } from "wiki-graph-core";
 
 import { resolveWikiGraphArchiveLocation } from "./archive/index.js";
-import {
-  buildSearchIndexEmbeddingProvider,
-  readWikiGraphEmbeddingConfig,
-} from "./embedding.js";
 import type { WikiGraphJobRuntime } from "./jobs.js";
+import { createConfiguredEmbeddingProvider } from "./query-runtime.js";
 
 export interface WikiGraphContinuationOptions {
   /** Optional archive locator used to verify that the cursor belongs to it. */
@@ -350,13 +347,7 @@ async function createFindOptions(
   cursor: Extract<ContinuationCursor, { readonly kind: "search" }>,
   limit: number,
 ): Promise<ArchiveFindOptions> {
-  const embedding = await readWikiGraphEmbeddingConfig();
-  const hasEmbedding =
-    embedding.provider !== undefined &&
-    embedding.model !== undefined &&
-    (embedding.provider !== "openai-compatible" ||
-      embedding.baseURL !== undefined) &&
-    (embedding.provider !== "openai" || embedding.baseURL === undefined);
+  const embeddingProvider = await createConfiguredEmbeddingProvider();
   return {
     archiveKey: cursor.archiveKey,
     ...(cursor.backlinks === undefined ? {} : { backlinks: cursor.backlinks }),
@@ -378,11 +369,7 @@ async function createFindOptions(
     ...(cursor.types === null
       ? {}
       : { types: cursor.types as NonNullable<ArchiveFindOptions["types"]> }),
-    ...(!hasEmbedding
-      ? {}
-      : {
-          embeddingProvider: buildSearchIndexEmbeddingProvider(embedding),
-        }),
+    ...(embeddingProvider === undefined ? {} : { embeddingProvider }),
   };
 }
 

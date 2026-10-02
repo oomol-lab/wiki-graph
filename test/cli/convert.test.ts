@@ -50,6 +50,7 @@ const mockStdinStream = ["from stdin"];
 
 vi.mock("../../packages/core/src/index.js", () => ({
   CLI_PRIMARY_COMMAND: "wg",
+  ensureWikiGraphHomeSchemaCurrent: vi.fn(() => Promise.resolve()),
   WikiGraph: class {
     public constructor(options: unknown) {
       cliMockState.appConstructorOptions.push(options);

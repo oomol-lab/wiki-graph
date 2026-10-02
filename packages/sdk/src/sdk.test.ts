@@ -6,10 +6,10 @@ import { afterEach, describe, expect, it } from "vitest";
 import {
   createWikiGraphSDK,
   getNodeResourcePath,
-  getWikiGraphStorage,
   NodeDirectory,
   WikiGraphSDK,
 } from "./index.js";
+import { getWikiGraphStorage } from "wiki-graph-core/platform";
 
 const tempDirectories: string[] = [];
 
@@ -243,8 +243,5 @@ describe("WikiGraphSDK", () => {
 });
 
 async function readCoreLibraryIdentity(sdk: WikiGraphSDK): Promise<string> {
-  return await sdk.core.digestTextStreamSession(
-    { stream: [], targetStage: "planned", title: "Storage probe" },
-    () => getWikiGraphStorage().library.identity,
-  );
+  return await sdk.run(() => getWikiGraphStorage().library.identity);
 }

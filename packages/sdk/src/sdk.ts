@@ -1,4 +1,4 @@
-import { WikiGraph } from "wiki-graph-core";
+import { ensureWikiGraphHomeSchemaCurrent } from "wiki-graph-core";
 
 import { WikiGraphArchiveManager } from "./archive/index.js";
 import { WikiGraphConversionManager } from "./conversions.js";
@@ -8,7 +8,6 @@ import { WikiGraphJobManager, type WikiGraphJobRuntime } from "./jobs.js";
 import { WikiGraphLibraryManager } from "./libraries.js";
 import { WikiGraphMaintenanceManager } from "./maintenance.js";
 import {
-  createNodeWikiGraphStorage,
   ensureNodeWikiGraphPlatform,
   withNodeWikiGraphStorage,
 } from "./node-platform.js";
@@ -27,7 +26,7 @@ export interface WikiGraphSDKOptions {
 
 export class WikiGraphSDK implements WikiGraphJobRuntime {
   readonly #context: WikiGraphSDKRuntimeContext;
-  #core: WikiGraph | undefined;
+  #homeReady: Promise<void> | undefined;
   public readonly archives: WikiGraphArchiveManager;
   public readonly conversions: WikiGraphConversionManager;
   public readonly config: WikiGraphConfigManager;
@@ -53,20 +52,25 @@ export class WikiGraphSDK implements WikiGraphJobRuntime {
     this.maintenance = new WikiGraphMaintenanceManager(this);
   }
 
-  public get core(): WikiGraph {
-    this.#core ??= new WikiGraph({
-      storage: createNodeWikiGraphStorage(this.#context.stateDir),
-    });
-    return this.#core;
-  }
-
   public async run<T>(
     operation: () => Promise<T> | T,
     signal?: AbortSignal,
+    options: { readonly skipHomeBootstrap?: boolean } = {},
   ): Promise<T> {
     throwIfAborted(signal);
     const runWithContext = async (): Promise<T> =>
-      await withWikiGraphSDKRuntimeContext(this.#context, operation);
+      await withWikiGraphSDKRuntimeContext(this.#context, async () => {
+        if (options.skipHomeBootstrap !== true) {
+          this.#homeReady ??= ensureWikiGraphHomeSchemaCurrent().catch(
+            (error: unknown) => {
+              this.#homeReady = undefined;
+              throw error;
+            },
+          );
+          await this.#homeReady;
+        }
+        return await operation();
+      });
     const result =
       this.#context.stateDir === undefined
         ? await runWithContext()

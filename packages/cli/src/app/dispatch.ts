@@ -23,11 +23,11 @@ import {
 import { readCLIVersion } from "../support/index.js";
 import { isWikiGraphHomeTarget } from "../runtime/home-target.js";
 import {
-  ensureWikiGraphHomeSchemaCurrent,
   formatError,
   LLMPaymentRequiredError,
   WikiGraphError,
 } from "wiki-graph-sdk";
+import { getWikiGraphSDK } from "../runtime/context.js";
 
 export interface WikiGraphCLIDispatchInput {
   readonly argv: readonly string[];
@@ -66,7 +66,7 @@ export async function dispatchWikiGraphCLI(
       parsed.kind !== "maintenance-command" ||
       !isWikiGraphHomeTarget(parsed.args.target)
     ) {
-      await ensureWikiGraphHomeSchemaCurrent();
+      await getWikiGraphSDK().run(() => undefined);
     }
 
     switch (parsed.kind) {

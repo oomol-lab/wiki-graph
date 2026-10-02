@@ -153,7 +153,11 @@ export interface WikiGraphJobSubscriptionOptions extends WikiGraphJobEventsOptio
 }
 
 export interface WikiGraphJobRuntime {
-  run<T>(operation: () => Promise<T> | T, signal?: AbortSignal): Promise<T>;
+  run<T>(
+    operation: () => Promise<T> | T,
+    signal?: AbortSignal,
+    options?: { readonly skipHomeBootstrap?: boolean },
+  ): Promise<T>;
 }
 
 export class WikiGraphJobManager {

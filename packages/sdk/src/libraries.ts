@@ -48,8 +48,20 @@ import { mkdir } from "fs/promises";
 import type { WikiGraphJobRuntime } from "./jobs.js";
 import { NodeDirectory, NodeFile } from "./node-platform.js";
 import { resolveWikiGraphRuntimePath } from "./runtime-path.js";
+import {
+  createConfiguredEmbeddingProvider,
+  withConfiguredWikimediaResolver,
+} from "./query-runtime.js";
 
 export type WikiGraphLibraryTarget = ParsedWikiGraphLibraryUri | string;
+export type WikiGraphLibrarySearchOptions = Omit<
+  ArchiveFindOptions,
+  "embeddingProvider"
+>;
+export type WikiGraphLibraryPageOptions = Omit<
+  Parameters<typeof readWikiGraphLibraryPage>[2],
+  "wikimediaResolver"
+>;
 
 export interface WikiGraphLibraryAddArchiveOptions {
   readonly inputPath: string;
@@ -264,31 +276,37 @@ export class WikiGraphLibraryManager {
   public async search(
     target: WikiGraphLibraryTarget,
     query: string,
-    options: ArchiveFindOptions = {},
+    options: WikiGraphLibrarySearchOptions = {},
   ): Promise<ArchiveFindResult> {
-    return await this.#runtime.run(
-      async () =>
-        await findWikiGraphLibraryObjects(
-          requireLibraryTarget(target),
-          query,
-          options,
-        ),
-    );
+    return await this.#runtime.run(async () => {
+      const embeddingProvider = await createConfiguredEmbeddingProvider();
+      return await findWikiGraphLibraryObjects(
+        requireLibraryTarget(target),
+        query,
+        {
+          ...options,
+          ...(embeddingProvider === undefined ? {} : { embeddingProvider }),
+        },
+      );
+    });
   }
 
   public async searchArchiveMembers(
     target: WikiGraphLibraryTarget,
     query: string,
-    options: ArchiveFindOptions = {},
+    options: WikiGraphLibrarySearchOptions = {},
   ): Promise<ArchiveFindResult> {
-    return await this.#runtime.run(
-      async () =>
-        await findWikiGraphLibraryArchiveMembers(
-          requireLibraryTarget(target),
-          query,
-          options,
-        ),
-    );
+    return await this.#runtime.run(async () => {
+      const embeddingProvider = await createConfiguredEmbeddingProvider();
+      return await findWikiGraphLibraryArchiveMembers(
+        requireLibraryTarget(target),
+        query,
+        {
+          ...options,
+          ...(embeddingProvider === undefined ? {} : { embeddingProvider }),
+        },
+      );
+    });
   }
 
   public async objects(
@@ -320,14 +338,18 @@ export class WikiGraphLibraryManager {
   public async page(
     target: WikiGraphLibraryTarget,
     objectUri: string,
-    options: Parameters<typeof readWikiGraphLibraryPage>[2] = {},
+    options: WikiGraphLibraryPageOptions = {},
   ): Promise<ArchivePage> {
     return await this.#runtime.run(
       async () =>
-        await readWikiGraphLibraryPage(
-          requireLibraryTarget(target),
+        await withConfiguredWikimediaResolver(
           objectUri,
-          options,
+          async (wikimediaOptions) =>
+            await readWikiGraphLibraryPage(
+              requireLibraryTarget(target),
+              objectUri,
+              { ...options, ...wikimediaOptions },
+            ),
         ),
     );
   }

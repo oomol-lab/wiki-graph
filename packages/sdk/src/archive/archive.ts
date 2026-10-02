@@ -66,8 +66,6 @@ import {
   type QueryIndexScope,
   type ReadonlyDocument,
   type SearchIndexEmbeddingProvider,
-  type WikimediaResolver,
-  type WikiGraphArchive,
   type WikiGraphProgressCallback,
 } from "wiki-graph-core";
 
@@ -79,6 +77,10 @@ import {
   NodeFile,
 } from "../node-platform.js";
 import { resolveWikiGraphRuntimePath } from "../runtime-path.js";
+import {
+  createConfiguredEmbeddingProvider,
+  withConfiguredWikimediaResolver,
+} from "../query-runtime.js";
 import {
   createWikiGraphArchiveInspectReport,
   type WikiGraphArchiveInspectReport,
@@ -145,6 +147,12 @@ export interface WikiGraphArchiveIndexStatus {
   readonly current: boolean;
 }
 
+export interface WikiGraphArchiveCover {
+  readonly data: Uint8Array;
+  readonly mediaType: string;
+  readonly path: string;
+}
+
 export interface WikiGraphArchiveIndexSyncOptions extends WikiGraphOperationOptions {
   readonly onProgress?: (
     event: SearchIndexProgressEvent,
@@ -183,9 +191,7 @@ export interface WikiGraphArchiveSearchOptions
   extends
     Omit<ArchiveFindOptions, "archiveKey" | "chapters">,
     WikiGraphArchiveScopeOptions,
-    WikiGraphOperationOptions {
-  readonly embeddingProvider?: SearchIndexEmbeddingProvider;
-}
+    WikiGraphOperationOptions {}
 
 export interface WikiGraphArchiveListOptions
   extends
@@ -198,7 +204,6 @@ export interface WikiGraphArchivePageOptions extends WikiGraphOperationOptions {
   readonly evidenceLimit?: number;
   readonly order?: "doc-asc" | "doc-desc";
   readonly sourceContext?: number;
-  readonly wikimediaResolver?: WikimediaResolver;
 }
 
 export interface WikiGraphArchiveRelatedOptions extends WikiGraphOperationOptions {
@@ -328,7 +333,7 @@ export class WikiGraphArchiveHandle {
   public async inspect(
     options: WikiGraphOperationOptions & { readonly chapterId?: number } = {},
   ): Promise<WikiGraphArchiveInspectReport> {
-    return await this.readDocument(
+    return await this.#readDocument(
       async (document) =>
         await createWikiGraphArchiveInspectReport(document, {
           archiveUri: this.#location.publicArchiveUri ?? this.locatedUri,
@@ -344,19 +349,22 @@ export class WikiGraphArchiveHandle {
     query: string,
     options: WikiGraphArchiveSearchOptions = {},
   ): Promise<ArchiveFindResult> {
-    return await this.writeDocument(
+    const embeddingProvider = await this.#runtime.run(
+      createConfiguredEmbeddingProvider,
+      options.signal,
+    );
+    return await this.#writeDocument(
       async (document) => {
         const chapters = await this.#resolveQueryChapters(document, options);
         await ensureArchiveSearchIndex(document, {
           ...(chapters === undefined ? {} : { chapters }),
-          ...(options.embeddingProvider === undefined
-            ? {}
-            : { embeddingProvider: options.embeddingProvider }),
+          ...(embeddingProvider === undefined ? {} : { embeddingProvider }),
         });
         return await findArchiveObjects(document, query, {
           ...withoutOperationAndScope(options),
           archiveKey: this.archiveKey,
           ...(chapters === undefined ? {} : { chapters }),
+          ...(embeddingProvider === undefined ? {} : { embeddingProvider }),
         });
       },
       {
@@ -369,7 +377,7 @@ export class WikiGraphArchiveHandle {
   public async list(
     options: WikiGraphArchiveListOptions = {},
   ): Promise<ArchiveCollectionResult | ArchiveSourceLocatorResult> {
-    return await this.readDocument(async (document) => {
+    return await this.#readDocument(async (document) => {
       if (isSourceLocatorScopeUri(this.objectUri)) {
         return await listArchiveSourceLocators(document, this.objectUri, {
           ...(options.cursor === undefined ? {} : { cursor: options.cursor }),
@@ -385,19 +393,18 @@ export class WikiGraphArchiveHandle {
   }
 
   public async ensureSearchIndex(
-    options: WikiGraphArchiveScopeOptions &
-      WikiGraphOperationOptions & {
-        readonly embeddingProvider?: SearchIndexEmbeddingProvider;
-      } = {},
+    options: WikiGraphArchiveScopeOptions & WikiGraphOperationOptions = {},
   ): Promise<void> {
-    await this.writeDocument(
+    const embeddingProvider = await this.#runtime.run(
+      createConfiguredEmbeddingProvider,
+      options.signal,
+    );
+    await this.#writeDocument(
       async (document) => {
         const chapters = await this.#resolveScope(document, options);
         await ensureArchiveSearchIndex(document, {
           ...(chapters === undefined ? {} : { chapters }),
-          ...(options.embeddingProvider === undefined
-            ? {}
-            : { embeddingProvider: options.embeddingProvider }),
+          ...(embeddingProvider === undefined ? {} : { embeddingProvider }),
         });
       },
       {
@@ -410,7 +417,7 @@ export class WikiGraphArchiveHandle {
   public async getSearchIndexStatus(
     options: WikiGraphOperationOptions = {},
   ): Promise<WikiGraphArchiveIndexStatus> {
-    return await this.readDocument(
+    return await this.#readDocument(
       async (document) => ({
         capabilities: await readSearchIndexCapabilityStatus(document),
         current: await isArchiveSearchIndexCurrent(document),
@@ -422,7 +429,7 @@ export class WikiGraphArchiveHandle {
   public async syncSearchIndex(
     options: WikiGraphArchiveIndexSyncOptions = {},
   ): Promise<{ readonly rebuilt: boolean }> {
-    const rebuilt = await this.writeDocument(
+    const rebuilt = await this.#writeDocument(
       async (document) => {
         const scope =
           options.skipUnindexed === true
@@ -452,7 +459,7 @@ export class WikiGraphArchiveHandle {
   public async cleanSearchIndex(
     options: WikiGraphOperationOptions = {},
   ): Promise<WikiGraphArchiveIndexStatus> {
-    const status = await this.writeDocument(
+    const status = await this.#writeDocument(
       async (document) => {
         await document.deleteSearchIndexDatabase();
         return {
@@ -478,7 +485,7 @@ export class WikiGraphArchiveHandle {
   public async listChapters(
     options: WikiGraphOperationOptions = {},
   ): Promise<readonly ChapterEntry[]> {
-    return await this.readDocument(
+    return await this.#readDocument(
       async (document) => await listChapters(document),
       options,
     );
@@ -488,7 +495,7 @@ export class WikiGraphArchiveHandle {
     path: string,
     options: WikiGraphOperationOptions = {},
   ): Promise<ChapterEntry> {
-    return await this.readDocument(async (document) => {
+    return await this.#readDocument(async (document) => {
       const chapterId = await resolveChapterPathReadonly(document, path);
       return requireChapter(await listChapters(document), chapterId);
     }, options);
@@ -499,7 +506,7 @@ export class WikiGraphArchiveHandle {
     readonly source?: string;
     readonly title?: string;
   }): Promise<ChapterDetails> {
-    return await this.writeDocument(async (document) => {
+    return await this.#writeDocument(async (document) => {
       const parentChapterId = await resolveOptionalChapterPath(
         document,
         options.parentPath,
@@ -528,7 +535,7 @@ export class WikiGraphArchiveHandle {
     path: string,
     kind: IndexArtifactKind,
   ): Promise<WikiGraphChapterArtifactStatus> {
-    return await this.readDocument(async (document) => {
+    return await this.#readDocument(async (document) => {
       const chapterId = await resolveChapterPathReadonly(document, path);
       const [artifact, revision] = await Promise.all([
         document.indexArtifacts.get(chapterId, kind),
@@ -561,7 +568,7 @@ export class WikiGraphArchiveHandle {
     readonly deleted: true;
     readonly kind: IndexArtifactKind;
   }> {
-    return await this.writeDocument(async (document) => {
+    return await this.#writeDocument(async (document) => {
       const chapterId = await resolveChapterPathReadonly(document, path);
       await document.indexArtifacts.delete(chapterId, kind);
       return { chapterId, deleted: true, kind };
@@ -572,7 +579,7 @@ export class WikiGraphArchiveHandle {
     path: string,
     options: WikiGraphChapterMoveOptions,
   ): Promise<ChapterDetails> {
-    return await this.writeDocument(async (document) => {
+    return await this.#writeDocument(async (document) => {
       const chapterId = await resolveChapterPathReadonly(document, path);
       const [afterChapterId, beforeChapterId, parentChapterId] =
         await Promise.all([
@@ -597,7 +604,7 @@ export class WikiGraphArchiveHandle {
   }
 
   public async removeChapter(path: string, recursive = false): Promise<void> {
-    await this.writeDocument(async (document) => {
+    await this.#writeDocument(async (document) => {
       const chapterId = await resolveChapterPathReadonly(document, path);
       await assertNoActiveBuildJobConflicts({
         archive: this.#location.archiveFile,
@@ -612,7 +619,7 @@ export class WikiGraphArchiveHandle {
     path: string,
     stage: WikiGraphChapterResetStage,
   ): Promise<ChapterDetails> {
-    return await this.writeDocument(async (document) => {
+    return await this.#writeDocument(async (document) => {
       const chapterId = await resolveChapterPathReadonly(document, path);
       await assertChapterResetAllowed(
         this.#location.archiveFile,
@@ -628,7 +635,7 @@ export class WikiGraphArchiveHandle {
     source: string,
     options: WikiGraphChapterSourceOptions = {},
   ): Promise<ChapterDetails> {
-    return await this.writeDocument(async (document) => {
+    return await this.#writeDocument(async (document) => {
       const chapterId = await resolveChapterPathReadonly(document, path);
       await assertNoActiveBuildJobs({
         archive: this.#location.archiveFile,
@@ -648,7 +655,7 @@ export class WikiGraphArchiveHandle {
     path: string,
     summary: string,
   ): Promise<ChapterDetails> {
-    return await this.writeDocument(async (document) => {
+    return await this.#writeDocument(async (document) => {
       const chapterId = await resolveChapterPathReadonly(document, path);
       await assertNoActiveBuildJobs({
         archive: this.#location.archiveFile,
@@ -664,7 +671,7 @@ export class WikiGraphArchiveHandle {
     path: string,
     title: Parameters<typeof setChapterTitle>[2],
   ): Promise<ChapterDetails> {
-    return await this.writeDocument(async (document) => {
+    return await this.#writeDocument(async (document) => {
       const chapterId = await resolveChapterPathReadonly(document, path);
       await assertNoActiveBuildJobs({
         archive: this.#location.archiveFile,
@@ -676,7 +683,7 @@ export class WikiGraphArchiveHandle {
   }
 
   public async getChapterTree(): Promise<ChapterTree> {
-    return await this.readDocument(
+    return await this.#readDocument(
       async (document) => await getChapterTree(document),
     );
   }
@@ -685,7 +692,7 @@ export class WikiGraphArchiveHandle {
     tree: WikiGraphChapterTreeInput,
     options: { readonly dryRun?: boolean } = {},
   ): Promise<ChapterTreeApplyResult> {
-    return await this.writeDocument(
+    return await this.#writeDocument(
       async (document) => {
         if (options.dryRun !== true) {
           await assertNoActiveBuildJobConflicts({
@@ -706,10 +713,21 @@ export class WikiGraphArchiveHandle {
     objectUri = this.objectUri,
     options: WikiGraphArchivePageOptions = {},
   ): Promise<ArchivePage> {
-    return await this.readDocument(
-      async (document) =>
-        await readArchivePage(document, objectUri, withoutOperation(options)),
-      options,
+    return await this.#runtime.run(
+      async () =>
+        await withConfiguredWikimediaResolver(
+          objectUri,
+          async (wikimediaOptions) =>
+            await this.#readDocument(
+              async (document) =>
+                await readArchivePage(document, objectUri, {
+                  ...withoutOperation(options),
+                  ...wikimediaOptions,
+                }),
+              options,
+            ),
+        ),
+      options.signal,
     );
   }
 
@@ -718,7 +736,7 @@ export class WikiGraphArchiveHandle {
     options: WikiGraphArchiveRelatedOptions = {},
   ): Promise<ArchiveRelatedResult> {
     if (options.query === undefined) {
-      return await this.readDocument(async (document) => {
+      return await this.#readDocument(async (document) => {
         const chapters = await this.#resolveScope(document, {});
         return await listRelatedArchiveObjects(document, objectUri, {
           ...withoutOperation(options),
@@ -726,11 +744,16 @@ export class WikiGraphArchiveHandle {
         });
       }, options);
     }
-    return await this.writeDocument(
+    const embeddingProvider = await this.#runtime.run(
+      createConfiguredEmbeddingProvider,
+      options.signal,
+    );
+    return await this.#writeDocument(
       async (document) => {
         const chapters = await this.#resolveQueryChapters(document, options);
         await ensureArchiveSearchIndex(document, {
           ...(chapters === undefined ? {} : { chapters }),
+          ...(embeddingProvider === undefined ? {} : { embeddingProvider }),
         });
         return await listRelatedArchiveObjects(document, objectUri, {
           ...withoutOperation(options),
@@ -749,7 +772,7 @@ export class WikiGraphArchiveHandle {
     options: WikiGraphArchiveEvidenceOptions = {},
   ): Promise<ArchiveEvidence> {
     if (options.query === undefined) {
-      return await this.readDocument(async (document) => {
+      return await this.#readDocument(async (document) => {
         const chapters = await this.#resolveScope(document, {});
         return await listArchiveEvidence(document, objectUri, {
           ...withoutOperation(options),
@@ -757,11 +780,16 @@ export class WikiGraphArchiveHandle {
         });
       }, options);
     }
-    return await this.writeDocument(
+    const embeddingProvider = await this.#runtime.run(
+      createConfiguredEmbeddingProvider,
+      options.signal,
+    );
+    return await this.#writeDocument(
       async (document) => {
         const chapters = await this.#resolveQueryChapters(document, options);
         await ensureArchiveSearchIndex(document, {
           ...(chapters === undefined ? {} : { chapters }),
+          ...(embeddingProvider === undefined ? {} : { embeddingProvider }),
         });
         return await listArchiveEvidence(document, objectUri, {
           ...withoutOperation(options),
@@ -780,7 +808,7 @@ export class WikiGraphArchiveHandle {
     budget = 5_000,
     options: WikiGraphOperationOptions = {},
   ): Promise<ArchivePack> {
-    return await this.readDocument(
+    return await this.#readDocument(
       async (document) => await packArchiveContext(document, objectUri, budget),
       options,
     );
@@ -790,7 +818,7 @@ export class WikiGraphArchiveHandle {
     objectPath: string,
     options: WikiGraphOperationOptions = {},
   ): Promise<Readonly<Record<string, unknown>>> {
-    return await this.readDocument(
+    return await this.#readDocument(
       async (document) => await document.metadata.getMap(objectPath),
       options,
     );
@@ -799,7 +827,7 @@ export class WikiGraphArchiveHandle {
   public async readBookMeta(
     options: WikiGraphOperationOptions = {},
   ): Promise<BookMeta | undefined> {
-    return await this.readDocument(
+    return await this.#readDocument(
       async (document) => await document.readBookMeta(),
       options,
     );
@@ -809,7 +837,7 @@ export class WikiGraphArchiveHandle {
     meta: BookMeta,
     options: WikiGraphArchiveWriteOptions = {},
   ): Promise<BookMeta> {
-    return await this.writeDocument(async (document) => {
+    return await this.#writeDocument(async (document) => {
       await document.replaceBookMeta(meta);
       return meta;
     }, options);
@@ -817,7 +845,7 @@ export class WikiGraphArchiveHandle {
 
   public async readCover(
     options: WikiGraphOperationOptions = {},
-  ): Promise<Awaited<ReturnType<WikiGraphArchive["readCover"]>>> {
+  ): Promise<WikiGraphArchiveCover | undefined> {
     const app = new WikiGraph({});
     return await this.#runtime.run(
       async () =>
@@ -834,7 +862,7 @@ export class WikiGraphArchiveHandle {
     value: Readonly<Record<string, unknown>>,
     options: WikiGraphArchiveWriteOptions = {},
   ): Promise<Readonly<Record<string, unknown>>> {
-    return await this.writeDocument(async (document) => {
+    return await this.#writeDocument(async (document) => {
       await document.metadata.replaceMap(
         parseObjectMetadataTarget(objectPath),
         value,
@@ -849,7 +877,7 @@ export class WikiGraphArchiveHandle {
     value: unknown,
     options: WikiGraphArchiveWriteOptions = {},
   ): Promise<Readonly<Record<string, unknown>>> {
-    return await this.writeDocument(async (document) => {
+    return await this.#writeDocument(async (document) => {
       await document.metadata.put(
         parseObjectMetadataTarget(objectPath),
         key,
@@ -864,7 +892,7 @@ export class WikiGraphArchiveHandle {
     key: string,
     options: WikiGraphArchiveWriteOptions = {},
   ): Promise<Readonly<Record<string, unknown>>> {
-    return await this.writeDocument(async (document) => {
+    return await this.#writeDocument(async (document) => {
       await document.metadata.deleteKey(objectPath, key);
       return await document.metadata.getMap(objectPath);
     }, options);
@@ -874,7 +902,7 @@ export class WikiGraphArchiveHandle {
     objectPath: string,
     options: WikiGraphArchiveWriteOptions = {},
   ): Promise<Readonly<Record<string, unknown>>> {
-    return await this.writeDocument(async (document) => {
+    return await this.#writeDocument(async (document) => {
       await document.metadata.clear(objectPath);
       return await document.metadata.getMap(objectPath);
     }, options);
@@ -883,27 +911,14 @@ export class WikiGraphArchiveHandle {
   public async resolveScope(
     options: WikiGraphArchiveScopeOptions & WikiGraphOperationOptions = {},
   ): Promise<WikiGraphArchiveScope | undefined> {
-    return await this.readDocument(
+    return await this.#readDocument(
       async (document) =>
         await resolveArchiveScope(document, this.objectUri, options.depth),
       options,
     );
   }
 
-  public async read<T>(
-    operation: (archive: WikiGraphArchive) => Promise<T> | T,
-    options: WikiGraphOperationOptions = {},
-  ): Promise<T> {
-    return await this.#runtime.run(
-      async () =>
-        await new WikiGraphArchiveFile(this.#location.archiveFile).read(
-          operation,
-        ),
-      options.signal,
-    );
-  }
-
-  public async readDocument<T>(
+  async #readDocument<T>(
     operation: (document: ReadonlyDocument) => Promise<T> | T,
     options: WikiGraphOperationOptions = {},
   ): Promise<T> {
@@ -916,7 +931,7 @@ export class WikiGraphArchiveHandle {
     );
   }
 
-  public async writeDocument<T>(
+  async #writeDocument<T>(
     operation: (document: DirectoryDocument) => Promise<T> | T,
     options: WikiGraphArchiveWriteOptions = {},
   ): Promise<T> {

@@ -2,17 +2,13 @@ import {
   formatWikiGraphLibraryUri,
   parseWikiGraphLibraryUri,
   isSourceLocatorScopeUri,
-  openWikimediaResolver,
   type ArchiveFindOptions,
   type ArchiveRelatedResult,
   type ArchiveCollectionResult,
   type ArchiveSourceLocatorResult,
-  type WikimediaResolver,
 } from "wiki-graph-sdk";
 
 import type { CLIArchiveArguments } from "../../args/index.js";
-import { loadCLIConfig } from "../../runtime/config.js";
-import { buildSearchIndexEmbeddingProvider } from "../../runtime/embedding.js";
 import { getWikiGraphSDK } from "../../runtime/context.js";
 import { formatCliCommand } from "../../support/index.js";
 import { runConvertCommand } from "../convert.js";
@@ -160,18 +156,10 @@ async function runArchiveList(args: CLIArchiveArguments): Promise<void> {
   const scopedArgs =
     scope === undefined ? args : { ...args, chapters: scope.chapterIds };
   if (args.query !== undefined) {
-    const config = await loadCLIConfig();
     await archive.ensureSearchIndex({
       ...(scopedArgs.chapters === undefined
         ? {}
         : { chapters: scopedArgs.chapters }),
-      ...(config.embedding === undefined
-        ? {}
-        : {
-            embeddingProvider: buildSearchIndexEmbeddingProvider(
-              config.embedding,
-            ),
-          }),
     });
   }
   const context = createArchiveOutputContext(scopedArgs, {
@@ -219,7 +207,7 @@ async function runArchiveSearch(args: CLIArchiveArguments): Promise<void> {
   const scopedArgs =
     scope === undefined ? args : { ...args, chapters: scope.chapterIds };
   const context = createArchiveOutputContext(scopedArgs);
-  const findOptions = await createSearchFindOptions(scopedArgs);
+  const findOptions = createSearchFindOptions(scopedArgs);
   const { archiveKey: _archiveKey, chapters, ...options } = findOptions;
   const readPage = async (cursor: string | undefined) =>
     await archive.search(scopedArgs.query!, {
@@ -253,18 +241,15 @@ async function runArchiveGet(args: CLIArchiveArguments): Promise<void> {
       ? createArchiveOutputContext(args)
       : createArchiveOutputContext({ ...args, evidenceLimit });
   const archive = await getWikiGraphSDK().archives.open(args.archivePath);
-  await withWikimediaPageOptions(objectUri, async (wikimediaOptions) =>
-    writePage(
-      await archive.page(objectUri, {
-        ...(args.backlinks === undefined ? {} : { backlinks: args.backlinks }),
-        ...(evidenceLimit === undefined ? {} : { evidenceLimit }),
-        ...(args.reverse === true ? { order: "doc-desc" } : {}),
-        ...wikimediaOptions,
-        ...createOptionalSourceContext(args),
-      }),
-      context,
-      args.format ?? "text",
-    ),
+  await writePage(
+    await archive.page(objectUri, {
+      ...(args.backlinks === undefined ? {} : { backlinks: args.backlinks }),
+      ...(evidenceLimit === undefined ? {} : { evidenceLimit }),
+      ...(args.reverse === true ? { order: "doc-desc" } : {}),
+      ...createOptionalSourceContext(args),
+    }),
+    context,
+    args.format ?? "text",
   );
 }
 
@@ -396,7 +381,7 @@ async function runLibraryIndexArchiveCommand(
 
   switch (args.action) {
     case "search": {
-      const findOptions = await createSearchFindOptions(args);
+      const findOptions = createSearchFindOptions(args);
       if (objectUri === undefined) {
         if (args.all === true) {
           await writeAllFindHits(
@@ -535,20 +520,17 @@ async function runLibraryIndexArchiveCommand(
       }
 
       const evidenceLimit = getSingleObjectEvidenceLimit(args, objectUri);
-      await withWikimediaPageOptions(objectUri, async (wikimediaOptions) =>
-        writePage(
-          await libraries.page(target, objectUri, {
-            ...(args.backlinks === undefined
-              ? {}
-              : { backlinks: args.backlinks }),
-            ...(evidenceLimit === undefined ? {} : { evidenceLimit }),
-            ...(args.reverse === true ? { order: "doc-desc" } : {}),
-            ...wikimediaOptions,
-            ...createOptionalSourceContext(args),
-          }),
-          evidenceLimit === undefined ? context : { ...context, evidenceLimit },
-          args.format ?? "text",
-        ),
+      await writePage(
+        await libraries.page(target, objectUri, {
+          ...(args.backlinks === undefined
+            ? {}
+            : { backlinks: args.backlinks }),
+          ...(evidenceLimit === undefined ? {} : { evidenceLimit }),
+          ...(args.reverse === true ? { order: "doc-desc" } : {}),
+          ...createOptionalSourceContext(args),
+        }),
+        evidenceLimit === undefined ? context : { ...context, evidenceLimit },
+        args.format ?? "text",
       );
       return;
     }
@@ -649,51 +631,10 @@ async function runLibraryIndexArchiveCommand(
   }
 }
 
-async function createSearchFindOptions(
+function createSearchFindOptions(
   args: CLIArchiveArguments,
-): Promise<ArchiveFindOptions> {
-  const options = createFindOptions(args);
-  const config = await loadCLIConfig();
-
-  return {
-    ...options,
-    ...(config.embedding === undefined
-      ? {}
-      : {
-          embeddingProvider: buildSearchIndexEmbeddingProvider(
-            config.embedding,
-          ),
-        }),
-  };
-}
-
-async function withWikimediaPageOptions<T>(
-  objectUri: string,
-  operation: (
-    options:
-      | Record<string, never>
-      | { readonly wikimediaResolver: WikimediaResolver },
-  ) => Promise<T>,
-): Promise<T> {
-  if (!objectUri.endsWith("/wikipage")) {
-    return await operation({});
-  }
-
-  const config = await loadCLIConfig();
-  const resolver = await openWikimediaResolver(
-    config.wikimedia === undefined
-      ? { kind: "local" }
-      : {
-          endpoint: config.wikimedia.endpoint,
-          kind: "remote",
-          token: config.wikimedia.token,
-        },
-  );
-  try {
-    return await operation({ wikimediaResolver: resolver });
-  } finally {
-    await resolver.close();
-  }
+): ArchiveFindOptions {
+  return createFindOptions(args);
 }
 
 function requireLibraryObjectUri(
