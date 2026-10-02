@@ -162,10 +162,52 @@ describe("WikiGraphSDK delivery operations", () => {
       formatLocatedWikiGraphUri(archivePath, indexedChapter.uri),
     );
 
+    const defaultRelated = await scopedArchive.related("wikg://entity/Q1");
+    expect(defaultRelated.items.map((item) => item.id)).toEqual([
+      "wikg://triple/Q1/inside/Q2",
+    ]);
     const related = await scopedArchive.related("wikg://entity/Q1", {
       query: "alpha",
     });
-    expect(Array.isArray(related.items)).toBe(true);
+    expect(related.items.map((item) => item.id)).toEqual([
+      "wikg://triple/Q1/inside/Q2",
+    ]);
+    const firstEvidence = await scopedArchive.evidence("wikg://entity/Q1", {
+      limit: 1,
+    });
+    expect(firstEvidence.items).toHaveLength(1);
+    expect(firstEvidence.items[0]?.chapterId).toBe(indexedChapter.chapterId);
+    expect(firstEvidence.nextCursor).not.toBeNull();
+    const durableCursor = await sdk.continuations.create(
+      {
+        archiveKey: scopedArchive.archiveKey,
+        archivePath: scopedArchive.path,
+        chapters: [indexedChapter.chapterId],
+        continuationKind: "evidence",
+        format: "json",
+        indexScope: scopedArchive.indexScope,
+        order: "doc-asc",
+        targetUri: "wikg://entity/Q1",
+        types: null,
+      },
+      firstEvidence.nextCursor,
+    );
+    if (durableCursor === null) {
+      throw new Error("Expected a scoped evidence continuation cursor.");
+    }
+    const nextEvidence = await sdk.continuations.next({
+      cursor: durableCursor,
+      limit: 1,
+    });
+    expect(nextEvidence.kind).toBe("evidence");
+    if (nextEvidence.kind !== "evidence") {
+      throw new Error("Expected an evidence continuation page.");
+    }
+    expect(nextEvidence.result.items).toHaveLength(1);
+    expect(nextEvidence.result.items[0]?.chapterId).toBe(
+      indexedChapter.chapterId,
+    );
+    expect(nextEvidence.result.nextCursor).toBeNull();
     await expect(
       rootArchive.evidence("wikg://entity/Q1", { query: "alpha" }),
     ).rejects.toThrow("need a current FTS artifact");
@@ -173,7 +215,12 @@ describe("WikiGraphSDK delivery operations", () => {
       query: "alpha",
       skipUnindexed: true,
     });
-    expect(Array.isArray(evidence.items)).toBe(true);
+    expect(evidence.items).toHaveLength(1);
+    expect(
+      evidence.items.every(
+        (item) => item.chapterId === indexedChapter.chapterId,
+      ),
+    ).toBe(true);
     sdk.close();
   });
 
@@ -383,15 +430,69 @@ async function createMixedIndexArchive(
       "Beta remains unindexed.",
     ]);
     await document.openSession(async (openedDocument) => {
-      await openedDocument.mentions.save({
-        chapterId: indexedChapter.chapterId,
-        id: "mention-alpha",
-        qid: "Q1",
-        rangeEnd: 5,
-        rangeStart: 0,
-        sentenceIndex: 0,
-        surface: "Alpha",
-      });
+      await openedDocument.mentions.saveMany([
+        {
+          chapterId: indexedChapter.chapterId,
+          id: "indexed-q1-a",
+          qid: "Q1",
+          rangeEnd: 5,
+          rangeStart: 0,
+          sentenceIndex: 0,
+          surface: "Alpha",
+        },
+        {
+          chapterId: indexedChapter.chapterId,
+          id: "indexed-q1-b",
+          qid: "Q1",
+          rangeEnd: 18,
+          rangeStart: 13,
+          sentenceIndex: 0,
+          surface: "Alpha",
+        },
+        {
+          chapterId: indexedChapter.chapterId,
+          id: "indexed-q2",
+          qid: "Q2",
+          rangeEnd: 32,
+          rangeStart: 21,
+          sentenceIndex: 0,
+          surface: "retrieval",
+        },
+        {
+          chapterId: unindexedChapter.chapterId,
+          id: "unindexed-q1",
+          qid: "Q1",
+          rangeEnd: 4,
+          rangeStart: 0,
+          sentenceIndex: 0,
+          surface: "Beta",
+        },
+        {
+          chapterId: unindexedChapter.chapterId,
+          id: "unindexed-q3",
+          qid: "Q3",
+          rangeEnd: 22,
+          rangeStart: 15,
+          sentenceIndex: 0,
+          surface: "unindexed",
+        },
+      ]);
+      await openedDocument.mentionLinks.saveMany([
+        {
+          evidenceSentenceIds: [[indexedChapter.chapterId, 0]],
+          id: "indexed-link",
+          predicate: "inside",
+          sourceMentionId: "indexed-q1-a",
+          targetMentionId: "indexed-q2",
+        },
+        {
+          evidenceSentenceIds: [[unindexedChapter.chapterId, 0]],
+          id: "unindexed-link",
+          predicate: "outside",
+          sourceMentionId: "unindexed-q1",
+          targetMentionId: "unindexed-q3",
+        },
+      ]);
     });
     await replaceChapterFtsIndexArtifact(document, indexedChapter.chapterId);
   } finally {

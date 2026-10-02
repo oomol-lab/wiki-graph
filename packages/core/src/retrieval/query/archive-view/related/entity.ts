@@ -2,7 +2,7 @@ import type { ReadonlyDocument } from "../../../../document/index.js";
 
 import { compareNumbers } from "../helpers.js";
 import {
-  filterMentionsByChapter,
+  filterMentionsByChapterSet,
   formatEntityUri,
   formatTripleUri,
 } from "../knowledge.js";
@@ -22,9 +22,13 @@ export async function listRelatedEntityObjects(
   reference: Extract<WikiGraphReference, { readonly type: "entity" }>,
   options: ArchiveRelatedOptions,
 ): Promise<ArchiveRelatedResult> {
-  const mentions = filterMentionsByChapter(
-    await document.mentions.listByQid(reference.qid),
+  const chapterFilter = resolveRelatedChapterFilter(
     reference.chapterId,
+    options.chapters,
+  );
+  const mentions = filterMentionsByChapterSet(
+    await document.mentions.listByQid(reference.qid),
+    chapterFilter,
   );
 
   if (mentions.length === 0) {
@@ -97,6 +101,9 @@ export async function listRelatedEntityObjects(
       reference.qid,
       options.query,
       {
+        ...(chapterFilter === undefined
+          ? {}
+          : { chapters: [...chapterFilter] }),
         ...(options.skipUnindexed === undefined
           ? {}
           : { skipUnindexed: options.skipUnindexed }),
@@ -104,6 +111,18 @@ export async function listRelatedEntityObjects(
     ),
     options,
   );
+}
+
+function resolveRelatedChapterFilter(
+  referenceChapterId: number | undefined,
+  chapters: readonly number[] | undefined,
+): ReadonlySet<number> | undefined {
+  if (referenceChapterId === undefined) {
+    return chapters === undefined ? undefined : new Set(chapters);
+  }
+  return chapters === undefined || chapters.includes(referenceChapterId)
+    ? new Set([referenceChapterId])
+    : new Set();
 }
 
 function matchesRelatedEntityRole(

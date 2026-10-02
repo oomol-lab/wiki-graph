@@ -382,6 +382,7 @@ export interface ArchivePack {
 export type ArchiveRelatedRole = "any" | "object" | "self" | "subject";
 
 export interface ArchiveRelatedOptions {
+  readonly chapters?: readonly number[];
   readonly cursor?: string;
   readonly evidenceLimit?: number;
   readonly limit?: number;
@@ -486,6 +487,7 @@ export interface ArchiveNodeSourceFragment {
 }
 
 export interface ArchiveEvidenceOptions {
+  readonly chapters?: readonly number[];
   readonly cursor?: string;
   readonly limit?: number;
   readonly order?: ArchiveFindOrder;

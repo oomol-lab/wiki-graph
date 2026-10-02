@@ -203,6 +203,7 @@ async function continueArchiveCursor(
           );
         case "evidence":
           return await listArchiveEvidence(document, cursor.targetUri, {
+            ...(cursor.chapters === null ? {} : { chapters: cursor.chapters }),
             cursor: cursor.cursor,
             limit,
             order: cursor.order,
@@ -216,6 +217,7 @@ async function continueArchiveCursor(
           });
         case "related":
           return await listRelatedArchiveObjects(document, cursor.targetUri, {
+            ...(cursor.chapters === null ? {} : { chapters: cursor.chapters }),
             cursor: cursor.cursor,
             ...(cursor.evidenceLimit === undefined
               ? {}
@@ -434,6 +436,7 @@ function createContinuationPayload(
       return {
         archiveKey: context.archiveKey,
         archivePath: context.archivePath,
+        chapters: context.chapters ?? null,
         cursor,
         format: context.format,
         indexScope: context.indexScope,
@@ -452,6 +455,7 @@ function createContinuationPayload(
       return {
         archiveKey: context.archiveKey,
         archivePath: context.archivePath,
+        chapters: context.chapters ?? null,
         cursor,
         ...(context.evidenceLimit === undefined
           ? {}

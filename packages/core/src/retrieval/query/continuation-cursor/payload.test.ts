@@ -127,6 +127,7 @@ describe("continuation cursor payload", () => {
     const cursor: ContinuationCursor = {
       archiveKey: "archive-key",
       archivePath: "/tmp/book.wikg",
+      chapters: [1, 2],
       cursor: "raw-cursor",
       format: "jsonl",
       indexScope: {
@@ -148,6 +149,7 @@ describe("continuation cursor payload", () => {
     const cursor: ContinuationCursor = {
       archiveKey: "archive-key",
       archivePath: "/tmp/book.wikg",
+      chapters: [1, 2],
       cursor: "raw-cursor",
       format: "text",
       indexScope: {

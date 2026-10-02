@@ -270,11 +270,15 @@ async function runArchiveGet(args: CLIArchiveArguments): Promise<void> {
 
 async function runArchiveRelated(args: CLIArchiveArguments): Promise<void> {
   const objectUri = getObjectUri(args.objectId!);
-  const context = createArchiveOutputContext(args, {
-    continuationKind: "related",
-    targetUri: objectUri,
-  });
   const archive = await getWikiGraphSDK().archives.open(args.archivePath);
+  const scope = await archive.resolveScope();
+  const context = createArchiveOutputContext(
+    scope === undefined ? args : { ...args, chapters: scope.chapterIds },
+    {
+      continuationKind: "related",
+      targetUri: objectUri,
+    },
+  );
   const readPage = async (
     cursor: string | undefined,
   ): Promise<ArchiveRelatedResult> =>
@@ -302,11 +306,15 @@ async function runArchiveRelated(args: CLIArchiveArguments): Promise<void> {
 
 async function runArchiveEvidence(args: CLIArchiveArguments): Promise<void> {
   const objectUri = getObjectUri(args.objectId!);
-  const context = createArchiveOutputContext(args, {
-    continuationKind: "evidence",
-    targetUri: objectUri,
-  });
   const archive = await getWikiGraphSDK().archives.open(args.archivePath);
+  const scope = await archive.resolveScope();
+  const context = createArchiveOutputContext(
+    scope === undefined ? args : { ...args, chapters: scope.chapterIds },
+    {
+      continuationKind: "evidence",
+      targetUri: objectUri,
+    },
+  );
   const readPage = async (cursor: string | undefined) =>
     await archive.evidence(objectUri, {
       ...(cursor === undefined ? {} : { cursor }),

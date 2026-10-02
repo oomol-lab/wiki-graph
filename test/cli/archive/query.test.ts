@@ -979,6 +979,7 @@ describe("cli/archive/query", () => {
     expect(createContinuationCursor).toHaveBeenCalledWith({
       archiveKey: "/tmp/book.wikg",
       archivePath: "/tmp/book.wikg",
+      chapters: null,
       cursor: "raw-next-evidence-cursor",
       format: "json",
       indexScope: {

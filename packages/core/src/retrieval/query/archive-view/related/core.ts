@@ -95,6 +95,7 @@ export async function listRelatedArchiveObjects(
 
   const documentOrders = await document.serials.listDocumentOrders();
   const { chapterId } = await requireNode(document, reference.id);
+  assertRelatedChapterAllowed(chapterId, options.chapters, id);
   const items = sortGraphNeighborsByListMode(
     await listGraphNeighbors(document, chapterId, reference.id),
     documentOrders,
@@ -141,6 +142,7 @@ async function listRelatedWikiGraphObjects(
     case "chunk": {
       rejectRelatedRole(options.role, uri);
       const { chapterId } = await requireNode(document, reference.id);
+      assertRelatedChapterAllowed(chapterId, options.chapters, uri);
 
       if (
         reference.chapterId !== undefined &&
@@ -207,6 +209,16 @@ async function listRelatedWikiGraphObjects(
       rejectRelatedQuery(options.query, uri);
       rejectRelatedRole(options.role, uri);
       return paginateRelatedItems([], options);
+  }
+}
+
+function assertRelatedChapterAllowed(
+  chapterId: number,
+  chapters: readonly number[] | undefined,
+  id: string,
+): void {
+  if (chapters !== undefined && !chapters.includes(chapterId)) {
+    throw new Error(`Object ${id} was not found in this archive scope.`);
   }
 }
 

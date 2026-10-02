@@ -60,6 +60,7 @@ export type ContinuationCursor =
       readonly types: readonly string[] | null;
     })
   | (ContinuationCursorBase & {
+      readonly chapters: readonly number[] | null;
       readonly cursor: string;
       readonly format: "json" | "jsonl" | "text";
       readonly kind: "evidence";
@@ -70,6 +71,7 @@ export type ContinuationCursor =
       readonly targetUri: string;
     })
   | (ContinuationCursorBase & {
+      readonly chapters: readonly number[] | null;
       readonly cursor: string;
       readonly evidenceLimit?: number;
       readonly format: "json" | "jsonl" | "text";

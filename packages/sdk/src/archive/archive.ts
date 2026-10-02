@@ -718,15 +718,13 @@ export class WikiGraphArchiveHandle {
     options: WikiGraphArchiveRelatedOptions = {},
   ): Promise<ArchiveRelatedResult> {
     if (options.query === undefined) {
-      return await this.readDocument(
-        async (document) =>
-          await listRelatedArchiveObjects(
-            document,
-            objectUri,
-            withoutOperation(options),
-          ),
-        options,
-      );
+      return await this.readDocument(async (document) => {
+        const chapters = await this.#resolveScope(document, {});
+        return await listRelatedArchiveObjects(document, objectUri, {
+          ...withoutOperation(options),
+          ...(chapters === undefined ? {} : { chapters }),
+        });
+      }, options);
     }
     return await this.writeDocument(
       async (document) => {
@@ -734,11 +732,10 @@ export class WikiGraphArchiveHandle {
         await ensureArchiveSearchIndex(document, {
           ...(chapters === undefined ? {} : { chapters }),
         });
-        return await listRelatedArchiveObjects(
-          document,
-          objectUri,
-          withoutOperation(options),
-        );
+        return await listRelatedArchiveObjects(document, objectUri, {
+          ...withoutOperation(options),
+          ...(chapters === undefined ? {} : { chapters }),
+        });
       },
       {
         searchIndexWritebackPolicy: "cache",
@@ -752,15 +749,13 @@ export class WikiGraphArchiveHandle {
     options: WikiGraphArchiveEvidenceOptions = {},
   ): Promise<ArchiveEvidence> {
     if (options.query === undefined) {
-      return await this.readDocument(
-        async (document) =>
-          await listArchiveEvidence(
-            document,
-            objectUri,
-            withoutOperation(options),
-          ),
-        options,
-      );
+      return await this.readDocument(async (document) => {
+        const chapters = await this.#resolveScope(document, {});
+        return await listArchiveEvidence(document, objectUri, {
+          ...withoutOperation(options),
+          ...(chapters === undefined ? {} : { chapters }),
+        });
+      }, options);
     }
     return await this.writeDocument(
       async (document) => {
@@ -768,11 +763,10 @@ export class WikiGraphArchiveHandle {
         await ensureArchiveSearchIndex(document, {
           ...(chapters === undefined ? {} : { chapters }),
         });
-        return await listArchiveEvidence(
-          document,
-          objectUri,
-          withoutOperation(options),
-        );
+        return await listArchiveEvidence(document, objectUri, {
+          ...withoutOperation(options),
+          ...(chapters === undefined ? {} : { chapters }),
+        });
       },
       {
         searchIndexWritebackPolicy: "cache",

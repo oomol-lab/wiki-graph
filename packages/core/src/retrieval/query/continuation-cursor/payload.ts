@@ -60,6 +60,7 @@ export function createCursorPayload(input: ContinuationCursor): object {
       };
     case "evidence":
       return {
+        chapters: input.chapters,
         cursor: input.cursor,
         order: input.order,
         ...(input.query === undefined ? {} : { query: input.query }),
@@ -74,6 +75,7 @@ export function createCursorPayload(input: ContinuationCursor): object {
       };
     case "related":
       return {
+        chapters: input.chapters,
         cursor: input.cursor,
         ...(input.evidenceLimit === undefined
           ? {}
@@ -159,6 +161,7 @@ export function parseContinuationCursorRecord(record: {
     return {
       archiveKey: record.archiveKey,
       archivePath: record.archivePath,
+      chapters: getPayloadNumberArrayOrNull(payload, "chapters"),
       cursor: getPayloadString(payload, "cursor"),
       format: record.format,
       indexScope,
@@ -175,6 +178,7 @@ export function parseContinuationCursorRecord(record: {
     return {
       archiveKey: record.archiveKey,
       archivePath: record.archivePath,
+      chapters: getPayloadNumberArrayOrNull(payload, "chapters"),
       cursor: getPayloadString(payload, "cursor"),
       ...getPayloadOptionalPositiveInteger(payload, "evidenceLimit"),
       format: record.format,
