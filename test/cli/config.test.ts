@@ -5,14 +5,16 @@ const configMockState = vi.hoisted(() => ({
     concurrent: {} as Record<string, unknown>,
     embeddings: {} as Record<string, unknown>,
     llm: {} as Record<string, unknown>,
+    wikimedia: {} as Record<string, unknown>,
     wikispine: {} as Record<string, unknown>,
   },
 }));
 
-vi.mock("../../packages/cli/src/runtime/local-config.js", () => ({
+vi.mock("../../packages/sdk/src/local-config.js", () => ({
   readLocalConfigSection: vi.fn(
-    (section: "concurrent" | "embeddings" | "llm" | "wikispine") =>
-      Promise.resolve(configMockState.sections[section]),
+    (
+      section: "concurrent" | "embeddings" | "llm" | "wikimedia" | "wikispine",
+    ) => Promise.resolve(configMockState.sections[section]),
   ),
 }));
 
@@ -24,6 +26,7 @@ describe("cli/config", () => {
       concurrent: {},
       embeddings: {},
       llm: {},
+      wikimedia: {},
       wikispine: {},
     };
   });
@@ -41,6 +44,7 @@ describe("cli/config", () => {
         model: "local-model",
         provider: "openai-compatible",
       },
+      wikimedia: {},
       wikispine: {
         provider: "fetch",
         token: "local-wikispine-key",
@@ -76,6 +80,7 @@ describe("cli/config", () => {
         model: "local-model",
         provider: "openai-compatible",
       },
+      wikimedia: {},
       wikispine: {},
     };
 

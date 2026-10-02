@@ -1,7 +1,5 @@
 import type { CLILegacyArguments } from "../args/index.js";
-import { migrateLegacySdpubToWikg } from "wiki-graph-sdk";
-import { resolve } from "path";
-import { NodeFile } from "../runtime/node-platform.js";
+import { getWikiGraphSDK } from "../runtime/context.js";
 
 export async function runLegacyCommand(
   args: CLILegacyArguments,
@@ -11,22 +9,12 @@ export async function runLegacyCommand(
       process.stderr.write(
         "`wg legacy migrate` is deprecated. Use `wg maintenance upgrade <sdpub-path>`.\n",
       );
-      const outputPath = resolve(
-        args.outputPath ?? defaultWikgOutputPath(args.inputPath),
+      const result = await getWikiGraphSDK().maintenance.migrateLegacy(
+        args.inputPath,
+        args.outputPath,
       );
-      await migrateLegacySdpubToWikg(
-        new NodeFile(resolve(args.inputPath)),
-        new NodeFile(outputPath),
-      );
-
-      process.stdout.write(`Wrote ${outputPath}\n`);
+      process.stdout.write(`Wrote ${result.outputPath}\n`);
       return;
     }
   }
-}
-
-function defaultWikgOutputPath(inputPath: string): string {
-  return inputPath.toLowerCase().endsWith(".sdpub")
-    ? `${inputPath.slice(0, -".sdpub".length)}.wikg`
-    : `${inputPath}.wikg`;
 }

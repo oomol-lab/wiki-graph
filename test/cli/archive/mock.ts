@@ -671,6 +671,11 @@ vi.mock("../../../packages/core/src/api/index.js", () => ({
       archivePath: "/tmp/book.wikg",
       cursor: "raw-search-cursor",
       format: "json",
+      indexScope: {
+        archiveKey: "/tmp/book.wikg",
+        archivePath: "/tmp/book.wikg",
+        kind: "archive-index",
+      },
       kind: "search",
       types: ["entity"],
     }),
@@ -717,6 +722,41 @@ vi.mock("../../../packages/cli/src/runtime/config.js", () => ({
   ),
 }));
 
+vi.mock("../../../packages/sdk/src/runtime-config.js", () => ({
+  loadWikiGraphRuntimeConfig: vi.fn(() =>
+    Promise.resolve({
+      concurrent: {
+        job: 2,
+        request: 3,
+      },
+      llm: {
+        model: "gpt-test",
+        provider: "openai-compatible",
+      },
+    }),
+  ),
+}));
+
+vi.mock("../../../packages/sdk/src/query-runtime.js", () => ({
+  createConfiguredEmbeddingProvider: vi.fn(() => Promise.resolve(undefined)),
+  withConfiguredWikimediaResolver: vi.fn(
+    async (
+      objectUri: string,
+      operation: (options: Record<string, unknown>) => Promise<unknown>,
+    ) =>
+      await operation(
+        objectUri.endsWith("/wikipage")
+          ? {
+              wikimediaResolver: {
+                mode: "local",
+                resolve: vi.fn(),
+              },
+            }
+          : {},
+      ),
+  ),
+}));
+
 vi.mock(
   "../../../packages/cli/src/support/index.js",
   async (importOriginal) => {
@@ -741,6 +781,28 @@ vi.mock("../../../packages/cli/src/commands/convert.js", () => ({
       await writeOutputFile(args.outputPath, "created");
     }
   }),
+}));
+
+vi.mock("../../../packages/sdk/src/conversions.js", () => ({
+  WikiGraphConversionManager: class {
+    public async convert(options: {
+      readonly output: { readonly path: string };
+    }): Promise<{
+      readonly inputFormat: "epub";
+      readonly outputFormat: "wikg";
+      readonly outputPath: string;
+    }> {
+      archiveMockState.convertCalls.push(options);
+      const { writeFile: writeOutputFile } = await import("fs/promises");
+
+      await writeOutputFile(options.output.path, "created");
+      return {
+        inputFormat: "epub",
+        outputFormat: "wikg",
+        outputPath: options.output.path,
+      };
+    }
+  },
 }));
 
 function createArchiveMockDocument(): unknown {

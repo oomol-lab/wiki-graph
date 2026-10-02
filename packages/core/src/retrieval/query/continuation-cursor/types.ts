@@ -31,6 +31,7 @@ export type ContinuationCursor =
       readonly format: "json" | "jsonl" | "text";
       readonly ids: readonly string[] | null;
       readonly kind: "collection";
+      readonly libraryQuery?: "archive-members" | "objects";
       readonly order: "doc-asc" | "doc-desc";
       readonly sourceContext?: number;
       readonly triplePattern?: {
@@ -47,6 +48,7 @@ export type ContinuationCursor =
       readonly evidenceLimit?: number;
       readonly format: "json" | "jsonl" | "text";
       readonly kind: "search";
+      readonly libraryQuery?: "archive-members" | "objects";
       readonly query?: string;
       readonly skipUnindexed?: boolean;
       readonly sourceContext?: number;
@@ -58,6 +60,7 @@ export type ContinuationCursor =
       readonly types: readonly string[] | null;
     })
   | (ContinuationCursorBase & {
+      readonly chapters: readonly number[] | null;
       readonly cursor: string;
       readonly format: "json" | "jsonl" | "text";
       readonly kind: "evidence";
@@ -68,6 +71,7 @@ export type ContinuationCursor =
       readonly targetUri: string;
     })
   | (ContinuationCursorBase & {
+      readonly chapters: readonly number[] | null;
       readonly cursor: string;
       readonly evidenceLimit?: number;
       readonly format: "json" | "jsonl" | "text";

@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { resolve } from "path";
 import type * as CLIRuntime from "../../packages/cli/src/runtime/index.js";
 import type * as CLISupport from "../../packages/cli/src/support/index.js";
 
@@ -523,6 +524,49 @@ vi.mock("../../packages/cli/src/runtime/config.js", () => ({
   loadCLIConfig: vi.fn(() => Promise.resolve(queueMockState.cliConfig)),
 }));
 
+vi.mock("../../packages/sdk/src/runtime-config.js", () => ({
+  loadWikiGraphRuntimeConfig: vi.fn(() =>
+    Promise.resolve(queueMockState.cliConfig),
+  ),
+}));
+
+vi.mock("../../packages/sdk/src/stage.js", () => ({
+  createStageLLM: vi.fn((_config: unknown, options: unknown) => {
+    queueMockState.createStageLLMCalls.push(options);
+    return {};
+  }),
+  loadRequiredStageConfig: vi.fn((options: unknown) => {
+    queueMockState.loadRequiredStageConfigCalls.push(options);
+    if (queueMockState.loadRequiredStageConfigError !== undefined) {
+      return Promise.reject(queueMockState.loadRequiredStageConfigError);
+    }
+    return Promise.resolve({
+      ...queueMockState.cliConfig,
+      prompt: "Keep key beats",
+    });
+  }),
+  resolveExtractionPrompt: vi.fn((prompt: string | undefined) => prompt ?? ""),
+  resolveKnowledgeGraphRecallPrompt: vi.fn(
+    (prompt: string | undefined) => prompt ?? "Default KG recall",
+  ),
+}));
+
+vi.mock("../../packages/sdk/src/embedding.js", () => ({
+  buildSearchIndexEmbeddingProvider: vi.fn(() => ({
+    dimensions: 3,
+    identity: "provider=test",
+    model: "test-embedding",
+    embedTexts: (
+      texts: readonly string[],
+      options?: { readonly signal?: AbortSignal },
+    ) => {
+      queueMockState.embeddingRequests.push([...texts]);
+      queueMockState.embeddingRequestSignals.push(options?.signal);
+      return Promise.resolve({ embeddings: texts.map(() => [1, 2, 3]) });
+    },
+  })),
+}));
+
 vi.mock("../../packages/cli/src/runtime/embedding.js", () => ({
   buildSearchIndexEmbeddingProvider: vi.fn(() => ({
     dimensions: 3,
@@ -667,15 +711,15 @@ describe("cli/queue", () => {
       }),
     ).rejects.toThrow("consume tokens");
 
-    expect(queueMockState.openPaths).toStrictEqual(["book.wikg"]);
+    expect(queueMockState.readDocumentCalls).toStrictEqual([
+      resolve("book.wikg"),
+    ]);
     expect(queueMockState.activeJobChecks).toStrictEqual([]);
     expect(queueMockState.addCalls).toStrictEqual([]);
   });
 
   it("reports missing chapters before the cost gate", async () => {
-    queueMockState.readChapterStageError = new Error(
-      "Chapter 12 does not exist",
-    );
+    queueMockState.chapters = [];
 
     await expect(
       runQueueCommand({
@@ -691,7 +735,7 @@ describe("cli/queue", () => {
   });
 
   it("reports planned chapters before the cost gate", async () => {
-    queueMockState.chapterStage = "planned";
+    queueMockState.chapters = [{ chapterId: 12, stage: "planned", words: 0 }];
 
     await expect(
       runQueueCommand({
@@ -718,13 +762,13 @@ describe("cli/queue", () => {
 
     expect(queueMockState.addCalls).toStrictEqual([
       {
-        archive: new NodeFile("book.wikg"),
+        archive: new NodeFile(resolve("book.wikg")),
         boost: true,
         chapterId: 12,
         target: "reading-graph",
       },
     ]);
-    expect(queueMockState.loadRequiredStageConfigCalls).toStrictEqual([{}]);
+    expect(queueMockState.loadRequiredStageConfigCalls).toStrictEqual([{}, {}]);
     expect(queueMockState.textWrites.join("")).toContain("Job job-1 queued");
     expect(queueMockState.textWrites.join("")).toContain(
       "Job is queued; the requested artifact or generated data is not ready until the job succeeds.",

@@ -9,12 +9,20 @@ const ESM_DATA_DIR_BANNER = [
   'globalThis.__WIKIGRAPH_DATA_DIR__ ??= __WIKIGRAPH_RESOLVE__(__WIKIGRAPH_FILE_URL_TO_PATH__(new URL("./data", import.meta.url)));',
 ].join("\n");
 const ENTRY = {
+  archives: "src/archive/index.ts",
+  conversions: "src/conversions.ts",
+  "default-worker": "src/default-worker.ts",
+  embedding: "src/embedding.ts",
   "entry-context": "src/entry-context.ts",
   gc: "src/gc.ts",
   index: "src/index.ts",
   "local-config": "src/local-config.ts",
+  llm: "src/llm.ts",
+  maintenance: "src/maintenance.ts",
   "node-platform": "src/node-platform.ts",
   planning: "src/planning.ts",
+  "runtime-config": "src/runtime-config.ts",
+  stage: "src/stage.ts",
   wikispine: "src/wikispine.ts",
   worker: "src/worker.ts",
 } as const;

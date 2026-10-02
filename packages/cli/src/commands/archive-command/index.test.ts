@@ -4,10 +4,6 @@ import { join } from "path";
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import {
-  findWikiGraphLibraryObjects,
-  listWikiGraphLibraryObjects,
-} from "wiki-graph-sdk";
 import type * as WikiGraphCore from "wiki-graph-sdk";
 import { setWikiGraphStateDirectoryPathForTesting } from "../../../../../test/helpers/wiki-graph-storage.js";
 import { parseCLIArguments } from "../../args/index.js";
@@ -15,12 +11,24 @@ import { writeFindHits } from "../archive-output/index.js";
 import { runArchiveCommand } from "./index.js";
 import type * as ArchiveRun from "./run/index.js";
 
+const sdkMocks = vi.hoisted(() => ({
+  findLibraryObjects: vi.fn(),
+  listLibraryObjects: vi.fn(),
+}));
+
 vi.mock("wiki-graph-sdk", async (importOriginal) => {
   const actual = await importOriginal<typeof WikiGraphCore>();
   return {
     ...actual,
+    createWikiGraphSDK: vi.fn(() => ({
+      libraries: {
+        get: vi.fn(() => Promise.resolve({ snapshot: { id: 42 } })),
+        objects: sdkMocks.listLibraryObjects,
+        search: sdkMocks.findLibraryObjects,
+      },
+    })),
     findArchiveObjects: vi.fn(),
-    findWikiGraphLibraryObjects: vi.fn(),
+    findWikiGraphLibraryObjects: sdkMocks.findLibraryObjects,
     formatWikiGraphLibraryUri: vi.fn((publicId?: string) =>
       publicId === undefined ? "wikg://lib" : `wikg://lib/${publicId}`,
     ),
@@ -29,7 +37,7 @@ vi.mock("wiki-graph-sdk", async (importOriginal) => {
     listRelatedArchiveObjects: vi.fn(),
     listRelatedWikiGraphLibraryObjects: vi.fn(),
     listWikiGraphLibraryEvidence: vi.fn(),
-    listWikiGraphLibraryObjects: vi.fn(),
+    listWikiGraphLibraryObjects: sdkMocks.listLibraryObjects,
     packArchiveContext: vi.fn(),
     packWikiGraphLibraryContext: vi.fn(),
     parseLocatedWikiGraphUri: vi.fn((uri: string) => ({
@@ -73,7 +81,6 @@ vi.mock("./run/index.js", async (importOriginal) => {
     runNextArchivePage: vi.fn(),
   };
 });
-vi.mock("./run/scope.js", () => ({ resolveArchiveChapterScope: vi.fn() }));
 
 let testStateDir: string | undefined;
 
@@ -81,7 +88,7 @@ beforeEach(async () => {
   testStateDir = await mkdtemp(join(tmpdir(), "wikigraph-archive-command-"));
   setWikiGraphStateDirectoryPathForTesting(testStateDir);
   vi.clearAllMocks();
-  vi.mocked(findWikiGraphLibraryObjects).mockResolvedValue({
+  sdkMocks.findLibraryObjects.mockResolvedValue({
     chapters: null,
     items: [],
     lens: "typed",
@@ -94,7 +101,7 @@ beforeEach(async () => {
     terms: ["memory"],
     types: ["triple"],
   });
-  vi.mocked(listWikiGraphLibraryObjects).mockResolvedValue({
+  sdkMocks.listLibraryObjects.mockResolvedValue({
     chapters: null,
     ids: null,
     items: [],
@@ -127,7 +134,7 @@ describe("runArchiveCommand library nested scopes", () => {
 
     await runArchiveCommand(parsed.args);
 
-    expect(findWikiGraphLibraryObjects).toHaveBeenCalledWith(
+    expect(sdkMocks.findLibraryObjects).toHaveBeenCalledWith(
       {
         isDefault: true,
         kind: "scope",
@@ -154,7 +161,7 @@ describe("runArchiveCommand library nested scopes", () => {
 
     await runArchiveCommand(parsed.args);
 
-    expect(listWikiGraphLibraryObjects).toHaveBeenCalledWith(
+    expect(sdkMocks.listLibraryObjects).toHaveBeenCalledWith(
       {
         isDefault: true,
         kind: "scope",

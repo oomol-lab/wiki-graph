@@ -19,6 +19,7 @@ const nodeSqlite3 =
   (sqlite3 as unknown as { default?: typeof sqlite3 }).default ?? sqlite3;
 
 import {
+  getWikiGraphStorage,
   installWikiGraphPlatform,
   installWikiGraphStorage,
   withWikiGraphStorage,
@@ -896,6 +897,15 @@ export function createNodeWikiGraphStorage(
 export function installNodeWikiGraphPlatform(stateRoot?: string): void {
   installWikiGraphPlatform(nodeWikiGraphPlatform);
   installWikiGraphStorage(createNodeWikiGraphStorage(stateRoot));
+}
+
+export function ensureNodeWikiGraphPlatform(): void {
+  installWikiGraphPlatform(nodeWikiGraphPlatform);
+  try {
+    getWikiGraphStorage();
+  } catch {
+    installWikiGraphStorage(createNodeWikiGraphStorage());
+  }
 }
 
 export async function withNodeWikiGraphStorage<T>(

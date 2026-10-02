@@ -106,6 +106,7 @@ describe("cli/archive/evidence pack", () => {
     });
 
     expect(listArchiveEvidence).toHaveBeenCalledWith({}, "wikg://entity/Q1", {
+      chapters: [1, 2],
       query: "paragraph",
       skipUnindexed: true,
     });
@@ -132,6 +133,7 @@ describe("cli/archive/evidence pack", () => {
     expect(createContinuationCursor).toHaveBeenCalledWith({
       archiveKey: "/tmp/book.wikg",
       archivePath: "/tmp/book.wikg",
+      chapters: null,
       cursor: "raw-next-evidence-cursor",
       format: "json",
       indexScope: {

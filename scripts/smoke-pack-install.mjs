@@ -88,6 +88,45 @@ function assertEsmExport(cwd, specifier, exportName) {
   );
 }
 
+function assertCommonJsExportMissing(cwd, specifier, exportName) {
+  execFileSync(
+    process.execPath,
+    [
+      "-e",
+      [
+        `const mod = require(${JSON.stringify(specifier)});`,
+        `if (mod[${JSON.stringify(exportName)}] !== undefined) {`,
+        `  throw new Error(${JSON.stringify(`CommonJS export ${exportName} must not be available from ${specifier}`)});`,
+        "}",
+      ].join(" "),
+    ],
+    {
+      cwd,
+      stdio: "inherit",
+    },
+  );
+}
+
+function assertEsmExportMissing(cwd, specifier, exportName) {
+  execFileSync(
+    process.execPath,
+    [
+      "--input-type=module",
+      "-e",
+      [
+        `const mod = await import(${JSON.stringify(specifier)});`,
+        `if (mod[${JSON.stringify(exportName)}] !== undefined) {`,
+        `  throw new Error(${JSON.stringify(`ESM export ${exportName} must not be available from ${specifier}`)});`,
+        "}",
+      ].join(" "),
+    ],
+    {
+      cwd,
+      stdio: "inherit",
+    },
+  );
+}
+
 function runNodeScript(cwd, args) {
   execFileSync(process.execPath, args, {
     cwd,
@@ -210,8 +249,10 @@ try {
 
   assertCommonJsExport(sdkInstallRoot, "wiki-graph-sdk", "createWikiGraphSDK");
   assertEsmExport(sdkInstallRoot, "wiki-graph-sdk", "createWikiGraphSDK");
-  assertCommonJsExport(sdkInstallRoot, "wiki-graph-sdk", "WikiGraph");
-  assertEsmExport(sdkInstallRoot, "wiki-graph-sdk", "WikiGraph");
+  assertCommonJsExport(sdkInstallRoot, "wiki-graph-sdk", "WikiGraphSDK");
+  assertEsmExport(sdkInstallRoot, "wiki-graph-sdk", "WikiGraphSDK");
+  assertCommonJsExportMissing(sdkInstallRoot, "wiki-graph-sdk", "WikiGraph");
+  assertEsmExportMissing(sdkInstallRoot, "wiki-graph-sdk", "WikiGraph");
   assertCommonJsExport(
     sdkInstallRoot,
     "wiki-graph-sdk/node-platform",

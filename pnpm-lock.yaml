@@ -197,6 +197,21 @@ importers:
 
   packages/sdk:
     dependencies:
+      "@ai-sdk/anthropic":
+        specifier: ^3.0.68
+        version: 3.0.68(zod@4.3.6)
+      "@ai-sdk/google":
+        specifier: ^3.0.61
+        version: 3.0.61(zod@4.3.6)
+      "@ai-sdk/openai":
+        specifier: ^3.0.52
+        version: 3.0.52(zod@4.3.6)
+      "@ai-sdk/openai-compatible":
+        specifier: ^2.0.41
+        version: 2.0.41(zod@4.3.6)
+      ai:
+        specifier: ^6.0.154
+        version: 6.0.154(zod@4.3.6)
       nunjucks:
         specifier: ^3.2.4
         version: 3.2.4
@@ -212,6 +227,9 @@ importers:
       yazl:
         specifier: ^3.3.1
         version: 3.3.1
+      zod:
+        specifier: ^4.3.6
+        version: 4.3.6
 
   packages/wikimedia:
     dependencies:

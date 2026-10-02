@@ -33,6 +33,7 @@ const archiveMaintenanceMockState = vi.hoisted(() => ({
 }));
 
 vi.mock("../../../packages/core/src/index.js", () => ({
+  ensureWikiGraphHomeSchemaCurrent: vi.fn(() => Promise.resolve()),
   formatLocatedWikiGraphUri: (path: string, objectUri?: string) =>
     objectUri === undefined ? `wikg://${path}` : `wikg://${path}/${objectUri}`,
   markWikiGraphLibraryIndexDirty: vi.fn(() => Promise.resolve()),
@@ -66,6 +67,16 @@ vi.mock("../../../packages/core/src/index.js", () => ({
             meta as typeof archiveMaintenanceMockState.meta;
           return Promise.resolve();
         },
+      });
+    }
+
+    public async readDocument(
+      operation: (document: MockEditableDocument) => Promise<unknown>,
+    ): Promise<unknown> {
+      archiveMaintenanceMockState.openCalls.push(this.#path);
+      return await operation({
+        readBookMeta: () => Promise.resolve(archiveMaintenanceMockState.meta),
+        replaceBookMeta: () => Promise.resolve(),
       });
     }
   },

@@ -1,9 +1,8 @@
 import {
   formatLocatedChapterUri,
-  listChapters,
-  WikiGraphArchiveFile,
   type BuildJob,
   type ChapterEntry,
+  type WikiGraphJobChapterReference,
 } from "wiki-graph-sdk";
 
 import {
@@ -17,13 +16,10 @@ import {
   formatQueueAddEstimateLines,
   type QueueAddEstimate,
 } from "./estimate.js";
-import { getNodeResourcePath, NodeFile } from "../../runtime/node-platform.js";
+import { getNodeResourcePath } from "../../runtime/node-platform.js";
+import { getWikiGraphSDK } from "../../runtime/context.js";
 
-interface JobChapterReference {
-  readonly locatedUri: string;
-  readonly title: string | null;
-  readonly uri: string;
-}
+type JobChapterReference = WikiGraphJobChapterReference;
 
 export async function writeJobList(
   jobs: readonly BuildJob[],
@@ -383,53 +379,13 @@ function createJobChapterReferenceFromPath(
 async function resolveJobChapters(
   jobs: readonly BuildJob[],
 ): Promise<ReadonlyMap<string, JobChapterReference>> {
-  const jobsByArchive = new Map<string, BuildJob[]>();
-  for (const job of jobs) {
-    const archivePath = requireJobResourcePath(job, "archive", "archivePath");
-    const grouped = jobsByArchive.get(archivePath) ?? [];
-    grouped.push(job);
-    jobsByArchive.set(archivePath, grouped);
-  }
-  const entries = (
-    await Promise.all(
-      [...jobsByArchive].map(async ([archivePath, archiveJobs]) => {
-        try {
-          let chapters: readonly ChapterEntry[] = [];
-          await new WikiGraphArchiveFile(
-            new NodeFile(archivePath),
-          ).readDocument(async (document) => {
-            chapters = await listChapters(document);
-          });
-          const chaptersById = new Map(
-            chapters.map((chapter) => [chapter.chapterId, chapter]),
-          );
-
-          return archiveJobs.flatMap((job) => {
-            const chapter = chaptersById.get(job.chapterId);
-
-            return chapter === undefined
-              ? []
-              : [
-                  [
-                    job.jobId,
-                    createJobChapterReferenceFromPath(archivePath, chapter),
-                  ] as const,
-                ];
-          });
-        } catch {
-          return [];
-        }
-      }),
-    )
-  ).flat();
-
-  return new Map(entries);
+  return await getWikiGraphSDK().jobs.resolveChapters(jobs);
 }
 
 async function resolveJobChapter(
   job: BuildJob,
 ): Promise<JobChapterReference | undefined> {
-  return (await resolveJobChapters([job])).get(job.jobId);
+  return await getWikiGraphSDK().jobs.resolveChapter(job);
 }
 
 function getJobResourcePath(

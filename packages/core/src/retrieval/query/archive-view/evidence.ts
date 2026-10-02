@@ -1,4 +1,7 @@
-import type { ReadonlyDocument } from "../../../document/index.js";
+import type {
+  MentionLinkRecord,
+  ReadonlyDocument,
+} from "../../../document/index.js";
 
 import { parseWikiGraphReference } from "./references.js";
 import type { ArchiveEvidence, ArchiveEvidenceOptions } from "./types.js";
@@ -7,6 +10,7 @@ import { DEFAULT_FIND_LIMIT, decodeFindCursor } from "./helpers.js";
 import {
   filterMentionLinksByChapter,
   filterMentionsByChapter,
+  filterMentionsByChapterSet,
 } from "./knowledge.js";
 import {
   createMentionEvidenceRanges,
@@ -58,6 +62,7 @@ export async function listArchiveEvidence(
       ) {
         throw new Error(`Chunk ${uri} was not found in this archive.`);
       }
+      assertEvidenceChapterAllowed(chapterId, options.chapters, uri);
 
       return await createSourceEvidencePage(
         document,
@@ -69,6 +74,28 @@ export async function listArchiveEvidence(
       if (options.query === undefined) {
         const limit = options.limit ?? DEFAULT_FIND_LIMIT;
         const offset = decodeFindCursor(options.cursor);
+        if (options.chapters !== undefined) {
+          const mentions = filterMentionsByChapterSet(
+            filterMentionsByChapter(
+              await document.mentions.listByQid(reference.qid, {
+                order: options.order === "doc-desc" ? "desc" : "asc",
+              }),
+              reference.chapterId,
+            ),
+            new Set(options.chapters),
+          );
+          return await createMentionEvidencePage(
+            document,
+            mentions.slice(offset, offset + limit),
+            {
+              context: createEvidenceReadContext(),
+              limit,
+              offset,
+              sourceContext: options.sourceContext,
+              total: mentions.length,
+            },
+          );
+        }
         const chapterFilter =
           reference.chapterId === undefined
             ? {}
@@ -94,9 +121,12 @@ export async function listArchiveEvidence(
 
       const limit = options.limit ?? DEFAULT_FIND_LIMIT;
       const offset = decodeFindCursor(options.cursor);
-      const mentions = filterMentionsByChapter(
-        await document.mentions.listByQid(reference.qid),
-        reference.chapterId,
+      const mentions = filterMentionsByChapterSet(
+        filterMentionsByChapter(
+          await document.mentions.listByQid(reference.qid),
+          reference.chapterId,
+        ),
+        options.chapters === undefined ? undefined : new Set(options.chapters),
       );
       const candidates = await filterAndSortSourceEvidenceCandidatesByFtsQuery(
         document,
@@ -125,6 +155,33 @@ export async function listArchiveEvidence(
       if (options.query === undefined) {
         const limit = options.limit ?? DEFAULT_FIND_LIMIT;
         const offset = decodeFindCursor(options.cursor);
+        if (options.chapters !== undefined) {
+          const links = await filterMentionLinksByChapterSet(
+            document,
+            await filterMentionLinksByChapter(
+              document,
+              await document.mentionLinks.listByTriple({
+                objectQid: reference.objectQid,
+                order: options.order === "doc-desc" ? "desc" : "asc",
+                predicate: reference.predicate,
+                subjectQid: reference.subjectQid,
+              }),
+              reference.chapterId,
+            ),
+            new Set(options.chapters),
+          );
+          return await createMentionLinkEvidencePage(
+            document,
+            links.slice(offset, offset + limit),
+            {
+              context: createEvidenceReadContext(),
+              limit,
+              offset,
+              sourceContext: options.sourceContext,
+              total: links.length,
+            },
+          );
+        }
         const tripleQuery = {
           ...(reference.chapterId === undefined
             ? {}
@@ -154,14 +211,18 @@ export async function listArchiveEvidence(
 
       const limit = options.limit ?? DEFAULT_FIND_LIMIT;
       const offset = decodeFindCursor(options.cursor);
-      const links = await filterMentionLinksByChapter(
+      const links = await filterMentionLinksByChapterSet(
         document,
-        await document.mentionLinks.listByTriple({
-          objectQid: reference.objectQid,
-          predicate: reference.predicate,
-          subjectQid: reference.subjectQid,
-        }),
-        reference.chapterId,
+        await filterMentionLinksByChapter(
+          document,
+          await document.mentionLinks.listByTriple({
+            objectQid: reference.objectQid,
+            predicate: reference.predicate,
+            subjectQid: reference.subjectQid,
+          }),
+          reference.chapterId,
+        ),
+        options.chapters === undefined ? undefined : new Set(options.chapters),
       );
       const candidates = await filterAndSortSourceEvidenceCandidatesByFtsQuery(
         document,
@@ -185,6 +246,32 @@ export async function listArchiveEvidence(
         total: candidates.length,
       });
     }
+  }
+}
+
+async function filterMentionLinksByChapterSet(
+  document: ReadonlyDocument,
+  links: readonly MentionLinkRecord[],
+  chapters: ReadonlySet<number> | undefined,
+): Promise<readonly MentionLinkRecord[]> {
+  if (chapters === undefined) return links;
+  const filtered: MentionLinkRecord[] = [];
+  for (const link of links) {
+    const source = await document.mentions.getById(link.sourceMentionId);
+    if (source !== undefined && chapters.has(source.chapterId)) {
+      filtered.push(link);
+    }
+  }
+  return filtered;
+}
+
+function assertEvidenceChapterAllowed(
+  chapterId: number,
+  chapters: readonly number[] | undefined,
+  uri: string,
+): void {
+  if (chapters !== undefined && !chapters.includes(chapterId)) {
+    throw new Error(`Object ${uri} was not found in this archive scope.`);
   }
 }
 

@@ -1,11 +1,7 @@
 import { readFile } from "fs/promises";
 
-import { ObjectMetadataKind, type ObjectMetadataTarget } from "wiki-graph-sdk";
-import { WikiGraphArchiveFile } from "wiki-graph-sdk";
-
 import type { CLIObjectMetadataArguments } from "../args/index.js";
-import { writeArchiveDocument } from "./archive-command/run/document.js";
-import { resolveArchiveRuntimeLocation } from "./archive-command/run/uri.js";
+import { getWikiGraphSDK } from "../runtime/context.js";
 import {
   readTextStreamFromStdin,
   writeTextToStdout,
@@ -15,18 +11,13 @@ import { formatCLIJSON } from "../support/index.js";
 export async function runObjectMetadataCommand(
   args: CLIObjectMetadataArguments,
 ): Promise<void> {
-  const target = parseObjectMetadataTarget(args.objectPath);
+  const archive = await getWikiGraphSDK().archives.open(args.archivePath);
 
   switch (args.action) {
     case "get": {
-      const location = await resolveArchiveRuntimeLocation(args.archivePath);
-      await new WikiGraphArchiveFile(location.archiveFile).readDocument(
-        async (document) => {
-          await writeMetadataMap(
-            await document.metadata.getMap(args.objectPath),
-            args.json ?? false,
-          );
-        },
+      await writeMetadataMap(
+        await archive.getMetadata(args.objectPath),
+        args.json ?? false,
       );
       return;
     }
@@ -34,48 +25,36 @@ export async function runObjectMetadataCommand(
       const value = await readMetadataInput(args, { jsonRequired: true });
       const map = parseMetadataMap(value);
 
-      await writeArchiveDocument(args.archivePath, async (document) => {
-        await document.metadata.replaceMap(target, map);
-        await writeMetadataMap(
-          await document.metadata.getMap(args.objectPath),
-          args.json ?? false,
-        );
-      });
+      await writeMetadataMap(
+        await archive.replaceMetadata(args.objectPath, map),
+        args.json ?? false,
+      );
       return;
     }
     case "put": {
       const key = normalizeMetadataKey(args.key);
       const value = await readMetadataInput(args, { jsonRequired: false });
 
-      await writeArchiveDocument(args.archivePath, async (document) => {
-        await document.metadata.put(target, key, value);
-        await writeMetadataMap(
-          await document.metadata.getMap(args.objectPath),
-          args.json ?? false,
-        );
-      });
+      await writeMetadataMap(
+        await archive.putMetadata(args.objectPath, key, value),
+        args.json ?? false,
+      );
       return;
     }
     case "delete":
-      await writeArchiveDocument(args.archivePath, async (document) => {
-        await document.metadata.deleteKey(
+      await writeMetadataMap(
+        await archive.deleteMetadata(
           args.objectPath,
           normalizeMetadataKey(args.key),
-        );
-        await writeMetadataMap(
-          await document.metadata.getMap(args.objectPath),
-          args.json ?? false,
-        );
-      });
+        ),
+        args.json ?? false,
+      );
       return;
     case "clear":
-      await writeArchiveDocument(args.archivePath, async (document) => {
-        await document.metadata.clear(args.objectPath);
-        await writeMetadataMap(
-          await document.metadata.getMap(args.objectPath),
-          args.json ?? false,
-        );
-      });
+      await writeMetadataMap(
+        await archive.clearMetadata(args.objectPath),
+        args.json ?? false,
+      );
       return;
   }
 }
@@ -181,55 +160,4 @@ function formatMetadataTextValue(value: unknown): string {
   }
 
   return String(value);
-}
-
-function parseObjectMetadataTarget(objectPath: string): ObjectMetadataTarget {
-  if (objectPath === "") {
-    return { kind: ObjectMetadataKind.Archive, objectPath };
-  }
-
-  const chapterMatch = /^chapter\/([1-9][0-9]*)(?:\/.*)?$/u.exec(objectPath);
-  if (chapterMatch?.[1] !== undefined) {
-    return {
-      chapterId: Number(chapterMatch[1]),
-      kind: ObjectMetadataKind.Chapter,
-      objectPath,
-    };
-  }
-
-  const chunkMatch = /^chunk\/([1-9][0-9]*)$/u.exec(objectPath);
-  if (chunkMatch?.[1] !== undefined) {
-    return {
-      chunkId: Number(chunkMatch[1]),
-      kind: ObjectMetadataKind.Chunk,
-      objectPath,
-    };
-  }
-
-  const entityMatch = /^entity\/(Q[1-9][0-9]*)$/u.exec(objectPath);
-  if (entityMatch?.[1] !== undefined) {
-    return {
-      entityQid: entityMatch[1],
-      kind: ObjectMetadataKind.Entity,
-      objectPath,
-    };
-  }
-
-  const tripleMatch = /^triple\/(Q[1-9][0-9]*)\/([^/]+)\/(Q[1-9][0-9]*)$/u.exec(
-    objectPath,
-  );
-  if (tripleMatch?.[1] !== undefined) {
-    return {
-      kind: ObjectMetadataKind.Triple,
-      objectPath,
-      tripleObjectQid: tripleMatch[3]!,
-      triplePredicate: decodeURIComponent(tripleMatch[2]!),
-      tripleSubjectQid: tripleMatch[1],
-    };
-  }
-
-  return {
-    kind: ObjectMetadataKind.Object,
-    objectPath,
-  };
 }

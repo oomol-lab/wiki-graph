@@ -1,5 +1,4 @@
-import { listChapters, type BuildJob, type ChapterEntry } from "wiki-graph-sdk";
-import { WikiGraphArchiveFile } from "wiki-graph-sdk";
+import type { BuildJob, ChapterEntry } from "wiki-graph-sdk";
 
 import type { CLIQueueArguments } from "../../args/index.js";
 import type { CLIConfig } from "../../runtime/config.js";
@@ -8,97 +7,41 @@ import { getWikiGraphSDK } from "../../runtime/context.js";
 import { spawnInternalChild } from "../../runtime/internal-child.js";
 import { createQueueAddEstimate } from "./estimate.js";
 import { writeArchiveAddSummary } from "./output.js";
-import { NodeFile } from "../../runtime/node-platform.js";
 
 export async function addChapterJob(
   args: CLIQueueArguments,
   chapterId: number,
 ): Promise<BuildJob> {
-  const job = await getWikiGraphSDK().jobs.create({
-    archive: new NodeFile(args.archivePath!),
+  const result = await getWikiGraphSDK().jobs.enqueue({
+    archive: args.archivePath!,
     boost: args.boost ?? false,
     chapterId,
     ...(args.llmJSON === undefined ? {} : { llmJSON: args.llmJSON }),
     ...(args.prompt === undefined ? {} : { prompt: args.prompt }),
     target: args.target ?? "reading-summary",
   });
-  return job.snapshot;
+  const created = result.created[0];
+  if (created === undefined)
+    throw new Error(`Chapter ${chapterId} was not queued.`);
+  return created.job.snapshot;
 }
 
 export async function addArchiveJobs(
   args: CLIQueueArguments,
   config: CLIConfig,
 ): Promise<void> {
-  const created: Array<{
-    readonly chapter: ChapterEntry;
-    readonly job: BuildJob;
-  }> = [];
-  const skipped: Array<{
-    readonly chapter: ChapterEntry;
-    readonly reason: string;
-  }> = [];
-
-  await new WikiGraphArchiveFile(new NodeFile(args.archivePath!)).readDocument(
-    async (document) => {
-      const chapterIdSet =
-        args.chapterIds === undefined ? undefined : new Set(args.chapterIds);
-
-      for (const chapter of await listChapters(document)) {
-        if (
-          chapterIdSet !== undefined &&
-          !chapterIdSet.has(chapter.chapterId)
-        ) {
-          continue;
-        }
-        if (chapter.stage === "planned") {
-          skipped.push({
-            chapter,
-            reason: "planned",
-          });
-          continue;
-        }
-        const target = args.target ?? "reading-summary";
-        if (target === "index-embedding-summary") {
-          const summary = await document.readSummary(chapter.chapterId);
-          if (summary === undefined || summary.trim() === "") {
-            skipped.push({
-              chapter,
-              reason: "missing summary",
-            });
-            continue;
-          }
-        }
-        if (target === "knowledge-graph" || target === "reading-graph") {
-          const artifact = await document.indexArtifacts.get(
-            chapter.chapterId,
-            "fts",
-          );
-          const revision = await document.serials.getRevision(
-            chapter.chapterId,
-          );
-          if (artifact?.sourceRevision !== revision) {
-            skipped.push({
-              chapter,
-              reason: "missing current FTS index artifact",
-            });
-            continue;
-          }
-        }
-
-        try {
-          created.push({
-            chapter,
-            job: await addChapterJob(args, chapter.chapterId),
-          });
-        } catch (error) {
-          skipped.push({
-            chapter,
-            reason: error instanceof Error ? error.message : String(error),
-          });
-        }
-      }
-    },
-  );
+  const result = await getWikiGraphSDK().jobs.enqueue({
+    archive: args.archivePath!,
+    boost: args.boost ?? false,
+    ...(args.chapterIds === undefined ? {} : { chapterIds: args.chapterIds }),
+    ...(args.llmJSON === undefined ? {} : { llmJSON: args.llmJSON }),
+    ...(args.prompt === undefined ? {} : { prompt: args.prompt }),
+    target: args.target ?? "reading-summary",
+  });
+  const created = result.created.map(({ chapter, job }) => ({
+    chapter,
+    job: job.snapshot,
+  }));
 
   await writeArchiveAddSummary({
     archivePath: args.archivePath!,
@@ -113,7 +56,7 @@ export async function addArchiveJobs(
           }),
         }),
     json: args.json ?? false,
-    skipped,
+    skipped: result.skipped,
   });
 }
 
@@ -121,79 +64,24 @@ export async function assertQueueAddReady(
   args: CLIQueueArguments,
   chapterId: number,
 ): Promise<void> {
-  let chapter: ChapterEntry | undefined;
-  await new WikiGraphArchiveFile(new NodeFile(args.archivePath!)).readDocument(
-    async (document) => {
-      chapter = (await listChapters(document)).find(
-        (entry) => entry.chapterId === chapterId,
-      );
-    },
-  );
-
-  if (chapter === undefined) {
-    throw new Error(`Chapter ${chapterId} does not exist.`);
-  }
-
-  await new WikiGraphArchiveFile(new NodeFile(args.archivePath!)).read(
-    async (digest) => {
-      if ((await digest.readChapterStage(chapterId)) === "planned") {
-        throw new Error(
-          `Chapter ${chapter!.uri} is planned. Set source before queueing a build job.`,
-        );
-      }
-    },
-  );
-
-  const target = args.target ?? "reading-summary";
-  if (
-    target !== "index-embedding-summary" &&
-    target !== "knowledge-graph" &&
-    target !== "reading-graph"
-  ) {
-    return;
-  }
-
-  await new WikiGraphArchiveFile(new NodeFile(args.archivePath!)).readDocument(
-    async (document) => {
-      if (target === "index-embedding-summary") {
-        const summary = await document.readSummary(chapterId);
-        if (summary === undefined || summary.trim() === "") {
-          throw new Error(
-            `Chapter ${chapter!.uri} has no summary. Build a reading summary before queueing a summary embedding index artifact job.`,
-          );
-        }
-      }
-      if (target === "knowledge-graph" || target === "reading-graph") {
-        const artifact = await document.indexArtifacts.get(chapterId, "fts");
-        const revision = await document.serials.getRevision(chapterId);
-        if (artifact?.sourceRevision !== revision) {
-          throw new Error(
-            `Chapter ${chapter!.uri} needs a current FTS index artifact before queueing ${target}.`,
-          );
-        }
-      }
-    },
-  );
+  await getWikiGraphSDK().jobs.planEnqueue({
+    archive: args.archivePath!,
+    chapterId,
+    ...(args.llmJSON === undefined ? {} : { llmJSON: args.llmJSON }),
+    target: args.target ?? "reading-summary",
+  });
 }
 
 export async function readQueueAddChapter(
   args: CLIQueueArguments,
   chapterId: number,
 ): Promise<ChapterEntry> {
-  let matched: ChapterEntry | undefined;
-
-  await new WikiGraphArchiveFile(new NodeFile(args.archivePath!)).readDocument(
-    async (document) => {
-      matched = (await listChapters(document)).find(
-        (chapter) => chapter.chapterId === chapterId,
-      );
-    },
+  const archive = await getWikiGraphSDK().archives.open(args.archivePath!);
+  const matched = (await archive.listChapters()).find(
+    (chapter) => chapter.chapterId === chapterId,
   );
-
-  if (matched === undefined) {
+  if (matched === undefined)
     throw new Error(`Chapter ${chapterId} does not exist.`);
-  }
-
   return matched;
 }
 

@@ -856,12 +856,16 @@ describe("cli/archive/query", () => {
 
     expect(readContinuationCursor).toHaveBeenCalledWith("c_next");
     expect(archiveMockState.readCalls).toStrictEqual(["/tmp/book.wikg"]);
-    expect(findArchiveObjects).toHaveBeenCalledWith({}, "", {
-      archiveKey: "/tmp/book.wikg",
-      cursor: "raw-search-cursor",
-      limit: 20,
-      types: ["entity"],
-    });
+    expect(findArchiveObjects).toHaveBeenCalledWith(
+      {},
+      "",
+      expect.objectContaining({
+        archiveKey: "/tmp/book.wikg",
+        cursor: "raw-search-cursor",
+        limit: 20,
+        types: ["entity"],
+      }),
+    );
     expect(JSON.parse(archiveMockState.textWrites[0] ?? "")).toMatchObject({
       limit: 20,
       nextCursor: null,
@@ -881,12 +885,16 @@ describe("cli/archive/query", () => {
       limit: 7,
     });
 
-    expect(findArchiveObjects).toHaveBeenCalledWith({}, "", {
-      archiveKey: "/tmp/book.wikg",
-      cursor: "raw-search-cursor",
-      limit: 7,
-      types: ["entity"],
-    });
+    expect(findArchiveObjects).toHaveBeenCalledWith(
+      {},
+      "",
+      expect.objectContaining({
+        archiveKey: "/tmp/book.wikg",
+        cursor: "raw-search-cursor",
+        limit: 7,
+        types: ["entity"],
+      }),
+    );
   });
 
   it("preserves evidence preview limits on search continuation cursors", async () => {
@@ -971,6 +979,7 @@ describe("cli/archive/query", () => {
     expect(createContinuationCursor).toHaveBeenCalledWith({
       archiveKey: "/tmp/book.wikg",
       archivePath: "/tmp/book.wikg",
+      chapters: null,
       cursor: "raw-next-evidence-cursor",
       format: "json",
       indexScope: {

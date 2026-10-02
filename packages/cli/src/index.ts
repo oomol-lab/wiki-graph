@@ -1,4 +1,3 @@
-export * from "wiki-graph-sdk";
 export {
   createWikiGraphCLI,
   runWikiGraphCLI,

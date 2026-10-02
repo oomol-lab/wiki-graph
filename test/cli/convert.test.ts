@@ -50,6 +50,7 @@ const mockStdinStream = ["from stdin"];
 
 vi.mock("../../packages/core/src/index.js", () => ({
   CLI_PRIMARY_COMMAND: "wg",
+  ensureWikiGraphHomeSchemaCurrent: vi.fn(() => Promise.resolve()),
   WikiGraph: class {
     public constructor(options: unknown) {
       cliMockState.appConstructorOptions.push(options);
@@ -111,6 +112,38 @@ vi.mock("../../packages/cli/src/runtime/config.js", () => ({
 vi.mock("../../packages/cli/src/runtime/llm.js", () => ({
   buildLLMOptions: vi.fn((config: unknown) => {
     cliMockState.buildLLMOptionsConfig.push(config);
+    return mockLLMOptions;
+  }),
+}));
+
+vi.mock("../../packages/sdk/src/local-config.js", () => ({
+  readLocalConfigSection: vi.fn((section: string) => {
+    const config = cliMockState.config;
+    return Promise.resolve(
+      section === "llm"
+        ? ((config.llm as Record<string, unknown> | undefined) ?? {})
+        : section === "concurrent"
+          ? ((config.concurrent as Record<string, unknown> | undefined) ?? {})
+          : {},
+    );
+  }),
+}));
+
+vi.mock("../../packages/sdk/src/runtime-config.js", () => ({
+  loadWikiGraphRuntimeConfig: vi.fn((options?: unknown) => {
+    cliMockState.loadCLIConfigOptions.push(options);
+    return Promise.resolve(cliMockState.config);
+  }),
+}));
+
+vi.mock("../../packages/sdk/src/llm.js", () => ({
+  buildWikiGraphLLMOptions: vi.fn((config: unknown) => {
+    cliMockState.buildLLMOptionsConfig.push(config);
+    if ((config as { llm?: unknown }).llm === undefined) {
+      throw new Error(
+        "Missing LLM configuration. Set --llm for one run, or configure `wikg://local/config/llm` with provider and model.",
+      );
+    }
     return mockLLMOptions;
   }),
 }));

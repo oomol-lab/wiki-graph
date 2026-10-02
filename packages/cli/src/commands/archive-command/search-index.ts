@@ -1,11 +1,4 @@
-import {
-  deleteArchiveSearchSessions,
-  isArchiveSearchIndexCurrent,
-  listArchiveQueryableChapterIds,
-  readSearchIndexCapabilityStatus,
-  rebuildArchiveSearchIndex,
-  WikiGraphArchiveFile,
-} from "wiki-graph-sdk";
+import type { WikiGraphArchiveIndexStatus } from "wiki-graph-sdk";
 
 import type { CLIArchiveIndexArguments } from "../../args/index.js";
 import { writeTextToStdout } from "../../support/index.js";
@@ -14,7 +7,7 @@ import {
   ProgressOutputWriter,
   type ProgressCounter,
 } from "../../runtime/index.js";
-import { resolveArchiveRuntimeLocation } from "./run/uri.js";
+import { getWikiGraphSDK } from "../../runtime/context.js";
 
 const INDEX_PROGRESS_OUTPUT_INTERVAL_MS = 6_000;
 
@@ -35,109 +28,70 @@ export async function runArchiveIndexCommand(
 }
 
 async function readIndexCache(args: CLIArchiveIndexArguments): Promise<void> {
-  const location = await resolveArchiveRuntimeLocation(args.archivePath);
-
-  await new WikiGraphArchiveFile(location.archiveFile).readDocument(
-    async (document) => {
-      await writeIndexOutput(args, {
-        capabilities: await readSearchIndexCapabilityStatus(document),
-        current: await isArchiveSearchIndexCurrent(document),
-      });
-    },
-  );
+  const archive = await getWikiGraphSDK().archives.open(args.archivePath);
+  await writeIndexOutput(args, await archive.getSearchIndexStatus());
 }
 
 async function syncIndexCache(args: CLIArchiveIndexArguments): Promise<void> {
-  const location = await resolveArchiveRuntimeLocation(args.archivePath);
+  const archive = await getWikiGraphSDK().archives.open(args.archivePath);
   const writer = new ProgressOutputWriter({
     jsonl: args.jsonl ?? false,
     throttleMs: INDEX_PROGRESS_OUTPUT_INTERVAL_MS,
   });
 
-  await new WikiGraphArchiveFile(location.archiveFile).write(
-    async (document) => {
+  await writer.write({
+    json: { type: "started" },
+    kind: "lifecycle",
+    text: "index cache sync started\nsteps: checking -> collecting -> clearing -> indexing-text -> indexing-dense -> finalizing",
+  });
+  await writer.write({
+    json: { phase: "checking", type: "status_snapshot" },
+    kind: "status",
+    phase: "checking",
+  });
+  const result = await archive.syncSearchIndex({
+    onProgress: async (event) => {
       await writer.write({
-        json: { type: "started" },
-        kind: "lifecycle",
-        text: "index cache sync started\nsteps: checking -> collecting -> clearing -> indexing-text -> indexing-dense -> finalizing",
-      });
-      await writer.write({
-        json: { phase: "checking", type: "status_snapshot" },
+        counters:
+          event.done === undefined || event.total === undefined
+            ? []
+            : [formatIndexCounter(event)],
+        json: {
+          counters:
+            event.done === undefined || event.total === undefined
+              ? []
+              : [formatIndexCounter(event)],
+          phase: event.phase,
+          type: "status_snapshot",
+        },
         kind: "status",
-        phase: "checking",
-      });
-      const options =
-        args.skipUnindexed === true
-          ? { chapters: await listArchiveQueryableChapterIds(document) }
-          : {};
-
-      if (options.chapters?.length === 0) {
-        throw new Error(
-          "Wiki Graph index cache is not ready. No chapters have a current FTS artifact or source embedding artifact.",
-        );
-      }
-
-      if (await isArchiveSearchIndexCurrent(document, options)) {
-        await writer.write({
-          json: { type: "already-current" },
-          kind: "lifecycle",
-          text: "already current",
-        });
-      } else {
-        await rebuildArchiveSearchIndex(
-          document,
-          async (event) => {
-            await writer.write({
-              counters:
-                event.done === undefined || event.total === undefined
-                  ? []
-                  : [formatIndexCounter(event)],
-              json: {
-                counters:
-                  event.done === undefined || event.total === undefined
-                    ? []
-                    : [formatIndexCounter(event)],
-                phase: event.phase,
-                type: "status_snapshot",
-              },
-              kind: "status",
-              phase: event.phase,
-            });
-          },
-          options,
-        );
-      }
-
-      await writer.write({
-        json: { type: "completed" },
-        kind: "lifecycle",
-        text: "index cache synced",
-      });
-      await writer.write({
-        json: { type: "succeeded" },
-        kind: "lifecycle",
-        text: "succeeded",
+        phase: event.phase,
       });
     },
-    { searchIndexWritebackPolicy: "cache" },
-  );
-  await deleteArchiveSearchSessions(args.archivePath);
+    skipUnindexed: args.skipUnindexed ?? false,
+  });
+  if (!result.rebuilt) {
+    await writer.write({
+      json: { type: "already-current" },
+      kind: "lifecycle",
+      text: "already current",
+    });
+  }
+  await writer.write({
+    json: { type: "completed" },
+    kind: "lifecycle",
+    text: "index cache synced",
+  });
+  await writer.write({
+    json: { type: "succeeded" },
+    kind: "lifecycle",
+    text: "succeeded",
+  });
 }
 
 async function cleanIndexCache(args: CLIArchiveIndexArguments): Promise<void> {
-  const location = await resolveArchiveRuntimeLocation(args.archivePath);
-
-  await new WikiGraphArchiveFile(location.archiveFile).write(
-    async (document) => {
-      await document.deleteSearchIndexDatabase();
-      await writeIndexOutput(args, {
-        capabilities: { dense: { current: false }, indexes: "missing" },
-        current: false,
-      });
-    },
-    { searchIndexWritebackPolicy: "cache" },
-  );
-  await deleteArchiveSearchSessions(args.archivePath);
+  const archive = await getWikiGraphSDK().archives.open(args.archivePath);
+  await writeIndexOutput(args, await archive.cleanSearchIndex());
 }
 
 function formatIndexCounter(input: {
@@ -189,12 +143,7 @@ function formatIndexUnit(
 
 async function writeIndexOutput(
   args: CLIArchiveIndexArguments,
-  payload: {
-    readonly capabilities: Awaited<
-      ReturnType<typeof readSearchIndexCapabilityStatus>
-    >;
-    readonly current: boolean;
-  },
+  payload: WikiGraphArchiveIndexStatus,
 ): Promise<void> {
   if (args.json === true) {
     await writeTextToStdout(formatCLIJSON(payload));
@@ -217,12 +166,9 @@ async function writeIndexOutput(
   );
 }
 
-function formatArchiveIndexStatus(input: {
-  readonly capabilities: Awaited<
-    ReturnType<typeof readSearchIndexCapabilityStatus>
-  >;
-  readonly current: boolean;
-}): "current" | "missing" | "outdated" {
+function formatArchiveIndexStatus(
+  input: WikiGraphArchiveIndexStatus,
+): "current" | "missing" | "outdated" {
   if (input.current) {
     return "current";
   }

@@ -17,6 +17,46 @@ const runtime: WikiGraphJobRuntime = {
 };
 
 describe("WikiGraphJob events", () => {
+  it("advances an incremental event cursor instead of rereading history", async () => {
+    const running = createJob("running");
+    const succeeded = createJob("succeeded");
+    const terminalEvent: BuildJobEvent = {
+      at: 3,
+      jobId: running.jobId,
+      seq: 1,
+      state: "succeeded",
+      type: "succeeded",
+    };
+    const cursors: number[] = [];
+    let reads = 0;
+    const readEvents = vi.fn(() => Promise.resolve([]));
+    const backend = createBackend(running, {
+      get: () => Promise.resolve(reads === 0 ? running : succeeded),
+      readEventChunk: (_job, cursor) => {
+        cursors.push(cursor);
+        reads += 1;
+        return Promise.resolve(
+          reads === 1
+            ? { cursor: 24, events: [] }
+            : { cursor: 61, events: [terminalEvent] },
+        );
+      },
+      readEvents,
+    });
+    const handle = await new WikiGraphJobManager(runtime, backend).get(
+      running.jobId,
+    );
+
+    const events: BuildJobEvent[] = [];
+    for await (const event of handle.events({ pollIntervalMs: 0 })) {
+      events.push(event);
+    }
+
+    expect(events).toEqual([terminalEvent]);
+    expect(cursors).toEqual([0, 24]);
+    expect(readEvents).not.toHaveBeenCalled();
+  });
+
   it("removes each abort listener after a polling timeout", async () => {
     let reads = 0;
     let observedEnoughReads: (() => void) | undefined;
@@ -80,6 +120,80 @@ describe("WikiGraphJob events", () => {
 
     expect(events).toEqual([terminalEvent]);
     expect(eventReads).toBe(3);
+  });
+
+  it("stops after yielding a terminal event before the status snapshot changes", async () => {
+    const running = createJob("running");
+    const terminalEvent: BuildJobEvent = {
+      at: 3,
+      jobId: running.jobId,
+      seq: 1,
+      state: "succeeded",
+      type: "succeeded",
+    };
+    const readEventChunk = vi.fn(() =>
+      Promise.resolve({ cursor: 42, events: [terminalEvent] }),
+    );
+    const backend = createBackend(running, {
+      get: vi.fn(() => Promise.resolve(running)),
+      readEventChunk,
+    });
+    const handle = await new WikiGraphJobManager(runtime, backend).get(
+      running.jobId,
+    );
+
+    const iterator = handle
+      .events({ pollIntervalMs: 0 })
+      [Symbol.asyncIterator]();
+    await expect(iterator.next()).resolves.toEqual({
+      done: false,
+      value: terminalEvent,
+    });
+    await expect(iterator.next()).resolves.toEqual({
+      done: true,
+      value: undefined,
+    });
+    expect(readEventChunk).toHaveBeenCalledTimes(1);
+  });
+
+  it("finishes immediately from now when the job is already terminal", async () => {
+    const succeeded = createJob("succeeded");
+    const readEventChunk = vi.fn(() =>
+      Promise.resolve({ cursor: 42, events: [] }),
+    );
+    const backend = createBackend(succeeded, { readEventChunk });
+    const handle = await new WikiGraphJobManager(runtime, backend).get(
+      succeeded.jobId,
+    );
+
+    const iterator = handle
+      .events({ from: "now", pollIntervalMs: 0 })
+      [Symbol.asyncIterator]();
+
+    await expect(iterator.next()).resolves.toEqual({
+      done: true,
+      value: undefined,
+    });
+    expect(readEventChunk).toHaveBeenCalledTimes(1);
+  });
+
+  it("finishes a terminal job when its event file remains unreadable", async () => {
+    const succeeded = createJob("succeeded");
+    const readEventChunk = vi.fn(() =>
+      Promise.reject(new Error("not readable yet")),
+    );
+    const backend = createBackend(succeeded, { readEventChunk });
+    const handle = await new WikiGraphJobManager(runtime, backend).get(
+      succeeded.jobId,
+    );
+
+    const events: BuildJobEvent[] = [];
+    for await (const event of handle.events({ pollIntervalMs: 0 })) {
+      events.push(event);
+    }
+
+    expect(events).toEqual([]);
+    expect(readEventChunk).toHaveBeenCalledTimes(3);
   });
 
   it("stops a callback subscription without canceling the persisted job", async () => {

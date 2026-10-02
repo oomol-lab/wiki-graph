@@ -1,89 +1,28 @@
 import {
-  formatLocatedWikiGraphUri,
   parseWikiGraphLibraryUri,
-  resolveWikiGraphLibraryArchiveFile,
-  type ParsedWikiGraphLibraryUri,
+  resolveWikiGraphArchiveLocation,
+  type WikiGraphArchiveLocation,
   type QueryIndexScope,
-  type File,
 } from "wiki-graph-sdk";
 import { parseLocatedWikiGraphUri } from "../../../support/index.js";
 
 import type { CLIArchiveArguments } from "../../../args/index.js";
-import {
-  getNodeResourcePath,
-  NodeFile,
-} from "../../../runtime/node-platform.js";
-
-export interface ArchiveRuntimeLocation {
-  readonly archiveFile: File;
-  readonly archiveKey: string;
-  readonly archivePath: string;
-  readonly indexScope: QueryIndexScope;
-  readonly libraryArchiveTarget?: ParsedWikiGraphLibraryUri;
-  readonly libraryDirtyTarget?: ParsedWikiGraphLibraryUri;
-  readonly locatedUri: string;
-}
+export type ArchiveRuntimeLocation = WikiGraphArchiveLocation;
 
 export async function resolveArchiveRuntimeLocation(
   uriOrPath: string,
 ): Promise<ArchiveRuntimeLocation> {
-  if (!uriOrPath.startsWith("wikg://")) {
-    return {
-      archiveFile: new NodeFile(uriOrPath),
-      archiveKey: uriOrPath,
-      archivePath: uriOrPath,
-      indexScope: {
-        archiveKey: uriOrPath,
-        archivePath: uriOrPath,
-        kind: "archive-index",
-      },
-      locatedUri: formatLocatedWikiGraphUri(uriOrPath),
-    };
-  }
-
-  const parsed = parseLocatedWikiGraphUri(uriOrPath);
-  const archiveLocator = parsed.archivePath ?? uriOrPath;
-  const libraryArchiveTarget = archiveLocator.startsWith("wikg://lib/")
-    ? parseWikiGraphLibraryUri(archiveLocator)
-    : undefined;
-  const archiveFile =
-    libraryArchiveTarget?.kind === "archive"
-      ? await resolveWikiGraphLibraryArchiveFile(archiveLocator)
-      : new NodeFile(archiveLocator);
-  const archivePath = getNodeResourcePath(archiveFile);
-
-  return {
-    archiveFile,
-    archiveKey: archivePath,
-    archivePath,
-    indexScope: { archiveKey: archivePath, archivePath, kind: "archive-index" },
-    ...(libraryArchiveTarget?.kind === "archive"
-      ? {
-          libraryArchiveTarget,
-          libraryDirtyTarget: {
-            isDefault: libraryArchiveTarget.isDefault,
-            kind: "scope",
-            ...(libraryArchiveTarget.publicId === undefined
-              ? {}
-              : { publicId: libraryArchiveTarget.publicId }),
-          },
-        }
-      : {}),
-    locatedUri: formatLocatedWikiGraphUri(archivePath, parsed.objectUri),
-  };
+  return await resolveWikiGraphArchiveLocation(uriOrPath);
 }
 
 export async function resolveArchiveCommandRuntimeArguments(
   args: CLIArchiveArguments,
 ): Promise<CLIArchiveArguments> {
-  if (
-    args.action === "create" ||
-    args.action === "export" ||
-    args.action === "inspect" ||
-    args.action === "next"
-  ) {
-    return args;
+  if (args.action === "create" || args.action === "export") {
+    const location = await resolveArchiveRuntimeLocation(args.archivePath);
+    return { ...args, archivePath: location.archivePath };
   }
+  if (args.action === "inspect" || args.action === "next") return args;
   if (!args.archivePath.startsWith("wikg://lib/")) {
     return args;
   }

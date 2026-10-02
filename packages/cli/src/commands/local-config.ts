@@ -1,14 +1,7 @@
 import { Writable } from "stream";
 import { createInterface } from "readline/promises";
 
-import { streamText } from "ai";
-
 import type { CLILocalConfigArguments } from "../args/index.js";
-import { resolveWikispineConfig, type CLIProvider } from "../runtime/config.js";
-import { testWikispineRuntime, type WikispineProvider } from "wiki-graph-sdk";
-import { buildLLMOptions } from "../runtime/llm.js";
-import { nodeWikispineCommandRunner } from "../runtime/wikispine.js";
-import { embedQueryText, readEmbeddingConfig } from "../runtime/embedding.js";
 import { getWikiGraphSDK, setCLIExitCode } from "../runtime/context.js";
 import { writeTextToStderr, writeTextToStdout } from "../support/index.js";
 import { formatCLIJSON } from "../support/index.js";
@@ -88,22 +81,17 @@ async function runEmbeddingConfigTest(
   args: CLILocalConfigArguments,
 ): Promise<void> {
   const startedAt = Date.now();
-  const embedding = await readEmbeddingConfig();
+  const embedding = await getWikiGraphSDK().config.get("embeddings");
 
   try {
-    const result = await embedQueryText(
-      "Wiki Graph embedding connectivity test.",
-      embedding,
-    );
+    const result = await getWikiGraphSDK().config.testEmbedding();
     const output = {
-      dimensions: result.dimensions,
-      durationMs: Date.now() - startedAt,
+      dimensions: result.dimensions!,
+      durationMs: result.durationMs,
       model: result.model,
       ok: true,
-      provider: result.provider,
-      ...(result.usage?.tokens === undefined
-        ? {}
-        : { tokens: result.usage.tokens }),
+      provider: result.provider!,
+      ...(result.tokens === undefined ? {} : { tokens: result.tokens }),
     };
 
     if (args.json === true) {
@@ -150,37 +138,13 @@ async function runLLMConfigTest(args: CLILocalConfigArguments): Promise<void> {
   const llm = await getWikiGraphSDK().config.get("llm");
 
   try {
-    const llmConfig = {
-      ...(typeof llm.apiKey === "string" ? { apiKey: llm.apiKey } : {}),
-      ...(typeof llm.baseURL === "string" ? { baseURL: llm.baseURL } : {}),
-      ...(typeof llm.model === "string" ? { model: llm.model } : {}),
-      ...(typeof llm.name === "string" ? { name: llm.name } : {}),
-      ...(typeof llm.provider === "string"
-        ? { provider: parseLLMProvider(llm.provider) }
-        : {}),
-    };
-    const options = buildLLMOptions({
-      llm: llmConfig,
-    });
-    const result = streamText({
-      maxRetries: 0,
-      messages: [
-        {
-          content: "Reply with exactly: ok",
-          role: "user",
-        },
-      ],
-      model: options.model,
-      temperature: 0,
-    });
-    const responseChunks: string[] = [];
-    for await (const chunk of result.textStream) responseChunks.push(chunk);
+    const result = await getWikiGraphSDK().config.testLLM();
     const output = {
-      durationMs: Date.now() - startedAt,
-      model: llmConfig.model,
+      durationMs: result.durationMs,
+      model: result.model,
       ok: true,
-      provider: llmConfig.provider,
-      response: responseChunks.join("").trim(),
+      provider: result.provider,
+      response: result.response,
     };
 
     if (args.json === true) {
@@ -225,27 +189,13 @@ async function runWikispineConfigTest(
   const wikispine = await getWikiGraphSDK().config.get("wikispine");
 
   try {
-    const provider = parseWikispineProvider(wikispine.provider);
-    const resolved = resolveWikispineConfig({ ...wikispine, provider });
-    if (resolved === undefined) {
-      throw new Error("WikiSpine provider is not configured.");
-    }
-    const result = await testWikispineRuntime({
-      ...resolved,
-      ...(provider === "cli"
-        ? { commandRunner: nodeWikispineCommandRunner }
-        : {}),
-    });
+    const result = await getWikiGraphSDK().config.testWikispine();
     const output = {
       durationMs: result.durationMs,
-      ...(resolved.provider === "fetch"
-        ? {
-            endpoint: resolved.endpoint,
-          }
-        : {}),
+      ...(result.endpoint === undefined ? {} : { endpoint: result.endpoint }),
       ...(result.metadata === undefined ? {} : { metadata: result.metadata }),
       ok: true,
-      provider,
+      provider: result.provider,
     };
 
     if (args.json === true) {
@@ -399,32 +349,6 @@ function requireConfigKey(key: string | undefined): string {
   }
 
   return normalized;
-}
-
-function parseLLMProvider(value: string): CLIProvider {
-  switch (value) {
-    case "anthropic":
-    case "google":
-    case "openai":
-    case "openai-compatible":
-      return value;
-    default:
-      throw new Error(
-        `Invalid llm.provider: ${value}. Expected anthropic, google, openai, or openai-compatible.`,
-      );
-  }
-}
-
-function parseWikispineProvider(value: unknown): WikispineProvider {
-  switch (value) {
-    case "cli":
-    case "fetch":
-      return value;
-    default:
-      throw new Error(
-        "Missing wikispine.provider. Configure `wikg://local/config/wikispine` with provider `cli` or `fetch`.",
-      );
-  }
 }
 
 async function readSecretValue(key: string): Promise<string> {

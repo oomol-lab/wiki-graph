@@ -343,6 +343,7 @@ export {
   getBuildJob,
   listBuildJobs,
   pauseBuildJob,
+  readBuildJobEventChunk,
   readBuildJobEvents,
   recordBuildJobInputRevision,
   resolveBuildJobId,
@@ -352,6 +353,7 @@ export {
 } from "./api/index.js";
 export type {
   AddBuildJobOptions,
+  BuildJobEventChunk,
   BuildJob,
   BuildJobConflictScope,
   BuildJobEvent,

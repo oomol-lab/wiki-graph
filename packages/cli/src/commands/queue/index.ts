@@ -1,30 +1,18 @@
-import {
-  cleanBuildJobs,
-  formatLocatedChapterUri,
-  formatLocatedWikiGraphUri,
-  resolveChapterPathReadonly,
-  resolveBuildJobId,
-  WikiGraphArchiveFile,
-} from "wiki-graph-sdk";
+import type { WikiGraphJobEnqueueOptions } from "wiki-graph-sdk";
 
 import type { CLIQueueArguments } from "../../args/index.js";
 import { loadCLIConfig } from "../../runtime/config.js";
 import { getWikiGraphSDK } from "../../runtime/context.js";
-import { loadRequiredStageConfig } from "../../runtime/index.js";
 import { writeTextToStdout } from "../../support/index.js";
-import {
-  addArchiveJobs,
-  addChapterJob,
-  assertBuildCostAccepted,
-  assertQueueAddReady,
-  readQueueAddChapter,
-  tryStartQueueWorker,
-} from "./add.js";
+import { assertBuildCostAccepted, tryStartQueueWorker } from "./add.js";
 import { createQueueAddEstimate } from "./estimate.js";
-import { writeJobList, writeJobStatus, writeJobSummary } from "./output.js";
+import {
+  writeArchiveAddSummary,
+  writeJobList,
+  writeJobStatus,
+  writeJobSummary,
+} from "./output.js";
 import { watchBuildJob } from "./watch.js";
-import { requireKnowledgeGraphWikispineConfig } from "./worker.js";
-import { resolveArchiveChapterScope } from "../archive-command/run/scope.js";
 import { NodeFile } from "../../runtime/node-platform.js";
 
 export { runQueueWorker } from "./worker.js";
@@ -32,55 +20,53 @@ export { runQueueWorker } from "./worker.js";
 export async function runQueueCommand(args: CLIQueueArguments): Promise<void> {
   switch (args.action) {
     case "add": {
-      const chapterIds = await resolveQueueChapterIds(args);
-      const singleChapterId =
-        chapterIds?.length === 1 ? chapterIds[0]! : undefined;
-      if (singleChapterId !== undefined) {
-        await assertQueueAddReady(args, singleChapterId);
-      }
+      const enqueueOptions = createEnqueueOptions(args);
+      const plan = await getWikiGraphSDK().jobs.planEnqueue(enqueueOptions);
       const target = args.target ?? "reading-summary";
       if (target !== "index-fts") {
         assertBuildCostAccepted(args);
       }
-      const config = requiresLLMConfig(target)
-        ? await loadRequiredStageConfig({
-            ...(args.llmJSON === undefined ? {} : { llmJSON: args.llmJSON }),
-          })
-        : await loadCLIConfig({
-            ...(args.llmJSON === undefined ? {} : { llmJSON: args.llmJSON }),
-          });
-      if (
-        (target === "index-embedding-source" ||
-          target === "index-embedding-summary") &&
-        config.embedding === undefined
-      ) {
-        throw new Error(
-          "Missing embeddings configuration. Configure `wikg://local/config/embeddings` before queueing embedding index artifact jobs.",
-        );
-      }
-      if (args.target === "knowledge-graph") {
-        requireKnowledgeGraphWikispineConfig(config);
-      }
-
-      if (chapterIds === undefined) {
-        await addArchiveJobs(args, config);
-      } else if (chapterIds.length === 1) {
-        const chapterId = chapterIds[0]!;
-        const chapter = await readQueueAddChapter(args, chapterId);
+      const config = await loadCLIConfig({
+        ...(args.llmJSON === undefined ? {} : { llmJSON: args.llmJSON }),
+      });
+      const result = await getWikiGraphSDK().jobs.enqueue(enqueueOptions);
+      const singleSelection =
+        (args.chapterId !== undefined ||
+          args.chapterPath !== undefined ||
+          args.chapterIds?.length === 1) &&
+        plan.ready.length + plan.skipped.length === 1;
+      if (result.created.length === 1 && singleSelection) {
+        const created = result.created[0]!;
         const estimate = createQueueAddEstimate({
-          chapters: [chapter],
+          chapters: [created.chapter],
           config,
-          target: args.target ?? "reading-summary",
+          target,
         });
-
-        await writeJobSummary(await addChapterJob(args, chapterId), {
-          chapter,
+        await writeJobSummary(created.job.snapshot, {
+          chapter: created.chapter,
           estimate,
           json: args.json ?? false,
           watch: true,
         });
       } else {
-        await addArchiveJobs({ ...args, chapterIds }, config);
+        await writeArchiveAddSummary({
+          archivePath: args.archivePath!,
+          created: result.created.map(({ chapter, job }) => ({
+            chapter,
+            job: job.snapshot,
+          })),
+          ...(result.created.length === 0
+            ? {}
+            : {
+                estimate: createQueueAddEstimate({
+                  chapters: result.created.map((item) => item.chapter),
+                  config,
+                  target,
+                }),
+              }),
+          json: args.json ?? false,
+          skipped: result.skipped,
+        });
       }
 
       tryStartQueueWorker();
@@ -136,64 +122,35 @@ export async function runQueueCommand(args: CLIQueueArguments): Promise<void> {
       tryStartQueueWorker();
       return;
     case "clean":
-      await writeTextToStdout(`Cleaned ${await cleanBuildJobs()} jobs.\n`);
+      await writeTextToStdout(
+        `Cleaned ${await getWikiGraphSDK().jobs.clean()} jobs.\n`,
+      );
       return;
   }
 }
 
-function requiresLLMConfig(target: NonNullable<CLIQueueArguments["target"]>) {
-  return (
-    target === "knowledge-graph" ||
-    target === "reading-graph" ||
-    target === "reading-summary"
-  );
-}
-
 async function resolveQueueJobId(args: CLIQueueArguments): Promise<string> {
-  return await resolveBuildJobId(args.jobId!);
+  return await getWikiGraphSDK().jobs.resolveId(args.jobId!);
 }
 
 async function getQueueJob(args: CLIQueueArguments) {
   return await getWikiGraphSDK().jobs.get(await resolveQueueJobId(args));
 }
 
-async function resolveQueueChapterIds(
+function createEnqueueOptions(
   args: CLIQueueArguments,
-): Promise<readonly number[] | undefined> {
-  if (args.chapterId !== undefined) {
-    return [args.chapterId];
-  }
-  if (args.chapterPath === undefined && args.depth === undefined) {
-    return undefined;
-  }
-
-  let chapterIds: readonly number[] | undefined;
-  await new WikiGraphArchiveFile(new NodeFile(args.archivePath!)).readDocument(
-    async (document) => {
-      if (args.chapterPath === undefined) {
-        chapterIds = (
-          await resolveArchiveChapterScope(document, {
-            archivePath: formatLocatedWikiGraphUri(
-              args.archivePath!,
-              "wikg://chapter",
-            ),
-            ...(args.depth === undefined ? {} : { depth: args.depth }),
-          })
-        )?.chapterIds;
-        return;
-      }
-      chapterIds = (
-        await resolveArchiveChapterScope(document, {
-          archivePath: formatLocatedChapterUri(
-            args.archivePath!,
-            args.chapterPath,
-          ),
-          ...(args.depth === undefined ? {} : { depth: args.depth }),
-        })
-      )?.chapterIds ?? [
-        await resolveChapterPathReadonly(document, args.chapterPath),
-      ];
-    },
-  );
-  return chapterIds;
+): WikiGraphJobEnqueueOptions {
+  return {
+    archive: args.archivePath!,
+    ...(args.boost === undefined ? {} : { boost: args.boost }),
+    ...(args.chapterId === undefined ? {} : { chapterId: args.chapterId }),
+    ...(args.chapterIds === undefined ? {} : { chapterIds: args.chapterIds }),
+    ...(args.chapterPath === undefined
+      ? {}
+      : { chapterPath: args.chapterPath }),
+    ...(args.depth === undefined ? {} : { depth: args.depth }),
+    ...(args.llmJSON === undefined ? {} : { llmJSON: args.llmJSON }),
+    ...(args.prompt === undefined ? {} : { prompt: args.prompt }),
+    target: args.target ?? "reading-summary",
+  };
 }
