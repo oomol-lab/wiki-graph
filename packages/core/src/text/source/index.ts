@@ -8,6 +8,7 @@ export {
 } from "./meta.js";
 export type { SourceAdapter, SourceDocument } from "./adapter.js";
 export { EpubSourceAdapter, EPUB_SOURCE_ADAPTER } from "./epub/index.js";
+export { PcexSourceAdapter, type PcexSourceOptions } from "./pcex/index.js";
 export {
   MARKDOWN_SOURCE_ADAPTER,
   PlainTextSourceAdapter,

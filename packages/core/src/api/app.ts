@@ -18,6 +18,7 @@ import type {
 import {
   digestEpubSession,
   digestMarkdownSession,
+  digestPcexSession,
   digestTextStreamSession,
   digestTxtSession,
   type DigestDocumentSessionOptions,
@@ -58,6 +59,10 @@ export interface WikiGraphOptions {
 }
 
 export type WikiGraphOpenSessionOptions = DigestDocumentSessionOptions;
+export interface WikiGraphPcexSessionOptions extends WikiGraphSourceSessionOptions {
+  readonly pdfDigest: string;
+  readonly pdfName?: string;
+}
 
 export interface WikiGraphSourceSessionOptions extends DigestDocumentSessionOptions {
   readonly extractionPrompt?: string;
@@ -125,6 +130,26 @@ export class WikiGraph {
       async () =>
         await digestMarkdownSession(
           this.#createSourceOptions(options),
+          operation,
+        ),
+    );
+  }
+
+  public async digestPcexSession<T>(
+    options: WikiGraphPcexSessionOptions,
+    operation: (digest: WikiGraphArchive) => Promise<T> | T,
+  ): Promise<T> {
+    return await this.#withLogging(
+      "digest-pcex",
+      async () =>
+        await digestPcexSession(
+          {
+            ...this.#createSourceOptions(options),
+            pdfDigest: options.pdfDigest,
+            ...(options.pdfName === undefined
+              ? {}
+              : { pdfName: options.pdfName }),
+          },
           operation,
         ),
     );
