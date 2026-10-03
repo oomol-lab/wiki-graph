@@ -97,7 +97,7 @@ async function writePcex(path: string): Promise<void> {
   );
   zip.addBuffer(
     Buffer.from(
-      '<chapter id="1" level="0"><flow><text role="heading" level="0"><fragment page_index="1" source_order="0" bbox="100,400,500,800">Chapter One</fragment></text></flow></chapter>',
+      '<chapter id="1" level="0"><flow><text role="heading" level="0"><fragment page_index="1" source_order="0" bbox="100,400,500,800">A😀B</fragment></text></flow></chapter>',
     ),
     "chapters/chapter_1.xml",
   );

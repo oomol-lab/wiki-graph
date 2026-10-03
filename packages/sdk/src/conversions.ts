@@ -45,6 +45,7 @@ export interface WikiGraphConversionOptions {
   readonly input: WikiGraphConversionInput;
   readonly llmJSON?: string;
   readonly onProgress?: WikiGraphProgressCallback;
+  readonly onSourceImported?: () => void | Promise<void>;
   readonly output: {
     readonly format: WikiGraphConversionFormat;
     readonly path: string;
@@ -107,6 +108,7 @@ export class WikiGraphConversionManager {
     );
     let chapterCount: number | undefined;
     const write = async (archive: WikiGraphArchive): Promise<void> => {
+      if (requiresDigest) await options.onSourceImported?.();
       if (typeof archive.readToc === "function") {
         const toc = await archive.readToc();
         chapterCount =

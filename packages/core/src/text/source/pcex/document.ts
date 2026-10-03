@@ -64,20 +64,26 @@ class PcexSection implements SourceSection {
   }
   public openWithProvenance(): Promise<SourceSectionContent> {
     const mappings: SourceTextMappingInput[] = [];
-    let offset = 0;
+    let searchOffset = 0;
+    let sourceOffset = 0;
     for (const segment of this.#chapter.segments) {
-      const start = this.#chapter.text.indexOf(segment.text, offset);
+      const start = this.#chapter.text.indexOf(segment.text, searchOffset);
       if (start < 0)
         throw new Error(
           `PCEX section ${this.#chapter.id} lost a source mapping.`,
         );
+      sourceOffset += Array.from(
+        this.#chapter.text.slice(searchOffset, start),
+      ).length;
+      const sourceStart = sourceOffset;
+      sourceOffset += Array.from(segment.text).length;
       mappings.push({
         artifactDigest: this.#artifact.digest,
         locator: { bbox: segment.bbox, pageIndex: segment.pageIndex },
-        sourceStart: start,
-        sourceEnd: start + segment.text.length,
+        sourceStart,
+        sourceEnd: sourceOffset,
       });
-      offset = start + segment.text.length;
+      searchOffset = start + segment.text.length;
     }
     if (this.#chapter.text.length > 0 && mappings.length === 0) {
       throw new Error(
