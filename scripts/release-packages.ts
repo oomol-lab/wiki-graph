@@ -13,6 +13,7 @@ import {
 import { tmpdir } from "os";
 import { basename, isAbsolute, join, relative, resolve } from "path";
 import { pathToFileURL } from "url";
+import { isDeepStrictEqual } from "util";
 
 interface PackageDescriptor {
   readonly name: string;
@@ -228,12 +229,70 @@ export function packageContentHashes(
 export function packageContentDifference(
   localDirectory: string,
   publishedDirectory: string,
+  workspaceDependencyNames: readonly string[] = [],
 ): readonly string[] {
   const localHashes = packageContentHashes(localDirectory);
   const publishedHashes = packageContentHashes(publishedDirectory);
-  return [...new Set([...localHashes.keys(), ...publishedHashes.keys()])]
+  const differences = [
+    ...new Set([...localHashes.keys(), ...publishedHashes.keys()]),
+  ]
     .filter((path) => localHashes.get(path) !== publishedHashes.get(path))
     .sort();
+  if (
+    differences.includes("package.json") &&
+    packageManifestsMatch(
+      localDirectory,
+      publishedDirectory,
+      workspaceDependencyNames,
+    )
+  ) {
+    return differences.filter((path) => path !== "package.json");
+  }
+  return differences;
+}
+
+function packageManifestsMatch(
+  localDirectory: string,
+  publishedDirectory: string,
+  workspaceDependencyNames: readonly string[],
+): boolean {
+  const local = JSON.parse(
+    readFileSync(join(localDirectory, "package.json"), "utf8"),
+  ) as Record<string, unknown>;
+  const published = JSON.parse(
+    readFileSync(join(publishedDirectory, "package.json"), "utf8"),
+  ) as Record<string, unknown>;
+  for (const field of [
+    "dependencies",
+    "optionalDependencies",
+    "peerDependencies",
+  ]) {
+    const localDependencies = local[field];
+    const publishedDependencies = published[field];
+    if (
+      typeof localDependencies !== "object" ||
+      localDependencies === null ||
+      Array.isArray(localDependencies) ||
+      typeof publishedDependencies !== "object" ||
+      publishedDependencies === null ||
+      Array.isArray(publishedDependencies)
+    ) {
+      continue;
+    }
+    for (const name of workspaceDependencyNames) {
+      if (
+        Object.hasOwn(localDependencies, name) &&
+        Object.hasOwn(publishedDependencies, name)
+      ) {
+        Reflect.set(
+          localDependencies,
+          name,
+          Reflect.get(publishedDependencies, name),
+        );
+      }
+    }
+  }
+  return isDeepStrictEqual(local, published);
 }
 
 async function downloadPublishedPackage(
@@ -300,6 +359,7 @@ async function inspectPackage(
   const differences = packageContentDifference(
     localDirectory,
     publishedDirectory,
+    descriptor.workspaceDependencyNames,
   );
   if (differences.length > 0) {
     throw new Error(
@@ -336,24 +396,6 @@ async function release(): Promise<void> {
     }
     return descriptor;
   });
-  const synchronizedPackageNames = [
-    "wiki-graph-core",
-    "wiki-graph-sdk",
-    "wiki-graph",
-  ];
-  const publicVersions = synchronizedPackageNames.map((name) => {
-    const descriptor = descriptors.find((candidate) => candidate.name === name);
-    if (descriptor === undefined) {
-      throw new Error(`Missing synchronized release package: ${name}.`);
-    }
-    return descriptor.version;
-  });
-  if (new Set(publicVersions).size !== 1) {
-    throw new Error(
-      `wiki-graph-core, wiki-graph-sdk, and wiki-graph versions must match: ${publicVersions.join(" != ")}`,
-    );
-  }
-
   const tempDirectory = mkdtempSync(join(tmpdir(), "wiki-graph-release-"));
   try {
     const packageConfigsByName = new Map(

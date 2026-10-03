@@ -83,11 +83,7 @@ jobs:
           TAG="v${VERSION}"
           TAG_COMMIT="$(git rev-list -n 1 "${TAG}" 2>/dev/null || true)"
           if [ -n "${TAG_COMMIT}" ]; then
-            if [ "${TAG_COMMIT}" != "${GITHUB_SHA}" ]; then
-              echo "Tag ${TAG} already points to ${TAG_COMMIT}, not ${GITHUB_SHA}" >&2
-              exit 1
-            fi
-            echo "Tag ${TAG} already points to this release commit"
+            echo "Tag ${TAG} already exists at ${TAG_COMMIT}"
             exit 0
           fi
 

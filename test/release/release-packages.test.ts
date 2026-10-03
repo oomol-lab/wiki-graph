@@ -58,6 +58,38 @@ describe("release package comparison", () => {
       "dist/removed.js",
     ]);
   });
+
+  it("ignores versions resolved from workspace dependencies", () => {
+    const local = createPackage({
+      "dist/index.js": "export const answer = 42;\n",
+      "package.json":
+        '{"name":"cli","version":"1.0.0","dependencies":{"sdk":"1.1.0"}}\n',
+    });
+    const published = createPackage({
+      "dist/index.js": "export const answer = 42;\n",
+      "package.json":
+        '{"name":"cli","version":"1.0.0","dependencies":{"sdk":"1.0.0"}}\n',
+    });
+
+    expect(packageContentDifference(local, published, ["sdk"])).toEqual([]);
+    expect(packageContentDifference(local, published)).toEqual([
+      "package.json",
+    ]);
+  });
+
+  it("does not ignore adding or removing a workspace dependency", () => {
+    const local = createPackage({
+      "package.json": '{"name":"cli","version":"1.0.0","dependencies":{}}\n',
+    });
+    const published = createPackage({
+      "package.json":
+        '{"name":"cli","version":"1.0.0","dependencies":{"sdk":"1.0.0"}}\n',
+    });
+
+    expect(packageContentDifference(local, published, ["sdk"])).toEqual([
+      "package.json",
+    ]);
+  });
 });
 
 describe("release package ordering", () => {
