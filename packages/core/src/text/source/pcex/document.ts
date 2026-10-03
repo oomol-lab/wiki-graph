@@ -32,8 +32,11 @@ interface PageSize {
 interface Segment {
   readonly bbox: readonly [number, number, number, number];
   readonly pageIndex: number;
+  readonly sourceEnd: number;
+  readonly sourceStart: number;
   readonly text: string;
 }
+type RawSegment = Omit<Segment, "sourceEnd" | "sourceStart">;
 interface Chapter {
   readonly id: string;
   readonly title?: string;
@@ -63,28 +66,14 @@ class PcexSection implements SourceSection {
     return Promise.resolve([this.#chapter.text]);
   }
   public openWithProvenance(): Promise<SourceSectionContent> {
-    const mappings: SourceTextMappingInput[] = [];
-    let searchOffset = 0;
-    let sourceOffset = 0;
-    for (const segment of this.#chapter.segments) {
-      const start = this.#chapter.text.indexOf(segment.text, searchOffset);
-      if (start < 0)
-        throw new Error(
-          `PCEX section ${this.#chapter.id} lost a source mapping.`,
-        );
-      sourceOffset += Array.from(
-        this.#chapter.text.slice(searchOffset, start),
-      ).length;
-      const sourceStart = sourceOffset;
-      sourceOffset += Array.from(segment.text).length;
-      mappings.push({
+    const mappings: SourceTextMappingInput[] = this.#chapter.segments.map(
+      (segment) => ({
         artifactDigest: this.#artifact.digest,
         locator: { bbox: segment.bbox, pageIndex: segment.pageIndex },
-        sourceStart,
-        sourceEnd: sourceOffset,
-      });
-      searchOffset = start + segment.text.length;
-    }
+        sourceEnd: segment.sourceEnd,
+        sourceStart: segment.sourceStart,
+      }),
+    );
     if (this.#chapter.text.length > 0 && mappings.length === 0) {
       throw new Error(
         `PCEX section ${this.#chapter.id} produced text without provenance mappings.`,
@@ -234,8 +223,7 @@ function readChapter(
   pages: ReadonlyMap<number, PageSize>,
   path: string,
 ): Chapter {
-  const segments = parseSegments(xml, pages);
-  const text = segments.map((segment) => segment.text).join("\n\n");
+  const { segments, text } = parseFlow(xml, pages);
   const firstHeading = readFirstHeading(xml);
   return {
     id: path,
@@ -245,12 +233,14 @@ function readChapter(
   };
 }
 
-function parseSegments(
+function parseFlow(
   xml: string,
   pages: ReadonlyMap<number, PageSize>,
-): readonly Segment[] {
+): Pick<Chapter, "segments" | "text"> {
   const parser = new SaxesParser({ xmlns: false });
-  const segments: Segment[] = [];
+  const items: (readonly RawSegment[])[] = [];
+  const stack: string[] = [];
+  let item: { depth: number; segments: RawSegment[] } | undefined;
   let capture:
     | {
         depth: number;
@@ -262,7 +252,21 @@ function parseSegments(
   let depth = 0;
   parser.on("opentag", (tag: SaxesTagPlain) => {
     depth += 1;
+    const parent = stack[stack.length - 1];
+    stack.push(tag.name);
+    if (
+      item === undefined &&
+      ((parent === "flow" &&
+        (tag.name === "text" ||
+          tag.name === "display-formula" ||
+          tag.name === "standalone-asset")) ||
+        (parent === "body" &&
+          (tag.name === "paragraph" || tag.name === "asset")))
+    ) {
+      item = { depth, segments: [] };
+    }
     if (capture !== undefined) return;
+    if (item === undefined) return;
     if (tag.name !== "fragment" && tag.name !== "block" && tag.name !== "asset")
       return;
     const pageIndex = positiveInteger(
@@ -286,19 +290,78 @@ function parseSegments(
   parser.on("cdata", append);
   parser.on("closetag", () => {
     if (capture?.depth === depth) {
-      const text = normalizeText(capture.text);
-      if (text !== "")
-        segments.push({
+      const text = normalizeSegmentText(capture.text);
+      if (text !== "") {
+        item?.segments.push({
           bbox: capture.bbox,
           pageIndex: capture.pageIndex,
           text,
         });
+      }
       capture = undefined;
     }
+    if (item?.depth === depth) {
+      const normalized = normalizeItemSegments(item.segments);
+      if (normalized.length > 0) items.push(normalized);
+      item = undefined;
+    }
+    stack.pop();
     depth -= 1;
   });
   parser.write(xml).close();
-  return segments;
+  return buildFlow(items);
+}
+
+function normalizeItemSegments(
+  segments: readonly RawSegment[],
+): readonly RawSegment[] {
+  const normalized = segments.map((segment) => ({ ...segment }));
+  while (normalized[0]?.text.trim() === "") normalized.shift();
+  while (normalized.at(-1)?.text.trim() === "") normalized.pop();
+  if (normalized.length === 0) return normalized;
+
+  normalized[0] = {
+    ...normalized[0]!,
+    text: normalized[0]!.text.trimStart(),
+  };
+  const last = normalized.length - 1;
+  normalized[last] = {
+    ...normalized[last]!,
+    text: normalized[last]!.text.trimEnd(),
+  };
+  for (let index = 1; index < normalized.length; index += 1) {
+    if (
+      normalized[index - 1]!.text.endsWith(" ") &&
+      normalized[index]!.text.startsWith(" ")
+    ) {
+      normalized[index] = {
+        ...normalized[index]!,
+        text: normalized[index]!.text.slice(1),
+      };
+    }
+  }
+  return normalized.filter((segment) => segment.text !== "");
+}
+
+function buildFlow(
+  items: readonly (readonly RawSegment[])[],
+): Pick<Chapter, "segments" | "text"> {
+  const parts: string[] = [];
+  const segments: Segment[] = [];
+  let sourceOffset = 0;
+  for (const item of items) {
+    if (parts.length > 0) {
+      parts.push("\n\n");
+      sourceOffset += 2;
+    }
+    for (const segment of item) {
+      const sourceStart = sourceOffset;
+      parts.push(segment.text);
+      sourceOffset += Array.from(segment.text).length;
+      segments.push({ ...segment, sourceEnd: sourceOffset, sourceStart });
+    }
+  }
+  return { segments, text: parts.join("") };
 }
 
 function readFirstHeading(xml: string): string | undefined {
@@ -367,8 +430,8 @@ function normalizeDigest(value: string): string {
     throw new Error("PCEX source PDF digest must be a SHA-256 hex digest.");
   return result;
 }
-function normalizeText(value: string): string {
-  return value.normalize("NFC").replace(/\s+/gu, " ").trim();
+function normalizeSegmentText(value: string): string {
+  return value.normalize("NFC").replace(/\s+/gu, " ");
 }
 function normalizeOptional(value: string | undefined): string | undefined {
   const normalized = value?.trim();

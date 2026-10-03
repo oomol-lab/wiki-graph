@@ -50,6 +50,11 @@ describe("PCEX conversion", () => {
       const archive = await sdk.archives.open("book.wikg");
       const tree = await archive.getChapterTree();
       expect(tree.chapters).toHaveLength(1);
+      const source = await archive.page(`${tree.chapters[0]!.uri}/source`);
+      expect(source).toMatchObject({
+        fragment: { sentenceCount: 1, text: "A😀 world." },
+        type: "fragment",
+      });
       const path = tree.chapters[0]!.uri.replace("wikg://chapter/", "");
       const located = formatLocatedWikiGraphUri(
         join(root, "book.wikg"),
@@ -59,7 +64,12 @@ describe("PCEX conversion", () => {
       expect(locators).toMatchObject({
         items: [
           {
+            range: [1, 3],
             uri: `wikg://artifact/${digest.slice(0, 12)}#page=1&bbox=0.1,0.6,0.5,0.8`,
+          },
+          {
+            range: [4, 9],
+            uri: `wikg://artifact/${digest.slice(0, 12)}#page=1&bbox=0.5,0.6,0.9,0.8`,
           },
         ],
       });
@@ -97,7 +107,7 @@ async function writePcex(path: string): Promise<void> {
   );
   zip.addBuffer(
     Buffer.from(
-      '<chapter id="1" level="0"><flow><text role="heading" level="0"><fragment page_index="1" source_order="0" bbox="100,400,500,800">A😀B</fragment></text></flow></chapter>',
+      '<chapter id="1" level="0"><flow><text role="body"><fragment page_index="1" source_order="0" bbox="100,400,500,800">A😀 </fragment><fragment page_index="1" source_order="1" bbox="500,400,900,800">world.</fragment></text></flow></chapter>',
     ),
     "chapters/chapter_1.xml",
   );
