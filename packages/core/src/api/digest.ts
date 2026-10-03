@@ -1,6 +1,7 @@
 import { BOOK_META_VERSION, TOC_FILE_VERSION } from "../text/source/index.js";
 import {
   EPUB_SOURCE_ADAPTER,
+  PcexSourceAdapter,
   MARKDOWN_SOURCE_ADAPTER,
   TXT_SOURCE_ADAPTER,
   type SourceFormat,
@@ -50,6 +51,11 @@ export interface DigestSourceSessionOptions extends DigestSessionOptions {
   readonly file: File;
 }
 
+export interface DigestPcexSessionOptions extends DigestSourceSessionOptions {
+  readonly pdfDigest: string;
+  readonly pdfName?: string;
+}
+
 export interface DigestTextStreamSessionOptions extends DigestSessionOptions {
   readonly bookLanguage?: string | null;
   readonly sourceFormat?: Extract<SourceFormat, "markdown" | "txt">;
@@ -76,6 +82,21 @@ export async function digestMarkdownSession<T>(
   return await digestSourceSession(
     "digest-markdown",
     MARKDOWN_SOURCE_ADAPTER,
+    options,
+    operation,
+  );
+}
+
+export async function digestPcexSession<T>(
+  options: DigestPcexSessionOptions,
+  operation: (digest: WikiGraphArchive) => Promise<T> | T,
+): Promise<T> {
+  return await digestSourceSession(
+    "digest-pcex",
+    new PcexSourceAdapter({
+      pdfDigest: options.pdfDigest,
+      ...(options.pdfName === undefined ? {} : { pdfName: options.pdfName }),
+    }),
     options,
     operation,
   );
@@ -199,7 +220,11 @@ export async function digestTxtSession<T>(
 }
 
 async function digestSourceSession<T>(
-  operationName: "digest-epub" | "digest-markdown" | "digest-txt",
+  operationName:
+    | "digest-epub"
+    | "digest-markdown"
+    | "digest-pcex"
+    | "digest-txt",
   adapter: SourceAdapter,
   options: DigestSourceSessionOptions,
   operation: (digest: WikiGraphArchive) => Promise<T> | T,

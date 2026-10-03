@@ -1,6 +1,7 @@
 export type WikiGraphOperation =
   | "digest-epub"
   | "digest-markdown"
+  | "digest-pcex"
   | "digest-text-stream"
   | "digest-txt";
 

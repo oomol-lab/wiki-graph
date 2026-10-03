@@ -5,6 +5,7 @@ export {
   type WikiGraphOptions,
   type WikiGraphLLMOptions,
   type WikiGraphOpenSessionOptions,
+  type WikiGraphPcexSessionOptions,
   type WikiGraphProgressCallback,
   type WikiGraphProgressEvent,
   type WikiGraphProgressEventType,

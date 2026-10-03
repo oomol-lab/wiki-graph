@@ -59,6 +59,7 @@ export type {
   ArchiveSourceLocatorResult,
   ArchiveTriplePattern,
   BookMeta,
+  SourceArtifactInput,
   BuildJob,
   BuildJobEvent,
   BuildJobProgressCounter,
