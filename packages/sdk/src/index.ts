@@ -21,6 +21,7 @@ export * from "./wikispine.js";
 // the SDK is not a second wildcard entry point for wiki-graph-core.
 export {
   LLMPaymentRequiredError,
+  SourceInputError,
   WIKI_GRAPH_URI_PREFIX,
   WikiGraphError,
   formatError,

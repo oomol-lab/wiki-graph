@@ -67,6 +67,7 @@ export interface WikiGraphPcexSessionOptions extends WikiGraphSourceSessionOptio
 export interface WikiGraphSourceSessionOptions extends DigestDocumentSessionOptions {
   readonly extractionPrompt?: string;
   readonly onProgress?: WikiGraphProgressCallback;
+  readonly onSourceValidated?: () => void | Promise<void>;
   readonly file: File;
   readonly targetStage?: ChapterStage;
   readonly userLanguage?: Language;
@@ -226,6 +227,9 @@ export class WikiGraph {
       ...(options.onProgress === undefined
         ? {}
         : { onProgress: options.onProgress }),
+      ...(options.onSourceValidated === undefined
+        ? {}
+        : { onSourceValidated: options.onSourceValidated }),
       file: options.file,
       ...(this.#debugLogDirectory === undefined
         ? {}

@@ -5,7 +5,7 @@ import { join } from "path";
 
 import { afterEach, describe, expect, it } from "vitest";
 import { ZipFile } from "yazl";
-import { formatLocatedWikiGraphUri } from "wiki-graph-core";
+import { SourceInputError, formatLocatedWikiGraphUri } from "wiki-graph-core";
 
 import { createWikiGraphSDK } from "./sdk.js";
 
@@ -77,14 +77,39 @@ describe("PCEX conversion", () => {
       sdk.close();
     }
   });
+
+  it("rejects PCEX versions older than v4", async () => {
+    const root = await mkdtemp(join(tmpdir(), "wiki-graph-pcex-v3-"));
+    temporary.push(root);
+    await writePcex(join(root, "book.pcex"), 3);
+    const sdk = createWikiGraphSDK({
+      cwd: root,
+      stateDir: join(root, "state"),
+    });
+    try {
+      await expect(
+        sdk.conversions.convert({
+          input: {
+            format: "pcex",
+            path: "book.pcex",
+            sourcePdf: { digest: "a".repeat(64) },
+          },
+          output: { format: "wikg", path: "book.wikg" },
+          targetStage: "sourced",
+        }),
+      ).rejects.toBeInstanceOf(SourceInputError);
+    } finally {
+      sdk.close();
+    }
+  });
 });
 
-async function writePcex(path: string): Promise<void> {
+async function writePcex(path: string, formatVersion = 4): Promise<void> {
   const zip = new ZipFile();
   zip.addBuffer(
     Buffer.from(
       JSON.stringify({
-        format_version: 4,
+        format_version: formatVersion,
         producer: { name: "test", version: "1" },
         document: {
           title: "Test book",
@@ -107,10 +132,11 @@ async function writePcex(path: string): Promise<void> {
   );
   zip.addBuffer(
     Buffer.from(
-      '<chapter id="1" level="0"><flow><text role="body"><fragment page_index="1" source_order="0" bbox="100,400,500,800">A😀 </fragment><fragment page_index="1" source_order="1" bbox="500,400,900,800">world.</fragment></text></flow></chapter>',
+      '<chapter id="1" level="0"><flow><text role="body"><fragment page_index="1" source_order="0" bbox="100,400,500,800">A😀 </fragment><asset ref="image" page_index="1" bbox="400,900,600,1100"><title>Ignored title</title><caption>Ignored caption</caption></asset><fragment page_index="1" source_order="1" bbox="500,400,900,800">world.</fragment></text></flow></chapter>',
     ),
     "chapters/chapter_1.xml",
   );
+  zip.addEmptyDirectory("assets/");
   zip.end();
   await new Promise<void>((resolve, reject) => {
     zip.outputStream

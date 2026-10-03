@@ -38,6 +38,7 @@ interface DigestSessionOptions {
   readonly llm?: LLM<WikiGraphScope>;
   readonly logDirectory?: Directory;
   readonly onProgress?: WikiGraphProgressCallback;
+  readonly onSourceValidated?: () => void | Promise<void>;
   readonly segmenter?: ReaderSegmenter;
   readonly targetStage?: ChapterStage;
   readonly userLanguage?: Language;
@@ -250,6 +251,9 @@ async function digestSourceSession<T>(
       ...(options.logDirectory === undefined
         ? {}
         : { logDirectory: options.logDirectory }),
+      ...(options.onSourceValidated === undefined
+        ? {}
+        : { onSourceValidated: options.onSourceValidated }),
       ...(options.segmenter === undefined
         ? {}
         : { segmenter: options.segmenter }),

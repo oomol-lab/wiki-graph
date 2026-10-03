@@ -7,6 +7,7 @@ import type {
 } from "../types.js";
 import type { SourceArtifactInput } from "../../../document/types.js";
 import type { File } from "../../../runtime/platform/index.js";
+import { SourceInputError } from "../error.js";
 
 import { normalizeFragment } from "./archive.js";
 import { EpubArchive } from "./archive.js";
@@ -64,11 +65,21 @@ class EpubSourceSection implements SourceSection {
   }
 
   public async open(): Promise<SourceTextStream> {
-    return await this.#document.openSection(this.#definition.id);
+    try {
+      return await this.#document.openSection(this.#definition.id);
+    } catch (error) {
+      throw invalidEpub(error);
+    }
   }
 
   public async openWithProvenance(): Promise<SourceSectionContent> {
-    return await this.#document.openSectionWithProvenance(this.#definition.id);
+    try {
+      return await this.#document.openSectionWithProvenance(
+        this.#definition.id,
+      );
+    } catch (error) {
+      throw invalidEpub(error);
+    }
   }
 }
 
@@ -157,10 +168,20 @@ export class EpubSourceAdapter implements SourceAdapter {
     file: File,
     operation: (document: SourceDocument) => Promise<T>,
   ): Promise<T> {
-    const archive = await EpubArchive.open(file);
+    let archive: EpubArchive;
+    try {
+      archive = await EpubArchive.open(file);
+    } catch (error) {
+      throw invalidEpub(error);
+    }
 
     try {
-      const document = await EpubSourceDocument.open(archive);
+      let document: EpubSourceDocument;
+      try {
+        document = await EpubSourceDocument.open(archive);
+      } catch (error) {
+        throw invalidEpub(error);
+      }
 
       return await operation(document);
     } finally {
@@ -171,12 +192,18 @@ export class EpubSourceAdapter implements SourceAdapter {
 
 export const EPUB_SOURCE_ADAPTER = new EpubSourceAdapter();
 
+function invalidEpub(error: unknown): SourceInputError {
+  return error instanceof SourceInputError
+    ? error
+    : new SourceInputError("EPUB source is invalid.", { cause: error });
+}
+
 function assertArchiveIsSupported(archive: EpubArchive): void {
   if (!archive.hasEntry("META-INF/encryption.xml")) {
     return;
   }
 
-  throw new Error(
+  throw new SourceInputError(
     "Encrypted EPUB is not supported: found META-INF/encryption.xml.",
   );
 }

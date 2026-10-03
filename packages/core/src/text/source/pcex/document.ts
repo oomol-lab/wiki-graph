@@ -5,6 +5,7 @@ import type {
   SourceTextMappingInput,
 } from "../../../document/types.js";
 import type { File } from "../../../runtime/platform/index.js";
+import { SourceInputError } from "../error.js";
 import { countTextWords } from "../../../utils/text-word-count.js";
 import type { SourceAdapter, SourceDocument } from "../adapter.js";
 import type {
@@ -124,31 +125,42 @@ export class PcexSourceAdapter implements SourceAdapter {
     file: File,
     operation: (document: SourceDocument) => Promise<T>,
   ): Promise<T> {
-    const archive = await PcexArchive.open(file);
+    let archive: PcexArchive;
     try {
-      requireEntries(archive);
-      const manifest = readManifest(
-        JSON.parse(await archive.readText("manifest.json")) as unknown,
-      );
-      const pages = readPages(await archive.readText("pages.xml"));
-      const chapterPaths = archive
-        .listEntries()
-        .filter((path) =>
-          /^chapters\/chapter_(?:head|[0-9]+)\.xml$/u.test(path),
-        )
-        .sort(compareChapterPaths);
-      const chapters = await Promise.all(
-        chapterPaths.map(async (path) =>
-          readChapter(await archive.readText(path), pages, path),
-        ),
-      );
-      const pdfName = normalizeOptional(this.#options.pdfName);
-      const artifact: SourceArtifactInput = {
-        digest: normalizeDigest(this.#options.pdfDigest),
-        mediaType: "application/pdf",
-        ...(pdfName === undefined ? {} : { name: pdfName }),
-      };
-      return await operation(new PcexDocument(artifact, manifest, chapters));
+      archive = await PcexArchive.open(file);
+    } catch (error) {
+      throw invalidPcex(error);
+    }
+    try {
+      let document: PcexDocument;
+      try {
+        requireEntries(archive);
+        const manifest = readManifest(
+          JSON.parse(await archive.readText("manifest.json")) as unknown,
+        );
+        const pages = readPages(await archive.readText("pages.xml"));
+        const chapterPaths = archive
+          .listEntries()
+          .filter((path) =>
+            /^chapters\/chapter_(?:head|[0-9]+)\.xml$/u.test(path),
+          )
+          .sort(compareChapterPaths);
+        const chapters = await Promise.all(
+          chapterPaths.map(async (path) =>
+            readChapter(await archive.readText(path), pages, path),
+          ),
+        );
+        const pdfName = normalizeOptional(this.#options.pdfName);
+        const artifact: SourceArtifactInput = {
+          digest: normalizeDigest(this.#options.pdfDigest),
+          mediaType: "application/pdf",
+          ...(pdfName === undefined ? {} : { name: pdfName }),
+        };
+        document = new PcexDocument(artifact, manifest, chapters);
+      } catch (error) {
+        throw invalidPcex(error);
+      }
+      return await operation(document);
     } finally {
       await archive.close();
     }
@@ -160,19 +172,15 @@ function requireEntries(archive: PcexArchive): void {
     if (!archive.hasEntry(path))
       throw new Error(`PCEX is missing required entry ${path}.`);
   }
-  if (!archive.listEntries().some((path) => path.startsWith("chapters/")))
-    throw new Error("PCEX is missing chapters directory.");
 }
 
 function readManifest(value: unknown) {
   if (
     !isRecord(value) ||
-    !Number.isInteger(value.format_version) ||
-    (value.format_version as number) < 1 ||
-    (value.format_version as number) > 4 ||
+    value.format_version !== 4 ||
     !isRecord(value.document)
   ) {
-    throw new Error("PCEX manifest.json is invalid or unsupported.");
+    throw new Error("Only PCEX format version 4 is supported.");
   }
   const document = value.document;
   return {
@@ -203,7 +211,8 @@ function readPages(xml: string): ReadonlyMap<number, PageSize> {
   if (
     root.name !== "pages" ||
     root.attributes.index_base !== "1" ||
-    root.attributes.coordinate_space !== "ocr_pixels"
+    root.attributes.coordinate_space !== "ocr_pixels" ||
+    !isPositiveInteger(root.attributes.render_dpi)
   )
     throw new Error("PCEX pages.xml uses an unsupported coordinate system.");
   const pages = new Map<number, PageSize>();
@@ -223,8 +232,12 @@ function readChapter(
   pages: ReadonlyMap<number, PageSize>,
   path: string,
 ): Chapter {
+  const root = parseXml(xml);
+  if (root.name !== "chapter" || findChildren(root, "flow").length !== 1) {
+    throw new Error(`PCEX chapter ${path} must contain exactly one flow.`);
+  }
   const { segments, text } = parseFlow(xml, pages);
-  const firstHeading = readFirstHeading(xml);
+  const firstHeading = readFirstHeading(root);
   return {
     id: path,
     ...(firstHeading === undefined ? {} : { title: firstHeading }),
@@ -254,21 +267,12 @@ function parseFlow(
     depth += 1;
     const parent = stack[stack.length - 1];
     stack.push(tag.name);
-    if (
-      item === undefined &&
-      ((parent === "flow" &&
-        (tag.name === "text" ||
-          tag.name === "display-formula" ||
-          tag.name === "standalone-asset")) ||
-        (parent === "body" &&
-          (tag.name === "paragraph" || tag.name === "asset")))
-    ) {
+    if (item === undefined && parent === "flow" && tag.name === "text") {
       item = { depth, segments: [] };
     }
     if (capture !== undefined) return;
     if (item === undefined) return;
-    if (tag.name !== "fragment" && tag.name !== "block" && tag.name !== "asset")
-      return;
+    if (tag.name !== "fragment") return;
     const pageIndex = positiveInteger(
       attribute(tag, "page_index"),
       `${tag.name} page_index`,
@@ -278,10 +282,12 @@ function parseFlow(
       throw new Error(
         `PCEX chapter references page ${pageIndex} missing from pages.xml.`,
       );
-    const raw =
-      attribute(tag, tag.name === "block" ? "det" : "bbox") ??
-      attribute(tag, "bbox");
-    capture = { depth, pageIndex, bbox: normalizeBbox(raw, size), text: "" };
+    capture = {
+      depth,
+      pageIndex,
+      bbox: normalizeBbox(attribute(tag, "bbox"), size),
+      text: "",
+    };
   });
   const append = (text: string) => {
     if (capture !== undefined) capture.text += text;
@@ -364,15 +370,16 @@ function buildFlow(
   return { segments, text: parts.join("") };
 }
 
-function readFirstHeading(xml: string): string | undefined {
-  const root = parseXml(xml);
+function readFirstHeading(root: XmlElement): string | undefined {
   const flow = root.children.find((child) => child.name === "flow");
   const heading = flow?.children.find(
     (child) => child.name === "text" && child.attributes.role === "heading",
   );
   return heading === undefined
     ? undefined
-    : normalizeOptional(descendantText(heading));
+    : normalizeOptional(
+        findChildren(heading, "fragment").map(descendantText).join(""),
+      );
 }
 
 function descendantText(element: XmlElement): string {
@@ -424,6 +431,10 @@ function positiveInteger(value: string | undefined, label: string): number {
     throw new Error(`PCEX ${label} must be a positive integer.`);
   return parsed;
 }
+function isPositiveInteger(value: string | undefined): boolean {
+  const parsed = Number(value);
+  return Number.isInteger(parsed) && parsed > 0;
+}
 function normalizeDigest(value: string): string {
   const result = value.trim().toLowerCase();
   if (!/^[0-9a-f]{64}$/u.test(result))
@@ -442,4 +453,10 @@ function optionalString(value: unknown): string | null {
 }
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function invalidPcex(error: unknown): SourceInputError {
+  return error instanceof SourceInputError
+    ? error
+    : new SourceInputError("PCEX source is invalid.", { cause: error });
 }

@@ -216,7 +216,11 @@ export type {
   SourceTextMappingInput,
   SourceTextProvenanceInput,
 } from "./document/index.js";
-export { TOC_FILE_VERSION, parseSourceTextJsonl } from "./text/source/index.js";
+export {
+  SourceInputError,
+  TOC_FILE_VERSION,
+  parseSourceTextJsonl,
+} from "./text/source/index.js";
 export type { BookMeta, ParsedSourceTextJsonl } from "./text/source/index.js";
 export {
   ArchiveQueryNotReadyError,

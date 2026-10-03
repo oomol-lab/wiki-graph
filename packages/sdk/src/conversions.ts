@@ -46,6 +46,7 @@ export interface WikiGraphConversionOptions {
   readonly llmJSON?: string;
   readonly onProgress?: WikiGraphProgressCallback;
   readonly onSourceImported?: () => void | Promise<void>;
+  readonly onSourceValidated?: () => void | Promise<void>;
   readonly output: {
     readonly format: WikiGraphConversionFormat;
     readonly path: string;
@@ -148,6 +149,9 @@ export class WikiGraphConversionManager {
         ...(options.onProgress === undefined
           ? {}
           : { onProgress: options.onProgress }),
+        ...(options.onSourceValidated === undefined
+          ? {}
+          : { onSourceValidated: options.onSourceValidated }),
         ...((options.prompt ?? config.prompt) === undefined
           ? {}
           : { extractionPrompt: options.prompt ?? config.prompt }),

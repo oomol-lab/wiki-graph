@@ -31,6 +31,7 @@ export interface ImportSourceOptions
   readonly digestProgressTracker?: DigestProgressTracker;
   readonly document: Document;
   readonly llm?: SerialGenerationOptions["llm"];
+  readonly onSourceValidated?: () => void | Promise<void>;
   readonly file: File;
   readonly targetStage?: ImportSourceStage;
 }
@@ -63,6 +64,7 @@ export async function importSource(
   return await options.adapter.openSession(
     options.file,
     async (sourceDocument) => {
+      await options.onSourceValidated?.();
       return await importSourceDocument(sourceDocument, options);
     },
   );
