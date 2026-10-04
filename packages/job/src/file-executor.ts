@@ -26,7 +26,9 @@ export interface ChapterJobFileExecutionOptions {
   readonly inputFile: JobFile;
   readonly embeddingProvider?: JobEmbeddingProvider;
   readonly kind: ChapterJobKind;
+  readonly language?: string;
   readonly llm?: JobLlm;
+  readonly prompt?: string;
   readonly progress?: JobProgressSink;
   readonly revision: number;
   readonly signal?: AbortSignal;
@@ -46,6 +48,7 @@ export async function executeChapterJobFile(
     throw new Error("Chapter job workspace must be empty.");
   }
   await validateChapterJobInputFile(options.kind, options.inputFile);
+  validateGenerationOptions(options);
   const artifactFile = await options.workspace.createFile("artifact.jsonl");
   try {
     switch (options.kind) {
@@ -72,7 +75,11 @@ export async function executeChapterJobFile(
           artifactFile,
           buildReadingGraphRecords({
             inputFile: options.inputFile,
+            ...(options.language === undefined
+              ? {}
+              : { language: options.language }),
             llm: requireCapability(options.llm, "LLM"),
+            ...(options.prompt === undefined ? {} : { prompt: options.prompt }),
             ...(options.progress === undefined
               ? {}
               : { progress: options.progress }),
@@ -85,7 +92,11 @@ export async function executeChapterJobFile(
           artifactFile,
           buildReadingSummaryRecords({
             inputFile: options.inputFile,
+            ...(options.language === undefined
+              ? {}
+              : { language: options.language }),
             llm: requireCapability(options.llm, "LLM"),
+            ...(options.prompt === undefined ? {} : { prompt: options.prompt }),
             ...(options.progress === undefined
               ? {}
               : { progress: options.progress }),
@@ -98,7 +109,11 @@ export async function executeChapterJobFile(
           artifactFile,
           buildKnowledgeGraphRecords({
             inputFile: options.inputFile,
+            ...(options.language === undefined
+              ? {}
+              : { language: options.language }),
             llm: requireCapability(options.llm, "LLM"),
+            ...(options.prompt === undefined ? {} : { prompt: options.prompt }),
             ...(options.progress === undefined
               ? {}
               : { progress: options.progress }),
@@ -120,6 +135,19 @@ export async function executeChapterJobFile(
     throw error;
   }
   return { artifactFile, revision: options.revision };
+}
+
+function validateGenerationOptions(options: ChapterJobFileExecutionOptions) {
+  if (
+    (options.language !== undefined || options.prompt !== undefined) &&
+    options.kind !== "reading-graph" &&
+    options.kind !== "reading-summary" &&
+    options.kind !== "knowledge-graph"
+  ) {
+    throw new Error(
+      `language and prompt are not supported for ${options.kind}.`,
+    );
+  }
 }
 
 function requireCapability<T>(value: T | undefined, name: string): T {

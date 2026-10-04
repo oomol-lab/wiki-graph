@@ -128,6 +128,42 @@ describe("file-based chapter jobs", () => {
       }),
     ).rejects.toThrow("source-text is not valid input for index-fts");
   });
+
+  it.each([
+    "index-fts",
+    "index-embedding-source",
+    "index-embedding-summary",
+  ] as const)("rejects generation options for %s", async (kind) => {
+    const inputFile = new MemoryJobFile("input.jsonl");
+    await writeChapterJobInput(inputFile, []);
+
+    await expect(
+      executeChapterJobFile({
+        inputFile,
+        kind,
+        language: "English",
+        prompt: "Focus on Arthur",
+        revision: 1,
+        workspace: new MemoryJobDirectory(),
+      }),
+    ).rejects.toThrow(`language and prompt are not supported for ${kind}`);
+  });
+
+  it("rejects hidden generation options in index snapshots", async () => {
+    const inputFile = new MemoryJobFile("input.jsonl");
+    await writeChapterJobInput(inputFile, [
+      { language: "English", prompt: "Focus on Arthur", type: "job-options" },
+    ]);
+
+    await expect(
+      executeChapterJobFile({
+        inputFile,
+        kind: "index-fts",
+        revision: 1,
+        workspace: new MemoryJobDirectory(),
+      }),
+    ).rejects.toThrow("job-options is not valid input for index-fts");
+  });
 });
 
 async function collect<T>(records: AsyncIterable<T>): Promise<readonly T[]> {

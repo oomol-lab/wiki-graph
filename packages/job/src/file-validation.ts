@@ -6,11 +6,10 @@ import type { JobFile } from "./platform.js";
 const allowedTypes: Readonly<
   Record<ChapterJobKind, ReadonlySet<ChapterJobInputRecord["type"]>>
 > = {
-  "index-embedding-source": new Set(["job-options", "source-sentence"]),
-  "index-embedding-summary": new Set(["job-options", "summary-sentence"]),
+  "index-embedding-source": new Set(["source-sentence"]),
+  "index-embedding-summary": new Set(["summary-sentence"]),
   "index-fts": new Set([
     "chapter-title",
-    "job-options",
     "mention",
     "reading-chunk",
     "source-sentence",

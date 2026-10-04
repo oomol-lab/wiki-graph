@@ -8,17 +8,20 @@ export class CompressionRequester<S extends string> {
   readonly #llm: ReadingLlm<S>;
   readonly #scope: S;
   readonly #userLanguage: string | undefined;
+  readonly #userPrompt: string | undefined;
 
   public constructor(
     llm: ReadingLlm<S>,
     scope: S,
     compressionRatio: number,
     userLanguage?: string,
+    userPrompt?: string,
   ) {
     this.#compressionRatio = compressionRatio;
     this.#llm = llm;
     this.#scope = scope;
     this.#userLanguage = userLanguage;
+    this.#userPrompt = userPrompt;
   }
 
   public async request(input: {
@@ -29,7 +32,7 @@ export class CompressionRequester<S extends string> {
   }): Promise<string> {
     const acceptableMin = Math.floor(input.targetLength * 0.85);
     const acceptableMax = Math.floor(input.targetLength * 1.15);
-    const systemPrompt = this.#llm.loadSystemPrompt(
+    const baseSystemPrompt = this.#llm.loadSystemPrompt(
       TEXT_COMPRESSOR_PROMPT_TEMPLATE,
       {
         acceptable_max: acceptableMax,
@@ -40,6 +43,7 @@ export class CompressionRequester<S extends string> {
         user_language: this.#userLanguage,
       },
     );
+    const systemPrompt = appendUserGuidance(baseSystemPrompt, this.#userPrompt);
     const messages = buildCompressionMessages(
       {
         markedText: input.markedText,
@@ -84,6 +88,20 @@ export class CompressionRequester<S extends string> {
       throw new Error("Compression request failed unexpectedly");
     });
   }
+}
+
+function appendUserGuidance(systemPrompt: string, prompt: string | undefined) {
+  const normalized = prompt?.trim();
+  if (normalized === undefined || normalized === "") return systemPrompt;
+  return [
+    systemPrompt,
+    "",
+    "## User Guidance",
+    "",
+    "Use the following guidance when deciding what to emphasize and preserve:",
+    "",
+    normalized,
+  ].join("\n");
 }
 
 function buildCompressionMessages(

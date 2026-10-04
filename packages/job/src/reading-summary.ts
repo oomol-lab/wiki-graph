@@ -25,11 +25,15 @@ import type { SnakeRecord, SummaryDocument } from "./summary/model.js";
 
 export async function* buildReadingSummaryRecords(options: {
   readonly inputFile: JobFile;
+  readonly language?: string;
   readonly llm: JobLlm;
+  readonly prompt?: string;
   readonly progress?: JobProgressSink;
   readonly signal?: AbortSignal;
 }): AsyncIterable<ChapterJobArtifactRecord> {
   const input = await SummaryInputDocument.read(options.inputFile);
+  const language = options.language ?? input.jobOptions.language;
+  const prompt = options.prompt ?? input.jobOptions.prompt;
   const fragmentIds = await input.fragments.listFragmentIds();
   if (fragmentIds.length <= 1) {
     const text = await input.fragments.readText();
@@ -57,9 +61,8 @@ export async function* buildReadingSummaryRecords(options: {
         reviewGuide: JOB_LLM_SCOPES.readingSummaryReviewGuide,
       },
       serialId: 0,
-      ...(input.jobOptions.language === undefined
-        ? {}
-        : { userLanguage: input.jobOptions.language }),
+      ...(prompt === undefined ? {} : { userPrompt: prompt }),
+      ...(language === undefined ? {} : { userLanguage: language }),
     });
     if (summary.trim() !== "") {
       yield { position, text: summary.trim(), type: "summary-part" };

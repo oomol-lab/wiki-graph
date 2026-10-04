@@ -44,18 +44,21 @@ const DEFAULT_KNOWLEDGE_GRAPH_RECALL_PROMPT = [
 
 export async function* buildKnowledgeGraphRecords(options: {
   readonly inputFile: JobFile;
+  readonly language?: string;
   readonly llm: JobLlm;
+  readonly prompt?: string;
   readonly progress?: JobProgressSink;
   readonly signal?: AbortSignal;
   readonly wikimedia: JobWikimediaResolver;
   readonly wikispine: JobWikispineMatcher;
 }): AsyncIterable<ChapterJobArtifactRecord> {
   const input = await readKnowledgeInput(options.inputFile);
-  const policyPrompt = resolvePolicyPrompt(input.jobOptions.policyPrompt);
+  const language = options.language ?? input.jobOptions.language;
+  const policyPrompt = resolvePolicyPrompt(
+    options.prompt ?? input.jobOptions.prompt,
+  );
   yield {
-    ...(input.jobOptions.language === undefined
-      ? {}
-      : { language: input.jobOptions.language }),
+    ...(language === undefined ? {} : { language }),
     prompt: policyPrompt,
     scope: "knowledge-graph",
     type: "job-parameter",
@@ -141,9 +144,7 @@ export async function* buildKnowledgeGraphRecords(options: {
   const enrichedCandidates = await enrichWikimatchCandidates(
     screenedCandidates,
     {
-      ...(input.jobOptions.language === undefined
-        ? {}
-        : { language: input.jobOptions.language }),
+      ...(language === undefined ? {} : { language }),
       resolver: options.wikimedia,
       ...(options.signal === undefined ? {} : { signal: options.signal }),
     },

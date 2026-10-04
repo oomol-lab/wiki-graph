@@ -1289,7 +1289,7 @@ describe("cli/queue", () => {
     expect(queueMockState.buildSummaryCalls).toHaveLength(1);
     expect(queueMockState.executedProgress).toStrictEqual([reporter, reporter]);
     expect(queueMockState.buildGraphCalls[0]).toStrictEqual({
-      extractionPrompt: "Keep key beats",
+      prompt: "Keep key beats",
     });
     expect(queueMockState.buildSummaryCalls[0]).toStrictEqual({});
     const stageLLMOptions = queueMockState.createStageLLMCalls[0] as {
