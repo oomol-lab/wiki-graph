@@ -8,9 +8,7 @@ import type { ReadonlyDocument } from "../../document/index.js";
 import type { File } from "../../runtime/platform/index.js";
 
 export interface ChapterJobInputOptions {
-  readonly extractionPrompt?: string;
   readonly language?: string;
-  readonly policyPrompt?: string;
   readonly prompt?: string;
 }
 
@@ -66,12 +64,7 @@ export async function* createChapterJobInputRecords(
 function createOptionsRecord(
   options: ChapterJobInputOptions,
 ): ChapterJobInputRecord | undefined {
-  if (
-    options.extractionPrompt === undefined &&
-    options.language === undefined &&
-    options.policyPrompt === undefined &&
-    options.prompt === undefined
-  ) {
+  if (options.language === undefined && options.prompt === undefined) {
     return undefined;
   }
   return { ...options, type: "job-options" };

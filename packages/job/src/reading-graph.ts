@@ -24,18 +24,19 @@ const DEFAULT_WORKING_MEMORY_CAPACITY = 7;
 
 export async function* buildReadingGraphRecords(options: {
   readonly inputFile: JobFile;
+  readonly language?: string;
   readonly llm: JobLlm;
+  readonly prompt?: string;
   readonly progress?: JobProgressSink;
   readonly signal?: AbortSignal;
 }): AsyncIterable<ChapterJobArtifactRecord> {
   const input = await readInput(options.inputFile);
+  const language = options.language ?? input.jobOptions.language;
   const extractionPrompt = resolveExtractionPrompt(
-    input.jobOptions.extractionPrompt,
+    options.prompt ?? input.jobOptions.prompt,
   );
   yield {
-    ...(input.jobOptions.language === undefined
-      ? {}
-      : { language: input.jobOptions.language }),
+    ...(language === undefined ? {} : { language }),
     prompt: extractionPrompt,
     scope: "reading-graph",
     type: "job-parameter",
@@ -55,9 +56,7 @@ export async function* buildReadingGraphRecords(options: {
       extraction: JOB_LLM_SCOPES.readingGraphExtraction,
     },
     sentenceTextSource: input.fragments,
-    ...(input.jobOptions.language === undefined
-      ? {}
-      : { userLanguage: input.jobOptions.language }),
+    ...(language === undefined ? {} : { userLanguage: language }),
   });
   const topology = new Topology(input.fragments, 0, DEFAULT_GROUP_WORDS_COUNT);
   const allChunks: ReaderChunk[] = [];

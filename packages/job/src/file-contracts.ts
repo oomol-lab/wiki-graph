@@ -16,9 +16,7 @@ export const CHAPTER_JOB_STREAM_CONTENT_TYPE =
   "application/x-ndjson; charset=utf-8";
 
 export interface JobOptionsRecord {
-  readonly extractionPrompt?: string;
   readonly language?: string;
-  readonly policyPrompt?: string;
   readonly prompt?: string;
   readonly type: "job-options";
 }

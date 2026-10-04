@@ -79,7 +79,7 @@ async function executeBuildJob(
         await executeStep(job, "reading-graph", execution, reporter, context, {
           ...(execution.extractionPrompt === undefined
             ? {}
-            : { extractionPrompt: execution.extractionPrompt }),
+            : { prompt: execution.extractionPrompt }),
         });
         stage = await readChapterStage(job);
       }
@@ -115,10 +115,10 @@ async function executeBuildJob(
 
     await executeStep(job, job.target, execution, reporter, context, {
       ...(job.target === "reading-graph"
-        ? { extractionPrompt: execution.extractionPrompt }
+        ? { prompt: execution.extractionPrompt }
         : {}),
       ...(job.target === "knowledge-graph"
-        ? { policyPrompt: execution.knowledgeGraphPrompt }
+        ? { prompt: execution.knowledgeGraphPrompt }
         : {}),
     });
   } finally {

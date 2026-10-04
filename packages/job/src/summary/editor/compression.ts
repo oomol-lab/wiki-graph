@@ -40,6 +40,7 @@ export interface EditorOptions<S extends string> {
   readonly scopes: EditorScopes<S>;
   readonly serialId: number;
   readonly userLanguage?: Language;
+  readonly userPrompt?: string;
   /** @deprecated Use `document` instead. */
   readonly workspace?: SummaryDocument;
 }
@@ -83,6 +84,7 @@ class EditorOperation<S extends string> {
       options.scopes.compress,
       this.#compressionRatio,
       this.#userLanguage,
+      options.userPrompt,
     );
     this.#log = new CompressionLog(this.#serialId, this.#groupId, {
       compressionRatio: this.#compressionRatio,

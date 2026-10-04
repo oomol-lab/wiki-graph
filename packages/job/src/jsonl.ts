@@ -15,9 +15,7 @@ const sentenceFields = {
 
 const inputRecordSchema = z.discriminatedUnion("type", [
   z.object({
-    extractionPrompt: z.string().optional(),
     language: z.string().optional(),
-    policyPrompt: z.string().optional(),
     prompt: z.string().optional(),
     type: z.literal("job-options"),
   }),

@@ -12,7 +12,6 @@ describe("file-based generation jobs", () => {
   it("builds semantic Reading Graph records through the LLM port", async () => {
     const inputFile = new MemoryJobFile("input.jsonl");
     await writeChapterJobInput(inputFile, [
-      { extractionPrompt: "Track decisions", type: "job-options" },
       {
         sentenceIndex: 0,
         text: "Arthur decided to leave Earth.",
@@ -53,6 +52,7 @@ describe("file-based generation jobs", () => {
       inputFile,
       kind: "reading-graph",
       llm: { request },
+      prompt: "Track decisions",
       revision: 2,
       workspace: new MemoryJobDirectory(),
     });
@@ -98,14 +98,16 @@ describe("file-based generation jobs", () => {
         type: "fragment-group",
       },
     ]);
-    const request = vi.fn(() =>
+    const request = vi.fn((..._args: Parameters<JobLlm["request"]>) =>
       Promise.resolve("<final>Arthur left Earth with a towel.</final>"),
     );
 
     const result = await executeChapterJobFile({
       inputFile,
       kind: "reading-summary",
+      language: "English",
       llm: { request },
+      prompt: "Focus on what Arthur carries",
       revision: 3,
       workspace: new MemoryJobDirectory(),
     });
@@ -116,6 +118,9 @@ describe("file-based generation jobs", () => {
         type: "summary-part",
       },
     ]);
+    expect(request.mock.calls[0]?.[0][0]?.content).toContain(
+      "Focus on what Arthur carries",
+    );
   });
 
   it("uses Reading Graph clues and reviewer feedback for summaries", async () => {
