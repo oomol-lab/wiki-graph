@@ -35,7 +35,7 @@ export async function enrichWikimatchCandidates(
       `Wikimedia resolver ended after ${received.size} of ${input.length} results`,
     );
   }
-  return applyQidResolutions(candidates, resolutions, options.language);
+  return applyQidResolutions(candidates, input, resolutions, options.language);
 }
 
 function validateResolutionIndex(
@@ -53,17 +53,30 @@ function validateResolutionIndex(
 
 export function applyQidResolutions(
   candidates: readonly WikimatchCandidate[],
+  input: readonly {
+    readonly disambiguation: boolean;
+    readonly qid: string;
+  }[],
   resolutions: readonly WikimediaResolution[],
   language = "zh",
 ): readonly WikimatchCandidate[] {
-  const resolutionsByQid = new Map(
-    resolutions.map((resolution) => [resolution.qid, resolution]),
+  const resolutionsByInput = new Map(
+    input.map((item, index) => [
+      resolutionInputKey(item.qid, item.disambiguation),
+      resolutions[index],
+    ]),
   );
 
   return candidates.map((candidate) => ({
     ...candidate,
     qidOptions: candidate.qidOptions.map((option) =>
-      enrichQidOption(option, resolutionsByQid.get(option.qid), language),
+      enrichQidOption(
+        option,
+        resolutionsByInput.get(
+          resolutionInputKey(option.qid, option.isDisambiguation === true),
+        ),
+        language,
+      ),
     ),
   }));
 }
@@ -101,7 +114,7 @@ function listQids(
     ...new Map(
       candidates.flatMap((candidate) =>
         candidate.qidOptions.map((option) => [
-          option.qid,
+          resolutionInputKey(option.qid, option.isDisambiguation === true),
           {
             disambiguation: option.isDisambiguation === true,
             qid: option.qid,
@@ -110,4 +123,8 @@ function listQids(
       ),
     ).values(),
   ];
+}
+
+function resolutionInputKey(qid: string, disambiguation: boolean): string {
+  return JSON.stringify([qid, disambiguation]);
 }

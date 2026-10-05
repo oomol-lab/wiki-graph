@@ -14,23 +14,24 @@ describe("wikimatch/wikispine", () => {
   it("yields the first fetch match before reading the rest of the response", async () => {
     const chunks = [
       `${matchEvent(0, 4, "Q1")}\n`,
-      `${JSON.stringify({ type: "done" })}\n`,
+      `${JSON.stringify({ type: "done" })}\n${matchEvent(0, 4, "Q2")}\n`,
     ];
     let reads = 0;
+    let cancellations = 0;
     const body = {
       getReader: () => ({
-        cancel: () => Promise.resolve(),
+        cancel: () => {
+          cancellations += 1;
+          return Promise.resolve();
+        },
         read: () => {
           const chunk = chunks[reads];
           reads += 1;
-          return Promise.resolve(
-            chunk === undefined
-              ? { done: true as const, value: undefined }
-              : {
-                  done: false as const,
-                  value: new TextEncoder().encode(chunk),
-                },
-          );
+          if (chunk === undefined) return new Promise<never>(() => undefined);
+          return Promise.resolve({
+            done: false as const,
+            value: new TextEncoder().encode(chunk),
+          });
         },
         releaseLock: () => undefined,
       }),
@@ -53,7 +54,39 @@ describe("wikimatch/wikispine", () => {
     });
     expect(reads).toBe(1);
     await expect(iterator.next()).resolves.toMatchObject({ done: true });
-    expect(reads).toBe(3);
+    expect(reads).toBe(2);
+    expect(cancellations).toBe(1);
+  });
+
+  it("stops the CLI provider at done without waiting for process exit", async () => {
+    let providerSignal: AbortSignal | undefined;
+    const candidates = await collect(
+      matchWikispineSentenceCandidates({
+        commandRunner: {
+          run: async ({ onStdout, signal }) => {
+            providerSignal = signal;
+            await onStdout(
+              `${matchEvent(0, 1, "Q1")}\n${JSON.stringify({ type: "done" })}\n${matchEvent(1, 2, "Q2")}\n`,
+            );
+            if (signal?.aborted === true) throw new Error("process stopped");
+            await new Promise<void>((_resolve, reject) => {
+              signal?.addEventListener(
+                "abort",
+                () => reject(new Error("process stopped")),
+                { once: true },
+              );
+            });
+            return { exitCode: 0, stderr: "" };
+          },
+        },
+        sentences: [{ range: { end: 2, start: 0 }, text: "ab" }],
+      }),
+    );
+
+    expect(
+      candidates.map(({ qidOptions }) => qidOptions[0]?.qid),
+    ).toStrictEqual(["Q1"]);
+    expect(providerSignal?.aborted).toBe(true);
   });
 
   it("serializes progress callbacks and applies their backpressure", async () => {

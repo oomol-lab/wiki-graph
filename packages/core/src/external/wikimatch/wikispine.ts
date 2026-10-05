@@ -247,9 +247,13 @@ async function* runWikispineMatch(
     for await (const event of queue) {
       if (event.type === "done") {
         sawDone = true;
-      } else {
-        yield event.match;
+        break;
       }
+      yield event.match;
+    }
+    if (sawDone) {
+      completed = true;
+      return;
     }
     const result = await running;
     if (result.exitCode !== 0) {
@@ -263,8 +267,10 @@ async function* runWikispineMatch(
     completed = true;
   } finally {
     options.signal?.removeEventListener("abort", abort);
-    if (!completed) {
-      const error = new Error("WikiSpine consumer stopped");
+    if (!controller.signal.aborted) {
+      const error = new Error(
+        completed ? "WikiSpine stream completed" : "WikiSpine consumer stopped",
+      );
       queue.fail(error);
       controller.abort(error);
     }
@@ -349,11 +355,10 @@ async function* fetchWikispineMatch(
       ...parser.push(await response.text()),
       ...parser.finish(),
     ]) {
-      if (event.type === "done") sawDone = true;
-      else yield event.match;
+      if (event.type === "done") return;
+      yield event.match;
     }
-    if (!sawDone) throw incompleteWikispineStreamError();
-    return;
+    throw incompleteWikispineStreamError();
   }
 
   const reader = response.body.getReader();
@@ -370,16 +375,22 @@ async function* fetchWikispineMatch(
       for (const event of parser.push(
         decoder.decode(value, { stream: true }),
       )) {
-        if (event.type === "done") sawDone = true;
-        else yield event.match;
+        if (event.type === "done") {
+          sawDone = true;
+          return;
+        }
+        yield event.match;
       }
     }
     for (const event of [
       ...parser.push(decoder.decode()),
       ...parser.finish(),
     ]) {
-      if (event.type === "done") sawDone = true;
-      else yield event.match;
+      if (event.type === "done") {
+        sawDone = true;
+        return;
+      }
+      yield event.match;
     }
   } finally {
     if (!completed) await reader.cancel();

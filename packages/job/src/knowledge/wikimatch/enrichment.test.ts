@@ -58,6 +58,10 @@ describe("wikimatch/enrichment", () => {
         },
       ],
       [
+        { disambiguation: false, qid: "Q1087564" },
+        { disambiguation: true, qid: "Q18165423" },
+      ],
+      [
         resolution("Q1087564", "朱元璋", "2006 Chinese television series"),
         {
           ...resolution("Q18165423", "朱元璋", null),
@@ -142,6 +146,77 @@ describe("wikimatch/enrichment", () => {
       { disambiguation: true, qid: "Q1" },
       { disambiguation: false, qid: "Q2" },
     ]);
+  });
+
+  it("keeps mixed disambiguation inputs distinct when results arrive out of order", async () => {
+    const candidates = await enrichWikimatchCandidates(
+      [
+        {
+          id: "c1",
+          qidOptions: [
+            { isDisambiguation: true, qid: "Q1" },
+            { isDisambiguation: false, qid: "Q1" },
+          ],
+          range: { end: 1, start: 0 },
+          surface: "x",
+        },
+      ],
+      {
+        resolver: {
+          resolve: async function* () {
+            await Promise.resolve();
+            yield { index: 1, resolution: resolution("Q1", "plain", null) };
+            yield {
+              index: 0,
+              resolution: {
+                ...resolution("Q1", "disambiguation", null),
+                disambiguation: [{ information: "meaning", qid: "Q2" }],
+              },
+            };
+          },
+        },
+      },
+    );
+
+    expect(candidates[0]?.qidOptions).toMatchObject([
+      { disambiguation: [{ qid: "Q2" }], label: "disambiguation" },
+      { label: "plain" },
+    ]);
+  });
+
+  it("rejects missing and duplicate resolver indexes", async () => {
+    const candidates = [
+      {
+        id: "c1",
+        qidOptions: [
+          { isDisambiguation: false, qid: "Q1" },
+          { isDisambiguation: false, qid: "Q2" },
+        ],
+        range: { end: 1, start: 0 },
+        surface: "x",
+      },
+    ];
+    await expect(
+      enrichWikimatchCandidates(candidates, {
+        resolver: {
+          resolve: async function* () {
+            await Promise.resolve();
+            yield { index: 0, resolution: resolution("Q1", "one", null) };
+          },
+        },
+      }),
+    ).rejects.toThrow("ended after 1 of 2 results");
+    await expect(
+      enrichWikimatchCandidates(candidates, {
+        resolver: {
+          resolve: async function* () {
+            await Promise.resolve();
+            yield { index: 0, resolution: resolution("Q1", "one", null) };
+            yield { index: 0, resolution: resolution("Q1", "one", null) };
+          },
+        },
+      }),
+    ).rejects.toThrow("input index 0 twice");
   });
 });
 
