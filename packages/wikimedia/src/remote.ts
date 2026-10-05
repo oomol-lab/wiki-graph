@@ -6,6 +6,8 @@ import type {
   WikimediaStreamEvent,
 } from "./types.js";
 
+const MAX_ENTITIES_PER_REQUEST = 1_000;
+
 export class WikimediaServiceError extends Error {
   public readonly detail: string | undefined;
   public readonly requestId: string | undefined;
@@ -45,6 +47,23 @@ export class HttpWikimediaResolver implements WikimediaResolver {
     input: readonly WikimediaResolveInput[],
     options?: { readonly signal?: AbortSignal },
   ): AsyncIterable<WikimediaResolvedItem> {
+    for (
+      let offset = 0;
+      offset < input.length;
+      offset += MAX_ENTITIES_PER_REQUEST
+    ) {
+      options?.signal?.throwIfAborted();
+      const batch = input.slice(offset, offset + MAX_ENTITIES_PER_REQUEST);
+      for await (const item of this.#resolveBatch(batch, options)) {
+        yield { index: offset + item.index, resolution: item.resolution };
+      }
+    }
+  }
+
+  async *#resolveBatch(
+    input: readonly WikimediaResolveInput[],
+    options?: { readonly signal?: AbortSignal },
+  ): AsyncIterable<WikimediaResolvedItem> {
     const response = await this.#fetcher(resolveEndpoint(this.#endpoint), {
       body: JSON.stringify({ entities: input }),
       headers: {
@@ -68,9 +87,21 @@ export class HttpWikimediaResolver implements WikimediaResolver {
       response.headers.get("x-wg-request-id") ??
       response.headers.get("x-fc-request-id") ??
       undefined;
+    const received = new Set<number>();
     for await (const event of readEvents(response)) {
       if (event.type === "heartbeat") continue;
       if (event.type === "resolution") {
+        if (event.index >= input.length) {
+          throw new Error(
+            `wg-wikimedia returned out-of-range input index ${event.index}`,
+          );
+        }
+        if (received.has(event.index)) {
+          throw new Error(
+            `wg-wikimedia returned input index ${event.index} twice`,
+          );
+        }
+        received.add(event.index);
         yield { index: event.index, resolution: event.resolution };
         continue;
       }
@@ -79,6 +110,11 @@ export class HttpWikimediaResolver implements WikimediaResolver {
           event.status,
           event.detail,
           event.requestId ?? requestId,
+        );
+      }
+      if (received.size !== input.length) {
+        throw new Error(
+          `wg-wikimedia completed after ${received.size} of ${input.length} results`,
         );
       }
       return;

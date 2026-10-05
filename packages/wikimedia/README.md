@@ -8,7 +8,9 @@ SQLite, PostgreSQL, local scheduling and cluster coordination are injected.
 `HttpWikimediaResolver` accepts either a service origin, where it calls
 `/v1/qids:resolve`, or a path-prefixed gateway endpoint, where it appends
 `qids:resolve` without discarding the gateway scope. It requires an API key and
-sends it as a Bearer credential.
+sends it as a Bearer credential. Inputs are streamed through sequential HTTP
+requests of at most 1,000 entities while result indexes continue to refer to
+the original complete input.
 
 Resolvers expose an `AsyncIterable` of `{ index, resolution }` records. The
 index correlates each streamed result with the original input and permits
