@@ -108,13 +108,10 @@ describe("wikimatch/wikispine", () => {
             attemptedDone = true;
             await onStdout(`${JSON.stringify({ type: "done" })}\n`);
             acceptedDone = true;
-            if (signal?.aborted === true) throw new Error("process stopped");
             await new Promise<void>((_resolve, reject) => {
-              signal?.addEventListener(
-                "abort",
-                () => reject(new Error("process stopped")),
-                { once: true },
-              );
+              const stop = () => reject(new Error("process stopped"));
+              signal?.addEventListener("abort", stop, { once: true });
+              if (signal?.aborted === true) stop();
             });
             runnerExited = true;
             return { exitCode: 0, stderr: "" };
