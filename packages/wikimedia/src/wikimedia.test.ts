@@ -4,6 +4,35 @@ import type { UpstreamError } from "./wikimedia.js";
 import { MediaWikiClient } from "./wikimedia.js";
 
 describe("MediaWikiClient", () => {
+  it("propagates cancellation to upstream fetch", async () => {
+    const fetcher = vi.fn<typeof fetch>().mockImplementation((_input, init) => {
+      return new Promise((_resolve, reject) => {
+        init?.signal?.addEventListener(
+          "abort",
+          () =>
+            reject(
+              init.signal?.reason instanceof Error
+                ? init.signal.reason
+                : new Error("cancelled"),
+            ),
+          { once: true },
+        );
+      });
+    });
+    const controller = new AbortController();
+    const request = new MediaWikiClient(
+      fetcher,
+      undefined,
+      undefined,
+      0,
+    ).entities(["Q1"], { signal: controller.signal });
+
+    controller.abort(new Error("cancelled"));
+
+    await expect(request).rejects.toThrow("cancelled");
+    expect(fetcher.mock.calls[0]?.[1]?.signal).toBe(controller.signal);
+  });
+
   it("batches Wikidata entities without changing their order", async () => {
     const fetcher = vi.fn<typeof fetch>((input) => {
       const url = toUrl(input);

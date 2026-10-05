@@ -153,9 +153,11 @@ describe("archive/query/archive-view/pages", () => {
         await expect(
           readArchivePage(document, "wikg://entity/Q1/wikipage", {
             wikimediaResolver: {
-              resolve: () =>
-                Promise.resolve([
-                  {
+              resolve: async function* () {
+                await Promise.resolve();
+                yield {
+                  index: 0,
+                  resolution: {
                     en: {
                       description: "Ming dynasty general",
                       label: "Xu Da",
@@ -168,7 +170,8 @@ describe("archive/query/archive-view/pages", () => {
                       url: "https://zh.wikipedia.org/wiki/%E5%BE%90%E8%BE%BE",
                     },
                   },
-                ]),
+                };
+              },
             },
           }),
         ).resolves.toStrictEqual({

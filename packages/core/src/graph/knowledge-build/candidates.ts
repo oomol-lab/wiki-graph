@@ -65,7 +65,9 @@ export function countUniqueQids(
 ): number {
   return new Set(
     candidates.flatMap((candidate) =>
-      candidate.qidOptions.map((option) => option.qid),
+      candidate.qidOptions.map((option) =>
+        JSON.stringify([option.qid, option.isDisambiguation === true]),
+      ),
     ),
   ).size;
 }

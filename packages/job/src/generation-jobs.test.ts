@@ -251,9 +251,11 @@ describe("file-based generation jobs", () => {
       },
       revision: 4,
       wikimedia: {
-        resolve: () =>
-          Promise.resolve([
-            {
+        resolve: async function* () {
+          await Promise.resolve();
+          yield {
+            index: 0,
+            resolution: {
               en: {
                 description: "English writer",
                 label: "Douglas Adams",
@@ -262,17 +264,18 @@ describe("file-based generation jobs", () => {
               qid: "Q42",
               zh: { description: null, label: null, url: null },
             },
-          ]),
+          };
+        },
       },
       wikispine: {
-        match: () =>
-          Promise.resolve([
-            {
-              end: "Douglas Adams".length,
-              qids: [{ disambiguation: false, qid: "Q42" }],
-              start: 0,
-            },
-          ]),
+        match: async function* () {
+          await Promise.resolve();
+          yield {
+            end: "Douglas Adams".length,
+            qids: [{ disambiguation: false, qid: "Q42" }],
+            start: 0,
+          };
+        },
       },
       workspace: new MemoryJobDirectory(),
     });

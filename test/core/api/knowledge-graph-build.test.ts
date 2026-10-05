@@ -44,7 +44,7 @@ describe("facade/knowledge-graph-build", () => {
           request: () => {
             throw new Error("LLM should not be called for empty snapshots.");
           },
-          wikimediaResolver: { resolve: () => Promise.resolve([]) },
+          wikimediaResolver: { resolve: async function* () {} },
           workspace: new NodeDirectory(path),
         },
       );
@@ -53,6 +53,128 @@ describe("facade/knowledge-graph-build", () => {
       expect(getNodeResourcePath(artifact.workspace)).toBe(
         `${path}/knowledge-graph/chapter-1`,
       );
+    });
+  });
+
+  it("reports bounded enrichment progress for mixed duplicate QID inputs", async () => {
+    await withTempDir("wikigraph-kg-progress-", async (path) => {
+      const enrichment: Array<{
+        readonly done: number;
+        readonly total: number;
+      }> = [];
+      await generateChapterKnowledgeGraphArtifactFromSnapshot(
+        1,
+        {
+          details: {
+            chapterId: 1,
+            childCount: 0,
+            depth: 0,
+            documentOrder: 1,
+            fragmentCount: 1,
+            graphReady: false,
+            hasSummary: false,
+            key: "chapter-1",
+            path: "chapter-1",
+            stage: "sourced",
+            title: null,
+            tocPath: [],
+            uri: "wikg://chapter/chapter-1",
+            words: 1,
+          },
+          fragments: [
+            {
+              fragmentId: 1,
+              sentences: [{ text: "x", wordsCount: 1 }],
+              serialId: 1,
+              summary: "",
+            },
+          ],
+        },
+        {
+          progressTracker: {
+            throwIfStopped: () => Promise.resolve(),
+            updatePhase: (progress) => {
+              if (progress.phase === "enrichment") {
+                enrichment.push({ done: progress.done, total: progress.total });
+              }
+              return Promise.resolve();
+            },
+          },
+          request: (messages) =>
+            Promise.resolve(
+              messages.some(
+                (message) =>
+                  typeof message.content === "string" &&
+                  message.content.includes("protectedSurfaces"),
+              )
+                ? JSON.stringify({
+                    protectedSurfaces: [{ surfaceId: "s1" }],
+                  })
+                : JSON.stringify({
+                    groups: [
+                      {
+                        decisions: [
+                          { candidateId: "c1", decision: "never_recall" },
+                        ],
+                        groupId: "g1",
+                      },
+                    ],
+                  }),
+            ),
+          wikimediaResolver: {
+            resolve: async function* (input) {
+              await Promise.resolve();
+              expect(input).toStrictEqual([
+                { disambiguation: true, qid: "Q1" },
+                { disambiguation: false, qid: "Q1" },
+              ]);
+              yield {
+                index: 1,
+                resolution: wikimediaResolution("Q1", "plain"),
+              };
+              yield {
+                index: 0,
+                resolution: {
+                  ...wikimediaResolution("Q1", "disambiguation"),
+                  disambiguation: [{ information: "meaning", qid: "Q2" }],
+                },
+              };
+            },
+          },
+          wikispine: {
+            commandRunner: {
+              run: async ({ onStdout }) => {
+                await onStdout(
+                  `${JSON.stringify({
+                    match: {
+                      end: 1,
+                      qids: [
+                        { disambiguation: true, qid: "Q1" },
+                        { disambiguation: false, qid: "Q1" },
+                      ],
+                      start: 0,
+                      surface_id: 1,
+                    },
+                    type: "match",
+                  })}\n${JSON.stringify({ type: "done" })}\n`,
+                );
+                return { exitCode: 0, stderr: "" };
+              },
+            },
+          },
+          workspace: new NodeDirectory(path),
+        },
+      );
+
+      expect(enrichment).toStrictEqual([
+        { done: 0, total: 2 },
+        { done: 1, total: 2 },
+        { done: 2, total: 2 },
+        { done: 2, total: 2 },
+      ]);
+      expect(
+        enrichment.every(({ done, total }) => done >= 0 && done <= total),
+      ).toBe(true);
     });
   });
 
@@ -82,7 +204,7 @@ describe("facade/knowledge-graph-build", () => {
         {
           policyPrompt: "Recall entities.",
           request: () => Promise.resolve("{}"),
-          wikimediaResolver: { resolve: () => Promise.resolve([]) },
+          wikimediaResolver: { resolve: async function* () {} },
           workspace: new NodeDirectory(""),
         },
       ),
@@ -665,4 +787,12 @@ function readCandidateGroups(prompt: string): Array<{
 
 async function wait(ms: number): Promise<void> {
   await new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function wikimediaResolution(qid: string, label: string) {
+  return {
+    en: { description: null, label: null, url: null },
+    qid,
+    zh: { description: null, label, url: null },
+  };
 }

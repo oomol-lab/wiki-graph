@@ -46,6 +46,7 @@ export interface GenerateChapterKnowledgeGraphArtifactOptions {
     "throwIfStopped" | "updatePhase"
   >;
   readonly request: GuaranteedRequestController;
+  readonly signal?: AbortSignal;
   readonly wikimediaResolver: WikimediaResolver;
   readonly wikispine?: Pick<
     MatchWikispineSentenceCandidatesOptions,

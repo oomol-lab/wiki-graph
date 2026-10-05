@@ -4,6 +4,101 @@ import { DirectWikimediaResolver } from "./resolver.js";
 import type { CachedWikimediaQid, WikimediaCache } from "./types.js";
 
 describe("DirectWikimediaResolver", () => {
+  it("yields a cached result before a preceding cache miss starts upstream work", async () => {
+    const entities = vi.fn(() => Promise.resolve([]));
+    const resolver = new DirectWikimediaResolver({
+      cache: {
+        get: () => Promise.resolve(new Map([["Q1", cachedRecord("Q1")]])),
+        put: () => Promise.resolve(),
+      },
+      client: {
+        disambiguation: () => Promise.reject(new Error("not expected")),
+        entities,
+        pages: () => Promise.resolve([]),
+      },
+      normalizer: {
+        normalize: () => Promise.reject(new Error("not expected")),
+      },
+    });
+    const iterator = resolver
+      .resolve([
+        { disambiguation: false, qid: "Q2" },
+        { disambiguation: false, qid: "Q1" },
+      ])
+      [Symbol.asyncIterator]();
+
+    await expect(iterator.next()).resolves.toMatchObject({
+      done: false,
+      value: { index: 1, resolution: { qid: "Q1" } },
+    });
+    expect(entities).not.toHaveBeenCalled();
+    await iterator.return?.();
+  });
+
+  it("preserves every duplicate input through stable indexes", async () => {
+    const resolver = new DirectWikimediaResolver({
+      cache: {
+        get: () => Promise.resolve(new Map([["Q1", cachedRecord("Q1")]])),
+        put: () => Promise.resolve(),
+      },
+      client: {
+        disambiguation: () => Promise.reject(new Error("not expected")),
+        entities: () => Promise.reject(new Error("not expected")),
+        pages: () => Promise.reject(new Error("not expected")),
+      },
+      normalizer: {
+        normalize: () => Promise.reject(new Error("not expected")),
+      },
+    });
+
+    const items = await collect(
+      resolver.resolve([
+        { disambiguation: false, qid: "Q1" },
+        { disambiguation: false, qid: "Q1" },
+      ]),
+    );
+
+    expect(items.map(({ index }) => index)).toStrictEqual([0, 1]);
+  });
+
+  it("stops rebuilding records after abort", async () => {
+    const put = vi.fn(() => Promise.resolve());
+    const controller = new AbortController();
+    const resolver = new DirectWikimediaResolver({
+      cache: { get: () => Promise.resolve(new Map()), put },
+      client: {
+        disambiguation: () => Promise.reject(new Error("not expected")),
+        entities: (qids) =>
+          Promise.resolve(
+            qids.map((qid) => ({
+              descriptions: {},
+              labels: {},
+              qid,
+              sitelinks: {},
+            })),
+          ),
+        pages: () => Promise.resolve([]),
+      },
+      normalizer: {
+        normalize: () => Promise.reject(new Error("not expected")),
+      },
+    });
+    const iterator = resolver
+      .resolve(
+        Array.from({ length: 51 }, (_, index) => ({
+          disambiguation: false,
+          qid: `Q${index + 1}`,
+        })),
+        { signal: controller.signal },
+      )
+      [Symbol.asyncIterator]();
+
+    await iterator.next();
+    controller.abort(new Error("stopped"));
+    await expect(iterator.next()).rejects.toThrow("stopped");
+    expect(put).toHaveBeenCalledOnce();
+  });
+
   it("uses the caller's WikiSpine flag and caches a complete QID aggregate", async () => {
     const values = new Map<string, CachedWikimediaQid>();
     const cache: WikimediaCache = {
@@ -49,8 +144,8 @@ describe("DirectWikimediaResolver", () => {
     });
     const input = [{ disambiguation: false, qid: "Q1" }] as const;
 
-    const first = await resolver.resolve(input);
-    const second = await resolver.resolve(input);
+    const first = await collect(resolver.resolve(input));
+    const second = await collect(resolver.resolve(input));
 
     expect(second).toEqual(first);
     expect(entities).toHaveBeenCalledTimes(1);
@@ -76,10 +171,34 @@ describe("DirectWikimediaResolver", () => {
       },
     });
 
-    const [result] = await resolver.resolve([
-      { disambiguation: true, qid: "Q1" },
-    ]);
+    const [item] = await collect(
+      resolver.resolve([{ disambiguation: true, qid: "Q1" }]),
+    );
 
-    expect(result?.disambiguation).toEqual([]);
+    expect(item?.resolution.disambiguation).toEqual([]);
   });
 });
+
+async function collect<T>(items: AsyncIterable<T>): Promise<T[]> {
+  const result: T[] = [];
+  for await (const item of items) result.push(item);
+  return result;
+}
+
+function cachedRecord(qid: string): CachedWikimediaQid {
+  return {
+    disambiguation: false,
+    qid,
+    refreshedAt: new Date().toISOString(),
+    sites: [
+      {
+        output: { description: null, label: qid, url: null },
+        wiki: "zhwiki",
+      },
+      {
+        output: { description: null, label: qid, url: null },
+        wiki: "enwiki",
+      },
+    ],
+  };
+}

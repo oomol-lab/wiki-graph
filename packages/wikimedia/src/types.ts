@@ -23,11 +23,28 @@ export interface WikimediaResolution {
   readonly zh: WikimediaLanguageProfile;
 }
 
+/** One resolved input. Results may arrive out of input order. */
+export interface WikimediaResolvedItem {
+  readonly index: number;
+  readonly resolution: WikimediaResolution;
+}
+
+export type WikimediaStreamEvent =
+  | { readonly type: "done" }
+  | { readonly type: "heartbeat" }
+  | {
+      readonly detail?: string;
+      readonly requestId?: string;
+      readonly status: number;
+      readonly type: "error";
+    }
+  | (WikimediaResolvedItem & { readonly type: "resolution" });
+
 export interface WikimediaResolver {
   readonly resolve: (
     input: readonly WikimediaResolveInput[],
     options?: { readonly signal?: AbortSignal },
-  ) => Promise<readonly WikimediaResolution[]>;
+  ) => AsyncIterable<WikimediaResolvedItem>;
 }
 
 export interface PageMeta {
@@ -83,18 +100,35 @@ export interface CachedWikimediaQid {
 export interface WikimediaCache {
   readonly get: (
     qids: readonly string[],
+    options?: { readonly signal?: AbortSignal },
   ) => Promise<ReadonlyMap<string, CachedWikimediaQid>>;
-  readonly put: (records: readonly CachedWikimediaQid[]) => Promise<void>;
+  readonly put: (
+    records: readonly CachedWikimediaQid[],
+    options?: { readonly signal?: AbortSignal },
+  ) => Promise<void>;
 }
 
 export interface WikimediaRequestGate {
-  readonly use: <T>(operation: () => Promise<T>) => Promise<T>;
+  readonly use: <T>(
+    operation: () => Promise<T>,
+    options?: { readonly signal?: AbortSignal },
+  ) => Promise<T>;
 }
 
 export interface WikimediaClient {
-  entities(qids: readonly string[]): Promise<readonly EntityData[]>;
-  pages(wiki: Wiki, titles: readonly string[]): Promise<readonly PageMeta[]>;
-  disambiguation(page: PageMeta): Promise<ParsedPage>;
+  entities(
+    qids: readonly string[],
+    options?: { readonly signal?: AbortSignal },
+  ): Promise<readonly EntityData[]>;
+  pages(
+    wiki: Wiki,
+    titles: readonly string[],
+    options?: { readonly signal?: AbortSignal },
+  ): Promise<readonly PageMeta[]>;
+  disambiguation(
+    page: PageMeta,
+    options?: { readonly signal?: AbortSignal },
+  ): Promise<ParsedPage>;
 }
 
 export interface WikimediaLlmMessage {
@@ -106,12 +140,16 @@ export type WikimediaLlmRequest = (
   messages: readonly WikimediaLlmMessage[],
   retryIndex: number,
   retryMax: number,
+  options?: { readonly signal?: AbortSignal },
 ) => Promise<string | undefined>;
 
 export interface DisambiguationNormalizer {
-  readonly normalize: (input: {
-    readonly page: ParsedPage;
-    readonly sourceQid: string;
-    readonly wiki: Wiki;
-  }) => Promise<DisambiguationProfile>;
+  readonly normalize: (
+    input: {
+      readonly page: ParsedPage;
+      readonly sourceQid: string;
+      readonly wiki: Wiki;
+    },
+    options?: { readonly signal?: AbortSignal },
+  ) => Promise<DisambiguationProfile>;
 }
