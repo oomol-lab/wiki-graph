@@ -52,7 +52,14 @@ describe("HttpWikimediaResolver", () => {
       vi.fn<typeof fetch>().mockResolvedValue(
         streamResponse([
           { index: 0, resolution: resolution("Q1"), type: "resolution" },
-          { detail: "upstream failed", status: 503, type: "error" },
+          {
+            code: "retry-budget-exhausted",
+            detail: "upstream failed",
+            retryable: true,
+            retryAfterMs: 5_000,
+            status: 503,
+            type: "error",
+          },
         ]),
       ),
     );
@@ -62,7 +69,10 @@ describe("HttpWikimediaResolver", () => {
 
     await expect(iterator.next()).resolves.toMatchObject({ done: false });
     await expect(iterator.next()).rejects.toMatchObject({
+      code: "retry-budget-exhausted",
       detail: "upstream failed",
+      retryable: true,
+      retryAfterMs: 5_000,
       status: 503,
     });
   });

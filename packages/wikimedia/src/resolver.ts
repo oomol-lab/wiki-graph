@@ -14,8 +14,13 @@ import type {
   WikimediaResolution,
   WikimediaResolvedItem,
   WikimediaResolveInput,
+  WikimediaRequestOptions,
   WikimediaResolver as WikimediaResolverContract,
 } from "./types.js";
+import {
+  createWikimediaRetryBudget,
+  DEFAULT_WIKIMEDIA_RETRY_WAIT_BUDGET_MS,
+} from "./retry.js";
 
 const WIKIS = ["zhwiki", "enwiki"] as const;
 const DEFAULT_TTL_MS = 14 * 24 * 60 * 60 * 1_000;
@@ -59,6 +64,7 @@ export class DirectWikimediaResolver implements WikimediaResolverContract {
   readonly #now: () => number;
   readonly #observeCache: ((stats: WikimediaCacheStats) => void) | undefined;
   readonly #qidFlights = new Map<string, Promise<CachedWikimediaQid>>();
+  readonly #retryWaitBudgetMs: number;
   readonly #ttlMs: number;
 
   public constructor(options: {
@@ -67,6 +73,7 @@ export class DirectWikimediaResolver implements WikimediaResolverContract {
     readonly normalizer: DisambiguationNormalizer;
     readonly now?: () => number;
     readonly observeCache?: (stats: WikimediaCacheStats) => void;
+    readonly retryWaitBudgetMs?: number;
     readonly ttlMs?: number;
   }) {
     this.#cache = options.cache;
@@ -74,6 +81,8 @@ export class DirectWikimediaResolver implements WikimediaResolverContract {
     this.#normalizer = options.normalizer;
     this.#now = options.now ?? Date.now;
     this.#observeCache = options.observeCache;
+    this.#retryWaitBudgetMs =
+      options.retryWaitBudgetMs ?? DEFAULT_WIKIMEDIA_RETRY_WAIT_BUDGET_MS;
     this.#ttlMs = options.ttlMs ?? DEFAULT_TTL_MS;
   }
 
@@ -82,15 +91,19 @@ export class DirectWikimediaResolver implements WikimediaResolverContract {
     options?: { readonly signal?: AbortSignal },
   ): AsyncIterable<WikimediaResolvedItem> {
     const stats = emptyStats();
+    const requestOptions: WikimediaRequestOptions = {
+      ...options,
+      retryBudget: createWikimediaRetryBudget(this.#retryWaitBudgetMs),
+    };
     try {
       const grouped = groupInputs(input.map(normalizeInput));
-      options?.signal?.throwIfAborted();
+      requestOptions.signal?.throwIfAborted();
 
       for (const batch of batches(grouped, RESOLUTION_BATCH_SIZE)) {
-        options?.signal?.throwIfAborted();
+        requestOptions.signal?.throwIfAborted();
         const cached = await this.#cache.getQids(
           batch.map(({ qid }) => qid),
-          options,
+          requestOptions,
         );
         const current = new Map<string, CachedWikimediaQid>();
         const missing: GroupedInput[] = [];
@@ -109,15 +122,15 @@ export class DirectWikimediaResolver implements WikimediaResolverContract {
           batch.filter(({ qid }) => current.has(qid)),
           current,
           stats,
-          options,
+          requestOptions,
         );
         if (missing.length > 0) {
           const rebuilt = await this.#resolveMissingQids(
             missing.map(({ qid }) => qid),
             stats,
-            options,
+            requestOptions,
           );
-          yield* this.#resolveBatch(missing, rebuilt, stats, options);
+          yield* this.#resolveBatch(missing, rebuilt, stats, requestOptions);
         }
       }
     } finally {
@@ -128,7 +141,7 @@ export class DirectWikimediaResolver implements WikimediaResolverContract {
   async #resolveMissingQids(
     missing: readonly string[],
     stats: MutableCacheStats,
-    options?: { readonly signal?: AbortSignal },
+    options?: WikimediaRequestOptions,
   ): Promise<ReadonlyMap<string, CachedWikimediaQid>> {
     const records = new Map<string, CachedWikimediaQid>();
     const leaders: Array<{
@@ -149,6 +162,7 @@ export class DirectWikimediaResolver implements WikimediaResolverContract {
       leaders.push({ deferred, qid });
       stats.singleflightLeader += 1;
     }
+    const settledPending = settlePending(pending, options?.signal);
 
     if (leaders.length > 0) {
       try {
@@ -171,8 +185,9 @@ export class DirectWikimediaResolver implements WikimediaResolverContract {
       }
     }
 
-    for (const [qid, promise] of pending) {
-      records.set(qid, await withSignal(promise, options?.signal));
+    for (const result of await settledPending) {
+      if (result.status === "rejected") throw result.reason;
+      records.set(result.value[0], result.value[1]);
     }
     return records;
   }
@@ -181,7 +196,7 @@ export class DirectWikimediaResolver implements WikimediaResolverContract {
     groups: readonly GroupedInput[],
     records: ReadonlyMap<string, CachedWikimediaQid>,
     stats: MutableCacheStats,
-    options?: { readonly signal?: AbortSignal },
+    options?: WikimediaRequestOptions,
   ): AsyncIterable<WikimediaResolvedItem> {
     for (const group of groups) {
       const record = requiredRecord(records, group.qid);
@@ -244,7 +259,7 @@ export class DirectWikimediaResolver implements WikimediaResolverContract {
   async #resolveDisambiguations(
     targets: readonly DisambiguationTarget[],
     stats: MutableCacheStats,
-    options?: { readonly signal?: AbortSignal },
+    options?: WikimediaRequestOptions,
   ): Promise<ReadonlyMap<string, CachedWikimediaDisambiguation>> {
     if (targets.length === 0) return new Map();
     options?.signal?.throwIfAborted();
@@ -292,6 +307,7 @@ export class DirectWikimediaResolver implements WikimediaResolverContract {
       leaders.push({ deferred, flightKey, key });
       stats.singleflightLeader += 1;
     }
+    const settledPending = settlePending(pending, options?.signal);
 
     if (leaders.length > 0) {
       try {
@@ -329,8 +345,9 @@ export class DirectWikimediaResolver implements WikimediaResolverContract {
       }
     }
 
-    for (const [key, promise] of pending) {
-      records.set(key, await withSignal(promise, options?.signal));
+    for (const result of await settledPending) {
+      if (result.status === "rejected") throw result.reason;
+      records.set(result.value[0], result.value[1]);
     }
     return records;
   }
@@ -346,7 +363,7 @@ export class DirectWikimediaResolver implements WikimediaResolverContract {
 
   async #rebuildQids(
     qids: readonly string[],
-    options?: { readonly signal?: AbortSignal },
+    options?: WikimediaRequestOptions,
   ): Promise<ReadonlyMap<string, CachedWikimediaQid>> {
     const entities = await this.#client.entities(qids, options);
     const entitiesByQid = new Map(
@@ -363,7 +380,7 @@ export class DirectWikimediaResolver implements WikimediaResolverContract {
 
   async #fetchPages(
     entities: readonly EntityData[],
-    options?: { readonly signal?: AbortSignal },
+    options?: WikimediaRequestOptions,
   ): Promise<ReadonlyMap<Wiki, ReadonlyMap<string, PageMeta>>> {
     const results = new Map<Wiki, ReadonlyMap<string, PageMeta>>();
     for (const wiki of WIKIS) {
@@ -515,6 +532,18 @@ function createDeferred<T>(): Deferred<T> {
     reject = onReject;
   });
   return { promise, reject, resolve };
+}
+
+function settlePending<K, V>(
+  pending: ReadonlyMap<K, Promise<V>>,
+  signal?: AbortSignal,
+): Promise<PromiseSettledResult<readonly [K, V]>[]> {
+  return Promise.allSettled(
+    [...pending].map(async ([key, promise]) => {
+      const value = await withSignal(promise, signal);
+      return [key, value] as const;
+    }),
+  );
 }
 
 async function withSignal<T>(

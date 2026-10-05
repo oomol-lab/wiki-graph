@@ -21,3 +21,11 @@ The remote protocol is NDJSON. It accepts `resolution`, `heartbeat`, `error`,
 and terminal `done` events; closing without `done` is an error. Stopping
 iteration cancels the response body, and an optional `AbortSignal` is forwarded
 through remote and direct providers.
+
+Direct Wikimedia access treats `maxlag`, rate limiting, HTTP 403/408/425/5xx,
+and transport failures as temporary feedback. It retries with bounded
+exponential backoff and jitter rather than an attempt count. One resolver
+operation shares a 30-minute cumulative retry-wait budget across all upstream
+requests; ordinary processing time does not consume that budget. Terminal
+stream errors preserve a stable code, retryability, and retry delay when the
+provider supplies them.

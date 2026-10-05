@@ -9,22 +9,33 @@ import type {
 const MAX_ENTITIES_PER_REQUEST = 1_000;
 
 export class WikimediaServiceError extends Error {
+  public readonly code: string | undefined;
   public readonly detail: string | undefined;
   public readonly requestId: string | undefined;
+  public readonly retryable: boolean | undefined;
+  public readonly retryAfterMs: number | undefined;
   public readonly status: number;
 
   public constructor(
     status: number,
     detail: string | undefined,
     requestId: string | undefined,
+    options: {
+      readonly code?: string;
+      readonly retryable?: boolean;
+      readonly retryAfterMs?: number;
+    } = {},
   ) {
     super(
       `wg-wikimedia ${status}${detail === undefined ? "" : `: ${detail}`}${requestId === undefined ? "" : ` (requestId=${requestId})`}`,
     );
     this.name = "WikimediaServiceError";
+    this.code = options.code;
     this.status = status;
     this.detail = detail;
     this.requestId = requestId;
+    this.retryable = options.retryable;
+    this.retryAfterMs = options.retryAfterMs;
   }
 }
 
@@ -110,6 +121,15 @@ export class HttpWikimediaResolver implements WikimediaResolver {
           event.status,
           event.detail,
           event.requestId ?? requestId,
+          {
+            ...(event.code === undefined ? {} : { code: event.code }),
+            ...(event.retryable === undefined
+              ? {}
+              : { retryable: event.retryable }),
+            ...(event.retryAfterMs === undefined
+              ? {}
+              : { retryAfterMs: event.retryAfterMs }),
+          },
         );
       }
       if (received.size !== input.length) {
@@ -223,12 +243,23 @@ function parseEvent(line: string): WikimediaStreamEvent {
   if (
     event.type === "error" &&
     typeof event.status === "number" &&
+    (event.code === undefined || typeof event.code === "string") &&
     (event.detail === undefined || typeof event.detail === "string") &&
-    (event.requestId === undefined || typeof event.requestId === "string")
+    (event.requestId === undefined || typeof event.requestId === "string") &&
+    (event.retryable === undefined || typeof event.retryable === "boolean") &&
+    (event.retryAfterMs === undefined ||
+      (typeof event.retryAfterMs === "number" &&
+        Number.isFinite(event.retryAfterMs) &&
+        event.retryAfterMs >= 0))
   ) {
     return {
+      ...(event.code === undefined ? {} : { code: event.code }),
       ...(event.detail === undefined ? {} : { detail: event.detail }),
       ...(event.requestId === undefined ? {} : { requestId: event.requestId }),
+      ...(event.retryable === undefined ? {} : { retryable: event.retryable }),
+      ...(event.retryAfterMs === undefined
+        ? {}
+        : { retryAfterMs: event.retryAfterMs }),
       status: event.status,
       type: "error",
     };

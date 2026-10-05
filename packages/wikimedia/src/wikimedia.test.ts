@@ -20,12 +20,9 @@ describe("MediaWikiClient", () => {
       });
     });
     const controller = new AbortController();
-    const request = new MediaWikiClient(
-      fetcher,
-      undefined,
-      undefined,
-      0,
-    ).entities(["Q1"], { signal: controller.signal });
+    const request = new MediaWikiClient(fetcher, undefined, undefined, {
+      retryWaitBudgetMs: 0,
+    }).entities(["Q1"], { signal: controller.signal });
 
     controller.abort(new Error("cancelled"));
 
@@ -47,12 +44,9 @@ describe("MediaWikiClient", () => {
     });
     const qids = Array.from({ length: 101 }, (_, index) => `Q${index + 1}`);
 
-    const entities = await new MediaWikiClient(
-      fetcher,
-      undefined,
-      undefined,
-      0,
-    ).entities(qids);
+    const entities = await new MediaWikiClient(fetcher, undefined, undefined, {
+      retryWaitBudgetMs: 0,
+    }).entities(qids);
 
     expect(fetcher).toHaveBeenCalledTimes(3);
     expect(entities.map(({ qid }) => qid)).toStrictEqual(qids);
@@ -85,12 +79,9 @@ describe("MediaWikiClient", () => {
       (_, index) => `Page ${index + 1}`,
     );
 
-    const pages = await new MediaWikiClient(
-      fetcher,
-      undefined,
-      undefined,
-      0,
-    ).pages("enwiki", titles);
+    const pages = await new MediaWikiClient(fetcher, undefined, undefined, {
+      retryWaitBudgetMs: 0,
+    }).pages("enwiki", titles);
 
     expect(fetcher).toHaveBeenCalledTimes(3);
     expect(pages.map(({ requestedTitle }) => requestedTitle)).toStrictEqual(
@@ -107,7 +98,7 @@ describe("MediaWikiClient", () => {
       ),
       undefined,
       undefined,
-      0,
+      { retryWaitBudgetMs: 0 },
     );
 
     await expect(client.entities(["Q1"])).rejects.toMatchObject({
@@ -115,7 +106,90 @@ describe("MediaWikiClient", () => {
       status: 502,
     } satisfies Partial<UpstreamError>);
   });
+
+  it("retries maxlag without an attempt limit while budget remains", async () => {
+    const wait = vi.fn<(ms: number, signal?: AbortSignal) => Promise<void>>(
+      () => Promise.resolve(),
+    );
+    const fetcher = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(maxlagResponse())
+      .mockResolvedValueOnce(maxlagResponse())
+      .mockResolvedValueOnce(maxlagResponse())
+      .mockResolvedValueOnce(maxlagResponse())
+      .mockResolvedValueOnce(
+        Response.json({ entities: { Q1: { labels: {} } } }),
+      );
+    const client = new MediaWikiClient(fetcher, undefined, undefined, {
+      random: () => 0,
+      retryWaitBudgetMs: 100_000,
+      wait,
+    });
+
+    await expect(client.entities(["Q1"])).resolves.toHaveLength(1);
+
+    expect(fetcher).toHaveBeenCalledTimes(5);
+    expect(wait.mock.calls.map(([ms]) => ms)).toStrictEqual([
+      5_000, 10_000, 20_000, 40_000,
+    ]);
+  });
+
+  it("stops only after the cumulative retry wait budget is exhausted", async () => {
+    const wait = vi.fn<(ms: number, signal?: AbortSignal) => Promise<void>>(
+      () => Promise.resolve(),
+    );
+    const client = new MediaWikiClient(
+      vi
+        .fn<typeof fetch>()
+        .mockImplementation(() => Promise.resolve(maxlagResponse())),
+      undefined,
+      undefined,
+      {
+        random: () => 0,
+        retryWaitBudgetMs: 12_000,
+        wait,
+      },
+    );
+
+    await expect(client.entities(["Q1"])).rejects.toMatchObject({
+      code: "retry-budget-exhausted",
+      kind: "retry-budget",
+      retryable: true,
+      status: 503,
+    } satisfies Partial<UpstreamError>);
+    expect(wait.mock.calls.map(([ms]) => ms)).toStrictEqual([5_000, 7_000]);
+  });
+
+  it.each([
+    ["ratelimited", Response.json({ error: { code: "ratelimited" } })],
+    ["forbidden", new Response("forbidden", { status: 403 })],
+    ["server", new Response("unavailable", { status: 504 })],
+  ])("retries %s feedback through the shared policy", async (_name, first) => {
+    const wait = vi.fn<(ms: number, signal?: AbortSignal) => Promise<void>>(
+      () => Promise.resolve(),
+    );
+    const fetcher = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(first)
+      .mockResolvedValueOnce(
+        Response.json({ entities: { Q1: { labels: {} } } }),
+      );
+    const client = new MediaWikiClient(fetcher, undefined, undefined, {
+      random: () => 0,
+      retryWaitBudgetMs: 5_000,
+      wait,
+    });
+
+    await expect(client.entities(["Q1"])).resolves.toHaveLength(1);
+    expect(wait).toHaveBeenCalledWith(5_000, undefined);
+  });
 });
+
+function maxlagResponse(): Response {
+  return Response.json({
+    error: { code: "maxlag", info: "Waiting for wdqs: 5.35 seconds lagged" },
+  });
+}
 
 function toUrl(input: string | URL | Request): URL {
   if (input instanceof Request) return new URL(input.url);
