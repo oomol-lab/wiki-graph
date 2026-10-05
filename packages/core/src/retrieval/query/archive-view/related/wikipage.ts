@@ -16,9 +16,12 @@ export async function resolveEntityWikipage(
     );
   }
 
-  const [resolution] = await options.wikimediaResolver.resolve([
+  let resolution;
+  for await (const item of options.wikimediaResolver.resolve([
     { disambiguation: false, qid },
-  ]);
+  ])) {
+    if (item.index === 0) resolution = item.resolution;
+  }
 
   return {
     en: createEntityWikipageLocale(resolution?.en),

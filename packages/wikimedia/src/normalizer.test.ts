@@ -4,6 +4,34 @@ import { LlmDisambiguationNormalizer } from "./normalizer.js";
 import type { WikimediaLlmRequest } from "./types.js";
 
 describe("LlmDisambiguationNormalizer", () => {
+  it("passes the abort signal to LLM normalization", async () => {
+    const request = vi
+      .fn<WikimediaLlmRequest>()
+      .mockResolvedValue(JSON.stringify({ meanings: [] }));
+    const controller = new AbortController();
+    const normalizer = new LlmDisambiguationNormalizer(request);
+
+    await normalizer.normalize(
+      {
+        page: {
+          items: [],
+          links: [],
+          pageId: 1,
+          revisionId: 2,
+          text: "",
+          title: "Example",
+        },
+        sourceQid: "Q1",
+        wiki: "enwiki",
+      },
+      { signal: controller.signal },
+    );
+
+    expect(request.mock.calls[0]?.[3]).toStrictEqual({
+      signal: controller.signal,
+    });
+  });
+
   it("owns the prompt and retries meanings outside the page QID set", async () => {
     const request = vi
       .fn<WikimediaLlmRequest>()

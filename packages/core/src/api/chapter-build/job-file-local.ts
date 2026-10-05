@@ -55,8 +55,8 @@ export function createLocalChapterJobFileExecutor(
           },
         };
   const wikispine: JobWikispineMatcher = {
-    async match(input) {
-      const candidates = await matchWikispineSentenceCandidates({
+    async *match(input) {
+      for await (const candidate of matchWikispineSentenceCandidates({
         ...(options.wikispine ?? {}),
         includeDisambiguation: input.includeDisambiguation,
         ...(input.onProgress === undefined
@@ -64,15 +64,16 @@ export function createLocalChapterJobFileExecutor(
           : { onProgress: input.onProgress }),
         sentences: input.sentences,
         ...(input.signal === undefined ? {} : { signal: input.signal }),
-      });
-      return candidates.map((candidate) => ({
-        end: candidate.range.end,
-        qids: candidate.qidOptions.map((option) => ({
-          disambiguation: option.isDisambiguation === true,
-          qid: option.qid,
-        })),
-        start: candidate.range.start,
-      }));
+      })) {
+        yield {
+          end: candidate.range.end,
+          qids: candidate.qidOptions.map((option) => ({
+            disambiguation: option.isDisambiguation === true,
+            qid: option.qid,
+          })),
+          start: candidate.range.start,
+        };
+      }
     },
   };
   return async (execution) =>

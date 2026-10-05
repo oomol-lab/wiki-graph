@@ -35,16 +35,19 @@ export class LlmDisambiguationNormalizer implements DisambiguationNormalizer {
 
   public async normalize(
     input: Parameters<DisambiguationNormalizer["normalize"]>[0],
+    options?: { readonly signal?: AbortSignal },
   ): Promise<DisambiguationProfile> {
     const allowedQids = new Set(input.page.links.map((link) => link.qid));
     const messages = buildMessages(input);
     let feedback: WikimediaLlmMessage | undefined;
 
     for (let index = 0; index <= this.#maxRetries; index += 1) {
+      options?.signal?.throwIfAborted();
       const response = await this.#request(
         feedback === undefined ? messages : [...messages, feedback],
         index,
         this.#maxRetries,
+        options,
       );
       const parsed = parseResponse(response, allowedQids);
       if (parsed.ok) return { meanings: parsed.meanings };

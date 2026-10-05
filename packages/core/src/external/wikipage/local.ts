@@ -57,7 +57,8 @@ export async function openWikimediaResolver(
     return {
       close: async () => undefined,
       mode: "remote",
-      resolve: async (input) => await resolver.resolve(input),
+      resolve: (input, resolveOptions) =>
+        resolver.resolve(input, resolveOptions),
     };
   }
 
@@ -78,7 +79,7 @@ export async function openWikimediaResolver(
   return {
     close: async () => await cache.close(),
     mode: "local",
-    resolve: async (input) => await resolver.resolve(input),
+    resolve: (input, resolveOptions) => resolver.resolve(input, resolveOptions),
   };
 }
 
@@ -97,9 +98,11 @@ export class SqliteWikimediaCache implements WikimediaCache {
 
   public async get(
     qids: readonly string[],
+    options?: { readonly signal?: AbortSignal },
   ): Promise<ReadonlyMap<string, CachedWikimediaQid>> {
     const records = new Map<string, CachedWikimediaQid>();
     for (const qid of qids) {
+      options?.signal?.throwIfAborted();
       const value = await this.#database.queryOne(
         "SELECT record_json FROM wikimedia_cache_v1 WHERE qid = ?",
         [qid],
@@ -111,9 +114,14 @@ export class SqliteWikimediaCache implements WikimediaCache {
     return records;
   }
 
-  public async put(records: readonly CachedWikimediaQid[]): Promise<void> {
+  public async put(
+    records: readonly CachedWikimediaQid[],
+    options?: { readonly signal?: AbortSignal },
+  ): Promise<void> {
+    options?.signal?.throwIfAborted();
     await this.#database.transaction(async () => {
       for (const record of records) {
+        options?.signal?.throwIfAborted();
         await this.#database.run(
           `INSERT INTO wikimedia_cache_v1(qid,record_json,refreshed_at)
            VALUES(?,?,?)
@@ -161,7 +169,10 @@ export class LocalWikimediaRequestGate implements WikimediaRequestGate {
   #active = 0;
   #blockedUntil = 0;
   #lastStartedAt = 0;
-  readonly #queue: Array<() => void> = [];
+  readonly #queue: Array<{
+    readonly signal?: AbortSignal;
+    readonly start: () => void;
+  }> = [];
   #startSerial = Promise.resolve();
 
   public constructor(options: {
@@ -172,8 +183,11 @@ export class LocalWikimediaRequestGate implements WikimediaRequestGate {
     this.#intervalMs = Math.max(0, Math.floor(options.intervalMs));
   }
 
-  public async use<T>(operation: () => Promise<T>): Promise<T> {
-    await this.#acquire();
+  public async use<T>(
+    operation: () => Promise<T>,
+    options?: { readonly signal?: AbortSignal },
+  ): Promise<T> {
+    await this.#acquire(options?.signal);
     try {
       return await operation();
     } catch (error) {
@@ -190,12 +204,28 @@ export class LocalWikimediaRequestGate implements WikimediaRequestGate {
     }
   }
 
-  async #acquire(): Promise<void> {
-    await new Promise<void>((resolve) => {
-      this.#queue.push(() => {
-        this.#active += 1;
-        resolve();
-      });
+  async #acquire(signal?: AbortSignal): Promise<void> {
+    signal?.throwIfAborted();
+    await new Promise<void>((resolve, reject) => {
+      const entry = {
+        ...(signal === undefined ? {} : { signal }),
+        start: () => {
+          signal?.removeEventListener("abort", abort);
+          if (signal?.aborted === true) {
+            reject(signal.reason);
+            return;
+          }
+          this.#active += 1;
+          resolve();
+        },
+      };
+      const abort = (): void => {
+        const index = this.#queue.indexOf(entry);
+        if (index >= 0) this.#queue.splice(index, 1);
+        reject(signal?.reason ?? new Error("Wikimedia request aborted"));
+      };
+      signal?.addEventListener("abort", abort, { once: true });
+      this.#queue.push(entry);
       this.#drain();
     });
     const turn = this.#startSerial.then(async () => {
@@ -204,18 +234,26 @@ export class LocalWikimediaRequestGate implements WikimediaRequestGate {
         this.#blockedUntil - Date.now(),
         this.#lastStartedAt + this.#intervalMs - Date.now(),
       );
-      if (delayMs > 0) await delay(delayMs);
+      if (delayMs > 0) await delay(delayMs, signal);
+      signal?.throwIfAborted();
       this.#lastStartedAt = Date.now();
     });
     this.#startSerial = turn.catch(() => undefined);
-    await turn;
+    try {
+      await turn;
+    } catch (error) {
+      this.#active -= 1;
+      this.#drain();
+      throw error;
+    }
   }
 
   #drain(): void {
     while (this.#active < this.#concurrency) {
       const next = this.#queue.shift();
       if (next === undefined) return;
-      next();
+      if (next.signal?.aborted === true) continue;
+      next.start();
     }
   }
 }
@@ -261,6 +299,19 @@ async function missingLlmRequest(): Promise<never> {
   );
 }
 
-async function delay(ms: number): Promise<void> {
-  await new Promise<void>((resolve) => setTimeout(resolve, ms));
+async function delay(ms: number, signal?: AbortSignal): Promise<void> {
+  signal?.throwIfAborted();
+  await new Promise<void>((resolve, reject) => {
+    const timeout = setTimeout(done, ms);
+    const abort = (): void => {
+      clearTimeout(timeout);
+      signal?.removeEventListener("abort", abort);
+      reject(signal?.reason ?? new Error("Wikimedia request aborted"));
+    };
+    function done(): void {
+      signal?.removeEventListener("abort", abort);
+      resolve();
+    }
+    signal?.addEventListener("abort", abort, { once: true });
+  });
 }

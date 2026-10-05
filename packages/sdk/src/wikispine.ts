@@ -11,6 +11,7 @@ export const nodeWikispineCommandRunner: WikispineCommandRunner = {
         stdio: ["pipe", "pipe", "pipe"],
       });
       const stderr: Uint8Array[] = [];
+      let stdoutQueue = Promise.resolve();
       let settled = false;
       const settle = (operation: () => void): void => {
         if (settled) return;
@@ -27,14 +28,18 @@ export const nodeWikispineCommandRunner: WikispineCommandRunner = {
       child.stdout.setEncoding("utf8");
       child.stdout.on("data", (chunk: string) => {
         if (settled) return;
-        try {
-          onStdout(chunk);
-        } catch (error) {
-          child.kill();
-          settle(() =>
-            reject(error instanceof Error ? error : new Error(String(error))),
-          );
-        }
+        child.stdout.pause();
+        stdoutQueue = stdoutQueue
+          .then(async () => await onStdout(chunk))
+          .then(() => {
+            child.stdout.resume();
+          })
+          .catch((error: unknown) => {
+            child.kill();
+            settle(() =>
+              reject(error instanceof Error ? error : new Error(String(error))),
+            );
+          });
       });
       child.stderr.on("data", (chunk: Uint8Array) => stderr.push(chunk));
       child.on("error", (error) => {
@@ -45,12 +50,14 @@ export const nodeWikispineCommandRunner: WikispineCommandRunner = {
         );
       });
       child.on("close", (exitCode) => {
-        settle(() =>
-          resolve({
-            exitCode,
-            stderr: Buffer.concat(stderr).toString("utf8"),
-          }),
-        );
+        void stdoutQueue.then(() => {
+          settle(() =>
+            resolve({
+              exitCode,
+              stderr: Buffer.concat(stderr).toString("utf8"),
+            }),
+          );
+        });
       });
       child.stdin.end(input);
     }),

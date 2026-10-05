@@ -119,13 +119,29 @@ export async function startMockServices(options: {
       }
       if (item.path === "/wikimedia/qids:resolve") {
         assertRequest(item, {
+          accept: "application/x-ndjson",
           authorization: `Bearer ${options.wikimediaToken ?? "e2e-wikimedia-token"}`,
           contentType: "application/json",
           method: "POST",
         });
-        writeJSON(
-          response,
-          options.respondToWikimedia?.(item) ?? { results: [] },
+        const payload = options.respondToWikimedia?.(item) ?? { results: [] };
+        const candidateResults =
+          typeof payload === "object" && payload !== null
+            ? (payload as Record<string, unknown>).results
+            : undefined;
+        const results = Array.isArray(candidateResults)
+          ? (candidateResults as readonly unknown[])
+          : [];
+        response.writeHead(200, {
+          "content-type": "application/x-ndjson",
+        });
+        response.end(
+          [
+            ...results.map((resolution, index) =>
+              JSON.stringify({ index, resolution, type: "resolution" }),
+            ),
+            JSON.stringify({ type: "done" }),
+          ].join("\n") + "\n",
         );
         return;
       }

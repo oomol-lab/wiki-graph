@@ -12,6 +12,38 @@ type WikimediaResolveInput = Parameters<
 >[0][number];
 
 describe("wikimatch/enrichment", () => {
+  it("fails the operation when a resolver errors after a partial result", async () => {
+    const progress: number[] = [];
+    const enriching = enrichWikimatchCandidates(
+      [
+        {
+          id: "c1",
+          qidOptions: [
+            { isDisambiguation: false, qid: "Q1" },
+            { isDisambiguation: false, qid: "Q2" },
+          ],
+          range: { end: 1, start: 0 },
+          surface: "x",
+        },
+      ],
+      {
+        onProgress: (done) => {
+          progress.push(done);
+        },
+        resolver: {
+          resolve: async function* () {
+            await Promise.resolve();
+            yield { index: 0, resolution: resolution("Q1", "one", null) };
+            throw new Error("stream failed");
+          },
+        },
+      },
+    );
+
+    await expect(enriching).rejects.toThrow("stream failed");
+    expect(progress).toStrictEqual([1]);
+  });
+
   it("adds language profiles and disambiguation information to qid options", () => {
     const [candidate] = applyQidResolutions(
       [
@@ -51,16 +83,21 @@ describe("wikimatch/enrichment", () => {
   });
 
   it("passes WikiSpine disambiguation flags to the injected resolver", async () => {
-    const resolve = vi.fn(
-      (
-        input: readonly WikimediaResolveInput[],
-      ): Promise<readonly WikimediaResolution[]> =>
-        Promise.resolve(
-          input.map(({ qid }) =>
-            resolution(qid, `label for ${qid}`, `description for ${qid}`),
+    const resolve = vi.fn(async function* (
+      input: readonly WikimediaResolveInput[],
+    ) {
+      await Promise.resolve();
+      for (const [index, { qid }] of input.entries()) {
+        yield {
+          index,
+          resolution: resolution(
+            qid,
+            `label for ${qid}`,
+            `description for ${qid}`,
           ),
-        ),
-    );
+        };
+      }
+    });
 
     await expect(
       enrichWikimatchCandidates(
@@ -101,13 +138,10 @@ describe("wikimatch/enrichment", () => {
     ]);
 
     expect(resolve).toHaveBeenCalledTimes(1);
-    expect(resolve).toHaveBeenCalledWith(
-      [
-        { disambiguation: true, qid: "Q1" },
-        { disambiguation: false, qid: "Q2" },
-      ],
-      undefined,
-    );
+    expect(resolve).toHaveBeenCalledWith([
+      { disambiguation: true, qid: "Q1" },
+      { disambiguation: false, qid: "Q2" },
+    ]);
   });
 });
 

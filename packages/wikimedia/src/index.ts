@@ -19,6 +19,8 @@ export type {
   WikimediaLlmRequest,
   WikimediaRequestGate,
   WikimediaResolution,
+  WikimediaResolvedItem,
+  WikimediaStreamEvent,
   WikimediaResolveInput,
   WikimediaResolver,
 } from "./types.js";

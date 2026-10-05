@@ -35,17 +35,22 @@ export class MediaWikiClient implements WikimediaClient {
     private readonly retryTimes = 3,
   ) {}
 
-  async entities(qids: readonly string[]): Promise<readonly EntityData[]> {
+  async entities(
+    qids: readonly string[],
+    options?: { readonly signal?: AbortSignal },
+  ): Promise<readonly EntityData[]> {
     if (qids.length === 0) return [];
     const entities: EntityData[] = [];
     for (const batch of batches(qids, API_BATCH_SIZE)) {
-      entities.push(...(await this.entitiesBatch(batch)));
+      options?.signal?.throwIfAborted();
+      entities.push(...(await this.entitiesBatch(batch, options)));
     }
     return entities;
   }
 
   private async entitiesBatch(
     qids: readonly string[],
+    options?: { readonly signal?: AbortSignal },
   ): Promise<readonly EntityData[]> {
     const url = new URL("https://www.wikidata.org/w/api.php");
     url.searchParams.set("action", "wbgetentities");
@@ -55,7 +60,7 @@ export class MediaWikiClient implements WikimediaClient {
     url.searchParams.set("sitefilter", "zhwiki|enwiki");
     url.searchParams.set("format", "json");
     url.searchParams.set("formatversion", "2");
-    const json = await this.get(url);
+    const json = await this.get(url, options);
     const entities = (json.entities ?? {}) as Record<string, any>;
 
     return qids.map((qid) => {
@@ -81,11 +86,13 @@ export class MediaWikiClient implements WikimediaClient {
   async pages(
     wiki: Wiki,
     titles: readonly string[],
+    options?: { readonly signal?: AbortSignal },
   ): Promise<readonly PageMeta[]> {
     if (titles.length === 0) return [];
     const pages: PageMeta[] = [];
     for (const batch of batches(titles, API_BATCH_SIZE)) {
-      pages.push(...(await this.pagesBatch(wiki, batch)));
+      options?.signal?.throwIfAborted();
+      pages.push(...(await this.pagesBatch(wiki, batch, options)));
     }
     return pages;
   }
@@ -93,6 +100,7 @@ export class MediaWikiClient implements WikimediaClient {
   private async pagesBatch(
     wiki: Wiki,
     titles: readonly string[],
+    options?: { readonly signal?: AbortSignal },
   ): Promise<readonly PageMeta[]> {
     const url = new URL(API[wiki]);
     url.searchParams.set("action", "query");
@@ -104,7 +112,7 @@ export class MediaWikiClient implements WikimediaClient {
     url.searchParams.set("redirects", "1");
     url.searchParams.set("format", "json");
     url.searchParams.set("formatversion", "2");
-    const json = await this.get(url);
+    const json = await this.get(url, options);
     const redirects = new Map<string, string>(
       ((json.query?.redirects ?? []) as any[]).map((item) => [
         item.from,
@@ -138,7 +146,10 @@ export class MediaWikiClient implements WikimediaClient {
     );
   }
 
-  async disambiguation(page: PageMeta): Promise<ParsedPage> {
+  async disambiguation(
+    page: PageMeta,
+    options?: { readonly signal?: AbortSignal },
+  ): Promise<ParsedPage> {
     const parseUrl = new URL(API[page.wiki]);
     parseUrl.searchParams.set("action", "parse");
     parseUrl.searchParams.set("oldid", String(page.revisionId));
@@ -147,8 +158,8 @@ export class MediaWikiClient implements WikimediaClient {
     parseUrl.searchParams.set("formatversion", "2");
 
     const [parsed, targetQids] = await Promise.all([
-      this.get(parseUrl),
-      this.getLinkedTargetQids(page),
+      this.get(parseUrl, options),
+      this.getLinkedTargetQids(page, options),
     ]);
     const html = String(parsed.parse?.text ?? "");
     const items = parseListItems(html, targetQids);
@@ -165,10 +176,12 @@ export class MediaWikiClient implements WikimediaClient {
 
   private async getLinkedTargetQids(
     page: PageMeta,
+    options?: { readonly signal?: AbortSignal },
   ): Promise<ReadonlyMap<string, string>> {
     const qids = new Map<string, string>();
     let continuation: string | undefined;
     do {
+      options?.signal?.throwIfAborted();
       const url = new URL(API[page.wiki]);
       url.searchParams.set("action", "query");
       url.searchParams.set("generator", "links");
@@ -182,7 +195,7 @@ export class MediaWikiClient implements WikimediaClient {
       url.searchParams.set("formatversion", "2");
       if (continuation !== undefined)
         url.searchParams.set("gplcontinue", continuation);
-      const json = await this.get(url);
+      const json = await this.get(url, options);
       const redirects = new Map<string, string>(
         ((json.query?.redirects ?? []) as any[]).map((item) => [
           item.from,
@@ -202,10 +215,14 @@ export class MediaWikiClient implements WikimediaClient {
     return qids;
   }
 
-  private async get(url: URL): Promise<any> {
+  private async get(
+    url: URL,
+    options?: { readonly signal?: AbortSignal },
+  ): Promise<any> {
     url.searchParams.set("maxlag", "5");
     let lastError: unknown;
     for (let attempt = 0; attempt <= this.retryTimes; attempt += 1) {
+      options?.signal?.throwIfAborted();
       try {
         return await this.gate.use(async () => {
           const response = await this.fetcher(url, {
@@ -213,6 +230,9 @@ export class MediaWikiClient implements WikimediaClient {
               "Accept-Encoding": "gzip",
               "User-Agent": this.userAgent,
             },
+            ...(options?.signal === undefined
+              ? {}
+              : { signal: options.signal }),
           });
           const retry = Number(response.headers.get("retry-after") ?? 0);
           const retryAfterMs = retry > 0 ? retry * 1000 : undefined;
@@ -238,11 +258,11 @@ export class MediaWikiClient implements WikimediaClient {
             );
           }
           return json;
-        });
+        }, options);
       } catch (error) {
         lastError = error;
         if (!isRetryable(error) || attempt >= this.retryTimes) throw error;
-        await delay(retryDelay(error, attempt));
+        await delay(retryDelay(error, attempt), options?.signal);
       }
     }
     throw lastError;
@@ -281,8 +301,21 @@ function retryDelay(error: unknown, attempt: number): number {
   return 1_000 * 2 ** attempt;
 }
 
-async function delay(ms: number): Promise<void> {
-  await new Promise<void>((resolve) => setTimeout(resolve, ms));
+async function delay(ms: number, signal?: AbortSignal): Promise<void> {
+  signal?.throwIfAborted();
+  await new Promise<void>((resolve, reject) => {
+    const timeout = setTimeout(done, ms);
+    const abort = (): void => {
+      clearTimeout(timeout);
+      signal?.removeEventListener("abort", abort);
+      reject(signal?.reason ?? new Error("Wikimedia request aborted"));
+    };
+    function done(): void {
+      signal?.removeEventListener("abort", abort);
+      resolve();
+    }
+    signal?.addEventListener("abort", abort, { once: true });
+  });
 }
 
 function parseListItems(

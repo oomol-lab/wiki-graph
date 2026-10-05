@@ -74,7 +74,8 @@ export async function* buildKnowledgeGraphRecords(options: {
     total: text.length,
     unit: "char",
   });
-  const matched = await options.wikispine.match({
+  const matched = [];
+  for await (const match of options.wikispine.match({
     includeDisambiguation: true,
     onProgress: async (progress) => {
       await progressTracker.updatePhase({
@@ -92,7 +93,9 @@ export async function* buildKnowledgeGraphRecords(options: {
       text: sentence.record.text,
     })),
     ...(options.signal === undefined ? {} : { signal: options.signal }),
-  });
+  })) {
+    matched.push(match);
+  }
   await progressTracker.throwIfStopped();
   await progressTracker.updatePhase({
     done: text.length,
@@ -145,6 +148,15 @@ export async function* buildKnowledgeGraphRecords(options: {
     screenedCandidates,
     {
       ...(language === undefined ? {} : { language }),
+      onProgress: async (done) => {
+        await progressTracker.updatePhase({
+          done,
+          force: false,
+          phase: "enrichment",
+          total: qidCount,
+          unit: "qid",
+        });
+      },
       resolver: options.wikimedia,
       ...(options.signal === undefined ? {} : { signal: options.signal }),
     },

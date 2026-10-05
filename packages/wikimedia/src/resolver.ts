@@ -9,12 +9,14 @@ import type {
   WikimediaClient,
   WikimediaDisambiguationItem,
   WikimediaResolution,
+  WikimediaResolvedItem,
   WikimediaResolveInput,
   WikimediaResolver as WikimediaResolverContract,
 } from "./types.js";
 
 const WIKIS = ["zhwiki", "enwiki"] as const;
 const DEFAULT_TTL_MS = 14 * 24 * 60 * 60 * 1_000;
+const RESOLUTION_BATCH_SIZE = 50;
 
 export class DirectWikimediaResolver implements WikimediaResolverContract {
   readonly #cache: WikimediaCache;
@@ -37,58 +39,67 @@ export class DirectWikimediaResolver implements WikimediaResolverContract {
     this.#ttlMs = options.ttlMs ?? DEFAULT_TTL_MS;
   }
 
-  public async resolve(
+  public async *resolve(
     input: readonly WikimediaResolveInput[],
-  ): Promise<readonly WikimediaResolution[]> {
+    options?: { readonly signal?: AbortSignal },
+  ): AsyncIterable<WikimediaResolvedItem> {
+    const signal = options?.signal;
     const normalized = input.map(normalizeInput);
-    const unique = [
-      ...new Map(normalized.map((item) => [item.qid, item])).values(),
-    ];
-    const cached = await this.#cache.get(unique.map((item) => item.qid));
-    const records = new Map<string, CachedWikimediaQid>();
-    const missing: WikimediaResolveInput[] = [];
+    const grouped = groupInputs(normalized);
+    signal?.throwIfAborted();
+    const cached = await this.#cache.get(
+      [...new Set(grouped.map(({ input }) => input.qid))],
+      options,
+    );
+    signal?.throwIfAborted();
+    const missing: GroupedInput[] = [];
 
-    for (const item of unique) {
-      const record = cached.get(item.qid);
+    for (const item of grouped) {
+      const record = cached.get(item.input.qid);
       if (record !== undefined && this.#isCurrent(record, item)) {
-        records.set(item.qid, record);
+        const resolution = toResolution(record);
+        for (const index of item.indexes) {
+          yield { index, resolution };
+        }
       } else {
         missing.push(item);
       }
     }
 
-    if (missing.length > 0) {
+    for (const batch of batches(missing, RESOLUTION_BATCH_SIZE)) {
+      signal?.throwIfAborted();
       const entities = await this.#client.entities(
-        missing.map((item) => item.qid),
+        [...new Set(batch.map(({ input: item }) => item.qid))],
+        options,
       );
+      signal?.throwIfAborted();
       const entitiesByQid = new Map(
         entities.map((entity) => [entity.qid, entity]),
       );
-      const pages = await this.#fetchPages(entities);
-      const rebuilt: CachedWikimediaQid[] = [];
+      const pages = await this.#fetchPages(entities, options);
 
-      for (const item of missing) {
+      for (const item of batch) {
+        signal?.throwIfAborted();
         const record = await this.#rebuild(
-          item,
-          entitiesByQid.get(item.qid),
+          item.input,
+          entitiesByQid.get(item.input.qid),
           pages,
+          options,
         );
-        rebuilt.push(record);
-        records.set(item.qid, record);
+        signal?.throwIfAborted();
+        await this.#cache.put([record], options);
+        const resolution = toResolution(record);
+        for (const index of item.indexes) {
+          yield { index, resolution };
+        }
       }
-      await this.#cache.put(rebuilt);
     }
-
-    return normalized.map((item) => toResolution(records.get(item.qid)!));
   }
 
-  #isCurrent(
-    record: CachedWikimediaQid,
-    input: WikimediaResolveInput,
-  ): boolean {
+  #isCurrent(record: CachedWikimediaQid, input: GroupedInput): boolean {
     const refreshedAt = Date.parse(record.refreshedAt);
     return (
-      record.disambiguation === input.disambiguation &&
+      record.disambiguation === input.input.disambiguation &&
       Number.isFinite(refreshedAt) &&
       this.#now() - refreshedAt <= this.#ttlMs &&
       WIKIS.every((wiki) => record.sites.some((site) => site.wiki === wiki))
@@ -97,6 +108,7 @@ export class DirectWikimediaResolver implements WikimediaResolverContract {
 
   async #fetchPages(
     entities: readonly EntityData[],
+    options?: { readonly signal?: AbortSignal },
   ): Promise<ReadonlyMap<Wiki, ReadonlyMap<string, PageMeta>>> {
     const results = new Map<Wiki, ReadonlyMap<string, PageMeta>>();
     for (const wiki of WIKIS) {
@@ -108,7 +120,8 @@ export class DirectWikimediaResolver implements WikimediaResolverContract {
           }),
         ),
       ];
-      const pages = await this.#client.pages(wiki, titles);
+      options?.signal?.throwIfAborted();
+      const pages = await this.#client.pages(wiki, titles, options);
       results.set(
         wiki,
         new Map(
@@ -126,9 +139,11 @@ export class DirectWikimediaResolver implements WikimediaResolverContract {
     input: WikimediaResolveInput,
     entity: EntityData | undefined,
     pages: ReadonlyMap<Wiki, ReadonlyMap<string, PageMeta>>,
+    options?: { readonly signal?: AbortSignal },
   ): Promise<CachedWikimediaQid> {
     const sites: CachedWikimediaSite[] = [];
     for (const wiki of WIKIS) {
+      options?.signal?.throwIfAborted();
       const language = wiki === "zhwiki" ? "zh" : "en";
       const sourceTitle = entity?.sitelinks[wiki];
       const page =
@@ -142,12 +157,15 @@ export class DirectWikimediaResolver implements WikimediaResolverContract {
         url: page?.url ?? null,
       };
       if (input.disambiguation && page?.isDisambiguation === true) {
-        const parsedPage = await this.#client.disambiguation(page);
-        const profile = await this.#normalizer.normalize({
-          page: parsedPage,
-          sourceQid: input.qid,
-          wiki,
-        });
+        const parsedPage = await this.#client.disambiguation(page, options);
+        const profile = await this.#normalizer.normalize(
+          {
+            page: parsedPage,
+            sourceQid: input.qid,
+            wiki,
+          },
+          options,
+        );
         sites.push({
           output,
           page,
@@ -172,6 +190,41 @@ export class DirectWikimediaResolver implements WikimediaResolverContract {
       sites,
     };
   }
+}
+
+interface GroupedInput {
+  readonly indexes: readonly number[];
+  readonly input: WikimediaResolveInput;
+}
+
+function groupInputs(
+  input: readonly WikimediaResolveInput[],
+): readonly GroupedInput[] {
+  const groups = new Map<
+    string,
+    { indexes: number[]; input: WikimediaResolveInput }
+  >();
+  input.forEach((item, index) => {
+    const key = `${item.qid}\0${item.disambiguation ? "1" : "0"}`;
+    const group = groups.get(key);
+    if (group === undefined) {
+      groups.set(key, { indexes: [index], input: item });
+    } else {
+      group.indexes.push(index);
+    }
+  });
+  return [...groups.values()];
+}
+
+function batches<T>(
+  values: readonly T[],
+  size: number,
+): readonly (readonly T[])[] {
+  const result: T[][] = [];
+  for (let offset = 0; offset < values.length; offset += size) {
+    result.push(values.slice(offset, offset + size));
+  }
+  return result;
 }
 
 function normalizeInput(input: WikimediaResolveInput): WikimediaResolveInput {

@@ -8,6 +8,55 @@ import type {
 } from "../wikipage/index.js";
 
 describe("wikimatch/enrichment", () => {
+  it("consumes out-of-order resolutions incrementally using input indexes", async () => {
+    const progress: number[] = [];
+    const candidates = [
+      {
+        id: "c1",
+        qidOptions: [
+          { isDisambiguation: false, qid: "Q1" },
+          { isDisambiguation: false, qid: "Q2" },
+        ],
+        range: { end: 1, start: 0 },
+        surface: "x",
+      },
+    ];
+
+    const result = await enrichWikimatchCandidates(candidates, {
+      onProgress: (done) => {
+        progress.push(done);
+      },
+      resolver: {
+        resolve: async function* () {
+          yield { index: 1, resolution: resolution("Q2", "two", null) };
+          yield { index: 0, resolution: resolution("Q1", "one", null) };
+        },
+      },
+    });
+
+    expect(result[0]?.qidOptions.map(({ label }) => label)).toStrictEqual([
+      "one",
+      "two",
+    ]);
+    expect(progress).toStrictEqual([1, 2]);
+  });
+
+  it("preserves an explicit empty disambiguation result", () => {
+    const [candidate] = applyQidResolutions(
+      [
+        {
+          id: "c1",
+          qidOptions: [{ isDisambiguation: true, qid: "Q1" }],
+          range: { end: 1, start: 0 },
+          surface: "x",
+        },
+      ],
+      [resolution("Q1", "one", null)],
+    );
+
+    expect(candidate?.qidOptions[0]?.disambiguation).toStrictEqual([]);
+  });
+
   it("adds language profiles and disambiguation information to qid options", () => {
     const [candidate] = applyQidResolutions(
       [
@@ -47,16 +96,20 @@ describe("wikimatch/enrichment", () => {
   });
 
   it("passes WikiSpine disambiguation flags to the injected resolver", async () => {
-    const resolve = vi.fn(
-      (
-        input: readonly WikimediaResolveInput[],
-      ): Promise<readonly WikimediaResolution[]> =>
-        Promise.resolve(
-          input.map(({ qid }) =>
-            resolution(qid, `label for ${qid}`, `description for ${qid}`),
+    const resolve = vi.fn(async function* (
+      input: readonly WikimediaResolveInput[],
+    ) {
+      for (const [index, { qid }] of input.entries()) {
+        yield {
+          index,
+          resolution: resolution(
+            qid,
+            `label for ${qid}`,
+            `description for ${qid}`,
           ),
-        ),
-    );
+        };
+      }
+    });
 
     await expect(
       enrichWikimatchCandidates(

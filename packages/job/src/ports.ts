@@ -57,7 +57,7 @@ export interface JobWikispineMatcher {
       readonly text: string;
     }[];
     readonly signal?: AbortSignal;
-  }): Promise<readonly JobWikispineMatch[]>;
+  }): AsyncIterable<JobWikispineMatch>;
 }
 
 export interface JobWikimediaLanguageProfile {
@@ -76,6 +76,11 @@ export interface JobWikimediaResolution {
   readonly zh: JobWikimediaLanguageProfile;
 }
 
+export interface JobWikimediaResolvedItem {
+  readonly index: number;
+  readonly resolution: JobWikimediaResolution;
+}
+
 export interface JobWikimediaResolver {
   resolve(
     input: readonly {
@@ -83,7 +88,7 @@ export interface JobWikimediaResolver {
       readonly qid: string;
     }[],
     options?: { readonly signal?: AbortSignal },
-  ): Promise<readonly JobWikimediaResolution[]>;
+  ): AsyncIterable<JobWikimediaResolvedItem>;
 }
 
 export type JobProgressPhase =

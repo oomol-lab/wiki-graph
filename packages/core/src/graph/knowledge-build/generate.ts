@@ -56,7 +56,8 @@ export async function generateChapterKnowledgeGraphArtifactFromSnapshot(
     total: text.length,
     unit: "char",
   });
-  const rawCandidates = await matchWikispineSentenceCandidates({
+  const rawCandidates = [];
+  for await (const candidate of matchWikispineSentenceCandidates({
     includeDisambiguation: true,
     onProgress: async (progress) => {
       await options.progressTracker?.updatePhase({
@@ -70,7 +71,10 @@ export async function generateChapterKnowledgeGraphArtifactFromSnapshot(
     },
     ...(options.wikispine ?? {}),
     sentences,
-  });
+    ...(options.signal === undefined ? {} : { signal: options.signal }),
+  })) {
+    rawCandidates.push(candidate);
+  }
   await options.progressTracker?.throwIfStopped();
   await options.progressTracker?.updatePhase({
     done: text.length,
@@ -100,7 +104,17 @@ export async function generateChapterKnowledgeGraphArtifactFromSnapshot(
     screenedCandidates,
     {
       ...(options.language === undefined ? {} : { language: options.language }),
+      onProgress: async (done) => {
+        await options.progressTracker?.updatePhase({
+          done,
+          force: false,
+          phase: "enrichment",
+          total: qidCount,
+          unit: "qid",
+        });
+      },
       resolver: options.wikimediaResolver,
+      ...(options.signal === undefined ? {} : { signal: options.signal }),
     },
   );
   await options.progressTracker?.throwIfStopped();

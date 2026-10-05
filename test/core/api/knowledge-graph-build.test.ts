@@ -44,7 +44,7 @@ describe("facade/knowledge-graph-build", () => {
           request: () => {
             throw new Error("LLM should not be called for empty snapshots.");
           },
-          wikimediaResolver: { resolve: () => Promise.resolve([]) },
+          wikimediaResolver: { resolve: async function* () {} },
           workspace: new NodeDirectory(path),
         },
       );
@@ -82,7 +82,7 @@ describe("facade/knowledge-graph-build", () => {
         {
           policyPrompt: "Recall entities.",
           request: () => Promise.resolve("{}"),
-          wikimediaResolver: { resolve: () => Promise.resolve([]) },
+          wikimediaResolver: { resolve: async function* () {} },
           workspace: new NodeDirectory(""),
         },
       ),
