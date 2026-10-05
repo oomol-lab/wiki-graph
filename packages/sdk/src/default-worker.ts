@@ -270,6 +270,10 @@ async function openJobExecutor(
                   request,
                   "Local Wikimedia resolution requires an LLM.",
                 ),
+                llmModelId: requireValue(
+                  stageConfig?.llm?.model,
+                  "Local Wikimedia resolution requires an LLM model.",
+                ),
               }
             : {
                 endpoint: config.wikimedia.endpoint,

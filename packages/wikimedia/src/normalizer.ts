@@ -8,6 +8,8 @@ import type {
   WikimediaLlmRequest,
 } from "./types.js";
 
+const NORMALIZER_VERSION = "v1";
+
 const responseSchema = z
   .object({
     meanings: z.array(
@@ -22,15 +24,20 @@ const responseSchema = z
   .strict();
 
 export class LlmDisambiguationNormalizer implements DisambiguationNormalizer {
+  public readonly identity;
   readonly #maxRetries: number;
   readonly #request: WikimediaLlmRequest;
 
   public constructor(
     request: WikimediaLlmRequest,
-    options: { readonly maxRetries?: number } = {},
+    options: { readonly maxRetries?: number; readonly modelId?: string } = {},
   ) {
     this.#request = request;
     this.#maxRetries = options.maxRetries ?? 3;
+    this.identity = {
+      modelId: options.modelId ?? "unconfigured",
+      normalizerVersion: NORMALIZER_VERSION,
+    };
   }
 
   public async normalize(
