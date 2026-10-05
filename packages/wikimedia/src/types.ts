@@ -33,8 +33,11 @@ export type WikimediaStreamEvent =
   | { readonly type: "done" }
   | { readonly type: "heartbeat" }
   | {
+      readonly code?: string;
       readonly detail?: string;
       readonly requestId?: string;
+      readonly retryable?: boolean;
+      readonly retryAfterMs?: number;
       readonly status: number;
       readonly type: "error";
     }
@@ -149,19 +152,29 @@ export interface WikimediaRequestGate {
   ) => Promise<T>;
 }
 
+export interface WikimediaRetryBudget {
+  readonly remainingMs: number;
+  consume(waitMs: number): void;
+}
+
+export interface WikimediaRequestOptions {
+  readonly retryBudget?: WikimediaRetryBudget;
+  readonly signal?: AbortSignal;
+}
+
 export interface WikimediaClient {
   entities(
     qids: readonly string[],
-    options?: { readonly signal?: AbortSignal },
+    options?: WikimediaRequestOptions,
   ): Promise<readonly EntityData[]>;
   pages(
     wiki: Wiki,
     titles: readonly string[],
-    options?: { readonly signal?: AbortSignal },
+    options?: WikimediaRequestOptions,
   ): Promise<readonly PageMeta[]>;
   disambiguation(
     page: PageMeta,
-    options?: { readonly signal?: AbortSignal },
+    options?: WikimediaRequestOptions,
   ): Promise<ParsedPage>;
 }
 

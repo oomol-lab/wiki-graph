@@ -6,17 +6,40 @@ import type {
   Wiki,
   WikimediaClient,
   WikimediaRequestGate,
+  WikimediaRequestOptions,
 } from "./types.js";
+import {
+  createWikimediaRetryBudget,
+  DEFAULT_WIKIMEDIA_RETRY_WAIT_BUDGET_MS,
+} from "./retry.js";
+
+export type WikimediaUpstreamErrorKind =
+  | "api"
+  | "forbidden"
+  | "maxlag"
+  | "network"
+  | "rate-limit"
+  | "retry-budget"
+  | "server";
 
 export class UpstreamError extends Error {
   public constructor(
     public readonly status: number,
     public readonly retryAfterMs: number | undefined,
     message: string,
-    public readonly kind: "http" | "maxlag" = "http",
+    public readonly kind: WikimediaUpstreamErrorKind = "api",
+    public readonly code: string = `http-${status}`,
+    public readonly retryable = false,
+    options?: ErrorOptions,
   ) {
-    super(message);
+    super(message, options);
   }
+}
+
+export interface MediaWikiRetryOptions {
+  readonly random?: () => number;
+  readonly retryWaitBudgetMs?: number;
+  readonly wait?: (ms: number, signal?: AbortSignal) => Promise<void>;
 }
 
 const API: Record<Wiki, string> = {
@@ -26,31 +49,41 @@ const API: Record<Wiki, string> = {
 const API_BATCH_SIZE = 50;
 
 export class MediaWikiClient implements WikimediaClient {
+  readonly #random: () => number;
+  readonly #retryWaitBudgetMs: number;
+  readonly #wait: (ms: number, signal?: AbortSignal) => Promise<void>;
+
   public constructor(
     private readonly fetcher: typeof fetch = fetch,
     private readonly userAgent = "wg-wikimedia/0.1 (https://github.com/oomol/wiki-graph; contact via repository)",
     private readonly gate: WikimediaRequestGate = {
       use: async <T>(operation: () => Promise<T>) => await operation(),
     },
-    private readonly retryTimes = 3,
-  ) {}
+    retry: MediaWikiRetryOptions = {},
+  ) {
+    this.#random = retry.random ?? Math.random;
+    this.#retryWaitBudgetMs =
+      retry.retryWaitBudgetMs ?? DEFAULT_WIKIMEDIA_RETRY_WAIT_BUDGET_MS;
+    this.#wait = retry.wait ?? delay;
+  }
 
   async entities(
     qids: readonly string[],
-    options?: { readonly signal?: AbortSignal },
+    options?: WikimediaRequestOptions,
   ): Promise<readonly EntityData[]> {
     if (qids.length === 0) return [];
+    const requestOptions = withRetryBudget(options, this.#retryWaitBudgetMs);
     const entities: EntityData[] = [];
     for (const batch of batches(qids, API_BATCH_SIZE)) {
-      options?.signal?.throwIfAborted();
-      entities.push(...(await this.entitiesBatch(batch, options)));
+      requestOptions.signal?.throwIfAborted();
+      entities.push(...(await this.entitiesBatch(batch, requestOptions)));
     }
     return entities;
   }
 
   private async entitiesBatch(
     qids: readonly string[],
-    options?: { readonly signal?: AbortSignal },
+    options: WikimediaRequestOptions,
   ): Promise<readonly EntityData[]> {
     const url = new URL("https://www.wikidata.org/w/api.php");
     url.searchParams.set("action", "wbgetentities");
@@ -86,13 +119,14 @@ export class MediaWikiClient implements WikimediaClient {
   async pages(
     wiki: Wiki,
     titles: readonly string[],
-    options?: { readonly signal?: AbortSignal },
+    options?: WikimediaRequestOptions,
   ): Promise<readonly PageMeta[]> {
     if (titles.length === 0) return [];
+    const requestOptions = withRetryBudget(options, this.#retryWaitBudgetMs);
     const pages: PageMeta[] = [];
     for (const batch of batches(titles, API_BATCH_SIZE)) {
-      options?.signal?.throwIfAborted();
-      pages.push(...(await this.pagesBatch(wiki, batch, options)));
+      requestOptions.signal?.throwIfAborted();
+      pages.push(...(await this.pagesBatch(wiki, batch, requestOptions)));
     }
     return pages;
   }
@@ -100,7 +134,7 @@ export class MediaWikiClient implements WikimediaClient {
   private async pagesBatch(
     wiki: Wiki,
     titles: readonly string[],
-    options?: { readonly signal?: AbortSignal },
+    options: WikimediaRequestOptions,
   ): Promise<readonly PageMeta[]> {
     const url = new URL(API[wiki]);
     url.searchParams.set("action", "query");
@@ -148,8 +182,9 @@ export class MediaWikiClient implements WikimediaClient {
 
   async disambiguation(
     page: PageMeta,
-    options?: { readonly signal?: AbortSignal },
+    options?: WikimediaRequestOptions,
   ): Promise<ParsedPage> {
+    const requestOptions = withRetryBudget(options, this.#retryWaitBudgetMs);
     const parseUrl = new URL(API[page.wiki]);
     parseUrl.searchParams.set("action", "parse");
     parseUrl.searchParams.set("oldid", String(page.revisionId));
@@ -158,8 +193,8 @@ export class MediaWikiClient implements WikimediaClient {
     parseUrl.searchParams.set("formatversion", "2");
 
     const [parsed, targetQids] = await Promise.all([
-      this.get(parseUrl, options),
-      this.getLinkedTargetQids(page, options),
+      this.get(parseUrl, requestOptions),
+      this.getLinkedTargetQids(page, requestOptions),
     ]);
     const html = String(parsed.parse?.text ?? "");
     const items = parseListItems(html, targetQids);
@@ -176,7 +211,7 @@ export class MediaWikiClient implements WikimediaClient {
 
   private async getLinkedTargetQids(
     page: PageMeta,
-    options?: { readonly signal?: AbortSignal },
+    options: WikimediaRequestOptions,
   ): Promise<ReadonlyMap<string, string>> {
     const qids = new Map<string, string>();
     let continuation: string | undefined;
@@ -215,34 +250,49 @@ export class MediaWikiClient implements WikimediaClient {
     return qids;
   }
 
-  private async get(
-    url: URL,
-    options?: { readonly signal?: AbortSignal },
-  ): Promise<any> {
+  private async get(url: URL, options: WikimediaRequestOptions): Promise<any> {
     url.searchParams.set("maxlag", "5");
-    let lastError: unknown;
-    for (let attempt = 0; attempt <= this.retryTimes; attempt += 1) {
+    for (let attempt = 0; ; attempt += 1) {
       options?.signal?.throwIfAborted();
       try {
         return await this.gate.use(async () => {
-          const response = await this.fetcher(url, {
-            headers: {
-              "Accept-Encoding": "gzip",
-              "User-Agent": this.userAgent,
-            },
-            ...(options?.signal === undefined
-              ? {}
-              : { signal: options.signal }),
-          });
-          const retry = Number(response.headers.get("retry-after") ?? 0);
-          const retryAfterMs = retry > 0 ? retry * 1000 : undefined;
-          if (!response.ok) {
+          let response: Response;
+          try {
+            response = await this.fetcher(url, {
+              headers: {
+                "Accept-Encoding": "gzip",
+                "User-Agent": this.userAgent,
+              },
+              ...(options.signal === undefined
+                ? {}
+                : { signal: options.signal }),
+            });
+          } catch (error) {
+            if (options.signal?.aborted === true) {
+              throw options.signal.reason ?? error;
+            }
             throw new UpstreamError(
-              response.status === 429 || response.status === 503
-                ? response.status
-                : 502,
+              503,
+              undefined,
+              `Wikimedia network error: ${error instanceof Error ? error.message : String(error)}`,
+              "network",
+              "network",
+              true,
+              { cause: error },
+            );
+          }
+          const retryAfterMs = parseRetryAfter(
+            response.headers.get("retry-after"),
+          );
+          if (!response.ok) {
+            const classification = classifyHttpStatus(response.status);
+            throw new UpstreamError(
+              response.status,
               retryAfterMs,
               `Wikimedia ${response.status}`,
+              classification.kind,
+              `http-${response.status}`,
+              classification.retryable,
             );
           }
           const json = await response.json();
@@ -250,22 +300,35 @@ export class MediaWikiClient implements WikimediaClient {
             const code = readErrorText(json.error.code) ?? "unknown";
             const detail = readErrorText(json.error.info);
             const isMaxlag = code === "maxlag";
+            const isRateLimited = code === "ratelimited";
             throw new UpstreamError(
-              isMaxlag ? 503 : 502,
+              isMaxlag ? 503 : isRateLimited ? 429 : 502,
               isMaxlag ? (retryAfterMs ?? 5000) : retryAfterMs,
               `Wikimedia ${code}${detail === undefined ? "" : `: ${detail}`}`,
-              isMaxlag ? "maxlag" : "http",
+              isMaxlag ? "maxlag" : isRateLimited ? "rate-limit" : "api",
+              code,
+              isMaxlag || isRateLimited,
             );
           }
           return json;
         }, options);
       } catch (error) {
-        lastError = error;
-        if (!isRetryable(error) || attempt >= this.retryTimes) throw error;
-        await delay(retryDelay(error, attempt), options?.signal);
+        if (!isRetryable(error)) throw error;
+        const waitMs = retryDelay(error, attempt, this.#random);
+        const budget = options.retryBudget;
+        if (budget === undefined) throw error;
+        if (waitMs > budget.remainingMs) {
+          if (budget.remainingMs > 0) {
+            const remainingMs = budget.remainingMs;
+            budget.consume(remainingMs);
+            await this.#wait(remainingMs, options.signal);
+          }
+          throw retryBudgetError(error);
+        }
+        budget.consume(waitMs);
+        await this.#wait(waitMs, options.signal);
       }
     }
-    throw lastError;
   }
 }
 
@@ -286,19 +349,22 @@ function readErrorText(value: unknown): string | undefined {
     : undefined;
 }
 
-function isRetryable(error: unknown): boolean {
-  return (
-    error instanceof TypeError ||
-    (error instanceof UpstreamError &&
-      [429, 500, 502, 503, 504].includes(error.status))
-  );
+function isRetryable(error: unknown): error is UpstreamError {
+  return error instanceof UpstreamError && error.retryable;
 }
 
-function retryDelay(error: unknown, attempt: number): number {
-  if (error instanceof UpstreamError && error.retryAfterMs !== undefined) {
-    return error.retryAfterMs;
-  }
-  return 1_000 * 2 ** attempt;
+function retryDelay(
+  error: UpstreamError,
+  attempt: number,
+  random: () => number,
+): number {
+  const maximumBackoffMs = 5 * 60 * 1_000;
+  const backoff = Math.min(maximumBackoffMs, 5_000 * 2 ** Math.min(attempt, 6));
+  const jitteredBackoff = Math.min(
+    maximumBackoffMs,
+    backoff + Math.floor(backoff * 0.2 * random()),
+  );
+  return Math.max(jitteredBackoff, error.retryAfterMs ?? 0);
 }
 
 async function delay(ms: number, signal?: AbortSignal): Promise<void> {
@@ -316,6 +382,48 @@ async function delay(ms: number, signal?: AbortSignal): Promise<void> {
     }
     signal?.addEventListener("abort", abort, { once: true });
   });
+}
+
+function withRetryBudget(
+  options: WikimediaRequestOptions | undefined,
+  waitBudgetMs: number,
+): WikimediaRequestOptions {
+  return options?.retryBudget === undefined
+    ? { ...options, retryBudget: createWikimediaRetryBudget(waitBudgetMs) }
+    : options;
+}
+
+function classifyHttpStatus(status: number): {
+  readonly kind: WikimediaUpstreamErrorKind;
+  readonly retryable: boolean;
+} {
+  if (status === 403) return { kind: "forbidden", retryable: true };
+  if (status === 408 || status === 425)
+    return { kind: "rate-limit", retryable: true };
+  if (status === 429) return { kind: "rate-limit", retryable: true };
+  if (status >= 500) return { kind: "server", retryable: true };
+  return { kind: "api", retryable: false };
+}
+
+function parseRetryAfter(value: string | null): number | undefined {
+  if (value === null || value.trim() === "") return undefined;
+  const seconds = Number(value);
+  if (Number.isFinite(seconds) && seconds >= 0) return seconds * 1_000;
+  const timestamp = Date.parse(value);
+  if (!Number.isFinite(timestamp)) return undefined;
+  return Math.max(0, timestamp - Date.now());
+}
+
+function retryBudgetError(cause: UpstreamError): UpstreamError {
+  return new UpstreamError(
+    503,
+    undefined,
+    "Wikimedia retry wait budget is exhausted.",
+    "retry-budget",
+    "retry-budget-exhausted",
+    true,
+    { cause },
+  );
 }
 
 function parseListItems(

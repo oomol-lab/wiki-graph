@@ -143,6 +143,32 @@ describe("DirectWikimediaResolver", () => {
     expect(entities).toHaveBeenCalledOnce();
   });
 
+  it("observes every rejected single-flight promise in a failed batch", async () => {
+    const failure = new Error("upstream failed");
+    const resolver = createResolver(memoryCache(), {
+      entities: () => Promise.reject(failure),
+    });
+    const unhandled: unknown[] = [];
+    const onUnhandled = (reason: unknown): void => {
+      unhandled.push(reason);
+    };
+    process.on("unhandledRejection", onUnhandled);
+    try {
+      await expect(
+        collect(
+          resolver.resolve([
+            { disambiguation: false, qid: "Q1" },
+            { disambiguation: false, qid: "Q2" },
+          ]),
+        ),
+      ).rejects.toBe(failure);
+      await new Promise<void>((resolve) => setImmediate(resolve));
+      expect(unhandled).toStrictEqual([]);
+    } finally {
+      process.off("unhandledRejection", onUnhandled);
+    }
+  });
+
   it("does not normalize a page that is not objectively marked as disambiguation", async () => {
     const normalize = vi.fn(() => Promise.resolve({ meanings: [] }));
     const resolver = createResolver(memoryCache(), {
@@ -189,11 +215,12 @@ describe("DirectWikimediaResolver", () => {
 
     await collect(resolver.resolve([{ disambiguation: true, qid: "Q1" }]));
 
-    expect(getDisambiguations).toHaveBeenCalledWith(
-      [expect.objectContaining({ qid: "Q1", revisionId: 1 })],
-      identity,
-      undefined,
-    );
+    expect(getDisambiguations).toHaveBeenCalledOnce();
+    const [keys, requestedIdentity] = getDisambiguations.mock.calls[0]!;
+    expect(keys).toEqual([
+      expect.objectContaining({ qid: "Q1", revisionId: 1 }),
+    ]);
+    expect(requestedIdentity).toBe(identity);
   });
 
   it("reports aggregate cache statistics", async () => {
