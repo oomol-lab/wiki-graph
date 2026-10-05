@@ -721,7 +721,7 @@ export class WikiGraphArchiveHandle {
             await this.#readDocument(
               async (document) =>
                 await readArchivePage(document, objectUri, {
-                  ...withoutOperation(options),
+                  ...options,
                   ...wikimediaOptions,
                 }),
               options,

@@ -4,6 +4,41 @@ import { DirectWikimediaResolver } from "./resolver.js";
 import type { CachedWikimediaQid, WikimediaCache } from "./types.js";
 
 describe("DirectWikimediaResolver", () => {
+  it("yields from a bounded cache batch before scanning later inputs", async () => {
+    const get = vi.fn((qids: readonly string[]) =>
+      Promise.resolve(
+        new Map(qids.map((qid) => [qid, cachedRecord(qid)] as const)),
+      ),
+    );
+    const resolver = new DirectWikimediaResolver({
+      cache: { get, put: () => Promise.resolve() },
+      client: {
+        disambiguation: () => Promise.reject(new Error("not expected")),
+        entities: () => Promise.reject(new Error("not expected")),
+        pages: () => Promise.reject(new Error("not expected")),
+      },
+      normalizer: {
+        normalize: () => Promise.reject(new Error("not expected")),
+      },
+    });
+    const iterator = resolver
+      .resolve(
+        Array.from({ length: 51 }, (_, index) => ({
+          disambiguation: false,
+          qid: `Q${index + 1}`,
+        })),
+      )
+      [Symbol.asyncIterator]();
+
+    await expect(iterator.next()).resolves.toMatchObject({
+      done: false,
+      value: { index: 0, resolution: { qid: "Q1" } },
+    });
+    expect(get).toHaveBeenCalledOnce();
+    expect(get.mock.calls[0]?.[0]).toHaveLength(50);
+    await iterator.return?.();
+  });
+
   it("yields a cached result before a preceding cache miss starts upstream work", async () => {
     const entities = vi.fn(() => Promise.resolve([]));
     const resolver = new DirectWikimediaResolver({

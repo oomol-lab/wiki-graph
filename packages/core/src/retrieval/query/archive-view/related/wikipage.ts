@@ -17,10 +17,23 @@ export async function resolveEntityWikipage(
   }
 
   let resolution;
-  for await (const item of options.wikimediaResolver.resolve([
-    { disambiguation: false, qid },
-  ])) {
-    if (item.index === 0) resolution = item.resolution;
+  const stream = options.wikimediaResolver.resolve(
+    [{ disambiguation: false, qid }],
+    options.signal === undefined ? undefined : { signal: options.signal },
+  );
+  for await (const item of stream) {
+    if (item.index !== 0) {
+      throw new Error(
+        `Wikimedia resolver returned invalid input index ${item.index}`,
+      );
+    }
+    if (resolution !== undefined) {
+      throw new Error("Wikimedia resolver returned input index 0 twice");
+    }
+    resolution = item.resolution;
+  }
+  if (resolution === undefined) {
+    throw new Error("Wikimedia resolver ended after 0 of 1 results");
   }
 
   return {
