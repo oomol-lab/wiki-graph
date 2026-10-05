@@ -89,6 +89,72 @@ describe("wikimatch/wikispine", () => {
     expect(providerSignal?.aborted).toBe(true);
   });
 
+  it("backpressures CLI stdout while a consumer pauses between matches", async () => {
+    let attemptedThird = false;
+    let acceptedThird = false;
+    let attemptedDone = false;
+    let acceptedDone = false;
+    let runnerCancelled = false;
+    let runnerExited = false;
+    const iterator = matchWikispineSentenceCandidates({
+      commandRunner: {
+        run: async ({ onStdout, signal }) => {
+          try {
+            await onStdout(`${matchEvent(0, 1, "Q1")}\n`);
+            await onStdout(`${matchEvent(0, 1, "Q2")}\n`);
+            attemptedThird = true;
+            await onStdout(`${matchEvent(0, 1, "Q3")}\n`);
+            acceptedThird = true;
+            attemptedDone = true;
+            await onStdout(`${JSON.stringify({ type: "done" })}\n`);
+            acceptedDone = true;
+            if (signal?.aborted === true) throw new Error("process stopped");
+            await new Promise<void>((_resolve, reject) => {
+              signal?.addEventListener(
+                "abort",
+                () => reject(new Error("process stopped")),
+                { once: true },
+              );
+            });
+            runnerExited = true;
+            return { exitCode: 0, stderr: "" };
+          } catch (error) {
+            runnerCancelled = signal?.aborted === true;
+            throw error;
+          }
+        },
+      },
+      sentences: [{ range: { end: 3, start: 0 }, text: "abc" }],
+    })[Symbol.asyncIterator]();
+
+    await expect(iterator.next()).resolves.toMatchObject({
+      done: false,
+      value: { qidOptions: [{ qid: "Q1" }] },
+    });
+    await vi.waitFor(() => expect(attemptedThird).toBe(true));
+    expect(acceptedThird).toBe(false);
+    expect(runnerExited).toBe(false);
+
+    await expect(iterator.next()).resolves.toMatchObject({
+      done: false,
+      value: { qidOptions: [{ qid: "Q2" }] },
+    });
+    await vi.waitFor(() => expect(attemptedDone).toBe(true));
+    expect(acceptedThird).toBe(true);
+    expect(acceptedDone).toBe(false);
+
+    await expect(iterator.next()).resolves.toMatchObject({
+      done: false,
+      value: { qidOptions: [{ qid: "Q3" }] },
+    });
+    await vi.waitFor(() => expect(acceptedDone).toBe(true));
+    expect(runnerExited).toBe(false);
+
+    await expect(iterator.next()).resolves.toMatchObject({ done: true });
+    expect(runnerCancelled).toBe(true);
+    expect(runnerExited).toBe(false);
+  });
+
   it("serializes progress callbacks and applies their backpressure", async () => {
     let releaseFirst!: () => void;
     const firstProgress = new Promise<void>((resolve) => {
