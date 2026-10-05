@@ -47,22 +47,25 @@ export class DirectWikimediaResolver implements WikimediaResolverContract {
     const normalized = input.map(normalizeInput);
     const grouped = groupInputs(normalized);
     signal?.throwIfAborted();
-    const cached = await this.#cache.get(
-      [...new Set(grouped.map(({ input }) => input.qid))],
-      options,
-    );
-    signal?.throwIfAborted();
     const missing: GroupedInput[] = [];
 
-    for (const item of grouped) {
-      const record = cached.get(item.input.qid);
-      if (record !== undefined && this.#isCurrent(record, item)) {
-        const resolution = toResolution(record);
-        for (const index of item.indexes) {
-          yield { index, resolution };
+    for (const batch of batches(grouped, RESOLUTION_BATCH_SIZE)) {
+      signal?.throwIfAborted();
+      const cached = await this.#cache.get(
+        [...new Set(batch.map(({ input: item }) => item.qid))],
+        options,
+      );
+      signal?.throwIfAborted();
+      for (const item of batch) {
+        const record = cached.get(item.input.qid);
+        if (record !== undefined && this.#isCurrent(record, item)) {
+          const resolution = toResolution(record);
+          for (const index of item.indexes) {
+            yield { index, resolution };
+          }
+        } else {
+          missing.push(item);
         }
-      } else {
-        missing.push(item);
       }
     }
 

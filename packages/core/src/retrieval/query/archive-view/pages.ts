@@ -55,6 +55,7 @@ export interface ArchivePageOptions {
   readonly backlinks?: boolean;
   readonly evidenceLimit?: number;
   readonly order?: ArchiveFindOrder;
+  readonly signal?: AbortSignal;
   readonly sourceContext?: number;
   readonly wikimediaResolver?: WikimediaResolver;
 }

@@ -61,7 +61,7 @@ export type WikiGraphLibrarySearchOptions = Omit<
 export type WikiGraphLibraryPageOptions = Omit<
   Parameters<typeof readWikiGraphLibraryPage>[2],
   "wikimediaResolver"
->;
+> & { readonly signal?: AbortSignal };
 
 export interface WikiGraphLibraryAddArchiveOptions {
   readonly inputPath: string;
@@ -351,6 +351,7 @@ export class WikiGraphLibraryManager {
               { ...options, ...wikimediaOptions },
             ),
         ),
+      options.signal,
     );
   }
 
