@@ -55,7 +55,7 @@ export async function executeChapterJobFile(
       case "index-fts":
         await writeChapterJobArtifact(
           artifactFile,
-          buildFtsRecords(options.inputFile),
+          buildFtsRecords(options.inputFile, options.progress),
         );
         break;
       case "index-embedding-source":
@@ -66,6 +66,7 @@ export async function executeChapterJobFile(
             options.inputFile,
             requireEmbeddingProvider(options.embeddingProvider),
             options.kind === "index-embedding-source" ? "source" : "summary",
+            options.progress,
             options.signal,
           ),
         );
@@ -155,9 +156,45 @@ function requireCapability<T>(value: T | undefined, name: string): T {
   return value;
 }
 
-async function* buildFtsRecords(inputFile: JobFile) {
+async function* buildFtsRecords(
+  inputFile: JobFile,
+  progress?: JobProgressSink,
+) {
+  if (progress === undefined) {
+    for await (const record of readChapterJobInput(inputFile)) {
+      yield* createFtsRowsForInputRecord(record);
+    }
+    return;
+  }
+  let total = 0;
   for await (const record of readChapterJobInput(inputFile)) {
-    yield* createFtsRowsForInputRecord(record);
+    await progress.throwIfStopped?.();
+    total += createFtsRowsForInputRecord(record).length;
+  }
+  await progress.updatePhase?.({
+    done: 0,
+    phase: "indexing",
+    total,
+    unit: "record",
+  });
+  let done = 0;
+  let reported = 0;
+  for await (const record of readChapterJobInput(inputFile)) {
+    await progress.throwIfStopped?.();
+    for (const row of createFtsRowsForInputRecord(record)) {
+      yield row;
+      done += 1;
+      if (shouldReportProgress(done, reported, total)) {
+        await progress.updatePhase?.({
+          done,
+          force: false,
+          phase: "indexing",
+          total,
+          unit: "record",
+        });
+        reported = done;
+      }
+    }
   }
 }
 
@@ -165,8 +202,24 @@ async function* buildEmbeddingRecords(
   inputFile: JobFile,
   provider: JobEmbeddingProvider,
   source: "source" | "summary",
+  progress?: JobProgressSink,
   signal?: AbortSignal,
 ): AsyncIterable<ChapterJobArtifactRecord> {
+  let total = 0;
+  if (progress !== undefined) {
+    for await (const _segment of streamEmbeddingSegments(
+      readEmbeddingSentences(inputFile, source),
+    )) {
+      await progress.throwIfStopped?.();
+      total += 1;
+    }
+    await progress.updatePhase?.({
+      done: 0,
+      phase: "indexing",
+      total,
+      unit: "record",
+    });
+  }
   const segments = streamEmbeddingSegments(
     readEmbeddingSentences(inputFile, source),
   );
@@ -191,6 +244,9 @@ async function* buildEmbeddingRecords(
     return;
   }
 
+  let done = 0;
+  let reported = 0;
+  await progress?.throwIfStopped?.();
   let batch = [first.value, ...(await takeSegments(iterator, 15))];
   let records = await embedSegments(batch, provider, signal);
   const firstRecord = records[0]!;
@@ -210,8 +266,20 @@ async function* buildEmbeddingRecords(
     assertDimensions(record, dimensions);
     yield record;
   }
+  done += records.length;
+  if (shouldReportProgress(done, reported, total)) {
+    await progress?.updatePhase?.({
+      done,
+      force: false,
+      phase: "indexing",
+      total,
+      unit: "record",
+    });
+    reported = done;
+  }
 
   while (true) {
+    await progress?.throwIfStopped?.();
     batch = await takeSegments(iterator, 16);
     if (batch.length === 0) return;
     records = await embedSegments(batch, provider, signal);
@@ -219,7 +287,27 @@ async function* buildEmbeddingRecords(
       assertDimensions(record, dimensions);
       yield record;
     }
+    done += records.length;
+    if (shouldReportProgress(done, reported, total)) {
+      await progress?.updatePhase?.({
+        done,
+        force: false,
+        phase: "indexing",
+        total,
+        unit: "record",
+      });
+      reported = done;
+    }
   }
+}
+
+function shouldReportProgress(done: number, reported: number, total: number) {
+  if (done >= total) return true;
+  const denominator = Math.max(1, total);
+  return (
+    Math.floor((done * 100) / denominator) >
+    Math.floor((reported * 100) / denominator)
+  );
 }
 
 async function* readEmbeddingSentences(

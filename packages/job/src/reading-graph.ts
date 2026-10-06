@@ -62,9 +62,20 @@ export async function* buildReadingGraphRecords(options: {
   const allChunks: ReaderChunk[] = [];
   const successorIdsByChunkId: Record<string, number[] | undefined> =
     Object.create(null) as Record<string, number[] | undefined>;
+  const processingFragments = createProcessingFragments(input.sentences);
+  const totalSentences = processingFragments.reduce(
+    (total, fragment) => total + fragment.sentences.length,
+    0,
+  );
   let completedSentences = 0;
 
-  for (const fragment of createProcessingFragments(input.sentences)) {
+  await options.progress?.updatePhase?.({
+    done: 0,
+    phase: "reading-extraction",
+    total: totalSentences,
+    unit: "sentence",
+  });
+  for (const fragment of processingFragments) {
     await options.progress?.throwIfStopped?.();
     const sentences = fragment.sentences.map((sentence) => ({
       sentenceId: [0, sentence.sentenceIndex] as const,
@@ -89,7 +100,7 @@ export async function* buildReadingGraphRecords(options: {
     await options.progress?.updatePhase?.({
       done: completedSentences,
       phase: "reading-extraction",
-      total: input.sentences.length,
+      total: totalSentences,
       unit: "sentence",
     });
   }
