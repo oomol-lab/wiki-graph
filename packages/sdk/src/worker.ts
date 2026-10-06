@@ -1,9 +1,14 @@
 import {
   applyChapterJobArtifactFile,
   runBuildJobWorker as runCoreBuildJobWorker,
+  writeChapterJobInputFile,
+  type ChapterJobInputOptions,
   type BuildJobWorkerOptions as CoreBuildJobWorkerOptions,
 } from "wiki-graph-core/worker";
-import { WikiGraphArchiveFile } from "wiki-graph-core";
+import {
+  resolveChapterPathReadonly,
+  WikiGraphArchiveFile,
+} from "wiki-graph-core";
 import type { ChapterJobKind } from "wiki-graph-job";
 
 import {
@@ -32,6 +37,62 @@ export interface WikiGraphJobArtifactInput {
   readonly artifactPath: string;
   readonly chapterId: number;
   readonly kind: ChapterJobKind;
+}
+
+export interface WikiGraphJobSnapshotInput {
+  readonly chapterPath: string;
+  readonly kind: ChapterJobKind;
+  readonly options?: ChapterJobInputOptions;
+  readonly outputPath: string;
+}
+
+export interface WikiGraphJobSnapshotResult extends WikiGraphJobSnapshotInput {
+  readonly chapterId: number;
+  readonly revision: number;
+}
+
+export interface ExtractWikiGraphJobSnapshotsOptions {
+  readonly onSnapshot?: (
+    snapshot: WikiGraphJobSnapshotResult,
+  ) => void | Promise<void>;
+  readonly requests: readonly WikiGraphJobSnapshotInput[];
+  readonly signal?: AbortSignal;
+  readonly stateDir: string;
+  readonly wikgPath: string;
+}
+
+export async function extractWikiGraphJobSnapshots(
+  options: ExtractWikiGraphJobSnapshotsOptions,
+): Promise<readonly WikiGraphJobSnapshotResult[]> {
+  ensureNodeWikiGraphPlatform();
+  return await withNodeWikiGraphStorage(
+    options.stateDir,
+    async () =>
+      await new WikiGraphArchiveFile(
+        new NodeFile(options.wikgPath),
+      ).readDocument(async (document) => {
+        const results: WikiGraphJobSnapshotResult[] = [];
+        for (const request of options.requests) {
+          options.signal?.throwIfAborted();
+          const chapterId = await resolveChapterPathReadonly(
+            document,
+            request.chapterPath,
+          );
+          const revision = await writeChapterJobInputFile(
+            document,
+            chapterId,
+            request.kind,
+            new NodeFile(request.outputPath),
+            request.options,
+          );
+          const result = { ...request, chapterId, revision };
+          results.push(result);
+          await options.onSnapshot?.(result);
+        }
+        options.signal?.throwIfAborted();
+        return results;
+      }),
+  );
 }
 
 export interface ApplyWikiGraphJobArtifactsOptions {

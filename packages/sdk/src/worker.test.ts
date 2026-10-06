@@ -2,12 +2,16 @@ import { mkdtemp, rm, writeFile } from "fs/promises";
 import { tmpdir } from "os";
 import { join } from "path";
 
+import { readChapterJobInput } from "wiki-graph-job";
 import { WikiGraphArchiveFile } from "wiki-graph-core";
 import { afterEach, describe, expect, it } from "vitest";
 
-import { createWikiGraphSDK } from "./sdk.js";
 import { NodeFile } from "./node-platform.js";
-import { applyWikiGraphJobArtifacts } from "./worker.js";
+import { createWikiGraphSDK } from "./sdk.js";
+import {
+  applyWikiGraphJobArtifacts,
+  extractWikiGraphJobSnapshots,
+} from "./worker.js";
 
 const temporaryDirectories: string[] = [];
 
@@ -20,6 +24,70 @@ afterEach(async () => {
           await rm(directory, { force: true, recursive: true }),
       ),
   );
+});
+
+describe("Wiki Graph job snapshots", () => {
+  it("extracts ordered snapshots in one archive operation", async () => {
+    const root = await mkdtemp(join(tmpdir(), "wiki-graph-sdk-snapshots-"));
+    temporaryDirectories.push(root);
+    const wikgPath = join(root, "book.wikg");
+    const sdk = createWikiGraphSDK({
+      cwd: root,
+      stateDir: join(root, "state"),
+    });
+    await sdk.archives.create({ path: wikgPath });
+    const archive = await sdk.archives.open(wikgPath);
+    const chapter = await archive.addChapter({
+      source: "Alpha beta. Gamma delta.",
+      title: "Chapter",
+    });
+    sdk.close();
+
+    const sourcePath = join(root, "source.jsonl");
+    const ftsPath = join(root, "fts.jsonl");
+    const observed: string[] = [];
+    const results = await extractWikiGraphJobSnapshots({
+      onSnapshot: (snapshot) => {
+        observed.push(snapshot.outputPath);
+      },
+      requests: [
+        {
+          chapterPath: chapter.path,
+          kind: "index-embedding-source",
+          outputPath: sourcePath,
+        },
+        {
+          chapterPath: chapter.path,
+          kind: "index-fts",
+          outputPath: ftsPath,
+        },
+      ],
+      stateDir: join(root, "worker-state"),
+      wikgPath,
+    });
+
+    expect(results.map(({ kind }) => kind)).toEqual([
+      "index-embedding-source",
+      "index-fts",
+    ]);
+    expect(results.every(({ revision }) => Number.isInteger(revision))).toBe(
+      true,
+    );
+    expect(results[0]!.revision).toBe(results[1]!.revision);
+    expect(observed).toEqual([sourcePath, ftsPath]);
+    expect(
+      await collect(readChapterJobInput(new NodeFile(sourcePath))),
+    ).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ type: "source-sentence" }),
+      ]),
+    );
+    expect(await collect(readChapterJobInput(new NodeFile(ftsPath)))).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ type: "chapter-title" }),
+      ]),
+    );
+  });
 });
 
 describe("Wiki Graph job artifact delivery", () => {
@@ -113,6 +181,12 @@ describe("Wiki Graph job artifact delivery", () => {
     expect(consumedLaterArtifact).toBe(true);
   });
 });
+
+async function collect<T>(values: AsyncIterable<T>): Promise<T[]> {
+  const output: T[] = [];
+  for await (const value of values) output.push(value);
+  return output;
+}
 
 async function createRoot(): Promise<string> {
   const root = await mkdtemp(join(tmpdir(), "wiki-graph-sdk-apply-"));

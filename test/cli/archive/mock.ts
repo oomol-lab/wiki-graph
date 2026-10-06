@@ -812,6 +812,14 @@ function createArchiveMockDocument(): unknown {
     readDatabase: {
       value: async (
         operation: (database: {
+          readonly queryAll: (
+            sql: string,
+            params: unknown,
+            map: (row: {
+              readonly chapter_id: number;
+              readonly words: number;
+            }) => unknown,
+          ) => Promise<unknown[]>;
           readonly queryOne: (
             sql: string,
             params: unknown,
@@ -820,6 +828,17 @@ function createArchiveMockDocument(): unknown {
         }) => Promise<unknown>,
       ) =>
         await operation({
+          queryAll: (_sql, _params, map) =>
+            Promise.resolve(
+              archiveMockState.summaryWords === 0
+                ? []
+                : [
+                    map({
+                      chapter_id: 1,
+                      words: archiveMockState.summaryWords,
+                    }),
+                  ],
+            ),
           queryOne: (_sql, _params, map) =>
             Promise.resolve(map({ words: archiveMockState.summaryWords })),
         }),

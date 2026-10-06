@@ -57,6 +57,7 @@ export interface WikiGraphConversionOptions {
 
 export interface WikiGraphConversionResult {
   readonly chapterCount?: number;
+  readonly chapterPaths?: readonly string[];
   readonly inputFormat: WikiGraphConversionFormat;
   readonly outputFormat: WikiGraphConversionFormat;
   readonly outputPath: string;
@@ -107,12 +108,17 @@ export class WikiGraphConversionManager {
       requiresDigest,
     );
     let chapterCount: number | undefined;
+    let chapterPaths: readonly string[] | undefined;
     const write = async (archive: WikiGraphArchive): Promise<void> => {
       if (requiresDigest) await options.onSourceImported?.();
       if (typeof archive.readToc === "function") {
         const toc = await archive.readToc();
         chapterCount =
           toc === undefined ? undefined : countTocChapters(toc.items);
+        if (options.output.format === "wikg") {
+          chapterPaths =
+            toc === undefined ? [] : collectTocChapterPaths(toc.items);
+        }
       }
       await writeArchive(archive, options.output.path, options.output.format);
     };
@@ -176,6 +182,7 @@ export class WikiGraphConversionManager {
     const sourceArtifact = await resolveSourceArtifact(options.input);
     return {
       ...(chapterCount === undefined ? {} : { chapterCount }),
+      ...(chapterPaths === undefined ? {} : { chapterPaths }),
       inputFormat: options.input.format,
       outputFormat: options.output.format,
       outputPath: options.output.path,
@@ -265,4 +272,31 @@ function countTocChapters(
     );
   }
   return count;
+}
+
+function collectTocChapterPaths(
+  items: readonly {
+    readonly children: readonly unknown[];
+    readonly key?: string | undefined;
+    readonly serialId?: number | undefined;
+  }[],
+  ancestorKeys: readonly string[] = [],
+): readonly string[] {
+  const paths: string[] = [];
+  for (const item of items) {
+    const key = item.key ?? `chapter-${item.serialId ?? "group"}`;
+    const chapterPath = [...ancestorKeys, key];
+    if (item.serialId !== undefined) paths.push(chapterPath.join("/"));
+    paths.push(
+      ...collectTocChapterPaths(
+        item.children as readonly {
+          readonly children: readonly unknown[];
+          readonly key?: string | undefined;
+          readonly serialId?: number | undefined;
+        }[],
+        chapterPath,
+      ),
+    );
+  }
+  return paths;
 }
