@@ -41,6 +41,7 @@ describe("PCEX conversion", () => {
       });
       expect(result).toMatchObject({
         chapterCount: 1,
+        chapterPaths: [expect.any(String)],
         sourceArtifact: {
           digest,
           mediaType: "application/pdf",

@@ -110,7 +110,7 @@ describe("WikiGraphSDK delivery operations", () => {
     sdk.close();
   });
 
-  it("reports archive readiness and improvement semantics through the SDK", async () => {
+  it("reports detailed archive capability facts through the SDK", async () => {
     const root = await mkdtemp(join(tmpdir(), "wiki-graph-sdk-inspect-"));
     temporaryDirectories.push(root);
     await mkdir(join(root, "state"));
@@ -128,16 +128,24 @@ describe("WikiGraphSDK delivery operations", () => {
     const report = await archive.inspect();
     expect(report.archiveUri).toContain("book.wikg");
     expect(report).toMatchObject({
-      content: { chapters: { content: 1, planned: 0, total: 1 } },
-      query: { ready: false },
-      searchArtifacts: { status: "incomplete" },
+      chapters: [
+        {
+          capabilities: {
+            knowledgeGraph: { completed: false },
+            readingGraph: { completed: false },
+            readingSummary: { completed: false },
+          },
+          chapter: { chapterId: 1 },
+          indexes: {
+            fts: { current: false, exists: false },
+            sourceEmbedding: { current: false, exists: false },
+            summaryEmbedding: { current: false, exists: false },
+          },
+        },
+      ],
     });
-    expect(report.searchArtifacts.blockedChapters).toEqual([
-      expect.objectContaining({ chapterId: 1 }),
-    ]);
-    expect(report.improvements).toContainEqual(
-      expect.objectContaining({ kind: "build", task: "index-fts" }),
-    );
+    expect(report.chapters[0]?.chapter.path).toEqual(expect.any(String));
+    expect(Number.isInteger(report.chapters[0]?.revision)).toBe(true);
     await expect(archive.inspect({ chapterId: 1 })).resolves.toMatchObject({
       scope: { chapterId: 1, type: "chapter" },
     });

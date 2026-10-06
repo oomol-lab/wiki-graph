@@ -82,8 +82,8 @@ import {
   withConfiguredWikimediaResolver,
 } from "../query-runtime.js";
 import {
-  createWikiGraphArchiveInspectReport,
-  type WikiGraphArchiveInspectReport,
+  inspectWikiGraphArchive,
+  type WikiGraphArchiveInspection,
 } from "./inspect.js";
 
 export interface WikiGraphOperationOptions {
@@ -332,10 +332,10 @@ export class WikiGraphArchiveHandle {
 
   public async inspect(
     options: WikiGraphOperationOptions & { readonly chapterId?: number } = {},
-  ): Promise<WikiGraphArchiveInspectReport> {
+  ): Promise<WikiGraphArchiveInspection> {
     return await this.#readDocument(
       async (document) =>
-        await createWikiGraphArchiveInspectReport(document, {
+        await inspectWikiGraphArchive(document, {
           archiveUri: this.#location.publicArchiveUri ?? this.locatedUri,
           ...(options.chapterId === undefined
             ? {}
