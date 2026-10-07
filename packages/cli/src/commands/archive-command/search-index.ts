@@ -2,6 +2,7 @@ import type { WikiGraphArchiveIndexStatus } from "wiki-graph-sdk";
 
 import type { CLIArchiveIndexArguments } from "../../args/index.js";
 import { writeTextToStdout } from "../../support/index.js";
+import { parseCLIArchiveTarget } from "../../support/archive-target.js";
 import { formatCLIJSON } from "../../support/index.js";
 import {
   ProgressOutputWriter,
@@ -28,12 +29,16 @@ export async function runArchiveIndexCommand(
 }
 
 async function readIndexCache(args: CLIArchiveIndexArguments): Promise<void> {
-  const archive = await getWikiGraphSDK().archives.open(args.archivePath);
+  const archive = await getWikiGraphSDK().archives.open(
+    parseCLIArchiveTarget(args.archivePath),
+  );
   await writeIndexOutput(args, await archive.getSearchIndexStatus());
 }
 
 async function syncIndexCache(args: CLIArchiveIndexArguments): Promise<void> {
-  const archive = await getWikiGraphSDK().archives.open(args.archivePath);
+  const archive = await getWikiGraphSDK().archives.open(
+    parseCLIArchiveTarget(args.archivePath),
+  );
   const writer = new ProgressOutputWriter({
     jsonl: args.jsonl ?? false,
     throttleMs: INDEX_PROGRESS_OUTPUT_INTERVAL_MS,
@@ -90,7 +95,9 @@ async function syncIndexCache(args: CLIArchiveIndexArguments): Promise<void> {
 }
 
 async function cleanIndexCache(args: CLIArchiveIndexArguments): Promise<void> {
-  const archive = await getWikiGraphSDK().archives.open(args.archivePath);
+  const archive = await getWikiGraphSDK().archives.open(
+    parseCLIArchiveTarget(args.archivePath),
+  );
   await writeIndexOutput(args, await archive.cleanSearchIndex());
 }
 

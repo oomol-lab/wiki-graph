@@ -4,6 +4,7 @@ import type { CLIQueueArguments } from "../../args/index.js";
 import { loadCLIConfig } from "../../runtime/config.js";
 import { getWikiGraphSDK } from "../../runtime/context.js";
 import { writeTextToStdout } from "../../support/index.js";
+import { parseCLIArchiveTarget } from "../../support/archive-target.js";
 import { assertBuildCostAccepted, tryStartQueueWorker } from "./add.js";
 import { createQueueAddEstimate } from "./estimate.js";
 import {
@@ -13,7 +14,6 @@ import {
   writeJobSummary,
 } from "./output.js";
 import { watchBuildJob } from "./watch.js";
-import { NodeFile } from "../../runtime/node-platform.js";
 
 export { runQueueWorker } from "./worker.js";
 
@@ -82,7 +82,7 @@ export async function runQueueCommand(args: CLIQueueArguments): Promise<void> {
             ...(args.all === undefined ? {} : { all: args.all }),
             ...(args.archivePath === undefined
               ? {}
-              : { archive: new NodeFile(args.archivePath) }),
+              : { archive: parseCLIArchiveTarget(args.archivePath) }),
           })
         ).map((job) => job.snapshot),
         { json: args.json ?? false },
@@ -141,7 +141,7 @@ function createEnqueueOptions(
   args: CLIQueueArguments,
 ): WikiGraphJobEnqueueOptions {
   return {
-    archive: args.archivePath!,
+    archive: parseCLIArchiveTarget(args.archivePath!),
     ...(args.boost === undefined ? {} : { boost: args.boost }),
     ...(args.chapterId === undefined ? {} : { chapterId: args.chapterId }),
     ...(args.chapterIds === undefined ? {} : { chapterIds: args.chapterIds }),

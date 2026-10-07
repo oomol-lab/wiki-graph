@@ -520,6 +520,7 @@ vi.mock("wiki-graph-core", async (importOriginal) => {
     isArchiveSearchIndexCurrent: vi.fn(() =>
       Promise.resolve(archiveMockState.ftsCurrent),
     ),
+    finalizeWikiGraphLibraryArchiveWrite: vi.fn(() => Promise.resolve()),
     listArchiveQueryableChapterIds: vi.fn(() => Promise.resolve([1, 2])),
     rebuildArchiveSearchIndex: vi.fn(() =>
       archiveMockState.rebuildErrorMessage === undefined

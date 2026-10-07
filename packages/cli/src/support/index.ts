@@ -7,3 +7,4 @@ export * from "./tree.js";
 export * from "./uri.js";
 export * from "./version.js";
 export * from "./command.js";
+export * from "./archive-target.js";

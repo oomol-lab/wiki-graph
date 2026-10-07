@@ -57,6 +57,7 @@ import {
   createConfiguredEmbeddingProvider,
   withConfiguredWikimediaResolver,
 } from "./query-runtime.js";
+import { assertStandaloneWikiGraphArchivePath } from "./archive/target.js";
 
 export type WikiGraphLibraryTarget = ParsedWikiGraphLibraryUri | string;
 export type WikiGraphLibrarySearchOptions = Omit<
@@ -82,6 +83,23 @@ export interface WikiGraphLibraryMoveArchiveOptions {
 export interface WikiGraphLibraryReplaceArchiveOptions {
   readonly inputPath: string;
   readonly target: WikiGraphLibraryTarget;
+}
+
+export interface WikiGraphLibrarySnapshot extends Omit<
+  WikiGraphLibraryRecord,
+  "folder" | "staging"
+> {
+  readonly folderPath: string;
+}
+
+export type WikiGraphLibraryArchiveSnapshot = Omit<
+  WikiGraphLibraryArchiveRecord,
+  "file"
+>;
+
+export interface WikiGraphLibraryScanSnapshot {
+  readonly archives: readonly WikiGraphLibraryArchiveSnapshot[];
+  readonly library?: WikiGraphLibrarySnapshot;
 }
 
 export class WikiGraphLibraryManager {
@@ -112,16 +130,18 @@ export class WikiGraphLibraryManager {
 
   public async addArchive(
     options: WikiGraphLibraryAddArchiveOptions,
-  ): Promise<WikiGraphLibraryArchiveRecord> {
-    return await this.#runtime.run(
-      async () =>
-        await addWikiGraphLibraryArchive({
-          inputFile: new NodeFile(
-            resolveWikiGraphRuntimePath(options.inputPath),
-          ),
-          target: requireLibraryTarget(options.target),
-          ...(options.to === undefined ? {} : { to: options.to }),
-        }),
+  ): Promise<WikiGraphLibraryArchiveSnapshot> {
+    return toArchiveSnapshot(
+      await this.#runtime.run(
+        async () =>
+          await addWikiGraphLibraryArchive({
+            inputFile: new NodeFile(
+              await assertStandaloneWikiGraphArchivePath(options.inputPath),
+            ),
+            target: requireLibraryTarget(options.target),
+            ...(options.to === undefined ? {} : { to: options.to }),
+          }),
+      ),
     );
   }
 
@@ -135,77 +155,95 @@ export class WikiGraphLibraryManager {
   public async rebind(
     target: WikiGraphLibraryTarget,
     folder: string,
-  ): Promise<WikiGraphLibraryScanResult> {
-    return await this.#runtime.run(
-      async () =>
-        await rebindWikiGraphLibrary({
-          folder: new NodeDirectory(resolveWikiGraphRuntimePath(folder)),
-          target: requireLibraryTarget(target),
-        }),
+  ): Promise<WikiGraphLibraryScanSnapshot> {
+    return toScanSnapshot(
+      await this.#runtime.run(
+        async () =>
+          await rebindWikiGraphLibrary({
+            folder: new NodeDirectory(resolveWikiGraphRuntimePath(folder)),
+            target: requireLibraryTarget(target),
+          }),
+      ),
     );
   }
 
   public async remove(
     target: WikiGraphLibraryTarget,
-  ): Promise<WikiGraphLibraryRecord> {
-    return await this.#runtime.run(
-      async () => await removeWikiGraphLibrary(requireLibraryTarget(target)),
+  ): Promise<WikiGraphLibrarySnapshot> {
+    return toLibrarySnapshot(
+      await this.#runtime.run(
+        async () => await removeWikiGraphLibrary(requireLibraryTarget(target)),
+      ),
     );
   }
 
   public async scan(
     target: WikiGraphLibraryTarget,
-  ): Promise<WikiGraphLibraryScanResult> {
-    return await this.#runtime.run(
-      async () => await scanWikiGraphLibrary(requireLibraryTarget(target)),
+  ): Promise<WikiGraphLibraryScanSnapshot> {
+    return toScanSnapshot(
+      await this.#runtime.run(
+        async () => await scanWikiGraphLibrary(requireLibraryTarget(target)),
+      ),
     );
   }
 
   public async getArchive(
     target: WikiGraphLibraryTarget,
-  ): Promise<WikiGraphLibraryArchiveRecord> {
-    return await this.#runtime.run(
-      async () =>
-        await getWikiGraphLibraryArchive(requireLibraryTarget(target)),
+  ): Promise<WikiGraphLibraryArchiveSnapshot> {
+    return toArchiveSnapshot(
+      await this.#runtime.run(
+        async () =>
+          await getWikiGraphLibraryArchive(requireLibraryTarget(target)),
+      ),
     );
   }
 
   public async moveArchive(
     options: WikiGraphLibraryMoveArchiveOptions,
-  ): Promise<WikiGraphLibraryArchiveRecord> {
-    return await this.#runtime.run(
-      async () =>
-        await moveWikiGraphLibraryArchive({
-          target: requireLibraryTarget(options.target),
-          to: options.to,
-        }),
+  ): Promise<WikiGraphLibraryArchiveSnapshot> {
+    return toArchiveSnapshot(
+      await this.#runtime.run(
+        async () =>
+          await moveWikiGraphLibraryArchive({
+            target: requireLibraryTarget(options.target),
+            to: options.to,
+          }),
+      ),
     );
   }
 
   public async removeArchive(
     target: WikiGraphLibraryTarget,
-  ): Promise<WikiGraphLibraryArchiveRecord> {
-    return await this.#runtime.run(
-      async () =>
-        await removeWikiGraphLibraryArchive({
-          target: requireLibraryTarget(target),
-        }),
+  ): Promise<WikiGraphLibraryArchiveSnapshot> {
+    return toArchiveSnapshot(
+      await this.#runtime.run(
+        async () =>
+          await removeWikiGraphLibraryArchive({
+            target: requireLibraryTarget(target),
+          }),
+      ),
     );
   }
 
   public async replaceArchive(
     options: WikiGraphLibraryReplaceArchiveOptions,
-  ): Promise<WikiGraphLibraryArchiveRecord> {
-    return await this.#runtime.run(async () => {
-      const target = requireLibraryTarget(options.target);
-      const current = await getWikiGraphLibraryArchive(target);
-      return await replaceWikiGraphLibraryArchive({
-        additionalDerivedStateKeys:
-          current.file === undefined ? [] : [getNodeResourcePath(current.file)],
-        inputFile: new NodeFile(resolveWikiGraphRuntimePath(options.inputPath)),
-        target,
-      });
-    });
+  ): Promise<WikiGraphLibraryArchiveSnapshot> {
+    return toArchiveSnapshot(
+      await this.#runtime.run(async () => {
+        const target = requireLibraryTarget(options.target);
+        const current = await getWikiGraphLibraryArchive(target);
+        return await replaceWikiGraphLibraryArchive({
+          additionalDerivedStateKeys:
+            current.file === undefined
+              ? []
+              : [getNodeResourcePath(current.file)],
+          inputFile: new NodeFile(
+            await assertStandaloneWikiGraphArchivePath(options.inputPath),
+          ),
+          target,
+        });
+      }),
+    );
   }
 
   public async indexState(
@@ -445,8 +483,8 @@ export class WikiGraphLibrary {
     this.#record = record;
   }
 
-  public get snapshot(): WikiGraphLibraryRecord {
-    return this.#record;
+  public get snapshot(): WikiGraphLibrarySnapshot {
+    return toLibrarySnapshot(this.#record);
   }
 
   public get uri(): string {
@@ -455,26 +493,65 @@ export class WikiGraphLibrary {
     );
   }
 
-  public async archives(): Promise<readonly WikiGraphLibraryArchiveRecord[]> {
+  public async archives(): Promise<readonly WikiGraphLibraryArchiveSnapshot[]> {
     const target = requireLibraryTarget(this.uri);
-    return await this.#runtime.run(
-      async () => await listWikiGraphLibraryArchives(target),
+    return (
+      await this.#runtime.run(
+        async () => await listWikiGraphLibraryArchives(target),
+      )
+    ).map(toArchiveSnapshot);
+  }
+
+  public async scan(): Promise<WikiGraphLibraryScanSnapshot> {
+    const target = requireLibraryTarget(this.uri);
+    return toScanSnapshot(
+      await this.#runtime.run(async () => await scanWikiGraphLibrary(target)),
     );
   }
 
-  public async scan(): Promise<WikiGraphLibraryScanResult> {
+  public async remove(): Promise<WikiGraphLibrarySnapshot> {
     const target = requireLibraryTarget(this.uri);
-    return await this.#runtime.run(
-      async () => await scanWikiGraphLibrary(target),
+    return toLibrarySnapshot(
+      await this.#runtime.run(async () => await removeWikiGraphLibrary(target)),
     );
   }
+}
 
-  public async remove(): Promise<WikiGraphLibraryRecord> {
-    const target = requireLibraryTarget(this.uri);
-    return await this.#runtime.run(
-      async () => await removeWikiGraphLibrary(target),
-    );
-  }
+function toLibrarySnapshot(
+  record: WikiGraphLibraryRecord,
+): WikiGraphLibrarySnapshot {
+  const compatible = record as WikiGraphLibraryRecord & {
+    readonly folderPath?: string;
+  };
+  return {
+    id: record.id,
+    publicId: record.publicId,
+    uri: record.uri,
+    folderPath:
+      compatible.folderPath ??
+      (record.folder === undefined ? "" : getNodeResourcePath(record.folder)),
+    isDefault: record.isDefault,
+    createdAt: record.createdAt,
+    updatedAt: record.updatedAt,
+  };
+}
+
+function toArchiveSnapshot(
+  record: WikiGraphLibraryArchiveRecord,
+): WikiGraphLibraryArchiveSnapshot {
+  const { file: _file, ...snapshot } = record;
+  return snapshot;
+}
+
+function toScanSnapshot(
+  result: WikiGraphLibraryScanResult,
+): WikiGraphLibraryScanSnapshot {
+  return {
+    ...(result.library === undefined
+      ? {}
+      : { library: toLibrarySnapshot(result.library) }),
+    archives: result.archives.map(toArchiveSnapshot),
+  };
 }
 
 function requireLibraryTarget(

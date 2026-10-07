@@ -1,4 +1,7 @@
-import type { BuildJob, ChapterEntry } from "wiki-graph-sdk";
+import type {
+  WikiGraphJobSnapshot as BuildJob,
+  ChapterEntry,
+} from "wiki-graph-sdk";
 
 import type { CLIQueueArguments } from "../../args/index.js";
 import type { CLIConfig } from "../../runtime/config.js";
@@ -7,13 +10,14 @@ import { getWikiGraphSDK } from "../../runtime/context.js";
 import { spawnInternalChild } from "../../runtime/internal-child.js";
 import { createQueueAddEstimate } from "./estimate.js";
 import { writeArchiveAddSummary } from "./output.js";
+import { parseCLIArchiveTarget } from "../../support/archive-target.js";
 
 export async function addChapterJob(
   args: CLIQueueArguments,
   chapterId: number,
 ): Promise<BuildJob> {
   const result = await getWikiGraphSDK().jobs.enqueue({
-    archive: args.archivePath!,
+    archive: parseCLIArchiveTarget(args.archivePath!),
     boost: args.boost ?? false,
     chapterId,
     ...(args.llmJSON === undefined ? {} : { llmJSON: args.llmJSON }),
@@ -31,7 +35,7 @@ export async function addArchiveJobs(
   config: CLIConfig,
 ): Promise<void> {
   const result = await getWikiGraphSDK().jobs.enqueue({
-    archive: args.archivePath!,
+    archive: parseCLIArchiveTarget(args.archivePath!),
     boost: args.boost ?? false,
     ...(args.chapterIds === undefined ? {} : { chapterIds: args.chapterIds }),
     ...(args.llmJSON === undefined ? {} : { llmJSON: args.llmJSON }),
@@ -65,7 +69,7 @@ export async function assertQueueAddReady(
   chapterId: number,
 ): Promise<void> {
   await getWikiGraphSDK().jobs.planEnqueue({
-    archive: args.archivePath!,
+    archive: parseCLIArchiveTarget(args.archivePath!),
     chapterId,
     ...(args.llmJSON === undefined ? {} : { llmJSON: args.llmJSON }),
     target: args.target ?? "reading-summary",
@@ -76,7 +80,9 @@ export async function readQueueAddChapter(
   args: CLIQueueArguments,
   chapterId: number,
 ): Promise<ChapterEntry> {
-  const archive = await getWikiGraphSDK().archives.open(args.archivePath!);
+  const archive = await getWikiGraphSDK().archives.open(
+    parseCLIArchiveTarget(args.archivePath!),
+  );
   const matched = (await archive.listChapters()).find(
     (chapter) => chapter.chapterId === chapterId,
   );

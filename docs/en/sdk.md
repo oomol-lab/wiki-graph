@@ -46,7 +46,7 @@ whose lifecycle is independent of any observer.
 
 ```ts
 const job = await wikiGraph.jobs.create({
-  archive: "/data/research.wikg",
+  archive: { kind: "standalone", path: "/data/research.wikg" },
   chapterId: 12,
   target: "reading-summary",
 });
@@ -59,6 +59,11 @@ console.log(await job.status());
 unsubscribe(); // Stops this observer; it does not cancel durable work.
 await job.cancel(); // Explicitly cancels the job.
 ```
+
+Archive targets are always explicit. Use `{ kind: "standalone", path }` for
+an unmanaged WIKG file and `{ kind: "library", uri }` for a library archive
+UUID URI. The SDK rejects a standalone path inside a registered library and
+never exposes a managed archive's physical path through handles or snapshots.
 
 Events are also available as an async iterable and accept an `AbortSignal`:
 

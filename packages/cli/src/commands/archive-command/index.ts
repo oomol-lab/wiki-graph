@@ -42,6 +42,7 @@ import {
   runNextArchivePage,
   writeArchiveRoot,
 } from "./run/index.js";
+import { parseCLIArchiveTarget } from "../../support/archive-target.js";
 
 export async function runArchiveCommand(
   args: CLIArchiveArguments,
@@ -61,7 +62,7 @@ export async function runArchiveCommand(
     return;
   }
 
-  args = await resolveArchiveCommandRuntimeArguments(args);
+  args = resolveArchiveCommandRuntimeArguments(args);
 
   switch (args.action) {
     case "create":
@@ -110,7 +111,9 @@ export async function runArchiveCommand(
     case "pack":
       await writePack(
         await (
-          await getWikiGraphSDK().archives.open(args.archivePath)
+          await getWikiGraphSDK().archives.open(
+            parseCLIArchiveTarget(args.archivePath),
+          )
         ).pack(getObjectUri(args.objectId!), args.budget ?? 5000),
         createArchiveOutputContext(args),
         args.format ?? "text",
@@ -120,7 +123,9 @@ export async function runArchiveCommand(
 }
 
 async function runArchiveList(args: CLIArchiveArguments): Promise<void> {
-  const archive = await getWikiGraphSDK().archives.open(args.archivePath);
+  const archive = await getWikiGraphSDK().archives.open(
+    parseCLIArchiveTarget(args.archivePath),
+  );
   const objectUri = getObjectUri(args.archivePath);
   if (isSourceLocatorScopeUri(objectUri)) {
     const context = createArchiveOutputContext(args, {
@@ -200,7 +205,9 @@ async function runArchiveList(args: CLIArchiveArguments): Promise<void> {
 }
 
 async function runArchiveSearch(args: CLIArchiveArguments): Promise<void> {
-  const archive = await getWikiGraphSDK().archives.open(args.archivePath);
+  const archive = await getWikiGraphSDK().archives.open(
+    parseCLIArchiveTarget(args.archivePath),
+  );
   const scope = await archive.resolveScope({
     ...(args.depth === undefined ? {} : { depth: args.depth }),
   });
@@ -240,7 +247,9 @@ async function runArchiveGet(args: CLIArchiveArguments): Promise<void> {
     evidenceLimit === undefined
       ? createArchiveOutputContext(args)
       : createArchiveOutputContext({ ...args, evidenceLimit });
-  const archive = await getWikiGraphSDK().archives.open(args.archivePath);
+  const archive = await getWikiGraphSDK().archives.open(
+    parseCLIArchiveTarget(args.archivePath),
+  );
   await writePage(
     await archive.page(objectUri, {
       ...(args.backlinks === undefined ? {} : { backlinks: args.backlinks }),
@@ -255,7 +264,9 @@ async function runArchiveGet(args: CLIArchiveArguments): Promise<void> {
 
 async function runArchiveRelated(args: CLIArchiveArguments): Promise<void> {
   const objectUri = getObjectUri(args.objectId!);
-  const archive = await getWikiGraphSDK().archives.open(args.archivePath);
+  const archive = await getWikiGraphSDK().archives.open(
+    parseCLIArchiveTarget(args.archivePath),
+  );
   const scope = await archive.resolveScope();
   const context = createArchiveOutputContext(
     scope === undefined ? args : { ...args, chapters: scope.chapterIds },
@@ -291,7 +302,9 @@ async function runArchiveRelated(args: CLIArchiveArguments): Promise<void> {
 
 async function runArchiveEvidence(args: CLIArchiveArguments): Promise<void> {
   const objectUri = getObjectUri(args.objectId!);
-  const archive = await getWikiGraphSDK().archives.open(args.archivePath);
+  const archive = await getWikiGraphSDK().archives.open(
+    parseCLIArchiveTarget(args.archivePath),
+  );
   const scope = await archive.resolveScope();
   const context = createArchiveOutputContext(
     scope === undefined ? args : { ...args, chapters: scope.chapterIds },

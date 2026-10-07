@@ -26,6 +26,7 @@ import {
   formatCliCommand,
   writeTextToStdout,
 } from "../../support/index.js";
+import { parseCLIArchiveTarget } from "../../support/archive-target.js";
 
 interface InspectImprovement {
   readonly kind: "add-source" | "build" | "sync-index";
@@ -120,7 +121,9 @@ interface CLIInspectReport extends Omit<
 export async function writeArchiveInspectReport(
   args: CLIArchiveArguments,
 ): Promise<void> {
-  const archive = await getWikiGraphSDK().archives.open(args.archivePath);
+  const archive = await getWikiGraphSDK().archives.open(
+    parseCLIArchiveTarget(args.archivePath),
+  );
   const report = toCLIInspectReport(
     await createInspectReport(
       await archive.inspect({

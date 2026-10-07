@@ -88,7 +88,7 @@ describe("runNextArchivePage", () => {
     });
 
     expect(mocks.next).toHaveBeenCalledWith({
-      archive: "/tmp/book.wikg",
+      archive: { kind: "standalone", path: "/tmp/book.wikg" },
       cursor: "c_next",
       limit: 7,
     });
