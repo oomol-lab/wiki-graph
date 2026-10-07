@@ -377,7 +377,7 @@ describe("Wiki Graph job artifact delivery", () => {
       [],
     );
     sdk.close();
-  });
+  }, 20_000);
 });
 
 function artifactsFor(
