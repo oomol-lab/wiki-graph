@@ -210,8 +210,8 @@ export class WikiGraphJobManager {
   }
 
   public async get(jobId: string): Promise<WikiGraphJob> {
-    return await this.#createHandle(
-      await this.#runtime.run(async () => await this.#backend.get(jobId)),
+    return await this.#runtime.run(
+      async () => await this.#createHandle(await this.#backend.get(jobId)),
     );
   }
 
@@ -224,7 +224,7 @@ export class WikiGraphJobManager {
   public async list(
     options: WikiGraphJobListOptions = {},
   ): Promise<readonly WikiGraphJob[]> {
-    const jobs = await this.#runtime.run(async () => {
+    return await this.#runtime.run(async () => {
       const normalized: BuildJobListOptions = {
         ...(options.activeOnly === undefined
           ? {}
@@ -237,11 +237,11 @@ export class WikiGraphJobManager {
                 .archiveFile,
             }),
       };
-      return await this.#backend.list(normalized);
+      const jobs = await this.#backend.list(normalized);
+      return await Promise.all(
+        jobs.map(async (job) => await this.#createHandle(job)),
+      );
     });
-    return await Promise.all(
-      jobs.map(async (job) => await this.#createHandle(job)),
-    );
   }
 
   public async resolveChapters(

@@ -13,6 +13,7 @@ import {
 } from "wiki-graph-core";
 
 import { createWikiGraphSDK } from "./sdk.js";
+import { type WikiGraphJobSnapshot } from "./jobs.js";
 import { NodeDirectory, NodeFile } from "./node-platform.js";
 
 const temporaryDirectories: string[] = [];
@@ -446,18 +447,46 @@ describe("WikiGraphSDK delivery operations", () => {
     expect(JSON.stringify(member)).not.toContain(physicalPath);
 
     const chapter = await archive.addChapter({ source: "Managed source." });
-    await archive.addChapter({ title: "Second" });
+    const secondChapter = await archive.addChapter({
+      source: "Second managed source.",
+    });
     const job = await sdk.jobs.create({
       archive: archive.target,
       chapterId: chapter.chapterId,
       target: "index-fts",
     });
-    expect(job.snapshot.archive).toEqual({ kind: "library", uri: member.uri });
-    expect(JSON.stringify(job.snapshot)).not.toContain(physicalPath);
+    const expectedTarget = { kind: "library", uri: member.uri } as const;
+    const expectManagedSnapshot = (snapshot: WikiGraphJobSnapshot): void => {
+      expect(snapshot.archive).toEqual(expectedTarget);
+      expect(snapshot.archiveKey).toBe(member.uri);
+      expect(JSON.stringify(snapshot)).not.toContain(physicalPath);
+    };
+    expectManagedSnapshot(job.snapshot);
+    expectManagedSnapshot((await sdk.jobs.get(job.id)).snapshot);
+    const listedJob = (await sdk.jobs.list({ all: true })).find(
+      (candidate) => candidate.id === job.id,
+    );
+    expect(listedJob).toBeDefined();
+    expectManagedSnapshot(listedJob!.snapshot);
+
+    const enqueued = await sdk.jobs.enqueue({
+      archive: archive.target,
+      chapterId: secondChapter.chapterId,
+      target: "index-fts",
+    });
+    expect(enqueued.created).toHaveLength(1);
+    const enqueuedJob = enqueued.created[0]!.job;
+    expectManagedSnapshot(enqueuedJob.snapshot);
+    expectManagedSnapshot((await sdk.jobs.get(enqueuedJob.id)).snapshot);
+    const listedEnqueuedJob = (await sdk.jobs.list({ all: true })).find(
+      (candidate) => candidate.id === enqueuedJob.id,
+    );
+    expect(listedEnqueuedJob).toBeDefined();
+    expectManagedSnapshot(listedEnqueuedJob!.snapshot);
 
     const first = await archive.list({ limit: 1, types: ["chapter-title"] });
     if (!("nextCursor" in first) || first.nextCursor === null) {
-      await job.cancel();
+      await Promise.all([job.cancel(), enqueuedJob.cancel()]);
       sdk.close();
       return;
     }
@@ -481,7 +510,7 @@ describe("WikiGraphSDK delivery operations", () => {
         }),
       ).resolves.toMatchObject({ kind: "collection" });
     }
-    await job.cancel();
+    await Promise.all([job.cancel(), enqueuedJob.cancel()]);
     sdk.close();
   });
 
