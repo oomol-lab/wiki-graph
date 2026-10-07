@@ -51,6 +51,7 @@ const mocks = vi.hoisted(() => {
 });
 
 vi.mock("../../../packages/core/src/storage/wikg/index.js", () => ({
+  readWikgArchiveMutationToken: vi.fn(() => Promise.resolve("test-token")),
   WikiGraphArchiveFile: class {
     public readonly path: string;
 

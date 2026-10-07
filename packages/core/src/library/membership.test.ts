@@ -14,7 +14,9 @@ import { describe, expect, it } from "vitest";
 
 import {
   addWikiGraphLibraryArchive,
+  addBuildJob,
   createWikiGraphLibrary,
+  createContinuationCursor,
   cleanWikiGraphLibraryIndex,
   ensureDefaultWikiGraphLibrary,
   finalizeWikiGraphLibraryArchiveWrite,
@@ -27,6 +29,9 @@ import {
   parseWikiGraphLibraryUri,
   putWikiGraphLibraryMetadata,
   queryWikiGraphLibrarySearchIndex,
+  readContinuationCursor,
+  readWikiGraphLibraryIndexState,
+  replaceWikiGraphLibraryArchive,
   replaceChapterFtsIndexArtifact,
   replaceChapterSourceEmbeddingIndexArtifact,
   rebindWikiGraphLibrary,
@@ -37,7 +42,13 @@ import {
   resolveWikiGraphLibraryArchiveFile,
   resolveWikiGraphLibrary,
   scanWikiGraphLibrary,
+  WikiGraphArchiveFile,
+  withArchiveBuildJobCreationLock,
 } from "../index.js";
+import {
+  createSearchSession,
+  readCachedSearchSessionPage,
+} from "../retrieval/query/search-cache/index.js";
 import { Database } from "../document/database.js";
 import { DirectoryDocument } from "../document/index.js";
 import {
@@ -48,6 +59,7 @@ import {
   readWikgArchiveEntry,
   readWikgArchiveMutationToken,
   writeWikgArchive,
+  writeWikgArchiveWithOverlays,
 } from "../storage/wikg/index.js";
 import { acquireWikiGraphLibraryLock } from "./lock.js";
 import { listWikiGraphLibrarySearchIndex } from "./search-index.js";
@@ -278,6 +290,266 @@ describe("library archive membership", () => {
       await expect(
         readFile(getNodeResourcePath(moved.file!), "utf8"),
       ).rejects.toThrow();
+    });
+  });
+
+  it("atomically replaces archive contents while preserving membership identity", async () => {
+    await withLibraryTestState(async (tempDir) => {
+      const target = parseWikiGraphLibraryUri("wikg://lib")!;
+      const originalPath = join(tempDir, "original.wikg");
+      const replacementBasePath = join(tempDir, "replacement-base.wikg");
+      const replacementPath = join(tempDir, "replacement.wikg");
+      const embeddedIndexPath = join(tempDir, "embedded-index.db");
+      await createSearchableArchiveWithoutSearchIndex(
+        tempDir,
+        originalPath,
+        undefined,
+        "Original chapter",
+      );
+      await createSearchableArchiveWithoutSearchIndex(
+        tempDir,
+        replacementBasePath,
+        undefined,
+        "Replacement chapter",
+      );
+      await writeFile(embeddedIndexPath, "derived index cache");
+      await writeWikgArchiveWithOverlays(
+        new NodeFile(replacementBasePath),
+        new NodeFile(replacementPath),
+        [
+          {
+            entryPath: "index.db",
+            file: new NodeFile(embeddedIndexPath),
+            kind: "file",
+          },
+        ],
+      );
+      const replacementInputToken =
+        await readWikgArchiveMutationToken(replacementPath);
+      const added = await addWikiGraphLibraryArchive({
+        inputFile: new NodeFile(originalPath),
+        target,
+        to: "book.wikg",
+      });
+      await rebuildWikiGraphLibraryIndex(target);
+
+      const replaced = await replaceWikiGraphLibraryArchive({
+        inputFile: new NodeFile(replacementPath),
+        target: parseWikiGraphLibraryUri(added.uri)!,
+      });
+
+      expect(replaced).toMatchObject({
+        id: added.id,
+        publicId: added.publicId,
+        relativePath: added.relativePath,
+        uri: added.uri,
+      });
+      expect(replaced.lastSeenMutationToken).not.toBe(
+        added.lastSeenMutationToken,
+      );
+      expect(replaced.lastSeenMutationToken).not.toBe(replacementInputToken);
+      await expect(readWikgArchiveMutationToken(replacementPath)).resolves.toBe(
+        replacementInputToken,
+      );
+      await expect(
+        new WikiGraphArchiveFile(replaced.file!).readDocument(
+          async (document) => (await document.readToc())?.items[0]?.title,
+        ),
+      ).resolves.toBe("Replacement chapter");
+      await expect(
+        readWikgArchiveEntry(replaced.file!, "index.db"),
+      ).resolves.toBeUndefined();
+      await expect(
+        readWikiGraphLibraryIndexState(target),
+      ).resolves.toMatchObject({ status: "dirty" });
+    });
+  });
+
+  it("leaves the managed archive unchanged when replacement validation fails", async () => {
+    await withLibraryTestState(async (tempDir) => {
+      const target = parseWikiGraphLibraryUri("wikg://lib")!;
+      const originalPath = join(tempDir, "original.wikg");
+      const invalidPath = join(tempDir, "invalid.wikg");
+      await createSearchableArchiveWithoutSearchIndex(tempDir, originalPath);
+      await writeFile(invalidPath, "not a wikg");
+      const added = await addWikiGraphLibraryArchive({
+        inputFile: new NodeFile(originalPath),
+        target,
+        to: "book.wikg",
+      });
+      const before = await readFile(getNodeResourcePath(added.file!));
+
+      await expect(
+        replaceWikiGraphLibraryArchive({
+          inputFile: new NodeFile(invalidPath),
+          target: parseWikiGraphLibraryUri(added.uri)!,
+        }),
+      ).rejects.toThrow();
+
+      await expect(readFile(getNodeResourcePath(added.file!))).resolves.toEqual(
+        before,
+      );
+    });
+  });
+
+  it("invalidates archive query sessions and continuation cursors", async () => {
+    await withLibraryTestState(async (tempDir) => {
+      const target = parseWikiGraphLibraryUri("wikg://lib")!;
+      const originalPath = join(tempDir, "original.wikg");
+      const replacementPath = join(tempDir, "replacement.wikg");
+      await createSearchableArchiveWithoutSearchIndex(tempDir, originalPath);
+      await createSearchableArchiveWithoutSearchIndex(tempDir, replacementPath);
+      const added = await addWikiGraphLibraryArchive({
+        inputFile: new NodeFile(originalPath),
+        target,
+      });
+      const cacheInput = {
+        archiveKey: added.uri,
+        chapters: null,
+        lens: "broad" as const,
+        match: "any" as const,
+        order: "doc-asc" as const,
+        query: "old",
+        revisionScope: "old-generation",
+        terms: ["old"],
+        types: null,
+      };
+      await createSearchSession(cacheInput);
+      const cursorId = await createContinuationCursor({
+        archiveKey: added.uri,
+        archivePath: added.uri,
+        chapters: null,
+        cursor: "1",
+        format: "json",
+        ids: null,
+        indexScope: { kind: "library-index", libraryId: added.libraryId },
+        kind: "collection",
+        order: "doc-asc",
+        types: null,
+      });
+
+      await replaceWikiGraphLibraryArchive({
+        inputFile: new NodeFile(replacementPath),
+        target: parseWikiGraphLibraryUri(added.uri)!,
+      });
+
+      await expect(
+        readCachedSearchSessionPage(cacheInput, 0, 10),
+      ).resolves.toBe(undefined);
+      await expect(readContinuationCursor(cursorId)).rejects.toThrow(
+        "was not found or has expired",
+      );
+    });
+  });
+
+  it("waits for active archive readers before publishing a replacement", async () => {
+    await withLibraryTestState(async (tempDir) => {
+      const target = parseWikiGraphLibraryUri("wikg://lib")!;
+      const originalPath = join(tempDir, "original.wikg");
+      const replacementPath = join(tempDir, "replacement.wikg");
+      await createSearchableArchiveWithoutSearchIndex(tempDir, originalPath);
+      await createSearchableArchiveWithoutSearchIndex(
+        tempDir,
+        replacementPath,
+        undefined,
+        "Replacement chapter",
+      );
+      const added = await addWikiGraphLibraryArchive({
+        inputFile: new NodeFile(originalPath),
+        target,
+      });
+      let releaseReader!: () => void;
+      const readerGate = new Promise<void>((resolve) => {
+        releaseReader = resolve;
+      });
+      let readerEntered!: () => void;
+      const entered = new Promise<void>((resolve) => {
+        readerEntered = resolve;
+      });
+      const reading = new WikiGraphArchiveFile(added.file!).readDocument(
+        async () => {
+          readerEntered();
+          await readerGate;
+        },
+      );
+      await entered;
+      const replacing = replaceWikiGraphLibraryArchive({
+        inputFile: new NodeFile(replacementPath),
+        target: parseWikiGraphLibraryUri(added.uri)!,
+      });
+      let settled = false;
+      void replacing.finally(() => {
+        settled = true;
+      });
+
+      await delay(50);
+      expect(settled).toBe(false);
+      releaseReader();
+      await reading;
+      await replacing;
+    });
+  });
+
+  it("rejects replacement while an archive build job is active", async () => {
+    await withLibraryTestState(async (tempDir) => {
+      const target = parseWikiGraphLibraryUri("wikg://lib")!;
+      const originalPath = join(tempDir, "original.wikg");
+      const replacementPath = join(tempDir, "replacement.wikg");
+      await createSearchableArchiveWithoutSearchIndex(tempDir, originalPath);
+      await createSearchableArchiveWithoutSearchIndex(tempDir, replacementPath);
+      const added = await addWikiGraphLibraryArchive({
+        inputFile: new NodeFile(originalPath),
+        target,
+      });
+      await addBuildJob({
+        archive: added.file!,
+        chapterId: 1,
+        target: "index-fts",
+      });
+      const beforeToken = await readWikgArchiveMutationToken(added.file!);
+
+      await expect(
+        replaceWikiGraphLibraryArchive({
+          inputFile: new NodeFile(replacementPath),
+          target: parseWikiGraphLibraryUri(added.uri)!,
+        }),
+      ).rejects.toThrow("active index-fts job");
+      await expect(readWikgArchiveMutationToken(added.file!)).resolves.toBe(
+        beforeToken,
+      );
+    });
+  });
+
+  it("cannot pass a concurrent build-job creation window", async () => {
+    await withLibraryTestState(async (tempDir) => {
+      const target = parseWikiGraphLibraryUri("wikg://lib")!;
+      const originalPath = join(tempDir, "original.wikg");
+      const replacementPath = join(tempDir, "replacement.wikg");
+      await createSearchableArchiveWithoutSearchIndex(tempDir, originalPath);
+      await createSearchableArchiveWithoutSearchIndex(tempDir, replacementPath);
+      const added = await addWikiGraphLibraryArchive({
+        inputFile: new NodeFile(originalPath),
+        target,
+      });
+      let replacing!: ReturnType<typeof replaceWikiGraphLibraryArchive>;
+
+      await withArchiveBuildJobCreationLock(added.file!, async () => {
+        replacing = replaceWikiGraphLibraryArchive({
+          inputFile: new NodeFile(replacementPath),
+          target: parseWikiGraphLibraryUri(added.uri)!,
+        });
+        await delay(50);
+        await new WikiGraphArchiveFile(added.file!).readDocument(
+          async () => undefined,
+        );
+        await addBuildJob({
+          archive: added.file!,
+          chapterId: 1,
+          target: "index-fts",
+        });
+      });
+
+      await expect(replacing).rejects.toThrow("active index-fts job");
     });
   });
 
@@ -1064,6 +1336,7 @@ async function createSearchableArchiveWithoutSearchIndex(
   tempDir: string,
   path: string,
   embeddingProvider?: ReturnType<typeof createLibraryTestEmbeddingProvider>,
+  title = "Libraryless",
 ): Promise<void> {
   const sourceDir = await mkdtemp(join(tempDir, "wikg-source-"));
   const document = await DirectoryDocument.open(sourceDir);
@@ -1075,7 +1348,7 @@ async function createSearchableArchiveWithoutSearchIndex(
       draft.addSentence("Libraryless archive data remains searchable.", 5);
       await draft.commit();
       await openedDocument.writeToc({
-        items: [{ children: [], serialId: 1, title: "Libraryless" }],
+        items: [{ children: [], serialId: 1, title }],
         version: 1,
       });
     });

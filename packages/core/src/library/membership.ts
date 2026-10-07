@@ -21,8 +21,19 @@ import { WIKI_GRAPH_ARCHIVE_EXTENSION } from "../runtime/common/wiki-graph/uri.j
 import {
   readWikgArchiveEntry,
   readWikgArchiveMutationToken,
+  WikgArchiveReader,
   WikiGraphArchiveFile,
+  writeWikgArchiveWithOverlays,
 } from "../storage/wikg/index.js";
+import { WikgCoordinator } from "../storage/wikg/index.js";
+import {
+  assertNoActiveBuildJobConflicts,
+  withArchiveBuildJobReplacementLock,
+} from "../runtime/jobs/index.js";
+import {
+  deleteArchiveContinuationCursors,
+  deleteArchiveSearchSessions,
+} from "../retrieval/query/index.js";
 import { bytesToHex } from "../utils/bytes.js";
 import { randomBytes } from "../utils/crypto.js";
 import {
@@ -328,6 +339,110 @@ export async function addWikiGraphLibraryArchive(input: {
     await markWikiGraphLibraryIndexDirty(library);
     return archive;
   });
+}
+
+export async function replaceWikiGraphLibraryArchive(input: {
+  readonly additionalDerivedStateKeys?: readonly string[];
+  readonly target: ParsedWikiGraphLibraryUri;
+  readonly inputFile: File;
+}): Promise<WikiGraphLibraryArchiveRecord> {
+  if (input.target.kind !== "archive") {
+    throw new Error("Expected a Wiki Graph library archive URI.");
+  }
+  const library = await resolveWikiGraphLibrary(input.target);
+  const stagingName = `replace-${bytesToHex(randomBytes(12))}${WIKI_GRAPH_ARCHIVE_EXTENSION}`;
+  const staged = await library.staging.createFile(stagingName);
+
+  try {
+    await writeWikgArchiveWithOverlays(input.inputFile, staged, [
+      { entryPath: SEARCH_INDEX_ARCHIVE_ENTRY_PATH, kind: "deleted" },
+      { entryPath: LEGACY_SEARCH_INDEX_ARCHIVE_ENTRY_PATH, kind: "deleted" },
+    ]);
+    await validateReplacementArchive(staged);
+
+    return await withWikiGraphLibraryLock(library.id, "write", async () => {
+      const archive = await resolveLibraryArchiveTarget(input.target, library);
+      if (archive.file === undefined) {
+        throw new Error(
+          `Wiki Graph library archive is missing: ${archive.uri}`,
+        );
+      }
+
+      return await withArchiveBuildJobReplacementLock(
+        archive.file,
+        async () => {
+          await assertNoActiveBuildJobConflicts({
+            archive: archive.file!,
+            operation: "Replacing this library archive",
+            scope: { kind: "archive" },
+          });
+          return await new WikgCoordinator().withExclusiveArchiveReplacement(
+            archive.file!,
+            async () => {
+              await markWikiGraphLibraryIndexDirty(library);
+              await copyFileContent(staged, archive.file!);
+
+              const refreshedFile = await inspectLibraryArchiveFile(
+                library.folder,
+                archive.relativePath,
+              );
+              await withLibraryArchiveMembershipDatabase(async (database) => {
+                await updateLibraryArchiveSeen(
+                  database,
+                  archive.id,
+                  refreshedFile,
+                  {
+                    status: "present",
+                  },
+                );
+              });
+              await invalidateReplacedArchiveDerivedState(
+                archive,
+                library,
+                input.additionalDerivedStateKeys,
+              );
+              return await withLibraryArchiveMembershipDatabase(
+                async (database) =>
+                  await requireLibraryArchiveById(
+                    database,
+                    library,
+                    archive.id,
+                  ),
+              );
+            },
+          );
+        },
+      );
+    });
+  } finally {
+    await library.staging.remove(stagingName).catch(() => undefined);
+  }
+}
+
+async function validateReplacementArchive(file: File): Promise<void> {
+  const reader = await WikgArchiveReader.open(file);
+  await reader.close();
+  await readWikgArchiveMutationToken(file);
+  await new WikiGraphArchiveFile(file).readDocument(async () => undefined);
+}
+
+async function invalidateReplacedArchiveDerivedState(
+  archive: WikiGraphLibraryArchiveRecord,
+  library: WikiGraphLibraryRecord,
+  additionalKeys: readonly string[] = [],
+): Promise<void> {
+  const keys = new Set([
+    archive.file?.identity,
+    archive.uri,
+    library.uri,
+    library.isDefault ? "library:default" : `library:${library.publicId}`,
+    ...additionalKeys,
+  ]);
+  for (const key of keys) {
+    if (key === undefined) continue;
+    await deleteArchiveSearchSessions(key);
+    await deleteArchiveContinuationCursors(key);
+  }
 }
 
 export async function finalizeWikiGraphLibraryArchiveWrite(input: {

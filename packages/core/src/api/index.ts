@@ -42,6 +42,7 @@ export {
   assertBuildJobInputRevision,
   assertNoActiveBuildJobConflicts,
   assertNoActiveBuildJobs,
+  withArchiveBuildJobCreationLock,
   boostBuildJob,
   cancelBuildJob,
   cleanBuildJobs,

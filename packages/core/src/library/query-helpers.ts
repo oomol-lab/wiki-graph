@@ -1,4 +1,7 @@
-import { WikiGraphArchiveFile } from "../storage/wikg/index.js";
+import {
+  readWikgArchiveMutationToken,
+  WikiGraphArchiveFile,
+} from "../storage/wikg/index.js";
 import type { ReadonlyDocument } from "../document/index.js";
 import type { ArchiveLibrarySource } from "../retrieval/query/archive-view/types.js";
 import {
@@ -44,7 +47,20 @@ export async function readLibraryArchiveDocument<T>(
   if (archive.file === undefined) {
     throw new Error(`Wiki Graph library archive is missing: ${archive.uri}`);
   }
-  return await new WikiGraphArchiveFile(archive.file).readDocument(operation);
+  return await new WikiGraphArchiveFile(archive.file).readDocument(
+    async (document) => {
+      const currentToken = await readWikgArchiveMutationToken(archive.file!);
+      if (
+        archive.lastSeenMutationToken !== undefined &&
+        currentToken !== archive.lastSeenMutationToken
+      ) {
+        throw new Error(
+          `Wiki Graph library archive changed while reading: ${archive.uri}. Retry after syncing the library index.`,
+        );
+      }
+      return await operation(document);
+    },
+  );
 }
 
 export function createLibrarySource(

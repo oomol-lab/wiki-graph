@@ -133,11 +133,13 @@ Use when:
 Usage:
   {{ commandName }} {{ uri }} [--json]
   {{ commandName }} {{ uri }} inspect [--json]
+  {{ commandName }} {{ uri }} replace --input <path> [--json]
   {{ commandName }} {{ uri }}/path set <relative-wikg-path> [--json]
   {{ commandName }} {{ uri }} remove --confirm [--json]
 
 Predicate commands:
   - inspect: inspect this managed archive's archive readiness. Help: {{ commandName }} {{ uri }} inspect --help
+  - replace: atomically replace this member's archive contents while preserving its library identity. Help: {{ commandName }} {{ uri }} replace --help
   - path set: move or rename this archive inside the same library folder without changing its archive id. Help: {{ commandName }} {{ uri }}/path set --help
   - remove: delete this archive file from the library folder and unregister it. Help: {{ commandName }} {{ uri }} remove --help
 {% elif target.kind == "scope" and target.objectUri == "wikg://index" %}

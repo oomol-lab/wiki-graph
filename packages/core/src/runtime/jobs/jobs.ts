@@ -23,6 +23,7 @@ import {
 } from "./database.js";
 import { recoverStaleBuildJobs } from "./recovery.js";
 import { markBuildJobCanceled, markBuildJobCanceling } from "./state.js";
+import { withStateLock } from "../../state-lock.js";
 import { formatBuildJobLane, hydrateBuildJob, mapBuildJob } from "./row.js";
 import type {
   AddBuildJobOptions,
@@ -42,12 +43,27 @@ const ACTIVE_JOB_STATES = new Set<BuildJobState>([
 export async function addBuildJob(
   options: AddBuildJobOptions,
 ): Promise<BuildJob> {
+  const archiveKey = createArchiveKey(options.archive);
+  return await withStateLock(
+    {
+      mode: "read",
+      resourceKey: archiveKey,
+      scope: "archive-build-jobs",
+      stateDatabaseName: "core.sqlite",
+    },
+    async () => await addBuildJobUnlocked(options, archiveKey),
+  );
+}
+
+async function addBuildJobUnlocked(
+  options: AddBuildJobOptions,
+  archiveKey: string,
+): Promise<BuildJob> {
   const state = await openBuildQueueDatabase();
 
   try {
     await recoverStaleBuildJobs(state);
     return await state.transaction(async () => {
-      const archiveKey = createArchiveKey(options.archive);
       const now = Date.now();
       const existing = await findActiveBuildJobInLane(state, {
         archiveKey,

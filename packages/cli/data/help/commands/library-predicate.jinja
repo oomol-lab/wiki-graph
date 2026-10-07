@@ -222,6 +222,19 @@ Notes:
   - This does not delete empty parent directories.
   - Removing an archive can make an existing library index cache stale.
   - Remove holds the library write lock and cannot run concurrently with library scan, add, path binding, archive path changes, or index rebuild for the same library.
+{% elif target.kind == "archive" and predicate == "replace" %}
+Purpose:
+  Atomically replace this managed archive's contents while preserving its library membership identity and relative path.
+
+Usage:
+  {{ commandName }} {{ uri }} replace --input <path> [--json]
+
+Notes:
+  - The input must be a current, valid `.wikg` file and is never modified.
+  - Replacement waits for current archive access to finish and blocks new access during publication.
+  - Active build jobs block replacement.
+  - Archive and library query caches, sessions, cursors, and the aggregate library index are invalidated.
+  - Sync the library index again before running library-wide queries.
 {% elif target.kind == "metadata" and predicate == "set" %}
 Purpose:
   Replace the whole library metadata map.

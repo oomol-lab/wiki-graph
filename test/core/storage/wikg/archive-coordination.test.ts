@@ -168,6 +168,41 @@ describe("wikg cross-process coordination", () => {
     });
   });
 
+  it("blocks new archive sessions while an exclusive replacement is active", async () => {
+    await withFixture(async ({ archivePath }) => {
+      const archive = new NodeFile(archivePath);
+      const coordinator = new WikgCoordinator();
+      let releaseReplacement!: () => void;
+      const replacementGate = new Promise<void>((resolve) => {
+        releaseReplacement = resolve;
+      });
+      let replacementEntered!: () => void;
+      const entered = new Promise<void>((resolve) => {
+        replacementEntered = resolve;
+      });
+      const replacement = coordinator.withExclusiveArchiveReplacement(
+        archive,
+        async () => {
+          replacementEntered();
+          await replacementGate;
+        },
+      );
+      await entered;
+
+      let readerEntered = false;
+      const reading = coordinator.withArchiveSession(archive, () => {
+        readerEntered = true;
+      });
+      await new Promise((resolve) => globalThis.setTimeout(resolve, 100));
+      expect(readerEntered).toBe(false);
+
+      releaseReplacement();
+      await replacement;
+      await reading;
+      expect(readerEntered).toBe(true);
+    });
+  });
+
   it("does not settle a foreign overlay while its owner can still roll back", async () => {
     await withFixture(async ({ archivePath }) => {
       const archive = new NodeFile(archivePath);

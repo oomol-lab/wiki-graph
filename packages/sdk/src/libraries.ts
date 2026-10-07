@@ -26,6 +26,7 @@ import {
   rebindWikiGraphLibrary,
   removeWikiGraphLibrary,
   removeWikiGraphLibraryArchive,
+  replaceWikiGraphLibraryArchive,
   replaceWikiGraphLibraryMetadata,
   resolveWikiGraphLibrary,
   scanWikiGraphLibrary,
@@ -46,7 +47,11 @@ import {
 import { mkdir } from "fs/promises";
 
 import type { WikiGraphJobRuntime } from "./jobs.js";
-import { NodeDirectory, NodeFile } from "./node-platform.js";
+import {
+  getNodeResourcePath,
+  NodeDirectory,
+  NodeFile,
+} from "./node-platform.js";
 import { resolveWikiGraphRuntimePath } from "./runtime-path.js";
 import {
   createConfiguredEmbeddingProvider,
@@ -72,6 +77,11 @@ export interface WikiGraphLibraryAddArchiveOptions {
 export interface WikiGraphLibraryMoveArchiveOptions {
   readonly target: WikiGraphLibraryTarget;
   readonly to: string;
+}
+
+export interface WikiGraphLibraryReplaceArchiveOptions {
+  readonly inputPath: string;
+  readonly target: WikiGraphLibraryTarget;
 }
 
 export class WikiGraphLibraryManager {
@@ -181,6 +191,21 @@ export class WikiGraphLibraryManager {
           target: requireLibraryTarget(target),
         }),
     );
+  }
+
+  public async replaceArchive(
+    options: WikiGraphLibraryReplaceArchiveOptions,
+  ): Promise<WikiGraphLibraryArchiveRecord> {
+    return await this.#runtime.run(async () => {
+      const target = requireLibraryTarget(options.target);
+      const current = await getWikiGraphLibraryArchive(target);
+      return await replaceWikiGraphLibraryArchive({
+        additionalDerivedStateKeys:
+          current.file === undefined ? [] : [getNodeResourcePath(current.file)],
+        inputFile: new NodeFile(resolveWikiGraphRuntimePath(options.inputPath)),
+        target,
+      });
+    });
   }
 
   public async indexState(

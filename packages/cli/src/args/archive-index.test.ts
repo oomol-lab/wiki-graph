@@ -285,6 +285,49 @@ describe("cli/args/archive index", () => {
       ),
       kind: "help",
     });
+    expect(
+      parseCLIArguments(["wikg://lib/arc/archive123", "replace", "--help"]),
+    ).toStrictEqual({
+      help: true,
+      helpText: renderLibraryPredicateHelpText(
+        "wikg://lib/arc/archive123",
+        {
+          archivePublicId: "archive123",
+          isDefault: true,
+          kind: "archive",
+        },
+        "replace",
+      ),
+      kind: "help",
+    });
+  });
+
+  it("parses atomic library archive replacement", () => {
+    expect(
+      parseCLIArguments([
+        "wikg://lib/arc/archive123",
+        "replace",
+        "--input",
+        "replacement.wikg",
+        "--json",
+      ]),
+    ).toStrictEqual({
+      args: {
+        action: "replace",
+        inputPath: "replacement.wikg",
+        json: true,
+        target: {
+          archivePublicId: "archive123",
+          isDefault: true,
+          kind: "archive",
+        },
+      },
+      help: false,
+      kind: "library",
+    });
+    expect(() =>
+      parseCLIArguments(["wikg://lib/arc/archive123", "replace"]),
+    ).toThrow("Missing --input <path>.");
   });
 
   it("renders library-wide object help through URI help templates", () => {
