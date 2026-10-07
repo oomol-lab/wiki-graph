@@ -34,9 +34,9 @@ lazy sequence through the Node delivery boundary without importing Core:
 import { applyWikiGraphJobArtifacts } from "wiki-graph-sdk/worker";
 
 await applyWikiGraphJobArtifacts({
+  archive: { kind: "standalone", path: "/tmp/job/archive.wikg" },
   artifacts,
   stateDir: "/tmp/job/sdk-state",
-  wikgPath: "/tmp/job/archive.wikg",
 });
 ```
 

@@ -2,7 +2,10 @@ import type { File, ReadonlyFile } from "../../runtime/platform/index.js";
 
 import { DirectoryDocument } from "../../document/index.js";
 import { WikiGraphArchive } from "../../api/wiki-graph-archive.js";
-import { deleteArchiveSearchSessions } from "../../retrieval/query/index.js";
+import {
+  deleteArchiveContinuationCursors,
+  deleteArchiveSearchSessions,
+} from "../../retrieval/query/index.js";
 
 import { WikgCoordinator } from "./coordinator.js";
 import type { HostWikgArchiveSession } from "./wikg-coordinator/host-session.js";
@@ -60,7 +63,11 @@ export class WikiGraphArchiveFile<TFile extends ReadonlyFile = ReadonlyFile> {
   public async write<T>(
     this: WikiGraphArchiveFile<File>,
     operation: (document: DirectoryDocument) => Promise<T> | T,
-    options: { readonly searchIndexWritebackPolicy?: "archive" | "cache" } = {},
+    options: {
+      readonly derivedStateKeys?: readonly string[];
+      readonly invalidateContinuationCursors?: boolean;
+      readonly searchIndexWritebackPolicy?: "archive" | "cache";
+    } = {},
   ): Promise<T> {
     const file = requireWritableFile(this.#file);
     return await withSerializedArchiveFileSession(
@@ -81,11 +88,26 @@ export class WikiGraphArchiveFile<TFile extends ReadonlyFile = ReadonlyFile> {
           try {
             await document.release();
           } finally {
-            await deleteArchiveSearchSessions(this.#file.identity);
+            await invalidateArchiveDerivedState(
+              [this.#file.identity, ...(options.derivedStateKeys ?? [])],
+              options.invalidateContinuationCursors ?? false,
+            );
           }
         }
       },
     );
+  }
+}
+
+async function invalidateArchiveDerivedState(
+  keys: readonly string[],
+  invalidateContinuationCursors: boolean,
+): Promise<void> {
+  for (const key of new Set(keys)) {
+    await deleteArchiveSearchSessions(key);
+    if (invalidateContinuationCursors) {
+      await deleteArchiveContinuationCursors(key);
+    }
   }
 }
 

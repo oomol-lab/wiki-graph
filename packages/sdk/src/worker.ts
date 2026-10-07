@@ -17,6 +17,11 @@ import {
   installNodeWikiGraphPlatform,
   withNodeWikiGraphStorage,
 } from "./node-platform.js";
+import {
+  resolveWikiGraphArchiveLocation,
+  type WikiGraphArchiveTarget,
+} from "./archive/target.js";
+import { writeWikiGraphArchiveLocation } from "./archive/write.js";
 
 export {
   applyChapterJobArtifactFile,
@@ -96,10 +101,10 @@ export async function extractWikiGraphJobSnapshots(
 }
 
 export interface ApplyWikiGraphJobArtifactsOptions {
+  readonly archive: WikiGraphArchiveTarget;
   readonly artifacts: AsyncIterable<WikiGraphJobArtifactInput>;
   readonly signal?: AbortSignal;
   readonly stateDir: string;
-  readonly wikgPath: string;
 }
 
 export async function applyWikiGraphJobArtifacts(
@@ -107,8 +112,10 @@ export async function applyWikiGraphJobArtifacts(
 ): Promise<{ readonly applied: number }> {
   ensureNodeWikiGraphPlatform();
   return await withNodeWikiGraphStorage(options.stateDir, async () => {
+    const location = await resolveWikiGraphArchiveLocation(options.archive);
     let applied = 0;
-    await new WikiGraphArchiveFile(new NodeFile(options.wikgPath)).write(
+    await writeWikiGraphArchiveLocation(
+      location,
       async (document) => {
         for await (const artifact of options.artifacts) {
           options.signal?.throwIfAborted();
@@ -125,6 +132,7 @@ export async function applyWikiGraphJobArtifacts(
           applied += 1;
         }
       },
+      { invalidateContinuationCursors: true },
     );
     options.signal?.throwIfAborted();
     return { applied };

@@ -454,26 +454,36 @@ export async function finalizeWikiGraphLibraryArchiveWrite(input: {
 
   const library = await resolveWikiGraphLibrary(input.target);
   return await withWikiGraphLibraryLock(library.id, "write", async () => {
-    const archive = await resolveLibraryArchiveTarget(input.target, library);
-    if (archive.file === undefined) {
-      throw new Error(`Wiki Graph library archive is missing: ${archive.uri}`);
-    }
-    const removed = await ensureLibraryManagedArchiveHasNoSearchIndex(
-      archive.file,
+    return await finalizeWikiGraphLibraryArchiveWriteWithinLock(
+      input.target,
+      library,
     );
-    const refreshedFile = await inspectLibraryArchiveFile(
-      library.folder,
-      archive.relativePath,
-    );
-
-    await withLibraryArchiveMembershipDatabase(async (database) => {
-      await updateLibraryArchiveSeen(database, archive.id, refreshedFile, {
-        status: "present",
-      });
-    });
-
-    return removed;
   });
+}
+
+export async function finalizeWikiGraphLibraryArchiveWriteWithinLock(
+  target: ParsedWikiGraphLibraryUri,
+  library: WikiGraphLibraryRecord,
+): Promise<boolean> {
+  const archive = await resolveLibraryArchiveTarget(target, library);
+  if (archive.file === undefined) {
+    throw new Error(`Wiki Graph library archive is missing: ${archive.uri}`);
+  }
+  const removed = await ensureLibraryManagedArchiveHasNoSearchIndex(
+    archive.file,
+  );
+  const refreshedFile = await inspectLibraryArchiveFile(
+    library.folder,
+    archive.relativePath,
+  );
+
+  await withLibraryArchiveMembershipDatabase(async (database) => {
+    await updateLibraryArchiveSeen(database, archive.id, refreshedFile, {
+      status: "present",
+    });
+  });
+
+  return removed;
 }
 
 export async function ensureLibraryManagedArchiveHasNoSearchIndex(

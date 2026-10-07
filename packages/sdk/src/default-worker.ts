@@ -37,6 +37,11 @@ import {
 import { DEFAULT_GENERATION_JOB_CONCURRENCY } from "./planning.js";
 import { nodeWikispineCommandRunner } from "./wikispine.js";
 import { runBuildJobWorker } from "./worker.js";
+import {
+  resolveWikiGraphArchiveTarget,
+  resolveWikiGraphArchiveLocation,
+} from "./archive/target.js";
+import { writeWikiGraphArchiveLocation } from "./archive/write.js";
 
 export interface WikiGraphQueueWorkerOptions {
   readonly signal?: AbortSignal;
@@ -186,16 +191,26 @@ async function executeStep(
     total: 1,
     unit: "item",
   });
-  await new WikiGraphArchiveFile(job.archive).write(async (document) => {
-    assertJobStillRunning(await getBuildJob(job.jobId));
-    await applyChapterJobArtifactFile(
-      document,
-      job.chapterId,
-      kind,
-      revision,
-      result.artifactFile,
-    );
-  });
+  const target = await resolveWikiGraphArchiveTarget(job.archive);
+  const resolvedLocation = await resolveWikiGraphArchiveLocation(target);
+  const location =
+    target.kind === "standalone"
+      ? { ...resolvedLocation, archiveFile: job.archive }
+      : resolvedLocation;
+  await writeWikiGraphArchiveLocation(
+    location,
+    async (document) => {
+      assertJobStillRunning(await getBuildJob(job.jobId));
+      await applyChapterJobArtifactFile(
+        document,
+        job.chapterId,
+        kind,
+        revision,
+        result.artifactFile,
+      );
+    },
+    { invalidateContinuationCursors: true },
+  );
   await reporter.updatePhase({
     done: 1,
     phase: "committing",
