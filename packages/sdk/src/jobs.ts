@@ -24,12 +24,16 @@ import {
   type ChapterEntry,
 } from "wiki-graph-core";
 
-import { getNodeResourcePath, NodeFile } from "./node-platform.js";
-import { resolveWikiGraphArchiveLocation } from "./archive/index.js";
+import { getNodeResourcePath } from "./node-platform.js";
+import { type WikiGraphArchiveTarget } from "./archive/index.js";
+import {
+  archiveTargetFromLogicalLocator,
+  resolveWikiGraphArchiveLocation,
+  resolveWikiGraphArchiveTarget,
+} from "./archive/target.js";
 import { requireKnowledgeGraphWikispineConfig } from "./default-worker.js";
 import { loadWikiGraphRuntimeConfig } from "./runtime-config.js";
 import { loadRequiredStageConfig } from "./stage.js";
-import { resolveWikiGraphRuntimePath } from "./runtime-path.js";
 
 const TERMINAL_STATES = new Set(["canceled", "failed", "succeeded"]);
 const TERMINAL_EVENT_GRACE_READS = 3;
@@ -92,14 +96,14 @@ export interface WikiGraphJobCreateOptions extends Omit<
   AddBuildJobOptions,
   "archive"
 > {
-  readonly archive: string | AddBuildJobOptions["archive"];
+  readonly archive: WikiGraphArchiveTarget;
 }
 
 export interface WikiGraphJobListOptions extends Omit<
   BuildJobListOptions,
   "archive"
 > {
-  readonly archive?: string | BuildJobListOptions["archive"];
+  readonly archive?: WikiGraphArchiveTarget;
 }
 
 export interface WikiGraphJobChapterReference {
@@ -108,8 +112,19 @@ export interface WikiGraphJobChapterReference {
   readonly uri: string;
 }
 
+export interface WikiGraphJobSnapshot extends Omit<
+  BuildJob,
+  "archive" | "cache" | "events" | "log" | "workspace"
+> {
+  readonly archive: WikiGraphArchiveTarget;
+  readonly cachePath?: string;
+  readonly eventsPath?: string;
+  readonly logPath?: string;
+  readonly workspacePath?: string;
+}
+
 export interface WikiGraphJobEnqueueOptions {
-  readonly archive: string;
+  readonly archive: WikiGraphArchiveTarget;
   readonly boost?: boolean;
   readonly chapterId?: number;
   readonly chapterIds?: readonly number[];
@@ -177,17 +192,17 @@ export class WikiGraphJobManager {
   public async create(
     options: WikiGraphJobCreateOptions,
   ): Promise<WikiGraphJob> {
-    const job = await this.#runtime.run(
-      async () =>
-        await this.#backend.add({
+    const resolved = await this.#runtime.run(async () => {
+      const location = await resolveWikiGraphArchiveLocation(options.archive);
+      return {
+        job: await this.#backend.add({
           ...options,
-          archive:
-            typeof options.archive === "string"
-              ? new NodeFile(resolveWikiGraphRuntimePath(options.archive))
-              : options.archive,
+          archive: location.archiveFile,
         }),
-    );
-    return this.#createHandle(job);
+        target: location.target,
+      };
+    });
+    return await this.#createHandle(resolved.job, resolved.target);
   }
 
   public async clean(): Promise<number> {
@@ -195,8 +210,8 @@ export class WikiGraphJobManager {
   }
 
   public async get(jobId: string): Promise<WikiGraphJob> {
-    return this.#createHandle(
-      await this.#runtime.run(async () => await this.#backend.get(jobId)),
+    return await this.#runtime.run(
+      async () => await this.#createHandle(await this.#backend.get(jobId)),
     );
   }
 
@@ -209,7 +224,7 @@ export class WikiGraphJobManager {
   public async list(
     options: WikiGraphJobListOptions = {},
   ): Promise<readonly WikiGraphJob[]> {
-    const jobs = await this.#runtime.run(async () => {
+    return await this.#runtime.run(async () => {
       const normalized: BuildJobListOptions = {
         ...(options.activeOnly === undefined
           ? {}
@@ -218,24 +233,24 @@ export class WikiGraphJobManager {
         ...(options.archive === undefined
           ? {}
           : {
-              archive:
-                typeof options.archive === "string"
-                  ? new NodeFile(resolveWikiGraphRuntimePath(options.archive))
-                  : options.archive,
+              archive: (await resolveWikiGraphArchiveLocation(options.archive))
+                .archiveFile,
             }),
       };
-      return await this.#backend.list(normalized);
+      const jobs = await this.#backend.list(normalized);
+      return await Promise.all(
+        jobs.map(async (job) => await this.#createHandle(job)),
+      );
     });
-    return jobs.map((job) => this.#createHandle(job));
   }
 
   public async resolveChapters(
-    jobs: readonly BuildJob[],
+    jobs: readonly WikiGraphJobSnapshot[],
   ): Promise<ReadonlyMap<string, WikiGraphJobChapterReference>> {
     return await this.#runtime.run(async () => {
-      const jobsByArchive = new Map<string, BuildJob[]>();
+      const jobsByArchive = new Map<string, WikiGraphJobSnapshot[]>();
       for (const job of jobs) {
-        const archivePath = getBuildJobArchivePath(job);
+        const archivePath = getJobArchiveLocator(job);
         const grouped = jobsByArchive.get(archivePath) ?? [];
         grouped.push(job);
         jobsByArchive.set(archivePath, grouped);
@@ -244,8 +259,11 @@ export class WikiGraphJobManager {
         await Promise.all(
           [...jobsByArchive].map(async ([archivePath, archiveJobs]) => {
             try {
+              const location = await resolveWikiGraphArchiveLocation(
+                archiveJobs[0]!.archive,
+              );
               const chapters = await new WikiGraphArchiveFile(
-                new NodeFile(archivePath),
+                location.archiveFile,
               ).readDocument(async (document) => await listChapters(document));
               const chaptersById = new Map(
                 chapters.map((chapter) => [chapter.chapterId, chapter]),
@@ -279,7 +297,7 @@ export class WikiGraphJobManager {
   }
 
   public async resolveChapter(
-    job: BuildJob,
+    job: WikiGraphJobSnapshot,
   ): Promise<WikiGraphJobChapterReference | undefined> {
     return (await this.resolveChapters([job])).get(job.jobId);
   }
@@ -343,18 +361,21 @@ export class WikiGraphJobManager {
             try {
               created.push({
                 chapter: candidate.chapter,
-                job: await this.create({
-                  archive: location.archiveFile,
-                  boost: options.boost ?? false,
-                  chapterId: candidate.chapter.chapterId,
-                  ...(options.llmJSON === undefined
-                    ? {}
-                    : { llmJSON: options.llmJSON }),
-                  ...(options.prompt === undefined
-                    ? {}
-                    : { prompt: options.prompt }),
-                  target,
-                }),
+                job: await this.#createHandle(
+                  await this.#backend.add({
+                    archive: location.archiveFile,
+                    boost: options.boost ?? false,
+                    chapterId: candidate.chapter.chapterId,
+                    ...(options.llmJSON === undefined
+                      ? {}
+                      : { llmJSON: options.llmJSON }),
+                    ...(options.prompt === undefined
+                      ? {}
+                      : { prompt: options.prompt }),
+                    target,
+                  }),
+                  location.target,
+                ),
               });
             } catch (error) {
               if (selectedExplicitly && candidates.length === 1) throw error;
@@ -430,24 +451,35 @@ export class WikiGraphJobManager {
     return () => this.#subscriptions.delete(controller);
   }
 
-  #createHandle(snapshot: BuildJob): WikiGraphJob {
-    return new WikiGraphJob(this, this.#runtime, this.#backend, snapshot);
+  async #createHandle(
+    snapshot: BuildJob,
+    target?: WikiGraphArchiveTarget,
+  ): Promise<WikiGraphJob> {
+    const legacy = snapshot as BuildJob & { readonly archivePath?: string };
+    const resolvedTarget =
+      target ??
+      (snapshot.archive === undefined
+        ? archiveTargetFromLogicalLocator(legacy.archivePath ?? "unknown.wikg")
+        : await resolveWikiGraphArchiveTarget(snapshot.archive));
+    return new WikiGraphJob(
+      this,
+      this.#runtime,
+      this.#backend,
+      snapshot,
+      cloneWikiGraphArchiveTarget(resolvedTarget),
+    );
   }
 }
 
-function getBuildJobArchivePath(job: BuildJob): string {
-  const record = job as unknown as Record<string, unknown>;
-  if (record.archive !== undefined) {
-    return getNodeResourcePath(record.archive as BuildJob["archive"]);
-  }
-  if (typeof record.archivePath === "string") return record.archivePath;
-  throw new TypeError("Build job is missing archive");
+function getJobArchiveLocator(job: WikiGraphJobSnapshot): string {
+  return job.archive.kind === "library" ? job.archive.uri : job.archive.path;
 }
 
 export class WikiGraphJob {
   readonly #manager: WikiGraphJobManager;
   readonly #runtime: WikiGraphJobRuntime;
   readonly #backend: WikiGraphJobBackend;
+  readonly #archiveTarget: WikiGraphArchiveTarget;
   #snapshot: BuildJob;
 
   public constructor(
@@ -455,42 +487,46 @@ export class WikiGraphJob {
     runtime: WikiGraphJobRuntime,
     backend: WikiGraphJobBackend,
     snapshot: BuildJob,
+    archiveTarget: WikiGraphArchiveTarget,
   ) {
     this.#manager = manager;
     this.#runtime = runtime;
     this.#backend = backend;
     this.#snapshot = snapshot;
+    this.#archiveTarget = archiveTarget;
   }
 
   public get id(): string {
     return this.#snapshot.jobId;
   }
 
-  public get snapshot(): BuildJob {
-    return this.#snapshot;
+  public get snapshot(): WikiGraphJobSnapshot {
+    return toPublicJobSnapshot(this.#snapshot, this.#archiveTarget);
   }
 
-  public async status(): Promise<BuildJob> {
+  public async status(): Promise<WikiGraphJobSnapshot> {
     return await this.#update(async () => await this.#backend.get(this.id));
   }
 
-  public async pause(): Promise<BuildJob> {
+  public async pause(): Promise<WikiGraphJobSnapshot> {
     return await this.#update(async () => await this.#backend.pause(this.id));
   }
 
-  public async resume(): Promise<BuildJob> {
+  public async resume(): Promise<WikiGraphJobSnapshot> {
     return await this.#update(async () => await this.#backend.resume(this.id));
   }
 
-  public async cancel(): Promise<BuildJob> {
+  public async cancel(): Promise<WikiGraphJobSnapshot> {
     return await this.#update(async () => await this.#backend.cancel(this.id));
   }
 
-  public async boost(): Promise<BuildJob> {
+  public async boost(): Promise<WikiGraphJobSnapshot> {
     return await this.#update(async () => await this.#backend.boost(this.id));
   }
 
-  public async setTarget(target: BuildJobTarget): Promise<BuildJob> {
+  public async setTarget(
+    target: BuildJobTarget,
+  ): Promise<WikiGraphJobSnapshot> {
     return await this.#update(
       async () => await this.#backend.setTarget(this.id, target),
     );
@@ -503,7 +539,8 @@ export class WikiGraphJob {
     let cursor = 0;
     let job = this.#snapshot;
     if (options.from === "now") {
-      job = await this.status();
+      await this.status();
+      job = this.#snapshot;
       const chunk = await this.#readEventChunkSafely(job, cursor);
       const events = chunk.events;
       cursor = chunk.cursor;
@@ -525,7 +562,8 @@ export class WikiGraphJob {
       }
       if (sawTerminalEvent) return;
 
-      job = await this.status();
+      await this.status();
+      job = this.#snapshot;
       if (isTerminalState(job.state)) {
         terminalReadsWithoutEvent += 1;
         if (terminalReadsWithoutEvent >= TERMINAL_EVENT_GRACE_READS) return;
@@ -565,9 +603,11 @@ export class WikiGraphJob {
     return () => controller.abort();
   }
 
-  async #update(operation: () => Promise<BuildJob>): Promise<BuildJob> {
+  async #update(
+    operation: () => Promise<BuildJob>,
+  ): Promise<WikiGraphJobSnapshot> {
     this.#snapshot = await this.#runtime.run(operation);
-    return this.#snapshot;
+    return this.snapshot;
   }
 
   async #readEventChunk(
@@ -592,6 +632,86 @@ export class WikiGraphJob {
     } catch {
       return { cursor, events: [] };
     }
+  }
+}
+
+function toPublicJobSnapshot(
+  job: BuildJob,
+  archive: WikiGraphArchiveTarget,
+): WikiGraphJobSnapshot {
+  const legacy = job as BuildJob & {
+    readonly cachePath?: string;
+    readonly eventsPath?: string;
+    readonly logPath?: string;
+    readonly workspacePath?: string;
+  };
+  return {
+    archive: cloneWikiGraphArchiveTarget(archive),
+    archiveKey: archive.kind === "library" ? archive.uri : job.archiveKey,
+    ...(getJobResourcePath(job.cache, legacy.cachePath) === undefined
+      ? {}
+      : { cachePath: getJobResourcePath(job.cache, legacy.cachePath)! }),
+    chapterId: job.chapterId,
+    createdAt: job.createdAt,
+    ...(job.currentStep === undefined ? {} : { currentStep: job.currentStep }),
+    ...(job.errorJSON === undefined ? {} : { errorJSON: job.errorJSON }),
+    ...(getJobResourcePath(job.events, legacy.eventsPath) === undefined
+      ? {}
+      : { eventsPath: getJobResourcePath(job.events, legacy.eventsPath)! }),
+    ...(job.finishedAt === undefined ? {} : { finishedAt: job.finishedAt }),
+    jobId: job.jobId,
+    ...(job.inputRevision === undefined
+      ? {}
+      : { inputRevision: job.inputRevision }),
+    ...(getJobResourcePath(job.log, legacy.logPath) === undefined
+      ? {}
+      : { logPath: getJobResourcePath(job.log, legacy.logPath)! }),
+    ...(job.llmJSON === undefined ? {} : { llmJSON: job.llmJSON }),
+    ...(job.ownerId === undefined ? {} : { ownerId: job.ownerId }),
+    ...(job.prompt === undefined ? {} : { prompt: job.prompt }),
+    queueRank: job.queueRank,
+    ...(job.readingSummaryStartedAt === undefined
+      ? {}
+      : { readingSummaryStartedAt: job.readingSummaryStartedAt }),
+    state: job.state,
+    target: job.target,
+    updatedAt: job.updatedAt,
+    ...(getJobResourcePath(job.workspace, legacy.workspacePath) === undefined
+      ? {}
+      : {
+          workspacePath: getJobResourcePath(
+            job.workspace,
+            legacy.workspacePath,
+          )!,
+        }),
+  };
+}
+
+function cloneWikiGraphArchiveTarget(
+  target: WikiGraphArchiveTarget,
+): WikiGraphArchiveTarget {
+  return target.kind === "library"
+    ? Object.freeze({ kind: "library", uri: target.uri })
+    : Object.freeze({
+        kind: "standalone",
+        path: target.path,
+        ...(target.objectUri === undefined
+          ? {}
+          : { objectUri: target.objectUri }),
+      });
+}
+
+function getJobResourcePath(
+  resource: Parameters<typeof getNodeResourcePath>[0] | undefined,
+  legacy: string | undefined,
+): string | undefined {
+  if (resource === undefined) return legacy;
+  try {
+    return getNodeResourcePath(resource);
+  } catch {
+    const identity = (resource as { readonly identity?: unknown }).identity;
+    if (typeof identity === "string") return identity;
+    throw new TypeError("Expected a Node File or Directory resource");
   }
 }
 

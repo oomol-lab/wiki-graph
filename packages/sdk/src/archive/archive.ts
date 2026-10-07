@@ -25,7 +25,6 @@ import {
   moveChapter,
   packArchiveContext,
   parseLocatedWikiGraphUri,
-  parseWikiGraphLibraryUri,
   readArchivePage,
   readSearchIndexCapabilityStatus,
   readWikiGraphLibraryIndexState,
@@ -34,7 +33,6 @@ import {
   removeChapter,
   resetChapter,
   resolveChapterPathReadonly,
-  resolveWikiGraphLibraryArchiveFile,
   setChapterSource,
   setChapterSummary,
   setChapterTitle,
@@ -62,7 +60,6 @@ import {
   type IndexArtifactKind,
   ObjectMetadataKind,
   type ObjectMetadataTarget,
-  type ParsedWikiGraphLibraryUri,
   type QueryIndexScope,
   type ReadonlyDocument,
   type SearchIndexEmbeddingProvider,
@@ -71,12 +68,7 @@ import {
 
 import type { WikiGraphJobRuntime } from "../jobs.js";
 import { WikiGraphConversionManager } from "../conversions.js";
-import {
-  getNodeResourcePath,
-  NodeDirectory,
-  NodeFile,
-} from "../node-platform.js";
-import { resolveWikiGraphRuntimePath } from "../runtime-path.js";
+import { NodeDirectory, NodeFile } from "../node-platform.js";
 import {
   createConfiguredEmbeddingProvider,
   withConfiguredWikimediaResolver,
@@ -85,6 +77,12 @@ import {
   inspectWikiGraphArchive,
   type WikiGraphArchiveInspection,
 } from "./inspect.js";
+import {
+  assertStandaloneWikiGraphArchivePath,
+  resolveWikiGraphArchiveLocation,
+  type WikiGraphArchiveLocation,
+  type WikiGraphArchiveTarget,
+} from "./target.js";
 
 export interface WikiGraphOperationOptions {
   readonly signal?: AbortSignal;
@@ -101,17 +99,6 @@ export type WikiGraphChapterSourceOptions = NonNullable<
   Parameters<typeof setChapterSource>[3]
 >;
 export type WikiGraphChapterTreeInput = Parameters<typeof applyChapterTree>[1];
-
-export interface WikiGraphArchiveLocation {
-  readonly archiveFile: File;
-  readonly archiveKey: string;
-  readonly archivePath: string;
-  readonly indexScope: QueryIndexScope;
-  readonly libraryArchiveTarget?: ParsedWikiGraphLibraryUri;
-  readonly libraryDirtyTarget?: ParsedWikiGraphLibraryUri;
-  readonly locatedUri: string;
-  readonly publicArchiveUri?: string;
-}
 
 export interface WikiGraphArchiveCreateOptions extends WikiGraphOperationOptions {
   readonly importPath?: string;
@@ -242,7 +229,7 @@ export class WikiGraphArchiveManager {
     options: WikiGraphArchiveCreateOptions,
   ): Promise<WikiGraphArchiveCreateResult> {
     return await this.#runtime.run(async () => {
-      const path = resolveWikiGraphRuntimePath(options.path);
+      const path = await assertStandaloneWikiGraphArchivePath(options.path);
       if (options.replace !== true && (await nodePathExists(path))) {
         throw new WikiGraphArchiveExistsError(path);
       }
@@ -285,11 +272,11 @@ export class WikiGraphArchiveManager {
   }
 
   public async open(
-    uriOrPath: string,
+    target: WikiGraphArchiveTarget,
     options: WikiGraphOperationOptions = {},
   ): Promise<WikiGraphArchiveHandle> {
     const location = await this.#runtime.run(
-      async () => await resolveWikiGraphArchiveLocation(uriOrPath),
+      async () => await resolveWikiGraphArchiveLocation(target),
       options.signal,
     );
     return new WikiGraphArchiveHandle(this.#runtime, location);
@@ -300,12 +287,9 @@ export class WikiGraphArchiveHandle {
   readonly #runtime: WikiGraphJobRuntime;
   readonly #location: WikiGraphArchiveLocation;
 
-  public constructor(
-    runtime: WikiGraphJobRuntime,
-    location: WikiGraphArchiveLocation,
-  ) {
+  public constructor(runtime: WikiGraphJobRuntime, location: unknown) {
     this.#runtime = runtime;
-    this.#location = location;
+    this.#location = location as WikiGraphArchiveLocation;
   }
 
   public get archiveKey(): string {
@@ -328,6 +312,10 @@ export class WikiGraphArchiveHandle {
 
   public get path(): string {
     return this.#location.archivePath;
+  }
+
+  public get target(): WikiGraphArchiveTarget {
+    return this.#location.target;
   }
 
   public async inspect(
@@ -1002,47 +990,6 @@ export class WikiGraphArchiveHandle {
   }
 }
 
-export async function resolveWikiGraphArchiveLocation(
-  uriOrPath: string,
-): Promise<WikiGraphArchiveLocation> {
-  if (!uriOrPath.startsWith("wikg://")) {
-    return createPathLocation(resolveWikiGraphRuntimePath(uriOrPath));
-  }
-  const parsed = parseLocatedWikiGraphUri(uriOrPath);
-  const portableArchiveLocator = parsed.archivePath ?? uriOrPath;
-  const archiveLocator = portableArchiveLocator.startsWith("wikg://lib/")
-    ? portableArchiveLocator
-    : resolveWikiGraphRuntimePath(portableArchiveLocator);
-  const libraryArchiveTarget = archiveLocator.startsWith("wikg://lib/")
-    ? parseWikiGraphLibraryUri(archiveLocator)
-    : undefined;
-  const archiveFile =
-    libraryArchiveTarget?.kind === "archive"
-      ? await resolveWikiGraphLibraryArchiveFile(archiveLocator)
-      : new NodeFile(archiveLocator);
-  const archivePath = getNodeResourcePath(archiveFile);
-  return {
-    archiveFile,
-    archiveKey: archivePath,
-    archivePath,
-    indexScope: { archiveKey: archivePath, archivePath, kind: "archive-index" },
-    ...(libraryArchiveTarget?.kind === "archive"
-      ? {
-          libraryArchiveTarget,
-          libraryDirtyTarget: {
-            isDefault: libraryArchiveTarget.isDefault,
-            kind: "scope" as const,
-            ...(libraryArchiveTarget.publicId === undefined
-              ? {}
-              : { publicId: libraryArchiveTarget.publicId }),
-          },
-          publicArchiveUri: portableArchiveLocator,
-        }
-      : {}),
-    locatedUri: formatLocatedWikiGraphUri(archivePath, parsed.objectUri),
-  };
-}
-
 async function ensureArchiveSearchIndex(
   document: DirectoryDocument,
   options: {
@@ -1116,16 +1063,6 @@ function selectChapterSubtree(
       (chapter.path.startsWith(prefix) &&
         (depth === undefined || chapter.depth - root.depth <= depth)),
   );
-}
-
-function createPathLocation(path: string): WikiGraphArchiveLocation {
-  return {
-    archiveFile: new NodeFile(path),
-    archiveKey: path,
-    archivePath: path,
-    indexScope: { archiveKey: path, archivePath: path, kind: "archive-index" },
-    locatedUri: formatLocatedWikiGraphUri(path),
-  };
 }
 
 async function createEmptyArchiveFile(path: string): Promise<void> {

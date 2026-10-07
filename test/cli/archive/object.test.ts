@@ -311,7 +311,7 @@ describe("cli/archive/object", () => {
       "/tmp/library/archive123.wikg",
     ]);
     expect(findArchiveObjects).toHaveBeenCalledWith({}, "孙悟空", {
-      archiveKey: "/tmp/library/archive123.wikg",
+      archiveKey: "wikg://lib/arc/archive123",
       limit: 3,
     });
     expect(archiveMockState.textWrites[0]).toContain("wikg://chunk/9");

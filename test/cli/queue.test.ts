@@ -801,7 +801,7 @@ describe("cli/queue", () => {
     });
 
     expect(JSON.parse(queueMockState.textWrites.join(""))).toMatchObject({
-      archivePath: "book.wikg",
+      archivePath: join(process.cwd(), "book.wikg"),
       chapterId: 12,
       estimate: {
         chapters: 1,
@@ -846,7 +846,7 @@ describe("cli/queue", () => {
     expect(JSON.parse(queueMockState.textWrites.join(""))).toMatchObject({
       created: [
         {
-          archivePath: "book.wikg",
+          archivePath: join(process.cwd(), "book.wikg"),
           chapterId: 12,
           jobId: "job-1",
           state: "queued",

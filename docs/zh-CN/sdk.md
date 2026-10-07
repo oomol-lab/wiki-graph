@@ -44,7 +44,7 @@ JSON/JSONL 渲染属于 `wiki-graph`。
 
 ```ts
 const job = await wikiGraph.jobs.create({
-  archive: "/data/research.wikg",
+  archive: { kind: "standalone", path: "/data/research.wikg" },
   chapterId: 12,
   target: "reading-summary",
 });
@@ -57,6 +57,10 @@ console.log(await job.status());
 unsubscribe(); // 只停止当前观察者，不会取消持久化任务。
 await job.cancel(); // 显式取消任务。
 ```
+
+归档目标必须显式声明。游离 WIKG 使用 `{ kind: "standalone", path }`，资料库托管
+归档使用 `{ kind: "library", uri }` 和归档 UUID URI。SDK 会拒绝把注册资料库内的
+文件声明为游离归档，归档 handle 和快照也不会暴露托管归档的物理路径。
 
 事件也可以作为 async iterable 读取，并支持 `AbortSignal`：
 

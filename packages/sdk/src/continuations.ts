@@ -25,13 +25,17 @@ import {
   type QueryIndexScope,
 } from "wiki-graph-core";
 
-import { resolveWikiGraphArchiveLocation } from "./archive/index.js";
+import { type WikiGraphArchiveTarget } from "./archive/index.js";
+import {
+  archiveTargetFromLogicalLocator,
+  resolveWikiGraphArchiveLocation,
+} from "./archive/target.js";
 import type { WikiGraphJobRuntime } from "./jobs.js";
 import { createConfiguredEmbeddingProvider } from "./query-runtime.js";
 
 export interface WikiGraphContinuationOptions {
   /** Optional archive locator used to verify that the cursor belongs to it. */
-  readonly archive?: string;
+  readonly archive?: WikiGraphArchiveTarget;
   readonly cursor: string;
   readonly format?: ContinuationCursor["format"];
   readonly limit?: number;
@@ -177,7 +181,7 @@ async function continueArchiveCursor(
   | ArchiveSourceLocatorResult
 > {
   const location = await resolveWikiGraphArchiveLocation(
-    getCursorArchivePath(cursor),
+    archiveTargetFromLogicalLocator(getCursorArchivePath(cursor)),
   );
   return await new WikiGraphArchiveFile(location.archiveFile).readDocument(
     async (document) => {

@@ -1,6 +1,7 @@
 import type { ContinuationCursor } from "wiki-graph-sdk";
 
 import type { CLIArchiveArguments } from "../../../args/index.js";
+import { parseCLIArchiveTarget } from "../../../support/archive-target.js";
 import { getWikiGraphSDK } from "../../../runtime/context.js";
 import {
   writeEvidence,
@@ -16,7 +17,9 @@ export async function runNextArchivePage(
 ): Promise<void> {
   const cursorId = args.cursor ?? args.archivePath;
   const page = await getWikiGraphSDK().continuations.next({
-    ...(args.cursor === undefined ? {} : { archive: args.archivePath }),
+    ...(args.cursor === undefined
+      ? {}
+      : { archive: parseCLIArchiveTarget(args.archivePath) }),
     cursor: cursorId,
     ...(args.format === undefined ? {} : { format: args.format }),
     ...(args.limit === undefined ? {} : { limit: args.limit }),

@@ -36,7 +36,10 @@ describe("Wiki Graph job snapshots", () => {
       stateDir: join(root, "state"),
     });
     await sdk.archives.create({ path: wikgPath });
-    const archive = await sdk.archives.open(wikgPath);
+    const archive = await sdk.archives.open({
+      kind: "standalone",
+      path: wikgPath,
+    });
     const chapter = await archive.addChapter({
       source: "Alpha beta. Gamma delta.",
       title: "Chapter",
@@ -99,7 +102,10 @@ describe("Wiki Graph job artifact delivery", () => {
       stateDir: join(root, "setup"),
     });
     await sdk.archives.create({ path: wikgPath });
-    const archive = await sdk.archives.open(wikgPath);
+    const archive = await sdk.archives.open({
+      kind: "standalone",
+      path: wikgPath,
+    });
     const first = await archive.addChapter({
       source: "Alpha.",
       title: "First",
@@ -159,7 +165,10 @@ describe("Wiki Graph job artifact delivery", () => {
       stateDir: join(root, "setup"),
     });
     await sdk.archives.create({ path: wikgPath });
-    const archive = await sdk.archives.open(wikgPath);
+    const archive = await sdk.archives.open({
+      kind: "standalone",
+      path: wikgPath,
+    });
     const chapter = await archive.addChapter({ source: "Alpha." });
     sdk.close();
     await writeLexicalArtifact(artifactPath, "alpha");

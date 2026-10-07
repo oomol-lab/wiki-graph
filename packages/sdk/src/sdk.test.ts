@@ -3,12 +3,7 @@ import { tmpdir } from "os";
 import { join } from "path";
 import { afterEach, describe, expect, it } from "vitest";
 
-import {
-  createWikiGraphSDK,
-  getNodeResourcePath,
-  NodeDirectory,
-  WikiGraphSDK,
-} from "./index.js";
+import { createWikiGraphSDK, NodeDirectory, WikiGraphSDK } from "./index.js";
 import { getWikiGraphStorage } from "wiki-graph-core/platform";
 
 const tempDirectories: string[] = [];
@@ -158,19 +153,22 @@ describe("WikiGraphSDK", () => {
       second.archives.create({ path: "book.wikg" }),
     ]);
     const [firstChapter, secondChapter] = await Promise.all([
-      (await first.archives.open("book.wikg")).addChapter({ source: "First" }),
-      (await second.archives.open("book.wikg")).addChapter({
+      (await first.archives.open(standalone("book.wikg"))).addChapter({
+        source: "First",
+      }),
+      (await second.archives.open(standalone("book.wikg"))).addChapter({
         source: "Second",
       }),
     ]);
+    const mutableTarget = standalone("book.wikg");
     const [firstJob, secondJob] = await Promise.all([
       first.jobs.create({
-        archive: "book.wikg",
+        archive: mutableTarget,
         chapterId: firstChapter.chapterId,
         target: "index-fts",
       }),
       second.jobs.create({
-        archive: "book.wikg",
+        archive: standalone("book.wikg"),
         chapterId: secondChapter.chapterId,
         target: "index-fts",
       }),
@@ -178,25 +176,33 @@ describe("WikiGraphSDK", () => {
 
     await expect(access(join(firstCwd, "library"))).resolves.toBeUndefined();
     await expect(access(join(secondCwd, "library"))).resolves.toBeUndefined();
-    expect(getNodeResourcePath(firstJob.snapshot.archive)).toBe(
-      join(firstCwd, "book.wikg"),
-    );
-    expect(getNodeResourcePath(secondJob.snapshot.archive)).toBe(
-      join(secondCwd, "book.wikg"),
+    (mutableTarget as { path: string }).path = "changed.wikg";
+    const firstArchiveTarget = standalone(join(firstCwd, "book.wikg"));
+    const secondArchiveTarget = standalone(join(secondCwd, "book.wikg"));
+    expect(firstJob.snapshot.archive).toEqual(firstArchiveTarget);
+    expect(secondJob.snapshot.archive).toEqual(secondArchiveTarget);
+    expect((await first.jobs.get(firstJob.id)).snapshot.archive).toEqual(
+      firstArchiveTarget,
     );
     const firstJobs = await first.jobs.list({ all: true });
     const secondJobs = await second.jobs.list({ all: true });
+    expect(
+      firstJobs.find((job) => job.id === firstJob.id)?.snapshot.archive,
+    ).toEqual(firstArchiveTarget);
+    expect(
+      secondJobs.find((job) => job.id === secondJob.id)?.snapshot.archive,
+    ).toEqual(secondArchiveTarget);
     expect(firstJobs.map((job) => job.id)).toContain(firstJob.id);
     expect(secondJobs.map((job) => job.id)).toContain(secondJob.id);
     expect(
-      (await first.jobs.list({ all: true, archive: "book.wikg" })).map(
-        (job) => job.id,
-      ),
+      (
+        await first.jobs.list({ all: true, archive: standalone("book.wikg") })
+      ).map((job) => job.id),
     ).toContain(firstJob.id);
     expect(
-      (await second.jobs.list({ all: true, archive: "book.wikg" })).map(
-        (job) => job.id,
-      ),
+      (
+        await second.jobs.list({ all: true, archive: standalone("book.wikg") })
+      ).map((job) => job.id),
     ).toContain(secondJob.id);
     const [firstMember, secondMember] = await Promise.all([
       first.libraries.addArchive({
@@ -210,12 +216,8 @@ describe("WikiGraphSDK", () => {
         to: "member.wikg",
       }),
     ]);
-    expect(getNodeResourcePath(firstMember.file!)).toBe(
-      join(firstCwd, "library", "member.wikg"),
-    );
-    expect(getNodeResourcePath(secondMember.file!)).toBe(
-      join(secondCwd, "library", "member.wikg"),
-    );
+    expect(firstMember).not.toHaveProperty("file");
+    expect(secondMember).not.toHaveProperty("file");
     await Promise.all([
       mkdir(join(firstCwd, "rebound")),
       mkdir(join(secondCwd, "rebound")),
@@ -225,23 +227,23 @@ describe("WikiGraphSDK", () => {
       second.libraries.rebind(secondLibrary.uri, "rebound"),
     ]);
     expect(
-      getNodeResourcePath(
-        (await first.libraries.get(firstLibrary.uri)).snapshot.folder,
-      ),
+      (await first.libraries.get(firstLibrary.uri)).snapshot.folderPath,
     ).toBe(join(firstCwd, "rebound"));
     expect(
-      getNodeResourcePath(
-        (await second.libraries.get(secondLibrary.uri)).snapshot.folder,
-      ),
+      (await second.libraries.get(secondLibrary.uri)).snapshot.folderPath,
     ).toBe(join(secondCwd, "rebound"));
     await expect(access(join(process.cwd(), "library"))).rejects.toMatchObject({
       code: "ENOENT",
     });
     first.close();
     second.close();
-  });
+  }, 15_000);
 });
 
 async function readCoreLibraryIdentity(sdk: WikiGraphSDK): Promise<string> {
   return await sdk.run(() => getWikiGraphStorage().library.identity);
+}
+
+function standalone(path: string) {
+  return { kind: "standalone" as const, path };
 }

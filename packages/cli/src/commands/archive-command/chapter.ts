@@ -22,6 +22,7 @@ import {
   readTextStreamFromStdin,
   writeTextToStdout,
 } from "../../support/index.js";
+import { parseCLIArchiveTarget } from "../../support/archive-target.js";
 import { formatCLIJSON } from "../../support/index.js";
 import { tryStartQueueWorker } from "../queue/add.js";
 import { writeJobSummary } from "../queue/output.js";
@@ -30,7 +31,7 @@ export async function runArchiveChapterCommand(
   args: CLIArchiveChapterArguments,
 ): Promise<void> {
   const sdk = getWikiGraphSDK();
-  const archive = await sdk.archives.open(args.path);
+  const archive = await sdk.archives.open(parseCLIArchiveTarget(args.path));
   switch (args.action) {
     case "add": {
       const details = await archive.addChapter({
@@ -64,7 +65,7 @@ export async function runArchiveChapterCommand(
         requireChapterPath(args.chapterPath),
       );
       const job = await sdk.jobs.create({
-        archive: archive.path,
+        archive: archive.target,
         chapterId: chapter.chapterId,
         target: requireIndexArtifactTarget(args.indexArtifactTarget),
       });

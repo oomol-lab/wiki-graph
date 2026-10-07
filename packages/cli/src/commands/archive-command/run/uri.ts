@@ -1,43 +1,18 @@
-import {
-  parseWikiGraphLibraryUri,
-  resolveWikiGraphArchiveLocation,
-  type WikiGraphArchiveLocation,
-  type QueryIndexScope,
-} from "wiki-graph-sdk";
+import { parseWikiGraphLibraryUri, type QueryIndexScope } from "wiki-graph-sdk";
 import { parseLocatedWikiGraphUri } from "../../../support/index.js";
 
 import type { CLIArchiveArguments } from "../../../args/index.js";
-export type ArchiveRuntimeLocation = WikiGraphArchiveLocation;
-
-export async function resolveArchiveRuntimeLocation(
-  uriOrPath: string,
-): Promise<ArchiveRuntimeLocation> {
-  return await resolveWikiGraphArchiveLocation(uriOrPath);
-}
-
-export async function resolveArchiveCommandRuntimeArguments(
+export function resolveArchiveCommandRuntimeArguments(
   args: CLIArchiveArguments,
-): Promise<CLIArchiveArguments> {
+): CLIArchiveArguments {
   if (args.action === "create" || args.action === "export") {
-    const location = await resolveArchiveRuntimeLocation(args.archivePath);
-    return { ...args, archivePath: location.archivePath };
+    return { ...args, archivePath: getArchivePath(args.archivePath) };
   }
-  if (args.action === "inspect" || args.action === "next") return args;
-  if (!args.archivePath.startsWith("wikg://lib/")) {
-    return args;
-  }
-
-  const location = await resolveArchiveRuntimeLocation(args.archivePath);
-  return {
-    ...args,
-    archivePath: location.locatedUri,
-    ...(args.objectId === args.archivePath
-      ? { objectId: location.locatedUri }
-      : {}),
-  };
+  return args;
 }
 
 export function getArchivePath(uri: string): string {
+  if (!uri.includes("://")) return uri;
   if (parseWikiGraphLibraryUri(uri)?.kind === "scope") {
     return uri;
   }

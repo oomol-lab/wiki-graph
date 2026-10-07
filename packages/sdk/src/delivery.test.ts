@@ -1,4 +1,4 @@
-import { access, mkdir, mkdtemp, readdir, rm } from "fs/promises";
+import { access, link, mkdir, mkdtemp, readdir, rm, stat } from "fs/promises";
 import { tmpdir } from "os";
 import { join } from "path";
 import { afterEach, describe, expect, it } from "vitest";
@@ -6,7 +6,6 @@ import { afterEach, describe, expect, it } from "vitest";
 import {
   addChapter,
   DirectoryDocument,
-  formatLocatedWikiGraphUri,
   replaceChapterFtsIndexArtifact,
   setChapterSource,
   TOC_FILE_VERSION,
@@ -14,6 +13,7 @@ import {
 } from "wiki-graph-core";
 
 import { createWikiGraphSDK } from "./sdk.js";
+import { type WikiGraphJobSnapshot } from "./jobs.js";
 import { NodeDirectory, NodeFile } from "./node-platform.js";
 
 const temporaryDirectories: string[] = [];
@@ -42,7 +42,7 @@ describe("WikiGraphSDK delivery operations", () => {
     const created = await sdk.archives.create({ path: "book.wikg" });
     expect(created.path).toBe(join(root, "book.wikg"));
     await expect(access(created.path)).resolves.toBeUndefined();
-    const archive = await sdk.archives.open("book.wikg");
+    const archive = await sdk.archives.open(standalone("book.wikg"));
     await archive.addChapter({ source: "Keep me.", title: "Existing" });
     await expect(
       sdk.archives.create({ path: "book.wikg" }),
@@ -57,16 +57,16 @@ describe("WikiGraphSDK delivery operations", () => {
       }),
     ).rejects.toThrow();
     expect(
-      await (await sdk.archives.open("book.wikg")).listChapters(),
+      await (await sdk.archives.open(standalone("book.wikg"))).listChapters(),
     ).toHaveLength(1);
     expect(
       (await readdir(root)).filter((name) => name.includes("tmp.wikg")),
     ).toEqual([]);
 
     await sdk.archives.create({ path: "book.wikg", replace: true });
-    expect(await (await sdk.archives.open("book.wikg")).listChapters()).toEqual(
-      [],
-    );
+    expect(
+      await (await sdk.archives.open(standalone("book.wikg"))).listChapters(),
+    ).toEqual([]);
 
     await expect(
       sdk.archives.create({ importPath: "missing.epub", path: "failed.wikg" }),
@@ -123,7 +123,7 @@ describe("WikiGraphSDK delivery operations", () => {
       cwd: root,
       stateDir: join(root, "state"),
     });
-    const archive = await sdk.archives.open("book.wikg");
+    const archive = await sdk.archives.open(standalone("book.wikg"));
 
     const report = await archive.inspect();
     expect(report.archiveUri).toContain("book.wikg");
@@ -165,9 +165,9 @@ describe("WikiGraphSDK delivery operations", () => {
       cwd: root,
       stateDir: join(root, "state"),
     });
-    const rootArchive = await sdk.archives.open("book.wikg");
+    const rootArchive = await sdk.archives.open(standalone("book.wikg"));
     const scopedArchive = await sdk.archives.open(
-      formatLocatedWikiGraphUri(archivePath, indexedChapter.uri),
+      standalone(archivePath, indexedChapter.uri),
     );
 
     const defaultRelated = await scopedArchive.related("wikg://entity/Q1");
@@ -240,7 +240,7 @@ describe("WikiGraphSDK delivery operations", () => {
     await mkdir(stateDir);
     await createEmptyArchive(archivePath, root);
     const sdk = createWikiGraphSDK({ cwd: root, stateDir });
-    const archive = await sdk.archives.open("book.wikg");
+    const archive = await sdk.archives.open(standalone("book.wikg"));
 
     const added = await archive.addChapter({ title: "Opening" });
     expect(
@@ -255,7 +255,7 @@ describe("WikiGraphSDK delivery operations", () => {
     });
     await expect(
       sdk.jobs.planEnqueue({
-        archive: "book.wikg",
+        archive: standalone("book.wikg"),
         chapterId: added.chapterId,
         target: "index-fts",
       }),
@@ -264,21 +264,34 @@ describe("WikiGraphSDK delivery operations", () => {
     const sourced = await archive.setChapterSource(added.path, "Source text.");
     expect(sourced.stage).toBe("sourced");
     const plan = await sdk.jobs.planEnqueue({
-      archive: "book.wikg",
+      archive: standalone("book.wikg"),
       chapterId: added.chapterId,
       target: "index-fts",
     });
     expect(plan.ready).toHaveLength(1);
+    const enqueueTarget = standalone("book.wikg");
     const result = await sdk.jobs.enqueue({
-      archive: "book.wikg",
+      archive: enqueueTarget,
       chapterId: added.chapterId,
       target: "index-fts",
     });
     expect(result.created).toHaveLength(1);
+    (enqueueTarget as { path: string }).path = "changed.wikg";
+    const expectedArchiveTarget = standalone(archivePath);
     expect(result.created[0]?.job.snapshot).toMatchObject({
+      archive: expectedArchiveTarget,
       chapterId: added.chapterId,
       target: "index-fts",
     });
+    const createdJob = result.created[0]!.job;
+    expect((await sdk.jobs.get(createdJob.id)).snapshot.archive).toEqual(
+      expectedArchiveTarget,
+    );
+    expect(
+      (await sdk.jobs.list({ all: true })).find(
+        (job) => job.id === createdJob.id,
+      )?.snapshot.archive,
+    ).toEqual(expectedArchiveTarget);
     await result.created[0]!.job.cancel();
     expect(await sdk.jobs.clean()).toEqual(expect.any(Number));
 
@@ -294,7 +307,7 @@ describe("WikiGraphSDK delivery operations", () => {
       stateDir: join(root, "state"),
     });
     await sdk.archives.create({ path: "book.wikg" });
-    const archive = await sdk.archives.open("book.wikg");
+    const archive = await sdk.archives.open(standalone("book.wikg"));
     for (const title of ["First", "Second", "Third", "Fourth"]) {
       await archive.addChapter({ title });
     }
@@ -333,7 +346,7 @@ describe("WikiGraphSDK delivery operations", () => {
     expect(fourth.result.items).toHaveLength(1);
     expect(fourth.result.nextCursor).toBeNull();
     await expect(
-      sdk.continuations.next({ archive: "other.wikg", cursor }),
+      sdk.continuations.next({ archive: standalone("other.wikg"), cursor }),
     ).rejects.toThrow("belongs to");
     sdk.close();
   });
@@ -350,7 +363,7 @@ describe("WikiGraphSDK delivery operations", () => {
     for (const name of ["one", "two", "three"]) {
       await sdk.archives.create({ path: `${name}.wikg` });
       await (
-        await sdk.archives.open(`${name}.wikg`)
+        await sdk.archives.open(standalone(`${name}.wikg`))
       ).addChapter({
         title: name,
       });
@@ -391,6 +404,156 @@ describe("WikiGraphSDK delivery operations", () => {
     });
     expect(third.result.items).toHaveLength(1);
     expect(third.result.nextCursor).toBeNull();
+    sdk.close();
+  });
+
+  it("keeps managed archive identity logical across handles, jobs, and continuations", async () => {
+    const root = await mkdtemp(join(tmpdir(), "wiki-graph-sdk-identity-"));
+    temporaryDirectories.push(root);
+    await mkdir(join(root, "state"));
+    const sdk = createWikiGraphSDK({
+      cwd: root,
+      stateDir: join(root, "state"),
+    });
+    const library = await sdk.libraries.create("library");
+
+    await expect(
+      sdk.archives.create({ path: join("library", "unscanned.wikg") }),
+    ).rejects.toMatchObject({ code: "WIKI_GRAPH_ARCHIVE_OWNERSHIP_MISMATCH" });
+
+    await sdk.archives.create({ path: "source.wikg" });
+    const member = await sdk.libraries.addArchive({
+      inputPath: "source.wikg",
+      target: library.uri,
+      to: "book.wikg",
+    });
+    const physicalPath = join(root, "library", "book.wikg");
+    await expect(
+      sdk.archives.open(standalone(physicalPath)),
+    ).rejects.toMatchObject({ code: "WIKI_GRAPH_ARCHIVE_OWNERSHIP_MISMATCH" });
+
+    const archive = await sdk.archives.open({
+      kind: "library",
+      uri: member.uri,
+    });
+    expect(archive.target).toEqual({ kind: "library", uri: member.uri });
+    expect(archive.locatedUri).toBe(member.uri);
+    expect(archive.path).toBe(member.uri);
+    expect(JSON.stringify(member)).not.toContain(physicalPath);
+
+    const chapter = await archive.addChapter({ source: "Managed source." });
+    const secondChapter = await archive.addChapter({
+      source: "Second managed source.",
+    });
+
+    const linkedLibrary = await sdk.libraries.create("linked-library");
+    const linkedMemberPath = join(root, "linked-library", "linked.wikg");
+    await link(physicalPath, linkedMemberPath);
+    const linkedScan = await linkedLibrary.scan();
+    expect(linkedScan.archives).toHaveLength(1);
+    expect(linkedScan.archives[0]?.uri).not.toBe(member.uri);
+
+    const aliasPath = join(root, "managed-alias.wikg");
+    await link(physicalPath, aliasPath);
+    const [physicalIdentity, linkedIdentity, aliasIdentity] = await Promise.all(
+      [stat(physicalPath), stat(linkedMemberPath), stat(aliasPath)],
+    );
+    expect([linkedIdentity.dev, linkedIdentity.ino]).toEqual([
+      physicalIdentity.dev,
+      physicalIdentity.ino,
+    ]);
+    expect([aliasIdentity.dev, aliasIdentity.ino]).toEqual([
+      physicalIdentity.dev,
+      physicalIdentity.ino,
+    ]);
+    await expect(
+      sdk.archives.open(standalone(aliasPath)),
+    ).rejects.toMatchObject({ code: "WIKI_GRAPH_ARCHIVE_OWNERSHIP_MISMATCH" });
+    await expect(sdk.archives.open(standalone(aliasPath))).rejects.toThrow(
+      "ambiguous",
+    );
+
+    const job = await sdk.jobs.create({
+      archive: archive.target,
+      chapterId: chapter.chapterId,
+      target: "index-fts",
+    });
+    const expectedTarget = { kind: "library", uri: member.uri } as const;
+    const expectManagedSnapshot = (snapshot: WikiGraphJobSnapshot): void => {
+      expect(snapshot.archive).toEqual(expectedTarget);
+      expect(snapshot.archiveKey).toBe(member.uri);
+      expect(JSON.stringify(snapshot)).not.toContain(physicalPath);
+    };
+    expectManagedSnapshot(job.snapshot);
+    expectManagedSnapshot((await sdk.jobs.get(job.id)).snapshot);
+    const listedJob = (await sdk.jobs.list({ all: true })).find(
+      (candidate) => candidate.id === job.id,
+    );
+    expect(listedJob).toBeDefined();
+    expectManagedSnapshot(listedJob!.snapshot);
+
+    const enqueued = await sdk.jobs.enqueue({
+      archive: archive.target,
+      chapterId: secondChapter.chapterId,
+      target: "index-fts",
+    });
+    expect(enqueued.created).toHaveLength(1);
+    const enqueuedJob = enqueued.created[0]!.job;
+    expectManagedSnapshot(enqueuedJob.snapshot);
+    expectManagedSnapshot((await sdk.jobs.get(enqueuedJob.id)).snapshot);
+    const listedEnqueuedJob = (await sdk.jobs.list({ all: true })).find(
+      (candidate) => candidate.id === enqueuedJob.id,
+    );
+    expect(listedEnqueuedJob).toBeDefined();
+    expectManagedSnapshot(listedEnqueuedJob!.snapshot);
+
+    const first = await archive.list({ limit: 1, types: ["chapter-title"] });
+    if (!("nextCursor" in first) || first.nextCursor === null) {
+      await Promise.all([job.cancel(), enqueuedJob.cancel()]);
+      sdk.close();
+      return;
+    }
+    const cursor = await sdk.continuations.create(
+      {
+        archiveKey: archive.archiveKey,
+        archivePath: archive.path,
+        continuationKind: "collection",
+        format: "json",
+        indexScope: archive.indexScope,
+        order: "doc-asc",
+        types: ["chapter-title"],
+      },
+      first.nextCursor,
+    );
+    if (cursor !== null) {
+      await expect(
+        sdk.continuations.next({
+          archive: { kind: "library", uri: member.uri },
+          cursor,
+        }),
+      ).resolves.toMatchObject({ kind: "collection" });
+    }
+    await Promise.all([job.cancel(), enqueuedJob.cancel()]);
+    sdk.close();
+  }, 15_000);
+
+  it("never falls back from a missing library membership URI to a path", async () => {
+    const root = await mkdtemp(
+      join(tmpdir(), "wiki-graph-sdk-missing-member-"),
+    );
+    temporaryDirectories.push(root);
+    await mkdir(join(root, "state"));
+    const sdk = createWikiGraphSDK({
+      cwd: root,
+      stateDir: join(root, "state"),
+    });
+    await sdk.libraries.create("library");
+    await expect(
+      sdk.archives.open({
+        kind: "library",
+        uri: "wikg://lib/arc/deadbeefcafe",
+      }),
+    ).rejects.toThrow();
     sdk.close();
   });
 });
@@ -508,4 +671,12 @@ async function createMixedIndexArchive(
   }
   await writeWikgArchive(sourceDirectory, new NodeFile(path));
   return indexedChapter;
+}
+
+function standalone(path: string, objectUri?: string) {
+  return {
+    kind: "standalone" as const,
+    path,
+    ...(objectUri === undefined ? {} : { objectUri }),
+  };
 }

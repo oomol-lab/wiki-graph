@@ -5,7 +5,10 @@ import { join } from "path";
 
 import { afterEach, describe, expect, it } from "vitest";
 import { ZipFile } from "yazl";
-import { formatLocatedWikiGraphUri } from "wiki-graph-core";
+import {
+  formatLocatedWikiGraphUri,
+  parseLocatedWikiGraphUri,
+} from "wiki-graph-core";
 
 import { createWikiGraphSDK } from "./sdk.js";
 
@@ -48,7 +51,10 @@ describe("PCEX conversion", () => {
           name: "source.pdf",
         },
       });
-      const archive = await sdk.archives.open("book.wikg");
+      const archive = await sdk.archives.open({
+        kind: "standalone",
+        path: "book.wikg",
+      });
       const tree = await archive.getChapterTree();
       expect(tree.chapters).toHaveLength(1);
       const source = await archive.page(`${tree.chapters[0]!.uri}/source`);
@@ -61,7 +67,16 @@ describe("PCEX conversion", () => {
         join(root, "book.wikg"),
         `wikg://chapter/${path}/source/locators`,
       );
-      const locators = await (await sdk.archives.open(located)).list();
+      const parsed = parseLocatedWikiGraphUri(located);
+      const locators = await (
+        await sdk.archives.open({
+          kind: "standalone",
+          path: parsed.archivePath!,
+          ...(parsed.objectUri === undefined
+            ? {}
+            : { objectUri: parsed.objectUri }),
+        })
+      ).list();
       expect(locators).toMatchObject({
         items: [
           {

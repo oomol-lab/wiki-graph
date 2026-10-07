@@ -25,7 +25,6 @@ import {
   getObjectUri,
   isArchiveRootGet,
   resolveArchiveCommandRuntimeArguments,
-  resolveArchiveRuntimeLocation,
 } from "./uri.js";
 import { createEmptyArchive } from "../../test-helpers.js";
 import {
@@ -87,7 +86,7 @@ describe("archive-command URI runtime resolution", () => {
     ).toBe(false);
   });
 
-  it("resolves library archive object URIs before running archive commands", async () => {
+  it("preserves library archive object URIs before running archive commands", async () => {
     const target = await createTestLibraryTarget();
     const source = join(tempDir, "book.wikg");
     await createEmptyArchive({ path: source, tempDir });
@@ -97,41 +96,34 @@ describe("archive-command URI runtime resolution", () => {
       to: "books/book.wikg",
     });
 
-    await expect(
+    expect(
       resolveArchiveCommandRuntimeArguments({
         action: "get",
         archivePath: `${archive.uri}/entity/Q23`,
         format: "json",
         objectId: `${archive.uri}/entity/Q23`,
       }),
-    ).resolves.toStrictEqual({
+    ).toStrictEqual({
       action: "get",
-      archivePath: `wikg://${getNodeResourcePath(archive.file!)}/entity/Q23`,
+      archivePath: `${archive.uri}/entity/Q23`,
       format: "json",
-      objectId: `wikg://${getNodeResourcePath(archive.file!)}/entity/Q23`,
+      objectId: `${archive.uri}/entity/Q23`,
     });
   });
 
-  it("keeps library archive inspect arguments displayable while runtime resolution can find the archive", async () => {
+  it("keeps library archive inspect arguments displayable", async () => {
     const target = parseWikiGraphLibraryUri("wikg://lib");
     expect(target).toBeDefined();
     const archive = await addTestArchiveToLibrary(target!);
 
-    await expect(
+    expect(
       resolveArchiveCommandRuntimeArguments({
         action: "inspect",
         archivePath: archive.uri,
       }),
-    ).resolves.toStrictEqual({
+    ).toStrictEqual({
       action: "inspect",
       archivePath: archive.uri,
-    });
-
-    await expect(
-      resolveArchiveRuntimeLocation(archive.uri),
-    ).resolves.toMatchObject({
-      archivePath: getNodeResourcePath(archive.file!),
-      locatedUri: `wikg://${getNodeResourcePath(archive.file!)}`,
     });
   });
 
@@ -179,7 +171,7 @@ describe("archive-command URI runtime resolution", () => {
     });
   });
 
-  it("does not stale a library index for filesystem archive URI writes", async () => {
+  it("rejects filesystem access to a managed archive", async () => {
     const target = await createTestLibraryTarget();
     const archive = await addTestArchiveToLibrary(target);
 
@@ -190,16 +182,12 @@ describe("archive-command URI runtime resolution", () => {
       },
     );
 
-    await runArchiveChapterCommand({
-      action: "add",
-      path: `wikg://${getNodeResourcePath(archive.file!)}`,
-    });
-
-    await expect(readWikiGraphLibraryIndexState(target)).resolves.toMatchObject(
-      {
-        status: "current",
-      },
-    );
+    await expect(
+      runArchiveChapterCommand({
+        action: "add",
+        path: `wikg://${getNodeResourcePath(archive.file!)}`,
+      }),
+    ).rejects.toThrow(/library UUID URI/u);
   });
 
   it("does not dirty a library index when an archive write fails", async () => {

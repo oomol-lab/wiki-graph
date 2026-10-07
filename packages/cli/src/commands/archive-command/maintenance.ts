@@ -6,6 +6,7 @@ import type {
   CLIArchiveMetadataArguments,
 } from "../../args/index.js";
 import { writeBinaryToStdout, writeTextToStdout } from "../../support/index.js";
+import { parseCLIArchiveTarget } from "../../support/archive-target.js";
 import { formatCLIJSON } from "../../support/index.js";
 import { getWikiGraphSDK } from "../../runtime/context.js";
 
@@ -17,7 +18,9 @@ export async function runArchiveMetaCommand(
     return;
   }
 
-  const archive = await getWikiGraphSDK().archives.open(args.inputPath);
+  const archive = await getWikiGraphSDK().archives.open(
+    parseCLIArchiveTarget(args.inputPath),
+  );
   await writeArchiveMeta(await archive.readBookMeta(), {
     json: args.json ?? false,
   });
@@ -26,7 +29,9 @@ export async function runArchiveMetaCommand(
 export async function runArchiveCoverCommand(
   args: CLIArchiveCoverArguments,
 ): Promise<void> {
-  const archive = await getWikiGraphSDK().archives.open(args.inputPath);
+  const archive = await getWikiGraphSDK().archives.open(
+    parseCLIArchiveTarget(args.inputPath),
+  );
   if (process.stdout.isTTY === true) {
     throw new Error(
       "Refusing to write binary cover data to an interactive terminal. Redirect stdout or pipe it.",
@@ -46,7 +51,9 @@ async function updateArchiveMeta(
   path: string,
   patch: ArchiveMetaPatch,
 ): Promise<void> {
-  const archive = await getWikiGraphSDK().archives.open(path);
+  const archive = await getWikiGraphSDK().archives.open(
+    parseCLIArchiveTarget(path),
+  );
   const meta = await archive.readBookMeta();
 
   if (meta === undefined) {

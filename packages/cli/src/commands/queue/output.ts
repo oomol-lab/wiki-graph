@@ -1,6 +1,6 @@
 import {
   formatLocatedChapterUri,
-  type BuildJob,
+  type WikiGraphJobSnapshot as BuildJob,
   type ChapterEntry,
   type WikiGraphJobChapterReference,
 } from "wiki-graph-sdk";
@@ -16,7 +16,6 @@ import {
   formatQueueAddEstimateLines,
   type QueueAddEstimate,
 } from "./estimate.js";
-import { getNodeResourcePath } from "../../runtime/node-platform.js";
 import {
   getCLIEnvValue,
   getCLIStateDir,
@@ -405,29 +404,19 @@ function getJobResourcePath(
     | "workspacePath",
 ): string | undefined {
   const record = job as unknown as Record<string, unknown>;
-  const resource = record[resourceKey];
-  if (resource !== undefined) {
-    const managedPath = getManagedJobResourcePath(resource);
-    if (managedPath !== undefined) return managedPath;
-    return getNodeResourcePath(resource as BuildJob[typeof resourceKey]);
+  if (resourceKey === "archive") {
+    return job.archive.kind === "library" ? job.archive.uri : job.archive.path;
   }
   const legacyPath = record[legacyKey];
-  if (typeof legacyPath === "string") return legacyPath;
+  if (typeof legacyPath === "string") {
+    return resolveManagedJobResourcePath(legacyPath) ?? legacyPath;
+  }
   return undefined;
 }
 
-function getManagedJobResourcePath(resource: unknown): string | undefined {
-  if (
-    typeof resource !== "object" ||
-    resource === null ||
-    !("identity" in resource) ||
-    typeof resource.identity !== "string" ||
-    !resource.identity.startsWith("managed:library:")
-  ) {
-    return undefined;
-  }
-
-  const relativePath = resource.identity.slice("managed:library:".length);
+function resolveManagedJobResourcePath(identity: string): string | undefined {
+  if (!identity.startsWith("managed:library:")) return undefined;
+  const relativePath = identity.slice("managed:library:".length);
   const segments = relativePath.split("/");
   if (
     relativePath === "" ||
@@ -439,7 +428,7 @@ function getManagedJobResourcePath(resource: unknown): string | undefined {
         segment.includes("\\"),
     )
   ) {
-    throw new TypeError(`Invalid managed job resource: ${resource.identity}`);
+    throw new TypeError(`Invalid managed job resource: ${identity}`);
   }
   const environmentHome = getCLIEnvValue("HOME")?.trim();
   const stateDirectory =

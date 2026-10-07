@@ -6,12 +6,15 @@ import {
   readTextStreamFromStdin,
   writeTextToStdout,
 } from "../support/index.js";
+import { parseCLIArchiveTarget } from "../support/archive-target.js";
 import { formatCLIJSON } from "../support/index.js";
 
 export async function runObjectMetadataCommand(
   args: CLIObjectMetadataArguments,
 ): Promise<void> {
-  const archive = await getWikiGraphSDK().archives.open(args.archivePath);
+  const archive = await getWikiGraphSDK().archives.open(
+    parseCLIArchiveTarget(args.archivePath),
+  );
 
   switch (args.action) {
     case "get": {

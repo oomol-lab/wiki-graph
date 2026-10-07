@@ -2,12 +2,11 @@ import { readFile } from "fs/promises";
 
 import {
   formatWikiGraphLibraryUri,
-  type File,
   type ParsedWikiGraphLibraryUri,
-  type WikiGraphLibraryArchiveRecord,
+  type WikiGraphLibraryArchiveSnapshot as WikiGraphLibraryArchiveRecord,
   type WikiGraphLibraryIndexState,
-  type WikiGraphLibraryRecord,
-  type WikiGraphLibraryScanResult,
+  type WikiGraphLibrarySnapshot as WikiGraphLibraryRecord,
+  type WikiGraphLibraryScanSnapshot as WikiGraphLibraryScanResult,
 } from "wiki-graph-sdk";
 import type { CLILibraryArguments } from "../args/index.js";
 import { getWikiGraphSDK } from "../runtime/context.js";
@@ -19,7 +18,6 @@ import {
   writeTextToStdout,
 } from "../support/index.js";
 import { createCollectionFindResult } from "./archive-command/run/index.js";
-import { getNodeResourcePath } from "../runtime/node-platform.js";
 import { writeFindHits } from "./archive-output/index.js";
 import {
   ProgressOutputWriter,
@@ -310,9 +308,8 @@ async function writeLibrary(
       formatCLIJSON({
         uri: library.uri,
         id: library.publicId,
-        folderPath: getNodeResourcePath(library.folder),
+        folderPath: library.folderPath,
         isDefault: library.isDefault,
-        stagingPath: getNodeResourcePath(library.staging),
         createdAt: library.createdAt,
         updatedAt: library.updatedAt,
       }),
@@ -332,7 +329,7 @@ async function writeLibraries(
         items: libraries.map((library) => ({
           uri: library.uri,
           id: library.publicId,
-          path: getNodeResourcePath(library.folder),
+          path: library.folderPath,
           isDefault: library.isDefault,
         })),
       }),
@@ -345,7 +342,7 @@ async function writeLibraries(
         [
           library.uri,
           library.publicId,
-          getNodeResourcePath(library.folder),
+          library.folderPath,
           library.isDefault ? "default" : "",
         ].join("\t"),
       )
@@ -361,12 +358,12 @@ async function writeLibraryPath(
     await writeTextToStdout(
       formatCLIJSON({
         uri: `${library.uri}/path`,
-        path: getNodeResourcePath(library.folder),
+        path: library.folderPath,
       }),
     );
     return;
   }
-  await writeTextToStdout(`${getNodeResourcePath(library.folder)}\n`);
+  await writeTextToStdout(`${library.folderPath}\n`);
 }
 
 async function writeLibraryArchivePath(
@@ -818,10 +815,7 @@ function formatMetadataTextValue(value: unknown): string {
 }
 
 function formatArchiveHostPath(archive: {
-  readonly file?: File;
   readonly relativePath: string;
 }): string {
-  return archive.file === undefined
-    ? archive.relativePath
-    : getNodeResourcePath(archive.file);
+  return archive.relativePath;
 }
