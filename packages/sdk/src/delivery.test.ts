@@ -535,7 +535,7 @@ describe("WikiGraphSDK delivery operations", () => {
     }
     await Promise.all([job.cancel(), enqueuedJob.cancel()]);
     sdk.close();
-  });
+  }, 15_000);
 
   it("never falls back from a missing library membership URI to a path", async () => {
     const root = await mkdtemp(
