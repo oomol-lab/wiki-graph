@@ -1,4 +1,4 @@
-import { access, link, mkdir, mkdtemp, readdir, rm } from "fs/promises";
+import { access, link, mkdir, mkdtemp, readdir, rm, stat } from "fs/promises";
 import { tmpdir } from "os";
 import { join } from "path";
 import { afterEach, describe, expect, it } from "vitest";
@@ -432,22 +432,6 @@ describe("WikiGraphSDK delivery operations", () => {
       sdk.archives.open(standalone(physicalPath)),
     ).rejects.toMatchObject({ code: "WIKI_GRAPH_ARCHIVE_OWNERSHIP_MISMATCH" });
 
-    const linkedLibrary = await sdk.libraries.create("linked-library");
-    const linkedMemberPath = join(root, "linked-library", "linked.wikg");
-    await link(physicalPath, linkedMemberPath);
-    const linkedScan = await linkedLibrary.scan();
-    expect(linkedScan.archives).toHaveLength(1);
-    expect(linkedScan.archives[0]?.uri).not.toBe(member.uri);
-
-    const aliasPath = join(root, "managed-alias.wikg");
-    await link(physicalPath, aliasPath);
-    await expect(
-      sdk.archives.open(standalone(aliasPath)),
-    ).rejects.toMatchObject({ code: "WIKI_GRAPH_ARCHIVE_OWNERSHIP_MISMATCH" });
-    await expect(sdk.archives.open(standalone(aliasPath))).rejects.toThrow(
-      "ambiguous",
-    );
-
     const archive = await sdk.archives.open({
       kind: "library",
       uri: member.uri,
@@ -461,6 +445,34 @@ describe("WikiGraphSDK delivery operations", () => {
     const secondChapter = await archive.addChapter({
       source: "Second managed source.",
     });
+
+    const linkedLibrary = await sdk.libraries.create("linked-library");
+    const linkedMemberPath = join(root, "linked-library", "linked.wikg");
+    await link(physicalPath, linkedMemberPath);
+    const linkedScan = await linkedLibrary.scan();
+    expect(linkedScan.archives).toHaveLength(1);
+    expect(linkedScan.archives[0]?.uri).not.toBe(member.uri);
+
+    const aliasPath = join(root, "managed-alias.wikg");
+    await link(physicalPath, aliasPath);
+    const [physicalIdentity, linkedIdentity, aliasIdentity] = await Promise.all(
+      [stat(physicalPath), stat(linkedMemberPath), stat(aliasPath)],
+    );
+    expect([linkedIdentity.dev, linkedIdentity.ino]).toEqual([
+      physicalIdentity.dev,
+      physicalIdentity.ino,
+    ]);
+    expect([aliasIdentity.dev, aliasIdentity.ino]).toEqual([
+      physicalIdentity.dev,
+      physicalIdentity.ino,
+    ]);
+    await expect(
+      sdk.archives.open(standalone(aliasPath)),
+    ).rejects.toMatchObject({ code: "WIKI_GRAPH_ARCHIVE_OWNERSHIP_MISMATCH" });
+    await expect(sdk.archives.open(standalone(aliasPath))).rejects.toThrow(
+      "ambiguous",
+    );
+
     const job = await sdk.jobs.create({
       archive: archive.target,
       chapterId: chapter.chapterId,
