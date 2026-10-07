@@ -160,9 +160,10 @@ describe("WikiGraphSDK", () => {
         source: "Second",
       }),
     ]);
+    const mutableTarget = standalone("book.wikg");
     const [firstJob, secondJob] = await Promise.all([
       first.jobs.create({
-        archive: standalone("book.wikg"),
+        archive: mutableTarget,
         chapterId: firstChapter.chapterId,
         target: "index-fts",
       }),
@@ -175,10 +176,22 @@ describe("WikiGraphSDK", () => {
 
     await expect(access(join(firstCwd, "library"))).resolves.toBeUndefined();
     await expect(access(join(secondCwd, "library"))).resolves.toBeUndefined();
-    expect(firstJob.snapshot.archive).toEqual(standalone("book.wikg"));
-    expect(secondJob.snapshot.archive).toEqual(standalone("book.wikg"));
+    (mutableTarget as { path: string }).path = "changed.wikg";
+    const firstArchiveTarget = standalone(join(firstCwd, "book.wikg"));
+    const secondArchiveTarget = standalone(join(secondCwd, "book.wikg"));
+    expect(firstJob.snapshot.archive).toEqual(firstArchiveTarget);
+    expect(secondJob.snapshot.archive).toEqual(secondArchiveTarget);
+    expect((await first.jobs.get(firstJob.id)).snapshot.archive).toEqual(
+      firstArchiveTarget,
+    );
     const firstJobs = await first.jobs.list({ all: true });
     const secondJobs = await second.jobs.list({ all: true });
+    expect(
+      firstJobs.find((job) => job.id === firstJob.id)?.snapshot.archive,
+    ).toEqual(firstArchiveTarget);
+    expect(
+      secondJobs.find((job) => job.id === secondJob.id)?.snapshot.archive,
+    ).toEqual(secondArchiveTarget);
     expect(firstJobs.map((job) => job.id)).toContain(firstJob.id);
     expect(secondJobs.map((job) => job.id)).toContain(secondJob.id);
     expect(
@@ -224,7 +237,7 @@ describe("WikiGraphSDK", () => {
     });
     first.close();
     second.close();
-  });
+  }, 15_000);
 });
 
 async function readCoreLibraryIdentity(sdk: WikiGraphSDK): Promise<string> {

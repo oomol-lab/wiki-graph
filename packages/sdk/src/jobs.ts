@@ -192,14 +192,17 @@ export class WikiGraphJobManager {
   public async create(
     options: WikiGraphJobCreateOptions,
   ): Promise<WikiGraphJob> {
-    const job = await this.#runtime.run(async () => {
+    const resolved = await this.#runtime.run(async () => {
       const location = await resolveWikiGraphArchiveLocation(options.archive);
-      return await this.#backend.add({
-        ...options,
-        archive: location.archiveFile,
-      });
+      return {
+        job: await this.#backend.add({
+          ...options,
+          archive: location.archiveFile,
+        }),
+        target: location.target,
+      };
     });
-    return await this.#createHandle(job, options.archive);
+    return await this.#createHandle(resolved.job, resolved.target);
   }
 
   public async clean(): Promise<number> {
@@ -371,7 +374,7 @@ export class WikiGraphJobManager {
                       : { prompt: options.prompt }),
                     target,
                   }),
-                  options.archive,
+                  location.target,
                 ),
               });
             } catch (error) {
@@ -453,17 +456,17 @@ export class WikiGraphJobManager {
     target?: WikiGraphArchiveTarget,
   ): Promise<WikiGraphJob> {
     const legacy = snapshot as BuildJob & { readonly archivePath?: string };
+    const resolvedTarget =
+      target ??
+      (snapshot.archive === undefined
+        ? archiveTargetFromLogicalLocator(legacy.archivePath ?? "unknown.wikg")
+        : await resolveWikiGraphArchiveTarget(snapshot.archive));
     return new WikiGraphJob(
       this,
       this.#runtime,
       this.#backend,
       snapshot,
-      target ??
-        (snapshot.archive === undefined
-          ? archiveTargetFromLogicalLocator(
-              legacy.archivePath ?? "unknown.wikg",
-            )
-          : await resolveWikiGraphArchiveTarget(snapshot.archive)),
+      cloneWikiGraphArchiveTarget(resolvedTarget),
     );
   }
 }
@@ -643,7 +646,7 @@ function toPublicJobSnapshot(
     readonly workspacePath?: string;
   };
   return {
-    archive,
+    archive: cloneWikiGraphArchiveTarget(archive),
     archiveKey: archive.kind === "library" ? archive.uri : job.archiveKey,
     ...(getJobResourcePath(job.cache, legacy.cachePath) === undefined
       ? {}
@@ -682,6 +685,20 @@ function toPublicJobSnapshot(
           )!,
         }),
   };
+}
+
+function cloneWikiGraphArchiveTarget(
+  target: WikiGraphArchiveTarget,
+): WikiGraphArchiveTarget {
+  return target.kind === "library"
+    ? Object.freeze({ kind: "library", uri: target.uri })
+    : Object.freeze({
+        kind: "standalone",
+        path: target.path,
+        ...(target.objectUri === undefined
+          ? {}
+          : { objectUri: target.objectUri }),
+      });
 }
 
 function getJobResourcePath(

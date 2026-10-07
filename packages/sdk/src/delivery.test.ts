@@ -268,16 +268,29 @@ describe("WikiGraphSDK delivery operations", () => {
       target: "index-fts",
     });
     expect(plan.ready).toHaveLength(1);
+    const enqueueTarget = standalone("book.wikg");
     const result = await sdk.jobs.enqueue({
-      archive: standalone("book.wikg"),
+      archive: enqueueTarget,
       chapterId: added.chapterId,
       target: "index-fts",
     });
     expect(result.created).toHaveLength(1);
+    (enqueueTarget as { path: string }).path = "changed.wikg";
+    const expectedArchiveTarget = standalone(archivePath);
     expect(result.created[0]?.job.snapshot).toMatchObject({
+      archive: expectedArchiveTarget,
       chapterId: added.chapterId,
       target: "index-fts",
     });
+    const createdJob = result.created[0]!.job;
+    expect((await sdk.jobs.get(createdJob.id)).snapshot.archive).toEqual(
+      expectedArchiveTarget,
+    );
+    expect(
+      (await sdk.jobs.list({ all: true })).find(
+        (job) => job.id === createdJob.id,
+      )?.snapshot.archive,
+    ).toEqual(expectedArchiveTarget);
     await result.created[0]!.job.cancel();
     expect(await sdk.jobs.clean()).toEqual(expect.any(Number));
 
