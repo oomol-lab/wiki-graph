@@ -161,30 +161,41 @@ export async function rebuildWikiGraphLibraryIndex(
 ): Promise<WikiGraphLibraryIndexState> {
   const library = await resolveWikiGraphLibrary(target);
 
-  return await withWikiGraphLibraryLock(library.id, "write", async () => {
-    const archives = await listWikiGraphLibraryArchives(target);
-    const sources = archives.map(formatLibraryIndexSource);
-    const present = archives.filter(
-      (archive) => archive.exists && archive.status === "present",
-    );
-    const document = new LibraryIndexDocument(library);
-    const sourceFingerprint = createLibraryIndexSourceFingerprint(sources);
-    const indexFingerprint =
-      createLibraryIndexSearchFingerprint(sourceFingerprint);
+  return await withWikiGraphLibraryLock(
+    library.id,
+    "write",
+    async () =>
+      await rebuildWikiGraphLibraryIndexWithinLock(target, library, progress),
+  );
+}
 
-    await replaceLibrarySearchIndex(
-      document,
-      present,
-      indexFingerprint,
-      progress,
-    );
-    await document.writeSearchIndexDatabase(async (database) => {
-      await setStateValue(database, "sourceFingerprint", sourceFingerprint);
-      await setStateValue(database, "libraryFingerprint", indexFingerprint);
-    });
+export async function rebuildWikiGraphLibraryIndexWithinLock(
+  target: ParsedWikiGraphLibraryUri,
+  library: WikiGraphLibraryRecord,
+  progress?: SearchIndexProgressReporter,
+): Promise<WikiGraphLibraryIndexState> {
+  const archives = await listWikiGraphLibraryArchives(target);
+  const sources = archives.map(formatLibraryIndexSource);
+  const present = archives.filter(
+    (archive) => archive.exists && archive.status === "present",
+  );
+  const document = new LibraryIndexDocument(library);
+  const sourceFingerprint = createLibraryIndexSourceFingerprint(sources);
+  const indexFingerprint =
+    createLibraryIndexSearchFingerprint(sourceFingerprint);
 
-    return await readWikiGraphLibraryIndexState(target);
+  await replaceLibrarySearchIndex(
+    document,
+    present,
+    indexFingerprint,
+    progress,
+  );
+  await document.writeSearchIndexDatabase(async (database) => {
+    await setStateValue(database, "sourceFingerprint", sourceFingerprint);
+    await setStateValue(database, "libraryFingerprint", indexFingerprint);
   });
+
+  return await readWikiGraphLibraryIndexState(target);
 }
 
 export async function cleanWikiGraphLibraryIndex(

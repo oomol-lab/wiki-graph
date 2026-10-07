@@ -11,7 +11,6 @@ import {
   assertNoActiveBuildJobs,
   deleteArchiveSearchSessions,
   DirectoryDocument,
-  finalizeWikiGraphLibraryArchiveWrite,
   findArchiveObjects,
   formatLocatedWikiGraphUri,
   isArchiveSearchIndexCurrent,
@@ -27,9 +26,7 @@ import {
   parseLocatedWikiGraphUri,
   readArchivePage,
   readSearchIndexCapabilityStatus,
-  readWikiGraphLibraryIndexState,
   rebuildArchiveSearchIndex,
-  rebuildWikiGraphLibraryIndex,
   removeChapter,
   resetChapter,
   resolveChapterPathReadonly,
@@ -83,6 +80,7 @@ import {
   type WikiGraphArchiveLocation,
   type WikiGraphArchiveTarget,
 } from "./target.js";
+import { writeWikiGraphArchiveLocation } from "./write.js";
 
 export interface WikiGraphOperationOptions {
   readonly signal?: AbortSignal;
@@ -924,19 +922,19 @@ export class WikiGraphArchiveHandle {
     options: WikiGraphArchiveWriteOptions = {},
   ): Promise<T> {
     return await this.#runtime.run(async () => {
-      const result = await new WikiGraphArchiveFile(
-        this.#location.archiveFile,
-      ).write(operation, {
+      return await writeWikiGraphArchiveLocation(this.#location, operation, {
+        ...(options.onIndexSyncError === undefined
+          ? {}
+          : { onIndexSyncError: options.onIndexSyncError }),
+        ...(options.refreshLibraryIndex === undefined
+          ? {}
+          : { refreshLibraryIndex: options.refreshLibraryIndex }),
         ...(options.searchIndexWritebackPolicy === undefined
           ? {}
           : {
               searchIndexWritebackPolicy: options.searchIndexWritebackPolicy,
             }),
       });
-      if (options.refreshLibraryIndex !== false) {
-        await this.#refreshLibraryIndex(options.onIndexSyncError);
-      }
-      return result;
     }, options.signal);
   }
 
@@ -966,27 +964,6 @@ export class WikiGraphArchiveHandle {
       );
     }
     return queryable;
-  }
-
-  async #refreshLibraryIndex(
-    onError: ((error: unknown) => void) | undefined,
-  ): Promise<void> {
-    if (this.#location.libraryDirtyTarget === undefined) return;
-    if (this.#location.libraryArchiveTarget !== undefined) {
-      await finalizeWikiGraphLibraryArchiveWrite({
-        target: this.#location.libraryArchiveTarget,
-      });
-    }
-    try {
-      const state = await readWikiGraphLibraryIndexState(
-        this.#location.libraryDirtyTarget,
-      );
-      if (state.status !== "missing") {
-        await rebuildWikiGraphLibraryIndex(this.#location.libraryDirtyTarget);
-      }
-    } catch (error) {
-      onError?.(error);
-    }
   }
 }
 

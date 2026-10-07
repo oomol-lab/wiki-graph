@@ -36,7 +36,6 @@ export interface WikiGraphArchiveLocation {
   readonly archivePath: string;
   readonly indexScope: QueryIndexScope;
   readonly libraryArchiveTarget?: ParsedWikiGraphLibraryUri;
-  readonly libraryDirtyTarget?: ParsedWikiGraphLibraryUri;
   readonly locatedUri: string;
   readonly publicArchiveUri?: string;
   readonly target: WikiGraphArchiveTarget;
@@ -178,11 +177,6 @@ async function resolveLibraryLocation(
       kind: "archive-index",
     },
     libraryArchiveTarget: parsed,
-    libraryDirtyTarget: {
-      isDefault: parsed.isDefault,
-      kind: "scope",
-      ...(parsed.publicId === undefined ? {} : { publicId: parsed.publicId }),
-    },
     locatedUri: target.uri,
     publicArchiveUri: archiveUri,
     target: normalized,
