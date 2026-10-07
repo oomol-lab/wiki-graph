@@ -1,4 +1,4 @@
-import { mkdtemp, rm } from "fs/promises";
+import { mkdtemp, readFile, rm } from "fs/promises";
 import { tmpdir } from "os";
 import { join } from "path";
 import { describe, expect, it, vi } from "vitest";
@@ -6,12 +6,17 @@ import { describe, expect, it, vi } from "vitest";
 import {
   addWikiGraphLibraryArchive,
   createWikiGraphLibrary,
+  ensureDefaultWikiGraphLibrary,
   parseWikiGraphLibraryUri,
 } from "../../../core/src/index.js";
 import { withWikiGraphStateDirectoryPathForTesting } from "../../../../test/helpers/wiki-graph-storage.js";
 import { runLibraryCommand } from "./library.js";
 import { createEmptyArchive } from "./test-helpers.js";
-import { NodeDirectory, NodeFile } from "../runtime/node-platform.js";
+import {
+  getNodeResourcePath,
+  NodeDirectory,
+  NodeFile,
+} from "../runtime/node-platform.js";
 
 describe("library command", () => {
   it("scan prunes deleted members while registry listing remains library-only", async () => {
@@ -123,6 +128,46 @@ describe("library command", () => {
       });
 
       expect(textOutput).toBe(`└─ nested\n   └─ book.wikg (${archive.uri})\n`);
+    });
+  });
+
+  it("replaces a managed archive through the public command", async () => {
+    await withLibraryCommandTestState(async (tempDir) => {
+      const target = parseWikiGraphLibraryUri("wikg://lib");
+      expect(target).toBeDefined();
+      const source = join(tempDir, "source.wikg");
+      const replacement = join(tempDir, "replacement.wikg");
+      await createEmptyArchive({ path: source, tempDir });
+      await createEmptyArchive({ path: replacement, tempDir });
+      const library = await ensureDefaultWikiGraphLibrary();
+      const archive = await addWikiGraphLibraryArchive({
+        inputFile: new NodeFile(source),
+        target: target!,
+        to: "book.wikg",
+      });
+      const archiveTarget = parseWikiGraphLibraryUri(archive.uri);
+      expect(archiveTarget?.kind).toBe("archive");
+      const managedPath = join(
+        getNodeResourcePath(library.folder),
+        "book.wikg",
+      );
+      const before = await readFile(managedPath);
+
+      const output = await captureStdout(async () => {
+        await runLibraryCommand({
+          action: "replace",
+          inputPath: replacement,
+          json: true,
+          target: archiveTarget!,
+        });
+      });
+
+      expect(JSON.parse(output)).toMatchObject({
+        id: archive.publicId,
+        relativePath: archive.relativePath,
+        uri: archive.uri,
+      });
+      expect(await readFile(managedPath)).not.toEqual(before);
     });
   });
 });

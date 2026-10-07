@@ -121,6 +121,7 @@ export type CLILibraryAction =
   | "list"
   | "put"
   | "rebind"
+  | "replace"
   | "remove"
   | "scan"
   | "set"

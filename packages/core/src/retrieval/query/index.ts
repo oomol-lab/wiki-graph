@@ -62,6 +62,7 @@ export type {
 } from "./view.js";
 export {
   createContinuationCursor,
+  deleteArchiveContinuationCursors,
   readContinuationCursor,
 } from "./continuation-cursor/index.js";
 export type {

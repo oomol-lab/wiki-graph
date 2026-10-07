@@ -54,6 +54,58 @@ describe("packed CLI library workflow", () => {
     expect(members.items.map((item) => item.uri)).toContain(added.uri);
   });
 
+  it("atomically replaces a managed archive while keeping its URI", async () => {
+    const sandbox = await createCLISandbox("library-replace");
+    const archiveFolder = dirname(sandbox.archivePath);
+    const originalPath = join(archiveFolder, "original.wikg");
+    const replacementPath = join(archiveFolder, "replacement.wikg");
+    await createLibraryArchive(sandbox, archiveFolder, "original.wikg", {
+      source: "The original library archive.",
+      title: "Original chapter",
+    });
+    await createLibraryArchive(sandbox, archiveFolder, "replacement.wikg", {
+      source: "The replacement library archive.",
+      title: "Replacement chapter",
+    });
+    const added = await sandbox.runJSON<{
+      readonly id: string;
+      readonly lastSeenMutationToken: string;
+      readonly relativePath: string;
+      readonly uri: string;
+    }>([
+      "wikg://lib/arc",
+      "add",
+      "--input",
+      originalPath,
+      "--to",
+      "managed.wikg",
+      "--json",
+    ]);
+
+    const replaced = await sandbox.runJSON<{
+      readonly id: string;
+      readonly lastSeenMutationToken: string;
+      readonly relativePath: string;
+      readonly uri: string;
+    }>([added.uri, "replace", "--input", replacementPath, "--json"]);
+    expect(replaced).toMatchObject({
+      id: added.id,
+      relativePath: added.relativePath,
+      uri: added.uri,
+    });
+    expect(replaced.lastSeenMutationToken).not.toBe(
+      added.lastSeenMutationToken,
+    );
+
+    const chapters = await sandbox.runJSON<Record<string, unknown>>([
+      `${added.uri}/chapter`,
+      "--depth",
+      "0",
+      "--json",
+    ]);
+    expect(JSON.stringify(chapters)).toContain("Replacement chapter");
+  });
+
   it("binds two archives, rebuilds the aggregate index, and queries both", async () => {
     const sandbox = await createCLISandbox("library-query");
     const libraryPath = join(dirname(sandbox.archivePath), "library");

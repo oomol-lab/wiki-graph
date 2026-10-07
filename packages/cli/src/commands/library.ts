@@ -192,6 +192,20 @@ export async function runLibraryCommand(
       );
       return;
     }
+    case "replace": {
+      if (args.inputPath === undefined) {
+        throw new Error("Missing --input <path> for library archive replace.");
+      }
+      await writeLibraryArchive(
+        await libraries.replaceArchive({
+          inputPath: args.inputPath,
+          target: args.target,
+        }),
+        args.json ?? false,
+        "Replaced library archive",
+      );
+      return;
+    }
     case "get": {
       if (args.target.kind === "path") {
         await writeLibraryPath(

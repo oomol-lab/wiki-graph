@@ -31,6 +31,8 @@ export {
 export {
   assertNoActiveBuildJobConflicts,
   assertNoActiveBuildJobs,
+  withArchiveBuildJobCreationLock,
+  withArchiveBuildJobReplacementLock,
 } from "./conflicts.js";
 export { runBuildJobWorker } from "./worker.js";
 export {

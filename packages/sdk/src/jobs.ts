@@ -12,6 +12,7 @@ import {
   resolveBuildJobId,
   resumeBuildJob,
   updateBuildJobTarget,
+  withArchiveBuildJobCreationLock,
   resolveChapterPathReadonly,
   WikiGraphArchiveFile,
   type AddBuildJobOptions,
@@ -288,70 +289,84 @@ export class WikiGraphJobManager {
   ): Promise<WikiGraphJobEnqueueResult> {
     return await this.#runtime.run(async () => {
       const location = await resolveWikiGraphArchiveLocation(options.archive);
-      const target = options.target ?? "reading-summary";
-      await validateQueueTargetConfig(target, options.llmJSON);
-      const selectedExplicitly =
-        options.chapterId !== undefined ||
-        options.chapterIds !== undefined ||
-        options.chapterPath !== undefined ||
-        options.depth !== undefined;
-      const candidates = await new WikiGraphArchiveFile(
+      return await withArchiveBuildJobCreationLock(
         location.archiveFile,
-      ).readDocument(async (document) => {
-        const chapters = await listChapters(document);
-        const selected = await selectQueueChapters(document, chapters, options);
-        const checked = await Promise.all(
-          selected.map(async (chapter) => ({
-            chapter,
-            reason: await readQueueReadinessReason(document, chapter, target),
-          })),
-        );
-        return checked;
-      });
-      const created: Array<{ chapter: ChapterEntry; job: WikiGraphJob }> = [];
-      const skipped: Array<{ chapter: ChapterEntry; reason: string }> = [];
-      for (const candidate of candidates) {
-        if (candidate.reason !== undefined) {
-          if (selectedExplicitly && candidates.length === 1) {
-            throw new Error(
-              formatQueueReadinessError(
-                candidate.chapter,
-                target,
-                candidate.reason,
-              ),
+        async () => {
+          const target = options.target ?? "reading-summary";
+          await validateQueueTargetConfig(target, options.llmJSON);
+          const selectedExplicitly =
+            options.chapterId !== undefined ||
+            options.chapterIds !== undefined ||
+            options.chapterPath !== undefined ||
+            options.depth !== undefined;
+          const candidates = await new WikiGraphArchiveFile(
+            location.archiveFile,
+          ).readDocument(async (document) => {
+            const chapters = await listChapters(document);
+            const selected = await selectQueueChapters(
+              document,
+              chapters,
+              options,
             );
+            const checked = await Promise.all(
+              selected.map(async (chapter) => ({
+                chapter,
+                reason: await readQueueReadinessReason(
+                  document,
+                  chapter,
+                  target,
+                ),
+              })),
+            );
+            return checked;
+          });
+          const created: Array<{ chapter: ChapterEntry; job: WikiGraphJob }> =
+            [];
+          const skipped: Array<{ chapter: ChapterEntry; reason: string }> = [];
+          for (const candidate of candidates) {
+            if (candidate.reason !== undefined) {
+              if (selectedExplicitly && candidates.length === 1) {
+                throw new Error(
+                  formatQueueReadinessError(
+                    candidate.chapter,
+                    target,
+                    candidate.reason,
+                  ),
+                );
+              }
+              skipped.push({
+                chapter: candidate.chapter,
+                reason: candidate.reason,
+              });
+              continue;
+            }
+            try {
+              created.push({
+                chapter: candidate.chapter,
+                job: await this.create({
+                  archive: location.archiveFile,
+                  boost: options.boost ?? false,
+                  chapterId: candidate.chapter.chapterId,
+                  ...(options.llmJSON === undefined
+                    ? {}
+                    : { llmJSON: options.llmJSON }),
+                  ...(options.prompt === undefined
+                    ? {}
+                    : { prompt: options.prompt }),
+                  target,
+                }),
+              });
+            } catch (error) {
+              if (selectedExplicitly && candidates.length === 1) throw error;
+              skipped.push({
+                chapter: candidate.chapter,
+                reason: error instanceof Error ? error.message : String(error),
+              });
+            }
           }
-          skipped.push({
-            chapter: candidate.chapter,
-            reason: candidate.reason,
-          });
-          continue;
-        }
-        try {
-          created.push({
-            chapter: candidate.chapter,
-            job: await this.create({
-              archive: location.archiveFile,
-              boost: options.boost ?? false,
-              chapterId: candidate.chapter.chapterId,
-              ...(options.llmJSON === undefined
-                ? {}
-                : { llmJSON: options.llmJSON }),
-              ...(options.prompt === undefined
-                ? {}
-                : { prompt: options.prompt }),
-              target,
-            }),
-          });
-        } catch (error) {
-          if (selectedExplicitly && candidates.length === 1) throw error;
-          skipped.push({
-            chapter: candidate.chapter,
-            reason: error instanceof Error ? error.message : String(error),
-          });
-        }
-      }
-      return { created, skipped };
+          return { created, skipped };
+        },
+      );
     });
   }
 

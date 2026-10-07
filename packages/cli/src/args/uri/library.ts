@@ -31,7 +31,7 @@ import { parseArchiveArguments } from "../archive.js";
 import { parseChapterTarget } from "./chapter/target.js";
 import { isTripleScopePath } from "./triple-pattern.js";
 
-const LIBRARY_ARCHIVE_ACTIONS = new Set(["get", "remove"]);
+const LIBRARY_ARCHIVE_ACTIONS = new Set(["get", "remove", "replace"]);
 const LIBRARY_ARCHIVE_COLLECTION_ACTIONS = new Set(["add", "get", "scan"]);
 const LIBRARY_ARCHIVE_PATH_ACTIONS = new Set(["get", "set"]);
 const LIBRARY_ARCHIVE_TREE_ACTIONS = new Set(["archive-tree"]);
@@ -938,10 +938,24 @@ function parseLibraryArchiveArguments(
     allowConfirm: action === "remove",
   });
   rejectArchiveFlag(action, "--path", values.path, helpRoute);
-  rejectArchiveFlag(action, "--input", values.input, helpRoute);
   rejectArchiveFlag(action, "--json-input", values["json-input"], helpRoute);
   rejectArchiveBooleanFlag(action, "--jsonl", values.jsonl, helpRoute);
   rejectExtraPositionals(action, tail, 0, helpRoute);
+
+  if (action === "replace") {
+    if (values.input === undefined) {
+      throw new Error(withHelpRoute("Missing --input <path>.", helpRoute));
+    }
+    rejectArchiveFlag(action, "--to", values.to, helpRoute);
+    rejectArchiveBooleanFlag(action, "--confirm", values.confirm, helpRoute);
+    return {
+      args: { action, inputPath: values.input, json: values.json, target },
+      help: false,
+      kind: "library",
+    };
+  }
+
+  rejectArchiveFlag(action, "--input", values.input, helpRoute);
 
   if (action === "get") {
     rejectArchiveFlag(action, "--to", values.to, helpRoute);
@@ -1059,6 +1073,7 @@ function parseLibraryScopeArguments(
     case "add":
     case "create":
     case "rebind":
+    case "replace":
     case "scan":
       throw new Error(
         "Internal error: unsupported action routed to library scope.",
@@ -1134,6 +1149,7 @@ function parseLibraryMetadataArguments(
     case "create":
     case "list":
     case "remove":
+    case "replace":
     case "add":
     case "rebind":
     case "clean-index":
@@ -1203,6 +1219,7 @@ function isLibraryAction(action: string): action is CLILibraryAction {
     action === "list" ||
     action === "put" ||
     action === "rebind" ||
+    action === "replace" ||
     action === "remove" ||
     action === "scan" ||
     action === "set" ||

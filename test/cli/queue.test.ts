@@ -506,6 +506,10 @@ vi.mock("../../packages/core/src/api/index.js", () => ({
     },
   ),
   updateBuildJobTarget: vi.fn(),
+  withArchiveBuildJobCreationLock: vi.fn(
+    async (_archive: unknown, operation: () => Promise<unknown>) =>
+      await operation(),
+  ),
 }));
 
 vi.mock("../../packages/cli/src/support/index.js", async (importOriginal) => {

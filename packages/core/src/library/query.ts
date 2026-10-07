@@ -58,6 +58,7 @@ import {
   listWikiGraphLibrarySearchIndex,
   queryWikiGraphLibrarySearchIndex,
 } from "./search-index.js";
+import { withWikiGraphLibraryLock } from "./lock.js";
 
 const DEFAULT_LIBRARY_PAGE_LIMIT = 20;
 const LIBRARY_QUERY_INDEX_LIMIT_MULTIPLIER = 20;
@@ -67,6 +68,18 @@ export async function findWikiGraphLibraryObjects(
   target: ParsedWikiGraphLibraryUri,
   query: string,
   options: ArchiveFindOptions = {},
+): Promise<ArchiveFindResult> {
+  return await withLibraryQueryLock(
+    target,
+    async () =>
+      await findWikiGraphLibraryObjectsUnlocked(target, query, options),
+  );
+}
+
+async function findWikiGraphLibraryObjectsUnlocked(
+  target: ParsedWikiGraphLibraryUri,
+  query: string,
+  options: ArchiveFindOptions,
 ): Promise<ArchiveFindResult> {
   if (shouldUseLibraryBucketedSearch(options)) {
     return await findWikiGraphLibraryObjectsBucketed(target, query, options);
@@ -120,6 +133,18 @@ export async function findWikiGraphLibraryArchiveMembers(
   target: ParsedWikiGraphLibraryUri,
   query: string,
   options: ArchiveFindOptions = {},
+): Promise<ArchiveFindResult> {
+  return await withLibraryQueryLock(
+    target,
+    async () =>
+      await findWikiGraphLibraryArchiveMembersUnlocked(target, query, options),
+  );
+}
+
+async function findWikiGraphLibraryArchiveMembersUnlocked(
+  target: ParsedWikiGraphLibraryUri,
+  query: string,
+  options: ArchiveFindOptions,
 ): Promise<ArchiveFindResult> {
   const terms = createLibraryArchiveMemberSearchTerms(query);
   const archives = await listWikiGraphLibraryArchives(target);
@@ -185,6 +210,16 @@ export async function listWikiGraphLibraryObjects(
   target: ParsedWikiGraphLibraryUri,
   options: ArchiveCollectionOptions = {},
 ): Promise<ArchiveCollectionResult> {
+  return await withLibraryQueryLock(
+    target,
+    async () => await listWikiGraphLibraryObjectsUnlocked(target, options),
+  );
+}
+
+async function listWikiGraphLibraryObjectsUnlocked(
+  target: ParsedWikiGraphLibraryUri,
+  options: ArchiveCollectionOptions,
+): Promise<ArchiveCollectionResult> {
   const hits: ArchiveFindHit[] = [];
   const result = await listWikiGraphLibrarySearchIndex(target, {
     includeText: shouldListTextStreams(options),
@@ -219,6 +254,17 @@ export async function listWikiGraphLibraryArchiveMembers(
   target: ParsedWikiGraphLibraryUri,
   options: ArchiveCollectionOptions = {},
 ): Promise<ArchiveCollectionResult> {
+  return await withLibraryQueryLock(
+    target,
+    async () =>
+      await listWikiGraphLibraryArchiveMembersUnlocked(target, options),
+  );
+}
+
+async function listWikiGraphLibraryArchiveMembersUnlocked(
+  target: ParsedWikiGraphLibraryUri,
+  options: ArchiveCollectionOptions,
+): Promise<ArchiveCollectionResult> {
   return createCollectionResult(
     (await listWikiGraphLibraryArchives(target)).map(
       formatLibraryArchiveMemberHit,
@@ -231,6 +277,18 @@ export async function readWikiGraphLibraryPage(
   target: ParsedWikiGraphLibraryUri,
   objectUri: string,
   options: Parameters<typeof readArchivePage>[2] = {},
+): Promise<ArchivePage> {
+  return await withLibraryQueryLock(
+    target,
+    async () =>
+      await readWikiGraphLibraryPageUnlocked(target, objectUri, options),
+  );
+}
+
+async function readWikiGraphLibraryPageUnlocked(
+  target: ParsedWikiGraphLibraryUri,
+  objectUri: string,
+  options: NonNullable<Parameters<typeof readArchivePage>[2]>,
 ): Promise<ArchivePage> {
   const pages = await readIndexedArchiveResults(
     target,
@@ -260,6 +318,18 @@ export async function listWikiGraphLibraryEvidence(
   target: ParsedWikiGraphLibraryUri,
   objectUri: string,
   options: ArchiveEvidenceOptions = {},
+): Promise<ArchiveEvidence> {
+  return await withLibraryQueryLock(
+    target,
+    async () =>
+      await listWikiGraphLibraryEvidenceUnlocked(target, objectUri, options),
+  );
+}
+
+async function listWikiGraphLibraryEvidenceUnlocked(
+  target: ParsedWikiGraphLibraryUri,
+  objectUri: string,
+  options: ArchiveEvidenceOptions,
 ): Promise<ArchiveEvidence> {
   const limit = options.limit ?? DEFAULT_LIBRARY_PAGE_LIMIT;
   const offset = parseLibraryObjectCursor(options.cursor, "evidence");
@@ -298,6 +368,22 @@ export async function listRelatedWikiGraphLibraryObjects(
   objectUri: string,
   options: ArchiveRelatedOptions = {},
 ): Promise<ArchiveRelatedResult> {
+  return await withLibraryQueryLock(
+    target,
+    async () =>
+      await listRelatedWikiGraphLibraryObjectsUnlocked(
+        target,
+        objectUri,
+        options,
+      ),
+  );
+}
+
+async function listRelatedWikiGraphLibraryObjectsUnlocked(
+  target: ParsedWikiGraphLibraryUri,
+  objectUri: string,
+  options: ArchiveRelatedOptions,
+): Promise<ArchiveRelatedResult> {
   const limit = options.limit ?? DEFAULT_LIBRARY_PAGE_LIMIT;
   const offset = parseLibraryObjectCursor(options.cursor, "related");
   const archiveWindowLimit = offset + limit;
@@ -331,6 +417,18 @@ export async function listRelatedWikiGraphLibraryObjects(
 }
 
 export async function packWikiGraphLibraryContext(
+  target: ParsedWikiGraphLibraryUri,
+  objectUri: string,
+  budget: number,
+): Promise<ArchivePack> {
+  return await withLibraryQueryLock(
+    target,
+    async () =>
+      await packWikiGraphLibraryContextUnlocked(target, objectUri, budget),
+  );
+}
+
+async function packWikiGraphLibraryContextUnlocked(
   target: ParsedWikiGraphLibraryUri,
   objectUri: string,
   budget: number,
@@ -373,6 +471,14 @@ export async function resolveWikiGraphLibraryQueryTargetById(
       publicId: library.publicId,
     }
   );
+}
+
+async function withLibraryQueryLock<T>(
+  target: ParsedWikiGraphLibraryUri,
+  operation: () => Promise<T>,
+): Promise<T> {
+  const library = await resolveWikiGraphLibrary(target);
+  return await withWikiGraphLibraryLock(library.id, "read", operation);
 }
 
 async function readIndexedArchiveResults<T>(

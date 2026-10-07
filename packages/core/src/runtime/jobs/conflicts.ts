@@ -4,6 +4,39 @@ import { openBuildQueueDatabase } from "./database.js";
 import { recoverStaleBuildJobs } from "./recovery.js";
 import { mapBuildJob } from "./row.js";
 import type { BuildJobConflictScope, BuildJobTarget } from "./types.js";
+import { withStateLock } from "../../state-lock.js";
+
+const ARCHIVE_BUILD_JOB_LOCK_SCOPE = "archive-build-jobs";
+
+export async function withArchiveBuildJobCreationLock<T>(
+  archive: File,
+  operation: () => Promise<T> | T,
+): Promise<T> {
+  return await withStateLock(
+    {
+      mode: "read",
+      resourceKey: createArchiveKey(archive),
+      scope: ARCHIVE_BUILD_JOB_LOCK_SCOPE,
+      stateDatabaseName: "core.sqlite",
+    },
+    operation,
+  );
+}
+
+export async function withArchiveBuildJobReplacementLock<T>(
+  archive: File,
+  operation: () => Promise<T> | T,
+): Promise<T> {
+  return await withStateLock(
+    {
+      mode: "write",
+      resourceKey: createArchiveKey(archive),
+      scope: ARCHIVE_BUILD_JOB_LOCK_SCOPE,
+      stateDatabaseName: "core.sqlite",
+    },
+    operation,
+  );
+}
 
 export async function assertNoActiveBuildJobs(input: {
   readonly archive: File;
