@@ -66,28 +66,28 @@ export async function assertStandaloneWikiGraphArchivePath(
   const path = resolveWikiGraphRuntimePath(inputPath);
   const candidate = await canonicalPath(path);
   const candidateIdentity = await readFileIdentity(path);
-  for (const library of await listWikiGraphLibraries()) {
+  const libraries = await listWikiGraphLibraries();
+  const matches = await findMatchingMembers(
+    libraries,
+    candidate,
+    candidateIdentity,
+  );
+  if (matches.length > 0) {
+    const match = requireUnambiguousManagedMatch(path, matches);
+    throw new WikiGraphArchiveOwnershipError(
+      `Standalone archive path belongs to registered library ${formatWikiGraphLibraryUri(
+        match.library.isDefault ? undefined : match.library.publicId,
+      )}: ${path}. Use the library UUID URI ${match.archive.uri} instead.`,
+    );
+  }
+  for (const library of libraries) {
     const rootPath = getNodeResourcePath(library.folder);
     const root = await canonicalPath(rootPath);
-    const archives = await listWikiGraphLibraryArchives({
-      isDefault: library.isDefault,
-      kind: "scope",
-      ...(library.isDefault ? {} : { publicId: library.publicId }),
-    });
-    const member = await findMatchingMember(
-      archives,
-      candidate,
-      candidateIdentity,
-    );
-    if (member === undefined && !isWithin(root, candidate)) continue;
-    const hint =
-      member === undefined
-        ? "Scan the library, then address the archive by its library UUID URI."
-        : `Use the library UUID URI ${member.uri} instead.`;
+    if (!isWithin(root, candidate)) continue;
     throw new WikiGraphArchiveOwnershipError(
       `Standalone archive path belongs to registered library ${formatWikiGraphLibraryUri(
         library.isDefault ? undefined : library.publicId,
-      )}: ${path}. ${hint}`,
+      )}: ${path}. Scan the library, then address the archive by its library UUID URI.`,
     );
   }
   return path;
@@ -113,18 +113,14 @@ export async function resolveWikiGraphArchiveTarget(
   const path = getNodeResourcePath(file);
   const candidate = await canonicalPath(path);
   const candidateIdentity = await readFileIdentity(path);
-  for (const library of await listWikiGraphLibraries()) {
-    const archives = await listWikiGraphLibraryArchives({
-      isDefault: library.isDefault,
-      kind: "scope",
-      ...(library.isDefault ? {} : { publicId: library.publicId }),
-    });
-    const member = await findMatchingMember(
-      archives,
-      candidate,
-      candidateIdentity,
-    );
-    if (member !== undefined) return { kind: "library", uri: member.uri };
+  const matches = await findMatchingMembers(
+    await listWikiGraphLibraries(),
+    candidate,
+    candidateIdentity,
+  );
+  if (matches.length > 0) {
+    const match = requireUnambiguousManagedMatch(path, matches);
+    return { kind: "library", uri: match.archive.uri };
   }
   return { kind: "standalone", path: getNodeResourcePath(file) };
 }
@@ -216,23 +212,66 @@ function isWithin(root: string, candidate: string): boolean {
   return child === "" || (!child.startsWith("..") && !isAbsolute(child));
 }
 
-async function findMatchingMember(
-  archives: Awaited<ReturnType<typeof listWikiGraphLibraryArchives>>,
+type ListedLibrary = Awaited<ReturnType<typeof listWikiGraphLibraries>>[number];
+type ListedArchive = Awaited<
+  ReturnType<typeof listWikiGraphLibraryArchives>
+>[number];
+
+interface ManagedArchiveMatch {
+  readonly archive: ListedArchive;
+  readonly library: ListedLibrary;
+  readonly memberPath: string;
+}
+
+async function findMatchingMembers(
+  libraries: Awaited<ReturnType<typeof listWikiGraphLibraries>>,
   candidate: string,
   candidateIdentity?: string,
-) {
-  for (const archive of archives) {
-    if (archive.file === undefined) continue;
-    const memberPath = getNodeResourcePath(archive.file);
-    if (
-      (await canonicalPath(memberPath)) === candidate ||
-      (candidateIdentity !== undefined &&
-        (await readFileIdentity(memberPath)) === candidateIdentity)
-    ) {
-      return archive;
+): Promise<readonly ManagedArchiveMatch[]> {
+  const members: ManagedArchiveMatch[] = [];
+  for (const library of libraries) {
+    const archives = await listWikiGraphLibraryArchives({
+      isDefault: library.isDefault,
+      kind: "scope",
+      ...(library.isDefault ? {} : { publicId: library.publicId }),
+    });
+    for (const archive of archives) {
+      if (archive.file === undefined) continue;
+      members.push({
+        archive,
+        library,
+        memberPath: getNodeResourcePath(archive.file),
+      });
     }
   }
-  return undefined;
+
+  const exact: ManagedArchiveMatch[] = [];
+  for (const member of members) {
+    if ((await canonicalPath(member.memberPath)) === candidate) {
+      exact.push(member);
+    }
+  }
+  if (exact.length > 0 || candidateIdentity === undefined) return exact;
+
+  const identityMatches: ManagedArchiveMatch[] = [];
+  for (const member of members) {
+    if ((await readFileIdentity(member.memberPath)) === candidateIdentity) {
+      identityMatches.push(member);
+    }
+  }
+  return identityMatches;
+}
+
+function requireUnambiguousManagedMatch(
+  path: string,
+  matches: readonly ManagedArchiveMatch[],
+): ManagedArchiveMatch {
+  if (matches.length === 1) return matches[0]!;
+  throw new WikiGraphArchiveOwnershipError(
+    `Archive file identity is ambiguous across managed archives: ${path}. Use an explicit library UUID URI (${matches
+      .map((match) => match.archive.uri)
+      .join(", ")}).`,
+  );
 }
 
 async function readFileIdentity(path: string): Promise<string | undefined> {

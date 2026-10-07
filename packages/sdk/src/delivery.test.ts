@@ -431,11 +431,22 @@ describe("WikiGraphSDK delivery operations", () => {
     await expect(
       sdk.archives.open(standalone(physicalPath)),
     ).rejects.toMatchObject({ code: "WIKI_GRAPH_ARCHIVE_OWNERSHIP_MISMATCH" });
+
+    const linkedLibrary = await sdk.libraries.create("linked-library");
+    const linkedMemberPath = join(root, "linked-library", "linked.wikg");
+    await link(physicalPath, linkedMemberPath);
+    const linkedScan = await linkedLibrary.scan();
+    expect(linkedScan.archives).toHaveLength(1);
+    expect(linkedScan.archives[0]?.uri).not.toBe(member.uri);
+
     const aliasPath = join(root, "managed-alias.wikg");
     await link(physicalPath, aliasPath);
     await expect(
       sdk.archives.open(standalone(aliasPath)),
     ).rejects.toMatchObject({ code: "WIKI_GRAPH_ARCHIVE_OWNERSHIP_MISMATCH" });
+    await expect(sdk.archives.open(standalone(aliasPath))).rejects.toThrow(
+      "ambiguous",
+    );
 
     const archive = await sdk.archives.open({
       kind: "library",
