@@ -48,10 +48,40 @@ describe("packed CLI library workflow", () => {
     });
     expect(added.uri).toMatch(new RegExp(`^${library.uri}/arc/`, "u"));
 
+    const titleSet = await sandbox.run([
+      `${added.uri}/title`,
+      "set",
+      "Managed Archive Title",
+    ]);
+    expect(titleSet.exitCode, titleSet.stderr).toBe(0);
+    const title = await sandbox.runJSON<{
+      readonly title: string;
+      readonly type: string;
+      readonly uri: string;
+    }>([`${added.uri}/title`, "--json"]);
+    expect(title).toMatchObject({
+      title: "Managed Archive Title",
+      type: "archive-title",
+    });
+
     const members = await sandbox.runJSON<{
       readonly items: readonly { readonly uri: string }[];
     }>([`${library.uri}/arc`, "--json"]);
     expect(members.items.map((item) => item.uri)).toContain(added.uri);
+
+    const found = await sandbox.runJSON<{
+      readonly objects: readonly {
+        readonly type: string;
+        readonly uri: string;
+      }[];
+    }>([`${library.uri}/arc`, "--query", "Managed Archive", "--json"]);
+    expect(found.objects).toEqual([
+      expect.objectContaining({
+        type: "archive-title",
+        uri: `${added.uri}/title`,
+      }),
+    ]);
+    expect(found.objects.some((item) => item.uri === added.uri)).toBe(false);
   });
 
   it("atomically replaces a managed archive while keeping its URI", async () => {
@@ -147,6 +177,22 @@ describe("packed CLI library workflow", () => {
 
     await syncLibraryIndex(sandbox);
     await expectLibraryQueryToFindBoth(sandbox);
+    const titleResults = await sandbox.runJSON<{
+      readonly objects: readonly {
+        readonly type?: string;
+        readonly uri: string;
+      }[];
+    }>([
+      "wikg://lib",
+      "--query",
+      "Alpha observations archive",
+      "--query-mode",
+      "fts",
+      "--json",
+    ]);
+    expect(titleResults.objects).toContainEqual(
+      expect.objectContaining({ type: "archive-title", uri: "wikg://title" }),
+    );
 
     const cleaned = await sandbox.runJSON<{ readonly status: string }>([
       "wikg://lib/index",
@@ -190,6 +236,12 @@ async function createLibraryArchive(
     ],
     { input: input.source },
   );
+  const title = await sandbox.run([
+    `${archiveUri}/title`,
+    "set",
+    `${input.title} archive`,
+  ]);
+  expect(title.exitCode, title.stderr).toBe(0);
   return { archiveUri, chapterUri: chapter.locatedUri };
 }
 

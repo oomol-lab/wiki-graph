@@ -22,6 +22,8 @@ export function isFindFilterType(
   type: ArchiveFindObjectType,
 ): type is ArchiveFindFilterType {
   return (
+    type === "archive" ||
+    type === "archive-title" ||
     type === "chapter" ||
     type === "chapter-title" ||
     type === "entity" ||
@@ -38,6 +40,8 @@ export function isCollectionType(
   type: ArchiveFindObjectType,
 ): type is ArchiveCollectionType {
   return (
+    type === "archive" ||
+    type === "archive-title" ||
     type === "chapter" ||
     type === "chapter-title" ||
     type === "entity" ||
@@ -75,6 +79,8 @@ export function parseFindTypes(
 
   return values.map((value) => {
     if (
+      value === "archive" ||
+      value === "archive-title" ||
       value === "entity" ||
       value === "fragment" ||
       value === "meta" ||

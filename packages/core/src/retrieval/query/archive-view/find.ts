@@ -12,7 +12,7 @@ import {
 } from "../lexical-search.js";
 import {
   aggregateEvidenceScores,
-  ARCHIVE_ROOT_ID,
+  ARCHIVE_META_ID,
   compareArchivePositions,
   compareFindEvidenceHits,
   createFindMatchFields,
@@ -329,7 +329,7 @@ export function findMeta(
   return [
     {
       field: "metadata",
-      id: ARCHIVE_ROOT_ID,
+      id: ARCHIVE_META_ID,
       ...createFindMatchFields(contentMatch),
       snippet: createSnippet(content, getSnippetNeedle(contentMatch)),
       title: meta.title ?? "Archive metadata",

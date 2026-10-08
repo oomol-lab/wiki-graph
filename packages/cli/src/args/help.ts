@@ -36,6 +36,7 @@ export type HelpTopic = (typeof HELP_TOPICS)[number];
 
 export type UriHelpTargetName =
   | "archive-scope"
+  | "archive-title-object"
   | "artifact-object"
   | "chapter-collection-scope"
   | "chapter-scope"
@@ -102,6 +103,7 @@ const URI_HELP_TARGETS: readonly UriHelpTarget[] = [
     name: "archive-scope",
     predicates: ["create", "export", "inspect"],
   },
+  { name: "archive-title-object", predicates: ["clear", "set"] },
   { name: "artifact-object", predicates: [] },
   {
     name: "chapter-collection-scope",

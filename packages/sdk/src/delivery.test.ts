@@ -39,6 +39,38 @@ afterEach(async () => {
 });
 
 describe("WikiGraphSDK delivery operations", () => {
+  it("exposes archive titles as concrete optional objects", async () => {
+    const root = await mkdtemp(join(tmpdir(), "wiki-graph-sdk-title-"));
+    temporaryDirectories.push(root);
+    await mkdir(join(root, "state"));
+    const sdk = createWikiGraphSDK({
+      cwd: root,
+      stateDir: join(root, "state"),
+    });
+    await sdk.archives.create({ path: "book.wikg" });
+    const archive = await sdk.archives.open(standalone("book.wikg"));
+
+    await expect(archive.page("wikg://")).rejects.toThrow("scope URI");
+    await expect(archive.page("wikg://title")).rejects.toThrow("is missing");
+    await archive.setArchiveTitle("  SDK Archive Title  ");
+    await expect(archive.page("wikg://title")).resolves.toMatchObject({
+      id: "wikg://title",
+      title: "SDK Archive Title",
+      type: "archive-title",
+    });
+    await expect(archive.list({ types: ["archive"] })).resolves.toMatchObject({
+      items: [expect.objectContaining({ type: "archive-title" })],
+    });
+
+    await archive.putMetadata("", "title", "Metadata Title");
+    await expect(archive.page("wikg://title")).resolves.toMatchObject({
+      title: "Metadata Title",
+    });
+    await archive.deleteMetadata("", "title");
+    await expect(archive.page("wikg://title")).rejects.toThrow("is missing");
+    sdk.close();
+  });
+
   it("creates, rejects, atomically replaces, and cleans failed archive writes", async () => {
     const root = await mkdtemp(join(tmpdir(), "wiki-graph-sdk-create-"));
     temporaryDirectories.push(root);
@@ -397,11 +429,11 @@ describe("WikiGraphSDK delivery operations", () => {
     const library = await sdk.libraries.create("library");
     for (const name of ["one", "two", "three"]) {
       await sdk.archives.create({ path: `${name}.wikg` });
-      await (
-        await sdk.archives.open(standalone(`${name}.wikg`))
-      ).addChapter({
+      const archive = await sdk.archives.open(standalone(`${name}.wikg`));
+      await archive.addChapter({
         title: name,
       });
+      await archive.setArchiveTitle(name);
       await sdk.libraries.addArchive({
         inputPath: `${name}.wikg`,
         target: library.uri,

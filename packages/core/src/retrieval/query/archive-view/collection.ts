@@ -5,7 +5,7 @@ import type {
 import { listChapters } from "../../../document/chapter/index.js";
 
 import {
-  ARCHIVE_ROOT_ID,
+  ARCHIVE_META_ID,
   createCollectionResult,
   createNodePosition,
   createSnippet,
@@ -13,6 +13,8 @@ import {
   formatMetaTitle,
   formatWeight,
   isDefined,
+  readArchiveMetaForQuery,
+  readArchiveTitle,
 } from "./helpers.js";
 import {
   formatEdgeId,
@@ -47,7 +49,7 @@ export async function getArchiveIndex(
 ): Promise<ArchiveIndex> {
   const [chapters, meta, nodes, edges] = await Promise.all([
     listChapters(document),
-    document.readBookMeta(),
+    readArchiveMetaForQuery(document),
     document.chunks.countAll(),
     document.readingEdges.countAll(),
   ]);
@@ -89,11 +91,11 @@ export async function listArchiveObjects(
         type: "edge",
       }));
     case "meta": {
-      const meta = await document.readBookMeta();
+      const meta = await readArchiveMetaForQuery(document);
 
       return [
         {
-          id: ARCHIVE_ROOT_ID,
+          id: ARCHIVE_META_ID,
           label: formatMetaTitle(meta),
           summary: formatMetaSummary(meta),
           type: "meta",
@@ -165,19 +167,34 @@ export async function listArchiveCollection(
     options.chapters === undefined ? undefined : new Set(options.chapters);
   const types = options.types ?? [
     "meta",
+    "archive-title",
     "chapter-title",
     "entity",
     "node",
     "triple",
   ];
 
+  if (types.includes("archive") || types.includes("archive-title")) {
+    const title = await readArchiveTitle(document);
+
+    if (title !== undefined) {
+      items.push({
+        field: "title",
+        id: "wikg://title",
+        snippet: title,
+        title,
+        type: "archive-title",
+      });
+    }
+  }
+
   if (types.includes("meta")) {
-    const meta = await document.readBookMeta();
+    const meta = await readArchiveMetaForQuery(document);
 
     if (meta !== undefined) {
       items.push({
         field: "metadata",
-        id: ARCHIVE_ROOT_ID,
+        id: ARCHIVE_META_ID,
         snippet: formatMetaSummary(meta),
         title: meta.title ?? "Archive metadata",
         type: "meta",

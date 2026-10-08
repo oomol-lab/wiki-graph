@@ -3,6 +3,7 @@ import { parseCLIArguments } from "../args/index.js";
 import {
   runArchiveChapterCommand,
   runArchiveCommand,
+  runArchiveTitleCommand,
   runArchiveCoverCommand,
   runArchiveIndexCommand,
   runArchiveMetaCommand,
@@ -90,6 +91,9 @@ export async function dispatchWikiGraphCLI(
         return { exitCode: 0 };
       case "archive":
         await runArchiveCommand(parsed.args);
+        return { exitCode: 0 };
+      case "archive-title":
+        await runArchiveTitleCommand(parsed.args);
         return { exitCode: 0 };
       case "archive-index":
         await runArchiveIndexCommand(parsed.args);

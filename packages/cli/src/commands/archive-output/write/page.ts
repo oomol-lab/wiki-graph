@@ -44,6 +44,7 @@ export async function writePage(
         `${formatPlainObject(await createPageObject(page, context))}\n`,
       );
       return;
+    case "archive-title":
     case "chapter-title":
       await writeTextToStdout(
         `${formatPlainObject(await createPageObject(page, context))}\n`,

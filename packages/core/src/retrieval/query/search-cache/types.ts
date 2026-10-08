@@ -116,7 +116,7 @@ export interface SearchSessionDescriptor {
 export type BucketSearchCursor =
   | {
       readonly bucket: 0;
-      readonly key?: SearchChapterTitleCursorKey;
+      readonly key?: SearchTitleCursorKey;
     }
   | {
       readonly bucket: 1;
@@ -131,9 +131,10 @@ export type BucketSearchCursor =
       readonly key?: SearchTextCursorKey;
     };
 
-export interface SearchChapterTitleCursorKey {
+export interface SearchTitleCursorKey {
   readonly archiveId: number;
-  readonly chapterId: number;
+  readonly ownerId: string;
+  readonly ownerKind: number;
   readonly score: number;
 }
 

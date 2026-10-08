@@ -44,6 +44,8 @@ export async function listArchiveEvidence(
   }
 
   switch (reference.type) {
+    case "archive":
+    case "archive-title":
     case "artifact":
     case "chapter":
     case "chapter-title":

@@ -26,6 +26,7 @@ import {
   parseFindLens,
   parseFindMatch,
   parseFindTypes,
+  readArchiveMetaForQuery,
 } from "../helpers.js";
 import { isArchiveSearchIndexCurrent } from "../index-state.js";
 import {
@@ -58,6 +59,7 @@ import type {
   ArchiveFindOptions,
   ArchiveFindResult,
 } from "../types.js";
+import { SEARCH_INDEX_VERSION } from "../../../search-index/index.js";
 
 export async function findArchiveObjects(
   document: ReadonlyDocument,
@@ -433,6 +435,7 @@ async function createSearchRevisionScope(
   if (chapters === undefined || chapters.length === 0) {
     return JSON.stringify({
       chaptersRevision: await document.serials.getChaptersRevision(),
+      searchIndexVersion: SEARCH_INDEX_VERSION,
       scope: "all",
     });
   }
@@ -444,6 +447,7 @@ async function createSearchRevisionScope(
     chapters: uniqueChapters.map(
       (chapterId) => [chapterId, revisions.get(chapterId) ?? 0] as const,
     ),
+    searchIndexVersion: SEARCH_INDEX_VERSION,
     scope: "chapters",
   });
 }
@@ -467,7 +471,7 @@ export async function grepArchiveObjects(
 
   const hits: ArchiveFindHit[] = [];
 
-  hits.push(...findMeta(await document.readBookMeta(), search));
+  hits.push(...findMeta(await readArchiveMetaForQuery(document), search));
   hits.push(...(await findChapters(document, search)));
   hits.push(...(await findNodes(document, search)));
 

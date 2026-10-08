@@ -207,6 +207,9 @@ function classifyArchiveUriHelpTarget(uri: string): UriHelpTargetName {
   if (path === "index") {
     return "index-object";
   }
+  if (path === "title") {
+    return "archive-title-object";
+  }
   if (/^artifact\/[0-9a-f]{12,64}(?:#.+)?$/iu.test(path)) {
     return "artifact-object";
   }
@@ -403,6 +406,52 @@ function parseArchiveUriTargetArguments(
 
   if (objectUri === "wikg://index") {
     return parseArchiveIndexUriArguments(archivePath, action, tail, values);
+  }
+
+  if (objectUri === "wikg://title") {
+    if (action === "get") {
+      return parseArchiveArguments("get", [uri, ...tail], values, helpRoute);
+    }
+    if (action !== "set" && action !== "clear") {
+      throw new Error(
+        withHelpRoute(
+          `The archive title resource does not support \`${action}\`. Read it directly, or use set or clear.`,
+          "wg <archive-uri>/title --help",
+        ),
+      );
+    }
+    const expected = action === "set" ? 1 : 0;
+    if (tail.length !== expected) {
+      throw new Error(
+        withHelpRoute(
+          action === "set"
+            ? "Archive title set requires exactly one title value."
+            : "Archive title clear does not accept a value.",
+          helpRoute,
+        ),
+      );
+    }
+    const unsupported = Object.entries(values).find(
+      ([key, value]) =>
+        key !== "help" && value !== undefined && value !== false,
+    );
+    if (unsupported !== undefined) {
+      throw new Error(
+        withHelpRoute(
+          `Archive title ${action} does not support --${unsupported[0]}.`,
+          helpRoute,
+        ),
+      );
+    }
+    return {
+      args: {
+        action,
+        archivePath,
+        ...(tail[0] === undefined ? {} : { title: tail[0] }),
+      },
+      help: false,
+      kind: "archive-title",
+    };
   }
 
   const chapterTarget = parseChapterTarget(objectUri);

@@ -12,6 +12,7 @@ import type { SearchIndexEmbeddingProvider } from "../../search-index/index.js";
 
 export type ArchiveObjectType =
   | "artifact"
+  | "archive-title"
   | "chapter"
   | "chapter-title"
   | "chapter-tree"
@@ -33,6 +34,8 @@ export type ChapterStateValue = "missing" | "ready";
 export type ChapterState = Record<ChapterStateTarget, ChapterStateValue>;
 
 export type ArchiveCollectionType =
+  | "archive"
+  | "archive-title"
   | "chapter"
   | "chapter-title"
   | "entity"
@@ -44,6 +47,8 @@ export type ArchiveCollectionType =
   | "triple";
 
 export type ArchiveFindObjectType =
+  | "archive"
+  | "archive-title"
   | "chapter"
   | "chapter-title"
   | "chapter-tree"
@@ -56,6 +61,8 @@ export type ArchiveFindObjectType =
   | "triple";
 
 export type ArchiveFindFilterType =
+  | "archive"
+  | "archive-title"
   | "chapter"
   | "chapter-title"
   | "entity"
@@ -278,6 +285,11 @@ export type ArchivePage = ArchiveLibrarySourceFields &
         readonly name?: string;
         readonly shortUid: string;
         readonly type: "artifact";
+      }
+    | {
+        readonly id: string;
+        readonly title: string;
+        readonly type: "archive-title";
       }
     | {
         readonly id: string;

@@ -18,6 +18,8 @@ import {
   isWikiGraphObjectUri,
   normalizeWikiGraphObjectUri,
   createNodePosition,
+  readArchiveMetaForQuery,
+  readArchiveTitle,
 } from "./helpers.js";
 import {
   DEFAULT_SOURCE_CONTEXT,
@@ -103,7 +105,7 @@ export async function readArchiveText(
       return node.content;
     }
     case "meta": {
-      return formatMetaText(await document.readBookMeta());
+      return formatMetaText(await readArchiveMetaForQuery(document));
     }
   }
 }
@@ -172,7 +174,7 @@ export async function readArchivePage(
     }
     case "meta":
       return {
-        ...createMetaPage(await document.readBookMeta()),
+        ...createMetaPage(await readArchiveMetaForQuery(document)),
         id: ARCHIVE_ROOT_ID,
         type: "meta",
       };
@@ -284,6 +286,18 @@ async function readWikiGraphPage(
   const reference = parseWikiGraphReference(uri);
 
   switch (reference.type) {
+    case "archive":
+      throw new Error(
+        `${displayUri} is a scope URI, not a readable object. Use ${displayUri}title or ${displayUri}meta.`,
+      );
+    case "archive-title": {
+      const title = await readArchiveTitle(document);
+
+      if (title === undefined) {
+        throw new Error(`Archive title ${displayUri} is missing.`);
+      }
+      return { id: displayUri, title, type: "archive-title" };
+    }
     case "artifact": {
       const artifact = await document.sourceProvenance.getArtifact(
         reference.artifactReference,
@@ -338,7 +352,11 @@ async function readWikiGraphPage(
       };
     }
     case "meta":
-      return await readArchivePage(document, ARCHIVE_ROOT_ID, options);
+      return {
+        ...createMetaPage(await readArchiveMetaForQuery(document)),
+        id: displayUri,
+        type: "meta",
+      };
     case "chapter":
       throw new Error(
         `${displayUri} is a scope URI, not a readable object. Use ${displayUri}/title or ${displayUri}/state.`,

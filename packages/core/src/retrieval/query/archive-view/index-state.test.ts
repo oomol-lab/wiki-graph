@@ -24,6 +24,133 @@ import {
 import { findArchiveObjects } from "./search/index.js";
 
 describe("archive search index state", () => {
+  it("keeps typed title pagination separate from archive titles", async () => {
+    await withTempDocument(async (document) => {
+      await writeSourceChapters(document, [
+        "Shared Title One",
+        "Shared Title Two",
+      ]);
+      const provider = createFakeEmbeddingProvider();
+      await document.replaceBookMeta({
+        authors: [],
+        description: null,
+        identifier: null,
+        language: null,
+        publishedAt: null,
+        publisher: null,
+        sourceFormat: "markdown",
+        title: "Shared Title",
+        version: 1,
+      });
+      for (const serialId of [1, 2]) {
+        await replaceChapterFtsIndexArtifact(document, serialId);
+        await replaceChapterSourceEmbeddingIndexArtifact(
+          document,
+          serialId,
+          provider,
+        );
+      }
+      await rebuildArchiveSearchIndex(document);
+
+      const first = await findArchiveObjects(document, "Shared Title", {
+        archiveKey: "typed-title-pagination",
+        embeddingProvider: provider,
+        limit: 1,
+        queryMode: "hybrid",
+        types: ["chapter-title"],
+      });
+      expect(first.items).toHaveLength(1);
+      expect(first.items.every((item) => item.type === "chapter-title")).toBe(
+        true,
+      );
+      expect(first.nextCursor).not.toBeNull();
+
+      const second = await findArchiveObjects(document, "Shared Title", {
+        archiveKey: "typed-title-pagination",
+        cursor: first.nextCursor!,
+        embeddingProvider: provider,
+        limit: 1,
+        queryMode: "hybrid",
+        types: ["chapter-title"],
+      });
+      expect(second.items).toHaveLength(1);
+      expect(second.items.every((item) => item.type === "chapter-title")).toBe(
+        true,
+      );
+      expect([...first.items, ...second.items]).not.toContainEqual(
+        expect.objectContaining({ id: "wikg://title" }),
+      );
+
+      await expect(
+        findArchiveObjects(document, "Shared Title", {
+          archiveKey: "typed-title-alias",
+          embeddingProvider: provider,
+          queryMode: "hybrid",
+          types: ["chapter"],
+        }),
+      ).resolves.toMatchObject({
+        items: [
+          expect.objectContaining({ type: "chapter-title" }),
+          expect.objectContaining({ type: "chapter-title" }),
+        ],
+      });
+    });
+  });
+
+  it("indexes archive titles only in lexical query modes", async () => {
+    await withTempDocument(async (document) => {
+      await writeSourceChapter(document);
+      const provider = createFakeEmbeddingProvider();
+      await document.replaceBookMeta({
+        authors: [],
+        description: null,
+        identifier: null,
+        language: null,
+        publishedAt: null,
+        publisher: null,
+        sourceFormat: "markdown",
+        title: "Archive Search Marker",
+        version: 1,
+      });
+      await replaceChapterFtsIndexArtifact(document, 1);
+      await replaceChapterSourceEmbeddingIndexArtifact(document, 1, provider);
+      await rebuildArchiveSearchIndex(document);
+
+      for (const queryMode of ["fts", "hybrid"] as const) {
+        await expect(
+          findArchiveObjects(document, "Archive Search Marker", {
+            archiveKey: `archive-title-${queryMode}`,
+            embeddingProvider: provider,
+            queryMode,
+            types: ["archive"],
+          }),
+        ).resolves.toMatchObject({
+          items: [
+            expect.objectContaining({
+              id: "wikg://title",
+              type: "archive-title",
+            }),
+          ],
+        });
+      }
+      await expect(
+        findArchiveObjects(document, "Archive Search Marker", {
+          archiveKey: "archive-title-embedding",
+          embeddingProvider: provider,
+          queryMode: "embedding",
+          types: ["archive"],
+        }),
+      ).resolves.toMatchObject({ items: [] });
+
+      await document.metadata.put(
+        { kind: 1, objectPath: "" },
+        "title",
+        "Changed Archive Marker",
+      );
+      await expect(isArchiveSearchIndexCurrent(document)).resolves.toBe(false);
+    });
+  });
+
   it("reports a state-less index database as missing", async () => {
     await withTempDocument(async (document) => {
       await document.writeSearchIndexDatabase(async () => {
@@ -561,7 +688,7 @@ async function writeSourceChapters(
     await openedDocument.writeToc({
       items: titles.map((title, index) => ({
         children: [],
-        key: title.toLowerCase(),
+        key: title.toLowerCase().replaceAll(" ", "-"),
         serialId: serialIds[index]!,
         title,
       })),

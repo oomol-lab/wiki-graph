@@ -45,6 +45,9 @@ function validatePackReference(id: string): void {
     case "chunk":
     case "entity":
       return;
+    case "archive":
+    case "archive-title":
+    case "artifact":
     case "chapter":
     case "chapter-title":
     case "chapter-state":

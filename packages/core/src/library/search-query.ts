@@ -6,11 +6,13 @@ import {
 import { createFindResult } from "../retrieval/query/archive-view/helper/results.js";
 import { createLexicalQuery } from "../retrieval/query/lexical-search.js";
 import {
-  compareChapterTitleIndexHits,
+  compareTitleIndexHits,
   compareTextIndexHits,
+  createTitleBucketTypes,
   getObjectBucketCursorId,
-  isAfterChapterTitleKey,
+  isAfterTitleKey,
   isAfterTextKey,
+  matchesTitleBucketType,
 } from "../retrieval/query/archive-view/search/bucket-order.js";
 import {
   hydrateCachedChunkBucketHit,
@@ -28,7 +30,7 @@ import {
   readSearchSessionMetadataForCursor,
   readSearchSessionObjectBucketPage,
   type BucketSearchCursor,
-  type SearchChapterTitleCursorKey,
+  type SearchTitleCursorKey,
   type SearchChunkHitInput,
   type SearchChunkCursorKey,
   type SearchEntityHitInput,
@@ -40,6 +42,7 @@ import {
 } from "../retrieval/query/search-cache/index.js";
 import {
   SEARCH_INDEX_FTS_HIT_LIMIT,
+  SEARCH_INDEX_VERSION,
   SEARCH_OBJECT_PROPERTY_KIND,
   SEARCH_OBJECT_PROPERTY_OWNER_KIND,
   type SearchIndexObjectHit,
@@ -129,7 +132,7 @@ export async function findWikiGraphLibraryObjectsBucketed(
     order: options.order ?? "doc-asc",
     query,
     queryMode: options.queryMode ?? "hybrid",
-    revisionScope: state.sourceFingerprint,
+    revisionScope: `${SEARCH_INDEX_VERSION}:${state.sourceFingerprint}`,
     terms: search.terms,
     types,
   });
@@ -215,7 +218,13 @@ async function readLibraryBucketPage(
 }> {
   switch (cursor.bucket) {
     case 0:
-      return shouldReadLibraryBucket(session, "chapter", "chapter-title")
+      return shouldReadLibraryBucket(
+        session,
+        "archive",
+        "archive-title",
+        "chapter",
+        "chapter-title",
+      )
         ? await readLibraryChapterTitleBucketPage(
             target,
             session,
@@ -260,13 +269,14 @@ async function readLibraryBucketPage(
 async function readLibraryChapterTitleBucketPage(
   target: ParsedWikiGraphLibraryUri,
   session: SearchSessionDescriptor,
-  after: SearchChapterTitleCursorKey | undefined,
+  after: SearchTitleCursorKey | undefined,
   limit: number,
   options: ArchiveFindOptions,
 ): Promise<{
   readonly items: readonly ArchiveFindHit[];
   readonly nextCursor: BucketSearchCursor | undefined;
 }> {
+  const titleTypes = createTitleBucketTypes(session.types);
   const result = await queryWikiGraphLibrarySearchIndex(target, session.query, {
     ...(session.chapters === null ? {} : { chapters: session.chapters }),
     ...(options.embeddingProvider === undefined
@@ -276,14 +286,12 @@ async function readLibraryChapterTitleBucketPage(
     queryMode: session.queryMode,
     objectHitLimit: SEARCH_INDEX_FTS_HIT_LIMIT,
     textHitLimit: SEARCH_INDEX_FTS_HIT_LIMIT,
-    types: ["chapter-title"],
+    types: titleTypes,
   });
   const hits = createLibraryChapterTitleIndexHits(result)
-    .filter(
-      (hit) => hit.ownerKind === SEARCH_OBJECT_PROPERTY_OWNER_KIND.chapter,
-    )
-    .sort(compareChapterTitleIndexHits)
-    .filter((hit) => isAfterChapterTitleKey(hit, after));
+    .filter((hit) => matchesTitleBucketType(hit, titleTypes))
+    .sort(compareTitleIndexHits)
+    .filter((hit) => isAfterTitleKey(hit, after));
   const page = hits.slice(0, limit + 1);
   const items = await hydrateLibraryIndexHits(target, {
     objectHits: page.slice(0, limit),
@@ -300,7 +308,8 @@ async function readLibraryChapterTitleBucketPage(
             bucket: 0,
             key: {
               archiveId: last.archiveId,
-              chapterId: Number(last.ownerId),
+              ownerId: last.ownerId,
+              ownerKind: last.ownerKind,
               score: last.score,
             },
           }

@@ -107,17 +107,21 @@ describe("library archive membership", () => {
   });
 
   it("searches and paginates archive member collection results", async () => {
-    await withLibraryTestState(async () => {
+    await withLibraryTestState(async (tempDir) => {
       const library = await ensureDefaultWikiGraphLibrary();
       await mkdir(join(getNodeResourcePath(library.folder), "books"), {
         recursive: true,
       });
-      await writeFile(
+      await createSearchableArchiveWithoutSearchIndex(
+        tempDir,
         join(getNodeResourcePath(library.folder), "books", "alpha.wikg"),
+        undefined,
         "alpha",
       );
-      await writeFile(
+      await createSearchableArchiveWithoutSearchIndex(
+        tempDir,
         join(getNodeResourcePath(library.folder), "books", "beta.wikg"),
+        undefined,
         "beta",
       );
 
@@ -132,8 +136,8 @@ describe("library archive membership", () => {
       );
       expect(matched.items).toHaveLength(1);
       expect(matched.items[0]).toMatchObject({
-        title: "books/alpha.wikg",
-        type: "meta",
+        title: "alpha",
+        type: "archive-title",
       });
 
       const missing = await findWikiGraphLibraryArchiveMembers(
@@ -1531,6 +1535,17 @@ async function createSearchableArchiveWithoutSearchIndex(
       ]);
       await openedDocument.writeToc({
         items: [{ children: [], serialId: 1, title }],
+        version: 1,
+      });
+      await openedDocument.writeBookMeta({
+        authors: [],
+        description: null,
+        identifier: null,
+        language: null,
+        publishedAt: null,
+        publisher: null,
+        sourceFormat: "markdown",
+        title,
         version: 1,
       });
     });

@@ -26,7 +26,7 @@ export type {
   BucketSearchCursor,
   EntitySearchSessionInput,
   EntitySearchSessionPage,
-  SearchChapterTitleCursorKey,
+  SearchTitleCursorKey,
   SearchChunkCursorKey,
   SearchChunkHitInput,
   SearchEntityHitInput,

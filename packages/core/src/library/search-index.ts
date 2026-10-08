@@ -38,6 +38,7 @@ import {
   readSearchIndexStatus,
   SEARCH_OBJECT_PROPERTY_KIND,
   SEARCH_OBJECT_PROPERTY_OWNER_KIND,
+  SEARCH_INDEX_VERSION,
   type SearchIndexObjectHit,
   type SearchIndexCapabilityStatus,
   type SearchIndexEmbeddingProvider,
@@ -137,6 +138,7 @@ export async function readWikiGraphLibraryIndexState(
     async (database) => ({
       fingerprint: await readSearchIndexFingerprintFromDatabase(database),
       sourceFingerprint: await readStateValue(database, "sourceFingerprint"),
+      version: await readStateValue(database, "version"),
     }),
   );
   const capabilities = await readSearchIndexCapabilityStatus(document);
@@ -150,6 +152,7 @@ export async function readWikiGraphLibraryIndexState(
     sources,
     status:
       searchStatus === "current" &&
+      databaseState.version === SEARCH_INDEX_VERSION &&
       databaseState.sourceFingerprint === sourceFingerprint
         ? "current"
         : "dirty",

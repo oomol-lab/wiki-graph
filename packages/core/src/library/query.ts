@@ -10,6 +10,7 @@ import {
   createCollectionResult,
   createFindResult,
 } from "../retrieval/query/archive-view/helper/results.js";
+import { readArchiveTitle } from "../retrieval/query/archive-view/helper/meta.js";
 import {
   findWikiGraphLibraryObjectsBucketed,
   shouldUseLibraryBucketedSearch,
@@ -172,10 +173,12 @@ async function findWikiGraphLibraryArchiveMembersUnlocked(
   options: ArchiveFindOptions,
 ): Promise<ArchiveFindResult> {
   const terms = createLibraryArchiveMemberSearchTerms(query);
-  const archives = await listWikiGraphLibraryArchives(target);
-  const hits = archives
-    .map(formatLibraryArchiveMemberHit)
-    .filter((hit) => matchesLibraryArchiveMemberSearch(hit, terms));
+  const hits =
+    options.queryMode === "embedding"
+      ? []
+      : (await listLibraryArchiveTitleHits(target)).filter((hit) =>
+          matchesLibraryArchiveMemberSearch(hit, terms),
+        );
 
   return createFindResult(query, hits, options, terms, "typed");
 }
@@ -211,24 +214,37 @@ function matchesLibraryArchiveMemberSearch(
   return terms.every((term) => haystack.includes(term));
 }
 
-function formatLibraryArchiveMemberHit(
+function formatLibraryArchiveTitleHit(
   archive: WikiGraphLibraryArchiveRecord,
+  title: string,
 ): ArchiveFindHit {
-  const details = [
-    archive.relativePath,
-    archive.status,
-    archive.exists ? "exists" : "missing-file",
-  ].join("  ");
-
   return {
     archiveId: archive.id,
-    field: "metadata",
-    id: archive.uri,
+    field: "title",
+    id: `${archive.uri}/title`,
     libraryArchiveUri: archive.uri,
-    snippet: details,
-    title: archive.relativePath,
-    type: "meta",
+    snippet: title,
+    title,
+    type: "archive-title",
   };
+}
+
+async function listLibraryArchiveTitleHits(
+  target: ParsedWikiGraphLibraryUri,
+): Promise<readonly ArchiveFindHit[]> {
+  const hits: ArchiveFindHit[] = [];
+
+  for (const archive of await listWikiGraphLibraryArchives(target)) {
+    if (!isReadableLibraryArchive(archive)) continue;
+    const title = await readLibraryArchiveDocument(
+      archive,
+      async (document) => await readArchiveTitle(document),
+    );
+    if (title !== undefined) {
+      hits.push(formatLibraryArchiveTitleHit(archive, title));
+    }
+  }
+  return hits;
 }
 
 export async function listWikiGraphLibraryObjects(
@@ -291,9 +307,7 @@ async function listWikiGraphLibraryArchiveMembersUnlocked(
   options: ArchiveCollectionOptions,
 ): Promise<ArchiveCollectionResult> {
   return createCollectionResult(
-    (await listWikiGraphLibraryArchives(target)).map(
-      formatLibraryArchiveMemberHit,
-    ),
+    await listLibraryArchiveTitleHits(target),
     options,
   );
 }

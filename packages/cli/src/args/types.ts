@@ -296,6 +296,12 @@ export interface CLIArchiveArguments {
   readonly triplePattern?: ArchiveTriplePattern;
 }
 
+export interface CLIArchiveTitleArguments {
+  readonly action: "clear" | "set";
+  readonly archivePath: string;
+  readonly title?: string;
+}
+
 export interface CLIArchiveIndexArguments {
   readonly action: CLIArchiveIndexAction;
   readonly archivePath: string;
@@ -424,6 +430,11 @@ export type ParsedCLIArguments =
       readonly args: CLILibraryArguments;
       readonly help: false;
       readonly kind: "library";
+    }
+  | {
+      readonly args: CLIArchiveTitleArguments;
+      readonly help: false;
+      readonly kind: "archive-title";
     }
   | {
       readonly args: CLIArchiveArguments;

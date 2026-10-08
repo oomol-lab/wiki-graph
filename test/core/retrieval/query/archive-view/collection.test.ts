@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
   DirectoryDocument,
   listArchiveCollection,
+  listArchiveObjects,
   seedSourcedDocument,
   setupArchiveViewTestState,
   teardownArchiveViewTestState,
@@ -12,6 +13,90 @@ beforeEach(setupArchiveViewTestState);
 afterEach(teardownArchiveViewTestState);
 
 describe("archive/query/archive-view/collection", () => {
+  it("lists a real archive title without exposing the archive scope", async () => {
+    await withTempDir("wikigraph-archive-view-", async (path) => {
+      const document = await DirectoryDocument.open(`${path}/document`);
+
+      try {
+        await seedSourcedDocument(document);
+        await document.openSession(async (openedDocument) => {
+          await openedDocument.replaceBookMeta({
+            authors: [],
+            description: null,
+            identifier: null,
+            language: null,
+            publishedAt: null,
+            publisher: null,
+            sourceFormat: "markdown",
+            title: "Archive Collection Title",
+            version: 1,
+          });
+        });
+
+        const byAlias = await listArchiveCollection(document, {
+          types: ["archive"],
+        });
+        expect(byAlias.items).toStrictEqual([
+          expect.objectContaining({
+            id: "wikg://title",
+            title: "Archive Collection Title",
+            type: "archive-title",
+          }),
+        ]);
+        expect(byAlias.items.some((item) => item.id === "wikg://")).toBe(false);
+
+        const defaultCollection = await listArchiveCollection(document);
+        expect(defaultCollection.items).toContainEqual(
+          expect.objectContaining({
+            id: "wikg://meta",
+            type: "meta",
+          }),
+        );
+        expect(
+          defaultCollection.items.some((item) => item.id === "wikg://"),
+        ).toBe(false);
+        await expect(
+          listArchiveCollection(document, { types: ["meta"] }),
+        ).resolves.toMatchObject({
+          items: [expect.objectContaining({ id: "wikg://meta", type: "meta" })],
+        });
+        await expect(
+          listArchiveObjects(document, "meta"),
+        ).resolves.toMatchObject([
+          expect.objectContaining({ id: "wikg://meta", type: "meta" }),
+        ]);
+
+        const chaptersByAlias = await listArchiveCollection(document, {
+          types: ["chapter"],
+        });
+        const chapterTitles = await listArchiveCollection(document, {
+          types: ["chapter-title"],
+        });
+        expect(chaptersByAlias.items).toStrictEqual(chapterTitles.items);
+        expect(chaptersByAlias.items).toStrictEqual([
+          expect.objectContaining({
+            id: "wikg://chapter/introduction/title",
+            type: "chapter-title",
+          }),
+        ]);
+        expect(
+          chaptersByAlias.items.some(
+            (item) => item.id === "wikg://chapter/introduction",
+          ),
+        ).toBe(false);
+
+        await document.openSession(async (openedDocument) => {
+          await openedDocument.metadata.deleteKey("", "title");
+        });
+        await expect(
+          listArchiveCollection(document, { types: ["archive-title"] }),
+        ).resolves.toMatchObject({ items: [] });
+      } finally {
+        await document.release();
+      }
+    });
+  });
+
   it("lists objects as a pageable collection", async () => {
     await withTempDir("wikigraph-archive-view-", async (path) => {
       const document = await DirectoryDocument.open(`${path}/document`);

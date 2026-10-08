@@ -1,27 +1,65 @@
 import { compareNumbers } from "../helpers.js";
-import { parseSearchPropertyIntegerOwnerId } from "./hydration.js";
 import type {
-  SearchChapterTitleCursorKey,
+  SearchTitleCursorKey,
   SearchTextCursorKey,
 } from "../../search-cache/types.js";
-import type {
-  SearchIndexObjectHit,
-  SearchIndexTextHit,
+import {
+  SEARCH_OBJECT_PROPERTY_OWNER_KIND,
+  type SearchIndexObjectHit,
+  type SearchIndexTextHit,
 } from "../../../search-index/search/index.js";
 import type { ArchiveFindHit } from "../types.js";
 
-export function compareChapterTitleIndexHits(
+export type TitleBucketType = "archive-title" | "chapter-title";
+
+export function createTitleBucketTypes(
+  types: readonly string[] | null,
+): readonly TitleBucketType[] {
+  const selected: TitleBucketType[] = [];
+
+  if (
+    types === null ||
+    types.includes("archive") ||
+    types.includes("archive-title")
+  ) {
+    selected.push("archive-title");
+  }
+  if (
+    types === null ||
+    types.includes("chapter") ||
+    types.includes("chapter-title")
+  ) {
+    selected.push("chapter-title");
+  }
+  return selected;
+}
+
+export function matchesTitleBucketType(
+  hit: SearchIndexObjectHit,
+  types: readonly TitleBucketType[],
+): boolean {
+  return (
+    (hit.ownerKind === SEARCH_OBJECT_PROPERTY_OWNER_KIND.archive &&
+      types.includes("archive-title")) ||
+    (hit.ownerKind === SEARCH_OBJECT_PROPERTY_OWNER_KIND.chapter &&
+      types.includes("chapter-title"))
+  );
+}
+
+export function compareTitleIndexHits(
   left: SearchIndexObjectHit,
   right: SearchIndexObjectHit,
 ): number {
   return (
+    compareNumbers(getTitleOwnerOrder(left), getTitleOwnerOrder(right)) ||
     compareNumbers(right.score, left.score) ||
     compareNumbers(left.archiveId, right.archiveId) ||
-    compareNumbers(
-      parseSearchPropertyIntegerOwnerId(left.ownerId),
-      parseSearchPropertyIntegerOwnerId(right.ownerId),
-    )
+    left.ownerId.localeCompare(right.ownerId)
   );
+}
+
+function getTitleOwnerOrder(hit: SearchIndexObjectHit): number {
+  return hit.ownerKind === SEARCH_OBJECT_PROPERTY_OWNER_KIND.archive ? 0 : 1;
 }
 
 export function compareTextIndexHits(
@@ -37,20 +75,21 @@ export function compareTextIndexHits(
   );
 }
 
-export function isAfterChapterTitleKey(
+export function isAfterTitleKey(
   hit: SearchIndexObjectHit,
-  key: SearchChapterTitleCursorKey | undefined,
+  key: SearchTitleCursorKey | undefined,
 ): boolean {
   if (key === undefined) {
     return true;
   }
 
   return (
-    compareChapterTitleIndexHits(
+    compareTitleIndexHits(
       {
         ...hit,
         archiveId: key.archiveId,
-        ownerId: String(key.chapterId),
+        ownerId: key.ownerId,
+        ownerKind: key.ownerKind as SearchIndexObjectHit["ownerKind"],
         score: key.score,
       },
       hit,

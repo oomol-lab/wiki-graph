@@ -302,6 +302,26 @@ describe("cli/args/archive index", () => {
     });
   });
 
+  it("routes archive member queries through library search", () => {
+    expect(
+      parseCLIArguments([
+        "wikg://lib/arc",
+        "--query",
+        "Managed Archive",
+        "--json",
+      ]),
+    ).toStrictEqual({
+      args: {
+        action: "search",
+        archivePath: "wikg://lib/arc",
+        format: "json",
+        query: "Managed Archive",
+      },
+      help: false,
+      kind: "archive",
+    });
+  });
+
   it("parses atomic library archive replacement", () => {
     expect(
       parseCLIArguments([

@@ -1,15 +1,18 @@
 import type { ContinuationCursor, QueryIndexScope } from "./types.js";
 
 export function createCursorPayload(input: ContinuationCursor): object {
+  const version = { v: 2 } as const;
   switch (input.kind) {
     case "source-locators":
       return {
+        ...version,
         cursor: input.cursor,
         indexScope: input.indexScope,
         targetUri: input.targetUri,
       };
     case "collection":
       return {
+        ...version,
         ...(input.backlinks === undefined
           ? {}
           : { backlinks: input.backlinks }),
@@ -34,6 +37,7 @@ export function createCursorPayload(input: ContinuationCursor): object {
       };
     case "search":
       return {
+        ...version,
         ...(input.backlinks === undefined
           ? {}
           : { backlinks: input.backlinks }),
@@ -63,6 +67,7 @@ export function createCursorPayload(input: ContinuationCursor): object {
       };
     case "evidence":
       return {
+        ...version,
         chapters: input.chapters,
         cursor: input.cursor,
         order: input.order,
@@ -81,6 +86,7 @@ export function createCursorPayload(input: ContinuationCursor): object {
       };
     case "related":
       return {
+        ...version,
         chapters: input.chapters,
         cursor: input.cursor,
         ...(input.evidenceLimit === undefined
@@ -254,7 +260,13 @@ function readCursorIndexScope(
 function parsePayload(value: string): Record<string, unknown> {
   const parsed: unknown = JSON.parse(value);
 
-  if (typeof parsed === "object" && parsed !== null && !Array.isArray(parsed)) {
+  if (
+    typeof parsed === "object" &&
+    parsed !== null &&
+    !Array.isArray(parsed) &&
+    "v" in parsed &&
+    parsed.v === 2
+  ) {
     return parsed as Record<string, unknown>;
   }
 

@@ -7,6 +7,7 @@ import {
   listArchiveEvidence,
   listArchiveObjects,
   readArchivePage,
+  rebuildArchiveSearchIndex,
   restoreWikiGraphStateDir,
   seedSourcedDocument,
   setWikiGraphStateDirectoryPathForTesting,
@@ -61,7 +62,7 @@ describe("archive/query/archive-view/pages", () => {
     });
   });
 
-  it("reads archive metadata as the Wiki Graph root object", async () => {
+  it("keeps the archive scope separate from title and metadata objects", async () => {
     await withTempDir("wikigraph-archive-view-", async (path) => {
       const document = await DirectoryDocument.open(`${path}/document`);
 
@@ -81,16 +82,33 @@ describe("archive/query/archive-view/pages", () => {
           });
         });
 
+        await expect(readArchivePage(document, "wikg://")).rejects.toThrow(
+          "scope URI",
+        );
         await expect(
-          readArchivePage(document, "wikg://"),
+          readArchivePage(document, "wikg://title"),
+        ).resolves.toStrictEqual({
+          id: "wikg://title",
+          title: "Root Metadata",
+          type: "archive-title",
+        });
+        await expect(
+          readArchivePage(document, "wikg://meta"),
         ).resolves.toStrictEqual({
           authors: ["Author One", "Author Two"],
           description: "A searchable description.",
-          id: "meta:root",
+          id: "wikg://meta",
           publisher: "Example Press",
           title: "Root Metadata",
           type: "meta",
         });
+
+        await document.openSession(async (openedDocument) => {
+          await openedDocument.metadata.deleteKey("", "title");
+        });
+        await expect(readArchivePage(document, "wikg://title")).rejects.toThrow(
+          "Archive title wikg://title is missing",
+        );
       } finally {
         await document.release();
       }
@@ -215,6 +233,7 @@ describe("archive/query/archive-view/pages", () => {
             version: 1,
           });
         });
+        await rebuildArchiveSearchIndex(document);
 
         await expect(
           findArchiveObjects(document, "Visible Publisher", {

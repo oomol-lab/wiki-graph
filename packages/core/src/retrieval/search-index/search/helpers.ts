@@ -51,6 +51,8 @@ export function shouldQueryObjects(
   return (
     types === undefined ||
     types === null ||
+    types.includes("archive") ||
+    types.includes("archive-title") ||
     types.includes("chapter") ||
     types.includes("chapter-title") ||
     types.includes("node") ||
@@ -93,6 +95,13 @@ function createObjectTypeFilters(
     readonly ownerKind: SearchObjectPropertyOwnerKind;
     readonly propertyKind: SearchObjectPropertyKind;
   }[] = [];
+
+  if (types.includes("archive") || types.includes("archive-title")) {
+    filters.push({
+      ownerKind: SEARCH_OBJECT_PROPERTY_OWNER_KIND.archive,
+      propertyKind: SEARCH_OBJECT_PROPERTY_KIND.title,
+    });
+  }
 
   if (types.includes("chapter") || types.includes("chapter-title")) {
     filters.push({

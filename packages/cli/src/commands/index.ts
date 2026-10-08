@@ -5,6 +5,7 @@ import type {
   CLIArchiveCoverArguments,
   CLIArchiveIndexArguments,
   CLIArchiveMetadataArguments,
+  CLIArchiveTitleArguments,
   CLILibraryArguments,
   CLIGcArguments,
   CLILegacyArguments,
@@ -20,6 +21,14 @@ export async function runArchiveCommand(
   const command = await import("./archive-command/index.js");
 
   return command.runArchiveCommand(args);
+}
+
+export async function runArchiveTitleCommand(
+  args: CLIArchiveTitleArguments,
+): Promise<void> {
+  const command = await import("./archive-title.js");
+
+  return command.runArchiveTitleCommand(args);
 }
 
 export async function runArchiveChapterCommand(

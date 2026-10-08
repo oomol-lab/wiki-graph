@@ -99,6 +99,8 @@ export function getListBucket(type: ArchiveFindObjectType): number {
     case "source":
     case "fragment":
       return 3;
+    case "archive":
+    case "archive-title":
     case "chapter-title":
     case "chapter":
     case "chapter-tree":
@@ -109,20 +111,23 @@ export function getListBucket(type: ArchiveFindObjectType): number {
 
 export function getSearchBucket(type: ArchiveFindObjectType): number {
   switch (type) {
-    case "chapter-title":
+    case "archive-title":
       return 0;
+    case "chapter-title":
+      return 1;
     case "entity":
     case "triple":
-      return 1;
-    case "node":
       return 2;
+    case "node":
+      return 3;
     case "source":
     case "summary":
-      return 3;
+      return 4;
     case "chapter":
     case "chapter-tree":
     case "meta":
     case "fragment":
-      return 4;
+    case "archive":
+      return 5;
   }
 }

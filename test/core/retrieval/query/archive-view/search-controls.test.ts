@@ -14,6 +14,27 @@ beforeEach(setupArchiveViewTestState);
 afterEach(teardownArchiveViewTestState);
 
 describe("archive/query/archive-view/search controls", () => {
+  it("returns archive metadata at its object URI instead of the scope URI", async () => {
+    await withTempDir("wikigraph-archive-view-", async (path) => {
+      const document = await DirectoryDocument.open(`${path}/document`);
+
+      try {
+        await seedSourcedDocument(document);
+        const result = await grepArchiveObjects(
+          document,
+          "Archive Wiki Fixture",
+        );
+
+        expect(result.items).toContainEqual(
+          expect.objectContaining({ id: "wikg://meta", type: "meta" }),
+        );
+        expect(result.items.some((item) => item.id === "wikg://")).toBe(false);
+      } finally {
+        await document.release();
+      }
+    });
+  });
+
   it("greps exact text without splitting whitespace-separated keywords", async () => {
     await withTempDir("wikigraph-archive-view-", async (path) => {
       const document = await DirectoryDocument.open(`${path}/document`);

@@ -8,7 +8,7 @@ export const sourceFormatSchema = z.enum(SOURCE_FORMATS);
 export const bookMetaSchema = z.object({
   version: z.literal(BOOK_META_VERSION),
   sourceFormat: sourceFormatSchema,
-  title: z.string().min(1).nullable(),
+  title: z.string().min(1).nullable().default(null),
   authors: z.array(z.string().min(1)),
   language: z.string().min(1).nullable(),
   identifier: z.string().min(1).nullable(),

@@ -14,7 +14,7 @@ import {
 } from "../../search-cache/index.js";
 import type {
   BucketSearchCursor,
-  SearchChapterTitleCursorKey,
+  SearchTitleCursorKey,
   SearchChunkCursorKey,
   SearchObjectCursorKey,
   SearchSessionDescriptor,
@@ -58,11 +58,13 @@ import {
   hydrateCachedObjectBucketHit,
 } from "./bucket-hydration.js";
 import {
-  compareChapterTitleIndexHits,
+  compareTitleIndexHits,
   compareTextIndexHits,
+  createTitleBucketTypes,
   getObjectBucketCursorId,
-  isAfterChapterTitleKey,
+  isAfterTitleKey,
   isAfterTextKey,
+  matchesTitleBucketType,
 } from "./bucket-order.js";
 import type {
   ArchiveFindFilterType,
@@ -147,7 +149,13 @@ async function readBucketPage(
 }> {
   switch (cursor.bucket) {
     case 0:
-      return shouldReadArchiveBucket(session, "chapter", "chapter-title")
+      return shouldReadArchiveBucket(
+        session,
+        "archive",
+        "archive-title",
+        "chapter",
+        "chapter-title",
+      )
         ? await readChapterTitleBucketPage(
             document,
             session,
@@ -192,13 +200,14 @@ async function readBucketPage(
 async function readChapterTitleBucketPage(
   document: ReadonlyDocument,
   session: SearchSessionDescriptor,
-  after: SearchChapterTitleCursorKey | undefined,
+  after: SearchTitleCursorKey | undefined,
   limit: number,
   options: ArchiveFindOptions,
 ): Promise<{
   readonly items: readonly ArchiveFindHit[];
   readonly nextCursor: BucketSearchCursor | undefined;
 }> {
+  const titleTypes = createTitleBucketTypes(session.types);
   const result = await querySearchIndex(document, session.query, {
     ...(session.chapters === null ? {} : { chapters: session.chapters }),
     ...(options.embeddingProvider === undefined
@@ -208,7 +217,7 @@ async function readChapterTitleBucketPage(
     match: parseFindMatch(session.match),
     objectHitLimit: SEARCH_INDEX_FTS_HIT_LIMIT,
     textHitLimit: SEARCH_INDEX_FTS_HIT_LIMIT,
-    types: ["chapter-title"],
+    types: titleTypes,
   });
   const chapters = new Map(
     (await listChapters(document)).map((chapter) => [
@@ -217,11 +226,9 @@ async function readChapterTitleBucketPage(
     ]),
   );
   const hits = createChapterTitleIndexHits(result)
-    .filter(
-      (hit) => hit.ownerKind === SEARCH_OBJECT_PROPERTY_OWNER_KIND.chapter,
-    )
-    .sort(compareChapterTitleIndexHits)
-    .filter((hit) => isAfterChapterTitleKey(hit, after));
+    .filter((hit) => matchesTitleBucketType(hit, titleTypes))
+    .sort(compareTitleIndexHits)
+    .filter((hit) => isAfterTitleKey(hit, after));
   const page = hits.slice(0, limit + 1);
   const hydrated = (
     await Promise.all(
@@ -244,7 +251,8 @@ async function readChapterTitleBucketPage(
             bucket: 0,
             key: {
               archiveId: last.archiveId,
-              chapterId: parseSearchPropertyIntegerOwnerId(last.ownerId),
+              ownerId: last.ownerId,
+              ownerKind: last.ownerKind,
               score: last.score,
             },
           }

@@ -1362,6 +1362,48 @@ describe("cli/args/archive", () => {
     ).toThrow("archive URI form does not support `set`");
   });
 
+  it("routes standalone and managed archive title objects", () => {
+    expect(
+      parseCLIArguments(["wikg://book.wikg/title", "set", "New title"]),
+    ).toStrictEqual({
+      args: {
+        action: "set",
+        archivePath,
+        title: "New title",
+      },
+      help: false,
+      kind: "archive-title",
+    });
+    expect(
+      parseCLIArguments(["wikg://book.wikg/title", "clear"]),
+    ).toStrictEqual({
+      args: { action: "clear", archivePath },
+      help: false,
+      kind: "archive-title",
+    });
+    expect(
+      parseCLIArguments([
+        "wikg://lib/arc/0123456789abcdef/title",
+        "set",
+        "Managed title",
+      ]),
+    ).toMatchObject({
+      args: {
+        action: "set",
+        archivePath: "wikg://lib/arc/0123456789abcdef",
+        title: "Managed title",
+      },
+      help: false,
+      kind: "archive-title",
+    });
+    expect(() =>
+      parseCLIArguments(["wikg://book.wikg/title", "set", ""]),
+    ).not.toThrow();
+    expect(() =>
+      parseCLIArguments(["wikg://book.wikg/title", "clear", "extra"]),
+    ).toThrow("does not accept a value");
+  });
+
   it("parses archive chapter edit actions", () => {
     expect(
       parseCLIArguments([

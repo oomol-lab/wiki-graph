@@ -723,7 +723,7 @@ describe("wiki graph library object query aggregation", () => {
       "chapter",
       expect.objectContaining({
         chapters: [7],
-        types: ["chapter-title"],
+        types: ["archive-title", "chapter-title"],
       }),
     );
     expect(searchIndex.queryWikiGraphLibrarySearchIndex).toHaveBeenCalledWith(
@@ -733,6 +733,55 @@ describe("wiki graph library object query aggregation", () => {
         chapters: [7],
         types: null,
       }),
+    );
+  });
+
+  it("filters typed library title hits before paginating", async () => {
+    const [{ findWikiGraphLibraryObjects }, searchIndex] = await Promise.all([
+      import("../../../packages/core/src/library/query.js"),
+      import("../../../packages/core/src/library/search-index.js"),
+    ]);
+    vi.mocked(searchIndex.queryWikiGraphLibrarySearchIndex).mockClear();
+    mocks.listIndexResult = {
+      objectHits: [
+        createArchiveTitleIndexObjectHit(1),
+        createIndexObjectHit(1, "1"),
+        createIndexObjectHit(1, "2"),
+      ],
+      terms: ["shared", "title"],
+      textHits: [],
+    };
+
+    const first = await findWikiGraphLibraryObjects(target, "Shared Title", {
+      limit: 1,
+      queryMode: "hybrid",
+      types: ["chapter-title"],
+    });
+    expect(first.items).toHaveLength(1);
+    expect(first.items[0]).toMatchObject({
+      id: "wikg://chapter/1/title",
+      type: "chapter-title",
+    });
+    expect(first.nextCursor).not.toBeNull();
+
+    const second = await findWikiGraphLibraryObjects(target, "Shared Title", {
+      cursor: first.nextCursor!,
+      limit: 1,
+      queryMode: "hybrid",
+      types: ["chapter-title"],
+    });
+    expect(second.items).toHaveLength(1);
+    expect(second.items[0]).toMatchObject({
+      id: "wikg://chapter/2/title",
+      type: "chapter-title",
+    });
+    expect([...first.items, ...second.items]).not.toContainEqual(
+      expect.objectContaining({ id: "wikg://title" }),
+    );
+    expect(searchIndex.queryWikiGraphLibrarySearchIndex).toHaveBeenCalledWith(
+      target,
+      "Shared Title",
+      expect.objectContaining({ types: ["chapter-title"] }),
     );
   });
 
@@ -792,6 +841,34 @@ describe("wiki graph library object query aggregation", () => {
     );
   });
 
+  it("treats chapter and chapter-title as symmetric library list filters", async () => {
+    const { listWikiGraphLibraryObjects } =
+      await import("../../../packages/core/src/library/query.js");
+    mocks.listIndexResult = {
+      objectHits: [createIndexObjectHit(1, "1")],
+      terms: [],
+      textHits: [],
+    };
+
+    const byAlias = await listWikiGraphLibraryObjects(target, {
+      types: ["chapter"],
+    });
+    const byConcreteType = await listWikiGraphLibraryObjects(target, {
+      types: ["chapter-title"],
+    });
+
+    expect(byAlias.items).toStrictEqual(byConcreteType.items);
+    expect(byAlias.items).toStrictEqual([
+      expect.objectContaining({
+        id: "wikg://chapter/1/title",
+        type: "chapter-title",
+      }),
+    ]);
+    expect(byAlias.items.some((item) => item.id === "wikg://chapter/1")).toBe(
+      false,
+    );
+  });
+
   it("requests text sentence hits only for text-stream library list types", async () => {
     const [{ listWikiGraphLibraryObjects }, searchIndex] = await Promise.all([
       import("../../../packages/core/src/library/query.js"),
@@ -817,6 +894,18 @@ function createIndexObjectHit(archiveId: number, ownerId: string) {
     ownerKind: 1,
     propertyKind: 1,
     score: 0,
+  };
+}
+
+function createArchiveTitleIndexObjectHit(archiveId: number) {
+  return {
+    archiveId,
+    archiveUri: `wikg://lib/archive-${archiveId}`,
+    libraryArchiveUri: `wikg://lib/archive-${archiveId}`,
+    ownerId: "title",
+    ownerKind: 4,
+    propertyKind: 1,
+    score: 1,
   };
 }
 
