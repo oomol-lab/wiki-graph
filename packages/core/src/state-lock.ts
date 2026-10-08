@@ -32,6 +32,7 @@ export interface StateLockOptions {
   readonly mode: StateLockMode;
   readonly pollMs?: number;
   readonly resourceKey: string;
+  readonly signal?: AbortSignal;
   readonly scope: string;
   readonly staleMs?: number;
   readonly wait?: boolean;
@@ -67,17 +68,24 @@ export async function acquireStateLock(
   const pollMs = options.pollMs ?? DEFAULT_STATE_LOCK_POLL_MS;
 
   while (true) {
+    throwIfLockAcquisitionAborted(options.signal);
     const acquired = await tryInsertStateLock(options, ownerId);
 
     if (acquired) {
-      return createStateLockRelease(options, ownerId);
+      const release = createStateLockRelease(options, ownerId);
+      if (options.signal?.aborted === true) {
+        await release();
+        throwLockAcquisitionAborted(options.signal);
+      }
+      return release;
     }
 
+    throwIfLockAcquisitionAborted(options.signal);
     if (options.wait === false) {
       return undefined;
     }
 
-    await delay(pollMs);
+    await delay(pollMs, options.signal);
   }
 }
 
@@ -310,8 +318,31 @@ function isStateLockStale(
   return Date.now() - lock.heartbeatAt > staleMs;
 }
 
-async function delay(ms: number): Promise<void> {
-  await new Promise<void>((resolveDelay) => {
-    setTimeout(resolveDelay, ms);
+async function delay(ms: number, signal?: AbortSignal): Promise<void> {
+  throwIfLockAcquisitionAborted(signal);
+  await new Promise<void>((resolveDelay, rejectDelay) => {
+    const timeout = setTimeout(() => {
+      signal?.removeEventListener("abort", onAbort);
+      resolveDelay();
+    }, ms);
+    const onAbort = (): void => {
+      clearTimeout(timeout);
+      signal?.removeEventListener("abort", onAbort);
+      rejectDelay(lockAcquisitionAbortReason(signal));
+    };
+    signal?.addEventListener("abort", onAbort, { once: true });
+    if (signal?.aborted === true) onAbort();
   });
+}
+
+function throwIfLockAcquisitionAborted(signal: AbortSignal | undefined): void {
+  if (signal?.aborted === true) throwLockAcquisitionAborted(signal);
+}
+
+function throwLockAcquisitionAborted(signal: AbortSignal): never {
+  throw lockAcquisitionAbortReason(signal);
+}
+
+function lockAcquisitionAbortReason(signal: AbortSignal | undefined): unknown {
+  return signal?.reason ?? new Error("State lock acquisition was aborted.");
 }

@@ -4,6 +4,7 @@ import { tmpdir } from "os";
 import { join } from "path";
 
 import { afterEach, describe, expect, it } from "vitest";
+import { withWikiGraphLibraryLock } from "wiki-graph-core";
 
 import {
   createWikiGraphSDK,
@@ -125,6 +126,47 @@ describe("WikiGraphLibraryManager.readArchive", () => {
         to: "after-abort.wikg",
       }),
     ).resolves.toMatchObject({ relativePath: "after-abort.wikg" });
+    setup.sdk.close();
+  });
+
+  it("aborts promptly while waiting to acquire the library read lock", async () => {
+    const setup = await createManagedArchive();
+    const releaseWriter = deferred<void>();
+    const writerEntered = deferred<void>();
+    const writer = setup.sdk.run(
+      async () =>
+        await withWikiGraphLibraryLock(
+          setup.library.snapshot.id,
+          "write",
+          async () => {
+            writerEntered.resolve();
+            await releaseWriter.promise;
+          },
+        ),
+    );
+    await writerEntered.promise;
+
+    const controller = new AbortController();
+    const reading = setup.sdk.libraries.readArchive(
+      setup.memberUri,
+      () => {
+        throw new Error("aborted read must not enter its callback");
+      },
+      { signal: controller.signal },
+    );
+    controller.abort(new Error("stop waiting for archive"));
+
+    try {
+      await expect(
+        Promise.race([
+          reading,
+          rejectAfter(500, "readArchive did not abort while waiting for lock"),
+        ]),
+      ).rejects.toThrow("stop waiting for archive");
+    } finally {
+      releaseWriter.resolve();
+      await writer;
+    }
     setup.sdk.close();
   });
 
@@ -306,4 +348,9 @@ function deferred<T>(): Deferred<T> {
     resolve = resolvePromise;
   });
   return { promise, resolve };
+}
+
+async function rejectAfter(ms: number, message: string): Promise<never> {
+  await new Promise((resolve) => setTimeout(resolve, ms));
+  throw new Error(message);
 }

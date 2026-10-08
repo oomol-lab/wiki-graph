@@ -220,33 +220,38 @@ export class WikiGraphLibraryManager {
       const parsedTarget = requireLibraryArchiveTarget(target);
       const library = await resolveWikiGraphLibrary(parsedTarget);
 
-      return await withWikiGraphLibraryLock(library.id, "read", async () => {
-        throwIfAborted(options.signal);
-        const archive = await getWikiGraphLibraryArchive(parsedTarget);
-        const file = requireReadableLibraryArchiveFile(archive);
-        const reader = await file.openReader();
-        let active = true;
+      return await withWikiGraphLibraryLock(
+        library.id,
+        "read",
+        async () => {
+          throwIfAborted(options.signal);
+          const archive = await getWikiGraphLibraryArchive(parsedTarget);
+          const file = requireReadableLibraryArchiveFile(archive);
+          const reader = await file.openReader();
+          let active = true;
 
-        try {
-          const content: WikiGraphLibraryArchiveContent = {
-            mediaType: "application/vnd.wiki-graph.archive",
-            size: reader.size,
-            stream: createCallbackScopedArchiveStream(
-              reader,
-              () => active,
+          try {
+            const content: WikiGraphLibraryArchiveContent = {
+              mediaType: "application/vnd.wiki-graph.archive",
+              size: reader.size,
+              stream: createCallbackScopedArchiveStream(
+                reader,
+                () => active,
+                options.signal,
+              ),
+              uri: archive.uri,
+            };
+            return await runAbortableCallback(
+              async () => await consume(content),
               options.signal,
-            ),
-            uri: archive.uri,
-          };
-          return await runAbortableCallback(
-            async () => await consume(content),
-            options.signal,
-          );
-        } finally {
-          active = false;
-          await reader.close();
-        }
-      });
+            );
+          } finally {
+            active = false;
+            await reader.close();
+          }
+        },
+        options.signal === undefined ? {} : { signal: options.signal },
+      );
     }, options.signal);
   }
 

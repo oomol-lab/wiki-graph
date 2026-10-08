@@ -26,9 +26,13 @@ export async function withWikiGraphLibraryLock<T>(
   libraryId: number,
   mode: LibraryLockMode,
   operation: () => Promise<T> | T,
+  options: { readonly signal?: AbortSignal } = {},
 ): Promise<T> {
   return await withStateLock(
-    await createLibraryLockOptions(libraryId, mode),
+    {
+      ...(await createLibraryLockOptions(libraryId, mode)),
+      ...(options.signal === undefined ? {} : { signal: options.signal }),
+    },
     operation,
   );
 }
