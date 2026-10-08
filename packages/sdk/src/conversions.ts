@@ -16,6 +16,7 @@ import { NodeDirectory, NodeFile } from "./node-platform.js";
 import { loadWikiGraphRuntimeConfig } from "./runtime-config.js";
 import type { WikiGraphJobRuntime } from "./jobs.js";
 import { resolveWikiGraphRuntimePath } from "./runtime-path.js";
+import { assertStandaloneWikiGraphArchivePath } from "./archive/target.js";
 
 export type WikiGraphConversionFormat =
   | "epub"
@@ -128,7 +129,9 @@ export class WikiGraphConversionManager {
         throw new Error("wikg input requires a file path.");
       }
       await app.openSession(
-        new NodeFile(resolveWikiGraphRuntimePath(options.input.path)),
+        new NodeFile(
+          await assertStandaloneWikiGraphArchivePath(options.input.path),
+        ),
         write,
       );
     } else if ("stream" in options.input) {
@@ -208,7 +211,11 @@ async function writeArchive(
   path: string,
   format: WikiGraphConversionFormat,
 ): Promise<void> {
-  const file = new NodeFile(resolveWikiGraphRuntimePath(path));
+  const outputPath =
+    format === "wikg"
+      ? await assertStandaloneWikiGraphArchivePath(path)
+      : resolveWikiGraphRuntimePath(path);
+  const file = new NodeFile(outputPath);
   if (format === "epub") await archive.exportEpub(file);
   else if (format === "wikg") await archive.saveAs(file);
   else if (format === "pcex") throw new Error("pcex output is not supported.");

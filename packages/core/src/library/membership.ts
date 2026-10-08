@@ -46,6 +46,7 @@ import {
 } from "./registry.js";
 import { markWikiGraphLibraryIndexDirty } from "./search-index.js";
 import { withWikiGraphLibraryLock } from "./lock.js";
+import { commitAtomicArchiveReplacement } from "./archive-replacement.js";
 
 const PUBLIC_ID_BYTES = 6;
 const SEARCH_INDEX_ARCHIVE_ENTRY_PATH = "index.db";
@@ -351,9 +352,11 @@ export async function replaceWikiGraphLibraryArchive(input: {
   }
   const library = await resolveWikiGraphLibrary(input.target);
   const stagingName = `replace-${bytesToHex(randomBytes(12))}${WIKI_GRAPH_ARCHIVE_EXTENSION}`;
+  const rollbackName = `rollback-${bytesToHex(randomBytes(12))}${WIKI_GRAPH_ARCHIVE_EXTENSION}`;
   const staged = await library.staging.createFile(stagingName);
 
   try {
+    const rollbackFile = await library.staging.createFile(rollbackName);
     await writeWikgArchiveWithOverlays(input.inputFile, staged, [
       { entryPath: SEARCH_INDEX_ARCHIVE_ENTRY_PATH, kind: "deleted" },
       { entryPath: LEGACY_SEARCH_INDEX_ARCHIVE_ENTRY_PATH, kind: "deleted" },
@@ -379,44 +382,61 @@ export async function replaceWikiGraphLibraryArchive(input: {
           return await new WikgCoordinator().withExclusiveArchiveReplacement(
             archive.file!,
             async () => {
+              await copyFileContent(archive.file!, rollbackFile);
               await markWikiGraphLibraryIndexDirty(library);
-              await copyFileContent(staged, archive.file!);
-
-              const refreshedFile = await inspectLibraryArchiveFile(
-                library.folder,
-                archive.relativePath,
-              );
-              await withLibraryArchiveMembershipDatabase(async (database) => {
-                await updateLibraryArchiveSeen(
-                  database,
-                  archive.id,
-                  refreshedFile,
-                  {
-                    status: "present",
-                  },
-                );
-              });
-              await invalidateReplacedArchiveDerivedState(
-                archive,
-                library,
-                input.additionalDerivedStateKeys,
-              );
-              return await withLibraryArchiveMembershipDatabase(
-                async (database) =>
-                  await requireLibraryArchiveById(
-                    database,
+              return await commitAtomicArchiveReplacement({
+                finalize: async () => {
+                  await refreshLibraryArchiveMembership(archive, library);
+                  await invalidateReplacedArchiveDerivedState(
+                    archive,
                     library,
-                    archive.id,
-                  ),
-              );
+                    input.additionalDerivedStateKeys,
+                  );
+                  return await withLibraryArchiveMembershipDatabase(
+                    async (database) =>
+                      await requireLibraryArchiveById(
+                        database,
+                        library,
+                        archive.id,
+                      ),
+                  );
+                },
+                publish: async () => {
+                  await copyFileContent(staged, archive.file!);
+                },
+                recover: async () => {
+                  await refreshLibraryArchiveMembership(archive, library);
+                },
+                rollback: async () => {
+                  await copyFileContent(rollbackFile, archive.file!);
+                },
+              });
             },
           );
         },
       );
     });
   } finally {
-    await library.staging.remove(stagingName).catch(() => undefined);
+    await Promise.all([
+      library.staging.remove(stagingName).catch(() => undefined),
+      library.staging.remove(rollbackName).catch(() => undefined),
+    ]);
   }
+}
+
+async function refreshLibraryArchiveMembership(
+  archive: WikiGraphLibraryArchiveRecord,
+  library: WikiGraphLibraryRecord,
+): Promise<void> {
+  const refreshedFile = await inspectLibraryArchiveFile(
+    library.folder,
+    archive.relativePath,
+  );
+  await withLibraryArchiveMembershipDatabase(async (database) => {
+    await updateLibraryArchiveSeen(database, archive.id, refreshedFile, {
+      status: "present",
+    });
+  });
 }
 
 async function validateReplacementArchive(file: File): Promise<void> {

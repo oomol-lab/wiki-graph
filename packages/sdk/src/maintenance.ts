@@ -9,6 +9,7 @@ import { basename } from "path";
 import type { WikiGraphJobRuntime } from "./jobs.js";
 import { NodeFile } from "./node-platform.js";
 import { resolveWikiGraphRuntimePath } from "./runtime-path.js";
+import { assertStandaloneWikiGraphArchivePath } from "./archive/target.js";
 
 export type WikiGraphMaintenanceTarget =
   | { readonly kind: "archive"; readonly path: string }
@@ -47,7 +48,7 @@ export class WikiGraphMaintenanceManager {
             target: parsed,
           });
         }
-        const path = resolveWikiGraphRuntimePath(target.path);
+        const path = await assertStandaloneWikiGraphArchivePath(target.path);
         return await upgradeWikiGraphMaintenanceTarget({
           file: new NodeFile(path),
           kind: "archive",
