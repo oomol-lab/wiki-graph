@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import { executeChapterJobFile } from "./file-executor.js";
 import { readChapterJobArtifact, writeChapterJobInput } from "./jsonl.js";
+import type { JobProgressSink } from "./ports.js";
 import {
   MemoryJobDirectory,
   MemoryJobFile,
@@ -20,9 +21,11 @@ describe("file-based chapter jobs", () => {
       },
     ]);
 
+    const updatePhase = vi.fn<NonNullable<JobProgressSink["updatePhase"]>>();
     const result = await executeChapterJobFile({
       inputFile,
       kind: "index-fts",
+      progress: { updatePhase },
       revision: 9,
       workspace: new MemoryJobDirectory(),
     });
@@ -32,6 +35,23 @@ describe("file-based chapter jobs", () => {
     expect(records.map((record) => record.type)).toEqual([
       "lexical-row",
       "lexical-row",
+    ]);
+    expect(updatePhase.mock.calls.map(([progress]) => progress)).toEqual([
+      { done: 0, phase: "indexing", total: 2, unit: "record" },
+      {
+        done: 1,
+        force: false,
+        phase: "indexing",
+        total: 2,
+        unit: "record",
+      },
+      {
+        done: 2,
+        force: false,
+        phase: "indexing",
+        total: 2,
+        unit: "record",
+      },
     ]);
   });
 
@@ -63,10 +83,12 @@ describe("file-based chapter jobs", () => {
       }),
     );
 
+    const updatePhase = vi.fn<NonNullable<JobProgressSink["updatePhase"]>>();
     const result = await executeChapterJobFile({
       embeddingProvider: { dimensions: 3, embedTexts, model: "test-model" },
       inputFile,
       kind: "index-embedding-source",
+      progress: { updatePhase },
       revision: 4,
       workspace: new MemoryJobDirectory(),
     });
@@ -85,6 +107,16 @@ describe("file-based chapter jobs", () => {
       expect.arrayContaining([expect.any(String), expect.any(String)]),
       undefined,
     );
+    expect(updatePhase.mock.calls.map(([progress]) => progress)).toEqual([
+      { done: 0, phase: "indexing", total: 2, unit: "record" },
+      {
+        done: 2,
+        force: false,
+        phase: "indexing",
+        total: 2,
+        unit: "record",
+      },
+    ]);
   });
 
   it("rejects an empty summary embedding input at execution time", async () => {
@@ -106,6 +138,48 @@ describe("file-based chapter jobs", () => {
     ).rejects.toThrow(
       "Summary embedding job requires at least one summary sentence",
     );
+  });
+
+  it("reports a complete summary phase for the single-fragment shortcut", async () => {
+    const inputFile = new MemoryJobFile("input.jsonl");
+    await writeChapterJobInput(inputFile, [
+      {
+        fragmentId: 1,
+        sentenceIndex: 0,
+        text: "A short chapter.",
+        type: "source-sentence",
+        wordsCount: 3,
+      },
+    ]);
+    const updatePhase = vi.fn<NonNullable<JobProgressSink["updatePhase"]>>();
+    const request = vi.fn(() =>
+      Promise.reject(new Error("LLM should not be called")),
+    );
+
+    await executeChapterJobFile({
+      inputFile,
+      kind: "reading-summary",
+      llm: { request },
+      progress: { updatePhase },
+      revision: 1,
+      workspace: new MemoryJobDirectory(),
+    });
+
+    expect(request).not.toHaveBeenCalled();
+    expect(updatePhase.mock.calls.map(([progress]) => progress)).toEqual([
+      {
+        done: 0,
+        phase: "summary-compression",
+        total: 1,
+        unit: "item",
+      },
+      {
+        done: 1,
+        phase: "summary-compression",
+        total: 1,
+        unit: "item",
+      },
+    ]);
   });
 
   it("rejects records that belong to another job kind", async () => {

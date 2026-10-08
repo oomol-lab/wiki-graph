@@ -36,8 +36,21 @@ export async function* buildReadingSummaryRecords(options: {
   const prompt = options.prompt ?? input.jobOptions.prompt;
   const fragmentIds = await input.fragments.listFragmentIds();
   if (fragmentIds.length <= 1) {
+    await options.progress?.updatePhase?.({
+      done: 0,
+      phase: "summary-compression",
+      total: 1,
+      unit: "item",
+    });
+    await options.progress?.throwIfStopped?.();
     const text = await input.fragments.readText();
     if (text !== "") yield { position: 0, text, type: "summary-part" };
+    await options.progress?.updatePhase?.({
+      done: 1,
+      phase: "summary-compression",
+      total: 1,
+      unit: "item",
+    });
     return;
   }
 

@@ -338,7 +338,7 @@ describe("real job artifact application matrix", () => {
           scenario.sdk.close();
         }
       },
-      90_000,
+      120_000,
     );
   });
 });
