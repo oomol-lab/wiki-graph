@@ -841,6 +841,34 @@ describe("wiki graph library object query aggregation", () => {
     );
   });
 
+  it("treats chapter and chapter-title as symmetric library list filters", async () => {
+    const { listWikiGraphLibraryObjects } =
+      await import("../../../packages/core/src/library/query.js");
+    mocks.listIndexResult = {
+      objectHits: [createIndexObjectHit(1, "1")],
+      terms: [],
+      textHits: [],
+    };
+
+    const byAlias = await listWikiGraphLibraryObjects(target, {
+      types: ["chapter"],
+    });
+    const byConcreteType = await listWikiGraphLibraryObjects(target, {
+      types: ["chapter-title"],
+    });
+
+    expect(byAlias.items).toStrictEqual(byConcreteType.items);
+    expect(byAlias.items).toStrictEqual([
+      expect.objectContaining({
+        id: "wikg://chapter/1/title",
+        type: "chapter-title",
+      }),
+    ]);
+    expect(byAlias.items.some((item) => item.id === "wikg://chapter/1")).toBe(
+      false,
+    );
+  });
+
   it("requests text sentence hits only for text-stream library list types", async () => {
     const [{ listWikiGraphLibraryObjects }, searchIndex] = await Promise.all([
       import("../../../packages/core/src/library/query.js"),

@@ -66,6 +66,25 @@ describe("archive/query/archive-view/collection", () => {
           expect.objectContaining({ id: "wikg://meta", type: "meta" }),
         ]);
 
+        const chaptersByAlias = await listArchiveCollection(document, {
+          types: ["chapter"],
+        });
+        const chapterTitles = await listArchiveCollection(document, {
+          types: ["chapter-title"],
+        });
+        expect(chaptersByAlias.items).toStrictEqual(chapterTitles.items);
+        expect(chaptersByAlias.items).toStrictEqual([
+          expect.objectContaining({
+            id: "wikg://chapter/introduction/title",
+            type: "chapter-title",
+          }),
+        ]);
+        expect(
+          chaptersByAlias.items.some(
+            (item) => item.id === "wikg://chapter/introduction",
+          ),
+        ).toBe(false);
+
         await document.openSession(async (openedDocument) => {
           await openedDocument.metadata.deleteKey("", "title");
         });

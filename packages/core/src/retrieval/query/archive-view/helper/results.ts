@@ -192,6 +192,7 @@ export function matchesCollectionType(
   types: readonly ArchiveCollectionType[] | null,
 ): boolean {
   if (types === null) return true;
+  if (hit.type === "chapter-title" && types.includes("chapter")) return true;
   if (hit.type === "archive-title" && types.includes("archive")) return true;
   return isCollectionType(hit.type) && types.includes(hit.type);
 }
