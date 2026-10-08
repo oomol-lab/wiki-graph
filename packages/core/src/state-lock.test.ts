@@ -129,6 +129,28 @@ describe("state lock coordination", () => {
     });
   });
 
+  it("stops waiting for a conflicting lock when acquisition is aborted", async () => {
+    await withStateLockTestDatabase(async (databasePath) => {
+      const holderRelease = await acquireTestLock(databasePath, "write");
+      const controller = new AbortController();
+      const waiter = withStateLock(
+        {
+          ...createTestLockOptions(databasePath, "read"),
+          signal: controller.signal,
+        },
+        () => {
+          throw new Error("aborted waiter must not enter");
+        },
+      );
+
+      controller.abort(new Error("stop waiting"));
+      await expect(waiter).rejects.toThrow("stop waiting");
+      await expect(countStateLocks(databasePath)).resolves.toBe(1);
+      await holderRelease?.();
+      await expect(countStateLocks(databasePath)).resolves.toBe(0);
+    });
+  });
+
   it("returns undefined for opportunistic acquire while locked and releases a free acquire", async () => {
     await withStateLockTestDatabase(async (databasePath) => {
       const holderRelease = await acquireTestLock(databasePath, "read");

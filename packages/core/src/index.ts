@@ -80,6 +80,7 @@ export {
   cleanWikiGraphLibraryIndex,
   markWikiGraphLibraryIndexDirty,
   writeWikiGraphLibraryArchive,
+  withWikiGraphLibraryLock,
 } from "./library/index.js";
 export type {
   ParsedWikiGraphLibraryUri,
