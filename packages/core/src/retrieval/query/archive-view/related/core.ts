@@ -26,6 +26,11 @@ import type {
   ArchiveRelatedResult,
   ArchiveRelatedRole,
 } from "../types.js";
+import type { SearchIndexQueryResult } from "../../../search-index/search/types.js";
+
+export const RELATED_SEARCH_INDEX_RESULT = Symbol(
+  "wiki-graph.related-search-index-result",
+);
 
 export async function listArchiveLinks(
   document: ReadonlyDocument,
@@ -78,11 +83,17 @@ export async function listRelatedArchiveObjects(
   id: string,
   options: ArchiveRelatedOptions = {},
 ): Promise<ArchiveRelatedResult> {
+  const precomputedIndexResult = (
+    options as ArchiveRelatedOptions & {
+      readonly [RELATED_SEARCH_INDEX_RESULT]?: SearchIndexQueryResult | null;
+    }
+  )[RELATED_SEARCH_INDEX_RESULT];
   if (isWikiGraphObjectUri(id)) {
     return await listRelatedWikiGraphObjects(
       document,
       normalizeWikiGraphObjectUri(id),
       options,
+      precomputedIndexResult,
     );
   }
 
@@ -124,6 +135,9 @@ export async function listRelatedArchiveObjects(
         ...(options.skipUnindexed === undefined
           ? {}
           : { skipUnindexed: options.skipUnindexed }),
+        ...(precomputedIndexResult === undefined
+          ? {}
+          : { precomputedIndexResult }),
       },
     ),
     options,
@@ -134,6 +148,7 @@ async function listRelatedWikiGraphObjects(
   document: ReadonlyDocument,
   uri: string,
   options: ArchiveRelatedOptions,
+  precomputedIndexResult?: SearchIndexQueryResult | null,
 ): Promise<ArchiveRelatedResult> {
   const reference = parseWikiGraphReference(uri);
 
@@ -185,6 +200,9 @@ async function listRelatedWikiGraphObjects(
             ...(options.skipUnindexed === undefined
               ? {}
               : { skipUnindexed: options.skipUnindexed }),
+            ...(precomputedIndexResult === undefined
+              ? {}
+              : { precomputedIndexResult }),
           },
         ),
         options,
@@ -210,7 +228,12 @@ async function listRelatedWikiGraphObjects(
       );
     }
     case "entity":
-      return await listRelatedEntityObjects(document, reference, options);
+      return await listRelatedEntityObjects(
+        document,
+        reference,
+        options,
+        precomputedIndexResult,
+      );
     case "triple":
       throw new Error(
         `Related is only available for chunk and entity objects: ${uri}`,

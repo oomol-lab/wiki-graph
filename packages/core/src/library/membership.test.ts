@@ -24,6 +24,7 @@ import {
   findWikiGraphLibraryObjects,
   getWikiGraphLibraryMetadata,
   isWikiGraphLibraryUri,
+  listRelatedWikiGraphLibraryObjects,
   listWikiGraphLibraryArchives,
   moveWikiGraphLibraryArchive,
   parseLocatedWikiGraphUri,
@@ -1205,6 +1206,42 @@ describe("library archive membership", () => {
     });
   });
 
+  it.each(["embedding", "hybrid"] as const)(
+    "resolves library chunk related source evidence in %s mode",
+    async (queryMode) => {
+      await withLibraryTestState(async (tempDir) => {
+        const target = parseWikiGraphLibraryUri("wikg://lib");
+        expect(target).toBeDefined();
+        const provider = createLibraryTestEmbeddingProvider();
+        const source = join(tempDir, `dense-related-${queryMode}.wikg`);
+        await createSearchableArchiveWithoutSearchIndex(
+          tempDir,
+          source,
+          provider,
+        );
+        await addWikiGraphLibraryArchive({
+          inputFile: new NodeFile(source),
+          target: target!,
+          to: `dense-related-${queryMode}.wikg`,
+        });
+        await rebuildWikiGraphLibraryIndex(target!);
+
+        const result = await listRelatedWikiGraphLibraryObjects(
+          target!,
+          "wikg://chunk/10",
+          {
+            embeddingProvider: provider,
+            query: "semantic lookup",
+            queryMode,
+          },
+        );
+
+        expect(result.items.map((item) => item.id)).toStrictEqual(["node:11"]);
+        expect(result.items[0]?.score).toBeGreaterThan(0);
+      });
+    },
+  );
+
   it("cleans the library aggregate index cache", async () => {
     await withLibraryTestState(async (tempDir) => {
       const target = parseWikiGraphLibraryUri("wikg://lib");
@@ -1396,6 +1433,21 @@ async function createSearchableArchiveWithoutSearchIndex(
         sentenceIds: [[1, 0]],
         weight: 1,
         wordsCount: 3,
+      });
+      await openedDocument.chunks.save({
+        content: "Library related dense chunk",
+        generation: 0,
+        id: 11,
+        label: "Library related chunk",
+        sentenceId: [1, 0],
+        sentenceIds: [[1, 0]],
+        weight: 1,
+        wordsCount: 4,
+      });
+      await openedDocument.readingEdges.save({
+        fromId: 10,
+        toId: 11,
+        weight: 1,
       });
       await openedDocument.mentions.saveMany([
         {

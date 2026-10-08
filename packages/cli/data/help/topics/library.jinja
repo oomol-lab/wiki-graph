@@ -68,7 +68,7 @@ Library index lifecycle:
   - Library indexes are local derived state under Wiki Graph staging, not files inside the library folder.
   - Sync does not build missing chapter artifacts and does not call an embeddings provider.
   - Dense query still requires `wikg://local/config/embeddings` to embed the query text.
-  - When both FTS and Dense exist, library query combines them automatically; there is no separate query mode flag.
+  - `--query-mode hybrid` combines FTS and Dense when both exist; use `fts` or `embedding` to require one index type.
   - Library membership changes can make the aggregate index stale.
   - Managed archive writes try to sync an existing library index cache immediately; if sync cannot complete, library-wide query reports the cache as stale or not ready.
   - Sync the library index again when library-wide query reports that the index is missing, stale, or not ready.

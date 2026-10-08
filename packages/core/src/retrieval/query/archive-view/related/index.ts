@@ -1,4 +1,9 @@
-export * from "./core.js";
+export {
+  listAllArchiveLinks,
+  listArchiveLinks,
+  listRelatedArchiveObjects,
+  resolveEntityWikipage,
+} from "./core.js";
 export * from "./entity.js";
 export * from "./pagination.js";
 export * from "./query.js";

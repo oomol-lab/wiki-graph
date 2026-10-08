@@ -13,6 +13,7 @@ import {
   TEXT_SENTENCE_KIND,
 } from "../../../search-index/search/index.js";
 import type { ArchiveListItem } from "../types.js";
+import type { SearchIndexQueryResult } from "../../../search-index/search/types.js";
 import { compareRelatedQueryItems } from "./sort.js";
 
 export async function filterAndSortChunkRelatedItemsByQuery(
@@ -24,6 +25,7 @@ export async function filterAndSortChunkRelatedItemsByQuery(
     readonly embeddingProvider?: import("../../../search-index/index.js").SearchIndexEmbeddingProvider;
     readonly queryMode?: import("../../../search-index/index.js").SearchIndexQueryMode;
     readonly skipUnindexed?: boolean;
+    readonly precomputedIndexResult?: SearchIndexQueryResult | null;
   } = {},
 ): Promise<readonly ArchiveListItem[]> {
   if (query === undefined) {
@@ -34,16 +36,19 @@ export async function filterAndSortChunkRelatedItemsByQuery(
     return [];
   }
 
-  const indexResult = await queryRequiredSearchIndex(document, query, {
-    ...(chapters === undefined ? {} : { chapters }),
-    types: ["node"],
-    ...(options.embeddingProvider === undefined
-      ? {}
-      : { embeddingProvider: options.embeddingProvider }),
-    ...(options.queryMode === undefined
-      ? {}
-      : { queryMode: options.queryMode }),
-  });
+  const indexResult =
+    options.precomputedIndexResult === undefined
+      ? await queryRequiredSearchIndex(document, query, {
+          ...(chapters === undefined ? {} : { chapters }),
+          types: ["node"],
+          ...(options.embeddingProvider === undefined
+            ? {}
+            : { embeddingProvider: options.embeddingProvider }),
+          ...(options.queryMode === undefined
+            ? {}
+            : { queryMode: options.queryMode }),
+        })
+      : (options.precomputedIndexResult ?? undefined);
 
   if (indexResult === undefined) {
     return [];
@@ -76,6 +81,38 @@ export async function filterAndSortChunkRelatedItemsByQuery(
     scoresByChunkId.set(chunkId, scores);
   }
 
+  const sourceScoresBySentence = new Map<string, number>();
+  for (const hit of indexResult.textHits) {
+    if (hit.kind !== TEXT_SENTENCE_KIND.source) {
+      continue;
+    }
+    const key = createSentenceHitKey(0, hit.chapterId, hit.sentenceIndex);
+    const current = sourceScoresBySentence.get(key);
+    if (current === undefined || hit.score > current) {
+      sourceScoresBySentence.set(key, hit.score);
+    }
+  }
+  await Promise.all(
+    [...allowedChunkIds].map(async (chunkId) => {
+      const chunk = await document.chunks.getById(chunkId);
+      if (chunk === undefined) {
+        return;
+      }
+      const scores = chunk.sentenceIds.flatMap(([chapterId, sentenceIndex]) => {
+        const score = sourceScoresBySentence.get(
+          createSentenceHitKey(0, chapterId, sentenceIndex),
+        );
+        return score === undefined ? [] : [score];
+      });
+      if (scores.length > 0) {
+        scoresByChunkId.set(chunkId, [
+          ...(scoresByChunkId.get(chunkId) ?? []),
+          ...scores,
+        ]);
+      }
+    }),
+  );
+
   return items
     .flatMap((item) => {
       if (item.type !== "node") {
@@ -105,6 +142,7 @@ export async function filterAndSortEntityRelatedTriplesByQuery(
     readonly embeddingProvider?: import("../../../search-index/index.js").SearchIndexEmbeddingProvider;
     readonly queryMode?: import("../../../search-index/index.js").SearchIndexQueryMode;
     readonly skipUnindexed?: boolean;
+    readonly precomputedIndexResult?: SearchIndexQueryResult | null;
   } = {},
 ): Promise<readonly ArchiveListItem[]> {
   if (query === undefined) {
@@ -127,16 +165,19 @@ export async function filterAndSortEntityRelatedTriplesByQuery(
     return [];
   }
 
-  const indexResult = await queryRequiredSearchIndex(document, query, {
-    ...(chapters === undefined ? {} : { chapters }),
-    types: ["entity", "source"],
-    ...(options.embeddingProvider === undefined
-      ? {}
-      : { embeddingProvider: options.embeddingProvider }),
-    ...(options.queryMode === undefined
-      ? {}
-      : { queryMode: options.queryMode }),
-  });
+  const indexResult =
+    options.precomputedIndexResult === undefined
+      ? await queryRequiredSearchIndex(document, query, {
+          ...(chapters === undefined ? {} : { chapters }),
+          types: ["entity", "source"],
+          ...(options.embeddingProvider === undefined
+            ? {}
+            : { embeddingProvider: options.embeddingProvider }),
+          ...(options.queryMode === undefined
+            ? {}
+            : { queryMode: options.queryMode }),
+        })
+      : (options.precomputedIndexResult ?? undefined);
 
   if (indexResult === undefined) {
     return [];

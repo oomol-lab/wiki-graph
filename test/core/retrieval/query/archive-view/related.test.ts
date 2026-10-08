@@ -9,6 +9,7 @@ import {
   teardownArchiveViewTestState,
   withTempDir,
 } from "./helpers.js";
+import { replaceChapterSourceEmbeddingIndexArtifact } from "../../../../../packages/core/src/retrieval/index-artifact/index.js";
 
 beforeEach(setupArchiveViewTestState);
 afterEach(teardownArchiveViewTestState);
@@ -386,6 +387,50 @@ describe("archive/query/archive-view/related", () => {
     });
   });
 
+  it.each(["embedding", "hybrid"] as const)(
+    "filters chunk related results through source evidence in %s mode",
+    async (queryMode) => {
+      await withTempDir("wikigraph-archive-view-", async (path) => {
+        const document = await DirectoryDocument.open(`${path}/document`);
+
+        try {
+          await seedSourcedDocument(document);
+          await document.openSession(async (openedDocument) => {
+            await openedDocument.readingEdges.save({
+              fromId: 100,
+              toId: 101,
+              weight: 1,
+            });
+          });
+          const embeddingProvider = createRelatedEmbeddingProvider();
+          await replaceChapterSourceEmbeddingIndexArtifact(
+            document,
+            1,
+            embeddingProvider,
+          );
+          await rebuildArchiveSearchIndex(document);
+
+          const related = await listRelatedArchiveObjects(
+            document,
+            "wikg://chunk/100",
+            {
+              embeddingProvider,
+              query: "semantic lookup",
+              queryMode,
+            },
+          );
+
+          expect(related.items.map((item) => item.id)).toStrictEqual([
+            "node:101",
+          ]);
+          expect(related.items[0]?.score).toBeGreaterThan(0);
+        } finally {
+          await document.release();
+        }
+      });
+    },
+  );
+
   it("matches entity related query against mention link evidence sentences", async () => {
     await withTempDir("wikigraph-archive-view-", async (path) => {
       const document = await DirectoryDocument.open(`${path}/document`);
@@ -513,3 +558,17 @@ describe("archive/query/archive-view/related", () => {
     });
   });
 });
+
+function createRelatedEmbeddingProvider() {
+  return {
+    dimensions: 3,
+    model: "related-test-embedding",
+    embedTexts: async (texts: readonly string[]) => {
+      await Promise.resolve();
+      return {
+        embeddings: texts.map((text, index) => [text.length, index, 1]),
+        tokens: texts.length,
+      };
+    },
+  };
+}
