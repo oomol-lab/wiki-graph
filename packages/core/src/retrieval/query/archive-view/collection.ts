@@ -13,6 +13,7 @@ import {
   formatMetaTitle,
   formatWeight,
   isDefined,
+  readArchiveTitle,
 } from "./helpers.js";
 import {
   formatEdgeId,
@@ -165,11 +166,26 @@ export async function listArchiveCollection(
     options.chapters === undefined ? undefined : new Set(options.chapters);
   const types = options.types ?? [
     "meta",
+    "archive-title",
     "chapter-title",
     "entity",
     "node",
     "triple",
   ];
+
+  if (types.includes("archive") || types.includes("archive-title")) {
+    const title = await readArchiveTitle(document);
+
+    if (title !== undefined) {
+      items.push({
+        field: "title",
+        id: "wikg://title",
+        snippet: title,
+        title,
+        type: "archive-title",
+      });
+    }
+  }
 
   if (types.includes("meta")) {
     const meta = await document.readBookMeta();

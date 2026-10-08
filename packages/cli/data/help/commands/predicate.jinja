@@ -239,9 +239,9 @@ Usage:
 Notes:
   - The input is plain summary text from a positional value, `--input <path>`, or `--input -` for stdin.
   - This sets the summary resource directly; it does not call an LLM provider.
-{% elif target.name == "chapter-title-object" %}
+{% elif target.name == "chapter-title-object" or target.name == "archive-title-object" %}
 Purpose:
-  Replace this chapter title.
+  Replace this {% if target.name == "archive-title-object" %}archive{% else %}chapter{% endif %} title.
 
 Usage:
   {{ commandName }} {{ uri }} set <title>
@@ -394,9 +394,9 @@ Notes:
   - `set` is target-specific. Use the URI help page to find the writable child resource or supported predicate.
 {% endif %}
 {% elif predicate == "clear" %}
-{% if target.name == "chapter-title-object" %}
+{% if target.name == "chapter-title-object" or target.name == "archive-title-object" %}
 Purpose:
-  Remove this chapter's explicit title.
+  Remove this {% if target.name == "archive-title-object" %}archive's{% else %}chapter's{% endif %} explicit title.
 {% elif target.name == "metadata-object" %}
 Purpose:
   Clear this metadata map.
@@ -408,10 +408,10 @@ Purpose:
 Usage:
   {{ commandName }} {{ uri }} clear{% if target.name == "metadata-object" %} [--json]{% endif %}
 
-{% if target.name == "chapter-title-object" %}
+{% if target.name == "chapter-title-object" or target.name == "archive-title-object" %}
 Notes:
-  - Removes the explicit title for this chapter.
-  - This does not delete the chapter, source text, Reading Graph data, or summary.
+  - Removes the explicit title for this {% if target.name == "archive-title-object" %}archive{% else %}chapter{% endif %}.
+  - This does not delete the {% if target.name == "archive-title-object" %}archive.{% else %}chapter, source text, Reading Graph data, or summary.{% endif %}
 {% elif target.name == "metadata-object" %}
 Notes:
   - Clears all metadata keys for this metadata object.

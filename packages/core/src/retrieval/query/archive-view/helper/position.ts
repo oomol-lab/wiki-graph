@@ -27,25 +27,28 @@ export function getPositionSentence(hit: ArchiveFindHit): number {
 
 export function getTypeOrder(type: ArchiveFindObjectType): number {
   switch (type) {
+    case "archive-title":
+      return 0;
     case "chapter-title":
     case "chapter":
-      return 0;
-    case "chapter-tree":
       return 1;
-    case "entity":
+    case "chapter-tree":
       return 2;
-    case "triple":
+    case "entity":
       return 3;
-    case "summary":
+    case "triple":
       return 4;
-    case "node":
+    case "summary":
       return 5;
+    case "node":
+      return 6;
     case "source":
       return 6;
     case "fragment":
-      return 6;
-    case "meta":
       return 7;
+    case "meta":
+    case "archive":
+      return 8;
   }
 }
 

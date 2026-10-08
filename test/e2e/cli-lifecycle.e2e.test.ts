@@ -80,6 +80,48 @@ describe("packed CLI archive lifecycle", () => {
     expect(chapters.objects[0]?.uri).toBe(`${chapter.uri}/title`);
   });
 
+  it("reads and mutates the optional archive title object", async () => {
+    const sandbox = await createCLISandbox("archive-title");
+    await sandbox.runJSON([sandbox.archiveUri, "create", "--json"]);
+
+    const missing = await sandbox.run([`${sandbox.archiveUri}/title`]);
+    expect(missing.exitCode).not.toBe(0);
+    expect(missing.stderr).toContain("is missing");
+
+    const set = await sandbox.run([
+      `${sandbox.archiveUri}/title`,
+      "set",
+      "Archive E2E Title",
+    ]);
+    expect(set.exitCode, set.stderr).toBe(0);
+    const title = await sandbox.runJSON<{
+      readonly title: string;
+      readonly type: string;
+      readonly uri: string;
+    }>([`${sandbox.archiveUri}/title`, "--json"]);
+    expect(title).toEqual({
+      title: "Archive E2E Title",
+      type: "archive-title",
+      uri: "wikg://title",
+    });
+
+    await sandbox.run([`${sandbox.archiveUri}/title`, "clear"]);
+    const cleared = await sandbox.run([`${sandbox.archiveUri}/title`]);
+    expect(cleared.exitCode).not.toBe(0);
+    await sandbox.run([
+      `${sandbox.archiveUri}/meta`,
+      "put",
+      "title",
+      "Metadata E2E Title",
+    ]);
+    await expect(
+      sandbox.runJSON<{ readonly title: string }>([
+        `${sandbox.archiveUri}/title`,
+        "--json",
+      ]),
+    ).resolves.toMatchObject({ title: "Metadata E2E Title" });
+  });
+
   it("starts from an empty home instead of reading another case's config", async () => {
     const first = await createCLISandbox("config-first");
     const second = await createCLISandbox("config-second");

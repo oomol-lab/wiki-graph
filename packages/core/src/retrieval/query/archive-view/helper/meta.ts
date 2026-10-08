@@ -1,4 +1,5 @@
 import type { BookMeta } from "../../../../text/source/index.js";
+import type { ReadonlyDocument } from "../../../../document/index.js";
 
 export function createSnippet(value: string, needle?: string): string {
   const collapsed = value.replace(/\s+/g, " ").trim();
@@ -33,6 +34,15 @@ export function formatMetaSummary(meta: BookMeta | undefined): string {
 
 export function formatMetaTitle(meta: BookMeta | undefined): string {
   return meta?.title ?? "Archive metadata";
+}
+
+export async function readArchiveTitle(
+  document: Pick<ReadonlyDocument, "metadata">,
+): Promise<string | undefined> {
+  const value = (await document.metadata.getMap("")).title;
+  const title = typeof value === "string" ? value.trim() : undefined;
+
+  return title === undefined || title === "" ? undefined : title;
 }
 
 export function createMetaPage(meta: BookMeta | undefined): {

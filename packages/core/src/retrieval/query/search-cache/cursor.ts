@@ -4,7 +4,7 @@ import {
 } from "../../../utils/bytes.js";
 import type {
   BucketSearchCursor,
-  SearchChapterTitleCursorKey,
+  SearchTitleCursorKey,
   SearchChunkCursorKey,
   SearchObjectCursorKey,
   SearchTextCursorKey,
@@ -16,7 +16,7 @@ export function encodeSearchSessionCursor(
   createdAt: number,
 ): string {
   return encodeBase64UrlText(
-    JSON.stringify({ createdAt, offset, sessionId, v: 3 }),
+    JSON.stringify({ createdAt, offset, sessionId, v: 4 }),
   );
 }
 
@@ -26,7 +26,7 @@ export function encodeBucketSearchSessionCursor(
   createdAt: number,
 ): string {
   return encodeBase64UrlText(
-    JSON.stringify({ createdAt, cursor, sessionId, v: 4 }),
+    JSON.stringify({ createdAt, cursor, sessionId, v: 5 }),
   );
 }
 
@@ -45,7 +45,7 @@ export function decodeBucketSearchSessionCursor(cursor: string): {
       "cursor" in parsed &&
       "sessionId" in parsed &&
       "v" in parsed &&
-      parsed.v === 4 &&
+      parsed.v === 5 &&
       typeof parsed.createdAt === "number" &&
       Number.isInteger(parsed.createdAt) &&
       parsed.createdAt >= 0 &&
@@ -81,7 +81,7 @@ export function decodeSearchSessionCursor(cursor: string): {
       "sessionId" in parsed &&
       "createdAt" in parsed &&
       "v" in parsed &&
-      parsed.v === 3 &&
+      parsed.v === 4 &&
       typeof parsed.sessionId === "string" &&
       parsed.sessionId !== "" &&
       typeof parsed.createdAt === "number" &&
@@ -96,21 +96,6 @@ export function decodeSearchSessionCursor(cursor: string): {
         offset: parsed.offset,
         sessionId: parsed.sessionId,
       };
-    }
-    if (
-      typeof parsed === "object" &&
-      parsed !== null &&
-      "offset" in parsed &&
-      "sessionId" in parsed &&
-      "v" in parsed &&
-      parsed.v === 2 &&
-      typeof parsed.sessionId === "string" &&
-      parsed.sessionId !== "" &&
-      typeof parsed.offset === "number" &&
-      Number.isInteger(parsed.offset) &&
-      parsed.offset >= 0
-    ) {
-      return { offset: parsed.offset, sessionId: parsed.sessionId };
     }
   } catch {
     throw new Error("Invalid search cursor.");
@@ -127,7 +112,7 @@ function isBucketSearchCursor(value: unknown): value is BucketSearchCursor {
 
   switch (cursor.bucket) {
     case 0:
-      return cursor.key === undefined || isChapterTitleCursorKey(cursor.key);
+      return cursor.key === undefined || isTitleCursorKey(cursor.key);
     case 1:
       return cursor.key === undefined || isObjectCursorKey(cursor.key);
     case 2:
@@ -139,15 +124,14 @@ function isBucketSearchCursor(value: unknown): value is BucketSearchCursor {
   }
 }
 
-function isChapterTitleCursorKey(
-  value: unknown,
-): value is SearchChapterTitleCursorKey {
+function isTitleCursorKey(value: unknown): value is SearchTitleCursorKey {
   return (
     typeof value === "object" &&
     value !== null &&
-    typeof (value as SearchChapterTitleCursorKey).archiveId === "number" &&
-    typeof (value as SearchChapterTitleCursorKey).chapterId === "number" &&
-    typeof (value as SearchChapterTitleCursorKey).score === "number"
+    typeof (value as SearchTitleCursorKey).archiveId === "number" &&
+    typeof (value as SearchTitleCursorKey).ownerId === "string" &&
+    typeof (value as SearchTitleCursorKey).ownerKind === "number" &&
+    typeof (value as SearchTitleCursorKey).score === "number"
   );
 }
 

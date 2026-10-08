@@ -162,6 +162,7 @@ export async function formatPackAnchor(
   switch (anchor.type) {
     case "artifact":
       return formatPlainObject(await createPageObject(anchor, context));
+    case "archive-title":
     case "chapter-title":
     case "chapter":
       return formatPlainObject(await createPageObject(anchor, context));

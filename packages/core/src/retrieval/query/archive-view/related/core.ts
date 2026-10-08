@@ -150,10 +150,12 @@ async function listRelatedWikiGraphObjects(
   const reference = parseWikiGraphReference(uri);
 
   switch (reference.type) {
+    case "archive":
     case "artifact":
     case "chapter": {
       throw new Error(`Related is not available for scope URI: ${uri}`);
     }
+    case "archive-title":
     case "chapter-title":
       rejectRelatedRole(options.role, uri);
       return paginateRelatedItems([], options);

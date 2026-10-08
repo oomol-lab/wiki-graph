@@ -723,7 +723,7 @@ describe("wiki graph library object query aggregation", () => {
       "chapter",
       expect.objectContaining({
         chapters: [7],
-        types: ["chapter-title"],
+        types: ["archive-title", "chapter-title"],
       }),
     );
     expect(searchIndex.queryWikiGraphLibrarySearchIndex).toHaveBeenCalledWith(

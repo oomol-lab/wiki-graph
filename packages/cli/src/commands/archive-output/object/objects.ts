@@ -97,6 +97,14 @@ export async function createFindObject(
   const uri = toWikiGraphUri(hit.id);
   const librarySource = createLibrarySourceObject(hit);
 
+  if (hit.type === "archive-title") {
+    return {
+      ...librarySource,
+      title: hit.title,
+      type: "archive-title",
+      uri,
+    };
+  }
   if (hit.type === "chapter") {
     return {
       ...librarySource,
@@ -283,6 +291,13 @@ export async function createPageObject(
         uri: toWikiGraphUri(page.id),
       };
     }
+    case "archive-title":
+      return {
+        ...librarySource,
+        title: page.title,
+        type: "archive-title",
+        uri: toWikiGraphUri(page.id),
+      };
     case "chapter-title":
       return {
         ...librarySource,

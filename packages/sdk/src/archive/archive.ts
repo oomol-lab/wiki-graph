@@ -847,6 +847,29 @@ export class WikiGraphArchiveHandle {
     }, options);
   }
 
+  public async setArchiveTitle(
+    title: string | null,
+    options: WikiGraphArchiveWriteOptions = {},
+  ): Promise<string | null> {
+    const normalized = title?.trim() ?? null;
+
+    if (title !== null && normalized === "") {
+      throw new Error("Archive title cannot be empty.");
+    }
+    return await this.#writeDocument(async (document) => {
+      if (normalized === null) {
+        await document.metadata.deleteKey("", "title");
+      } else {
+        await document.metadata.put(
+          { kind: ObjectMetadataKind.Archive, objectPath: "" },
+          "title",
+          normalized,
+        );
+      }
+      return normalized;
+    }, options);
+  }
+
   public async readCover(
     options: WikiGraphOperationOptions = {},
   ): Promise<WikiGraphArchiveCover | undefined> {

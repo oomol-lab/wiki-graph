@@ -26,6 +26,7 @@ import {
   type SearchIndexWriteBatch,
 } from "../../search-index/search/index.js";
 import { createSearchTokenPlan } from "../../search-index/search/tokenizer.js";
+import { readArchiveTitle } from "./helper/meta.js";
 
 const SEARCH_INDEX_REBUILD_ATTEMPTS = 2;
 const ARCHIVE_INDEX_BATCH_RECORDS = 512;
@@ -301,15 +302,33 @@ export async function writeArchiveIndexProjectionFromArtifacts(
   );
   const embeddingState = await readArchiveEmbeddingState(document, options);
   const ftsCoverage = await document.indexArtifacts.listCoverage("fts");
-  const hasFts = ftsCoverage.some(
-    (artifact) => chapterIds.has(artifact.serialId) && artifact.current,
-  );
+  const hasFts =
+    ftsCoverage.some(
+      (artifact) => chapterIds.has(artifact.serialId) && artifact.current,
+    ) || (await readArchiveTitle(document)) !== undefined;
 
   await document.writeSearchIndexDatabase(async (database) => {
     await prepareSearchIndexReplacement(database, progress);
 
     let textDone = 0;
     let vectorDone = 0;
+
+    const archiveTitle = await createArchiveTitleProperty(
+      document,
+      SINGLE_ARCHIVE_INDEX_ID,
+    );
+    if (archiveTitle !== undefined) {
+      const rowId = await insertSearchObjectPropertyRecord(
+        database,
+        archiveTitle,
+      );
+      await insertFtsRecord(
+        database,
+        "search_object_properties_fts",
+        rowId,
+        createSearchTokenPlan(archiveTitle.text),
+      );
+    }
 
     for (const chapter of await listChapters(document)) {
       if (!chapterIds.has(chapter.chapterId)) {
@@ -451,6 +470,11 @@ export async function* streamArchiveIndexProjection(
   let chapterDone = 0;
   let batch = createEmptySearchIndexBatch();
 
+  const archiveTitle = await createArchiveTitleProperty(document, archiveId);
+  if (archiveTitle !== undefined) {
+    batch = appendObjectProperty(batch, archiveTitle);
+  }
+
   for (const chapter of chapters) {
     if (!chapterIds.has(chapter.chapterId)) {
       continue;
@@ -482,6 +506,23 @@ export async function* streamArchiveIndexProjection(
   if (countSearchIndexBatchRecords(batch) > 0) {
     yield batch;
   }
+}
+
+async function createArchiveTitleProperty(
+  document: ReadonlyDocument,
+  archiveId: number,
+): Promise<SearchIndexWriteBatch["objectProperties"][number] | undefined> {
+  const title = await readArchiveTitle(document);
+
+  return title === undefined
+    ? undefined
+    : {
+        archiveId,
+        ownerId: "title",
+        ownerKind: SEARCH_OBJECT_PROPERTY_OWNER_KIND.archive,
+        propertyKind: SEARCH_OBJECT_PROPERTY_KIND.title,
+        text: title,
+      };
 }
 
 async function streamIndexArtifactProjectionRecords(

@@ -49,14 +49,15 @@ export async function runArchiveCommand(
 ): Promise<void> {
   const libraryTarget = parseWikiGraphLibraryUri(args.archivePath);
   if (
-    libraryTarget?.kind === "scope" &&
-    libraryTarget.objectUri !== "wikg://index" &&
-    (libraryTarget.objectUri !== undefined ||
-      args.action === "related" ||
-      args.action === "evidence" ||
-      args.action === "pack" ||
-      args.action === "search" ||
-      args.action === "list")
+    (libraryTarget?.kind === "scope" &&
+      libraryTarget.objectUri !== "wikg://index" &&
+      (libraryTarget.objectUri !== undefined ||
+        args.action === "related" ||
+        args.action === "evidence" ||
+        args.action === "pack" ||
+        args.action === "search" ||
+        args.action === "list")) ||
+    (libraryTarget?.kind === "archive-collection" && args.action === "search")
   ) {
     await runLibraryIndexArchiveCommand(args, libraryTarget);
     return;
@@ -378,11 +379,16 @@ async function runLibraryIndexArchiveCommand(
   const library = await libraries.get(
     formatWikiGraphLibraryUri(target.publicId),
   );
+  const isArchiveMemberCollection = target.kind === "archive-collection";
   const isLibraryRootCollection =
-    target.objectUri === undefined && args.objectId === undefined;
+    !isArchiveMemberCollection &&
+    target.objectUri === undefined &&
+    args.objectId === undefined;
   const objectUri = isLibraryRootCollection
     ? undefined
-    : getObjectUri(args.objectId ?? args.archivePath);
+    : isArchiveMemberCollection
+      ? undefined
+      : getObjectUri(args.objectId ?? args.archivePath);
   const context = {
     ...createArchiveOutputContext(args),
     archiveKey: args.archivePath,
@@ -391,27 +397,31 @@ async function runLibraryIndexArchiveCommand(
       kind: "library-index" as const,
       libraryId: library.snapshot.id,
     },
-    libraryQuery: "objects" as const,
+    libraryQuery: isArchiveMemberCollection
+      ? ("archive-members" as const)
+      : ("objects" as const),
   };
 
   switch (args.action) {
     case "search": {
       const findOptions = createSearchFindOptions(args);
       if (objectUri === undefined) {
-        if (args.all === true) {
-          await writeAllFindHits(
-            async (cursor) =>
-              await libraries.search(target, args.query!, {
+        const search = async (cursor: string | undefined) =>
+          await (isArchiveMemberCollection
+            ? libraries.searchArchiveMembers(target, args.query!, {
                 ...findOptions,
                 ...(cursor === undefined ? {} : { cursor }),
-              }),
-            context,
-            args.format ?? "text",
-          );
+              })
+            : libraries.search(target, args.query!, {
+                ...findOptions,
+                ...(cursor === undefined ? {} : { cursor }),
+              }));
+        if (args.all === true) {
+          await writeAllFindHits(search, context, args.format ?? "text");
           return;
         }
         await writeFindHits(
-          await libraries.search(target, args.query!, findOptions),
+          await search(args.cursor),
           context,
           args.format ?? "text",
         );

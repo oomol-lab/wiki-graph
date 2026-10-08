@@ -12,6 +12,7 @@ export const SEARCH_OBJECT_PROPERTY_OWNER_KIND = {
   chapter: 1,
   chunk: 2,
   entity: 3,
+  archive: 4,
 } as const;
 
 export type SearchObjectPropertyOwnerKind =
@@ -135,7 +136,7 @@ export interface SearchIndexQueryResult {
   readonly textHits: readonly SearchIndexTextHit[];
 }
 
-export const SEARCH_INDEX_VERSION = "6";
+export const SEARCH_INDEX_VERSION = "7";
 export const SEARCH_INDEX_FTS_HIT_LIMIT = 32_000;
 export const SEARCH_INDEX_DENSE_SEGMENT_HIT_LIMIT = 256;
 export const SEARCH_INDEX_DENSE_EXPANDED_SENTENCE_LIMIT = 1_024;

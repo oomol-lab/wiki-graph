@@ -12,6 +12,50 @@ beforeEach(setupArchiveViewTestState);
 afterEach(teardownArchiveViewTestState);
 
 describe("archive/query/archive-view/collection", () => {
+  it("lists a real archive title without exposing the archive scope", async () => {
+    await withTempDir("wikigraph-archive-view-", async (path) => {
+      const document = await DirectoryDocument.open(`${path}/document`);
+
+      try {
+        await seedSourcedDocument(document);
+        await document.openSession(async (openedDocument) => {
+          await openedDocument.replaceBookMeta({
+            authors: [],
+            description: null,
+            identifier: null,
+            language: null,
+            publishedAt: null,
+            publisher: null,
+            sourceFormat: "markdown",
+            title: "Archive Collection Title",
+            version: 1,
+          });
+        });
+
+        const byAlias = await listArchiveCollection(document, {
+          types: ["archive"],
+        });
+        expect(byAlias.items).toStrictEqual([
+          expect.objectContaining({
+            id: "wikg://title",
+            title: "Archive Collection Title",
+            type: "archive-title",
+          }),
+        ]);
+        expect(byAlias.items.some((item) => item.id === "wikg://")).toBe(false);
+
+        await document.openSession(async (openedDocument) => {
+          await openedDocument.metadata.deleteKey("", "title");
+        });
+        await expect(
+          listArchiveCollection(document, { types: ["archive-title"] }),
+        ).resolves.toMatchObject({ items: [] });
+      } finally {
+        await document.release();
+      }
+    });
+  });
+
   it("lists objects as a pageable collection", async () => {
     await withTempDir("wikigraph-archive-view-", async (path) => {
       const document = await DirectoryDocument.open(`${path}/document`);

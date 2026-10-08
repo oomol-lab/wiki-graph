@@ -64,6 +64,7 @@ describe("continuation cursor payload", () => {
 
   it("parses library index scope", () => {
     const payloadJSON = JSON.stringify({
+      v: 2,
       cursor: "raw-cursor",
       indexScope: { kind: "library-index", libraryId: 42 },
       order: "doc-asc",

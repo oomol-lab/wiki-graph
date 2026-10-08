@@ -103,6 +103,12 @@ export type WikiGraphReference =
       readonly type: "artifact";
     }
   | {
+      readonly type: "archive";
+    }
+  | {
+      readonly type: "archive-title";
+    }
+  | {
       readonly type: "meta";
     }
   | {
@@ -178,7 +184,7 @@ export function parseWikiGraphReference(uri: string): WikiGraphReference {
   }
 
   if (uri === WIKI_GRAPH_URI_PREFIX) {
-    return { type: "meta" };
+    return { type: "archive" };
   }
 
   const parsedUri = parseWikiGraphUriSyntax(uri);
@@ -189,6 +195,13 @@ export function parseWikiGraphReference(uri: string): WikiGraphReference {
   const hash = formatParsedFragment(parsedUri.fragment);
 
   if (pathParts.length === 0) {
+    return { type: "archive" };
+  }
+
+  if (pathParts[0] === "title" && pathParts.length === 1) {
+    return { type: "archive-title" };
+  }
+  if (pathParts[0] === "meta" && pathParts.length === 1) {
     return { type: "meta" };
   }
 

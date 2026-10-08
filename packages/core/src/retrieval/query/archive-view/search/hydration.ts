@@ -13,7 +13,11 @@ import {
   type SearchIndexTextHit,
 } from "../../../search-index/search/index.js";
 
-import { createSnippet, createNodePosition } from "../helpers.js";
+import {
+  createSnippet,
+  createNodePosition,
+  readArchiveTitle,
+} from "../helpers.js";
 import { formatNodeId } from "../references.js";
 import {
   createUnscoredEntityEvidenceMention,
@@ -197,6 +201,22 @@ export async function hydrateSearchObjectHit(
   hit: SearchIndexObjectHit,
 ): Promise<ArchiveFindHit | undefined> {
   switch (hit.ownerKind) {
+    case SEARCH_OBJECT_PROPERTY_OWNER_KIND.archive: {
+      const title = await readArchiveTitle(document);
+
+      return title === undefined
+        ? undefined
+        : {
+            ...createArchiveScopeFields(hit.archiveId),
+            field: "title",
+            id: "wikg://title",
+            matchCount: 1,
+            score: hit.score,
+            snippet: title,
+            title,
+            type: "archive-title",
+          };
+    }
     case SEARCH_OBJECT_PROPERTY_OWNER_KIND.chapter: {
       const chapterId = parseSearchPropertyIntegerOwnerId(hit.ownerId);
       const chapter = chapters.get(chapterId);

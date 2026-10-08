@@ -73,11 +73,13 @@ export function parseLibraryUriFirstArguments(
 
   const action =
     explicitAction ??
-    (target.kind === "scope" &&
-    ((target.objectUri !== undefined && target.objectUri !== "wikg://index") ||
+    ((target.kind === "scope" || target.kind === "archive-collection") &&
+    ((target.kind === "scope" &&
+      target.objectUri !== undefined &&
+      target.objectUri !== "wikg://index") ||
       values.query !== undefined ||
-      values.limit !== undefined ||
-      values.cursor !== undefined)
+      (target.kind === "scope" && values.limit !== undefined) ||
+      (target.kind === "scope" && values.cursor !== undefined))
       ? resolveImplicitLibraryQueryAction(target.objectUri, values.query)
       : target.kind === "scope" ||
           target.kind === "archive-collection" ||
@@ -146,6 +148,19 @@ export function parseLibraryUriFirstArguments(
 
   if (target.kind === "archive-tree") {
     return parseLibraryArchiveTreeArguments(
+      uri,
+      target,
+      action,
+      explicitAction === undefined ? [] : positionals.slice(2),
+      values,
+    );
+  }
+
+  if (
+    target.kind === "archive-collection" &&
+    (action === "search" || values.query !== undefined)
+  ) {
+    return parseLibraryQueryArguments(
       uri,
       target,
       action,

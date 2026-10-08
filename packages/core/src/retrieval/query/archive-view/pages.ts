@@ -18,6 +18,7 @@ import {
   isWikiGraphObjectUri,
   normalizeWikiGraphObjectUri,
   createNodePosition,
+  readArchiveTitle,
 } from "./helpers.js";
 import {
   DEFAULT_SOURCE_CONTEXT,
@@ -284,6 +285,18 @@ async function readWikiGraphPage(
   const reference = parseWikiGraphReference(uri);
 
   switch (reference.type) {
+    case "archive":
+      throw new Error(
+        `${displayUri} is a scope URI, not a readable object. Use ${displayUri}title or ${displayUri}meta.`,
+      );
+    case "archive-title": {
+      const title = await readArchiveTitle(document);
+
+      if (title === undefined) {
+        throw new Error(`Archive title ${displayUri} is missing.`);
+      }
+      return { id: displayUri, title, type: "archive-title" };
+    }
     case "artifact": {
       const artifact = await document.sourceProvenance.getArtifact(
         reference.artifactReference,
@@ -338,7 +351,11 @@ async function readWikiGraphPage(
       };
     }
     case "meta":
-      return await readArchivePage(document, ARCHIVE_ROOT_ID, options);
+      return {
+        ...createMetaPage(await document.readBookMeta()),
+        id: displayUri,
+        type: "meta",
+      };
     case "chapter":
       throw new Error(
         `${displayUri} is a scope URI, not a readable object. Use ${displayUri}/title or ${displayUri}/state.`,

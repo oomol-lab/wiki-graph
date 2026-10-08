@@ -13,7 +13,11 @@ export function resolveArchiveCommandRuntimeArguments(
 
 export function getArchivePath(uri: string): string {
   if (!uri.includes("://")) return uri;
-  if (parseWikiGraphLibraryUri(uri)?.kind === "scope") {
+  const libraryTarget = parseWikiGraphLibraryUri(uri);
+  if (
+    libraryTarget?.kind === "scope" ||
+    libraryTarget?.kind === "archive-collection"
+  ) {
     return uri;
   }
 
@@ -25,7 +29,11 @@ export function getArchivePath(uri: string): string {
 }
 
 export function getArchiveIndexScope(uri: string): QueryIndexScope {
-  if (parseWikiGraphLibraryUri(uri)?.kind === "scope") {
+  const libraryTarget = parseWikiGraphLibraryUri(uri);
+  if (
+    libraryTarget?.kind === "scope" ||
+    libraryTarget?.kind === "archive-collection"
+  ) {
     return { kind: "library-index", libraryId: -1 };
   }
 

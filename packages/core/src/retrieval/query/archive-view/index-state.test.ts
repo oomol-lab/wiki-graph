@@ -24,6 +24,60 @@ import {
 import { findArchiveObjects } from "./search/index.js";
 
 describe("archive search index state", () => {
+  it("indexes archive titles only in lexical query modes", async () => {
+    await withTempDocument(async (document) => {
+      await writeSourceChapter(document);
+      const provider = createFakeEmbeddingProvider();
+      await document.replaceBookMeta({
+        authors: [],
+        description: null,
+        identifier: null,
+        language: null,
+        publishedAt: null,
+        publisher: null,
+        sourceFormat: "markdown",
+        title: "Archive Search Marker",
+        version: 1,
+      });
+      await replaceChapterFtsIndexArtifact(document, 1);
+      await replaceChapterSourceEmbeddingIndexArtifact(document, 1, provider);
+      await rebuildArchiveSearchIndex(document);
+
+      for (const queryMode of ["fts", "hybrid"] as const) {
+        await expect(
+          findArchiveObjects(document, "Archive Search Marker", {
+            archiveKey: `archive-title-${queryMode}`,
+            embeddingProvider: provider,
+            queryMode,
+            types: ["archive"],
+          }),
+        ).resolves.toMatchObject({
+          items: [
+            expect.objectContaining({
+              id: "wikg://title",
+              type: "archive-title",
+            }),
+          ],
+        });
+      }
+      await expect(
+        findArchiveObjects(document, "Archive Search Marker", {
+          archiveKey: "archive-title-embedding",
+          embeddingProvider: provider,
+          queryMode: "embedding",
+          types: ["archive"],
+        }),
+      ).resolves.toMatchObject({ items: [] });
+
+      await document.metadata.put(
+        { kind: 1, objectPath: "" },
+        "title",
+        "Changed Archive Marker",
+      );
+      await expect(isArchiveSearchIndexCurrent(document)).resolves.toBe(false);
+    });
+  });
+
   it("reports a state-less index database as missing", async () => {
     await withTempDocument(async (document) => {
       await document.writeSearchIndexDatabase(async () => {
