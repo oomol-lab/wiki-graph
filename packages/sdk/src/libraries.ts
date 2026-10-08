@@ -30,6 +30,7 @@ import {
   replaceWikiGraphLibraryMetadata,
   resolveWikiGraphLibrary,
   scanWikiGraphLibrary,
+  withWikiGraphLibraryLock,
   type ArchiveCollectionOptions,
   type ArchiveCollectionResult,
   type ArchiveEvidence,
@@ -43,6 +44,7 @@ import {
   type WikiGraphLibraryIndexState,
   type WikiGraphLibraryRecord,
   type WikiGraphLibraryScanResult,
+  type FileReader,
 } from "wiki-graph-core";
 import { mkdir } from "fs/promises";
 
@@ -83,6 +85,17 @@ export interface WikiGraphLibraryMoveArchiveOptions {
 export interface WikiGraphLibraryReplaceArchiveOptions {
   readonly inputPath: string;
   readonly target: WikiGraphLibraryTarget;
+}
+
+export interface WikiGraphLibraryArchiveContent {
+  readonly mediaType: "application/vnd.wiki-graph.archive";
+  readonly size: number;
+  readonly stream: AsyncIterable<Uint8Array>;
+  readonly uri: string;
+}
+
+export interface WikiGraphLibraryArchiveReadOptions {
+  readonly signal?: AbortSignal;
 }
 
 export interface WikiGraphLibrarySnapshot extends Omit<
@@ -196,6 +209,45 @@ export class WikiGraphLibraryManager {
           await getWikiGraphLibraryArchive(requireLibraryTarget(target)),
       ),
     );
+  }
+
+  public async readArchive<T>(
+    target: WikiGraphLibraryTarget,
+    consume: (content: WikiGraphLibraryArchiveContent) => Promise<T> | T,
+    options: WikiGraphLibraryArchiveReadOptions = {},
+  ): Promise<T> {
+    return await this.#runtime.run(async () => {
+      const parsedTarget = requireLibraryArchiveTarget(target);
+      const library = await resolveWikiGraphLibrary(parsedTarget);
+
+      return await withWikiGraphLibraryLock(library.id, "read", async () => {
+        throwIfAborted(options.signal);
+        const archive = await getWikiGraphLibraryArchive(parsedTarget);
+        const file = requireReadableLibraryArchiveFile(archive);
+        const reader = await file.openReader();
+        let active = true;
+
+        try {
+          const content: WikiGraphLibraryArchiveContent = {
+            mediaType: "application/vnd.wiki-graph.archive",
+            size: reader.size,
+            stream: createCallbackScopedArchiveStream(
+              reader,
+              () => active,
+              options.signal,
+            ),
+            uri: archive.uri,
+          };
+          return await runAbortableCallback(
+            async () => await consume(content),
+            options.signal,
+          );
+        } finally {
+          active = false;
+          await reader.close();
+        }
+      });
+    }, options.signal);
   }
 
   public async moveArchive(
@@ -563,4 +615,128 @@ function requireLibraryTarget(
     throw new TypeError(`Invalid Wiki Graph library URI: ${value}`);
   }
   return target;
+}
+
+function requireLibraryArchiveTarget(
+  value: WikiGraphLibraryTarget,
+): ParsedWikiGraphLibraryUri & { readonly kind: "archive" } {
+  const target = requireLibraryTarget(value);
+  if (
+    target.kind !== "archive" ||
+    target.archivePublicId === undefined ||
+    target.objectUri !== undefined
+  ) {
+    throw new TypeError("Expected a Wiki Graph library archive URI.");
+  }
+  return target as ParsedWikiGraphLibraryUri & { readonly kind: "archive" };
+}
+
+function requireReadableLibraryArchiveFile(
+  archive: WikiGraphLibraryArchiveRecord,
+): NonNullable<WikiGraphLibraryArchiveRecord["file"]> {
+  if (!archive.exists || archive.status === "missing") {
+    throw new Error(`Wiki Graph library archive is missing: ${archive.uri}`);
+  }
+  if (archive.status === "conflict") {
+    throw new Error(
+      `Wiki Graph library archive has a conflict and cannot be read: ${archive.uri}`,
+    );
+  }
+  if (archive.file === undefined) {
+    throw new Error(
+      `Wiki Graph library archive is unavailable: ${archive.uri}`,
+    );
+  }
+  return archive.file;
+}
+
+const ARCHIVE_STREAM_CHUNK_SIZE = 64 * 1024;
+
+function createCallbackScopedArchiveStream(
+  reader: FileReader,
+  isActive: () => boolean,
+  signal: AbortSignal | undefined,
+): AsyncIterable<Uint8Array> {
+  let consumed = false;
+
+  return {
+    [Symbol.asyncIterator]() {
+      assertArchiveReadSessionActive(isActive, signal);
+      if (consumed) {
+        throw new Error(
+          "The library archive stream has already been consumed.",
+        );
+      }
+      consumed = true;
+      let offset = 0;
+      let finished = false;
+
+      return {
+        async next(): Promise<IteratorResult<Uint8Array>> {
+          if (finished) return { done: true, value: undefined };
+          assertArchiveReadSessionActive(isActive, signal);
+          if (offset >= reader.size) {
+            finished = true;
+            return { done: true, value: undefined };
+          }
+
+          const length = Math.min(
+            ARCHIVE_STREAM_CHUNK_SIZE,
+            reader.size - offset,
+          );
+          const chunk = await reader.read(offset, length);
+          assertArchiveReadSessionActive(isActive, signal);
+          offset += chunk.byteLength;
+          return { done: false, value: chunk };
+        },
+        return(): Promise<IteratorResult<Uint8Array>> {
+          finished = true;
+          return Promise.resolve({ done: true, value: undefined });
+        },
+      };
+    },
+  };
+}
+
+function assertArchiveReadSessionActive(
+  isActive: () => boolean,
+  signal: AbortSignal | undefined,
+): void {
+  if (!isActive()) {
+    throw new Error(
+      "The library archive stream cannot be read after its callback has finished.",
+    );
+  }
+  throwIfAborted(signal);
+}
+
+async function runAbortableCallback<T>(
+  operation: () => Promise<T>,
+  signal: AbortSignal | undefined,
+): Promise<T> {
+  if (signal === undefined) return await operation();
+  throwIfAborted(signal);
+
+  let rejectAbort!: (reason: unknown) => void;
+  const aborted = new Promise<never>((_resolve, reject) => {
+    rejectAbort = reject;
+  });
+  const onAbort = (): void => rejectAbort(abortReason(signal));
+  signal.addEventListener("abort", onAbort, { once: true });
+  try {
+    return await Promise.race([operation(), aborted]);
+  } finally {
+    signal.removeEventListener("abort", onAbort);
+  }
+}
+
+function throwIfAborted(signal: AbortSignal | undefined): void {
+  if (signal?.aborted === true) throw abortReason(signal);
+}
+
+function abortReason(signal: AbortSignal): unknown {
+  return (
+    signal.reason ??
+    new DOMException("The operation was aborted.", "AbortError")
+  );
 }
