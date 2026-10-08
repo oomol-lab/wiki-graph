@@ -104,6 +104,12 @@ export async function listRelatedEntityObjects(
         ...(chapterFilter === undefined
           ? {}
           : { chapters: [...chapterFilter] }),
+        ...(options.embeddingProvider === undefined
+          ? {}
+          : { embeddingProvider: options.embeddingProvider }),
+        ...(options.queryMode === undefined
+          ? {}
+          : { queryMode: options.queryMode }),
         ...(options.skipUnindexed === undefined
           ? {}
           : { skipUnindexed: options.skipUnindexed }),

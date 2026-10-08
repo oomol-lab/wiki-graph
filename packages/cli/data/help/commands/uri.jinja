@@ -13,6 +13,7 @@ URI type:
 Default behavior:
   - `{{ commandName }} {{ uri }}` enumerates archive-level objects.
   - `{{ commandName }} {{ uri }} --query <query>` applies search index retrieval across archive scopes.
+  - Add `--query-mode hybrid|fts|embedding`; `hybrid` is the default and explicit single-index modes are strict.
   - Broad query results are bucketed by object family: chapter/title hits, graph objects, chunks, then text streams.
   - Query is strict by default; add `--skip-unindexed` only to intentionally search indexed chapters and ignore uncovered chapters.
 

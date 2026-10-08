@@ -21,6 +21,8 @@ export async function filterAndSortChunkRelatedItemsByQuery(
   query: string | undefined,
   options: {
     readonly chapters?: readonly number[];
+    readonly embeddingProvider?: import("../../../search-index/index.js").SearchIndexEmbeddingProvider;
+    readonly queryMode?: import("../../../search-index/index.js").SearchIndexQueryMode;
     readonly skipUnindexed?: boolean;
   } = {},
 ): Promise<readonly ArchiveListItem[]> {
@@ -35,6 +37,12 @@ export async function filterAndSortChunkRelatedItemsByQuery(
   const indexResult = await queryRequiredSearchIndex(document, query, {
     ...(chapters === undefined ? {} : { chapters }),
     types: ["node"],
+    ...(options.embeddingProvider === undefined
+      ? {}
+      : { embeddingProvider: options.embeddingProvider }),
+    ...(options.queryMode === undefined
+      ? {}
+      : { queryMode: options.queryMode }),
   });
 
   if (indexResult === undefined) {
@@ -92,7 +100,12 @@ export async function filterAndSortEntityRelatedTriplesByQuery(
   items: readonly ArchiveListItem[],
   anchorQid: string,
   query: string | undefined,
-  options: { readonly skipUnindexed?: boolean } = {},
+  options: {
+    readonly chapters?: readonly number[];
+    readonly embeddingProvider?: import("../../../search-index/index.js").SearchIndexEmbeddingProvider;
+    readonly queryMode?: import("../../../search-index/index.js").SearchIndexQueryMode;
+    readonly skipUnindexed?: boolean;
+  } = {},
 ): Promise<readonly ArchiveListItem[]> {
   if (query === undefined) {
     return items;
@@ -100,6 +113,12 @@ export async function filterAndSortEntityRelatedTriplesByQuery(
   const scope = await createEntityRelatedQueryScope(document, items, anchorQid);
   const chapters = await resolveRelatedQueryableChapters(document, {
     chapters: [...scope.chapterIds],
+    ...(options.embeddingProvider === undefined
+      ? {}
+      : { embeddingProvider: options.embeddingProvider }),
+    ...(options.queryMode === undefined
+      ? {}
+      : { queryMode: options.queryMode }),
     ...(options.skipUnindexed === undefined
       ? {}
       : { skipUnindexed: options.skipUnindexed }),
@@ -111,6 +130,12 @@ export async function filterAndSortEntityRelatedTriplesByQuery(
   const indexResult = await queryRequiredSearchIndex(document, query, {
     ...(chapters === undefined ? {} : { chapters }),
     types: ["entity", "source"],
+    ...(options.embeddingProvider === undefined
+      ? {}
+      : { embeddingProvider: options.embeddingProvider }),
+    ...(options.queryMode === undefined
+      ? {}
+      : { queryMode: options.queryMode }),
   });
 
   if (indexResult === undefined) {
@@ -178,6 +203,8 @@ async function resolveRelatedQueryableChapters(
   document: ReadonlyDocument,
   options: {
     readonly chapters?: readonly number[];
+    readonly embeddingProvider?: import("../../../search-index/index.js").SearchIndexEmbeddingProvider;
+    readonly queryMode?: import("../../../search-index/index.js").SearchIndexQueryMode;
     readonly skipUnindexed?: boolean;
   },
 ): Promise<readonly number[] | undefined> {
@@ -187,6 +214,13 @@ async function resolveRelatedQueryableChapters(
 
   return await listArchiveQueryableChapterIds(document, {
     ...(options.chapters === undefined ? {} : { chapters: options.chapters }),
+    ...(options.embeddingProvider === undefined
+      ? {}
+      : { embeddingProvider: options.embeddingProvider }),
+    requireEmbeddingProvider: true,
+    ...(options.queryMode === undefined
+      ? {}
+      : { queryMode: options.queryMode }),
   });
 }
 

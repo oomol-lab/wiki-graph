@@ -18,6 +18,7 @@ import {
 import {
   assertArchiveIndexArtifactsReady,
   isArchiveSearchIndexCurrent,
+  listArchiveQueryableChapterIds,
   rebuildArchiveSearchIndex,
 } from "./index-state.js";
 
@@ -158,6 +159,92 @@ describe("archive search index state", () => {
           },
         ],
       });
+    });
+  });
+
+  it("selects one index strictly from a hybrid cache", async () => {
+    await withTempDocument(async (document) => {
+      await writeSourceChapter(document);
+      let embeddingCalls = 0;
+      const provider = {
+        ...createFakeEmbeddingProvider(),
+        embedTexts: async (texts: readonly string[]) => {
+          embeddingCalls += 1;
+          return await createFakeEmbeddingProvider().embedTexts(texts);
+        },
+      };
+      await replaceChapterFtsIndexArtifact(document, 1);
+      await replaceChapterSourceEmbeddingIndexArtifact(document, 1, provider);
+      await rebuildArchiveSearchIndex(document);
+      embeddingCalls = 0;
+
+      const fts = await querySearchIndex(document, "FTS", {
+        embeddingProvider: provider,
+        queryMode: "fts",
+        types: ["source"],
+      });
+      expect(embeddingCalls).toBe(0);
+      expect(fts?.textHits.map((hit) => hit.sentenceIndex)).toStrictEqual([1]);
+
+      const embedding = await querySearchIndex(document, "FTS", {
+        embeddingProvider: provider,
+        queryMode: "embedding",
+        types: ["source"],
+      });
+      expect(embeddingCalls).toBe(1);
+      expect(embedding?.objectHits).toStrictEqual([]);
+      expect(embedding?.textHits.length).toBeGreaterThan(0);
+
+      await expect(
+        querySearchIndex(document, "FTS", {
+          embeddingProvider: {
+            ...provider,
+            embedTexts: async () => {
+              throw new Error("embedding unavailable");
+            },
+          },
+          queryMode: "embedding",
+          types: ["source"],
+        }),
+      ).rejects.toThrow("embedding unavailable");
+    });
+  });
+
+  it("evaluates chapter coverage for the selected query mode", async () => {
+    await withTempDocument(async (document) => {
+      await writeSourceChapters(document, ["FTS", "Dense"]);
+      const provider = createFakeEmbeddingProvider();
+      await replaceChapterFtsIndexArtifact(document, 1);
+      await replaceChapterSourceEmbeddingIndexArtifact(document, 2, provider);
+
+      await expect(
+        listArchiveQueryableChapterIds(document, {
+          embeddingProvider: provider,
+          queryMode: "hybrid",
+          requireEmbeddingProvider: true,
+        }),
+      ).resolves.toStrictEqual([1, 2]);
+      await expect(
+        listArchiveQueryableChapterIds(document, {
+          embeddingProvider: provider,
+          queryMode: "fts",
+          requireEmbeddingProvider: true,
+        }),
+      ).resolves.toStrictEqual([1]);
+      await expect(
+        listArchiveQueryableChapterIds(document, {
+          embeddingProvider: provider,
+          queryMode: "embedding",
+          requireEmbeddingProvider: true,
+        }),
+      ).resolves.toStrictEqual([2]);
+      await expect(
+        assertArchiveIndexArtifactsReady(document, {
+          embeddingProvider: provider,
+          queryMode: "fts",
+          requireEmbeddingProvider: true,
+        }),
+      ).rejects.toThrow("need a current FTS artifact");
     });
   });
 

@@ -14,6 +14,7 @@ Core model:
   - The `arc` reserved segment keeps library ids distinct from archive member ids.
   - `{{ commandName }} wikg://lib` reads the default library root scope.
   - `{{ commandName }} wikg://lib --query <query>` searches library-wide objects through the library index.
+  - Add `--query-mode hybrid|fts|embedding` to select hybrid, FTS-only, or embedding-only retrieval.
 
 Registry discovery:
   - `{{ commandName }} wikg://lib/registry add --path <folder>` prints the new non-default library URI.

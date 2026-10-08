@@ -183,12 +183,30 @@ describe("WikiGraphSDK delivery operations", () => {
     expect(defaultRelated.items.map((item) => item.id)).toEqual([
       "wikg://triple/Q1/inside/Q2",
     ]);
+    await expect(
+      scopedArchive.related("wikg://entity/Q1", { queryMode: "fts" }),
+    ).rejects.toThrow("`queryMode` requires `query`");
+    await expect(
+      scopedArchive.evidence("wikg://entity/Q1", { queryMode: "fts" }),
+    ).rejects.toThrow("`queryMode` requires `query`");
     const related = await scopedArchive.related("wikg://entity/Q1", {
       query: "alpha",
     });
     expect(related.items.map((item) => item.id)).toEqual([
       "wikg://triple/Q1/inside/Q2",
     ]);
+    await expect(
+      scopedArchive.related("wikg://entity/Q1", {
+        query: "alpha",
+        queryMode: "fts",
+      }),
+    ).resolves.toMatchObject({ items: [{ id: "wikg://triple/Q1/inside/Q2" }] });
+    await expect(
+      scopedArchive.related("wikg://entity/Q1", {
+        query: "alpha",
+        queryMode: "embedding",
+      }),
+    ).rejects.toThrow("Embedding query mode requires embeddings configuration");
     const firstEvidence = await scopedArchive.evidence("wikg://entity/Q1", {
       limit: 1,
     });
@@ -238,6 +256,14 @@ describe("WikiGraphSDK delivery operations", () => {
         (item) => item.chapterId === indexedChapter.chapterId,
       ),
     ).toBe(true);
+    await expect(
+      scopedArchive.evidence("wikg://entity/Q1", {
+        query: "alpha",
+        queryMode: "fts",
+      }),
+    ).resolves.toMatchObject({
+      items: [expect.objectContaining({ type: "source" })],
+    });
     sdk.close();
   });
 

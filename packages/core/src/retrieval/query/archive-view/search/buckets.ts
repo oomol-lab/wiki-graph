@@ -187,6 +187,7 @@ async function readChapterTitleBucketPage(
     ...(options.embeddingProvider === undefined
       ? {}
       : { embeddingProvider: options.embeddingProvider }),
+    queryMode: session.queryMode,
     match: parseFindMatch(session.match),
     objectHitLimit: SEARCH_INDEX_FTS_HIT_LIMIT,
     textHitLimit: 0,
@@ -296,16 +297,20 @@ async function populateObjectBucketCaches(
       ...(options.embeddingProvider === undefined
         ? {}
         : { embeddingProvider: options.embeddingProvider }),
+      queryMode: session.queryMode,
       match: parseFindMatch(session.match),
       objectHitLimit: SEARCH_INDEX_FTS_HIT_LIMIT,
       textHitLimit: SEARCH_INDEX_FTS_HIT_LIMIT,
       types: null,
     }),
   ]);
-  const structuredHits = [
-    ...findEntities(search, { mentions: allMentions }),
-    ...(await findTriples(document, search, { mentions: allMentions })),
-  ];
+  const structuredHits =
+    session.queryMode === "embedding"
+      ? []
+      : [
+          ...findEntities(search, { mentions: allMentions }),
+          ...(await findTriples(document, search, { mentions: allMentions })),
+        ];
   const entityCacheInput = createEntitySearchCacheInput(
     structuredHits,
     indexed,
@@ -388,6 +393,7 @@ async function readTextBucketPage(
     ...(options.embeddingProvider === undefined
       ? {}
       : { embeddingProvider: options.embeddingProvider }),
+    queryMode: session.queryMode,
     match: parseFindMatch(session.match),
     objectHitLimit: 0,
     ...(after === undefined

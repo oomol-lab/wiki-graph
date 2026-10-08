@@ -1,4 +1,5 @@
 import type { ArchiveFindHit } from "../view.js";
+import type { SearchIndexQueryMode } from "../../search-index/index.js";
 
 export interface SearchSessionInput {
   readonly archiveKey: string;
@@ -11,6 +12,7 @@ export interface SearchSessionInput {
   readonly match: string;
   readonly order: string;
   readonly query: string;
+  readonly queryMode?: SearchIndexQueryMode;
   readonly revisionScope: string;
   readonly terms: readonly string[];
   readonly tripleHits?: readonly SearchTripleHitInput[];
@@ -67,6 +69,7 @@ export interface EntitySearchSessionInput {
   readonly match: string;
   readonly order: string;
   readonly query: string;
+  readonly queryMode?: SearchIndexQueryMode;
   readonly revisionScope: string;
   readonly terms: readonly string[];
   readonly tripleHits?: readonly SearchTripleHitInput[];
@@ -104,6 +107,7 @@ export interface SearchSessionDescriptor {
   readonly match: string;
   readonly objectCachesPopulated: boolean;
   readonly query: string;
+  readonly queryMode: SearchIndexQueryMode;
   readonly sessionId: string;
   readonly terms: readonly string[];
   readonly types: readonly string[] | null;

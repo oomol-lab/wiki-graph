@@ -721,6 +721,7 @@ describe("cli/args/help", () => {
     );
     expect(uriHelpText).toContain('wg <archive-uri> --query "term"');
     expect(uriHelpText).toContain("--skip-unindexed");
+    expect(uriHelpText).toContain("--query-mode hybrid|fts|embedding");
     expect(uriHelpText).toContain(
       String.raw`C:\Users\me\book.wikg -> wikg://C:/Users/me/book.wikg`,
     );
@@ -853,10 +854,10 @@ describe("cli/args/help", () => {
     expect(renderHelpTopicText("recipe")).toContain("After inspect:");
     expect(renderHelpTopicText("recipe")).toContain("Finding material:");
     expect(renderHelpTopicText("recipe")).toContain(
-      "indexed full-text retrieval",
+      "defaults to hybrid FTS + embedding search",
     );
     expect(renderHelpTopicText("recipe")).toContain(
-      "grep/find with Google-like keyword input",
+      "Use `--query-mode fts` for strict keyword retrieval",
     );
     expect(renderHelpTopicText("recipe")).toContain("When to read deeper:");
     expect(renderHelpTopicText("recipe")).toContain("wg help readiness");

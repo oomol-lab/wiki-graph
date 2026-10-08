@@ -36,9 +36,9 @@ Archive index readiness:
     `{{ commandName }} <archive-uri>/index clean` deletes only the local cache.
 
   Query behavior:
-    FTS artifact only: FTS query.
-    Source embedding artifact only: semantic/Dense-only query.
-    Both artifacts: Hybrid query with automatic fusion.
+    `--query-mode hybrid` is the default and uses every available compatible index with automatic fusion.
+    `--query-mode fts` requires current FTS coverage and never calls an embeddings provider.
+    `--query-mode embedding` requires current source embedding coverage and a compatible embeddings provider; it never falls back to FTS.
     Broad query is grouped by result type first: chapter/title, object, chunk, then source/summary text.
     FTS, Dense, and Hybrid ranking affect ordering inside those result groups and evidence-backed object ranking; they do not flatten the type groups into one global rerank.
     Missing both FTS and source embedding for any content chapter in scope: ordinary query fails.

@@ -52,6 +52,8 @@ export interface SearchIndexInput {
 
 export type SearchIndexSelection = "auto" | "dense" | "fts" | "fts,dense";
 
+export type SearchIndexQueryMode = "embedding" | "fts" | "hybrid";
+
 export interface SearchIndexEmbeddingProvider {
   readonly dimensions?: number;
   readonly identity?: string;

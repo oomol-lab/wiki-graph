@@ -129,9 +129,10 @@ export async function findArchiveObjects(
 
   const requestedTypes = options.types ?? null;
   const wantsStructuredSearch =
-    requestedTypes === null ||
-    requestedTypes.includes("entity") ||
-    requestedTypes.includes("triple");
+    options.queryMode !== "embedding" &&
+    (requestedTypes === null ||
+      requestedTypes.includes("entity") ||
+      requestedTypes.includes("triple"));
   const search = createLexicalQuery(query);
 
   if (search === undefined) {
@@ -158,6 +159,7 @@ export async function findArchiveObjects(
     match: options.match ?? "any",
     order: options.order ?? "doc-asc",
     query,
+    queryMode: options.queryMode ?? "hybrid",
     revisionScope,
     terms: search.terms,
     types: options.types ?? null,
@@ -243,6 +245,7 @@ export async function findArchiveObjects(
       match: options.match ?? "any",
       order: options.order ?? "doc-asc",
       query,
+      queryMode: options.queryMode ?? "hybrid",
       revisionScope,
       terms: search.terms,
       types: null,
@@ -308,6 +311,7 @@ export async function findArchiveObjects(
       match: ranked.match,
       order: ranked.order,
       query,
+      queryMode: options.queryMode ?? "hybrid",
       revisionScope,
       terms: ranked.terms,
       tripleHits: sentenceCacheInput.tripleHits,
@@ -362,6 +366,7 @@ export async function findArchiveObjects(
     match: ranked.match,
     order: ranked.order,
     query,
+    queryMode: options.queryMode ?? "hybrid",
     revisionScope,
     terms: ranked.terms,
     tripleHits: sentenceCacheInput.tripleHits,

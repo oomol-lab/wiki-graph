@@ -94,6 +94,51 @@ describe("runNextArchivePage", () => {
     });
   });
 
+  it("preserves the query mode when writing the following cursor", async () => {
+    mocks.next.mockResolvedValue({
+      cursor: {
+        archiveKey: "archive",
+        archivePath: "/tmp/book.wikg",
+        chapters: null,
+        cursor: "raw-search-cursor",
+        format: "json",
+        indexScope: {
+          archiveKey: "archive",
+          archivePath: "/tmp/book.wikg",
+          kind: "archive-index",
+        },
+        kind: "search",
+        query: "semantic query",
+        queryMode: "embedding",
+        types: null,
+      },
+      format: "json",
+      kind: "search",
+      limit: 20,
+      result: {
+        chapters: null,
+        items: [],
+        lens: "broad",
+        lensHint: null,
+        limit: 20,
+        match: "any",
+        nextCursor: "raw-next-search-cursor",
+        order: "doc-asc",
+        query: "semantic query",
+        terms: ["semantic", "query"],
+        types: null,
+      },
+    });
+
+    await runNextArchivePage({ action: "next", archivePath: "c_next" });
+
+    expect(writeFindHits).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ queryMode: "embedding" }),
+      "json",
+    );
+  });
+
   it("surfaces SDK continuation failures", async () => {
     mocks.next.mockRejectedValue(
       new Error("Wiki Graph library index is dirty."),

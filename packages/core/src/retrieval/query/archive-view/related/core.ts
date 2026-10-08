@@ -115,6 +115,12 @@ export async function listRelatedArchiveObjects(
       options.query,
       {
         chapters: [chapterId],
+        ...(options.embeddingProvider === undefined
+          ? {}
+          : { embeddingProvider: options.embeddingProvider }),
+        ...(options.queryMode === undefined
+          ? {}
+          : { queryMode: options.queryMode }),
         ...(options.skipUnindexed === undefined
           ? {}
           : { skipUnindexed: options.skipUnindexed }),
@@ -170,6 +176,12 @@ async function listRelatedWikiGraphObjects(
           options.query,
           {
             chapters: [chapterId],
+            ...(options.embeddingProvider === undefined
+              ? {}
+              : { embeddingProvider: options.embeddingProvider }),
+            ...(options.queryMode === undefined
+              ? {}
+              : { queryMode: options.queryMode }),
             ...(options.skipUnindexed === undefined
               ? {}
               : { skipUnindexed: options.skipUnindexed }),

@@ -218,4 +218,15 @@ async function expectLibraryQueryToFindBoth(
   expect(
     new Set(results.objects.map((item) => item.uri)).size,
   ).toBeGreaterThanOrEqual(2);
+  const ftsOnly = await sandbox.runJSON<{
+    readonly objects: readonly { readonly uri: string }[];
+  }>([
+    "wikg://lib",
+    "--query",
+    "shared nebula",
+    "--query-mode",
+    "fts",
+    "--json",
+  ]);
+  expect(ftsOnly.objects.length).toBeGreaterThanOrEqual(2);
 }

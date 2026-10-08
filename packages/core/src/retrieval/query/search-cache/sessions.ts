@@ -81,6 +81,7 @@ export async function createSearchSession(
     const optionsJSON = JSON.stringify({
       chapters: input.chapters,
       order: input.order,
+      queryMode: input.queryMode ?? "hybrid",
       types: input.types,
     });
 
@@ -163,6 +164,7 @@ export async function createEntitySearchSession(
     const optionsJSON = JSON.stringify({
       chapters: input.chapters,
       order: input.order,
+      queryMode: input.queryMode ?? "hybrid",
       types: input.types,
     });
 
@@ -398,6 +400,7 @@ export async function readSearchSessionDescriptor(
       match: session.match,
       objectCachesPopulated: session.objectCachesPopulated,
       query: session.query,
+      queryMode: session.options.queryMode,
       sessionId,
       terms: session.terms,
       types: session.options.types,
@@ -431,6 +434,7 @@ export async function readSearchSessionMetadataForCursor(
       match: session.match,
       objectCachesPopulated: session.objectCachesPopulated,
       query: session.query,
+      queryMode: session.options.queryMode,
       sessionId,
       terms: session.terms,
       types: session.options.types,

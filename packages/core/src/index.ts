@@ -260,6 +260,7 @@ export type { IndexArtifactOutput } from "./retrieval/index-artifact/index.js";
 export type {
   SearchIndexBuildOptions,
   SearchIndexEmbeddingProvider,
+  SearchIndexQueryMode,
   SearchIndexSelection,
 } from "./retrieval/search-index/index.js";
 export type {

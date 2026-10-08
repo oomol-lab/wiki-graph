@@ -25,6 +25,7 @@ import {
 } from "./helpers.js";
 import type {
   SearchIndexEmbeddingProvider,
+  SearchIndexQueryMode,
   SearchIndexObjectHit,
   SearchIndexQueryResult,
   SearchIndexTextHit,
@@ -48,6 +49,7 @@ export async function querySearchIndex(
     readonly chapters?: readonly number[];
     readonly embeddingProvider?: SearchIndexEmbeddingProvider;
     readonly match?: ArchiveFindMatch;
+    readonly queryMode?: SearchIndexQueryMode;
     readonly objectHitLimit?: number;
     readonly textAfter?: {
       readonly archiveId: number;
@@ -72,8 +74,19 @@ export async function querySearchIndex(
     const hasFts =
       indexState.indexes === "fts" || indexState.indexes === "fts,dense";
     const hasDense = hasDenseSegments;
-    const usesFts = hasFts && hasSearchTokens(plan);
+    const queryMode = options.queryMode ?? "hybrid";
+    if (queryMode === "fts" && !hasFts) {
+      throw new Error("FTS query mode requires a current FTS search index.");
+    }
+    if (queryMode === "embedding" && !hasDense) {
+      throw new Error(
+        "Embedding query mode requires a current Dense search index.",
+      );
+    }
+    const usesFts =
+      queryMode !== "embedding" && hasFts && hasSearchTokens(plan);
     const usesDense =
+      queryMode !== "fts" &&
       hasDense &&
       options.textHitLimit !== 0 &&
       createTextKindFilter(options.types).length > 0;
@@ -284,12 +297,15 @@ async function queryDenseTextRows(
   options: {
     readonly chapters?: readonly number[];
     readonly embeddingProvider?: SearchIndexEmbeddingProvider;
+    readonly queryMode?: SearchIndexQueryMode;
     readonly textHitLimit?: number;
     readonly types?: readonly ArchiveFindObjectType[] | null;
   },
 ): Promise<readonly SearchIndexTextHit[]> {
+  const requiresDense =
+    options.queryMode === "embedding" || state.indexes === "dense";
   if (options.embeddingProvider === undefined) {
-    if (state.indexes === "dense") {
+    if (requiresDense) {
       throw new Error(
         "Dense search requires embeddings configuration. Configure `wikg://local/config/embeddings` before querying a Dense-only index.",
       );
@@ -303,7 +319,7 @@ async function queryDenseTextRows(
   ) {
     const message = `Dense query embedding model is ${options.embeddingProvider.model}; index expects ${state.embeddingModel}.`;
 
-    if (state.indexes === "dense") {
+    if (requiresDense) {
       throw new Error(message);
     }
     return [];
@@ -315,7 +331,7 @@ async function queryDenseTextRows(
   ) {
     const message = "Dense query embedding identity does not match the index.";
 
-    if (state.indexes === "dense") {
+    if (requiresDense) {
       throw new Error(message);
     }
     return [];
@@ -327,7 +343,7 @@ async function queryDenseTextRows(
 
     queryVector = result.embeddings[0] ?? [];
   } catch (error) {
-    if (state.indexes === "dense") {
+    if (requiresDense) {
       throw error;
     }
     return [];
@@ -339,7 +355,7 @@ async function queryDenseTextRows(
   ) {
     const message = `Dense query embedding has ${queryVector.length} dimensions; index expects ${state.denseDimensions}.`;
 
-    if (state.indexes === "dense") {
+    if (requiresDense) {
       throw new Error(message);
     }
     return [];

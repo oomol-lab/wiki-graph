@@ -53,6 +53,31 @@ describe("packed CLI FTS job", () => {
       "observatory",
     );
 
+    const ftsOnly = await sandbox.runJSON<{
+      readonly objects: readonly { readonly uri: string }[];
+    }>([
+      sandbox.archiveUri,
+      "--query",
+      "observatory",
+      "--query-mode",
+      "fts",
+      "--json",
+    ]);
+    expect(ftsOnly.objects.length).toBeGreaterThan(0);
+
+    const embeddingOnly = await sandbox.run([
+      sandbox.archiveUri,
+      "--query",
+      "observatory",
+      "--query-mode",
+      "embedding",
+      "--json",
+    ]);
+    expect(embeddingOnly.exitCode).not.toBe(0);
+    expect(embeddingOnly.stdout).toContain(
+      "Embedding query mode requires embeddings configuration",
+    );
+
     const humanSearch = await sandbox.run([
       sandbox.archiveUri,
       "--query",

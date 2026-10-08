@@ -14,6 +14,7 @@ type ContinuationCursorBase = {
   readonly archiveKey: string;
   readonly archivePath: string;
   readonly indexScope: QueryIndexScope;
+  readonly queryMode?: import("../../search-index/index.js").SearchIndexQueryMode;
 };
 
 export type ContinuationCursor =

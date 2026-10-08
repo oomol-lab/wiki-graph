@@ -293,6 +293,18 @@ describe("Wiki Graph job artifact delivery", () => {
     expect(
       (await sdk.libraries.search(library.uri, "alpha")).items,
     ).not.toHaveLength(0);
+    expect(
+      (
+        await sdk.libraries.search(library.uri, "alpha", {
+          queryMode: "fts",
+        })
+      ).items,
+    ).not.toHaveLength(0);
+    await expect(
+      sdk.libraries.search(library.uri, "alpha", {
+        queryMode: "embedding",
+      }),
+    ).rejects.toThrow("Embedding query mode requires embeddings configuration");
     expect((await archive.search("alpha")).items).not.toHaveLength(0);
     const cursor = await createCollectionCursor(sdk, archive);
     const before = await sdk.libraries.getArchive(member.uri);

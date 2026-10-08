@@ -7,6 +7,7 @@ import { Readable } from "stream";
 import {
   addChapter,
   applyChapterTree,
+  assertArchiveIndexArtifactsReady,
   assertNoActiveBuildJobConflicts,
   assertNoActiveBuildJobs,
   deleteArchiveSearchSessions,
@@ -60,6 +61,7 @@ import {
   type QueryIndexScope,
   type ReadonlyDocument,
   type SearchIndexEmbeddingProvider,
+  type SearchIndexQueryMode,
   type WikiGraphProgressCallback,
 } from "wiki-graph-core";
 
@@ -197,6 +199,7 @@ export interface WikiGraphArchiveRelatedOptions extends WikiGraphOperationOption
   readonly limit?: number;
   readonly order?: "doc-asc" | "doc-desc";
   readonly query?: string;
+  readonly queryMode?: SearchIndexQueryMode;
   readonly role?: "any" | "object" | "self" | "subject";
   readonly skipUnindexed?: boolean;
   readonly sourceContext?: number;
@@ -207,6 +210,7 @@ export interface WikiGraphArchiveEvidenceOptions extends WikiGraphOperationOptio
   readonly limit?: number;
   readonly order?: "doc-asc" | "doc-desc";
   readonly query?: string;
+  readonly queryMode?: SearchIndexQueryMode;
   readonly skipUnindexed?: boolean;
   readonly sourceContext?: number;
 }
@@ -335,13 +339,15 @@ export class WikiGraphArchiveHandle {
     query: string,
     options: WikiGraphArchiveSearchOptions = {},
   ): Promise<ArchiveFindResult> {
-    const embeddingProvider = await this.#runtime.run(
-      createConfiguredEmbeddingProvider,
+    const embeddingProvider = await this.#resolveQueryEmbeddingProvider(
+      options.queryMode,
       options.signal,
     );
     return await this.#writeDocument(
       async (document) => {
-        const chapters = await this.#resolveQueryChapters(document, options);
+        const chapters = await this.#resolveQueryChapters(document, options, {
+          embeddingProvider,
+        });
         await ensureArchiveSearchIndex(document, {
           ...(chapters === undefined ? {} : { chapters }),
           ...(embeddingProvider === undefined ? {} : { embeddingProvider }),
@@ -722,6 +728,9 @@ export class WikiGraphArchiveHandle {
     options: WikiGraphArchiveRelatedOptions = {},
   ): Promise<ArchiveRelatedResult> {
     if (options.query === undefined) {
+      if (options.queryMode !== undefined) {
+        throw new Error("`queryMode` requires `query`.");
+      }
       return await this.#readDocument(async (document) => {
         const chapters = await this.#resolveScope(document, {});
         return await listRelatedArchiveObjects(document, objectUri, {
@@ -730,19 +739,22 @@ export class WikiGraphArchiveHandle {
         });
       }, options);
     }
-    const embeddingProvider = await this.#runtime.run(
-      createConfiguredEmbeddingProvider,
+    const embeddingProvider = await this.#resolveQueryEmbeddingProvider(
+      options.queryMode,
       options.signal,
     );
     return await this.#writeDocument(
       async (document) => {
-        const chapters = await this.#resolveQueryChapters(document, options);
+        const chapters = await this.#resolveQueryChapters(document, options, {
+          embeddingProvider,
+        });
         await ensureArchiveSearchIndex(document, {
           ...(chapters === undefined ? {} : { chapters }),
           ...(embeddingProvider === undefined ? {} : { embeddingProvider }),
         });
         return await listRelatedArchiveObjects(document, objectUri, {
           ...withoutOperation(options),
+          ...(embeddingProvider === undefined ? {} : { embeddingProvider }),
           ...(chapters === undefined ? {} : { chapters }),
         });
       },
@@ -758,6 +770,9 @@ export class WikiGraphArchiveHandle {
     options: WikiGraphArchiveEvidenceOptions = {},
   ): Promise<ArchiveEvidence> {
     if (options.query === undefined) {
+      if (options.queryMode !== undefined) {
+        throw new Error("`queryMode` requires `query`.");
+      }
       return await this.#readDocument(async (document) => {
         const chapters = await this.#resolveScope(document, {});
         return await listArchiveEvidence(document, objectUri, {
@@ -766,19 +781,22 @@ export class WikiGraphArchiveHandle {
         });
       }, options);
     }
-    const embeddingProvider = await this.#runtime.run(
-      createConfiguredEmbeddingProvider,
+    const embeddingProvider = await this.#resolveQueryEmbeddingProvider(
+      options.queryMode,
       options.signal,
     );
     return await this.#writeDocument(
       async (document) => {
-        const chapters = await this.#resolveQueryChapters(document, options);
+        const chapters = await this.#resolveQueryChapters(document, options, {
+          embeddingProvider,
+        });
         await ensureArchiveSearchIndex(document, {
           ...(chapters === undefined ? {} : { chapters }),
           ...(embeddingProvider === undefined ? {} : { embeddingProvider }),
         });
         return await listArchiveEvidence(document, objectUri, {
           ...withoutOperation(options),
+          ...(embeddingProvider === undefined ? {} : { embeddingProvider }),
           ...(chapters === undefined ? {} : { chapters }),
         });
       },
@@ -950,13 +968,30 @@ export class WikiGraphArchiveHandle {
   async #resolveQueryChapters(
     document: ReadonlyDocument,
     options: WikiGraphArchiveScopeOptions & {
+      readonly queryMode?: SearchIndexQueryMode;
       readonly skipUnindexed?: boolean;
+    },
+    capabilities: {
+      readonly embeddingProvider: SearchIndexEmbeddingProvider | undefined;
     },
   ): Promise<readonly number[] | undefined> {
     const chapters = await this.#resolveScope(document, options);
-    if (options.skipUnindexed !== true) return chapters;
-    const queryable = await listArchiveQueryableChapterIds(document, {
+    const coverageOptions = {
       ...(chapters === undefined ? {} : { chapters }),
+      ...(capabilities.embeddingProvider === undefined
+        ? {}
+        : { embeddingProvider: capabilities.embeddingProvider }),
+      requireEmbeddingProvider: true,
+      ...(options.queryMode === undefined
+        ? {}
+        : { queryMode: options.queryMode }),
+    };
+    if (options.skipUnindexed !== true) {
+      await assertArchiveIndexArtifactsReady(document, coverageOptions);
+      return chapters;
+    }
+    const queryable = await listArchiveQueryableChapterIds(document, {
+      ...coverageOptions,
     });
     if (queryable.length === 0) {
       throw new Error(
@@ -964,6 +999,23 @@ export class WikiGraphArchiveHandle {
       );
     }
     return queryable;
+  }
+
+  async #resolveQueryEmbeddingProvider(
+    queryMode: SearchIndexQueryMode | undefined,
+    signal: AbortSignal | undefined,
+  ): Promise<SearchIndexEmbeddingProvider | undefined> {
+    if (queryMode === "fts") return undefined;
+    const provider = await this.#runtime.run(
+      createConfiguredEmbeddingProvider,
+      signal,
+    );
+    if (queryMode === "embedding" && provider === undefined) {
+      throw new Error(
+        "Embedding query mode requires embeddings configuration at `wikg://local/config/embeddings`.",
+      );
+    }
+    return provider;
   }
 }
 

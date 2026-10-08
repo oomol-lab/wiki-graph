@@ -40,6 +40,8 @@ import {
   type ArchivePage,
   type ArchiveRelatedResult,
   type ParsedWikiGraphLibraryUri,
+  type SearchIndexEmbeddingProvider,
+  type SearchIndexQueryMode,
   type WikiGraphLibraryArchiveRecord,
   type WikiGraphLibraryIndexState,
   type WikiGraphLibraryRecord,
@@ -62,8 +64,30 @@ import {
 import { assertStandaloneWikiGraphArchivePath } from "./archive/target.js";
 
 export type WikiGraphLibraryTarget = ParsedWikiGraphLibraryUri | string;
+
+async function resolveQueryEmbeddingProvider(
+  queryMode: SearchIndexQueryMode | undefined,
+): Promise<SearchIndexEmbeddingProvider | undefined> {
+  if (queryMode === "fts") return undefined;
+  const provider = await createConfiguredEmbeddingProvider();
+  if (queryMode === "embedding" && provider === undefined) {
+    throw new Error(
+      "Embedding query mode requires embeddings configuration at `wikg://local/config/embeddings`.",
+    );
+  }
+  return provider;
+}
+
 export type WikiGraphLibrarySearchOptions = Omit<
   ArchiveFindOptions,
+  "embeddingProvider"
+>;
+export type WikiGraphLibraryRelatedOptions = Omit<
+  NonNullable<Parameters<typeof listRelatedWikiGraphLibraryObjects>[2]>,
+  "embeddingProvider"
+>;
+export type WikiGraphLibraryEvidenceOptions = Omit<
+  NonNullable<Parameters<typeof listWikiGraphLibraryEvidence>[2]>,
   "embeddingProvider"
 >;
 export type WikiGraphLibraryPageOptions = Omit<
@@ -399,7 +423,9 @@ export class WikiGraphLibraryManager {
     options: WikiGraphLibrarySearchOptions = {},
   ): Promise<ArchiveFindResult> {
     return await this.#runtime.run(async () => {
-      const embeddingProvider = await createConfiguredEmbeddingProvider();
+      const embeddingProvider = await resolveQueryEmbeddingProvider(
+        options.queryMode,
+      );
       return await findWikiGraphLibraryObjects(
         requireLibraryTarget(target),
         query,
@@ -417,7 +443,9 @@ export class WikiGraphLibraryManager {
     options: WikiGraphLibrarySearchOptions = {},
   ): Promise<ArchiveFindResult> {
     return await this.#runtime.run(async () => {
-      const embeddingProvider = await createConfiguredEmbeddingProvider();
+      const embeddingProvider = await resolveQueryEmbeddingProvider(
+        options.queryMode,
+      );
       return await findWikiGraphLibraryArchiveMembers(
         requireLibraryTarget(target),
         query,
@@ -478,31 +506,49 @@ export class WikiGraphLibraryManager {
   public async related(
     target: WikiGraphLibraryTarget,
     objectUri: string,
-    options: Parameters<typeof listRelatedWikiGraphLibraryObjects>[2] = {},
+    options: WikiGraphLibraryRelatedOptions = {},
   ): Promise<ArchiveRelatedResult> {
-    return await this.#runtime.run(
-      async () =>
-        await listRelatedWikiGraphLibraryObjects(
-          requireLibraryTarget(target),
-          objectUri,
-          options,
-        ),
-    );
+    return await this.#runtime.run(async () => {
+      if (options.query === undefined && options.queryMode !== undefined) {
+        throw new Error("`queryMode` requires `query`.");
+      }
+      const embeddingProvider =
+        options.query === undefined
+          ? undefined
+          : await resolveQueryEmbeddingProvider(options.queryMode);
+      return await listRelatedWikiGraphLibraryObjects(
+        requireLibraryTarget(target),
+        objectUri,
+        {
+          ...options,
+          ...(embeddingProvider === undefined ? {} : { embeddingProvider }),
+        },
+      );
+    });
   }
 
   public async evidence(
     target: WikiGraphLibraryTarget,
     objectUri: string,
-    options: Parameters<typeof listWikiGraphLibraryEvidence>[2] = {},
+    options: WikiGraphLibraryEvidenceOptions = {},
   ): Promise<ArchiveEvidence> {
-    return await this.#runtime.run(
-      async () =>
-        await listWikiGraphLibraryEvidence(
-          requireLibraryTarget(target),
-          objectUri,
-          options,
-        ),
-    );
+    return await this.#runtime.run(async () => {
+      if (options.query === undefined && options.queryMode !== undefined) {
+        throw new Error("`queryMode` requires `query`.");
+      }
+      const embeddingProvider =
+        options.query === undefined
+          ? undefined
+          : await resolveQueryEmbeddingProvider(options.queryMode);
+      return await listWikiGraphLibraryEvidence(
+        requireLibraryTarget(target),
+        objectUri,
+        {
+          ...options,
+          ...(embeddingProvider === undefined ? {} : { embeddingProvider }),
+        },
+      );
+    });
   }
 
   public async pack(

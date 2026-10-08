@@ -194,7 +194,7 @@ URI forms:
 Usage:
 {% if target.isDefault %}
   {{ commandName }} wikg://lib [--json]
-  {{ commandName }} wikg://lib --query <query> [--limit <n>] [--cursor <cursor>] [--json]
+  {{ commandName }} wikg://lib --query <query> [--query-mode <hybrid|fts|embedding>] [--limit <n>] [--cursor <cursor>] [--json]
   {{ commandName }} wikg://lib --query <query> --skip-unindexed
   {{ commandName }} wikg://lib/chapter --query <query>
   {{ commandName }} wikg://lib/chunk --query <query>
@@ -209,7 +209,7 @@ Usage:
   {{ commandName }} wikg://lib/meta [--json]
 {% else %}
   {{ commandName }} {{ uri }} [--json]
-  {{ commandName }} {{ uri }} --query <query> [--limit <n>] [--cursor <cursor>] [--json]
+  {{ commandName }} {{ uri }} --query <query> [--query-mode <hybrid|fts|embedding>] [--limit <n>] [--cursor <cursor>] [--json]
   {{ commandName }} {{ uri }} --query <query> --skip-unindexed
   {{ commandName }} {{ uri }}/chapter --query <query>
   {{ commandName }} {{ uri }}/chunk --query <query>

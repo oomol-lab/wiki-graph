@@ -113,6 +113,12 @@ function createCursorOutputContext(
     ...(cursor.kind === "related" && cursor.role !== undefined
       ? { role: cursor.role }
       : {}),
+    ...((cursor.kind === "search" ||
+      cursor.kind === "evidence" ||
+      cursor.kind === "related") &&
+    cursor.queryMode !== undefined
+      ? { queryMode: cursor.queryMode }
+      : {}),
     ...(cursor.kind === "source-locators"
       ? { targetUri: cursor.targetUri }
       : {}),

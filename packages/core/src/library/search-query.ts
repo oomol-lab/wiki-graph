@@ -91,9 +91,28 @@ export async function findWikiGraphLibraryObjectsBucketed(
   }
 
   if (options.skipUnindexed !== true) {
-    await assertWikiGraphLibraryQueryArtifactsReady(target);
+    await assertWikiGraphLibraryQueryArtifactsReady(target, {
+      ...(options.embeddingProvider === undefined
+        ? {}
+        : { embeddingProvider: options.embeddingProvider }),
+      ...(options.queryMode === undefined
+        ? {}
+        : { queryMode: options.queryMode }),
+    });
   } else {
-    await assertWikiGraphLibraryHasQueryableArtifacts(target);
+    const coverage = {
+      ...(options.embeddingProvider === undefined
+        ? {}
+        : { embeddingProvider: options.embeddingProvider }),
+      ...(options.queryMode === undefined
+        ? {}
+        : { queryMode: options.queryMode }),
+    };
+    if (Object.keys(coverage).length === 0) {
+      await assertWikiGraphLibraryHasQueryableArtifacts(target);
+    } else {
+      await assertWikiGraphLibraryHasQueryableArtifacts(target, coverage);
+    }
   }
   const state = await assertWikiGraphLibraryIndexReady(target);
   const archiveKey = createLibrarySearchArchiveKey(target);
@@ -105,6 +124,7 @@ export async function findWikiGraphLibraryObjectsBucketed(
     match: options.match ?? "any",
     order: options.order ?? "doc-asc",
     query,
+    queryMode: options.queryMode ?? "hybrid",
     revisionScope: state.sourceFingerprint,
     terms: search.terms,
     types,
@@ -201,7 +221,13 @@ async function readLibraryBucketPage(
         : { items: [], nextCursor: { bucket: 1 } };
     case 1:
       return shouldReadLibraryBucket(session, "entity", "triple")
-        ? await readLibraryObjectBucketPage(target, session, cursor.key, limit)
+        ? await readLibraryObjectBucketPage(
+            target,
+            session,
+            cursor.key,
+            limit,
+            options,
+          )
         : { items: [], nextCursor: { bucket: 2 } };
     case 2:
       return shouldReadLibraryBucket(session, "node")
@@ -232,6 +258,7 @@ async function readLibraryChapterTitleBucketPage(
   const result = await queryWikiGraphLibrarySearchIndex(target, session.query, {
     ...(session.chapters === null ? {} : { chapters: session.chapters }),
     match: session.match as ArchiveFindResult["match"],
+    queryMode: session.queryMode,
     objectHitLimit: SEARCH_INDEX_FTS_HIT_LIMIT,
     textHitLimit: 0,
     types: ["chapter-title"],
@@ -271,12 +298,17 @@ async function readLibraryObjectBucketPage(
   session: SearchSessionDescriptor,
   after: SearchObjectCursorKey | undefined,
   limit: number,
+  options: ArchiveFindOptions,
 ): Promise<{
   readonly items: readonly ArchiveFindHit[];
   readonly nextCursor: BucketSearchCursor | undefined;
 }> {
   if (!session.objectCachesPopulated) {
-    const input = await createLibraryObjectBucketCacheInput(target, session);
+    const input = await createLibraryObjectBucketCacheInput(
+      target,
+      session,
+      options,
+    );
 
     await populateSearchSessionObjectCaches({
       chunkHits: input.chunkHits,
@@ -371,6 +403,7 @@ async function readLibraryTextBucketPage(
     ...(options.embeddingProvider === undefined
       ? {}
       : { embeddingProvider: options.embeddingProvider }),
+    queryMode: session.queryMode,
     match: session.match as ArchiveFindResult["match"],
     objectHitLimit: 0,
     ...(after === undefined
@@ -440,6 +473,7 @@ function assertLibrarySearchCursorTypesMatch(
 async function createLibraryObjectBucketCacheInput(
   target: ParsedWikiGraphLibraryUri,
   session: SearchSessionDescriptor,
+  options: ArchiveFindOptions,
 ): Promise<{
   readonly chunkHits: readonly SearchChunkHitInput[];
   readonly entityHits: readonly SearchEntityHitInput[];
@@ -447,6 +481,10 @@ async function createLibraryObjectBucketCacheInput(
   const result = await queryWikiGraphLibrarySearchIndex(target, session.query, {
     ...(session.chapters === null ? {} : { chapters: session.chapters }),
     match: session.match as ArchiveFindResult["match"],
+    ...(options.embeddingProvider === undefined
+      ? {}
+      : { embeddingProvider: options.embeddingProvider }),
+    queryMode: session.queryMode,
     objectHitLimit: SEARCH_INDEX_FTS_HIT_LIMIT,
     textHitLimit: 0,
     types: null,

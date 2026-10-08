@@ -12,6 +12,7 @@ export function parseSearchResultItem(value: string): ArchiveFindHit {
 
 export function parseSessionOptions(value: string): {
   readonly chapters: readonly number[] | null;
+  readonly queryMode: import("../../search-index/index.js").SearchIndexQueryMode;
   readonly types: readonly string[] | null;
 } {
   const parsed: unknown = JSON.parse(value);
@@ -30,6 +31,13 @@ export function parseSessionOptions(value: string): {
   ) {
     return {
       chapters: parsed.chapters,
+      queryMode:
+        "queryMode" in parsed &&
+        (parsed.queryMode === "fts" ||
+          parsed.queryMode === "embedding" ||
+          parsed.queryMode === "hybrid")
+          ? parsed.queryMode
+          : "hybrid",
       types: parsed.types,
     };
   }

@@ -79,7 +79,7 @@ After inspect:
     Check the chapter or archive readiness before relying on summaries.
 
 Finding material:
-  `--query` uses indexed full-text retrieval. Treat it like grep/find with Google-like keyword input.
+  `--query` uses indexed retrieval and defaults to hybrid FTS + embedding search. Use `--query-mode fts` for strict keyword retrieval or `--query-mode embedding` for strict semantic retrieval.
 
   - Need document structure, chapter readiness, or chapter-local scope:
     {{ commandName }} wikg://book.wikg/chapter

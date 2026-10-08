@@ -36,6 +36,7 @@ export type {
   SearchIndexProgressEvent,
   SearchIndexProgressPhase,
   SearchIndexProgressReporter,
+  SearchIndexQueryMode,
   SearchIndexQueryResult,
   SearchIndexStatus,
   SearchIndexSelection,

@@ -147,6 +147,7 @@ export interface ArchiveFindOptions {
   readonly limit?: number;
   readonly match?: ArchiveFindMatch;
   readonly order?: ArchiveFindOrder;
+  readonly queryMode?: import("../../search-index/index.js").SearchIndexQueryMode;
   readonly skipUnindexed?: boolean;
   readonly sourceContext?: number;
   readonly triplePattern?: ArchiveTriplePattern;
@@ -388,6 +389,8 @@ export interface ArchiveRelatedOptions {
   readonly limit?: number;
   readonly order?: ArchiveFindOrder;
   readonly query?: string;
+  readonly queryMode?: import("../../search-index/index.js").SearchIndexQueryMode;
+  readonly embeddingProvider?: import("../../search-index/index.js").SearchIndexEmbeddingProvider;
   readonly role?: ArchiveRelatedRole;
   readonly skipUnindexed?: boolean;
   readonly sourceContext?: number;
@@ -492,6 +495,8 @@ export interface ArchiveEvidenceOptions {
   readonly limit?: number;
   readonly order?: ArchiveFindOrder;
   readonly query?: string;
+  readonly queryMode?: import("../../search-index/index.js").SearchIndexQueryMode;
+  readonly embeddingProvider?: import("../../search-index/index.js").SearchIndexEmbeddingProvider;
   readonly skipUnindexed?: boolean;
   readonly sourceContext?: number;
 }
