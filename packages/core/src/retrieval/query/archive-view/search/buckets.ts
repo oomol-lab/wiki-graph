@@ -60,9 +60,11 @@ import {
 import {
   compareTitleIndexHits,
   compareTextIndexHits,
+  createTitleBucketTypes,
   getObjectBucketCursorId,
   isAfterTitleKey,
   isAfterTextKey,
+  matchesTitleBucketType,
 } from "./bucket-order.js";
 import type {
   ArchiveFindFilterType,
@@ -205,6 +207,7 @@ async function readChapterTitleBucketPage(
   readonly items: readonly ArchiveFindHit[];
   readonly nextCursor: BucketSearchCursor | undefined;
 }> {
+  const titleTypes = createTitleBucketTypes(session.types);
   const result = await querySearchIndex(document, session.query, {
     ...(session.chapters === null ? {} : { chapters: session.chapters }),
     ...(options.embeddingProvider === undefined
@@ -214,7 +217,7 @@ async function readChapterTitleBucketPage(
     match: parseFindMatch(session.match),
     objectHitLimit: SEARCH_INDEX_FTS_HIT_LIMIT,
     textHitLimit: SEARCH_INDEX_FTS_HIT_LIMIT,
-    types: ["archive-title", "chapter-title"],
+    types: titleTypes,
   });
   const chapters = new Map(
     (await listChapters(document)).map((chapter) => [
@@ -223,11 +226,7 @@ async function readChapterTitleBucketPage(
     ]),
   );
   const hits = createChapterTitleIndexHits(result)
-    .filter(
-      (hit) =>
-        hit.ownerKind === SEARCH_OBJECT_PROPERTY_OWNER_KIND.archive ||
-        hit.ownerKind === SEARCH_OBJECT_PROPERTY_OWNER_KIND.chapter,
-    )
+    .filter((hit) => matchesTitleBucketType(hit, titleTypes))
     .sort(compareTitleIndexHits)
     .filter((hit) => isAfterTitleKey(hit, after));
   const page = hits.slice(0, limit + 1);

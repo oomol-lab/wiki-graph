@@ -8,9 +8,11 @@ import { createLexicalQuery } from "../retrieval/query/lexical-search.js";
 import {
   compareTitleIndexHits,
   compareTextIndexHits,
+  createTitleBucketTypes,
   getObjectBucketCursorId,
   isAfterTitleKey,
   isAfterTextKey,
+  matchesTitleBucketType,
 } from "../retrieval/query/archive-view/search/bucket-order.js";
 import {
   hydrateCachedChunkBucketHit,
@@ -274,6 +276,7 @@ async function readLibraryChapterTitleBucketPage(
   readonly items: readonly ArchiveFindHit[];
   readonly nextCursor: BucketSearchCursor | undefined;
 }> {
+  const titleTypes = createTitleBucketTypes(session.types);
   const result = await queryWikiGraphLibrarySearchIndex(target, session.query, {
     ...(session.chapters === null ? {} : { chapters: session.chapters }),
     ...(options.embeddingProvider === undefined
@@ -283,14 +286,10 @@ async function readLibraryChapterTitleBucketPage(
     queryMode: session.queryMode,
     objectHitLimit: SEARCH_INDEX_FTS_HIT_LIMIT,
     textHitLimit: SEARCH_INDEX_FTS_HIT_LIMIT,
-    types: ["archive-title", "chapter-title"],
+    types: titleTypes,
   });
   const hits = createLibraryChapterTitleIndexHits(result)
-    .filter(
-      (hit) =>
-        hit.ownerKind === SEARCH_OBJECT_PROPERTY_OWNER_KIND.archive ||
-        hit.ownerKind === SEARCH_OBJECT_PROPERTY_OWNER_KIND.chapter,
-    )
+    .filter((hit) => matchesTitleBucketType(hit, titleTypes))
     .sort(compareTitleIndexHits)
     .filter((hit) => isAfterTitleKey(hit, after));
   const page = hits.slice(0, limit + 1);
