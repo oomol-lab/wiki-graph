@@ -8,10 +8,13 @@ import {
   readWikiGraphEmbeddingConfig,
 } from "./embedding.js";
 import { loadWikiGraphRuntimeConfig } from "./runtime-config.js";
+import { getWikiGraphSDKProviders } from "./runtime-context.js";
 
 export async function createConfiguredEmbeddingProvider(): Promise<
   SearchIndexEmbeddingProvider | undefined
 > {
+  const injected = getWikiGraphSDKProviders().embedding;
+  if (injected !== undefined) return injected;
   const config = await readWikiGraphEmbeddingConfig();
   if (
     config.provider === undefined ||

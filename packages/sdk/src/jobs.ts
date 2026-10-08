@@ -31,7 +31,14 @@ import {
   resolveWikiGraphArchiveLocation,
   resolveWikiGraphArchiveTarget,
 } from "./archive/target.js";
-import { requireKnowledgeGraphWikispineConfig } from "./default-worker.js";
+import {
+  requireKnowledgeGraphWikispineConfig,
+  runWikiGraphQueueWorker,
+  type WikiGraphQueueWorkerOptions,
+} from "./default-worker.js";
+import { getWikiGraphSDKProviders } from "./runtime-context.js";
+import { resolveWikiGraphLLMJSON } from "./providers.js";
+import type { WikiGraphLLMConfig } from "./runtime-config.js";
 import { loadWikiGraphRuntimeConfig } from "./runtime-config.js";
 import { loadRequiredStageConfig } from "./stage.js";
 
@@ -130,6 +137,8 @@ export interface WikiGraphJobEnqueueOptions {
   readonly chapterIds?: readonly number[];
   readonly chapterPath?: string;
   readonly depth?: number;
+  readonly llm?: WikiGraphLLMConfig;
+  /** @deprecated Prefer the typed llm option. */
   readonly llmJSON?: string;
   readonly prompt?: string;
   readonly target?: BuildJobTarget;
@@ -207,6 +216,15 @@ export class WikiGraphJobManager {
 
   public async clean(): Promise<number> {
     return await this.#runtime.run(async () => await cleanBuildJobs());
+  }
+
+  public async runWorker(
+    options: WikiGraphQueueWorkerOptions = {},
+  ): Promise<void> {
+    await this.#runtime.run(
+      async () => await runWikiGraphQueueWorker(options),
+      options.signal,
+    );
   }
 
   public async get(jobId: string): Promise<WikiGraphJob> {
@@ -306,12 +324,13 @@ export class WikiGraphJobManager {
     options: WikiGraphJobEnqueueOptions,
   ): Promise<WikiGraphJobEnqueueResult> {
     return await this.#runtime.run(async () => {
+      const llmJSON = resolveWikiGraphLLMJSON(options);
       const location = await resolveWikiGraphArchiveLocation(options.archive);
       return await withArchiveBuildJobCreationLock(
         location.archiveFile,
         async () => {
           const target = options.target ?? "reading-summary";
-          await validateQueueTargetConfig(target, options.llmJSON);
+          await validateQueueTargetConfig(target, llmJSON);
           const selectedExplicitly =
             options.chapterId !== undefined ||
             options.chapterIds !== undefined ||
@@ -366,9 +385,7 @@ export class WikiGraphJobManager {
                     archive: location.archiveFile,
                     boost: options.boost ?? false,
                     chapterId: candidate.chapter.chapterId,
-                    ...(options.llmJSON === undefined
-                      ? {}
-                      : { llmJSON: options.llmJSON }),
+                    ...(llmJSON === undefined ? {} : { llmJSON }),
                     ...(options.prompt === undefined
                       ? {}
                       : { prompt: options.prompt }),
@@ -395,9 +412,10 @@ export class WikiGraphJobManager {
     options: WikiGraphJobEnqueueOptions,
   ): Promise<WikiGraphJobEnqueuePlan> {
     return await this.#runtime.run(async () => {
+      const llmJSON = resolveWikiGraphLLMJSON(options);
       const location = await resolveWikiGraphArchiveLocation(options.archive);
       const target = options.target ?? "reading-summary";
-      await validateQueueTargetConfig(target, options.llmJSON);
+      await validateQueueTargetConfig(target, llmJSON);
       const selectedExplicitly =
         options.chapterId !== undefined ||
         options.chapterIds !== undefined ||
@@ -752,6 +770,7 @@ async function validateQueueTargetConfig(
   target: BuildJobTarget,
   llmJSON: string | undefined,
 ): Promise<void> {
+  const providers = getWikiGraphSDKProviders();
   const config =
     target === "knowledge-graph" ||
     target === "reading-graph" ||
@@ -761,11 +780,18 @@ async function validateQueueTargetConfig(
         })
       : await loadWikiGraphRuntimeConfig({
           ...(llmJSON === undefined ? {} : { llmJSON }),
+          ...(providers.embedding === undefined
+            ? {}
+            : { skipEmbeddingConfig: true }),
+          ...(llmJSON === undefined && providers.llm !== undefined
+            ? { skipLLMConfig: true }
+            : {}),
         });
   if (
     (target === "index-embedding-source" ||
       target === "index-embedding-summary") &&
-    config.embedding === undefined
+    config.embedding === undefined &&
+    providers.embedding === undefined
   ) {
     throw new Error(
       "Missing embeddings configuration. Configure `wikg://local/config/embeddings` before queueing embedding index artifact jobs.",

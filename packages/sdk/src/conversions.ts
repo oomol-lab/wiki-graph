@@ -14,6 +14,9 @@ import {
 import { buildWikiGraphLLMOptions } from "./llm.js";
 import { NodeDirectory, NodeFile } from "./node-platform.js";
 import { loadWikiGraphRuntimeConfig } from "./runtime-config.js";
+import { resolveWikiGraphLLMJSON } from "./providers.js";
+import type { WikiGraphLLMConfig } from "./runtime-config.js";
+import { getWikiGraphSDKProviders } from "./runtime-context.js";
 import type { WikiGraphJobRuntime } from "./jobs.js";
 import { resolveWikiGraphRuntimePath } from "./runtime-path.js";
 import { assertStandaloneWikiGraphArchivePath } from "./archive/target.js";
@@ -44,6 +47,8 @@ export type WikiGraphConversionInput =
 export interface WikiGraphConversionOptions {
   readonly digestDirectory?: string;
   readonly input: WikiGraphConversionInput;
+  readonly llm?: WikiGraphLLMConfig;
+  /** @deprecated Prefer the typed llm option. */
   readonly llmJSON?: string;
   readonly onProgress?: WikiGraphProgressCallback;
   readonly onSourceImported?: () => void | Promise<void>;
@@ -97,12 +102,26 @@ export class WikiGraphConversionManager {
     const requiresDigest = options.input.format !== "wikg";
     const requiresLLM =
       requiresDigest && targetStage !== "planned" && targetStage !== "sourced";
+    const llmJSON = resolveWikiGraphLLMJSON(options);
+    const injectedLLM =
+      llmJSON === undefined ? getWikiGraphSDKProviders().llm : undefined;
     const config = await loadWikiGraphRuntimeConfig({
-      ...(options.llmJSON === undefined ? {} : { llmJSON: options.llmJSON }),
+      ...(llmJSON === undefined ? {} : { llmJSON }),
+      ...(injectedLLM === undefined ? {} : { skipLLMConfig: true }),
+      ...(getWikiGraphSDKProviders().embedding === undefined
+        ? {}
+        : { skipEmbeddingConfig: true }),
     });
     const app = new WikiGraph({
       ...(options.verbose === true ? { verbose: true } : {}),
-      ...(requiresLLM ? { llm: buildWikiGraphLLMOptions(config) } : {}),
+      ...(requiresLLM
+        ? {
+            llm:
+              injectedLLM === undefined
+                ? buildWikiGraphLLMOptions(config)
+                : { streamProvider: injectedLLM },
+          }
+        : {}),
     });
     const documentDirectory = await prepareDigestDirectory(
       options.digestDirectory,

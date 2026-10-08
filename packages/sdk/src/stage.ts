@@ -12,6 +12,8 @@ import type {
   LLMStreamProgressCallback,
   LLMTokenUsageCallback,
 } from "wiki-graph-core";
+import type { WikiGraphLLMProvider } from "./providers.js";
+import { getWikiGraphSDKProviders } from "./runtime-context.js";
 
 import {
   loadWikiGraphRuntimeConfig,
@@ -26,9 +28,18 @@ export function createStageLLM(
     readonly logDirectory?: Directory;
     readonly onStreamProgress?: LLMStreamProgressCallback;
     readonly onTokenUsage?: LLMTokenUsageCallback;
+    readonly provider?: WikiGraphLLMProvider;
   },
 ): LLM<WikiGraphScope> {
-  const llmOptions = buildWikiGraphLLMOptions(config);
+  const llmOptions =
+    options?.provider === undefined
+      ? buildWikiGraphLLMOptions(config)
+      : {
+          ...(config.concurrent?.request === undefined
+            ? {}
+            : { concurrent: config.concurrent.request }),
+          streamProvider: options.provider,
+        };
 
   return new LLM<WikiGraphScope>({
     sampling: createDefaultWikiGraphSampling({
@@ -56,11 +67,22 @@ export function createStageLLM(
 export async function loadRequiredStageConfig(options: {
   readonly llmJSON?: string;
 }): Promise<WikiGraphRuntimeConfig> {
+  const injected =
+    options.llmJSON === undefined ? getWikiGraphSDKProviders().llm : undefined;
   const config = await loadWikiGraphRuntimeConfig({
     ...(options.llmJSON === undefined ? {} : { llmJSON: options.llmJSON }),
+    ...(options.llmJSON === undefined && injected !== undefined
+      ? { skipLLMConfig: true }
+      : {}),
+    ...(getWikiGraphSDKProviders().embedding === undefined
+      ? {}
+      : { skipEmbeddingConfig: true }),
   });
 
-  if (config.llm?.provider === undefined || config.llm.model === undefined) {
+  if (
+    injected === undefined &&
+    (config.llm?.provider === undefined || config.llm.model === undefined)
+  ) {
     throw new Error(
       "Missing LLM configuration. Set --llm for one run, or configure `wikg://local/config/llm` with provider and model.",
     );

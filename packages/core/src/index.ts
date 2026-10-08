@@ -21,6 +21,8 @@ export type {
   LLMOptions,
   LLMRequestOptions,
   LLMStreamProgressCallback,
+  LLMStreamProvider,
+  LLMStreamProviderEvent,
   LLMTokenUsage,
   LLMTokenUsageCallback,
 } from "./external/llm/index.js";

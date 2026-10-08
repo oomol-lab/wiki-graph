@@ -37,6 +37,7 @@ import {
 import { DEFAULT_GENERATION_JOB_CONCURRENCY } from "./planning.js";
 import { nodeWikispineCommandRunner } from "./wikispine.js";
 import { runBuildJobWorker } from "./worker.js";
+import { getWikiGraphSDKProviders } from "./runtime-context.js";
 import {
   resolveWikiGraphArchiveTarget,
   resolveWikiGraphArchiveLocation,
@@ -44,13 +45,18 @@ import {
 import { writeWikiGraphArchiveLocation } from "./archive/write.js";
 
 export interface WikiGraphQueueWorkerOptions {
+  readonly idleTimeoutMs?: number;
   readonly signal?: AbortSignal;
 }
 
 export async function runWikiGraphQueueWorker(
   options: WikiGraphQueueWorkerOptions = {},
 ): Promise<void> {
-  const config = await loadWikiGraphRuntimeConfig();
+  const providers = getWikiGraphSDKProviders();
+  const config = await loadWikiGraphRuntimeConfig({
+    ...(providers.embedding === undefined ? {} : { skipEmbeddingConfig: true }),
+    ...(providers.llm === undefined ? {} : { skipLLMConfig: true }),
+  });
   await runBuildJobWorker({
     concurrency: config.concurrent?.job ?? DEFAULT_GENERATION_JOB_CONCURRENCY,
     executeJob: async (job, reporter, context) => {
@@ -59,6 +65,9 @@ export async function runWikiGraphQueueWorker(
         async () => await executeBuildJob(job, reporter, context),
       );
     },
+    ...(options.idleTimeoutMs === undefined
+      ? {}
+      : { idleTimeoutMs: options.idleTimeoutMs }),
     ...(options.signal === undefined ? {} : { signal: options.signal }),
   });
 }
@@ -68,8 +77,13 @@ async function executeBuildJob(
   reporter: BuildJobProgressReporter,
   context: BuildJobExecutionContext,
 ): Promise<void> {
+  const providers = getWikiGraphSDKProviders();
   const config = await loadWikiGraphRuntimeConfig({
     ...(job.llmJSON === undefined ? {} : { llmJSON: job.llmJSON }),
+    ...(providers.embedding === undefined ? {} : { skipEmbeddingConfig: true }),
+    ...(job.llmJSON === undefined && providers.llm !== undefined
+      ? { skipLLMConfig: true }
+      : {}),
   });
   const execution = await openJobExecutor(
     job,
@@ -240,6 +254,8 @@ async function openJobExecutor(
         ...(job.llmJSON === undefined ? {} : { llmJSON: job.llmJSON }),
       })
     : undefined;
+  const injectedLLM =
+    job.llmJSON === undefined ? getWikiGraphSDKProviders().llm : undefined;
   const llm =
     stageConfig === undefined
       ? undefined
@@ -249,6 +265,10 @@ async function openJobExecutor(
           onTokenUsage: async (usage) => {
             await reporter.addTokenUsage(usage);
           },
+          onStreamProgress: async ({ outputCharacters }) => {
+            await reporter.addOutputCharacters(outputCharacters);
+          },
+          ...(injectedLLM === undefined ? {} : { provider: injectedLLM }),
         });
   const promptSource = job.prompt ?? stageConfig?.prompt;
   const wikispine =
@@ -286,7 +306,7 @@ async function openJobExecutor(
                   "Local Wikimedia resolution requires an LLM.",
                 ),
                 llmModelId: requireValue(
-                  stageConfig?.llm?.model,
+                  stageConfig?.llm?.model ?? injectedLLM?.model,
                   "Local Wikimedia resolution requires an LLM model.",
                 ),
               }
@@ -299,7 +319,8 @@ async function openJobExecutor(
   const embeddingProvider =
     job.target === "index-embedding-source" ||
     job.target === "index-embedding-summary"
-      ? buildSearchIndexEmbeddingProvider(requireEmbeddingConfig(config))
+      ? (getWikiGraphSDKProviders().embedding ??
+        buildSearchIndexEmbeddingProvider(requireEmbeddingConfig(config)))
       : undefined;
 
   return {

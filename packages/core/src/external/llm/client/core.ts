@@ -35,7 +35,9 @@ import type {
   LLMRequestOptions,
   LLMRequestFunction,
   LLMStreamProgressCallback,
+  LLMStreamProvider,
   LLMTokenUsageCallback,
+  LLMTokenUsage,
   SamplingScopeConfig,
   TemperatureSetting,
 } from "../types.js";
@@ -58,12 +60,13 @@ export class LLM<S extends string> {
   readonly #logDirectory:
     | import("../../../runtime/platform/index.js").Directory
     | undefined;
-  readonly #model: LLMModel;
+  readonly #model: LLMModel | undefined;
   readonly #modelProvider: string | undefined;
   readonly #modelId: string;
   readonly #modelIdentity: string;
   readonly #onStreamProgress: LLMStreamProgressCallback | undefined;
   readonly #onTokenUsage: LLMTokenUsageCallback | undefined;
+  readonly #streamProvider: LLMStreamProvider<S> | undefined;
   readonly #requestLimiter: AsyncSemaphore;
   readonly #retryIntervalSeconds: number;
   readonly #retryTimes: number;
@@ -86,13 +89,26 @@ export class LLM<S extends string> {
   }>;
 
   public constructor(options: LLMOptions<S>) {
+    if (
+      (options.model === undefined) ===
+      (options.streamProvider === undefined)
+    ) {
+      throw new Error("LLM requires exactly one of model or streamProvider.");
+    }
     const concurrent = options.concurrent ?? DEFAULT_CONCURRENT_REQUESTS;
     const timeout = options.timeout ?? DEFAULT_TIMEOUT_MS;
     const temperature = options.temperature ?? 0.6;
     const topP = options.topP ?? 0.6;
     const sampling = options.sampling;
     const stream = options.stream ?? true;
-    const modelInfo = resolveModelInfo(options.model);
+    const modelInfo =
+      options.streamProvider === undefined
+        ? resolveModelInfo(options.model!)
+        : {
+            identity: `${options.streamProvider.identity ?? "injected"}:${options.streamProvider.model}`,
+            modelId: options.streamProvider.model,
+            provider: options.streamProvider.identity ?? "injected",
+          };
 
     this.config = Object.freeze({
       concurrent,
@@ -115,6 +131,7 @@ export class LLM<S extends string> {
     this.#modelIdentity = modelInfo.identity;
     this.#onStreamProgress = options.onStreamProgress;
     this.#onTokenUsage = options.onTokenUsage;
+    this.#streamProvider = options.streamProvider;
     this.#requestLimiter = new AsyncSemaphore(concurrent);
     this.#retryIntervalSeconds = options.retryIntervalSeconds ?? 6;
     this.#retryTimes = options.retryTimes ?? 5;
@@ -266,12 +283,56 @@ export class LLM<S extends string> {
     }
 
     let response: string | undefined;
-    let tokenUsage: LanguageModelUsage | undefined;
+    let tokenUsage: LLMTokenUsage | undefined;
     let lastError: unknown;
 
     for (let attempt = 0; attempt <= this.#retryTimes; attempt += 1) {
       try {
         response = await this.#requestLimiter.use(async () => {
+          if (this.#streamProvider !== undefined) {
+            const textChunks: string[] = [];
+            input.signal?.throwIfAborted();
+            const iterator = this.#streamProvider
+              .stream(input.messages, {
+                ...(input.signal === undefined ? {} : { signal: input.signal }),
+                ...(input.scope === undefined ? {} : { scope: input.scope }),
+                ...(input.retryIndex === undefined
+                  ? {}
+                  : { retryIndex: input.retryIndex }),
+                ...(input.retryMax === undefined
+                  ? {}
+                  : { retryMax: input.retryMax }),
+                ...(resolvedTemperature === undefined
+                  ? {}
+                  : { temperature: resolvedTemperature }),
+                ...(resolvedTopP === undefined ? {} : { topP: resolvedTopP }),
+              })
+              [Symbol.asyncIterator]();
+            let completed = false;
+            try {
+              while (true) {
+                const result = await nextWithSignal(iterator, input.signal);
+                input.signal?.throwIfAborted();
+                if (result.done) {
+                  completed = true;
+                  break;
+                }
+                const event = result.value;
+                if (event.type === "text-delta") {
+                  textChunks.push(event.text);
+                  await this.#emitStreamProgress(event.text.length);
+                } else {
+                  tokenUsage = event.usage;
+                  await this.#emitTokenUsage(event.usage);
+                }
+              }
+            } finally {
+              if (!completed) closeIteratorWithoutWaiting(iterator);
+            }
+            input.signal?.throwIfAborted();
+            return textChunks.join("");
+          }
+
           const generationInput: {
             abortSignal?: AbortSignal;
             maxRetries: number;
@@ -284,7 +345,7 @@ export class LLM<S extends string> {
           } = normalizeGenerationInput({
             maxRetries: 0,
             messages: [...input.messages],
-            model: this.#model,
+            model: this.#model!,
             timeout: this.#timeoutMs,
           });
 
@@ -321,13 +382,13 @@ export class LLM<S extends string> {
                 : new Error(formatError(streamError), { cause: streamError });
             }
 
-            tokenUsage = await result.totalUsage;
+            tokenUsage = toLLMTokenUsage(await result.totalUsage);
             await this.#emitTokenUsage(tokenUsage);
             return textChunks.join("");
           } else {
             const result = await generateText(generationInput);
 
-            tokenUsage = result.usage;
+            tokenUsage = toLLMTokenUsage(result.usage);
             await this.#emitStreamProgress(result.text.length);
             await this.#emitTokenUsage(tokenUsage);
             return result.text;
@@ -410,26 +471,69 @@ export class LLM<S extends string> {
     }
   }
 
-  async #emitTokenUsage(usage: LanguageModelUsage | undefined): Promise<void> {
+  async #emitTokenUsage(usage: LLMTokenUsage | undefined): Promise<void> {
     if (this.#onTokenUsage === undefined || usage === undefined) {
       return;
     }
 
     try {
-      await this.#onTokenUsage({
-        ...(usage.inputTokenDetails.cacheReadTokens === undefined
-          ? {}
-          : { cacheReadTokens: usage.inputTokenDetails.cacheReadTokens }),
-        ...(usage.inputTokens === undefined
-          ? {}
-          : { inputTokens: usage.inputTokens }),
-        ...(usage.outputTokens === undefined
-          ? {}
-          : { outputTokens: usage.outputTokens }),
-      });
+      await this.#onTokenUsage(usage);
     } catch {
       return;
     }
+  }
+}
+
+function toLLMTokenUsage(
+  usage: LanguageModelUsage | undefined,
+): LLMTokenUsage | undefined {
+  if (usage === undefined) return undefined;
+  return {
+    ...(usage.inputTokenDetails.cacheReadTokens === undefined
+      ? {}
+      : { cacheReadTokens: usage.inputTokenDetails.cacheReadTokens }),
+    ...(usage.inputTokens === undefined
+      ? {}
+      : { inputTokens: usage.inputTokens }),
+    ...(usage.outputTokens === undefined
+      ? {}
+      : { outputTokens: usage.outputTokens }),
+  };
+}
+
+async function nextWithSignal<T>(
+  iterator: AsyncIterator<T>,
+  signal: AbortSignal | undefined,
+): Promise<IteratorResult<T>> {
+  signal?.throwIfAborted();
+  const next = iterator.next();
+  if (signal === undefined) return await next;
+
+  let rejectOnAbort: (() => void) | undefined;
+  const aborted = new Promise<never>((_resolve, reject) => {
+    rejectOnAbort = () => {
+      try {
+        signal.throwIfAborted();
+      } catch (error) {
+        reject(error);
+      }
+    };
+    signal.addEventListener("abort", rejectOnAbort, { once: true });
+    if (signal.aborted) rejectOnAbort();
+  });
+  try {
+    return await Promise.race([next, aborted]);
+  } finally {
+    signal.removeEventListener("abort", rejectOnAbort!);
+  }
+}
+
+function closeIteratorWithoutWaiting<T>(iterator: AsyncIterator<T>): void {
+  try {
+    const closing = iterator.return?.();
+    if (closing !== undefined) void Promise.resolve(closing).catch(() => {});
+  } catch {
+    return;
   }
 }
 

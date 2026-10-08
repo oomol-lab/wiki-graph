@@ -68,17 +68,25 @@ export interface WikiGraphRuntimeConfig {
   };
 }
 
+export type WikiGraphLLMConfig = NonNullable<WikiGraphRuntimeConfig["llm"]>;
+
 export type HostedProviderScope = "wg-wikimedia" | "wikispine";
 
-type InlineLLMConfig = NonNullable<WikiGraphRuntimeConfig["llm"]>;
+type InlineLLMConfig = WikiGraphLLMConfig;
 
 export async function loadWikiGraphRuntimeConfig(options?: {
   readonly llmJSON?: string;
+  readonly skipEmbeddingConfig?: boolean;
+  readonly skipLLMConfig?: boolean;
 }): Promise<WikiGraphRuntimeConfig> {
   const [embedding, localLLM, concurrent, wikimedia, wikispine] =
     await Promise.all([
-      readLocalConfigSection("embeddings"),
-      readLocalConfigSection("llm"),
+      options?.skipEmbeddingConfig === true
+        ? Promise.resolve({} as Record<string, unknown>)
+        : readLocalConfigSection("embeddings"),
+      options?.skipLLMConfig === true
+        ? Promise.resolve({} as Record<string, unknown>)
+        : readLocalConfigSection("llm"),
       readLocalConfigSection("concurrent"),
       readLocalConfigSection("wikimedia"),
       readLocalConfigSection("wikispine"),

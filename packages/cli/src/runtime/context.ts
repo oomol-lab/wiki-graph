@@ -36,6 +36,7 @@ export async function withWikiGraphCLIRuntimeContext<T>(
           cwd: context.cwd,
           env: context.env,
           envPolicy: context.envPolicy,
+          providers: {},
           ...(context.stateDir === undefined
             ? {}
             : { stateDir: context.stateDir }),
