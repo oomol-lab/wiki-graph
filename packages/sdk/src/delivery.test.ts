@@ -1,4 +1,13 @@
-import { access, link, mkdir, mkdtemp, readdir, rm, stat } from "fs/promises";
+import {
+  access,
+  link,
+  mkdir,
+  mkdtemp,
+  readdir,
+  rm,
+  stat,
+  writeFile,
+} from "fs/promises";
 import { tmpdir } from "os";
 import { join } from "path";
 import { afterEach, describe, expect, it } from "vitest";
@@ -430,6 +439,23 @@ describe("WikiGraphSDK delivery operations", () => {
     const physicalPath = join(root, "library", "book.wikg");
     await expect(
       sdk.archives.open(standalone(physicalPath)),
+    ).rejects.toMatchObject({ code: "WIKI_GRAPH_ARCHIVE_OWNERSHIP_MISMATCH" });
+    await expect(
+      sdk.maintenance.upgrade({ kind: "archive", path: physicalPath }),
+    ).rejects.toMatchObject({ code: "WIKI_GRAPH_ARCHIVE_OWNERSHIP_MISMATCH" });
+    await writeFile(join(root, "source.txt"), "Replacement source");
+    await expect(
+      sdk.conversions.convert({
+        input: { format: "txt", path: "source.txt" },
+        output: { format: "wikg", path: physicalPath },
+        targetStage: "sourced",
+      }),
+    ).rejects.toMatchObject({ code: "WIKI_GRAPH_ARCHIVE_OWNERSHIP_MISMATCH" });
+    await expect(
+      sdk.conversions.convert({
+        input: { format: "wikg", path: physicalPath },
+        output: { format: "txt", path: "export.txt" },
+      }),
     ).rejects.toMatchObject({ code: "WIKI_GRAPH_ARCHIVE_OWNERSHIP_MISMATCH" });
 
     const archive = await sdk.archives.open({

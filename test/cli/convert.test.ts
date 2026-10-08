@@ -51,6 +51,7 @@ const mockStdinStream = ["from stdin"];
 vi.mock("../../packages/core/src/index.js", () => ({
   CLI_PRIMARY_COMMAND: "wg",
   ensureWikiGraphHomeSchemaCurrent: vi.fn(() => Promise.resolve()),
+  listWikiGraphLibraries: vi.fn(() => Promise.resolve([])),
   WikiGraph: class {
     public constructor(options: unknown) {
       cliMockState.appConstructorOptions.push(options);
@@ -173,10 +174,12 @@ vi.mock("../../packages/cli/src/support/index.js", async (importOriginal) => {
 });
 
 vi.mock("fs/promises", () => ({
+  realpath: vi.fn((path: string) => Promise.resolve(path)),
   rm: vi.fn((path: string) => {
     cliMockState.resetDigestDirCalls.push(path);
     return Promise.resolve();
   }),
+  stat: vi.fn(() => Promise.reject(new Error("missing mock file"))),
 }));
 
 import { runConvertCommand } from "../../packages/cli/src/commands/index.js";
