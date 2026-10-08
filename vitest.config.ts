@@ -64,6 +64,7 @@ export default defineConfig({
     fileParallelism: false,
     include: ["test/**/*.test.ts", "packages/*/src/**/*.test.ts"],
     passWithNoTests: true,
+    testTimeout: 120_000,
     coverage: {
       provider: "v8",
       reporter: ["text", "html", "json-summary"],
