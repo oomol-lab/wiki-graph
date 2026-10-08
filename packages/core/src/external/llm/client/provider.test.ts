@@ -90,4 +90,82 @@ describe("LLM stream providers", () => {
     ).resolves.toBe("recovered");
     expect(attempts).toBe(2);
   });
+
+  it("rejects a pre-aborted request even when the provider returns no events", async () => {
+    const reason = new DOMException("cancelled", "AbortError");
+    const controller = new AbortController();
+    controller.abort(reason);
+    const stream = vi.fn(() => ({
+      [Symbol.asyncIterator]() {
+        return this;
+      },
+      async next() {
+        await Promise.resolve();
+        return { done: true as const, value: undefined };
+      },
+    }));
+    const llm = new LLM<"test">({
+      retryTimes: 0,
+      streamProvider: { model: "test", stream },
+    });
+
+    await expect(
+      llm.request([{ content: "prompt", role: "user" }], {
+        scope: "test",
+        signal: controller.signal,
+      }),
+    ).rejects.toBe(reason);
+    expect(stream).not.toHaveBeenCalled();
+  });
+
+  it("rejects when cancellation occurs as the provider stream ends", async () => {
+    const reason = new DOMException("cancelled", "AbortError");
+    const controller = new AbortController();
+    const llm = new LLM<"test">({
+      retryTimes: 0,
+      streamProvider: {
+        model: "test",
+        async *stream() {
+          yield { text: "partial", type: "text-delta" };
+          controller.abort(reason);
+        },
+      },
+    });
+
+    await expect(
+      llm.request([{ content: "prompt", role: "user" }], {
+        scope: "test",
+        signal: controller.signal,
+      }),
+    ).rejects.toBe(reason);
+  });
+
+  it("rejects while waiting for a provider that ignores cancellation", async () => {
+    const reason = new DOMException("cancelled", "AbortError");
+    const controller = new AbortController();
+    let markStarted: (() => void) | undefined;
+    const started = new Promise<void>((resolve) => {
+      markStarted = resolve;
+    });
+    const llm = new LLM<"test">({
+      retryTimes: 0,
+      streamProvider: {
+        model: "test",
+        async *stream() {
+          markStarted!();
+          await new Promise<never>(() => {});
+          yield { text: "unreachable", type: "text-delta" };
+        },
+      },
+    });
+    const request = llm.request([{ content: "prompt", role: "user" }], {
+      scope: "test",
+      signal: controller.signal,
+    });
+
+    await started;
+    controller.abort(reason);
+
+    await expect(request).rejects.toBe(reason);
+  });
 });

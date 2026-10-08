@@ -291,9 +291,9 @@ export class LLM<S extends string> {
         response = await this.#requestLimiter.use(async () => {
           if (this.#streamProvider !== undefined) {
             const textChunks: string[] = [];
-            for await (const event of this.#streamProvider.stream(
-              input.messages,
-              {
+            input.signal?.throwIfAborted();
+            const iterator = this.#streamProvider
+              .stream(input.messages, {
                 ...(input.signal === undefined ? {} : { signal: input.signal }),
                 ...(input.scope === undefined ? {} : { scope: input.scope }),
                 ...(input.retryIndex === undefined
@@ -306,17 +306,30 @@ export class LLM<S extends string> {
                   ? {}
                   : { temperature: resolvedTemperature }),
                 ...(resolvedTopP === undefined ? {} : { topP: resolvedTopP }),
-              },
-            )) {
-              input.signal?.throwIfAborted();
-              if (event.type === "text-delta") {
-                textChunks.push(event.text);
-                await this.#emitStreamProgress(event.text.length);
-              } else {
-                tokenUsage = event.usage;
-                await this.#emitTokenUsage(event.usage);
+              })
+              [Symbol.asyncIterator]();
+            let completed = false;
+            try {
+              while (true) {
+                const result = await nextWithSignal(iterator, input.signal);
+                input.signal?.throwIfAborted();
+                if (result.done) {
+                  completed = true;
+                  break;
+                }
+                const event = result.value;
+                if (event.type === "text-delta") {
+                  textChunks.push(event.text);
+                  await this.#emitStreamProgress(event.text.length);
+                } else {
+                  tokenUsage = event.usage;
+                  await this.#emitTokenUsage(event.usage);
+                }
               }
+            } finally {
+              if (!completed) closeIteratorWithoutWaiting(iterator);
             }
+            input.signal?.throwIfAborted();
             return textChunks.join("");
           }
 
@@ -486,6 +499,42 @@ function toLLMTokenUsage(
       ? {}
       : { outputTokens: usage.outputTokens }),
   };
+}
+
+async function nextWithSignal<T>(
+  iterator: AsyncIterator<T>,
+  signal: AbortSignal | undefined,
+): Promise<IteratorResult<T>> {
+  signal?.throwIfAborted();
+  const next = iterator.next();
+  if (signal === undefined) return await next;
+
+  let rejectOnAbort: (() => void) | undefined;
+  const aborted = new Promise<never>((_resolve, reject) => {
+    rejectOnAbort = () => {
+      try {
+        signal.throwIfAborted();
+      } catch (error) {
+        reject(error);
+      }
+    };
+    signal.addEventListener("abort", rejectOnAbort, { once: true });
+    if (signal.aborted) rejectOnAbort();
+  });
+  try {
+    return await Promise.race([next, aborted]);
+  } finally {
+    signal.removeEventListener("abort", rejectOnAbort!);
+  }
+}
+
+function closeIteratorWithoutWaiting<T>(iterator: AsyncIterator<T>): void {
+  try {
+    const closing = iterator.return?.();
+    if (closing !== undefined) void Promise.resolve(closing).catch(() => {});
+  } catch {
+    return;
+  }
 }
 
 async function delay(
