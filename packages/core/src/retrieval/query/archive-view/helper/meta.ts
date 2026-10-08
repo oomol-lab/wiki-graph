@@ -1,4 +1,9 @@
-import type { BookMeta } from "../../../../text/source/index.js";
+import {
+  BOOK_META_VERSION,
+  bookMetaSchema,
+  SOURCE_FORMATS,
+  type BookMeta,
+} from "../../../../text/source/index.js";
 import type { ReadonlyDocument } from "../../../../document/index.js";
 
 export function createSnippet(value: string, needle?: string): string {
@@ -43,6 +48,41 @@ export async function readArchiveTitle(
   const title = typeof value === "string" ? value.trim() : undefined;
 
   return title === undefined || title === "" ? undefined : title;
+}
+
+export async function readArchiveMetaForQuery(
+  document: Pick<ReadonlyDocument, "metadata">,
+): Promise<BookMeta | undefined> {
+  const map = await document.metadata.getMap("");
+  if (Object.keys(map).length === 0) return undefined;
+
+  const parsed = bookMetaSchema.safeParse(map);
+  if (parsed.success) return parsed.data;
+
+  return {
+    authors: Array.isArray(map.authors)
+      ? map.authors.filter(
+          (value): value is string =>
+            typeof value === "string" && value.trim() !== "",
+        )
+      : [],
+    description: readOptionalMetaString(map.description),
+    identifier: readOptionalMetaString(map.identifier),
+    language: readOptionalMetaString(map.language),
+    publishedAt: readOptionalMetaString(map.publishedAt),
+    publisher: readOptionalMetaString(map.publisher),
+    sourceFormat: SOURCE_FORMATS.includes(
+      map.sourceFormat as (typeof SOURCE_FORMATS)[number],
+    )
+      ? (map.sourceFormat as (typeof SOURCE_FORMATS)[number])
+      : "markdown",
+    title: readOptionalMetaString(map.title),
+    version: BOOK_META_VERSION,
+  };
+}
+
+function readOptionalMetaString(value: unknown): string | null {
+  return typeof value === "string" && value.trim() !== "" ? value : null;
 }
 
 export function createMetaPage(meta: BookMeta | undefined): {

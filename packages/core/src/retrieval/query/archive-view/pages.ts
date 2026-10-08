@@ -18,6 +18,7 @@ import {
   isWikiGraphObjectUri,
   normalizeWikiGraphObjectUri,
   createNodePosition,
+  readArchiveMetaForQuery,
   readArchiveTitle,
 } from "./helpers.js";
 import {
@@ -104,7 +105,7 @@ export async function readArchiveText(
       return node.content;
     }
     case "meta": {
-      return formatMetaText(await document.readBookMeta());
+      return formatMetaText(await readArchiveMetaForQuery(document));
     }
   }
 }
@@ -173,7 +174,7 @@ export async function readArchivePage(
     }
     case "meta":
       return {
-        ...createMetaPage(await document.readBookMeta()),
+        ...createMetaPage(await readArchiveMetaForQuery(document)),
         id: ARCHIVE_ROOT_ID,
         type: "meta",
       };
@@ -352,7 +353,7 @@ async function readWikiGraphPage(
     }
     case "meta":
       return {
-        ...createMetaPage(await document.readBookMeta()),
+        ...createMetaPage(await readArchiveMetaForQuery(document)),
         id: displayUri,
         type: "meta",
       };

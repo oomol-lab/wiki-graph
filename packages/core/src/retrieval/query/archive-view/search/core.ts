@@ -26,6 +26,7 @@ import {
   parseFindLens,
   parseFindMatch,
   parseFindTypes,
+  readArchiveMetaForQuery,
 } from "../helpers.js";
 import { isArchiveSearchIndexCurrent } from "../index-state.js";
 import {
@@ -470,7 +471,7 @@ export async function grepArchiveObjects(
 
   const hits: ArchiveFindHit[] = [];
 
-  hits.push(...findMeta(await document.readBookMeta(), search));
+  hits.push(...findMeta(await readArchiveMetaForQuery(document), search));
   hits.push(...(await findChapters(document, search)));
   hits.push(...(await findNodes(document, search)));
 

@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
   DirectoryDocument,
   listArchiveCollection,
+  listArchiveObjects,
   seedSourcedDocument,
   setupArchiveViewTestState,
   teardownArchiveViewTestState,
@@ -43,6 +44,27 @@ describe("archive/query/archive-view/collection", () => {
           }),
         ]);
         expect(byAlias.items.some((item) => item.id === "wikg://")).toBe(false);
+
+        const defaultCollection = await listArchiveCollection(document);
+        expect(defaultCollection.items).toContainEqual(
+          expect.objectContaining({
+            id: "wikg://meta",
+            type: "meta",
+          }),
+        );
+        expect(
+          defaultCollection.items.some((item) => item.id === "wikg://"),
+        ).toBe(false);
+        await expect(
+          listArchiveCollection(document, { types: ["meta"] }),
+        ).resolves.toMatchObject({
+          items: [expect.objectContaining({ id: "wikg://meta", type: "meta" })],
+        });
+        await expect(
+          listArchiveObjects(document, "meta"),
+        ).resolves.toMatchObject([
+          expect.objectContaining({ id: "wikg://meta", type: "meta" }),
+        ]);
 
         await document.openSession(async (openedDocument) => {
           await openedDocument.metadata.deleteKey("", "title");

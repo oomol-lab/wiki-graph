@@ -21,7 +21,7 @@ export function toWikiGraphUri(id: string): string {
     case "fragment":
       return `wikg://chapter/${first ?? ""}/source/${second ?? "0"}`;
     case "meta":
-      return "wikg://";
+      return "wikg://meta";
     case "node":
       return `wikg://chunk/${first ?? ""}`;
     case "summary":

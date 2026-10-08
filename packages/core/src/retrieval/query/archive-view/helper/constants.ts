@@ -3,6 +3,7 @@ import type { ArchiveFindLensHint } from "../types.js";
 export const DEFAULT_FIND_LIMIT = 20;
 export const TEXT_ONLY_SEARCH_CACHE_WINDOW = 100;
 export const ARCHIVE_ROOT_ID = "meta:root";
+export const ARCHIVE_META_ID = "wikg://meta";
 
 export const BROAD_FIND_LENS_HINT = {
   lenses: {

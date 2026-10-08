@@ -120,6 +120,28 @@ describe("packed CLI archive lifecycle", () => {
         "--json",
       ]),
     ).resolves.toMatchObject({ title: "Metadata E2E Title" });
+
+    const listed = await sandbox.runJSON<{
+      readonly objects: readonly {
+        readonly type: string;
+        readonly uri: string;
+      }[];
+    }>([sandbox.archiveUri, "list", "--json"]);
+    expect(listed.objects).toContainEqual(
+      expect.objectContaining({ type: "meta", uri: "wikg://meta" }),
+    );
+    expect(listed.objects.some((item) => item.uri === "wikg://")).toBe(false);
+
+    const searched = await sandbox.runJSON<{
+      readonly objects: readonly {
+        readonly type: string;
+        readonly uri: string;
+      }[];
+    }>([sandbox.archiveUri, "--query", "Metadata E2E Title", "--json"]);
+    expect(searched.objects).toContainEqual(
+      expect.objectContaining({ type: "archive-title", uri: "wikg://title" }),
+    );
+    expect(searched.objects.some((item) => item.uri === "wikg://")).toBe(false);
   });
 
   it("starts from an empty home instead of reading another case's config", async () => {
