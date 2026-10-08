@@ -44,12 +44,32 @@ export interface LLMTokenUsage {
   readonly outputTokens?: number;
 }
 
+export type LLMStreamProviderEvent =
+  | {
+      readonly text: string;
+      readonly type: "text-delta";
+    }
+  | {
+      readonly type: "usage";
+      readonly usage: LLMTokenUsage;
+    };
+
+export interface LLMStreamProvider<S extends string> {
+  readonly identity?: string;
+  readonly model: string;
+  stream(
+    messages: readonly LLMessage[],
+    options: LLMRequestOptions<S>,
+  ): AsyncIterable<LLMStreamProviderEvent>;
+}
+
 export type LLMTokenUsageCallback = (
   usage: LLMTokenUsage,
 ) => void | Promise<void>;
 
 export interface LLMOptions<S extends string> {
-  readonly model: LLMModel;
+  readonly model?: LLMModel;
+  readonly streamProvider?: LLMStreamProvider<S>;
   readonly cacheDirectory?: Directory;
   readonly logDirectory?: Directory;
   readonly concurrent?: number;

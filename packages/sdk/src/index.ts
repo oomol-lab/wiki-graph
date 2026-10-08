@@ -12,6 +12,7 @@ export * from "./llm.js";
 export * from "./maintenance.js";
 export * from "./node-platform.js";
 export * from "./planning.js";
+export * from "./providers.js";
 export * from "./runtime-context.js";
 export * from "./runtime-config.js";
 export * from "./sdk.js";

@@ -6,13 +6,13 @@ import {
   type QueryEmbeddingResult,
   type SearchIndexEmbeddingProvider,
   type WikiGraphEmbeddingConfig,
-  type WikiGraphEmbeddingProvider,
+  type WikiGraphEmbeddingProviderName,
 } from "wiki-graph-sdk";
 
 import { CLI_HELP_ROUTES, withHelpRoute } from "../support/index.js";
 
 export type CLIEmbeddingConfig = WikiGraphEmbeddingConfig;
-export type CLIEmbeddingProvider = WikiGraphEmbeddingProvider;
+export type CLIEmbeddingProvider = WikiGraphEmbeddingProviderName;
 export type { QueryEmbeddingResult };
 
 export async function readEmbeddingConfig(): Promise<CLIEmbeddingConfig> {

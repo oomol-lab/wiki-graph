@@ -2,6 +2,7 @@ import type { LanguageModel } from "ai";
 
 import type { Language } from "../runtime/common/language.js";
 import type { WikiGraphScope } from "../runtime/common/llm-scope.js";
+import type { LLMStreamProvider } from "../external/llm/index.js";
 import { withLoggingContext } from "../runtime/common/logging.js";
 import { LLM } from "../external/llm/index.js";
 import type {
@@ -42,7 +43,8 @@ export interface WikiGraphLLMOptions {
   readonly cacheDirectory?: Directory;
   readonly concurrent?: number;
   readonly logDirectory?: Directory;
-  readonly model: LanguageModel;
+  readonly model?: LanguageModel;
+  readonly streamProvider?: LLMStreamProvider<WikiGraphScope>;
   readonly retryIntervalSeconds?: number;
   readonly retryTimes?: number;
   readonly stream?: boolean;
@@ -310,5 +312,9 @@ function normalizeLLMOptions(
 function isWikiGraphLLMOptions(
   llm: NonNullable<WikiGraphOptions["llm"]>,
 ): llm is WikiGraphLLMOptions {
-  return typeof llm === "object" && llm !== null && "model" in llm;
+  return (
+    typeof llm === "object" &&
+    llm !== null &&
+    ("model" in llm || "streamProvider" in llm)
+  );
 }

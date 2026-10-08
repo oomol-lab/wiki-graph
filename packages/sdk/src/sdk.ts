@@ -16,11 +16,13 @@ import {
   type WikiGraphSDKEnvPolicy,
   type WikiGraphSDKRuntimeContext,
 } from "./runtime-context.js";
+import type { WikiGraphSDKProviders } from "./providers.js";
 
 export interface WikiGraphSDKOptions {
   readonly cwd?: string;
   readonly env?: NodeJS.ProcessEnv;
   readonly envPolicy?: WikiGraphSDKEnvPolicy;
+  readonly providers?: WikiGraphSDKProviders;
   readonly stateDir?: string;
 }
 
@@ -41,6 +43,7 @@ export class WikiGraphSDK implements WikiGraphJobRuntime {
       cwd: options.cwd ?? process.cwd(),
       env: { ...process.env, ...options.env },
       envPolicy: options.envPolicy ?? "production",
+      providers: { ...options.providers },
       ...(options.stateDir === undefined ? {} : { stateDir: options.stateDir }),
     };
     this.archives = new WikiGraphArchiveManager(this);

@@ -23,6 +23,27 @@ for (const job of jobs) {
 wikiGraph.close();
 ```
 
+Applications may replace the configured LLM and embedding implementations for
+one SDK instance:
+
+```ts
+const wikiGraph = createWikiGraphSDK({
+  providers: {
+    llm: myStreamingLLMProvider,
+    embedding: myEmbeddingProvider,
+  },
+});
+
+await wikiGraph.jobs.runWorker();
+```
+
+An operation-level `llm` option (the typed SDK equivalent of CLI `--llm`)
+takes precedence over the injected LLM provider. An injected provider takes
+precedence over local database configuration. Injected objects are
+process-local and are not persisted with durable jobs, so a worker in another
+process must create its SDK with the same providers. The standalone default
+worker continues to use local configuration.
+
 Job event subscriptions observe durable work without coupling observation to
 cancellation. Call `job.cancel()` explicitly to cancel a job; unsubscribing
 only stops the current listener.

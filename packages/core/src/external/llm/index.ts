@@ -14,6 +14,8 @@ export type {
   LLMRequestFunction,
   LLMRequestOptions,
   LLMStreamProgressCallback,
+  LLMStreamProvider,
+  LLMStreamProviderEvent,
   LLMTokenUsage,
   LLMTokenUsageCallback,
   SamplingProfile,

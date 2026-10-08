@@ -1,11 +1,14 @@
 import { AsyncLocalStorage } from "async_hooks";
 
+import type { WikiGraphSDKProviders } from "./providers.js";
+
 export type WikiGraphSDKEnvPolicy = "development" | "production";
 
 export interface WikiGraphSDKRuntimeContext {
   readonly cwd: string;
   readonly env: NodeJS.ProcessEnv;
   readonly envPolicy: WikiGraphSDKEnvPolicy;
+  readonly providers?: WikiGraphSDKProviders;
   readonly stateDir?: string | undefined;
 }
 
@@ -43,10 +46,15 @@ export function getWikiGraphSDKRuntimeContext(): WikiGraphSDKRuntimeContext {
       cwd: process.cwd(),
       env: process.env,
       envPolicy: "production",
+      providers: {},
     }
   );
 }
 
 export function getWikiGraphSDKStateDir(): string | undefined {
   return getWikiGraphSDKRuntimeContext().stateDir;
+}
+
+export function getWikiGraphSDKProviders(): WikiGraphSDKProviders {
+  return getWikiGraphSDKRuntimeContext().providers ?? {};
 }

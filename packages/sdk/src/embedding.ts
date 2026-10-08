@@ -6,7 +6,7 @@ import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
 
 import { readLocalConfigSection } from "./local-config.js";
 
-export type WikiGraphEmbeddingProvider = "openai" | "openai-compatible";
+export type WikiGraphEmbeddingProviderName = "openai" | "openai-compatible";
 
 export interface WikiGraphEmbeddingConfig {
   readonly apiKey?: string;
@@ -14,14 +14,14 @@ export interface WikiGraphEmbeddingConfig {
   readonly dimensions?: number;
   readonly model?: string;
   readonly name?: string;
-  readonly provider?: WikiGraphEmbeddingProvider;
+  readonly provider?: WikiGraphEmbeddingProviderName;
 }
 
 export interface QueryEmbeddingResult {
   readonly dimensions: number;
   readonly embedding: readonly number[];
   readonly model: string;
-  readonly provider: WikiGraphEmbeddingProvider;
+  readonly provider: WikiGraphEmbeddingProviderName;
   readonly usage?: {
     readonly tokens?: number;
   };
@@ -118,7 +118,7 @@ export function buildSearchIndexEmbeddingProvider(
 }
 
 function createEmbeddingIdentity(
-  provider: WikiGraphEmbeddingProvider,
+  provider: WikiGraphEmbeddingProviderName,
   model: string,
   config: WikiGraphEmbeddingConfig,
 ): string {
@@ -148,7 +148,7 @@ export async function embedQueryTextWithLocalConfig(
 }
 
 function createEmbeddingModel(
-  provider: WikiGraphEmbeddingProvider,
+  provider: WikiGraphEmbeddingProviderName,
   model: string,
   config: WikiGraphEmbeddingConfig,
 ) {
@@ -180,7 +180,7 @@ function createEmbeddingModel(
 }
 
 function createEmbeddingProviderOptions(
-  provider: WikiGraphEmbeddingProvider,
+  provider: WikiGraphEmbeddingProviderName,
   config: WikiGraphEmbeddingConfig,
 ): Record<string, { readonly dimensions: number }> | undefined {
   if (config.dimensions === undefined) {
@@ -195,7 +195,7 @@ function createEmbeddingProviderOptions(
 }
 
 function getEmbeddingProviderOptionsName(
-  provider: WikiGraphEmbeddingProvider,
+  provider: WikiGraphEmbeddingProviderName,
   _config: WikiGraphEmbeddingConfig,
 ): string {
   if (provider === "openai") {
@@ -205,8 +205,8 @@ function getEmbeddingProviderOptionsName(
 }
 
 function requireEmbeddingProvider(
-  provider: WikiGraphEmbeddingProvider | undefined,
-): WikiGraphEmbeddingProvider {
+  provider: WikiGraphEmbeddingProviderName | undefined,
+): WikiGraphEmbeddingProviderName {
   if (provider !== undefined) {
     return provider;
   }
@@ -226,7 +226,7 @@ function requireEmbeddingModel(model: string | undefined): string {
   );
 }
 
-function parseEmbeddingProvider(value: string): WikiGraphEmbeddingProvider {
+function parseEmbeddingProvider(value: string): WikiGraphEmbeddingProviderName {
   switch (value) {
     case "openai":
     case "openai-compatible":

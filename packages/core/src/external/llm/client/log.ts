@@ -1,7 +1,5 @@
-import type { LanguageModelUsage } from "ai";
-
 import { formatError } from "../../../utils/host-error.js";
-import type { LLMessage, TemperatureSetting } from "../types.js";
+import type { LLMessage, LLMTokenUsage, TemperatureSetting } from "../types.js";
 
 export function hasVisibleNonSystemContent(
   messages: readonly LLMessage[],
@@ -79,7 +77,7 @@ export function formatRequestMessages(messages: readonly LLMessage[]): string {
 }
 
 export function formatRequestResultLog(
-  usage: LanguageModelUsage | "cache-hit" | undefined,
+  usage: LLMTokenUsage | "cache-hit" | undefined,
   error?: unknown,
 ): string {
   return [
@@ -89,7 +87,7 @@ export function formatRequestResultLog(
 }
 
 function formatRequestUsageLog(
-  usage: LanguageModelUsage | "cache-hit" | undefined,
+  usage: LLMTokenUsage | "cache-hit" | undefined,
 ): string {
   if (usage === "cache-hit") {
     return "[[Usage]]:\ncache-hit\n\n";
@@ -98,7 +96,7 @@ function formatRequestUsageLog(
   return [
     "[[Usage]]:",
     `input: ${formatTokenCount(usage?.inputTokens)}`,
-    `cache: ${formatTokenCount(usage?.inputTokenDetails.cacheReadTokens)}`,
+    `cache: ${formatTokenCount(usage?.cacheReadTokens)}`,
     `output: ${formatTokenCount(usage?.outputTokens)}`,
     "",
     "",

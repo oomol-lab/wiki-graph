@@ -102,7 +102,7 @@ export class WikiGraphConfigManager {
       const result = streamText({
         maxRetries: 0,
         messages: [{ content: "Reply with exactly: ok", role: "user" }],
-        model: options.model,
+        model: options.model!,
         temperature: 0,
       });
       const chunks: string[] = [];
