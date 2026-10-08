@@ -517,6 +517,7 @@ vi.mock("wiki-graph-core", async (importOriginal) => {
 
   return {
     ...actual,
+    assertArchiveIndexArtifactsReady: vi.fn(() => Promise.resolve()),
     isArchiveSearchIndexCurrent: vi.fn(() =>
       Promise.resolve(archiveMockState.ftsCurrent),
     ),
@@ -706,6 +707,7 @@ vi.mock("../../../packages/core/src/retrieval/query/index.js", () => ({
   isArchiveSearchIndexCurrent: vi.fn(() =>
     Promise.resolve(archiveMockState.ftsCurrent),
   ),
+  assertArchiveIndexArtifactsReady: vi.fn(() => Promise.resolve()),
 }));
 
 vi.mock("../../../packages/cli/src/runtime/config.js", () => ({

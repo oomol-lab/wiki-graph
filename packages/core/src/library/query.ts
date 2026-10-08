@@ -5,6 +5,7 @@ import {
   packArchiveContext,
   readArchivePage,
 } from "../retrieval/query/archive-view/index.js";
+import { PRECOMPUTED_SEARCH_INDEX_RESULT } from "../retrieval/query/archive-view/query-context.js";
 import {
   createCollectionResult,
   createFindResult,
@@ -85,9 +86,17 @@ async function findWikiGraphLibraryObjectsUnlocked(
     return await findWikiGraphLibraryObjectsBucketed(target, query, options);
   }
   if (options.skipUnindexed !== true) {
-    await assertWikiGraphLibraryQueryArtifactsReady(target);
+    await assertWikiGraphLibraryQueryArtifactsReady(
+      target,
+      createLibraryCoverageOptions(options),
+    );
   } else {
-    await assertWikiGraphLibraryHasQueryableArtifacts(target);
+    const coverage = createLibraryCoverageOptions(options);
+    if (Object.keys(coverage).length === 0) {
+      await assertWikiGraphLibraryHasQueryableArtifacts(target);
+    } else {
+      await assertWikiGraphLibraryHasQueryableArtifacts(target, coverage);
+    }
   }
 
   const indexHitLimit = createLibraryQueryIndexHitLimit(options);
@@ -95,6 +104,9 @@ async function findWikiGraphLibraryObjectsUnlocked(
     ...(options.embeddingProvider === undefined
       ? {}
       : { embeddingProvider: options.embeddingProvider }),
+    ...(options.queryMode === undefined
+      ? {}
+      : { queryMode: options.queryMode }),
     objectHitLimit: indexHitLimit,
     textHitLimit: indexHitLimit,
   });
@@ -127,6 +139,19 @@ async function findWikiGraphLibraryObjectsUnlocked(
   }
 
   return createFindResult(query, hits, options, result.terms);
+}
+
+function createLibraryCoverageOptions(
+  options: ArchiveFindOptions,
+): Pick<ArchiveFindOptions, "embeddingProvider" | "queryMode"> {
+  return {
+    ...(options.embeddingProvider === undefined
+      ? {}
+      : { embeddingProvider: options.embeddingProvider }),
+    ...(options.queryMode === undefined
+      ? {}
+      : { queryMode: options.queryMode }),
+  };
 }
 
 export async function findWikiGraphLibraryArchiveMembers(
@@ -331,6 +356,25 @@ async function listWikiGraphLibraryEvidenceUnlocked(
   objectUri: string,
   options: ArchiveEvidenceOptions,
 ): Promise<ArchiveEvidence> {
+  if (options.query !== undefined) {
+    if (options.skipUnindexed === true) {
+      await assertWikiGraphLibraryHasQueryableArtifacts(target, options);
+    } else {
+      await assertWikiGraphLibraryQueryArtifactsReady(target, options);
+    }
+  }
+  const libraryIndexResult =
+    options.query === undefined
+      ? undefined
+      : ((await queryWikiGraphLibrarySearchIndex(target, options.query, {
+          ...(options.embeddingProvider === undefined
+            ? {}
+            : { embeddingProvider: options.embeddingProvider }),
+          ...(options.queryMode === undefined
+            ? {}
+            : { queryMode: options.queryMode }),
+          types: ["source"],
+        })) ?? null);
   const limit = options.limit ?? DEFAULT_LIBRARY_PAGE_LIMIT;
   const offset = parseLibraryObjectCursor(options.cursor, "evidence");
   const archiveWindowLimit = offset + limit;
@@ -342,6 +386,22 @@ async function listWikiGraphLibraryEvidenceUnlocked(
       const result = await listArchiveEvidence(document, objectUri, {
         ...archiveOptions,
         limit: archiveWindowLimit,
+        ...(libraryIndexResult === undefined
+          ? {}
+          : {
+              [PRECOMPUTED_SEARCH_INDEX_RESULT]:
+                libraryIndexResult === null
+                  ? null
+                  : {
+                      objectHits: libraryIndexResult.objectHits.filter(
+                        (hit) => hit.archiveId === archive.id,
+                      ),
+                      terms: libraryIndexResult.terms,
+                      textHits: libraryIndexResult.textHits.filter(
+                        (hit) => hit.archiveId === archive.id,
+                      ),
+                    },
+            }),
       });
       const source = createLibrarySource(archive);
 
@@ -384,6 +444,25 @@ async function listRelatedWikiGraphLibraryObjectsUnlocked(
   objectUri: string,
   options: ArchiveRelatedOptions,
 ): Promise<ArchiveRelatedResult> {
+  if (options.query !== undefined) {
+    if (options.skipUnindexed === true) {
+      await assertWikiGraphLibraryHasQueryableArtifacts(target, options);
+    } else {
+      await assertWikiGraphLibraryQueryArtifactsReady(target, options);
+    }
+  }
+  const libraryIndexResult =
+    options.query === undefined
+      ? undefined
+      : ((await queryWikiGraphLibrarySearchIndex(target, options.query, {
+          ...(options.embeddingProvider === undefined
+            ? {}
+            : { embeddingProvider: options.embeddingProvider }),
+          ...(options.queryMode === undefined
+            ? {}
+            : { queryMode: options.queryMode }),
+          types: ["entity", "node", "source"],
+        })) ?? null);
   const limit = options.limit ?? DEFAULT_LIBRARY_PAGE_LIMIT;
   const offset = parseLibraryObjectCursor(options.cursor, "related");
   const archiveWindowLimit = offset + limit;
@@ -395,6 +474,22 @@ async function listRelatedWikiGraphLibraryObjectsUnlocked(
       const result = await listRelatedArchiveObjects(document, objectUri, {
         ...archiveOptions,
         limit: archiveWindowLimit,
+        ...(libraryIndexResult === undefined
+          ? {}
+          : {
+              [PRECOMPUTED_SEARCH_INDEX_RESULT]:
+                libraryIndexResult === null
+                  ? null
+                  : {
+                      objectHits: libraryIndexResult.objectHits.filter(
+                        (hit) => hit.archiveId === archive.id,
+                      ),
+                      terms: libraryIndexResult.terms,
+                      textHits: libraryIndexResult.textHits.filter(
+                        (hit) => hit.archiveId === archive.id,
+                      ),
+                    },
+            }),
       });
       const source = createLibrarySource(archive);
 

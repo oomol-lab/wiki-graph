@@ -13,6 +13,8 @@ import {
   encodeFindCursor,
 } from "../helpers.js";
 import { queryRequiredSearchIndex } from "../search/hydration.js";
+import { PRECOMPUTED_SEARCH_INDEX_RESULT } from "../query-context.js";
+import type { SearchIndexQueryResult } from "../../../search-index/search/types.js";
 import type {
   ArchiveEvidence,
   ArchiveEvidenceOptions,
@@ -245,7 +247,7 @@ export async function createSourceEvidencePage(
     ranges,
     options.query,
     options.order ?? "doc-asc",
-    options.skipUnindexed,
+    options,
   );
   const pageRanges = evidenceRanges.slice(start, start + limit);
   const nextOffset = start + pageRanges.length;
@@ -267,7 +269,10 @@ export async function filterAndSortSourceEvidenceRangesByFtsQuery(
   ranges: readonly SourceEvidenceRange[],
   queryText: string | undefined,
   order: ArchiveFindOrder,
-  skipUnindexed = false,
+  options: Pick<
+    ArchiveEvidenceOptions,
+    "embeddingProvider" | "queryMode" | "skipUnindexed"
+  > = {},
 ): Promise<readonly SourceEvidenceRange[]> {
   const documentOrders = await document.serials.listDocumentOrders();
 
@@ -278,17 +283,19 @@ export async function filterAndSortSourceEvidenceRangesByFtsQuery(
   }
 
   const queryRanges =
-    skipUnindexed === true
-      ? await filterQueryableSourceEvidenceRanges(document, ranges)
+    options.skipUnindexed === true
+      ? await filterQueryableSourceEvidenceRanges(document, ranges, options)
       : ranges;
   if (queryRanges.length === 0) {
     return [];
   }
 
-  const indexResult = await queryRequiredSearchIndex(document, queryText, {
-    chapters: [...new Set(queryRanges.map((range) => range.chapterId))],
-    types: ["source"],
-  });
+  const indexResult = await resolveEvidenceSearchIndexResult(
+    document,
+    queryText,
+    [...new Set(queryRanges.map((range) => range.chapterId))],
+    options,
+  );
 
   if (indexResult === undefined) {
     return [];
@@ -346,7 +353,10 @@ export async function filterAndSortSourceEvidenceCandidatesByFtsQuery<T>(
   ) => Promise<readonly SourceEvidenceRange[]> | readonly SourceEvidenceRange[],
   stableIdentity: (candidate: T) => string,
   queryText: string,
-  skipUnindexed = false,
+  options: Pick<
+    ArchiveEvidenceOptions,
+    "embeddingProvider" | "queryMode" | "skipUnindexed"
+  > = {},
 ): Promise<readonly SourceEvidenceCandidateQueryMatch<T>[]> {
   let keyed: readonly SourceEvidenceCandidateQueryItem<T>[] = await Promise.all(
     candidates.map(async (candidate) => ({
@@ -356,20 +366,26 @@ export async function filterAndSortSourceEvidenceCandidatesByFtsQuery<T>(
       stableIdentity: stableIdentity(candidate),
     })),
   );
-  if (skipUnindexed === true) {
-    keyed = await filterQueryableSourceEvidenceCandidates(document, keyed);
+  if (options.skipUnindexed === true) {
+    keyed = await filterQueryableSourceEvidenceCandidates(
+      document,
+      keyed,
+      options,
+    );
   }
   if (keyed.length === 0) {
     return [];
   }
-  const indexResult = await queryRequiredSearchIndex(document, queryText, {
-    chapters: [
+  const indexResult = await resolveEvidenceSearchIndexResult(
+    document,
+    queryText,
+    [
       ...new Set(
         keyed.flatMap((item) => item.ranges.map((range) => range.chapterId)),
       ),
     ],
-    types: ["source"],
-  });
+    options,
+  );
 
   if (indexResult === undefined) {
     return [];
@@ -434,13 +450,50 @@ export async function filterAndSortSourceEvidenceCandidatesByFtsQuery<T>(
     .map((item) => ({ candidate: item.candidate, score: item.score }));
 }
 
+async function resolveEvidenceSearchIndexResult(
+  document: ReadonlyDocument,
+  queryText: string,
+  chapters: readonly number[],
+  options: Pick<
+    ArchiveEvidenceOptions,
+    "embeddingProvider" | "queryMode" | "skipUnindexed"
+  >,
+): Promise<SearchIndexQueryResult | undefined> {
+  const precomputedIndexResult = (
+    options as typeof options & {
+      readonly [PRECOMPUTED_SEARCH_INDEX_RESULT]?: SearchIndexQueryResult | null;
+    }
+  )[PRECOMPUTED_SEARCH_INDEX_RESULT];
+  if (precomputedIndexResult !== undefined) {
+    return precomputedIndexResult ?? undefined;
+  }
+  return await queryRequiredSearchIndex(document, queryText, {
+    chapters,
+    types: ["source"],
+    ...(options.embeddingProvider === undefined
+      ? {}
+      : { embeddingProvider: options.embeddingProvider }),
+    ...(options.queryMode === undefined
+      ? {}
+      : { queryMode: options.queryMode }),
+  });
+}
+
 async function filterQueryableSourceEvidenceRanges(
   document: ReadonlyDocument,
   ranges: readonly SourceEvidenceRange[],
+  options: Pick<ArchiveEvidenceOptions, "embeddingProvider" | "queryMode">,
 ): Promise<readonly SourceEvidenceRange[]> {
   const queryableChapters = new Set(
     await listArchiveQueryableChapterIds(document, {
       chapters: [...new Set(ranges.map((range) => range.chapterId))],
+      ...(options.embeddingProvider === undefined
+        ? {}
+        : { embeddingProvider: options.embeddingProvider }),
+      requireEmbeddingProvider: true,
+      ...(options.queryMode === undefined
+        ? {}
+        : { queryMode: options.queryMode }),
     }),
   );
 
@@ -450,6 +503,7 @@ async function filterQueryableSourceEvidenceRanges(
 async function filterQueryableSourceEvidenceCandidates<T>(
   document: ReadonlyDocument,
   candidates: readonly SourceEvidenceCandidateQueryItem<T>[],
+  options: Pick<ArchiveEvidenceOptions, "embeddingProvider" | "queryMode">,
 ): Promise<readonly SourceEvidenceCandidateQueryItem<T>[]> {
   const queryableChapters = new Set(
     await listArchiveQueryableChapterIds(document, {
@@ -460,6 +514,13 @@ async function filterQueryableSourceEvidenceCandidates<T>(
           ),
         ),
       ],
+      ...(options.embeddingProvider === undefined
+        ? {}
+        : { embeddingProvider: options.embeddingProvider }),
+      requireEmbeddingProvider: true,
+      ...(options.queryMode === undefined
+        ? {}
+        : { queryMode: options.queryMode }),
     }),
   );
 

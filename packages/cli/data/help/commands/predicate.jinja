@@ -14,12 +14,13 @@ Purpose:
   Expand from the current chunk or entity object to nearby objects.
 
 Usage:
-  {{ commandName }} {{ uri }} related [--query <query>] [--skip-unindexed] [--reverse] [--all] [--limit <n>] [--context <n>] [--cursor <token>] [--role <any|subject|object|self>] [--evidence [n]] [--json|--jsonl]
+  {{ commandName }} {{ uri }} related [--query <query>] [--query-mode <hybrid|fts|embedding>] [--skip-unindexed] [--reverse] [--all] [--limit <n>] [--context <n>] [--cursor <token>] [--role <any|subject|object|self>] [--evidence [n]] [--json|--jsonl]
 
 Notes:
   - Chunk targets return nearby Reading Graph chunks.
   - Entity targets return Knowledge Graph triples involving the entity.
   - `--query` filters and ranks related results with the current search index.
+  - `--query-mode` requires `--query`; `hybrid` is the default, while `fts` and `embedding` are strict.
   - Add `--skip-unindexed` only with `--query` when you intentionally want to search indexed chapters and ignore uncovered chapters.
   - Without `--query`, `--reverse` reads Document Flow order backward. See `{{ commandName }} help uri`.
   - `--role` only applies to entity targets.
@@ -29,11 +30,12 @@ Purpose:
   Trace the current object back to source-backed evidence.
 
 Usage:
-  {{ commandName }} {{ uri }} evidence [--query <query>] [--skip-unindexed] [--reverse] [--all] [--limit <n>] [--context <n>] [--json|--jsonl]
+  {{ commandName }} {{ uri }} evidence [--query <query>] [--query-mode <hybrid|fts|embedding>] [--skip-unindexed] [--reverse] [--all] [--limit <n>] [--context <n>] [--json|--jsonl]
 
 Notes:
   - Evidence is for grounding, verification, and citation support.
   - `--query` filters and ranks evidence with the current search index.
+  - `--query-mode` requires `--query`; `hybrid` is the default, while `fts` and `embedding` are strict.
   - Add `--skip-unindexed` only with `--query` when you intentionally want to search indexed chapters and ignore uncovered chapters.
   - Without `--query`, `--reverse` reads Document Flow order backward. See `{{ commandName }} help uri`.
   - Evidence previews include nearby source context by default; use `--context 0` for exact cited ranges.

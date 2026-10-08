@@ -52,6 +52,7 @@ Short and located URIs:
 Command routing:
   - `{{ commandName }} <scope-uri>` enumerates objects.
   - `{{ commandName }} <scope-uri> --query <query>` applies search index retrieval within that scope.
+  - Add `--query-mode hybrid|fts|embedding` to choose the allowed index. `hybrid` is the default.
   - `{{ commandName }} <object-uri>` reads one object.
   - `{{ commandName }} <uri> --help` explains that URI target and its supported predicates.
   - `{{ commandName }} <uri> <predicate> --help` explains a URI-bound predicate.
@@ -59,6 +60,7 @@ Command routing:
 Common command shapes:
   {{ commandName }} <scope-uri>
   {{ commandName }} <scope-uri> --query <query>
+  {{ commandName }} <scope-uri> --query <query> --query-mode fts
   {{ commandName }} <object-uri>
   {{ commandName }} <chunk-uri|entity-uri> related
   {{ commandName }} <entity|triple|chunk-uri> evidence
@@ -82,7 +84,7 @@ Scope URIs:
   Query is strict by default: every chapter in scope must have a current FTS artifact or source embedding artifact.
   Add `--skip-unindexed` only when you intentionally want to search indexed chapters and ignore uncovered chapters.
   Broad query is grouped by result type before ranking within each group. Use `/chunk`, `/entity`, or `/triple` lenses when you want one object family instead of the mixed broad result. Query an archive or chapter scope to find source or summary text, then read the returned `/source` or `/summary` object.
-  Search uses FTS-only, Dense-only, or Hybrid automatically from the current artifacts and index cache; use `{{ commandName }} help readiness` to inspect what must exist.
+  Search uses Hybrid by default. `--query-mode fts` and `--query-mode embedding` are strict and never fall back to the other index; use `{{ commandName }} help readiness` to inspect what must exist.
   Add `--depth <N>` to limit chapter subtree expansion:
     - no `--depth`: full subtree
     - `--depth 0`: only the current chapter, or root-level chapters for `<archive-uri>/chapter`
@@ -154,6 +156,7 @@ Document Flow order:
   Document Flow order means `/chapter/tree` preorder chapter traversal, then source or summary ranges from the start of each chapter to the end.
   Use `--reverse` when you need the same flow backward, for example to find the latest source occurrence of a known object.
   `--reverse` cannot be combined with `--query`; query results use indexed match ranking instead.
+  `--query-mode` requires `--query`.
 
 Lens selection:
   - Use `<archive-uri>` when the whole archive is the right retrieval scope.

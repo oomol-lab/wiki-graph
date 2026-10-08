@@ -163,6 +163,9 @@ export function parseCLIArguments(
       query: {
         type: "string",
       },
+      "query-mode": {
+        type: "string",
+      },
       replace: {
         type: "boolean",
       },

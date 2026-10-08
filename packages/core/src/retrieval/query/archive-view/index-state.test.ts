@@ -18,8 +18,10 @@ import {
 import {
   assertArchiveIndexArtifactsReady,
   isArchiveSearchIndexCurrent,
+  listArchiveQueryableChapterIds,
   rebuildArchiveSearchIndex,
 } from "./index-state.js";
+import { findArchiveObjects } from "./search/index.js";
 
 describe("archive search index state", () => {
   it("reports a state-less index database as missing", async () => {
@@ -158,6 +160,132 @@ describe("archive search index state", () => {
           },
         ],
       });
+    });
+  });
+
+  it("selects one index strictly from a hybrid cache", async () => {
+    await withTempDocument(async (document) => {
+      await writeSourceChapter(document);
+      let embeddingCalls = 0;
+      const provider = {
+        ...createFakeEmbeddingProvider(),
+        embedTexts: async (texts: readonly string[]) => {
+          embeddingCalls += 1;
+          return await createFakeEmbeddingProvider().embedTexts(texts);
+        },
+      };
+      await replaceChapterFtsIndexArtifact(document, 1);
+      await replaceChapterSourceEmbeddingIndexArtifact(document, 1, provider);
+      await rebuildArchiveSearchIndex(document);
+      embeddingCalls = 0;
+
+      const fts = await querySearchIndex(document, "FTS", {
+        embeddingProvider: provider,
+        queryMode: "fts",
+        types: ["source"],
+      });
+      expect(embeddingCalls).toBe(0);
+      expect(fts?.textHits.map((hit) => hit.sentenceIndex)).toStrictEqual([1]);
+
+      const embedding = await querySearchIndex(document, "FTS", {
+        embeddingProvider: provider,
+        queryMode: "embedding",
+        types: ["source"],
+      });
+      expect(embeddingCalls).toBe(1);
+      expect(embedding?.objectHits).toStrictEqual([]);
+      expect(embedding?.textHits.length).toBeGreaterThan(0);
+
+      await expect(
+        querySearchIndex(document, "FTS", {
+          embeddingProvider: {
+            ...provider,
+            embedTexts: async () => {
+              throw new Error("embedding unavailable");
+            },
+          },
+          queryMode: "embedding",
+          types: ["source"],
+        }),
+      ).rejects.toThrow("embedding unavailable");
+    });
+  });
+
+  it("resolves typed objects from source embeddings without lexical fallback", async () => {
+    await withTempDocument(async (document) => {
+      await writeSourceChapter(document);
+      await writeTypedObjects(document);
+      const provider = createFakeEmbeddingProvider();
+      await replaceChapterSourceEmbeddingIndexArtifact(document, 1, provider);
+      await rebuildArchiveSearchIndex(document);
+
+      for (const [type, expected] of [
+        ["chapter", "chapter-title"],
+        ["entity", "entity"],
+        ["node", "node"],
+        ["triple", "triple"],
+      ] as const) {
+        const result = await findArchiveObjects(document, "semantic lookup", {
+          archiveKey: `typed-embedding-${type}`,
+          embeddingProvider: provider,
+          queryMode: "embedding",
+          types: [type],
+        });
+        expect(result.items, type).not.toHaveLength(0);
+        expect(result.items.every((item) => item.type === expected)).toBe(true);
+      }
+
+      await expect(
+        querySearchIndex(document, "semantic lookup", {
+          queryMode: "embedding",
+          types: ["entity"],
+        }),
+      ).rejects.toThrow("requires embeddings configuration");
+      await expect(
+        querySearchIndex(document, "semantic lookup", {
+          embeddingProvider: { ...provider, model: "incompatible" },
+          queryMode: "embedding",
+          types: ["triple"],
+        }),
+      ).rejects.toThrow("index expects test-embedding");
+    });
+  });
+
+  it("evaluates chapter coverage for the selected query mode", async () => {
+    await withTempDocument(async (document) => {
+      await writeSourceChapters(document, ["FTS", "Dense"]);
+      const provider = createFakeEmbeddingProvider();
+      await replaceChapterFtsIndexArtifact(document, 1);
+      await replaceChapterSourceEmbeddingIndexArtifact(document, 2, provider);
+
+      await expect(
+        listArchiveQueryableChapterIds(document, {
+          embeddingProvider: provider,
+          queryMode: "hybrid",
+          requireEmbeddingProvider: true,
+        }),
+      ).resolves.toStrictEqual([1, 2]);
+      await expect(
+        listArchiveQueryableChapterIds(document, {
+          embeddingProvider: provider,
+          queryMode: "fts",
+          requireEmbeddingProvider: true,
+        }),
+      ).resolves.toStrictEqual([1]);
+      await expect(
+        listArchiveQueryableChapterIds(document, {
+          embeddingProvider: provider,
+          queryMode: "embedding",
+          requireEmbeddingProvider: true,
+        }),
+      ).resolves.toStrictEqual([2]);
+      await expect(
+        assertArchiveIndexArtifactsReady(document, {
+          embeddingProvider: provider,
+          queryMode: "fts",
+          requireEmbeddingProvider: true,
+        }),
+      ).rejects.toThrow("need a current FTS artifact");
     });
   });
 
@@ -367,6 +495,50 @@ function createFakeEmbeddingProvider() {
 
 async function writeSourceChapter(document: DirectoryDocument): Promise<void> {
   await writeSourceChapters(document, ["Dense"]);
+}
+
+async function writeTypedObjects(document: DirectoryDocument): Promise<void> {
+  await document.openSession(async (openedDocument) => {
+    await openedDocument.chunks.save({
+      content: "Dense related chunk",
+      generation: 0,
+      id: 10,
+      label: "Dense chunk",
+      sentenceId: [1, 0],
+      sentenceIds: [[1, 0]],
+      weight: 1,
+      wordsCount: 3,
+    });
+    await openedDocument.mentions.saveMany([
+      {
+        chapterId: 1,
+        id: "typed-q1",
+        qid: "Q1",
+        rangeEnd: 5,
+        rangeStart: 0,
+        sentenceIndex: 0,
+        surface: "Dense",
+      },
+      {
+        chapterId: 1,
+        id: "typed-q2",
+        qid: "Q2",
+        rangeEnd: 20,
+        rangeStart: 6,
+        sentenceIndex: 0,
+        surface: "indexing",
+      },
+    ]);
+    await openedDocument.mentionLinks.saveMany([
+      {
+        evidenceSentenceIds: [[1, 0]],
+        id: "typed-link",
+        predicate: "relates",
+        sourceMentionId: "typed-q1",
+        targetMentionId: "typed-q2",
+      },
+    ]);
+  });
 }
 
 async function writeSourceChapters(

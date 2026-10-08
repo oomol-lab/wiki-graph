@@ -16,11 +16,13 @@ import type {
 import { hydrateRelatedItemsEvidence } from "./pagination.js";
 import { filterAndSortEntityRelatedTriplesByQuery } from "./query.js";
 import { sortRelatedItemsByListMode } from "./sort.js";
+import type { SearchIndexQueryResult } from "../../../search-index/search/types.js";
 
 export async function listRelatedEntityObjects(
   document: ReadonlyDocument,
   reference: Extract<WikiGraphReference, { readonly type: "entity" }>,
   options: ArchiveRelatedOptions,
+  precomputedIndexResult?: SearchIndexQueryResult | null,
 ): Promise<ArchiveRelatedResult> {
   const chapterFilter = resolveRelatedChapterFilter(
     reference.chapterId,
@@ -104,9 +106,18 @@ export async function listRelatedEntityObjects(
         ...(chapterFilter === undefined
           ? {}
           : { chapters: [...chapterFilter] }),
+        ...(options.embeddingProvider === undefined
+          ? {}
+          : { embeddingProvider: options.embeddingProvider }),
+        ...(options.queryMode === undefined
+          ? {}
+          : { queryMode: options.queryMode }),
         ...(options.skipUnindexed === undefined
           ? {}
           : { skipUnindexed: options.skipUnindexed }),
+        ...(precomputedIndexResult === undefined
+          ? {}
+          : { precomputedIndexResult }),
       },
     ),
     options,

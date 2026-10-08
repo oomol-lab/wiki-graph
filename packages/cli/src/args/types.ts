@@ -288,6 +288,7 @@ export interface CLIArchiveArguments {
   readonly outputPath?: string;
   readonly prompt?: string;
   readonly query?: string;
+  readonly queryMode?: "embedding" | "fts" | "hybrid";
   readonly replace?: boolean;
   readonly reverse?: boolean;
   readonly role?: "any" | "object" | "self" | "subject";
@@ -358,6 +359,7 @@ export interface ArchiveArgumentValues extends ArchiveMetaFlagValues {
   readonly predicate?: string;
   readonly prompt?: string;
   readonly query?: string;
+  readonly "query-mode"?: string;
   readonly replace?: boolean;
   readonly reverse?: boolean;
   readonly role?: string;

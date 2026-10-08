@@ -26,6 +26,8 @@ import type {
   ArchiveRelatedResult,
   ArchiveRelatedRole,
 } from "../types.js";
+import type { SearchIndexQueryResult } from "../../../search-index/search/types.js";
+import { PRECOMPUTED_SEARCH_INDEX_RESULT } from "../query-context.js";
 
 export async function listArchiveLinks(
   document: ReadonlyDocument,
@@ -78,11 +80,17 @@ export async function listRelatedArchiveObjects(
   id: string,
   options: ArchiveRelatedOptions = {},
 ): Promise<ArchiveRelatedResult> {
+  const precomputedIndexResult = (
+    options as ArchiveRelatedOptions & {
+      readonly [PRECOMPUTED_SEARCH_INDEX_RESULT]?: SearchIndexQueryResult | null;
+    }
+  )[PRECOMPUTED_SEARCH_INDEX_RESULT];
   if (isWikiGraphObjectUri(id)) {
     return await listRelatedWikiGraphObjects(
       document,
       normalizeWikiGraphObjectUri(id),
       options,
+      precomputedIndexResult,
     );
   }
 
@@ -115,9 +123,18 @@ export async function listRelatedArchiveObjects(
       options.query,
       {
         chapters: [chapterId],
+        ...(options.embeddingProvider === undefined
+          ? {}
+          : { embeddingProvider: options.embeddingProvider }),
+        ...(options.queryMode === undefined
+          ? {}
+          : { queryMode: options.queryMode }),
         ...(options.skipUnindexed === undefined
           ? {}
           : { skipUnindexed: options.skipUnindexed }),
+        ...(precomputedIndexResult === undefined
+          ? {}
+          : { precomputedIndexResult }),
       },
     ),
     options,
@@ -128,6 +145,7 @@ async function listRelatedWikiGraphObjects(
   document: ReadonlyDocument,
   uri: string,
   options: ArchiveRelatedOptions,
+  precomputedIndexResult?: SearchIndexQueryResult | null,
 ): Promise<ArchiveRelatedResult> {
   const reference = parseWikiGraphReference(uri);
 
@@ -170,9 +188,18 @@ async function listRelatedWikiGraphObjects(
           options.query,
           {
             chapters: [chapterId],
+            ...(options.embeddingProvider === undefined
+              ? {}
+              : { embeddingProvider: options.embeddingProvider }),
+            ...(options.queryMode === undefined
+              ? {}
+              : { queryMode: options.queryMode }),
             ...(options.skipUnindexed === undefined
               ? {}
               : { skipUnindexed: options.skipUnindexed }),
+            ...(precomputedIndexResult === undefined
+              ? {}
+              : { precomputedIndexResult }),
           },
         ),
         options,
@@ -198,7 +225,12 @@ async function listRelatedWikiGraphObjects(
       );
     }
     case "entity":
-      return await listRelatedEntityObjects(document, reference, options);
+      return await listRelatedEntityObjects(
+        document,
+        reference,
+        options,
+        precomputedIndexResult,
+      );
     case "triple":
       throw new Error(
         `Related is only available for chunk and entity objects: ${uri}`,

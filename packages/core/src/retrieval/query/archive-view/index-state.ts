@@ -22,6 +22,7 @@ import {
   type SearchIndexBuildOptions,
   type SearchIndexStoredEmbeddingState,
   type SearchIndexProgressReporter,
+  type SearchIndexQueryMode,
   type SearchIndexWriteBatch,
 } from "../../search-index/search/index.js";
 import { createSearchTokenPlan } from "../../search-index/search/tokenizer.js";
@@ -31,6 +32,12 @@ const ARCHIVE_INDEX_BATCH_RECORDS = 512;
 
 export interface ArchiveSearchIndexScopeOptions {
   readonly chapters?: readonly number[];
+}
+
+export interface ArchiveQueryCoverageOptions extends ArchiveSearchIndexScopeOptions {
+  readonly embeddingProvider?: import("../../search-index/index.js").SearchIndexEmbeddingProvider;
+  readonly requireEmbeddingProvider?: boolean;
+  readonly queryMode?: SearchIndexQueryMode;
 }
 
 export class ArchiveQueryNotReadyError extends Error {
@@ -147,7 +154,7 @@ export async function buildArchiveIndexProjection(
 
 export async function assertArchiveIndexArtifactsReady(
   document: ReadonlyDocument,
-  options: ArchiveSearchIndexScopeOptions = {},
+  options: ArchiveQueryCoverageOptions = {},
 ): Promise<void> {
   const chapterIds = await resolveArchiveQueryChapterIds(document, options);
   const [ftsCoverage, sourceEmbeddingCoverage] = await Promise.all([
@@ -157,12 +164,26 @@ export async function assertArchiveIndexArtifactsReady(
   const sourceEmbeddingBySerial = new Map(
     sourceEmbeddingCoverage.map((record) => [record.serialId, record]),
   );
-  const blocked = ftsCoverage.filter(
-    (record) =>
-      chapterIds.has(record.serialId) &&
-      !record.current &&
-      sourceEmbeddingBySerial.get(record.serialId)?.current !== true,
-  );
+  const queryMode = options.queryMode ?? "hybrid";
+  const embeddingAvailable =
+    options.requireEmbeddingProvider !== true ||
+    (await isEmbeddingProviderCompatible(
+      document,
+      options.embeddingProvider,
+      options,
+    ));
+  const blocked = ftsCoverage.filter((record) => {
+    if (!chapterIds.has(record.serialId)) return false;
+    const hasFts = record.current;
+    const hasEmbedding =
+      embeddingAvailable &&
+      sourceEmbeddingBySerial.get(record.serialId)?.current === true;
+    return queryMode === "fts"
+      ? !hasFts
+      : queryMode === "embedding"
+        ? !hasEmbedding
+        : !hasFts && !hasEmbedding;
+  });
 
   if (blocked.length === 0) {
     return;
@@ -179,14 +200,22 @@ export async function assertArchiveIndexArtifactsReady(
         : `${JSON.stringify(chapter.title)} (${chapter.uri})`,
     )
     .join(", ");
+  const requirement =
+    queryMode === "fts"
+      ? "a current FTS artifact"
+      : queryMode === "embedding"
+        ? "a current source embedding artifact and an available embeddings provider"
+        : embeddingAvailable
+          ? "a current FTS artifact or source embedding artifact"
+          : "a current FTS artifact while the embeddings provider is unavailable";
   throw new ArchiveQueryNotReadyError(
-    `Wiki Graph query is not ready. Chapters ${chapterReferences} need a current FTS artifact or source embedding artifact before query.`,
+    `Wiki Graph query is not ready. Chapters ${chapterReferences} need ${requirement} before query.`,
   );
 }
 
 export async function listArchiveQueryableChapterIds(
   document: ReadonlyDocument,
-  options: ArchiveSearchIndexScopeOptions = {},
+  options: ArchiveQueryCoverageOptions = {},
 ): Promise<readonly number[]> {
   const chapterIds = await resolveArchiveQueryChapterIds(document, options);
   const [ftsCoverage, sourceEmbeddingCoverage] = await Promise.all([
@@ -197,13 +226,27 @@ export async function listArchiveQueryableChapterIds(
     sourceEmbeddingCoverage.map((record) => [record.serialId, record]),
   );
 
+  const queryMode = options.queryMode ?? "hybrid";
+  const embeddingAvailable =
+    options.requireEmbeddingProvider !== true ||
+    (await isEmbeddingProviderCompatible(
+      document,
+      options.embeddingProvider,
+      options,
+    ));
   return ftsCoverage
-    .filter(
-      (record) =>
-        chapterIds.has(record.serialId) &&
-        (record.current ||
-          sourceEmbeddingBySerial.get(record.serialId)?.current === true),
-    )
+    .filter((record) => {
+      if (!chapterIds.has(record.serialId)) return false;
+      const hasFts = record.current;
+      const hasEmbedding =
+        embeddingAvailable &&
+        sourceEmbeddingBySerial.get(record.serialId)?.current === true;
+      return queryMode === "fts"
+        ? hasFts
+        : queryMode === "embedding"
+          ? hasEmbedding
+          : hasFts || hasEmbedding;
+    })
     .map((record) => record.serialId);
 }
 
@@ -216,6 +259,34 @@ async function resolveArchiveQueryChapterIds(
         (await listChapters(document)).map((chapter) => chapter.chapterId),
       )
     : new Set(options.chapters);
+}
+
+async function isEmbeddingProviderCompatible(
+  document: ReadonlyDocument,
+  provider:
+    | import("../../search-index/index.js").SearchIndexEmbeddingProvider
+    | undefined,
+  options: ArchiveSearchIndexScopeOptions,
+): Promise<boolean> {
+  if (provider === undefined) return false;
+  let state: SearchIndexStoredEmbeddingState | undefined;
+  try {
+    state = await readArchiveEmbeddingState(document, options);
+  } catch {
+    return false;
+  }
+  if (state === undefined || state.model !== provider.model) return false;
+  if (
+    state.identity !== undefined &&
+    provider.identity !== undefined &&
+    state.identity !== provider.identity
+  ) {
+    return false;
+  }
+  return (
+    provider.dimensions === undefined ||
+    provider.dimensions === state.dimensions
+  );
 }
 
 export async function writeArchiveIndexProjectionFromArtifacts(

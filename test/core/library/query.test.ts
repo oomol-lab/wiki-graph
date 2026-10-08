@@ -182,6 +182,7 @@ vi.mock(
           })),
         ),
     ),
+    isTextOnlySearch: vi.fn(() => false),
     parseSearchPropertyIntegerOwnerId: vi.fn((value: string) => Number(value)),
   }),
 );
@@ -485,6 +486,61 @@ describe("wiki graph library object query aggregation", () => {
       "wikg://entity/Q1",
       expect.objectContaining({ limit: Number.MAX_SAFE_INTEGER }),
     ]);
+  });
+
+  it("passes the selected query mode through library related and evidence queries", async () => {
+    const [
+      { listRelatedWikiGraphLibraryObjects, listWikiGraphLibraryEvidence },
+      archiveView,
+      searchIndex,
+    ] = await Promise.all([
+      import("../../../packages/core/src/library/query.js"),
+      import("../../../packages/core/src/retrieval/query/archive-view/index.js"),
+      import("../../../packages/core/src/library/search-index.js"),
+    ]);
+    const embeddingProvider = {
+      embedTexts: vi.fn(() =>
+        Promise.resolve({ embeddings: [[1]], model: "test" }),
+      ),
+      model: "test",
+    };
+    mocks.objectArchiveIds.set("wikg://entity/Q1", [1]);
+    vi.mocked(archiveView.listArchiveEvidence).mockClear();
+    vi.mocked(archiveView.listRelatedArchiveObjects).mockClear();
+    vi.mocked(
+      searchIndex.assertWikiGraphLibraryQueryArtifactsReady,
+    ).mockClear();
+
+    await listWikiGraphLibraryEvidence(target, "wikg://entity/Q1", {
+      embeddingProvider,
+      query: "semantic",
+      queryMode: "embedding",
+    });
+    await listRelatedWikiGraphLibraryObjects(target, "wikg://entity/Q1", {
+      embeddingProvider,
+      query: "semantic",
+      queryMode: "embedding",
+    });
+
+    expect(
+      searchIndex.assertWikiGraphLibraryQueryArtifactsReady,
+    ).toHaveBeenCalledTimes(2);
+    expect(
+      searchIndex.assertWikiGraphLibraryQueryArtifactsReady,
+    ).toHaveBeenCalledWith(
+      target,
+      expect.objectContaining({ embeddingProvider, queryMode: "embedding" }),
+    );
+    expect(archiveView.listArchiveEvidence).toHaveBeenCalledWith(
+      expect.anything(),
+      "wikg://entity/Q1",
+      expect.objectContaining({ embeddingProvider, queryMode: "embedding" }),
+    );
+    expect(archiveView.listRelatedArchiveObjects).toHaveBeenCalledWith(
+      expect.anything(),
+      "wikg://entity/Q1",
+      expect.objectContaining({ embeddingProvider, queryMode: "embedding" }),
+    );
   });
 
   it("merges pack anchors and related items by archive id order", async () => {

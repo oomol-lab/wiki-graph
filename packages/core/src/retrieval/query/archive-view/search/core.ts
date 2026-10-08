@@ -129,9 +129,10 @@ export async function findArchiveObjects(
 
   const requestedTypes = options.types ?? null;
   const wantsStructuredSearch =
-    requestedTypes === null ||
-    requestedTypes.includes("entity") ||
-    requestedTypes.includes("triple");
+    options.queryMode !== "embedding" &&
+    (requestedTypes === null ||
+      requestedTypes.includes("entity") ||
+      requestedTypes.includes("triple"));
   const search = createLexicalQuery(query);
 
   if (search === undefined) {
@@ -158,13 +159,26 @@ export async function findArchiveObjects(
     match: options.match ?? "any",
     order: options.order ?? "doc-asc",
     query,
+    queryMode: options.queryMode ?? "hybrid",
     revisionScope,
     terms: search.terms,
     types: options.types ?? null,
   };
   const canReadSearchCache = options.triplePattern === undefined;
+  const usesEmbedding =
+    options.queryMode === "embedding" ||
+    (options.queryMode !== "fts" && options.embeddingProvider !== undefined);
   const usesBucketedSearch =
-    options.types === undefined && options.triplePattern === undefined;
+    options.triplePattern === undefined &&
+    (options.types === undefined ||
+      (usesEmbedding &&
+        options.types.some(
+          (type) =>
+            type === "chapter" ||
+            type === "chapter-title" ||
+            type === "node" ||
+            type === "triple",
+        )));
 
   if (canReadSearchCache && isEntityOnlySearch(options)) {
     const cachedPage = await readCachedEntitySearchSessionPage(
@@ -239,13 +253,14 @@ export async function findArchiveObjects(
     const sessionId = await createSearchSession({
       archiveKey: options.archiveKey ?? "archive",
       chapters: options.chapters ?? null,
-      lens: "broad",
+      lens: options.types === undefined ? "broad" : "typed",
       match: options.match ?? "any",
       order: options.order ?? "doc-asc",
       query,
+      queryMode: options.queryMode ?? "hybrid",
       revisionScope,
       terms: search.terms,
-      types: null,
+      types: options.types ?? null,
     });
     const descriptor = await readSearchSessionDescriptor(
       sessionId,
@@ -308,6 +323,7 @@ export async function findArchiveObjects(
       match: ranked.match,
       order: ranked.order,
       query,
+      queryMode: options.queryMode ?? "hybrid",
       revisionScope,
       terms: ranked.terms,
       tripleHits: sentenceCacheInput.tripleHits,
@@ -362,6 +378,7 @@ export async function findArchiveObjects(
     match: ranked.match,
     order: ranked.order,
     query,
+    queryMode: options.queryMode ?? "hybrid",
     revisionScope,
     terms: ranked.terms,
     tripleHits: sentenceCacheInput.tripleHits,

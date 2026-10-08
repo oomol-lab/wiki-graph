@@ -54,6 +54,9 @@ export async function findArchiveObjectsIndexed(
       ? {}
       : { embeddingProvider: options.embeddingProvider }),
     ...(options.match === undefined ? {} : { match: options.match }),
+    ...(options.queryMode === undefined
+      ? {}
+      : { queryMode: options.queryMode }),
     ...createSearchIndexQueryLimitOptions(options),
     types: options.types ?? null,
   });

@@ -116,6 +116,7 @@ describe("continuation cursor payload", () => {
       },
       kind: "search",
       query: "alpha",
+      queryMode: "embedding",
       skipUnindexed: true,
       types: null,
     };
@@ -138,6 +139,7 @@ describe("continuation cursor payload", () => {
       kind: "evidence",
       order: "doc-asc",
       query: "alpha",
+      queryMode: "fts",
       skipUnindexed: true,
       targetUri: "wikg://source/1/0",
     };
@@ -160,6 +162,7 @@ describe("continuation cursor payload", () => {
       kind: "related",
       order: "doc-desc",
       query: "alpha",
+      queryMode: "hybrid",
       role: "subject",
       skipUnindexed: true,
       targetUri: "wikg://entity/Q1",

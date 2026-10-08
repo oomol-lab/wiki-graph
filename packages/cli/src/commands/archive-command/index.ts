@@ -284,6 +284,7 @@ async function runArchiveRelated(args: CLIArchiveArguments): Promise<void> {
       ...(args.limit === undefined ? {} : { limit: args.limit }),
       ...(args.reverse === true ? { order: "doc-desc" } : {}),
       ...(args.query === undefined ? {} : { query: args.query }),
+      ...(args.queryMode === undefined ? {} : { queryMode: args.queryMode }),
       ...(args.role === undefined ? {} : { role: args.role }),
       ...(args.skipUnindexed === true ? { skipUnindexed: true } : {}),
       ...createOptionalSourceContext(args),
@@ -319,6 +320,7 @@ async function runArchiveEvidence(args: CLIArchiveArguments): Promise<void> {
       ...(args.limit === undefined ? {} : { limit: args.limit }),
       ...(args.reverse === true ? { order: "doc-desc" } : {}),
       ...(args.query === undefined ? {} : { query: args.query }),
+      ...(args.queryMode === undefined ? {} : { queryMode: args.queryMode }),
       ...(args.skipUnindexed === true ? { skipUnindexed: true } : {}),
       ...createOptionalSourceContext(args),
     });
@@ -563,6 +565,9 @@ async function runLibraryIndexArchiveCommand(
           ...(args.limit === undefined ? {} : { limit: args.limit }),
           ...(args.reverse === true ? { order: "doc-desc" } : {}),
           ...(args.query === undefined ? {} : { query: args.query }),
+          ...(args.queryMode === undefined
+            ? {}
+            : { queryMode: args.queryMode }),
           ...(args.role === undefined ? {} : { role: args.role }),
           ...(args.skipUnindexed === true ? { skipUnindexed: true } : {}),
           ...createOptionalSourceContext(args),
@@ -601,6 +606,9 @@ async function runLibraryIndexArchiveCommand(
               ...(args.limit === undefined ? {} : { limit: args.limit }),
               ...(args.reverse === true ? { order: "doc-desc" } : {}),
               ...(args.query === undefined ? {} : { query: args.query }),
+              ...(args.queryMode === undefined
+                ? {}
+                : { queryMode: args.queryMode }),
               ...(args.skipUnindexed === true ? { skipUnindexed: true } : {}),
               ...createOptionalSourceContext(args),
             }),
@@ -617,6 +625,9 @@ async function runLibraryIndexArchiveCommand(
           ...(args.limit === undefined ? {} : { limit: args.limit }),
           ...(args.reverse === true ? { order: "doc-desc" } : {}),
           ...(args.query === undefined ? {} : { query: args.query }),
+          ...(args.queryMode === undefined
+            ? {}
+            : { queryMode: args.queryMode }),
           ...(args.skipUnindexed === true ? { skipUnindexed: true } : {}),
           ...createOptionalSourceContext(args),
         }),

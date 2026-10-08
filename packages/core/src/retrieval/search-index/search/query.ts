@@ -25,6 +25,7 @@ import {
 } from "./helpers.js";
 import type {
   SearchIndexEmbeddingProvider,
+  SearchIndexQueryMode,
   SearchIndexObjectHit,
   SearchIndexQueryResult,
   SearchIndexTextHit,
@@ -36,6 +37,7 @@ import {
   SEARCH_INDEX_DENSE_EXPANDED_SENTENCE_LIMIT,
   SEARCH_INDEX_DENSE_SEGMENT_HIT_LIMIT,
   SEARCH_INDEX_FTS_HIT_LIMIT,
+  TEXT_SENTENCE_KIND,
   TIER_WEIGHTS,
 } from "./types.js";
 import { assertSearchIndexNotDirty } from "./status.js";
@@ -48,6 +50,7 @@ export async function querySearchIndex(
     readonly chapters?: readonly number[];
     readonly embeddingProvider?: SearchIndexEmbeddingProvider;
     readonly match?: ArchiveFindMatch;
+    readonly queryMode?: SearchIndexQueryMode;
     readonly objectHitLimit?: number;
     readonly textAfter?: {
       readonly archiveId: number;
@@ -72,11 +75,22 @@ export async function querySearchIndex(
     const hasFts =
       indexState.indexes === "fts" || indexState.indexes === "fts,dense";
     const hasDense = hasDenseSegments;
-    const usesFts = hasFts && hasSearchTokens(plan);
+    const queryMode = options.queryMode ?? "hybrid";
+    if (queryMode === "fts" && !hasFts) {
+      throw new Error("FTS query mode requires a current FTS search index.");
+    }
+    if (queryMode === "embedding" && !hasDense) {
+      throw new Error(
+        "Embedding query mode requires a current Dense search index.",
+      );
+    }
+    const usesFts =
+      queryMode !== "embedding" && hasFts && hasSearchTokens(plan);
     const usesDense =
+      queryMode !== "fts" &&
       hasDense &&
       options.textHitLimit !== 0 &&
-      createTextKindFilter(options.types).length > 0;
+      createDenseTextKindFilter(options.types).length > 0;
 
     if (!usesFts && !usesDense) {
       return undefined;
@@ -284,12 +298,15 @@ async function queryDenseTextRows(
   options: {
     readonly chapters?: readonly number[];
     readonly embeddingProvider?: SearchIndexEmbeddingProvider;
+    readonly queryMode?: SearchIndexQueryMode;
     readonly textHitLimit?: number;
     readonly types?: readonly ArchiveFindObjectType[] | null;
   },
 ): Promise<readonly SearchIndexTextHit[]> {
+  const requiresDense =
+    options.queryMode === "embedding" || state.indexes === "dense";
   if (options.embeddingProvider === undefined) {
-    if (state.indexes === "dense") {
+    if (requiresDense) {
       throw new Error(
         "Dense search requires embeddings configuration. Configure `wikg://local/config/embeddings` before querying a Dense-only index.",
       );
@@ -303,7 +320,7 @@ async function queryDenseTextRows(
   ) {
     const message = `Dense query embedding model is ${options.embeddingProvider.model}; index expects ${state.embeddingModel}.`;
 
-    if (state.indexes === "dense") {
+    if (requiresDense) {
       throw new Error(message);
     }
     return [];
@@ -315,7 +332,7 @@ async function queryDenseTextRows(
   ) {
     const message = "Dense query embedding identity does not match the index.";
 
-    if (state.indexes === "dense") {
+    if (requiresDense) {
       throw new Error(message);
     }
     return [];
@@ -327,7 +344,7 @@ async function queryDenseTextRows(
 
     queryVector = result.embeddings[0] ?? [];
   } catch (error) {
-    if (state.indexes === "dense") {
+    if (requiresDense) {
       throw error;
     }
     return [];
@@ -339,7 +356,7 @@ async function queryDenseTextRows(
   ) {
     const message = `Dense query embedding has ${queryVector.length} dimensions; index expects ${state.denseDimensions}.`;
 
-    if (state.indexes === "dense") {
+    if (requiresDense) {
       throw new Error(message);
     }
     return [];
@@ -373,7 +390,7 @@ async function queryDenseSegmentHits(
     readonly types?: readonly ArchiveFindObjectType[] | null;
   },
 ): Promise<readonly DenseSegmentHit[]> {
-  const kinds = createTextKindFilter(options.types);
+  const kinds = createDenseTextKindFilter(options.types);
 
   if (kinds.length === 0 || queryVector.length === 0) {
     return [];
@@ -434,7 +451,7 @@ async function expandDenseSegmentHits(
     readonly types?: readonly ArchiveFindObjectType[] | null;
   },
 ): Promise<readonly SearchIndexTextHit[]> {
-  const kinds = createTextKindFilter(options.types);
+  const kinds = createDenseTextKindFilter(options.types);
   const hitsByKey = new Map<string, SearchIndexTextHit>();
 
   for (const [segmentRank, segment] of segmentHits.entries()) {
@@ -492,6 +509,24 @@ async function expandDenseSegmentHits(
   }
 
   return [...hitsByKey.values()].slice(0, options.limit);
+}
+
+function createDenseTextKindFilter(
+  types: readonly ArchiveFindObjectType[] | null | undefined,
+): readonly TextSentenceKind[] {
+  const direct = createTextKindFilter(types);
+  if (types === undefined || types === null) return direct;
+  const needsSourceEvidence = types.some(
+    (type) =>
+      type === "chapter" ||
+      type === "chapter-title" ||
+      type === "entity" ||
+      type === "node" ||
+      type === "triple",
+  );
+  return needsSourceEvidence
+    ? [...new Set([...direct, TEXT_SENTENCE_KIND.source])]
+    : direct;
 }
 
 function fuseTextHitsByRrf(

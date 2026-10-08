@@ -42,6 +42,7 @@ import {
   type SearchIndexCapabilityStatus,
   type SearchIndexEmbeddingProvider,
   type SearchIndexProgressReporter,
+  type SearchIndexQueryMode,
   type SearchIndexStoredEmbeddingState,
   type SearchIndexTextHit,
   type SearchObjectPropertyKind,
@@ -95,6 +96,7 @@ export interface WikiGraphLibraryIndexQueryOptions {
   readonly chapters?: readonly number[];
   readonly embeddingProvider?: SearchIndexEmbeddingProvider;
   readonly match?: ArchiveFindMatch;
+  readonly queryMode?: SearchIndexQueryMode;
   readonly objectHitLimit?: number;
   readonly textAfter?: {
     readonly archiveId: number;
@@ -251,6 +253,10 @@ export async function assertWikiGraphLibraryIndexReady(
 
 export async function assertWikiGraphLibraryQueryArtifactsReady(
   target: ParsedWikiGraphLibraryUri,
+  options: Pick<
+    WikiGraphLibraryIndexQueryOptions,
+    "embeddingProvider" | "queryMode"
+  > = {},
 ): Promise<void> {
   const archives = await listWikiGraphLibraryArchives(target);
 
@@ -261,7 +267,15 @@ export async function assertWikiGraphLibraryQueryArtifactsReady(
     await new WikiGraphArchiveFile(requireArchiveFile(archive)).readDocument(
       async (archiveDocument) => {
         try {
-          await assertArchiveIndexArtifactsReady(archiveDocument);
+          await assertArchiveIndexArtifactsReady(archiveDocument, {
+            ...(options.embeddingProvider === undefined
+              ? {}
+              : { embeddingProvider: options.embeddingProvider }),
+            requireEmbeddingProvider: true,
+            ...(options.queryMode === undefined
+              ? {}
+              : { queryMode: options.queryMode }),
+          });
         } catch (error) {
           throw new WikiGraphError(
             "library_query_unindexed",
@@ -277,6 +291,10 @@ export async function assertWikiGraphLibraryQueryArtifactsReady(
 
 export async function assertWikiGraphLibraryHasQueryableArtifacts(
   target: ParsedWikiGraphLibraryUri,
+  options: Pick<
+    WikiGraphLibraryIndexQueryOptions,
+    "embeddingProvider" | "queryMode"
+  > = {},
 ): Promise<void> {
   const archives = await listWikiGraphLibraryArchives(target);
 
@@ -288,7 +306,15 @@ export async function assertWikiGraphLibraryHasQueryableArtifacts(
       requireArchiveFile(archive),
     ).readDocument(
       async (archiveDocument) =>
-        await listArchiveQueryableChapterIds(archiveDocument),
+        await listArchiveQueryableChapterIds(archiveDocument, {
+          ...(options.embeddingProvider === undefined
+            ? {}
+            : { embeddingProvider: options.embeddingProvider }),
+          requireEmbeddingProvider: true,
+          ...(options.queryMode === undefined
+            ? {}
+            : { queryMode: options.queryMode }),
+        }),
     );
     if (queryableChapters.length > 0) {
       return;

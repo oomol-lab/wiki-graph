@@ -76,6 +76,7 @@ export function parseArchiveArguments(
   }
 
   rejectNonQuerySkipUnindexedFlag(action, values, helpRoute);
+  const queryMode = parseQueryModeFlag(values, helpRoute);
 
   switch (action) {
     case "create": {
@@ -270,6 +271,7 @@ export function parseArchiveArguments(
                 ),
               }),
           query,
+          ...queryMode,
           ...(values["skip-unindexed"] === true ? { skipUnindexed: true } : {}),
           ...(options.defaultKinds === undefined
             ? {}
@@ -408,6 +410,7 @@ export function parseArchiveArguments(
               }),
           objectId: archivePath,
           ...(values.query === undefined ? {} : { query: values.query }),
+          ...queryMode,
           ...(values.reverse === true ? { reverse: true } : {}),
           ...(values["skip-unindexed"] === true ? { skipUnindexed: true } : {}),
           ...(relatedTarget === "entity"
@@ -456,6 +459,7 @@ export function parseArchiveArguments(
               }),
           objectId: archivePath,
           ...(values.query === undefined ? {} : { query: values.query }),
+          ...queryMode,
           ...(values.reverse === true ? { reverse: true } : {}),
           ...(values["skip-unindexed"] === true ? { skipUnindexed: true } : {}),
         },
@@ -580,4 +584,26 @@ function rejectNonQuerySkipUnindexedFlag(
     values["skip-unindexed"],
     helpRoute,
   );
+}
+
+function parseQueryModeFlag(
+  values: ArchiveArgumentValues,
+  helpRoute: string,
+): { readonly queryMode?: "embedding" | "fts" | "hybrid" } {
+  const value = values["query-mode"];
+  if (value === undefined) return {};
+  if (values.query === undefined) {
+    throw new Error(
+      withHelpRoute("`--query-mode` requires `--query`.", helpRoute),
+    );
+  }
+  if (value !== "hybrid" && value !== "fts" && value !== "embedding") {
+    throw new Error(
+      withHelpRoute(
+        "--query-mode must be one of: hybrid, fts, embedding.",
+        helpRoute,
+      ),
+    );
+  }
+  return { queryMode: value };
 }

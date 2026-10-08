@@ -70,6 +70,28 @@ describe("cli/args/archive", () => {
       kind: "archive",
     });
 
+    expect(
+      parseCLIArguments([
+        "wikg://book.wikg/chunk",
+        "--query",
+        "RAG",
+        "--query-mode",
+        "embedding",
+      ]),
+    ).toMatchObject({ args: { queryMode: "embedding" } });
+    expect(() =>
+      parseCLIArguments(["wikg://book.wikg/chunk", "--query-mode", "fts"]),
+    ).toThrow("`--query-mode` requires `--query`");
+    expect(() =>
+      parseCLIArguments([
+        "wikg://book.wikg/chunk",
+        "--query",
+        "RAG",
+        "--query-mode",
+        "invalid",
+      ]),
+    ).toThrow("--query-mode must be one of: hybrid, fts, embedding");
+
     expect(() =>
       parseCLIArguments([
         "wikg://book.wikg/chapter/11/source",

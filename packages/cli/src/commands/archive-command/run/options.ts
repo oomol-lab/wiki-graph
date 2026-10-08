@@ -39,6 +39,7 @@ export function createFindOptions(
     ...createOptionalEvidenceLimit(args),
     ...(args.limit === undefined ? {} : { limit: args.limit }),
     ...(args.reverse === true ? { order: "doc-desc" } : {}),
+    ...(args.queryMode === undefined ? {} : { queryMode: args.queryMode }),
     ...(args.skipUnindexed === true ? { skipUnindexed: true } : {}),
     ...createOptionalSourceContext(args),
     ...(args.triplePattern === undefined
@@ -84,6 +85,7 @@ export function createArchiveOutputContext(
         ? {}
         : { query: args.query }),
     ...(args.role === undefined ? {} : { role: args.role }),
+    ...(args.queryMode === undefined ? {} : { queryMode: args.queryMode }),
     ...(args.skipUnindexed === true ? { skipUnindexed: true } : {}),
     ...(options.continuationKind === "collection"
       ? createScopeOptions(args)

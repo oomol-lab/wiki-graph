@@ -23,6 +23,8 @@ import {
   type ArchiveSourceLocatorResult,
   type ContinuationCursor,
   type QueryIndexScope,
+  type SearchIndexEmbeddingProvider,
+  type SearchIndexQueryMode,
 } from "wiki-graph-core";
 
 import { type WikiGraphArchiveTarget } from "./archive/index.js";
@@ -55,6 +57,7 @@ export interface WikiGraphContinuationContext {
   readonly libraryQuery?: "archive-members" | "objects";
   readonly order?: "doc-asc" | "doc-desc";
   readonly query?: string;
+  readonly queryMode?: SearchIndexQueryMode;
   readonly role?: "any" | "object" | "self" | "subject" | undefined;
   readonly skipUnindexed?: boolean;
   readonly sourceContext?: number;
@@ -180,6 +183,10 @@ async function continueArchiveCursor(
   | ArchiveRelatedResult
   | ArchiveSourceLocatorResult
 > {
+  const embeddingProvider =
+    cursor.kind === "evidence" || cursor.kind === "related"
+      ? await resolveCursorEmbeddingProvider(cursor)
+      : undefined;
   const location = await resolveWikiGraphArchiveLocation(
     archiveTargetFromLogicalLocator(getCursorArchivePath(cursor)),
   );
@@ -209,6 +216,10 @@ async function continueArchiveCursor(
             limit,
             order: cursor.order,
             ...(cursor.query === undefined ? {} : { query: cursor.query }),
+            ...(cursor.queryMode === undefined
+              ? {}
+              : { queryMode: cursor.queryMode }),
+            ...(embeddingProvider === undefined ? {} : { embeddingProvider }),
             ...(cursor.skipUnindexed === undefined
               ? {}
               : { skipUnindexed: cursor.skipUnindexed }),
@@ -226,6 +237,10 @@ async function continueArchiveCursor(
             limit,
             order: cursor.order,
             ...(cursor.query === undefined ? {} : { query: cursor.query }),
+            ...(cursor.queryMode === undefined
+              ? {}
+              : { queryMode: cursor.queryMode }),
+            ...(embeddingProvider === undefined ? {} : { embeddingProvider }),
             ...(cursor.role === undefined ? {} : { role: cursor.role }),
             ...(cursor.skipUnindexed === undefined
               ? {}
@@ -248,6 +263,10 @@ async function continueLibraryCursor(
   | ArchiveFindResult
   | ArchiveRelatedResult
 > {
+  const embeddingProvider =
+    cursor.kind === "evidence" || cursor.kind === "related"
+      ? await resolveCursorEmbeddingProvider(cursor)
+      : undefined;
   if (cursor.kind === "source-locators") {
     throw new Error(
       "Source locator cursors do not use the aggregate library index.",
@@ -288,6 +307,10 @@ async function continueLibraryCursor(
         limit,
         order: cursor.order,
         ...(cursor.query === undefined ? {} : { query: cursor.query }),
+        ...(cursor.queryMode === undefined
+          ? {}
+          : { queryMode: cursor.queryMode }),
+        ...(embeddingProvider === undefined ? {} : { embeddingProvider }),
         ...(cursor.skipUnindexed === undefined
           ? {}
           : { skipUnindexed: cursor.skipUnindexed }),
@@ -307,6 +330,10 @@ async function continueLibraryCursor(
           limit,
           order: cursor.order,
           ...(cursor.query === undefined ? {} : { query: cursor.query }),
+          ...(cursor.queryMode === undefined
+            ? {}
+            : { queryMode: cursor.queryMode }),
+          ...(embeddingProvider === undefined ? {} : { embeddingProvider }),
           ...(cursor.role === undefined ? {} : { role: cursor.role }),
           ...(cursor.skipUnindexed === undefined
             ? {}
@@ -351,7 +378,7 @@ async function createFindOptions(
   cursor: Extract<ContinuationCursor, { readonly kind: "search" }>,
   limit: number,
 ): Promise<ArchiveFindOptions> {
-  const embeddingProvider = await createConfiguredEmbeddingProvider();
+  const embeddingProvider = await resolveCursorEmbeddingProvider(cursor);
   return {
     archiveKey: cursor.archiveKey,
     ...(cursor.backlinks === undefined ? {} : { backlinks: cursor.backlinks }),
@@ -361,6 +388,7 @@ async function createFindOptions(
       ? {}
       : { evidenceLimit: cursor.evidenceLimit }),
     limit,
+    ...(cursor.queryMode === undefined ? {} : { queryMode: cursor.queryMode }),
     ...(cursor.skipUnindexed === undefined
       ? {}
       : { skipUnindexed: cursor.skipUnindexed }),
@@ -434,6 +462,9 @@ function createContinuationPayload(
         kind: "evidence",
         order: context.order ?? "doc-asc",
         ...(context.query === undefined ? {} : { query: context.query }),
+        ...(context.queryMode === undefined
+          ? {}
+          : { queryMode: context.queryMode }),
         ...(context.skipUnindexed === undefined
           ? {}
           : { skipUnindexed: context.skipUnindexed }),
@@ -456,6 +487,9 @@ function createContinuationPayload(
         kind: "related",
         order: context.order ?? "doc-asc",
         ...(context.query === undefined ? {} : { query: context.query }),
+        ...(context.queryMode === undefined
+          ? {}
+          : { queryMode: context.queryMode }),
         ...(context.role === undefined ? {} : { role: context.role }),
         ...(context.skipUnindexed === undefined
           ? {}
@@ -510,6 +544,9 @@ function createContinuationPayload(
         kind: "search",
         ...createLibraryQueryPayload(context),
         ...(context.query === undefined ? {} : { query: context.query }),
+        ...(context.queryMode === undefined
+          ? {}
+          : { queryMode: context.queryMode }),
         ...(context.skipUnindexed === undefined
           ? {}
           : { skipUnindexed: context.skipUnindexed }),
@@ -522,6 +559,22 @@ function createContinuationPayload(
         types: context.types,
       };
   }
+}
+
+async function resolveCursorEmbeddingProvider(
+  cursor: Pick<ContinuationCursor, "kind" | "queryMode"> & {
+    readonly query?: string;
+  },
+): Promise<SearchIndexEmbeddingProvider | undefined> {
+  if (cursor.kind !== "search" && cursor.query === undefined) return undefined;
+  if (cursor.queryMode === "fts") return undefined;
+  const provider = await createConfiguredEmbeddingProvider();
+  if (cursor.queryMode === "embedding" && provider === undefined) {
+    throw new Error(
+      "Embedding query mode requires embeddings configuration at `wikg://local/config/embeddings`.",
+    );
+  }
+  return provider;
 }
 
 function requireTargetUri(
