@@ -25,6 +25,7 @@ import {
   getWikiGraphLibraryMetadata,
   isWikiGraphLibraryUri,
   listRelatedWikiGraphLibraryObjects,
+  listWikiGraphLibraryEvidence,
   listWikiGraphLibraryArchives,
   moveWikiGraphLibraryArchive,
   parseLocatedWikiGraphUri,
@@ -1237,6 +1238,56 @@ describe("library archive membership", () => {
         );
 
         expect(result.items.map((item) => item.id)).toStrictEqual(["node:11"]);
+        expect(result.items[0]?.score).toBeGreaterThan(0);
+      });
+    },
+  );
+
+  it.each([
+    { query: "semantic lookup", queryMode: "embedding" },
+    { query: "Libraryless", queryMode: "fts" },
+    { query: "semantic lookup", queryMode: "hybrid" },
+  ] as const)(
+    "resolves library chunk evidence through the $queryMode aggregate index",
+    async ({ query, queryMode }) => {
+      await withLibraryTestState(async (tempDir) => {
+        const target = parseWikiGraphLibraryUri("wikg://lib");
+        expect(target).toBeDefined();
+        const provider = createLibraryTestEmbeddingProvider();
+        const source = join(tempDir, `evidence-${queryMode}.wikg`);
+        await createSearchableArchiveWithoutSearchIndex(
+          tempDir,
+          source,
+          provider,
+        );
+        const added = await addWikiGraphLibraryArchive({
+          inputFile: new NodeFile(source),
+          target: target!,
+          to: `evidence-${queryMode}.wikg`,
+        });
+        expect(added.file).toBeDefined();
+        await expect(
+          readWikgArchiveEntry(getNodeResourcePath(added.file!), "index.db"),
+        ).resolves.toBeUndefined();
+        await rebuildWikiGraphLibraryIndex(target!);
+
+        const result = await listWikiGraphLibraryEvidence(
+          target!,
+          "wikg://chunk/11",
+          {
+            embeddingProvider: provider,
+            query,
+            queryMode,
+            sourceContext: 0,
+          },
+        );
+
+        expect(result.items).toHaveLength(1);
+        expect(result.items[0]).toMatchObject({
+          archiveId: added.id,
+          score: expect.any(Number) as number,
+          type: "source",
+        });
         expect(result.items[0]?.score).toBeGreaterThan(0);
       });
     },

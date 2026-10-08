@@ -27,10 +27,7 @@ import type {
   ArchiveRelatedRole,
 } from "../types.js";
 import type { SearchIndexQueryResult } from "../../../search-index/search/types.js";
-
-export const RELATED_SEARCH_INDEX_RESULT = Symbol(
-  "wiki-graph.related-search-index-result",
-);
+import { PRECOMPUTED_SEARCH_INDEX_RESULT } from "../query-context.js";
 
 export async function listArchiveLinks(
   document: ReadonlyDocument,
@@ -85,9 +82,9 @@ export async function listRelatedArchiveObjects(
 ): Promise<ArchiveRelatedResult> {
   const precomputedIndexResult = (
     options as ArchiveRelatedOptions & {
-      readonly [RELATED_SEARCH_INDEX_RESULT]?: SearchIndexQueryResult | null;
+      readonly [PRECOMPUTED_SEARCH_INDEX_RESULT]?: SearchIndexQueryResult | null;
     }
-  )[RELATED_SEARCH_INDEX_RESULT];
+  )[PRECOMPUTED_SEARCH_INDEX_RESULT];
   if (isWikiGraphObjectUri(id)) {
     return await listRelatedWikiGraphObjects(
       document,

@@ -13,6 +13,8 @@ import {
   encodeFindCursor,
 } from "../helpers.js";
 import { queryRequiredSearchIndex } from "../search/hydration.js";
+import { PRECOMPUTED_SEARCH_INDEX_RESULT } from "../query-context.js";
+import type { SearchIndexQueryResult } from "../../../search-index/search/types.js";
 import type {
   ArchiveEvidence,
   ArchiveEvidenceOptions,
@@ -288,16 +290,12 @@ export async function filterAndSortSourceEvidenceRangesByFtsQuery(
     return [];
   }
 
-  const indexResult = await queryRequiredSearchIndex(document, queryText, {
-    chapters: [...new Set(queryRanges.map((range) => range.chapterId))],
-    types: ["source"],
-    ...(options.embeddingProvider === undefined
-      ? {}
-      : { embeddingProvider: options.embeddingProvider }),
-    ...(options.queryMode === undefined
-      ? {}
-      : { queryMode: options.queryMode }),
-  });
+  const indexResult = await resolveEvidenceSearchIndexResult(
+    document,
+    queryText,
+    [...new Set(queryRanges.map((range) => range.chapterId))],
+    options,
+  );
 
   if (indexResult === undefined) {
     return [];
@@ -378,20 +376,16 @@ export async function filterAndSortSourceEvidenceCandidatesByFtsQuery<T>(
   if (keyed.length === 0) {
     return [];
   }
-  const indexResult = await queryRequiredSearchIndex(document, queryText, {
-    chapters: [
+  const indexResult = await resolveEvidenceSearchIndexResult(
+    document,
+    queryText,
+    [
       ...new Set(
         keyed.flatMap((item) => item.ranges.map((range) => range.chapterId)),
       ),
     ],
-    types: ["source"],
-    ...(options.embeddingProvider === undefined
-      ? {}
-      : { embeddingProvider: options.embeddingProvider }),
-    ...(options.queryMode === undefined
-      ? {}
-      : { queryMode: options.queryMode }),
-  });
+    options,
+  );
 
   if (indexResult === undefined) {
     return [];
@@ -454,6 +448,35 @@ export async function filterAndSortSourceEvidenceCandidatesByFtsQuery<T>(
       return left.stableIdentity.localeCompare(right.stableIdentity);
     })
     .map((item) => ({ candidate: item.candidate, score: item.score }));
+}
+
+async function resolveEvidenceSearchIndexResult(
+  document: ReadonlyDocument,
+  queryText: string,
+  chapters: readonly number[],
+  options: Pick<
+    ArchiveEvidenceOptions,
+    "embeddingProvider" | "queryMode" | "skipUnindexed"
+  >,
+): Promise<SearchIndexQueryResult | undefined> {
+  const precomputedIndexResult = (
+    options as typeof options & {
+      readonly [PRECOMPUTED_SEARCH_INDEX_RESULT]?: SearchIndexQueryResult | null;
+    }
+  )[PRECOMPUTED_SEARCH_INDEX_RESULT];
+  if (precomputedIndexResult !== undefined) {
+    return precomputedIndexResult ?? undefined;
+  }
+  return await queryRequiredSearchIndex(document, queryText, {
+    chapters,
+    types: ["source"],
+    ...(options.embeddingProvider === undefined
+      ? {}
+      : { embeddingProvider: options.embeddingProvider }),
+    ...(options.queryMode === undefined
+      ? {}
+      : { queryMode: options.queryMode }),
+  });
 }
 
 async function filterQueryableSourceEvidenceRanges(

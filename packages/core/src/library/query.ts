@@ -5,7 +5,7 @@ import {
   packArchiveContext,
   readArchivePage,
 } from "../retrieval/query/archive-view/index.js";
-import { RELATED_SEARCH_INDEX_RESULT } from "../retrieval/query/archive-view/related/core.js";
+import { PRECOMPUTED_SEARCH_INDEX_RESULT } from "../retrieval/query/archive-view/query-context.js";
 import {
   createCollectionResult,
   createFindResult,
@@ -363,6 +363,18 @@ async function listWikiGraphLibraryEvidenceUnlocked(
       await assertWikiGraphLibraryQueryArtifactsReady(target, options);
     }
   }
+  const libraryIndexResult =
+    options.query === undefined
+      ? undefined
+      : ((await queryWikiGraphLibrarySearchIndex(target, options.query, {
+          ...(options.embeddingProvider === undefined
+            ? {}
+            : { embeddingProvider: options.embeddingProvider }),
+          ...(options.queryMode === undefined
+            ? {}
+            : { queryMode: options.queryMode }),
+          types: ["source"],
+        })) ?? null);
   const limit = options.limit ?? DEFAULT_LIBRARY_PAGE_LIMIT;
   const offset = parseLibraryObjectCursor(options.cursor, "evidence");
   const archiveWindowLimit = offset + limit;
@@ -374,6 +386,22 @@ async function listWikiGraphLibraryEvidenceUnlocked(
       const result = await listArchiveEvidence(document, objectUri, {
         ...archiveOptions,
         limit: archiveWindowLimit,
+        ...(libraryIndexResult === undefined
+          ? {}
+          : {
+              [PRECOMPUTED_SEARCH_INDEX_RESULT]:
+                libraryIndexResult === null
+                  ? null
+                  : {
+                      objectHits: libraryIndexResult.objectHits.filter(
+                        (hit) => hit.archiveId === archive.id,
+                      ),
+                      terms: libraryIndexResult.terms,
+                      textHits: libraryIndexResult.textHits.filter(
+                        (hit) => hit.archiveId === archive.id,
+                      ),
+                    },
+            }),
       });
       const source = createLibrarySource(archive);
 
@@ -449,7 +477,7 @@ async function listRelatedWikiGraphLibraryObjectsUnlocked(
         ...(libraryIndexResult === undefined
           ? {}
           : {
-              [RELATED_SEARCH_INDEX_RESULT]:
+              [PRECOMPUTED_SEARCH_INDEX_RESULT]:
                 libraryIndexResult === null
                   ? null
                   : {
