@@ -37,6 +37,7 @@ import {
   SEARCH_INDEX_DENSE_EXPANDED_SENTENCE_LIMIT,
   SEARCH_INDEX_DENSE_SEGMENT_HIT_LIMIT,
   SEARCH_INDEX_FTS_HIT_LIMIT,
+  TEXT_SENTENCE_KIND,
   TIER_WEIGHTS,
 } from "./types.js";
 import { assertSearchIndexNotDirty } from "./status.js";
@@ -89,7 +90,7 @@ export async function querySearchIndex(
       queryMode !== "fts" &&
       hasDense &&
       options.textHitLimit !== 0 &&
-      createTextKindFilter(options.types).length > 0;
+      createDenseTextKindFilter(options.types).length > 0;
 
     if (!usesFts && !usesDense) {
       return undefined;
@@ -389,7 +390,7 @@ async function queryDenseSegmentHits(
     readonly types?: readonly ArchiveFindObjectType[] | null;
   },
 ): Promise<readonly DenseSegmentHit[]> {
-  const kinds = createTextKindFilter(options.types);
+  const kinds = createDenseTextKindFilter(options.types);
 
   if (kinds.length === 0 || queryVector.length === 0) {
     return [];
@@ -450,7 +451,7 @@ async function expandDenseSegmentHits(
     readonly types?: readonly ArchiveFindObjectType[] | null;
   },
 ): Promise<readonly SearchIndexTextHit[]> {
-  const kinds = createTextKindFilter(options.types);
+  const kinds = createDenseTextKindFilter(options.types);
   const hitsByKey = new Map<string, SearchIndexTextHit>();
 
   for (const [segmentRank, segment] of segmentHits.entries()) {
@@ -508,6 +509,24 @@ async function expandDenseSegmentHits(
   }
 
   return [...hitsByKey.values()].slice(0, options.limit);
+}
+
+function createDenseTextKindFilter(
+  types: readonly ArchiveFindObjectType[] | null | undefined,
+): readonly TextSentenceKind[] {
+  const direct = createTextKindFilter(types);
+  if (types === undefined || types === null) return direct;
+  const needsSourceEvidence = types.some(
+    (type) =>
+      type === "chapter" ||
+      type === "chapter-title" ||
+      type === "entity" ||
+      type === "node" ||
+      type === "triple",
+  );
+  return needsSourceEvidence
+    ? [...new Set([...direct, TEXT_SENTENCE_KIND.source])]
+    : direct;
 }
 
 function fuseTextHitsByRrf(

@@ -23,7 +23,9 @@ import type {
 import {
   querySearchIndex,
   SEARCH_INDEX_FTS_HIT_LIMIT,
+  SEARCH_OBJECT_PROPERTY_KIND,
   SEARCH_OBJECT_PROPERTY_OWNER_KIND,
+  type SearchIndexObjectHit,
   type SearchIndexTextHit,
 } from "../../../search-index/search/index.js";
 
@@ -63,6 +65,7 @@ import {
   isAfterTextKey,
 } from "./bucket-order.js";
 import type {
+  ArchiveFindFilterType,
   ArchiveFindHit,
   ArchiveFindOptions,
   ArchiveFindResult,
@@ -144,31 +147,45 @@ async function readBucketPage(
 }> {
   switch (cursor.bucket) {
     case 0:
-      return await readChapterTitleBucketPage(
-        document,
-        session,
-        cursor.key,
-        limit,
-        options,
-      );
+      return shouldReadArchiveBucket(session, "chapter", "chapter-title")
+        ? await readChapterTitleBucketPage(
+            document,
+            session,
+            cursor.key,
+            limit,
+            options,
+          )
+        : { items: [], nextCursor: { bucket: 1 } };
     case 1:
-      return await readObjectBucketPage(
-        document,
-        session,
-        cursor.key,
-        limit,
-        options,
-      );
+      return shouldReadArchiveBucket(session, "entity", "triple")
+        ? await readObjectBucketPage(
+            document,
+            session,
+            cursor.key,
+            limit,
+            options,
+          )
+        : { items: [], nextCursor: { bucket: 2 } };
     case 2:
-      return await readChunkBucketPage(document, session, cursor.key, limit);
+      return shouldReadArchiveBucket(session, "node")
+        ? await readChunkBucketPage(
+            document,
+            session,
+            cursor.key,
+            limit,
+            options,
+          )
+        : { items: [], nextCursor: { bucket: 3 } };
     case 3:
-      return await readTextBucketPage(
-        document,
-        session,
-        cursor.key,
-        limit,
-        options,
-      );
+      return shouldReadArchiveBucket(session, "source", "summary")
+        ? await readTextBucketPage(
+            document,
+            session,
+            cursor.key,
+            limit,
+            options,
+          )
+        : { items: [], nextCursor: undefined };
   }
 }
 
@@ -190,7 +207,7 @@ async function readChapterTitleBucketPage(
     queryMode: session.queryMode,
     match: parseFindMatch(session.match),
     objectHitLimit: SEARCH_INDEX_FTS_HIT_LIMIT,
-    textHitLimit: 0,
+    textHitLimit: SEARCH_INDEX_FTS_HIT_LIMIT,
     types: ["chapter-title"],
   });
   const chapters = new Map(
@@ -199,7 +216,7 @@ async function readChapterTitleBucketPage(
       chapter,
     ]),
   );
-  const hits = (result?.objectHits ?? [])
+  const hits = createChapterTitleIndexHits(result)
     .filter(
       (hit) => hit.ownerKind === SEARCH_OBJECT_PROPERTY_OWNER_KIND.chapter,
     )
@@ -235,6 +252,35 @@ async function readChapterTitleBucketPage(
   };
 }
 
+function createChapterTitleIndexHits(
+  result:
+    | {
+        readonly objectHits: readonly SearchIndexObjectHit[];
+        readonly textHits: readonly SearchIndexTextHit[];
+      }
+    | undefined,
+): readonly SearchIndexObjectHit[] {
+  const hits = new Map<string, SearchIndexObjectHit>();
+  for (const hit of result?.objectHits ?? []) {
+    hits.set(`${hit.archiveId}:${hit.ownerId}`, hit);
+  }
+  for (const hit of result?.textHits ?? []) {
+    const key = `${hit.archiveId}:${hit.chapterId}`;
+    const current = hits.get(key);
+    if (current === undefined || hit.score > current.score) {
+      hits.set(key, {
+        archiveId: hit.archiveId,
+        chapterId: hit.chapterId,
+        ownerId: String(hit.chapterId),
+        ownerKind: SEARCH_OBJECT_PROPERTY_OWNER_KIND.chapter,
+        propertyKind: SEARCH_OBJECT_PROPERTY_KIND.title,
+        score: hit.score,
+      });
+    }
+  }
+  return [...hits.values()];
+}
+
 async function readObjectBucketPage(
   document: ReadonlyDocument,
   session: SearchSessionDescriptor,
@@ -255,8 +301,13 @@ async function readObjectBucketPage(
     limit,
   );
   const items = page.slice(0, limit);
+  const filtered = items.filter((hit) =>
+    matchesArchiveSessionTypes(hit, session),
+  );
   const hydrated = await Promise.all(
-    items.map(async (hit) => await hydrateCachedObjectBucketHit(document, hit)),
+    filtered.map(
+      async (hit) => await hydrateCachedObjectBucketHit(document, hit),
+    ),
   );
   const last = items.at(-1);
 
@@ -275,6 +326,27 @@ async function readObjectBucketPage(
           }
         : { bucket: 2 },
   };
+}
+
+function shouldReadArchiveBucket(
+  session: SearchSessionDescriptor,
+  ...types: ArchiveFindFilterType[]
+): boolean {
+  return (
+    session.types === null ||
+    types.some((type) => session.types?.includes(type))
+  );
+}
+
+function matchesArchiveSessionTypes(
+  hit: ArchiveFindHit,
+  session: SearchSessionDescriptor,
+): boolean {
+  return (
+    session.types === null ||
+    (hit.type === "entity" && session.types.includes("entity")) ||
+    (hit.type === "triple" && session.types.includes("triple"))
+  );
 }
 
 async function populateObjectBucketCaches(
@@ -341,10 +413,14 @@ async function readChunkBucketPage(
   session: SearchSessionDescriptor,
   after: SearchChunkCursorKey | undefined,
   limit: number,
+  options: ArchiveFindOptions,
 ): Promise<{
   readonly items: readonly ArchiveFindHit[];
   readonly nextCursor: BucketSearchCursor | undefined;
 }> {
+  if (!session.objectCachesPopulated) {
+    await populateObjectBucketCaches(document, session, options);
+  }
   const page = await readSearchSessionChunkBucketPage(
     session.sessionId,
     after,

@@ -182,6 +182,7 @@ vi.mock(
           })),
         ),
     ),
+    isTextOnlySearch: vi.fn(() => false),
     parseSearchPropertyIntegerOwnerId: vi.fn((value: string) => Number(value)),
   }),
 );

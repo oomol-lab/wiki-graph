@@ -21,6 +21,7 @@ import {
   listArchiveQueryableChapterIds,
   rebuildArchiveSearchIndex,
 } from "./index-state.js";
+import { findArchiveObjects } from "./search/index.js";
 
 describe("archive search index state", () => {
   it("reports a state-less index database as missing", async () => {
@@ -207,6 +208,46 @@ describe("archive search index state", () => {
           types: ["source"],
         }),
       ).rejects.toThrow("embedding unavailable");
+    });
+  });
+
+  it("resolves typed objects from source embeddings without lexical fallback", async () => {
+    await withTempDocument(async (document) => {
+      await writeSourceChapter(document);
+      await writeTypedObjects(document);
+      const provider = createFakeEmbeddingProvider();
+      await replaceChapterSourceEmbeddingIndexArtifact(document, 1, provider);
+      await rebuildArchiveSearchIndex(document);
+
+      for (const [type, expected] of [
+        ["chapter", "chapter-title"],
+        ["entity", "entity"],
+        ["node", "node"],
+        ["triple", "triple"],
+      ] as const) {
+        const result = await findArchiveObjects(document, "semantic lookup", {
+          archiveKey: `typed-embedding-${type}`,
+          embeddingProvider: provider,
+          queryMode: "embedding",
+          types: [type],
+        });
+        expect(result.items, type).not.toHaveLength(0);
+        expect(result.items.every((item) => item.type === expected)).toBe(true);
+      }
+
+      await expect(
+        querySearchIndex(document, "semantic lookup", {
+          queryMode: "embedding",
+          types: ["entity"],
+        }),
+      ).rejects.toThrow("requires embeddings configuration");
+      await expect(
+        querySearchIndex(document, "semantic lookup", {
+          embeddingProvider: { ...provider, model: "incompatible" },
+          queryMode: "embedding",
+          types: ["triple"],
+        }),
+      ).rejects.toThrow("index expects test-embedding");
     });
   });
 
@@ -454,6 +495,50 @@ function createFakeEmbeddingProvider() {
 
 async function writeSourceChapter(document: DirectoryDocument): Promise<void> {
   await writeSourceChapters(document, ["Dense"]);
+}
+
+async function writeTypedObjects(document: DirectoryDocument): Promise<void> {
+  await document.openSession(async (openedDocument) => {
+    await openedDocument.chunks.save({
+      content: "Dense related chunk",
+      generation: 0,
+      id: 10,
+      label: "Dense chunk",
+      sentenceId: [1, 0],
+      sentenceIds: [[1, 0]],
+      weight: 1,
+      wordsCount: 3,
+    });
+    await openedDocument.mentions.saveMany([
+      {
+        chapterId: 1,
+        id: "typed-q1",
+        qid: "Q1",
+        rangeEnd: 5,
+        rangeStart: 0,
+        sentenceIndex: 0,
+        surface: "Dense",
+      },
+      {
+        chapterId: 1,
+        id: "typed-q2",
+        qid: "Q2",
+        rangeEnd: 20,
+        rangeStart: 6,
+        sentenceIndex: 0,
+        surface: "indexing",
+      },
+    ]);
+    await openedDocument.mentionLinks.saveMany([
+      {
+        evidenceSentenceIds: [[1, 0]],
+        id: "typed-link",
+        predicate: "relates",
+        sourceMentionId: "typed-q1",
+        targetMentionId: "typed-q2",
+      },
+    ]);
+  });
 }
 
 async function writeSourceChapters(

@@ -21,6 +21,7 @@ import {
   ensureDefaultWikiGraphLibrary,
   finalizeWikiGraphLibraryArchiveWrite,
   findWikiGraphLibraryArchiveMembers,
+  findWikiGraphLibraryObjects,
   getWikiGraphLibraryMetadata,
   isWikiGraphLibraryUri,
   listWikiGraphLibraryArchives,
@@ -1165,6 +1166,45 @@ describe("library archive membership", () => {
     });
   });
 
+  it("resolves typed library objects from source embeddings", async () => {
+    await withLibraryTestState(async (tempDir) => {
+      const target = parseWikiGraphLibraryUri("wikg://lib");
+      expect(target).toBeDefined();
+      const provider = createLibraryTestEmbeddingProvider();
+      const source = join(tempDir, "dense-typed-library.wikg");
+      await createSearchableArchiveWithoutSearchIndex(
+        tempDir,
+        source,
+        provider,
+      );
+      await addWikiGraphLibraryArchive({
+        inputFile: new NodeFile(source),
+        target: target!,
+        to: "dense-typed-library.wikg",
+      });
+      await rebuildWikiGraphLibraryIndex(target!);
+
+      for (const [type, expected] of [
+        ["chapter", "chapter-title"],
+        ["entity", "entity"],
+        ["node", "node"],
+        ["triple", "triple"],
+      ] as const) {
+        const result = await findWikiGraphLibraryObjects(
+          target!,
+          "semantic lookup",
+          {
+            embeddingProvider: provider,
+            queryMode: "embedding",
+            types: [type],
+          },
+        );
+        expect(result.items, type).not.toHaveLength(0);
+        expect(result.items.every((item) => item.type === expected)).toBe(true);
+      }
+    });
+  });
+
   it("cleans the library aggregate index cache", async () => {
     await withLibraryTestState(async (tempDir) => {
       const target = parseWikiGraphLibraryUri("wikg://lib");
@@ -1347,6 +1387,45 @@ async function createSearchableArchiveWithoutSearchIndex(
       const draft = await openedDocument.getSerialFragments(1).createDraft();
       draft.addSentence("Libraryless archive data remains searchable.", 5);
       await draft.commit();
+      await openedDocument.chunks.save({
+        content: "Library dense chunk",
+        generation: 0,
+        id: 10,
+        label: "Library chunk",
+        sentenceId: [1, 0],
+        sentenceIds: [[1, 0]],
+        weight: 1,
+        wordsCount: 3,
+      });
+      await openedDocument.mentions.saveMany([
+        {
+          chapterId: 1,
+          id: "library-q1",
+          qid: "Q1",
+          rangeEnd: 11,
+          rangeStart: 0,
+          sentenceIndex: 0,
+          surface: "Libraryless",
+        },
+        {
+          chapterId: 1,
+          id: "library-q2",
+          qid: "Q2",
+          rangeEnd: 24,
+          rangeStart: 12,
+          sentenceIndex: 0,
+          surface: "archive data",
+        },
+      ]);
+      await openedDocument.mentionLinks.saveMany([
+        {
+          evidenceSentenceIds: [[1, 0]],
+          id: "library-link",
+          predicate: "relates",
+          sourceMentionId: "library-q1",
+          targetMentionId: "library-q2",
+        },
+      ]);
       await openedDocument.writeToc({
         items: [{ children: [], serialId: 1, title }],
         version: 1,
