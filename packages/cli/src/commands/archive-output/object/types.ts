@@ -107,6 +107,7 @@ export interface ArchiveOutputContext {
   readonly limit: number;
   readonly order?: "doc-asc" | "doc-desc";
   readonly query?: string;
+  readonly queryMode?: "embedding" | "fts" | "hybrid";
   readonly role?: CLIArchiveArguments["role"];
   readonly skipUnindexed?: boolean;
   readonly sourceContext?: number;

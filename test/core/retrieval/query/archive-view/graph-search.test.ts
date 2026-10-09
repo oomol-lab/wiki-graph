@@ -224,7 +224,7 @@ describe("archive/query/archive-view/graph search", () => {
           limit: 1,
           types: ["entity"],
         });
-        const secondPage = await findArchiveObjects(document, "ignored", {
+        const secondPage = await findArchiveObjects(document, "Wiki Source", {
           ...(firstPage.nextCursor === null
             ? {}
             : { cursor: firstPage.nextCursor }),
@@ -298,7 +298,7 @@ describe("archive/query/archive-view/graph search", () => {
           limit: 1,
           types: ["entity"],
         });
-        const secondPage = await findArchiveObjects(document, "ignored", {
+        const secondPage = await findArchiveObjects(document, "Wiki Source", {
           ...(firstPage.nextCursor === null
             ? {}
             : { cursor: firstPage.nextCursor }),
@@ -306,7 +306,7 @@ describe("archive/query/archive-view/graph search", () => {
         });
 
         await expect(
-          findArchiveObjects(document, "ignored", {
+          findArchiveObjects(document, "Wiki Source", {
             ...(firstPage.nextCursor === null
               ? {}
               : { cursor: firstPage.nextCursor }),

@@ -22,14 +22,19 @@ import {
   createFindResult,
   createPhraseSearch,
   createRankedFindResult,
+  decodeFindCursor,
   isFindCursor,
   parseFindLens,
   parseFindMatch,
   parseFindTypes,
   readArchiveMetaForQuery,
+  decodeTextSearchCursor,
+  encodeTextSearchCursor,
+  isTextSearchCursor,
 } from "../helpers.js";
 import { isArchiveSearchIndexCurrent } from "../index-state.js";
 import {
+  assertSearchCursorContextMatch,
   assertSearchCursorTypesMatch,
   createEntitySearchCacheInput,
   createSentenceEvidenceSearchCacheInput,
@@ -67,16 +72,17 @@ export async function findArchiveObjects(
   options: ArchiveFindOptions = {},
 ): Promise<ArchiveFindResult> {
   const limit = options.limit ?? DEFAULT_FIND_LIMIT;
-  const textOnlySearch = isTextOnlySearch(options);
-
+  const textCursor = decodeTextSearchCursor(options.cursor);
+  const textOnlySearch = textCursor !== undefined || isTextOnlySearch(options);
   if (
     options.cursor !== undefined &&
-    (!textOnlySearch || !isFindCursor(options.cursor))
+    (!textOnlySearch ||
+      (!isFindCursor(options.cursor) && !isTextSearchCursor(options.cursor)))
   ) {
     const bucketCursor = tryDecodeBucketSearchSessionCursor(options.cursor);
 
     if (bucketCursor !== undefined) {
-      return await readBucketedSearchResultPage(document, bucketCursor, {
+      return await readBucketedSearchResultPage(document, query, bucketCursor, {
         ...options,
         limit,
       });
@@ -88,6 +94,7 @@ export async function findArchiveObjects(
       options.archiveKey ?? "archive",
     );
 
+    assertSearchCursorContextMatch(query, options, descriptor);
     assertSearchCursorTypesMatch(options.types, descriptor.types);
 
     const page = isEntitySearchTypes(descriptor.types)
@@ -120,7 +127,7 @@ export async function findArchiveObjects(
         limit,
         match: parseFindMatch(page.match),
         nextCursor: page.nextCursor,
-        order: options.order ?? "doc-asc",
+        order: descriptor.order,
         query: page.query,
         terms: page.terms,
         types: parseFindTypes(descriptor.types),
@@ -271,6 +278,7 @@ export async function findArchiveObjects(
 
     return await readBucketedSearchResultPage(
       document,
+      query,
       {
         createdAt: descriptor.createdAt,
         cursor: { bucket: 0 },
@@ -409,14 +417,100 @@ async function findTextOnlyArchiveObjectsIndexed(
   options: ArchiveFindOptions,
   search: LexicalQuery,
 ): Promise<ArchiveFindResult> {
-  const indexed = await findArchiveObjectsIndexed(document, query, options);
-  const hits = indexed?.hits ?? [];
-  const result = createFindResult(
+  const cursor = decodeTextSearchCursor(options.cursor);
+  if (cursor !== undefined) {
+    if (cursor.query !== query) {
+      throw new Error("Search cursor does not match the requested query.");
+    }
+    if (
+      options.queryMode !== undefined &&
+      options.queryMode !== cursor.queryMode
+    ) {
+      throw new Error("Search cursor does not match the requested query mode.");
+    }
+    if (
+      (options.archiveKey ?? "archive") !== (cursor.archiveKey ?? "archive")
+    ) {
+      throw new Error("Search cursor does not match the requested archive.");
+    }
+    if (options.match !== undefined && options.match !== cursor.match) {
+      throw new Error("Search cursor does not match the requested match mode.");
+    }
+    if (options.order !== undefined && options.order !== cursor.order) {
+      throw new Error("Search cursor does not match the requested order.");
+    }
+    if (
+      options.chapters !== undefined &&
+      JSON.stringify(
+        [...(options.chapters.length === 0 ? [] : options.chapters)].sort(
+          compareNumbers,
+        ),
+      ) !== JSON.stringify([...(cursor.chapters ?? [])].sort(compareNumbers))
+    ) {
+      throw new Error(
+        "Search cursor does not match the requested chapter scope.",
+      );
+    }
+    if (
+      options.types !== undefined &&
+      JSON.stringify([...options.types].sort()) !==
+        JSON.stringify([...(cursor.types ?? [])].sort())
+    ) {
+      throw new Error(
+        "Search cursor does not match the requested result types.",
+      );
+    }
+  }
+  const { cursor: _cursor, ...optionsWithoutCursor } = options;
+  const effectiveOptions: ArchiveFindOptions =
+    cursor === undefined
+      ? optionsWithoutCursor
+      : {
+          ...optionsWithoutCursor,
+          ...(options.chapters !== undefined || cursor.chapters === null
+            ? {}
+            : { chapters: cursor.chapters }),
+          match: options.match ?? cursor.match,
+          order: options.order ?? cursor.order,
+          queryMode: options.queryMode ?? cursor.queryMode,
+          ...(options.types !== undefined || cursor.types === null
+            ? {}
+            : { types: cursor.types }),
+        };
+  const indexed = await findArchiveObjectsIndexed(
+    document,
     query,
-    filterLexicalHitsByMatch(hits, search, options.match ?? "any"),
-    options,
+    effectiveOptions,
+  );
+  const hits = indexed?.hits ?? [];
+  const ranked = createRankedFindResult(
+    query,
+    filterLexicalHitsByMatch(hits, search, effectiveOptions.match ?? "any"),
+    effectiveOptions,
     indexed?.result.terms ?? search.terms,
   );
+  const start = cursor?.offset ?? decodeFindCursor(options.cursor);
+  const items = ranked.items.slice(start, start + ranked.limit);
+  const nextOffset = start + items.length;
+  const result: ArchiveFindResult = {
+    ...ranked,
+    items,
+    nextCursor:
+      nextOffset < ranked.items.length
+        ? encodeTextSearchCursor({
+            ...(effectiveOptions.archiveKey === undefined
+              ? {}
+              : { archiveKey: effectiveOptions.archiveKey }),
+            chapters: ranked.chapters,
+            match: ranked.match,
+            offset: nextOffset,
+            order: ranked.order,
+            query: ranked.query,
+            queryMode: effectiveOptions.queryMode ?? "hybrid",
+            types: ranked.types,
+          })
+        : null,
+  };
 
   return {
     ...result,

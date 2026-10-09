@@ -105,6 +105,7 @@ export interface SearchSessionDescriptor {
   readonly createdAt: number;
   readonly lens: string;
   readonly match: string;
+  readonly order: "doc-asc" | "doc-desc";
   readonly objectCachesPopulated: boolean;
   readonly query: string;
   readonly queryMode: SearchIndexQueryMode;

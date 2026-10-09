@@ -33,6 +33,8 @@ export {
   formatSourceLocatorFragment,
   formatWikiGraphCommandUri,
   formatWikiGraphLibraryUri,
+  isWikiGraphJobUri,
+  isWikiGraphUri,
   isSourceLocatorScopeUri,
   isWikiGraphLibraryUri,
   parseChapterPath,
@@ -43,6 +45,9 @@ export {
   parseSourceLocatorFragment,
   parseWikiGraphLibraryUri,
   parseWikiGraphUriSyntax,
+  requireArchiveUri,
+  requireLocatedObjectOrArchiveUri,
+  requireLocatedObjectUri,
 } from "wiki-graph-core";
 export type {
   ArchiveBacklinkBucket,
@@ -76,6 +81,7 @@ export type {
   IndexArtifactKind,
   LocatedWikiGraphUri,
   ParsedWikiGraphLibraryUri,
+  ParsedWikiGraphUri,
   QueryIndexScope,
   SearchIndexEmbeddingProvider,
   SearchIndexQueryMode,

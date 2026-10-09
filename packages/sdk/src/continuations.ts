@@ -55,6 +55,7 @@ export interface WikiGraphContinuationContext {
   readonly ids?: readonly string[];
   readonly indexScope: QueryIndexScope;
   readonly libraryQuery?: "archive-members" | "objects";
+  readonly match?: "all" | "any";
   readonly order?: "doc-asc" | "doc-desc";
   readonly query?: string;
   readonly queryMode?: SearchIndexQueryMode;
@@ -388,6 +389,8 @@ async function createFindOptions(
       ? {}
       : { evidenceLimit: cursor.evidenceLimit }),
     limit,
+    ...(cursor.match === undefined ? {} : { match: cursor.match }),
+    ...(cursor.order === undefined ? {} : { order: cursor.order }),
     ...(cursor.queryMode === undefined ? {} : { queryMode: cursor.queryMode }),
     ...(cursor.skipUnindexed === undefined
       ? {}
@@ -543,6 +546,8 @@ function createContinuationPayload(
         indexScope: context.indexScope,
         kind: "search",
         ...createLibraryQueryPayload(context),
+        ...(context.match === undefined ? {} : { match: context.match }),
+        ...(context.order === undefined ? {} : { order: context.order }),
         ...(context.query === undefined ? {} : { query: context.query }),
         ...(context.queryMode === undefined
           ? {}
