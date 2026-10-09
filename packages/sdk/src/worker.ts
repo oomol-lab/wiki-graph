@@ -11,12 +11,8 @@ import {
 } from "wiki-graph-core";
 import type { ChapterJobKind } from "wiki-graph-job";
 
-import {
-  ensureNodeWikiGraphPlatform,
-  NodeFile,
-  installNodeWikiGraphPlatform,
-  withNodeWikiGraphStorage,
-} from "./node-platform.js";
+import { NodeFile } from "./node-platform.js";
+import { withWikiGraphSDKHost, type WikiGraphSDKHost } from "./host.js";
 import {
   resolveWikiGraphArchiveLocation,
   type WikiGraphArchiveTarget,
@@ -57,21 +53,24 @@ export interface WikiGraphJobSnapshotResult extends WikiGraphJobSnapshotInput {
 }
 
 export interface ExtractWikiGraphJobSnapshotsOptions {
+  readonly host?: WikiGraphSDKHost;
   readonly onSnapshot?: (
     snapshot: WikiGraphJobSnapshotResult,
   ) => void | Promise<void>;
   readonly requests: readonly WikiGraphJobSnapshotInput[];
   readonly signal?: AbortSignal;
-  readonly stateDir: string;
+  readonly stateDir?: string;
   readonly wikgPath: string;
 }
 
 export async function extractWikiGraphJobSnapshots(
   options: ExtractWikiGraphJobSnapshotsOptions,
 ): Promise<readonly WikiGraphJobSnapshotResult[]> {
-  ensureNodeWikiGraphPlatform();
-  return await withNodeWikiGraphStorage(
-    options.stateDir,
+  return await withWikiGraphSDKHost(
+    {
+      ...(options.host === undefined ? {} : { host: options.host }),
+      ...(options.stateDir === undefined ? {} : { stateDir: options.stateDir }),
+    },
     async () =>
       await new WikiGraphArchiveFile(
         new NodeFile(options.wikgPath),
@@ -103,43 +102,50 @@ export async function extractWikiGraphJobSnapshots(
 export interface ApplyWikiGraphJobArtifactsOptions {
   readonly archive: WikiGraphArchiveTarget;
   readonly artifacts: AsyncIterable<WikiGraphJobArtifactInput>;
+  readonly host?: WikiGraphSDKHost;
   readonly signal?: AbortSignal;
-  readonly stateDir: string;
+  readonly stateDir?: string;
 }
 
 export async function applyWikiGraphJobArtifacts(
   options: ApplyWikiGraphJobArtifactsOptions,
 ): Promise<{ readonly applied: number }> {
-  ensureNodeWikiGraphPlatform();
-  return await withNodeWikiGraphStorage(options.stateDir, async () => {
-    const location = await resolveWikiGraphArchiveLocation(options.archive);
-    let applied = 0;
-    await writeWikiGraphArchiveLocation(
-      location,
-      async (document) => {
-        for await (const artifact of options.artifacts) {
-          options.signal?.throwIfAborted();
-          const revision = await document.serials.getRevision(
-            artifact.chapterId,
-          );
-          await applyChapterJobArtifactFile(
-            document,
-            artifact.chapterId,
-            artifact.kind,
-            revision,
-            new NodeFile(artifact.artifactPath),
-          );
-          applied += 1;
-        }
-      },
-      { invalidateContinuationCursors: true },
-    );
-    options.signal?.throwIfAborted();
-    return { applied };
-  });
+  return await withWikiGraphSDKHost(
+    {
+      ...(options.host === undefined ? {} : { host: options.host }),
+      ...(options.stateDir === undefined ? {} : { stateDir: options.stateDir }),
+    },
+    async () => {
+      const location = await resolveWikiGraphArchiveLocation(options.archive);
+      let applied = 0;
+      await writeWikiGraphArchiveLocation(
+        location,
+        async (document) => {
+          for await (const artifact of options.artifacts) {
+            options.signal?.throwIfAborted();
+            const revision = await document.serials.getRevision(
+              artifact.chapterId,
+            );
+            await applyChapterJobArtifactFile(
+              document,
+              artifact.chapterId,
+              artifact.kind,
+              revision,
+              new NodeFile(artifact.artifactPath),
+            );
+            applied += 1;
+          }
+        },
+        { invalidateContinuationCursors: true },
+      );
+      options.signal?.throwIfAborted();
+      return { applied };
+    },
+  );
 }
 
 export interface WikiGraphBuildJobWorkerOptions extends CoreBuildJobWorkerOptions {
+  readonly host?: WikiGraphSDKHost;
   /** Wiki Graph state root. Defaults to `~/.wikigraph`. */
   readonly stateDir?: string;
 }
@@ -148,10 +154,12 @@ export interface WikiGraphBuildJobWorkerOptions extends CoreBuildJobWorkerOption
 export async function runBuildJobWorker(
   options: WikiGraphBuildJobWorkerOptions,
 ): Promise<void> {
-  installNodeWikiGraphPlatform();
-  const { stateDir, ...coreOptions } = options;
-  await withNodeWikiGraphStorage(
-    stateDir,
+  const { host, stateDir, ...coreOptions } = options;
+  await withWikiGraphSDKHost(
+    {
+      ...(host === undefined ? {} : { host }),
+      ...(stateDir === undefined ? {} : { stateDir }),
+    },
     async () => await runCoreBuildJobWorker(coreOptions),
   );
 }

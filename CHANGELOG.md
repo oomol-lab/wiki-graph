@@ -4,6 +4,7 @@
 
 - Expose the SDK host, search-mode, source-locator, URI, and storage types needed by Node and Electron hosts without importing `wiki-graph-core` directly.
 - Add SDK archive search-session clearing and preserve callback-scoped managed archive reads.
+- Add an SDK host boundary for custom Node lifecycle identity and independently rooted library and document storage.
 - Fix FTS keyset pagination when a dense index is present but the query explicitly uses `fts`; hybrid cursors remain applied after RRF fusion.
 - Add real-index pagination coverage for FTS, embedding, and hybrid queries.
 

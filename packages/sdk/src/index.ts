@@ -6,6 +6,7 @@ export * from "./default-worker.js";
 export * from "./entry-context.js";
 export * from "./embedding.js";
 export * from "./jobs.js";
+export type { WikiGraphSDKHost } from "./host.js";
 export * from "./libraries.js";
 export * from "./local-config.js";
 export * from "./llm.js";

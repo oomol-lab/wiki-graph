@@ -6,7 +6,7 @@ import { readChapterJobInput } from "wiki-graph-job";
 import { WikiGraphArchiveFile } from "wiki-graph-core";
 import { afterEach, describe, expect, it } from "vitest";
 
-import { NodeFile } from "./node-platform.js";
+import { createNodeWikiGraphStorage, NodeFile } from "./node-platform.js";
 import { createWikiGraphSDK } from "./sdk.js";
 import {
   applyWikiGraphJobArtifacts,
@@ -139,7 +139,12 @@ describe("Wiki Graph job artifact delivery", () => {
           kind: "index-fts" as const,
         };
       })(),
-      stateDir: join(root, "apply-state"),
+      host: {
+        storage: createNodeWikiGraphStorage({
+          documentStoreRoot: join(root, "apply-documents"),
+          libraryRoot: join(root, "apply-home"),
+        }),
+      },
     });
 
     expect(result).toEqual({ applied: 2 });
