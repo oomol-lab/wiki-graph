@@ -37,6 +37,7 @@ import {
   parseFindTypes,
 } from "../helpers.js";
 import {
+  assertSearchCursorContextMatch,
   assertSearchCursorTypesMatch,
   createEntitySearchCacheInput,
   createSentenceEvidenceSearchCacheInput,
@@ -75,6 +76,7 @@ import type {
 
 export async function readBucketedSearchResultPage(
   document: ReadonlyDocument,
+  query: string,
   cursor: {
     readonly createdAt: number;
     readonly cursor: BucketSearchCursor;
@@ -89,6 +91,7 @@ export async function readBucketedSearchResultPage(
   );
 
   assertSearchCursorTypesMatch(options.types, session.types);
+  assertSearchCursorContextMatch(query, options, session);
 
   const items: ArchiveFindHit[] = [];
   let bucketCursor: BucketSearchCursor | undefined = cursor.cursor;
@@ -128,7 +131,7 @@ export async function readBucketedSearchResultPage(
               bucketCursor,
               session.createdAt,
             ),
-      order: options.order ?? "doc-asc",
+      order: session.order,
       query: session.query,
       terms: session.terms,
       types: parseFindTypes(session.types),

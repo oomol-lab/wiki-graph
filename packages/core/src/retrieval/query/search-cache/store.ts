@@ -40,6 +40,7 @@ export async function readSearchSessionMetadata(
   readonly match: string;
   readonly options: {
     readonly chapters: readonly number[] | null;
+    readonly order: "doc-asc" | "doc-desc";
     readonly queryMode: import("../../search-index/index.js").SearchIndexQueryMode;
     readonly types: readonly string[] | null;
   };

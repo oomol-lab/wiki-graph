@@ -18,7 +18,10 @@ import {
   hydrateCachedChunkBucketHit,
   hydrateCachedObjectBucketHit,
 } from "../retrieval/query/archive-view/search/bucket-hydration.js";
-import { createSentenceEvidenceSearchCacheInput } from "../retrieval/query/archive-view/search/cache-input.js";
+import {
+  assertSearchCursorContextMatch,
+  createSentenceEvidenceSearchCacheInput,
+} from "../retrieval/query/archive-view/search/cache-input.js";
 import { hydrateSearchIndexHits } from "../retrieval/query/archive-view/search/hydration.js";
 import { tryDecodeBucketSearchSessionCursor } from "../retrieval/query/archive-view/search/buckets.js";
 import {
@@ -91,7 +94,7 @@ export async function findWikiGraphLibraryObjectsBucketed(
     if (cursor === undefined) {
       throw new Error("Invalid search cursor.");
     }
-    return await readLibraryBucketedSearchResultPage(target, cursor, {
+    return await readLibraryBucketedSearchResultPage(target, query, cursor, {
       ...options,
       limit,
     });
@@ -140,6 +143,7 @@ export async function findWikiGraphLibraryObjectsBucketed(
 
   return await readLibraryBucketedSearchResultPage(
     target,
+    query,
     {
       createdAt: descriptor.createdAt,
       cursor: { bucket: 0 },
@@ -151,6 +155,7 @@ export async function findWikiGraphLibraryObjectsBucketed(
 
 async function readLibraryBucketedSearchResultPage(
   target: ParsedWikiGraphLibraryUri,
+  query: string,
   cursor: {
     readonly createdAt: number;
     readonly cursor: BucketSearchCursor;
@@ -166,6 +171,7 @@ async function readLibraryBucketedSearchResultPage(
   );
 
   assertLibrarySearchCursorTypesMatch(options.types, session.types);
+  assertSearchCursorContextMatch(query, options, session);
 
   const items: ArchiveFindHit[] = [];
   let bucketCursor: BucketSearchCursor | undefined = cursor.cursor;
@@ -199,7 +205,7 @@ async function readLibraryBucketedSearchResultPage(
             bucketCursor,
             session.createdAt,
           ),
-    order: options.order ?? "doc-asc",
+    order: session.order,
     query: session.query,
     terms: session.terms,
     types: session.types as ArchiveFindResult["types"],

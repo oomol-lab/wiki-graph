@@ -8,6 +8,7 @@ import type {
   SearchChunkHitInput,
   SearchEntityHitInput,
   SearchEvidenceHitEventInput,
+  SearchSessionDescriptor,
   SearchTripleHitInput,
 } from "../../search-cache/types.js";
 import {
@@ -46,6 +47,49 @@ export function assertSearchCursorTypesMatch(
   if (requestedTypes.some((type) => !sessionTypeSet.has(type))) {
     throw new Error("Search cursor does not match the requested result types.");
   }
+}
+
+export function assertSearchCursorContextMatch(
+  query: string,
+  options: ArchiveFindOptions,
+  session: Pick<
+    SearchSessionDescriptor,
+    "chapters" | "match" | "order" | "query" | "queryMode"
+  >,
+): void {
+  if (query !== session.query) {
+    throw new Error("Search cursor does not match the requested query.");
+  }
+  if (
+    options.queryMode !== undefined &&
+    options.queryMode !== session.queryMode
+  ) {
+    throw new Error("Search cursor does not match the requested query mode.");
+  }
+  if (
+    options.chapters !== undefined &&
+    !sameNumberSet(options.chapters, session.chapters)
+  ) {
+    throw new Error(
+      "Search cursor does not match the requested chapter scope.",
+    );
+  }
+  if (options.match !== undefined && options.match !== session.match) {
+    throw new Error("Search cursor does not match the requested match mode.");
+  }
+  if (options.order !== undefined && options.order !== session.order) {
+    throw new Error("Search cursor does not match the requested order.");
+  }
+}
+
+function sameNumberSet(
+  requested: readonly number[],
+  session: readonly number[] | null,
+): boolean {
+  if (requested.length === 0 && session === null) return true;
+  if (session === null || requested.length !== session.length) return false;
+  const expected = new Set(session);
+  return requested.every((chapter) => expected.has(chapter));
 }
 
 export function createEntitySearchCacheInput(

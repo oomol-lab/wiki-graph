@@ -9,6 +9,18 @@ import type {
   ArchiveFindMatch,
   ArchiveFindObjectType,
 } from "../types.js";
+import type { SearchIndexQueryMode } from "../../../search-index/index.js";
+
+export interface TextSearchCursorContext {
+  readonly archiveKey?: string;
+  readonly chapters: readonly number[] | null;
+  readonly match: ArchiveFindMatch;
+  readonly offset: number;
+  readonly order: "doc-asc" | "doc-desc";
+  readonly query: string;
+  readonly queryMode: SearchIndexQueryMode;
+  readonly types: readonly ArchiveFindFilterType[] | null;
+}
 
 export function createSearchTerms(query: string): readonly string[] {
   return query
@@ -18,9 +30,7 @@ export function createSearchTerms(query: string): readonly string[] {
     .filter((term) => term !== "");
 }
 
-export function isFindFilterType(
-  type: ArchiveFindObjectType,
-): type is ArchiveFindFilterType {
+export function isFindFilterType(type: string): type is ArchiveFindFilterType {
   return (
     type === "archive" ||
     type === "archive-title" ||
@@ -136,4 +146,64 @@ export function isFindCursor(cursor: string): boolean {
   } catch {
     return false;
   }
+}
+
+export function encodeTextSearchCursor(
+  context: Omit<TextSearchCursorContext, "offset"> & {
+    readonly offset: number;
+  },
+): string {
+  return encodeBase64UrlText(JSON.stringify({ ...context, v: 2 }));
+}
+
+export function decodeTextSearchCursor(
+  cursor: string | undefined,
+): TextSearchCursorContext | undefined {
+  if (cursor === undefined) return undefined;
+  try {
+    const parsed: unknown = JSON.parse(decodeBase64UrlText(cursor));
+    if (
+      typeof parsed !== "object" ||
+      parsed === null ||
+      !("v" in parsed) ||
+      parsed.v !== 2 ||
+      !("offset" in parsed) ||
+      typeof parsed.offset !== "number" ||
+      !Number.isInteger(parsed.offset) ||
+      parsed.offset < 0 ||
+      ("archiveKey" in parsed && typeof parsed.archiveKey !== "string") ||
+      !("chapters" in parsed) ||
+      (parsed.chapters !== null &&
+        (!Array.isArray(parsed.chapters) ||
+          !parsed.chapters.every(
+            (chapter) =>
+              typeof chapter === "number" && Number.isInteger(chapter),
+          ))) ||
+      !("match" in parsed) ||
+      (parsed.match !== "all" && parsed.match !== "any") ||
+      !("order" in parsed) ||
+      (parsed.order !== "doc-asc" && parsed.order !== "doc-desc") ||
+      !("query" in parsed) ||
+      typeof parsed.query !== "string" ||
+      !("queryMode" in parsed) ||
+      (parsed.queryMode !== "fts" &&
+        parsed.queryMode !== "embedding" &&
+        parsed.queryMode !== "hybrid") ||
+      !("types" in parsed) ||
+      (parsed.types !== null &&
+        (!Array.isArray(parsed.types) ||
+          !parsed.types.every(
+            (type) => typeof type === "string" && isFindFilterType(type),
+          )))
+    ) {
+      return undefined;
+    }
+    return parsed as TextSearchCursorContext;
+  } catch {
+    return undefined;
+  }
+}
+
+export function isTextSearchCursor(cursor: string | undefined): boolean {
+  return decodeTextSearchCursor(cursor) !== undefined;
 }

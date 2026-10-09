@@ -138,10 +138,19 @@ describe("WikiGraphContinuationManager library dispatch", () => {
       expect(query).toHaveBeenCalledWith(
         expect.anything(),
         "book",
-        expect.objectContaining({ queryMode: "fts" }),
+        expect.objectContaining({
+          match: "all",
+          order: "doc-desc",
+          queryMode: "fts",
+        }),
       );
       expect(mocks.createCursor).toHaveBeenCalledWith(
-        expect.objectContaining({ libraryQuery, queryMode: "fts" }),
+        expect.objectContaining({
+          libraryQuery,
+          match: "all",
+          order: "doc-desc",
+          queryMode: "fts",
+        }),
       );
     },
   );
@@ -168,7 +177,14 @@ function createLibraryCursor(
         kind,
         order: "doc-asc",
       }
-    : { ...base, kind, query: "book", queryMode: "fts" };
+    : {
+        ...base,
+        kind,
+        match: "all",
+        order: "doc-desc",
+        query: "book",
+        queryMode: "fts",
+      };
 }
 
 function createCollectionResult(

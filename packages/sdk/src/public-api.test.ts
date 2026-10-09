@@ -3,7 +3,12 @@ import { describe, expect, it } from "vitest";
 import {
   formatSourceArtifactUri,
   formatSourceLocatorFragment,
+  isWikiGraphJobUri,
+  isWikiGraphUri,
   parseSourceLocatorFragment,
+  requireArchiveUri,
+  requireLocatedObjectOrArchiveUri,
+  requireLocatedObjectUri,
   type Directory,
   type File,
   type ParsedSourceLocatorFragment,
@@ -34,5 +39,25 @@ describe("SDK public API", () => {
 
     expect(mode).toBe("hybrid");
     expect(resources).toBeUndefined();
+  });
+
+  it("exports URI guards without a Core import", () => {
+    expect(isWikiGraphUri("wikg://chapter/1")).toBe(true);
+    expect(isWikiGraphJobUri("wikg://local/job/example")).toBe(true);
+    expect(requireArchiveUri("wikg:///tmp/example.wikg")).toBe(
+      "/tmp/example.wikg",
+    );
+    expect(
+      requireLocatedObjectOrArchiveUri("wikg:///tmp/example.wikg/chapter/1"),
+    ).toStrictEqual({
+      archivePath: "/tmp/example.wikg",
+      objectUri: "wikg://chapter/1",
+    });
+    expect(
+      requireLocatedObjectUri("wikg:///tmp/example.wikg/chapter/1"),
+    ).toStrictEqual({
+      archivePath: "/tmp/example.wikg",
+      objectUri: "wikg://chapter/1",
+    });
   });
 });

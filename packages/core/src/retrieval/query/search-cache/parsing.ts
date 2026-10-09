@@ -12,6 +12,7 @@ export function parseSearchResultItem(value: string): ArchiveFindHit {
 
 export function parseSessionOptions(value: string): {
   readonly chapters: readonly number[] | null;
+  readonly order: "doc-asc" | "doc-desc";
   readonly queryMode: import("../../search-index/index.js").SearchIndexQueryMode;
   readonly types: readonly string[] | null;
 } {
@@ -38,6 +39,11 @@ export function parseSessionOptions(value: string): {
           parsed.queryMode === "hybrid")
           ? parsed.queryMode
           : "hybrid",
+      order:
+        "order" in parsed &&
+        (parsed.order === "doc-asc" || parsed.order === "doc-desc")
+          ? parsed.order
+          : "doc-asc",
       types: parsed.types,
     };
   }

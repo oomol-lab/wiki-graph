@@ -49,6 +49,8 @@ export function createCursorPayload(input: ContinuationCursor): object {
         ...(input.libraryQuery === undefined
           ? {}
           : { libraryQuery: input.libraryQuery }),
+        ...(input.match === undefined ? {} : { match: input.match }),
+        ...(input.order === undefined ? {} : { order: input.order }),
         ...(input.query === undefined ? {} : { query: input.query }),
         ...(input.queryMode === undefined
           ? {}
@@ -164,6 +166,8 @@ export function parseContinuationCursorRecord(record: {
       indexScope,
       kind: "search",
       ...getPayloadOptionalLibraryQuery(payload),
+      ...getPayloadOptionalMatch(payload),
+      ...getPayloadOptionalOrder(payload),
       ...getPayloadOptionalString(payload, "query"),
       ...getPayloadOptionalQueryMode(payload),
       ...getPayloadOptionalBoolean(payload, "skipUnindexed"),
@@ -297,6 +301,24 @@ function getPayloadOptionalQueryMode(
     return { queryMode: value };
   }
   throw new Error("Invalid continuation cursor query mode.");
+}
+
+function getPayloadOptionalMatch(payload: Readonly<Record<string, unknown>>): {
+  readonly match?: "all" | "any";
+} {
+  const value = payload.match;
+  if (value === undefined) return {};
+  if (value === "all" || value === "any") return { match: value };
+  throw new Error("Invalid continuation cursor match mode.");
+}
+
+function getPayloadOptionalOrder(payload: Readonly<Record<string, unknown>>): {
+  readonly order?: "doc-asc" | "doc-desc";
+} {
+  const value = payload.order;
+  if (value === undefined) return {};
+  if (value === "doc-asc" || value === "doc-desc") return { order: value };
+  throw new Error("Invalid continuation cursor order.");
 }
 
 function getPayloadStringArrayOrNull(

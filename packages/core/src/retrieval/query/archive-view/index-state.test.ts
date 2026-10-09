@@ -132,7 +132,12 @@ describe("archive search index state", () => {
           "indexing",
           first.nextCursor === null
             ? { ...options, limit: 2 }
-            : { ...options, cursor: first.nextCursor, limit: 2 },
+            : {
+                archiveKey: options.archiveKey,
+                cursor: first.nextCursor,
+                embeddingProvider: provider,
+                limit: 2,
+              },
         );
 
         expect(first.items).toHaveLength(2);
@@ -143,6 +148,79 @@ describe("archive search index state", () => {
       });
     },
   );
+
+  it("rejects a cursor reused with a different search context", async () => {
+    await withTempDocument(async (document) => {
+      await writeSourceChapters(document, ["First", "Second", "Third"]);
+      const provider = createFakeEmbeddingProvider();
+      for (const serialId of [1, 2, 3]) {
+        await replaceChapterFtsIndexArtifact(document, serialId);
+        await replaceChapterSourceEmbeddingIndexArtifact(
+          document,
+          serialId,
+          provider,
+        );
+      }
+      await rebuildArchiveSearchIndex(document);
+
+      const first = await findArchiveObjects(document, "indexing", {
+        archiveKey: "cursor-context",
+        embeddingProvider: provider,
+        limit: 1,
+        match: "any",
+        order: "doc-asc",
+        queryMode: "hybrid",
+        types: ["source"],
+      });
+      expect(first.nextCursor).not.toBeNull();
+
+      await expect(
+        findArchiveObjects(document, "different query", {
+          archiveKey: "cursor-context",
+          cursor: first.nextCursor!,
+          embeddingProvider: provider,
+          match: "any",
+          order: "doc-asc",
+          queryMode: "hybrid",
+          types: ["source"],
+        }),
+      ).rejects.toThrow("requested query");
+
+      await expect(
+        findArchiveObjects(document, "indexing", {
+          archiveKey: "cursor-context",
+          cursor: first.nextCursor!,
+          embeddingProvider: provider,
+          match: "any",
+          order: "doc-asc",
+          queryMode: "fts",
+          types: ["source"],
+        }),
+      ).rejects.toThrow("requested query mode");
+
+      const contextChanges = [
+        ["match", "all", "requested match mode"],
+        ["order", "doc-desc", "requested order"],
+        ["chapters", [3], "requested chapter scope"],
+        ["types", ["summary"], "requested result types"],
+      ] as const;
+      for (const [key, value, message] of contextChanges) {
+        const changedOptions = {
+          archiveKey: "cursor-context",
+          cursor: first.nextCursor!,
+          embeddingProvider: provider,
+          match: "any" as const,
+          order: "doc-asc" as const,
+          queryMode: "hybrid" as const,
+          types: ["source"] as const,
+        };
+        Object.assign(changedOptions, { [key]: value });
+        await expect(
+          findArchiveObjects(document, "indexing", changedOptions),
+        ).rejects.toThrow(message);
+      }
+    });
+  });
 
   it("indexes archive titles only in lexical query modes", async () => {
     await withTempDocument(async (document) => {

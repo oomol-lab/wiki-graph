@@ -50,6 +50,8 @@ export type ContinuationCursor =
       readonly format: "json" | "jsonl" | "text";
       readonly kind: "search";
       readonly libraryQuery?: "archive-members" | "objects";
+      readonly match?: "all" | "any";
+      readonly order?: "doc-asc" | "doc-desc";
       readonly query?: string;
       readonly skipUnindexed?: boolean;
       readonly sourceContext?: number;
