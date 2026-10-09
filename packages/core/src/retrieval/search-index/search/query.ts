@@ -132,7 +132,10 @@ export async function querySearchIndex(
           textHitLimit: hasDense
             ? SEARCH_INDEX_FTS_HIT_LIMIT
             : textHitRemaining,
-          ...(hasDense || options.textAfter === undefined
+          // FTS owns keyset pagination in FTS-only mode.  A dense index may
+          // exist in the cache without being used by this query; only a
+          // hybrid query must defer the cursor until after RRF fusion.
+          ...(usesDense || options.textAfter === undefined
             ? {}
             : { textAfter: options.textAfter }),
         };

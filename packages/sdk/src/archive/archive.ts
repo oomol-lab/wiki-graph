@@ -474,6 +474,16 @@ export class WikiGraphArchiveHandle {
     return status;
   }
 
+  /** Clear cached search sessions without changing the archive index. */
+  public async clearSearchSessions(
+    options: WikiGraphOperationOptions = {},
+  ): Promise<void> {
+    await this.#runtime.run(
+      async () => await deleteArchiveSearchSessions(this.path),
+      options.signal,
+    );
+  }
+
   public async listChapters(
     options: WikiGraphOperationOptions = {},
   ): Promise<readonly ChapterEntry[]> {

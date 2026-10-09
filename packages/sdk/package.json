@@ -1,6 +1,6 @@
 {
   "name": "wiki-graph-sdk",
-  "version": "0.8.1",
+  "version": "0.8.2",
   "description": "Node.js SDK for running Wiki Graph programmatically with local config, libraries, and jobs.",
   "keywords": [
     "wiki-graph",
