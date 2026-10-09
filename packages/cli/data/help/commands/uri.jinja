@@ -21,6 +21,7 @@ Use when:
   - You need the archive entry point before narrowing to chapters, chunks, entities, triples, source, or summaries.
 
 Common child targets:
+  - `{{ commandName }} {{ uri }}/title --help`: archive title object and title edits.
   - `{{ commandName }} {{ uri }}/chapter --help`: chapter tree, chapter paths, and chapter-scoped retrieval.
   - `{{ commandName }} {{ uri }}/index --help`: archive search index status and lifecycle.
   - `{{ commandName }} {{ uri }}/meta --help`: archive metadata.
@@ -197,6 +198,17 @@ Default behavior:
 
 Use when:
   - You need the current title or want to set or clear it.
+{% elif target.name == "archive-title-object" %}
+URI type:
+  Archive title object
+
+Default behavior:
+  - `{{ commandName }} {{ uri }}` reads the archive title.
+  - For a managed archive, use its library archive URI with `/title`; do not expose or substitute its filesystem path.
+  - Archive title objects are searchable through archive and library scopes when their corresponding FTS index is current.
+
+Use when:
+  - You need the current title or want to set or clear it for one archive.
 {% elif target.name == "chapter-tree-object" %}
 URI type:
   Chapter tree object

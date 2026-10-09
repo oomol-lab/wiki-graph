@@ -21,10 +21,13 @@ release:
 pnpm cli:install-local
 ```
 
-The script builds the workspace, packs the `packages/cli` package, then installs
-the generated `wiki-graph` tarball through `npm install --global --force`. After
-it finishes, `wg` and `wikigraph` resolve through the machine-level global
-installation.
+This builds and globally installs the CLI together with its local workspace
+package dependencies, so unpublished workspace versions are used consistently.
+
+The script builds the workspace, packs all five publishable workspace packages,
+then installs their tarballs together through `npm install --global --force`.
+After it finishes, `wg` and `wikigraph` resolve through the machine-level global
+installation without requiring unreleased package versions from the registry.
 
 This workflow is useful for:
 
@@ -32,10 +35,9 @@ This workflow is useful for:
 - checking package contents, `dist` output, shebangs, and `bin` entries;
 - testing how a normal user will experience the CLI after installation.
 
-This workflow previews the CLI package only. The installed package resolves its
-`wiki-graph-sdk` and `wiki-graph-core` runtime dependencies automatically.
-Applications should use `wiki-graph-sdk`, rather than the CLI runner, for typed
-programmatic access.
+This workflow previews the complete local CLI dependency graph. Applications
+should use `wiki-graph-sdk`, rather than the CLI runner, for typed programmatic
+access.
 
 It is not the default regression workflow for agents or parallel worktrees. A
 global install is shared by all shells and worktrees on the same machine, so one

@@ -40,10 +40,15 @@ Archive member collection
 
 Default behavior:
   - `{{ commandName }} {{ uri }}` reads the archive collection scope; use `/tree` for member file visualization.
+  - `{{ commandName }} {{ uri }} --query <query>` searches managed archive titles through the aggregate library index.
+  - Add `--query-mode hybrid|fts|embedding`; `hybrid` is the default and explicit single-index modes are strict.
+  - Query is strict by default; add `--skip-unindexed` only to intentionally search indexed archive titles while ignoring uncovered chapters.
   - `scan` reconciles `.wikg` files; `add` copies and registers one archive.
 
 Usage:
   {{ commandName }} {{ uri }} [--json]
+  {{ commandName }} {{ uri }} --query <query> [--query-mode <hybrid|fts|embedding>] [--limit <n>] [--cursor <cursor>] [--json]
+  {{ commandName }} {{ uri }} --query <query> --skip-unindexed
   {{ commandName }} {{ uri }} add --input <path> [--to <relative-wikg-path>] [--json]
   {{ commandName }} {{ uri }} scan [--json|--jsonl]
   {{ commandName }} {{ uri }}/tree [--parent <relative-path>] [--depth <n>] [--json]

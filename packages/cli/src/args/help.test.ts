@@ -35,6 +35,9 @@ describe("cli/args/help", () => {
     expect(archiveHelp).toContain(
       "wg 'wikg://~/Library'\\''s Books/The little prince.wikg'/chapter --help",
     );
+    expect(archiveHelp).toContain(
+      "wg 'wikg://~/Library'\\''s Books/The little prince.wikg'/title --help",
+    );
     expect(archiveHelp).not.toContain(`wg ${archiveUri}`);
     expect(sourceSetHelp).toContain(`Target:\n  ${sourceUri}`);
     expect(sourceSetHelp).toContain(
@@ -496,6 +499,10 @@ describe("cli/args/help", () => {
     expect(rootHelpText).toContain("wg help library");
     expect(rootHelpText).not.toContain("wg help file-import");
     expect(rootHelpText).not.toContain("wg help source-locators");
+    expect(uriHelpText).toContain("wikg://book.wikg/title");
+    expect(uriHelpText).toContain(
+      "<archive-uri>/title` is its queryable title object",
+    );
     expect(fileImportHelpText).toContain("Source Files and Provenance");
     expect(fileImportHelpText).toContain("source-text map");
     expect(fileImportHelpText).toContain("OCR, layout analysis");
@@ -1160,6 +1167,9 @@ describe("cli/args/help", () => {
     );
     expect(renderHelpTopicText("library")).toContain("wg wikg://lib/arc scan");
     expect(renderHelpTopicText("library")).toContain(
+      "wg wikg://lib/arc --query <archive-title>",
+    );
+    expect(renderHelpTopicText("library")).toContain(
       "wg wikg://lib/path set <existing-directory>",
     );
     expect(renderHelpTopicText("library")).not.toContain(".lib");
@@ -1207,6 +1217,24 @@ describe("cli/args/help", () => {
     );
     expect(archiveMemberHelp.helpText).toContain("inspect [--json]");
     expect(archiveMemberHelp.helpText).toContain("not the library registry");
+    const archiveCollectionHelp = renderLibraryUriHelpText("wikg://lib/arc", {
+      isDefault: true,
+      kind: "archive-collection",
+    });
+    expect(archiveCollectionHelp).toContain(
+      "searches managed archive titles through the aggregate library index",
+    );
+    expect(archiveCollectionHelp).toContain(
+      "--query-mode <hybrid|fts|embedding>",
+    );
+    expect(archiveCollectionHelp).toContain("--skip-unindexed");
+    const archiveTitleHelp = renderUriHelpText(
+      "archive-title-object",
+      "wikg:///tmp/book.wikg/title",
+    );
+    expect(archiveTitleHelp).toContain("Archive title object");
+    expect(archiveTitleHelp).toContain("reads the archive title");
+    expect(archiveTitleHelp).toContain("set or clear it");
     expect(archiveMemberInspectHelp.helpText).toContain(
       "URI Predicate Command",
     );

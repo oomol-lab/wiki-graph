@@ -172,15 +172,20 @@ async function findWikiGraphLibraryArchiveMembersUnlocked(
   query: string,
   options: ArchiveFindOptions,
 ): Promise<ArchiveFindResult> {
-  const terms = createLibraryArchiveMemberSearchTerms(query);
-  const hits =
-    options.queryMode === "embedding"
-      ? []
-      : (await listLibraryArchiveTitleHits(target)).filter((hit) =>
-          matchesLibraryArchiveMemberSearch(hit, terms),
-        );
+  const searchesArchiveTitles =
+    options.types === undefined ||
+    options.types.includes("archive") ||
+    options.types.includes("archive-title");
+  const result = await findWikiGraphLibraryObjectsBucketed(target, query, {
+    ...options,
+    types: searchesArchiveTitles ? ["archive-title"] : [],
+  });
 
-  return createFindResult(query, hits, options, terms, "typed");
+  return {
+    ...result,
+    items: result.items.map(qualifyLibraryArchiveTitleHit),
+    types: options.types ?? null,
+  };
 }
 
 function createLibraryQueryIndexHitLimit(options: ArchiveFindOptions): number {
@@ -189,29 +194,6 @@ function createLibraryQueryIndexHitLimit(options: ArchiveFindOptions): number {
       LIBRARY_QUERY_INDEX_LIMIT_MULTIPLIER,
     LIBRARY_QUERY_INDEX_MIN_LIMIT,
   );
-}
-
-function createLibraryArchiveMemberSearchTerms(
-  query: string,
-): readonly string[] {
-  return query
-    .trim()
-    .toLocaleLowerCase()
-    .split(/\s+/u)
-    .filter((term) => term !== "");
-}
-
-function matchesLibraryArchiveMemberSearch(
-  hit: ArchiveFindHit,
-  terms: readonly string[],
-): boolean {
-  if (terms.length === 0) {
-    return true;
-  }
-  const haystack =
-    `${hit.id}\n${hit.title}\n${hit.snippet}`.toLocaleLowerCase();
-
-  return terms.every((term) => haystack.includes(term));
 }
 
 function formatLibraryArchiveTitleHit(
@@ -227,6 +209,13 @@ function formatLibraryArchiveTitleHit(
     title,
     type: "archive-title",
   };
+}
+
+function qualifyLibraryArchiveTitleHit(hit: ArchiveFindHit): ArchiveFindHit {
+  if (hit.type !== "archive-title" || hit.libraryArchiveUri === undefined) {
+    return hit;
+  }
+  return { ...hit, id: `${hit.libraryArchiveUri}/title` };
 }
 
 async function listLibraryArchiveTitleHits(

@@ -10,7 +10,7 @@
     "build": "NODE_OPTIONS=--max-old-space-size=8192 pnpm -r --sort run build",
     "coverage:report": "node ./scripts/coverage-report.mjs",
     "cli:clean-dev-state": "rimraf .wikigraph",
-    "cli:install-local": "node ./scripts/install-local-cli.mjs",
+    "cli:install-local": "node ./scripts/install-local-cli.js",
     "cli:uninstall-local": "node ./scripts/uninstall-local-cli.mjs",
     "dev": "pnpm --filter wiki-graph dev",
     "fixtures:generate": "node ./scripts/generate-test-fixtures.mjs",

@@ -11,8 +11,20 @@ function createNpmEnv() {
   );
 }
 
-execFileSync("npm", ["uninstall", "--global", "wiki-graph"], {
-  cwd: workspaceRoot,
-  env: createNpmEnv(),
-  stdio: "inherit",
-});
+execFileSync(
+  "npm",
+  [
+    "uninstall",
+    "--global",
+    "wiki-graph",
+    "wiki-graph-sdk",
+    "wiki-graph-core",
+    "wiki-graph-job",
+    "wiki-graph-wikimedia",
+  ],
+  {
+    cwd: workspaceRoot,
+    env: createNpmEnv(),
+    stdio: "inherit",
+  },
+);

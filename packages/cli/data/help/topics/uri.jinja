@@ -106,6 +106,7 @@ Scope URIs:
 
 Object URIs:
   Object URIs read one object by default.
+    wikg://book.wikg/title
     wikg://book.wikg/chapter/part/title
     wikg://book.wikg/chapter/part/state
     wikg://book.wikg/chapter/part/source
@@ -132,6 +133,7 @@ Triple pattern scopes:
   A complete triple URI with concrete subject, predicate, and object is an object URI.
 
 Object boundaries:
+  - An archive URI is a scope; `<archive-uri>/title` is its queryable title object.
   - `chapter/<path>` is a scope, not an object.
   - `chapter/<path>/title` is the queryable chapter title object.
   - Whole `source` and `summary` objects are readable text streams, not collection scopes.
