@@ -3,7 +3,12 @@ import { tmpdir } from "os";
 import { join } from "path";
 import { afterEach, describe, expect, it } from "vitest";
 
-import { createWikiGraphSDK, NodeDirectory, WikiGraphSDK } from "./index.js";
+import {
+  createWikiGraphSDK,
+  NodeDirectory,
+  WikiGraphSDK,
+  type WikiGraphSDKHost,
+} from "./index.js";
 import {
   getWikiGraphPlatform,
   getWikiGraphStorage,
@@ -49,7 +54,9 @@ describe("WikiGraphSDK", () => {
       documentStoreRoot,
       libraryRoot,
     });
-    const sdk = createWikiGraphSDK({ host: { platform, storage } });
+    const sdk = createWikiGraphSDK({
+      host: { platform, stateDir: join(root, "state"), storage },
+    });
 
     try {
       const observed = await sdk.run(() => ({
@@ -71,15 +78,87 @@ describe("WikiGraphSDK", () => {
     }
   });
 
-  it("rejects ambiguous stateDir and host storage options", () => {
+  it("rejects ambiguous top-level stateDir and host options", () => {
     const storage = createNodeWikiGraphStorage("/tmp/wiki-graph-sdk-host");
 
     expect(() =>
       createWikiGraphSDK({
-        host: { storage },
+        host: { storage } as unknown as WikiGraphSDKHost,
+      }),
+    ).toThrow("host.storage requires host.stateDir");
+
+    expect(() =>
+      createWikiGraphSDK({
+        host: {
+          stateDir: "/tmp/wiki-graph-sdk-host-state",
+          storage,
+        },
         stateDir: "/tmp/wiki-graph-sdk-state",
       }),
-    ).toThrow("host.storage and stateDir cannot be used together");
+    ).toThrow("host state/storage and top-level stateDir");
+
+    expect(() =>
+      createWikiGraphSDK({
+        host: { stateDir: "/tmp/wiki-graph-sdk-host-state" },
+        stateDir: "/tmp/wiki-graph-sdk-state",
+      }),
+    ).toThrow("host state/storage and top-level stateDir");
+  });
+
+  it("isolates host configuration state from default and other hosts", async () => {
+    const root = await mkdtemp(join(tmpdir(), "wiki-graph-sdk-host-state-"));
+    tempDirectories.push(root);
+    const defaultState = join(root, "default-state");
+    const firstState = join(root, "first-state");
+    const secondState = join(root, "second-state");
+    const createHost = (name: string, stateDir: string) => ({
+      stateDir,
+      storage: createNodeWikiGraphStorage({
+        documentStoreRoot: join(root, name, "documents"),
+        libraryRoot: join(root, name, "home"),
+      }),
+    });
+    const fallback = createWikiGraphSDK({ stateDir: defaultState });
+    const first = createWikiGraphSDK({ host: createHost("first", firstState) });
+    const second = createWikiGraphSDK({
+      host: createHost("second", secondState),
+    });
+
+    try {
+      await fallback.config.replace("wikispine", { provider: "fetch" });
+
+      await expect(first.config.get("wikispine")).resolves.toEqual({});
+      await expect(second.config.get("wikispine")).resolves.toEqual({});
+      await first.config.replace("wikispine", { provider: "cli" });
+      await second.config.replace("wikispine", {
+        provider: "fetch",
+        token: "second-token",
+      });
+
+      await expect(first.config.get("wikispine")).resolves.toEqual({
+        provider: "cli",
+      });
+      await expect(second.config.get("wikispine")).resolves.toEqual({
+        provider: "fetch",
+        token: "second-token",
+      });
+      await expect(fallback.config.get("wikispine")).resolves.toEqual({
+        provider: "fetch",
+      });
+      await expect(
+        access(join(defaultState, "core.sqlite")),
+      ).resolves.toBeUndefined();
+      await expect(
+        access(join(firstState, "core.sqlite")),
+      ).resolves.toBeUndefined();
+      await expect(
+        access(join(secondState, "core.sqlite")),
+      ).resolves.toBeUndefined();
+    } finally {
+      fallback.close();
+      first.close();
+      second.close();
+    }
   });
 
   it("does not replace an installed host platform with the Node default", () => {

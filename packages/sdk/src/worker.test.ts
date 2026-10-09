@@ -7,6 +7,7 @@ import { WikiGraphArchiveFile } from "wiki-graph-core";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { createNodeWikiGraphStorage, NodeFile } from "./node-platform.js";
+import { getWikiGraphSDKStateDir } from "./runtime-context.js";
 import { createWikiGraphSDK } from "./sdk.js";
 import {
   applyWikiGraphJobArtifacts,
@@ -121,11 +122,13 @@ describe("Wiki Graph job artifact delivery", () => {
     await writeLexicalArtifact(firstArtifact, "alpha");
     await writeLexicalArtifact(secondArtifact, "beta");
     const yielded: number[] = [];
+    let observedStateDir: string | undefined;
 
     const result = await applyWikiGraphJobArtifacts({
       archive: { kind: "standalone", path: wikgPath },
       artifacts: (async function* () {
         await Promise.resolve();
+        observedStateDir = getWikiGraphSDKStateDir();
         yielded.push(first.chapterId);
         yield {
           artifactPath: firstArtifact,
@@ -140,6 +143,7 @@ describe("Wiki Graph job artifact delivery", () => {
         };
       })(),
       host: {
+        stateDir: join(root, "apply-state"),
         storage: createNodeWikiGraphStorage({
           documentStoreRoot: join(root, "apply-documents"),
           libraryRoot: join(root, "apply-home"),
@@ -149,6 +153,7 @@ describe("Wiki Graph job artifact delivery", () => {
 
     expect(result).toEqual({ applied: 2 });
     expect(yielded).toEqual([first.chapterId, second.chapterId]);
+    expect(observedStateDir).toBe(join(root, "apply-state"));
     await new WikiGraphArchiveFile(new NodeFile(wikgPath)).readDocument(
       async (document) => {
         expect(
