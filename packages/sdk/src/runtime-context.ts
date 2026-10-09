@@ -1,6 +1,7 @@
 import { AsyncLocalStorage } from "async_hooks";
 
 import type { WikiGraphSDKProviders } from "./providers.js";
+import type { WikiGraphSDKHost } from "./host.js";
 
 export type WikiGraphSDKEnvPolicy = "development" | "production";
 
@@ -8,6 +9,7 @@ export interface WikiGraphSDKRuntimeContext {
   readonly cwd: string;
   readonly env: NodeJS.ProcessEnv;
   readonly envPolicy: WikiGraphSDKEnvPolicy;
+  readonly host?: WikiGraphSDKHost;
   readonly providers?: WikiGraphSDKProviders;
   readonly stateDir?: string | undefined;
 }

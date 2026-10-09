@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  createNodeWikiGraphPlatform,
+  createNodeWikiGraphStorage,
   formatSourceArtifactUri,
   formatSourceLocatorFragment,
   isWikiGraphJobUri,
@@ -39,6 +41,22 @@ describe("SDK public API", () => {
 
     expect(mode).toBe("hybrid");
     expect(resources).toBeUndefined();
+  });
+
+  it("exposes Node host factories from the SDK boundary", () => {
+    const platform = createNodeWikiGraphPlatform({
+      lifecycle: {
+        instanceId: "host:test",
+        isInstanceAlive: () => Promise.resolve(true),
+      },
+    });
+    const storage = createNodeWikiGraphStorage({
+      documentStoreRoot: "/tmp/documents",
+      libraryRoot: "/tmp/home",
+    });
+
+    expect(platform.lifecycle.instanceId).toBe("host:test");
+    expect(storage.library.identity).not.toBe(storage.documentStore.identity);
   });
 
   it("exports URI guards without a Core import", () => {

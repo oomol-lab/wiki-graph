@@ -4,7 +4,16 @@ import { join } from "path";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { createWikiGraphSDK, NodeDirectory, WikiGraphSDK } from "./index.js";
-import { getWikiGraphStorage } from "wiki-graph-core/platform";
+import {
+  getWikiGraphPlatform,
+  getWikiGraphStorage,
+  installWikiGraphPlatform,
+} from "wiki-graph-core/platform";
+import {
+  createNodeWikiGraphPlatform,
+  createNodeWikiGraphStorage,
+  nodeWikiGraphPlatform,
+} from "./node-platform.js";
 
 const tempDirectories: string[] = [];
 
@@ -20,6 +29,77 @@ afterEach(async () => {
 });
 
 describe("WikiGraphSDK", () => {
+  it("binds host storage and preserves the host lifecycle platform", async () => {
+    const root = await mkdtemp(join(tmpdir(), "wiki-graph-sdk-host-"));
+    tempDirectories.push(root);
+    const libraryRoot = join(root, "home");
+    const documentStoreRoot = join(root, "documents");
+    await Promise.all([
+      mkdir(libraryRoot, { recursive: true }),
+      mkdir(documentStoreRoot, { recursive: true }),
+    ]);
+    const platform = createNodeWikiGraphPlatform({
+      lifecycle: {
+        instanceId: "electron-runtime:test",
+        isInstanceAlive: (instanceId) =>
+          Promise.resolve(instanceId === "electron-runtime:test"),
+      },
+    });
+    const storage = createNodeWikiGraphStorage({
+      documentStoreRoot,
+      libraryRoot,
+    });
+    const sdk = createWikiGraphSDK({ host: { platform, storage } });
+
+    try {
+      const observed = await sdk.run(() => ({
+        lifecycle: getWikiGraphPlatform().lifecycle.instanceId,
+        storage: getWikiGraphStorage(),
+      }));
+
+      expect(observed.lifecycle).toBe("electron-runtime:test");
+      expect(observed.storage.library.identity).toBe(
+        new NodeDirectory(libraryRoot).identity,
+      );
+      expect(observed.storage.documentStore.identity).toBe(
+        new NodeDirectory(documentStoreRoot).identity,
+      );
+      expect(getWikiGraphPlatform()).toBe(platform);
+    } finally {
+      sdk.close();
+      installWikiGraphPlatform(nodeWikiGraphPlatform);
+    }
+  });
+
+  it("rejects ambiguous stateDir and host storage options", () => {
+    const storage = createNodeWikiGraphStorage("/tmp/wiki-graph-sdk-host");
+
+    expect(() =>
+      createWikiGraphSDK({
+        host: { storage },
+        stateDir: "/tmp/wiki-graph-sdk-state",
+      }),
+    ).toThrow("host.storage and stateDir cannot be used together");
+  });
+
+  it("does not replace an installed host platform with the Node default", () => {
+    const platform = createNodeWikiGraphPlatform({
+      lifecycle: {
+        instanceId: "preinstalled:test",
+        isInstanceAlive: () => Promise.resolve(true),
+      },
+    });
+    installWikiGraphPlatform(platform);
+
+    const sdk = createWikiGraphSDK();
+    try {
+      expect(getWikiGraphPlatform()).toBe(platform);
+    } finally {
+      sdk.close();
+      installWikiGraphPlatform(nodeWikiGraphPlatform);
+    }
+  });
+
   it("provides typed managers without exposing a command executor", async () => {
     const stateDir = await mkdtemp(join(tmpdir(), "wiki-graph-sdk-"));
     tempDirectories.push(stateDir);

@@ -23,6 +23,31 @@ for (const job of jobs) {
 wikiGraph.close();
 ```
 
+Electron and other Node hosts may provide their own lifecycle identity and
+storage layout without importing `wiki-graph-core`:
+
+```ts
+import {
+  createNodeWikiGraphPlatform,
+  createNodeWikiGraphStorage,
+  createWikiGraphSDK,
+} from "wiki-graph-sdk";
+
+const wikiGraph = createWikiGraphSDK({
+  host: {
+    platform: createNodeWikiGraphPlatform({ lifecycle }),
+    storage: createNodeWikiGraphStorage({
+      libraryRoot: "/path/to/home",
+      documentStoreRoot: "/path/to/documents",
+    }),
+  },
+});
+```
+
+Storage is scoped to the SDK instance. Platform services, including lifecycle,
+are process-wide; SDK instances in one process must use one compatible
+platform. `host.storage` and `stateDir` cannot be supplied together.
+
 Applications may replace the configured LLM and embedding implementations for
 one SDK instance:
 

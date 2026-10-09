@@ -19,6 +19,7 @@ const nodeSqlite3 =
   (sqlite3 as unknown as { default?: typeof sqlite3 }).default ?? sqlite3;
 
 import {
+  getWikiGraphPlatform,
   getWikiGraphStorage,
   installWikiGraphPlatform,
   installWikiGraphStorage,
@@ -32,6 +33,7 @@ import {
   type HostDatabaseOpenOptions,
   type HostDatabaseRow,
   type HostDatabaseValue,
+  type HostLifecycleProvider,
   type HostZipWriteEntry,
   type HostZipReader,
   type WikiGraphPlatform,
@@ -827,6 +829,19 @@ export const nodeWikiGraphPlatform: WikiGraphPlatform = {
   },
 };
 
+export interface NodeWikiGraphPlatformOptions {
+  readonly lifecycle?: HostLifecycleProvider;
+}
+
+/** Create the Node platform with an optional host-owned lifecycle identity. */
+export function createNodeWikiGraphPlatform(
+  options: NodeWikiGraphPlatformOptions = {},
+): WikiGraphPlatform {
+  return options.lifecycle === undefined
+    ? nodeWikiGraphPlatform
+    : { ...nodeWikiGraphPlatform, lifecycle: options.lifecycle };
+}
+
 class NodeTemplateLoader extends Loader {
   readonly #dataDirectory: string | undefined;
 
@@ -885,12 +900,28 @@ function resolveNodeDataDirectory(): string {
   }
 }
 
+export interface NodeWikiGraphStorageOptions {
+  readonly documentStoreRoot: string;
+  readonly libraryRoot: string;
+}
+
 export function createNodeWikiGraphStorage(
-  stateRoot = pathModule.join(os.homedir(), ".wikigraph"),
+  stateRootOrOptions: string | NodeWikiGraphStorageOptions = pathModule.join(
+    os.homedir(),
+    ".wikigraph",
+  ),
 ): WikiGraphStorage {
+  const libraryRoot =
+    typeof stateRootOrOptions === "string"
+      ? stateRootOrOptions
+      : stateRootOrOptions.libraryRoot;
+  const documentStoreRoot =
+    typeof stateRootOrOptions === "string"
+      ? pathModule.join(stateRootOrOptions, "documents")
+      : stateRootOrOptions.documentStoreRoot;
   return {
-    library: new NodeDirectory(stateRoot),
-    documentStore: new NodeDirectory(pathModule.join(stateRoot, "documents")),
+    library: new NodeDirectory(libraryRoot),
+    documentStore: new NodeDirectory(documentStoreRoot),
   };
 }
 
@@ -900,7 +931,11 @@ export function installNodeWikiGraphPlatform(stateRoot?: string): void {
 }
 
 export function ensureNodeWikiGraphPlatform(): void {
-  installWikiGraphPlatform(nodeWikiGraphPlatform);
+  try {
+    getWikiGraphPlatform();
+  } catch {
+    installWikiGraphPlatform(nodeWikiGraphPlatform);
+  }
   try {
     getWikiGraphStorage();
   } catch {

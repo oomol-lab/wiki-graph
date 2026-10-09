@@ -3,10 +3,7 @@ import {
   type GcRunReport,
 } from "wiki-graph-core/gc";
 
-import {
-  installNodeWikiGraphPlatform,
-  withNodeWikiGraphStorage,
-} from "./node-platform.js";
+import { withWikiGraphSDKHost, type WikiGraphSDKHost } from "./host.js";
 
 export type {
   GcContext,
@@ -19,6 +16,7 @@ export type {
 export interface WikiGraphGcOptions {
   readonly dryRun?: boolean;
   readonly force?: boolean;
+  readonly host?: WikiGraphSDKHost;
   readonly opportunistic?: boolean;
   /** Wiki Graph state root. Defaults to `~/.wikigraph`. */
   readonly stateDir?: string;
@@ -28,10 +26,12 @@ export interface WikiGraphGcOptions {
 export async function tryRunWikiGraphGc(
   options: WikiGraphGcOptions = {},
 ): Promise<GcRunReport> {
-  installNodeWikiGraphPlatform();
-  const { stateDir, ...coreOptions } = options;
-  return await withNodeWikiGraphStorage(
-    stateDir,
+  const { host, stateDir, ...coreOptions } = options;
+  return await withWikiGraphSDKHost(
+    {
+      ...(host === undefined ? {} : { host }),
+      ...(stateDir === undefined ? {} : { stateDir }),
+    },
     async () => await tryRunCoreWikiGraphGc(coreOptions),
   );
 }

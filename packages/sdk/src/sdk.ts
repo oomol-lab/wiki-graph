@@ -8,9 +8,11 @@ import { WikiGraphJobManager, type WikiGraphJobRuntime } from "./jobs.js";
 import { WikiGraphLibraryManager } from "./libraries.js";
 import { WikiGraphMaintenanceManager } from "./maintenance.js";
 import {
-  ensureNodeWikiGraphPlatform,
-  withNodeWikiGraphStorage,
-} from "./node-platform.js";
+  assertWikiGraphSDKHostOptions,
+  prepareWikiGraphSDKHost,
+  withWikiGraphSDKHost,
+  type WikiGraphSDKHost,
+} from "./host.js";
 import {
   withWikiGraphSDKRuntimeContext,
   type WikiGraphSDKEnvPolicy,
@@ -22,6 +24,7 @@ export interface WikiGraphSDKOptions {
   readonly cwd?: string;
   readonly env?: NodeJS.ProcessEnv;
   readonly envPolicy?: WikiGraphSDKEnvPolicy;
+  readonly host?: WikiGraphSDKHost;
   readonly providers?: WikiGraphSDKProviders;
   readonly stateDir?: string;
 }
@@ -38,11 +41,13 @@ export class WikiGraphSDK implements WikiGraphJobRuntime {
   public readonly maintenance: WikiGraphMaintenanceManager;
 
   public constructor(options: WikiGraphSDKOptions = {}) {
-    ensureNodeWikiGraphPlatform();
+    assertWikiGraphSDKHostOptions(options);
+    prepareWikiGraphSDKHost(options.host);
     this.#context = {
       cwd: options.cwd ?? process.cwd(),
       env: { ...process.env, ...options.env },
       envPolicy: options.envPolicy ?? "production",
+      ...(options.host === undefined ? {} : { host: options.host }),
       providers: { ...options.providers },
       ...(options.stateDir === undefined ? {} : { stateDir: options.stateDir }),
     };
@@ -74,13 +79,17 @@ export class WikiGraphSDK implements WikiGraphJobRuntime {
         }
         return await operation();
       });
-    const result =
-      this.#context.stateDir === undefined
-        ? await runWithContext()
-        : await withNodeWikiGraphStorage(
-            this.#context.stateDir,
-            runWithContext,
-          );
+    const result = await withWikiGraphSDKHost(
+      {
+        ...(this.#context.host === undefined
+          ? {}
+          : { host: this.#context.host }),
+        ...(this.#context.stateDir === undefined
+          ? {}
+          : { stateDir: this.#context.stateDir }),
+      },
+      runWithContext,
+    );
     throwIfAborted(signal);
     return result;
   }
