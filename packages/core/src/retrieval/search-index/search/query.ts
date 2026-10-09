@@ -127,17 +127,16 @@ export async function querySearchIndex(
           break;
         }
 
+        const { textAfter, ...textRowBaseOptions } = options;
         const textRowOptions = {
-          ...options,
+          ...textRowBaseOptions,
           textHitLimit: hasDense
             ? SEARCH_INDEX_FTS_HIT_LIMIT
             : textHitRemaining,
           // FTS owns keyset pagination in FTS-only mode.  A dense index may
           // exist in the cache without being used by this query; only a
           // hybrid query must defer the cursor until after RRF fusion.
-          ...(usesDense || options.textAfter === undefined
-            ? {}
-            : { textAfter: options.textAfter }),
+          ...(usesDense || textAfter === undefined ? {} : { textAfter }),
         };
 
         const [objectRows, textRows] = await Promise.all([

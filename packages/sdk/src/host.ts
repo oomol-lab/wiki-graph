@@ -9,13 +9,30 @@ import {
   ensureNodeWikiGraphPlatform,
   withNodeWikiGraphStorage,
 } from "./node-platform.js";
+import {
+  getWikiGraphSDKRuntimeContext,
+  withWikiGraphSDKRuntimeContext,
+} from "./runtime-context.js";
 
-export interface WikiGraphSDKHost {
+interface WikiGraphSDKHostBase {
   /** Process-wide runtime services. Concurrent SDKs must use one compatible platform. */
   readonly platform?: WikiGraphPlatform;
-  /** Storage roots scoped to this SDK instance or standalone operation. */
-  readonly storage?: WikiGraphStorage;
 }
+
+export type WikiGraphSDKHost = WikiGraphSDKHostBase &
+  (
+    | {
+        /** Node state root for SDK configuration and other host-local state. */
+        readonly stateDir: string;
+        /** Storage roots scoped to this SDK instance or standalone operation. */
+        readonly storage: WikiGraphStorage;
+      }
+    | {
+        /** Node state root used by the default Node storage layout. */
+        readonly stateDir?: string;
+        readonly storage?: undefined;
+      }
+  );
 
 export interface WikiGraphSDKHostOptions {
   readonly host?: WikiGraphSDKHost;
@@ -33,9 +50,21 @@ export function prepareWikiGraphSDKHost(host?: WikiGraphSDKHost): void {
 export function assertWikiGraphSDKHostOptions(
   options: WikiGraphSDKHostOptions,
 ): void {
-  if (options.host?.storage !== undefined && options.stateDir !== undefined) {
+  if (
+    options.host?.storage !== undefined &&
+    options.host.stateDir === undefined
+  ) {
     throw new TypeError(
-      "Wiki Graph SDK host.storage and stateDir cannot be used together.",
+      "Wiki Graph SDK host.storage requires host.stateDir so SDK configuration cannot fall back to the default user state directory.",
+    );
+  }
+  if (
+    options.stateDir !== undefined &&
+    (options.host?.stateDir !== undefined ||
+      options.host?.storage !== undefined)
+  ) {
+    throw new TypeError(
+      "Wiki Graph SDK host state/storage and top-level stateDir cannot be used together. Put the state directory in host.stateDir when providing host.storage.",
     );
   }
 }
@@ -44,10 +73,37 @@ export async function withWikiGraphSDKHost<T>(
   options: WikiGraphSDKHostOptions,
   operation: () => Promise<T> | T,
 ): Promise<T> {
-  assertWikiGraphSDKHostOptions(options);
-  prepareWikiGraphSDKHost(options.host);
-  if (options.host?.storage !== undefined) {
-    return await withWikiGraphStorage(options.host.storage, operation);
+  const current = getWikiGraphSDKRuntimeContext();
+  const effective = {
+    ...(options.host === undefined
+      ? current.host === undefined
+        ? {}
+        : { host: current.host }
+      : { host: options.host }),
+    ...(options.stateDir === undefined
+      ? current.stateDir === undefined
+        ? {}
+        : { stateDir: current.stateDir }
+      : { stateDir: options.stateDir }),
+  };
+  assertWikiGraphSDKHostOptions(effective);
+  prepareWikiGraphSDKHost(effective.host);
+  const runWithContext = async (): Promise<T> =>
+    await withWikiGraphSDKRuntimeContext(
+      {
+        ...current,
+        ...(effective.host === undefined ? {} : { host: effective.host }),
+        ...(effective.stateDir === undefined
+          ? {}
+          : { stateDir: effective.stateDir }),
+      },
+      operation,
+    );
+  if (effective.host?.storage !== undefined) {
+    return await withWikiGraphStorage(effective.host.storage, runWithContext);
   }
-  return await withNodeWikiGraphStorage(options.stateDir, operation);
+  return await withNodeWikiGraphStorage(
+    effective.host?.stateDir ?? effective.stateDir,
+    runWithContext,
+  );
 }

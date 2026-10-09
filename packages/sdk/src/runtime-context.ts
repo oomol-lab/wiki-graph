@@ -54,7 +54,8 @@ export function getWikiGraphSDKRuntimeContext(): WikiGraphSDKRuntimeContext {
 }
 
 export function getWikiGraphSDKStateDir(): string | undefined {
-  return getWikiGraphSDKRuntimeContext().stateDir;
+  const context = getWikiGraphSDKRuntimeContext();
+  return context.host?.stateDir ?? context.stateDir;
 }
 
 export function getWikiGraphSDKProviders(): WikiGraphSDKProviders {

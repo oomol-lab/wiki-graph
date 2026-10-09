@@ -1,6 +1,7 @@
 import { openSharedStateDatabase } from "wiki-graph-core";
 import { getWikiGraphSDKStateDir } from "./runtime-context.js";
 import { NodeFile } from "./node-platform.js";
+import { mkdir } from "fs/promises";
 import { join } from "path";
 import { homedir } from "os";
 import type { Database } from "wiki-graph-core";
@@ -158,13 +159,10 @@ export function validateLocalConfigSection(
 async function withLocalConfigDatabase<T>(
   operation: (database: Database) => Promise<T>,
 ): Promise<T> {
+  const stateDir = getWikiGraphSDKStateDir() ?? join(homedir(), ".wikigraph");
+  await mkdir(stateDir, { recursive: true });
   const database = await openSharedStateDatabase(
-    new NodeFile(
-      join(
-        getWikiGraphSDKStateDir() ?? join(homedir(), ".wikigraph"),
-        "core.sqlite",
-      ),
-    ),
+    new NodeFile(join(stateDir, "core.sqlite")),
     LOCAL_CONFIG_SCHEMA_SQL,
   );
 

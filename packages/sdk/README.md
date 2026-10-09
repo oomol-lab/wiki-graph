@@ -40,13 +40,18 @@ const wikiGraph = createWikiGraphSDK({
       libraryRoot: "/path/to/home",
       documentStoreRoot: "/path/to/documents",
     }),
+    stateDir: "/path/to/state",
   },
 });
 ```
 
-Storage is scoped to the SDK instance. Platform services, including lifecycle,
-are process-wide; SDK instances in one process must use one compatible
-platform. `host.storage` and `stateDir` cannot be supplied together.
+Storage and SDK configuration state are scoped to the SDK instance. Platform
+services, including lifecycle, are process-wide; SDK instances in one process
+must use one compatible platform. The top-level `stateDir` remains a shorthand
+for the default Node host. When supplying `host.storage`, put the independent
+configuration root in the required `host.stateDir` field instead. A custom
+`host.storage` without `host.stateDir` is rejected rather than falling back to
+the current user's `~/.wikigraph` directory.
 
 Applications may replace the configured LLM and embedding implementations for
 one SDK instance:
