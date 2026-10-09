@@ -9,7 +9,7 @@ import { enqueueJob, parseJSONL, waitForJob } from "./helpers/workflow.js";
 describe("packed CLI library workflow", () => {
   it("creates a library registry and adds an archive through the CLI", async () => {
     const sandbox = await createCLISandbox("library-create-add");
-    await createLibraryArchive(
+    const sourceArchive = await createLibraryArchive(
       sandbox,
       dirname(sandbox.archivePath),
       "knowledge.wikg",
@@ -18,6 +18,12 @@ describe("packed CLI library workflow", () => {
         title: "Portable archive",
       },
     );
+    const indexJob = await enqueueJob(
+      sandbox,
+      sourceArchive.chapterUri,
+      "index-fts",
+    );
+    expect((await waitForJob(sandbox, indexJob.jobId)).state).toBe("succeeded");
     const createdLibraryPath = join(sandbox.root, "created-library");
     const library = await sandbox.runJSON<{
       readonly folderPath: string;
@@ -69,12 +75,36 @@ describe("packed CLI library workflow", () => {
     }>([`${library.uri}/arc`, "--json"]);
     expect(members.items.map((item) => item.uri)).toContain(added.uri);
 
+    const cleaned = await sandbox.runJSON<{ readonly status: string }>([
+      `${library.uri}/index`,
+      "clean",
+      "--json",
+    ]);
+    expect(cleaned.status).not.toBe("ready");
+    const beforeIndex = await sandbox.run([
+      `${library.uri}/arc`,
+      "--query",
+      "Managed Archive",
+      "--query-mode",
+      "fts",
+      "--json",
+    ]);
+    expect(beforeIndex.exitCode).not.toBe(0);
+
+    await syncLibraryIndex(sandbox, library.uri);
     const found = await sandbox.runJSON<{
       readonly objects: readonly {
         readonly type: string;
         readonly uri: string;
       }[];
-    }>([`${library.uri}/arc`, "--query", "Managed Archive", "--json"]);
+    }>([
+      `${library.uri}/arc`,
+      "--query",
+      "Managed Archive",
+      "--query-mode",
+      "fts",
+      "--json",
+    ]);
     expect(found.objects).toEqual([
       expect.objectContaining({
         type: "archive-title",
@@ -247,8 +277,9 @@ async function createLibraryArchive(
 
 async function syncLibraryIndex(
   sandbox: Awaited<ReturnType<typeof createCLISandbox>>,
+  libraryUri = "wikg://lib",
 ): Promise<void> {
-  const sync = await sandbox.run(["wikg://lib/index", "sync", "--jsonl"]);
+  const sync = await sandbox.run([`${libraryUri}/index`, "sync", "--jsonl"]);
   expect(sync.exitCode, sync.stderr).toBe(0);
   const events = parseJSONL(sync.stdout);
   expect(events.at(0)).toMatchObject({ type: "started" });

@@ -1,6 +1,6 @@
 {
   "name": "wiki-graph-core",
-  "version": "0.8.0",
+  "version": "0.8.1",
   "description": "Runtime-neutral engine for building and querying .wikg knowledge-base archives.",
   "keywords": [
     "wiki-graph",

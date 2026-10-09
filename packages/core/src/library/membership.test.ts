@@ -106,7 +106,7 @@ describe("library archive membership", () => {
     });
   });
 
-  it("searches and paginates archive member collection results", async () => {
+  it("searches and paginates archive members through the aggregate index", async () => {
     await withLibraryTestState(async (tempDir) => {
       const library = await ensureDefaultWikiGraphLibrary();
       await mkdir(join(getNodeResourcePath(library.folder), "books"), {
@@ -116,29 +116,77 @@ describe("library archive membership", () => {
         tempDir,
         join(getNodeResourcePath(library.folder), "books", "alpha.wikg"),
         undefined,
-        "alpha",
+        "shared alpha",
       );
       await createSearchableArchiveWithoutSearchIndex(
         tempDir,
         join(getNodeResourcePath(library.folder), "books", "beta.wikg"),
         undefined,
-        "beta",
+        "shared beta",
       );
 
       const target = parseWikiGraphLibraryUri("wikg://lib");
       expect(target).toBeDefined();
       await scanWikiGraphLibrary(target!);
 
-      const matched = await findWikiGraphLibraryArchiveMembers(
+      await expect(
+        findWikiGraphLibraryArchiveMembers(target!, "shared", {
+          limit: 1,
+          queryMode: "fts",
+        }),
+      ).rejects.toThrow("index");
+
+      await rebuildWikiGraphLibraryIndex(target!);
+
+      const firstSearchPage = await findWikiGraphLibraryArchiveMembers(
         target!,
-        "alpha",
-        { limit: 5 },
+        "shared",
+        { limit: 1, queryMode: "fts" },
       );
-      expect(matched.items).toHaveLength(1);
-      expect(matched.items[0]).toMatchObject({
-        title: "alpha",
+      expect(firstSearchPage.items).toHaveLength(1);
+      expect(firstSearchPage.items[0]).toMatchObject({
+        id: expect.stringMatching(/^wikg:\/\/lib\/arc\/[0-9a-f]+\/title$/u),
         type: "archive-title",
       });
+      expect(firstSearchPage.nextCursor).not.toBeNull();
+
+      const secondSearchPage = await findWikiGraphLibraryArchiveMembers(
+        target!,
+        "shared",
+        {
+          cursor: firstSearchPage.nextCursor!,
+          limit: 1,
+          queryMode: "fts",
+        },
+      );
+      expect(secondSearchPage.items).toHaveLength(1);
+      expect(secondSearchPage.items[0]).toMatchObject({
+        id: expect.stringMatching(/^wikg:\/\/lib\/arc\/[0-9a-f]+\/title$/u),
+        type: "archive-title",
+      });
+      expect(secondSearchPage.items[0]?.id).not.toBe(
+        firstSearchPage.items[0]?.id,
+      );
+      expect(secondSearchPage.nextCursor).not.toBeNull();
+
+      const exhaustedSearchPage = await findWikiGraphLibraryArchiveMembers(
+        target!,
+        "shared",
+        {
+          cursor: secondSearchPage.nextCursor!,
+          limit: 1,
+          queryMode: "fts",
+        },
+      );
+      expect(exhaustedSearchPage.items).toStrictEqual([]);
+      expect(exhaustedSearchPage.nextCursor).toBeNull();
+
+      await expect(
+        findWikiGraphLibraryArchiveMembers(target!, "shared", {
+          embeddingProvider: createLibraryTestEmbeddingProvider(),
+          queryMode: "embedding",
+        }),
+      ).rejects.toThrow("unindexed chapters");
 
       const missing = await findWikiGraphLibraryArchiveMembers(
         target!,
