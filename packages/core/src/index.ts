@@ -210,6 +210,7 @@ export {
   parseSourceLocatorFragment,
   SOURCE_ARTIFACT_SHORT_UID_LENGTH,
 } from "./document/index.js";
+export type { ParsedSourceLocatorFragment } from "./document/index.js";
 export type {
   Database,
   Document,

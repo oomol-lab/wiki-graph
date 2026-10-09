@@ -97,6 +97,53 @@ describe("archive search index state", () => {
     });
   });
 
+  it.each(["fts", "embedding", "hybrid"] as const)(
+    "keeps %s sentence pagination continuous",
+    async (queryMode) => {
+      await withTempDocument(async (document) => {
+        await writeSourceChapters(document, ["First", "Second", "Third"]);
+        const provider = createFakeEmbeddingProvider();
+        for (const serialId of [1, 2, 3]) {
+          await replaceChapterFtsIndexArtifact(document, serialId);
+          await replaceChapterSourceEmbeddingIndexArtifact(
+            document,
+            serialId,
+            provider,
+          );
+        }
+        await rebuildArchiveSearchIndex(document);
+
+        const options = {
+          archiveKey: `pagination-${queryMode}`,
+          embeddingProvider: provider,
+          queryMode,
+          types: ["source"] as const,
+        };
+        const complete = await findArchiveObjects(document, "indexing", {
+          ...options,
+          limit: 6,
+        });
+        const first = await findArchiveObjects(document, "indexing", {
+          ...options,
+          limit: 2,
+        });
+        const second = await findArchiveObjects(
+          document,
+          "indexing",
+          first.nextCursor === null
+            ? { ...options, limit: 2 }
+            : { ...options, cursor: first.nextCursor, limit: 2 },
+        );
+
+        expect(first.items).toHaveLength(2);
+        expect(second.items).toHaveLength(2);
+        expect(
+          [...first.items, ...second.items].map((item) => item.id),
+        ).toEqual(complete.items.slice(0, 4).map((item) => item.id));
+      });
+    },
+  );
+
   it("indexes archive titles only in lexical query modes", async () => {
     await withTempDocument(async (document) => {
       await writeSourceChapter(document);
