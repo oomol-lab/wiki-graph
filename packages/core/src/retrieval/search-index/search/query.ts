@@ -46,6 +46,7 @@ import {
   createTransientQueryId,
   decodeCachedChapterId,
   finalizeCachedTextHitScores,
+  fillUnmatchedCachedTextScores,
   insertCachedDenseSegmentHit,
   insertCachedFtsTextHit,
   insertCachedObjectHit,
@@ -141,8 +142,9 @@ export async function querySearchIndex(
           }
           await normalizeCachedFtsHits(cache, queryId);
 
+          let embeddingAvailable = false;
           if (usesDense) {
-            await populateCachedDenseHits(
+            embeddingAvailable = await populateCachedDenseHits(
               database,
               cache,
               queryId,
@@ -160,6 +162,10 @@ export async function querySearchIndex(
               },
             );
           }
+          await fillUnmatchedCachedTextScores(database, cache, queryId, {
+            embedding: embeddingAvailable,
+            fts: usesFts,
+          });
           await finalizeCachedTextHitScores(cache, queryId);
           await completeCachedQuery(cache, queryId);
         } catch (error) {
@@ -440,7 +446,7 @@ async function populateCachedDenseHits(
     readonly queryMode?: SearchIndexQueryMode;
     readonly types?: readonly ArchiveFindObjectType[] | null;
   },
-): Promise<void> {
+): Promise<boolean> {
   const requiresDense =
     options.queryMode === "embedding" || state.indexes === "dense";
   if (options.embeddingProvider === undefined) {
@@ -449,7 +455,7 @@ async function populateCachedDenseHits(
         "Dense search requires embeddings configuration. Configure `wikg://local/config/embeddings` before querying a Dense-only index.",
       );
     }
-    return;
+    return false;
   }
 
   if (
@@ -461,7 +467,7 @@ async function populateCachedDenseHits(
     if (requiresDense) {
       throw new Error(message);
     }
-    return;
+    return false;
   }
   if (
     state.embeddingIdentity !== undefined &&
@@ -473,7 +479,7 @@ async function populateCachedDenseHits(
     if (requiresDense) {
       throw new Error(message);
     }
-    return;
+    return false;
   }
 
   let queryVector: readonly number[];
@@ -485,7 +491,7 @@ async function populateCachedDenseHits(
     if (requiresDense) {
       throw error;
     }
-    return;
+    return false;
   }
 
   if (
@@ -497,7 +503,7 @@ async function populateCachedDenseHits(
     if (requiresDense) {
       throw new Error(message);
     }
-    return;
+    return false;
   }
 
   await populateCachedDenseSegmentHits(database, cache, queryId, queryVector, {
@@ -510,6 +516,7 @@ async function populateCachedDenseHits(
     SEARCH_INDEX_DENSE_SEGMENT_HIT_LIMIT,
   );
   await expandCachedDenseSegmentHits(database, cache, queryId);
+  return true;
 }
 
 async function populateCachedDenseSegmentHits(
