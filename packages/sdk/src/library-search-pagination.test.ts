@@ -50,8 +50,8 @@ describe("WikiGraphLibraryManager search pagination", () => {
       expect(ids(first.buckets[0]!.items)).toEqual(
         ids(first.buckets[1]!.items),
       );
-      expect(first.buckets[0]!.nextCursor).not.toBeNull();
-      expect(first.buckets[1]!.nextCursor).not.toBeNull();
+      expect(first.buckets[0]!.rawNextCursor).not.toBeNull();
+      expect(first.buckets[1]!.rawNextCursor).not.toBeNull();
 
       const pageA = await setup.sdk.libraries.continueSearchBucket(
         setup.libraryUri,
