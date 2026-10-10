@@ -26,7 +26,9 @@ import { hydrateSearchIndexHits } from "../retrieval/query/archive-view/search/h
 import { tryDecodeBucketSearchSessionCursor } from "../retrieval/query/archive-view/search/buckets.js";
 import {
   createSearchSession,
+  decodeIndependentBucketSearchSessionCursor,
   encodeBucketSearchSessionCursor,
+  encodeIndependentBucketSearchSessionCursor,
   populateSearchSessionObjectCaches,
   readSearchSessionChunkBucketPage,
   readSearchSessionDescriptor,
@@ -71,10 +73,174 @@ import {
   resolveReadableIndexedArchive,
 } from "./query-helpers.js";
 
+export interface WikiGraphLibrarySearchBucketDefinition {
+  readonly id: string;
+  readonly types: readonly ArchiveFindFilterType[];
+}
+
+export interface WikiGraphLibraryBucketSearchOptions extends Omit<
+  ArchiveFindOptions,
+  "cursor" | "limit" | "triplePattern" | "types"
+> {
+  readonly buckets: readonly WikiGraphLibrarySearchBucketDefinition[];
+  readonly limitPerBucket?: number;
+}
+
+export interface WikiGraphLibrarySearchBucketPage {
+  readonly id: string;
+  readonly items: readonly ArchiveFindHit[];
+  readonly nextCursor: string | null;
+  readonly query: string;
+  readonly terms: readonly string[];
+  readonly types: readonly ArchiveFindFilterType[];
+}
+
+export interface WikiGraphLibraryBucketSearchResult {
+  readonly buckets: readonly WikiGraphLibrarySearchBucketPage[];
+  readonly query: string;
+}
+
+export interface WikiGraphLibraryBucketContinuationOptions {
+  readonly embeddingProvider?: ArchiveFindOptions["embeddingProvider"];
+  readonly limit?: number;
+}
+
 export function shouldUseLibraryBucketedSearch(
   options: ArchiveFindOptions,
 ): boolean {
   return options.triplePattern === undefined;
+}
+
+export async function findWikiGraphLibraryObjectBucketsShared(
+  target: ParsedWikiGraphLibraryUri,
+  query: string,
+  options: WikiGraphLibraryBucketSearchOptions,
+): Promise<WikiGraphLibraryBucketSearchResult> {
+  assertLibrarySearchBucketDefinitions(options.buckets);
+  const limit = options.limitPerBucket ?? DEFAULT_FIND_LIMIT;
+  const search = createLexicalQuery(query);
+
+  if (search === undefined) {
+    return {
+      buckets: options.buckets.map((bucket) => ({
+        id: bucket.id,
+        items: [],
+        nextCursor: null,
+        query,
+        terms: [],
+        types: bucket.types,
+      })),
+      query,
+    };
+  }
+
+  await assertLibrarySearchReady(target, options);
+  const state = await assertWikiGraphLibraryIndexReady(target);
+  const archiveKey = createLibrarySearchArchiveKey(target);
+  const types = [...new Set(options.buckets.flatMap((bucket) => bucket.types))];
+  const sessionId = await createSearchSession({
+    archiveKey,
+    chapters: options.chapters ?? null,
+    lens: "typed",
+    match: options.match ?? "any",
+    order: options.order ?? "doc-asc",
+    query,
+    queryMode: options.queryMode ?? "hybrid",
+    revisionScope: `${SEARCH_INDEX_VERSION}:${state.sourceFingerprint}`,
+    terms: search.terms,
+    types,
+  });
+  const session = await readSearchSessionDescriptor(sessionId, archiveKey);
+  const buckets: WikiGraphLibrarySearchBucketPage[] = [];
+
+  for (const bucket of options.buckets) {
+    buckets.push(
+      await readLibraryIndependentBucketPage(
+        target,
+        session,
+        bucket.id,
+        bucket.types,
+        { bucket: 0 },
+        limit,
+        options,
+      ),
+    );
+  }
+
+  return { buckets, query };
+}
+
+export async function continueWikiGraphLibraryObjectBucketShared(
+  target: ParsedWikiGraphLibraryUri,
+  cursorValue: string,
+  options: WikiGraphLibraryBucketContinuationOptions = {},
+): Promise<WikiGraphLibrarySearchBucketPage> {
+  const cursor = decodeIndependentBucketSearchSessionCursor(cursorValue);
+  const archiveKey = createLibrarySearchArchiveKey(target);
+  const session = await readSearchSessionMetadataForCursor(
+    cursor.sessionId,
+    archiveKey,
+    cursor.createdAt,
+  );
+  const types = cursor.types as readonly ArchiveFindFilterType[];
+
+  assertIndependentBucketTypes(types, session.types);
+  return await readLibraryIndependentBucketPage(
+    target,
+    session,
+    cursor.bucketId,
+    types,
+    cursor.cursor,
+    options.limit ?? DEFAULT_FIND_LIMIT,
+    options.embeddingProvider === undefined
+      ? {}
+      : { embeddingProvider: options.embeddingProvider },
+  );
+}
+
+async function readLibraryIndependentBucketPage(
+  target: ParsedWikiGraphLibraryUri,
+  session: SearchSessionDescriptor,
+  bucketId: string,
+  types: readonly ArchiveFindFilterType[],
+  cursor: BucketSearchCursor,
+  limit: number,
+  options: Pick<ArchiveFindOptions, "embeddingProvider">,
+): Promise<WikiGraphLibrarySearchBucketPage> {
+  const items: ArchiveFindHit[] = [];
+  let bucketCursor: BucketSearchCursor | undefined = cursor;
+
+  while (bucketCursor !== undefined && items.length < limit) {
+    const page = await readLibraryBucketPage(
+      target,
+      session,
+      bucketCursor,
+      limit - items.length,
+      options,
+      types,
+    );
+    items.push(...page.items);
+    bucketCursor = page.nextCursor;
+  }
+  bucketCursor = normalizeIndependentBucketCursor(types, bucketCursor);
+
+  return {
+    id: bucketId,
+    items,
+    nextCursor:
+      bucketCursor === undefined
+        ? null
+        : encodeIndependentBucketSearchSessionCursor(
+            session.sessionId,
+            bucketId,
+            types,
+            bucketCursor,
+            session.createdAt,
+          ),
+    query: session.query,
+    terms: session.terms,
+    types,
+  };
 }
 
 export async function findWikiGraphLibraryObjectsBucketed(
@@ -100,30 +266,7 @@ export async function findWikiGraphLibraryObjectsBucketed(
     });
   }
 
-  if (options.skipUnindexed !== true) {
-    await assertWikiGraphLibraryQueryArtifactsReady(target, {
-      ...(options.embeddingProvider === undefined
-        ? {}
-        : { embeddingProvider: options.embeddingProvider }),
-      ...(options.queryMode === undefined
-        ? {}
-        : { queryMode: options.queryMode }),
-    });
-  } else {
-    const coverage = {
-      ...(options.embeddingProvider === undefined
-        ? {}
-        : { embeddingProvider: options.embeddingProvider }),
-      ...(options.queryMode === undefined
-        ? {}
-        : { queryMode: options.queryMode }),
-    };
-    if (Object.keys(coverage).length === 0) {
-      await assertWikiGraphLibraryHasQueryableArtifacts(target);
-    } else {
-      await assertWikiGraphLibraryHasQueryableArtifacts(target, coverage);
-    }
-  }
+  await assertLibrarySearchReady(target, options);
   const state = await assertWikiGraphLibraryIndexReady(target);
   const archiveKey = createLibrarySearchArchiveKey(target);
   const types = options.types ?? null;
@@ -184,6 +327,7 @@ async function readLibraryBucketedSearchResultPage(
       bucketCursor,
       remaining,
       options,
+      session.types as readonly ArchiveFindFilterType[] | null,
     );
 
     items.push(...page.items);
@@ -218,6 +362,7 @@ async function readLibraryBucketPage(
   cursor: BucketSearchCursor,
   limit: number,
   options: ArchiveFindOptions,
+  types: readonly ArchiveFindFilterType[] | null,
 ): Promise<{
   readonly items: readonly ArchiveFindHit[];
   readonly nextCursor: BucketSearchCursor | undefined;
@@ -225,7 +370,7 @@ async function readLibraryBucketPage(
   switch (cursor.bucket) {
     case 0:
       return shouldReadLibraryBucket(
-        session,
+        types,
         "archive",
         "archive-title",
         "chapter",
@@ -237,36 +382,40 @@ async function readLibraryBucketPage(
             cursor.key,
             limit,
             options,
+            types,
           )
         : { items: [], nextCursor: { bucket: 1 } };
     case 1:
-      return shouldReadLibraryBucket(session, "entity", "triple")
+      return shouldReadLibraryBucket(types, "entity", "triple")
         ? await readLibraryObjectBucketPage(
             target,
             session,
             cursor.key,
             limit,
             options,
+            types,
           )
         : { items: [], nextCursor: { bucket: 2 } };
     case 2:
-      return shouldReadLibraryBucket(session, "node")
+      return shouldReadLibraryBucket(types, "node")
         ? await readLibraryChunkBucketPage(
             target,
             session,
             cursor.key,
             limit,
             options,
+            types,
           )
         : { items: [], nextCursor: { bucket: 3 } };
     case 3:
-      return shouldReadLibraryBucket(session, "source", "summary")
+      return shouldReadLibraryBucket(types, "source", "summary")
         ? await readLibraryTextBucketPage(
             target,
             session,
             cursor.key,
             limit,
             options,
+            types,
           )
         : { items: [], nextCursor: undefined };
   }
@@ -278,11 +427,12 @@ async function readLibraryChapterTitleBucketPage(
   after: SearchTitleCursorKey | undefined,
   limit: number,
   options: ArchiveFindOptions,
+  types: readonly ArchiveFindFilterType[] | null,
 ): Promise<{
   readonly items: readonly ArchiveFindHit[];
   readonly nextCursor: BucketSearchCursor | undefined;
 }> {
-  const titleTypes = createTitleBucketTypes(session.types);
+  const titleTypes = createTitleBucketTypes(types);
   const result = await queryWikiGraphLibrarySearchIndex(target, session.query, {
     ...(session.chapters === null ? {} : { chapters: session.chapters }),
     ...(options.embeddingProvider === undefined
@@ -290,6 +440,7 @@ async function readLibraryChapterTitleBucketPage(
       : { embeddingProvider: options.embeddingProvider }),
     match: session.match as ArchiveFindResult["match"],
     queryMode: session.queryMode,
+    queryId: session.sessionId,
     objectHitLimit: SEARCH_INDEX_FTS_HIT_LIMIT,
     textHitLimit: SEARCH_INDEX_FTS_HIT_LIMIT,
     types: titleTypes,
@@ -358,6 +509,7 @@ async function readLibraryObjectBucketPage(
   after: SearchObjectCursorKey | undefined,
   limit: number,
   options: ArchiveFindOptions,
+  types: readonly ArchiveFindFilterType[] | null,
 ): Promise<{
   readonly items: readonly ArchiveFindHit[];
   readonly nextCursor: BucketSearchCursor | undefined;
@@ -382,10 +534,11 @@ async function readLibraryObjectBucketPage(
     1,
     after,
     limit,
+    types,
   );
   const items = page
     .slice(0, limit)
-    .filter((hit) => matchesLibrarySessionTypes(hit, session));
+    .filter((hit) => matchesLibraryTypes(hit, types));
   const hydrated = await hydrateLibraryCachedHits(
     target,
     items,
@@ -416,6 +569,7 @@ async function readLibraryChunkBucketPage(
   after: SearchChunkCursorKey | undefined,
   limit: number,
   options: ArchiveFindOptions,
+  _types: readonly ArchiveFindFilterType[] | null,
 ): Promise<{
   readonly items: readonly ArchiveFindHit[];
   readonly nextCursor: BucketSearchCursor | undefined;
@@ -469,17 +623,19 @@ async function readLibraryTextBucketPage(
   after: SearchTextCursorKey | undefined,
   limit: number,
   options: ArchiveFindOptions,
+  types: readonly ArchiveFindFilterType[] | null,
 ): Promise<{
   readonly items: readonly ArchiveFindHit[];
   readonly nextCursor: BucketSearchCursor | undefined;
 }> {
-  const types = createLibraryTextTypes(session);
+  const textTypes = createLibraryTextTypes(types);
   const result = await queryWikiGraphLibrarySearchIndex(target, session.query, {
     ...(session.chapters === null ? {} : { chapters: session.chapters }),
     ...(options.embeddingProvider === undefined
       ? {}
       : { embeddingProvider: options.embeddingProvider }),
     queryMode: session.queryMode,
+    queryId: session.sessionId,
     match: session.match as ArchiveFindResult["match"],
     objectHitLimit: 0,
     ...(after === undefined
@@ -494,7 +650,7 @@ async function readLibraryTextBucketPage(
           },
         }),
     textHitLimit: createLibraryBucketQueryWindow(limit),
-    types,
+    types: textTypes,
   });
   const hits = [...(result?.textHits ?? [])]
     .sort(compareTextIndexHits)
@@ -569,6 +725,7 @@ async function createLibraryObjectBucketCacheInput(
     objectHitLimit: SEARCH_INDEX_FTS_HIT_LIMIT,
     textHitLimit: usesEmbedding ? SEARCH_INDEX_FTS_HIT_LIMIT : 0,
     types: null,
+    queryId: session.sessionId,
   });
   const entityScores = new Map<string, number[]>();
   const chunkScores = new Map<string, number[]>();
@@ -756,37 +913,116 @@ async function hydrateLibraryCachedHits(
 }
 
 function shouldReadLibraryBucket(
-  session: SearchSessionDescriptor,
+  selectedTypes: readonly ArchiveFindFilterType[] | null,
   ...types: ArchiveFindFilterType[]
 ): boolean {
   return (
-    session.types === null ||
-    types.some((type) => session.types?.includes(type))
+    selectedTypes === null || types.some((type) => selectedTypes.includes(type))
   );
 }
 
-function matchesLibrarySessionTypes(
+function matchesLibraryTypes(
   hit: ArchiveFindHit,
-  session: SearchSessionDescriptor,
+  types: readonly ArchiveFindFilterType[] | null,
 ): boolean {
   return (
-    session.types === null ||
-    (hit.type === "entity" && session.types.includes("entity")) ||
-    (hit.type === "triple" && session.types.includes("triple"))
+    types === null ||
+    (hit.type === "entity" && types.includes("entity")) ||
+    (hit.type === "triple" && types.includes("triple"))
   );
 }
 
 function createLibraryTextTypes(
-  session: SearchSessionDescriptor,
+  types: readonly ArchiveFindFilterType[] | null,
 ): readonly ("source" | "summary")[] {
-  if (session.types === null) {
+  if (types === null) {
     return ["source", "summary"];
   }
 
-  return session.types.filter(
+  return types.filter(
     (type): type is "source" | "summary" =>
       type === "source" || type === "summary",
   );
+}
+
+function normalizeIndependentBucketCursor(
+  types: readonly ArchiveFindFilterType[] | null,
+  cursor: BucketSearchCursor | undefined,
+): BucketSearchCursor | undefined {
+  if (cursor === undefined || types === null) return cursor;
+  if (
+    (cursor.bucket === 0 &&
+      shouldReadLibraryBucket(
+        types,
+        "archive",
+        "archive-title",
+        "chapter",
+        "chapter-title",
+      )) ||
+    (cursor.bucket === 1 &&
+      shouldReadLibraryBucket(types, "entity", "triple")) ||
+    (cursor.bucket === 2 && shouldReadLibraryBucket(types, "node")) ||
+    (cursor.bucket === 3 && shouldReadLibraryBucket(types, "source", "summary"))
+  ) {
+    return cursor;
+  }
+  if (cursor.bucket === 3) return undefined;
+  return normalizeIndependentBucketCursor(types, {
+    bucket: (cursor.bucket + 1) as 1 | 2 | 3,
+  });
+}
+
+async function assertLibrarySearchReady(
+  target: ParsedWikiGraphLibraryUri,
+  options: Pick<
+    ArchiveFindOptions,
+    "embeddingProvider" | "queryMode" | "skipUnindexed"
+  >,
+): Promise<void> {
+  const coverage = {
+    ...(options.embeddingProvider === undefined
+      ? {}
+      : { embeddingProvider: options.embeddingProvider }),
+    ...(options.queryMode === undefined
+      ? {}
+      : { queryMode: options.queryMode }),
+  };
+  if (options.skipUnindexed !== true) {
+    await assertWikiGraphLibraryQueryArtifactsReady(target, coverage);
+  } else if (Object.keys(coverage).length === 0) {
+    await assertWikiGraphLibraryHasQueryableArtifacts(target);
+  } else {
+    await assertWikiGraphLibraryHasQueryableArtifacts(target, coverage);
+  }
+}
+
+function assertLibrarySearchBucketDefinitions(
+  buckets: readonly WikiGraphLibrarySearchBucketDefinition[],
+): void {
+  const ids = new Set<string>();
+  for (const bucket of buckets) {
+    if (bucket.id === "") throw new Error("Search bucket id cannot be empty.");
+    if (ids.has(bucket.id)) {
+      throw new Error(`Duplicate search bucket id: ${bucket.id}`);
+    }
+    if (bucket.types.length === 0) {
+      throw new Error(`Search bucket ${bucket.id} must include result types.`);
+    }
+    ids.add(bucket.id);
+  }
+}
+
+function assertIndependentBucketTypes(
+  types: readonly ArchiveFindFilterType[],
+  sessionTypes: readonly string[] | null,
+): void {
+  if (
+    sessionTypes === null ||
+    types.length === 0 ||
+    types.some((type) => !sessionTypes.includes(type))
+  ) {
+    throw new Error("Search bucket cursor does not match its search session.");
+  }
 }
 
 function createLibrarySearchArchiveKey(

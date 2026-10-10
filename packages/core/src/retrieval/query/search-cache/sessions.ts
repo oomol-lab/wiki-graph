@@ -11,7 +11,7 @@ import {
 } from "./hits.js";
 import { createEntitySearchSessionId, createSearchSessionId } from "./ids.js";
 import { parseSearchResultItem } from "./parsing.js";
-import { SEARCH_SESSION_TTL_MS } from "./schema.js";
+import { SEARCH_RANKING_VERSION, SEARCH_SESSION_TTL_MS } from "./schema.js";
 import {
   deleteSearchSessionRows,
   hasSearchSession,
@@ -90,10 +90,10 @@ export async function createSearchSession(
       await database.run(
         `
           INSERT INTO search_sessions (
-            session_id, archive_key, query, options_json, terms_json, lens,
+            session_id, ranking_version, archive_key, query, options_json, terms_json, lens,
             match, created_at, expires_at, accessed_at
           )
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
           ON CONFLICT(session_id) DO UPDATE SET
             archive_key = excluded.archive_key,
             query = excluded.query,
@@ -111,6 +111,7 @@ export async function createSearchSession(
         `,
         [
           sessionId,
+          SEARCH_RANKING_VERSION,
           input.archiveKey,
           input.query,
           optionsJSON,
@@ -173,10 +174,10 @@ export async function createEntitySearchSession(
       await database.run(
         `
           INSERT INTO search_sessions (
-            session_id, archive_key, query, options_json, terms_json, lens,
+            session_id, ranking_version, archive_key, query, options_json, terms_json, lens,
             match, created_at, expires_at, accessed_at
           )
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
           ON CONFLICT(session_id) DO UPDATE SET
             archive_key = excluded.archive_key,
             query = excluded.query,
@@ -194,6 +195,7 @@ export async function createEntitySearchSession(
         `,
         [
           sessionId,
+          SEARCH_RANKING_VERSION,
           input.archiveKey,
           input.query,
           optionsJSON,

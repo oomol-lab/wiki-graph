@@ -3,9 +3,11 @@ import {
   assertWikiGraphLibrarySchemaCurrent,
   cleanWikiGraphLibraryIndex,
   clearWikiGraphLibraryMetadata,
+  continueWikiGraphLibraryObjectBucket,
   createWikiGraphLibrary,
   deleteWikiGraphLibraryMetadataKey,
   findWikiGraphLibraryObjects,
+  findWikiGraphLibraryObjectBuckets,
   findWikiGraphLibraryArchiveMembers,
   formatWikiGraphLibraryUri,
   getWikiGraphLibraryArchive,
@@ -43,6 +45,10 @@ import {
   type SearchIndexEmbeddingProvider,
   type SearchIndexQueryMode,
   type WikiGraphLibraryArchiveRecord,
+  type WikiGraphLibraryBucketContinuationOptions as CoreWikiGraphLibraryBucketContinuationOptions,
+  type WikiGraphLibraryBucketSearchOptions as CoreWikiGraphLibraryBucketSearchOptions,
+  type WikiGraphLibraryBucketSearchResult,
+  type WikiGraphLibrarySearchBucketPage,
   type WikiGraphLibraryIndexState,
   type WikiGraphLibraryRecord,
   type WikiGraphLibraryScanResult,
@@ -82,6 +88,19 @@ export type WikiGraphLibrarySearchOptions = Omit<
   ArchiveFindOptions,
   "embeddingProvider"
 >;
+export type WikiGraphLibraryBucketSearchOptions = Omit<
+  CoreWikiGraphLibraryBucketSearchOptions,
+  "embeddingProvider"
+>;
+export type WikiGraphLibraryBucketContinuationOptions = Omit<
+  CoreWikiGraphLibraryBucketContinuationOptions,
+  "embeddingProvider"
+>;
+export type {
+  WikiGraphLibraryBucketSearchResult,
+  WikiGraphLibrarySearchBucketDefinition,
+  WikiGraphLibrarySearchBucketPage,
+} from "wiki-graph-core";
 export type WikiGraphLibraryRelatedOptions = Omit<
   NonNullable<Parameters<typeof listRelatedWikiGraphLibraryObjects>[2]>,
   "embeddingProvider"
@@ -429,6 +448,44 @@ export class WikiGraphLibraryManager {
       return await findWikiGraphLibraryObjects(
         requireLibraryTarget(target),
         query,
+        {
+          ...options,
+          ...(embeddingProvider === undefined ? {} : { embeddingProvider }),
+        },
+      );
+    });
+  }
+
+  public async searchBuckets(
+    target: WikiGraphLibraryTarget,
+    query: string,
+    options: WikiGraphLibraryBucketSearchOptions,
+  ): Promise<WikiGraphLibraryBucketSearchResult> {
+    return await this.#runtime.run(async () => {
+      const embeddingProvider = await resolveQueryEmbeddingProvider(
+        options.queryMode,
+      );
+      return await findWikiGraphLibraryObjectBuckets(
+        requireLibraryTarget(target),
+        query,
+        {
+          ...options,
+          ...(embeddingProvider === undefined ? {} : { embeddingProvider }),
+        },
+      );
+    });
+  }
+
+  public async continueSearchBucket(
+    target: WikiGraphLibraryTarget,
+    cursor: string,
+    options: WikiGraphLibraryBucketContinuationOptions = {},
+  ): Promise<WikiGraphLibrarySearchBucketPage> {
+    return await this.#runtime.run(async () => {
+      const embeddingProvider = await resolveQueryEmbeddingProvider(undefined);
+      return await continueWikiGraphLibraryObjectBucket(
+        requireLibraryTarget(target),
+        cursor,
         {
           ...options,
           ...(embeddingProvider === undefined ? {} : { embeddingProvider }),

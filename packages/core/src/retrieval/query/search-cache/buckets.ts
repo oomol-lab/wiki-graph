@@ -15,22 +15,29 @@ export async function readSearchSessionObjectBucketPage(
   bucket: 1,
   after: SearchObjectCursorKey | undefined,
   limit: number,
+  types: readonly string[] | null = null,
 ): Promise<readonly ArchiveFindHit[]> {
   const database = await openSearchSessionDatabase();
 
   try {
-    const entityRows = await readSearchSessionEntityBucketRows(
-      database,
-      sessionId,
-      after,
-      limit + 1,
-    );
-    const tripleRows = await readSearchSessionTripleBucketRows(
-      database,
-      sessionId,
-      after,
-      limit + 1,
-    );
+    const entityRows =
+      types === null || types.includes("entity")
+        ? await readSearchSessionEntityBucketRows(
+            database,
+            sessionId,
+            after,
+            limit + 1,
+          )
+        : [];
+    const tripleRows =
+      types === null || types.includes("triple")
+        ? await readSearchSessionTripleBucketRows(
+            database,
+            sessionId,
+            after,
+            limit + 1,
+          )
+        : [];
 
     return [...entityRows, ...tripleRows]
       .sort(compareObjectBucketHits)

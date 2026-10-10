@@ -31,6 +31,7 @@ async function resetSearchSessionSchema(database: Database): Promise<void> {
     DROP TABLE IF EXISTS search_triple_hits;
     DROP TABLE IF EXISTS search_entity_hits;
     DROP TABLE IF EXISTS search_chunk_hits;
+    DROP TABLE IF EXISTS search_results;
     DROP TABLE IF EXISTS search_sessions;
     ${SEARCH_SESSION_SCHEMA_SQL}
   `);
@@ -40,6 +41,7 @@ async function isSearchSessionSchemaCurrent(
   database: Database,
 ): Promise<boolean> {
   return (
+    (await hasColumn(database, "search_sessions", "ranking_version")) &&
     (await hasColumn(database, "search_entity_hits", "archive_id")) &&
     (await hasColumn(database, "search_chunk_hits", "archive_id")) &&
     (await hasColumn(database, "search_triple_hits", "archive_id")) &&

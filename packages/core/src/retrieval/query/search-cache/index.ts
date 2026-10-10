@@ -1,7 +1,9 @@
 export {
   decodeBucketSearchSessionCursor,
+  decodeIndependentBucketSearchSessionCursor,
   decodeSearchSessionCursor,
   encodeBucketSearchSessionCursor,
+  encodeIndependentBucketSearchSessionCursor,
   encodeSearchSessionCursor,
 } from "./cursor.js";
 export { deleteArchiveSearchSessions, runSearchCacheGc } from "./gc.js";

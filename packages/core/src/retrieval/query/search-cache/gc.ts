@@ -1,6 +1,7 @@
 import { getNumber, getString } from "../../../document/database.js";
 import type { Database } from "../../../document/index.js";
 import type { GcContext, GcJobResult } from "../../../runtime/gc/index.js";
+import { deleteCachedQueries } from "../../search-index/search/query-cache.js";
 import { openSearchSessionDatabase } from "./database.js";
 import { SEARCH_SESSION_MAX_COUNT } from "./schema.js";
 import { deleteSearchSession, deleteUnusedPredicates } from "./store.js";
@@ -9,9 +10,10 @@ export async function deleteArchiveSearchSessions(
   archiveKey: string,
 ): Promise<void> {
   const database = await openSearchSessionDatabase();
+  let sessionIds: string[] = [];
 
   try {
-    const sessionIds = await database.queryAll(
+    sessionIds = await database.queryAll(
       `
         SELECT session_id
         FROM search_sessions
@@ -30,6 +32,8 @@ export async function deleteArchiveSearchSessions(
   } finally {
     await database.close();
   }
+
+  await deleteCachedQueries(sessionIds);
 }
 
 export async function runSearchCacheGc(
@@ -62,6 +66,7 @@ export async function runSearchCacheGc(
         await deleteUnusedPredicates(database);
       });
       await database.run("VACUUM");
+      await deleteCachedQueries(sessionIds);
     }
 
     const afterBytes = await readDatabaseSize(database);

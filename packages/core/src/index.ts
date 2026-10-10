@@ -51,6 +51,8 @@ export {
   listWikiGraphLibraries,
   isWikiGraphLibraryUri,
   findWikiGraphLibraryObjects,
+  findWikiGraphLibraryObjectBuckets,
+  continueWikiGraphLibraryObjectBucket,
   listRelatedWikiGraphLibraryObjects,
   listWikiGraphLibraryArchiveMembers,
   listWikiGraphLibraryArchives,
@@ -95,6 +97,11 @@ export type {
   WikiGraphLibraryIndexTextHit,
   WikiGraphLibraryRecord,
   WikiGraphLibraryScanResult,
+  WikiGraphLibraryBucketContinuationOptions,
+  WikiGraphLibraryBucketSearchOptions,
+  WikiGraphLibraryBucketSearchResult,
+  WikiGraphLibrarySearchBucketDefinition,
+  WikiGraphLibrarySearchBucketPage,
 } from "./library/index.js";
 export {
   EVIDENCE_SELECTION_JSON_SHAPE,
