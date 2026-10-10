@@ -66,6 +66,18 @@ export async function deleteArchiveContinuationCursors(
   }
 }
 
+export async function deleteContinuationCursor(cursorId: string): Promise<void> {
+  const database = await openContinuationCursorDatabase();
+
+  try {
+    await database.run("DELETE FROM continuation_cursors WHERE cursor_id = ?", [
+      cursorId,
+    ]);
+  } finally {
+    await database.close();
+  }
+}
+
 export async function readContinuationCursor(
   cursorId: string,
 ): Promise<ContinuationCursor> {

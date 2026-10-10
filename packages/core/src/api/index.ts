@@ -100,6 +100,7 @@ export {
 } from "./knowledge-graph-build/index.js";
 export {
   createContinuationCursor,
+  deleteContinuationCursor,
   deleteArchiveSearchSessions,
   readContinuationCursor,
 } from "../retrieval/query/index.js";

@@ -45,10 +45,7 @@ function cursorFor(
 describe("SDK page and cursor facade", () => {
   it("keeps the page class without retaining the originating page", async () => {
     const release = vi.fn();
-    const cursor = cursorFor(
-      () => Promise.resolve(new TestPage([2])),
-      release,
-    );
+    const cursor = cursorFor(() => Promise.resolve(new TestPage([2])), release);
 
     expect(cursor.pageClass).toBe(TestPage);
     expect(await cursor.token()).toBe("c_test");
@@ -94,10 +91,7 @@ describe("SDK page and cursor facade", () => {
     const release = vi.fn();
     const page = new TestPage(
       [1],
-      cursorFor(
-        () => Promise.reject(new Error("boom")),
-        release,
-      ),
+      cursorFor(() => Promise.reject(new Error("boom")), release),
     );
 
     await expect(async () => {

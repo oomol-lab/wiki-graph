@@ -290,6 +290,7 @@ export type {
 export { formatError } from "./utils/host-error.js";
 export {
   createContinuationCursor,
+  deleteContinuationCursor,
   deleteArchiveSearchSessions,
   findArchiveObjects,
   formatChapterId,

@@ -27,6 +27,14 @@ export interface CursorImplementation<P extends IPage<unknown>> {
   readonly release?: () => Promise<void> | void;
 }
 
+export interface PageCursorImplementation<P extends IPage<unknown>> {
+  readonly pageClass: PageClass<P>;
+  readonly rawCursor: string;
+  readonly next: (rawCursor: string, options: CursorNextOptions) => Promise<P>;
+  readonly createToken: (rawCursor: string) => Promise<string>;
+  readonly releaseToken?: (token: string) => Promise<void> | void;
+}
+
 /**
  * Creates a cursor without retaining the page that created it. The callbacks
  * are deliberately supplied by the SDK operation that owns continuation
@@ -57,6 +65,26 @@ export function createCursor<P extends IPage<unknown>>(
       await implementation.release?.();
     },
   };
+}
+
+/** Adapts an existing raw cursor while creating durable state only on demand. */
+export function createPageCursor<P extends IPage<unknown>>(
+  implementation: PageCursorImplementation<P>,
+): ICursor<P> {
+  let token: string | undefined;
+  return createCursor({
+    pageClass: implementation.pageClass,
+    next: async (options) =>
+      await implementation.next(implementation.rawCursor, options),
+    token: async () => {
+      token ??= await implementation.createToken(implementation.rawCursor);
+      return token;
+    },
+    release: async () => {
+      if (token !== undefined) await implementation.releaseToken?.(token);
+      token = undefined;
+    },
+  });
 }
 
 /** Iterates concrete pages and releases each page cursor after advancing. */

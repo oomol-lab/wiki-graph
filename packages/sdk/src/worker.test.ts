@@ -438,7 +438,7 @@ async function createCollectionCursor(
   >,
 ): Promise<string> {
   const page = await archive.list({ limit: 1, types: ["chapter-title"] });
-  if (!("nextCursor" in page) || page.nextCursor === null) {
+  if (page.rawNextCursor === null) {
     throw new Error("Expected a collection continuation cursor.");
   }
   const cursor = await sdk.continuations.create(
@@ -451,7 +451,7 @@ async function createCollectionCursor(
       order: "doc-asc",
       types: ["chapter-title"],
     },
-    page.nextCursor,
+    page.rawNextCursor,
   );
   if (cursor === null)
     throw new Error("Expected a durable continuation cursor.");

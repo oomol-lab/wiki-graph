@@ -55,12 +55,12 @@ describe("WikiGraphLibraryManager search pagination", () => {
 
       const pageA = await setup.sdk.libraries.continueSearchBucket(
         setup.libraryUri,
-        first.buckets[0]!.nextCursor!,
+        first.buckets[0]!.rawNextCursor!,
         { limit: 5 },
       );
       const pageB = await setup.sdk.libraries.continueSearchBucket(
         setup.libraryUri,
-        first.buckets[1]!.nextCursor!,
+        first.buckets[1]!.rawNextCursor!,
         { limit: 5 },
       );
       expect(pageA.id).toBe("text-a");
@@ -80,17 +80,17 @@ describe("WikiGraphLibraryManager search pagination", () => {
       try {
         const first = await search(setup.sdk, setup.libraryUri, queryMode, 20);
         expect(first.items).toHaveLength(20);
-        expect(first.nextCursor).not.toBeNull();
+        expect(first.rawNextCursor).not.toBeNull();
 
         const second = await search(
           setup.sdk,
           setup.libraryUri,
           queryMode,
           20,
-          first.nextCursor!,
+          first.rawNextCursor!,
         );
         expect(second.items.length).toBeGreaterThan(0);
-        expect(second.nextCursor).not.toBe(first.nextCursor);
+        expect(second.rawNextCursor).not.toBe(first.rawNextCursor);
 
         const wider = await search(setup.sdk, setup.libraryUri, queryMode, 100);
         expect(ids([...first.items, ...second.items])).toEqual(
@@ -98,8 +98,11 @@ describe("WikiGraphLibraryManager search pagination", () => {
         );
 
         const paged = [...first.items, ...second.items];
-        const seenCursors = new Set([first.nextCursor, second.nextCursor]);
-        let cursor = second.nextCursor;
+        const seenCursors = new Set([
+          first.rawNextCursor,
+          second.rawNextCursor,
+        ]);
+        let cursor = second.rawNextCursor;
         while (cursor !== null) {
           const page = await search(
             setup.sdk,
@@ -110,11 +113,11 @@ describe("WikiGraphLibraryManager search pagination", () => {
           );
           expect(page.items.length).toBeGreaterThan(0);
           paged.push(...page.items);
-          if (page.nextCursor !== null) {
-            expect(seenCursors.has(page.nextCursor)).toBe(false);
-            seenCursors.add(page.nextCursor);
+          if (page.rawNextCursor !== null) {
+            expect(seenCursors.has(page.rawNextCursor)).toBe(false);
+            seenCursors.add(page.rawNextCursor);
           }
-          cursor = page.nextCursor;
+          cursor = page.rawNextCursor;
         }
 
         expect(new Set(ids(paged)).size).toBe(paged.length);

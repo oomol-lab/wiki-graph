@@ -34,21 +34,15 @@ import {
   scanWikiGraphLibrary,
   withWikiGraphLibraryLock,
   type ArchiveCollectionOptions,
-  type ArchiveCollectionResult,
-  type ArchiveEvidence,
   type ArchiveFindOptions,
-  type ArchiveFindResult,
   type ArchivePack,
   type ArchivePage,
-  type ArchiveRelatedResult,
   type ParsedWikiGraphLibraryUri,
   type SearchIndexEmbeddingProvider,
   type SearchIndexQueryMode,
   type WikiGraphLibraryArchiveRecord,
   type WikiGraphLibraryBucketContinuationOptions as CoreWikiGraphLibraryBucketContinuationOptions,
   type WikiGraphLibraryBucketSearchOptions as CoreWikiGraphLibraryBucketSearchOptions,
-  type WikiGraphLibraryBucketSearchResult,
-  type WikiGraphLibrarySearchBucketPage,
   type WikiGraphLibraryIndexState,
   type WikiGraphLibraryRecord,
   type WikiGraphLibraryScanResult,
@@ -68,6 +62,18 @@ import {
   withConfiguredWikimediaResolver,
 } from "./query-runtime.js";
 import { assertStandaloneWikiGraphArchivePath } from "./archive/target.js";
+import {
+  createArchiveCollectionPage,
+  createArchiveEvidencePage,
+  createArchiveFindPage,
+  createArchiveRelatedPage,
+  createLibraryBucketPage,
+  type ArchiveCollectionPage,
+  type ArchiveEvidencePage,
+  type ArchiveFindPage,
+  type ArchiveRelatedPage,
+  type LibraryBucketPage,
+} from "./result-pages.js";
 
 export type WikiGraphLibraryTarget = ParsedWikiGraphLibraryUri | string;
 
@@ -440,8 +446,8 @@ export class WikiGraphLibraryManager {
     target: WikiGraphLibraryTarget,
     query: string,
     options: WikiGraphLibrarySearchOptions = {},
-  ): Promise<ArchiveFindResult> {
-    return await this.#runtime.run(async () => {
+  ): Promise<ArchiveFindPage> {
+    const result = await this.#runtime.run(async () => {
       const embeddingProvider = await resolveQueryEmbeddingProvider(
         options.queryMode,
       );
@@ -454,14 +460,33 @@ export class WikiGraphLibraryManager {
         },
       );
     });
+    return createArchiveFindPage(
+      result,
+      async (cursor, nextOptions) =>
+        await this.search(target, query, {
+          ...options,
+          cursor,
+          ...(nextOptions.limit === undefined
+            ? {}
+            : { limit: nextOptions.limit }),
+          ...(nextOptions.signal === undefined
+            ? {}
+            : { signal: nextOptions.signal }),
+        }),
+      (cursor) => Promise.resolve(cursor),
+      () => Promise.resolve(),
+    );
   }
 
   public async searchBuckets(
     target: WikiGraphLibraryTarget,
     query: string,
     options: WikiGraphLibraryBucketSearchOptions,
-  ): Promise<WikiGraphLibraryBucketSearchResult> {
-    return await this.#runtime.run(async () => {
+  ): Promise<{
+    readonly buckets: readonly LibraryBucketPage[];
+    readonly query: string;
+  }> {
+    const result = await this.#runtime.run(async () => {
       const embeddingProvider = await resolveQueryEmbeddingProvider(
         options.queryMode,
       );
@@ -474,14 +499,30 @@ export class WikiGraphLibraryManager {
         },
       );
     });
+    return {
+      buckets: result.buckets.map((bucket) =>
+        createLibraryBucketPage(
+          bucket,
+          async (cursor, nextOptions) =>
+            await this.continueSearchBucket(target, cursor, {
+              ...(nextOptions.limit === undefined
+                ? {}
+                : { limit: nextOptions.limit }),
+            }),
+          (cursor) => Promise.resolve(cursor),
+          () => Promise.resolve(),
+        ),
+      ),
+      query: result.query,
+    };
   }
 
   public async continueSearchBucket(
     target: WikiGraphLibraryTarget,
     cursor: string,
     options: WikiGraphLibraryBucketContinuationOptions = {},
-  ): Promise<WikiGraphLibrarySearchBucketPage> {
-    return await this.#runtime.run(async () => {
+  ): Promise<LibraryBucketPage> {
+    const result = await this.#runtime.run(async () => {
       const embeddingProvider = await resolveQueryEmbeddingProvider(undefined);
       return await continueWikiGraphLibraryObjectBucket(
         requireLibraryTarget(target),
@@ -492,14 +533,26 @@ export class WikiGraphLibraryManager {
         },
       );
     });
+    return createLibraryBucketPage(
+      result,
+      async (nextCursor, nextOptions) =>
+        await this.continueSearchBucket(target, nextCursor, {
+          ...options,
+          ...(nextOptions.limit === undefined
+            ? {}
+            : { limit: nextOptions.limit }),
+        }),
+      (cursor) => Promise.resolve(cursor),
+      () => Promise.resolve(),
+    );
   }
 
   public async searchArchiveMembers(
     target: WikiGraphLibraryTarget,
     query: string,
     options: WikiGraphLibrarySearchOptions = {},
-  ): Promise<ArchiveFindResult> {
-    return await this.#runtime.run(async () => {
+  ): Promise<ArchiveFindPage> {
+    const result = await this.#runtime.run(async () => {
       const embeddingProvider = await resolveQueryEmbeddingProvider(
         options.queryMode,
       );
@@ -512,31 +565,73 @@ export class WikiGraphLibraryManager {
         },
       );
     });
+    return createArchiveFindPage(
+      result,
+      async (cursor, nextOptions) =>
+        await this.searchArchiveMembers(target, query, {
+          ...options,
+          cursor,
+          ...(nextOptions.limit === undefined
+            ? {}
+            : { limit: nextOptions.limit }),
+          ...(nextOptions.signal === undefined
+            ? {}
+            : { signal: nextOptions.signal }),
+        }),
+      (cursor) => Promise.resolve(cursor),
+      () => Promise.resolve(),
+    );
   }
 
   public async objects(
     target: WikiGraphLibraryTarget,
     options: ArchiveCollectionOptions = {},
-  ): Promise<ArchiveCollectionResult> {
-    return await this.#runtime.run(
+  ): Promise<ArchiveCollectionPage> {
+    const result = await this.#runtime.run(
       async () =>
         await listWikiGraphLibraryObjects(
           requireLibraryTarget(target),
           options,
         ),
     );
+    return createArchiveCollectionPage(
+      result,
+      async (cursor, nextOptions) =>
+        await this.objects(target, {
+          ...options,
+          cursor,
+          ...(nextOptions.limit === undefined
+            ? {}
+            : { limit: nextOptions.limit }),
+        }),
+      (cursor) => Promise.resolve(cursor),
+      () => Promise.resolve(),
+    );
   }
 
   public async archiveMembers(
     target: WikiGraphLibraryTarget,
     options: ArchiveCollectionOptions = {},
-  ): Promise<ArchiveCollectionResult> {
-    return await this.#runtime.run(
+  ): Promise<ArchiveCollectionPage> {
+    const result = await this.#runtime.run(
       async () =>
         await listWikiGraphLibraryArchiveMembers(
           requireLibraryTarget(target),
           options,
         ),
+    );
+    return createArchiveCollectionPage(
+      result,
+      async (cursor, nextOptions) =>
+        await this.archiveMembers(target, {
+          ...options,
+          cursor,
+          ...(nextOptions.limit === undefined
+            ? {}
+            : { limit: nextOptions.limit }),
+        }),
+      (cursor) => Promise.resolve(cursor),
+      () => Promise.resolve(),
     );
   }
 
@@ -564,8 +659,8 @@ export class WikiGraphLibraryManager {
     target: WikiGraphLibraryTarget,
     objectUri: string,
     options: WikiGraphLibraryRelatedOptions = {},
-  ): Promise<ArchiveRelatedResult> {
-    return await this.#runtime.run(async () => {
+  ): Promise<ArchiveRelatedPage> {
+    const result = await this.#runtime.run(async () => {
       if (options.query === undefined && options.queryMode !== undefined) {
         throw new Error("`queryMode` requires `query`.");
       }
@@ -582,14 +677,30 @@ export class WikiGraphLibraryManager {
         },
       );
     });
+    return createArchiveRelatedPage(
+      result,
+      async (cursor, nextOptions) =>
+        await this.related(target, objectUri, {
+          ...options,
+          cursor,
+          ...(nextOptions.limit === undefined
+            ? {}
+            : { limit: nextOptions.limit }),
+          ...(nextOptions.signal === undefined
+            ? {}
+            : { signal: nextOptions.signal }),
+        }),
+      (cursor) => Promise.resolve(cursor),
+      () => Promise.resolve(),
+    );
   }
 
   public async evidence(
     target: WikiGraphLibraryTarget,
     objectUri: string,
     options: WikiGraphLibraryEvidenceOptions = {},
-  ): Promise<ArchiveEvidence> {
-    return await this.#runtime.run(async () => {
+  ): Promise<ArchiveEvidencePage> {
+    const result = await this.#runtime.run(async () => {
       if (options.query === undefined && options.queryMode !== undefined) {
         throw new Error("`queryMode` requires `query`.");
       }
@@ -606,6 +717,22 @@ export class WikiGraphLibraryManager {
         },
       );
     });
+    return createArchiveEvidencePage(
+      result,
+      async (cursor, nextOptions) =>
+        await this.evidence(target, objectUri, {
+          ...options,
+          cursor,
+          ...(nextOptions.limit === undefined
+            ? {}
+            : { limit: nextOptions.limit }),
+          ...(nextOptions.signal === undefined
+            ? {}
+            : { signal: nextOptions.signal }),
+        }),
+      (cursor) => Promise.resolve(cursor),
+      () => Promise.resolve(),
+    );
   }
 
   public async pack(
