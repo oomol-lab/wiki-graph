@@ -12,8 +12,14 @@ import {
 } from "../retrieval/query/archive-view/helper/results.js";
 import { readArchiveTitle } from "../retrieval/query/archive-view/helper/meta.js";
 import {
+  continueWikiGraphLibraryObjectBucketShared,
   findWikiGraphLibraryObjectsBucketed,
+  findWikiGraphLibraryObjectBucketsShared,
   shouldUseLibraryBucketedSearch,
+  type WikiGraphLibraryBucketContinuationOptions,
+  type WikiGraphLibraryBucketSearchOptions,
+  type WikiGraphLibraryBucketSearchResult,
+  type WikiGraphLibrarySearchBucketPage,
 } from "./search-query.js";
 import { hydrateSearchIndexHits } from "../retrieval/query/archive-view/search/hydration.js";
 import type {
@@ -77,6 +83,38 @@ export async function findWikiGraphLibraryObjects(
       await findWikiGraphLibraryObjectsUnlocked(target, query, options),
   );
 }
+
+export async function findWikiGraphLibraryObjectBuckets(
+  target: ParsedWikiGraphLibraryUri,
+  query: string,
+  options: WikiGraphLibraryBucketSearchOptions,
+): Promise<WikiGraphLibraryBucketSearchResult> {
+  return await withLibraryQueryLock(
+    target,
+    async () =>
+      await findWikiGraphLibraryObjectBucketsShared(target, query, options),
+  );
+}
+
+export async function continueWikiGraphLibraryObjectBucket(
+  target: ParsedWikiGraphLibraryUri,
+  cursor: string,
+  options: WikiGraphLibraryBucketContinuationOptions = {},
+): Promise<WikiGraphLibrarySearchBucketPage> {
+  return await withLibraryQueryLock(
+    target,
+    async () =>
+      await continueWikiGraphLibraryObjectBucketShared(target, cursor, options),
+  );
+}
+
+export type {
+  WikiGraphLibraryBucketContinuationOptions,
+  WikiGraphLibraryBucketSearchOptions,
+  WikiGraphLibraryBucketSearchResult,
+  WikiGraphLibrarySearchBucketDefinition,
+  WikiGraphLibrarySearchBucketPage,
+} from "./search-query.js";
 
 async function findWikiGraphLibraryObjectsUnlocked(
   target: ParsedWikiGraphLibraryUri,

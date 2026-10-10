@@ -30,6 +30,65 @@ export function encodeBucketSearchSessionCursor(
   );
 }
 
+export function encodeIndependentBucketSearchSessionCursor(
+  sessionId: string,
+  bucketId: string,
+  types: readonly string[],
+  cursor: BucketSearchCursor,
+  createdAt: number,
+): string {
+  return encodeBase64UrlText(
+    JSON.stringify({ bucketId, createdAt, cursor, sessionId, types, v: 6 }),
+  );
+}
+
+export function decodeIndependentBucketSearchSessionCursor(cursor: string): {
+  readonly bucketId: string;
+  readonly createdAt: number;
+  readonly cursor: BucketSearchCursor;
+  readonly sessionId: string;
+  readonly types: readonly string[];
+} {
+  try {
+    const parsed: unknown = JSON.parse(decodeBase64UrlText(cursor));
+
+    if (
+      typeof parsed === "object" &&
+      parsed !== null &&
+      "bucketId" in parsed &&
+      "createdAt" in parsed &&
+      "cursor" in parsed &&
+      "sessionId" in parsed &&
+      "types" in parsed &&
+      "v" in parsed &&
+      parsed.v === 6 &&
+      typeof parsed.bucketId === "string" &&
+      parsed.bucketId !== "" &&
+      typeof parsed.createdAt === "number" &&
+      Number.isInteger(parsed.createdAt) &&
+      parsed.createdAt >= 0 &&
+      typeof parsed.sessionId === "string" &&
+      parsed.sessionId !== "" &&
+      Array.isArray(parsed.types) &&
+      parsed.types.length > 0 &&
+      parsed.types.every((type) => typeof type === "string") &&
+      isBucketSearchCursor(parsed.cursor)
+    ) {
+      return {
+        bucketId: parsed.bucketId,
+        createdAt: parsed.createdAt,
+        cursor: parsed.cursor,
+        sessionId: parsed.sessionId,
+        types: parsed.types,
+      };
+    }
+  } catch {
+    throw new Error("Invalid search bucket cursor.");
+  }
+
+  throw new Error("Invalid search bucket cursor.");
+}
+
 export function decodeBucketSearchSessionCursor(cursor: string): {
   readonly createdAt: number;
   readonly cursor: BucketSearchCursor;

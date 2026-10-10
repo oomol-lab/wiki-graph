@@ -98,6 +98,7 @@ export interface WikiGraphLibraryIndexQueryOptions {
   readonly embeddingProvider?: SearchIndexEmbeddingProvider;
   readonly match?: ArchiveFindMatch;
   readonly queryMode?: SearchIndexQueryMode;
+  readonly queryId?: string;
   readonly objectHitLimit?: number;
   readonly textAfter?: {
     readonly archiveId: number;

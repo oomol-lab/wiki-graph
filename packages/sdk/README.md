@@ -78,6 +78,11 @@ Job event subscriptions observe durable work without coupling observation to
 cancellation. Call `job.cancel()` explicitly to cancel a job; unsubscribing
 only stops the current listener.
 
+`libraries.searchBuckets()` projects one shared search session into typed,
+independently paginated buckets. Continue one bucket with
+`libraries.continueSearchBucket()`; sibling cursors remain unchanged. The
+existing `libraries.search()` API keeps its sequential single-cursor result.
+
 Services that receive chapter job artifacts as files can apply an ordered,
 lazy sequence through the Node delivery boundary without importing Core:
 

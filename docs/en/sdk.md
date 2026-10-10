@@ -75,6 +75,37 @@ for await (const event of job.events({ signal })) console.log(event);
 CLI. `wikiGraph.libraries` returns typed library instances. SDK results are
 objects, not serialized JSON or terminal text.
 
+Library search can expose several independently paginated result buckets from
+one shared query session. Scores in every bucket come from the same candidate
+set and normalization pass:
+
+```ts
+const result = await wikiGraph.libraries.searchBuckets(library.uri, query, {
+  buckets: [
+    { id: "titles", types: ["archive-title", "chapter-title"] },
+    { id: "knowledge", types: ["entity", "triple"] },
+    { id: "reading", types: ["node"] },
+    { id: "text", types: ["source", "summary"] },
+  ],
+  limitPerBucket: 3,
+  queryMode: "hybrid",
+});
+
+const text = result.buckets.find((bucket) => bucket.id === "text");
+const nextTextPage =
+  text?.nextCursor === null || text?.nextCursor === undefined
+    ? undefined
+    : await wikiGraph.libraries.continueSearchBucket(
+        library.uri,
+        text.nextCursor,
+        { limit: 12 },
+      );
+```
+
+Advancing one bucket does not move any sibling cursor. The existing
+`libraries.search()` method and CLI search output retain their sequential
+single-cursor behavior.
+
 ## Core for Other JavaScript Hosts
 
 Use `wiki-graph-core` directly only when building a runtime adapter, such as a

@@ -28,6 +28,50 @@ afterEach(async () => {
 });
 
 describe("WikiGraphLibraryManager search pagination", () => {
+  it("shares one query build while bucket cursors advance independently", async () => {
+    const setup = await createIndexedLibrary();
+
+    try {
+      setup.embeddingProbe.reset();
+      const first = await setup.sdk.libraries.searchBuckets(
+        setup.libraryUri,
+        "needle",
+        {
+          buckets: [
+            { id: "text-a", types: ["source"] },
+            { id: "text-b", types: ["source"] },
+          ],
+          limitPerBucket: 5,
+          queryMode: "hybrid",
+        },
+      );
+      expect(setup.embeddingProbe.queryCount).toBe(1);
+      expect(first.buckets).toHaveLength(2);
+      expect(ids(first.buckets[0]!.items)).toEqual(
+        ids(first.buckets[1]!.items),
+      );
+      expect(first.buckets[0]!.nextCursor).not.toBeNull();
+      expect(first.buckets[1]!.nextCursor).not.toBeNull();
+
+      const pageA = await setup.sdk.libraries.continueSearchBucket(
+        setup.libraryUri,
+        first.buckets[0]!.nextCursor!,
+        { limit: 5 },
+      );
+      const pageB = await setup.sdk.libraries.continueSearchBucket(
+        setup.libraryUri,
+        first.buckets[1]!.nextCursor!,
+        { limit: 5 },
+      );
+      expect(pageA.id).toBe("text-a");
+      expect(pageB.id).toBe("text-b");
+      expect(ids(pageA.items)).toEqual(ids(pageB.items));
+      expect(setup.embeddingProbe.queryCount).toBe(1);
+    } finally {
+      setup.sdk.close();
+    }
+  });
+
   it.each(["fts", "embedding", "hybrid"] as const)(
     "paginates a real aggregate index in %s mode",
     async (queryMode) => {
@@ -83,12 +127,14 @@ describe("WikiGraphLibraryManager search pagination", () => {
 });
 
 async function createIndexedLibrary(): Promise<{
+  readonly embeddingProbe: EmbeddingProbe;
   readonly libraryUri: string;
   readonly sdk: WikiGraphSDK;
 }> {
   const root = await mkdtemp(join(tmpdir(), "wiki-graph-sdk-pagination-"));
   temporaryDirectories.push(root);
-  const provider = createEmbeddingProvider();
+  const embeddingProbe = createEmbeddingProvider();
+  const provider = embeddingProbe.provider;
   const sdk = createWikiGraphSDK({
     providers: { embedding: provider },
     stateDir: join(root, "state"),
@@ -125,23 +171,41 @@ async function createIndexedLibrary(): Promise<{
     to: "source.wikg",
   });
   await sdk.libraries.rebuildIndex(library.uri);
-  return { libraryUri: library.uri, sdk };
+  return { embeddingProbe, libraryUri: library.uri, sdk };
 }
 
-function createEmbeddingProvider(): SearchIndexEmbeddingProvider {
+interface EmbeddingProbe {
+  readonly provider: SearchIndexEmbeddingProvider;
+  readonly queryCount: number;
+  reset(): void;
+}
+
+function createEmbeddingProvider(): EmbeddingProbe {
+  let queryCount = 0;
   return {
-    dimensions: 3,
-    identity: "pagination-test",
-    model: "pagination-test",
-    embedTexts: async (texts) => {
-      await Promise.resolve();
-      return {
-        embeddings: texts.map((text, index) => [
-          text.toLowerCase().includes("needle") ? 1 : 0,
-          text.length / 100,
-          index / Math.max(texts.length, 1),
-        ]),
-      };
+    provider: {
+      dimensions: 3,
+      identity: "pagination-test",
+      model: "pagination-test",
+      embedTexts: async (texts) => {
+        await Promise.resolve();
+        if (texts.length === 1 && texts[0]?.toLowerCase() === "needle") {
+          queryCount += 1;
+        }
+        return {
+          embeddings: texts.map((text, index) => [
+            text.toLowerCase().includes("needle") ? 1 : 0,
+            text.length / 100,
+            index / Math.max(texts.length, 1),
+          ]),
+        };
+      },
+    },
+    get queryCount() {
+      return queryCount;
+    },
+    reset() {
+      queryCount = 0;
     },
   };
 }
