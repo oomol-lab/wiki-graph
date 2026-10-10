@@ -79,7 +79,10 @@ export async function upsertSearchEntityHit(
   );
   const propertyScore = aggregateCachedScores(propertyTopScores);
   const evidenceScore = aggregateCachedScores(evidenceTopScores);
-  const resultScore = propertyScore + evidenceScore;
+  const resultScore = aggregateCachedScores([
+    ...propertyTopScores,
+    ...evidenceTopScores,
+  ]);
 
   await database.run(
     `
@@ -209,7 +212,10 @@ export async function upsertSearchChunkHit(
   );
   const propertyScore = aggregateCachedScores(propertyTopScores);
   const evidenceScore = aggregateCachedScores(evidenceTopScores);
-  const resultScore = propertyScore + evidenceScore;
+  const resultScore = aggregateCachedScores([
+    ...propertyTopScores,
+    ...evidenceTopScores,
+  ]);
 
   await database.run(
     `

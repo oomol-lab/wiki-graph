@@ -435,7 +435,7 @@ describe("archive/query/archive-view/graph search", () => {
     });
   });
 
-  it("adds only a small bonus for repeated entity evidence", async () => {
+  it("keeps repeated entity evidence within the underlying score scale", async () => {
     await withTempDir("wikigraph-archive-view-", async (path) => {
       const previousStateDir = getWikiGraphStateDirectoryPathForTesting();
       setWikiGraphStateDirectoryPathForTesting(`${path}/state`);
@@ -477,8 +477,8 @@ describe("archive/query/archive-view/graph search", () => {
           (item) => item.id === "wikg://entity/Q2",
         );
 
-        expect(multi?.score).toBeGreaterThan(single?.score ?? 0);
-        expect(multi?.score).toBeLessThan((single?.score ?? 0) * 5);
+        expect(multi?.score).toBeCloseTo(2, 10);
+        expect(single?.score).toBeLessThanOrEqual(multi?.score ?? 0);
       } finally {
         restoreWikiGraphStateDir(previousStateDir);
         await document.release();
@@ -613,7 +613,7 @@ describe("archive/query/archive-view/graph search", () => {
           (item) => item.id === "wikg://triple/Q3/supports/Q4",
         );
 
-        expect(multi?.score).toBeCloseTo((single?.score ?? 0) * 1.3, 10);
+        expect(multi?.score).toBeCloseTo(single?.score ?? 0, 10);
       } finally {
         restoreWikiGraphStateDir(previousStateDir);
         await document.release();
