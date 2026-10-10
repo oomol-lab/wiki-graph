@@ -569,7 +569,7 @@ async function readLibraryChunkBucketPage(
   after: SearchChunkCursorKey | undefined,
   limit: number,
   options: ArchiveFindOptions,
-  types: readonly ArchiveFindFilterType[] | null,
+  _types: readonly ArchiveFindFilterType[] | null,
 ): Promise<{
   readonly items: readonly ArchiveFindHit[];
   readonly nextCursor: BucketSearchCursor | undefined;
