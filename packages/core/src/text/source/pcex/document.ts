@@ -44,59 +44,83 @@ interface Chapter {
   readonly segments: readonly Segment[];
 }
 
+interface PcexTocItem {
+  readonly id: string;
+  readonly children: readonly PcexTocItem[];
+}
+
+interface PcexSectionDefinition {
+  readonly chapter?: Chapter;
+  readonly children: readonly PcexSectionDefinition[];
+  readonly id: string;
+  readonly title?: string;
+}
+
 class PcexSection implements SourceSection {
   readonly #artifact: SourceArtifactInput;
-  readonly #chapter: Chapter;
-  public readonly children = [];
-  public readonly hasContent: boolean;
-  public readonly wordsCount: number;
-  public constructor(chapter: Chapter, artifact: SourceArtifactInput) {
+  readonly #definition: PcexSectionDefinition;
+  public constructor(
+    definition: PcexSectionDefinition,
+    artifact: SourceArtifactInput,
+  ) {
     this.#artifact = artifact;
-    this.#chapter = chapter;
-    this.hasContent = chapter.text.length > 0;
-    this.wordsCount = countTextWords(chapter.text);
+    this.#definition = definition;
+  }
+  public get children(): readonly SourceSection[] {
+    return this.#definition.children.map(
+      (child) => new PcexSection(child, this.#artifact),
+    );
+  }
+  public get hasContent(): boolean {
+    return (this.#definition.chapter?.text.length ?? 0) > 0;
+  }
+  public get wordsCount(): number {
+    return countTextWords(this.#definition.chapter?.text ?? "");
   }
   public get id(): string {
-    return this.#chapter.id;
+    return this.#definition.id;
   }
   public get title(): string | undefined {
-    return this.#chapter.title;
+    return this.#definition.title;
   }
   public open(): Promise<SourceTextStream> {
-    return Promise.resolve([this.#chapter.text]);
+    return Promise.resolve([this.#definition.chapter?.text ?? ""]);
   }
   public openWithProvenance(): Promise<SourceSectionContent> {
-    const mappings: SourceTextMappingInput[] = this.#chapter.segments.map(
-      (segment) => ({
-        artifactDigest: this.#artifact.digest,
-        locator: { bbox: segment.bbox, pageIndex: segment.pageIndex },
-        sourceEnd: segment.sourceEnd,
-        sourceStart: segment.sourceStart,
-      }),
-    );
-    if (this.#chapter.text.length > 0 && mappings.length === 0) {
+    const mappings: SourceTextMappingInput[] = (
+      this.#definition.chapter?.segments ?? []
+    ).map((segment) => ({
+      artifactDigest: this.#artifact.digest,
+      locator: { bbox: segment.bbox, pageIndex: segment.pageIndex },
+      sourceEnd: segment.sourceEnd,
+      sourceStart: segment.sourceStart,
+    }));
+    if (
+      (this.#definition.chapter?.text.length ?? 0) > 0 &&
+      mappings.length === 0
+    ) {
       throw new Error(
-        `PCEX section ${this.#chapter.id} produced text without provenance mappings.`,
+        `PCEX section ${this.#definition.id} produced text without provenance mappings.`,
       );
     }
     return Promise.resolve({
       provenance: { artifacts: [this.#artifact], mappings },
-      stream: [this.#chapter.text],
+      stream: [this.#definition.chapter?.text ?? ""],
     });
   }
 }
 
 class PcexDocument implements SourceDocument {
   readonly #artifact: SourceArtifactInput;
-  readonly #chapters: readonly Chapter[];
+  readonly #sections: readonly PcexSectionDefinition[];
   readonly #meta: ReturnType<typeof readManifest>;
   public constructor(
     artifact: SourceArtifactInput,
     meta: ReturnType<typeof readManifest>,
-    chapters: readonly Chapter[],
+    sections: readonly PcexSectionDefinition[],
   ) {
     this.#artifact = artifact;
-    this.#chapters = chapters;
+    this.#sections = sections;
     this.#meta = meta;
   }
   public readMeta() {
@@ -107,7 +131,7 @@ class PcexDocument implements SourceDocument {
   }
   public readSections() {
     return Promise.resolve(
-      this.#chapters.map((chapter) => new PcexSection(chapter, this.#artifact)),
+      this.#sections.map((section) => new PcexSection(section, this.#artifact)),
     );
   }
 }
@@ -131,6 +155,9 @@ export class PcexSourceAdapter implements SourceAdapter {
         JSON.parse(await archive.readText("manifest.json")) as unknown,
       );
       const pages = readPages(await archive.readText("pages.xml"));
+      const toc = archive.hasEntry("toc.xml")
+        ? readToc(await archive.readText("toc.xml"))
+        : undefined;
       const chapterPaths = archive
         .listEntries()
         .filter((path) =>
@@ -148,7 +175,9 @@ export class PcexSourceAdapter implements SourceAdapter {
         mediaType: "application/pdf",
         ...(pdfName === undefined ? {} : { name: pdfName }),
       };
-      return await operation(new PcexDocument(artifact, manifest, chapters));
+      return await operation(
+        new PcexDocument(artifact, manifest, buildSections(chapters, toc)),
+      );
     } finally {
       await archive.close();
     }
@@ -231,6 +260,96 @@ function readChapter(
     text,
     segments,
   };
+}
+
+function readToc(xml: string): readonly PcexTocItem[] {
+  const root = parseXml(xml);
+  if (root.name !== "toc") {
+    throw new Error("PCEX toc.xml must have a toc root element.");
+  }
+
+  return findChildren(root, "item").map((item) => readTocItem(item));
+}
+
+function readTocItem(element: XmlElement): PcexTocItem {
+  const id = getAttribute(element, "id");
+  if (id === undefined || !/^\d+$/u.test(id)) {
+    throw new Error("PCEX toc item id must be an integer.");
+  }
+
+  return {
+    id,
+    children: findChildren(element, "item").map((child) => readTocItem(child)),
+  };
+}
+
+function buildSections(
+  chapters: readonly Chapter[],
+  toc: readonly PcexTocItem[] | undefined,
+): readonly PcexSectionDefinition[] {
+  const chaptersById = new Map(
+    chapters
+      .filter((chapter) => !chapter.id.endsWith("chapter_head.xml"))
+      .map((chapter) => [chapterFileId(chapter.id), chapter]),
+  );
+  const referenced = new Set<string>();
+  const sections: PcexSectionDefinition[] = [];
+
+  const head = chapters.find((chapter) =>
+    chapter.id.endsWith("chapter_head.xml"),
+  );
+  if (head !== undefined) sections.push(createSection(head));
+
+  if (toc === undefined) {
+    sections.push(
+      ...chapters
+        .filter((chapter) => chapter !== head)
+        .map((chapter) => createSection(chapter)),
+    );
+    return sections;
+  }
+
+  const createTocSection = (item: PcexTocItem): PcexSectionDefinition => {
+    const chapter = chaptersById.get(item.id);
+    if (chapter === undefined && item.children.length === 0) {
+      throw new Error(`PCEX toc item ${item.id} has no matching chapter.`);
+    }
+    if (chapter !== undefined) referenced.add(item.id);
+    return {
+      ...(chapter === undefined ? {} : { chapter }),
+      children: item.children.map(createTocSection),
+      id: chapter?.id ?? `toc:${item.id}`,
+      ...(chapter?.title === undefined ? {} : { title: chapter.title }),
+    };
+  };
+
+  sections.push(...toc.map(createTocSection));
+  sections.push(
+    ...chapters
+      .filter(
+        (chapter) =>
+          chapter !== head && !referenced.has(chapterFileId(chapter.id)),
+      )
+      .map((chapter) => createSection(chapter)),
+  );
+  return sections;
+}
+
+function createSection(chapter: Chapter): PcexSectionDefinition {
+  return {
+    chapter,
+    children: [],
+    id: chapter.id,
+    ...(chapter.title === undefined ? {} : { title: chapter.title }),
+  };
+}
+
+function chapterFileId(path: string): string {
+  const match = /chapter_([0-9]+)\.xml$/u.exec(path);
+  if (match?.[1] === undefined) {
+    throw new Error(`PCEX chapter path has no numeric id: ${path}`);
+  }
+  return match[1];
 }
 
 function parseFlow(

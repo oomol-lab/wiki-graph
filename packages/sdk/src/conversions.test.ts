@@ -93,9 +93,51 @@ describe("PCEX conversion", () => {
       sdk.close();
     }
   });
+
+  it("maps nested PCEX TOC items to nested WIKG chapter paths", async () => {
+    const root = await mkdtemp(join(tmpdir(), "wiki-graph-pcex-toc-"));
+    temporary.push(root);
+    await writePcex(join(root, "book.pcex"), { nestedToc: true });
+    const sdk = createWikiGraphSDK({
+      cwd: root,
+      stateDir: join(root, "state"),
+    });
+    try {
+      const result = await sdk.conversions.convert({
+        input: {
+          format: "pcex",
+          path: "book.pcex",
+          sourcePdf: { digest: "b".repeat(64) },
+        },
+        output: { format: "wikg", path: "book.wikg" },
+        targetStage: "sourced",
+      });
+      expect(result.chapterPaths).toHaveLength(2);
+      expect(result.chapterPaths?.some((path) => path.includes("/"))).toBe(
+        true,
+      );
+
+      const archive = await sdk.archives.open({
+        kind: "standalone",
+        path: "book.wikg",
+      });
+      const tree = await archive.getChapterTree();
+      expect(tree.chapters).toHaveLength(2);
+      expect(
+        tree.chapters.every((chapter) =>
+          chapter.uri.replace("wikg://chapter/", "").includes("/"),
+        ),
+      ).toBe(true);
+    } finally {
+      sdk.close();
+    }
+  });
 });
 
-async function writePcex(path: string): Promise<void> {
+async function writePcex(
+  path: string,
+  options: { readonly nestedToc?: boolean } = {},
+): Promise<void> {
   const zip = new ZipFile();
   zip.addBuffer(
     Buffer.from(
@@ -127,6 +169,20 @@ async function writePcex(path: string): Promise<void> {
     ),
     "chapters/chapter_1.xml",
   );
+  if (options.nestedToc === true) {
+    zip.addBuffer(
+      Buffer.from(
+        '<chapter id="2" level="1"><flow><text role="body"><fragment page_index="1" source_order="2" bbox="100,900,900,1200">A second section.</fragment></text></flow></chapter>',
+      ),
+      "chapters/chapter_2.xml",
+    );
+    zip.addBuffer(
+      Buffer.from(
+        '<toc page_indexes=""><item id="99"><item id="1" /><item id="2" /></item></toc>',
+      ),
+      "toc.xml",
+    );
+  }
   zip.end();
   await new Promise<void>((resolve, reject) => {
     zip.outputStream
