@@ -136,10 +136,12 @@ async function runArchiveList(args: CLIArchiveArguments): Promise<void> {
     const readPage = async (
       cursor: string | undefined,
     ): Promise<ArchiveSourceLocatorResult> =>
-      (await archive.list({
-        ...(cursor === undefined ? {} : { cursor }),
-        ...(args.limit === undefined ? {} : { limit: args.limit }),
-      })) as ArchiveSourceLocatorResult;
+      (
+        await archive.list({
+          ...(cursor === undefined ? {} : { cursor }),
+          ...(args.limit === undefined ? {} : { limit: args.limit }),
+        })
+      ).result as ArchiveSourceLocatorResult;
     if (args.all === true) {
       await writeAllSourceLocators(
         readPage,
@@ -175,11 +177,13 @@ async function runArchiveList(args: CLIArchiveArguments): Promise<void> {
     cursor: string | undefined,
     limit = args.limit,
   ): Promise<ArchiveCollectionResult> =>
-    (await archive.list({
-      ...createCollectionOptions(scopedArgs),
-      ...(cursor === undefined ? {} : { cursor }),
-      ...(limit === undefined ? {} : { limit }),
-    })) as ArchiveCollectionResult;
+    (
+      await archive.list({
+        ...createCollectionOptions(scopedArgs),
+        ...(cursor === undefined ? {} : { cursor }),
+        ...(limit === undefined ? {} : { limit }),
+      })
+    ).result as ArchiveCollectionResult;
   if (args.all === true) {
     if (args.limit !== undefined) {
       await writeAllFindHits(
@@ -218,11 +222,13 @@ async function runArchiveSearch(args: CLIArchiveArguments): Promise<void> {
   const findOptions = createSearchFindOptions(scopedArgs);
   const { archiveKey: _archiveKey, chapters, ...options } = findOptions;
   const readPage = async (cursor: string | undefined) =>
-    await archive.search(scopedArgs.query!, {
-      ...options,
-      ...(chapters === undefined ? {} : { chapters }),
-      ...(cursor === undefined ? {} : { cursor }),
-    });
+    (
+      await archive.search(scopedArgs.query!, {
+        ...options,
+        ...(chapters === undefined ? {} : { chapters }),
+        ...(cursor === undefined ? {} : { cursor }),
+      })
+    ).result;
   try {
     if (args.all === true) {
       await writeAllFindHits(readPage, context, args.format ?? "text");
@@ -279,17 +285,19 @@ async function runArchiveRelated(args: CLIArchiveArguments): Promise<void> {
   const readPage = async (
     cursor: string | undefined,
   ): Promise<ArchiveRelatedResult> =>
-    await archive.related(objectUri, {
-      ...(cursor === undefined ? {} : { cursor }),
-      ...createOptionalEvidenceLimit(args),
-      ...(args.limit === undefined ? {} : { limit: args.limit }),
-      ...(args.reverse === true ? { order: "doc-desc" } : {}),
-      ...(args.query === undefined ? {} : { query: args.query }),
-      ...(args.queryMode === undefined ? {} : { queryMode: args.queryMode }),
-      ...(args.role === undefined ? {} : { role: args.role }),
-      ...(args.skipUnindexed === true ? { skipUnindexed: true } : {}),
-      ...createOptionalSourceContext(args),
-    });
+    (
+      await archive.related(objectUri, {
+        ...(cursor === undefined ? {} : { cursor }),
+        ...createOptionalEvidenceLimit(args),
+        ...(args.limit === undefined ? {} : { limit: args.limit }),
+        ...(args.reverse === true ? { order: "doc-desc" } : {}),
+        ...(args.query === undefined ? {} : { query: args.query }),
+        ...(args.queryMode === undefined ? {} : { queryMode: args.queryMode }),
+        ...(args.role === undefined ? {} : { role: args.role }),
+        ...(args.skipUnindexed === true ? { skipUnindexed: true } : {}),
+        ...createOptionalSourceContext(args),
+      })
+    ).result;
   if (args.all === true) {
     await writeAllRelatedItems(
       readPage,
@@ -316,15 +324,17 @@ async function runArchiveEvidence(args: CLIArchiveArguments): Promise<void> {
     },
   );
   const readPage = async (cursor: string | undefined) =>
-    await archive.evidence(objectUri, {
-      ...(cursor === undefined ? {} : { cursor }),
-      ...(args.limit === undefined ? {} : { limit: args.limit }),
-      ...(args.reverse === true ? { order: "doc-desc" } : {}),
-      ...(args.query === undefined ? {} : { query: args.query }),
-      ...(args.queryMode === undefined ? {} : { queryMode: args.queryMode }),
-      ...(args.skipUnindexed === true ? { skipUnindexed: true } : {}),
-      ...createOptionalSourceContext(args),
-    });
+    (
+      await archive.evidence(objectUri, {
+        ...(cursor === undefined ? {} : { cursor }),
+        ...(args.limit === undefined ? {} : { limit: args.limit }),
+        ...(args.reverse === true ? { order: "doc-desc" } : {}),
+        ...(args.query === undefined ? {} : { query: args.query }),
+        ...(args.queryMode === undefined ? {} : { queryMode: args.queryMode }),
+        ...(args.skipUnindexed === true ? { skipUnindexed: true } : {}),
+        ...createOptionalSourceContext(args),
+      })
+    ).result;
   if (args.all === true) {
     await writeAllEvidence(
       readPage,
@@ -407,15 +417,17 @@ async function runLibraryIndexArchiveCommand(
       const findOptions = createSearchFindOptions(args);
       if (objectUri === undefined) {
         const search = async (cursor: string | undefined) =>
-          await (isArchiveMemberCollection
-            ? libraries.searchArchiveMembers(target, args.query!, {
-                ...findOptions,
-                ...(cursor === undefined ? {} : { cursor }),
-              })
-            : libraries.search(target, args.query!, {
-                ...findOptions,
-                ...(cursor === undefined ? {} : { cursor }),
-              }));
+          (
+            await (isArchiveMemberCollection
+              ? libraries.searchArchiveMembers(target, args.query!, {
+                  ...findOptions,
+                  ...(cursor === undefined ? {} : { cursor }),
+                })
+              : libraries.search(target, args.query!, {
+                  ...findOptions,
+                  ...(cursor === undefined ? {} : { cursor }),
+                }))
+          ).result;
         if (args.all === true) {
           await writeAllFindHits(search, context, args.format ?? "text");
           return;
@@ -430,10 +442,12 @@ async function runLibraryIndexArchiveCommand(
       if (args.all === true) {
         await writeAllFindHits(
           async (cursor) =>
-            await libraries.search(target, args.query!, {
-              ...findOptions,
-              ...(cursor === undefined ? {} : { cursor }),
-            }),
+            (
+              await libraries.search(target, args.query!, {
+                ...findOptions,
+                ...(cursor === undefined ? {} : { cursor }),
+              })
+            ).result,
           context,
           args.format ?? "text",
         );
@@ -441,7 +455,7 @@ async function runLibraryIndexArchiveCommand(
       }
 
       await writeFindHits(
-        await libraries.search(target, args.query!, findOptions),
+        (await libraries.search(target, args.query!, findOptions)).result,
         context,
         args.format ?? "text",
       );
@@ -458,10 +472,12 @@ async function runLibraryIndexArchiveCommand(
             await writeAllFindHits(
               async (cursor) =>
                 createCollectionFindResult(
-                  await libraries.objects(target, {
-                    ...createCollectionOptions(args),
-                    ...(cursor === undefined ? {} : { cursor }),
-                  }),
+                  (
+                    await libraries.objects(target, {
+                      ...createCollectionOptions(args),
+                      ...(cursor === undefined ? {} : { cursor }),
+                    })
+                  ).result,
                 ),
               listContext,
               args.format ?? "text",
@@ -471,10 +487,12 @@ async function runLibraryIndexArchiveCommand(
 
           await writeFindHitsWithoutContinuation(
             createCollectionFindResult(
-              await libraries.objects(target, {
-                ...createCollectionOptions(args),
-                limit: ALL_COLLECTION_OUTPUT_LIMIT,
-              }),
+              (
+                await libraries.objects(target, {
+                  ...createCollectionOptions(args),
+                  limit: ALL_COLLECTION_OUTPUT_LIMIT,
+                })
+              ).result,
             ),
             listContext,
             args.format ?? "text",
@@ -483,7 +501,8 @@ async function runLibraryIndexArchiveCommand(
         }
         await writeFindHits(
           createCollectionFindResult(
-            await libraries.objects(target, createCollectionOptions(args)),
+            (await libraries.objects(target, createCollectionOptions(args)))
+              .result,
           ),
           listContext,
           args.format ?? "text",
@@ -495,10 +514,12 @@ async function runLibraryIndexArchiveCommand(
           await writeAllFindHits(
             async (cursor) =>
               createCollectionFindResult(
-                await libraries.objects(target, {
-                  ...createCollectionOptions(args),
-                  ...(cursor === undefined ? {} : { cursor }),
-                }),
+                (
+                  await libraries.objects(target, {
+                    ...createCollectionOptions(args),
+                    ...(cursor === undefined ? {} : { cursor }),
+                  })
+                ).result,
               ),
             listContext,
             args.format ?? "text",
@@ -508,10 +529,12 @@ async function runLibraryIndexArchiveCommand(
 
         await writeFindHitsWithoutContinuation(
           createCollectionFindResult(
-            await libraries.objects(target, {
-              ...createCollectionOptions(args),
-              limit: ALL_COLLECTION_OUTPUT_LIMIT,
-            }),
+            (
+              await libraries.objects(target, {
+                ...createCollectionOptions(args),
+                limit: ALL_COLLECTION_OUTPUT_LIMIT,
+              })
+            ).result,
           ),
           listContext,
           args.format ?? "text",
@@ -521,7 +544,9 @@ async function runLibraryIndexArchiveCommand(
 
       await writeFindHits(
         createCollectionFindResult(
-          await libraries.objects(target, createCollectionOptions(args)),
+          unwrapPageResult(
+            await libraries.objects(target, createCollectionOptions(args)),
+          ),
         ),
         listContext,
         args.format ?? "text",
@@ -536,7 +561,8 @@ async function runLibraryIndexArchiveCommand(
         };
         await writeFindHits(
           createCollectionFindResult(
-            await libraries.objects(target, createCollectionOptions(args)),
+            (await libraries.objects(target, createCollectionOptions(args)))
+              .result,
           ),
           getContext,
           args.format ?? "text",
@@ -569,19 +595,21 @@ async function runLibraryIndexArchiveCommand(
       const readPage = async (
         cursor: string | undefined,
       ): Promise<ArchiveRelatedResult> =>
-        await libraries.related(target, concreteObjectUri, {
-          ...(cursor === undefined ? {} : { cursor }),
-          ...createOptionalEvidenceLimit(args),
-          ...(args.limit === undefined ? {} : { limit: args.limit }),
-          ...(args.reverse === true ? { order: "doc-desc" } : {}),
-          ...(args.query === undefined ? {} : { query: args.query }),
-          ...(args.queryMode === undefined
-            ? {}
-            : { queryMode: args.queryMode }),
-          ...(args.role === undefined ? {} : { role: args.role }),
-          ...(args.skipUnindexed === true ? { skipUnindexed: true } : {}),
-          ...createOptionalSourceContext(args),
-        });
+        (
+          await libraries.related(target, concreteObjectUri, {
+            ...(cursor === undefined ? {} : { cursor }),
+            ...createOptionalEvidenceLimit(args),
+            ...(args.limit === undefined ? {} : { limit: args.limit }),
+            ...(args.reverse === true ? { order: "doc-desc" } : {}),
+            ...(args.query === undefined ? {} : { query: args.query }),
+            ...(args.queryMode === undefined
+              ? {}
+              : { queryMode: args.queryMode }),
+            ...(args.role === undefined ? {} : { role: args.role }),
+            ...(args.skipUnindexed === true ? { skipUnindexed: true } : {}),
+            ...createOptionalSourceContext(args),
+          })
+        ).result;
 
       if (args.all === true) {
         await writeAllRelatedItems(
@@ -611,17 +639,19 @@ async function runLibraryIndexArchiveCommand(
       if (args.all === true) {
         await writeAllEvidence(
           async (cursor) =>
-            await libraries.evidence(target, concreteObjectUri, {
-              ...(cursor === undefined ? {} : { cursor }),
-              ...(args.limit === undefined ? {} : { limit: args.limit }),
-              ...(args.reverse === true ? { order: "doc-desc" } : {}),
-              ...(args.query === undefined ? {} : { query: args.query }),
-              ...(args.queryMode === undefined
-                ? {}
-                : { queryMode: args.queryMode }),
-              ...(args.skipUnindexed === true ? { skipUnindexed: true } : {}),
-              ...createOptionalSourceContext(args),
-            }),
+            (
+              await libraries.evidence(target, concreteObjectUri, {
+                ...(cursor === undefined ? {} : { cursor }),
+                ...(args.limit === undefined ? {} : { limit: args.limit }),
+                ...(args.reverse === true ? { order: "doc-desc" } : {}),
+                ...(args.query === undefined ? {} : { query: args.query }),
+                ...(args.queryMode === undefined
+                  ? {}
+                  : { queryMode: args.queryMode }),
+                ...(args.skipUnindexed === true ? { skipUnindexed: true } : {}),
+                ...createOptionalSourceContext(args),
+              })
+            ).result,
           args.cursor,
           evidenceContext,
           args.format ?? "text",
@@ -630,17 +660,19 @@ async function runLibraryIndexArchiveCommand(
       }
 
       await writeEvidence(
-        await libraries.evidence(target, concreteObjectUri, {
-          ...(args.cursor === undefined ? {} : { cursor: args.cursor }),
-          ...(args.limit === undefined ? {} : { limit: args.limit }),
-          ...(args.reverse === true ? { order: "doc-desc" } : {}),
-          ...(args.query === undefined ? {} : { query: args.query }),
-          ...(args.queryMode === undefined
-            ? {}
-            : { queryMode: args.queryMode }),
-          ...(args.skipUnindexed === true ? { skipUnindexed: true } : {}),
-          ...createOptionalSourceContext(args),
-        }),
+        (
+          await libraries.evidence(target, concreteObjectUri, {
+            ...(args.cursor === undefined ? {} : { cursor: args.cursor }),
+            ...(args.limit === undefined ? {} : { limit: args.limit }),
+            ...(args.reverse === true ? { order: "doc-desc" } : {}),
+            ...(args.query === undefined ? {} : { query: args.query }),
+            ...(args.queryMode === undefined
+              ? {}
+              : { queryMode: args.queryMode }),
+            ...(args.skipUnindexed === true ? { skipUnindexed: true } : {}),
+            ...createOptionalSourceContext(args),
+          })
+        ).result,
         evidenceContext,
         args.format ?? "text",
       );
@@ -663,6 +695,12 @@ async function runLibraryIndexArchiveCommand(
         `The library index scope does not support \`${args.action}\`.`,
       );
   }
+}
+
+function unwrapPageResult<T extends object>(
+  value: T | { readonly result: T },
+): T {
+  return "result" in value ? value.result : value;
 }
 
 function createSearchFindOptions(

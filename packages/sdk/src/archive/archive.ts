@@ -11,6 +11,8 @@ import {
   assertNoActiveBuildJobConflicts,
   assertNoActiveBuildJobs,
   deleteArchiveSearchSessions,
+  createContinuationCursor,
+  deleteContinuationCursor,
   DirectoryDocument,
   findArchiveObjects,
   formatLocatedWikiGraphUri,
@@ -41,12 +43,9 @@ import {
   writeWikgArchive,
   type ArchiveCollectionOptions,
   type ArchiveCollectionResult,
-  type ArchiveEvidence,
   type ArchiveFindOptions,
-  type ArchiveFindResult,
   type ArchivePack,
   type ArchivePage,
-  type ArchiveRelatedResult,
   type ArchiveSourceLocatorResult,
   type BookMeta,
   type ChapterEntry,
@@ -59,6 +58,7 @@ import {
   ObjectMetadataKind,
   type ObjectMetadataTarget,
   type QueryIndexScope,
+  type ContinuationCursor,
   type ReadonlyDocument,
   type SearchIndexEmbeddingProvider,
   type SearchIndexQueryMode,
@@ -83,6 +83,18 @@ import {
   type WikiGraphArchiveTarget,
 } from "./target.js";
 import { writeWikiGraphArchiveLocation } from "./write.js";
+import {
+  createArchiveCollectionPage,
+  createArchiveEvidencePage,
+  createArchiveFindPage,
+  createArchiveRelatedPage,
+  createArchiveSourceLocatorPage,
+  type ArchiveCollectionPage,
+  type ArchiveEvidencePage,
+  type ArchiveFindPage,
+  type ArchiveRelatedPage,
+  type ArchiveSourceLocatorPage,
+} from "../result-pages.js";
 
 export interface WikiGraphOperationOptions {
   readonly signal?: AbortSignal;
@@ -320,6 +332,16 @@ export class WikiGraphArchiveHandle {
     return this.#location.target;
   }
 
+  async #persistCursor(cursor: ContinuationCursor): Promise<string> {
+    return await this.#runtime.run(
+      async () => await createContinuationCursor(cursor),
+    );
+  }
+
+  async #releaseCursor(cursor: string): Promise<void> {
+    await this.#runtime.run(async () => await deleteContinuationCursor(cursor));
+  }
+
   public async inspect(
     options: WikiGraphOperationOptions & { readonly chapterId?: number } = {},
   ): Promise<WikiGraphArchiveInspection> {
@@ -338,12 +360,12 @@ export class WikiGraphArchiveHandle {
   public async search(
     query: string,
     options: WikiGraphArchiveSearchOptions = {},
-  ): Promise<ArchiveFindResult> {
+  ): Promise<ArchiveFindPage> {
     const embeddingProvider = await this.#resolveQueryEmbeddingProvider(
       options.queryMode,
       options.signal,
     );
-    return await this.#writeDocument(
+    const result = await this.#writeDocument(
       async (document) => {
         const chapters = await this.#resolveQueryChapters(document, options, {
           embeddingProvider,
@@ -364,12 +386,59 @@ export class WikiGraphArchiveHandle {
         ...(options.signal === undefined ? {} : { signal: options.signal }),
       },
     );
+    return createArchiveFindPage(
+      result,
+      async (cursor, nextOptions) =>
+        await this.search(query, {
+          ...options,
+          cursor,
+          ...(nextOptions.limit === undefined
+            ? {}
+            : { limit: nextOptions.limit }),
+          ...(nextOptions.signal === undefined
+            ? {}
+            : { signal: nextOptions.signal }),
+        }),
+      (cursor) =>
+        this.#persistCursor({
+          archiveKey: this.archiveKey,
+          archivePath: this.path,
+          chapters: options.chapters ?? null,
+          cursor,
+          format: "json",
+          indexScope: this.indexScope,
+          kind: "search",
+          ...(options.backlinks === undefined
+            ? {}
+            : { backlinks: options.backlinks }),
+          ...(options.evidenceLimit === undefined
+            ? {}
+            : { evidenceLimit: options.evidenceLimit }),
+          ...(options.match === undefined ? {} : { match: options.match }),
+          ...(options.order === undefined ? {} : { order: options.order }),
+          query,
+          ...(options.queryMode === undefined
+            ? {}
+            : { queryMode: options.queryMode }),
+          ...(options.skipUnindexed === undefined
+            ? {}
+            : { skipUnindexed: options.skipUnindexed }),
+          ...(options.sourceContext === undefined
+            ? {}
+            : { sourceContext: options.sourceContext }),
+          ...(options.triplePattern === undefined
+            ? {}
+            : { triplePattern: options.triplePattern }),
+          types: options.types ?? null,
+        }),
+      (token) => this.#releaseCursor(token),
+    );
   }
 
   public async list(
     options: WikiGraphArchiveListOptions = {},
-  ): Promise<ArchiveCollectionResult | ArchiveSourceLocatorResult> {
-    return await this.#readDocument(async (document) => {
+  ): Promise<ArchiveCollectionPage | ArchiveSourceLocatorPage> {
+    const result = await this.#readDocument(async (document) => {
       if (isSourceLocatorScopeUri(this.objectUri)) {
         return await listArchiveSourceLocators(document, this.objectUri, {
           ...(options.cursor === undefined ? {} : { cursor: options.cursor }),
@@ -382,6 +451,73 @@ export class WikiGraphArchiveHandle {
         ...(chapters === undefined ? {} : { chapters }),
       });
     }, options);
+    if (isSourceLocatorScopeUri(this.objectUri)) {
+      return createArchiveSourceLocatorPage(
+        result as ArchiveSourceLocatorResult,
+        async (cursor, nextOptions) =>
+          (await this.list({
+            ...options,
+            cursor,
+            ...(nextOptions.limit === undefined
+              ? {}
+              : { limit: nextOptions.limit }),
+            ...(nextOptions.signal === undefined
+              ? {}
+              : { signal: nextOptions.signal }),
+          })) as ArchiveSourceLocatorPage,
+        (cursor) =>
+          this.#persistCursor({
+            archiveKey: this.archiveKey,
+            archivePath: this.path,
+            cursor,
+            format: "json",
+            indexScope: this.indexScope,
+            kind: "source-locators",
+            targetUri: this.objectUri,
+          }),
+        (token) => this.#releaseCursor(token),
+      );
+    }
+    return createArchiveCollectionPage(
+      result as ArchiveCollectionResult,
+      async (cursor, nextOptions) =>
+        (await this.list({
+          ...options,
+          cursor,
+          ...(nextOptions.limit === undefined
+            ? {}
+            : { limit: nextOptions.limit }),
+          ...(nextOptions.signal === undefined
+            ? {}
+            : { signal: nextOptions.signal }),
+        })) as ArchiveCollectionPage,
+      (cursor) =>
+        this.#persistCursor({
+          archiveKey: this.archiveKey,
+          archivePath: this.path,
+          ...(options.backlinks === undefined
+            ? {}
+            : { backlinks: options.backlinks }),
+          chapters: options.chapters ?? null,
+          cursor,
+          ...(options.evidenceLimit === undefined
+            ? {}
+            : { evidenceLimit: options.evidenceLimit }),
+          format: "json",
+          ids: options.ids ?? null,
+          indexScope: this.indexScope,
+          kind: "collection",
+          order: options.order ?? "doc-asc",
+          ...(options.sourceContext === undefined
+            ? {}
+            : { sourceContext: options.sourceContext }),
+          ...(options.triplePattern === undefined
+            ? {}
+            : { triplePattern: options.triplePattern }),
+          types: options.types ?? null,
+        }),
+      (token) => this.#releaseCursor(token),
+    );
   }
 
   public async ensureSearchIndex(
@@ -736,24 +872,40 @@ export class WikiGraphArchiveHandle {
   public async related(
     objectUri = this.objectUri,
     options: WikiGraphArchiveRelatedOptions = {},
-  ): Promise<ArchiveRelatedResult> {
+  ): Promise<ArchiveRelatedPage> {
     if (options.query === undefined) {
       if (options.queryMode !== undefined) {
         throw new Error("`queryMode` requires `query`.");
       }
-      return await this.#readDocument(async (document) => {
+      const result = await this.#readDocument(async (document) => {
         const chapters = await this.#resolveScope(document, {});
         return await listRelatedArchiveObjects(document, objectUri, {
           ...withoutOperation(options),
           ...(chapters === undefined ? {} : { chapters }),
         });
       }, options);
+      return createArchiveRelatedPage(
+        result,
+        async (cursor, nextOptions) =>
+          await this.related(objectUri, {
+            ...options,
+            cursor,
+            ...(nextOptions.limit === undefined
+              ? {}
+              : { limit: nextOptions.limit }),
+            ...(nextOptions.signal === undefined
+              ? {}
+              : { signal: nextOptions.signal }),
+          }),
+        (cursor) => Promise.resolve(cursor),
+        () => Promise.resolve(),
+      );
     }
     const embeddingProvider = await this.#resolveQueryEmbeddingProvider(
       options.queryMode,
       options.signal,
     );
-    return await this.#writeDocument(
+    const result = await this.#writeDocument(
       async (document) => {
         const chapters = await this.#resolveQueryChapters(document, options, {
           embeddingProvider,
@@ -772,30 +924,62 @@ export class WikiGraphArchiveHandle {
         searchIndexWritebackPolicy: "cache",
         ...(options.signal === undefined ? {} : { signal: options.signal }),
       },
+    );
+    return createArchiveRelatedPage(
+      result,
+      async (cursor, nextOptions) =>
+        await this.related(objectUri, {
+          ...options,
+          cursor,
+          ...(nextOptions.limit === undefined
+            ? {}
+            : { limit: nextOptions.limit }),
+          ...(nextOptions.signal === undefined
+            ? {}
+            : { signal: nextOptions.signal }),
+        }),
+      (cursor) => Promise.resolve(cursor),
+      () => Promise.resolve(),
     );
   }
 
   public async evidence(
     objectUri = this.objectUri,
     options: WikiGraphArchiveEvidenceOptions = {},
-  ): Promise<ArchiveEvidence> {
+  ): Promise<ArchiveEvidencePage> {
     if (options.query === undefined) {
       if (options.queryMode !== undefined) {
         throw new Error("`queryMode` requires `query`.");
       }
-      return await this.#readDocument(async (document) => {
+      const result = await this.#readDocument(async (document) => {
         const chapters = await this.#resolveScope(document, {});
         return await listArchiveEvidence(document, objectUri, {
           ...withoutOperation(options),
           ...(chapters === undefined ? {} : { chapters }),
         });
       }, options);
+      return createArchiveEvidencePage(
+        result,
+        async (cursor, nextOptions) =>
+          await this.evidence(objectUri, {
+            ...options,
+            cursor,
+            ...(nextOptions.limit === undefined
+              ? {}
+              : { limit: nextOptions.limit }),
+            ...(nextOptions.signal === undefined
+              ? {}
+              : { signal: nextOptions.signal }),
+          }),
+        (cursor) => Promise.resolve(cursor),
+        () => Promise.resolve(),
+      );
     }
     const embeddingProvider = await this.#resolveQueryEmbeddingProvider(
       options.queryMode,
       options.signal,
     );
-    return await this.#writeDocument(
+    const result = await this.#writeDocument(
       async (document) => {
         const chapters = await this.#resolveQueryChapters(document, options, {
           embeddingProvider,
@@ -814,6 +998,22 @@ export class WikiGraphArchiveHandle {
         searchIndexWritebackPolicy: "cache",
         ...(options.signal === undefined ? {} : { signal: options.signal }),
       },
+    );
+    return createArchiveEvidencePage(
+      result,
+      async (cursor, nextOptions) =>
+        await this.evidence(objectUri, {
+          ...options,
+          cursor,
+          ...(nextOptions.limit === undefined
+            ? {}
+            : { limit: nextOptions.limit }),
+          ...(nextOptions.signal === undefined
+            ? {}
+            : { signal: nextOptions.signal }),
+        }),
+      (cursor) => Promise.resolve(cursor),
+      () => Promise.resolve(),
     );
   }
 

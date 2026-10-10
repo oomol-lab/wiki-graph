@@ -244,7 +244,7 @@ describe("WikiGraphSDK delivery operations", () => {
     });
     expect(firstEvidence.items).toHaveLength(1);
     expect(firstEvidence.items[0]?.chapterId).toBe(indexedChapter.chapterId);
-    expect(firstEvidence.nextCursor).not.toBeNull();
+    expect(firstEvidence.rawNextCursor).not.toBeNull();
     const durableCursor = await sdk.continuations.create(
       {
         archiveKey: scopedArchive.archiveKey,
@@ -257,7 +257,7 @@ describe("WikiGraphSDK delivery operations", () => {
         targetUri: "wikg://entity/Q1",
         types: null,
       },
-      firstEvidence.nextCursor,
+      firstEvidence.rawNextCursor,
     );
     if (durableCursor === null) {
       throw new Error("Expected a scoped evidence continuation cursor.");
@@ -379,7 +379,7 @@ describe("WikiGraphSDK delivery operations", () => {
       await archive.addChapter({ title });
     }
     const first = await archive.list({ limit: 1, types: ["chapter-title"] });
-    if (!("nextCursor" in first) || first.nextCursor === null) {
+    if (first.rawNextCursor === null) {
       throw new Error("Expected a collection continuation cursor.");
     }
     const cursor = await sdk.continuations.create(
@@ -392,7 +392,7 @@ describe("WikiGraphSDK delivery operations", () => {
         order: "doc-asc",
         types: ["chapter-title"],
       },
-      first.nextCursor,
+      first.rawNextCursor,
     );
     if (cursor === null) throw new Error("Expected a durable cursor.");
 
@@ -440,7 +440,7 @@ describe("WikiGraphSDK delivery operations", () => {
       });
     }
     const first = await sdk.libraries.archiveMembers(library.uri, { limit: 1 });
-    if (first.nextCursor === null) {
+    if (first.rawNextCursor === null) {
       throw new Error("Expected a library collection cursor.");
     }
     const cursor = await sdk.continuations.create(
@@ -457,7 +457,7 @@ describe("WikiGraphSDK delivery operations", () => {
         order: "doc-asc",
         types: null,
       },
-      first.nextCursor,
+      first.rawNextCursor,
     );
     if (cursor === null) throw new Error("Expected a durable cursor.");
 
@@ -592,7 +592,7 @@ describe("WikiGraphSDK delivery operations", () => {
     expectManagedSnapshot(listedEnqueuedJob!.snapshot);
 
     const first = await archive.list({ limit: 1, types: ["chapter-title"] });
-    if (!("nextCursor" in first) || first.nextCursor === null) {
+    if (first.rawNextCursor === null) {
       await Promise.all([job.cancel(), enqueuedJob.cancel()]);
       sdk.close();
       return;
@@ -607,7 +607,7 @@ describe("WikiGraphSDK delivery operations", () => {
         order: "doc-asc",
         types: ["chapter-title"],
       },
-      first.nextCursor,
+      first.rawNextCursor,
     );
     if (cursor !== null) {
       await expect(

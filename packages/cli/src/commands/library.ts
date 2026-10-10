@@ -466,7 +466,7 @@ async function writeLibraryScopeCollection(
   };
 
   await writeFindHits(
-    createCollectionFindResult(await manager.objects(target)),
+    createCollectionFindResult((await manager.objects(target)).result),
     context,
     json ? "json" : "text",
   );
