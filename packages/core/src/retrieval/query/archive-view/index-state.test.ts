@@ -463,6 +463,113 @@ describe("archive search index state", () => {
     });
   });
 
+  it("normalizes every search channel onto the same bounded score scale", async () => {
+    await withTempDocument(async (document) => {
+      await writeSourceChapter(document);
+      const provider = createFakeEmbeddingProvider();
+      await replaceChapterFtsIndexArtifact(document, 1);
+      await replaceChapterSourceEmbeddingIndexArtifact(document, 1, provider);
+      await rebuildArchiveSearchIndex(document);
+
+      const fts = await querySearchIndex(document, "FTS", {
+        queryMode: "fts",
+        types: ["source"],
+      });
+      const embedding = await querySearchIndex(document, "FTS", {
+        embeddingProvider: provider,
+        queryMode: "embedding",
+        types: ["source"],
+      });
+      const hybrid = await querySearchIndex(document, "FTS", {
+        embeddingProvider: provider,
+        queryMode: "hybrid",
+        types: ["source"],
+      });
+
+      for (const result of [fts, embedding, hybrid]) {
+        expect(result?.textHits.length).toBeGreaterThan(0);
+        expect(
+          result?.textHits.every((hit) => hit.score >= 0 && hit.score <= 1),
+        ).toBe(true);
+      }
+      expect(
+        Math.max(...hybrid!.textHits.map((hit) => hit.score)),
+      ).toBeGreaterThan(0.5);
+      expect(hybrid?.textHits.some((hit) => hit.sentenceIndex === 0)).toBe(
+        true,
+      );
+      expect(hybrid?.textHits.some((hit) => hit.sentenceIndex === 1)).toBe(
+        true,
+      );
+    });
+  });
+
+  it("prepares all dense text kinds once for a shared bucket query", async () => {
+    await withTempDocument(async (document) => {
+      await writeSourceChapter(document);
+      await document.writeSummary(1, "Summary semantic sentence.");
+      const provider = createFakeEmbeddingProvider();
+      await replaceChapterSourceEmbeddingIndexArtifact(document, 1, provider);
+      await replaceChapterSummaryEmbeddingIndexArtifact(document, 1, provider);
+      await rebuildArchiveSearchIndex(document);
+      const queryId = `shared-buckets-${Date.now()}-${Math.random()}`;
+
+      await querySearchIndex(document, "semantic summary", {
+        embeddingProvider: provider,
+        queryId,
+        queryMode: "embedding",
+        types: ["chapter-title"],
+      });
+      const summary = await querySearchIndex(document, "semantic summary", {
+        embeddingProvider: provider,
+        queryId,
+        queryMode: "embedding",
+        types: ["summary"],
+      });
+
+      expect(summary?.textHits).toContainEqual(
+        expect.objectContaining({ kind: TEXT_SENTENCE_KIND.summary }),
+      );
+    });
+  });
+
+  it("shares one SQLite-backed build across concurrent bucket queries", async () => {
+    await withTempDocument(async (document) => {
+      await writeSourceChapter(document);
+      const baseProvider = createFakeEmbeddingProvider();
+      await replaceChapterSourceEmbeddingIndexArtifact(
+        document,
+        1,
+        baseProvider,
+      );
+      await rebuildArchiveSearchIndex(document);
+      let embeddingCalls = 0;
+      const provider = {
+        ...baseProvider,
+        embedTexts: async (texts: readonly string[]) => {
+          embeddingCalls += 1;
+          await new Promise<void>((resolve) => setTimeout(resolve, 10));
+          return await baseProvider.embedTexts(texts);
+        },
+      };
+      const queryId = `concurrent-buckets-${Date.now()}-${Math.random()}`;
+      const options = {
+        embeddingProvider: provider,
+        queryId,
+        queryMode: "embedding" as const,
+        types: ["source"] as const,
+      };
+
+      const [left, right] = await Promise.all([
+        querySearchIndex(document, "semantic vectors", options),
+        querySearchIndex(document, "semantic vectors", options),
+      ]);
+
+      expect(embeddingCalls).toBe(1);
+      expect(right).toStrictEqual(left);
+    });
+  });
+
   it("resolves typed objects from source embeddings without lexical fallback", async () => {
     await withTempDocument(async (document) => {
       await writeSourceChapter(document);

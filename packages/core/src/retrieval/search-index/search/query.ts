@@ -8,19 +8,15 @@ import {
   createSearchTokenPlan,
   hasSearchTokens,
   listSearchPlanTerms,
+  type SearchTokenPlan,
 } from "./tokenizer.js";
 import { createTierQueries } from "./match.js";
 import {
   createChapterParams,
   createChapterSql,
-  createLimitParams,
-  createLimitSql,
-  createObjectHitKey,
   createObjectTypeParams,
   createObjectTypeSql,
-  createTextHitKey,
   createTextKindFilter,
-  rankToScore,
   shouldQueryObjects,
 } from "./helpers.js";
 import type {
@@ -42,6 +38,27 @@ import {
 } from "./types.js";
 import { assertSearchIndexNotDirty } from "./status.js";
 import { deserializeFloat32Vector } from "./write.js";
+import {
+  claimCachedQuery,
+  clearCachedQueryHits,
+  completeCachedQuery,
+  countCachedFtsHits,
+  createTransientQueryId,
+  decodeCachedChapterId,
+  finalizeCachedTextHitScores,
+  insertCachedDenseSegmentHit,
+  insertCachedFtsTextHit,
+  insertCachedObjectHit,
+  listCachedDenseSegmentHits,
+  normalizeCachedFtsHits,
+  openSearchQueryCacheDatabase,
+  pruneAndNormalizeCachedDenseSegmentHits,
+  pruneCachedFtsHits,
+  upsertCachedEmbeddingTextHit,
+} from "./query-cache.js";
+
+const QUERY_BATCH_SIZE = 512;
+const QUERY_CACHE_WAIT_MS = 20;
 
 export async function querySearchIndex(
   document: ReadonlyDocument,
@@ -50,6 +67,7 @@ export async function querySearchIndex(
     readonly chapters?: readonly number[];
     readonly embeddingProvider?: SearchIndexEmbeddingProvider;
     readonly match?: ArchiveFindMatch;
+    readonly queryId?: string;
     readonly queryMode?: SearchIndexQueryMode;
     readonly objectHitLimit?: number;
     readonly textAfter?: {
@@ -86,118 +104,244 @@ export async function querySearchIndex(
     }
     const usesFts =
       queryMode !== "embedding" && hasFts && hasSearchTokens(plan);
+    const persistent = options.queryId !== undefined;
+    const cachedTypes = persistent ? null : options.types;
     const usesDense =
       queryMode !== "fts" &&
       hasDense &&
       options.textHitLimit !== 0 &&
-      createDenseTextKindFilter(options.types).length > 0;
+      createDenseTextKindFilter(cachedTypes).length > 0;
 
     if (!usesFts && !usesDense) {
       return undefined;
     }
 
-    const tierQueries = createTierQueries(query, plan, options.match ?? "any");
-    const objectHitLimit = options.objectHitLimit ?? SEARCH_INDEX_FTS_HIT_LIMIT;
-    const textHitLimit = options.textHitLimit ?? SEARCH_INDEX_FTS_HIT_LIMIT;
-    const queriesObjects = shouldQueryObjects(options.types);
-    const queriesText = createTextKindFilter(options.types).length > 0;
-    const objectHitsByKey = new Map<string, SearchIndexObjectHit>();
-    const textHitsByKey = new Map<string, SearchIndexTextHit>();
-    const ftsTextHitsByKey = new Map<string, SearchIndexTextHit>();
+    const cache = await openSearchQueryCacheDatabase();
+    const queryId = options.queryId ?? createTransientQueryId();
+    const queryOwnerId = createTransientQueryId();
 
-    if (usesFts) {
-      for (const tierQuery of tierQueries) {
-        if (tierQuery.matchExpression === "") {
+    try {
+      while (true) {
+        const claim = await claimCachedQuery(cache, queryId, queryOwnerId);
+        if (claim === "complete") break;
+        if (claim === "pending") {
+          await waitForQueryCache();
           continue;
         }
 
-        const objectHitRemaining = Math.max(
-          0,
-          objectHitLimit - objectHitsByKey.size,
-        );
-        const textHitRemaining = Math.max(
-          0,
-          textHitLimit - ftsTextHitsByKey.size,
-        );
-
-        if (
-          (!queriesObjects || objectHitRemaining <= 0) &&
-          (!queriesText || textHitRemaining <= 0)
-        ) {
-          break;
-        }
-
-        const { textAfter, ...textRowBaseOptions } = options;
-        const textRowOptions = {
-          ...textRowBaseOptions,
-          textHitLimit: hasDense
-            ? SEARCH_INDEX_FTS_HIT_LIMIT
-            : textHitRemaining,
-          // FTS owns keyset pagination in FTS-only mode.  A dense index may
-          // exist in the cache without being used by this query; only a
-          // hybrid query must defer the cursor until after RRF fusion.
-          ...(usesDense || textAfter === undefined ? {} : { textAfter }),
-        };
-
-        const [objectRows, textRows] = await Promise.all([
-          queryObjectRows(database, tierQuery.matchExpression, {
-            ...options,
-            objectHitLimit: objectHitRemaining,
-          }),
-          queryTextRows(database, tierQuery.matchExpression, textRowOptions),
-        ]);
-
-        for (const hit of objectRows) {
-          const key = createObjectHitKey(hit);
-
-          if (!objectHitsByKey.has(key)) {
-            objectHitsByKey.set(key, hit);
+        try {
+          if (usesFts) {
+            await populateCachedFtsHits(database, cache, queryId, query, plan, {
+              ...(options.chapters === undefined
+                ? {}
+                : { chapters: options.chapters }),
+              match: options.match ?? "any",
+              ...(cachedTypes === undefined ? {} : { types: cachedTypes }),
+            });
           }
-        }
-        for (const hit of textRows) {
-          const key = createTextHitKey(hit);
+          await normalizeCachedFtsHits(cache, queryId);
 
-          if (!ftsTextHitsByKey.has(key)) {
-            ftsTextHitsByKey.set(key, hit);
+          if (usesDense) {
+            await populateCachedDenseHits(
+              database,
+              cache,
+              queryId,
+              query,
+              indexState,
+              {
+                ...(options.chapters === undefined
+                  ? {}
+                  : { chapters: options.chapters }),
+                ...(options.embeddingProvider === undefined
+                  ? {}
+                  : { embeddingProvider: options.embeddingProvider }),
+                queryMode,
+                ...(cachedTypes === undefined ? {} : { types: cachedTypes }),
+              },
+            );
           }
+          await finalizeCachedTextHitScores(cache, queryId);
+          await completeCachedQuery(cache, queryId);
+        } catch (error) {
+          await clearCachedQueryHits(cache, queryId);
+          throw error;
         }
-        if (
-          (!queriesObjects || objectHitsByKey.size >= objectHitLimit) &&
-          (!queriesText || ftsTextHitsByKey.size >= textHitLimit)
-        ) {
-          break;
-        }
+        break;
       }
+
+      return {
+        objectHits: await readCachedObjectHits(cache, queryId, options),
+        terms,
+        textHits: await readCachedTextHits(cache, queryId, options, usesDense),
+      };
+    } finally {
+      if (!persistent) await clearCachedQueryHits(cache, queryId);
+      await cache.close();
     }
-
-    const ftsTextHits = [...ftsTextHitsByKey.values()];
-    const denseTextHits = usesDense
-      ? await queryDenseTextRows(database, query, indexState, options)
-      : [];
-    const textHits =
-      ftsTextHits.length > 0 && denseTextHits.length > 0
-        ? fuseTextHitsByRrf(ftsTextHits, denseTextHits)
-        : denseTextHits.length > 0
-          ? denseTextHits
-          : ftsTextHits;
-
-    for (const hit of applyTextAfter(textHits, options.textAfter).slice(
-      0,
-      textHitLimit,
-    )) {
-      const key = createTextHitKey(hit);
-
-      if (!textHitsByKey.has(key)) {
-        textHitsByKey.set(key, hit);
-      }
-    }
-
-    return {
-      objectHits: [...objectHitsByKey.values()],
-      terms,
-      textHits: [...textHitsByKey.values()],
-    };
   });
+}
+
+async function waitForQueryCache(): Promise<void> {
+  await new Promise<void>((resolve) => {
+    setTimeout(resolve, QUERY_CACHE_WAIT_MS);
+  });
+}
+
+async function populateCachedFtsHits(
+  database: Database,
+  cache: Database,
+  queryId: string,
+  query: string,
+  plan: SearchTokenPlan,
+  options: {
+    readonly chapters?: readonly number[];
+    readonly match: ArchiveFindMatch;
+    readonly types?: readonly ArchiveFindObjectType[] | null;
+  },
+): Promise<void> {
+  const tierQueries = createTierQueries(query, plan, options.match);
+
+  for (const [matchTier, tierQuery] of tierQueries.entries()) {
+    if (tierQuery.matchExpression === "") continue;
+    const counts = await countCachedFtsHits(cache, queryId);
+    const objectRowLimit = Math.max(
+      0,
+      SEARCH_INDEX_FTS_HIT_LIMIT - counts.objectHits,
+    );
+    const textRowLimit = Math.max(
+      0,
+      SEARCH_INDEX_FTS_HIT_LIMIT - counts.textHits,
+    );
+
+    for (let offset = 0; offset < objectRowLimit; ) {
+      const rows = await queryObjectRows(database, tierQuery.matchExpression, {
+        ...options,
+        limit: Math.min(QUERY_BATCH_SIZE, objectRowLimit - offset),
+        offset,
+      });
+      if (rows.length === 0) break;
+
+      await cache.transaction(async () => {
+        for (const row of rows) {
+          await insertCachedObjectHit(cache, queryId, matchTier, row);
+        }
+      });
+      offset += rows.length;
+      if (rows.length < QUERY_BATCH_SIZE) break;
+    }
+
+    for (let offset = 0; offset < textRowLimit; ) {
+      const rows = await queryTextRows(database, tierQuery.matchExpression, {
+        ...options,
+        limit: Math.min(QUERY_BATCH_SIZE, textRowLimit - offset),
+        offset,
+      });
+      if (rows.length === 0) break;
+
+      await cache.transaction(async () => {
+        for (const row of rows) {
+          await insertCachedFtsTextHit(cache, queryId, matchTier, row);
+        }
+      });
+      offset += rows.length;
+      if (rows.length < QUERY_BATCH_SIZE) break;
+    }
+
+    await pruneCachedFtsHits(cache, queryId, SEARCH_INDEX_FTS_HIT_LIMIT);
+  }
+}
+
+async function readCachedObjectHits(
+  cache: Database,
+  queryId: string,
+  options: {
+    readonly objectHitLimit?: number;
+    readonly types?: readonly ArchiveFindObjectType[] | null;
+  },
+): Promise<readonly SearchIndexObjectHit[]> {
+  if (!shouldQueryObjects(options.types) || options.objectHitLimit === 0) {
+    return [];
+  }
+
+  return await cache.queryAll(
+    `
+      SELECT archive_id, owner_kind, owner_id, property_kind, chapter_id, score
+      FROM query_object_hits AS r
+      WHERE query_id = ? AND score IS NOT NULL
+        ${createObjectTypeSql(options.types)}
+      ORDER BY score DESC, archive_id, owner_kind, owner_id, property_kind
+      LIMIT ?
+    `,
+    [
+      queryId,
+      ...createObjectTypeParams(options.types),
+      options.objectHitLimit ?? SEARCH_INDEX_FTS_HIT_LIMIT,
+    ],
+    (row) => {
+      const chapterId = decodeCachedChapterId(getNumber(row, "chapter_id"));
+
+      return {
+        archiveId: getNumber(row, "archive_id"),
+        ...(chapterId === undefined ? {} : { chapterId }),
+        ownerId: String(row.owner_id),
+        ownerKind: getNumber(
+          row,
+          "owner_kind",
+        ) as SearchObjectPropertyOwnerKind,
+        propertyKind: getNumber(
+          row,
+          "property_kind",
+        ) as SearchObjectPropertyKind,
+        score: getNumber(row, "score"),
+      };
+    },
+  );
+}
+
+async function readCachedTextHits(
+  cache: Database,
+  queryId: string,
+  options: {
+    readonly textAfter?: {
+      readonly rank: number;
+    };
+    readonly textHitLimit?: number;
+    readonly types?: readonly ArchiveFindObjectType[] | null;
+  },
+  includesDenseEvidence: boolean,
+): Promise<readonly SearchIndexTextHit[]> {
+  const kinds = includesDenseEvidence
+    ? createDenseTextKindFilter(options.types)
+    : createTextKindFilter(options.types);
+  if (kinds.length === 0 || options.textHitLimit === 0) return [];
+
+  return await cache.queryAll(
+    `
+      SELECT archive_id, kind, chapter_id, sentence_index,
+             words_count, rank, score
+      FROM query_text_hits
+      WHERE query_id = ? AND rank IS NOT NULL
+        AND kind IN (${kinds.map(() => "?").join(", ")})
+        ${options.textAfter === undefined ? "" : "AND rank > ?"}
+      ORDER BY rank
+      LIMIT ?
+    `,
+    [
+      queryId,
+      ...kinds,
+      ...(options.textAfter === undefined ? [] : [options.textAfter.rank]),
+      options.textHitLimit ?? SEARCH_INDEX_FTS_HIT_LIMIT,
+    ],
+    (row) => ({
+      archiveId: getNumber(row, "archive_id"),
+      chapterId: getNumber(row, "chapter_id"),
+      kind: getNumber(row, "kind") as TextSentenceKind,
+      rank: getNumber(row, "rank"),
+      score: getNumber(row, "score"),
+      sentenceIndex: getNumber(row, "sentence_index"),
+      wordsCount: getNumber(row, "words_count"),
+    }),
+  );
 }
 
 interface SearchIndexQueryState {
@@ -205,15 +349,6 @@ interface SearchIndexQueryState {
   readonly embeddingIdentity?: string;
   readonly embeddingModel?: string;
   readonly indexes: "dense" | "fts" | "fts,dense";
-}
-
-interface DenseSegmentHit {
-  readonly archiveId: number;
-  readonly chapterId: number;
-  readonly endSentenceIndex: number;
-  readonly kind: TextSentenceKind;
-  readonly score: number;
-  readonly startSentenceIndex: number;
 }
 
 async function readSearchIndexQueryState(
@@ -293,18 +428,19 @@ async function hasTable(database: Database, table: string): Promise<boolean> {
   return row === 1;
 }
 
-async function queryDenseTextRows(
+async function populateCachedDenseHits(
   database: Database,
+  cache: Database,
+  queryId: string,
   query: string,
   state: SearchIndexQueryState,
   options: {
     readonly chapters?: readonly number[];
     readonly embeddingProvider?: SearchIndexEmbeddingProvider;
     readonly queryMode?: SearchIndexQueryMode;
-    readonly textHitLimit?: number;
     readonly types?: readonly ArchiveFindObjectType[] | null;
   },
-): Promise<readonly SearchIndexTextHit[]> {
+): Promise<void> {
   const requiresDense =
     options.queryMode === "embedding" || state.indexes === "dense";
   if (options.embeddingProvider === undefined) {
@@ -313,7 +449,7 @@ async function queryDenseTextRows(
         "Dense search requires embeddings configuration. Configure `wikg://local/config/embeddings` before querying a Dense-only index.",
       );
     }
-    return [];
+    return;
   }
 
   if (
@@ -325,7 +461,7 @@ async function queryDenseTextRows(
     if (requiresDense) {
       throw new Error(message);
     }
-    return [];
+    return;
   }
   if (
     state.embeddingIdentity !== undefined &&
@@ -337,7 +473,7 @@ async function queryDenseTextRows(
     if (requiresDense) {
       throw new Error(message);
     }
-    return [];
+    return;
   }
 
   let queryVector: readonly number[];
@@ -349,7 +485,7 @@ async function queryDenseTextRows(
     if (requiresDense) {
       throw error;
     }
-    return [];
+    return;
   }
 
   if (
@@ -361,102 +497,100 @@ async function queryDenseTextRows(
     if (requiresDense) {
       throw new Error(message);
     }
-    return [];
+    return;
   }
 
-  const segmentHits = await queryDenseSegmentHits(database, queryVector, {
+  await populateCachedDenseSegmentHits(database, cache, queryId, queryVector, {
     ...(options.chapters === undefined ? {} : { chapters: options.chapters }),
-    limit: SEARCH_INDEX_DENSE_SEGMENT_HIT_LIMIT,
     ...(options.types === undefined ? {} : { types: options.types }),
   });
-
-  if (segmentHits.length === 0) {
-    return [];
-  }
-
-  return expandDenseSegmentHits(database, segmentHits, {
-    limit: Math.max(
-      options.textHitLimit ?? SEARCH_INDEX_FTS_HIT_LIMIT,
-      SEARCH_INDEX_DENSE_EXPANDED_SENTENCE_LIMIT,
-    ),
-    ...(options.types === undefined ? {} : { types: options.types }),
-  });
+  await pruneAndNormalizeCachedDenseSegmentHits(
+    cache,
+    queryId,
+    SEARCH_INDEX_DENSE_SEGMENT_HIT_LIMIT,
+  );
+  await expandCachedDenseSegmentHits(database, cache, queryId);
 }
 
-async function queryDenseSegmentHits(
+async function populateCachedDenseSegmentHits(
   database: Database,
+  cache: Database,
+  queryId: string,
   queryVector: readonly number[],
   options: {
     readonly chapters?: readonly number[];
-    readonly limit: number;
     readonly types?: readonly ArchiveFindObjectType[] | null;
   },
-): Promise<readonly DenseSegmentHit[]> {
+): Promise<void> {
   const kinds = createDenseTextKindFilter(options.types);
 
   if (kinds.length === 0 || queryVector.length === 0) {
-    return [];
+    return;
   }
 
-  const rows = await database.queryAll(
-    `
-      SELECT
-        archive_id,
-        kind,
-        chapter_id,
-        start_sentence_index,
-        end_sentence_index,
-        vector
-      FROM text_embedding_segments
-      WHERE kind IN (${kinds.map(() => "?").join(", ")})
-        ${createChapterSql(options.chapters, "")}
-    `,
-    [...kinds, ...createChapterParams(options.chapters)],
-    (row) => ({
-      archiveId: getNumber(row, "archive_id"),
-      chapterId: getNumber(row, "chapter_id"),
-      endSentenceIndex: getNumber(row, "end_sentence_index"),
-      kind: getNumber(row, "kind") as TextSentenceKind,
-      startSentenceIndex: getNumber(row, "start_sentence_index"),
-      vector:
-        row.vector instanceof Uint8Array
-          ? deserializeFloat32Vector(row.vector)
-          : [],
-    }),
-  );
+  let afterId = 0;
+  while (true) {
+    const rows = await database.queryAll(
+      `
+        SELECT
+          id,
+          archive_id,
+          kind,
+          chapter_id,
+          start_sentence_index,
+          end_sentence_index,
+          vector
+        FROM text_embedding_segments
+        WHERE id > ?
+          AND kind IN (${kinds.map(() => "?").join(", ")})
+          ${createChapterSql(options.chapters, "")}
+        ORDER BY id
+        LIMIT ?
+      `,
+      [
+        afterId,
+        ...kinds,
+        ...createChapterParams(options.chapters),
+        QUERY_BATCH_SIZE,
+      ],
+      (row) => ({
+        archiveId: getNumber(row, "archive_id"),
+        chapterId: getNumber(row, "chapter_id"),
+        endSentenceIndex: getNumber(row, "end_sentence_index"),
+        id: getNumber(row, "id"),
+        kind: getNumber(row, "kind") as TextSentenceKind,
+        rawScore: cosineSimilarity(
+          queryVector,
+          row.vector instanceof Uint8Array
+            ? deserializeFloat32Vector(row.vector)
+            : [],
+        ),
+        startSentenceIndex: getNumber(row, "start_sentence_index"),
+      }),
+    );
+    if (rows.length === 0) break;
 
-  return rows
-    .map((row) => ({
-      archiveId: row.archiveId,
-      chapterId: row.chapterId,
-      endSentenceIndex: row.endSentenceIndex,
-      kind: row.kind,
-      score: cosineSimilarity(queryVector, row.vector),
-      startSentenceIndex: row.startSentenceIndex,
-    }))
-    .sort(
-      (left, right) =>
-        right.score - left.score ||
-        left.archiveId - right.archiveId ||
-        left.chapterId - right.chapterId ||
-        left.startSentenceIndex - right.startSentenceIndex ||
-        left.kind - right.kind,
-    )
-    .slice(0, options.limit);
+    await cache.transaction(async () => {
+      for (const row of rows) {
+        await insertCachedDenseSegmentHit(cache, queryId, row);
+      }
+    });
+    afterId = rows.at(-1)!.id;
+    if (rows.length < QUERY_BATCH_SIZE) break;
+    await pruneAndNormalizeCachedDenseSegmentHits(
+      cache,
+      queryId,
+      SEARCH_INDEX_DENSE_SEGMENT_HIT_LIMIT,
+    );
+  }
 }
 
-async function expandDenseSegmentHits(
+async function expandCachedDenseSegmentHits(
   database: Database,
-  segmentHits: readonly DenseSegmentHit[],
-  options: {
-    readonly limit: number;
-    readonly types?: readonly ArchiveFindObjectType[] | null;
-  },
-): Promise<readonly SearchIndexTextHit[]> {
-  const kinds = createDenseTextKindFilter(options.types);
-  const hitsByKey = new Map<string, SearchIndexTextHit>();
-
-  for (const [segmentRank, segment] of segmentHits.entries()) {
+  cache: Database,
+  queryId: string,
+): Promise<void> {
+  for (const segment of await listCachedDenseSegmentHits(cache, queryId)) {
     const rows = await database.queryAll(
       `
         SELECT
@@ -471,7 +605,6 @@ async function expandDenseSegmentHits(
           AND chapter_id = ?
           AND sentence_index >= ?
           AND sentence_index <= ?
-          AND kind IN (${kinds.map(() => "?").join(", ")})
         ORDER BY sentence_index ASC
       `,
       [
@@ -480,37 +613,35 @@ async function expandDenseSegmentHits(
         segment.chapterId,
         segment.startSentenceIndex,
         segment.endSentenceIndex,
-        ...kinds,
       ],
-      (row) => {
-        const rank = segmentRank + 1;
-
-        return {
-          archiveId: getNumber(row, "archive_id"),
-          chapterId: getNumber(row, "chapter_id"),
-          kind: getNumber(row, "kind") as TextSentenceKind,
-          rank,
-          score: segment.score,
-          sentenceIndex: getNumber(row, "sentence_index"),
-          wordsCount: getNumber(row, "words_count"),
-        };
-      },
+      (row) => ({
+        archiveId: getNumber(row, "archive_id"),
+        chapterId: getNumber(row, "chapter_id"),
+        kind: getNumber(row, "kind") as TextSentenceKind,
+        score: segment.score,
+        sentenceIndex: getNumber(row, "sentence_index"),
+        wordsCount: getNumber(row, "words_count"),
+      }),
     );
 
-    for (const row of rows) {
-      const key = createTextHitKey(row);
-      const existing = hitsByKey.get(key);
-
-      if (existing === undefined || row.score > existing.score) {
-        hitsByKey.set(key, row);
+    await cache.transaction(async () => {
+      for (const row of rows) {
+        await upsertCachedEmbeddingTextHit(cache, queryId, row);
       }
-    }
-    if (hitsByKey.size >= options.limit) {
+    });
+    const expandedCount = await cache.queryOne(
+      `
+        SELECT COUNT(*) AS count
+        FROM query_text_hits
+        WHERE query_id = ? AND embedding_score IS NOT NULL
+      `,
+      [queryId],
+      (row) => getNumber(row, "count"),
+    );
+    if ((expandedCount ?? 0) >= SEARCH_INDEX_DENSE_EXPANDED_SENTENCE_LIMIT) {
       break;
     }
   }
-
-  return [...hitsByKey.values()].slice(0, options.limit);
 }
 
 function createDenseTextKindFilter(
@@ -529,89 +660,6 @@ function createDenseTextKindFilter(
   return needsSourceEvidence
     ? [...new Set([...direct, TEXT_SENTENCE_KIND.source])]
     : direct;
-}
-
-function fuseTextHitsByRrf(
-  ftsHits: readonly SearchIndexTextHit[],
-  denseHits: readonly SearchIndexTextHit[],
-): readonly SearchIndexTextHit[] {
-  const fused = new Map<
-    string,
-    { hit: SearchIndexTextHit; score: number; topRank: number }
-  >();
-  const addHits = (hits: readonly SearchIndexTextHit[], weight: number) => {
-    for (const [index, hit] of hits.entries()) {
-      const key = createTextHitKey(hit);
-      const rank = index + 1;
-      const contribution = weight / (60 + rank);
-      const existing = fused.get(key);
-
-      if (existing === undefined) {
-        fused.set(key, {
-          hit,
-          score: contribution,
-          topRank: rank,
-        });
-      } else {
-        existing.score += contribution;
-        existing.topRank = Math.min(existing.topRank, rank);
-      }
-    }
-  };
-
-  addHits(ftsHits, 1);
-  addHits(denseHits, 1);
-
-  return [...fused.values()]
-    .sort(
-      (left, right) =>
-        right.score - left.score ||
-        left.topRank - right.topRank ||
-        left.hit.archiveId - right.hit.archiveId ||
-        left.hit.chapterId - right.hit.chapterId ||
-        left.hit.sentenceIndex - right.hit.sentenceIndex ||
-        left.hit.kind - right.hit.kind,
-    )
-    .map((entry, index) => ({
-      ...entry.hit,
-      rank: index + 1,
-      score: entry.score,
-    }));
-}
-
-function applyTextAfter(
-  hits: readonly SearchIndexTextHit[],
-  after:
-    | {
-        readonly archiveId: number;
-        readonly chapterId: number;
-        readonly kind: TextSentenceKind;
-        readonly rank: number;
-        readonly sentenceIndex: number;
-      }
-    | undefined,
-): readonly SearchIndexTextHit[] {
-  if (after === undefined) {
-    return hits;
-  }
-
-  return hits.filter(
-    (hit) =>
-      hit.rank > after.rank ||
-      (hit.rank === after.rank && hit.archiveId > after.archiveId) ||
-      (hit.rank === after.rank &&
-        hit.archiveId === after.archiveId &&
-        hit.chapterId > after.chapterId) ||
-      (hit.rank === after.rank &&
-        hit.archiveId === after.archiveId &&
-        hit.chapterId === after.chapterId &&
-        hit.sentenceIndex > after.sentenceIndex) ||
-      (hit.rank === after.rank &&
-        hit.archiveId === after.archiveId &&
-        hit.chapterId === after.chapterId &&
-        hit.sentenceIndex === after.sentenceIndex &&
-        hit.kind > after.kind),
-  );
 }
 
 function cosineSimilarity(
@@ -646,11 +694,16 @@ async function queryObjectRows(
   matchExpression: string,
   options: {
     readonly chapters?: readonly number[];
-    readonly objectHitLimit?: number;
+    readonly limit: number;
+    readonly offset: number;
     readonly types?: readonly ArchiveFindObjectType[] | null;
   },
-): Promise<readonly SearchIndexObjectHit[]> {
-  if (!shouldQueryObjects(options.types) || options.objectHitLimit === 0) {
+): Promise<
+  readonly (Omit<SearchIndexObjectHit, "score"> & {
+    readonly rawScore: number;
+  })[]
+> {
+  if (!shouldQueryObjects(options.types)) {
     return [];
   }
 
@@ -662,29 +715,31 @@ async function queryObjectRows(
         r.property_kind AS property_kind,
         r.archive_id AS archive_id,
         r.chapter_id AS chapter_id,
-        bm25(search_object_properties_fts, ?, ?, ?) AS rank
+        bm25(search_object_properties_fts, ?, ?, ?) AS raw_score
       FROM search_object_properties_fts
       JOIN search_object_properties_records AS r
         ON r.id = search_object_properties_fts.rowid
       WHERE search_object_properties_fts MATCH ?
         ${createChapterSql(options.chapters)}
         ${createObjectTypeSql(options.types)}
-      ORDER BY rank ASC, r.archive_id, r.chapter_id, r.owner_kind, r.owner_id, r.property_kind
-      ${createLimitSql(options.objectHitLimit)}
+      ORDER BY raw_score ASC, r.archive_id, r.chapter_id,
+               r.owner_kind, r.owner_id, r.property_kind
+      LIMIT ? OFFSET ?
     `,
     [
       ...TIER_WEIGHTS,
       matchExpression,
       ...createChapterParams(options.chapters),
       ...createObjectTypeParams(options.types),
-      ...createLimitParams(options.objectHitLimit),
+      options.limit,
+      options.offset,
     ],
     (row) => ({
       ownerId: String(row.owner_id),
       archiveId: getNumber(row, "archive_id"),
       ownerKind: getNumber(row, "owner_kind") as SearchObjectPropertyOwnerKind,
       propertyKind: getNumber(row, "property_kind") as SearchObjectPropertyKind,
-      score: rankToScore(getNumber(row, "rank")),
+      rawScore: getNumber(row, "raw_score"),
       ...(row.chapter_id === null
         ? {}
         : { chapterId: getNumber(row, "chapter_id") }),
@@ -697,114 +752,53 @@ async function queryTextRows(
   matchExpression: string,
   options: {
     readonly chapters?: readonly number[];
-    readonly textAfter?: {
-      readonly archiveId: number;
-      readonly chapterId: number;
-      readonly kind: TextSentenceKind;
-      readonly rank: number;
-      readonly sentenceIndex: number;
-    };
-    readonly textHitLimit?: number;
+    readonly limit: number;
+    readonly offset: number;
     readonly types?: readonly ArchiveFindObjectType[] | null;
   },
-): Promise<readonly SearchIndexTextHit[]> {
+): Promise<
+  readonly (Omit<SearchIndexTextHit, "rank" | "score"> & {
+    readonly rawScore: number;
+  })[]
+> {
   const kinds = createTextKindFilter(options.types);
 
   if (kinds.length === 0) {
     return [];
   }
-  if (options.textHitLimit === 0) {
-    return [];
-  }
-
-  const after = options.textAfter;
-
   return await database.queryAll(
     `
       SELECT
-        kind,
-        archive_id,
-        chapter_id,
-        sentence_index,
-        words_count,
-        rank
-      FROM (
-        SELECT
-          r.kind AS kind,
-          r.archive_id AS archive_id,
-          r.chapter_id AS chapter_id,
-          r.sentence_index AS sentence_index,
-          r.words_count AS words_count,
-          bm25(text_sentence_fts, ?, ?, ?) AS rank
-        FROM text_sentence_fts
-        JOIN text_sentence_records AS r
-          ON r.id = text_sentence_fts.rowid
-        WHERE text_sentence_fts MATCH ?
-          AND r.kind IN (${kinds.map(() => "?").join(", ")})
-          ${createChapterSql(options.chapters)}
-      )
-      ${
-        after === undefined
-          ? ""
-          : `
-            WHERE (
-              rank > ?
-              OR (rank = ? AND archive_id > ?)
-              OR (rank = ? AND archive_id = ? AND chapter_id > ?)
-              OR (
-                rank = ?
-                AND archive_id = ?
-                AND chapter_id = ?
-                AND sentence_index > ?
-              )
-              OR (
-                rank = ?
-                AND archive_id = ?
-                AND chapter_id = ?
-                AND sentence_index = ?
-                AND kind > ?
-              )
-            )
-          `
-      }
-      ORDER BY rank ASC, archive_id, chapter_id, sentence_index, kind
-      ${createLimitSql(options.textHitLimit)}
+        r.kind AS kind,
+        r.archive_id AS archive_id,
+        r.chapter_id AS chapter_id,
+        r.sentence_index AS sentence_index,
+        r.words_count AS words_count,
+        bm25(text_sentence_fts, ?, ?, ?) AS raw_score
+      FROM text_sentence_fts
+      JOIN text_sentence_records AS r
+        ON r.id = text_sentence_fts.rowid
+      WHERE text_sentence_fts MATCH ?
+        AND r.kind IN (${kinds.map(() => "?").join(", ")})
+        ${createChapterSql(options.chapters)}
+      ORDER BY raw_score ASC, r.archive_id, r.chapter_id,
+               r.sentence_index, r.kind
+      LIMIT ? OFFSET ?
     `,
     [
       ...TIER_WEIGHTS,
       matchExpression,
       ...kinds,
       ...createChapterParams(options.chapters),
-      ...(after === undefined
-        ? []
-        : [
-            after.rank,
-            after.rank,
-            after.archiveId,
-            after.rank,
-            after.archiveId,
-            after.chapterId,
-            after.rank,
-            after.archiveId,
-            after.chapterId,
-            after.sentenceIndex,
-            after.rank,
-            after.archiveId,
-            after.chapterId,
-            after.sentenceIndex,
-            after.kind,
-          ]),
-      ...createLimitParams(options.textHitLimit),
+      options.limit,
+      options.offset,
     ],
     (row) => {
-      const rank = getNumber(row, "rank");
-
       return {
         chapterId: getNumber(row, "chapter_id"),
         archiveId: getNumber(row, "archive_id"),
         kind: getNumber(row, "kind") as TextSentenceKind,
-        rank,
-        score: rankToScore(rank),
+        rawScore: getNumber(row, "raw_score"),
         sentenceIndex: getNumber(row, "sentence_index"),
         wordsCount: getNumber(row, "words_count"),
       };

@@ -216,6 +216,7 @@ async function readChapterTitleBucketPage(
     ...(options.embeddingProvider === undefined
       ? {}
       : { embeddingProvider: options.embeddingProvider }),
+    queryId: session.sessionId,
     queryMode: session.queryMode,
     match: parseFindMatch(session.match),
     objectHitLimit: SEARCH_INDEX_FTS_HIT_LIMIT,
@@ -380,6 +381,7 @@ async function populateObjectBucketCaches(
       ...(options.embeddingProvider === undefined
         ? {}
         : { embeddingProvider: options.embeddingProvider }),
+      queryId: session.sessionId,
       queryMode: session.queryMode,
       match: parseFindMatch(session.match),
       objectHitLimit: SEARCH_INDEX_FTS_HIT_LIMIT,
@@ -480,6 +482,7 @@ async function readTextBucketPage(
     ...(options.embeddingProvider === undefined
       ? {}
       : { embeddingProvider: options.embeddingProvider }),
+    queryId: session.sessionId,
     queryMode: session.queryMode,
     match: parseFindMatch(session.match),
     objectHitLimit: 0,
