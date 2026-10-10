@@ -1,6 +1,6 @@
 {
   "name": "wiki-graph",
-  "version": "0.8.3",
+  "version": "0.8.4",
   "description": "CLI for building and querying .wikg knowledge-base archives from long-form text and ebooks.",
   "keywords": [
     "wiki-graph",
