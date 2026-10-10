@@ -1,4 +1,5 @@
 import { SEARCH_TOP_SCORE_COUNT } from "./schema.js";
+import { aggregateTopScores } from "../score-aggregation.js";
 
 export function mergeTopScores(
   current: readonly number[],
@@ -11,7 +12,5 @@ export function mergeTopScores(
 }
 
 export function aggregateCachedScores(scores: readonly number[]): number {
-  return scores
-    .slice(0, SEARCH_TOP_SCORE_COUNT)
-    .reduce((total, score, index) => total + score / Math.log2(index + 2), 0);
+  return aggregateTopScores(scores, SEARCH_TOP_SCORE_COUNT);
 }

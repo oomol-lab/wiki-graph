@@ -1,4 +1,5 @@
 import type { ArchiveFindHit, ArchiveFindMatch } from "../types.js";
+import { aggregateTopScores } from "../../score-aggregation.js";
 import { compareArchivePositions } from "./position.js";
 
 export interface ArchiveTextSearch {
@@ -12,9 +13,6 @@ export interface ArchiveTextMatch {
   readonly missingTerms: readonly string[];
   readonly score: number;
 }
-
-const GROUP_SCORE_EVIDENCE_LIMIT = 10;
-const GROUP_SCORE_MAX_EQUAL_EVIDENCE_BONUS = 0.3;
 
 export function createPhraseSearch(
   query: string,
@@ -74,35 +72,7 @@ export function createFindMatchFields(
 }
 
 export function aggregateEvidenceScores(scores: readonly number[]): number {
-  const rankedScores = [...scores]
-    .filter((score) => score > 0)
-    .sort((left, right) => right - left)
-    .slice(0, GROUP_SCORE_EVIDENCE_LIMIT);
-  const [bestScore] = rankedScores;
-
-  if (bestScore === undefined) {
-    return 0;
-  }
-
-  const evidenceDecayFactor =
-    GROUP_SCORE_MAX_EQUAL_EVIDENCE_BONUS / calculateEvidenceDecayBase();
-
-  return rankedScores.reduce(
-    (total, score, index) =>
-      total +
-      score * (index === 0 ? 1 : evidenceDecayFactor / Math.log2(index + 2)),
-    0,
-  );
-}
-
-export function calculateEvidenceDecayBase(): number {
-  let total = 0;
-
-  for (let rank = 2; rank <= GROUP_SCORE_EVIDENCE_LIMIT; rank += 1) {
-    total += 1 / Math.log2(rank + 1);
-  }
-
-  return total;
+  return aggregateTopScores(scores);
 }
 
 export function compareFindEvidenceHits(

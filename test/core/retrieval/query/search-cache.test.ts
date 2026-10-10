@@ -262,6 +262,41 @@ describe("archive/query/search-cache", () => {
     });
   });
 
+  it("aggregates property and evidence matches on one score scale", async () => {
+    await withTempDir("wikigraph-search-cache-", async (path) => {
+      setWikiGraphStateDirectoryPathForTesting(path);
+
+      const sessionId = await createSearchSession({
+        archiveKey: "archive-key",
+        chapters: null,
+        entityHits: [
+          {
+            evidenceTopScores: [1],
+            propertyTopScores: [1],
+            qid: "Q1",
+          },
+        ],
+        items: [],
+        lens: "typed",
+        match: "any",
+        order: "rank",
+        query: "query",
+        revisionScope: JSON.stringify({ chaptersRevision: 0, scope: "all" }),
+        terms: ["query"],
+        types: ["entity"],
+      });
+
+      const page = await readEntitySearchSessionPage(
+        sessionId,
+        0,
+        10,
+        "archive-key",
+      );
+
+      expect(page.items[0]?.score).toBeCloseTo(1, 12);
+    });
+  });
+
   it("reads triple bucket rows after a cursor", async () => {
     await withTempDir("wikigraph-search-cache-", async (path) => {
       setWikiGraphStateDirectoryPathForTesting(path);
