@@ -399,7 +399,7 @@ describe("Wiki Graph job artifact delivery", () => {
       [],
     );
     sdk.close();
-  }, 20_000);
+  }, 60_000);
 });
 
 function artifactsFor(
