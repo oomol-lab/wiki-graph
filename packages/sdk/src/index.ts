@@ -9,6 +9,7 @@ export * from "./jobs.js";
 export type { WikiGraphSDKHost } from "./host.js";
 export * from "./libraries.js";
 export * from "./local-config.js";
+export * from "./pages.js";
 export * from "./llm.js";
 export * from "./maintenance.js";
 export * from "./node-platform.js";
