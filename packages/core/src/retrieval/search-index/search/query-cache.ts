@@ -591,6 +591,168 @@ export async function finalizeCachedTextHitScores(
   );
 }
 
+export async function fillUnmatchedCachedTextScores(
+  indexDatabase: Database,
+  cache: Database,
+  queryId: string,
+  channels: {
+    readonly embedding: boolean;
+    readonly fts: boolean;
+  },
+): Promise<void> {
+  if (!channels.fts && !channels.embedding) return;
+
+  const scopes = await cache.queryAll(
+    `
+      SELECT DISTINCT archive_id, kind, chapter_id
+      FROM query_text_hits
+      WHERE query_id = ?
+        AND (
+          (? = 1 AND fts_score IS NULL)
+          OR (? = 1 AND embedding_score IS NULL)
+        )
+    `,
+    [queryId, channels.fts ? 1 : 0, channels.embedding ? 1 : 0],
+    (row) => ({
+      archiveId: getNumber(row, "archive_id"),
+      chapterId: getNumber(row, "chapter_id"),
+      kind: getNumber(row, "kind"),
+    }),
+  );
+
+  if (scopes.length === 0) return;
+
+  const coveredFtsScopes = channels.fts
+    ? await readCoveredTextScopes(indexDatabase, scopes, "fts")
+    : new Set<string>();
+  const coveredEmbeddingScopes = channels.embedding
+    ? await readCoveredTextScopes(indexDatabase, scopes, "embedding")
+    : new Set<string>();
+
+  await cache.transaction(async () => {
+    await updateMissingTextChannelScores(
+      cache,
+      queryId,
+      "fts_score",
+      coveredFtsScopes,
+    );
+    await updateMissingTextChannelScores(
+      cache,
+      queryId,
+      "embedding_score",
+      coveredEmbeddingScopes,
+    );
+  });
+}
+
+async function readCoveredTextScopes(
+  database: Database,
+  scopes: readonly TextScope[],
+  channel: "embedding" | "fts",
+): Promise<Set<string>> {
+  const covered = new Set<string>();
+
+  for (const batch of chunk(scopes, 200)) {
+    const predicates = batch
+      .map(() => "(archive_id = ? AND kind = ? AND chapter_id = ?)")
+      .join(" OR ");
+    const rows = await database.queryAll(
+      channel === "fts"
+        ? `
+            SELECT DISTINCT records.archive_id, records.kind, records.chapter_id
+            FROM text_sentence_records AS records
+            JOIN text_sentence_fts AS fts ON fts.rowid = records.id
+            WHERE ${predicates}
+          `
+        : `
+            SELECT DISTINCT archive_id, kind, chapter_id
+            FROM text_embedding_segments
+            WHERE ${predicates}
+          `,
+      batch.flatMap((scope) => [scope.archiveId, scope.kind, scope.chapterId]),
+      (row) =>
+        createTextScopeKey(
+          getNumber(row, "archive_id"),
+          getNumber(row, "kind"),
+          getNumber(row, "chapter_id"),
+        ),
+    );
+    for (const row of rows) covered.add(row);
+  }
+
+  return covered;
+}
+
+async function updateMissingTextChannelScores(
+  database: Database,
+  queryId: string,
+  column: "embedding_score" | "fts_score",
+  coveredScopes: ReadonlySet<string>,
+): Promise<void> {
+  const scopes = [...coveredScopes].map(parseTextScopeKey);
+
+  for (const batch of chunk(scopes, 200)) {
+    if (batch.length === 0) continue;
+    const predicates = batch
+      .map(() => "(archive_id = ? AND kind = ? AND chapter_id = ?)")
+      .join(" OR ");
+    await database.run(
+      `
+        UPDATE query_text_hits
+        SET ${column} = 0
+        WHERE query_id = ?
+          AND ${column} IS NULL
+          AND (${predicates})
+      `,
+      [
+        queryId,
+        ...batch.flatMap((scope) => [
+          scope.archiveId,
+          scope.kind,
+          scope.chapterId,
+        ]),
+      ],
+    );
+  }
+}
+
+interface TextScope {
+  readonly archiveId: number;
+  readonly chapterId: number;
+  readonly kind: number;
+}
+
+function createTextScopeKey(
+  archiveId: number,
+  kind: number,
+  chapterId: number,
+): string {
+  return `${archiveId}:${kind}:${chapterId}`;
+}
+
+function parseTextScopeKey(value: string): TextScope {
+  const parts = value.split(":").map(Number);
+  const archiveId = parts[0];
+  const kind = parts[1];
+  const chapterId = parts[2];
+  if (
+    archiveId === undefined ||
+    kind === undefined ||
+    chapterId === undefined
+  ) {
+    throw new Error(`Invalid text scope key: ${value}`);
+  }
+  return { archiveId, chapterId, kind };
+}
+
+function chunk<T>(values: readonly T[], size: number): readonly T[][] {
+  const chunks: T[][] = [];
+  for (let index = 0; index < values.length; index += size) {
+    chunks.push([...values.slice(index, index + size)]);
+  }
+  return chunks;
+}
+
 export function decodeCachedChapterId(chapterId: number): number | undefined {
   return chapterId === NO_CHAPTER ? undefined : chapterId;
 }
