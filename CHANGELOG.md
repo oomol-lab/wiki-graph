@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.8.4
+
+- Preserve nested PCEX `toc.xml` hierarchy when converting source documents to WIKG chapters.
+- Keep TOC-only directory nodes and stable chapter paths in conversion output.
+
 ## 0.8.3
 
 - Isolate SDK configuration state with an explicit `host.stateDir` when hosts
