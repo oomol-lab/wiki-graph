@@ -46,6 +46,7 @@ import {
   resolveWikiGraphLibrary,
   scanWikiGraphLibrary,
   WikiGraphArchiveFile,
+  WikiGraphDirectoryFile,
   withArchiveBuildJobCreationLock,
 } from "../index.js";
 import {
@@ -407,12 +408,12 @@ describe("library archive membership", () => {
         replacementInputToken,
       );
       await expect(
-        new WikiGraphArchiveFile(replaced.file!).readDocument(
+        new WikiGraphDirectoryFile(replaced.directory!).readDocument(
           async (document) => (await document.readToc())?.items[0]?.title,
         ),
       ).resolves.toBe("Replacement chapter");
       await expect(
-        readWikgArchiveEntry(replaced.file!, "index.db"),
+        readWikgArchiveEntry(replaced.directory!, "index.db"),
       ).resolves.toBeUndefined();
       await expect(
         readWikiGraphLibraryIndexState(target),

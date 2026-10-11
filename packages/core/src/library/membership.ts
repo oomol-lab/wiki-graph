@@ -27,6 +27,7 @@ import {
   WikiGraphDirectoryFile,
   writeWikgArchiveWithOverlays,
 } from "../storage/wikg/index.js";
+import { createWikgMutationTokenContent } from "../storage/wikg/archive/manifest.js";
 import { WikgCoordinator } from "../storage/wikg/index.js";
 import {
   assertNoActiveBuildJobConflicts,
@@ -461,6 +462,7 @@ async function replaceManagedDirectoryArchive(input: {
     await copyDirectoryContent(input.archive.directory!, rollback);
     await clearDirectory(input.archive.directory!);
     await copyDirectoryContent(staged, input.archive.directory!);
+    await writeDirectoryMutationToken(input.archive.directory!);
     await removeDirectorySearchIndex(input.archive.directory!);
     await refreshLibraryArchiveMembership(input.archive, input.library);
     await invalidateReplacedArchiveDerivedState(
@@ -1144,8 +1146,14 @@ async function getRelativeLibraryArchiveEntry(
 ): Promise<File | Directory | undefined> {
   try {
     return await requireRelativeLibraryEntry(root, relativePath);
-  } catch {
-    return undefined;
+  } catch (error) {
+    if (
+      error instanceof Error &&
+      error.message.startsWith("Library archive is missing:")
+    ) {
+      return undefined;
+    }
+    throw error;
   }
 }
 
@@ -1227,6 +1235,22 @@ async function clearDirectory(directory: Directory): Promise<void> {
     await directory.remove(entry.name, {
       recursive: entry.kind === "directory",
     });
+  }
+}
+
+async function writeDirectoryMutationToken(
+  directory: Directory,
+): Promise<void> {
+  const file =
+    (await directory.getFile(".wikg-mutation-token")) ??
+    (await directory.createFile(".wikg-mutation-token"));
+  const writer = await file.openWriter();
+  try {
+    await writer.write(createWikgMutationTokenContent());
+    await writer.commit();
+  } catch (error) {
+    await writer.abort().catch(() => undefined);
+    throw error;
   }
 }
 

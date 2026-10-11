@@ -110,7 +110,7 @@ export async function listWikgArchiveEntries(
 }
 
 export async function readWikgArchiveEntry(
-  file: ReadonlyFile | string,
+  file: ReadonlyFile | Directory | string,
   entryPath: string,
 ): Promise<Uint8Array | undefined> {
   const reader = await WikgArchiveReader.open(file);
