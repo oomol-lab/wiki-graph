@@ -14,7 +14,10 @@ import {
   readWikgArchiveEntry,
   writeWikgArchive,
 } from "../../../../packages/core/src/storage/wikg/archive/index.js";
-import { commitDirectoryArchive } from "../../../../packages/core/src/storage/wikg/archive/directory-backend.js";
+import {
+  commitDirectoryArchive,
+  listDirectoryArchiveFiles,
+} from "../../../../packages/core/src/storage/wikg/archive/directory-backend.js";
 import { replaceChapterFtsIndexArtifact } from "../../../../packages/core/src/retrieval/index-artifact/index.js";
 import {
   isArchiveSearchIndexCurrent,
@@ -143,6 +146,33 @@ describe("wikg/wiki-graph-archive-file", () => {
       ).resolves.toBe(originalManifest);
       await expect(managed.getDirectory(".wikg-transaction")).resolves.toBe(
         undefined,
+      );
+    });
+  });
+
+  it("publishes nested text files in a managed directory archive", async () => {
+    await withArchiveFixture(async ({ archive, root }) => {
+      const managed = new NodeDirectory(join(root, "managed-nested.wikg"));
+      await extractWikgArchive(archive, managed);
+      const files = await listDirectoryArchiveFiles(managed);
+      const nestedPath = [...files.keys()].find((path) =>
+        path.startsWith("texts/"),
+      );
+      expect(nestedPath).toBeDefined();
+      const nestedFile = files.get(nestedPath!);
+      expect(nestedFile).toBeDefined();
+      const original = await readFileText(nestedFile!);
+
+      await commitDirectoryArchive(managed, [
+        {
+          path: nestedPath!,
+          data: new TextEncoder().encode(`${original}\nupdated`),
+        },
+      ]);
+
+      const refreshed = await listDirectoryArchiveFiles(managed);
+      await expect(readFileText(refreshed.get(nestedPath!)!)).resolves.toBe(
+        `${original}\nupdated`,
       );
     });
   });
