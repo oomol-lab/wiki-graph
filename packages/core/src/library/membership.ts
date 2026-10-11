@@ -29,6 +29,7 @@ import {
 } from "../storage/wikg/index.js";
 import { createWikgMutationTokenContent } from "../storage/wikg/archive/manifest.js";
 import { WikgCoordinator } from "../storage/wikg/index.js";
+import { withStateLock } from "../state-lock.js";
 import {
   assertNoActiveBuildJobConflicts,
   withArchiveBuildJobReplacementLock,
@@ -372,15 +373,37 @@ export async function replaceWikiGraphLibraryArchive(input: {
     return await withWikiGraphLibraryLock(library.id, "write", async () => {
       const archive = await resolveLibraryArchiveTarget(input.target, library);
       if (archive.directory !== undefined) {
-        return await replaceManagedDirectoryArchive({
-          archive,
-          inputFile: input.inputFile,
-          library,
-          ...(input.additionalDerivedStateKeys === undefined
-            ? {}
-            : { additionalDerivedStateKeys: input.additionalDerivedStateKeys }),
-          target: input.target,
-        });
+        return await withArchiveBuildJobReplacementLock(
+          archive.directory,
+          async () => {
+            await assertNoActiveBuildJobConflicts({
+              archive: archive.directory!,
+              operation: "Replacing this library archive",
+              scope: { kind: "archive" },
+            });
+            return await withStateLock(
+              {
+                mode: "write",
+                resourceKey: archive.directory!.identity,
+                scope: "wikg-directory",
+                stateDatabaseName: "core.sqlite",
+              },
+              async () =>
+                await replaceManagedDirectoryArchive({
+                  archive,
+                  inputFile: input.inputFile,
+                  library,
+                  ...(input.additionalDerivedStateKeys === undefined
+                    ? {}
+                    : {
+                        additionalDerivedStateKeys:
+                          input.additionalDerivedStateKeys,
+                      }),
+                  target: input.target,
+                }),
+            );
+          },
+        );
       }
       if (archive.file === undefined) {
         throw new Error(
@@ -522,7 +545,7 @@ async function invalidateReplacedArchiveDerivedState(
   additionalKeys: readonly string[] = [],
 ): Promise<void> {
   const keys = new Set([
-    archive.file?.identity,
+    archive.directory?.identity ?? archive.file?.identity,
     archive.uri,
     library.uri,
     library.isDefault ? "library:default" : `library:${library.publicId}`,

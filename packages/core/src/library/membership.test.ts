@@ -309,7 +309,7 @@ describe("library archive membership", () => {
       const target = parseWikiGraphLibraryUri("wikg://lib");
       expect(target).toBeDefined();
       const source = join(tempDir, "source.wikg");
-      await writeFile(source, "content");
+      await createTestWikgArchive(tempDir, source);
 
       const added = await addWikiGraphLibraryArchive({
         inputFile: new NodeFile(source),
@@ -318,9 +318,10 @@ describe("library archive membership", () => {
       });
       expect(added.relativePath).toBe("nested/book.wikg");
       expect(added.status).toBe("present");
-      expect(await readFile(getNodeResourcePath(added.file!), "utf8")).toBe(
-        "content",
-      );
+      expect(added.directory).toBeDefined();
+      await expect(
+        added.directory!.getFile("manifest.json"),
+      ).resolves.toBeDefined();
 
       await expect(
         addWikiGraphLibraryArchive({
@@ -344,8 +345,8 @@ describe("library archive membership", () => {
       });
       expect(removed.publicId).toBe(added.publicId);
       await expect(
-        readFile(getNodeResourcePath(moved.file!), "utf8"),
-      ).rejects.toThrow();
+        moved.directory!.getFile("manifest.json"),
+      ).resolves.toBeUndefined();
     });
   });
 
@@ -433,7 +434,7 @@ describe("library archive membership", () => {
         target,
         to: "book.wikg",
       });
-      const before = await readFile(getNodeResourcePath(added.file!));
+      const before = await readWikgArchiveMutationToken(added.directory!);
 
       await expect(
         replaceWikiGraphLibraryArchive({
@@ -442,9 +443,9 @@ describe("library archive membership", () => {
         }),
       ).rejects.toThrow();
 
-      await expect(readFile(getNodeResourcePath(added.file!))).resolves.toEqual(
-        before,
-      );
+      await expect(
+        readWikgArchiveMutationToken(added.directory!),
+      ).resolves.toBe(before);
     });
   });
 
@@ -471,6 +472,11 @@ describe("library archive membership", () => {
         types: null,
       };
       await createSearchSession(cacheInput);
+      const physicalCacheInput = {
+        ...cacheInput,
+        archiveKey: added.directory!.identity,
+      };
+      await createSearchSession(physicalCacheInput);
       const cursorId = await createContinuationCursor({
         archiveKey: added.uri,
         archivePath: added.uri,
@@ -491,6 +497,9 @@ describe("library archive membership", () => {
 
       await expect(
         readCachedSearchSessionPage(cacheInput, 0, 10),
+      ).resolves.toBe(undefined);
+      await expect(
+        readCachedSearchSessionPage(physicalCacheInput, 0, 10),
       ).resolves.toBe(undefined);
       await expect(readContinuationCursor(cursorId)).rejects.toThrow(
         "was not found or has expired",
@@ -522,7 +531,7 @@ describe("library archive membership", () => {
       const entered = new Promise<void>((resolve) => {
         readerEntered = resolve;
       });
-      const reading = new WikiGraphArchiveFile(added.file!).readDocument(
+      const reading = new WikiGraphArchiveFile(added.directory!).readDocument(
         async () => {
           readerEntered();
           await readerGate;
@@ -558,11 +567,11 @@ describe("library archive membership", () => {
         target,
       });
       await addBuildJob({
-        archive: added.file!,
+        archive: added.directory!,
         chapterId: 1,
         target: "index-fts",
       });
-      const beforeToken = await readWikgArchiveMutationToken(added.file!);
+      const beforeToken = await readWikgArchiveMutationToken(added.directory!);
 
       await expect(
         replaceWikiGraphLibraryArchive({
@@ -570,9 +579,9 @@ describe("library archive membership", () => {
           target: parseWikiGraphLibraryUri(added.uri)!,
         }),
       ).rejects.toThrow("active index-fts job");
-      await expect(readWikgArchiveMutationToken(added.file!)).resolves.toBe(
-        beforeToken,
-      );
+      await expect(
+        readWikgArchiveMutationToken(added.directory!),
+      ).resolves.toBe(beforeToken);
     });
   });
 
@@ -589,17 +598,17 @@ describe("library archive membership", () => {
       });
       let replacing!: ReturnType<typeof replaceWikiGraphLibraryArchive>;
 
-      await withArchiveBuildJobCreationLock(added.file!, async () => {
+      await withArchiveBuildJobCreationLock(added.directory!, async () => {
         replacing = replaceWikiGraphLibraryArchive({
           inputFile: new NodeFile(replacementPath),
           target: parseWikiGraphLibraryUri(added.uri)!,
         });
         await delay(50);
-        await new WikiGraphArchiveFile(added.file!).readDocument(
+        await new WikiGraphArchiveFile(added.directory!).readDocument(
           async () => undefined,
         );
         await addBuildJob({
-          archive: added.file!,
+          archive: added.directory!,
           chapterId: 1,
           target: "index-fts",
         });
@@ -641,14 +650,14 @@ describe("library archive membership", () => {
       });
       const archiveTarget = parseWikiGraphLibraryUri(added.uri);
       expect(archiveTarget?.kind).toBe("archive");
-      const before = await inspectFileState(getNodeResourcePath(added.file!));
+      const before = await readWikgArchiveMutationToken(added.directory!);
 
       await expect(
         finalizeWikiGraphLibraryArchiveWrite({ target: archiveTarget! }),
       ).resolves.toBe(false);
-      const after = await inspectFileState(getNodeResourcePath(added.file!));
+      const after = await readWikgArchiveMutationToken(added.directory!);
 
-      expect(after).toStrictEqual(before);
+      expect(after).toBe(before);
     });
   });
 
@@ -665,7 +674,7 @@ describe("library archive membership", () => {
         to: "searchable.wikg",
       });
       await expect(
-        readWikgArchiveEntry(getNodeResourcePath(added.file!), "index.db"),
+        readWikgArchiveEntry(added.directory!, "index.db"),
       ).resolves.toBe(undefined);
 
       await rebuildWikiGraphLibraryIndex(target!);
@@ -1175,7 +1184,7 @@ describe("library archive membership", () => {
       const target = parseWikiGraphLibraryUri("wikg://lib");
       expect(target).toBeDefined();
       const source = join(tempDir, "source.wikg");
-      await writeFile(source, "content");
+      await createTestWikgArchive(tempDir, source);
       const added = await addWikiGraphLibraryArchive({
         inputFile: new NodeFile(source),
         target: target!,
@@ -1318,9 +1327,9 @@ describe("library archive membership", () => {
           target: target!,
           to: `evidence-${queryMode}.wikg`,
         });
-        expect(added.file).toBeDefined();
+        expect(added.directory).toBeDefined();
         await expect(
-          readWikgArchiveEntry(getNodeResourcePath(added.file!), "index.db"),
+          readWikgArchiveEntry(added.directory!, "index.db"),
         ).resolves.toBeUndefined();
         await rebuildWikiGraphLibraryIndex(target!);
 
@@ -1467,7 +1476,7 @@ describe("library URI locators", () => {
       const target = parseWikiGraphLibraryUri("wikg://lib");
       expect(target).toBeDefined();
       const source = join(tempDir, "source.wikg");
-      await writeFile(source, "content");
+      await createTestWikgArchive(tempDir, source);
 
       const added = await addWikiGraphLibraryArchive({
         inputFile: new NodeFile(source),
@@ -1475,11 +1484,9 @@ describe("library URI locators", () => {
         to: "nested/book.wikg",
       });
 
-      expect(
-        getNodeResourcePath(
-          await resolveWikiGraphLibraryArchiveFile(added.uri),
-        ),
-      ).toBe(getNodeResourcePath(added.file!));
+      const resolved = await resolveWikiGraphLibraryArchiveFile(added.uri);
+      expect(resolved.kind).toBe("directory");
+      expect(resolved.identity).toBe(added.directory!.identity);
       await expect(
         resolveWikiGraphLibraryArchiveFile(`${added.uri}-missing`),
       ).rejects.toThrow("Unknown Wiki Graph library archive");
