@@ -16,6 +16,7 @@ import {
   parseWikgMutationToken,
 } from "./manifest.js";
 import { isReadableWikgArchivePath, normalizeArchivePath } from "./paths.js";
+import { openDirectoryArchive } from "./directory-backend.js";
 
 export class WikgArchiveReader {
   readonly #entries: ReadonlyMap<string, string>;
@@ -31,10 +32,14 @@ export class WikgArchiveReader {
   }
 
   public static async open(
-    fileRef: ReadonlyFile | string,
+    fileRef: ReadonlyFile | Directory | string,
   ): Promise<WikgArchiveReader> {
-    const file = await resolveHostReadonlyFile(fileRef);
-    const reader = await getWikiGraphPlatform().zip.open(file);
+    const reader =
+      typeof fileRef !== "string" && fileRef.kind === "directory"
+        ? await openDirectoryArchive(fileRef)
+        : await getWikiGraphPlatform().zip.open(
+            await resolveHostReadonlyFile(fileRef),
+          );
     try {
       const entries = new Map<string, string>();
       for (const hostName of await reader.listEntries()) {
@@ -117,8 +122,16 @@ export async function readWikgArchiveEntry(
 }
 
 export async function readWikgArchiveMutationToken(
-  file: ReadonlyFile | string,
+  file: ReadonlyFile | Directory | string,
 ): Promise<string> {
+  if (typeof file !== "string" && file.kind === "directory") {
+    const token = await file.getFile(WIKG_MUTATION_TOKEN_PATH);
+    if (token === undefined)
+      throw new Error(
+        `Missing WIKG mutation token: ${WIKG_MUTATION_TOKEN_PATH}.`,
+      );
+    return parseWikgMutationToken(await readFileText(token));
+  }
   const reader = await getWikiGraphPlatform().zip.open(
     await resolveHostReadonlyFile(file),
   );

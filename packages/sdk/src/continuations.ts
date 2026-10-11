@@ -14,6 +14,7 @@ import {
   readContinuationCursor,
   resolveWikiGraphLibraryQueryTargetById,
   WikiGraphArchiveFile,
+  WikiGraphDirectoryFile,
   type ArchiveCollectionOptions,
   type ArchiveCollectionResult,
   type ArchiveEvidence,
@@ -23,6 +24,7 @@ import {
   type ArchiveSourceLocatorResult,
   type ContinuationCursor,
   type QueryIndexScope,
+  type ReadonlyDocument,
   type SearchIndexEmbeddingProvider,
   type SearchIndexQueryMode,
 } from "wiki-graph-core";
@@ -191,68 +193,69 @@ async function continueArchiveCursor(
   const location = await resolveWikiGraphArchiveLocation(
     archiveTargetFromLogicalLocator(getCursorArchivePath(cursor)),
   );
-  return await new WikiGraphArchiveFile(location.archiveFile).readDocument(
-    async (document) => {
-      switch (cursor.kind) {
-        case "source-locators":
-          return await listArchiveSourceLocators(document, cursor.targetUri, {
-            cursor: cursor.cursor,
-            limit,
-          });
-        case "collection":
-          return await listArchiveCollection(
-            document,
-            createCollectionOptions(cursor, limit),
-          );
-        case "search":
-          return await findArchiveObjects(
-            document,
-            cursor.query ?? "",
-            await createFindOptions(cursor, limit),
-          );
-        case "evidence":
-          return await listArchiveEvidence(document, cursor.targetUri, {
-            ...(cursor.chapters === null ? {} : { chapters: cursor.chapters }),
-            cursor: cursor.cursor,
-            limit,
-            order: cursor.order,
-            ...(cursor.query === undefined ? {} : { query: cursor.query }),
-            ...(cursor.queryMode === undefined
-              ? {}
-              : { queryMode: cursor.queryMode }),
-            ...(embeddingProvider === undefined ? {} : { embeddingProvider }),
-            ...(cursor.skipUnindexed === undefined
-              ? {}
-              : { skipUnindexed: cursor.skipUnindexed }),
-            ...(cursor.sourceContext === undefined
-              ? {}
-              : { sourceContext: cursor.sourceContext }),
-          });
-        case "related":
-          return await listRelatedArchiveObjects(document, cursor.targetUri, {
-            ...(cursor.chapters === null ? {} : { chapters: cursor.chapters }),
-            cursor: cursor.cursor,
-            ...(cursor.evidenceLimit === undefined
-              ? {}
-              : { evidenceLimit: cursor.evidenceLimit }),
-            limit,
-            order: cursor.order,
-            ...(cursor.query === undefined ? {} : { query: cursor.query }),
-            ...(cursor.queryMode === undefined
-              ? {}
-              : { queryMode: cursor.queryMode }),
-            ...(embeddingProvider === undefined ? {} : { embeddingProvider }),
-            ...(cursor.role === undefined ? {} : { role: cursor.role }),
-            ...(cursor.skipUnindexed === undefined
-              ? {}
-              : { skipUnindexed: cursor.skipUnindexed }),
-            ...(cursor.sourceContext === undefined
-              ? {}
-              : { sourceContext: cursor.sourceContext }),
-          });
-      }
-    },
-  );
+  const read = async (document: ReadonlyDocument) => {
+    switch (cursor.kind) {
+      case "source-locators":
+        return await listArchiveSourceLocators(document, cursor.targetUri, {
+          cursor: cursor.cursor,
+          limit,
+        });
+      case "collection":
+        return await listArchiveCollection(
+          document,
+          createCollectionOptions(cursor, limit),
+        );
+      case "search":
+        return await findArchiveObjects(
+          document,
+          cursor.query ?? "",
+          await createFindOptions(cursor, limit),
+        );
+      case "evidence":
+        return await listArchiveEvidence(document, cursor.targetUri, {
+          ...(cursor.chapters === null ? {} : { chapters: cursor.chapters }),
+          cursor: cursor.cursor,
+          limit,
+          order: cursor.order,
+          ...(cursor.query === undefined ? {} : { query: cursor.query }),
+          ...(cursor.queryMode === undefined
+            ? {}
+            : { queryMode: cursor.queryMode }),
+          ...(embeddingProvider === undefined ? {} : { embeddingProvider }),
+          ...(cursor.skipUnindexed === undefined
+            ? {}
+            : { skipUnindexed: cursor.skipUnindexed }),
+          ...(cursor.sourceContext === undefined
+            ? {}
+            : { sourceContext: cursor.sourceContext }),
+        });
+      case "related":
+        return await listRelatedArchiveObjects(document, cursor.targetUri, {
+          ...(cursor.chapters === null ? {} : { chapters: cursor.chapters }),
+          cursor: cursor.cursor,
+          ...(cursor.evidenceLimit === undefined
+            ? {}
+            : { evidenceLimit: cursor.evidenceLimit }),
+          limit,
+          order: cursor.order,
+          ...(cursor.query === undefined ? {} : { query: cursor.query }),
+          ...(cursor.queryMode === undefined
+            ? {}
+            : { queryMode: cursor.queryMode }),
+          ...(embeddingProvider === undefined ? {} : { embeddingProvider }),
+          ...(cursor.role === undefined ? {} : { role: cursor.role }),
+          ...(cursor.skipUnindexed === undefined
+            ? {}
+            : { skipUnindexed: cursor.skipUnindexed }),
+          ...(cursor.sourceContext === undefined
+            ? {}
+            : { sourceContext: cursor.sourceContext }),
+        });
+    }
+  };
+  return location.archiveFile.kind === "directory"
+    ? await new WikiGraphDirectoryFile(location.archiveFile).readDocument(read)
+    : await new WikiGraphArchiveFile(location.archiveFile).readDocument(read);
 }
 
 async function continueLibraryCursor(

@@ -2,6 +2,7 @@ import {
   getWikiGraphPlatform,
   resolveHostFile,
   type File,
+  type Directory,
   type HostZipWriteEntry,
 } from "../../../runtime/platform/index.js";
 import {
@@ -37,11 +38,12 @@ import {
 } from "./overlays.js";
 import { cleanupStaleState, withCoordinatorState } from "./state.js";
 import type { CoordinatorOwner, EntryOverlay } from "./types.js";
+import { commitDirectoryArchive } from "../archive/directory-backend.js";
 
 export async function reapArchive(
   archiveKey: string,
   owner: CoordinatorOwner,
-  archive: File,
+  archive: File | Directory,
 ): Promise<void> {
   await withCoordinatorState(async (database) => {
     await cleanupStaleState(database, archiveKey);
@@ -56,7 +58,7 @@ export async function flushArchiveOverlays(
   archiveKey: string,
   owner: CoordinatorOwner,
   requestedEntryPaths?: ReadonlySet<string>,
-  archiveInput?: File,
+  archiveInput?: File | Directory,
 ): Promise<Uint8Array | undefined> {
   const candidates = (await listOverlays(archiveKey)).filter(
     (overlay) =>
@@ -103,7 +105,7 @@ export async function flushArchiveOverlays(
 }
 
 async function commitOverlays(
-  archive: File,
+  archive: File | Directory,
   overlays: readonly EntryOverlay[],
 ): Promise<Uint8Array> {
   const reader = await WikgArchiveReader.open(archive);
@@ -130,10 +132,29 @@ async function commitOverlays(
   paths.add(WIKG_MUTATION_TOKEN_PATH);
   const mutationToken = createWikgMutationTokenBytes();
   try {
-    await getWikiGraphPlatform().zip.write(
-      archive,
-      createArchiveEntries(reader, overlayByPath, paths, mutationToken),
-    );
+    if (archive.kind === "directory") {
+      const changes = await Promise.all(
+        [...overlayByPath.values()].map(async (overlay) => ({
+          path: overlay.entryPath,
+          ...(overlay.kind === "file"
+            ? { file: await resolveOverlayFile(overlay) }
+            : {}),
+        })),
+      );
+      await commitDirectoryArchive(archive, [
+        ...changes,
+        {
+          path: WIKG_MANIFEST_PATH,
+          data: new TextEncoder().encode(WIKG_MANIFEST_CONTENT),
+        },
+        { path: WIKG_MUTATION_TOKEN_PATH, data: mutationToken },
+      ]);
+    } else {
+      await getWikiGraphPlatform().zip.write(
+        archive,
+        createArchiveEntries(reader, overlayByPath, paths, mutationToken),
+      );
+    }
   } finally {
     await reader.close();
   }

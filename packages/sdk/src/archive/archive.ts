@@ -37,8 +37,8 @@ import {
   setChapterSummary,
   setChapterTitle,
   getChapterTree,
-  WikiGraph,
   WikiGraphArchiveFile,
+  WikiGraphDirectoryFile,
   TOC_FILE_VERSION,
   writeWikgArchive,
   type ArchiveCollectionOptions,
@@ -54,6 +54,7 @@ import {
   type ChapterTree,
   type ChapterTreeApplyResult,
   type File,
+  type Directory,
   type IndexArtifactKind,
   ObjectMetadataKind,
   type ObjectMetadataTarget,
@@ -78,6 +79,7 @@ import {
 } from "./inspect.js";
 import {
   assertStandaloneWikiGraphArchivePath,
+  requireWikiGraphArchiveFile,
   resolveWikiGraphArchiveLocation,
   type WikiGraphArchiveLocation,
   type WikiGraphArchiveTarget,
@@ -760,7 +762,7 @@ export class WikiGraphArchiveHandle {
     return await this.#writeDocument(async (document) => {
       const chapterId = await resolveChapterPathReadonly(document, path);
       await assertChapterResetAllowed(
-        this.#location.archiveFile,
+        requireWikiGraphArchiveFile(this.#location),
         chapterId,
         stage,
       );
@@ -1083,12 +1085,10 @@ export class WikiGraphArchiveHandle {
   public async readCover(
     options: WikiGraphOperationOptions = {},
   ): Promise<WikiGraphArchiveCover | undefined> {
-    const app = new WikiGraph({});
     return await this.#runtime.run(
       async () =>
-        await app.openSession(
-          this.#location.archiveFile,
-          async (archive) => await archive.readCover(),
+        await this.#readDocument(
+          async (document) => await document.readCover(),
         ),
       options.signal,
     );
@@ -1161,9 +1161,13 @@ export class WikiGraphArchiveHandle {
   ): Promise<T> {
     return await this.#runtime.run(
       async () =>
-        await new WikiGraphArchiveFile(this.#location.archiveFile).readDocument(
-          operation,
-        ),
+        this.#location.archiveFile.kind === "directory"
+          ? await new WikiGraphDirectoryFile(
+              this.#location.archiveFile,
+            ).readDocument(operation)
+          : await new WikiGraphArchiveFile(
+              this.#location.archiveFile,
+            ).readDocument(operation),
       options.signal,
     );
   }
@@ -1460,7 +1464,7 @@ function asTextStream(text: string): AsyncIterable<string> {
 }
 
 async function assertChapterResetAllowed(
-  archive: File,
+  archive: File | Directory,
   chapterId: number,
   stage: WikiGraphChapterResetStage,
 ): Promise<void> {

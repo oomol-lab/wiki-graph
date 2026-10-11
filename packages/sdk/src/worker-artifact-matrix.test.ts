@@ -10,7 +10,11 @@ import {
   type ChapterJobKind,
   type JobLlm,
 } from "wiki-graph-job";
-import { WikiGraphArchiveFile, type ReadonlyDocument } from "wiki-graph-core";
+import {
+  WikiGraphArchiveFile,
+  WikiGraphDirectoryFile,
+  type ReadonlyDocument,
+} from "wiki-graph-core";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { NodeDirectory, NodeFile } from "./node-platform.js";
@@ -711,9 +715,13 @@ async function readTargetDocument<T>(
     const location = await resolveWikiGraphArchiveLocation(
       scenario.archive.target,
     );
-    return await new WikiGraphArchiveFile(location.archiveFile).readDocument(
-      operation,
-    );
+    return location.archiveFile.kind === "directory"
+      ? await new WikiGraphDirectoryFile(location.archiveFile).readDocument(
+          operation,
+        )
+      : await new WikiGraphArchiveFile(location.archiveFile).readDocument(
+          operation,
+        );
   });
 }
 

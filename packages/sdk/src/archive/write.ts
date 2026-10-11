@@ -1,7 +1,9 @@
 import {
   WikiGraphArchiveFile,
+  WikiGraphDirectoryFile,
   writeWikiGraphLibraryArchive,
   type DirectoryDocument,
+  type Directory,
   type File,
 } from "wiki-graph-core";
 
@@ -20,8 +22,21 @@ export async function writeWikiGraphArchiveLocation<T>(
   options: WriteWikiGraphArchiveLocationOptions = {},
 ): Promise<T> {
   const cacheOnly = options.searchIndexWritebackPolicy === "cache";
-  const write = async (archiveFile: File = location.archiveFile) =>
-    await new WikiGraphArchiveFile(archiveFile).write(operation, {
+  const write = async (
+    archiveFile: File | Directory = location.archiveFile,
+  ) => {
+    if (archiveFile.kind === "directory") {
+      return await new WikiGraphDirectoryFile(archiveFile).write(operation, {
+        derivedStateKeys: [location.archiveKey, location.archivePath],
+        ...(options.invalidateContinuationCursors === undefined
+          ? {}
+          : {
+              invalidateContinuationCursors:
+                options.invalidateContinuationCursors,
+            }),
+      });
+    }
+    return await new WikiGraphArchiveFile(archiveFile).write(operation, {
       ...(cacheOnly
         ? {}
         : { derivedStateKeys: [location.archiveKey, location.archivePath] }),
@@ -35,6 +50,7 @@ export async function writeWikiGraphArchiveLocation<T>(
         ? {}
         : { searchIndexWritebackPolicy: options.searchIndexWritebackPolicy }),
     });
+  };
 
   if (
     location.libraryArchiveTarget === undefined ||

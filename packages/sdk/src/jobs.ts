@@ -30,6 +30,7 @@ import {
   archiveTargetFromLogicalLocator,
   resolveWikiGraphArchiveLocation,
   resolveWikiGraphArchiveTarget,
+  requireWikiGraphArchiveFile,
 } from "./archive/target.js";
 import {
   requireKnowledgeGraphWikispineConfig,
@@ -206,7 +207,7 @@ export class WikiGraphJobManager {
       return {
         job: await this.#backend.add({
           ...options,
-          archive: location.archiveFile,
+          archive: requireWikiGraphArchiveFile(location),
         }),
         target: location.target,
       };
@@ -251,8 +252,9 @@ export class WikiGraphJobManager {
         ...(options.archive === undefined
           ? {}
           : {
-              archive: (await resolveWikiGraphArchiveLocation(options.archive))
-                .archiveFile,
+              archive: requireWikiGraphArchiveFile(
+                await resolveWikiGraphArchiveLocation(options.archive),
+              ),
             }),
       };
       const jobs = await this.#backend.list(normalized);
@@ -281,7 +283,7 @@ export class WikiGraphJobManager {
                 archiveJobs[0]!.archive,
               );
               const chapters = await new WikiGraphArchiveFile(
-                location.archiveFile,
+                requireWikiGraphArchiveFile(location),
               ).readDocument(async (document) => await listChapters(document));
               const chaptersById = new Map(
                 chapters.map((chapter) => [chapter.chapterId, chapter]),
@@ -337,7 +339,7 @@ export class WikiGraphJobManager {
             options.chapterPath !== undefined ||
             options.depth !== undefined;
           const candidates = await new WikiGraphArchiveFile(
-            location.archiveFile,
+            requireWikiGraphArchiveFile(location),
           ).readDocument(async (document) => {
             const chapters = await listChapters(document);
             const selected = await selectQueueChapters(
@@ -382,7 +384,7 @@ export class WikiGraphJobManager {
                 chapter: candidate.chapter,
                 job: await this.#createHandle(
                   await this.#backend.add({
-                    archive: location.archiveFile,
+                    archive: requireWikiGraphArchiveFile(location),
                     boost: options.boost ?? false,
                     chapterId: candidate.chapter.chapterId,
                     ...(llmJSON === undefined ? {} : { llmJSON }),
@@ -422,7 +424,7 @@ export class WikiGraphJobManager {
         options.chapterPath !== undefined ||
         options.depth !== undefined;
       const candidates = await new WikiGraphArchiveFile(
-        location.archiveFile,
+        requireWikiGraphArchiveFile(location),
       ).readDocument(async (document) => {
         const chapters = await listChapters(document);
         const selected = await selectQueueChapters(document, chapters, options);

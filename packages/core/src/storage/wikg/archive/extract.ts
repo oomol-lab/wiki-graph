@@ -7,7 +7,12 @@ import {
   type ReadonlyFile,
 } from "../../../runtime/platform/index.js";
 import { isWikgArchivePath, normalizeArchivePath } from "./paths.js";
-import { WIKG_MANIFEST_PATH, WIKG_MUTATION_TOKEN_PATH } from "./constants.js";
+import {
+  SEARCH_INDEX_DATABASE_PATH,
+  LEGACY_SEARCH_INDEX_DATABASE_PATH,
+  WIKG_MANIFEST_PATH,
+  WIKG_MUTATION_TOKEN_PATH,
+} from "./constants.js";
 import { parseWikgManifest, parseWikgMutationToken } from "./manifest.js";
 
 export async function extractWikgArchive(
@@ -40,7 +45,19 @@ export async function extractWikgArchive(
     const name = normalizeArchivePath(entry.name);
     if (name === "")
       throw new Error(`Invalid archive entry path: ${entry.name}`);
-    if (!isWikgArchivePath(name)) continue;
+    if (
+      !isWikgArchivePath(name) &&
+      name !== WIKG_MANIFEST_PATH &&
+      name !== WIKG_MUTATION_TOKEN_PATH
+    ) {
+      continue;
+    }
+    if (
+      name === SEARCH_INDEX_DATABASE_PATH ||
+      name === LEGACY_SEARCH_INDEX_DATABASE_PATH
+    ) {
+      continue;
+    }
     const parts = name.split("/");
     const fileName = parts.pop();
     if (!fileName) continue;

@@ -1,4 +1,4 @@
-import type { File } from "../platform/index.js";
+import type { Entry } from "../platform/index.js";
 import { createArchiveKey } from "./helpers.js";
 import { openBuildQueueDatabase } from "./database.js";
 import { recoverStaleBuildJobs } from "./recovery.js";
@@ -9,7 +9,7 @@ import { withStateLock } from "../../state-lock.js";
 const ARCHIVE_BUILD_JOB_LOCK_SCOPE = "archive-build-jobs";
 
 export async function withArchiveBuildJobCreationLock<T>(
-  archive: File,
+  archive: Entry,
   operation: () => Promise<T> | T,
 ): Promise<T> {
   return await withStateLock(
@@ -24,7 +24,7 @@ export async function withArchiveBuildJobCreationLock<T>(
 }
 
 export async function withArchiveBuildJobReplacementLock<T>(
-  archive: File,
+  archive: Entry,
   operation: () => Promise<T> | T,
 ): Promise<T> {
   return await withStateLock(
@@ -39,7 +39,7 @@ export async function withArchiveBuildJobReplacementLock<T>(
 }
 
 export async function assertNoActiveBuildJobs(input: {
-  readonly archive: File;
+  readonly archive: Entry;
   readonly chapterIds: readonly number[];
   readonly operation: string;
   readonly requiresTarget?: BuildJobTarget;
@@ -55,7 +55,7 @@ export async function assertNoActiveBuildJobs(input: {
 }
 
 export async function assertNoActiveBuildJobConflicts(input: {
-  readonly archive: File;
+  readonly archive: Entry;
   readonly operation: string;
   readonly requiresTarget?: BuildJobTarget;
   readonly scope: BuildJobConflictScope;

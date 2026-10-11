@@ -51,7 +51,7 @@ export interface BuildJobTokenUsage {
 }
 
 export interface BuildJob {
-  readonly archive: File;
+  readonly archive: File | Directory;
   readonly archiveKey: string;
   readonly cache: Directory;
   readonly chapterId: number;
@@ -131,7 +131,7 @@ export type BuildJobEvent =
     };
 
 export interface AddBuildJobOptions {
-  readonly archive: File;
+  readonly archive: File | Directory;
   readonly boost?: boolean;
   readonly chapterId: number;
   readonly jobId?: string;
@@ -143,7 +143,7 @@ export interface AddBuildJobOptions {
 export interface BuildJobListOptions {
   readonly activeOnly?: boolean;
   readonly all?: boolean;
-  readonly archive?: File;
+  readonly archive?: File | Directory;
 }
 
 export interface BuildJobWorkerOptions {

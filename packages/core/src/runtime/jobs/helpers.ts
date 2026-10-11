@@ -1,7 +1,7 @@
-import type { File } from "../platform/index.js";
+import type { Entry } from "../platform/index.js";
 import { createPortableHash as createHash } from "../../utils/crypto.js";
 
-export function createArchiveKey(archive: File): string {
+export function createArchiveKey(archive: Entry): string {
   return createHash("sha256").update(archive.identity).digest("hex");
 }
 

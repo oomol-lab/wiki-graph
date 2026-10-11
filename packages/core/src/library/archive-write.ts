@@ -1,4 +1,4 @@
-import type { File } from "../runtime/platform/index.js";
+import type { Directory, File } from "../runtime/platform/index.js";
 import {
   deleteArchiveContinuationCursors,
   deleteArchiveSearchSessions,
@@ -23,7 +23,7 @@ export interface WikiGraphLibraryArchiveWriteOptions<T> {
   readonly additionalDerivedStateKeys?: readonly string[];
   readonly invalidateContinuationCursors?: boolean;
   readonly onIndexSyncError?: (error: unknown) => void;
-  readonly operation: (archive: File) => Promise<T>;
+  readonly operation: (archive: File | Directory) => Promise<T>;
   readonly target: ParsedWikiGraphLibraryUri;
 }
 
@@ -40,24 +40,29 @@ export async function writeWikiGraphLibraryArchive<T>(
   const library = await resolveWikiGraphLibrary(input.target);
   return await withWikiGraphLibraryLock(library.id, "write", async () => {
     const archive = await getWikiGraphLibraryArchive(input.target);
-    if (archive.file === undefined) {
+    if (archive.file === undefined && archive.directory === undefined) {
       throw new Error(`Wiki Graph library archive is missing: ${archive.uri}`);
     }
     const indexState = await readWikiGraphLibraryIndexState(input.target);
-    const result = await input.operation(archive.file);
+    const result = await input.operation(archive.directory ?? archive.file!);
 
     // Once the WIKG commit succeeds, make the aggregate index observably stale
     // before any other fallible cross-database finalization is attempted.
     await markWikiGraphLibraryIndexDirty(library);
     await finalizeWikiGraphLibraryArchiveWriteWithinLock(input.target, library);
+    const derivedStateKeys = [
+      ...(archive.directory?.identity !== undefined
+        ? [archive.directory.identity]
+        : archive.file?.identity === undefined
+          ? []
+          : [archive.file.identity]),
+      archive.uri,
+      library.uri,
+      library.isDefault ? "library:default" : `library:${library.publicId}`,
+      ...(input.additionalDerivedStateKeys ?? []),
+    ];
     await invalidateDerivedState(
-      [
-        archive.file.identity,
-        archive.uri,
-        library.uri,
-        library.isDefault ? "library:default" : `library:${library.publicId}`,
-        ...(input.additionalDerivedStateKeys ?? []),
-      ],
+      derivedStateKeys,
       input.invalidateContinuationCursors ?? false,
     );
 

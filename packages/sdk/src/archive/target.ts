@@ -13,6 +13,7 @@ import {
   type ParsedWikiGraphLibraryUri,
   type QueryIndexScope,
   type File,
+  type Directory,
 } from "wiki-graph-core";
 
 import { getNodeResourcePath, NodeFile } from "../node-platform.js";
@@ -30,7 +31,7 @@ export type WikiGraphArchiveTarget =
     };
 
 export interface WikiGraphArchiveLocation {
-  readonly archiveFile: File;
+  readonly archiveFile: File | Directory;
   readonly archiveKey: string;
   /** Logical archive locator. Never contains a managed archive's physical path. */
   readonly archivePath: string;
@@ -39,6 +40,12 @@ export interface WikiGraphArchiveLocation {
   readonly locatedUri: string;
   readonly publicArchiveUri?: string;
   readonly target: WikiGraphArchiveTarget;
+}
+
+export function requireWikiGraphArchiveFile(
+  location: WikiGraphArchiveLocation,
+): File | Directory {
+  return location.archiveFile;
 }
 
 export class WikiGraphArchiveOwnershipError extends Error {
@@ -107,7 +114,7 @@ export function archiveTargetFromLogicalLocator(
 }
 
 export async function resolveWikiGraphArchiveTarget(
-  file: File,
+  file: File | Directory,
 ): Promise<WikiGraphArchiveTarget> {
   const path = getNodeResourcePath(file);
   const candidate = await canonicalPath(path);

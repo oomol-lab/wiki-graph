@@ -1,4 +1,8 @@
-import type { File, ReadonlyFile } from "../../runtime/platform/index.js";
+import type {
+  Directory,
+  File,
+  ReadonlyFile,
+} from "../../runtime/platform/index.js";
 
 import { DirectoryDocument } from "../../document/index.js";
 import { WikiGraphArchive } from "../../api/wiki-graph-archive.js";
@@ -15,7 +19,9 @@ import type { HostWikgArchiveSession } from "./wikg-coordinator/host-session.js"
 const archiveFileQueues = new Map<string, Promise<void>>();
 
 /** A .wikg archive exposed to Core as an opaque host File capability. */
-export class WikiGraphArchiveFile<TFile extends ReadonlyFile = ReadonlyFile> {
+export class WikiGraphArchiveFile<
+  TFile extends ReadonlyFile | Directory = ReadonlyFile | Directory,
+> {
   readonly #file: TFile;
   readonly #coordinator = new WikgCoordinator();
 
@@ -29,7 +35,10 @@ export class WikiGraphArchiveFile<TFile extends ReadonlyFile = ReadonlyFile> {
     return await this.readDocument(
       async (document) =>
         await operation(
-          new WikiGraphArchive(document, this.#file, { sourceKind: "archive" }),
+          new WikiGraphArchive(document, this.#file, {
+            sourceKind:
+              this.#file.kind === "directory" ? "directory" : "archive",
+          }),
         ),
     );
   }
@@ -61,7 +70,7 @@ export class WikiGraphArchiveFile<TFile extends ReadonlyFile = ReadonlyFile> {
   }
 
   public async write<T>(
-    this: WikiGraphArchiveFile<File>,
+    this: WikiGraphArchiveFile<File | Directory>,
     operation: (document: DirectoryDocument) => Promise<T> | T,
     options: {
       readonly derivedStateKeys?: readonly string[];
@@ -111,22 +120,25 @@ async function invalidateArchiveDerivedState(
   }
 }
 
-function requireWritableFile(file: ReadonlyFile): File {
+function requireWritableFile(file: ReadonlyFile | Directory): File | Directory {
   if (!isWritableFile(file)) {
     throw new TypeError("Archive write requires a writable File capability.");
   }
   return file;
 }
 
-function isWritableFile(file: ReadonlyFile): file is File {
+function isWritableFile(
+  file: ReadonlyFile | Directory,
+): file is File | Directory {
   return (
-    "openWriter" in file &&
-    typeof (file as Partial<File>).openWriter === "function"
+    file.kind === "directory" ||
+    ("openWriter" in file &&
+      typeof (file as Partial<File>).openWriter === "function")
   );
 }
 
 async function withSerializedArchiveFileSession<T>(
-  file: ReadonlyFile,
+  file: ReadonlyFile | Directory,
   coordinator: WikgCoordinator,
   operation: (session: HostWikgArchiveSession) => Promise<T> | T,
 ): Promise<T> {
@@ -137,7 +149,7 @@ async function withSerializedArchiveFileSession<T>(
 }
 
 async function withSerializedArchiveFileAccess<T>(
-  file: ReadonlyFile,
+  file: ReadonlyFile | Directory,
   operation: () => Promise<T>,
 ): Promise<T> {
   const identity = file.identity;

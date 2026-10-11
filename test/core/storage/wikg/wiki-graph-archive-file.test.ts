@@ -10,6 +10,7 @@ import { WikiGraphArchiveFile } from "../../../../packages/core/src/storage/wikg
 import { withHostArchiveSession } from "../../../../packages/core/src/storage/wikg/wikg-coordinator/host-session.js";
 import { withCoordinatorState } from "../../../../packages/core/src/storage/wikg/wikg-coordinator/state.js";
 import {
+  extractWikgArchive,
   readWikgArchiveEntry,
   writeWikgArchive,
 } from "../../../../packages/core/src/storage/wikg/archive/index.js";
@@ -64,6 +65,52 @@ describe("wikg/wiki-graph-archive-file", () => {
         file.read(async (digest) => await digest.readToc()),
       ).resolves.toMatchObject({
         items: [{ serialId: 1, title: "Updated" }],
+      });
+    });
+  });
+
+  it("reads and writes a directory-backed managed archive with the same session", async () => {
+    await withArchiveFixture(async ({ archive, root }) => {
+      const directory = new NodeDirectory(join(root, "managed.wikg"));
+      await extractWikgArchive(archive, directory);
+      const managed = new WikiGraphArchiveFile(directory);
+
+      await expect(
+        managed.read(async (digest) => await digest.readToc()),
+      ).resolves.toMatchObject({
+        items: [{ serialId: 1, title: "Original" }],
+      });
+      await managed.write(async (document) => {
+        await document.replaceToc({
+          items: [
+            { children: [], key: "chapter", serialId: 1, title: "Managed" },
+          ],
+          version: 1,
+        });
+      });
+      await expect(
+        managed.read(async (digest) => await digest.readToc()),
+      ).resolves.toMatchObject({
+        items: [{ serialId: 1, title: "Managed" }],
+      });
+      await expect(
+        directory.getFile(".wikg-mutation-token"),
+      ).resolves.toBeDefined();
+      await expect(
+        managed.write(async (document) => {
+          await document.replaceToc({
+            items: [
+              { children: [], key: "chapter", serialId: 1, title: "Broken" },
+            ],
+            version: 1,
+          });
+          throw new Error("abort managed write");
+        }),
+      ).rejects.toThrow("abort managed write");
+      await expect(
+        managed.read(async (digest) => await digest.readToc()),
+      ).resolves.toMatchObject({
+        items: [{ serialId: 1, title: "Managed" }],
       });
     });
   });
