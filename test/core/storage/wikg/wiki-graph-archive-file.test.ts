@@ -10,9 +10,14 @@ import { WikiGraphArchiveFile } from "../../../../packages/core/src/storage/wikg
 import { withHostArchiveSession } from "../../../../packages/core/src/storage/wikg/wikg-coordinator/host-session.js";
 import { withCoordinatorState } from "../../../../packages/core/src/storage/wikg/wikg-coordinator/state.js";
 import {
+  extractWikgArchive,
   readWikgArchiveEntry,
   writeWikgArchive,
 } from "../../../../packages/core/src/storage/wikg/archive/index.js";
+import {
+  commitDirectoryArchive,
+  listDirectoryArchiveFiles,
+} from "../../../../packages/core/src/storage/wikg/archive/directory-backend.js";
 import { replaceChapterFtsIndexArtifact } from "../../../../packages/core/src/retrieval/index-artifact/index.js";
 import {
   isArchiveSearchIndexCurrent,
@@ -27,6 +32,7 @@ import {
   type Directory,
   type File,
   type HostZipWriteEntry,
+  readFileText,
 } from "../../../../packages/core/src/runtime/platform/index.js";
 import {
   createNodeWikiGraphStorage,
@@ -65,6 +71,109 @@ describe("wikg/wiki-graph-archive-file", () => {
       ).resolves.toMatchObject({
         items: [{ serialId: 1, title: "Updated" }],
       });
+    });
+  });
+
+  it("reads and writes a directory-backed managed archive with the same session", async () => {
+    await withArchiveFixture(async ({ archive, root }) => {
+      const directory = new NodeDirectory(join(root, "managed.wikg"));
+      await extractWikgArchive(archive, directory);
+      const managed = new WikiGraphArchiveFile(directory);
+
+      await expect(
+        managed.read(async (digest) => await digest.readToc()),
+      ).resolves.toMatchObject({
+        items: [{ serialId: 1, title: "Original" }],
+      });
+      await managed.write(async (document) => {
+        await document.replaceToc({
+          items: [
+            { children: [], key: "chapter", serialId: 1, title: "Managed" },
+          ],
+          version: 1,
+        });
+      });
+      await expect(
+        managed.read(async (digest) => await digest.readToc()),
+      ).resolves.toMatchObject({
+        items: [{ serialId: 1, title: "Managed" }],
+      });
+      await expect(
+        directory.getFile(".wikg-mutation-token"),
+      ).resolves.toBeDefined();
+      await expect(
+        managed.write(async (document) => {
+          await document.replaceToc({
+            items: [
+              { children: [], key: "chapter", serialId: 1, title: "Broken" },
+            ],
+            version: 1,
+          });
+          throw new Error("abort managed write");
+        }),
+      ).rejects.toThrow("abort managed write");
+      await expect(
+        managed.read(async (digest) => await digest.readToc()),
+      ).resolves.toMatchObject({
+        items: [{ serialId: 1, title: "Managed" }],
+      });
+    });
+  });
+
+  it("recovers the original directory after a failed archive publication", async () => {
+    await withArchiveFixture(async ({ archive, root }) => {
+      const managed = new NodeDirectory(join(root, "managed-transaction.wikg"));
+      await extractWikgArchive(archive, managed);
+      const manifest = await managed.getFile("manifest.json");
+      expect(manifest).toBeDefined();
+      const originalManifest = await readFileText(manifest!);
+      const failingSource = {
+        identity: "failing-source",
+        kind: "file" as const,
+        name: "toc.json",
+        openReader: () => Promise.reject(new Error("publish source failed")),
+      } as File;
+
+      await expect(
+        commitDirectoryArchive(managed, [
+          { path: "manifest.json", data: new TextEncoder().encode("corrupt") },
+          { path: "toc.json", file: failingSource },
+        ]),
+      ).rejects.toThrow("publish source failed");
+
+      await expect(
+        readFileText((await managed.getFile("manifest.json"))!),
+      ).resolves.toBe(originalManifest);
+      await expect(managed.getDirectory(".wikg-transaction")).resolves.toBe(
+        undefined,
+      );
+    });
+  });
+
+  it("publishes nested text files in a managed directory archive", async () => {
+    await withArchiveFixture(async ({ archive, root }) => {
+      const managed = new NodeDirectory(join(root, "managed-nested.wikg"));
+      await extractWikgArchive(archive, managed);
+      const files = await listDirectoryArchiveFiles(managed);
+      const nestedPath = [...files.keys()].find((path) =>
+        path.startsWith("texts/"),
+      );
+      expect(nestedPath).toBeDefined();
+      const nestedFile = files.get(nestedPath!);
+      expect(nestedFile).toBeDefined();
+      const original = await readFileText(nestedFile!);
+
+      await commitDirectoryArchive(managed, [
+        {
+          path: nestedPath!,
+          data: new TextEncoder().encode(`${original}\nupdated`),
+        },
+      ]);
+
+      const refreshed = await listDirectoryArchiveFiles(managed);
+      await expect(readFileText(refreshed.get(nestedPath!)!)).resolves.toBe(
+        `${original}\nupdated`,
+      );
     });
   });
 

@@ -198,6 +198,7 @@ export {
   requireLocatedObjectOrArchiveUri,
   requireLocatedObjectUri,
   WikiGraphArchiveFile,
+  WikiGraphDirectoryFile,
   WIKI_GRAPH_JOB_URI_PREFIX,
   WIKI_GRAPH_URI_PREFIX,
   writeWikgArchive,

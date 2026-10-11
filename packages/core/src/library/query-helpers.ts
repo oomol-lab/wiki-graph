@@ -1,6 +1,7 @@
 import {
   readWikgArchiveMutationToken,
   WikiGraphArchiveFile,
+  WikiGraphDirectoryFile,
 } from "../storage/wikg/index.js";
 import type { ReadonlyDocument } from "../document/index.js";
 import type { ArchiveLibrarySource } from "../retrieval/query/archive-view/types.js";
@@ -44,23 +45,28 @@ export async function readLibraryArchiveDocument<T>(
   archive: WikiGraphLibraryArchiveRecord,
   operation: (document: ReadonlyDocument) => Promise<T>,
 ): Promise<T> {
-  if (archive.file === undefined) {
+  if (archive.file === undefined && archive.directory === undefined) {
     throw new Error(`Wiki Graph library archive is missing: ${archive.uri}`);
   }
-  return await new WikiGraphArchiveFile(archive.file).readDocument(
-    async (document) => {
-      const currentToken = await readWikgArchiveMutationToken(archive.file!);
-      if (
-        archive.lastSeenMutationToken !== undefined &&
-        currentToken !== archive.lastSeenMutationToken
-      ) {
-        throw new Error(
-          `Wiki Graph library archive changed while reading: ${archive.uri}. Retry after syncing the library index.`,
-        );
-      }
-      return await operation(document);
-    },
-  );
+  const readDocument =
+    archive.directory === undefined
+      ? new WikiGraphArchiveFile(archive.file!)
+      : new WikiGraphDirectoryFile(archive.directory);
+  return await readDocument.readDocument(async (document) => {
+    const currentToken =
+      archive.directory === undefined
+        ? await readWikgArchiveMutationToken(archive.file!)
+        : await readDirectoryMutationToken(archive.directory);
+    if (
+      archive.lastSeenMutationToken !== undefined &&
+      currentToken !== archive.lastSeenMutationToken
+    ) {
+      throw new Error(
+        `Wiki Graph library archive changed while reading: ${archive.uri}. Retry after syncing the library index.`,
+      );
+    }
+    return await operation(document);
+  });
 }
 
 export function createLibrarySource(
@@ -76,6 +82,18 @@ export function isReadableLibraryArchive(
   archive: WikiGraphLibraryArchiveRecord,
 ): boolean {
   return (
-    archive.file !== undefined && archive.exists && archive.status === "present"
+    (archive.file !== undefined || archive.directory !== undefined) &&
+    archive.exists &&
+    archive.status === "present"
   );
+}
+
+async function readDirectoryMutationToken(
+  directory: import("../runtime/platform/index.js").Directory,
+): Promise<string> {
+  const token = await directory.getFile(".wikg-mutation-token");
+  if (token === undefined) {
+    throw new Error("Missing WIKG mutation token: .wikg-mutation-token.");
+  }
+  return await readWikgArchiveMutationToken(directory);
 }

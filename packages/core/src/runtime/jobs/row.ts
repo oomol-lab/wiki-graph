@@ -77,7 +77,9 @@ export function mapBuildJob(row: Record<string, unknown>): StoredBuildJob {
 export async function hydrateBuildJob(job: StoredBuildJob): Promise<BuildJob> {
   const resources = getWikiGraphPlatform().resources;
   const [archive, cache, events, log, workspace] = await Promise.all([
-    resources.getFile(job.archiveIdentity),
+    (async () =>
+      (await resources.getDirectory(job.archiveIdentity)) ??
+      (await resources.getFile(job.archiveIdentity)))(),
     resolveManagedDirectory(job.cacheLocator),
     resolveManagedFile(job.eventsLocator),
     resolveManagedDirectory(job.logLocator),

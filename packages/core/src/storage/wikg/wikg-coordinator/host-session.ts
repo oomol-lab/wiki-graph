@@ -1,4 +1,5 @@
 import type {
+  Directory,
   File,
   FileReader,
   FileWriter,
@@ -61,6 +62,8 @@ import {
   createWorkspaceSnapshot,
   removeWorkspaceSnapshot,
 } from "./workspace.js";
+import { withStateLock } from "../../../state-lock.js";
+import { recoverDirectoryArchive } from "../archive/directory-backend.js";
 
 interface SessionChange {
   current: EntryOverlay;
@@ -69,7 +72,28 @@ interface SessionChange {
 
 /** Run one archive operation within a durable, host-neutral session. */
 export async function withHostArchiveSession<T>(
-  archive: ReadonlyFile,
+  archive: ReadonlyFile | Directory,
+  operation: (session: HostWikgArchiveSession) => Promise<T> | T,
+): Promise<T> {
+  if (archive.kind === "directory") {
+    return await withStateLock(
+      {
+        mode: "write",
+        resourceKey: archive.identity,
+        scope: "wikg-directory",
+        stateDatabaseName: "core.sqlite",
+      },
+      async () => {
+        await recoverDirectoryArchive(archive);
+        return await runHostArchiveSession(archive, operation);
+      },
+    );
+  }
+  return await runHostArchiveSession(archive, operation);
+}
+
+async function runHostArchiveSession<T>(
+  archive: ReadonlyFile | Directory,
   operation: (session: HostWikgArchiveSession) => Promise<T> | T,
 ): Promise<T> {
   const session = await HostWikgArchiveSession.open(archive);
@@ -96,7 +120,7 @@ export async function withHostArchiveSession<T>(
 
 /** Coordinates logical archive state without observing host locations. */
 export class HostWikgArchiveSession {
-  readonly #archive: ReadonlyFile;
+  readonly #archive: ReadonlyFile | Directory;
   readonly #writable: boolean;
   readonly #archiveKey: string;
   readonly #owner: CoordinatorOwner;
@@ -117,7 +141,7 @@ export class HostWikgArchiveSession {
 
   // eslint-disable-next-line no-restricted-syntax -- constructors cannot use JavaScript #private syntax.
   private constructor(input: {
-    readonly archive: ReadonlyFile;
+    readonly archive: ReadonlyFile | Directory;
     readonly archiveKey: string;
     readonly initialSearchCacheKey: string;
     readonly owner: CoordinatorOwner;
@@ -136,7 +160,7 @@ export class HostWikgArchiveSession {
   }
 
   public static async open(
-    archive: ReadonlyFile,
+    archive: ReadonlyFile | Directory,
   ): Promise<HostWikgArchiveSession> {
     const validationReader = await WikgArchiveReader.open(archive);
     await validationReader.close();
@@ -816,11 +840,16 @@ export class HostWikgArchiveSession {
   }
 }
 
-function isWritableFile(file: ReadonlyFile): file is File {
-  return "openWriter" in file && typeof file.openWriter === "function";
+function isWritableFile(
+  file: ReadonlyFile | Directory,
+): file is File | Directory {
+  return (
+    file.kind === "directory" ||
+    ("openWriter" in file && typeof file.openWriter === "function")
+  );
 }
 
-function requireWritableFile(file: ReadonlyFile): File {
+function requireWritableFile(file: ReadonlyFile | Directory): File | Directory {
   if (!isWritableFile(file)) {
     throw new TypeError("Archive write requires a writable File capability.");
   }

@@ -34,4 +34,8 @@ export {
 } from "./archive-uri.js";
 export type { LocatedWikiGraphUri, ParsedWikiGraphUri } from "./archive-uri.js";
 export { WikiGraphArchiveFile } from "./wiki-graph-archive-file.js";
+export {
+  isWikiGraphDirectoryFile,
+  WikiGraphDirectoryFile,
+} from "./wiki-graph-directory-file.js";
 export { runWikgCoordinatorGc, WikgCoordinator } from "./coordinator.js";

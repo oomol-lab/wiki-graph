@@ -12,7 +12,7 @@ import {
 import { Database, getNumber, getString } from "../document/database.js";
 import { SEARCH_INDEX_SCHEMA_SQL } from "../document/schema.js";
 import { openWikiGraphStateDatabase } from "../document/index.js";
-import { WikiGraphArchiveFile } from "../storage/wikg/index.js";
+import { readLibraryArchiveDocument } from "./query-helpers.js";
 import {
   assertArchiveIndexArtifactsReady,
   listArchiveQueryableChapterIds,
@@ -268,28 +268,26 @@ export async function assertWikiGraphLibraryQueryArtifactsReady(
     if (!archive.exists || archive.status !== "present") {
       continue;
     }
-    await new WikiGraphArchiveFile(requireArchiveFile(archive)).readDocument(
-      async (archiveDocument) => {
-        try {
-          await assertArchiveIndexArtifactsReady(archiveDocument, {
-            ...(options.embeddingProvider === undefined
-              ? {}
-              : { embeddingProvider: options.embeddingProvider }),
-            requireEmbeddingProvider: true,
-            ...(options.queryMode === undefined
-              ? {}
-              : { queryMode: options.queryMode }),
-          });
-        } catch (error) {
-          throw new WikiGraphError(
-            "library_query_unindexed",
-            `Wiki Graph library query is not ready. Archive ${archive.uri} has unindexed chapters.`,
-            { archiveUri: archive.uri },
-            { cause: error },
-          );
-        }
-      },
-    );
+    await readLibraryArchiveDocument(archive, async (archiveDocument) => {
+      try {
+        await assertArchiveIndexArtifactsReady(archiveDocument, {
+          ...(options.embeddingProvider === undefined
+            ? {}
+            : { embeddingProvider: options.embeddingProvider }),
+          requireEmbeddingProvider: true,
+          ...(options.queryMode === undefined
+            ? {}
+            : { queryMode: options.queryMode }),
+        });
+      } catch (error) {
+        throw new WikiGraphError(
+          "library_query_unindexed",
+          `Wiki Graph library query is not ready. Archive ${archive.uri} has unindexed chapters.`,
+          { archiveUri: archive.uri },
+          { cause: error },
+        );
+      }
+    });
   }
 }
 
@@ -306,9 +304,8 @@ export async function assertWikiGraphLibraryHasQueryableArtifacts(
     if (!archive.exists || archive.status !== "present") {
       continue;
     }
-    const queryableChapters = await new WikiGraphArchiveFile(
-      requireArchiveFile(archive),
-    ).readDocument(
+    const queryableChapters = await readLibraryArchiveDocument(
+      archive,
       async (archiveDocument) =>
         await listArchiveQueryableChapterIds(archiveDocument, {
           ...(options.embeddingProvider === undefined
@@ -565,108 +562,106 @@ async function replaceLibrarySearchIndex(
     let vectorDone = 0;
 
     for (const archive of archives) {
-      await new WikiGraphArchiveFile(requireArchiveFile(archive)).readDocument(
-        async (archiveDocument) => {
-          for await (const batch of streamArchiveIndexProjection(
-            archiveDocument,
-            archive.id,
-          )) {
-            for (const record of batch.textSentences) {
-              const rowId = await insertTextSentenceRecord(database, record);
+      await readLibraryArchiveDocument(archive, async (archiveDocument) => {
+        for await (const batch of streamArchiveIndexProjection(
+          archiveDocument,
+          archive.id,
+        )) {
+          for (const record of batch.textSentences) {
+            const rowId = await insertTextSentenceRecord(database, record);
 
-              if (record.text !== "") {
-                hasFts = true;
-                await insertFtsRecord(
-                  database,
-                  "text_sentence_fts",
-                  rowId,
-                  createSearchTokenPlan(record.text),
-                );
-              }
-              textDone += 1;
-              await progress?.({
-                done: textDone,
-                phase: "indexing-text",
-                unit: "sentence",
-              });
-            }
-
-            for (const record of batch.objectProperties) {
-              const rowId = await insertSearchObjectPropertyRecord(
-                database,
-                record,
-              );
-
+            if (record.text !== "") {
+              hasFts = true;
               await insertFtsRecord(
                 database,
-                "search_object_properties_fts",
+                "text_sentence_fts",
                 rowId,
                 createSearchTokenPlan(record.text),
               );
-              objectDone += 1;
+            }
+            textDone += 1;
+            await progress?.({
+              done: textDone,
+              phase: "indexing-text",
+              unit: "sentence",
+            });
+          }
+
+          for (const record of batch.objectProperties) {
+            const rowId = await insertSearchObjectPropertyRecord(
+              database,
+              record,
+            );
+
+            await insertFtsRecord(
+              database,
+              "search_object_properties_fts",
+              rowId,
+              createSearchTokenPlan(record.text),
+            );
+            objectDone += 1;
+            await progress?.({
+              done: objectDone,
+              phase: "indexing-objects",
+              unit: "object",
+            });
+          }
+        }
+
+        const archiveEmbeddingState =
+          await readArchiveEmbeddingState(archiveDocument);
+        if (archiveEmbeddingState !== undefined) {
+          embeddingState = mergeEmbeddingState(
+            embeddingState,
+            archiveEmbeddingState,
+          );
+        }
+        for (const artifactKind of [
+          "embedding-source",
+          "embedding-summary",
+        ] as const) {
+          for (const artifact of await archiveDocument.indexArtifacts.list(
+            artifactKind,
+          )) {
+            const model = readEmbeddingModel(artifact.metadata);
+            const dimensions = readEmbeddingDimensions(artifact.metadata);
+            const label =
+              artifactKind === "embedding-source" ? "Source" : "Summary";
+            const textKind =
+              artifactKind === "embedding-source"
+                ? TEXT_SENTENCE_KIND.source
+                : TEXT_SENTENCE_KIND.summary;
+
+            if (model === undefined || dimensions === undefined) {
+              throw new Error(
+                `${label} embedding artifact for chapter ${artifact.serialId} is missing embedding metadata.`,
+              );
+            }
+            for (const segment of await archiveDocument.indexArtifacts.listEmbeddingSegments(
+              artifact.serialId,
+              artifactKind,
+            )) {
+              await insertTextEmbeddingSegment(database, {
+                archiveId: archive.id,
+                chapterId: artifact.serialId,
+                dimensions,
+                endSentenceIndex: segment.endSentenceIndex,
+                kind: textKind,
+                model,
+                startSentenceIndex: segment.startSentenceIndex,
+                vector: segment.vector,
+                wordsCount: segment.wordsCount,
+              });
+              vectorDone += 1;
               await progress?.({
-                done: objectDone,
-                phase: "indexing-objects",
-                unit: "object",
+                done: vectorDone,
+                phase: "indexing-dense",
+                unit: "vector",
               });
             }
           }
-
-          const archiveEmbeddingState =
-            await readArchiveEmbeddingState(archiveDocument);
-          if (archiveEmbeddingState !== undefined) {
-            embeddingState = mergeEmbeddingState(
-              embeddingState,
-              archiveEmbeddingState,
-            );
-          }
-          for (const artifactKind of [
-            "embedding-source",
-            "embedding-summary",
-          ] as const) {
-            for (const artifact of await archiveDocument.indexArtifacts.list(
-              artifactKind,
-            )) {
-              const model = readEmbeddingModel(artifact.metadata);
-              const dimensions = readEmbeddingDimensions(artifact.metadata);
-              const label =
-                artifactKind === "embedding-source" ? "Source" : "Summary";
-              const textKind =
-                artifactKind === "embedding-source"
-                  ? TEXT_SENTENCE_KIND.source
-                  : TEXT_SENTENCE_KIND.summary;
-
-              if (model === undefined || dimensions === undefined) {
-                throw new Error(
-                  `${label} embedding artifact for chapter ${artifact.serialId} is missing embedding metadata.`,
-                );
-              }
-              for (const segment of await archiveDocument.indexArtifacts.listEmbeddingSegments(
-                artifact.serialId,
-                artifactKind,
-              )) {
-                await insertTextEmbeddingSegment(database, {
-                  archiveId: archive.id,
-                  chapterId: artifact.serialId,
-                  dimensions,
-                  endSentenceIndex: segment.endSentenceIndex,
-                  kind: textKind,
-                  model,
-                  startSentenceIndex: segment.startSentenceIndex,
-                  vector: segment.vector,
-                  wordsCount: segment.wordsCount,
-                });
-                vectorDone += 1;
-                await progress?.({
-                  done: vectorDone,
-                  phase: "indexing-dense",
-                  unit: "vector",
-                });
-              }
-            }
-          }
-        },
-      );
+        }
+      });
     }
 
     await finalizeStoredSearchIndexReplacement(database, {
@@ -841,15 +836,6 @@ function isMissingSqliteOpenError(error: unknown): boolean {
     "code" in error &&
     (error as { readonly code?: unknown }).code === "SQLITE_CANTOPEN"
   );
-}
-
-function requireArchiveFile(
-  archive: WikiGraphLibraryArchiveRecord,
-): NonNullable<WikiGraphLibraryArchiveRecord["file"]> {
-  if (archive.file === undefined) {
-    throw new Error(`Wiki Graph library archive is missing: ${archive.uri}`);
-  }
-  return archive.file;
 }
 
 class LibraryIndexDocument {
