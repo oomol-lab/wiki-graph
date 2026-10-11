@@ -185,7 +185,7 @@ describe("archive-command URI runtime resolution", () => {
     await expect(
       runArchiveChapterCommand({
         action: "add",
-        path: `wikg://${getNodeResourcePath(archive.file!)}`,
+        path: `wikg://${getNodeResourcePath(archive.directory!)}`,
       }),
     ).rejects.toThrow(/library UUID URI/u);
   });
@@ -216,7 +216,7 @@ describe("archive-command URI runtime resolution", () => {
     expect(target).toBeDefined();
     const archive = await addTestArchiveToLibrary(target!);
 
-    await new WikiGraphArchiveFile(archive.file!).write(
+    await new WikiGraphArchiveFile(archive.directory!).write(
       async (document) => {
         await replaceChapterFtsIndexArtifact(document, 1);
         await rebuildArchiveSearchIndex(document);
@@ -224,14 +224,14 @@ describe("archive-command URI runtime resolution", () => {
       { searchIndexWritebackPolicy: "archive" },
     );
     await expect(
-      readWikgArchiveEntry(getNodeResourcePath(archive.file!), "index.db"),
-    ).resolves.toBeUndefined();
+      readWikgArchiveEntry(archive.directory!, "index.db"),
+    ).resolves.toBeDefined();
 
     await runArchiveChapterCommand({ action: "add", path: archive.uri });
 
     await expect(
-      readWikgArchiveEntry(getNodeResourcePath(archive.file!), "index.db"),
-    ).resolves.toBe(undefined);
+      readWikgArchiveEntry(archive.directory!, "index.db"),
+    ).resolves.toBeUndefined();
     const state = await readWikiGraphLibraryIndexState(target!);
 
     expect(["current", "dirty"]).toContain(state.status);

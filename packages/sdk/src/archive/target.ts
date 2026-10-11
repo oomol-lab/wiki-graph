@@ -237,11 +237,12 @@ async function findMatchingMembers(
       ...(library.isDefault ? {} : { publicId: library.publicId }),
     });
     for (const archive of archives) {
-      if (archive.file === undefined) continue;
+      const physical = archive.file ?? archive.directory;
+      if (physical === undefined) continue;
       members.push({
         archive,
         library,
-        memberPath: getNodeResourcePath(archive.file),
+        memberPath: getNodeResourcePath(physical),
       });
     }
   }

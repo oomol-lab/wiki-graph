@@ -33,6 +33,7 @@ import {
   resolveWikiGraphLibrary,
   scanWikiGraphLibrary,
   withWikiGraphLibraryLock,
+  writeWikgArchive,
   type ArchiveCollectionOptions,
   type ArchiveFindOptions,
   type ArchivePack,
@@ -48,7 +49,9 @@ import {
   type WikiGraphLibraryScanResult,
   type FileReader,
 } from "wiki-graph-core";
-import { mkdir } from "fs/promises";
+import { mkdir, mkdtemp, rm } from "fs/promises";
+import { tmpdir } from "os";
+import { join } from "path";
 
 import type { WikiGraphJobRuntime } from "./jobs.js";
 import {
@@ -275,7 +278,21 @@ export class WikiGraphLibraryManager {
         async () => {
           throwIfAborted(options.signal);
           const archive = await getWikiGraphLibraryArchive(parsedTarget);
-          const file = requireReadableLibraryArchiveFile(archive);
+          const source = requireReadableLibraryArchiveFile(archive);
+          let temporaryDirectory: string | undefined;
+          const file =
+            source.kind === "directory"
+              ? await (async () => {
+                  temporaryDirectory = await mkdtemp(
+                    join(tmpdir(), "wikigraph-library-read-"),
+                  );
+                  const output = new NodeFile(
+                    join(temporaryDirectory, "archive.wikg"),
+                  );
+                  await writeWikgArchive(source, output);
+                  return output;
+                })()
+              : source;
           const reader = await file.openReader();
           let active = true;
 
@@ -297,6 +314,8 @@ export class WikiGraphLibraryManager {
           } finally {
             active = false;
             await reader.close();
+            if (temporaryDirectory !== undefined)
+              await rm(temporaryDirectory, { force: true, recursive: true });
           }
         },
         options.signal === undefined ? {} : { signal: options.signal },
@@ -826,7 +845,7 @@ function toLibrarySnapshot(
 function toArchiveSnapshot(
   record: WikiGraphLibraryArchiveRecord,
 ): WikiGraphLibraryArchiveSnapshot {
-  const { file: _file, ...snapshot } = record;
+  const { file: _file, directory: _directory, ...snapshot } = record;
   return snapshot;
 }
 
@@ -868,7 +887,10 @@ function requireLibraryArchiveTarget(
 
 function requireReadableLibraryArchiveFile(
   archive: WikiGraphLibraryArchiveRecord,
-): NonNullable<WikiGraphLibraryArchiveRecord["file"]> {
+): NonNullable<
+  | WikiGraphLibraryArchiveRecord["file"]
+  | WikiGraphLibraryArchiveRecord["directory"]
+> {
   if (!archive.exists || archive.status === "missing") {
     throw new Error(`Wiki Graph library archive is missing: ${archive.uri}`);
   }
@@ -877,12 +899,12 @@ function requireReadableLibraryArchiveFile(
       `Wiki Graph library archive has a conflict and cannot be read: ${archive.uri}`,
     );
   }
-  if (archive.file === undefined) {
+  if (archive.file === undefined && archive.directory === undefined) {
     throw new Error(
       `Wiki Graph library archive is unavailable: ${archive.uri}`,
     );
   }
-  return archive.file;
+  return archive.file ?? archive.directory!;
 }
 
 const ARCHIVE_STREAM_CHUNK_SIZE = 64 * 1024;

@@ -37,6 +37,7 @@ import {
   setChapterSummary,
   setChapterTitle,
   getChapterTree,
+  WikiGraph,
   WikiGraphArchiveFile,
   WikiGraphDirectoryFile,
   TOC_FILE_VERSION,
@@ -1085,13 +1086,18 @@ export class WikiGraphArchiveHandle {
   public async readCover(
     options: WikiGraphOperationOptions = {},
   ): Promise<WikiGraphArchiveCover | undefined> {
-    return await this.#runtime.run(
-      async () =>
-        await this.#readDocument(
+    return await this.#runtime.run(async () => {
+      if (this.#location.archiveFile.kind === "directory") {
+        return await this.#readDocument(
           async (document) => await document.readCover(),
-        ),
-      options.signal,
-    );
+        );
+      }
+      const app = new WikiGraph({});
+      return await app.openSession(
+        this.#location.archiveFile,
+        async (archive) => await archive.readCover(),
+      );
+    }, options.signal);
   }
 
   public async replaceMetadata(

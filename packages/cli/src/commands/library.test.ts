@@ -151,7 +151,7 @@ describe("library command", () => {
         getNodeResourcePath(library.folder),
         "book.wikg",
       );
-      const before = await readFile(managedPath);
+      const before = await readFile(join(managedPath, ".wikg-mutation-token"));
 
       const output = await captureStdout(async () => {
         await runLibraryCommand({
@@ -167,7 +167,9 @@ describe("library command", () => {
         relativePath: archive.relativePath,
         uri: archive.uri,
       });
-      expect(await readFile(managedPath)).not.toEqual(before);
+      expect(
+        await readFile(join(managedPath, ".wikg-mutation-token")),
+      ).not.toEqual(before);
     });
   });
 });
