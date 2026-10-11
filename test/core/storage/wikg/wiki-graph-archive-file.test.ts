@@ -14,6 +14,7 @@ import {
   readWikgArchiveEntry,
   writeWikgArchive,
 } from "../../../../packages/core/src/storage/wikg/archive/index.js";
+import { commitDirectoryArchive } from "../../../../packages/core/src/storage/wikg/archive/directory-backend.js";
 import { replaceChapterFtsIndexArtifact } from "../../../../packages/core/src/retrieval/index-artifact/index.js";
 import {
   isArchiveSearchIndexCurrent,
@@ -28,6 +29,7 @@ import {
   type Directory,
   type File,
   type HostZipWriteEntry,
+  readFileText,
 } from "../../../../packages/core/src/runtime/platform/index.js";
 import {
   createNodeWikiGraphStorage,
@@ -112,6 +114,36 @@ describe("wikg/wiki-graph-archive-file", () => {
       ).resolves.toMatchObject({
         items: [{ serialId: 1, title: "Managed" }],
       });
+    });
+  });
+
+  it("recovers the original directory after a failed archive publication", async () => {
+    await withArchiveFixture(async ({ archive, root }) => {
+      const managed = new NodeDirectory(join(root, "managed-transaction.wikg"));
+      await extractWikgArchive(archive, managed);
+      const manifest = await managed.getFile("manifest.json");
+      expect(manifest).toBeDefined();
+      const originalManifest = await readFileText(manifest!);
+      const failingSource = {
+        identity: "failing-source",
+        kind: "file" as const,
+        name: "toc.json",
+        openReader: () => Promise.reject(new Error("publish source failed")),
+      } as File;
+
+      await expect(
+        commitDirectoryArchive(managed, [
+          { path: "manifest.json", data: new TextEncoder().encode("corrupt") },
+          { path: "toc.json", file: failingSource },
+        ]),
+      ).rejects.toThrow("publish source failed");
+
+      await expect(
+        readFileText((await managed.getFile("manifest.json"))!),
+      ).resolves.toBe(originalManifest);
+      await expect(managed.getDirectory(".wikg-transaction")).resolves.toBe(
+        undefined,
+      );
     });
   });
 

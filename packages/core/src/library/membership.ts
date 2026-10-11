@@ -28,6 +28,10 @@ import {
   writeWikgArchiveWithOverlays,
 } from "../storage/wikg/index.js";
 import { createWikgMutationTokenContent } from "../storage/wikg/archive/manifest.js";
+import {
+  commitDirectoryArchive,
+  listDirectoryArchiveFiles,
+} from "../storage/wikg/archive/directory-backend.js";
 import { WikgCoordinator } from "../storage/wikg/index.js";
 import { withStateLock } from "../state-lock.js";
 import {
@@ -474,19 +478,30 @@ async function replaceManagedDirectoryArchive(input: {
   const staged = await input.library.staging.createDirectory(
     `replace-${bytesToHex(randomBytes(12))}.wikg`,
   );
-  const rollback = await input.library.staging.createDirectory(
-    `rollback-${bytesToHex(randomBytes(12))}.wikg`,
-  );
   try {
     await extractWikgArchive(input.inputFile, staged);
     await new WikiGraphDirectoryFile(staged).readDocument(
       async () => undefined,
     );
-    await copyDirectoryContent(input.archive.directory!, rollback);
-    await clearDirectory(input.archive.directory!);
-    await copyDirectoryContent(staged, input.archive.directory!);
-    await writeDirectoryMutationToken(input.archive.directory!);
-    await removeDirectorySearchIndex(input.archive.directory!);
+    const stagedFiles = await listDirectoryArchiveFiles(staged);
+    const currentFiles = await listDirectoryArchiveFiles(
+      input.archive.directory!,
+    );
+    const changes = [
+      ...[...stagedFiles]
+        .filter(([path]) => path !== ".wikg-mutation-token")
+        .map(([path, file]) => ({ path, file })),
+      ...[...currentFiles.keys()]
+        .filter((path) => !stagedFiles.has(path))
+        .map((path) => ({ path })),
+    ];
+    await commitDirectoryArchive(input.archive.directory!, [
+      ...changes,
+      {
+        path: ".wikg-mutation-token",
+        data: createWikgMutationTokenContent(),
+      },
+    ]);
     await refreshLibraryArchiveMembership(input.archive, input.library);
     await invalidateReplacedArchiveDerivedState(
       input.archive,
@@ -501,18 +516,9 @@ async function replaceManagedDirectoryArchive(input: {
           input.archive.id,
         ),
     );
-  } catch (error) {
-    await clearDirectory(input.archive.directory!);
-    await copyDirectoryContent(rollback, input.archive.directory!).catch(
-      () => undefined,
-    );
-    throw error;
   } finally {
     await input.library.staging
       .remove(staged.name, { recursive: true })
-      .catch(() => undefined);
-    await input.library.staging
-      .remove(rollback.name, { recursive: true })
       .catch(() => undefined);
   }
 }
@@ -1250,30 +1256,6 @@ async function copyDirectoryContent(
       (await target.getFile(entry.name)) ??
       (await target.createFile(entry.name));
     await copyFileContent(entry, destination);
-  }
-}
-
-async function clearDirectory(directory: Directory): Promise<void> {
-  for (const entry of await directory.list()) {
-    await directory.remove(entry.name, {
-      recursive: entry.kind === "directory",
-    });
-  }
-}
-
-async function writeDirectoryMutationToken(
-  directory: Directory,
-): Promise<void> {
-  const file =
-    (await directory.getFile(".wikg-mutation-token")) ??
-    (await directory.createFile(".wikg-mutation-token"));
-  const writer = await file.openWriter();
-  try {
-    await writer.write(createWikgMutationTokenContent());
-    await writer.commit();
-  } catch (error) {
-    await writer.abort().catch(() => undefined);
-    throw error;
   }
 }
 

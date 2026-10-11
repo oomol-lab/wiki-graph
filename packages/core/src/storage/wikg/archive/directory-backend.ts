@@ -63,6 +63,24 @@ export async function openDirectoryArchive(
   };
 }
 
+export async function listDirectoryArchiveFiles(
+  directory: Directory,
+): Promise<ReadonlyMap<string, File>> {
+  const entries = new Map<string, File>();
+  async function walk(root: Directory, prefix: string): Promise<void> {
+    for (const entry of await root.list()) {
+      const path = prefix === "" ? entry.name : `${prefix}/${entry.name}`;
+      if (entry.kind === "directory") {
+        if (!entry.name.startsWith(".")) await walk(entry, `${path}/`);
+      } else if (isReadableWikgArchivePath(path)) {
+        entries.set(path, entry);
+      }
+    }
+  }
+  await walk(directory, "");
+  return entries;
+}
+
 const JOURNAL = ".wikg-transaction";
 
 export interface DirectoryArchiveChange {
