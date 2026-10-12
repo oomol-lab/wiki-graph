@@ -34,9 +34,15 @@ import {
   sortArchiveEntryPathsForWrite,
 } from "../wikg/archive/paths.js";
 import {
+  commitDirectoryArchive,
+  listDirectoryArchiveFiles,
+  recoverDirectoryArchive,
+} from "../wikg/archive/directory-backend.js";
+import {
   assertArchiveUpgradeCoordinatorSafe,
   clearArchiveUpgradeDerivedOverlays,
 } from "../wikg/wikg-coordinator/index.js";
+import { withStateLock } from "../../state-lock.js";
 
 export {
   ensureWikiGraphHomeSchemaCurrent,
@@ -56,10 +62,9 @@ const archiveUpgradeQueues = new Map<string, Promise<void>>();
 let workspaceSequence = 0;
 
 export async function ensureWikiGraphArchiveSchemaCurrent(
-  archiveRef: File | string,
+  archiveRef: Directory | File | string,
 ): Promise<void> {
-  const archive = await resolveHostFile(archiveRef);
-  const schemaVersion = await readWikiGraphArchiveSchemaVersion(archive);
+  const schemaVersion = await readWikiGraphArchiveSchemaVersion(archiveRef);
   if (schemaVersion > CURRENT_ARCHIVE_SCHEMA_VERSION) {
     throw new Error(
       `Unsupported Wiki Graph archive schema version: ${schemaVersion}.`,
@@ -73,106 +78,141 @@ export async function ensureWikiGraphArchiveSchemaCurrent(
 }
 
 export async function readWikiGraphArchiveSchemaVersion(
-  archiveRef: File | string,
+  archiveRef: Directory | File | string,
 ): Promise<number> {
-  const archive = await resolveHostFile(archiveRef);
-  const entries = await readArchiveEntries(archive);
-  const manifest = entries.get(WIKG_MANIFEST_PATH);
-  if (manifest === undefined) {
-    throw new Error(`Missing WIKG manifest: ${WIKG_MANIFEST_PATH}.`);
-  }
-  return parseWikgManifest(new TextDecoder().decode(manifest)).schemaVersion;
-}
-
-export async function upgradeWikiGraphArchiveSchema(
-  archiveRef: File | string,
-): Promise<WikiGraphArchiveSchemaUpgradeResult> {
-  const archive = await resolveHostFile(archiveRef);
-  return await serializeArchiveUpgrade(archive, async () => {
+  const archive = await resolveArchiveUpgradeTarget(archiveRef);
+  return await withDirectoryArchiveUpgradeLock(archive, async () => {
     const entries = await readArchiveEntries(archive);
     const manifest = entries.get(WIKG_MANIFEST_PATH);
     if (manifest === undefined) {
       throw new Error(`Missing WIKG manifest: ${WIKG_MANIFEST_PATH}.`);
     }
-    const schemaVersion = parseWikgManifest(
-      new TextDecoder().decode(manifest),
-    ).schemaVersion;
-    if (schemaVersion > CURRENT_ARCHIVE_SCHEMA_VERSION) {
-      throw new Error(
-        `Unsupported Wiki Graph archive schema version: ${schemaVersion}.`,
-      );
-    }
+    return parseWikgManifest(new TextDecoder().decode(manifest)).schemaVersion;
+  });
+}
 
-    await ensureWikiGraphHomeSchemaCurrent();
-    await assertArchiveUpgradeCoordinatorSafe(archive);
+export async function upgradeWikiGraphArchiveSchema(
+  archiveRef: Directory | File | string,
+): Promise<WikiGraphArchiveSchemaUpgradeResult> {
+  const archive = await resolveArchiveUpgradeTarget(archiveRef);
+  return await serializeArchiveUpgrade(archive, async () => {
+    return await withDirectoryArchiveUpgradeLock(archive, async () => {
+      const entries = await readArchiveEntries(archive);
+      const manifest = entries.get(WIKG_MANIFEST_PATH);
+      if (manifest === undefined) {
+        throw new Error(`Missing WIKG manifest: ${WIKG_MANIFEST_PATH}.`);
+      }
+      const schemaVersion = parseWikgManifest(
+        new TextDecoder().decode(manifest),
+      ).schemaVersion;
+      if (schemaVersion > CURRENT_ARCHIVE_SCHEMA_VERSION) {
+        throw new Error(
+          `Unsupported Wiki Graph archive schema version: ${schemaVersion}.`,
+        );
+      }
 
-    const root = getWikiGraphStorage().documentStore;
-    const workspaceName = await createWorkspaceName(root);
-    const workspace = await root.createDirectory(workspaceName);
-    try {
-      await materializeArchiveEntries(workspace, entries);
-      const repairedToc = await repairChapterToc(workspace);
-      const schemaChanged = schemaVersion < CURRENT_ARCHIVE_SCHEMA_VERSION;
-      const databaseResult = await upgradeArchiveDatabase(workspace, {
-        addCharacterOffsets: schemaVersion < 5,
-        refreshArtifacts: schemaVersion < 3,
-      });
+      await ensureWikiGraphHomeSchemaCurrent();
+      await assertArchiveUpgradeCoordinatorSafe(archive);
 
-      if (!schemaChanged && !repairedToc && !databaseResult.repairedTextWords) {
+      const root = getWikiGraphStorage().documentStore;
+      const workspaceName = await createWorkspaceName(root);
+      const workspace = await root.createDirectory(workspaceName);
+      try {
+        await materializeArchiveEntries(workspace, entries);
+        const repairedToc = await repairChapterToc(workspace);
+        const schemaChanged = schemaVersion < CURRENT_ARCHIVE_SCHEMA_VERSION;
+        const databaseResult = await upgradeArchiveDatabase(workspace, {
+          addCharacterOffsets: schemaVersion < 5,
+          refreshArtifacts: schemaVersion < 3,
+        });
+
+        if (
+          !schemaChanged &&
+          !repairedToc &&
+          !databaseResult.repairedTextWords
+        ) {
+          return {
+            changed: false,
+            repairedToc: false,
+            repairedTextWords: false,
+            schemaChanged: false,
+          };
+        }
+
+        if (schemaChanged) {
+          entries.delete(SEARCH_INDEX_DATABASE_PATH);
+          entries.delete(LEGACY_SEARCH_INDEX_DATABASE_PATH);
+        }
+        await mergeWorkspaceEntries(entries, workspace);
+        entries.set(
+          WIKG_MANIFEST_PATH,
+          new TextEncoder().encode(WIKG_MANIFEST_CONTENT),
+        );
+        entries.set(
+          WIKG_MUTATION_TOKEN_PATH,
+          entries.get(WIKG_MUTATION_TOKEN_PATH) ??
+            createWikgMutationTokenBytes(),
+        );
+        await writeArchiveEntries(archive, entries);
+        await clearArchiveUpgradeDerivedOverlays(archive);
+        await cleanupArchiveDerivedData();
+
         return {
-          changed: false,
-          repairedToc: false,
-          repairedTextWords: false,
-          schemaChanged: false,
+          changed: true,
+          repairedToc,
+          repairedTextWords: databaseResult.repairedTextWords,
+          schemaChanged,
         };
+      } finally {
+        await root
+          .remove(workspaceName, { recursive: true })
+          .catch(() => undefined);
       }
-
-      if (schemaChanged) {
-        entries.delete(SEARCH_INDEX_DATABASE_PATH);
-        entries.delete(LEGACY_SEARCH_INDEX_DATABASE_PATH);
-      }
-      await mergeWorkspaceEntries(entries, workspace);
-      entries.set(
-        WIKG_MANIFEST_PATH,
-        new TextEncoder().encode(WIKG_MANIFEST_CONTENT),
-      );
-      entries.set(
-        WIKG_MUTATION_TOKEN_PATH,
-        entries.get(WIKG_MUTATION_TOKEN_PATH) ?? createWikgMutationTokenBytes(),
-      );
-      await getWikiGraphPlatform().zip.write(
-        archive,
-        sortArchiveEntryPathsForWrite(entries.keys()).map((name) => ({
-          data: entries.get(name) as Uint8Array,
-          name,
-        })),
-      );
-      await clearArchiveUpgradeDerivedOverlays(archive);
-      await cleanupArchiveDerivedData();
-
-      return {
-        changed: true,
-        repairedToc,
-        repairedTextWords: databaseResult.repairedTextWords,
-        schemaChanged,
-      };
-    } finally {
-      await root
-        .remove(workspaceName, { recursive: true })
-        .catch(() => undefined);
-    }
+    });
   });
 }
 
 async function readArchiveEntries(
-  archive: File,
+  archive: Directory | File,
 ): Promise<Map<string, Uint8Array>> {
   const entries = new Map<string, Uint8Array>();
-  for (const entry of await readHostZipEntries(archive)) {
-    const name = normalizeArchivePath(entry.name);
-    if (name !== "" && isWikgArchivePath(name)) entries.set(name, entry.data);
+  if (archive.kind === "directory") {
+    for (const [name, file] of await listDirectoryArchiveFiles(archive)) {
+      entries.set(name, await readFileBytes(file));
+    }
+  } else {
+    for (const entry of await readHostZipEntries(archive)) {
+      const name = normalizeArchivePath(entry.name);
+      if (name !== "" && isWikgArchivePath(name)) entries.set(name, entry.data);
+    }
   }
   return entries;
+}
+
+async function writeArchiveEntries(
+  archive: Directory | File,
+  entries: ReadonlyMap<string, Uint8Array>,
+): Promise<void> {
+  if (archive.kind === "directory") {
+    const current = await listDirectoryArchiveFiles(archive);
+    await commitDirectoryArchive(archive, [
+      ...sortArchiveEntryPathsForWrite(entries.keys()).map((path) => ({
+        data: entries.get(path) as Uint8Array,
+        path,
+      })),
+      ...[...current.keys()]
+        .filter((path) => !entries.has(path))
+        .map((path) => ({ path })),
+    ]);
+    return;
+  }
+  await getWikiGraphPlatform().zip.write(
+    archive,
+    sortArchiveEntryPathsForWrite(entries.keys()).map((name) => ({
+      data: entries.get(name) as Uint8Array,
+      name,
+    })),
+  );
 }
 
 async function materializeArchiveEntries(
@@ -428,7 +468,7 @@ async function cleanupArchiveDerivedData(): Promise<void> {
 }
 
 async function serializeArchiveUpgrade<T>(
-  archive: File,
+  archive: Directory | File,
   operation: () => Promise<T>,
 ): Promise<T> {
   const previous =
@@ -448,6 +488,31 @@ async function serializeArchiveUpgrade<T>(
       archiveUpgradeQueues.delete(archive.identity);
     }
   }
+}
+
+async function resolveArchiveUpgradeTarget(
+  archive: Directory | File | string,
+): Promise<Directory | File> {
+  return typeof archive === "string" ? await resolveHostFile(archive) : archive;
+}
+
+async function withDirectoryArchiveUpgradeLock<T>(
+  archive: Directory | File,
+  operation: () => Promise<T>,
+): Promise<T> {
+  if (archive.kind === "file") return await operation();
+  return await withStateLock(
+    {
+      mode: "write",
+      resourceKey: archive.identity,
+      scope: "wikg-directory",
+      stateDatabaseName: "core.sqlite",
+    },
+    async () => {
+      await recoverDirectoryArchive(archive);
+      return await operation();
+    },
+  );
 }
 
 async function createWorkspaceName(root: Directory): Promise<string> {

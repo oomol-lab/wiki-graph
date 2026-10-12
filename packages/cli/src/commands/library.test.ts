@@ -48,7 +48,7 @@ describe("library command", () => {
       expect(firstScan.items).toHaveLength(1);
       const archiveId = firstScan.items[0]?.id;
 
-      await rm(join(libraryFolder, "book.wikg"));
+      await rm(join(libraryFolder, "book.wikg"), { recursive: true });
       const secondScanOutput = await captureStdout(async () => {
         await runLibraryCommand({
           action: "scan",

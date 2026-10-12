@@ -28,6 +28,7 @@ import {
   writeWikgArchiveWithOverlays,
 } from "../storage/wikg/index.js";
 import { createWikgMutationTokenContent } from "../storage/wikg/archive/manifest.js";
+import { readWikiGraphArchiveSchemaVersion } from "../storage/schema-upgrade/index.js";
 import {
   commitDirectoryArchive,
   listDirectoryArchiveFiles,
@@ -55,6 +56,11 @@ import {
 import { markWikiGraphLibraryIndexDirty } from "./search-index.js";
 import { withWikiGraphLibraryLock } from "./lock.js";
 import { commitAtomicArchiveReplacement } from "./archive-replacement.js";
+import {
+  beginLibraryMembershipTransaction,
+  copyDirectoryContent,
+  recoverLibraryMembershipTransactions,
+} from "./membership-transaction.js";
 
 const PUBLIC_ID_BYTES = 6;
 const SEARCH_INDEX_ARCHIVE_ENTRY_PATH = "index.db";
@@ -165,7 +171,8 @@ async function scanWikiGraphLibraryUnlocked(
   library: WikiGraphLibraryRecord,
   options: { readonly pathIdentity: LibraryPathIdentityMode },
 ): Promise<WikiGraphLibraryScanResult> {
-  const files = await listWikgFiles(library.folder);
+  await recoverLibraryMembershipTransactions(library.folder, library.staging);
+  const files = await listWikgFiles(library);
 
   await withLibraryArchiveMembershipDatabase(async (database) => {
     await database.transaction(async () => {
@@ -317,39 +324,55 @@ export async function addWikiGraphLibraryArchive(input: {
   );
 
   return await withWikiGraphLibraryLock(library.id, "write", async () => {
+    await recoverLibraryMembershipTransactions(library.folder, library.staging);
     if (await libraryEntryExists(library.folder, targetRelativePath)) {
       throw new Error(
         `Library archive target already exists: ${targetRelativePath}`,
       );
     }
-    const target = await ensureRelativeDirectory(
+    const transaction = await beginLibraryMembershipTransaction(
       library.folder,
-      targetRelativePath,
+      library.staging,
+      { kind: "add", targetPath: targetRelativePath },
     );
-    await extractWikgArchive(input.inputFile, target);
-    const targetFile = await ensureLibraryManagedArchiveAndInspect(
-      library.folder,
-      targetRelativePath,
-    );
-    const archive = await withLibraryArchiveMembershipDatabase(
-      async (database) => {
-        await database.transaction(async () => {
-          await ensureLibraryArchiveByRelativePath(
+    try {
+      const target = await ensureRelativeDirectory(
+        library.folder,
+        targetRelativePath,
+      );
+      await extractWikgArchive(input.inputFile, target);
+      await new WikiGraphDirectoryFile(target).readDocument(
+        async () => undefined,
+      );
+      await transaction.markPublished();
+      const targetFile = await inspectLibraryArchiveFile(
+        library.folder,
+        targetRelativePath,
+      );
+      const archive = await withLibraryArchiveMembershipDatabase(
+        async (database) => {
+          await database.transaction(async () => {
+            await ensureLibraryArchiveByRelativePath(
+              database,
+              library.id,
+              targetFile,
+            );
+          });
+          return await requireLibraryArchiveByRelativePath(
             database,
-            library.id,
-            targetFile,
+            library,
+            targetRelativePath,
           );
-        });
-        return await requireLibraryArchiveByRelativePath(
-          database,
-          library,
-          targetRelativePath,
-        );
-      },
-    );
+        },
+      );
 
-    await markWikiGraphLibraryIndexDirty(library);
-    return archive;
+      await markWikiGraphLibraryIndexDirty(library);
+      await transaction.finish();
+      return archive;
+    } catch (error) {
+      await transaction.recover();
+      throw error;
+    }
   });
 }
 
@@ -643,19 +666,53 @@ export async function removeWikiGraphLibraryArchive(input: {
   readonly target: ParsedWikiGraphLibraryUri;
 }): Promise<WikiGraphLibraryArchiveRecord> {
   const library = await resolveWikiGraphLibrary(input.target);
-  const archive = await resolveLibraryArchiveTarget(input.target, library);
+  return await withWikiGraphLibraryLock(library.id, "write", async () => {
+    await recoverLibraryMembershipTransactions(library.folder, library.staging);
+    const archive = await resolveLibraryArchiveTarget(input.target, library);
+    const entry = archive.directory ?? archive.file;
+    if (entry === undefined) {
+      throw new Error(`Wiki Graph library archive is missing: ${archive.uri}`);
+    }
 
-  await withWikiGraphLibraryLock(library.id, "write", async () => {
-    await removeRelativeEntry(library.folder, archive.relativePath);
-    await withLibraryArchiveMembershipDatabase(async (database) => {
-      await database.run("DELETE FROM library_archives WHERE id = ?", [
-        archive.id,
-      ]);
-    });
-    await markWikiGraphLibraryIndexDirty(library);
+    return await withArchiveMembershipMutationLock(
+      entry,
+      "Removing this library archive",
+      async () => {
+        const transaction = await beginLibraryMembershipTransaction(
+          library.folder,
+          library.staging,
+          {
+            kind: "remove",
+            sourceKind: entry.kind,
+            sourcePath: archive.relativePath,
+          },
+        );
+        try {
+          if (entry.kind === "directory") {
+            await copyDirectoryContent(
+              entry,
+              await transaction.createBackupDirectory(),
+            );
+          } else {
+            await copyFileContent(entry, await transaction.createBackupFile());
+          }
+          await removeRelativeEntry(library.folder, archive.relativePath);
+          await transaction.markPublished();
+          await withLibraryArchiveMembershipDatabase(async (database) => {
+            await database.run("DELETE FROM library_archives WHERE id = ?", [
+              archive.id,
+            ]);
+          });
+          await markWikiGraphLibraryIndexDirty(library);
+          await transaction.finish();
+          return { ...archive, exists: false, status: "missing" };
+        } catch (error) {
+          await transaction.recover();
+          throw error;
+        }
+      },
+    );
   });
-
-  return { ...archive, exists: false, status: "missing" };
 }
 
 export async function moveWikiGraphLibraryArchive(input: {
@@ -663,10 +720,11 @@ export async function moveWikiGraphLibraryArchive(input: {
   readonly to: string;
 }): Promise<WikiGraphLibraryArchiveRecord> {
   const library = await resolveWikiGraphLibrary(input.target);
-  const archive = await resolveLibraryArchiveTarget(input.target, library);
   const targetRelativePath = validateLibraryArchiveRelativePath(input.to);
 
   return await withWikiGraphLibraryLock(library.id, "write", async () => {
+    await recoverLibraryMembershipTransactions(library.folder, library.staging);
+    const archive = await resolveLibraryArchiveTarget(input.target, library);
     if (await libraryEntryExists(library.folder, targetRelativePath)) {
       throw new Error(
         `Library archive target already exists: ${targetRelativePath}`,
@@ -675,43 +733,97 @@ export async function moveWikiGraphLibraryArchive(input: {
     if (archive.file === undefined && archive.directory === undefined) {
       throw new Error(`Wiki Graph library archive is missing: ${archive.uri}`);
     }
-    if (archive.directory !== undefined) {
-      const target = await ensureRelativeDirectory(
-        library.folder,
-        targetRelativePath,
-      );
-      await copyDirectoryContent(archive.directory, target);
-    } else {
-      const target = await ensureRelativeFile(
-        library.folder,
-        targetRelativePath,
-      );
-      await copyFileContent(archive.file!, target);
-    }
-    await removeRelativeEntry(library.folder, archive.relativePath);
-    const targetFile = await inspectLibraryArchiveFile(
-      library.folder,
-      targetRelativePath,
-    );
-    const moved = await withLibraryArchiveMembershipDatabase(
-      async (database) => {
-        await database.run(
-          "UPDATE library_archives SET relative_path = ? WHERE id = ?",
-          [targetRelativePath, archive.id],
+    const entry = archive.directory ?? archive.file!;
+    return await withArchiveMembershipMutationLock(
+      entry,
+      "Moving this library archive",
+      async () => {
+        const transaction = await beginLibraryMembershipTransaction(
+          library.folder,
+          library.staging,
+          {
+            kind: "move",
+            sourcePath: archive.relativePath,
+            targetPath: targetRelativePath,
+          },
         );
-        await updateLibraryArchiveSeen(database, archive.id, targetFile, {
-          status: "present",
-        });
-        return await requireLibraryArchiveByPublicId(
-          database,
-          library,
-          archive.publicId,
-        );
+        try {
+          if (entry.kind === "directory") {
+            const target = await ensureRelativeDirectory(
+              library.folder,
+              targetRelativePath,
+            );
+            await copyDirectoryContent(entry, target);
+            await new WikiGraphDirectoryFile(target).readDocument(
+              async () => undefined,
+            );
+          } else {
+            await copyFileContent(
+              entry,
+              await ensureRelativeFile(library.folder, targetRelativePath),
+            );
+          }
+          await transaction.markPublished();
+          await removeRelativeEntry(library.folder, archive.relativePath);
+          const targetFile = await inspectLibraryArchiveFile(
+            library.folder,
+            targetRelativePath,
+          );
+          const moved = await withLibraryArchiveMembershipDatabase(
+            async (database) => {
+              await database.run(
+                "UPDATE library_archives SET relative_path = ? WHERE id = ?",
+                [targetRelativePath, archive.id],
+              );
+              await updateLibraryArchiveSeen(database, archive.id, targetFile, {
+                status: "present",
+              });
+              return await requireLibraryArchiveByPublicId(
+                database,
+                library,
+                archive.publicId,
+              );
+            },
+          );
+
+          await markWikiGraphLibraryIndexDirty(library);
+          await transaction.finish();
+          return moved;
+        } catch (error) {
+          await transaction.recover();
+          throw error;
+        }
       },
     );
+  });
+}
 
-    await markWikiGraphLibraryIndexDirty(library);
-    return moved;
+async function withArchiveMembershipMutationLock<T>(
+  archive: File | Directory,
+  operationName: string,
+  operation: () => Promise<T>,
+): Promise<T> {
+  return await withArchiveBuildJobReplacementLock(archive, async () => {
+    await assertNoActiveBuildJobConflicts({
+      archive,
+      operation: operationName,
+      scope: { kind: "archive" },
+    });
+    if (archive.kind === "directory") {
+      return await withStateLock(
+        {
+          mode: "write",
+          resourceKey: archive.identity,
+          scope: "wikg-directory",
+          stateDatabaseName: "core.sqlite",
+        },
+        operation,
+      );
+    }
+    return await new WikgCoordinator().withExclusiveArchiveReplacement(
+      archive,
+      operation,
+    );
   });
 }
 
@@ -1022,7 +1134,7 @@ function archivePathMatchRank(archive: WikiGraphLibraryArchiveRecord): number {
 }
 
 async function listWikgFiles(
-  root: Directory,
+  library: WikiGraphLibraryRecord,
 ): Promise<DiscoveredLibraryArchiveFile[]> {
   const discovered: Array<{
     readonly directory?: Directory;
@@ -1030,7 +1142,7 @@ async function listWikgFiles(
     readonly relativePath: string;
   }> = [];
   try {
-    await walkLibraryDirectory(root, "", discovered);
+    await walkLibraryDirectory(library.folder, "", discovered);
   } catch {
     throw new Error("Wiki Graph library folder is missing or unavailable.");
   }
@@ -1038,7 +1150,9 @@ async function listWikgFiles(
   for (const { relativePath } of discovered.sort((left, right) =>
     left.relativePath.localeCompare(right.relativePath),
   )) {
-    files.push(await ensureLibraryManagedArchiveAndInspect(root, relativePath));
+    files.push(
+      await ensureLibraryManagedArchiveAndInspect(library, relativePath),
+    );
   }
   return files;
 }
@@ -1066,16 +1180,70 @@ async function assertLibraryDirectoryAvailable(
 }
 
 async function ensureLibraryManagedArchiveAndInspect(
-  root: Directory,
+  library: WikiGraphLibraryRecord,
   relativePath: string,
 ): Promise<DiscoveredLibraryArchiveFile> {
-  const entry = await requireRelativeLibraryEntry(root, relativePath);
+  const entry = await requireRelativeLibraryEntry(library.folder, relativePath);
   if (entry.kind === "file") {
-    await ensureLibraryManagedArchiveHasNoSearchIndex(entry);
+    if ((await readOptionalWikgMutationToken(entry)) !== undefined) {
+      await migrateLibraryArchiveFileToDirectory(library, relativePath, entry);
+    }
   } else {
-    await removeDirectorySearchIndex(entry);
+    await withStateLock(
+      {
+        mode: "write",
+        resourceKey: entry.identity,
+        scope: "wikg-directory",
+        stateDatabaseName: "core.sqlite",
+      },
+      async () => await removeDirectorySearchIndex(entry),
+    );
   }
-  return await inspectLibraryArchiveFile(root, relativePath);
+  return await inspectLibraryArchiveFile(library.folder, relativePath);
+}
+
+async function migrateLibraryArchiveFileToDirectory(
+  library: WikiGraphLibraryRecord,
+  relativePath: string,
+  file: File,
+): Promise<void> {
+  await withArchiveMembershipMutationLock(
+    file,
+    "Migrating this library archive",
+    async () => {
+      const transaction = await beginLibraryMembershipTransaction(
+        library.folder,
+        library.staging,
+        { kind: "migrate", targetPath: relativePath },
+      );
+      try {
+        await copyFileContent(file, await transaction.createBackupFile());
+        const staged = await transaction.createStagedDirectory();
+        await extractWikgArchive(file, staged);
+        await assertMigratableDirectoryArchive(staged);
+
+        await removeRelativeEntry(library.folder, relativePath);
+        const target = await ensureRelativeDirectory(
+          library.folder,
+          relativePath,
+        );
+        await copyDirectoryContent(staged, target);
+        await assertMigratableDirectoryArchive(target);
+        await transaction.markPublished();
+        await transaction.finish();
+      } catch (error) {
+        await transaction.recover();
+        throw error;
+      }
+    },
+  );
+}
+
+async function assertMigratableDirectoryArchive(
+  directory: Directory,
+): Promise<void> {
+  await readWikiGraphArchiveSchemaVersion(directory);
+  await readWikgArchiveMutationToken(directory);
 }
 
 async function walkLibraryDirectory(
@@ -1237,25 +1405,6 @@ async function removeRelativeEntry(
     await parent.remove(name);
   } else if ((await parent.getDirectory(name)) !== undefined) {
     await parent.remove(name, { recursive: true });
-  }
-}
-
-async function copyDirectoryContent(
-  source: Directory,
-  target: Directory,
-): Promise<void> {
-  for (const entry of await source.list()) {
-    if (entry.kind === "directory") {
-      const child =
-        (await target.getDirectory(entry.name)) ??
-        (await target.createDirectory(entry.name));
-      await copyDirectoryContent(entry, child);
-      continue;
-    }
-    const destination =
-      (await target.getFile(entry.name)) ??
-      (await target.createFile(entry.name));
-    await copyFileContent(entry, destination);
   }
 }
 

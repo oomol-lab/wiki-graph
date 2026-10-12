@@ -14,7 +14,10 @@ import {
   readWikiGraphHomeSchemaVersion,
   upgradeWikiGraphArchiveSchema,
 } from "../../../../packages/core/src/storage/schema-upgrade/index.js";
-import { assertWikiGraphLibrarySchemaCurrent } from "../../../../packages/core/src/maintenance/upgrade.js";
+import {
+  assertWikiGraphLibrarySchemaCurrent,
+  upgradeWikiGraphLibrarySchema,
+} from "../../../../packages/core/src/maintenance/upgrade.js";
 import {
   createWikiGraphLibrary,
   parseWikiGraphLibraryUri,
@@ -852,10 +855,42 @@ describe("schema-upgrade", () => {
       const target = parseWikiGraphLibraryUri(library.uri);
       expect(target).toBeDefined();
       await scanWikiGraphLibrary(target!);
-      await rewriteManifest(archive, 99, false);
+      await rewriteDirectoryManifest(new NodeDirectory(archive.path), 99);
       await expect(
         assertWikiGraphLibrarySchemaCurrent(target!),
       ).rejects.toThrow("unsupported future archive schema v99");
+    });
+  });
+
+  it("upgrades a managed directory archive in place", async () => {
+    await withFixture(async ({ archive, root }) => {
+      await rewriteManifest(archive, 3, false);
+      const library = await createWikiGraphLibrary({
+        folder: new NodeDirectory(root),
+      });
+      const target = parseWikiGraphLibraryUri(library.uri);
+      expect(target).toBeDefined();
+      const scan = await scanWikiGraphLibrary(target!);
+      const managed = scan.archives.find(
+        (candidate) => candidate.relativePath === "book.wikg",
+      );
+      expect(managed?.directory).toBeDefined();
+
+      await expect(
+        upgradeWikiGraphLibrarySchema(target!),
+      ).resolves.toMatchObject({
+        status: "upgraded",
+        upgraded: [
+          expect.objectContaining({
+            relativePath: "book.wikg",
+            schemaVersionAfter: 5,
+            schemaVersionBefore: 3,
+          }),
+        ],
+      });
+      await expect(
+        readWikiGraphArchiveSchemaVersion(managed!.directory!),
+      ).resolves.toBe(5);
     });
   });
 });
@@ -914,6 +949,25 @@ async function rewriteManifest(
     });
   }
   await nodeWikiGraphPlatform.zip.write(archive, entries);
+}
+
+async function rewriteDirectoryManifest(
+  archive: NodeDirectory,
+  schemaVersion: number,
+): Promise<void> {
+  const manifest = await archive.getFile(WIKG_MANIFEST_PATH);
+  if (manifest === undefined)
+    throw new Error("Fixture archive has no manifest.");
+  const writer = await manifest.openWriter();
+  try {
+    await writer.write(
+      `${JSON.stringify({ formatVersion: 1, schemaVersion })}\n`,
+    );
+    await writer.commit();
+  } catch (error) {
+    await writer.abort();
+    throw error;
+  }
 }
 
 async function removeSourceArtifactShortUidColumn(

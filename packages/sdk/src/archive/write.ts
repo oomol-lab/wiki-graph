@@ -25,18 +25,7 @@ export async function writeWikiGraphArchiveLocation<T>(
   const write = async (
     archiveFile: File | Directory = location.archiveFile,
   ) => {
-    if (archiveFile.kind === "directory") {
-      return await new WikiGraphDirectoryFile(archiveFile).write(operation, {
-        derivedStateKeys: [location.archiveKey, location.archivePath],
-        ...(options.invalidateContinuationCursors === undefined
-          ? {}
-          : {
-              invalidateContinuationCursors:
-                options.invalidateContinuationCursors,
-            }),
-      });
-    }
-    return await new WikiGraphArchiveFile(archiveFile).write(operation, {
+    const writeOptions = {
       ...(cacheOnly
         ? {}
         : { derivedStateKeys: [location.archiveKey, location.archivePath] }),
@@ -49,7 +38,17 @@ export async function writeWikiGraphArchiveLocation<T>(
       ...(options.searchIndexWritebackPolicy === undefined
         ? {}
         : { searchIndexWritebackPolicy: options.searchIndexWritebackPolicy }),
-    });
+    };
+    if (archiveFile.kind === "directory") {
+      return await new WikiGraphDirectoryFile(archiveFile).write(
+        operation,
+        writeOptions,
+      );
+    }
+    return await new WikiGraphArchiveFile(archiveFile).write(
+      operation,
+      writeOptions,
+    );
   };
 
   if (

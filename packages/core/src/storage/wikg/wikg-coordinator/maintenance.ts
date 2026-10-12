@@ -4,6 +4,7 @@ import {
   getWikiGraphPlatform,
   getWikiGraphStorage,
   isHostFileEmpty,
+  type Directory,
   type File,
 } from "../../../runtime/platform/index.js";
 import { createPortableHash } from "../../../utils/crypto.js";
@@ -16,7 +17,7 @@ import {
 import { removeWorkspaceSnapshot } from "./workspace.js";
 
 export async function assertArchiveUpgradeCoordinatorSafe(
-  archive: File,
+  archive: Directory | File,
 ): Promise<void> {
   const state = await getRelativeFile(
     getWikiGraphStorage().library,
@@ -80,7 +81,7 @@ export async function assertArchiveUpgradeCoordinatorSafe(
 }
 
 export async function clearArchiveUpgradeDerivedOverlays(
-  archive: File,
+  archive: Directory | File,
 ): Promise<void> {
   const state = await getRelativeFile(
     getWikiGraphStorage().library,
@@ -124,7 +125,7 @@ export async function clearArchiveUpgradeDerivedOverlays(
   }
 }
 
-function createArchiveKey(archive: File): string {
+function createArchiveKey(archive: Directory | File): string {
   return createPortableHash("sha256").update(archive.identity).digest("hex");
 }
 

@@ -6,7 +6,7 @@ import {
   type WikiGraphLibraryArchiveRecord,
   type WikiGraphLibraryRecord,
 } from "../library/index.js";
-import type { File } from "../runtime/platform/index.js";
+import type { Directory, File } from "../runtime/platform/index.js";
 import {
   CURRENT_ARCHIVE_SCHEMA_VERSION,
   ensureWikiGraphHomeSchemaCurrent,
@@ -118,7 +118,7 @@ export async function assertWikiGraphLibrarySchemaCurrent(
   for (const archive of archives) {
     if (!isUpgradeableLibraryArchive(archive)) continue;
     const schemaVersion = await readWikiGraphArchiveSchemaVersion(
-      requireArchiveFile(archive),
+      requireArchiveStorage(archive),
     );
     if (schemaVersion !== CURRENT_ARCHIVE_SCHEMA_VERSION) {
       throw new Error(
@@ -148,15 +148,16 @@ export async function upgradeWikiGraphLibrarySchema(
     const skipped: WikiGraphLibraryArchiveUpgradeItem[] = [];
 
     for (const archive of archives) {
-      const file = requireArchiveFile(archive);
-      const schemaVersionBefore = await readWikiGraphArchiveSchemaVersion(file);
+      const storage = requireArchiveStorage(archive);
+      const schemaVersionBefore =
+        await readWikiGraphArchiveSchemaVersion(storage);
       try {
-        const result = await upgradeWikiGraphArchiveSchema(file);
+        const result = await upgradeWikiGraphArchiveSchema(storage);
         const item = {
-          fileIdentity: file.identity,
+          fileIdentity: storage.identity,
           publicId: archive.publicId,
           relativePath: archive.relativePath,
-          schemaVersionAfter: await readWikiGraphArchiveSchemaVersion(file),
+          schemaVersionAfter: await readWikiGraphArchiveSchemaVersion(storage),
           schemaVersionBefore,
           uri: archive.uri,
         };
@@ -164,7 +165,7 @@ export async function upgradeWikiGraphLibrarySchema(
       } catch (error) {
         return {
           failed: {
-            fileIdentity: file.identity,
+            fileIdentity: storage.identity,
             message: formatErrorMessage(error),
             publicId: archive.publicId,
             relativePath: archive.relativePath,
@@ -193,15 +194,20 @@ function isUpgradeableLibraryArchive(
   archive: WikiGraphLibraryArchiveRecord,
 ): boolean {
   return (
-    archive.exists && archive.status === "present" && archive.file !== undefined
+    archive.exists &&
+    archive.status === "present" &&
+    (archive.directory !== undefined || archive.file !== undefined)
   );
 }
 
-function requireArchiveFile(archive: WikiGraphLibraryArchiveRecord): File {
-  if (archive.file === undefined) {
+function requireArchiveStorage(
+  archive: WikiGraphLibraryArchiveRecord,
+): Directory | File {
+  const storage = archive.directory ?? archive.file;
+  if (storage === undefined) {
     throw new Error(`Library archive is unavailable: ${archive.uri}`);
   }
-  return archive.file;
+  return storage;
 }
 
 async function clearLibraryDerivedData(
