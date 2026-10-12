@@ -27,6 +27,7 @@ import { resolveWikiGraphArchiveLocation } from "./archive/target.js";
 import type { WikiGraphArchiveHandle } from "./archive/archive.js";
 
 const ARCHIVE_IDENTITIES = ["standalone", "library"] as const;
+const ARTIFACT_MATRIX_TEST_TIMEOUT_MS = 300_000;
 const SOURCE =
   "Douglas Adams wrote The Hitchhiker's Guide to the Galaxy. He carried a towel for the journey.";
 const SUMMARY = "Douglas Adams authored the Guide and carried a towel.";
@@ -342,6 +343,7 @@ describe("real job artifact application matrix", () => {
           scenario.sdk.close();
         }
       },
+      ARTIFACT_MATRIX_TEST_TIMEOUT_MS,
     );
   });
 });
