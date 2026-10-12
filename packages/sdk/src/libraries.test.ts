@@ -4,13 +4,18 @@ import { tmpdir } from "os";
 import { join } from "path";
 
 import { afterEach, describe, expect, it } from "vitest";
-import { withWikiGraphLibraryLock } from "wiki-graph-core";
+import {
+  replaceChapterFtsIndexArtifact,
+  WikiGraphArchiveFile,
+  withWikiGraphLibraryLock,
+} from "wiki-graph-core";
 
 import {
   createWikiGraphSDK,
   type WikiGraphLibraryArchiveContent,
   type WikiGraphSDK,
 } from "./index.js";
+import { NodeFile } from "./node-platform.js";
 
 const temporaryDirectories: string[] = [];
 
@@ -26,6 +31,23 @@ afterEach(async () => {
 });
 
 describe("WikiGraphLibraryManager.readArchive", () => {
+  it("keeps managed archive search sessions alive across pages", async () => {
+    const setup = await createManagedArchive();
+    const archive = await setup.sdk.archives.open({
+      kind: "library",
+      uri: setup.memberUri,
+    });
+
+    const first = await archive.search("stable archive", { limit: 1 });
+    const cursor = first.nextCursor();
+    expect(first.items).toHaveLength(1);
+    expect(cursor).not.toBeNull();
+    const second = await cursor!.next();
+    expect(second.items.length).toBeGreaterThan(0);
+    await cursor!.release();
+    setup.sdk.close();
+  });
+
   it("streams the complete managed archive without exposing its path", async () => {
     const setup = await createManagedArchive({ large: true });
     const expected = await readFile(setup.sourcePath);
@@ -283,13 +305,23 @@ async function createManagedArchive(
     kind: "standalone",
     path: sourcePath,
   });
-  await source.addChapter({
+  const chapter = await source.addChapter({
     source:
       options.large === true
         ? randomBytes(256 * 1024).toString("base64")
-        : "A stable archive source.",
+        : Array.from(
+            { length: 8 },
+            (_, index) => `A stable archive source sentence ${index}.`,
+          ).join(" "),
     title: "Source",
   });
+  await sdk.run(
+    async () =>
+      await new WikiGraphArchiveFile(new NodeFile(sourcePath)).write(
+        async (document) =>
+          await replaceChapterFtsIndexArtifact(document, chapter.chapterId),
+      ),
+  );
   await sdk.archives.create({ path: replacementPath });
   const replacement = await sdk.archives.open({
     kind: "standalone",

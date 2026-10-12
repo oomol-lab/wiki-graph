@@ -1,5 +1,5 @@
 import {
-  copyFile,
+  cp,
   mkdtemp,
   mkdir,
   readFile,
@@ -255,9 +255,10 @@ describe("library archive membership", () => {
       );
       const first = await scanWikiGraphLibrary(target!);
 
-      await copyFile(
+      await cp(
         join(getNodeResourcePath(library.folder), "original.wikg"),
         join(getNodeResourcePath(library.folder), "copy.wikg"),
+        { recursive: true },
       );
       const second = await scanWikiGraphLibrary(target!);
       const original = second.archives.find(
@@ -349,6 +350,61 @@ describe("library archive membership", () => {
       ).resolves.toBeUndefined();
     });
   });
+
+  it.each(["move", "remove"] as const)(
+    "waits for active managed-directory readers before %s",
+    async (operation) => {
+      await withLibraryTestState(async (tempDir) => {
+        const target = parseWikiGraphLibraryUri("wikg://lib")!;
+        const source = join(tempDir, "source.wikg");
+        await createTestWikgArchive(tempDir, source);
+        const added = await addWikiGraphLibraryArchive({
+          inputFile: new NodeFile(source),
+          target,
+          to: "book.wikg",
+        });
+        let releaseReader!: () => void;
+        const readerGate = new Promise<void>((resolve) => {
+          releaseReader = resolve;
+        });
+        let readerEntered!: () => void;
+        const entered = new Promise<void>((resolve) => {
+          readerEntered = resolve;
+        });
+        const reading = new WikiGraphDirectoryFile(
+          added.directory!,
+        ).readDocument(async () => {
+          readerEntered();
+          await readerGate;
+        });
+        await entered;
+
+        const mutation =
+          operation === "move"
+            ? moveWikiGraphLibraryArchive({
+                target: parseWikiGraphLibraryUri(added.uri)!,
+                to: "moved.wikg",
+              })
+            : removeWikiGraphLibraryArchive({
+                target: parseWikiGraphLibraryUri(added.uri)!,
+              });
+        let settled = false;
+        void mutation.finally(() => {
+          settled = true;
+        });
+
+        try {
+          await delay(50);
+          expect(settled).toBe(false);
+        } finally {
+          releaseReader();
+        }
+
+        await reading;
+        await mutation;
+      });
+    },
+  );
 
   it("atomically replaces archive contents while preserving membership identity", async () => {
     await withLibraryTestState(async (tempDir) => {
@@ -618,7 +674,7 @@ describe("library archive membership", () => {
     });
   });
 
-  it("does not rewrite library archives that already have no embedded FTS entry", async () => {
+  it("migrates existing library archive files to managed directories", async () => {
     await withLibraryTestState(async (tempDir) => {
       const library = await ensureDefaultWikiGraphLibrary();
       const target = parseWikiGraphLibraryUri("wikg://lib");
@@ -628,12 +684,23 @@ describe("library archive membership", () => {
         "plain.wikg",
       );
       await createTestWikgArchive(tempDir, archivePath);
-      const before = await inspectFileState(archivePath);
+      const beforeToken = await readWikgArchiveMutationToken(
+        new NodeFile(archivePath),
+      );
 
-      await scanWikiGraphLibrary(target!);
-      const after = await inspectFileState(archivePath);
+      const scan = await scanWikiGraphLibrary(target!);
+      const migrated = scan.archives.find(
+        (archive) => archive.relativePath === "plain.wikg",
+      );
 
-      expect(after).toStrictEqual(before);
+      expect(migrated?.file).toBeUndefined();
+      expect(migrated?.directory).toBeDefined();
+      await expect(
+        readWikgArchiveMutationToken(migrated!.directory!),
+      ).resolves.toBe(beforeToken);
+      await expect(
+        readWikgArchiveEntry(migrated!.directory!, "index.db"),
+      ).resolves.toBeUndefined();
     });
   });
 
@@ -854,9 +921,9 @@ describe("library archive membership", () => {
           "utf8",
         ),
       ).resolves.toBe("old");
-      await expect(
-        readFile(join(newFolder, "synced.wikg")),
-      ).resolves.toBeDefined();
+      expect((await stat(join(newFolder, "synced.wikg"))).isDirectory()).toBe(
+        true,
+      );
       await expect(getDefaultMetadata(target!)).resolves.toStrictEqual({
         owner: "default-team",
       });
@@ -978,7 +1045,9 @@ describe("library archive membership", () => {
       );
       expect(original?.lastSeenMutationToken).toBeDefined();
 
-      await rm(join(getNodeResourcePath(library.folder), "book.wikg"));
+      await rm(join(getNodeResourcePath(library.folder), "book.wikg"), {
+        recursive: true,
+      });
       await createTestWikgArchive(
         tempDir,
         join(getNodeResourcePath(library.folder), "book.wikg"),
@@ -1080,9 +1149,10 @@ describe("library archive membership", () => {
 
       const newFolder = join(tempDir, "new-library-folder");
       await mkdir(newFolder);
-      await copyFile(
+      await cp(
         join(getNodeResourcePath(library.folder), "book.wikg"),
         join(newFolder, "renamed-book.wikg"),
+        { recursive: true },
       );
       const rebound = await rebindWikiGraphLibrary({
         folder: new NodeDirectory(newFolder),
@@ -1119,9 +1189,10 @@ describe("library archive membership", () => {
 
       const newFolder = join(tempDir, "new-library-folder");
       await mkdir(newFolder);
-      await copyFile(
+      await cp(
         join(getNodeResourcePath(library.folder), "book.wikg"),
         join(newFolder, "book.wikg"),
+        { recursive: true },
       );
       const rebound = await rebindWikiGraphLibrary({
         folder: new NodeDirectory(newFolder),
@@ -1146,9 +1217,10 @@ describe("library archive membership", () => {
         tempDir,
         join(getNodeResourcePath(library.folder), "original.wikg"),
       );
-      await copyFile(
+      await cp(
         join(getNodeResourcePath(library.folder), "original.wikg"),
         join(getNodeResourcePath(library.folder), "copy.wikg"),
+        { recursive: true },
       );
       const first = await scanWikiGraphLibrary(target!);
       const original = first.archives.find(
@@ -1161,9 +1233,10 @@ describe("library archive membership", () => {
 
       const newFolder = join(tempDir, "new-library-folder");
       await mkdir(newFolder);
-      await copyFile(
+      await cp(
         join(getNodeResourcePath(library.folder), "original.wikg"),
         join(newFolder, "renamed.wikg"),
+        { recursive: true },
       );
       const rebound = await rebindWikiGraphLibrary({
         folder: new NodeDirectory(newFolder),
@@ -1619,20 +1692,6 @@ async function createSearchableArchiveWithoutSearchIndex(
 
   await writeWikgArchive(sourceDir, path);
   await expect(readWikgArchiveEntry(path, "index.db")).resolves.toBeUndefined();
-}
-
-async function inspectFileState(path: string): Promise<{
-  readonly mtimeMs: number;
-  readonly mutationToken?: string;
-  readonly size: number;
-}> {
-  const fileStat = await stat(path);
-  const mutationToken = await readWikgArchiveMutationToken(path);
-  return {
-    mtimeMs: fileStat.mtimeMs,
-    mutationToken,
-    size: fileStat.size,
-  };
 }
 
 async function insertStaleStateLock(libraryId: number): Promise<void> {
