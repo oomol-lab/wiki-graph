@@ -189,6 +189,16 @@ home or library target and must not become CLI targets.
   under the library write lock. The command clears rebuildable derived library
   state and only visits archives registered in `library_archives`; it does not
   scan the folder for unmanaged `.wikg` files.
+  Membership transactions are recovered before enumeration; their backups are
+  never deleted as derived cache state. Registered ZIP members are converted
+  using the membership transaction, even at current SQL schema versions.
+  Results report `migrated` separately from schema `upgraded`/`skipped`, and
+  unavailable members produce `partial` with their URIs. Repeating the upgrade
+  is a no-op once schema and storage are current. Home v4 and archive v5 remain
+  unchanged because the SQL and standalone ZIP formats have not changed.
+  Directory members cannot be opened by 0.8.4. Keep a pre-upgrade backup for
+  rollback, or export standalone ZIP archives for interchange; upgrading home
+  alone does not convert library members.
 - `wg maintenance upgrade <path.sdpub> [--output <path.wikg>]` is the formal
   sdpub migration entry. `wg legacy migrate` remains as a deprecated alias and
   must share the same implementation.
@@ -201,3 +211,25 @@ schema orchestration and re-exports the home schema functions for the public API
 This keeps low-level shared-state database code from depending upward on the
 storage archive upgrader while preserving one public schema-upgrade import path
 for callers.
+
+## Reproducible 0.8.4 Storage Validation
+
+Run `pnpm exec tsx scripts/verify-library-upgrade.mjs /path/to/old-state`.
+The verifier expects the four-archive 0.8.4 acceptance sample described in issue 752. It copies the source anew for normal, mixed-format, and interrupted-recovery
+scenarios, remaps library identities, removes copied credentials and transient
+work, and verifies source file hashes remain unchanged. External library paths
+and symlinks are rejected rather than followed.
+
+Validation on 2026-10-12 passed all three scenarios (4, 1, and 4 ZIP conversions).
+Assertions include SQLite integrity and foreign keys, identical main database
+dumps and archive entry hashes, unchanged membership IDs/URIs/tokens, graph
+inventories (Cambridge: 9/17/14 chunks/entities/triples; DeepSeek OCR: 52/12/11),
+representative evidence equality, nonempty FTS queries, idempotent repeat, and
+write/reopen. Interrupted recovery is prepared by a separate process with an
+unfinished durable membership transaction. Copies are retained at the paths
+printed in the report for inspection. No generation or hosted API is called.
+
+The real sample has no embeddings or summaries. Deterministic embedding
+migration coverage is provided separately in `membership.test.ts`; missing
+registrations, corrupt ZIPs, failed publication rollback/retry, and CLI partial
+exit status are covered by synthetic schema-upgrade tests.

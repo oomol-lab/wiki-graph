@@ -1,6 +1,14 @@
-import { access, copyFile, mkdir, readFile, writeFile } from "fs/promises";
+import {
+  access,
+  copyFile,
+  mkdir,
+  readFile,
+  writeFile,
+  rm,
+  stat,
+} from "fs/promises";
 import { join } from "path";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import {
   Database,
@@ -46,8 +54,181 @@ import {
   NodeFile,
 } from "../../../../packages/cli/src/runtime/node-platform.js";
 import { withTempDir } from "../../../helpers/temp.js";
+import { beginLibraryMembershipTransaction } from "../../../../packages/core/src/library/membership-transaction.js";
+import { copyFileContent } from "../../../../packages/core/src/runtime/platform/index.js";
+import { runWikiGraphCLICaptured } from "../../../../packages/cli/src/app/runner.js";
 
 describe("schema-upgrade", () => {
+  it("migrates current-schema registered ZIPs through upgrade, recovers backups and is idempotent", async () => {
+    await withFixture(async ({ archive, root }) => {
+      const backup = join(root, "original.zip");
+      await copyFile(archive.path, backup);
+      const token = await readWikgArchiveMutationToken(archive);
+      const library = await createWikiGraphLibrary({
+        folder: new NodeDirectory(root),
+      });
+      const target = parseWikiGraphLibraryUri(library.uri)!;
+      const registered = (await scanWikiGraphLibrary(target)).archives.find(
+        (x) => x.relativePath === "book.wikg",
+      )!;
+      await rm(archive.path, { recursive: true });
+      await copyFile(backup, archive.path);
+      // Simulate process loss after replacing the ZIP with an incomplete directory.
+      const transaction = await beginLibraryMembershipTransaction(
+        library.folder,
+        library.staging,
+        { kind: "migrate", targetPath: "book.wikg" },
+      );
+      await copyFileContent(archive, await transaction.createBackupFile());
+      await rm(archive.path);
+      await mkdir(archive.path);
+      await writeFile(join(archive.path, "partial"), "unfinished");
+      const result = await upgradeWikiGraphLibrarySchema(target);
+      expect(result).toMatchObject({
+        status: "upgraded",
+        upgraded: [],
+        unavailable: [],
+        migrated: [
+          {
+            publicId: registered.publicId,
+            uri: registered.uri,
+            schemaVersionBefore: 5,
+            schemaVersionAfter: 5,
+          },
+        ],
+      });
+      expect((await stat(archive.path)).isDirectory()).toBe(true);
+      await expect(
+        readWikgArchiveMutationToken(new NodeDirectory(archive.path)),
+      ).resolves.toBe(token);
+      await expect(access(join(archive.path, "partial"))).rejects.toThrow();
+      await expect(
+        upgradeWikiGraphLibrarySchema(target),
+      ).resolves.toMatchObject({
+        status: "already-current",
+        migrated: [],
+        upgraded: [],
+      });
+      await new WikiGraphArchiveFile(new NodeDirectory(archive.path)).write(
+        async (document) => {
+          const draft = await document.getSerialFragments(1).createDraft();
+          draft.addSentence("Still writable after migration.", 5);
+          await draft.commit();
+        },
+      );
+      await new WikiGraphArchiveFile(
+        new NodeDirectory(archive.path),
+      ).readDocument(async (document) => {
+        expect(await document.getSerialFragments(1).readText()).toContain(
+          "Still writable",
+        );
+      });
+    });
+  });
+
+  it("reports missing registered members without reporting a successful empty upgrade", async () => {
+    await withFixture(async ({ archive, root }) => {
+      const library = await createWikiGraphLibrary({
+        folder: new NodeDirectory(root),
+      });
+      const target = parseWikiGraphLibraryUri(library.uri)!;
+      const member = (await scanWikiGraphLibrary(target)).archives.find(
+        (x) => x.relativePath === "book.wikg",
+      )!;
+      await rm(archive.path, { recursive: true });
+      const cli = await runWikiGraphCLICaptured({
+        stateDir: join(root, "state"),
+        cwd: root,
+        argv: ["maintenance", "upgrade", library.uri, "--json"],
+        env: {},
+      });
+      expect(cli.exitCode).toBe(1);
+      expect(JSON.parse(cli.stdout)).toMatchObject({
+        status: "partial",
+        unavailable: [{ uri: member.uri }],
+      });
+      await expect(
+        upgradeWikiGraphLibrarySchema(target),
+      ).resolves.toMatchObject({
+        status: "partial",
+        migrated: [],
+        unavailable: [{ uri: member.uri, relativePath: "book.wikg" }],
+      });
+    });
+  });
+  it("reports invalid registered ZIPs without publishing directories or importing unmanaged files", async () => {
+    await withFixture(async ({ archive, root }) => {
+      const library = await createWikiGraphLibrary({
+        folder: new NodeDirectory(root),
+      });
+      const target = parseWikiGraphLibraryUri(library.uri)!;
+      const member = (await scanWikiGraphLibrary(target)).archives.find(
+        (x) => x.relativePath === "book.wikg",
+      )!;
+      await rm(archive.path, { recursive: true });
+      await writeFile(archive.path, "invalid ZIP");
+      const unmanaged = join(root, "unmanaged.wikg");
+      await writeFile(unmanaged, "not registered");
+      await expect(
+        upgradeWikiGraphLibrarySchema(target),
+      ).resolves.toMatchObject({
+        status: "partial",
+        migrated: [],
+        failed: { publicId: member.publicId, uri: member.uri },
+      });
+      expect((await stat(archive.path)).isFile()).toBe(true);
+      await expect(readFile(archive.path, "utf8")).resolves.toBe("invalid ZIP");
+      await expect(readFile(unmanaged, "utf8")).resolves.toBe("not registered");
+    });
+  });
+  it("rolls back failed directory publication and permits retry without losing the ZIP", async () => {
+    await withFixture(async ({ archive, root }) => {
+      const bytes = await readFile(archive.path);
+      const library = await createWikiGraphLibrary({
+        folder: new NodeDirectory(root),
+      });
+      const target = parseWikiGraphLibraryUri(library.uri)!;
+      await scanWikiGraphLibrary(target);
+      await rm(archive.path, { recursive: true });
+      await writeFile(archive.path, bytes);
+      // Preserve the original implementation; the mock forwards its receiver via call.
+      // eslint-disable-next-line @typescript-eslint/unbound-method
+      const originalCreateFile = NodeDirectory.prototype.createFile;
+      let injected = false;
+      const fault = vi
+        .spyOn(NodeDirectory.prototype, "createFile")
+        .mockImplementation(async function (this: NodeDirectory, name) {
+          if (
+            !injected &&
+            this.path === archive.path &&
+            name === "database.db"
+          ) {
+            injected = true;
+            throw new Error("Injected directory publication failure");
+          }
+          return await originalCreateFile.call(this, name);
+        });
+      try {
+        await expect(
+          upgradeWikiGraphLibrarySchema(target),
+        ).resolves.toMatchObject({
+          status: "partial",
+          migrated: [],
+          failed: { message: "Injected directory publication failure" },
+        });
+      } finally {
+        fault.mockRestore();
+      }
+      expect(injected).toBe(true);
+      await expect(readFile(archive.path)).resolves.toEqual(bytes);
+      await expect(
+        upgradeWikiGraphLibrarySchema(target),
+      ).resolves.toMatchObject({
+        status: "upgraded",
+        migrated: [{ relativePath: "book.wikg" }],
+      });
+    });
+  });
   it("upgrades v4 sentence character positions for Unicode ranges", async () => {
     await withFixture(async ({ archive, root }) => {
       await new WikiGraphArchiveFile(archive).write(async (document) => {

@@ -66,6 +66,7 @@ import {
   writeWikgArchiveWithOverlays,
 } from "../storage/wikg/index.js";
 import { acquireWikiGraphLibraryLock } from "./lock.js";
+import { upgradeWikiGraphLibrarySchema } from "../maintenance/upgrade.js";
 import { listWikiGraphLibrarySearchIndex } from "./search-index.js";
 import {
   getNodeResourcePath,
@@ -753,6 +754,46 @@ describe("library archive membership", () => {
       expect(result?.textHits).toContainEqual(
         expect.objectContaining({ libraryArchiveUri: added.uri }),
       );
+    });
+  });
+
+  it("preserves dense artifacts across explicit ZIP storage migration", async () => {
+    await withLibraryTestState(async (tempDir) => {
+      const target = parseWikiGraphLibraryUri("wikg://lib")!;
+      const library = await ensureDefaultWikiGraphLibrary();
+      const source = join(tempDir, "dense-original.zip");
+      const provider = createLibraryTestEmbeddingProvider();
+      await createSearchableArchiveWithoutSearchIndex(
+        tempDir,
+        source,
+        provider,
+      );
+      const added = await addWikiGraphLibraryArchive({
+        inputFile: new NodeFile(source),
+        target,
+        to: "dense.wikg",
+      });
+      const path = join(getNodeResourcePath(library.folder), "dense.wikg");
+      await rm(path, { recursive: true });
+      await cp(source, path);
+      await expect(
+        upgradeWikiGraphLibrarySchema(target),
+      ).resolves.toMatchObject({
+        migrated: [{ publicId: added.publicId }],
+        status: "upgraded",
+      });
+      await rebuildWikiGraphLibraryIndex(target);
+      const result = await queryWikiGraphLibrarySearchIndex(
+        target,
+        "semantic lookup",
+        { queryMode: "embedding", embeddingProvider: provider },
+      );
+      expect(result?.textHits).toContainEqual(
+        expect.objectContaining({ libraryArchiveUri: added.uri }),
+      );
+      await expect(
+        upgradeWikiGraphLibrarySchema(target),
+      ).resolves.toMatchObject({ migrated: [], status: "already-current" });
     });
   });
 
