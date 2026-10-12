@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.9.0
+
+- Store Library-managed archives as directories while keeping standalone `.wikg` archives as ZIP files for distribution.
+- Resolve managed and standalone archive storage transparently through the existing CLI and SDK access paths.
+- Coordinate managed archive writes with transactional Library membership updates and recovery.
+- Migrate registered ZIP members through `wg maintenance upgrade wikg://lib`, including members whose database schema is already current.
+- Report storage migrations separately from schema upgrades and return a nonzero CLI exit status for partial upgrades.
+
+### Migration from 0.8.4
+
+Back up your Library before running `wg maintenance upgrade wikg://lib`, then
+refresh its aggregate index with `wg wikg://lib/index sync`. Upgrading the Home
+schema alone does not convert Library members. Home schema v4 and archive schema
+v5 remain unchanged; this release migrates managed archive storage.
+
+Version 0.8.4 cannot open managed directory archives. To roll back, restore the
+backup. Standalone `.wikg` archives remain ZIP files for interchange. See
+[the schema upgrade guide](docs/schema-upgrade.md) for migration details.
+
 ## 0.8.4
 
 - Preserve nested PCEX `toc.xml` hierarchy when converting source documents to WIKG chapters.
