@@ -21,6 +21,9 @@ Notes:
   - Standalone .wikg, home, and library targets are upgraded in place and do not support --output.
   - Library archive member URIs such as wikg://lib/arc/<archive-id>/ are not standalone upgrade targets; upgrade the whole library.
   - Library upgrade covers the registry and managed archive members for that library.
+  - Registered ZIP members are transactionally converted to directories, even when their SQL schema is already current. Unregistered files are not imported.
+  - Results separately report schema upgrades, storage migrations, and unavailable members. Repeating a completed upgrade is safe.
+  - Directory-backed members require the new CLI/SDK; 0.8.4 cannot open them. Export standalone ZIP archives for distribution or retain a backup before upgrading.
 
 Examples:
   {{ commandName }} maintenance upgrade home

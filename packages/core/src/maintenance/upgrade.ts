@@ -1,11 +1,14 @@
 import {
   listWikiGraphLibraryArchives,
   resolveWikiGraphLibrary,
+  migrateLibraryArchiveFileToDirectory,
+  markWikiGraphLibraryIndexDirty,
   withWikiGraphLibraryLock,
   type ParsedWikiGraphLibraryUri,
   type WikiGraphLibraryArchiveRecord,
   type WikiGraphLibraryRecord,
 } from "../library/index.js";
+import { recoverLibraryMembershipTransactions } from "../library/membership-transaction.js";
 import type { Directory, File } from "../runtime/platform/index.js";
 import {
   CURRENT_ARCHIVE_SCHEMA_VERSION,
@@ -48,6 +51,12 @@ export interface WikiGraphLibraryUpgradeResult {
   };
   readonly upgraded: readonly WikiGraphLibraryArchiveUpgradeItem[];
   readonly skipped: readonly WikiGraphLibraryArchiveUpgradeItem[];
+  readonly migrated: readonly WikiGraphLibraryArchiveUpgradeItem[];
+  readonly unavailable: readonly {
+    readonly uri: string;
+    readonly relativePath: string;
+    readonly status: string;
+  }[];
   readonly failed?: WikiGraphLibraryArchiveFailure | undefined;
   readonly status: "already-current" | "partial" | "upgraded";
 }
@@ -136,23 +145,37 @@ export async function upgradeWikiGraphLibrarySchema(
   await ensureWikiGraphHomeSchemaCurrent();
   const library = await resolveWikiGraphLibrary(target);
   return await withWikiGraphLibraryLock(library.id, "write", async () => {
-    await clearLibraryDerivedData(library);
-    const archives = (
-      await listWikiGraphLibraryArchives({
-        isDefault: library.isDefault,
-        kind: "scope",
-        ...(library.isDefault ? {} : { publicId: library.publicId }),
-      })
-    ).filter(isUpgradeableLibraryArchive);
+    // Recovery must precede enumeration and cache invalidation: staging also
+    // contains backups of uncommitted membership mutations.
+    await recoverLibraryMembershipTransactions(library.folder, library.staging);
+    await markWikiGraphLibraryIndexDirty(library);
+    const members = await listWikiGraphLibraryArchives({
+      isDefault: library.isDefault,
+      kind: "scope",
+      ...(library.isDefault ? {} : { publicId: library.publicId }),
+    });
+    const archives = members.filter(isUpgradeableLibraryArchive);
+    const unavailable = members
+      .filter((archive) => !isUpgradeableLibraryArchive(archive))
+      .map(({ uri, relativePath, status }) => ({ uri, relativePath, status }));
+    const migrated: WikiGraphLibraryArchiveUpgradeItem[] = [];
     const upgraded: WikiGraphLibraryArchiveUpgradeItem[] = [];
     const skipped: WikiGraphLibraryArchiveUpgradeItem[] = [];
 
     for (const archive of archives) {
-      const storage = requireArchiveStorage(archive);
-      const schemaVersionBefore =
-        await readWikiGraphArchiveSchemaVersion(storage);
+      let storage = requireArchiveStorage(archive);
       try {
+        const schemaVersionBefore =
+          await readWikiGraphArchiveSchemaVersion(storage);
         const result = await upgradeWikiGraphArchiveSchema(storage);
+        const storageChanged = storage.kind === "file";
+        if (storage.kind === "file") {
+          storage = await migrateLibraryArchiveFileToDirectory(
+            library,
+            archive.relativePath,
+            storage,
+          );
+        }
         const item = {
           fileIdentity: storage.identity,
           publicId: archive.publicId,
@@ -162,6 +185,7 @@ export async function upgradeWikiGraphLibrarySchema(
           uri: archive.uri,
         };
         (result.changed ? upgraded : skipped).push(item);
+        if (storageChanged) migrated.push(item);
       } catch (error) {
         return {
           failed: {
@@ -174,6 +198,8 @@ export async function upgradeWikiGraphLibrarySchema(
           kind: "lib",
           library: formatLibraryResult(library),
           skipped,
+          migrated,
+          unavailable,
           status: "partial",
           upgraded,
         };
@@ -184,7 +210,14 @@ export async function upgradeWikiGraphLibrarySchema(
       kind: "lib",
       library: formatLibraryResult(library),
       skipped,
-      status: upgraded.length === 0 ? "already-current" : "upgraded",
+      migrated,
+      unavailable,
+      status:
+        unavailable.length > 0
+          ? "partial"
+          : upgraded.length + migrated.length === 0
+            ? "already-current"
+            : "upgraded",
       upgraded,
     };
   });
@@ -208,14 +241,6 @@ function requireArchiveStorage(
     throw new Error(`Library archive is unavailable: ${archive.uri}`);
   }
   return storage;
-}
-
-async function clearLibraryDerivedData(
-  library: WikiGraphLibraryRecord,
-): Promise<void> {
-  for (const entry of await library.staging.list()) {
-    await library.staging.remove(entry.name, { recursive: true });
-  }
 }
 
 function formatLibraryResult(library: WikiGraphLibraryRecord) {

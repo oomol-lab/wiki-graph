@@ -5,7 +5,7 @@ import type {
 
 import type { CLIMaintenanceArguments } from "../args/index.js";
 import { isWikiGraphHomeTarget } from "../runtime/home-target.js";
-import { getWikiGraphSDK } from "../runtime/context.js";
+import { getWikiGraphSDK, setCLIExitCode } from "../runtime/context.js";
 import { formatCLIJSON, writeTextToStdout } from "../support/index.js";
 
 export async function runMaintenanceCommand(
@@ -26,6 +26,9 @@ export async function runMaintenanceCommand(
           ? formatCLIJSON(result)
           : formatMaintenanceUpgradeResult(result),
       );
+      if (result.kind === "lib" && result.status === "partial") {
+        setCLIExitCode(1);
+      }
       return;
     }
   }
@@ -44,7 +47,12 @@ function formatMaintenanceUpgradeResult(
         `Library ${result.status}: ${result.library.uri}`,
         `upgraded: ${result.upgraded.length}`,
         `already current: ${result.skipped.length}`,
+        `storage migrated: ${result.migrated.length}`,
+        `unavailable: ${result.unavailable.length}`,
       ];
+      for (const archive of result.unavailable) {
+        lines.push(`unavailable: ${archive.uri} (${archive.status})`);
+      }
       if (result.failed !== undefined) {
         lines.push(`failed: ${result.failed.uri} (${result.failed.message})`);
       }

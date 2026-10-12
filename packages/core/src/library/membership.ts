@@ -1202,11 +1202,12 @@ async function ensureLibraryManagedArchiveAndInspect(
   return await inspectLibraryArchiveFile(library.folder, relativePath);
 }
 
-async function migrateLibraryArchiveFileToDirectory(
+/** Caller must hold the library write lock and recover membership transactions first. */
+export async function migrateLibraryArchiveFileToDirectory(
   library: WikiGraphLibraryRecord,
   relativePath: string,
   file: File,
-): Promise<void> {
+): Promise<Directory> {
   await withArchiveMembershipMutationLock(
     file,
     "Migrating this library archive",
@@ -1237,6 +1238,7 @@ async function migrateLibraryArchiveFileToDirectory(
       }
     },
   );
+  return await ensureRelativeDirectory(library.folder, relativePath);
 }
 
 async function assertMigratableDirectoryArchive(
