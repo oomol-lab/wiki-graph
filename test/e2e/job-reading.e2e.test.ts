@@ -117,6 +117,20 @@ describe("packed CLI Reading Graph and Summary jobs", () => {
       ]);
       expect(related.objects.map((item) => item.uri)).toContain(towel!.uri);
 
+      const unsynced = await sandbox.run([
+        `${sandbox.archiveUri}/chunk`,
+        "--query",
+        "towel",
+        "--json",
+      ]);
+      expect(unsynced.exitCode).not.toBe(0);
+      expect(unsynced.stdout).toContain("index sync");
+      const sync = await sandbox.run([
+        `${sandbox.archiveUri}/index`,
+        "sync",
+        "--jsonl",
+      ]);
+      assertSucceeded(["index", "sync"], sync);
       const query = await sandbox.runJSON<{
         readonly objects: readonly { readonly uri: string }[];
       }>([`${sandbox.archiveUri}/chunk`, "--query", "towel", "--json"]);

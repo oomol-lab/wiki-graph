@@ -40,6 +40,20 @@ describe("packed CLI FTS job", () => {
     expect(events.map((event) => event.type)).toContain("started");
     expect(events.map((event) => event.type)).toContain("succeeded");
 
+    const unsynced = await sandbox.run([
+      sandbox.archiveUri,
+      "--query",
+      "observatory",
+      "--json",
+    ]);
+    expect(unsynced.exitCode).not.toBe(0);
+    expect(unsynced.stdout).toContain("index sync");
+    const sync = await sandbox.run([
+      `${sandbox.archiveUri}/index`,
+      "sync",
+      "--jsonl",
+    ]);
+    assertSucceeded(["index", "sync"], sync);
     const search = await sandbox.runJSON<{
       readonly objects: readonly {
         readonly text?: string;
@@ -92,6 +106,20 @@ describe("packed CLI FTS job", () => {
       "--json",
     ]);
     expect(cleaned.status).not.toBe("ready");
+    const afterClean = await sandbox.run([
+      sandbox.archiveUri,
+      "--query",
+      "observatory",
+      "--json",
+    ]);
+    expect(afterClean.exitCode).not.toBe(0);
+    expect(afterClean.stdout).toContain("index sync");
+    const resync = await sandbox.run([
+      `${sandbox.archiveUri}/index`,
+      "sync",
+      "--jsonl",
+    ]);
+    assertSucceeded(["index", "sync"], resync);
     const rebuiltSearch = await sandbox.runJSON<{
       readonly objects: readonly { readonly uri: string }[];
     }>([sandbox.archiveUri, "--query", "observatory", "--json"]);
