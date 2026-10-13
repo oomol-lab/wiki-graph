@@ -19,6 +19,8 @@ import {
   WikiGraphDirectoryFile,
   WikiGraphArchiveFile,
   type DirectoryDocument,
+  addChapter,
+  setChapterSource,
 } from "wiki-graph-core";
 import { Database } from "../../core/src/document/database.js";
 import { assertWikiGraphLibraryIndexReady } from "../../core/src/library/search-index.js";
@@ -259,31 +261,38 @@ describe("schema gate and bounded access", () => {
         target = { kind: "library", uri: member.uri };
       }
       const archive = await sdk.archives.open(target);
-      const add = async (title: string) => {
-        const chapter = await archive.addChapter({
-          title,
-          source: "A small indexed paragraph.",
-        });
+      // Batch fixture writes: scale the data, not ZIP settlements or fsyncs.
+      // All measured probes still use the public SDK and real storage backends.
+      const add = async (titles: string[]) =>
         await sdk.run(async () => {
           const write = async (document: DirectoryDocument) => {
-            await replaceChapterFtsIndexArtifact(document, chapter.chapterId);
-            await replaceChapterSourceEmbeddingIndexArtifact(
-              document,
-              chapter.chapterId,
-              provider,
-            );
+            const chapters = [];
+            for (const title of titles) {
+              const chapter = await addChapter(document, { title });
+              await setChapterSource(document, chapter.chapterId, [
+                "A small indexed paragraph.",
+              ]);
+              await replaceChapterFtsIndexArtifact(document, chapter.chapterId);
+              await replaceChapterSourceEmbeddingIndexArtifact(
+                document,
+                chapter.chapterId,
+                provider,
+              );
+              chapters.push(chapter);
+            }
+            return chapters;
           };
           if (directoryPath === undefined)
-            await new WikiGraphArchiveFile(new NodeFile(path)).write(write);
+            return await new WikiGraphArchiveFile(new NodeFile(path)).write(
+              write,
+            );
           else
-            await new WikiGraphDirectoryFile(
+            return await new WikiGraphDirectoryFile(
               new NodeDirectory(directoryPath),
             ).write(write);
         });
-        return chapter;
-      };
-      const first = await add("First");
-      await add("Second");
+      const [first] = await add(["First", "Second"]);
+      if (first === undefined) throw new Error("Missing fixture chapter");
       await archive.ensureSearchIndex();
       const scoped = await sdk.archives.open(
         target.kind === "standalone"
@@ -333,7 +342,7 @@ describe("schema gate and bounded access", () => {
         return counts;
       };
       const small = await probe();
-      for (let i = 0; i < 14; i += 1) await add(`Unrelated ${i}`);
+      await add(Array.from({ length: 14 }, (_, i) => `Unrelated ${i}`));
       await archive.ensureSearchIndex();
       const large = await probe();
       expect(large).toEqual(small);
@@ -676,9 +685,17 @@ describe("schema gate and bounded access", () => {
     expect(largerLibrary.lists).toBeLessThanOrEqual(small.lists);
     expect(largerLibrary.reads).toBeLessThanOrEqual(small.reads);
     expect(largerLibrary.queries).toBeLessThanOrEqual(small.queries);
-    for (let i = 0; i < 12; i += 1)
-      await archive.addChapter({ title: `Unrelated ${i}` });
+    await sdk.run(async () =>
+      new WikiGraphDirectoryFile(new NodeDirectory(directoryPath)).write(
+        async (document) => {
+          for (let i = 0; i < 12; i += 1)
+            await addChapter(document, { title: `Unrelated ${i}` });
+        },
+      ),
+    );
     await archive.ensureSearchIndex({ chapters: [chapter.chapterId] });
+    // The batched Core fixture write bypasses SDK membership invalidation.
+    await sdk.libraries.scan(library.uri);
     await sdk.libraries.rebuildIndex(library.uri);
     const largerChapterCount = await probe();
     expect(largerChapterCount.lists).toBeLessThanOrEqual(small.lists);
