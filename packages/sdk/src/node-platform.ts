@@ -462,90 +462,252 @@ async function openNodeZip(file: ReadonlyFile): Promise<HostZipReader> {
   if (path === undefined) {
     throw new TypeError("The Node ZIP adapter requires a NodeFile");
   }
-  const zipFile = await new Promise<yauzl.ZipFile>((resolve, reject) => {
-    yauzl.open(
-      path,
-      { autoClose: false, lazyEntries: true },
-      (error, opened) => {
-        if (error || opened === undefined)
-          reject(error ?? new Error("Cannot open ZIP"));
-        else resolve(opened);
-      },
-    );
-  });
-
-  const entries = await new Promise<Map<string, yauzl.Entry>>(
-    (resolve, reject) => {
-      const discovered = new Map<string, yauzl.Entry>();
-      const rejectAndClose = (error: unknown) => {
-        zipFile.close();
-        reject(
-          error instanceof Error
-            ? error
-            : new Error("Cannot scan ZIP central directory"),
-        );
-      };
-      const resolveEntries = () => {
-        zipFile.off("error", rejectAndClose);
-        resolve(discovered);
-      };
-      zipFile.on("entry", (entry: yauzl.Entry) => {
-        if (!entry.fileName.endsWith("/")) {
-          discovered.set(entry.fileName, entry);
-        }
-        zipFile.readEntry();
-      });
-      zipFile.once("error", rejectAndClose);
-      zipFile.once("end", resolveEntries);
-      zipFile.readEntry();
-    },
-  );
-
-  // Keep raw names for EPUB/PCEX listing, and normalized aliases for direct
-  // WIKG entry lookup. Both maps live only for this reader's lifetime.
-  const aliases = new Map<string, yauzl.Entry>();
-  for (const [name, entry] of entries) {
-    const normalized = name
-      .replaceAll("\\", "/")
-      .trim()
-      .split("/")
-      .filter((part) => part !== "" && part !== ".")
-      .join("/");
-    if (!normalized.split("/").includes("..")) aliases.set(normalized, entry);
+  const handle = await fsPromises.open(path, "r");
+  let size: number;
+  try {
+    size = (await handle.stat()).size;
+  } catch (error) {
+    await handle.close();
+    throw error;
   }
-  const findEntry = (name: string) => entries.get(name) ?? aliases.get(name);
+  const open = () =>
+    new Promise<yauzl.ZipFile>((resolve, reject) => {
+      yauzl.fromRandomAccessReader(
+        new NodeZipSource(handle),
+        size,
+        { autoClose: false, lazyEntries: true },
+        (error, opened) => {
+          if (error || opened === undefined)
+            reject(error ?? new Error("Cannot open ZIP"));
+          else resolve(opened);
+        },
+      );
+    });
+  // Validate the ZIP envelope without enumerating its entries. Keep the same
+  // file descriptor across lookups, even if the path is replaced meanwhile.
+  try {
+    (await open()).close();
+  } catch (error) {
+    await handle.close();
+    throw error;
+  }
   let closed = false;
+  let pending: Promise<unknown> = Promise.resolve();
+  let closing: Promise<void> | undefined;
+  const run = <T>(
+    operation: (zip: yauzl.ZipFile) => Promise<T>,
+  ): Promise<T> => {
+    if (closed)
+      return Promise.reject(new Error("Cannot read a closed ZIP archive"));
+    const result = pending.then(async () => {
+      const zip = await open();
+      try {
+        return await operation(zip);
+      } finally {
+        zip.close();
+      }
+    });
+    pending = result.then(
+      () => undefined,
+      () => undefined,
+    );
+    return result;
+  };
+  const withEntry = <T>(
+    name: string,
+    operation: (
+      zip: yauzl.ZipFile,
+      entry: yauzl.Entry | undefined,
+    ) => Promise<T>,
+  ) =>
+    run(async (zip) => {
+      let exact: yauzl.Entry | undefined;
+      let alias: yauzl.Entry | undefined;
+      let aliasCollision = false;
+      // Retain only matches, not a directory index. Scan through the end so
+      // duplicate raw names keep their existing last-entry-wins behavior.
+      await scanNodeZip(zip, (entry) => {
+        if (entry.fileName === name) exact = entry;
+        if (normalizeNodeZipName(entry.fileName) === name) {
+          if (alias !== undefined && alias.fileName !== entry.fileName)
+            aliasCollision = true;
+          alias = entry;
+        }
+      });
+      if (exact === undefined && aliasCollision) {
+        // The former Map ordered aliases by the first occurrence of each raw
+        // name, but used its last duplicate's contents. Resolve this uncommon
+        // ambiguity with rescans instead of retaining a set of all raw names.
+        let bestPosition = -1;
+        const candidates = await open();
+        try {
+          await scanNodeZip(candidates, async (entry) => {
+            if (normalizeNodeZipName(entry.fileName) !== name) return;
+            const probe = await open();
+            let position = 0;
+            try {
+              await scanNodeZip(probe, (candidate) => {
+                if (candidate.fileName === entry.fileName) return false;
+                position++;
+              });
+            } finally {
+              probe.close();
+            }
+            if (position >= bestPosition) {
+              bestPosition = position;
+              alias = entry;
+            }
+          });
+          return await operation(candidates, alias);
+        } finally {
+          candidates.close();
+        }
+      }
+      return await operation(zip, exact ?? alias);
+    });
   return {
     close: () => {
-      if (!closed) zipFile.close();
       closed = true;
-      return Promise.resolve();
+      closing ??= pending.then(() => handle.close());
+      return closing;
     },
-    copyEntry: async (name, target) => {
-      if (closed) throw new Error("Cannot read a closed ZIP archive");
-      const entry = findEntry(name);
-      if (entry === undefined) return false;
-      await copyNodeZipEntry(zipFile, entry, target);
-      return true;
-    },
-    getEntrySize: (name) => {
-      if (closed) throw new Error("Cannot read a closed ZIP archive");
-      return Promise.resolve(findEntry(name)?.uncompressedSize);
-    },
-    listEntries: () => Promise.resolve([...entries.keys()]),
-    readEntryRange: async (name, offset, length) => {
-      if (closed) throw new Error("Cannot read a closed ZIP archive");
-      const entry = findEntry(name);
-      if (entry === undefined) return undefined;
-      return await readNodeZipEntryRange(zipFile, entry, offset, length);
-    },
-    readEntry: async (name) => {
-      if (closed) throw new Error("Cannot read a closed ZIP archive");
-      const entry = findEntry(name);
-      if (entry === undefined) return undefined;
-      return await readNodeZipEntry(zipFile, entry);
-    },
+    copyEntry: (name, target) =>
+      withEntry(name, async (zip, entry) => {
+        if (entry === undefined) return false;
+        await copyNodeZipEntry(zip, entry, target);
+        return true;
+      }),
+    getEntrySize: (name) =>
+      withEntry(name, (_zip, entry) =>
+        Promise.resolve(entry?.uncompressedSize),
+      ),
+    listEntries: () =>
+      run(async (zip) => {
+        const names = new Set<string>();
+        await scanNodeZip(zip, (entry) => {
+          names.add(entry.fileName);
+        });
+        return [...names];
+      }),
+    readEntryRange: (name, offset, length) =>
+      withEntry(name, async (zip, entry) => {
+        if (entry === undefined) return undefined;
+        return await readNodeZipEntryRange(zip, entry, offset, length);
+      }),
+    readEntry: (name) =>
+      withEntry(name, async (zip, entry) => {
+        if (entry === undefined) return undefined;
+        return await readNodeZipEntry(zip, entry);
+      }),
   };
+}
+
+/** yauzl owns ZIP parsing; this source only provides positioned file reads. */
+class NodeZipSource extends yauzl.RandomAccessReader {
+  public constructor(private readonly handle: fsPromises.FileHandle) {
+    super();
+  }
+  public override read(
+    buffer: Buffer,
+    offset: number,
+    length: number,
+    position: number,
+    callback: (error: Error | null) => void,
+  ): void {
+    // Central-directory reads are small. Avoid creating a stream pipeline for
+    // each header; yauzl still owns parsing and requests the exact byte range.
+    const read = (written: number): void => {
+      if (written === length) {
+        callback(null);
+        return;
+      }
+      fs.read(
+        this.handle.fd,
+        buffer,
+        offset + written,
+        length - written,
+        position + written,
+        (error, bytesRead) => {
+          if (error) callback(error);
+          else if (bytesRead === 0)
+            callback(new Error("Unexpected end of ZIP file"));
+          else read(written + bytesRead);
+        },
+      );
+    };
+    read(0);
+  }
+  public override _readStreamForRange(start: number, end: number): Readable {
+    const handle = this.handle;
+    return Readable.from(
+      (async function* () {
+        for (let position = start; position < end; ) {
+          const buffer = Buffer.allocUnsafe(
+            Math.min(64 * 1024, end - position),
+          );
+          const { bytesRead } = await handle.read(
+            buffer,
+            0,
+            buffer.length,
+            position,
+          );
+          if (bytesRead === 0) return;
+          position += bytesRead;
+          yield buffer.subarray(0, bytesRead);
+        }
+      })(),
+    );
+  }
+}
+
+function normalizeNodeZipName(name: string): string | undefined {
+  const normalized = name
+    .replaceAll("\\", "/")
+    .trim()
+    .split("/")
+    .filter((part) => part !== "" && part !== ".")
+    .join("/");
+  return normalized.split("/").includes("..") ? undefined : normalized;
+}
+
+async function scanNodeZip(
+  zip: yauzl.ZipFile,
+  visit: (entry: yauzl.Entry) => void | boolean | Promise<void | boolean>,
+): Promise<void> {
+  await new Promise<void>((resolve, reject) => {
+    const cleanup = () => {
+      zip.off("entry", onEntry);
+      zip.off("end", onEnd);
+      zip.off("error", onError);
+    };
+    const onError = (error: Error) => {
+      cleanup();
+      reject(error);
+    };
+    const onEnd = () => {
+      cleanup();
+      resolve();
+    };
+    const onEntry = (entry: yauzl.Entry) => {
+      void Promise.resolve()
+        .then(() => (entry.fileName.endsWith("/") ? undefined : visit(entry)))
+        .then((keepReading) => {
+          if (keepReading === false) onEnd();
+          else zip.readEntry();
+        })
+        .catch((error: unknown) =>
+          onError(
+            error instanceof Error
+              ? error
+              : new Error("Cannot scan ZIP", { cause: error }),
+          ),
+        );
+    };
+    zip.on("entry", onEntry);
+    zip.once("end", onEnd);
+    zip.once("error", onError);
+    zip.readEntry();
+  });
 }
 
 async function copyNodeZipEntry(

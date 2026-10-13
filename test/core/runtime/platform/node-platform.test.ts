@@ -1,4 +1,5 @@
-import { access } from "fs/promises";
+import { access, rename } from "fs/promises";
+import * as yauzl from "yauzl";
 import { join } from "path";
 import { describe, expect, it, vi } from "vitest";
 
@@ -355,6 +356,63 @@ describe("Node File/Directory adapter", () => {
         ["a.txt", "alpha"],
         ["nested/b.txt", "beta"],
       ]);
+    });
+  });
+
+  it("opens ZIPs without scanning and supports repeated lookups, duplicates and queued close", async () => {
+    await withTempDir("wikigraph-zip-lookup-", async (path) => {
+      const file = new NodeFile(join(path, "lookup.zip"));
+      const encode = (text: string) => new TextEncoder().encode(text);
+      await nodeWikiGraphPlatform.zip.write(file, [
+        { name: "a.txt", data: encode("old") },
+        { name: "./a.txt", data: encode("alias") },
+        { name: "a.txt", data: encode("latest") },
+        { name: "./nested//b.txt", data: encode("beta") },
+        { name: "./collision.txt", data: encode("first alias") },
+        { name: ".//collision.txt", data: encode("second alias") },
+        { name: "./collision.txt", data: encode("duplicate first alias") },
+      ]);
+      const scan = vi.spyOn(yauzl.ZipFile.prototype, "readEntry");
+      const reader = await nodeWikiGraphPlatform.zip.open(file);
+      try {
+        expect(scan).not.toHaveBeenCalled();
+        expect(new TextDecoder().decode(await reader.readEntry("a.txt"))).toBe(
+          "latest",
+        );
+        expect(
+          new TextDecoder().decode(await reader.readEntry("nested/b.txt")),
+        ).toBe("beta");
+        expect(
+          new TextDecoder().decode(await reader.readEntry("collision.txt")),
+        ).toBe("second alias");
+        await expect(reader.listEntries()).resolves.toEqual([
+          "a.txt",
+          "./a.txt",
+          "./nested//b.txt",
+          "./collision.txt",
+          ".//collision.txt",
+        ]);
+        const replacement = new NodeFile(join(path, "replacement.zip"));
+        await nodeWikiGraphPlatform.zip.write(replacement, [
+          { name: "a.txt", data: encode("replacement") },
+        ]);
+        await rename(join(path, "replacement.zip"), join(path, "lookup.zip"));
+        const reads = Promise.all([
+          reader.readEntry("a.txt"),
+          reader.readEntryRange("nested/b.txt", 1, 2),
+          reader.getEntrySize("missing"),
+        ]);
+        const closing = reader.close();
+        const results = await reads;
+        expect(new TextDecoder().decode(results[0])).toBe("latest");
+        expect(new TextDecoder().decode(results[1])).toBe("et");
+        expect(results[2]).toBeUndefined();
+        await closing;
+        await expect(reader.listEntries()).rejects.toThrow("closed ZIP");
+      } finally {
+        scan.mockRestore();
+        await reader.close();
+      }
     });
   });
 
