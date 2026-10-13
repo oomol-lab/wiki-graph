@@ -68,6 +68,161 @@ async function setHomeVersion(stateDir: string, version: number) {
 
 describe("schema gate and bounded access", () => {
   it.each(["directory", "zip"] as const)(
+    "%s partial sync preserves parent/child URI scope for strict, skip and depth",
+    async (backend) => {
+      const { root, sdk } = await fixture();
+      const path = join(root, "partial-tree.wikg");
+      await sdk.archives.create({ path });
+      let target: Parameters<typeof sdk.archives.open>[0] = {
+        kind: "standalone",
+        path,
+      };
+      let directoryPath: string | undefined;
+      if (backend === "directory") {
+        const library = await sdk.libraries.create(join(root, "managed"));
+        const member = await sdk.libraries.addArchive({
+          target: library.uri,
+          inputPath: path,
+        });
+        const record = await sdk.libraries.getArchive(member.uri);
+        directoryPath = join(root, "managed", record.relativePath);
+        target = { kind: "library", uri: member.uri };
+      }
+      const archive = await sdk.archives.open(target);
+      const parent = await archive.addChapter({
+        title: "Parent",
+        source: "Needle parent.",
+      });
+      const child = await archive.addChapter({
+        parentPath: parent.path,
+        title: "Child",
+        source: "Needle child.",
+      });
+      const scoped = async (uri: string) =>
+        await sdk.archives.open(
+          target.kind === "standalone"
+            ? { ...target, objectUri: uri }
+            : {
+                ...target,
+                uri: `${target.uri}/${uri.slice("wikg://".length)}`,
+              },
+        );
+      const parentArchive = await scoped(parent.uri);
+      const childArchive = await scoped(child.uri);
+      const artifact = async (chapterId: number) =>
+        await sdk.run(async () => {
+          const write = async (document: DirectoryDocument) => {
+            await replaceChapterFtsIndexArtifact(document, chapterId);
+          };
+          if (directoryPath === undefined)
+            await new WikiGraphArchiveFile(new NodeFile(path)).write(write);
+          else
+            await new WikiGraphDirectoryFile(
+              new NodeDirectory(directoryPath),
+            ).write(write);
+        });
+      await artifact(parent.chapterId);
+      await archive.ensureSearchIndex({ chapters: [parent.chapterId] });
+      const queryAll = vi.spyOn(Database.prototype, "queryAll");
+      const queryOne = vi.spyOn(Database.prototype, "queryOne");
+      const probe = async (projected: number) => {
+        const counts: number[] = [];
+        for (const handle of [parentArchive, childArchive]) {
+          for (const depth of [undefined, 0, 1]) {
+            for (const skipUnindexed of [false, true]) {
+              const ids =
+                handle === parentArchive && depth !== 0
+                  ? [parent.chapterId, child.chapterId]
+                  : [
+                      handle === parentArchive
+                        ? parent.chapterId
+                        : child.chapterId,
+                    ];
+              const blocked = skipUnindexed
+                ? !ids.includes(projected)
+                : ids.some((id) => id !== projected);
+              queryAll.mockClear();
+              queryOne.mockClear();
+              const search = handle.search("absentuniqueterm", {
+                queryMode: "fts",
+                skipUnindexed,
+                ...(depth === undefined ? {} : { depth }),
+              });
+              if (blocked)
+                await expect(search).rejects.toThrow(
+                  /missing or dirty|not ready/u,
+                );
+              else expect([...(await search)]).toHaveLength(0);
+              const results = await Promise.all(
+                queryAll.mock.results.map(
+                  (result) => result.value as Promise<unknown[]>,
+                ),
+              );
+              counts.push(results.reduce((sum, rows) => sum + rows.length, 0));
+              expect(
+                queryAll.mock.calls.some(([sql]) =>
+                  /FROM serials|FROM index_artifacts/u.test(sql),
+                ),
+              ).toBe(false);
+              expect(
+                queryOne.mock.calls.some(([sql]) =>
+                  /serial_states[\s\S]*serial_id/u.test(sql),
+                ),
+              ).toBe(false);
+            }
+          }
+        }
+        return counts;
+      };
+      const parentOnly = await probe(parent.chapterId);
+      await expect(
+        parentArchive.search("Needle", {
+          queryMode: "fts",
+          depth: 0,
+          types: ["source"],
+        }),
+      ).resolves.toMatchObject({
+        items: [expect.objectContaining({ chapter: parent.chapterId })],
+      });
+      await expect(
+        archive.search("Needle", {
+          queryMode: "fts",
+          chapters: [parent.chapterId, child.chapterId],
+        }),
+      ).rejects.toThrow("missing or dirty");
+      for (let i = 0; i < 12; i += 1)
+        await archive.addChapter({ title: `Unrelated ${i}` });
+      await archive.ensureSearchIndex({ chapters: [parent.chapterId] });
+      expect(await probe(parent.chapterId)).toEqual(parentOnly);
+
+      await artifact(child.chapterId);
+      await archive.ensureSearchIndex({ chapters: [child.chapterId] });
+      await probe(child.chapterId);
+      // The unprojected parent still exists and its real subtree includes Child.
+      await expect(
+        parentArchive.search("Needle", {
+          queryMode: "fts",
+          skipUnindexed: true,
+          types: ["source"],
+        }),
+      ).resolves.toMatchObject({
+        items: [expect.objectContaining({ chapter: child.chapterId })],
+      });
+      await archive.ensureSearchIndex({
+        chapters: [parent.chapterId, child.chapterId],
+      });
+      const both = await parentArchive.search("Needle", {
+        queryMode: "fts",
+        types: ["source"],
+      });
+      expect([...both].map((item) => item.chapter).sort()).toEqual(
+        [parent.chapterId, child.chapterId].sort(),
+      );
+      sdk.close();
+    },
+  );
+
+  it.each(["directory", "zip"] as const)(
     "%s unscoped and chapter-URI search preflight returns bounded SQL rows",
     async (backend) => {
       const { root, sdk } = await fixture();

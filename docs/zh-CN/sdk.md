@@ -90,7 +90,9 @@ Error 方法和 stack。文件缺失、损坏、权限和数据库 I/O 错误不
 
 Archive 查询预检读取与同步 revision 绑定的覆盖度摘要。无范围查询不枚举章节；
 chapter URI 查询使用同步时生成的路径索引，`skipUnindexed` 在结果 SQL 内筛选
-可查询章节。缺少这些摘要的旧派生缓存需要显式 index sync。
+可查询章节。部分 sync 仍保存完整章节拓扑，单独标记已投影和可查询的章节：strict
+检查 URI 指向的真实子树，`skipUnindexed` 只筛选查询资格。缺少摘要或完整拓扑标记
+的旧派生缓存需要显式 index sync。
 
 ## 持久化任务
 

@@ -31,6 +31,7 @@ import { readArchiveTitle } from "./helper/meta.js";
 
 const SEARCH_INDEX_REBUILD_ATTEMPTS = 2;
 const ARCHIVE_INDEX_BATCH_RECORDS = 512;
+const ARCHIVE_QUERY_TOPOLOGY_VERSION = "2";
 
 export interface ArchiveSearchIndexScopeOptions {
   readonly chapters?: readonly number[];
@@ -126,7 +127,7 @@ export async function resolveIndexedArchiveChapterScope(
   path: string | undefined,
   depth: number | undefined,
 ): Promise<readonly number[]> {
-  if ((await readSearchIndexStatus(document)) !== "current")
+  if (!(await isArchiveSearchIndexCurrent(document, { skipUnindexed: true })))
     throw new ArchiveQueryNotReadyError(
       "Archive search index is missing or dirty. Run index sync.",
     );
@@ -224,6 +225,12 @@ export async function readArchiveSearchIndexStatus(
       (row) => String(row.value),
     );
     if (coverage === undefined) return "dirty";
+    const topologyVersion = await database.queryOne(
+      "SELECT value FROM search_index_state WHERE key = 'archiveTopologyVersion'",
+      undefined,
+      (row) => String(row.value),
+    );
+    if (topologyVersion !== ARCHIVE_QUERY_TOPOLOGY_VERSION) return "dirty";
     const scope = await database.queryOne(
       "SELECT value FROM search_index_state WHERE key = 'chaptersScope'",
       undefined,
@@ -236,7 +243,7 @@ export async function readArchiveSearchIndexStatus(
     const ids = [...new Set(options.chapters)];
     if (ids.length === 0) return "current";
     const count = await database.queryOne(
-      `SELECT COUNT(*) AS count FROM archive_query_chapters WHERE chapter_id IN (${ids.map(() => "?").join(",")})`,
+      `SELECT COUNT(*) AS count FROM archive_query_chapters WHERE projected = 1 AND chapter_id IN (${ids.map(() => "?").join(",")})`,
       ids,
       (row) => Number(row.count),
     );
@@ -455,9 +462,9 @@ export async function writeArchiveIndexProjectionFromArtifacts(
   const embeddingById = new Map(
     sourceCoverage.map((record) => [record.serialId, record.current]),
   );
-  const indexedChapters = (await listChapters(document)).filter((chapter) =>
-    chapterIds.has(chapter.chapterId),
-  );
+  // Topology represents the whole archive even when only some chapters are
+  // projected. Query eligibility must never redefine a URI's real subtree.
+  const archiveChapters = await listChapters(document);
   const hasFts =
     ftsCoverage.some(
       (artifact) => chapterIds.has(artifact.serialId) && artifact.current,
@@ -465,19 +472,23 @@ export async function writeArchiveIndexProjectionFromArtifacts(
 
   await document.writeSearchIndexDatabase(async (database) => {
     await prepareSearchIndexReplacement(database, progress);
-    await database.execute(`CREATE TABLE archive_query_chapters (chapter_id INTEGER PRIMARY KEY, path TEXT NOT NULL UNIQUE, depth INTEGER NOT NULL, fts INTEGER NOT NULL, embedding INTEGER NOT NULL, hybrid INTEGER NOT NULL);
+    await database.execute(`CREATE TABLE archive_query_chapters (chapter_id INTEGER PRIMARY KEY, path TEXT NOT NULL UNIQUE, depth INTEGER NOT NULL, projected INTEGER NOT NULL, fts INTEGER NOT NULL, embedding INTEGER NOT NULL, hybrid INTEGER NOT NULL);
       CREATE INDEX idx_archive_query_chapters_depth ON archive_query_chapters(depth, chapter_id);`);
     const coverage = { total: 0, fts: 0, embedding: 0, hybrid: 0 };
-    for (const chapter of indexedChapters) {
-      const fts = Number(ftsById.get(chapter.chapterId) === true);
-      const embedding = Number(embeddingById.get(chapter.chapterId) === true);
+    for (const chapter of archiveChapters) {
+      const projected = chapterIds.has(chapter.chapterId);
+      const fts = Number(projected && ftsById.get(chapter.chapterId) === true);
+      const embedding = Number(
+        projected && embeddingById.get(chapter.chapterId) === true,
+      );
       const hybrid = Number(fts === 1 || embedding === 1);
       await database.run(
-        "INSERT INTO archive_query_chapters VALUES (?, ?, ?, ?, ?, ?)",
+        "INSERT INTO archive_query_chapters VALUES (?, ?, ?, ?, ?, ?, ?)",
         [
           chapter.chapterId,
           chapter.path,
           chapter.depth,
+          Number(projected),
           fts,
           embedding,
           hybrid,
@@ -642,6 +653,10 @@ export async function writeArchiveIndexProjectionFromArtifacts(
     await database.run(
       "INSERT INTO search_index_state(key, value) VALUES ('archiveCoverage', ?)",
       [JSON.stringify(coverage)],
+    );
+    await database.run(
+      "INSERT INTO search_index_state(key, value) VALUES ('archiveTopologyVersion', ?)",
+      [ARCHIVE_QUERY_TOPOLOGY_VERSION],
     );
   });
 }

@@ -99,7 +99,10 @@ require scan/sync; accessed members still receive local checks.
 Archive query preflight uses coverage summaries bound to the synced revision.
 Unscoped queries do not enumerate chapters; chapter URI queries use the synced
 path index, and `skipUnindexed` filters eligible chapters inside result SQL.
-An older derived cache without these summaries requires explicit index sync.
+Partial sync still records the complete chapter topology and marks projection
+and query eligibility separately: strict queries check the real subtree, while
+`skipUnindexed` only filters eligible results. An older derived cache without
+these summaries and the complete-topology marker requires explicit index sync.
 
 ## Durable Jobs
 

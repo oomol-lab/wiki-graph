@@ -26,6 +26,44 @@ import {
 import { findArchiveObjects } from "./search/index.js";
 
 describe("archive search index state", () => {
+  it("requires explicit sync before trusting an older incomplete topology cache", async () => {
+    await withTempDocument(async (document) => {
+      await writeSourceChapters(document, ["Parent", "Child"]);
+      await replaceChapterFtsIndexArtifact(document, 1);
+      await rebuildArchiveSearchIndex(document, undefined, { chapters: [1] });
+      await document.writeSearchIndexDatabase(async (database) => {
+        await database.run(
+          "DELETE FROM search_index_state WHERE key = 'archiveTopologyVersion'",
+        );
+        await database.run(
+          "DELETE FROM archive_query_chapters WHERE chapter_id = 2",
+        );
+        await database.run(
+          "ALTER TABLE archive_query_chapters DROP COLUMN projected",
+        );
+      });
+      await expect(
+        isArchiveSearchIndexCurrent(document, { chapters: [1] }),
+      ).resolves.toBe(false);
+      await expect(
+        resolveIndexedArchiveChapterScope(document, "parent", undefined),
+      ).rejects.toThrow("missing or dirty");
+      await expect(
+        assertArchiveQueryReady(document, {
+          queryMode: "fts",
+          skipUnindexed: true,
+        }),
+      ).rejects.toThrow("missing or dirty");
+      await rebuildArchiveSearchIndex(document, undefined, { chapters: [1] });
+      await expect(
+        isArchiveSearchIndexCurrent(document, { chapters: [1] }),
+      ).resolves.toBe(true);
+      await expect(
+        resolveIndexedArchiveChapterScope(document, "child", undefined),
+      ).resolves.toEqual([2]);
+    });
+  });
+
   it("resolves indexed path descendants and depth without including sibling prefixes", async () => {
     await withTempDocument(async (document) => {
       await writeSourceChapters(document, [
