@@ -45,6 +45,9 @@ export async function findArchiveObjectsIndexed(
 > {
   if (
     !(await isArchiveSearchIndexCurrent(document, {
+      ...(options.skipUnindexed === undefined
+        ? {}
+        : { skipUnindexed: options.skipUnindexed }),
       ...(options.chapters === undefined ? {} : { chapters: options.chapters }),
     }))
   ) {
@@ -86,6 +89,9 @@ export async function queryRequiredSearchIndex(
 
   if (
     !(await isArchiveSearchIndexCurrent(document, {
+      ...(queryOptions.skipUnindexed === undefined
+        ? {}
+        : { skipUnindexed: queryOptions.skipUnindexed }),
       ...(queryOptions.chapters === undefined
         ? {}
         : { chapters: queryOptions.chapters }),

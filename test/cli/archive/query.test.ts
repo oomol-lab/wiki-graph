@@ -4,7 +4,7 @@ import {
   parseJSONLLastLine,
   resetArchiveMockState,
 } from "./mock.js";
-import { assertArchiveIndexArtifactsReady } from "wiki-graph-core";
+import { assertArchiveQueryReady } from "wiki-graph-core";
 import { runArchiveCommand } from "../../../packages/cli/src/commands/index.js";
 import {
   createContinuationCursor,
@@ -89,7 +89,7 @@ describe("cli/archive/query", () => {
   });
 
   it("gives an executable local FTS recovery command when query is not ready", async () => {
-    vi.mocked(assertArchiveIndexArtifactsReady).mockRejectedValueOnce(
+    vi.mocked(assertArchiveQueryReady).mockRejectedValueOnce(
       Object.assign(
         new Error(
           'Wiki Graph query is not ready. Chapters "Missing chapter" (wikg://chapter/chapter-2) need a current FTS artifact or source embedding artifact before query.',
@@ -131,7 +131,6 @@ describe("cli/archive/query", () => {
     );
     expect(findArchiveObjects).toHaveBeenCalledWith({}, "RAG", {
       archiveKey: "/tmp/book.wikg",
-      chapters: [1, 2],
       skipUnindexed: true,
       types: ["node"],
     });

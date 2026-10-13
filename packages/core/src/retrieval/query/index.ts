@@ -8,6 +8,8 @@ export {
   getArchiveIndex,
   grepArchiveObjects,
   assertArchiveIndexArtifactsReady,
+  assertArchiveQueryReady,
+  resolveIndexedArchiveChapterScope,
   buildArchiveIndexProjection,
   createArchiveSearchIndexFingerprint,
   clearDirtyArchiveSearchIndex,

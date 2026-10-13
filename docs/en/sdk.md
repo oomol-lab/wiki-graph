@@ -96,6 +96,11 @@ hashing. Existing search caches are also read directly under a session lock; exp
 cache writers retain transactional snapshots. Full scans and sync remain explicit. External changes outside SDK writes
 require scan/sync; accessed members still receive local checks.
 
+Archive query preflight uses coverage summaries bound to the synced revision.
+Unscoped queries do not enumerate chapters; chapter URI queries use the synced
+path index, and `skipUnindexed` filters eligible chapters inside result SQL.
+An older derived cache without these summaries requires explicit index sync.
+
 ## Durable Jobs
 
 The job manager creates and queries durable work. A `WikiGraphJob` is a handle

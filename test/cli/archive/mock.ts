@@ -525,6 +525,16 @@ vi.mock("wiki-graph-core", async (importOriginal) => {
       Promise.resolve(undefined),
     ),
     assertArchiveIndexArtifactsReady: vi.fn(() => Promise.resolve()),
+    assertArchiveQueryReady: vi.fn(() =>
+      archiveMockState.ftsCurrent
+        ? Promise.resolve()
+        : Promise.reject(
+            new Error(
+              "Archive search index is missing or dirty. Run `wg <archive-uri>/index sync` explicitly before querying.",
+            ),
+          ),
+    ),
+    resolveIndexedArchiveChapterScope: vi.fn(() => Promise.resolve([1, 2])),
     isArchiveSearchIndexCurrent: vi.fn(() =>
       Promise.resolve(archiveMockState.ftsCurrent),
     ),

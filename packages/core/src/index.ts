@@ -237,6 +237,8 @@ export type { BookMeta, ParsedSourceTextJsonl } from "./text/source/index.js";
 export {
   ArchiveQueryNotReadyError,
   assertArchiveIndexArtifactsReady,
+  assertArchiveQueryReady,
+  resolveIndexedArchiveChapterScope,
   buildArchiveIndexProjection,
   isArchiveSearchIndexCurrent,
   listArchiveQueryableChapterIds,

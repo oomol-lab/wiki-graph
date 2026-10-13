@@ -106,7 +106,6 @@ describe("cli/archive/evidence pack", () => {
     });
 
     expect(listArchiveEvidence).toHaveBeenCalledWith({}, "wikg://entity/Q1", {
-      chapters: [1, 2],
       query: "paragraph",
       skipUnindexed: true,
     });

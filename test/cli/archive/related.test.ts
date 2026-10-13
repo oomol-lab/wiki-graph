@@ -54,7 +54,6 @@ describe("cli/archive/related", () => {
       {},
       "wikg://chunk/9",
       {
-        chapters: [1, 2],
         query: "agent",
         skipUnindexed: true,
       },

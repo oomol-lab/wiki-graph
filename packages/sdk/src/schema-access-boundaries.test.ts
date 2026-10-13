@@ -14,12 +14,16 @@ import {
   installWikiGraphPlatform,
   parseWikiGraphLibraryUri,
   replaceChapterFtsIndexArtifact,
+  replaceChapterSourceEmbeddingIndexArtifact,
   assertArchiveIndexArtifactsReady,
   WikiGraphDirectoryFile,
+  WikiGraphArchiveFile,
+  type DirectoryDocument,
 } from "wiki-graph-core";
 import { Database } from "../../core/src/document/database.js";
 import { assertWikiGraphLibraryIndexReady } from "../../core/src/library/search-index.js";
 import { runWikiGraphCLICaptured } from "../../cli/src/app/runner.js";
+import * as queryRuntime from "./query-runtime.js";
 import {
   createWikiGraphSDK,
   isWikiGraphSchemaVersionError,
@@ -63,6 +67,125 @@ async function setHomeVersion(stateDir: string, version: number) {
 }
 
 describe("schema gate and bounded access", () => {
+  it.each(["directory", "zip"] as const)(
+    "%s unscoped and chapter-URI search preflight returns bounded SQL rows",
+    async (backend) => {
+      const { root, sdk } = await fixture();
+      const provider = {
+        dimensions: 3,
+        model: "bounded-access-test",
+        embedTexts: (texts: readonly string[]) =>
+          texts.some((text) => text.includes("absentuniqueterm"))
+            ? Promise.reject(new Error("stop after readiness"))
+            : Promise.resolve({
+                embeddings: texts.map(() => [1, 0, 0]),
+                tokens: 0,
+              }),
+      };
+      vi.spyOn(
+        queryRuntime,
+        "createConfiguredEmbeddingProvider",
+      ).mockResolvedValue(provider);
+      const path = join(root, "bounded.wikg");
+      await sdk.archives.create({ path });
+      let target: Parameters<typeof sdk.archives.open>[0] = {
+        kind: "standalone",
+        path,
+      };
+      let directoryPath: string | undefined;
+      if (backend === "directory") {
+        const library = await sdk.libraries.create(join(root, "managed"));
+        const member = await sdk.libraries.addArchive({
+          target: library.uri,
+          inputPath: path,
+        });
+        const record = await sdk.libraries.getArchive(member.uri);
+        directoryPath = join(root, "managed", record.relativePath);
+        target = { kind: "library", uri: member.uri };
+      }
+      const archive = await sdk.archives.open(target);
+      const add = async (title: string) => {
+        const chapter = await archive.addChapter({
+          title,
+          source: "A small indexed paragraph.",
+        });
+        await sdk.run(async () => {
+          const write = async (document: DirectoryDocument) => {
+            await replaceChapterFtsIndexArtifact(document, chapter.chapterId);
+            await replaceChapterSourceEmbeddingIndexArtifact(
+              document,
+              chapter.chapterId,
+              provider,
+            );
+          };
+          if (directoryPath === undefined)
+            await new WikiGraphArchiveFile(new NodeFile(path)).write(write);
+          else
+            await new WikiGraphDirectoryFile(
+              new NodeDirectory(directoryPath),
+            ).write(write);
+        });
+        return chapter;
+      };
+      const first = await add("First");
+      await add("Second");
+      await archive.ensureSearchIndex();
+      const scoped = await sdk.archives.open(
+        target.kind === "standalone"
+          ? { ...target, objectUri: first.uri }
+          : {
+              ...target,
+              uri: `${target.uri}/${first.uri.slice("wikg://".length)}`,
+            },
+      );
+      const queryAll = vi.spyOn(Database.prototype, "queryAll");
+      const queryOne = vi.spyOn(Database.prototype, "queryOne");
+      const probe = async () => {
+        const counts: number[] = [];
+        for (const handle of [archive, scoped]) {
+          for (const skipUnindexed of [false, true]) {
+            for (const queryMode of ["fts", "hybrid", "embedding"] as const) {
+              queryAll.mockClear();
+              queryOne.mockClear();
+              const search = handle.search("absentuniqueterm", {
+                queryMode,
+                skipUnindexed,
+              });
+              // Stop at the query-provider boundary, before real vector retrieval.
+              // Hybrid falls back to the lexical no-hit result on provider failure.
+              if (queryMode === "embedding")
+                await expect(search).rejects.toThrow("stop after readiness");
+              else expect([...(await search)]).toHaveLength(0);
+              const results = await Promise.all(
+                queryAll.mock.results.map(
+                  (result) => result.value as Promise<unknown[]>,
+                ),
+              );
+              counts.push(results.reduce((sum, rows) => sum + rows.length, 0));
+              expect(
+                queryAll.mock.calls.some(([sql]) =>
+                  /FROM serials|FROM index_artifacts/u.test(sql),
+                ),
+              ).toBe(false);
+              expect(
+                queryOne.mock.calls.some(([sql]) =>
+                  /serial_states[\s\S]*serial_id/u.test(sql),
+                ),
+              ).toBe(false);
+            }
+          }
+        }
+        return counts;
+      };
+      const small = await probe();
+      for (let i = 0; i < 14; i += 1) await add(`Unrelated ${i}`);
+      await archive.ensureSearchIndex();
+      const large = await probe();
+      expect(large).toEqual(small);
+      sdk.close();
+    },
+  );
+
   it("recognizes intact cross-package/serialized version errors without classifying other failures", () => {
     const error = new WikiGraphSchemaVersionError({ kind: "home" }, 4, 5);
     expect(isWikiGraphSchemaVersionError(error)).toBe(true);

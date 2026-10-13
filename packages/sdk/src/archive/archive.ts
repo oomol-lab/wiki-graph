@@ -7,7 +7,8 @@ import { Readable } from "stream";
 import {
   addChapter,
   applyChapterTree,
-  assertArchiveIndexArtifactsReady,
+  assertArchiveQueryReady,
+  resolveIndexedArchiveChapterScope,
   ensureWikiGraphArchiveSchemaCurrent,
   assertNoActiveBuildJobConflicts,
   assertNoActiveBuildJobs,
@@ -379,10 +380,6 @@ export class WikiGraphArchiveHandle {
       async (document) => {
         const chapters = await this.#resolveQueryChapters(document, options, {
           embeddingProvider,
-        });
-        await assertArchiveSearchIndexCurrent(document, {
-          ...(chapters === undefined ? {} : { chapters }),
-          ...(embeddingProvider === undefined ? {} : { embeddingProvider }),
         });
         return await findArchiveObjects(document, query, {
           ...withoutOperationAndScope(options),
@@ -920,10 +917,6 @@ export class WikiGraphArchiveHandle {
         const chapters = await this.#resolveQueryChapters(document, options, {
           embeddingProvider,
         });
-        await assertArchiveSearchIndexCurrent(document, {
-          ...(chapters === undefined ? {} : { chapters }),
-          ...(embeddingProvider === undefined ? {} : { embeddingProvider }),
-        });
         return await listRelatedArchiveObjects(document, objectUri, {
           ...withoutOperation(options),
           ...(embeddingProvider === undefined ? {} : { embeddingProvider }),
@@ -992,10 +985,6 @@ export class WikiGraphArchiveHandle {
       async (document) => {
         const chapters = await this.#resolveQueryChapters(document, options, {
           embeddingProvider,
-        });
-        await assertArchiveSearchIndexCurrent(document, {
-          ...(chapters === undefined ? {} : { chapters }),
-          ...(embeddingProvider === undefined ? {} : { embeddingProvider }),
         });
         return await listArchiveEvidence(document, objectUri, {
           ...withoutOperation(options),
@@ -1231,7 +1220,17 @@ export class WikiGraphArchiveHandle {
       readonly embeddingProvider: SearchIndexEmbeddingProvider | undefined;
     },
   ): Promise<readonly number[] | undefined> {
-    const chapters = await this.#resolveScope(document, options);
+    const parsed = parseChapterScopePath(this.objectUri);
+    const chapters =
+      options.chapters ??
+      (parsed === undefined ||
+      (parsed.kind === "collection" && options.depth === undefined)
+        ? undefined
+        : await resolveIndexedArchiveChapterScope(
+            document,
+            parsed.kind === "chapter" ? parsed.chapterPath : undefined,
+            options.depth,
+          ));
     const coverageOptions = {
       ...(chapters === undefined ? {} : { chapters }),
       ...(capabilities.embeddingProvider === undefined
@@ -1242,19 +1241,13 @@ export class WikiGraphArchiveHandle {
         ? {}
         : { queryMode: options.queryMode }),
     };
-    if (options.skipUnindexed !== true) {
-      await assertArchiveIndexArtifactsReady(document, coverageOptions);
-      return chapters;
-    }
-    const queryable = await listArchiveQueryableChapterIds(document, {
+    await assertArchiveQueryReady(document, {
       ...coverageOptions,
+      ...(options.skipUnindexed === undefined
+        ? {}
+        : { skipUnindexed: options.skipUnindexed }),
     });
-    if (queryable.length === 0) {
-      throw new Error(
-        "Wiki Graph query is not ready. No chapters in this scope have a current FTS artifact or source embedding artifact.",
-      );
-    }
-    return queryable;
+    return chapters;
   }
 
   async #resolveQueryEmbeddingProvider(
@@ -1273,19 +1266,6 @@ export class WikiGraphArchiveHandle {
     }
     return provider;
   }
-}
-
-async function assertArchiveSearchIndexCurrent(
-  document: ReadonlyDocument,
-  options: {
-    readonly chapters?: readonly number[];
-    readonly embeddingProvider?: SearchIndexEmbeddingProvider;
-  },
-): Promise<void> {
-  if (await isArchiveSearchIndexCurrent(document, options)) return;
-  throw new Error(
-    "Archive search index is missing or dirty. Run `wg <archive-uri>/index sync` explicitly before querying.",
-  );
 }
 
 async function ensureArchiveSearchIndex(

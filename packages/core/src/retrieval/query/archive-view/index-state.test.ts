@@ -17,6 +17,8 @@ import {
 } from "../../search-index/index.js";
 import {
   assertArchiveIndexArtifactsReady,
+  assertArchiveQueryReady,
+  resolveIndexedArchiveChapterScope,
   isArchiveSearchIndexCurrent,
   listArchiveQueryableChapterIds,
   rebuildArchiveSearchIndex,
@@ -24,6 +26,142 @@ import {
 import { findArchiveObjects } from "./search/index.js";
 
 describe("archive search index state", () => {
+  it("resolves indexed path descendants and depth without including sibling prefixes", async () => {
+    await withTempDocument(async (document) => {
+      await writeSourceChapters(document, [
+        "Alpha",
+        "Child",
+        "Leaf",
+        "Alpha-other",
+      ]);
+      await document.openSession(async (openedDocument) =>
+        openedDocument.replaceToc({
+          version: 1,
+          items: [
+            {
+              key: "alpha",
+              serialId: 1,
+              children: [
+                {
+                  key: "child",
+                  serialId: 2,
+                  children: [{ key: "leaf", serialId: 3, children: [] }],
+                },
+              ],
+            },
+            { key: "alpha-other", serialId: 4, children: [] },
+          ],
+        }),
+      );
+      for (const id of [1, 2, 3, 4])
+        await replaceChapterFtsIndexArtifact(document, id);
+      await rebuildArchiveSearchIndex(document);
+      await expect(
+        resolveIndexedArchiveChapterScope(document, "alpha", 0),
+      ).resolves.toEqual([1]);
+      await expect(
+        resolveIndexedArchiveChapterScope(document, "alpha", 1),
+      ).resolves.toEqual([1, 2]);
+      await expect(
+        resolveIndexedArchiveChapterScope(document, "alpha", undefined),
+      ).resolves.toEqual([1, 2, 3]);
+      await expect(
+        resolveIndexedArchiveChapterScope(document, undefined, 0),
+      ).resolves.toEqual([1, 4]);
+    });
+  });
+
+  it("uses synced coverage for strict/skip checks and provider compatibility", async () => {
+    await withTempDocument(async (document) => {
+      await writeSourceChapters(document, ["Alpha", "Beta"]);
+      const provider = createFakeEmbeddingProvider();
+      await replaceChapterFtsIndexArtifact(document, 1);
+      await replaceChapterSourceEmbeddingIndexArtifact(document, 2, provider);
+      await rebuildArchiveSearchIndex(document);
+      await expect(
+        assertArchiveQueryReady(document, {
+          queryMode: "hybrid",
+          embeddingProvider: provider,
+        }),
+      ).resolves.toBeUndefined();
+      for (const queryMode of ["fts", "embedding"] as const) {
+        await expect(
+          assertArchiveQueryReady(document, {
+            queryMode,
+            embeddingProvider: provider,
+          }),
+        ).rejects.toThrow("not ready");
+        await expect(
+          assertArchiveQueryReady(document, {
+            queryMode,
+            embeddingProvider: provider,
+            skipUnindexed: true,
+          }),
+        ).resolves.toBeUndefined();
+      }
+      await expect(
+        assertArchiveQueryReady(document, {
+          queryMode: "hybrid",
+          embeddingProvider: { ...provider, model: "different" },
+        }),
+      ).rejects.toThrow("not ready");
+      await expect(
+        assertArchiveQueryReady(document, {
+          queryMode: "embedding",
+          embeddingProvider: { ...provider, dimensions: 8 },
+          skipUnindexed: true,
+        }),
+      ).rejects.toThrow("not ready");
+      await expect(
+        assertArchiveQueryReady(document, {
+          queryMode: "fts",
+          chapters: [2],
+          skipUnindexed: true,
+        }),
+      ).rejects.toThrow("not ready");
+      const hits = await querySearchIndex(document, "dense", {
+        queryMode: "fts",
+        types: ["source"],
+      });
+      expect(hits?.textHits.length).toBeGreaterThan(0);
+      expect(hits?.textHits.every((hit) => hit.chapterId === 1)).toBe(true);
+      await document.serials.bumpRevision(1);
+      await expect(
+        assertArchiveQueryReady(document, {
+          queryMode: "fts",
+          skipUnindexed: true,
+        }),
+      ).rejects.toThrow("dirty");
+    });
+  });
+
+  it("allows unscoped skip queries on explicitly synced partial indexes", async () => {
+    await withTempDocument(async (document) => {
+      await writeSourceChapters(document, ["Alpha", "Beta"]);
+      await replaceChapterFtsIndexArtifact(document, 1);
+      await rebuildArchiveSearchIndex(document, undefined, { chapters: [1] });
+      await expect(
+        assertArchiveQueryReady(document, { queryMode: "fts" }),
+      ).rejects.toThrow("missing or dirty");
+      await expect(
+        assertArchiveQueryReady(document, {
+          queryMode: "fts",
+          skipUnindexed: true,
+        }),
+      ).resolves.toBeUndefined();
+      await expect(
+        resolveIndexedArchiveChapterScope(document, "alpha", undefined),
+      ).resolves.toEqual([1]);
+      const page = await findArchiveObjects(document, "Alpha", {
+        archiveKey: "partial-skip-summary",
+        queryMode: "fts",
+        skipUnindexed: true,
+        types: ["source"],
+      });
+      expect(page.items.length).toBeGreaterThan(0);
+    });
+  });
+
   it("keeps typed title pagination separate from archive titles", async () => {
     await withTempDocument(async (document) => {
       await writeSourceChapters(document, [

@@ -88,6 +88,10 @@ Error 方法和 stack。文件缺失、损坏、权限和数据库 I/O 错误不
 全量扫描和 sync 是显式操作。绕过 SDK 的外部修改需要 scan/sync 检出，实际访问
 的成员仍进行局部检查。
 
+Archive 查询预检读取与同步 revision 绑定的覆盖度摘要。无范围查询不枚举章节；
+chapter URI 查询使用同步时生成的路径索引，`skipUnindexed` 在结果 SQL 内筛选
+可查询章节。缺少这些摘要的旧派生缓存需要显式 index sync。
+
 ## 持久化任务
 
 任务管理器负责创建和查询持久化工作。`WikiGraphJob` 是任务 handle，其生命周期
