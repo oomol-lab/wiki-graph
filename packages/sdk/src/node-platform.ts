@@ -607,6 +607,36 @@ class NodeZipSource extends yauzl.RandomAccessReader {
   public constructor(private readonly handle: fsPromises.FileHandle) {
     super();
   }
+  public override read(
+    buffer: Buffer,
+    offset: number,
+    length: number,
+    position: number,
+    callback: (error: Error | null) => void,
+  ): void {
+    // Central-directory reads are small. Avoid creating a stream pipeline for
+    // each header; yauzl still owns parsing and requests the exact byte range.
+    const read = (written: number): void => {
+      if (written === length) {
+        callback(null);
+        return;
+      }
+      fs.read(
+        this.handle.fd,
+        buffer,
+        offset + written,
+        length - written,
+        position + written,
+        (error, bytesRead) => {
+          if (error) callback(error);
+          else if (bytesRead === 0)
+            callback(new Error("Unexpected end of ZIP file"));
+          else read(written + bytesRead);
+        },
+      );
+    };
+    read(0);
+  }
   public override _readStreamForRange(start: number, end: number): Readable {
     const handle = this.handle;
     return Readable.from(
