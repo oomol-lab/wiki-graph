@@ -55,6 +55,7 @@ export type {
   ArchiveFindField,
   ArchiveFindFilterType,
   ArchiveFindHit,
+  ArchiveSearchMatch,
   ArchiveFindLens,
   ArchiveFindLensHint,
   ArchiveFindMatch,

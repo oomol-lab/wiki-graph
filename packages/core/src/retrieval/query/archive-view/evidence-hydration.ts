@@ -1,6 +1,10 @@
+import { commonRetrievalSignals } from "../raw-signals.js";
+
 import type { ReadonlyDocument } from "../../../document/index.js";
 
 import { readEntitySearchEvidenceMentions } from "../search-cache/index.js";
+import { readSearchEvidenceRawSignals } from "../search-cache/hits.js";
+import { SEARCH_EVIDENCE_KIND } from "../search-cache/types.js";
 import { mergeStringLists } from "./helpers.js";
 import { parseTextStreamRangeUri } from "./references.js";
 import { readTextStreamRange } from "./text-streams.js";
@@ -78,6 +82,15 @@ export async function hydrateFindHitEvidence(
           evidenceContext,
           options.sourceContext ?? DEFAULT_SOURCE_CONTEXT,
           options.order ?? "doc-asc",
+          undefined,
+          options.sessionId === undefined
+            ? []
+            : await readSearchEvidenceRawSignals(
+                options.sessionId,
+                hit.archiveId ?? 0,
+                SEARCH_EVIDENCE_KIND.mentionLink,
+                hit.evidenceLinks.map((link) => link.id),
+              ),
         );
         const { evidenceLinks: _evidenceLinks, ...publicHit } = hit;
 
@@ -102,6 +115,15 @@ export async function hydrateFindHitEvidence(
         evidenceContext,
         options.sourceContext ?? DEFAULT_SOURCE_CONTEXT,
         options.order ?? "doc-asc",
+        undefined,
+        options.sessionId === undefined
+          ? []
+          : await readSearchEvidenceRawSignals(
+              options.sessionId,
+              hit.archiveId ?? 0,
+              SEARCH_EVIDENCE_KIND.mention,
+              hit.evidenceMentions.map((item) => item.mention.id),
+            ),
       );
       const { evidenceMentions: _evidenceMentions, ...publicHit } = hit;
 
@@ -330,6 +352,11 @@ async function mergeTextStreamHitRangeGroup(
     context,
   );
   const hits = ranges.map((range) => range.hit);
+  const {
+    ftsScore: _ftsScore,
+    embeddingScore: _embeddingScore,
+    ...representativeHit
+  } = representative.hit;
   const scores = hits
     .map((hit) => hit.score)
     .filter((score): score is number => score !== undefined);
@@ -338,7 +365,8 @@ async function mergeTextStreamHitRangeGroup(
     chapterId: representative.chapterId,
     endSentenceIndex,
     hit: {
-      ...representative.hit,
+      ...representativeHit,
+      ...commonRetrievalSignals(hits),
       id: text.id,
       matchCount: Math.max(...hits.map((hit) => hit.matchCount ?? 0)),
       matchedTerms: mergeStringLists(
@@ -403,6 +431,7 @@ async function hydrateEntitySessionHitEvidence(
     sessionId,
     mentionIds,
     evidenceLimit + 1,
+    hit.archiveId ?? 0,
   );
   const previewHits = evidenceHits.slice(0, evidenceLimit);
   const allMentions = (
@@ -425,6 +454,9 @@ async function hydrateEntitySessionHitEvidence(
     context,
     sourceContext,
     total,
+    new Map(
+      previewHits.map((hit) => [hit.mentionId, commonRetrievalSignals([hit])]),
+    ),
   );
 
   return {

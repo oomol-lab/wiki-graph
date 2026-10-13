@@ -371,7 +371,10 @@ async function listTripleCollection(
   chapterFilter?: ReadonlySet<number>,
   documentOrders?: ReadonlyMap<number, number>,
 ): Promise<readonly ArchiveFindHit[]> {
-  const hitsById = new Map<string, ArchiveFindHit>();
+  const hitsById = new Map<
+    string,
+    Extract<ArchiveFindHit, { readonly type: "triple" }>
+  >();
 
   for (const chapter of filterChapters(
     await listChapters(document),

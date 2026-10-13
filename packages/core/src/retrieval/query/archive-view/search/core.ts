@@ -230,7 +230,7 @@ export async function findArchiveObjects(
           items: await hydrateFindHitEvidence(
             document,
             cachedPage.items,
-            createFindEvidenceHydrationOptions(options),
+            createFindEvidenceHydrationOptions(options, cachedPage.sessionId),
           ),
           lens: parseFindLens(cachedPage.lens),
           lensHint: cachedPage.lens === "broad" ? BROAD_FIND_LENS_HINT : null,
@@ -406,7 +406,7 @@ export async function findArchiveObjects(
       items: await hydrateFindHitEvidence(
         document,
         firstPage.items,
-        createFindEvidenceHydrationOptions(options),
+        createFindEvidenceHydrationOptions(options, sessionId),
       ),
       nextCursor: firstPage.nextCursor,
     },

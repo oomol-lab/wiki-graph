@@ -3,6 +3,7 @@ import type { SqlBindValue } from "../../../document/database.js";
 import type { Database } from "../../../document/index.js";
 
 import type { ArchiveFindHit } from "../view.js";
+import type { EvidenceRetrievalSignal } from "../raw-signals.js";
 
 import { openSearchSessionDatabase } from "./database.js";
 import { parseNumberArray } from "./parsing.js";
@@ -17,6 +18,37 @@ import type {
 } from "./types.js";
 
 const SINGLE_ARCHIVE_SCOPE_ID = 0;
+
+export async function readSearchEvidenceRawSignals(
+  sessionId: string,
+  archiveId: number,
+  evidenceKind: number,
+  evidenceIds: readonly string[],
+): Promise<readonly EvidenceRetrievalSignal[]> {
+  if (evidenceIds.length === 0) return [];
+  const database = await openSearchSessionDatabase();
+  try {
+    return await database.queryAll(
+      `SELECT * FROM search_evidence_raw_signals
+      WHERE session_id = ? AND archive_id = ? AND evidence_kind = ?
+      AND evidence_id IN (${evidenceIds.map(() => "?").join(", ")})`,
+      [sessionId, archiveId, evidenceKind, ...evidenceIds],
+      (row) => ({
+        evidenceId: getString(row, "evidence_id"),
+        chapterId: getNumber(row, "chapter_id"),
+        sentenceIndex: getNumber(row, "sentence_index"),
+        ...(row.fts_score == null
+          ? {}
+          : { ftsScore: getNumber(row, "fts_score") }),
+        ...(row.embedding_score == null
+          ? {}
+          : { embeddingScore: getNumber(row, "embedding_score") }),
+      }),
+    );
+  } finally {
+    await database.close();
+  }
+}
 
 export async function insertSearchEvidenceHitEvent(
   database: Database,
@@ -44,6 +76,21 @@ export async function insertSearchEvidenceHitEvent(
       event.chapterId,
       event.sentenceIndex,
       event.score,
+    ],
+  );
+  await database.run(
+    `INSERT OR REPLACE INTO search_evidence_raw_signals
+    (session_id, archive_id, evidence_kind, evidence_id, chapter_id, sentence_index, fts_score, embedding_score)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+    [
+      sessionId,
+      event.archiveId ?? SINGLE_ARCHIVE_SCOPE_ID,
+      event.evidenceKind,
+      event.evidenceId,
+      event.chapterId,
+      event.sentenceIndex,
+      event.ftsScore ?? null,
+      event.embeddingScore ?? null,
     ],
   );
 }
@@ -254,7 +301,15 @@ export async function readEntitySearchEvidenceMentions(
   sessionId: string,
   mentionIds: readonly string[],
   limit: number,
-): Promise<readonly { readonly mentionId: string; readonly score: number }[]> {
+  archiveId = SINGLE_ARCHIVE_SCOPE_ID,
+): Promise<
+  readonly {
+    readonly mentionId: string;
+    readonly score: number;
+    readonly ftsScore?: number;
+    readonly embeddingScore?: number;
+  }[]
+> {
   if (mentionIds.length === 0) {
     return [];
   }
@@ -268,18 +323,33 @@ export async function readEntitySearchEvidenceMentions(
       `
         SELECT
           event.evidence_id AS mention_id,
-          event.score AS score
+          event.score AS score, raw.fts_score, raw.embedding_score
         FROM search_evidence_hit_events AS event
+        LEFT JOIN search_evidence_raw_signals AS raw USING
+          (session_id, archive_id, evidence_kind, evidence_id, chapter_id, sentence_index)
         WHERE event.session_id = ?
+          AND event.archive_id = ?
           AND event.evidence_kind = ?
           AND event.evidence_id IN (${placeholders})
         ORDER BY event.score DESC, event.archive_id, event.chapter_id,
           event.sentence_index, event.evidence_id
         LIMIT ?
       `,
-      [sessionId, SEARCH_EVIDENCE_KIND.mention, ...mentionIds, limit],
+      [
+        sessionId,
+        archiveId,
+        SEARCH_EVIDENCE_KIND.mention,
+        ...mentionIds,
+        limit,
+      ],
       (row) => ({
         mentionId: getString(row, "mention_id"),
+        ...(row.fts_score == null
+          ? {}
+          : { ftsScore: getNumber(row, "fts_score") }),
+        ...(row.embedding_score == null
+          ? {}
+          : { embeddingScore: getNumber(row, "embedding_score") }),
         score: getNumber(row, "score"),
       }),
     );

@@ -110,6 +110,14 @@ export async function createSourceEvidenceDisplayItems(
           range.endSentenceIndex,
           options.context,
           range.score,
+          {
+            ...(range.ftsScore === undefined
+              ? {}
+              : { ftsScore: range.ftsScore }),
+            ...(range.embeddingScore === undefined
+              ? {}
+              : { embeddingScore: range.embeddingScore }),
+          },
         ),
     ),
   );

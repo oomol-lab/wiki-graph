@@ -166,6 +166,7 @@ export type {
   ArchiveFindField,
   ArchiveFindFilterType,
   ArchiveFindHit,
+  ArchiveSearchMatch,
   ArchiveIndex,
   ArchiveListItem,
   ArchiveListKind,

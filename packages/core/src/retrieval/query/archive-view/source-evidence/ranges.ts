@@ -1,3 +1,5 @@
+import { commonRetrievalSignals } from "../../raw-signals.js";
+
 import type {
   MentionLinkRecord,
   MentionRecord,
@@ -196,6 +198,7 @@ function mergeSourceEvidenceRangeGroup(
       ...ranges.map((range) => range.endSentenceIndex),
     ),
     ...(scores.length === 0 ? {} : { score: Math.max(...scores) }),
+    ...commonRetrievalSignals(ranges),
     startSentenceIndex: Math.min(
       ...ranges.map((range) => range.startSentenceIndex),
     ),

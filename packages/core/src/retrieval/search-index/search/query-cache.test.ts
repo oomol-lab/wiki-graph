@@ -14,6 +14,60 @@ import {
 import { TEXT_SENTENCE_KIND } from "./types.js";
 
 describe("search query cache", () => {
+  it("keeps raw values paired with the chosen segment without changing fusion", async () => {
+    const database = await openSearchQueryCacheDatabase();
+    const queryId = `raw-score-${Date.now()}-${Math.random()}`;
+    const hit = {
+      archiveId: 0,
+      chapterId: 1,
+      kind: TEXT_SENTENCE_KIND.source,
+      sentenceIndex: 0,
+      wordsCount: 8,
+    };
+    try {
+      await beginCachedQuery(database, queryId);
+      await insertCachedFtsTextHit(database, queryId, 0, {
+        ...hit,
+        rawScore: 0,
+      });
+      await normalizeCachedFtsHits(database, queryId);
+      await upsertCachedEmbeddingTextHit(database, queryId, {
+        ...hit,
+        score: 0.8,
+        embeddingScore: 0,
+      });
+      await upsertCachedEmbeddingTextHit(database, queryId, {
+        ...hit,
+        score: 0.7,
+        embeddingScore: 0.99,
+      });
+      await finalizeCachedTextHitScores(database, queryId);
+      const row = await database.queryOne(
+        "SELECT * FROM query_text_hits WHERE query_id = ?",
+        [queryId],
+        (row) => row,
+      );
+      expect(row?.raw_score).toBe(0);
+      expect(row?.raw_embedding_score).toBe(0);
+      expect(row?.embedding_score).toBe(0.8);
+      expect(row?.score).toBe((Number(row?.fts_score) + 0.8) / 2);
+      await upsertCachedEmbeddingTextHit(database, queryId, {
+        ...hit,
+        score: 0.9,
+        embeddingScore: -0.5,
+      });
+      await expect(
+        database.queryOne(
+          "SELECT raw_embedding_score FROM query_text_hits WHERE query_id = ?",
+          [queryId],
+          (row) => row.raw_embedding_score,
+        ),
+      ).resolves.toBe(-0.5);
+    } finally {
+      await clearCachedQueryHits(database, queryId);
+      await database.close();
+    }
+  });
   it("rebuilds an unfinished query from an earlier Core instance on demand", async () => {
     const database = await openSearchQueryCacheDatabase();
     const queryId = `stale-query-${Date.now()}-${Math.random()}`;

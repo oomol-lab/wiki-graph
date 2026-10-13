@@ -29,6 +29,8 @@ export type SearchEvidenceKind =
   (typeof SEARCH_EVIDENCE_KIND)[keyof typeof SEARCH_EVIDENCE_KIND];
 
 export interface SearchEvidenceHitEventInput {
+  readonly ftsScore?: number;
+  readonly embeddingScore?: number;
   readonly archiveId?: number;
   readonly chapterId: number;
   readonly evidenceId: string;

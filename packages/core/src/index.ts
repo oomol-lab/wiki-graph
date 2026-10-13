@@ -331,6 +331,7 @@ export type {
   ArchiveFindField,
   ArchiveFindFilterType,
   ArchiveFindHit,
+  ArchiveSearchMatch,
   ArchiveFindObjectType,
   ArchiveFindOptions,
   ArchiveFindOrder,
@@ -515,3 +516,4 @@ export {
   type WikiGraphPlatform,
   type WikiGraphStorage,
 } from "./runtime/platform/index.js";
+export type * from "./api/objects.js";

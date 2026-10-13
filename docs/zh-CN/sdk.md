@@ -185,3 +185,55 @@ await runBuildJobWorker({
 
 - [`.wikg` 归档标准](./wikg-standard.md)
 - [WikiSpine Runtime](../wikispine-runtime.md)
+
+## 公共对象与原始检索分数
+
+SDK 统一导出 Core 公共业务模型：`WikiGraphObjectIdentity`、`WikiGraphObject`、
+`WikiGraphObjectSummary`、`WikiGraphSearchableSummary`、`WikiGraphObjectListItem`
+与 `WikiGraphObjectDetails`。概要仅描述已有投影中的事实，不为了填满类型额外读取
+正文、mentions 或证据。`ArchiveFindHit` 将按 `type` 判别的概要与搜索匹配属性组合，
+后者包括 `score`、`snippet`、命中词、位置和证据。列表、related 与详情使用同一模型
+体系下适合自身的投影；返回值仍是普通对象，不会为每项构造 class 实例。
+
+`archive`／`chapter` 是 scope 投影，`archive-title`／`chapter-title` 才是对应的
+标题 object。reading graph 的 chunk 保留历史判别值 `type: "node"`，公共类型名为
+`WikiGraphChunkSummary`／`WikiGraphChunkDetails`，标识符仍使用 chunk URI。
+
+```ts
+import type { ArchiveFindHit, WikiGraphTripleSummary } from "wiki-graph-sdk";
+
+function inspectHit(hit: ArchiveFindHit) {
+  if (hit.type === "triple") {
+    const triple: WikiGraphTripleSummary = hit;
+    console.log(triple.triple.predicate); // 收窄后是必有字段
+  } else if (hit.type === "source" || hit.type === "summary") {
+    console.log(hit.score, hit.ftsScore, hit.embeddingScore);
+  }
+  for (const evidence of hit.evidence?.sources ?? []) {
+    console.log(evidence.ftsScore, evidence.embeddingScore);
+  }
+}
+
+const hits = await archive.search("查询内容", { sourceContext: 0 });
+for (const hit of hits) inspectHit(hit);
+const evidence = await archive.evidence("wikg://entity/Q1", {
+  query: "查询内容",
+  sourceContext: 0,
+});
+for (const source of evidence)
+  console.log(source.ftsScore, source.embeddingScore);
+```
+
+原始分数只出现在 source／summary 的句子搜索命中，以及可以明确对应单个命中句子的
+source evidence 上。Entity、Triple、Chunk 自身不提供或聚合它们；无 query 的普通
+证据枚举没有分数。Archive、Library、首屏及 cursor 翻页遵循相同规则。多个命中句子
+或 segment 合并为展示范围时，省略原始分数，不任意取一项代表整段。单次命中周围的
+context 仅用于展示，其分数依旧指向该次命中。
+
+当前 `ftsScore` 是 SQLite BM25 原始值，越小越好；BM25 跨查询不能作为统一绝对
+阈值。`embeddingScore` 是 cosine similarity 原始值，越大越相似；句子继承所属
+embedding segment 的分数，并非独立计算的单句分数。重叠 segment 沿用既有排名
+选取规则。Cosine 与模型、切分有关。缺失通道为 `undefined`，不能当成 0；真实的
+零值会保留。这些字段仅供参考，不是命中概率，也没有增加阈值过滤 API。将来更换
+算法需要同步更新此处说明。最终 `score`、召回、四桶排序、证据排序和分页不变，
+CLI 不对外暴露这些 SDK 字段。

@@ -50,6 +50,19 @@ ON search_evidence_hit_events(session_id, archive_id, evidence_kind, evidence_id
 CREATE INDEX IF NOT EXISTS idx_search_evidence_hit_events_sentence
 ON search_evidence_hit_events(session_id, archive_id, chapter_id, sentence_index, evidence_kind, evidence_id);
 
+-- Optional derived query data; separate from the persistent Home schema.
+CREATE TABLE IF NOT EXISTS search_evidence_raw_signals (
+  session_id TEXT NOT NULL,
+  archive_id INTEGER NOT NULL,
+  evidence_kind INTEGER NOT NULL,
+  evidence_id TEXT NOT NULL,
+  chapter_id INTEGER NOT NULL,
+  sentence_index INTEGER NOT NULL,
+  fts_score REAL,
+  embedding_score REAL,
+  PRIMARY KEY(session_id, archive_id, evidence_kind, evidence_id, chapter_id, sentence_index)
+);
+
 CREATE TABLE IF NOT EXISTS search_entity_hits (
   session_id TEXT NOT NULL,
   archive_id INTEGER NOT NULL,
@@ -106,6 +119,8 @@ ON search_sessions(accessed_at DESC, created_at DESC, session_id);
 `;
 
 export const SEARCH_RANKING_VERSION = 9;
+// New queries must not reuse older result JSON that cannot carry raw signals.
+export const SEARCH_RESULT_VERSION = 1;
 export const SEARCH_SESSION_MAX_COUNT = 500;
 export const SEARCH_SESSION_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 export const SEARCH_TOP_SCORE_COUNT = 10;

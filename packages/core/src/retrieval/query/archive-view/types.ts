@@ -3,35 +3,25 @@ import type {
   MentionRecord,
 } from "../../../document/index.js";
 import type { BookMeta } from "../../../text/source/index.js";
-import type { GraphNeighbor } from "../../../graph/reading.js";
-import type {
-  ChapterEntry,
-  ChapterTree,
-} from "../../../document/chapter/index.js";
+import type { ChapterEntry } from "../../../document/chapter/index.js";
 import type { SearchIndexEmbeddingProvider } from "../../search-index/index.js";
+import type {
+  WikiGraphSearchableSummary,
+  WikiGraphRetrievalSignals,
+  WikiGraphObjectIdentity,
+  WikiGraphObjectKind,
+  WikiGraphSearchableKind,
+} from "../../../api/objects.js";
 
 export type ArchiveObjectType =
-  | "artifact"
-  | "archive-title"
-  | "chapter"
-  | "chapter-title"
-  | "chapter-tree"
-  | "edge"
-  | "entity"
-  | "fragment"
-  | "meta"
-  | "node"
-  | "source"
-  | "state"
-  | "summary"
-  | "triple";
+  | Exclude<WikiGraphObjectKind, "entity-wikipage">
+  | "chapter";
 export type ChapterStateTarget =
-  | "knowledge-graph"
-  | "reading-graph"
-  | "reading-summary"
-  | "source";
-export type ChapterStateValue = "missing" | "ready";
-export type ChapterState = Record<ChapterStateTarget, ChapterStateValue>;
+  import("../../../api/objects.js").WikiGraphChapterStateTarget;
+export type ChapterStateValue =
+  import("../../../api/objects.js").WikiGraphChapterStateValue;
+export type ChapterState =
+  import("../../../api/objects.js").WikiGraphChapterState;
 
 export type ArchiveCollectionType =
   | "archive"
@@ -47,18 +37,9 @@ export type ArchiveCollectionType =
   | "triple";
 
 export type ArchiveFindObjectType =
+  | WikiGraphSearchableKind
   | "archive"
-  | "archive-title"
-  | "chapter"
-  | "chapter-title"
-  | "chapter-tree"
-  | "entity"
-  | "fragment"
-  | "meta"
-  | "node"
-  | "source"
-  | "summary"
-  | "triple";
+  | "chapter";
 
 export type ArchiveFindFilterType =
   | "archive"
@@ -81,40 +62,40 @@ export interface ArchiveIndex {
   readonly summaryCount: number;
 }
 
-export interface ArchiveLibrarySourceFields {
-  readonly archiveId?: number;
-  readonly libraryArchiveUri?: string;
-  readonly sources?: readonly ArchiveLibrarySource[];
-}
+export type ArchiveLibrarySourceFields =
+  import("../../../api/objects.js").WikiGraphLibrarySourceFields;
+export type ArchiveLibrarySource =
+  import("../../../api/objects.js").WikiGraphLibrarySource;
 
-export interface ArchiveLibrarySource {
-  readonly archiveId: number;
-  readonly libraryArchiveUri: string;
-}
-
-export interface ArchiveFindHit extends ArchiveLibrarySourceFields {
+export interface ArchiveSearchMatch {
   readonly backlinks?: ArchiveBacklinks;
   readonly chapter?: number;
   readonly evidence?: ArchiveFindEvidencePreview;
-  readonly evidenceLinks?: readonly MentionLinkRecord[];
-  readonly evidenceMentions?: readonly EntityEvidenceMention[];
   readonly field: ArchiveFindField;
-  readonly id: string;
   readonly matchCount?: number;
   readonly matchedTerms?: readonly string[];
   readonly missingTerms?: readonly string[];
   readonly position?: ArchiveFindPosition;
   readonly score?: number;
   readonly snippet: string;
-  readonly state?: ChapterState;
-  readonly title: string;
-  readonly triple?: {
-    readonly objectLabel: string;
-    readonly predicate: string;
-    readonly subjectLabel: string;
-  };
-  readonly type: ArchiveFindObjectType;
 }
+
+type ObjectSearchHit<P extends WikiGraphSearchableSummary> =
+  P extends WikiGraphSearchableSummary
+    ? ArchiveSearchMatch &
+        P &
+        (P extends { readonly type: "source" | "summary" }
+          ? WikiGraphRetrievalSignals
+          : { readonly ftsScore?: never; readonly embeddingScore?: never }) & {
+          readonly evidenceLinks?: P extends { readonly type: "triple" }
+            ? readonly MentionLinkRecord[]
+            : never;
+          readonly evidenceMentions?: P extends { readonly type: "entity" }
+            ? readonly EntityEvidenceMention[]
+            : never;
+        }
+    : never;
+export type ArchiveFindHit = ObjectSearchHit<WikiGraphSearchableSummary>;
 
 export interface EntityEvidenceMention {
   readonly match: Pick<
@@ -247,138 +228,11 @@ export type ArchiveListKind =
   | "nodes"
   | "summaries";
 
-export type ArchiveListItem = ArchiveLibrarySourceFields &
-  (
-    | {
-        readonly evidence?: ArchiveFindEvidencePreview;
-        readonly id: string;
-        readonly label: string;
-        readonly score?: number;
-        readonly state?: ChapterState;
-        readonly summary: string;
-        readonly type: Exclude<ArchiveObjectType, "artifact" | "triple">;
-      }
-    | {
-        readonly evidence?: ArchiveFindEvidencePreview;
-        readonly id: string;
-        readonly label: string;
-        readonly evidenceLinks?: readonly MentionLinkRecord[];
-        readonly objectLabel: string;
-        readonly objectQid: string;
-        readonly predicate: string;
-        readonly score?: number;
-        readonly subjectLabel: string;
-        readonly subjectQid: string;
-        readonly summary: string;
-        readonly type: "triple";
-      }
-  );
+export type ArchiveListItem =
+  import("../../../api/objects.js").WikiGraphObjectListItem;
 
-export type ArchivePage = ArchiveLibrarySourceFields &
-  (
-    | {
-        readonly digest: string;
-        readonly id: string;
-        readonly identifier?: string;
-        readonly locator?: Readonly<Record<string, unknown>>;
-        readonly mediaType: string;
-        readonly name?: string;
-        readonly shortUid: string;
-        readonly type: "artifact";
-      }
-    | {
-        readonly id: string;
-        readonly title: string;
-        readonly type: "archive-title";
-      }
-    | {
-        readonly id: string;
-        readonly state: ChapterState;
-        readonly title: string;
-        readonly type: "chapter";
-      }
-    | {
-        readonly id: string;
-        readonly title: string;
-        readonly type: "chapter-title";
-      }
-    | {
-        readonly id: string;
-        readonly title: string;
-        readonly tree: ChapterTree;
-        readonly type: "chapter-tree";
-      }
-    | {
-        readonly generatedNodeSummary: string;
-        readonly id: string;
-        readonly incoming: readonly GraphNeighbor[];
-        readonly neighbors: readonly GraphNeighbor[];
-        readonly outgoing: readonly GraphNeighbor[];
-        readonly position: ArchiveFindPosition | undefined;
-        readonly sourceFragments: readonly ArchiveNodeSourceFragment[];
-        readonly title: string;
-        readonly type: "node";
-      }
-    | {
-        readonly backlinks?: ArchiveBacklinks;
-        readonly fragment: ArchiveSourceFragment;
-        readonly id: string;
-        readonly nextFragmentId: string | undefined;
-        readonly nodes: readonly ArchiveNodeLabel[];
-        readonly previousFragmentId: string | undefined;
-        readonly title: string;
-        readonly type: "fragment";
-      }
-    | {
-        readonly content: string;
-        readonly id: string;
-        readonly title: string;
-        readonly type: "summary";
-      }
-    | {
-        readonly evidence: ArchiveFindEvidencePreview;
-        readonly id: string;
-        readonly label: string;
-        readonly labels: readonly string[];
-        readonly mentionCount: number;
-        readonly qid: string;
-        readonly type: "entity";
-      }
-    | {
-        readonly en: ArchiveEntityWikipageLocale | null;
-        readonly id: string;
-        readonly type: "entity-wikipage";
-        readonly zh: ArchiveEntityWikipageLocale | null;
-      }
-    | {
-        readonly evidence: ArchiveFindEvidencePreview;
-        readonly id: string;
-        readonly label: string;
-        readonly objectQid: string;
-        readonly predicate: string;
-        readonly subjectQid: string;
-        readonly type: "triple";
-      }
-    | {
-        readonly authors?: readonly string[];
-        readonly description?: string;
-        readonly id: string;
-        readonly publisher?: string;
-        readonly title: string;
-        readonly type: "meta";
-      }
-    | {
-        readonly id: string;
-        readonly state: ChapterState;
-        readonly type: "state";
-      }
-    | {
-        readonly id: string;
-        readonly target: ChapterStateTarget;
-        readonly type: "state";
-        readonly value: ChapterStateValue;
-      }
-  );
+export type ArchivePage =
+  import("../../../api/objects.js").WikiGraphObjectDetails;
 
 export interface ArchiveEntityWikipageLocale {
   readonly description?: string;
@@ -420,7 +274,11 @@ export interface ArchiveEvidence {
   readonly nextCursor: string | null;
 }
 
-export interface ArchiveEvidenceItem extends ArchiveLibrarySourceFields {
+export interface ArchiveEvidenceItem
+  extends
+    ArchiveLibrarySourceFields,
+    WikiGraphObjectIdentity<"source">,
+    WikiGraphRetrievalSignals {
   readonly chapterId: number;
   readonly endSentenceIndex: number;
   readonly fragmentId?: number;
@@ -468,7 +326,7 @@ export interface ArchiveSourceLocatorResult {
 }
 
 export type ArchiveTextStreamKind = "source" | "summary";
-export type SourceEvidenceRange = {
+export type SourceEvidenceRange = WikiGraphRetrievalSignals & {
   readonly chapterId: number;
   readonly endSentenceIndex: number;
   readonly score?: number;
@@ -478,7 +336,10 @@ export type SourceEvidenceRange = {
 export type TextStreamHitRange = {
   readonly chapterId: number;
   readonly endSentenceIndex: number;
-  readonly hit: ArchiveFindHit;
+  readonly hit: Extract<
+    ArchiveFindHit,
+    { readonly type: "source" | "summary" }
+  >;
   readonly startSentenceIndex: number;
   readonly stream: ArchiveTextStreamKind;
 };

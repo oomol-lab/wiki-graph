@@ -1,3 +1,9 @@
+import {
+  commonRetrievalSignals,
+  type EvidenceRetrievalSignal,
+} from "../../raw-signals.js";
+import type { WikiGraphRetrievalSignals } from "../../../../api/objects.js";
+
 import type {
   MentionLinkRecord,
   MentionRecord,
@@ -51,6 +57,7 @@ export async function createMentionEvidencePreview(
   sourceContext = DEFAULT_SOURCE_CONTEXT,
   order: ArchiveFindOrder = "doc-asc",
   total?: number,
+  signals: readonly EvidenceRetrievalSignal[] = [],
 ): Promise<ArchiveFindEvidencePreview> {
   return await createSourceEvidenceCandidatePreview(document, {
     candidates: await sortSourceEvidenceCandidates(
@@ -61,7 +68,19 @@ export async function createMentionEvidencePreview(
     ),
     context,
     createRanges: async (mention) =>
-      await createMentionEvidenceRanges(document, [mention]),
+      (await createMentionEvidenceRanges(document, [mention])).map((range) => ({
+        ...range,
+        ...(range.startSentenceIndex !== range.endSentenceIndex
+          ? {}
+          : commonRetrievalSignals(
+              signals.filter(
+                (signal) =>
+                  signal.evidenceId === mention.id &&
+                  signal.chapterId === range.chapterId &&
+                  signal.sentenceIndex === range.startSentenceIndex,
+              ),
+            )),
+      })),
     limit,
     sourceContext,
     total,
@@ -75,12 +94,18 @@ export async function createMentionEvidencePagePreview(
   context: EvidenceReadContext = createEvidenceReadContext(),
   sourceContext = DEFAULT_SOURCE_CONTEXT,
   total?: number,
+  signalsByMention: ReadonlyMap<string, WikiGraphRetrievalSignals> = new Map(),
 ): Promise<ArchiveFindEvidencePreview> {
   return await createSourceEvidenceCandidatePreview(document, {
     candidates: mentions,
     context,
     createRanges: async (mention) =>
-      await createMentionEvidenceRanges(document, [mention]),
+      (await createMentionEvidenceRanges(document, [mention])).map((range) => ({
+        ...range,
+        ...(range.startSentenceIndex === range.endSentenceIndex
+          ? signalsByMention.get(mention.id)
+          : {}),
+      })),
     limit,
     sourceContext,
     total,
@@ -155,6 +180,7 @@ export async function createMentionLinkEvidencePreview(
   sourceContext = DEFAULT_SOURCE_CONTEXT,
   order: ArchiveFindOrder = "doc-asc",
   total?: number,
+  signals: readonly EvidenceRetrievalSignal[] = [],
 ): Promise<ArchiveFindEvidencePreview> {
   return await createSourceEvidenceCandidatePreview(document, {
     candidates: await sortSourceEvidenceCandidates(
@@ -164,7 +190,18 @@ export async function createMentionLinkEvidencePreview(
       order,
     ),
     context,
-    createRanges: (link) => createMentionLinkEvidenceRanges(document, [link]),
+    createRanges: (link) =>
+      createMentionLinkEvidenceRanges(document, [link]).map((range) => ({
+        ...range,
+        ...commonRetrievalSignals(
+          signals.filter(
+            (signal) =>
+              signal.evidenceId === link.id &&
+              signal.chapterId === range.chapterId &&
+              signal.sentenceIndex === range.startSentenceIndex,
+          ),
+        ),
+      })),
     limit,
     sourceContext,
     total,
@@ -329,6 +366,9 @@ export async function filterAndSortSourceEvidenceRangesByFtsQuery(
 
       matchedRanges.set(key, {
         ...range,
+        ...(range.startSentenceIndex === range.endSentenceIndex
+          ? commonRetrievalSignals([hit])
+          : {}),
         score: Math.max(current?.score ?? 0, hit.score),
       });
     }
@@ -400,6 +440,14 @@ export async function filterAndSortSourceEvidenceCandidatesByFtsQuery<T>(
       score: number;
     }
   >();
+  const signalsBySentence = new Map(
+    indexResult.textHits
+      .filter((hit) => hit.kind === TEXT_SENTENCE_KIND.source)
+      .map((hit) => [
+        `${hit.chapterId}:${hit.sentenceIndex}`,
+        commonRetrievalSignals([hit]),
+      ]),
+  );
 
   for (const hit of indexResult.textHits) {
     if (hit.kind !== TEXT_SENTENCE_KIND.source) {
@@ -447,7 +495,18 @@ export async function filterAndSortSourceEvidenceCandidatesByFtsQuery<T>(
 
       return left.stableIdentity.localeCompare(right.stableIdentity);
     })
-    .map((item) => ({ candidate: item.candidate, score: item.score }));
+    .map((item) => ({
+      candidate: item.candidate,
+      score: item.score,
+      ranges: item.ranges.map((range) => ({
+        ...range,
+        ...(range.startSentenceIndex !== range.endSentenceIndex
+          ? {}
+          : signalsBySentence.get(
+              `${range.chapterId}:${range.startSentenceIndex}`,
+            )),
+      })),
+    }));
 }
 
 async function resolveEvidenceSearchIndexResult(
@@ -536,6 +595,7 @@ async function filterQueryableSourceEvidenceCandidates<T>(
 
 export interface SourceEvidenceCandidateQueryMatch<T> {
   readonly candidate: T;
+  readonly ranges: readonly SourceEvidenceRange[];
   readonly score: number;
 }
 

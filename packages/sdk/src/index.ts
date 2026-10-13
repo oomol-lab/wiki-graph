@@ -65,6 +65,7 @@ export type {
   ArchiveEvidenceItem,
   ArchiveFindEvidencePreview,
   ArchiveFindHit,
+  ArchiveSearchMatch,
   ArchiveFindOptions,
   ArchiveFindResult,
   ArchiveListItem,
@@ -106,4 +107,39 @@ export type {
   WikiGraphProgressCallback,
   WikiGraphProgressEvent,
   WikispineProvider,
+} from "wiki-graph-core";
+export type {
+  WikiGraphObjectIdentity,
+  WikiGraphScopeIdentity,
+  WikiGraphObjectKind,
+  WikiGraphObjectSummary,
+  WikiGraphChunkSummary,
+  WikiGraphEntitySummary,
+  WikiGraphTripleSummary,
+  WikiGraphSearchableKind,
+  WikiGraphSearchableSummary,
+  WikiGraphRetrievalSignals,
+} from "wiki-graph-core";
+export type {
+  WikiGraphObjectListItem,
+  WikiGraphObjectDetails,
+} from "wiki-graph-core";
+export type {
+  WikiGraphScopeSummary,
+  WikiGraphSourceSentenceSummary,
+  WikiGraphSummarySentenceSummary,
+} from "wiki-graph-core";
+export type {
+  WikiGraphObject,
+  WikiGraphArtifactDetails,
+  WikiGraphChunkDetails,
+  WikiGraphEntityDetails,
+  WikiGraphTripleDetails,
+} from "wiki-graph-core";
+export type {
+  WikiGraphLibrarySource,
+  WikiGraphLibrarySourceFields,
+  WikiGraphChapterStateTarget,
+  WikiGraphChapterStateValue,
+  WikiGraphChapterState,
 } from "wiki-graph-core";

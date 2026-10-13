@@ -41,7 +41,7 @@ export function findEntities(
   const candidatesByQid = new Map<
     string,
     Array<{
-      readonly hit: ArchiveFindHit;
+      readonly hit: Extract<ArchiveFindHit, { readonly type: "entity" }>;
       readonly mention: MentionRecord;
     }>
   >();
@@ -120,7 +120,10 @@ export async function findTriples(
   const mentionsById = new Map(
     context.mentions.map((mention) => [mention.id, mention]),
   );
-  const hitsByTriple = new Map<string, ArchiveFindHit[]>();
+  const hitsByTriple = new Map<
+    string,
+    Extract<ArchiveFindHit, { readonly type: "triple" }>[]
+  >();
 
   for (const link of await document.mentionLinks.listAll()) {
     if (
@@ -177,7 +180,7 @@ export async function findTriples(
 }
 
 function groupTripleEvidenceHits(
-  evidenceHits: readonly ArchiveFindHit[],
+  evidenceHits: readonly Extract<ArchiveFindHit, { readonly type: "triple" }>[],
 ): ArchiveFindHit {
   const rankedHits = [...evidenceHits].sort(compareFindEvidenceHits);
   const [best] = rankedHits;

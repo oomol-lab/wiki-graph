@@ -357,7 +357,7 @@ async function readCachedTextHits(
   return await cache.queryAll(
     `
       SELECT archive_id, kind, chapter_id, sentence_index,
-             words_count, rank, score
+             words_count, rank, score, raw_score, raw_embedding_score
       FROM query_text_hits
       WHERE query_id = ? AND rank IS NOT NULL
         AND kind IN (${kinds.map(() => "?").join(", ")})
@@ -376,6 +376,12 @@ async function readCachedTextHits(
       chapterId: getNumber(row, "chapter_id"),
       kind: getNumber(row, "kind") as TextSentenceKind,
       rank: getNumber(row, "rank"),
+      ...(row.raw_score == null
+        ? {}
+        : { ftsScore: getNumber(row, "raw_score") }),
+      ...(row.raw_embedding_score == null
+        ? {}
+        : { embeddingScore: getNumber(row, "raw_embedding_score") }),
       score: getNumber(row, "score"),
       sentenceIndex: getNumber(row, "sentence_index"),
       wordsCount: getNumber(row, "words_count"),
@@ -665,6 +671,7 @@ async function expandCachedDenseSegmentHits(
         chapterId: getNumber(row, "chapter_id"),
         kind: getNumber(row, "kind") as TextSentenceKind,
         score: segment.score,
+        embeddingScore: segment.rawScore,
         sentenceIndex: getNumber(row, "sentence_index"),
         wordsCount: getNumber(row, "words_count"),
       }),
