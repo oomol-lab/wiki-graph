@@ -9,6 +9,48 @@ import {
 import type { JobLlm } from "./ports.js";
 
 describe("file-based generation jobs", () => {
+  it.each(["empty-source", "no-summary-groups"] as const)(
+    "emits an explicit empty summary for %s",
+    async (scenario) => {
+      const inputFile = new MemoryJobFile("input.jsonl");
+      await writeChapterJobInput(
+        inputFile,
+        scenario === "empty-source"
+          ? []
+          : [
+              {
+                fragmentId: 0,
+                sentenceIndex: 0,
+                text: "Reference one.",
+                wordsCount: 2,
+                type: "source-sentence",
+              },
+              {
+                fragmentId: 1,
+                sentenceIndex: 1,
+                text: "Reference two.",
+                wordsCount: 2,
+                type: "source-sentence",
+              },
+            ],
+      );
+      const request = vi.fn(() =>
+        Promise.reject(new Error("No LLM call expected.")),
+      );
+      const result = await executeChapterJobFile({
+        inputFile,
+        kind: "reading-summary",
+        llm: { request },
+        revision: 1,
+        workspace: new MemoryJobDirectory(),
+      });
+      expect(
+        await collect(readChapterJobArtifact(result.artifactFile)),
+      ).toEqual([{ position: 0, text: "", type: "summary-part" }]);
+      expect(request).not.toHaveBeenCalled();
+    },
+  );
+
   it("builds semantic Reading Graph records through the LLM port", async () => {
     const inputFile = new MemoryJobFile("input.jsonl");
     await writeChapterJobInput(inputFile, [
