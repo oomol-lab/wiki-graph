@@ -38,6 +38,10 @@ import {
 } from "./node-platform.js";
 
 const roots: string[] = [];
+// These scale fixtures exercise real durable transactions and ZIP settlements.
+// Linux CI fsyncs are much slower than local storage; cost regressions are
+// asserted with SQL rows/file accesses, independently of fixture wall time.
+const scaleFixtureTimeout = 300_000;
 afterEach(async () => {
   vi.restoreAllMocks();
   installWikiGraphPlatform(nodeWikiGraphPlatform);
@@ -348,6 +352,7 @@ describe("schema gate and bounded access", () => {
       expect(large).toEqual(small);
       sdk.close();
     },
+    scaleFixtureTimeout,
   );
 
   it("recognizes intact cross-package/serialized version errors without classifying other failures", () => {
@@ -562,192 +567,197 @@ describe("schema gate and bounded access", () => {
     },
   );
 
-  it("directory opening and readiness do not enumerate unrelated entries or copy the SQLite", async () => {
-    const { root, sdk } = await fixture();
-    const path = join(root, "book.wikg");
-    await sdk.archives.create({ path });
-    const library = await sdk.libraries.create(join(root, "library"));
-    const member = await sdk.libraries.addArchive({
-      target: library.uri,
-      inputPath: path,
-    });
-    const record = await sdk.libraries.getArchive(member.uri);
-    const directoryPath = join(root, "library", record.relativePath);
-    const archive = await sdk.archives.open({
-      kind: "library",
-      uri: member.uri,
-    });
-    const chapter = await archive.addChapter({
-      title: "Indexed",
-      source: "Needle in the book.",
-    });
-    await sdk.run(async () =>
-      new WikiGraphDirectoryFile(new NodeDirectory(directoryPath)).write(
-        async (document) => {
-          await replaceChapterFtsIndexArtifact(document, chapter.chapterId);
-        },
-      ),
-    );
-    await archive.ensureSearchIndex();
-    await sdk.libraries.scan(library.uri);
-    await sdk.libraries.rebuildIndex(library.uri);
-    const alias = join(root, "alias.wikg");
-    await symlink(directoryPath, alias);
-    await expect(
-      sdk.archives.open({ kind: "standalone", path: alias }),
-    ).rejects.toMatchObject({ code: "WIKI_GRAPH_ARCHIVE_OWNERSHIP_MISMATCH" });
-    const list = vi.spyOn(NodeDirectory.prototype, "list");
-    let cacheBytesRead = 0;
-    // eslint-disable-next-line @typescript-eslint/unbound-method -- invoked with the original receiver via call below.
-    const originalOpenReader = NodeFile.prototype.openReader;
-    const reader = vi
-      .spyOn(NodeFile.prototype, "openReader")
-      .mockImplementation(async function (this: NodeFile) {
-        const opened = await originalOpenReader.call(this);
-        const isCache =
-          this.path.includes("/.wikg-cache/") &&
-          this.path.endsWith("/index.db");
-        return {
-          ...opened,
-          read: async (offset, length) => {
-            if (isCache) cacheBytesRead += length;
-            return await opened.read(offset, length);
-          },
-        };
+  it(
+    "directory opening and readiness do not enumerate unrelated entries or copy the SQLite",
+    async () => {
+      const { root, sdk } = await fixture();
+      const path = join(root, "book.wikg");
+      await sdk.archives.create({ path });
+      const library = await sdk.libraries.create(join(root, "library"));
+      const member = await sdk.libraries.addArchive({
+        target: library.uri,
+        inputPath: path,
       });
-    const queryAll = vi.spyOn(Database.prototype, "queryAll");
-    const probe = async () => {
-      list.mockClear();
-      reader.mockClear();
-      queryAll.mockClear();
-      cacheBytesRead = 0;
-      await sdk.libraries.get(library.uri);
-      await sdk.run(async () =>
-        assertWikiGraphLibraryIndexReady(
-          parseWikiGraphLibraryUri(library.uri)!,
-        ),
-      );
-      // No matches means result hydration cannot mask a preflight scan.
-      await sdk.libraries.search(library.uri, "absentuniqueterm", {
-        queryMode: "fts",
-        skipUnindexed: true,
-      });
-      const opened = await sdk.archives.open({
+      const record = await sdk.libraries.getArchive(member.uri);
+      const directoryPath = join(root, "library", record.relativePath);
+      const archive = await sdk.archives.open({
         kind: "library",
         uri: member.uri,
       });
-      await opened.getMetadata("");
-      await opened.search("absentuniqueterm", {
-        queryMode: "fts",
-        chapters: [chapter.chapterId],
+      const chapter = await archive.addChapter({
+        title: "Indexed",
+        source: "Needle in the book.",
       });
-      expect(
-        list.mock.contexts.filter((directory) =>
-          (directory as NodeDirectory).path.startsWith(directoryPath),
+      await sdk.run(async () =>
+        new WikiGraphDirectoryFile(new NodeDirectory(directoryPath)).write(
+          async (document) => {
+            await replaceChapterFtsIndexArtifact(document, chapter.chapterId);
+          },
         ),
-      ).toHaveLength(0);
-      expect(cacheBytesRead).toBe(0);
-      expect(
-        reader.mock.contexts.filter(
-          (file) =>
-            (file as NodeFile).path === join(directoryPath, "database.db"),
-        ),
-      ).toHaveLength(0);
-      expect(
-        queryAll.mock.calls.some(
-          ([sql]) =>
-            /FROM library_archives[\s\S]*WHERE library_id = \?/u.test(sql) &&
-            !/\bid = \?/u.test(sql),
-        ),
-      ).toBe(false);
-      return {
-        lists: list.mock.calls.length,
-        reads: reader.mock.calls.length,
-        queries: queryAll.mock.calls.length,
+      );
+      await archive.ensureSearchIndex();
+      await sdk.libraries.scan(library.uri);
+      await sdk.libraries.rebuildIndex(library.uri);
+      const alias = join(root, "alias.wikg");
+      await symlink(directoryPath, alias);
+      await expect(
+        sdk.archives.open({ kind: "standalone", path: alias }),
+      ).rejects.toMatchObject({
+        code: "WIKI_GRAPH_ARCHIVE_OWNERSHIP_MISMATCH",
+      });
+      const list = vi.spyOn(NodeDirectory.prototype, "list");
+      let cacheBytesRead = 0;
+      // eslint-disable-next-line @typescript-eslint/unbound-method -- invoked with the original receiver via call below.
+      const originalOpenReader = NodeFile.prototype.openReader;
+      const reader = vi
+        .spyOn(NodeFile.prototype, "openReader")
+        .mockImplementation(async function (this: NodeFile) {
+          const opened = await originalOpenReader.call(this);
+          const isCache =
+            this.path.includes("/.wikg-cache/") &&
+            this.path.endsWith("/index.db");
+          return {
+            ...opened,
+            read: async (offset, length) => {
+              if (isCache) cacheBytesRead += length;
+              return await opened.read(offset, length);
+            },
+          };
+        });
+      const queryAll = vi.spyOn(Database.prototype, "queryAll");
+      const probe = async () => {
+        list.mockClear();
+        reader.mockClear();
+        queryAll.mockClear();
+        cacheBytesRead = 0;
+        await sdk.libraries.get(library.uri);
+        await sdk.run(async () =>
+          assertWikiGraphLibraryIndexReady(
+            parseWikiGraphLibraryUri(library.uri)!,
+          ),
+        );
+        // No matches means result hydration cannot mask a preflight scan.
+        await sdk.libraries.search(library.uri, "absentuniqueterm", {
+          queryMode: "fts",
+          skipUnindexed: true,
+        });
+        const opened = await sdk.archives.open({
+          kind: "library",
+          uri: member.uri,
+        });
+        await opened.getMetadata("");
+        await opened.search("absentuniqueterm", {
+          queryMode: "fts",
+          chapters: [chapter.chapterId],
+        });
+        expect(
+          list.mock.contexts.filter((directory) =>
+            (directory as NodeDirectory).path.startsWith(directoryPath),
+          ),
+        ).toHaveLength(0);
+        expect(cacheBytesRead).toBe(0);
+        expect(
+          reader.mock.contexts.filter(
+            (file) =>
+              (file as NodeFile).path === join(directoryPath, "database.db"),
+          ),
+        ).toHaveLength(0);
+        expect(
+          queryAll.mock.calls.some(
+            ([sql]) =>
+              /FROM library_archives[\s\S]*WHERE library_id = \?/u.test(sql) &&
+              !/\bid = \?/u.test(sql),
+          ),
+        ).toBe(false);
+        return {
+          lists: list.mock.calls.length,
+          reads: reader.mock.calls.length,
+          queries: queryAll.mock.calls.length,
+        };
       };
-    };
-    const small = await probe();
-    for (let i = 0; i < 60; i += 1)
-      await writeFile(join(directoryPath, `unrelated-${i}.txt`), "unused");
-    const largerDirectory = await probe();
-    expect(largerDirectory.lists).toBeLessThanOrEqual(small.lists);
-    expect(largerDirectory.reads).toBeLessThanOrEqual(small.reads);
-    expect(largerDirectory.queries).toBeLessThanOrEqual(small.queries);
-    for (let i = 0; i < 6; i += 1) {
-      await sdk.libraries.addArchive({
-        target: library.uri,
-        inputPath: path,
-        to: `extra-${i}.wikg`,
-      });
-    }
-    await sdk.libraries.rebuildIndex(library.uri);
-    const largerLibrary = await probe();
-    expect(largerLibrary.lists).toBeLessThanOrEqual(small.lists);
-    expect(largerLibrary.reads).toBeLessThanOrEqual(small.reads);
-    expect(largerLibrary.queries).toBeLessThanOrEqual(small.queries);
-    await sdk.run(async () =>
-      new WikiGraphDirectoryFile(new NodeDirectory(directoryPath)).write(
-        async (document) => {
-          for (let i = 0; i < 12; i += 1)
-            await addChapter(document, { title: `Unrelated ${i}` });
-        },
-      ),
-    );
-    await archive.ensureSearchIndex({ chapters: [chapter.chapterId] });
-    // The batched Core fixture write bypasses SDK membership invalidation.
-    await sdk.libraries.scan(library.uri);
-    await sdk.libraries.rebuildIndex(library.uri);
-    const largerChapterCount = await probe();
-    expect(largerChapterCount.lists).toBeLessThanOrEqual(small.lists);
-    expect(largerChapterCount.reads).toBeLessThanOrEqual(small.reads);
-    expect(largerChapterCount.queries).toBeLessThanOrEqual(small.queries);
-    // Local FTS coverage must be pushed into SQL and never inspect embeddings.
-    await sdk.run(async () =>
-      new WikiGraphDirectoryFile(new NodeDirectory(directoryPath)).readDocument(
-        async (document) => {
+      const small = await probe();
+      for (let i = 0; i < 60; i += 1)
+        await writeFile(join(directoryPath, `unrelated-${i}.txt`), "unused");
+      const largerDirectory = await probe();
+      expect(largerDirectory.lists).toBeLessThanOrEqual(small.lists);
+      expect(largerDirectory.reads).toBeLessThanOrEqual(small.reads);
+      expect(largerDirectory.queries).toBeLessThanOrEqual(small.queries);
+      for (let i = 0; i < 6; i += 1) {
+        await sdk.libraries.addArchive({
+          target: library.uri,
+          inputPath: path,
+          to: `extra-${i}.wikg`,
+        });
+      }
+      await sdk.libraries.rebuildIndex(library.uri);
+      const largerLibrary = await probe();
+      expect(largerLibrary.lists).toBeLessThanOrEqual(small.lists);
+      expect(largerLibrary.reads).toBeLessThanOrEqual(small.reads);
+      expect(largerLibrary.queries).toBeLessThanOrEqual(small.queries);
+      await sdk.run(async () =>
+        new WikiGraphDirectoryFile(new NodeDirectory(directoryPath)).write(
+          async (document) => {
+            for (let i = 0; i < 12; i += 1)
+              await addChapter(document, { title: `Unrelated ${i}` });
+          },
+        ),
+      );
+      await archive.ensureSearchIndex({ chapters: [chapter.chapterId] });
+      // The batched Core fixture write bypasses SDK membership invalidation.
+      await sdk.libraries.scan(library.uri);
+      await sdk.libraries.rebuildIndex(library.uri);
+      const largerChapterCount = await probe();
+      expect(largerChapterCount.lists).toBeLessThanOrEqual(small.lists);
+      expect(largerChapterCount.reads).toBeLessThanOrEqual(small.reads);
+      expect(largerChapterCount.queries).toBeLessThanOrEqual(small.queries);
+      // Local FTS coverage must be pushed into SQL and never inspect embeddings.
+      await sdk.run(async () =>
+        new WikiGraphDirectoryFile(
+          new NodeDirectory(directoryPath),
+        ).readDocument(async (document) => {
           const coverage = vi.spyOn(document.indexArtifacts, "listCoverage");
           await assertArchiveIndexArtifactsReady(document, {
             chapters: [chapter.chapterId],
             queryMode: "fts",
           });
           expect(coverage.mock.calls).toEqual([["fts", [chapter.chapterId]]]);
-        },
-      ),
-    );
-    // Access-time manifest validation is not a permanently memoized success.
-    const manifestPath = join(directoryPath, "manifest.json");
-    const manifest = JSON.parse(await readFile(manifestPath, "utf8")) as Record<
-      string,
-      unknown
-    >;
-    await writeFile(
-      manifestPath,
-      JSON.stringify({ ...manifest, schemaVersion: 99 }),
-    );
-    await expect(archive.getMetadata("")).rejects.toMatchObject({
-      code: "schema_version_incompatible",
-      reason: "newer-version",
-      target: { kind: "library", uri: library.uri },
-    });
-    await expect(
-      sdk.libraries.search(library.uri, "needle", {
-        queryMode: "fts",
-        skipUnindexed: true,
-      }),
-    ).rejects.toMatchObject({
-      reason: "newer-version",
-      target: { kind: "library", uri: library.uri },
-    });
-    const consume = vi.fn();
-    await expect(
-      sdk.libraries.readArchive(member.uri, consume),
-    ).rejects.toMatchObject({
-      reason: "newer-version",
-      target: { kind: "library", uri: library.uri },
-    });
-    expect(consume).not.toHaveBeenCalled();
-    sdk.close();
-  });
+        }),
+      );
+      // Access-time manifest validation is not a permanently memoized success.
+      const manifestPath = join(directoryPath, "manifest.json");
+      const manifest = JSON.parse(
+        await readFile(manifestPath, "utf8"),
+      ) as Record<string, unknown>;
+      await writeFile(
+        manifestPath,
+        JSON.stringify({ ...manifest, schemaVersion: 99 }),
+      );
+      await expect(archive.getMetadata("")).rejects.toMatchObject({
+        code: "schema_version_incompatible",
+        reason: "newer-version",
+        target: { kind: "library", uri: library.uri },
+      });
+      await expect(
+        sdk.libraries.search(library.uri, "needle", {
+          queryMode: "fts",
+          skipUnindexed: true,
+        }),
+      ).rejects.toMatchObject({
+        reason: "newer-version",
+        target: { kind: "library", uri: library.uri },
+      });
+      const consume = vi.fn();
+      await expect(
+        sdk.libraries.readArchive(member.uri, consume),
+      ).rejects.toMatchObject({
+        reason: "newer-version",
+        target: { kind: "library", uri: library.uri },
+      });
+      expect(consume).not.toHaveBeenCalled();
+      sdk.close();
+    },
+    scaleFixtureTimeout,
+  );
 
   it("ZIP schema validation reads only manifest and session readers are released", async () => {
     const { root, stateDir, sdk } = await fixture();
