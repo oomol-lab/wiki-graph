@@ -5,6 +5,7 @@ import {
   getHostEntryLastModified,
   isDirectory,
   readHostEntrySize,
+  getWikiGraphPlatform,
   type Directory,
   type File,
 } from "../runtime/platform/index.js";
@@ -48,6 +49,7 @@ import { randomBytes } from "../utils/crypto.js";
 import {
   parseWikiGraphLibraryUri,
   resolveWikiGraphLibrary,
+  resolveWikiGraphLibraryById,
   resolveWikiGraphLibraryForScan,
   updateWikiGraphLibraryFolderForRebind,
   type ParsedWikiGraphLibraryUri,
@@ -72,6 +74,7 @@ const LIBRARY_ARCHIVES_TABLE_COLUMNS_SQL = `
     relative_path TEXT NOT NULL,
     status TEXT NOT NULL DEFAULT 'present',
     last_seen_mutation_token TEXT,
+    physical_identity TEXT,
     last_seen_size INTEGER,
     last_seen_mtime_ms INTEGER,
     last_scanned_at TEXT,
@@ -89,6 +92,8 @@ ${LIBRARY_ARCHIVES_TABLE_COLUMNS_SQL}
 
   CREATE INDEX IF NOT EXISTS idx_library_archives_library_path
   ON library_archives(library_id, relative_path);
+  CREATE INDEX IF NOT EXISTS idx_library_archives_physical_identity
+  ON library_archives(physical_identity);
 `;
 
 type LibraryPathIdentityMode = "trusted" | "untrusted";
@@ -550,6 +555,7 @@ async function refreshLibraryArchiveMembership(
   archive: WikiGraphLibraryArchiveRecord,
   library: WikiGraphLibraryRecord,
 ): Promise<void> {
+  await markWikiGraphLibraryIndexDirty(library);
   const refreshedFile = await inspectLibraryArchiveFile(
     library.folder,
     archive.relativePath,
@@ -836,12 +842,82 @@ async function withLibraryArchiveMembershipDatabase<T>(
   );
 
   try {
-    await ensureLibraryArchiveMembershipColumns(database);
-    await ensureLibraryArchiveMembershipPathIndex(database);
     return await operation(database);
   } finally {
     await database.close();
   }
+}
+
+/** Called only by the explicit Home schema migration. */
+export async function migrateLibraryMembershipSchema(
+  database: Database,
+): Promise<void> {
+  const exists = await database.queryOne(
+    "SELECT 1 AS found FROM sqlite_master WHERE type = 'table' AND name = 'library_archives'",
+    undefined,
+    (row) => row.found,
+  );
+  if (exists === undefined) return;
+  await ensureLibraryArchiveMembershipColumns(database);
+  await ensureLibraryArchiveMembershipPathIndex(database);
+  await database.run(
+    "CREATE INDEX IF NOT EXISTS idx_library_archives_physical_identity ON library_archives(physical_identity)",
+  );
+  const rows = await database.queryAll(
+    "SELECT id, library_id, relative_path FROM library_archives",
+    undefined,
+    (row) => row,
+  );
+  for (const row of rows) {
+    const root = await database.queryOne(
+      "SELECT folder_identity FROM libraries WHERE id = ?",
+      [getNumber(row, "library_id")],
+      (record) => getString(record, "folder_identity"),
+    );
+    const folder =
+      root === undefined
+        ? undefined
+        : await getWikiGraphPlatform().resources.getDirectory(root);
+    const entry =
+      folder === undefined
+        ? undefined
+        : await getRelativeLibraryArchiveEntry(
+            folder,
+            getString(row, "relative_path"),
+          );
+    await database.run(
+      "UPDATE library_archives SET physical_identity = ? WHERE id = ?",
+      [(await entry?.getPhysicalIdentity?.()) ?? null, getNumber(row, "id")],
+    );
+  }
+}
+
+export async function findWikiGraphLibraryArchivePhysicalAliases(
+  identity: string,
+): Promise<readonly WikiGraphLibraryArchiveRecord[]> {
+  return await withLibraryArchiveMembershipDatabase(async (database) => {
+    const rows = await database.queryAll(
+      "SELECT * FROM library_archives WHERE physical_identity = ?",
+      [identity],
+      (row) => row,
+    );
+    const records: WikiGraphLibraryArchiveRecord[] = [];
+    for (const row of rows) {
+      const library = await resolveWikiGraphLibraryById(
+        getNumber(row, "library_id"),
+      );
+      const entry = await getRelativeLibraryArchiveEntry(
+        library.folder,
+        getString(row, "relative_path"),
+      );
+      if (
+        entry !== undefined &&
+        (await entry.getPhysicalIdentity?.()) === identity
+      )
+        records.push(mapLibraryArchiveRecord(library, row, entry));
+    }
+    return records;
+  });
 }
 
 async function listLibraryArchives(
@@ -927,9 +1003,9 @@ async function insertLibraryArchive(
     `
       INSERT INTO library_archives (
         library_id, public_id, relative_path, status, last_seen_mutation_token,
-        last_seen_size, last_seen_mtime_ms, last_scanned_at, created_at, updated_at
+        last_seen_size, last_seen_mtime_ms, last_scanned_at, created_at, updated_at, physical_identity
       )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `,
     [
       libraryId,
@@ -942,6 +1018,7 @@ async function insertLibraryArchive(
       now,
       now,
       now,
+      (await (file.directory ?? file.file)?.getPhysicalIdentity?.()) ?? null,
     ],
   );
 }
@@ -957,6 +1034,7 @@ async function updateLibraryArchiveSeen(
     `
       UPDATE library_archives
       SET status = ?,
+          physical_identity = ?,
           last_seen_mutation_token = ?,
           last_seen_size = ?,
           last_seen_mtime_ms = ?,
@@ -966,6 +1044,7 @@ async function updateLibraryArchiveSeen(
     `,
     [
       options.status,
+      (await (file.directory ?? file.file)?.getPhysicalIdentity?.()) ?? null,
       file.mutationToken ?? null,
       file.size,
       Math.round(file.mtimeMs),
@@ -1425,6 +1504,7 @@ async function ensureLibraryArchiveMembershipColumns(
     ["last_seen_size", "INTEGER"],
     ["last_seen_mtime_ms", "INTEGER"],
     ["last_scanned_at", "TEXT"],
+    ["physical_identity", "TEXT"],
   ];
   for (const [name, definition] of additions) {
     if (!columnSet.has(name)) {

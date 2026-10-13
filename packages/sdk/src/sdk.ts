@@ -31,7 +31,6 @@ export interface WikiGraphSDKOptions {
 
 export class WikiGraphSDK implements WikiGraphJobRuntime {
   readonly #context: WikiGraphSDKRuntimeContext;
-  #homeReady: Promise<void> | undefined;
   public readonly archives: WikiGraphArchiveManager;
   public readonly conversions: WikiGraphConversionManager;
   public readonly config: WikiGraphConfigManager;
@@ -69,13 +68,7 @@ export class WikiGraphSDK implements WikiGraphJobRuntime {
     const runWithContext = async (): Promise<T> =>
       await withWikiGraphSDKRuntimeContext(this.#context, async () => {
         if (options.skipHomeBootstrap !== true) {
-          this.#homeReady ??= ensureWikiGraphHomeSchemaCurrent().catch(
-            (error: unknown) => {
-              this.#homeReady = undefined;
-              throw error;
-            },
-          );
-          await this.#homeReady;
+          await ensureWikiGraphHomeSchemaCurrent();
         }
         return await operation();
       });

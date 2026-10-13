@@ -9,11 +9,7 @@ import {
   getWikiGraphLibraryArchive,
 } from "./membership.js";
 import { withWikiGraphLibraryLock } from "./lock.js";
-import {
-  markWikiGraphLibraryIndexDirty,
-  readWikiGraphLibraryIndexState,
-  rebuildWikiGraphLibraryIndexWithinLock,
-} from "./search-index.js";
+import { markWikiGraphLibraryIndexDirty } from "./search-index.js";
 import {
   resolveWikiGraphLibrary,
   type ParsedWikiGraphLibraryUri,
@@ -43,7 +39,6 @@ export async function writeWikiGraphLibraryArchive<T>(
     if (archive.file === undefined && archive.directory === undefined) {
       throw new Error(`Wiki Graph library archive is missing: ${archive.uri}`);
     }
-    const indexState = await readWikiGraphLibraryIndexState(input.target);
     const result = await input.operation(archive.directory ?? archive.file!);
 
     // Once the WIKG commit succeeds, make the aggregate index observably stale
@@ -66,13 +61,6 @@ export async function writeWikiGraphLibraryArchive<T>(
       input.invalidateContinuationCursors ?? false,
     );
 
-    if (indexState.status !== "missing") {
-      try {
-        await rebuildWikiGraphLibraryIndexWithinLock(input.target, library);
-      } catch (error) {
-        input.onIndexSyncError?.(error);
-      }
-    }
     return result;
   });
 }

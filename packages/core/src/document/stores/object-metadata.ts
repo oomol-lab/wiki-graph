@@ -53,8 +53,9 @@ export class ObjectMetadataStore implements ReadonlyObjectMetadataStore {
     key: string,
     value: unknown,
   ): Promise<void> {
-    await this.#database.run(
-      `
+    await this.#database.transaction(async () => {
+      await this.#database.run(
+        `
         INSERT INTO object_metadata (
           object_kind,
           object_path,
@@ -80,40 +81,54 @@ export class ObjectMetadataStore implements ReadonlyObjectMetadataStore {
           triple_predicate = excluded.triple_predicate,
           triple_object_qid = excluded.triple_object_qid
       `,
-      [
-        target.kind,
-        target.objectPath,
-        key,
-        JSON.stringify(value),
-        new Date().toISOString(),
-        target.chapterId ?? null,
-        target.chunkId ?? null,
-        target.entityQid ?? null,
-        target.tripleSubjectQid ?? null,
-        target.triplePredicate ?? null,
-        target.tripleObjectQid ?? null,
-      ],
-    );
+        [
+          target.kind,
+          target.objectPath,
+          key,
+          JSON.stringify(value),
+          new Date().toISOString(),
+          target.chapterId ?? null,
+          target.chunkId ?? null,
+          target.entityQid ?? null,
+          target.tripleSubjectQid ?? null,
+          target.triplePredicate ?? null,
+          target.tripleObjectQid ?? null,
+        ],
+      );
+      await this.#invalidateSearch();
+    });
   }
 
   public async deleteKey(objectPath: string, key: string): Promise<void> {
-    await this.#database.run(
-      `
+    await this.#database.transaction(async () => {
+      await this.#database.run(
+        `
         DELETE FROM object_metadata
         WHERE object_path = ?
           AND key = ?
       `,
-      [objectPath, key],
-    );
+        [objectPath, key],
+      );
+      await this.#invalidateSearch();
+    });
   }
 
   public async clear(objectPath: string): Promise<void> {
-    await this.#database.run(
-      `
+    await this.#database.transaction(async () => {
+      await this.#database.run(
+        `
         DELETE FROM object_metadata
         WHERE object_path = ?
       `,
-      [objectPath],
+        [objectPath],
+      );
+      await this.#invalidateSearch();
+    });
+  }
+
+  async #invalidateSearch(): Promise<void> {
+    await this.#database.run(
+      "INSERT INTO archive_revisions(key, value) VALUES ('chapters', 1) ON CONFLICT(key) DO UPDATE SET value = value + 1",
     );
   }
 

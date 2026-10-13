@@ -20,11 +20,13 @@ export class WikiGraphDirectoryFile {
 
   public async readDocument<T>(
     operation: (document: DirectoryDocument) => Promise<T> | T,
+    options: { readonly searchIndexWritebackPolicy?: "archive" | "cache" } = {},
   ): Promise<T> {
     const { WikiGraphArchiveFile } =
       await import("./wiki-graph-archive-file.js");
     return await new WikiGraphArchiveFile(this.#directory).readDocument(
       operation,
+      options,
     );
   }
 

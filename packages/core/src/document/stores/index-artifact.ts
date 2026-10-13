@@ -35,7 +35,20 @@ export class IndexArtifactStore implements ReadonlyIndexArtifactStore {
     );
   }
 
-  public async list(kind?: IndexArtifactKind): Promise<IndexArtifactRecord[]> {
+  public async list(
+    kind?: IndexArtifactKind,
+    serialIds?: readonly number[],
+  ): Promise<IndexArtifactRecord[]> {
+    if (serialIds !== undefined) {
+      if (serialIds.length === 0) return [];
+      return await this.#database.queryAll(
+        `SELECT serial_id, kind, source_revision, created_at, metadata_json
+         FROM index_artifacts WHERE serial_id IN (${serialIds.map(() => "?").join(",")})
+         ${kind === undefined ? "" : "AND kind = ?"} ORDER BY serial_id, kind`,
+        [...serialIds, ...(kind === undefined ? [] : [kind])],
+        mapArtifactRow,
+      );
+    }
     if (kind === undefined) {
       return await this.#database.queryAll(
         `
@@ -62,7 +75,9 @@ export class IndexArtifactStore implements ReadonlyIndexArtifactStore {
 
   public async listCoverage(
     kind: IndexArtifactKind,
+    serialIds?: readonly number[],
   ): Promise<IndexArtifactCoverageRecord[]> {
+    if (serialIds?.length === 0) return [];
     return await this.#database.queryAll(
       `
         SELECT
@@ -75,9 +90,10 @@ export class IndexArtifactStore implements ReadonlyIndexArtifactStore {
         LEFT JOIN index_artifacts
           ON index_artifacts.serial_id = serials.id
          AND index_artifacts.kind = ?
+        ${serialIds === undefined ? "" : `WHERE serials.id IN (${serialIds.map(() => "?").join(",")})`}
         ORDER BY serials.document_order, serials.id
       `,
-      [kind],
+      [kind, ...(serialIds ?? [])],
       (row) => {
         const serialRevision = getNumber(row, "serial_revision");
         const sourceRevision = getOptionalNumber(row, "source_revision");
@@ -243,6 +259,9 @@ export class IndexArtifactStore implements ReadonlyIndexArtifactStore {
   ): Promise<void> {
     await this.#database.transaction(async () => {
       await this.#database.run(
+        "INSERT INTO archive_revisions(key, value) VALUES ('chapters', 1) ON CONFLICT(key) DO UPDATE SET value = value + 1",
+      );
+      await this.#database.run(
         `
           DELETE FROM index_artifact_lexical_rows
           WHERE serial_id = ?
@@ -271,6 +290,9 @@ export class IndexArtifactStore implements ReadonlyIndexArtifactStore {
 
   public async deleteBySerial(serialId: number): Promise<void> {
     await this.#database.transaction(async () => {
+      await this.#database.run(
+        "INSERT INTO archive_revisions(key, value) VALUES ('chapters', 1) ON CONFLICT(key) DO UPDATE SET value = value + 1",
+      );
       await this.#database.run(
         `
           DELETE FROM index_artifact_lexical_rows
@@ -301,6 +323,9 @@ export class IndexArtifactStore implements ReadonlyIndexArtifactStore {
     readonly serialId: number;
     readonly sourceRevision: number;
   }): Promise<void> {
+    await this.#database.run(
+      "INSERT INTO archive_revisions(key, value) VALUES ('chapters', 1) ON CONFLICT(key) DO UPDATE SET value = value + 1",
+    );
     await this.#database.run(
       `
         INSERT INTO index_artifacts (

@@ -1,6 +1,6 @@
 import { mkdir, rename } from "fs/promises";
 import { join } from "path";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
   Database,
@@ -562,6 +562,86 @@ describe("wikg/wiki-graph-archive-file", () => {
       expect(rangeLengths.reduce((sum, length) => sum + length, 0)).toBe(
         sourceSize,
       );
+    });
+  });
+
+  it("reads a persistent cache directly and excludes writers until the read session closes", async () => {
+    await withArchiveFixture(async ({ archive }) => {
+      await withHostArchiveSession(archive, async (session) => {
+        const cache = await session.materializeSearchIndexCache({
+          createIfMissing: true,
+        });
+        await createLargeSearchDatabase(cache);
+        session.markSearchIndexCacheDirty(cache);
+      });
+      let releaseRead!: () => void;
+      const readGate = new Promise<void>((resolve) => {
+        releaseRead = resolve;
+      });
+      let announceRead!: () => void;
+      const reading = new Promise<void>((resolve) => {
+        announceRead = resolve;
+      });
+      const storage = getWikiGraphStorage();
+      const lengths: number[] = [];
+      // eslint-disable-next-line @typescript-eslint/unbound-method -- invoked with the original receiver via call below.
+      const originalOpenReader = NodeFile.prototype.openReader;
+      const spy = vi
+        .spyOn(NodeFile.prototype, "openReader")
+        .mockImplementation(async function (this: NodeFile) {
+          const reader = await originalOpenReader.call(this);
+          const cache = this.path.includes("/.wikg-cache/");
+          return {
+            ...reader,
+            read: async (offset, length) => {
+              if (cache) lengths.push(length);
+              return await reader.read(offset, length);
+            },
+          };
+        });
+      await withWikiGraphStorage(storage, async () => {
+        const read = withHostArchiveSession(archive, async (session) => {
+          const cache = await session.materializeSearchIndexCache({
+            createIfMissing: false,
+            readonly: true,
+          });
+          await expect(readSearchMarker(cache)).resolves.toBe(1);
+          announceRead();
+          await readGate;
+        });
+        await Promise.race([reading, read]);
+        expect(lengths).toEqual([]);
+        let writing = false;
+        const write = withHostArchiveSession(archive, async (session) => {
+          await session.materializeSearchIndexCache({ createIfMissing: false });
+          writing = true;
+        });
+        try {
+          await new Promise((resolve) => setTimeout(resolve, 25));
+          expect(writing).toBe(false);
+        } finally {
+          releaseRead();
+        }
+        await Promise.all([read, write]);
+        expect(writing).toBe(true);
+      });
+      spy.mockRestore();
+      await withCoordinatorState(async (database) => {
+        expect(
+          await database.queryAll(
+            "SELECT * FROM entry_locks",
+            undefined,
+            (row) => row,
+          ),
+        ).toEqual([]);
+        expect(
+          await database.queryAll(
+            "SELECT * FROM entry_sqlite_leases",
+            undefined,
+            (row) => row,
+          ),
+        ).toEqual([]);
+      });
     });
   });
 

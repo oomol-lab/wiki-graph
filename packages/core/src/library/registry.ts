@@ -51,6 +51,7 @@ const LIBRARY_REGISTRY_SCHEMA_SQL = `
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     public_id TEXT NOT NULL UNIQUE,
     folder_identity TEXT NOT NULL UNIQUE,
+    physical_identity TEXT,
     is_default INTEGER NOT NULL DEFAULT 0 CHECK (is_default IN (0, 1)),
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL
@@ -59,6 +60,7 @@ const LIBRARY_REGISTRY_SCHEMA_SQL = `
   CREATE UNIQUE INDEX IF NOT EXISTS idx_libraries_single_default
   ON libraries(is_default)
   WHERE is_default = 1;
+  CREATE INDEX IF NOT EXISTS idx_libraries_physical_identity ON libraries(physical_identity);
 
   CREATE TABLE IF NOT EXISTS library_metadata (
     library_id INTEGER NOT NULL,
@@ -342,10 +344,16 @@ export async function ensureDefaultWikiGraphLibrary(): Promise<WikiGraphLibraryR
 
       await database.run(
         `
-          INSERT INTO libraries (public_id, folder_identity, is_default, created_at, updated_at)
-          VALUES (?, ?, 1, ?, ?)
+          INSERT INTO libraries (public_id, folder_identity, is_default, created_at, updated_at, physical_identity)
+          VALUES (?, ?, 1, ?, ?, ?)
         `,
-        [publicId, folder.identity, now, now],
+        [
+          publicId,
+          folder.identity,
+          now,
+          now,
+          (await folder.getPhysicalIdentity?.()) ?? null,
+        ],
       );
 
       return await requireDefaultLibraryRecord(database);
@@ -365,10 +373,16 @@ export async function createWikiGraphLibrary(input: {
 
       await database.run(
         `
-          INSERT INTO libraries (public_id, folder_identity, is_default, created_at, updated_at)
-          VALUES (?, ?, 0, ?, ?)
+          INSERT INTO libraries (public_id, folder_identity, is_default, created_at, updated_at, physical_identity)
+          VALUES (?, ?, 0, ?, ?, ?)
         `,
-        [publicId, input.folder.identity, now, now],
+        [
+          publicId,
+          input.folder.identity,
+          now,
+          now,
+          (await input.folder.getPhysicalIdentity?.()) ?? null,
+        ],
       );
 
       return await requireLibraryRecordByPublicId(database, publicId);
@@ -391,6 +405,27 @@ export async function listWikiGraphLibraries(): Promise<
       (row) => row,
     );
     return await Promise.all(rows.map(mapLibraryRecord));
+  });
+}
+
+/** Indexed lookup for Node aliases; does not enumerate unrelated libraries. */
+export async function findWikiGraphLibraryByPhysicalIdentity(
+  identity: string | undefined,
+  folderIdentity?: string,
+): Promise<WikiGraphLibraryRecord | undefined> {
+  return await withLibraryRegistryDatabase(async (database) => {
+    const row = await database.queryOne(
+      "SELECT * FROM libraries WHERE folder_identity = ? OR physical_identity = ? ORDER BY (folder_identity = ?) DESC LIMIT 1",
+      [folderIdentity ?? null, identity ?? null, folderIdentity ?? null],
+      (row) => row,
+    );
+    if (row === undefined) return undefined;
+    const record = await mapLibraryRecord(row);
+    return record.folder.identity === folderIdentity ||
+      (identity !== undefined &&
+        (await record.folder.getPhysicalIdentity?.()) === identity)
+      ? record
+      : undefined;
   });
 }
 
@@ -481,8 +516,13 @@ export async function updateWikiGraphLibraryFolderForRebind(
       }
 
       await database.run(
-        "UPDATE libraries SET folder_identity = ?, updated_at = ? WHERE id = ?",
-        [folder.identity, new Date().toISOString(), library.id],
+        "UPDATE libraries SET folder_identity = ?, updated_at = ?, physical_identity = ? WHERE id = ?",
+        [
+          folder.identity,
+          new Date().toISOString(),
+          (await folder.getPhysicalIdentity?.()) ?? null,
+          library.id,
+        ],
       );
       return await requireLibraryRecordById(database, library.id);
     });

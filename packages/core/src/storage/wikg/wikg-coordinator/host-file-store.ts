@@ -12,6 +12,7 @@ import type { WorkspaceWritebackPolicy } from "./types.js";
 
 export class HostWikgDocumentFileStore implements DocumentFileStore {
   readonly #readonlyDatabase: boolean;
+  readonly #writableSearchCache: boolean;
   readonly #searchIndexWritebackPolicy: WorkspaceWritebackPolicy;
   readonly #session: HostWikgArchiveSession;
   #database: File | undefined;
@@ -23,11 +24,13 @@ export class HostWikgDocumentFileStore implements DocumentFileStore {
     session: HostWikgArchiveSession,
     options: {
       readonly readonlyDatabase?: boolean;
+      readonly writableSearchCache?: boolean;
       readonly searchIndexWritebackPolicy?: WorkspaceWritebackPolicy;
     },
   ) {
     this.#session = session;
     this.#readonlyDatabase = options.readonlyDatabase === true;
+    this.#writableSearchCache = options.writableSearchCache === true;
     this.#searchIndexWritebackPolicy =
       options.searchIndexWritebackPolicy ?? "cache";
   }
@@ -74,7 +77,9 @@ export class HostWikgDocumentFileStore implements DocumentFileStore {
     this.#searchIndexDatabase ??=
       this.#searchIndexWritebackPolicy === "cache"
         ? await this.#session.materializeSearchIndexCache({
-            createIfMissing: !this.#readonlyDatabase,
+            createIfMissing:
+              !this.#readonlyDatabase || this.#writableSearchCache,
+            readonly: this.#readonlyDatabase && !this.#writableSearchCache,
           })
         : await this.#session.materializeDatabase(
             SEARCH_INDEX_DATABASE_ENTRY_PATH,
@@ -94,7 +99,10 @@ export class HostWikgDocumentFileStore implements DocumentFileStore {
   }
 
   public markSearchIndexDatabaseDirty(): void {
-    if (!this.#readonlyDatabase && this.#searchIndexDatabase !== undefined) {
+    if (
+      (!this.#readonlyDatabase || this.#writableSearchCache) &&
+      this.#searchIndexDatabase !== undefined
+    ) {
       this.#searchIndexDatabaseDirty = true;
       if (this.#searchIndexWritebackPolicy === "archive") {
         this.#session.markDatabaseDirty(SEARCH_INDEX_DATABASE_ENTRY_PATH);

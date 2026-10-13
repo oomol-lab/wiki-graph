@@ -33,6 +33,11 @@ const archiveMaintenanceMockState = vi.hoisted(() => ({
 }));
 
 vi.mock("../../../packages/core/src/index.js", () => ({
+  findWikiGraphLibraryByPhysicalIdentity: vi.fn(() =>
+    Promise.resolve(undefined),
+  ),
+  findWikiGraphLibraryArchivePhysicalAliases: vi.fn(() => Promise.resolve([])),
+  ensureWikiGraphArchiveSchemaCurrent: vi.fn(() => Promise.resolve()),
   ensureWikiGraphHomeSchemaCurrent: vi.fn(() => Promise.resolve()),
   formatLocatedWikiGraphUri: (path: string, objectUri?: string) =>
     objectUri === undefined ? `wikg://${path}` : `wikg://${path}/${objectUri}`,

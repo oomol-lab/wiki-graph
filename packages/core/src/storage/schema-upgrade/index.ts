@@ -43,9 +43,11 @@ import {
   clearArchiveUpgradeDerivedOverlays,
 } from "../wikg/wikg-coordinator/index.js";
 import { withStateLock } from "../../state-lock.js";
+import { WikiGraphSchemaVersionError } from "../../runtime/common/error.js";
 
 export {
   ensureWikiGraphHomeSchemaCurrent,
+  upgradeWikiGraphHomeSchema,
   readWikiGraphHomeSchemaVersion,
 } from "../../document/home-schema-upgrade.js";
 
@@ -65,14 +67,12 @@ export async function ensureWikiGraphArchiveSchemaCurrent(
   archiveRef: Directory | File | string,
 ): Promise<void> {
   const schemaVersion = await readWikiGraphArchiveSchemaVersion(archiveRef);
-  if (schemaVersion > CURRENT_ARCHIVE_SCHEMA_VERSION) {
-    throw new Error(
-      `Unsupported Wiki Graph archive schema version: ${schemaVersion}.`,
-    );
-  }
-  if (schemaVersion < CURRENT_ARCHIVE_SCHEMA_VERSION) {
-    throw new Error(
-      `This Wiki Graph archive uses schema v${schemaVersion} and must be upgraded before use.`,
+  if (schemaVersion !== CURRENT_ARCHIVE_SCHEMA_VERSION) {
+    const archive = await resolveArchiveUpgradeTarget(archiveRef);
+    throw new WikiGraphSchemaVersionError(
+      { kind: "archive", path: archive.identity },
+      schemaVersion,
+      CURRENT_ARCHIVE_SCHEMA_VERSION,
     );
   }
 }
@@ -82,8 +82,20 @@ export async function readWikiGraphArchiveSchemaVersion(
 ): Promise<number> {
   const archive = await resolveArchiveUpgradeTarget(archiveRef);
   return await withDirectoryArchiveUpgradeLock(archive, async () => {
-    const entries = await readArchiveEntries(archive);
-    const manifest = entries.get(WIKG_MANIFEST_PATH);
+    const manifest =
+      archive.kind === "directory"
+        ? await (async () => {
+            const file = await archive.getFile(WIKG_MANIFEST_PATH);
+            return file === undefined ? undefined : await readFileBytes(file);
+          })()
+        : await (async () => {
+            const reader = await getWikiGraphPlatform().zip.open(archive);
+            try {
+              return await reader.readEntry(WIKG_MANIFEST_PATH);
+            } finally {
+              await reader.close();
+            }
+          })();
     if (manifest === undefined) {
       throw new Error(`Missing WIKG manifest: ${WIKG_MANIFEST_PATH}.`);
     }
@@ -106,8 +118,10 @@ export async function upgradeWikiGraphArchiveSchema(
         new TextDecoder().decode(manifest),
       ).schemaVersion;
       if (schemaVersion > CURRENT_ARCHIVE_SCHEMA_VERSION) {
-        throw new Error(
-          `Unsupported Wiki Graph archive schema version: ${schemaVersion}.`,
+        throw new WikiGraphSchemaVersionError(
+          { kind: "archive", path: archive.identity },
+          schemaVersion,
+          CURRENT_ARCHIVE_SCHEMA_VERSION,
         );
       }
 

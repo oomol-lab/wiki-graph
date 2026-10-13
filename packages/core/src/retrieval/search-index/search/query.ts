@@ -61,6 +61,17 @@ import {
 const QUERY_BATCH_SIZE = 512;
 const QUERY_CACHE_WAIT_MS = 20;
 
+type CoverageColumn = "fts" | "embedding" | "hybrid";
+
+function createCoverageSql(
+  column: CoverageColumn | undefined,
+  chapter: string,
+): string {
+  return column === undefined
+    ? ""
+    : `AND (${chapter} IS NULL OR EXISTS (SELECT 1 FROM archive_query_chapters AS eligibility WHERE eligibility.chapter_id = ${chapter} AND eligibility.${column} = 1))`;
+}
+
 export async function querySearchIndex(
   document: ReadonlyDocument,
   query: string,
@@ -70,6 +81,7 @@ export async function querySearchIndex(
     readonly match?: ArchiveFindMatch;
     readonly queryId?: string;
     readonly queryMode?: SearchIndexQueryMode;
+    readonly skipUnindexed?: boolean;
     readonly objectHitLimit?: number;
     readonly textAfter?: {
       readonly archiveId: number;
@@ -95,6 +107,24 @@ export async function querySearchIndex(
       indexState.indexes === "fts" || indexState.indexes === "fts,dense";
     const hasDense = hasDenseSegments;
     const queryMode = options.queryMode ?? "hybrid";
+    const provider = options.embeddingProvider;
+    const embeddingCompatible =
+      provider !== undefined &&
+      (indexState.embeddingModel === undefined ||
+        provider.model === indexState.embeddingModel) &&
+      (indexState.embeddingIdentity === undefined ||
+        provider.identity === undefined ||
+        provider.identity === indexState.embeddingIdentity) &&
+      (provider.dimensions === undefined ||
+        indexState.denseDimensions === undefined ||
+        provider.dimensions === indexState.denseDimensions);
+    const coverageColumn = (await hasTable(database, "archive_query_chapters"))
+      ? queryMode === "fts" || (queryMode === "hybrid" && !embeddingCompatible)
+        ? "fts"
+        : queryMode === "embedding"
+          ? "embedding"
+          : "hybrid"
+      : undefined;
     if (queryMode === "fts" && !hasFts) {
       throw new Error("FTS query mode requires a current FTS search index.");
     }
@@ -133,6 +163,7 @@ export async function querySearchIndex(
         try {
           if (usesFts) {
             await populateCachedFtsHits(database, cache, queryId, query, plan, {
+              ...(coverageColumn === undefined ? {} : { coverageColumn }),
               ...(options.chapters === undefined
                 ? {}
                 : { chapters: options.chapters }),
@@ -151,6 +182,7 @@ export async function querySearchIndex(
               query,
               indexState,
               {
+                ...(coverageColumn === undefined ? {} : { coverageColumn }),
                 ...(options.chapters === undefined
                   ? {}
                   : { chapters: options.chapters }),
@@ -200,6 +232,7 @@ async function populateCachedFtsHits(
   query: string,
   plan: SearchTokenPlan,
   options: {
+    readonly coverageColumn?: CoverageColumn;
     readonly chapters?: readonly number[];
     readonly match: ArchiveFindMatch;
     readonly types?: readonly ArchiveFindObjectType[] | null;
@@ -441,6 +474,7 @@ async function populateCachedDenseHits(
   query: string,
   state: SearchIndexQueryState,
   options: {
+    readonly coverageColumn?: CoverageColumn;
     readonly chapters?: readonly number[];
     readonly embeddingProvider?: SearchIndexEmbeddingProvider;
     readonly queryMode?: SearchIndexQueryMode;
@@ -507,6 +541,9 @@ async function populateCachedDenseHits(
   }
 
   await populateCachedDenseSegmentHits(database, cache, queryId, queryVector, {
+    ...(options.coverageColumn === undefined
+      ? {}
+      : { coverageColumn: options.coverageColumn }),
     ...(options.chapters === undefined ? {} : { chapters: options.chapters }),
     ...(options.types === undefined ? {} : { types: options.types }),
   });
@@ -525,6 +562,7 @@ async function populateCachedDenseSegmentHits(
   queryId: string,
   queryVector: readonly number[],
   options: {
+    readonly coverageColumn?: CoverageColumn;
     readonly chapters?: readonly number[];
     readonly types?: readonly ArchiveFindObjectType[] | null;
   },
@@ -551,6 +589,7 @@ async function populateCachedDenseSegmentHits(
         WHERE id > ?
           AND kind IN (${kinds.map(() => "?").join(", ")})
           ${createChapterSql(options.chapters, "")}
+          ${createCoverageSql(options.coverageColumn, "text_embedding_segments.chapter_id")}
         ORDER BY id
         LIMIT ?
       `,
@@ -700,6 +739,7 @@ async function queryObjectRows(
   database: Database,
   matchExpression: string,
   options: {
+    readonly coverageColumn?: CoverageColumn;
     readonly chapters?: readonly number[];
     readonly limit: number;
     readonly offset: number;
@@ -729,6 +769,7 @@ async function queryObjectRows(
       WHERE search_object_properties_fts MATCH ?
         ${createChapterSql(options.chapters)}
         ${createObjectTypeSql(options.types)}
+        ${createCoverageSql(options.coverageColumn, "r.chapter_id")}
       ORDER BY raw_score ASC, r.archive_id, r.chapter_id,
                r.owner_kind, r.owner_id, r.property_kind
       LIMIT ? OFFSET ?
@@ -758,6 +799,7 @@ async function queryTextRows(
   database: Database,
   matchExpression: string,
   options: {
+    readonly coverageColumn?: CoverageColumn;
     readonly chapters?: readonly number[];
     readonly limit: number;
     readonly offset: number;
@@ -788,6 +830,7 @@ async function queryTextRows(
       WHERE text_sentence_fts MATCH ?
         AND r.kind IN (${kinds.map(() => "?").join(", ")})
         ${createChapterSql(options.chapters)}
+        ${createCoverageSql(options.coverageColumn, "r.chapter_id")}
       ORDER BY raw_score ASC, r.archive_id, r.chapter_id,
                r.sentence_index, r.kind
       LIMIT ? OFFSET ?

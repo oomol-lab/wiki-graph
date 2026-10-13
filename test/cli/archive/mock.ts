@@ -517,7 +517,24 @@ vi.mock("wiki-graph-core", async (importOriginal) => {
 
   return {
     ...actual,
+    ensureWikiGraphArchiveSchemaCurrent: vi.fn(() => Promise.resolve()),
+    findWikiGraphLibraryArchivePhysicalAliases: vi.fn(() =>
+      Promise.resolve([]),
+    ),
+    findWikiGraphLibraryByPhysicalIdentity: vi.fn(() =>
+      Promise.resolve(undefined),
+    ),
     assertArchiveIndexArtifactsReady: vi.fn(() => Promise.resolve()),
+    assertArchiveQueryReady: vi.fn(() =>
+      archiveMockState.ftsCurrent
+        ? Promise.resolve()
+        : Promise.reject(
+            new Error(
+              "Archive search index is missing or dirty. Run `wg <archive-uri>/index sync` explicitly before querying.",
+            ),
+          ),
+    ),
+    resolveIndexedArchiveChapterScope: vi.fn(() => Promise.resolve([1, 2])),
     isArchiveSearchIndexCurrent: vi.fn(() =>
       Promise.resolve(archiveMockState.ftsCurrent),
     ),
@@ -912,7 +929,7 @@ function createDefaultInspectSerials(): typeof archiveMockState.serials {
 
 export function resetArchiveMockState(): void {
   vi.clearAllMocks();
-  archiveMockState.ftsCurrent = false;
+  archiveMockState.ftsCurrent = true;
   archiveMockState.indexArtifactCoverage = {
     "embedding-source": [
       {

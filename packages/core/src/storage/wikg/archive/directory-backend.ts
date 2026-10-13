@@ -15,33 +15,29 @@ import { normalizeArchivePath, isReadableWikgArchivePath } from "./paths.js";
 export async function openDirectoryArchive(
   directory: Directory,
 ): Promise<HostZipReader> {
-  const entries = new Map<string, File>();
-  async function walk(root: Directory, prefix: string): Promise<void> {
-    for (const entry of await root.list()) {
-      const name = prefix + entry.name;
-      if (entry.kind === "directory") {
-        if (!entry.name.startsWith(".")) await walk(entry, name + "/");
-      } else if (isReadableWikgArchivePath(name)) {
-        entries.set(name, entry);
-      }
-    }
-  }
-  await walk(directory, "");
+  const find = async (name: string) => {
+    const path = normalizeArchivePath(name);
+    return isReadableWikgArchivePath(path)
+      ? await getRelativeFile(directory, path)
+      : undefined;
+  };
   return {
     close: async () => {},
-    listEntries: async () => [...entries.keys()],
+    listEntries: async () => [
+      ...(await listDirectoryArchiveFiles(directory)).keys(),
+    ],
     readEntry: async (name) => {
-      const file = entries.get(name);
+      const file = await find(name);
       return file === undefined ? undefined : await readFileBytes(file);
     },
     copyEntry: async (name, target) => {
-      const file = entries.get(name);
+      const file = await find(name);
       if (file === undefined) return false;
       await copyFileContent(file, target);
       return true;
     },
     getEntrySize: async (name) => {
-      const file = entries.get(name);
+      const file = await find(name);
       if (file === undefined) return undefined;
       const reader = await file.openReader();
       try {
@@ -51,7 +47,7 @@ export async function openDirectoryArchive(
       }
     },
     readEntryRange: async (name, offset, length) => {
-      const file = entries.get(name);
+      const file = await find(name);
       if (file === undefined) return undefined;
       const reader = await file.openReader();
       try {

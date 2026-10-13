@@ -4,7 +4,7 @@ import type {
 } from "../../../../document/index.js";
 
 import { aggregateEvidenceScores } from "../helpers.js";
-import { listArchiveQueryableChapterIds } from "../index-state.js";
+import { assertArchiveQueryReady } from "../index-state.js";
 import { parseArchiveReference } from "../references.js";
 import { queryRequiredSearchIndex } from "../search/hydration.js";
 import { createSentenceHitKey } from "../search/cache-input.js";
@@ -41,6 +41,9 @@ export async function filterAndSortChunkRelatedItemsByQuery(
       ? await queryRequiredSearchIndex(document, query, {
           ...(chapters === undefined ? {} : { chapters }),
           types: ["node"],
+          ...(options.skipUnindexed === undefined
+            ? {}
+            : { skipUnindexed: options.skipUnindexed }),
           ...(options.embeddingProvider === undefined
             ? {}
             : { embeddingProvider: options.embeddingProvider }),
@@ -170,6 +173,9 @@ export async function filterAndSortEntityRelatedTriplesByQuery(
       ? await queryRequiredSearchIndex(document, query, {
           ...(chapters === undefined ? {} : { chapters }),
           types: ["entity", "source"],
+          ...(options.skipUnindexed === undefined
+            ? {}
+            : { skipUnindexed: options.skipUnindexed }),
           ...(options.embeddingProvider === undefined
             ? {}
             : { embeddingProvider: options.embeddingProvider }),
@@ -253,16 +259,18 @@ async function resolveRelatedQueryableChapters(
     return options.chapters;
   }
 
-  return await listArchiveQueryableChapterIds(document, {
+  await assertArchiveQueryReady(document, {
     ...(options.chapters === undefined ? {} : { chapters: options.chapters }),
     ...(options.embeddingProvider === undefined
       ? {}
       : { embeddingProvider: options.embeddingProvider }),
     requireEmbeddingProvider: true,
+    skipUnindexed: true,
     ...(options.queryMode === undefined
       ? {}
       : { queryMode: options.queryMode }),
   });
+  return options.chapters;
 }
 
 async function createEntityRelatedQueryScope(

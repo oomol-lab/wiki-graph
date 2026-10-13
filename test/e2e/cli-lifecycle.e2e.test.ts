@@ -132,6 +132,20 @@ describe("packed CLI archive lifecycle", () => {
     );
     expect(listed.objects.some((item) => item.uri === "wikg://")).toBe(false);
 
+    const unsynced = await sandbox.run([
+      sandbox.archiveUri,
+      "--query",
+      "Metadata E2E Title",
+      "--json",
+    ]);
+    expect(unsynced.exitCode).not.toBe(0);
+    expect(unsynced.stdout).toContain("index sync");
+    const sync = await sandbox.run([
+      `${sandbox.archiveUri}/index`,
+      "sync",
+      "--jsonl",
+    ]);
+    expect(sync.exitCode, sync.stdout + sync.stderr).toBe(0);
     const searched = await sandbox.runJSON<{
       readonly objects: readonly {
         readonly type: string;

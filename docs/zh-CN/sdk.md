@@ -37,6 +37,63 @@ SDK 暴露逐项、类型化的方法和 class 实例，并且有意不提供
 `execute(command, args)`。argv 解析、help、终端 remediation、退出码以及
 JSON/JSONL 渲染属于 `wiki-graph`。
 
+## Schema 版本与显式维护
+
+SDK 同步构造不会启动后台 I/O。异步打开 Archive、获取 Library 会在返回对象前
+检查版本，后续存储访问也会检查，替换资源不会绕过门禁。Library 注册结构属于
+Home schema；获取 Library 不扫描成员，每个成员在实际访问时单独检查 manifest。
+
+普通访问不自动升级旧数据，也不隐式重建缺失或 dirty 的搜索索引。全新 Home 初始化、
+中断事务恢复仍保留。升级必须显式 maintenance；派生搜索索引通过
+`ensureSearchIndex()` 或 index sync 显式构建。
+
+```ts
+import {
+  createWikiGraphSDK,
+  isWikiGraphSchemaVersionError,
+} from "wiki-graph-sdk";
+
+const sdk = createWikiGraphSDK({ stateDir: "/var/lib/my-app/wiki-graph" });
+try {
+  await sdk.libraries.get("wikg://lib");
+} catch (error) {
+  if (!isWikiGraphSchemaVersionError(error)) throw error;
+  console.error(error.target, error.actualVersion, error.supportedVersion);
+  if (error.reason === "upgrade-required") {
+    // 提示操作者显式执行 maintenance，不在 catch 里自动升级。
+    console.error("需要手动升级 schema", error.target);
+  } else {
+    console.error("请更新 Wiki Graph 软件以读取较新版本的数据");
+  }
+} finally {
+  sdk.close();
+}
+```
+
+`WikiGraphSchemaVersionError` 继承 Core 错误体系，稳定 code 为
+`schema_version_incompatible`。官方 guard 支持本地实例、重复安装包的实例以及完整保留
+code、target、两个版本和 reason 的结构化记录，不依赖错误文案。结构化记录不会恢复
+Error 方法和 stack。文件缺失、损坏、权限和数据库 I/O 错误不会归类为版本错误。
+只有 `upgrade-required` 表示可手动升级；`newer-version` 要求更新软件。
+
+操作者确认后，可对保留的 `upgrade-required` 错误目标显式调用
+`await sdk.maintenance.upgrade(error.target)`。CLI 根据错误目标执行
+`wg maintenance upgrade home`、`wg maintenance upgrade <archive-path>` 或
+`wg maintenance upgrade <library-uri>`。Home v4 必须先手动升级到 v5；Archive schema
+仍为 v5。
+
+目录 Archive 直接读取 manifest 和目标路径。ZIP 冷打开仍需要将中央目录扫描到内存
+查找表（O(文件数)），查询数据库也可能需要物化 SQLite；目录只读查询不复制或哈希整个
+数据库。已有搜索缓存也在会话锁保护下直接读取，显式缓存写入保留事务快照。
+全量扫描和 sync 是显式操作。绕过 SDK 的外部修改需要 scan/sync 检出，实际访问
+的成员仍进行局部检查。
+
+Archive 查询预检读取与同步 revision 绑定的覆盖度摘要。无范围查询不枚举章节；
+chapter URI 查询使用同步时生成的路径索引，`skipUnindexed` 在结果 SQL 内筛选
+可查询章节。部分 sync 仍保存完整章节拓扑，单独标记已投影和可查询的章节：strict
+检查 URI 指向的真实子树，`skipUnindexed` 只筛选查询资格。缺少摘要或完整拓扑标记
+的旧派生缓存需要显式 index sync。
+
 ## 持久化任务
 
 任务管理器负责创建和查询持久化工作。`WikiGraphJob` 是任务 handle，其生命周期

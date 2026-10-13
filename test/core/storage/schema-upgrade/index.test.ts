@@ -17,7 +17,7 @@ import {
 import { upgradeWikiGraphArchiveSchema as upgradeWikiGraphArchiveSchemaFromPublicAPI } from "../../../../packages/core/src/index.js";
 import {
   ensureWikiGraphArchiveSchemaCurrent,
-  ensureWikiGraphHomeSchemaCurrent,
+  upgradeWikiGraphHomeSchema,
   readWikiGraphArchiveSchemaVersion,
   readWikiGraphHomeSchemaVersion,
   upgradeWikiGraphArchiveSchema,
@@ -36,6 +36,7 @@ import {
   readWikgArchiveEntry,
   readWikgArchiveMutationToken,
   WikiGraphArchiveFile,
+  WikiGraphDirectoryFile,
   writeWikgArchive,
 } from "../../../../packages/core/src/storage/wikg/index.js";
 import {
@@ -299,7 +300,7 @@ describe("schema-upgrade", () => {
       await copyFile(archive.path, upgradedArchive.path);
       await expect(
         ensureWikiGraphArchiveSchemaCurrent(upgradedArchive),
-      ).rejects.toThrow("must be upgraded");
+      ).rejects.toThrow("incompatible");
 
       await expect(
         upgradeWikiGraphArchiveSchema(upgradedArchive),
@@ -493,9 +494,13 @@ describe("schema-upgrade", () => {
   it("rejects future archive schema versions without rewriting the file", async () => {
     await withFixture(async ({ archive }) => {
       await rewriteManifest(archive, 99, false);
-      await expect(upgradeWikiGraphArchiveSchema(archive)).rejects.toThrow(
-        "Unsupported Wiki Graph archive schema version: 99",
-      );
+      await expect(
+        upgradeWikiGraphArchiveSchema(archive),
+      ).rejects.toMatchObject({
+        code: "schema_version_incompatible",
+        actualVersion: 99,
+        reason: "newer-version",
+      });
       await expect(readWikiGraphArchiveSchemaVersion(archive)).resolves.toBe(
         99,
       );
@@ -508,8 +513,8 @@ describe("schema-upgrade", () => {
         createNodeWikiGraphStorage(join(root, "state")),
         async () => {
           await expect(readWikiGraphHomeSchemaVersion()).resolves.toBe(0);
-          await ensureWikiGraphHomeSchemaCurrent();
-          await expect(readWikiGraphHomeSchemaVersion()).resolves.toBe(4);
+          await upgradeWikiGraphHomeSchema();
+          await expect(readWikiGraphHomeSchemaVersion()).resolves.toBe(5);
         },
       );
     });
@@ -526,8 +531,8 @@ describe("schema-upgrade", () => {
           storages.map(
             async (storage) =>
               await withWikiGraphStorage(storage, async () => {
-                await ensureWikiGraphHomeSchemaCurrent();
-                await expect(readWikiGraphHomeSchemaVersion()).resolves.toBe(4);
+                await upgradeWikiGraphHomeSchema();
+                await expect(readWikiGraphHomeSchemaVersion()).resolves.toBe(5);
               }),
           ),
         );
@@ -548,8 +553,8 @@ describe("schema-upgrade", () => {
       await withWikiGraphStorage(
         createNodeWikiGraphStorage(statePath),
         async () => {
-          await ensureWikiGraphHomeSchemaCurrent();
-          await expect(readWikiGraphHomeSchemaVersion()).resolves.toBe(4);
+          await upgradeWikiGraphHomeSchema();
+          await expect(readWikiGraphHomeSchemaVersion()).resolves.toBe(5);
 
           const database = await Database.open(
             new NodeFile(join(statePath, "core.sqlite")),
@@ -616,8 +621,8 @@ describe("schema-upgrade", () => {
           );
           await expectPathMissing(join(statePath, "documents/.wikg-work"));
 
-          await ensureWikiGraphHomeSchemaCurrent();
-          await expect(readWikiGraphHomeSchemaVersion()).resolves.toBe(4);
+          await upgradeWikiGraphHomeSchema();
+          await expect(readWikiGraphHomeSchemaVersion()).resolves.toBe(5);
         },
       );
     });
@@ -633,11 +638,12 @@ describe("schema-upgrade", () => {
       const toc = await readWikgArchiveEntry(archive, "toc.json");
       await rewriteManifest(archive, 3, true);
 
+      await upgradeWikiGraphHomeSchema();
       await expect(
         upgradeWikiGraphArchiveSchemaFromPublicAPI(archive),
       ).resolves.toMatchObject({ changed: true, schemaChanged: true });
 
-      await expect(readWikiGraphHomeSchemaVersion()).resolves.toBe(4);
+      await expect(readWikiGraphHomeSchemaVersion()).resolves.toBe(5);
       await expect(readWikiGraphArchiveSchemaVersion(archive)).resolves.toBe(5);
       await expect(readWikgArchiveMutationToken(archive)).resolves.toBe(
         mutationToken,
@@ -664,7 +670,7 @@ describe("schema-upgrade", () => {
       await withWikiGraphStorage(
         createNodeWikiGraphStorage(statePath),
         async () => {
-          await expect(ensureWikiGraphHomeSchemaCurrent()).rejects.toThrow(
+          await expect(upgradeWikiGraphHomeSchema()).rejects.toThrow(
             "Cannot migrate unavailable library Directory",
           );
           await expect(readWikiGraphHomeSchemaVersion()).resolves.toBe(3);
@@ -690,8 +696,8 @@ describe("schema-upgrade", () => {
             await database.close();
           }
 
-          await ensureWikiGraphHomeSchemaCurrent();
-          await expect(readWikiGraphHomeSchemaVersion()).resolves.toBe(4);
+          await upgradeWikiGraphHomeSchema();
+          await expect(readWikiGraphHomeSchemaVersion()).resolves.toBe(5);
         },
       );
     });
@@ -739,7 +745,7 @@ describe("schema-upgrade", () => {
         await withWikiGraphStorage(
           { documentStore, library: storage.library },
           async () => {
-            await expect(ensureWikiGraphHomeSchemaCurrent()).rejects.toThrow(
+            await expect(upgradeWikiGraphHomeSchema()).rejects.toThrow(
               "simulated derived cleanup failure",
             );
             await expect(readWikiGraphHomeSchemaVersion()).resolves.toBe(3);
@@ -781,10 +787,8 @@ describe("schema-upgrade", () => {
               await database.close();
             }
 
-            await expect(
-              ensureWikiGraphHomeSchemaCurrent(),
-            ).resolves.toBeUndefined();
-            await expect(readWikiGraphHomeSchemaVersion()).resolves.toBe(4);
+            await expect(upgradeWikiGraphHomeSchema()).resolves.toBeUndefined();
+            await expect(readWikiGraphHomeSchemaVersion()).resolves.toBe(5);
             expect(legacyReferences).toStrictEqual([libraryPath]);
             expect(identityReferences).toContain(migratedIdentity);
           },
@@ -810,7 +814,7 @@ describe("schema-upgrade", () => {
       await withWikiGraphStorage(
         createNodeWikiGraphStorage(statePath),
         async () => {
-          await expect(ensureWikiGraphHomeSchemaCurrent()).rejects.toThrow(
+          await expect(upgradeWikiGraphHomeSchema()).rejects.toThrow(
             "active coordinator state",
           );
           await expect(readWikiGraphHomeSchemaVersion()).resolves.toBe(3);
@@ -869,10 +873,8 @@ describe("schema-upgrade", () => {
       await withWikiGraphStorage(
         createNodeWikiGraphStorage(statePath),
         async () => {
-          await expect(
-            ensureWikiGraphHomeSchemaCurrent(),
-          ).resolves.toBeUndefined();
-          await expect(readWikiGraphHomeSchemaVersion()).resolves.toBe(4);
+          await expect(upgradeWikiGraphHomeSchema()).resolves.toBeUndefined();
+          await expect(readWikiGraphHomeSchemaVersion()).resolves.toBe(5);
           await expectPathMissing(join(statePath, "cache/cache.sqlite"));
           await expectPathMissing(join(statePath, "jobs/job.sqlite"));
         },
@@ -919,7 +921,7 @@ describe("schema-upgrade", () => {
       await withWikiGraphStorage(
         createNodeWikiGraphStorage(statePath),
         async () => {
-          await expect(ensureWikiGraphHomeSchemaCurrent()).rejects.toThrow(
+          await expect(upgradeWikiGraphHomeSchema()).rejects.toThrow(
             "Cannot upgrade home with an active build worker.",
           );
           await expect(readWikiGraphHomeSchemaVersion()).resolves.toBe(3);
@@ -958,8 +960,8 @@ describe("schema-upgrade", () => {
       await withWikiGraphStorage(
         createNodeWikiGraphStorage(statePath),
         async () => {
-          await expect(ensureWikiGraphHomeSchemaCurrent()).rejects.toThrow(
-            "Unsupported Wiki Graph home schema version: 99",
+          await expect(upgradeWikiGraphHomeSchema()).rejects.toThrow(
+            "Wiki Graph home schema v99 is incompatible",
           );
           await expect(readWikiGraphHomeSchemaVersion()).resolves.toBe(99);
         },
@@ -1028,7 +1030,7 @@ describe("schema-upgrade", () => {
     });
   });
 
-  it("rejects a future archive during library preflight", async () => {
+  it("checks only the library structure and rejects a future member when opened", async () => {
     await withFixture(async ({ archive, root }) => {
       const library = await createWikiGraphLibrary({
         folder: new NodeDirectory(root),
@@ -1039,7 +1041,16 @@ describe("schema-upgrade", () => {
       await rewriteDirectoryManifest(new NodeDirectory(archive.path), 99);
       await expect(
         assertWikiGraphLibrarySchemaCurrent(target!),
-      ).rejects.toThrow("unsupported future archive schema v99");
+      ).resolves.toBeUndefined();
+      await expect(
+        new WikiGraphDirectoryFile(
+          new NodeDirectory(archive.path),
+        ).readDocument(() => undefined),
+      ).rejects.toMatchObject({
+        code: "schema_version_incompatible",
+        reason: "newer-version",
+        actualVersion: 99,
+      });
     });
   });
 

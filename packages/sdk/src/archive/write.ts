@@ -25,6 +25,12 @@ export async function writeWikiGraphArchiveLocation<T>(
   const write = async (
     archiveFile: File | Directory = location.archiveFile,
   ) => {
+    if (cacheOnly) {
+      return await new WikiGraphArchiveFile(archiveFile).readDocument(
+        operation,
+        { searchIndexWritebackPolicy: "cache" },
+      );
+    }
     const writeOptions = {
       ...(cacheOnly
         ? {}

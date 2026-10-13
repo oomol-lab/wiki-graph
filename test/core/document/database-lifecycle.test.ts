@@ -18,6 +18,60 @@ import { withTempDir } from "../../helpers/temp.js";
 afterEach(() => installWikiGraphPlatform(nodeWikiGraphPlatform));
 
 describe("database lifecycle", () => {
+  it.each([true, false])(
+    "does not delete a damaged cache while opening (readonly=%s)",
+    async (readonly) => {
+      await withTempDir("wikigraph-damaged-cache-", async (path) => {
+        const root = new NodeDirectory(path);
+        const file = await root.createFile("index.db");
+        const writer = await file.openWriter();
+        await writer.write(new TextEncoder().encode("not a SQLite database"));
+        await writer.commit();
+        const fileStore = new DirectoryFileStore(root);
+        const remove = vi.spyOn(fileStore, "deleteFile");
+        await expect(
+          openSearchIndexDatabase({
+            documentPath: "",
+            fileStore,
+            readonly,
+            operation: () => undefined,
+          }),
+        ).rejects.toThrow();
+        expect(remove).not.toHaveBeenCalled();
+      });
+    },
+  );
+
+  it("does not classify cache permission/open failures as a disposable incompatible cache", async () => {
+    await withTempDir("wikigraph-permission-cache-", async (path) => {
+      const root = new NodeDirectory(path);
+      const file = await root.createFile("index.db");
+      const database = await Database.open(
+        file,
+        "CREATE TABLE search_index_state(key TEXT PRIMARY KEY, value TEXT)",
+        { create: true, mode: "readwrite" },
+      );
+      await database.close();
+      const fileStore = new DirectoryFileStore(root);
+      const remove = vi.spyOn(fileStore, "deleteFile");
+      const denied = Object.assign(new Error("database access denied"), {
+        code: "SQLITE_CANTOPEN",
+      });
+      installWikiGraphPlatform({
+        ...nodeWikiGraphPlatform,
+        database: { open: () => Promise.reject(denied) },
+      });
+      await expect(
+        openSearchIndexDatabase({
+          documentPath: "",
+          fileStore,
+          readonly: false,
+          operation: () => undefined,
+        }),
+      ).rejects.toBe(denied);
+      expect(remove).not.toHaveBeenCalled();
+    });
+  });
   it("releases the file store when the database provider open fails", async () => {
     await withTempDir("wikigraph-database-open-failure-", async (path) => {
       let fileStoreCloses = 0;
@@ -163,11 +217,10 @@ describe("database lifecycle", () => {
     });
   });
 
-  it("closes the database when search-index migration fails", async () => {
+  it("closes the database when a cache operation fails without running migrations", async () => {
     await withTempDir("wikigraph-search-lifecycle-", async (path) => {
       let activeConnections = 0;
       installTrackedDatabasePlatform({
-        failRun: "CREATE TABLE IF NOT EXISTS index_dirty_chapters",
         onClose: () => {
           activeConnections -= 1;
         },
@@ -181,10 +234,12 @@ describe("database lifecycle", () => {
         openSearchIndexDatabase({
           documentPath: "",
           fileStore,
-          operation: () => undefined,
+          operation: () => {
+            throw new Error("operation failed");
+          },
           readonly: false,
         }),
-      ).rejects.toThrow("migration failed");
+      ).rejects.toThrow("operation failed");
       expect(activeConnections).toBe(0);
     });
   });

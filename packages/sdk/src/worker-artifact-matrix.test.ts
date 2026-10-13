@@ -313,6 +313,11 @@ describe("real job artifact application matrix", () => {
             beforeMember !== undefined &&
             beforeLibraryIndex !== undefined
           ) {
+            expect(
+              (await scenario.sdk.libraries.indexState(scenario.libraryUri))
+                .status,
+            ).toBe("dirty");
+            await scenario.sdk.libraries.rebuildIndex(scenario.libraryUri);
             const [afterMember, afterLibraryIndex] = await Promise.all([
               scenario.sdk.libraries.getArchive(scenario.memberUri),
               scenario.sdk.libraries.indexState(scenario.libraryUri),

@@ -250,6 +250,9 @@ export async function findArchiveObjects(
   if (usesBucketedSearch) {
     if (
       !(await isArchiveSearchIndexCurrent(document, {
+        ...(options.skipUnindexed === undefined
+          ? {}
+          : { skipUnindexed: options.skipUnindexed }),
         ...(options.chapters === undefined
           ? {}
           : { chapters: options.chapters }),

@@ -19,7 +19,10 @@ import type { WikiGraphLLMConfig } from "./runtime-config.js";
 import { getWikiGraphSDKProviders } from "./runtime-context.js";
 import type { WikiGraphJobRuntime } from "./jobs.js";
 import { resolveWikiGraphRuntimePath } from "./runtime-path.js";
-import { assertStandaloneWikiGraphArchivePath } from "./archive/target.js";
+import {
+  assertStandaloneWikiGraphArchivePath,
+  rethrowArchiveSchemaError,
+} from "./archive/target.js";
 
 export type WikiGraphConversionFormat =
   | "epub"
@@ -147,12 +150,18 @@ export class WikiGraphConversionManager {
       if (!("path" in options.input)) {
         throw new Error("wikg input requires a file path.");
       }
-      await app.openSession(
-        new NodeFile(
-          await assertStandaloneWikiGraphArchivePath(options.input.path),
-        ),
-        write,
-      );
+      const inputPath = options.input.path;
+      await app
+        .openSession(
+          new NodeFile(await assertStandaloneWikiGraphArchivePath(inputPath)),
+          write,
+        )
+        .catch((error: unknown) =>
+          rethrowArchiveSchemaError(error, {
+            kind: "standalone",
+            path: inputPath,
+          }),
+        );
     } else if ("stream" in options.input) {
       await app.digestTextStreamSession(
         {

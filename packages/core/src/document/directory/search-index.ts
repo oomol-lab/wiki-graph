@@ -1,9 +1,6 @@
 import { isHostFileEmpty, type File } from "../../runtime/platform/index.js";
 import { Database } from "../database.js";
-import {
-  SEARCH_INDEX_SCHEMA_SQL,
-  SEARCH_INDEX_TEXT_SENTENCE_RECORDS_COLUMNS_SQL,
-} from "../schema.js";
+import { SEARCH_INDEX_SCHEMA_SQL } from "../schema.js";
 import type { DocumentFileStore } from "./types.js";
 import { SEARCH_INDEX_VERSION } from "../../retrieval/search-index/search/types.js";
 
@@ -33,8 +30,10 @@ async function openSearchIndexDatabaseLocked<T>(input: {
   let databasePath = await input.fileStore.resolveSearchIndexDatabasePath(
     input.documentPath,
   );
-  let shouldInitialize =
-    !input.readonly && (await isMissingOrEmptyFile(databasePath));
+  const missing = await isMissingOrEmptyFile(databasePath);
+  if (input.readonly && missing)
+    throw new Error("Search index cache is missing: index.db");
+  let shouldInitialize = !input.readonly && missing;
 
   if (
     !shouldInitialize &&
@@ -66,9 +65,6 @@ async function openSearchIndexDatabaseLocked<T>(input: {
       );
 
   try {
-    if (!input.readonly) {
-      await migrateSearchIndexSchema(database);
-    }
     return await input.operation(database);
   } finally {
     await database.close();
@@ -108,25 +104,23 @@ async function isSearchIndexDatabaseCompatible(
 ): Promise<boolean> {
   const database = await Database.open(databasePath, "", {
     mode: "readonly",
-  }).catch(() => undefined);
-
-  if (database === undefined) {
-    return false;
-  }
+  });
 
   try {
-    const version = await database
-      .queryOne(
-        `
+    const version = await database.queryOne(
+      `
           SELECT value
           FROM search_index_state
           WHERE key = 'version'
         `,
-        undefined,
-        (row) => String(row.value),
-      )
-      .catch(() => undefined);
+      undefined,
+      (row) => String(row.value),
+    );
 
+    if (version === undefined || version === "")
+      throw new Error(
+        "Search index cache version marker is missing or invalid.",
+      );
     return version === SEARCH_INDEX_VERSION;
   } finally {
     await database.close();
@@ -153,159 +147,4 @@ async function deleteSearchIndexDatabaseFile(
 
     throw error;
   }
-}
-
-async function migrateSearchIndexSchema(database: Database): Promise<void> {
-  await ensureColumn(
-    database,
-    "text_sentence_records",
-    "archive_id",
-    "INTEGER NOT NULL DEFAULT 0",
-  );
-  if (
-    !(await hasUniqueIndex(database, "text_sentence_records", [
-      "archive_id",
-      "kind",
-      "chapter_id",
-      "sentence_index",
-    ]))
-  ) {
-    await rebuildTextSentenceRecordsTable(database);
-  }
-  await ensureColumn(
-    database,
-    "search_object_properties_records",
-    "archive_id",
-    "INTEGER NOT NULL DEFAULT 0",
-  );
-  await database.run(`
-    CREATE TABLE IF NOT EXISTS index_dirty_chapters (
-      archive_id INTEGER NOT NULL,
-      chapter_id INTEGER NOT NULL,
-      updated_at INTEGER NOT NULL,
-      PRIMARY KEY (archive_id, chapter_id)
-    )
-  `);
-  await database.run(`
-    CREATE TABLE IF NOT EXISTS text_embedding_segments (
-      id INTEGER PRIMARY KEY,
-      archive_id INTEGER NOT NULL,
-      kind INTEGER NOT NULL,
-      chapter_id INTEGER NOT NULL,
-      start_sentence_index INTEGER NOT NULL,
-      end_sentence_index INTEGER NOT NULL,
-      words_count INTEGER NOT NULL,
-      model TEXT NOT NULL,
-      dimensions INTEGER NOT NULL,
-      vector BLOB NOT NULL
-    )
-  `);
-  await database.run(`
-    CREATE INDEX IF NOT EXISTS idx_text_embedding_segments_scope
-    ON text_embedding_segments(archive_id, kind, chapter_id, start_sentence_index, end_sentence_index)
-  `);
-}
-
-async function rebuildTextSentenceRecordsTable(
-  database: Database,
-): Promise<void> {
-  await database.transaction(async () => {
-    await database.run(`
-      CREATE TABLE text_sentence_records_next (
-${SEARCH_INDEX_TEXT_SENTENCE_RECORDS_COLUMNS_SQL}
-      )
-    `);
-    await database.run(`
-      INSERT INTO text_sentence_records_next (
-        id,
-        archive_id,
-        kind,
-        chapter_id,
-        sentence_index,
-        words_count,
-        byte_offset,
-        byte_length
-      )
-      SELECT
-        id,
-        archive_id,
-        kind,
-        chapter_id,
-        sentence_index,
-        words_count,
-        byte_offset,
-        byte_length
-      FROM text_sentence_records
-    `);
-    await database.run("DROP TABLE text_sentence_records");
-    await database.run(`
-      ALTER TABLE text_sentence_records_next
-      RENAME TO text_sentence_records
-    `);
-    await database.run(`
-      CREATE INDEX IF NOT EXISTS idx_text_sentence_records_chapter
-      ON text_sentence_records(archive_id, kind, chapter_id, sentence_index)
-    `);
-  });
-}
-
-async function hasUniqueIndex(
-  database: Database,
-  table: string,
-  columns: readonly string[],
-): Promise<boolean> {
-  const indexes = await database.queryAll(
-    `PRAGMA index_list(${table})`,
-    undefined,
-    (row) => ({
-      name: String(row.name),
-      unique: Number(row.unique) === 1,
-    }),
-  );
-
-  for (const index of indexes) {
-    if (!index.unique) {
-      continue;
-    }
-
-    const indexColumns = await database.queryAll(
-      `PRAGMA index_info(${index.name})`,
-      undefined,
-      (row) => ({
-        name: String(row.name),
-        seqno: Number(row.seqno),
-      }),
-    );
-    const orderedColumns = indexColumns
-      .sort((left, right) => left.seqno - right.seqno)
-      .map((column) => column.name);
-
-    if (
-      orderedColumns.length === columns.length &&
-      orderedColumns.every((column, index) => column === columns[index])
-    ) {
-      return true;
-    }
-  }
-
-  return false;
-}
-
-async function ensureColumn(
-  database: Database,
-  table: string,
-  column: string,
-  definition: string,
-): Promise<void> {
-  const columns = await database.queryAll(
-    `PRAGMA table_info(${table})`,
-    undefined,
-    (row) => String(row.name),
-  );
-
-  if (columns.includes(column)) {
-    return;
-  }
-
-  await database.run(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`);
 }

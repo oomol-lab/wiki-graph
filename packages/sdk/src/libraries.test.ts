@@ -38,6 +38,7 @@ describe("WikiGraphLibraryManager.readArchive", () => {
       uri: setup.memberUri,
     });
 
+    await archive.ensureSearchIndex();
     const first = await archive.search("stable archive", { limit: 1 });
     const cursor = first.nextCursor();
     expect(first.items).toHaveLength(1);

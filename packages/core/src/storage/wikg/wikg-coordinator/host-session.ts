@@ -10,16 +10,14 @@ import {
   ensureRelativeDirectory,
   ensureRelativeFile,
   getRelativeDirectory,
+  getRelativeFile,
   getWikiGraphStorage,
   readFileBytes,
 } from "../../../runtime/platform/index.js";
 import type { DocumentFileStore } from "../../../document/directory/index.js";
 import { createPortableHash } from "../../../utils/crypto.js";
 
-import {
-  readWikgArchiveMutationToken,
-  WikgArchiveReader,
-} from "../archive/reader.js";
+import { WikgArchiveReader } from "../archive/reader.js";
 import { parseWikgMutationToken } from "../archive/manifest.js";
 import { normalizeArchivePath } from "../archive/paths.js";
 import {
@@ -28,10 +26,12 @@ import {
   OWNER_HEARTBEAT_INTERVAL_MS,
   SEARCH_INDEX_DATABASE_ENTRY_PATH,
 } from "./constants.js";
+import { WIKG_MUTATION_TOKEN_PATH } from "../archive/constants.js";
 import { flushArchiveOverlays, reapArchive } from "./flusher.js";
 import { HostWikgDocumentFileStore } from "./host-file-store.js";
 import {
   acquireSqliteLease,
+  acquireEntryLock,
   releaseSqliteLease,
   waitForSqliteLeasesToDrain,
   withEntryLock,
@@ -120,6 +120,7 @@ async function runHostArchiveSession<T>(
 
 /** Coordinates logical archive state without observing host locations. */
 export class HostWikgArchiveSession {
+  #reader: Promise<WikgArchiveReader> | undefined;
   readonly #archive: ReadonlyFile | Directory;
   readonly #writable: boolean;
   readonly #archiveKey: string;
@@ -133,6 +134,7 @@ export class HostWikgArchiveSession {
   readonly #initialSearchCacheKey: string;
   #searchCacheKey: string;
   #searchCacheFile: File | undefined;
+  #releaseSearchCacheLock: (() => Promise<void>) | undefined;
   #searchCacheWorkspacePath: string | undefined;
   #searchCacheDirty = false;
   #searchCacheDelete = false;
@@ -169,12 +171,21 @@ export class HostWikgArchiveSession {
       .digest("hex");
     const owner = createCoordinatorOwner();
     await registerArchiveOwner(archiveKey, owner);
+    let reader: WikgArchiveReader | undefined;
     try {
       if (isWritableFile(archive)) {
         await reapArchive(archiveKey, owner, archive);
       }
-      const mutationToken = await readWikgArchiveMutationToken(archive);
-      return new HostWikgArchiveSession({
+      reader = await WikgArchiveReader.open(archive);
+      const tokenBytes = await reader.readEntry(WIKG_MUTATION_TOKEN_PATH);
+      if (tokenBytes === undefined)
+        throw new Error(
+          `Missing WIKG mutation token: ${WIKG_MUTATION_TOKEN_PATH}.`,
+        );
+      const mutationToken = parseWikgMutationToken(
+        new TextDecoder().decode(tokenBytes),
+      );
+      const session = new HostWikgArchiveSession({
         archive,
         archiveKey,
         initialSearchCacheKey: createPortableHash("sha256")
@@ -182,7 +193,10 @@ export class HostWikgArchiveSession {
           .digest("hex"),
         owner,
       });
+      session.#reader = Promise.resolve(reader);
+      return session;
     } catch (error) {
+      await reader?.close();
       await unregisterArchiveOwner(archiveKey, owner.ownerId);
       throw error;
     }
@@ -191,6 +205,7 @@ export class HostWikgArchiveSession {
   public createFileStore(
     options: {
       readonly readonlyDatabase?: boolean;
+      readonly writableSearchCache?: boolean;
       readonly searchIndexWritebackPolicy?: WorkspaceWritebackPolicy;
     } = {},
   ): DocumentFileStore {
@@ -201,14 +216,27 @@ export class HostWikgArchiveSession {
     return this.#archive.identity;
   }
 
+  async #getArchiveReader() {
+    this.#reader ??= WikgArchiveReader.open(this.#archive);
+    const reader = await this.#reader;
+    // The session owns the underlying reader; individual reads release no resource.
+    return {
+      close: async () => {},
+      listEntries: reader.listEntries.bind(reader),
+      readEntry: reader.readEntry.bind(reader),
+      getEntrySize: reader.getEntrySize.bind(reader),
+      readEntryRange: reader.readEntryRange.bind(reader),
+    };
+  }
+
   public get searchCacheIdentity(): string {
     return `wikg-search-cache:${this.#searchCacheKey}`;
   }
 
   public async listEntries(): Promise<readonly string[]> {
-    const reader = await WikgArchiveReader.open(this.#archive);
+    const reader = await this.#getArchiveReader();
     try {
-      const entries = new Set(reader.listEntries());
+      const entries = new Set(await reader.listEntries());
       for (const overlay of await listOverlays(this.#archiveKey)) {
         if (overlay.kind === "deleted") entries.delete(overlay.entryPath);
         else entries.add(overlay.entryPath);
@@ -255,7 +283,7 @@ export class HostWikgArchiveSession {
             await reader.close();
           }
         }
-        const reader = await WikgArchiveReader.open(this.#archive);
+        const reader = await this.#getArchiveReader();
         try {
           return await reader.getEntrySize(entryPath);
         } finally {
@@ -293,7 +321,7 @@ export class HostWikgArchiveSession {
             await reader.close();
           }
         }
-        const reader = await WikgArchiveReader.open(this.#archive);
+        const reader = await this.#getArchiveReader();
         try {
           return await reader.readEntryRange(entryPath, offset, length);
         } finally {
@@ -453,6 +481,17 @@ export class HostWikgArchiveSession {
             return await resolveOverlayFile(existing);
           }
 
+          if (
+            existing === undefined &&
+            this.#archive.kind === "directory" &&
+            options.mode === "read"
+          ) {
+            const file = await getRelativeFile(this.#archive, entryPath);
+            if (file === undefined)
+              throw new Error(`Archive SQLite entry is missing: ${entryPath}`);
+            return file;
+          }
+
           const snapshot = await createWorkspaceSnapshot(
             this.#archiveKey,
             entryPath,
@@ -495,14 +534,25 @@ export class HostWikgArchiveSession {
 
   public async materializeSearchIndexCache(options: {
     readonly createIfMissing: boolean;
+    readonly readonly?: boolean;
   }): Promise<File> {
     if (this.#searchCacheFile !== undefined) return this.#searchCacheFile;
+    this.#releaseSearchCacheLock ??= await acquireEntryLock(
+      this.#archiveKey,
+      `search-cache/${this.#initialSearchCacheKey}`,
+      options.readonly === true ? "read" : "write",
+      this.#owner,
+    );
     const persistent = this.#searchCacheDelete
       ? undefined
       : await this.#getPersistentSearchIndexCache(
           this.#initialSearchCacheKey,
           false,
         );
+    if (persistent !== undefined && options.readonly === true) {
+      this.#searchCacheFile = persistent;
+      return persistent;
+    }
     const snapshot = await createWorkspaceSnapshot(
       this.#archiveKey,
       SEARCH_INDEX_DATABASE_ENTRY_PATH,
@@ -634,7 +684,17 @@ export class HostWikgArchiveSession {
       failures.push(error);
     }
     try {
+      await this.#releaseSearchCacheLock?.();
+    } catch (error) {
+      failures.push(error);
+    }
+    try {
       await unregisterArchiveOwner(this.#archiveKey, this.#owner.ownerId);
+    } catch (error) {
+      failures.push(error);
+    }
+    try {
+      if (this.#reader !== undefined) await (await this.#reader).close();
     } catch (error) {
       failures.push(error);
     }
@@ -679,7 +739,7 @@ export class HostWikgArchiveSession {
       return;
     }
 
-    const archiveReader = await WikgArchiveReader.open(this.#archive);
+    const archiveReader = await this.#getArchiveReader();
     try {
       const size = await archiveReader.getEntrySize(entryPath);
       if (size === undefined) return;
@@ -704,7 +764,7 @@ export class HostWikgArchiveSession {
   }
 
   async #copyArchiveEntry(entryPath: string, target: File): Promise<boolean> {
-    const reader = await WikgArchiveReader.open(this.#archive);
+    const reader = await this.#getArchiveReader();
     try {
       const size = await reader.getEntrySize(entryPath);
       if (size === undefined) return false;
@@ -737,7 +797,7 @@ export class HostWikgArchiveSession {
   }
 
   async #readArchiveEntry(entryPath: string): Promise<Uint8Array | undefined> {
-    const reader = await WikgArchiveReader.open(this.#archive);
+    const reader = await this.#getArchiveReader();
     try {
       return await reader.readEntry(entryPath);
     } finally {
@@ -746,7 +806,7 @@ export class HostWikgArchiveSession {
   }
 
   async #getArchiveEntrySize(entryPath: string): Promise<number | undefined> {
-    const reader = await WikgArchiveReader.open(this.#archive);
+    const reader = await this.#getArchiveReader();
     try {
       return await reader.getEntrySize(entryPath);
     } finally {

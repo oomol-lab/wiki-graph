@@ -9,7 +9,10 @@ import { basename } from "path";
 import type { WikiGraphJobRuntime } from "./jobs.js";
 import { NodeFile } from "./node-platform.js";
 import { resolveWikiGraphRuntimePath } from "./runtime-path.js";
-import { assertStandaloneWikiGraphArchivePath } from "./archive/target.js";
+import {
+  assertStandaloneWikiGraphArchivePath,
+  rethrowArchiveSchemaError,
+} from "./archive/target.js";
 
 export type WikiGraphMaintenanceTarget =
   | { readonly kind: "archive"; readonly path: string }
@@ -52,7 +55,9 @@ export class WikiGraphMaintenanceManager {
         return await upgradeWikiGraphMaintenanceTarget({
           file: new NodeFile(path),
           kind: "archive",
-        });
+        }).catch((error: unknown) =>
+          rethrowArchiveSchemaError(error, { kind: "standalone", path }),
+        );
       },
       undefined,
       { skipHomeBootstrap: target.kind === "home" },

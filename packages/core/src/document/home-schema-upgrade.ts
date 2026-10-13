@@ -9,10 +9,13 @@ import {
   type File,
 } from "../runtime/platform/index.js";
 import { isHostError } from "../utils/host-error.js";
-import { WikiGraphError } from "../runtime/common/error.js";
+import {
+  WikiGraphError,
+  WikiGraphSchemaVersionError,
+} from "../runtime/common/error.js";
 import { getNumber, getString, Database } from "./database.js";
 
-const CURRENT_HOME_SCHEMA_VERSION = 4;
+const CURRENT_HOME_SCHEMA_VERSION = 5;
 const LOCK_STALE_TIMEOUT_MS = 5 * 60 * 1000;
 const HOME_SCHEMA_SQL = `
   CREATE TABLE IF NOT EXISTS schema_versions (
@@ -25,6 +28,25 @@ const HOME_SCHEMA_SQL = `
 const homeSchemaUpgradesInFlight = new Map<string, Promise<void>>();
 
 export async function ensureWikiGraphHomeSchemaCurrent(): Promise<void> {
+  const version = await readWikiGraphHomeSchemaVersion();
+  if (version === 0) {
+    await writeHomeSchemaVersion(
+      await ensureRelativeFile(getWikiGraphStorage().library, "core.sqlite"),
+      CURRENT_HOME_SCHEMA_VERSION,
+    );
+    return;
+  }
+  if (version !== CURRENT_HOME_SCHEMA_VERSION) {
+    throw new WikiGraphSchemaVersionError(
+      { kind: "home" },
+      version,
+      CURRENT_HOME_SCHEMA_VERSION,
+    );
+  }
+}
+
+/** Explicit maintenance only: ordinary storage gates never call this migration. */
+export async function upgradeWikiGraphHomeSchema(): Promise<void> {
   const root = getWikiGraphStorage().library;
   const existingUpgrade = homeSchemaUpgradesInFlight.get(root.identity);
   if (existingUpgrade !== undefined) {
@@ -52,13 +74,15 @@ export async function readWikiGraphHomeSchemaVersion(): Promise<number> {
   const database = await Database.open(file, "", { mode: "readonly" });
   try {
     if (!(await tableExists(database, "schema_versions"))) return 1;
-    return (
+    const version =
       (await database.queryOne(
         "SELECT version FROM schema_versions WHERE scope = ?",
         ["home"],
         (row) => getNumber(row, "version"),
-      )) ?? 1
-    );
+      )) ?? 1;
+    if (!Number.isInteger(version) || version < 1)
+      throw new Error("Invalid Wiki Graph home schema version marker.");
+    return version;
   } finally {
     await database.close();
   }
@@ -67,7 +91,11 @@ export async function readWikiGraphHomeSchemaVersion(): Promise<number> {
 async function upgradeHomeSchema(root: Directory): Promise<void> {
   let version = await readWikiGraphHomeSchemaVersion();
   if (version > CURRENT_HOME_SCHEMA_VERSION) {
-    throw new Error(`Unsupported Wiki Graph home schema version: ${version}.`);
+    throw new WikiGraphSchemaVersionError(
+      { kind: "home" },
+      version,
+      CURRENT_HOME_SCHEMA_VERSION,
+    );
   }
 
   const file = await ensureRelativeFile(root, "core.sqlite");
@@ -93,6 +121,62 @@ async function upgradeHomeSchema(root: Directory): Promise<void> {
         await writeHomeSchemaVersion(file, 4);
         version = 4;
         break;
+      case 4: {
+        await assertHomeUpgradeSafe(root);
+        const database = await Database.open(file, "", {
+          create: false,
+          mode: "readwrite",
+        });
+        try {
+          const { migrateLibraryMembershipSchema } =
+            await import("../library/membership.js");
+          if (await tableExists(database, "libraries")) {
+            const columns = await readTableColumns(database, "libraries");
+            if (!columns.has("physical_identity"))
+              await database.run(
+                "ALTER TABLE libraries ADD COLUMN physical_identity TEXT",
+              );
+            await database.run(
+              "CREATE INDEX IF NOT EXISTS idx_libraries_physical_identity ON libraries(physical_identity)",
+            );
+            const rows = await database.queryAll(
+              "SELECT id, folder_identity FROM libraries",
+              undefined,
+              (row) => row,
+            );
+            for (const row of rows) {
+              const folder =
+                await getWikiGraphPlatform().resources.getDirectory(
+                  getString(row, "folder_identity"),
+                );
+              await database.run(
+                "UPDATE libraries SET physical_identity = ? WHERE id = ?",
+                [
+                  (await folder?.getPhysicalIdentity?.()) ?? null,
+                  getNumber(row, "id"),
+                ],
+              );
+            }
+          }
+          await migrateLibraryMembershipSchema(database);
+          if (await tableExists(database, "library_locks")) {
+            const columns = await readTableColumns(database, "library_locks");
+            if (!columns.has("heartbeat_at"))
+              await database.run(
+                "ALTER TABLE library_locks ADD COLUMN heartbeat_at INTEGER NOT NULL DEFAULT 0",
+              );
+          }
+        } finally {
+          await database.close();
+        }
+        await removeSqlite(
+          await root.getDirectory("cache"),
+          "search-sessions.sqlite",
+        );
+        await writeHomeSchemaVersion(file, 5);
+        version = 5;
+        break;
+      }
       default:
         throw new Error(
           `Unsupported Wiki Graph home schema version: ${version}.`,

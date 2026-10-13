@@ -220,6 +220,7 @@ describe("WikiGraphSDK delivery operations", () => {
     await expect(
       scopedArchive.evidence("wikg://entity/Q1", { queryMode: "fts" }),
     ).rejects.toThrow("`queryMode` requires `query`");
+    await scopedArchive.ensureSearchIndex();
     const related = await scopedArchive.related("wikg://entity/Q1", {
       query: "alpha",
     });
@@ -276,7 +277,7 @@ describe("WikiGraphSDK delivery operations", () => {
     expect(nextEvidence.result.nextCursor).toBeNull();
     await expect(
       rootArchive.evidence("wikg://entity/Q1", { query: "alpha" }),
-    ).rejects.toThrow("need a current FTS artifact");
+    ).rejects.toThrow("Archive search index is missing or dirty");
     const evidence = await rootArchive.evidence("wikg://entity/Q1", {
       query: "alpha",
       skipUnindexed: true,

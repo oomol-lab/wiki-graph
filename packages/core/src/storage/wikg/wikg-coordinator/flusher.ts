@@ -123,7 +123,7 @@ async function commitOverlays(
       updatedAt: Date.now(),
     });
   }
-  const paths = new Set(reader.listEntries());
+  const paths = new Set(await reader.listEntries());
   for (const overlay of overlayByPath.values()) {
     if (overlay.kind === "deleted") paths.delete(overlay.entryPath);
     else paths.add(overlay.entryPath);

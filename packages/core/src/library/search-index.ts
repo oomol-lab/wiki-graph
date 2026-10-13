@@ -2,6 +2,8 @@ import { createPortableHash as createHash } from "../utils/crypto.js";
 import {
   ensureRelativeDirectory,
   ensureRelativeFile,
+  getRelativeFile,
+  isHostFileEmpty,
   getWikiGraphStorage,
   isDirectory,
   readHostEntrySize,
@@ -10,12 +12,11 @@ import {
 } from "../runtime/platform/index.js";
 
 import { Database, getNumber, getString } from "../document/database.js";
+import { listChapters } from "../document/chapter/index.js";
 import { SEARCH_INDEX_SCHEMA_SQL } from "../document/schema.js";
 import { openWikiGraphStateDatabase } from "../document/index.js";
 import { readLibraryArchiveDocument } from "./query-helpers.js";
 import {
-  assertArchiveIndexArtifactsReady,
-  listArchiveQueryableChapterIds,
   readArchiveEmbeddingState,
   readEmbeddingDimensions,
   readEmbeddingModel,
@@ -55,6 +56,7 @@ import { createSearchTokenPlan } from "../retrieval/search-index/search/tokenize
 import type { GcContext, GcJobResult } from "../runtime/gc/index.js";
 import {
   listWikiGraphLibraryArchives,
+  getWikiGraphLibraryArchiveById,
   type WikiGraphLibraryArchiveRecord,
 } from "./membership.js";
 import {
@@ -123,16 +125,14 @@ export type WikiGraphLibraryIndexTextHit = SearchIndexTextHit & {
 
 export async function readWikiGraphLibraryIndexState(
   target: ParsedWikiGraphLibraryUri,
+  options: { readonly includeSources?: boolean } = {},
 ): Promise<WikiGraphLibraryIndexState> {
   const library = await resolveWikiGraphLibrary(target);
-  const sources = await listLibraryIndexSources(target);
-  const sourceFingerprint = createLibraryIndexSourceFingerprint(sources);
-
   const document = new LibraryIndexDocument(library);
   const searchStatus = await readSearchIndexStatus(document as never);
 
   if (searchStatus === "missing") {
-    return { sourceFingerprint, sources, status: "missing" };
+    return { sourceFingerprint: "", sources: [], status: "missing" };
   }
 
   const databaseState = await document.readSearchIndexDatabase(
@@ -140,6 +140,11 @@ export async function readWikiGraphLibraryIndexState(
       fingerprint: await readSearchIndexFingerprintFromDatabase(database),
       sourceFingerprint: await readStateValue(database, "sourceFingerprint"),
       version: await readStateValue(database, "version"),
+      sources:
+        options.includeSources === false
+          ? undefined
+          : await readStateValue(database, "librarySources"),
+      coverage: await readStateValue(database, "libraryCoverage"),
     }),
   );
   const capabilities = await readSearchIndexCapabilityStatus(document);
@@ -149,12 +154,15 @@ export async function readWikiGraphLibraryIndexState(
     ...(databaseState.fingerprint === undefined
       ? {}
       : { fingerprint: databaseState.fingerprint }),
-    sourceFingerprint,
-    sources,
+    sourceFingerprint: databaseState.sourceFingerprint ?? "",
+    sources:
+      databaseState.sources === undefined
+        ? []
+        : JSON.parse(databaseState.sources),
     status:
       searchStatus === "current" &&
       databaseState.version === SEARCH_INDEX_VERSION &&
-      databaseState.sourceFingerprint === sourceFingerprint
+      databaseState.coverage !== undefined
         ? "current"
         : "dirty",
   };
@@ -199,6 +207,7 @@ export async function rebuildWikiGraphLibraryIndexWithinLock(
   await document.writeSearchIndexDatabase(async (database) => {
     await setStateValue(database, "sourceFingerprint", sourceFingerprint);
     await setStateValue(database, "libraryFingerprint", indexFingerprint);
+    await setStateValue(database, "librarySources", JSON.stringify(sources));
   });
 
   return await readWikiGraphLibraryIndexState(target);
@@ -226,25 +235,18 @@ export async function markWikiGraphLibraryIndexDirty(
 
   const document = new LibraryIndexDocument(library);
 
-  try {
-    await document.writeSearchIndexDatabase(async () => {
-      await markDirtySearchIndexChapters(document as never, [0], {
-        archiveId: 0,
-        updatedAt: Date.now(),
-      });
-    });
-  } catch (error) {
-    if (isMissingSqliteOpenError(error)) {
-      return;
-    }
-    throw error;
-  }
+  await markDirtySearchIndexChapters(document as never, [0], {
+    archiveId: 0,
+    updatedAt: Date.now(),
+  });
 }
 
 export async function assertWikiGraphLibraryIndexReady(
   target: ParsedWikiGraphLibraryUri,
 ): Promise<WikiGraphLibraryIndexState> {
-  const state = await readWikiGraphLibraryIndexState(target);
+  const state = await readWikiGraphLibraryIndexState(target, {
+    includeSources: false,
+  });
 
   if (state.status !== "current") {
     throw new Error(
@@ -262,33 +264,7 @@ export async function assertWikiGraphLibraryQueryArtifactsReady(
     "embeddingProvider" | "queryMode"
   > = {},
 ): Promise<void> {
-  const archives = await listWikiGraphLibraryArchives(target);
-
-  for (const archive of archives) {
-    if (!archive.exists || archive.status !== "present") {
-      continue;
-    }
-    await readLibraryArchiveDocument(archive, async (archiveDocument) => {
-      try {
-        await assertArchiveIndexArtifactsReady(archiveDocument, {
-          ...(options.embeddingProvider === undefined
-            ? {}
-            : { embeddingProvider: options.embeddingProvider }),
-          requireEmbeddingProvider: true,
-          ...(options.queryMode === undefined
-            ? {}
-            : { queryMode: options.queryMode }),
-        });
-      } catch (error) {
-        throw new WikiGraphError(
-          "library_query_unindexed",
-          `Wiki Graph library query is not ready. Archive ${archive.uri} has unindexed chapters.`,
-          { archiveUri: archive.uri },
-          { cause: error },
-        );
-      }
-    });
-  }
+  await assertLibraryCoverage(target, options, false);
 }
 
 export async function assertWikiGraphLibraryHasQueryableArtifacts(
@@ -298,33 +274,56 @@ export async function assertWikiGraphLibraryHasQueryableArtifacts(
     "embeddingProvider" | "queryMode"
   > = {},
 ): Promise<void> {
-  const archives = await listWikiGraphLibraryArchives(target);
+  await assertLibraryCoverage(target, options, true);
+}
 
-  for (const archive of archives) {
-    if (!archive.exists || archive.status !== "present") {
-      continue;
-    }
-    const queryableChapters = await readLibraryArchiveDocument(
-      archive,
-      async (archiveDocument) =>
-        await listArchiveQueryableChapterIds(archiveDocument, {
-          ...(options.embeddingProvider === undefined
-            ? {}
-            : { embeddingProvider: options.embeddingProvider }),
-          requireEmbeddingProvider: true,
-          ...(options.queryMode === undefined
-            ? {}
-            : { queryMode: options.queryMode }),
-        }),
+async function assertLibraryCoverage(
+  target: ParsedWikiGraphLibraryUri,
+  options: Pick<
+    WikiGraphLibraryIndexQueryOptions,
+    "embeddingProvider" | "queryMode"
+  >,
+  partial: boolean,
+): Promise<void> {
+  const state = await assertWikiGraphLibraryIndexReady(target);
+  const library = await resolveWikiGraphLibrary(target);
+  const coverage = await new LibraryIndexDocument(
+    library,
+  ).readSearchIndexDatabase(async (database) => {
+    const value = await readStateValue(database, "libraryCoverage");
+    if (value === undefined)
+      throw new Error("Library coverage summary is missing. Run index sync.");
+    return JSON.parse(value) as {
+      total: number;
+      fts: number;
+      embedding: number;
+      hybrid: number;
+    };
+  });
+  const dense = state.capabilities?.dense;
+  const provider = options.embeddingProvider;
+  const embeddingAvailable =
+    provider !== undefined &&
+    dense?.current === true &&
+    dense.model === provider.model &&
+    (dense.identity === undefined || dense.identity === provider.identity) &&
+    (provider.dimensions === undefined ||
+      provider.dimensions === dense.dimensions);
+  const mode = options.queryMode ?? "hybrid";
+  const count =
+    mode === "fts" || (!embeddingAvailable && mode === "hybrid")
+      ? coverage.fts
+      : mode === "embedding"
+        ? embeddingAvailable
+          ? coverage.embedding
+          : 0
+        : coverage.hybrid;
+  if (partial ? count === 0 : count !== coverage.total) {
+    throw new WikiGraphError(
+      "library_query_unindexed",
+      "Wiki Graph library query is not ready: unindexed chapters. Build chapter artifacts and run index sync, or use --skip-unindexed for indexed chapters.",
     );
-    if (queryableChapters.length > 0) {
-      return;
-    }
   }
-
-  throw new Error(
-    "Wiki Graph library query is not ready. No chapters in this library have a current FTS artifact or source embedding artifact.",
-  );
 }
 
 export async function queryWikiGraphLibrarySearchIndex(
@@ -335,10 +334,7 @@ export async function queryWikiGraphLibrarySearchIndex(
   const library = await resolveWikiGraphLibrary(target);
 
   return await withWikiGraphLibraryLock(library.id, "read", async () => {
-    const state = await assertWikiGraphLibraryIndexReady(target);
-    const sourceByArchiveId = new Map(
-      state.sources.map((source) => [source.archiveId, source]),
-    );
+    await assertWikiGraphLibraryIndexReady(target);
     const { querySearchIndex } =
       await import("../retrieval/search-index/index.js");
     const result = await querySearchIndex(
@@ -349,6 +345,13 @@ export async function queryWikiGraphLibrarySearchIndex(
 
     if (result === undefined) {
       return undefined;
+    }
+    const sourceByArchiveId = new Map<number, WikiGraphLibraryIndexSource>();
+    for (const id of new Set(
+      [...result.objectHits, ...result.textHits].map((hit) => hit.archiveId),
+    )) {
+      const archive = await getWikiGraphLibraryArchiveById(library, id);
+      sourceByArchiveId.set(id, formatLibraryIndexSource(archive));
     }
 
     return {
@@ -372,7 +375,8 @@ export async function listWikiGraphLibrarySearchIndex(
   const library = await resolveWikiGraphLibrary(target);
 
   return await withWikiGraphLibraryLock(library.id, "read", async () => {
-    const state = await assertWikiGraphLibraryIndexReady(target);
+    await assertWikiGraphLibraryIndexReady(target);
+    const state = await readWikiGraphLibraryIndexState(target);
     const sourceByArchiveId = new Map(
       state.sources.map((source) => [source.archiveId, source]),
     );
@@ -560,9 +564,32 @@ async function replaceLibrarySearchIndex(
     let textDone = 0;
     let objectDone = 0;
     let vectorDone = 0;
+    const coverage = { total: 0, fts: 0, embedding: 0, hybrid: 0 };
 
     for (const archive of archives) {
       await readLibraryArchiveDocument(archive, async (archiveDocument) => {
+        const chapterIds = (await listChapters(archiveDocument)).map(
+          (chapter) => chapter.chapterId,
+        );
+        const fts = await archiveDocument.indexArtifacts.listCoverage(
+          "fts",
+          chapterIds,
+        );
+        const embeddings = new Map(
+          (
+            await archiveDocument.indexArtifacts.listCoverage(
+              "embedding-source",
+              chapterIds,
+            )
+          ).map((entry) => [entry.serialId, entry.current]),
+        );
+        for (const entry of fts) {
+          const dense = embeddings.get(entry.serialId) === true;
+          coverage.total += 1;
+          coverage.fts += Number(entry.current);
+          coverage.embedding += Number(dense);
+          coverage.hybrid += Number(entry.current || dense);
+        }
         for await (const batch of streamArchiveIndexProjection(
           archiveDocument,
           archive.id,
@@ -623,6 +650,11 @@ async function replaceLibrarySearchIndex(
           for (const artifact of await archiveDocument.indexArtifacts.list(
             artifactKind,
           )) {
+            if (
+              artifact.sourceRevision !==
+              (await archiveDocument.serials.getRevision(artifact.serialId))
+            )
+              continue;
             const model = readEmbeddingModel(artifact.metadata);
             const dimensions = readEmbeddingDimensions(artifact.metadata);
             const label =
@@ -671,6 +703,7 @@ async function replaceLibrarySearchIndex(
       hasFts,
       ...(progress === undefined ? {} : { progress }),
     });
+    await setStateValue(database, "libraryCoverage", JSON.stringify(coverage));
   });
 }
 
@@ -724,14 +757,6 @@ function formatLibraryHitSource(
     archiveUri: source.archiveUri,
     libraryArchiveUri: source.archiveUri,
   };
-}
-
-async function listLibraryIndexSources(
-  target: ParsedWikiGraphLibraryUri,
-): Promise<readonly WikiGraphLibraryIndexSource[]> {
-  return (await listWikiGraphLibraryArchives(target)).map(
-    formatLibraryIndexSource,
-  );
 }
 
 function formatLibraryIndexSource(
@@ -829,15 +854,6 @@ async function createLibraryIndexDatabaseFile(
   );
 }
 
-function isMissingSqliteOpenError(error: unknown): boolean {
-  return (
-    typeof error === "object" &&
-    error !== null &&
-    "code" in error &&
-    (error as { readonly code?: unknown }).code === "SQLITE_CANTOPEN"
-  );
-}
-
 class LibraryIndexDocument {
   readonly #library: WikiGraphLibraryRecord;
 
@@ -865,7 +881,11 @@ class LibraryIndexDocument {
     operation: (database: Database) => Promise<T> | T,
     readonly: boolean,
   ): Promise<T> {
-    const file = await createLibraryIndexDatabaseFile(this.#library);
+    const file = readonly
+      ? await getRelativeFile(this.#library.staging, "index/index.db")
+      : await createLibraryIndexDatabaseFile(this.#library);
+    if (file === undefined || (readonly && (await isHostFileEmpty(file))))
+      throw new Error("Search index cache is missing: index.db");
     const database = readonly
       ? await Database.open(file, "", { mode: "readonly" })
       : await Database.open(file, SEARCH_INDEX_SCHEMA_SQL, {

@@ -223,6 +223,8 @@ async function readChapterTitleBucketPage(
     textHitLimit: SEARCH_INDEX_FTS_HIT_LIMIT,
     types: titleTypes,
   });
+  if (createChapterTitleIndexHits(result).length === 0)
+    return { items: [], nextCursor: { bucket: 1 } };
   const chapters = new Map(
     (await listChapters(document)).map((chapter) => [
       chapter.chapterId,
@@ -500,6 +502,8 @@ async function readTextBucketPage(
     textHitLimit: createBucketQueryWindow(limit),
     types: ["source", "summary"],
   });
+  if ((result?.textHits.length ?? 0) === 0)
+    return { items: [], nextCursor: undefined };
   const chapters = new Map(
     (await listChapters(document)).map((chapter) => [
       chapter.chapterId,

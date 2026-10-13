@@ -13,6 +13,7 @@ import {
   insertTextEmbeddingSegment,
   insertTextSentenceRecord,
   readSearchIndexStatus,
+  readSearchIndexCapabilityStatus,
   SEARCH_OBJECT_PROPERTY_KIND,
   SEARCH_OBJECT_PROPERTY_OWNER_KIND,
   SINGLE_ARCHIVE_INDEX_ID,
@@ -30,9 +31,11 @@ import { readArchiveTitle } from "./helper/meta.js";
 
 const SEARCH_INDEX_REBUILD_ATTEMPTS = 2;
 const ARCHIVE_INDEX_BATCH_RECORDS = 512;
+const ARCHIVE_QUERY_TOPOLOGY_VERSION = "2";
 
 export interface ArchiveSearchIndexScopeOptions {
   readonly chapters?: readonly number[];
+  readonly skipUnindexed?: boolean;
 }
 
 export interface ArchiveQueryCoverageOptions extends ArchiveSearchIndexScopeOptions {
@@ -43,6 +46,115 @@ export interface ArchiveQueryCoverageOptions extends ArchiveSearchIndexScopeOpti
 
 export class ArchiveQueryNotReadyError extends Error {
   public override readonly name = "ArchiveQueryNotReadyError";
+}
+
+/** Query preflight consumes the revision-bound summary produced by explicit sync. */
+export async function assertArchiveQueryReady(
+  document: ReadonlyDocument,
+  options: ArchiveQueryCoverageOptions = {},
+): Promise<void> {
+  if (!(await isArchiveSearchIndexCurrent(document, options))) {
+    throw new ArchiveQueryNotReadyError(
+      "Archive search index is missing or dirty. Run `wg <archive-uri>/index sync` explicitly before querying.",
+    );
+  }
+  const mode = options.queryMode ?? "hybrid";
+  const dense =
+    mode === "fts"
+      ? undefined
+      : (await readSearchIndexCapabilityStatus(document)).dense;
+  const provider = options.embeddingProvider;
+  const compatible =
+    provider !== undefined &&
+    dense?.current === true &&
+    dense.model === provider.model &&
+    (dense.identity === undefined ||
+      provider.identity === undefined ||
+      dense.identity === provider.identity) &&
+    (provider.dimensions === undefined ||
+      dense.dimensions === provider.dimensions);
+  const column =
+    mode === "fts" || (mode === "hybrid" && !compatible)
+      ? "fts"
+      : mode === "embedding"
+        ? "embedding"
+        : "hybrid";
+  const counts = await document.readSearchIndexDatabase(async (database) => {
+    if (options.chapters === undefined) {
+      const value = await database.queryOne(
+        "SELECT value FROM search_index_state WHERE key = 'archiveCoverage'",
+        undefined,
+        (row) => String(row.value),
+      );
+      if (value === undefined)
+        throw new ArchiveQueryNotReadyError(
+          "Archive coverage summary is missing. Run index sync.",
+        );
+      return JSON.parse(value) as {
+        total: number;
+        fts: number;
+        embedding: number;
+        hybrid: number;
+      };
+    }
+    if (options.chapters.length === 0)
+      return { total: 0, fts: 0, embedding: 0, hybrid: 0 };
+    const counts = await database.queryOne(
+      `SELECT COUNT(*) AS total, COALESCE(SUM(fts),0) AS fts, COALESCE(SUM(embedding),0) AS embedding, COALESCE(SUM(hybrid),0) AS hybrid FROM archive_query_chapters WHERE chapter_id IN (${options.chapters.map(() => "?").join(",")})`,
+      options.chapters,
+      (row) => ({
+        total: Number(row.total),
+        fts: Number(row.fts),
+        embedding: Number(row.embedding),
+        hybrid: Number(row.hybrid),
+      }),
+    );
+    if (counts === undefined)
+      throw new Error("Missing archive coverage aggregate.");
+    return counts;
+  });
+  const count = mode === "embedding" && !compatible ? 0 : counts[column];
+  if (options.skipUnindexed === true ? count === 0 : count !== counts.total) {
+    throw new ArchiveQueryNotReadyError(
+      "Wiki Graph query is not ready: chapters need current artifacts and a compatible provider for this query mode. Build artifacts and run index sync, or use skipUnindexed for indexed chapters.",
+    );
+  }
+}
+
+/** The index stores the chapter path lookup so scoped queries need not load the TOC. */
+export async function resolveIndexedArchiveChapterScope(
+  document: ReadonlyDocument,
+  path: string | undefined,
+  depth: number | undefined,
+): Promise<readonly number[]> {
+  if (!(await isArchiveSearchIndexCurrent(document, { skipUnindexed: true })))
+    throw new ArchiveQueryNotReadyError(
+      "Archive search index is missing or dirty. Run index sync.",
+    );
+  return await document.readSearchIndexDatabase(async (database) => {
+    const root =
+      path === undefined
+        ? undefined
+        : await database.queryOne(
+            "SELECT chapter_id, depth FROM archive_query_chapters WHERE path = ?",
+            [path],
+            (row) => ({
+              chapterId: Number(row.chapter_id),
+              depth: Number(row.depth),
+            }),
+          );
+    if (path !== undefined && root === undefined)
+      throw new Error(`Chapter ${path} does not exist in the current index.`);
+    const descendants = await database.queryAll(
+      `SELECT chapter_id FROM archive_query_chapters WHERE ${path === undefined ? "1 = 1" : "path >= ? AND path < ?"} ${depth === undefined ? "" : "AND depth <= ?"} ORDER BY chapter_id`,
+      [
+        ...(path === undefined ? [] : [`${path}/`, `${path}0`]),
+        ...(depth === undefined ? [] : [(root?.depth ?? 0) + depth]),
+      ],
+      (row) => Number(row.chapter_id),
+    );
+    return root === undefined ? descendants : [root.chapterId, ...descendants];
+  });
 }
 
 export async function rebuildArchiveSearchIndex(
@@ -104,16 +216,39 @@ export async function readArchiveSearchIndexStatus(
   document: ReadonlyDocument,
   options: ArchiveSearchIndexScopeOptions = {},
 ): Promise<"current" | "dirty" | "missing"> {
-  try {
-    await assertArchiveIndexArtifactsReady(document, options);
-  } catch {
-    return "dirty";
-  }
-
-  return await readSearchIndexStatus(
-    document,
-    await buildArchiveIndexProjection(document, undefined, options),
-  );
+  const status = await readSearchIndexStatus(document);
+  if (status !== "current") return status;
+  return await document.readSearchIndexDatabase(async (database) => {
+    const coverage = await database.queryOne(
+      "SELECT value FROM search_index_state WHERE key = 'archiveCoverage'",
+      undefined,
+      (row) => String(row.value),
+    );
+    if (coverage === undefined) return "dirty";
+    const topologyVersion = await database.queryOne(
+      "SELECT value FROM search_index_state WHERE key = 'archiveTopologyVersion'",
+      undefined,
+      (row) => String(row.value),
+    );
+    if (topologyVersion !== ARCHIVE_QUERY_TOPOLOGY_VERSION) return "dirty";
+    const scope = await database.queryOne(
+      "SELECT value FROM search_index_state WHERE key = 'chaptersScope'",
+      undefined,
+      (row) => String(row.value),
+    );
+    if (scope === undefined) return "dirty";
+    if (scope === "all") return "current";
+    if (options.skipUnindexed === true) return "current";
+    if (options.chapters === undefined) return "dirty";
+    const ids = [...new Set(options.chapters)];
+    if (ids.length === 0) return "current";
+    const count = await database.queryOne(
+      `SELECT COUNT(*) AS count FROM archive_query_chapters WHERE projected = 1 AND chapter_id IN (${ids.map(() => "?").join(",")})`,
+      ids,
+      (row) => Number(row.count),
+    );
+    return count === ids.length ? "current" : "dirty";
+  });
 }
 
 export async function clearDirtyArchiveSearchIndex(
@@ -159,14 +294,20 @@ export async function assertArchiveIndexArtifactsReady(
 ): Promise<void> {
   const chapterIds = await resolveArchiveQueryChapterIds(document, options);
   const [ftsCoverage, sourceEmbeddingCoverage] = await Promise.all([
-    document.indexArtifacts.listCoverage("fts"),
-    document.indexArtifacts.listCoverage("embedding-source"),
+    document.indexArtifacts.listCoverage("fts", options.chapters),
+    options.queryMode === "fts"
+      ? Promise.resolve([])
+      : document.indexArtifacts.listCoverage(
+          "embedding-source",
+          options.chapters,
+        ),
   ]);
   const sourceEmbeddingBySerial = new Map(
     sourceEmbeddingCoverage.map((record) => [record.serialId, record]),
   );
   const queryMode = options.queryMode ?? "hybrid";
   const embeddingAvailable =
+    options.queryMode === "fts" ||
     options.requireEmbeddingProvider !== true ||
     (await isEmbeddingProviderCompatible(
       document,
@@ -220,8 +361,13 @@ export async function listArchiveQueryableChapterIds(
 ): Promise<readonly number[]> {
   const chapterIds = await resolveArchiveQueryChapterIds(document, options);
   const [ftsCoverage, sourceEmbeddingCoverage] = await Promise.all([
-    document.indexArtifacts.listCoverage("fts"),
-    document.indexArtifacts.listCoverage("embedding-source"),
+    document.indexArtifacts.listCoverage("fts", options.chapters),
+    options.queryMode === "fts"
+      ? Promise.resolve([])
+      : document.indexArtifacts.listCoverage(
+          "embedding-source",
+          options.chapters,
+        ),
   ]);
   const sourceEmbeddingBySerial = new Map(
     sourceEmbeddingCoverage.map((record) => [record.serialId, record]),
@@ -229,6 +375,7 @@ export async function listArchiveQueryableChapterIds(
 
   const queryMode = options.queryMode ?? "hybrid";
   const embeddingAvailable =
+    options.queryMode === "fts" ||
     options.requireEmbeddingProvider !== true ||
     (await isEmbeddingProviderCompatible(
       document,
@@ -301,7 +448,23 @@ export async function writeArchiveIndexProjectionFromArtifacts(
     await buildArchiveIndexProjection(document, undefined, options),
   );
   const embeddingState = await readArchiveEmbeddingState(document, options);
-  const ftsCoverage = await document.indexArtifacts.listCoverage("fts");
+  const ftsCoverage = await document.indexArtifacts.listCoverage(
+    "fts",
+    options.chapters,
+  );
+  const sourceCoverage = await document.indexArtifacts.listCoverage(
+    "embedding-source",
+    options.chapters,
+  );
+  const ftsById = new Map(
+    ftsCoverage.map((record) => [record.serialId, record.current]),
+  );
+  const embeddingById = new Map(
+    sourceCoverage.map((record) => [record.serialId, record.current]),
+  );
+  // Topology represents the whole archive even when only some chapters are
+  // projected. Query eligibility must never redefine a URI's real subtree.
+  const archiveChapters = await listChapters(document);
   const hasFts =
     ftsCoverage.some(
       (artifact) => chapterIds.has(artifact.serialId) && artifact.current,
@@ -309,6 +472,33 @@ export async function writeArchiveIndexProjectionFromArtifacts(
 
   await document.writeSearchIndexDatabase(async (database) => {
     await prepareSearchIndexReplacement(database, progress);
+    await database.execute(`CREATE TABLE archive_query_chapters (chapter_id INTEGER PRIMARY KEY, path TEXT NOT NULL UNIQUE, depth INTEGER NOT NULL, projected INTEGER NOT NULL, fts INTEGER NOT NULL, embedding INTEGER NOT NULL, hybrid INTEGER NOT NULL);
+      CREATE INDEX idx_archive_query_chapters_depth ON archive_query_chapters(depth, chapter_id);`);
+    const coverage = { total: 0, fts: 0, embedding: 0, hybrid: 0 };
+    for (const chapter of archiveChapters) {
+      const projected = chapterIds.has(chapter.chapterId);
+      const fts = Number(projected && ftsById.get(chapter.chapterId) === true);
+      const embedding = Number(
+        projected && embeddingById.get(chapter.chapterId) === true,
+      );
+      const hybrid = Number(fts === 1 || embedding === 1);
+      await database.run(
+        "INSERT INTO archive_query_chapters VALUES (?, ?, ?, ?, ?, ?, ?)",
+        [
+          chapter.chapterId,
+          chapter.path,
+          chapter.depth,
+          Number(projected),
+          fts,
+          embedding,
+          hybrid,
+        ],
+      );
+      coverage.total += 1;
+      coverage.fts += fts;
+      coverage.embedding += embedding;
+      coverage.hybrid += hybrid;
+    }
 
     let textDone = 0;
     let vectorDone = 0;
@@ -456,6 +646,18 @@ export async function writeArchiveIndexProjectionFromArtifacts(
       hasFts,
       ...(progress === undefined ? {} : { progress }),
     });
+    await database.run(
+      "INSERT INTO search_index_state(key, value) VALUES ('chaptersScope', ?)",
+      [options.chapters === undefined ? "all" : "partial"],
+    );
+    await database.run(
+      "INSERT INTO search_index_state(key, value) VALUES ('archiveCoverage', ?)",
+      [JSON.stringify(coverage)],
+    );
+    await database.run(
+      "INSERT INTO search_index_state(key, value) VALUES ('archiveTopologyVersion', ?)",
+      [ARCHIVE_QUERY_TOPOLOGY_VERSION],
+    );
   });
 }
 
@@ -735,7 +937,10 @@ export async function readArchiveEmbeddingState(
     "embedding-source",
     "embedding-summary",
   ] as const) {
-    for (const artifact of await document.indexArtifacts.list(artifactKind)) {
+    for (const artifact of await document.indexArtifacts.list(
+      artifactKind,
+      options.chapters,
+    )) {
       if (!chapterIds.has(artifact.serialId)) {
         continue;
       }

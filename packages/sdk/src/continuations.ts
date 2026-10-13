@@ -32,6 +32,7 @@ import {
 import { type WikiGraphArchiveTarget } from "./archive/index.js";
 import {
   archiveTargetFromLogicalLocator,
+  rethrowArchiveSchemaError,
   resolveWikiGraphArchiveLocation,
 } from "./archive/target.js";
 import type { WikiGraphJobRuntime } from "./jobs.js";
@@ -253,9 +254,13 @@ async function continueArchiveCursor(
         });
     }
   };
-  return location.archiveFile.kind === "directory"
-    ? await new WikiGraphDirectoryFile(location.archiveFile).readDocument(read)
-    : await new WikiGraphArchiveFile(location.archiveFile).readDocument(read);
+  return await (
+    location.archiveFile.kind === "directory"
+      ? new WikiGraphDirectoryFile(location.archiveFile).readDocument(read)
+      : new WikiGraphArchiveFile(location.archiveFile).readDocument(read)
+  ).catch((error: unknown) =>
+    rethrowArchiveSchemaError(error, location.target),
+  );
 }
 
 async function continueLibraryCursor(

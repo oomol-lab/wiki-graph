@@ -127,7 +127,7 @@ describe("archive-command URI runtime resolution", () => {
     });
   });
 
-  it("keeps library index current after archive writes through a library locator", async () => {
+  it("marks library index dirty after archive writes through a library locator", async () => {
     const target = await createTestLibraryTarget();
     const archive = await addTestArchiveToLibrary(target);
 
@@ -142,12 +142,12 @@ describe("archive-command URI runtime resolution", () => {
 
     await expect(readWikiGraphLibraryIndexState(target)).resolves.toMatchObject(
       {
-        status: "current",
+        status: "dirty",
       },
     );
   });
 
-  it("keeps explicit library index current after archive writes through a library locator", async () => {
+  it("marks explicit library index dirty after archive writes through a library locator", async () => {
     const library = await createWikiGraphLibrary({
       folder: new NodeDirectory(join(tempDir, "team-library")),
     });
@@ -167,7 +167,7 @@ describe("archive-command URI runtime resolution", () => {
     await expect(
       readWikiGraphLibraryIndexState(target!),
     ).resolves.toMatchObject({
-      status: "current",
+      status: "dirty",
     });
   });
 

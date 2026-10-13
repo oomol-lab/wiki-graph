@@ -39,6 +39,71 @@ The SDK exposes typed methods and class instances. It intentionally does not
 provide `execute(command, args)`: argument parsing, help, terminal remediation,
 exit codes, and JSON/JSONL rendering belong to `wiki-graph`.
 
+## Schema versions and explicit maintenance
+
+Constructing the SDK starts no background I/O. Async archive opening and library
+lookup check versions before returning a handle. Storage access rechecks versions,
+including after resource replacement. Library registration belongs to Home schema;
+looking up a library does not open its members. Members are checked individually
+when accessed.
+
+Ordinary access never upgrades old data or rebuilds missing/dirty search indexes.
+Empty Home state initialization and interrupted transaction recovery are allowed.
+Use explicit maintenance for upgrades, and `ensureSearchIndex()` or index sync for
+derived search state.
+
+```ts
+import {
+  createWikiGraphSDK,
+  isWikiGraphSchemaVersionError,
+} from "wiki-graph-sdk";
+
+const sdk = createWikiGraphSDK({ stateDir: "/var/lib/my-app/wiki-graph" });
+try {
+  await sdk.libraries.get("wikg://lib");
+} catch (error) {
+  if (!isWikiGraphSchemaVersionError(error)) throw error;
+  console.error(error.target, error.actualVersion, error.supportedVersion);
+  if (error.reason === "upgrade-required") {
+    // Ask the operator to run maintenance; do not upgrade automatically in catch.
+    console.error("Manual schema upgrade required", error.target);
+  } else {
+    console.error("Update Wiki Graph to read this newer data");
+  }
+} finally {
+  sdk.close();
+}
+```
+
+`WikiGraphSchemaVersionError` extends Core's error hierarchy, with stable code
+`schema_version_incompatible`. The guard accepts local instances, duplicate-package
+instances and intact structured records containing code, target, both versions and
+reason. It does not use message text. Structured records do not regain Error
+methods or a stack. Missing/corrupt manifests, permissions and database I/O errors
+are not version errors. Only `upgrade-required` indicates manual upgrade is
+appropriate; `newer-version` requires newer software.
+
+After operator approval, explicitly call `await sdk.maintenance.upgrade(error.target)`
+for an `upgrade-required` error whose target you retained. In the CLI use
+`wg maintenance upgrade home`, `wg maintenance upgrade <archive-path>`, or
+`wg maintenance upgrade <library-uri>` as indicated by the error. Home v4 must be
+manually upgraded to v5 before other state operations; archive schema remains v5.
+
+Directory archives read manifest and requested paths directly. ZIP cold opening
+scans the central directory into an in-memory map (O(files)); ZIP database queries
+may materialize a database. Directory read-only queries avoid database copying and
+hashing. Existing search caches are also read directly under a session lock; explicit
+cache writers retain transactional snapshots. Full scans and sync remain explicit. External changes outside SDK writes
+require scan/sync; accessed members still receive local checks.
+
+Archive query preflight uses coverage summaries bound to the synced revision.
+Unscoped queries do not enumerate chapters; chapter URI queries use the synced
+path index, and `skipUnindexed` filters eligible chapters inside result SQL.
+Partial sync still records the complete chapter topology and marks projection
+and query eligibility separately: strict queries check the real subtree, while
+`skipUnindexed` only filters eligible results. An older derived cache without
+these summaries and the complete-topology marker requires explicit index sync.
+
 ## Durable Jobs
 
 The job manager creates and queries durable work. A `WikiGraphJob` is a handle

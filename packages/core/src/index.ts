@@ -56,6 +56,8 @@ export {
   listRelatedWikiGraphLibraryObjects,
   listWikiGraphLibraryArchiveMembers,
   listWikiGraphLibraryArchives,
+  findWikiGraphLibraryArchivePhysicalAliases,
+  findWikiGraphLibraryByPhysicalIdentity,
   listWikiGraphLibraryEvidence,
   listWikiGraphLibraryIndexArchiveIdsForObject,
   listWikiGraphLibraryObjects,
@@ -235,6 +237,8 @@ export type { BookMeta, ParsedSourceTextJsonl } from "./text/source/index.js";
 export {
   ArchiveQueryNotReadyError,
   assertArchiveIndexArtifactsReady,
+  assertArchiveQueryReady,
+  resolveIndexedArchiveChapterScope,
   buildArchiveIndexProjection,
   isArchiveSearchIndexCurrent,
   listArchiveQueryableChapterIds,
@@ -243,6 +247,7 @@ export {
 export {
   ensureWikiGraphArchiveSchemaCurrent,
   ensureWikiGraphHomeSchemaCurrent,
+  upgradeWikiGraphHomeSchema,
   readWikiGraphArchiveSchemaVersion,
   readWikiGraphHomeSchemaVersion,
   upgradeWikiGraphArchiveSchema,

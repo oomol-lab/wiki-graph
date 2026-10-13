@@ -131,6 +131,7 @@ export async function prepareSearchIndexReplacement(
     await database.run("DELETE FROM search_object_properties_records");
     await database.run("DELETE FROM index_dirty_chapters");
     await database.run("DELETE FROM search_index_state");
+    await database.run("DROP TABLE IF EXISTS archive_query_chapters");
     await database.run(
       `
         INSERT INTO index_dirty_chapters(archive_id, chapter_id, updated_at)
