@@ -120,6 +120,10 @@ export async function deleteSearchSessionRows(
   database: Database,
   sessionId: string,
 ): Promise<void> {
+  await database.run(
+    "DELETE FROM search_evidence_raw_signals WHERE session_id = ?",
+    [sessionId],
+  );
   await database.run("DELETE FROM search_results WHERE session_id = ?", [
     sessionId,
   ]);

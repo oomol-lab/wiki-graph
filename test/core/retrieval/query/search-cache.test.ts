@@ -13,6 +13,9 @@ import {
   readSearchSessionObjectBucketPage,
 } from "../../../../packages/core/src/retrieval/query/search-cache/index.js";
 import { getObjectBucketCursorId } from "../../../../packages/core/src/retrieval/query/archive-view/search/bucket-order.js";
+import { readEntitySearchEvidenceMentions } from "../../../../packages/core/src/retrieval/query/search-cache/hits.js";
+import { SEARCH_EVIDENCE_KIND } from "../../../../packages/core/src/retrieval/query/search-cache/types.js";
+import { openSearchQueryCacheDatabase } from "../../../../packages/core/src/retrieval/search-index/search/query-cache.js";
 import {
   getWikiGraphStateDirectoryPathForTesting,
   setWikiGraphStateDirectoryPathForTesting,
@@ -22,6 +25,117 @@ import { withTempDir } from "../../../helpers/temp.js";
 const originalStateDir = getWikiGraphStateDirectoryPathForTesting();
 
 describe("archive/query/search-cache", () => {
+  it("rebuilds only an older transient query cache, independently for each runtime storage", async () => {
+    await withTempDir("wikigraph-old-query-cache-", async (path) => {
+      setWikiGraphStateDirectoryPathForTesting(path);
+      const old = await openSearchQueryCacheDatabase();
+      try {
+        await old.execute(
+          "ALTER TABLE query_text_hits DROP COLUMN raw_embedding_score; UPDATE query_cache_metadata SET value = '3' WHERE key = 'schema_version';",
+        );
+      } finally {
+        await old.close();
+      }
+      setWikiGraphStateDirectoryPathForTesting(join(path, "another-home"));
+      await (await openSearchQueryCacheDatabase()).close();
+      setWikiGraphStateDirectoryPathForTesting(path);
+      const rebuilt = await openSearchQueryCacheDatabase();
+      try {
+        await expect(
+          rebuilt.queryOne(
+            "SELECT value FROM query_cache_metadata WHERE key = 'schema_version'",
+            undefined,
+            (row) => row.value,
+          ),
+        ).resolves.toBe("4");
+        await expect(
+          rebuilt.queryAll(
+            "PRAGMA table_info(query_text_hits)",
+            undefined,
+            (row) => String(row.name),
+          ),
+        ).resolves.toContain("raw_embedding_score");
+      } finally {
+        await rebuilt.close();
+      }
+    });
+  });
+  it("round-trips raw zero signals with archive scope and deletes them with the session", async () => {
+    await withTempDir("wikigraph-raw-cache-", async (path) => {
+      setWikiGraphStateDirectoryPathForTesting(path);
+      const sessionId = await createSearchSession({
+        archiveKey: "raw-cache",
+        chapters: null,
+        lens: "broad",
+        match: "any",
+        order: "rank",
+        query: "query",
+        terms: ["query"],
+        types: null,
+        revisionScope: "raw-test",
+        evidenceEvents: [
+          {
+            archiveId: 1,
+            evidenceId: "same-mention",
+            evidenceKind: SEARCH_EVIDENCE_KIND.mention,
+            chapterId: 1,
+            sentenceIndex: 0,
+            score: 0.8,
+            ftsScore: 0,
+            embeddingScore: 0,
+          },
+          {
+            archiveId: 2,
+            evidenceId: "same-mention",
+            evidenceKind: SEARCH_EVIDENCE_KIND.mention,
+            chapterId: 1,
+            sentenceIndex: 0,
+            score: 0.9,
+          },
+        ],
+      });
+      expect(
+        await readEntitySearchEvidenceMentions(
+          sessionId,
+          ["same-mention"],
+          3,
+          1,
+        ),
+      ).toEqual([
+        {
+          mentionId: "same-mention",
+          score: 0.8,
+          ftsScore: 0,
+          embeddingScore: 0,
+        },
+      ]);
+      expect(
+        await readEntitySearchEvidenceMentions(
+          sessionId,
+          ["same-mention"],
+          3,
+          2,
+        ),
+      ).toEqual([{ mentionId: "same-mention", score: 0.9 }]);
+      await deleteArchiveSearchSessions("raw-cache");
+      const database = await Database.open(
+        join(path, "cache", "search-sessions.sqlite"),
+        "",
+        { mode: "readonly" },
+      );
+      try {
+        await expect(
+          database.queryOne(
+            "SELECT COUNT(*) AS count FROM search_evidence_raw_signals",
+            undefined,
+            (row) => Number(row.count),
+          ),
+        ).resolves.toBe(0);
+      } finally {
+        await database.close();
+      }
+    });
+  });
   afterEach(() => {
     setWikiGraphStateDirectoryPathForTesting(originalStateDir);
   });

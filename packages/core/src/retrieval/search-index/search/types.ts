@@ -112,6 +112,8 @@ export interface SearchIndexCapabilityStatus {
 }
 
 export interface SearchIndexTextHit {
+  readonly ftsScore?: number;
+  readonly embeddingScore?: number;
   readonly archiveId: number;
   readonly chapterId: number;
   readonly kind: TextSentenceKind;

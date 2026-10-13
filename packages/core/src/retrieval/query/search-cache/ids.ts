@@ -1,6 +1,6 @@
 import { createPortableHash as createHash } from "../../../utils/crypto.js";
 
-import { SEARCH_RANKING_VERSION } from "./schema.js";
+import { SEARCH_RANKING_VERSION, SEARCH_RESULT_VERSION } from "./schema.js";
 import type {
   EntitySearchSessionCacheInput,
   SearchSessionCacheInput,
@@ -19,6 +19,7 @@ export function createEntitySearchSessionId(
         order: input.order,
         queryMode: input.queryMode ?? "hybrid",
         rankingVersion: SEARCH_RANKING_VERSION,
+        resultVersion: SEARCH_RESULT_VERSION,
         revisionScope: input.revisionScope,
         scope: normalizeSearchSessionScope(input.chapters),
         terms: input.terms,
@@ -39,6 +40,7 @@ export function createSearchSessionId(input: SearchSessionCacheInput): string {
         order: input.order,
         queryMode: input.queryMode ?? "hybrid",
         rankingVersion: SEARCH_RANKING_VERSION,
+        resultVersion: SEARCH_RESULT_VERSION,
         revisionScope: input.revisionScope,
         scope: normalizeSearchSessionScope(input.chapters),
         terms: input.terms,

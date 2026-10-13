@@ -1,3 +1,5 @@
+import { commonRetrievalSignals } from "../../raw-signals.js";
+
 import type {
   MentionRecord,
   ReadonlyDocument,
@@ -100,6 +102,14 @@ export function createEntitySearchCacheInput(
   readonly evidenceEvents: readonly SearchEvidenceHitEventInput[];
 } {
   const evidenceEvents: SearchEvidenceHitEventInput[] = [];
+  const signalsBySentence = new Map(
+    (indexResult?.textHits ?? [])
+      .filter((hit) => hit.kind === TEXT_SENTENCE_KIND.source)
+      .map((hit) => [
+        createSentenceHitKey(hit.archiveId, hit.chapterId, hit.sentenceIndex),
+        commonRetrievalSignals([hit]),
+      ]),
+  );
   const evidenceScoresByEntity = new Map<string, number[]>();
   const propertyScoresByEntity = new Map<string, number[]>();
   const entitiesByKey = new Map<
@@ -147,6 +157,13 @@ export function createEntitySearchCacheInput(
       evidenceEvents.push({
         archiveId,
         chapterId: evidenceMention.mention.chapterId,
+        ...signalsBySentence.get(
+          createSentenceHitKey(
+            archiveId,
+            evidenceMention.mention.chapterId,
+            sentenceIndex,
+          ),
+        ),
         evidenceId: evidenceMention.mention.id,
         evidenceKind: SEARCH_EVIDENCE_KIND.mention,
         score,
@@ -216,6 +233,12 @@ export async function createSentenceEvidenceSearchCacheInput(
   }
 
   const sourceHitScores = new Map<string, number>();
+  const sourceHitSignals = new Map(
+    sourceHits.map((hit) => [
+      createSentenceHitKey(hit.archiveId, hit.chapterId, hit.sentenceIndex),
+      commonRetrievalSignals([hit]),
+    ]),
+  );
   const chapterIds = new Set<number>();
   const archiveIds = new Set<number>();
 
@@ -264,6 +287,9 @@ export async function createSentenceEvidenceSearchCacheInput(
         chapterId,
         evidenceId: mention.id,
         evidenceKind: SEARCH_EVIDENCE_KIND.mention,
+        ...sourceHitSignals.get(
+          createSentenceHitKey(archiveId, chapterId, mention.sentenceIndex),
+        ),
         score,
         sentenceIndex: mention.sentenceIndex,
       });
@@ -288,6 +314,9 @@ export async function createSentenceEvidenceSearchCacheInput(
           chapterId,
           evidenceId: String(chunk.id),
           evidenceKind: SEARCH_EVIDENCE_KIND.chunk,
+          ...sourceHitSignals.get(
+            createSentenceHitKey(archiveId, chapterId, sentenceIndex),
+          ),
           score,
           sentenceIndex,
         });
@@ -327,6 +356,9 @@ export async function createSentenceEvidenceSearchCacheInput(
           chapterId: evidenceChapterId,
           evidenceId: link.id,
           evidenceKind: SEARCH_EVIDENCE_KIND.mentionLink,
+          ...sourceHitSignals.get(
+            createSentenceHitKey(archiveId, evidenceChapterId, sentenceIndex),
+          ),
           score,
           sentenceIndex,
         });

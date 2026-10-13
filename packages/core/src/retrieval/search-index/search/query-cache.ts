@@ -1,6 +1,10 @@
 import { getNumber } from "../../../document/database.js";
 import { openWikiGraphStateDatabase } from "../../../document/index.js";
 import type { Database } from "../../../document/index.js";
+import {
+  getWikiGraphStorage,
+  type Directory,
+} from "../../../runtime/platform/index.js";
 
 import { normalizeSearchHitScore } from "./score-normalization.js";
 import type {
@@ -9,7 +13,7 @@ import type {
   TextSentenceKind,
 } from "./types.js";
 
-const QUERY_CACHE_SCHEMA_VERSION = "3";
+const QUERY_CACHE_SCHEMA_VERSION = "4";
 const SCORE_BATCH_SIZE = 512;
 const NO_CHAPTER = -1;
 const QUERY_CACHE_INSTANCE_STARTED_AT = Date.now();
@@ -61,6 +65,7 @@ CREATE TABLE IF NOT EXISTS query_text_hits (
   raw_score REAL,
   fts_score REAL,
   embedding_score REAL,
+  raw_embedding_score REAL,
   score REAL,
   rank INTEGER,
   UNIQUE (query_id, archive_id, kind, chapter_id, sentence_index)
@@ -89,10 +94,11 @@ CREATE INDEX IF NOT EXISTS idx_query_dense_segment_hits_score
 ON query_dense_segment_hits(query_id, raw_score DESC, archive_id, chapter_id, start_sentence_index, kind);
 `;
 
-let cacheSchemaInitialization: Promise<void> | undefined;
+const cacheSchemaInitializations = new WeakMap<Directory, Promise<void>>();
 let nextQueryId = 0;
 
 export interface CachedDenseSegmentHit {
+  readonly rawScore: number;
   readonly archiveId: number;
   readonly chapterId: number;
   readonly endSentenceIndex: number;
@@ -112,13 +118,23 @@ export async function openSearchQueryCacheDatabase(): Promise<Database> {
     QUERY_CACHE_SCHEMA_SQL,
   );
 
-  cacheSchemaInitialization ??= initializeQueryCacheSchema(database).catch(
-    (error: unknown) => {
-      cacheSchemaInitialization = undefined;
-      throw error;
-    },
-  );
-  await cacheSchemaInitialization;
+  const library = getWikiGraphStorage().library;
+  let initialization = cacheSchemaInitializations.get(library);
+  if (initialization === undefined) {
+    initialization = database
+      .transaction(async () => await initializeQueryCacheSchema(database))
+      .catch((error: unknown) => {
+        cacheSchemaInitializations.delete(library);
+        throw error;
+      });
+    cacheSchemaInitializations.set(library, initialization);
+  }
+  try {
+    await initialization;
+  } catch (error) {
+    await database.close();
+    throw error;
+  }
   return database;
 }
 
@@ -507,7 +523,7 @@ export async function listCachedDenseSegmentHits(
   return await database.queryAll(
     `
       SELECT archive_id, kind, chapter_id, start_sentence_index,
-             end_sentence_index, score
+             end_sentence_index, score, raw_score
       FROM query_dense_segment_hits
       WHERE query_id = ?
       ORDER BY score DESC, archive_id, chapter_id, start_sentence_index, kind
@@ -519,6 +535,7 @@ export async function listCachedDenseSegmentHits(
       endSentenceIndex: getNumber(row, "end_sentence_index"),
       kind: getNumber(row, "kind") as TextSentenceKind,
       score: getNumber(row, "score"),
+      rawScore: getNumber(row, "raw_score"),
       startSentenceIndex: getNumber(row, "start_sentence_index"),
     }),
   );
@@ -533,12 +550,16 @@ export async function upsertCachedEmbeddingTextHit(
     `
       INSERT INTO query_text_hits (
         query_id, archive_id, kind, chapter_id, sentence_index,
-        words_count, embedding_score
+        words_count, embedding_score, raw_embedding_score
       )
-      VALUES (?, ?, ?, ?, ?, ?, ?)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
       ON CONFLICT (query_id, archive_id, kind, chapter_id, sentence_index)
       DO UPDATE SET
         words_count = MAX(words_count, excluded.words_count),
+        raw_embedding_score = CASE
+          WHEN embedding_score IS NULL OR excluded.embedding_score > embedding_score
+          THEN excluded.raw_embedding_score ELSE raw_embedding_score
+        END,
         embedding_score = CASE
           WHEN embedding_score IS NULL THEN excluded.embedding_score
           ELSE MAX(embedding_score, excluded.embedding_score)
@@ -552,6 +573,7 @@ export async function upsertCachedEmbeddingTextHit(
       hit.sentenceIndex,
       hit.wordsCount,
       hit.score,
+      hit.embeddingScore ?? null,
     ],
   );
 }

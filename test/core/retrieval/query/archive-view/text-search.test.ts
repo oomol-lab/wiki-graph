@@ -25,6 +25,40 @@ beforeEach(setupArchiveViewTestState);
 afterEach(teardownArchiveViewTestState);
 
 describe("archive/query/archive-view/text search", () => {
+  it("exposes original BM25 on source and summary without replacing final scores", async () => {
+    await withTempDir("wikigraph-raw-scores-", async (path) => {
+      const document = await DirectoryDocument.open(`${path}/document`);
+      try {
+        await seedSourcedDocument(document);
+        await document.openSession(async (opened) => {
+          await opened.writeSummary(1, "Wiki summary match.");
+        });
+        await rebuildArchiveSearchIndex(document);
+        const indexed = await querySearchIndex(document, "Wiki", {
+          queryMode: "fts",
+          types: ["source", "summary"],
+        });
+        const result = await findArchiveObjects(document, "Wiki", {
+          queryMode: "fts",
+          sourceContext: 0,
+          types: ["source", "summary"],
+        });
+        for (const type of ["source", "summary"] as const) {
+          const hit = result.items.find((hit) => hit.type === type);
+          const raw = indexed?.textHits.find(
+            (hit) => hit.kind === (type === "source" ? 1 : 2),
+          );
+          expect(hit).toBeDefined();
+          expect(hit?.ftsScore).toBe(raw?.ftsScore);
+          expect(hit?.ftsScore).toBeLessThan(0);
+          expect(hit?.embeddingScore).toBeUndefined();
+          expect(hit?.score).toBe(raw?.score);
+        }
+      } finally {
+        await document.release();
+      }
+    });
+  });
   it("searches sourced sentences before graph or summary build", async () => {
     await withTempDir("wikigraph-archive-view-", async (path) => {
       const document = await DirectoryDocument.open(`${path}/document`);

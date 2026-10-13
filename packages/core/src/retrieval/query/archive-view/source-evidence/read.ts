@@ -4,6 +4,7 @@ import type { ChapterEntry } from "../../../../document/chapter/index.js";
 import { readTextStreamRange } from "../text-streams.js";
 import type { ArchiveEvidenceItem, EvidenceReadContext } from "../types.js";
 import { requireChapter } from "../core.js";
+import type { WikiGraphRetrievalSignals } from "../../../../api/objects.js";
 
 export async function createSourceEvidenceItem(
   document: ReadonlyDocument,
@@ -12,6 +13,7 @@ export async function createSourceEvidenceItem(
   endSentenceIndex: number,
   context: EvidenceReadContext = createEvidenceReadContext(),
   score?: number,
+  signals: WikiGraphRetrievalSignals = {},
 ): Promise<ArchiveEvidenceItem> {
   const chapter = await getEvidenceChapter(document, chapterId, context);
   const range = await readTextStreamRange(
@@ -29,6 +31,7 @@ export async function createSourceEvidenceItem(
     fragmentId: range.startSentenceIndex,
     id: range.id,
     ...(score === undefined ? {} : { score }),
+    ...signals,
     source: range.text,
     startSentenceIndex: range.startSentenceIndex,
     title: chapter.title ?? chapter.uri,

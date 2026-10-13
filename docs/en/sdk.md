@@ -231,3 +231,63 @@ invocation, so concurrent calls using different state roots remain isolated.
 
 - [`.wikg` Archive Standard](./wikg-standard.md)
 - [WikiSpine Runtime](../wikispine-runtime.md)
+
+## Public objects and raw retrieval signals
+
+The SDK exports shared Core business models: `WikiGraphObjectIdentity`,
+`WikiGraphObject`, `WikiGraphObjectSummary`, `WikiGraphSearchableSummary`,
+`WikiGraphObjectListItem`, and `WikiGraphObjectDetails`. Summaries describe only
+facts already available in that projection; they do not load full text, mentions,
+or evidence to populate fields. `ArchiveFindHit` combines a discriminated summary
+with search matching information (`score`, `snippet`, terms, position, evidence).
+Collections and related results use the same model family, with appropriate list
+or detail projections. These are plain objects, not new class instances.
+
+`archive` and `chapter` are scope projections; `archive-title` and `chapter-title`
+are their title objects. A reading-graph chunk retains the historical `type:
+"node"` discriminant and is named `WikiGraphChunkSummary` / `WikiGraphChunkDetails`
+in the public model. Object identifiers continue to use chunk URIs.
+
+```ts
+import type { ArchiveFindHit, WikiGraphTripleSummary } from "wiki-graph-sdk";
+
+function inspectHit(hit: ArchiveFindHit) {
+  if (hit.type === "triple") {
+    const triple: WikiGraphTripleSummary = hit;
+    console.log(triple.triple.predicate); // required after narrowing
+  } else if (hit.type === "source" || hit.type === "summary") {
+    console.log(hit.score, hit.ftsScore, hit.embeddingScore);
+  }
+  for (const evidence of hit.evidence?.sources ?? []) {
+    console.log(evidence.ftsScore, evidence.embeddingScore);
+  }
+}
+
+const hits = await archive.search("your query", { sourceContext: 0 });
+for (const hit of hits) inspectHit(hit);
+const evidence = await archive.evidence("wikg://entity/Q1", {
+  query: "your query",
+  sourceContext: 0,
+});
+for (const source of evidence)
+  console.log(source.ftsScore, source.embeddingScore);
+```
+
+Raw signals are optional on source/summary sentence hits and on source evidence
+when a single matched sentence can be identified. Entity, Triple and Chunk hits
+do not aggregate or expose these fields themselves. Queryless evidence has no
+signals. Archive and Library results, including cursor pages, follow the same
+rules. Multiple matched sentences or segments merged into one displayed range
+omit raw signals rather than choose an arbitrary representative score. Context
+around a single match is display context; its signals still refer to that match.
+
+Currently `ftsScore` is raw SQLite BM25 (smaller is better); BM25 across queries
+is not a universal absolute threshold. `embeddingScore` is raw cosine similarity
+(larger is more similar), inherited from the embedding segment containing the
+sentence, not an independent sentence embedding. Overlapping segments retain the
+existing ranking selection. Cosine depends on the model and segmentation. A
+missing channel is `undefined`, not zero; a supplied zero remains zero. Signals
+are references, not hit probabilities or a new filtering API. Algorithm changes
+must update these documented semantics. Final `score`, recall, four-bucket
+ordering, evidence ordering and pagination remain unchanged. CLI output does not
+expose these SDK fields.

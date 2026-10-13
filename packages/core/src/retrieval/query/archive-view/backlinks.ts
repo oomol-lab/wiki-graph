@@ -206,7 +206,10 @@ async function createTripleBacklinkHits(
   chapterId: number,
   sentenceKeys: ReadonlySet<string>,
 ): Promise<readonly ArchiveFindHit[]> {
-  const hitsById = new Map<string, ArchiveFindHit>();
+  const hitsById = new Map<
+    string,
+    Extract<ArchiveFindHit, { readonly type: "triple" }>
+  >();
 
   for (const link of await document.mentionLinks.listByChapter(chapterId)) {
     const evidenceSentenceIds = link.evidenceSentenceIds.filter((sentenceId) =>

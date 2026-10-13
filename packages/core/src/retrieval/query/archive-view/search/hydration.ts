@@ -347,6 +347,10 @@ export async function hydrateSearchTextHit(
       sentence: hit.sentenceIndex,
     },
     score: hit.score,
+    ...(hit.ftsScore === undefined ? {} : { ftsScore: hit.ftsScore }),
+    ...(hit.embeddingScore === undefined
+      ? {}
+      : { embeddingScore: hit.embeddingScore }),
     snippet: createSnippet(range.text),
     title: chapter.title ?? chapter.uri,
     type: stream,

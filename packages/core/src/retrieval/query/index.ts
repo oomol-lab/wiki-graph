@@ -42,6 +42,7 @@ export type {
   ArchiveFindField,
   ArchiveFindFilterType,
   ArchiveFindHit,
+  ArchiveSearchMatch,
   ArchiveFindObjectType,
   ArchiveFindOptions,
   ArchiveFindOrder,

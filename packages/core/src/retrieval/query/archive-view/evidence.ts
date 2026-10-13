@@ -143,10 +143,8 @@ export async function listArchiveEvidence(
       return await createSourceEvidenceCandidatePage(document, {
         candidates: candidates.slice(offset, offset + limit),
         context: createEvidenceReadContext(),
-        createRanges: async (match) =>
-          (await createMentionEvidenceRanges(document, [match.candidate])).map(
-            (range) => ({ ...range, score: match.score }),
-          ),
+        createRanges: (match) =>
+          match.ranges.map((range) => ({ ...range, score: match.score })),
         limit,
         offset,
         sourceContext: options.sourceContext,
@@ -239,9 +237,7 @@ export async function listArchiveEvidence(
         candidates: candidates.slice(offset, offset + limit),
         context: createEvidenceReadContext(),
         createRanges: (match) =>
-          createMentionLinkEvidenceRanges(document, [match.candidate]).map(
-            (range) => ({ ...range, score: match.score }),
-          ),
+          match.ranges.map((range) => ({ ...range, score: match.score })),
         limit,
         offset,
         sourceContext: options.sourceContext,

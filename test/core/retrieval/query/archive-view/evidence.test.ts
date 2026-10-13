@@ -495,6 +495,19 @@ describe("archive/query/archive-view/evidence", () => {
           "wikg://chapter/introduction/source#1..3",
         ]);
         expect(evidence.items[0]?.score).toBeGreaterThan(0);
+        expect(evidence.items[0]?.ftsScore).toBeLessThan(0);
+        expect(evidence.items[0]?.embeddingScore).toBeUndefined();
+        const ordinary = await listArchiveEvidence(
+          document,
+          "wikg://entity/Q1",
+          { sourceContext: 0 },
+        );
+        expect(
+          ordinary.items.every(
+            (item) =>
+              item.ftsScore === undefined && item.embeddingScore === undefined,
+          ),
+        ).toBe(true);
       } finally {
         await document.release();
       }

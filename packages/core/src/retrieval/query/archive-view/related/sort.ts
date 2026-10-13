@@ -73,14 +73,30 @@ function createFindHitFromListItem(
   const score =
     item.type === "triple" ? (item.evidenceLinks?.length ?? 0) : undefined;
 
-  return {
-    field: "title",
+  const common = {
+    field: "title" as const,
     id: item.id,
     ...(position === undefined ? {} : { position }),
     ...(score === undefined ? {} : { score }),
     snippet: item.summary,
     title: item.label,
-    type: toFindObjectType(item.type),
+  };
+  if (item.type === "triple")
+    return {
+      ...common,
+      type: "triple",
+      triple: {
+        objectLabel: item.objectLabel,
+        predicate: item.predicate,
+        subjectLabel: item.subjectLabel,
+      },
+    };
+  return {
+    ...common,
+    type: toFindObjectType(item.type) as Exclude<
+      ArchiveFindObjectType,
+      "triple"
+    >,
   };
 }
 

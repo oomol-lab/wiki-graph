@@ -6,6 +6,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import {
   replaceChapterFtsIndexArtifact,
   replaceChapterSourceEmbeddingIndexArtifact,
+  replaceChapterSummaryEmbeddingIndexArtifact,
   WikiGraphArchiveFile,
   type ArchiveFindHit,
   type SearchIndexEmbeddingProvider,
@@ -28,6 +29,118 @@ afterEach(async () => {
 });
 
 describe("WikiGraphLibraryManager search pagination", () => {
+  it("keeps raw signals on SDK archive summaries and query evidence, including previews and next pages", async () => {
+    const setup = await createIndexedLibrary(true);
+    try {
+      const archive = await setup.sdk.archives.open({
+        kind: "standalone",
+        path: setup.archivePath,
+      });
+      await archive.ensureSearchIndex();
+      setup.embeddingProbe.reset();
+      const sourceFirst = await archive.search("needle", {
+        types: ["source"],
+        queryMode: "hybrid",
+        sourceContext: 0,
+        limit: 1,
+      });
+      const sourceCursor = sourceFirst.nextCursor();
+      expect(sourceCursor).not.toBeNull();
+      const sourceNext = await sourceCursor!.next({ limit: 1 });
+      for (const hit of [...sourceFirst.items, ...sourceNext.items]) {
+        expect(hit.ftsScore).toBeLessThan(0);
+        expect(hit.embeddingScore).toBeGreaterThan(0);
+      }
+      // Archive text continuations already query once per page; raw fields add no calls.
+      expect(setup.embeddingProbe.queryCount).toBe(2);
+      await sourceCursor!.release();
+      const summary = await archive.search("needle", {
+        types: ["summary"],
+        queryMode: "hybrid",
+        sourceContext: 0,
+      });
+      expect(summary.items[0]?.type).toBe("summary");
+      expect(summary.items[0]?.ftsScore).toBeLessThan(0);
+      expect(summary.items[0]?.embeddingScore).toBeGreaterThan(0);
+      const summaryVector = [1, "Needle summary sentence.".length / 100];
+      const queryVector = [1, "needle".length / 100];
+      const cosine =
+        (summaryVector[0]! * queryVector[0]! +
+          summaryVector[1]! * queryVector[1]!) /
+        (Math.hypot(...summaryVector) * Math.hypot(...queryVector));
+      expect(summary.items[0]?.embeddingScore).toBeCloseTo(cosine, 6);
+      for (const mode of ["fts", "hybrid"] as const) {
+        const first = await archive.evidence("wikg://entity/Q1", {
+          query: "needle",
+          queryMode: mode,
+          sourceContext: 0,
+          limit: 1,
+        });
+        expect(first.items[0]?.ftsScore).toBeLessThan(0);
+        if (mode === "hybrid")
+          expect(first.items[0]?.embeddingScore).toBeGreaterThan(0);
+        else expect(first.items[0]?.embeddingScore).toBeUndefined();
+        const cursor = first.nextCursor();
+        expect(cursor).not.toBeNull();
+        const second = await cursor!.next();
+        expect(second.items[0]?.ftsScore).toBeLessThan(0);
+        await cursor!.release();
+      }
+      const search = await archive.search("needle", {
+        queryMode: "hybrid",
+        sourceContext: 0,
+        evidenceLimit: 2,
+      });
+      const entity = search.items.find(
+        (hit) => hit.type === "entity" && hit.id.endsWith("/Q1"),
+      );
+      expect(entity).toBeDefined();
+      expect(entity?.ftsScore).toBeUndefined();
+      expect(entity?.embeddingScore).toBeUndefined();
+      expect(entity?.evidence?.sources[0]?.ftsScore).toBeLessThan(0);
+      expect(entity?.evidence?.sources[0]?.embeddingScore).toBeGreaterThan(0);
+      const lexical = await archive.search("needle", {
+        types: ["entity", "source", "triple"],
+        queryMode: "fts",
+        sourceContext: 0,
+        evidenceLimit: 2,
+      });
+      for (const type of ["entity", "triple"] as const) {
+        const hit = lexical.items.find((hit) => hit.type === type);
+        expect(hit?.evidence?.sources[0]?.ftsScore).toBeLessThan(0);
+        expect(hit?.evidence?.sources[0]?.embeddingScore).toBeUndefined();
+      }
+      const tripleEvidence = await archive.evidence(
+        "wikg://triple/Q1/relates/Q2",
+        { query: "needle", queryMode: "hybrid", sourceContext: 0 },
+      );
+      expect(tripleEvidence.items.length).toBeGreaterThan(0);
+      expect(
+        tripleEvidence.items.every(
+          (hit) =>
+            hit.ftsScore !== undefined && hit.embeddingScore !== undefined,
+        ),
+      ).toBe(true);
+      const ordinary = await archive.evidence("wikg://entity/Q1", {
+        sourceContext: 0,
+      });
+      expect(
+        ordinary.items.every(
+          (hit) =>
+            hit.ftsScore === undefined && hit.embeddingScore === undefined,
+        ),
+      ).toBe(true);
+      const libraryEvidence = await setup.sdk.libraries.evidence(
+        setup.libraryUri,
+        "wikg://entity/Q1",
+        { query: "needle", queryMode: "hybrid", sourceContext: 0, limit: 1 },
+      );
+      expect(libraryEvidence.items[0]?.ftsScore).toBeLessThan(0);
+      expect(libraryEvidence.items[0]?.embeddingScore).toBeGreaterThan(0);
+    } finally {
+      setup.sdk.close();
+    }
+  });
   it("shares one query build while bucket cursors advance independently", async () => {
     const setup = await createIndexedLibrary();
 
@@ -98,6 +211,17 @@ describe("WikiGraphLibraryManager search pagination", () => {
         );
 
         const paged = [...first.items, ...second.items];
+        for (const hit of paged) {
+          expect(hit.type).toBe("source");
+          if (queryMode === "embedding") expect(hit.ftsScore).toBeUndefined();
+          else expect(hit.ftsScore).toBeLessThan(0);
+          if (queryMode === "fts") expect(hit.embeddingScore).toBeUndefined();
+          else {
+            expect(hit.embeddingScore).toBeGreaterThanOrEqual(-1);
+            expect(hit.embeddingScore).toBeLessThanOrEqual(1);
+          }
+        }
+        expect(paged).toEqual(wider.items.slice(0, paged.length));
         const seenCursors = new Set([
           first.rawNextCursor,
           second.rawNextCursor,
@@ -129,7 +253,8 @@ describe("WikiGraphLibraryManager search pagination", () => {
   );
 });
 
-async function createIndexedLibrary(): Promise<{
+async function createIndexedLibrary(interleaved = false): Promise<{
+  readonly archivePath: string;
   readonly embeddingProbe: EmbeddingProbe;
   readonly libraryUri: string;
   readonly sdk: WikiGraphSDK;
@@ -151,15 +276,60 @@ async function createIndexedLibrary(): Promise<{
   const chapter = await archive.addChapter({
     source: Array.from(
       { length: 60 },
-      (_, index) => `Needle record ${index} remains independently searchable.`,
+      (_, index) =>
+        `Needle record ${index} remains independently searchable.${interleaved ? " Unrelated context." : ""}`,
     ).join(" "),
     title: "Pagination source",
   });
   await sdk.run(async () => {
     await new WikiGraphArchiveFile(new NodeFile(archivePath)).write(
       async (document) => {
+        await document.openSession(async (opened) => {
+          await opened.writeSummary(
+            chapter.chapterId,
+            "Needle summary sentence.",
+          );
+          await opened.mentions.saveMany(
+            [0, 20].map((sentenceIndex) => ({
+              chapterId: chapter.chapterId,
+              id: `mention-${sentenceIndex}`,
+              qid: "Q1",
+              rangeStart: 0,
+              rangeEnd: 6,
+              sentenceIndex,
+              surface: "Needle Example",
+            })),
+          );
+          await opened.mentions.saveMany(
+            [0, 20].map((sentenceIndex) => ({
+              chapterId: chapter.chapterId,
+              id: `target-${sentenceIndex}`,
+              qid: "Q2",
+              rangeStart: 7,
+              rangeEnd: 13,
+              sentenceIndex,
+              surface: "Target",
+            })),
+          );
+          await opened.mentionLinks.save({
+            id: "relation",
+            sourceMentionId: "mention-0",
+            targetMentionId: "target-0",
+            predicate: "relates",
+            note: "Needle relation",
+            evidenceSentenceIds: [
+              [chapter.chapterId, 0],
+              [chapter.chapterId, 20],
+            ],
+          });
+        });
         await replaceChapterFtsIndexArtifact(document, chapter.chapterId);
         await replaceChapterSourceEmbeddingIndexArtifact(
+          document,
+          chapter.chapterId,
+          provider,
+        );
+        await replaceChapterSummaryEmbeddingIndexArtifact(
           document,
           chapter.chapterId,
           provider,
@@ -174,7 +344,7 @@ async function createIndexedLibrary(): Promise<{
     to: "source.wikg",
   });
   await sdk.libraries.rebuildIndex(library.uri);
-  return { embeddingProbe, libraryUri: library.uri, sdk };
+  return { archivePath, embeddingProbe, libraryUri: library.uri, sdk };
 }
 
 interface EmbeddingProbe {
