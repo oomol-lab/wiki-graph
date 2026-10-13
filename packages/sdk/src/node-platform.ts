@@ -46,6 +46,20 @@ const NODE_RESOURCE_KIND = Symbol.for("wiki-graph-sdk.node-resource.v1");
 
 /** Install the Node implementation used by the CLI and its workers. */
 export class NodeFile implements File {
+  public async getPhysicalIdentity(): Promise<string | undefined> {
+    const value = await fsPromises.stat(this.path).catch((error: unknown) => {
+      if (
+        typeof error === "object" &&
+        error !== null &&
+        "code" in error &&
+        error.code === "ENOENT"
+      )
+        return undefined;
+      throw error;
+    });
+    if (value === undefined) return undefined;
+    return `${value.dev}:${value.ino}`;
+  }
   public readonly kind = "file" as const;
   public readonly [NODE_RESOURCE_KIND] = "file" as const;
   public readonly identity: string;
@@ -189,6 +203,20 @@ function assertFileOffset(offset: number): void {
 }
 
 export class NodeDirectory implements Directory {
+  public async getPhysicalIdentity(): Promise<string | undefined> {
+    const value = await fsPromises.stat(this.path).catch((error: unknown) => {
+      if (
+        typeof error === "object" &&
+        error !== null &&
+        "code" in error &&
+        error.code === "ENOENT"
+      )
+        return undefined;
+      throw error;
+    });
+    if (value === undefined) return undefined;
+    return `${value.dev}:${value.ino}`;
+  }
   public readonly kind = "directory" as const;
   public readonly [NODE_RESOURCE_KIND] = "directory" as const;
   public readonly identity: string;
@@ -204,8 +232,15 @@ export class NodeDirectory implements Directory {
     const file = new NodeFile(pathModule.join(this.path, name));
     try {
       return (await fsPromises.stat(file.path)).isFile() ? file : undefined;
-    } catch {
-      return undefined;
+    } catch (error) {
+      if (
+        typeof error === "object" &&
+        error !== null &&
+        "code" in error &&
+        (error.code === "ENOENT" || error.code === "ENOTDIR")
+      )
+        return undefined;
+      throw error;
     }
   }
 
@@ -232,8 +267,15 @@ export class NodeDirectory implements Directory {
       return (await fsPromises.stat(directory.path)).isDirectory()
         ? directory
         : undefined;
-    } catch {
-      return undefined;
+    } catch (error) {
+      if (
+        typeof error === "object" &&
+        error !== null &&
+        "code" in error &&
+        (error.code === "ENOENT" || error.code === "ENOTDIR")
+      )
+        return undefined;
+      throw error;
     }
   }
 
@@ -459,6 +501,19 @@ async function openNodeZip(file: ReadonlyFile): Promise<HostZipReader> {
     },
   );
 
+  // Keep raw names for EPUB/PCEX listing, and normalized aliases for direct
+  // WIKG entry lookup. Both maps live only for this reader's lifetime.
+  const aliases = new Map<string, yauzl.Entry>();
+  for (const [name, entry] of entries) {
+    const normalized = name
+      .replaceAll("\\", "/")
+      .trim()
+      .split("/")
+      .filter((part) => part !== "" && part !== ".")
+      .join("/");
+    if (!normalized.split("/").includes("..")) aliases.set(normalized, entry);
+  }
+  const findEntry = (name: string) => entries.get(name) ?? aliases.get(name);
   let closed = false;
   return {
     close: () => {
@@ -468,25 +523,25 @@ async function openNodeZip(file: ReadonlyFile): Promise<HostZipReader> {
     },
     copyEntry: async (name, target) => {
       if (closed) throw new Error("Cannot read a closed ZIP archive");
-      const entry = entries.get(name);
+      const entry = findEntry(name);
       if (entry === undefined) return false;
       await copyNodeZipEntry(zipFile, entry, target);
       return true;
     },
     getEntrySize: (name) => {
       if (closed) throw new Error("Cannot read a closed ZIP archive");
-      return Promise.resolve(entries.get(name)?.uncompressedSize);
+      return Promise.resolve(findEntry(name)?.uncompressedSize);
     },
     listEntries: () => Promise.resolve([...entries.keys()]),
     readEntryRange: async (name, offset, length) => {
       if (closed) throw new Error("Cannot read a closed ZIP archive");
-      const entry = entries.get(name);
+      const entry = findEntry(name);
       if (entry === undefined) return undefined;
       return await readNodeZipEntryRange(zipFile, entry, offset, length);
     },
     readEntry: async (name) => {
       if (closed) throw new Error("Cannot read a closed ZIP archive");
-      const entry = entries.get(name);
+      const entry = findEntry(name);
       if (entry === undefined) return undefined;
       return await readNodeZipEntry(zipFile, entry);
     },

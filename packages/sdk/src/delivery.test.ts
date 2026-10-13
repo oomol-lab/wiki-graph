@@ -220,6 +220,7 @@ describe("WikiGraphSDK delivery operations", () => {
     await expect(
       scopedArchive.evidence("wikg://entity/Q1", { queryMode: "fts" }),
     ).rejects.toThrow("`queryMode` requires `query`");
+    await scopedArchive.ensureSearchIndex();
     const related = await scopedArchive.related("wikg://entity/Q1", {
       query: "alpha",
     });

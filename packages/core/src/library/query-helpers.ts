@@ -4,6 +4,10 @@ import {
   WikiGraphDirectoryFile,
 } from "../storage/wikg/index.js";
 import type { ReadonlyDocument } from "../document/index.js";
+import {
+  isWikiGraphSchemaVersionError,
+  WikiGraphSchemaVersionError,
+} from "../runtime/common/error.js";
 import type { ArchiveLibrarySource } from "../retrieval/query/archive-view/types.js";
 import {
   getWikiGraphLibraryArchiveById,
@@ -52,21 +56,34 @@ export async function readLibraryArchiveDocument<T>(
     archive.directory === undefined
       ? new WikiGraphArchiveFile(archive.file!)
       : new WikiGraphDirectoryFile(archive.directory);
-  return await readDocument.readDocument(async (document) => {
-    const currentToken =
-      archive.directory === undefined
-        ? await readWikgArchiveMutationToken(archive.file!)
-        : await readDirectoryMutationToken(archive.directory);
-    if (
-      archive.lastSeenMutationToken !== undefined &&
-      currentToken !== archive.lastSeenMutationToken
-    ) {
-      throw new Error(
-        `Wiki Graph library archive changed while reading: ${archive.uri}. Retry after syncing the library index.`,
-      );
-    }
-    return await operation(document);
-  });
+  return await readDocument
+    .readDocument(async (document) => {
+      const currentToken =
+        archive.directory === undefined
+          ? await readWikgArchiveMutationToken(archive.file!)
+          : await readDirectoryMutationToken(archive.directory);
+      if (
+        archive.lastSeenMutationToken !== undefined &&
+        currentToken !== archive.lastSeenMutationToken
+      ) {
+        throw new Error(
+          `Wiki Graph library archive changed while reading: ${archive.uri}. Retry after syncing the library index.`,
+        );
+      }
+      return await operation(document);
+    })
+    .catch((error: unknown) => {
+      if (
+        isWikiGraphSchemaVersionError(error) &&
+        error.target.kind === "archive"
+      )
+        throw new WikiGraphSchemaVersionError(
+          { kind: "library", uri: archive.libraryUri },
+          error.actualVersion,
+          error.supportedVersion,
+        );
+      throw error;
+    });
 }
 
 export function createLibrarySource(

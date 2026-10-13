@@ -2,6 +2,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type * as CLIQueueAdd from "../../../packages/cli/src/commands/queue/add.js";
 import type * as CLISupport from "../../../packages/cli/src/support/index.js";
 import { NodeFile } from "../../../packages/cli/src/runtime/node-platform.js";
+import type * as Core from "wiki-graph-core";
+vi.mock("wiki-graph-core", async (importOriginal) => ({
+  ...(await importOriginal<typeof Core>()),
+  ensureWikiGraphArchiveSchemaCurrent: vi.fn(() => Promise.resolve()),
+}));
 
 const chapterMockState = vi.hoisted(() => ({
   activeConflictChecks: [] as unknown[],
@@ -314,6 +319,10 @@ vi.mock(
 );
 
 vi.mock("fs/promises", () => ({
+  realpath: vi.fn((path: string) => Promise.resolve(path)),
+  stat: vi.fn(() =>
+    Promise.reject(Object.assign(new Error("missing"), { code: "ENOENT" })),
+  ),
   readFile: vi.fn(() => Promise.resolve(chapterMockState.inputFileContent)),
 }));
 

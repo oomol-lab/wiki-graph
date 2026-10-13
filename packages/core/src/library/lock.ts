@@ -1,4 +1,4 @@
-import { getNumber, getString, type Database } from "../document/database.js";
+import { getNumber, type Database } from "../document/database.js";
 import { openWikiGraphStateDatabase } from "../document/index.js";
 import {
   acquireStateLock,
@@ -119,26 +119,7 @@ async function openLegacyLibraryLockDatabase(): Promise<Database> {
     LEGACY_LIBRARY_LOCK_SCHEMA_SQL,
   );
 
-  await ensureLegacyLibraryLockColumns(database);
   return database;
-}
-
-async function ensureLegacyLibraryLockColumns(
-  database: Database,
-): Promise<void> {
-  const columns = new Set(
-    await database.queryAll(
-      "PRAGMA table_info(library_locks)",
-      undefined,
-      (row) => getString(row, "name"),
-    ),
-  );
-
-  if (!columns.has("heartbeat_at")) {
-    await database.run(
-      "ALTER TABLE library_locks ADD COLUMN heartbeat_at INTEGER NOT NULL DEFAULT 0",
-    );
-  }
 }
 
 function isLockActive(lock: { readonly heartbeatAt: number }): boolean {

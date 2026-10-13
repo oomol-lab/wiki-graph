@@ -235,6 +235,7 @@ describe("Wiki Graph job artifact delivery", () => {
       ]),
       stateDir,
     });
+    await archive.ensureSearchIndex();
     expect((await archive.search("alpha")).items).not.toHaveLength(0);
     const cursor = await createCollectionCursor(sdk, archive);
 
@@ -244,6 +245,8 @@ describe("Wiki Graph job artifact delivery", () => {
       stateDir,
     });
 
+    await expect(archive.search("alpha")).rejects.toThrow("missing or dirty");
+    await archive.ensureSearchIndex();
     expect((await archive.search("alpha")).items).toEqual([]);
     expect((await archive.search("beta")).items).not.toHaveLength(0);
     await expect(sdk.continuations.next({ cursor })).rejects.toThrow(
@@ -300,6 +303,7 @@ describe("Wiki Graph job artifact delivery", () => {
       uri: member.uri,
     });
     await sdk.libraries.rebuildIndex(library.uri);
+    await archive.ensureSearchIndex();
     expect(
       (await sdk.libraries.search(library.uri, "alpha")).items,
     ).not.toHaveLength(0);
@@ -344,6 +348,7 @@ describe("Wiki Graph job artifact delivery", () => {
     let querySettled = false;
     const queryDuringCommit = sdk.libraries
       .search(library.uri, "alpha")
+      .catch((error: unknown) => error)
       .finally(() => {
         querySettled = true;
       });
@@ -351,7 +356,12 @@ describe("Wiki Graph job artifact delivery", () => {
     expect(querySettled).toBe(false);
     releaseCommit();
     await applying;
-    expect((await queryDuringCommit).items).toEqual([]);
+    expect(await queryDuringCommit).toBeInstanceOf(Error);
+    await expect(sdk.libraries.indexState(library.uri)).resolves.toMatchObject({
+      status: "dirty",
+    });
+    await sdk.libraries.rebuildIndex(library.uri);
+    await archive.ensureSearchIndex();
 
     const after = await sdk.libraries.getArchive(member.uri);
     expect(after.lastSeenMutationToken).not.toBe(before.lastSeenMutationToken);

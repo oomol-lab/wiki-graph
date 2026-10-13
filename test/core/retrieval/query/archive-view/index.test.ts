@@ -185,6 +185,8 @@ describe("archive/query/archive-view/index", () => {
       const legacyDatabase = await Database.open(
         join(documentPath, "index.db"),
         `
+          CREATE TABLE search_index_state (key TEXT PRIMARY KEY, value TEXT NOT NULL);
+          INSERT INTO search_index_state VALUES ('version', 'legacy');
           CREATE TABLE text_sentence_records (
             id INTEGER PRIMARY KEY,
             kind INTEGER NOT NULL,

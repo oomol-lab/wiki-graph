@@ -106,6 +106,7 @@ export async function hydrateSearchIndexHits(
     readonly textHitLimit?: number;
   } = {},
 ): Promise<readonly ArchiveFindHit[]> {
+  if (result.objectHits.length === 0 && result.textHits.length === 0) return [];
   const chapters = new Map(
     (await listChapters(document)).map((chapter) => [
       chapter.chapterId,

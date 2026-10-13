@@ -2,6 +2,11 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type * as CLISupport from "../../packages/cli/src/support/index.js";
 import type * as WikiGraphIndex from "../../packages/core/src/storage/wikg/index.js";
+import type * as Core from "wiki-graph-core";
+vi.mock("wiki-graph-core", async (importOriginal) => ({
+  ...(await importOriginal<typeof Core>()),
+  ensureWikiGraphArchiveSchemaCurrent: vi.fn(() => Promise.resolve()),
+}));
 
 const objectMetadataMockState = vi.hoisted(() => ({
   inputFileContent: '{"file":true}',
@@ -59,6 +64,10 @@ vi.mock("../../packages/cli/src/support/index.js", async (importOriginal) => {
 });
 
 vi.mock("fs/promises", () => ({
+  realpath: vi.fn((path: string) => Promise.resolve(path)),
+  stat: vi.fn(() =>
+    Promise.reject(Object.assign(new Error("missing"), { code: "ENOENT" })),
+  ),
   readFile: vi.fn(() =>
     Promise.resolve(objectMetadataMockState.inputFileContent),
   ),

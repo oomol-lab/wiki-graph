@@ -30,6 +30,9 @@ export async function readSearchIndexStatus(
       if (await hasDirtySearchIndexChapters(database)) {
         return "dirty";
       }
+      const revision = await readStateValue(database, "chaptersRevision");
+      if (revision !== String(await document.serials.getChaptersRevision()))
+        return "dirty";
 
       const indexedFingerprint =
         await readSearchIndexFingerprintFromDatabase(database);
@@ -68,7 +71,7 @@ export async function readSearchIndexCapabilityStatus(document: {
         };
       }
 
-      const segmentCount = await countRows(database, "text_embedding_segments");
+      const segmentCount = await hasRows(database, "text_embedding_segments");
       const dimensions = parseOptionalPositiveInteger(
         await readStateValue(database, "embeddingDimensions"),
       );
@@ -138,14 +141,14 @@ async function hasTable(database: Database, table: string): Promise<boolean> {
   return row === 1;
 }
 
-async function countRows(database: Database, table: string): Promise<number> {
+async function hasRows(database: Database, table: string): Promise<number> {
   if (!(await hasTable(database, table))) {
     return 0;
   }
 
   return (
     (await database.queryOne(
-      `SELECT COUNT(*) AS count FROM ${table}`,
+      `SELECT 1 AS count FROM ${table} LIMIT 1`,
       undefined,
       (row) => getNumber(row, "count"),
     )) ?? 0

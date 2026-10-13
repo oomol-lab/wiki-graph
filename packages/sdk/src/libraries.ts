@@ -1,5 +1,6 @@
 import {
   addWikiGraphLibraryArchive,
+  ensureWikiGraphArchiveSchemaCurrent,
   assertWikiGraphLibrarySchemaCurrent,
   cleanWikiGraphLibraryIndex,
   clearWikiGraphLibraryMetadata,
@@ -64,7 +65,10 @@ import {
   createConfiguredEmbeddingProvider,
   withConfiguredWikimediaResolver,
 } from "./query-runtime.js";
-import { assertStandaloneWikiGraphArchivePath } from "./archive/target.js";
+import {
+  assertStandaloneWikiGraphArchivePath,
+  rethrowArchiveSchemaError,
+} from "./archive/target.js";
 import {
   createArchiveCollectionPage,
   createArchiveEvidencePage,
@@ -279,24 +283,31 @@ export class WikiGraphLibraryManager {
           throwIfAborted(options.signal);
           const archive = await getWikiGraphLibraryArchive(parsedTarget);
           const source = requireReadableLibraryArchiveFile(archive);
+          await ensureWikiGraphArchiveSchemaCurrent(source).catch(
+            (error: unknown) =>
+              rethrowArchiveSchemaError(error, {
+                kind: "library",
+                uri: archive.uri,
+              }),
+          );
           let temporaryDirectory: string | undefined;
-          const file =
-            source.kind === "directory"
-              ? await (async () => {
-                  temporaryDirectory = await mkdtemp(
-                    join(tmpdir(), "wikigraph-library-read-"),
-                  );
-                  const output = new NodeFile(
-                    join(temporaryDirectory, "archive.wikg"),
-                  );
-                  await writeWikgArchive(source, output);
-                  return output;
-                })()
-              : source;
-          const reader = await file.openReader();
+          let reader: FileReader | undefined;
           let active = true;
-
           try {
+            const file =
+              source.kind === "directory"
+                ? await (async () => {
+                    temporaryDirectory = await mkdtemp(
+                      join(tmpdir(), "wikigraph-library-read-"),
+                    );
+                    const output = new NodeFile(
+                      join(temporaryDirectory, "archive.wikg"),
+                    );
+                    await writeWikgArchive(source, output);
+                    return output;
+                  })()
+                : source;
+            reader = await file.openReader();
             const content: WikiGraphLibraryArchiveContent = {
               mediaType: "application/vnd.wiki-graph.archive",
               size: reader.size,
@@ -313,9 +324,12 @@ export class WikiGraphLibraryManager {
             );
           } finally {
             active = false;
-            await reader.close();
-            if (temporaryDirectory !== undefined)
-              await rm(temporaryDirectory, { force: true, recursive: true });
+            try {
+              await reader?.close();
+            } finally {
+              if (temporaryDirectory !== undefined)
+                await rm(temporaryDirectory, { force: true, recursive: true });
+            }
           }
         },
         options.signal === undefined ? {} : { signal: options.signal },

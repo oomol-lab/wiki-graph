@@ -517,6 +517,13 @@ vi.mock("wiki-graph-core", async (importOriginal) => {
 
   return {
     ...actual,
+    ensureWikiGraphArchiveSchemaCurrent: vi.fn(() => Promise.resolve()),
+    findWikiGraphLibraryArchivePhysicalAliases: vi.fn(() =>
+      Promise.resolve([]),
+    ),
+    findWikiGraphLibraryByPhysicalIdentity: vi.fn(() =>
+      Promise.resolve(undefined),
+    ),
     assertArchiveIndexArtifactsReady: vi.fn(() => Promise.resolve()),
     isArchiveSearchIndexCurrent: vi.fn(() =>
       Promise.resolve(archiveMockState.ftsCurrent),
@@ -912,7 +919,7 @@ function createDefaultInspectSerials(): typeof archiveMockState.serials {
 
 export function resetArchiveMockState(): void {
   vi.clearAllMocks();
-  archiveMockState.ftsCurrent = false;
+  archiveMockState.ftsCurrent = true;
   archiveMockState.indexArtifactCoverage = {
     "embedding-source": [
       {

@@ -8,6 +8,7 @@ import {
   addChapter,
   applyChapterTree,
   assertArchiveIndexArtifactsReady,
+  ensureWikiGraphArchiveSchemaCurrent,
   assertNoActiveBuildJobConflicts,
   assertNoActiveBuildJobs,
   deleteArchiveSearchSessions,
@@ -82,6 +83,7 @@ import {
   assertStandaloneWikiGraphArchivePath,
   requireWikiGraphArchiveFile,
   resolveWikiGraphArchiveLocation,
+  rethrowArchiveSchemaError,
   type WikiGraphArchiveLocation,
   type WikiGraphArchiveTarget,
 } from "./target.js";
@@ -292,10 +294,15 @@ export class WikiGraphArchiveManager {
     target: WikiGraphArchiveTarget,
     options: WikiGraphOperationOptions = {},
   ): Promise<WikiGraphArchiveHandle> {
-    const location = await this.#runtime.run(
-      async () => await resolveWikiGraphArchiveLocation(target),
-      options.signal,
-    );
+    const location = await this.#runtime.run(async () => {
+      const location = await resolveWikiGraphArchiveLocation(target);
+      try {
+        await ensureWikiGraphArchiveSchemaCurrent(location.archiveFile);
+      } catch (error) {
+        rethrowArchiveSchemaError(error, target);
+      }
+      return location;
+    }, options.signal);
     return new WikiGraphArchiveHandle(this.#runtime, location);
   }
 }
@@ -368,12 +375,12 @@ export class WikiGraphArchiveHandle {
       options.queryMode,
       options.signal,
     );
-    const result = await this.#writeDocument(
+    const result = await this.#readDocument(
       async (document) => {
         const chapters = await this.#resolveQueryChapters(document, options, {
           embeddingProvider,
         });
-        await ensureArchiveSearchIndex(document, {
+        await assertArchiveSearchIndexCurrent(document, {
           ...(chapters === undefined ? {} : { chapters }),
           ...(embeddingProvider === undefined ? {} : { embeddingProvider }),
         });
@@ -385,7 +392,6 @@ export class WikiGraphArchiveHandle {
         });
       },
       {
-        searchIndexWritebackPolicy: "cache",
         ...(options.signal === undefined ? {} : { signal: options.signal }),
       },
     );
@@ -534,6 +540,7 @@ export class WikiGraphArchiveHandle {
       async (document) => {
         const chapters = await this.#resolveScope(document, options);
         await ensureArchiveSearchIndex(document, {
+          rebuild: true,
           ...(chapters === undefined ? {} : { chapters }),
           ...(embeddingProvider === undefined ? {} : { embeddingProvider }),
         });
@@ -908,12 +915,12 @@ export class WikiGraphArchiveHandle {
       options.queryMode,
       options.signal,
     );
-    const result = await this.#writeDocument(
+    const result = await this.#readDocument(
       async (document) => {
         const chapters = await this.#resolveQueryChapters(document, options, {
           embeddingProvider,
         });
-        await ensureArchiveSearchIndex(document, {
+        await assertArchiveSearchIndexCurrent(document, {
           ...(chapters === undefined ? {} : { chapters }),
           ...(embeddingProvider === undefined ? {} : { embeddingProvider }),
         });
@@ -924,7 +931,6 @@ export class WikiGraphArchiveHandle {
         });
       },
       {
-        searchIndexWritebackPolicy: "cache",
         ...(options.signal === undefined ? {} : { signal: options.signal }),
       },
     );
@@ -982,12 +988,12 @@ export class WikiGraphArchiveHandle {
       options.queryMode,
       options.signal,
     );
-    const result = await this.#writeDocument(
+    const result = await this.#readDocument(
       async (document) => {
         const chapters = await this.#resolveQueryChapters(document, options, {
           embeddingProvider,
         });
-        await ensureArchiveSearchIndex(document, {
+        await assertArchiveSearchIndexCurrent(document, {
           ...(chapters === undefined ? {} : { chapters }),
           ...(embeddingProvider === undefined ? {} : { embeddingProvider }),
         });
@@ -998,7 +1004,6 @@ export class WikiGraphArchiveHandle {
         });
       },
       {
-        searchIndexWritebackPolicy: "cache",
         ...(options.signal === undefined ? {} : { signal: options.signal }),
       },
     );
@@ -1165,38 +1170,46 @@ export class WikiGraphArchiveHandle {
     operation: (document: ReadonlyDocument) => Promise<T> | T,
     options: WikiGraphOperationOptions = {},
   ): Promise<T> {
-    return await this.#runtime.run(
-      async () =>
-        this.#location.archiveFile.kind === "directory"
-          ? await new WikiGraphDirectoryFile(
-              this.#location.archiveFile,
-            ).readDocument(operation)
-          : await new WikiGraphArchiveFile(
-              this.#location.archiveFile,
-            ).readDocument(operation),
-      options.signal,
-    );
+    return await this.#runtime
+      .run(
+        async () =>
+          this.#location.archiveFile.kind === "directory"
+            ? await new WikiGraphDirectoryFile(
+                this.#location.archiveFile,
+              ).readDocument(operation)
+            : await new WikiGraphArchiveFile(
+                this.#location.archiveFile,
+              ).readDocument(operation),
+        options.signal,
+      )
+      .catch((error: unknown) =>
+        rethrowArchiveSchemaError(error, this.#location.target),
+      );
   }
 
   async #writeDocument<T>(
     operation: (document: DirectoryDocument) => Promise<T> | T,
     options: WikiGraphArchiveWriteOptions = {},
   ): Promise<T> {
-    return await this.#runtime.run(async () => {
-      return await writeWikiGraphArchiveLocation(this.#location, operation, {
-        ...(options.onIndexSyncError === undefined
-          ? {}
-          : { onIndexSyncError: options.onIndexSyncError }),
-        ...(options.refreshLibraryIndex === undefined
-          ? {}
-          : { refreshLibraryIndex: options.refreshLibraryIndex }),
-        ...(options.searchIndexWritebackPolicy === undefined
-          ? {}
-          : {
-              searchIndexWritebackPolicy: options.searchIndexWritebackPolicy,
-            }),
-      });
-    }, options.signal);
+    return await this.#runtime
+      .run(async () => {
+        return await writeWikiGraphArchiveLocation(this.#location, operation, {
+          ...(options.onIndexSyncError === undefined
+            ? {}
+            : { onIndexSyncError: options.onIndexSyncError }),
+          ...(options.refreshLibraryIndex === undefined
+            ? {}
+            : { refreshLibraryIndex: options.refreshLibraryIndex }),
+          ...(options.searchIndexWritebackPolicy === undefined
+            ? {}
+            : {
+                searchIndexWritebackPolicy: options.searchIndexWritebackPolicy,
+              }),
+        });
+      }, options.signal)
+      .catch((error: unknown) =>
+        rethrowArchiveSchemaError(error, this.#location.target),
+      );
   }
 
   async #resolveScope(
@@ -1262,9 +1275,23 @@ export class WikiGraphArchiveHandle {
   }
 }
 
+async function assertArchiveSearchIndexCurrent(
+  document: ReadonlyDocument,
+  options: {
+    readonly chapters?: readonly number[];
+    readonly embeddingProvider?: SearchIndexEmbeddingProvider;
+  },
+): Promise<void> {
+  if (await isArchiveSearchIndexCurrent(document, options)) return;
+  throw new Error(
+    "Archive search index is missing or dirty. Run `wg <archive-uri>/index sync` explicitly before querying.",
+  );
+}
+
 async function ensureArchiveSearchIndex(
   document: DirectoryDocument,
   options: {
+    readonly rebuild?: boolean;
     readonly chapters?: readonly number[];
     readonly embeddingProvider?: SearchIndexEmbeddingProvider;
   } = {},
@@ -1272,6 +1299,10 @@ async function ensureArchiveSearchIndex(
   const scope =
     options.chapters === undefined ? {} : { chapters: options.chapters };
   if (await isArchiveSearchIndexCurrent(document, scope)) return;
+  if (options.rebuild !== true)
+    throw new Error(
+      "Archive search index is missing or dirty. Run `wg <archive-uri>/index sync` explicitly before querying.",
+    );
   await rebuildArchiveSearchIndex(document, undefined, {
     ...scope,
     ...(options.embeddingProvider === undefined

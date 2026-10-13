@@ -49,6 +49,10 @@ const mockTemporaryOutput = {
 const mockStdinStream = ["from stdin"];
 
 vi.mock("../../packages/core/src/index.js", () => ({
+  findWikiGraphLibraryByPhysicalIdentity: vi.fn(() =>
+    Promise.resolve(undefined),
+  ),
+  findWikiGraphLibraryArchivePhysicalAliases: vi.fn(() => Promise.resolve([])),
   CLI_PRIMARY_COMMAND: "wg",
   ensureWikiGraphHomeSchemaCurrent: vi.fn(() => Promise.resolve()),
   listWikiGraphLibraries: vi.fn(() => Promise.resolve([])),
@@ -179,7 +183,11 @@ vi.mock("fs/promises", () => ({
     cliMockState.resetDigestDirCalls.push(path);
     return Promise.resolve();
   }),
-  stat: vi.fn(() => Promise.reject(new Error("missing mock file"))),
+  stat: vi.fn(() =>
+    Promise.reject(
+      Object.assign(new Error("missing mock file"), { code: "ENOENT" }),
+    ),
+  ),
 }));
 
 import { runConvertCommand } from "../../packages/cli/src/commands/index.js";

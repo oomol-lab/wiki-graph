@@ -53,6 +53,7 @@ export class WikiGraphArchiveFile<
       async (session) => {
         const fileStore = session.createFileStore({
           readonlyDatabase: true,
+          writableSearchCache: options.searchIndexWritebackPolicy === "cache",
           ...(options.searchIndexWritebackPolicy === undefined
             ? {}
             : {

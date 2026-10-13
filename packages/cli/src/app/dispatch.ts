@@ -20,6 +20,7 @@ import {
   formatCLIJSON,
   formatCLIJSONLine,
   getRelativeArchiveUriResolution,
+  formatCliCommand,
 } from "../support/index.js";
 import { readCLIVersion } from "../support/index.js";
 import { isWikiGraphHomeTarget } from "../runtime/home-target.js";
@@ -27,6 +28,7 @@ import {
   formatError,
   LLMPaymentRequiredError,
   WikiGraphError,
+  isWikiGraphSchemaVersionError,
 } from "wiki-graph-sdk";
 import { getWikiGraphSDK } from "../runtime/context.js";
 
@@ -156,6 +158,17 @@ function formatCLIError(error: unknown, argv: readonly string[]): string {
 }
 
 function formatTerminalRemediation(error: unknown, message: string): string {
+  if (isWikiGraphSchemaVersionError(error)) {
+    if (error.reason === "newer-version")
+      return `${message} Update Wiki Graph to read this newer schema; do not downgrade the data.`;
+    const target =
+      error.target.kind === "home"
+        ? "home"
+        : error.target.kind === "library"
+          ? error.target.uri
+          : error.target.path;
+    return `${message} Run \`${formatCliCommand(["maintenance", "upgrade", target])}\` manually. See: \`wg maintenance upgrade --help\`.`;
+  }
   if (error instanceof WikiGraphError) {
     const chapterId = error.details.chapterId;
     switch (error.code) {
@@ -210,11 +223,25 @@ function createCLIErrorObject(
   readonly error: {
     readonly message: string;
     readonly type: string;
+    readonly code?: string;
+    readonly target?: unknown;
+    readonly actualVersion?: number;
+    readonly supportedVersion?: number;
+    readonly reason?: string;
   };
 } {
   return {
     error: {
       message: formatCLIError(error, argv),
+      ...(isWikiGraphSchemaVersionError(error)
+        ? {
+            code: error.code,
+            target: error.target,
+            actualVersion: error.actualVersion,
+            supportedVersion: error.supportedVersion,
+            reason: error.reason,
+          }
+        : {}),
       type:
         error instanceof LLMPaymentRequiredError
           ? "llm_payment_required"

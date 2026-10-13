@@ -50,8 +50,14 @@ export interface ReadonlyIndexArtifactStore {
     serialId: number,
     kind: IndexArtifactKind,
   ): Promise<IndexArtifactRecord | undefined>;
-  list(kind?: IndexArtifactKind): Promise<IndexArtifactRecord[]>;
-  listCoverage(kind: IndexArtifactKind): Promise<IndexArtifactCoverageRecord[]>;
+  list(
+    kind?: IndexArtifactKind,
+    serialIds?: readonly number[],
+  ): Promise<IndexArtifactRecord[]>;
+  listCoverage(
+    kind: IndexArtifactKind,
+    serialIds?: readonly number[],
+  ): Promise<IndexArtifactCoverageRecord[]>;
   listLexicalRows(
     serialId: number,
     kind?: "fts",

@@ -56,6 +56,8 @@ export {
   listRelatedWikiGraphLibraryObjects,
   listWikiGraphLibraryArchiveMembers,
   listWikiGraphLibraryArchives,
+  findWikiGraphLibraryArchivePhysicalAliases,
+  findWikiGraphLibraryByPhysicalIdentity,
   listWikiGraphLibraryEvidence,
   listWikiGraphLibraryIndexArchiveIdsForObject,
   listWikiGraphLibraryObjects,
@@ -243,6 +245,7 @@ export {
 export {
   ensureWikiGraphArchiveSchemaCurrent,
   ensureWikiGraphHomeSchemaCurrent,
+  upgradeWikiGraphHomeSchema,
   readWikiGraphArchiveSchemaVersion,
   readWikiGraphHomeSchemaVersion,
   upgradeWikiGraphArchiveSchema,

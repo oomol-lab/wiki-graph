@@ -104,16 +104,22 @@ export async function readArchiveSearchIndexStatus(
   document: ReadonlyDocument,
   options: ArchiveSearchIndexScopeOptions = {},
 ): Promise<"current" | "dirty" | "missing"> {
-  try {
-    await assertArchiveIndexArtifactsReady(document, options);
-  } catch {
-    return "dirty";
-  }
-
-  return await readSearchIndexStatus(
-    document,
-    await buildArchiveIndexProjection(document, undefined, options),
-  );
+  const status = await readSearchIndexStatus(document);
+  if (status !== "current") return status;
+  return await document.readSearchIndexDatabase(async (database) => {
+    const scope = await database.queryOne(
+      "SELECT value FROM search_index_state WHERE key = 'chaptersScope'",
+      undefined,
+      (row) => String(row.value),
+    );
+    if (scope === undefined) return "dirty";
+    if (scope === "null") return "current";
+    const indexed = new Set(JSON.parse(scope) as number[]);
+    return options.chapters !== undefined &&
+      options.chapters.every((id) => indexed.has(id))
+      ? "current"
+      : "dirty";
+  });
 }
 
 export async function clearDirtyArchiveSearchIndex(
@@ -159,14 +165,20 @@ export async function assertArchiveIndexArtifactsReady(
 ): Promise<void> {
   const chapterIds = await resolveArchiveQueryChapterIds(document, options);
   const [ftsCoverage, sourceEmbeddingCoverage] = await Promise.all([
-    document.indexArtifacts.listCoverage("fts"),
-    document.indexArtifacts.listCoverage("embedding-source"),
+    document.indexArtifacts.listCoverage("fts", options.chapters),
+    options.queryMode === "fts"
+      ? Promise.resolve([])
+      : document.indexArtifacts.listCoverage(
+          "embedding-source",
+          options.chapters,
+        ),
   ]);
   const sourceEmbeddingBySerial = new Map(
     sourceEmbeddingCoverage.map((record) => [record.serialId, record]),
   );
   const queryMode = options.queryMode ?? "hybrid";
   const embeddingAvailable =
+    options.queryMode === "fts" ||
     options.requireEmbeddingProvider !== true ||
     (await isEmbeddingProviderCompatible(
       document,
@@ -220,8 +232,13 @@ export async function listArchiveQueryableChapterIds(
 ): Promise<readonly number[]> {
   const chapterIds = await resolveArchiveQueryChapterIds(document, options);
   const [ftsCoverage, sourceEmbeddingCoverage] = await Promise.all([
-    document.indexArtifacts.listCoverage("fts"),
-    document.indexArtifacts.listCoverage("embedding-source"),
+    document.indexArtifacts.listCoverage("fts", options.chapters),
+    options.queryMode === "fts"
+      ? Promise.resolve([])
+      : document.indexArtifacts.listCoverage(
+          "embedding-source",
+          options.chapters,
+        ),
   ]);
   const sourceEmbeddingBySerial = new Map(
     sourceEmbeddingCoverage.map((record) => [record.serialId, record]),
@@ -229,6 +246,7 @@ export async function listArchiveQueryableChapterIds(
 
   const queryMode = options.queryMode ?? "hybrid";
   const embeddingAvailable =
+    options.queryMode === "fts" ||
     options.requireEmbeddingProvider !== true ||
     (await isEmbeddingProviderCompatible(
       document,
@@ -301,7 +319,10 @@ export async function writeArchiveIndexProjectionFromArtifacts(
     await buildArchiveIndexProjection(document, undefined, options),
   );
   const embeddingState = await readArchiveEmbeddingState(document, options);
-  const ftsCoverage = await document.indexArtifacts.listCoverage("fts");
+  const ftsCoverage = await document.indexArtifacts.listCoverage(
+    "fts",
+    options.chapters,
+  );
   const hasFts =
     ftsCoverage.some(
       (artifact) => chapterIds.has(artifact.serialId) && artifact.current,
@@ -456,6 +477,10 @@ export async function writeArchiveIndexProjectionFromArtifacts(
       hasFts,
       ...(progress === undefined ? {} : { progress }),
     });
+    await database.run(
+      "INSERT INTO search_index_state(key, value) VALUES ('chaptersScope', ?)",
+      [JSON.stringify(options.chapters ?? null)],
+    );
   });
 }
 
@@ -735,7 +760,10 @@ export async function readArchiveEmbeddingState(
     "embedding-source",
     "embedding-summary",
   ] as const) {
-    for (const artifact of await document.indexArtifacts.list(artifactKind)) {
+    for (const artifact of await document.indexArtifacts.list(
+      artifactKind,
+      options.chapters,
+    )) {
       if (!chapterIds.has(artifact.serialId)) {
         continue;
       }

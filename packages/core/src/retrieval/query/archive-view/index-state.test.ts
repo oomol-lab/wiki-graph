@@ -276,18 +276,15 @@ describe("archive search index state", () => {
     });
   });
 
-  it("reports a state-less index database as missing", async () => {
+  it("reports an incomplete cache marker without deleting the database", async () => {
     await withTempDocument(async (document) => {
       await document.writeSearchIndexDatabase(async () => {
         await Promise.resolve();
       });
 
-      await expect(
-        readSearchIndexCapabilityStatus(document),
-      ).resolves.toStrictEqual({
-        dense: { current: false },
-        indexes: "missing",
-      });
+      await expect(readSearchIndexCapabilityStatus(document)).rejects.toThrow(
+        "Search index cache version marker is missing or invalid",
+      );
     });
   });
 

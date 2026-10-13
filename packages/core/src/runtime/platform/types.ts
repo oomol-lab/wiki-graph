@@ -6,6 +6,8 @@ export interface Entry {
   readonly name: string;
   readonly kind: "directory" | "file";
   getLastModified?(): Promise<number | undefined>;
+  /** Optional physical alias key, used only for indexed ownership lookup. */
+  getPhysicalIdentity?(): Promise<string | undefined>;
 }
 
 /** A host-owned read capability whose identity remains opaque to Core. */

@@ -154,10 +154,14 @@ last; a failure retains the prior marker and the migration can be retried. A
 second successful run is a no-op.
 
 Search index caches also carry their own `search_index_state.version`. Opening a
-cache whose version is missing, unreadable, or different from the current search
-index version must delete that cache and treat it as missing. Write paths may
-then recreate the cache from artifacts; read paths must report the missing-cache
-state instead of querying stale SQLite.
+cache must propagate unreadable/corrupt database and permission errors. Only a
+successfully read, incompatible cache version may invalidate that cache on an
+explicit writer path. Ordinary reads report missing/dirty state and never rebuild.
+
+Home v4 -> v5 explicitly migrates legacy membership columns and populates indexed
+physical identities for bounded archive ownership checks. Ordinary opening never
+adds columns or rebuilds membership tables. The marker is written last. Existing
+Library projections without readiness summaries require explicit index sync.
 
 After a home `core.sqlite` file is confirmed current, the home gate may memoize
 that result inside the current process for hot gated access. The memo must be
@@ -194,7 +198,7 @@ home or library target and must not become CLI targets.
   using the membership transaction, even at current SQL schema versions.
   Results report `migrated` separately from schema `upgraded`/`skipped`, and
   unavailable members produce `partial` with their URIs. Repeating the upgrade
-  is a no-op once schema and storage are current. Home v4 and archive v5 remain
+  is a no-op once schema and storage are current. Home v5 and archive v5 remain
   unchanged because the SQL and standalone ZIP formats have not changed.
   Directory members cannot be opened by 0.8.4. Keep a pre-upgrade backup for
   rollback, or export standalone ZIP archives for interchange; upgrading home

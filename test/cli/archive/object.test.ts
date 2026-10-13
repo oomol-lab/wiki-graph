@@ -200,6 +200,7 @@ describe("cli/archive/object", () => {
   });
 
   it("inspects archive readiness as a text report", async () => {
+    archiveMockState.ftsCurrent = false;
     await runArchiveCommand({
       action: "inspect",
       archivePath: "/tmp/book.wikg",
@@ -276,6 +277,7 @@ describe("cli/archive/object", () => {
   });
 
   it("inspects a library archive shortcut without leaking the resolved path", async () => {
+    archiveMockState.ftsCurrent = false;
     await runArchiveCommand({
       action: "inspect",
       archivePath: "wikg://lib/arc/archive123",
@@ -309,6 +311,7 @@ describe("cli/archive/object", () => {
 
     expect(archiveMockState.readCalls).toStrictEqual([
       "/tmp/library/archive123.wikg",
+      "/tmp/library/archive123.wikg",
     ]);
     expect(findArchiveObjects).toHaveBeenCalledWith({}, "孙悟空", {
       archiveKey: "wikg://lib/arc/archive123",
@@ -318,6 +321,7 @@ describe("cli/archive/object", () => {
   });
 
   it("prints library archive shortcut inspect JSON with the shortcut URI", async () => {
+    archiveMockState.ftsCurrent = false;
     await runArchiveCommand({
       action: "inspect",
       archivePath: "wikg://lib/arc/archive123",
@@ -406,6 +410,7 @@ describe("cli/archive/object", () => {
   });
 
   it("quotes generated inspect commands for shell copy and paste", async () => {
+    archiveMockState.ftsCurrent = false;
     await runArchiveCommand({
       action: "inspect",
       archivePath: "/tmp/My Book.wikg",
@@ -420,6 +425,7 @@ describe("cli/archive/object", () => {
   });
 
   it("inspects archive readiness as a json report", async () => {
+    archiveMockState.ftsCurrent = false;
     interface InspectJSONReport {
       readonly improvements: readonly unknown[];
       readonly performanceHints: readonly unknown[];

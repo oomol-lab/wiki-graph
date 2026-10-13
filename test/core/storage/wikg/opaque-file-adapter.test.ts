@@ -68,7 +68,7 @@ describe("opaque archive File adapter", () => {
         ).resolves.toBe("Before");
         const reader = await WikgArchiveReader.open(archive);
         try {
-          expect(reader.listEntries()).toContain("database.db");
+          expect(await reader.listEntries()).toContain("database.db");
         } finally {
           await reader.close();
         }

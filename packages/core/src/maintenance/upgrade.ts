@@ -11,8 +11,8 @@ import {
 import { recoverLibraryMembershipTransactions } from "../library/membership-transaction.js";
 import type { Directory, File } from "../runtime/platform/index.js";
 import {
-  CURRENT_ARCHIVE_SCHEMA_VERSION,
   ensureWikiGraphHomeSchemaCurrent,
+  upgradeWikiGraphHomeSchema,
   readWikiGraphArchiveSchemaVersion,
   readWikiGraphHomeSchemaVersion,
   upgradeWikiGraphArchiveSchema,
@@ -83,7 +83,7 @@ export async function upgradeWikiGraphMaintenanceTarget(
 ): Promise<WikiGraphMaintenanceUpgradeResult> {
   if (target.kind === "home") {
     const schemaVersionBefore = await readWikiGraphHomeSchemaVersion();
-    await ensureWikiGraphHomeSchemaCurrent();
+    await upgradeWikiGraphHomeSchema();
     const schemaVersionAfter = await readWikiGraphHomeSchemaVersion();
     return {
       kind: "home",
@@ -118,25 +118,8 @@ export async function upgradeWikiGraphMaintenanceTarget(
 export async function assertWikiGraphLibrarySchemaCurrent(
   target: ParsedWikiGraphLibraryUri,
 ): Promise<void> {
-  const library = await resolveWikiGraphLibrary(target);
-  const archives = await listWikiGraphLibraryArchives({
-    isDefault: library.isDefault,
-    kind: "scope",
-    ...(library.isDefault ? {} : { publicId: library.publicId }),
-  });
-  for (const archive of archives) {
-    if (!isUpgradeableLibraryArchive(archive)) continue;
-    const schemaVersion = await readWikiGraphArchiveSchemaVersion(
-      requireArchiveStorage(archive),
-    );
-    if (schemaVersion !== CURRENT_ARCHIVE_SCHEMA_VERSION) {
-      throw new Error(
-        schemaVersion > CURRENT_ARCHIVE_SCHEMA_VERSION
-          ? `This Wiki Graph library contains an unsupported future archive schema v${schemaVersion}: ${library.uri}.`
-          : `This Wiki Graph library must be upgraded before use: ${library.uri}.`,
-      );
-    }
-  }
+  await ensureWikiGraphHomeSchemaCurrent();
+  await resolveWikiGraphLibrary(target);
 }
 
 export async function upgradeWikiGraphLibrarySchema(
