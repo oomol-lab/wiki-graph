@@ -297,10 +297,69 @@ describe("real job artifact application matrix", () => {
           ).toEqual([]);
         });
         const path = inspection.chapters[0]!.chapter.path;
+        const queueSDK = createWikiGraphSDK({
+          cwd: scenario.root,
+          stateDir: scenario.stateDir,
+          providers: {
+            embedding: createExecutionCapabilities("index-embedding-summary")
+              .embeddingProvider!,
+          },
+        });
+        try {
+          const queued = await queueSDK.jobs.enqueue({
+            archive: reopened.target,
+            chapterId: scenario.chapterId,
+            target: "index-embedding-summary",
+          });
+          expect(queued.created).toHaveLength(1);
+          const embedding = await executeRealArtifact(
+            scenario,
+            "index-embedding-summary",
+            "empty-summary-embedding",
+          );
+          expect(embedding.records).toEqual([
+            {
+              dimensions: EMBEDDING.length,
+              identity: "artifact-matrix",
+              model: "artifact-matrix-model",
+              source: "summary",
+              type: "embedding-metadata",
+              version: 1,
+            },
+          ]);
+          await applyWikiGraphJobArtifacts({
+            archive: reopened.target,
+            artifacts: oneArtifact({
+              artifactPath: embedding.path,
+              chapterId: scenario.chapterId,
+              kind: "index-embedding-summary",
+            }),
+            stateDir: scenario.stateDir,
+          });
+          const embedded = await scenario.sdk.archives.open(reopened.target);
+          expect(
+            (await embedded.inspect({ chapterId: scenario.chapterId }))
+              .chapters[0]?.indexes.summaryEmbedding,
+          ).toMatchObject({ exists: true, current: true });
+          await readTargetDocument(scenario, async (document) => {
+            expect(
+              await document.indexArtifacts.listEmbeddingSegments(
+                scenario.chapterId,
+                "embedding-summary",
+              ),
+            ).toEqual([]);
+          });
+        } finally {
+          queueSDK.close();
+        }
         await reopened.resetChapter(path, "graphed");
         expect(
           (await reopened.inspect({ chapterId: scenario.chapterId }))
             .chapters[0]?.capabilities.readingSummary.completed,
+        ).toBe(false);
+        expect(
+          (await reopened.inspect({ chapterId: scenario.chapterId }))
+            .chapters[0]?.indexes.summaryEmbedding.exists,
         ).toBe(false);
       } finally {
         scenario.sdk.close();
