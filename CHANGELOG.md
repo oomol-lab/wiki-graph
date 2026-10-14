@@ -6,6 +6,9 @@
 - Bound Wikimedia resolution with a default 120-second deadline and propagate cancellation through fetch, streaming, cache waits and retries. Release stream readers and singleflight state on errors, timeout and cancellation.
 - Route Library entity Wikipedia page lookups through the entity index without scanning archives.
 - Publish `wiki-graph-wikimedia` 0.8.1 with this fix; Core, SDK and CLI are 0.9.2. Home and Archive schema versions are unchanged and no migration from 0.9.1 is required.
+- Treat an explicitly empty reading summary as completed across Core, SDK and CLI, while keeping missing summaries distinct.
+- Allow completed empty summaries to produce a current empty embedding index without calling the embedding provider.
+- Publish `wiki-graph-job` 0.8.1 with these summary completion fixes.
 
 ## 0.9.1
 
