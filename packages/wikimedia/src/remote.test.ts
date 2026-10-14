@@ -4,6 +4,92 @@ import type { WikimediaServiceError } from "./remote.js";
 import { HttpWikimediaResolver } from "./remote.js";
 
 describe("HttpWikimediaResolver", () => {
+  it("enforces the default deadline without a caller signal and clears timers", async () => {
+    vi.useFakeTimers();
+    try {
+      const fetcher = vi.fn<typeof fetch>(() => new Promise(() => undefined));
+      const resolver = new HttpWikimediaResolver(
+        "https://service.example",
+        "key",
+        fetcher,
+      );
+      const settled = collect(
+        resolver.resolve([{ qid: "Q1", disambiguation: false }]),
+      ).catch((error: unknown) => error);
+      await vi.advanceTimersByTimeAsync(119_999);
+      expect(fetcher.mock.calls[0]?.[1]?.signal?.aborted).toBe(false);
+      await vi.advanceTimersByTimeAsync(1);
+      expect(await settled).toMatchObject({
+        code: "WIKIMEDIA_TIMEOUT",
+        timeoutMs: 120_000,
+      });
+      expect(vi.getTimerCount()).toBe(0);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+  it("times out an unresponsive fetch and allows a subsequent request", async () => {
+    const fetcher = vi
+      .fn<typeof fetch>()
+      .mockImplementationOnce(() => new Promise(() => {}))
+      .mockResolvedValue(
+        streamResponse([
+          { index: 0, resolution: resolution("Q1"), type: "resolution" },
+          { type: "done" },
+        ]),
+      );
+    const resolver = new HttpWikimediaResolver(
+      "https://service.example",
+      "key",
+      fetcher,
+      { timeoutMs: 30 },
+    );
+    await expect(
+      collect(resolver.resolve([{ qid: "Q1", disambiguation: false }])),
+    ).rejects.toMatchObject({ code: "WIKIMEDIA_TIMEOUT" });
+    expect(fetcher.mock.calls[0]?.[1]?.signal?.aborted).toBe(true);
+    await expect(
+      collect(resolver.resolve([{ qid: "Q1", disambiguation: false }])),
+    ).resolves.toHaveLength(1);
+  });
+
+  it("settles a stalled body even when its cancellation never completes", async () => {
+    const cancel = vi.fn(() => new Promise<void>(() => {}));
+    const response = new Response(new ReadableStream({ cancel }));
+    const resolver = new HttpWikimediaResolver(
+      "https://service.example",
+      "key",
+      vi.fn<typeof fetch>().mockResolvedValue(response),
+      { timeoutMs: 30 },
+    );
+    await expect(
+      collect(resolver.resolve([{ qid: "Q1", disambiguation: false }])),
+    ).rejects.toMatchObject({ code: "WIKIMEDIA_TIMEOUT" });
+    expect(cancel).toHaveBeenCalledOnce();
+    expect(response.body?.locked).toBe(false);
+  });
+
+  it("cancels a stalled stream on caller abort", async () => {
+    const cancel = vi.fn();
+    const response = new Response(new ReadableStream({ cancel }));
+    const controller = new AbortController();
+    const resolver = new HttpWikimediaResolver(
+      "https://service.example",
+      "key",
+      vi.fn<typeof fetch>().mockResolvedValue(response),
+    );
+    const result = collect(
+      resolver.resolve([{ qid: "Q1", disambiguation: false }], {
+        signal: controller.signal,
+      }),
+    );
+    const rejected = expect(result).rejects.toThrow("cancelled");
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    controller.abort(new Error("cancelled"));
+    await rejected;
+    expect(cancel).toHaveBeenCalledOnce();
+    expect(response.body?.locked).toBe(false);
+  });
   it("yields the first resolution before the response completes", async () => {
     let streamController!: ReadableStreamDefaultController<Uint8Array>;
     const response = new Response(

@@ -22,6 +22,7 @@ import {
   DEFAULT_WIKIMEDIA_RETRY_WAIT_BUDGET_MS,
 } from "./retry.js";
 
+import { awaitWikimediaRequest, createWikimediaRequest } from "./request.js";
 const WIKIS = ["zhwiki", "enwiki"] as const;
 const DEFAULT_TTL_MS = 14 * 24 * 60 * 60 * 1_000;
 const RESOLUTION_BATCH_SIZE = 50;
@@ -66,6 +67,7 @@ export class DirectWikimediaResolver implements WikimediaResolverContract {
   readonly #qidFlights = new Map<string, Promise<CachedWikimediaQid>>();
   readonly #retryWaitBudgetMs: number;
   readonly #ttlMs: number;
+  readonly #timeoutMs: number | undefined;
 
   public constructor(options: {
     readonly cache: WikimediaCache;
@@ -75,6 +77,7 @@ export class DirectWikimediaResolver implements WikimediaResolverContract {
     readonly observeCache?: (stats: WikimediaCacheStats) => void;
     readonly retryWaitBudgetMs?: number;
     readonly ttlMs?: number;
+    readonly timeoutMs?: number;
   }) {
     this.#cache = options.cache;
     this.#client = options.client;
@@ -84,6 +87,7 @@ export class DirectWikimediaResolver implements WikimediaResolverContract {
     this.#retryWaitBudgetMs =
       options.retryWaitBudgetMs ?? DEFAULT_WIKIMEDIA_RETRY_WAIT_BUDGET_MS;
     this.#ttlMs = options.ttlMs ?? DEFAULT_TTL_MS;
+    this.#timeoutMs = options.timeoutMs;
   }
 
   public async *resolve(
@@ -91,8 +95,9 @@ export class DirectWikimediaResolver implements WikimediaResolverContract {
     options?: { readonly signal?: AbortSignal },
   ): AsyncIterable<WikimediaResolvedItem> {
     const stats = emptyStats();
+    const request = createWikimediaRequest(options?.signal, this.#timeoutMs);
     const requestOptions: WikimediaRequestOptions = {
-      ...options,
+      signal: request.signal,
       retryBudget: createWikimediaRetryBudget(this.#retryWaitBudgetMs),
     };
     try {
@@ -101,9 +106,12 @@ export class DirectWikimediaResolver implements WikimediaResolverContract {
 
       for (const batch of batches(grouped, RESOLUTION_BATCH_SIZE)) {
         requestOptions.signal?.throwIfAborted();
-        const cached = await this.#cache.getQids(
-          batch.map(({ qid }) => qid),
-          requestOptions,
+        const cached = await awaitWikimediaRequest(
+          this.#cache.getQids(
+            batch.map(({ qid }) => qid),
+            requestOptions,
+          ),
+          requestOptions.signal,
         );
         const current = new Map<string, CachedWikimediaQid>();
         const missing: GroupedInput[] = [];
@@ -134,6 +142,7 @@ export class DirectWikimediaResolver implements WikimediaResolverContract {
         }
       }
     } finally {
+      request.close();
       this.#observeCache?.(stats);
     }
   }
@@ -166,11 +175,17 @@ export class DirectWikimediaResolver implements WikimediaResolverContract {
 
     if (leaders.length > 0) {
       try {
-        const rebuilt = await this.#rebuildQids(
-          leaders.map(({ qid }) => qid),
-          options,
+        const rebuilt = await awaitWikimediaRequest(
+          this.#rebuildQids(
+            leaders.map(({ qid }) => qid),
+            options,
+          ),
+          options?.signal,
         );
-        await this.#cache.putQids([...rebuilt.values()], options);
+        await awaitWikimediaRequest(
+          this.#cache.putQids([...rebuilt.values()], options),
+          options?.signal,
+        );
         for (const leader of leaders) {
           const record = rebuilt.get(leader.qid);
           if (record === undefined) {
@@ -272,10 +287,13 @@ export class DirectWikimediaResolver implements WikimediaResolverContract {
     const pages = new Map(
       uniqueTargets.map(({ key, page }) => [disambiguationKey(key), page]),
     );
-    const cached = await this.#cache.getDisambiguations(
-      uniqueKeys,
-      this.#normalizer.identity,
-      options,
+    const cached = await awaitWikimediaRequest(
+      this.#cache.getDisambiguations(
+        uniqueKeys,
+        this.#normalizer.identity,
+        options,
+      ),
+      options?.signal,
     );
     const records = new Map(
       cached.map((record) => [disambiguationKey(record), record]),
@@ -318,21 +336,30 @@ export class DirectWikimediaResolver implements WikimediaResolverContract {
           if (page === undefined) {
             throw new Error(`Missing page metadata for ${leader.key.qid}`);
           }
-          const parsedPage = await this.#client.disambiguation(page, options);
-          const profile = await this.#normalizer.normalize(
-            {
-              page: parsedPage,
-              sourceQid: leader.key.qid,
-              wiki: leader.key.wiki,
-            },
-            options,
+          const parsedPage = await awaitWikimediaRequest(
+            this.#client.disambiguation(page, options),
+            options?.signal,
+          );
+          const profile = await awaitWikimediaRequest(
+            this.#normalizer.normalize(
+              {
+                page: parsedPage,
+                sourceQid: leader.key.qid,
+                wiki: leader.key.wiki,
+              },
+              options,
+            ),
+            options?.signal,
           );
           generated.push({ ...leader.key, parsedPage, profile });
         }
-        await this.#cache.putDisambiguations(
-          generated,
-          this.#normalizer.identity,
-          options,
+        await awaitWikimediaRequest(
+          this.#cache.putDisambiguations(
+            generated,
+            this.#normalizer.identity,
+            options,
+          ),
+          options?.signal,
         );
         generated.forEach((record, index) =>
           leaders[index]?.deferred.resolve(record),
@@ -365,7 +392,10 @@ export class DirectWikimediaResolver implements WikimediaResolverContract {
     qids: readonly string[],
     options?: WikimediaRequestOptions,
   ): Promise<ReadonlyMap<string, CachedWikimediaQid>> {
-    const entities = await this.#client.entities(qids, options);
+    const entities = await awaitWikimediaRequest(
+      this.#client.entities(qids, options),
+      options?.signal,
+    );
     const entitiesByQid = new Map(
       entities.map((entity) => [entity.qid, entity]),
     );
@@ -393,7 +423,10 @@ export class DirectWikimediaResolver implements WikimediaResolverContract {
         ),
       ];
       options?.signal?.throwIfAborted();
-      const pages = await this.#client.pages(wiki, titles, options);
+      const pages = await awaitWikimediaRequest(
+        this.#client.pages(wiki, titles, options),
+        options?.signal,
+      );
       results.set(
         wiki,
         new Map(

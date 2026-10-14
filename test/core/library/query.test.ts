@@ -119,6 +119,14 @@ vi.mock("../../../packages/core/src/library/search-index.js", () => ({
 vi.mock(
   "../../../packages/core/src/retrieval/query/archive-view/index.js",
   () => ({
+    prepareArchivePage: vi.fn(
+      (document: { readonly path: string }, objectUri: string) => {
+        const page = mocks.pages.get(`${document.path}:${objectUri}`);
+        if (page === undefined)
+          throw new Error(`missing page ${document.path}:${objectUri}`);
+        return Promise.resolve(() => Promise.resolve(page));
+      },
+    ),
     listArchiveCollection: vi.fn(() => Promise.resolve({ items: [] })),
     listArchiveEvidence: vi.fn(
       (document: { readonly path: string }, objectUri: string) =>

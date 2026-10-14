@@ -22,10 +22,20 @@ and terminal `done` events; closing without `done` is an error. Stopping
 iteration cancels the response body, and an optional `AbortSignal` is forwarded
 through remote and direct providers.
 
+Remote and direct resolver operations have a default 120-second deadline,
+including stream reads, cache waits and retries. Expiry throws
+`WikimediaTimeoutError` (`code: "WIKIMEDIA_TIMEOUT"`). Caller cancellation
+preserves the signal's reason. A direct resolver or `MediaWikiClient` accepts
+`timeoutMs` in its constructor options; a remote resolver accepts it in the
+fourth constructor argument. Cancellation settles callers even when a custom
+transport ignores its signal; it cannot force that transport to stop underlying
+work. Stream cancellation is best effort and never delays error settlement.
+
 Direct Wikimedia access treats `maxlag`, rate limiting, HTTP 403/408/425/5xx,
 and transport failures as temporary feedback. It retries with bounded
 exponential backoff and jitter rather than an attempt count. One resolver
 operation shares a 30-minute cumulative retry-wait budget across all upstream
-requests; ordinary processing time does not consume that budget. Terminal
+requests; ordinary processing time does not consume that budget. The request
+deadline takes precedence over this retry-wait budget. Terminal
 stream errors preserve a stable code, retryability, and retry delay when the
 provider supplies them.

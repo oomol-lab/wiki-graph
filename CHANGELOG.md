@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.9.2
+
+- Resolve entity Wikipedia pages outside Archive and Library local read sessions, so stalled external requests cannot block subsequent searches, reads or writes.
+- Bound Wikimedia resolution with a default 120-second deadline and propagate cancellation through fetch, streaming, cache waits and retries. Release stream readers and singleflight state on errors, timeout and cancellation.
+- Route Library entity Wikipedia page lookups through the entity index without scanning archives.
+- Publish `wiki-graph-wikimedia` 0.8.1 with this fix; Core, SDK and CLI are 0.9.2. Home and Archive schema versions are unchanged and no migration from 0.9.1 is required.
+
 ## 0.9.1
 
 - Require explicit Home/Archive schema upgrades and index sync; ordinary SDK/CLI access checks versions and readiness without full member scans or implicit rebuilds.

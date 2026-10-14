@@ -48,6 +48,35 @@ afterEach(() => {
 });
 
 describe("wikg/wiki-graph-archive-file", () => {
+  it("releases the archive queue after a read callback fails", async () => {
+    await withArchiveFixture(async ({ archive }) => {
+      const file = new WikiGraphArchiveFile(archive);
+      let rejectRead!: () => void;
+      let entered!: () => void;
+      const started = new Promise<void>((resolve) => {
+        entered = resolve;
+      });
+      const failure = new Error("read failed");
+      const failing = file
+        .readDocument(async () => {
+          entered();
+          await new Promise<void>((_resolve, reject) => {
+            rejectRead = () => reject(failure);
+          });
+        })
+        .catch((error: unknown) => error);
+      await started;
+      const queued = file.read(async (digest) => await digest.readToc());
+      rejectRead();
+      expect(await failing).toBe(failure);
+      await expect(queued).resolves.toMatchObject({
+        items: [{ serialId: 1, title: "Original" }],
+      });
+      await expect(
+        file.read(async (digest) => await digest.readToc()),
+      ).resolves.toMatchObject({ items: [{ serialId: 1 }] });
+    });
+  });
   it("reads and writes an archive through opaque File capabilities", async () => {
     await withArchiveFixture(async ({ archive }) => {
       const file = new WikiGraphArchiveFile(archive);

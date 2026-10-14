@@ -1,5 +1,9 @@
 export { findArchiveObjects, grepArchiveObjects } from "./search/index.js";
-export { readArchivePage, readArchiveText } from "./pages.js";
+export {
+  prepareArchivePage,
+  readArchivePage,
+  readArchiveText,
+} from "./pages.js";
 export {
   listAllArchiveLinks,
   listArchiveLinks,

@@ -2,6 +2,10 @@ export { LlmDisambiguationNormalizer } from "./normalizer.js";
 export { HttpWikimediaResolver, WikimediaServiceError } from "./remote.js";
 export { DirectWikimediaResolver } from "./resolver.js";
 export {
+  DEFAULT_WIKIMEDIA_TIMEOUT_MS,
+  WikimediaTimeoutError,
+} from "./request.js";
+export {
   createWikimediaRetryBudget,
   DEFAULT_WIKIMEDIA_RETRY_WAIT_BUDGET_MS,
 } from "./retry.js";

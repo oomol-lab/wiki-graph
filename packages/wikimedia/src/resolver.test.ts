@@ -15,6 +15,72 @@ import type {
 const identity = { modelId: "test-model", normalizerVersion: "v1" } as const;
 
 describe("DirectWikimediaResolver", () => {
+  it("cleans up disambiguation flights after a stalled normalizer", async () => {
+    const normalize = vi
+      .fn<DisambiguationNormalizer["normalize"]>()
+      .mockImplementationOnce(() => new Promise(() => undefined))
+      .mockResolvedValue({ meanings: [] });
+    const resolver = createResolver(memoryCache([cachedRecord("Q1", true)]), {
+      normalize,
+      timeoutMs: 30,
+    });
+    const input = [{ qid: "Q1", disambiguation: true }];
+    const results = await Promise.allSettled([
+      collect(resolver.resolve(input)),
+      collect(resolver.resolve(input)),
+    ]);
+    for (const result of results) {
+      expect(result.status).toBe("rejected");
+      if (result.status === "rejected")
+        expect(result.reason).toHaveProperty("code", "WIKIMEDIA_TIMEOUT");
+    }
+    expect(normalize).toHaveBeenCalledOnce();
+    await expect(collect(resolver.resolve(input))).resolves.toHaveLength(1);
+    expect(normalize).toHaveBeenCalledTimes(2);
+  });
+  it("cleans up timed-out leaders and waiters so the same QID can retry", async () => {
+    const entities = vi
+      .fn<WikimediaClient["entities"]>()
+      .mockImplementationOnce(() => new Promise(() => undefined))
+      .mockResolvedValue([]);
+    const resolver = createResolver(memoryCache(), { entities, timeoutMs: 30 });
+    const input = [{ qid: "Q1", disambiguation: false }];
+    const first = collect(resolver.resolve(input));
+    const second = collect(resolver.resolve(input));
+    const results = await Promise.allSettled([first, second]);
+    for (const result of results) {
+      expect(result.status).toBe("rejected");
+      if (result.status === "rejected")
+        expect(result.reason).toHaveProperty("code", "WIKIMEDIA_TIMEOUT");
+    }
+    expect(entities).toHaveBeenCalledOnce();
+    await expect(collect(resolver.resolve(input))).resolves.toHaveLength(1);
+    expect(entities).toHaveBeenCalledTimes(2);
+  });
+
+  it("cancels a singleflight waiter without cancelling its leader", async () => {
+    let release!: () => void;
+    const entities = vi.fn<WikimediaClient["entities"]>(
+      () =>
+        new Promise((resolve) => {
+          release = () => resolve([]);
+        }),
+    );
+    const resolver = createResolver(memoryCache(), { entities });
+    const input = [{ qid: "Q1", disambiguation: false }];
+    const leader = collect(resolver.resolve(input));
+    await vi.waitFor(() => expect(entities).toHaveBeenCalledOnce());
+    const controller = new AbortController();
+    const waiter = collect(
+      resolver.resolve(input, { signal: controller.signal }),
+    );
+    controller.abort(new Error("waiter cancelled"));
+    await expect(waiter).rejects.toThrow("waiter cancelled");
+    release();
+    await expect(leader).resolves.toHaveLength(1);
+    await expect(collect(resolver.resolve(input))).resolves.toHaveLength(1);
+    expect(entities).toHaveBeenCalledOnce();
+  });
   it("reads and emits QIDs in bounded cache batches", async () => {
     const cache = memoryCache(
       Array.from({ length: 51 }, (_, index) => cachedRecord(`Q${index + 1}`)),
@@ -251,6 +317,7 @@ describe("DirectWikimediaResolver", () => {
 function createResolver(
   cache: WikimediaCache,
   overrides: {
+    readonly timeoutMs?: number;
     readonly disambiguation?: WikimediaClient["disambiguation"];
     readonly entities?: WikimediaClient["entities"];
     readonly normalize?: DisambiguationNormalizer["normalize"];
@@ -259,6 +326,9 @@ function createResolver(
   } = {},
 ) {
   return new DirectWikimediaResolver({
+    ...(overrides.timeoutMs === undefined
+      ? {}
+      : { timeoutMs: overrides.timeoutMs }),
     cache,
     client: {
       disambiguation:

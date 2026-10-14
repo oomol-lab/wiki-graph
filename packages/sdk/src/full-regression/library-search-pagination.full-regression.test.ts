@@ -2,7 +2,7 @@ import { mkdtemp, rm } from "fs/promises";
 import { tmpdir } from "os";
 import { join } from "path";
 
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   replaceChapterFtsIndexArtifact,
   replaceChapterSourceEmbeddingIndexArtifact,
@@ -29,6 +29,115 @@ afterEach(async () => {
 });
 
 describe("WikiGraphLibraryManager search pagination", () => {
+  it.each(["standalone", "library"] as const)(
+    "isolates a stalled wikipage from %s search, reads and writes",
+    async (scope) => {
+      const setup = await createIndexedLibrary(false, true);
+      const controller = new AbortController();
+      let pending: Promise<unknown> | undefined;
+      try {
+        await setup.sdk.config.replace("wikimedia", {
+          endpoint: "https://service.example/v1",
+          token: "test-key",
+        });
+        const archive = await setup.sdk.archives.open({
+          ...(scope === "standalone"
+            ? { kind: "standalone" as const, path: setup.archivePath }
+            : { kind: "library" as const, uri: setup.memberUri }),
+        });
+        await archive.ensureSearchIndex();
+        const cancel = vi.fn(() => new Promise<void>(() => undefined));
+        const fetcher = vi
+          .fn<typeof fetch>()
+          .mockImplementationOnce(() =>
+            Promise.resolve(new Response(new ReadableStream({ cancel }))),
+          );
+        fetcher.mockImplementation(() =>
+          Promise.resolve(
+            new Response(
+              `${JSON.stringify({ type: "resolution", index: 0, resolution: { qid: "Q2", en: { label: null, description: null, url: null }, zh: { label: null, description: null, url: null } } })}\n${JSON.stringify({ type: "done" })}\n`,
+            ),
+          ),
+        );
+        vi.stubGlobal("fetch", fetcher);
+        const page = (id: string, signal?: AbortSignal) =>
+          scope === "standalone"
+            ? archive.page(id, signal === undefined ? {} : { signal })
+            : setup.sdk.libraries.page(
+                setup.libraryUri,
+                id,
+                signal === undefined ? {} : { signal },
+              );
+        pending = page("wikg://entity/Q1/wikipage", controller.signal);
+        const settled = pending.catch((error: unknown) => error);
+        await vi.waitFor(() => expect(fetcher).toHaveBeenCalledOnce());
+        // These must finish while the first request's stream is still stalled.
+        const results =
+          scope === "standalone"
+            ? await archive.search("needle", {
+                queryMode: "fts",
+                sourceContext: 0,
+                limit: 1000,
+              })
+            : await setup.sdk.libraries.search(setup.libraryUri, "needle", {
+                queryMode: "fts",
+                sourceContext: 0,
+                limit: 1000,
+              });
+        expect(results.items.length).toBeGreaterThan(0);
+        const localResults = await archive.search("needle", {
+          queryMode: "fts",
+          sourceContext: 0,
+          limit: 1000,
+        });
+        for (const type of ["entity", "triple", "source", "summary"] as const) {
+          const hit = localResults.items.find((item) => item.type === type);
+          expect(hit, type).toBeDefined();
+          const localPage =
+            type === "source" || type === "summary"
+              ? archive.page(hit!.id)
+              : page(hit!.id);
+          await expect(localPage).resolves.toMatchObject({
+            type: type === "source" || type === "summary" ? "fragment" : type,
+          });
+        }
+        await expect(page("wikg://entity/Q2/wikipage")).resolves.toMatchObject({
+          type: "entity-wikipage",
+        });
+        await expect(page("wikg://chunk/10")).resolves.toMatchObject({
+          type: "node",
+        });
+        const evidence =
+          scope === "standalone"
+            ? await archive.evidence("wikg://entity/Q1")
+            : await setup.sdk.libraries.evidence(
+                setup.libraryUri,
+                "wikg://entity/Q1",
+              );
+        expect(evidence.items.length).toBeGreaterThan(0);
+        if (scope === "library")
+          await setup.sdk.libraries.rebuildIndex(setup.libraryUri);
+        else
+          await archive.addChapter({
+            source: "A later local write.",
+            title: "Still writable",
+          });
+        controller.abort(new Error("cancelled"));
+        expect(await settled).toMatchObject({ message: "cancelled" });
+        expect(cancel).toHaveBeenCalledOnce();
+        await expect(page("wikg://entity/Q1/wikipage")).resolves.toMatchObject({
+          type: "entity-wikipage",
+        });
+      } finally {
+        controller.abort(new Error("cancelled"));
+        await pending?.catch(() => undefined);
+        vi.unstubAllGlobals();
+        setup.sdk.close();
+      }
+    },
+    15_000,
+  );
+
   it("keeps raw signals on SDK archive summaries and query evidence, including previews and next pages", async () => {
     const setup = await createIndexedLibrary(true);
     try {
@@ -253,10 +362,14 @@ describe("WikiGraphLibraryManager search pagination", () => {
   );
 });
 
-async function createIndexedLibrary(interleaved = false): Promise<{
+async function createIndexedLibrary(
+  interleaved = false,
+  withChunk = false,
+): Promise<{
   readonly archivePath: string;
   readonly embeddingProbe: EmbeddingProbe;
   readonly libraryUri: string;
+  readonly memberUri: string;
   readonly sdk: WikiGraphSDK;
 }> {
   const root = await mkdtemp(join(tmpdir(), "wiki-graph-sdk-pagination-"));
@@ -285,6 +398,17 @@ async function createIndexedLibrary(interleaved = false): Promise<{
     await new WikiGraphArchiveFile(new NodeFile(archivePath)).write(
       async (document) => {
         await document.openSession(async (opened) => {
+          if (withChunk)
+            await opened.chunks.save({
+              content: "Needle reading chunk",
+              generation: 0,
+              id: 10,
+              label: "Needle chunk",
+              sentenceId: [chapter.chapterId, 0],
+              sentenceIds: [[chapter.chapterId, 0]],
+              weight: 1,
+              wordsCount: 3,
+            });
           await opened.writeSummary(
             chapter.chapterId,
             "Needle summary sentence.",
@@ -338,13 +462,19 @@ async function createIndexedLibrary(interleaved = false): Promise<{
     );
   });
   const library = await sdk.libraries.create(join(root, "library"));
-  await sdk.libraries.addArchive({
+  const member = await sdk.libraries.addArchive({
     inputPath: archivePath,
     target: library.uri,
     to: "source.wikg",
   });
   await sdk.libraries.rebuildIndex(library.uri);
-  return { archivePath, embeddingProbe, libraryUri: library.uri, sdk };
+  return {
+    archivePath,
+    embeddingProbe,
+    libraryUri: library.uri,
+    memberUri: member.uri,
+    sdk,
+  };
 }
 
 interface EmbeddingProbe {

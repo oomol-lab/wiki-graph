@@ -25,6 +25,7 @@ export {
   listRelatedArchiveObjects,
   packArchiveContext,
   readArchivePage,
+  prepareArchivePage,
   readArchiveText,
   rebuildArchiveSearchIndex,
   isSourceLocatorScopeUri,

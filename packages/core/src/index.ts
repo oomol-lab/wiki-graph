@@ -314,6 +314,7 @@ export {
   listRelatedArchiveObjects,
   packArchiveContext,
   readArchivePage,
+  prepareArchivePage,
   readArchiveText,
   readContinuationCursor,
   rebuildArchiveSearchIndex,
