@@ -13,7 +13,7 @@ import {
   type SearchIndexQueryMode,
 } from "wiki-graph-core";
 
-import { createWikiGraphSDK, NodeFile, type WikiGraphSDK } from "./index.js";
+import { createWikiGraphSDK, NodeFile, type WikiGraphSDK } from "../index.js";
 
 const temporaryDirectories: string[] = [];
 

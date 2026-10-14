@@ -52,6 +52,7 @@
     "scripts/**/*.ts",
     "evals/**/*.ts",
     "vitest.config.ts",
+    "vitest.pr.config.ts",
     "vitest.e2e.config.ts"
   ],
   "exclude": ["packages/*/dist", "dist", "coverage", "node_modules"]

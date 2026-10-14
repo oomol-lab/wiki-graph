@@ -9,10 +9,10 @@ import {
   WikiGraphArchiveFile,
   type SourceTextMapRecord,
 } from "wiki-graph-core";
-import { runWikiGraphCLICaptured } from "../../../packages/cli/src/index.js";
-import { NodeFile } from "../../../packages/cli/src/runtime/node-platform.js";
+import { runWikiGraphCLICaptured } from "../../../../packages/cli/src/index.js";
+import { NodeFile } from "../../../../packages/cli/src/runtime/node-platform.js";
 
-import { withTempDir } from "../../helpers/temp.js";
+import { withTempDir } from "../../../helpers/temp.js";
 
 const NEWTON_JSONL_PATH = resolve("test/fixtures/sources/newton.pdf.jsonl");
 const LITTLE_PRINCE_EPUB_PATH = resolve(

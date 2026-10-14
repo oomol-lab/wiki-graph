@@ -14,8 +14,8 @@ import {
   createWikiGraphSDK,
   type WikiGraphLibraryArchiveContent,
   type WikiGraphSDK,
-} from "./index.js";
-import { NodeFile } from "./node-platform.js";
+} from "../index.js";
+import { NodeFile } from "../node-platform.js";
 
 const temporaryDirectories: string[] = [];
 

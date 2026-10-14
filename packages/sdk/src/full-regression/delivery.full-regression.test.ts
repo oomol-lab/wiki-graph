@@ -20,9 +20,9 @@ import {
   writeWikgArchive,
 } from "wiki-graph-core";
 
-import { createWikiGraphSDK } from "./sdk.js";
-import { type WikiGraphJobSnapshot } from "./jobs.js";
-import { NodeDirectory, NodeFile } from "./node-platform.js";
+import { createWikiGraphSDK } from "../sdk.js";
+import { type WikiGraphJobSnapshot } from "../jobs.js";
+import { NodeDirectory, NodeFile } from "../node-platform.js";
 
 const temporaryDirectories: string[] = [];
 
