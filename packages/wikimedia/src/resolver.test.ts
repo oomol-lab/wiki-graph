@@ -15,6 +15,94 @@ import type {
 const identity = { modelId: "test-model", normalizerVersion: "v1" } as const;
 
 describe("DirectWikimediaResolver", () => {
+  describe.each(["qid", "disambiguation"] as const)(
+    "%s singleflight cancellation",
+    (stage) => {
+      it.each([
+        { role: "leader", reason: { code: "USER_CANCEL" } },
+        { role: "leader", reason: "user cancelled" },
+        { role: "waiter", reason: { code: "USER_CANCEL" } },
+        { role: "waiter", reason: "user cancelled" },
+      ])(
+        "preserves $role reason $reason after joining the flight",
+        async ({ role, reason }) => {
+          let release!: () => void;
+          const held = new Promise<void>((resolve) => {
+            release = resolve;
+          });
+          const entities = vi
+            .fn<WikimediaClient["entities"]>()
+            .mockImplementationOnce(async () => {
+              await held;
+              return [];
+            })
+            .mockResolvedValue([]);
+          const normalize = vi
+            .fn<DisambiguationNormalizer["normalize"]>()
+            .mockImplementationOnce(async () => {
+              await held;
+              return { meanings: [] };
+            })
+            .mockResolvedValue({ meanings: [] });
+          const cache = memoryCache(
+            stage === "qid" ? [] : [cachedRecord("Q1", true)],
+          );
+          const resolver = createResolver(cache, { entities, normalize });
+          const input = [
+            { qid: "Q1", disambiguation: stage === "disambiguation" },
+          ];
+          const controller = new AbortController();
+          const leader = collect(
+            resolver.resolve(
+              input,
+              role === "leader" ? { signal: controller.signal } : {},
+            ),
+          );
+          const leaderSettled = Promise.allSettled([leader]);
+          const upstream = stage === "qid" ? entities : normalize;
+          await vi.waitFor(() => expect(upstream).toHaveBeenCalledOnce());
+          const waiter = collect(
+            resolver.resolve(
+              input,
+              role === "waiter" ? { signal: controller.signal } : {},
+            ),
+          );
+          const waiterSettled = Promise.allSettled([waiter]);
+          // Both cache lookups completed and their promise continuations drained:
+          // the waiter is waiting on the flight, rather than on its initial cache read.
+          await vi.waitFor(() =>
+            expect(
+              stage === "qid" ? cache.getQids : cache.getDisambiguations,
+            ).toHaveBeenCalledTimes(2),
+          );
+          await new Promise<void>((resolve) => setImmediate(resolve));
+          expect(upstream).toHaveBeenCalledOnce();
+          controller.abort(reason);
+          const [cancelled] = await (role === "leader"
+            ? leaderSettled
+            : waiterSettled);
+          expect(cancelled?.status).toBe("rejected");
+          if (cancelled?.status === "rejected")
+            expect(cancelled.reason).toBe(reason);
+          if (role === "leader") {
+            // A non-Error flight rejection must also reach the uncancelled waiter verbatim.
+            const [shared] = await waiterSettled;
+            expect(shared?.status).toBe("rejected");
+            if (shared?.status === "rejected")
+              expect(shared.reason).toBe(reason);
+          } else {
+            release();
+            await expect(leader).resolves.toHaveLength(1);
+          }
+          await expect(collect(resolver.resolve(input))).resolves.toHaveLength(
+            1,
+          );
+          expect(upstream).toHaveBeenCalledTimes(role === "leader" ? 2 : 1);
+          release();
+        },
+      );
+    },
+  );
   it("cleans up disambiguation flights after a stalled normalizer", async () => {
     const normalize = vi
       .fn<DisambiguationNormalizer["normalize"]>()

@@ -573,36 +573,8 @@ function settlePending<K, V>(
 ): Promise<PromiseSettledResult<readonly [K, V]>[]> {
   return Promise.allSettled(
     [...pending].map(async ([key, promise]) => {
-      const value = await withSignal(promise, signal);
+      const value = await awaitWikimediaRequest(promise, signal);
       return [key, value] as const;
     }),
   );
-}
-
-async function withSignal<T>(
-  promise: Promise<T>,
-  signal?: AbortSignal,
-): Promise<T> {
-  if (signal === undefined) return promise;
-  signal.throwIfAborted();
-  return await new Promise<T>((resolve, reject) => {
-    const abort = (): void => {
-      reject(
-        signal.reason instanceof Error
-          ? signal.reason
-          : new Error("Wikimedia resolution aborted"),
-      );
-    };
-    signal.addEventListener("abort", abort, { once: true });
-    void promise.then(
-      (value) => {
-        signal.removeEventListener("abort", abort);
-        resolve(value);
-      },
-      (error: unknown) => {
-        signal.removeEventListener("abort", abort);
-        reject(error instanceof Error ? error : new Error(String(error)));
-      },
-    );
-  });
 }
