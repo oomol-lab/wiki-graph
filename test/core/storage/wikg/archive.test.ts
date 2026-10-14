@@ -11,15 +11,94 @@ import {
   extractWikgArchive,
   readWikgArchiveMutationToken,
   readWikgArchiveEntry,
+  listWikgArchiveEntries,
+  WikgArchiveReader,
   writeWikgArchive,
   writeWikgArchiveWithOverlays,
 } from "../../../../packages/core/src/storage/wikg/archive/index.js";
 import { withTempDir } from "../../../helpers/temp.js";
-import { NodeFile } from "../../../../packages/cli/src/runtime/node-platform.js";
+import {
+  NodeFile,
+  nodeWikiGraphPlatform,
+} from "../../../../packages/cli/src/runtime/node-platform.js";
+import { readWikiGraphArchiveSchemaVersion } from "../../../../packages/core/src/storage/schema-upgrade/index.js";
 
 const VALID_MUTATION_TOKEN_CONTENT = `wikg-mutation-token:v1\n${"a".repeat(43)}\n`;
 
 describe("wikg/archive", () => {
+  it.each([
+    { names: ["toc.json", "./toc.json"], expected: "value-1" },
+    { names: ["./toc.json", "toc.json"], expected: "value-1" },
+    { names: ["toc.json", "./toc.json", "toc.json"], expected: "value-1" },
+    {
+      names: ["toc.json", "./toc.json", ".//toc.json", "./toc.json"],
+      expected: "value-2",
+    },
+    { names: ["./toc.json", "./toc.json"], expected: "value-1" },
+  ])(
+    "preserves normalized ZIP lookup precedence for $names",
+    async ({ names, expected }) => {
+      await withTempDir("wikigraph-archive-alias-", async (path) => {
+        const file = new NodeFile(`${path}/book.wikg`);
+        const encode = (value: string) => new TextEncoder().encode(value);
+        await nodeWikiGraphPlatform.zip.write(file, [
+          {
+            name: "manifest.json",
+            data: encode('{"formatVersion":1,"schemaVersion":99}'),
+          },
+          {
+            name: "./manifest.json",
+            data: encode('{"formatVersion":1,"schemaVersion":5}'),
+          },
+          {
+            name: ".wikg-mutation-token",
+            data: encode(VALID_MUTATION_TOKEN_CONTENT),
+          },
+          ...names.map((name, index) => ({
+            name,
+            data: encode(`value-${index}`),
+          })),
+        ]);
+        // The schema gate and archive reader must resolve the same manifest.
+        expect(await readWikiGraphArchiveSchemaVersion(file)).toBe(5);
+        const reader = await WikgArchiveReader.open(file);
+        try {
+          expect(await reader.listEntries()).toEqual([
+            ".wikg-mutation-token",
+            "manifest.json",
+            "toc.json",
+          ]);
+          expect(
+            new TextDecoder().decode(await reader.readEntry("toc.json")),
+          ).toBe(expected);
+          expect(
+            new TextDecoder().decode(await reader.readEntry("./toc.json")),
+          ).toBe(expected);
+          expect(await reader.getEntrySize("toc.json")).toBe(
+            encode(expected).length,
+          );
+          expect(await reader.readEntryRange("toc.json", 0, 5)).toEqual(
+            encode("value"),
+          );
+          const copy = new NodeFile(`${path}/copy.txt`);
+          expect(await reader.copyEntry("toc.json", copy)).toBe(true);
+          expect(await readFile(`${path}/copy.txt`, "utf8")).toBe(expected);
+        } finally {
+          await reader.close();
+        }
+        expect(await listWikgArchiveEntries(file)).toEqual([
+          ".wikg-mutation-token",
+          "manifest.json",
+          "toc.json",
+        ]);
+        await extractWikgArchive(file, `${path}/extracted`);
+        expect(await readFile(`${path}/extracted/toc.json`, "utf8")).toBe(
+          expected,
+        );
+      });
+    },
+  );
+
   it("writes and extracts only whitelisted wikg document files", async () => {
     await withTempDir("wikigraph-archive-", async (path) => {
       const sourceDir = `${path}/source`;

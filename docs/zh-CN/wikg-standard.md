@@ -10,9 +10,18 @@
 
 `.wikg` 文件是一个使用 `.wikg` 文件扩展名的 ZIP 归档。
 
+Library 托管 Archive 用目录保存相同的逻辑条目，使用相同的 manifest/schema。
+SDK 和 CLI 自动选择存储方式，两种形态都保留事务协调和恢复机制。分发时导出
+游离 ZIP Archive；不要直接修改托管目录中的文件。
+
 归档 entry 路径必须使用 `/` 分隔符，并且必须是相对路径。Reader 会通过裁剪空白、把 `\` 转成 `/`、移除开头的 `/`、折叠 `.` 路径段来归一化传入的 ZIP entry 名。标准 reader 会忽略 `.wikg` 白名单之外的 entry，标准 writer 也不会保留这些 entry。
 
 当前标准 writer 以不压缩方式存储 ZIP entry。标准 reader 接受 stored ZIP entry 和 deflated ZIP entry。
+
+逻辑条目枚举对规范化路径去重。旧 ZIP 中多个名称冲突时，按各个原始名称首次出现
+的位置排序，最后一个名称胜出，并读取该原始名称最后一次出现的内容。例如
+`toc.json`、`./toc.json`、`toc.json` 选择 `./toc.json`。Writer 为每个路径写入
+一个规范化条目。
 
 ## Entry Table
 
@@ -56,11 +65,14 @@ Writer 每次重写归档时都必须刷新这个 token。Reader 使用它检测
 
 ```json
 {
-  "formatVersion": 1
+  "formatVersion": 1,
+  "schemaVersion": 5
 }
 ```
 
 Reader 必须拒绝缺少 `manifest.json` 的归档、`manifest.json` 中包含无效 JSON 的归档，以及 `formatVersion` 不受支持的归档。
+普通访问拒绝不兼容的 schema 版本，旧 Archive 必须手动执行 maintenance 升级。
+旧 manifest 未提供 `schemaVersion` 时，按 schema v1 解释以支持手动迁移。
 
 ### `database.db`
 

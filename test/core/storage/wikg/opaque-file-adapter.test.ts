@@ -366,8 +366,8 @@ const opaqueNodePlatform: WikiGraphPlatform = {
   },
   templates: nodeWikiGraphPlatform.templates,
   zip: {
-    open: async (file) =>
-      await nodeWikiGraphPlatform.zip.open(unwrapFile(file)),
+    open: async (file, options) =>
+      await nodeWikiGraphPlatform.zip.open(unwrapFile(file), options),
     write: async (file, entries) =>
       await nodeWikiGraphPlatform.zip.write(unwrapFile(file), entries),
   },

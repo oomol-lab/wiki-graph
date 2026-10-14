@@ -4,8 +4,110 @@ import { describe, expect, inject, it } from "vitest";
 
 import { createCLISandbox } from "./helpers/cli-sandbox.js";
 import { createSourcedArchive } from "./helpers/workflow.js";
+import {
+  NodeFile,
+  nodeWikiGraphPlatform,
+} from "../../packages/sdk/src/node-platform.js";
 
 describe("packed CLI archive lifecycle", () => {
+  it("blocks Home v4 without mutating it and recovers only through manual upgrade", async () => {
+    const sandbox = await createCLISandbox("manual-home-upgrade");
+    await sandbox.runJSON([sandbox.archiveUri, "create", "--json"]);
+    const file = new NodeFile(`${sandbox.home}/.wikigraph/core.sqlite`);
+    const database = await nodeWikiGraphPlatform.database.open(file, {
+      mode: "readwrite",
+      create: false,
+    });
+    try {
+      await database.run(
+        "UPDATE schema_versions SET version = 4 WHERE scope = 'home'",
+      );
+    } finally {
+      await database.close();
+    }
+    const readVersion = async () => {
+      const connection = await nodeWikiGraphPlatform.database.open(file, {
+        mode: "readonly",
+      });
+      try {
+        return (
+          await connection.queryOne(
+            "SELECT version FROM schema_versions WHERE scope = 'home'",
+          )
+        )?.version;
+      } finally {
+        await connection.close();
+      }
+    };
+    const blocked = await sandbox.run([sandbox.archiveUri, "inspect"]);
+    expect(blocked.exitCode).toBe(1);
+    expect(blocked.stderr).toContain("maintenance upgrade home");
+    expect(await readVersion()).toBe(4);
+    const help = await sandbox.run(["maintenance", "upgrade", "--help"]);
+    expect(help.exitCode).toBe(0);
+    expect(help.stdout).toContain(
+      "never upgrade Home, archives, or libraries automatically",
+    );
+    const version = await sandbox.run(["--version"]);
+    expect(version.exitCode).toBe(0);
+    expect(version.stdout).toContain("0.9.1");
+    expect(await readVersion()).toBe(4);
+    const upgraded = await sandbox.run([
+      "maintenance",
+      "upgrade",
+      "home",
+      "--json",
+    ]);
+    expect(upgraded.exitCode, upgraded.stderr).toBe(0);
+    expect(await readVersion()).toBe(5);
+    const inspect = await sandbox.run([
+      sandbox.archiveUri,
+      "inspect",
+      "--json",
+    ]);
+    expect(inspect.exitCode, inspect.stderr).toBe(0);
+  });
+
+  it("reads the legacy winning ZIP alias through the packed CLI", async () => {
+    const sandbox = await createCLISandbox("zip-alias");
+    const chapter = await createSourcedArchive(sandbox, {
+      source: "Original source.",
+      title: "Alias regression",
+    });
+    const file = new NodeFile(sandbox.archivePath);
+    const reader = await nodeWikiGraphPlatform.zip.open(file);
+    const entries = [];
+    try {
+      for (const name of await reader.listEntries()) {
+        entries.push({ name, data: (await reader.readEntry(name))! });
+      }
+    } finally {
+      await reader.close();
+    }
+    const source = entries.find((entry) =>
+      /^texts\/source\/\d+\.txt$/u.test(entry.name),
+    );
+    expect(source).toBeDefined();
+    // Preserve sentence offsets: this fixture changes only the ZIP alias.
+    const replacement = "Changed content.";
+    // Repeat the earlier raw name after the alias: its last contents must not
+    // change which distinct normalized name wins.
+    await nodeWikiGraphPlatform.zip.write(file, [
+      ...entries,
+      {
+        name: `./${source!.name}`,
+        data: new TextEncoder().encode(replacement),
+      },
+      source!,
+    ]);
+    const result = await sandbox.run([`${chapter.locatedUri}/source`]);
+    expect(result).toEqual({
+      exitCode: 0,
+      stderr: "",
+      stdout: `${replacement}\n`,
+    });
+  });
+
   it("installs the consumer project with only wiki-graph as a direct dependency", async () => {
     const { installRoot } = inject("cliE2E");
     const manifest: unknown = JSON.parse(

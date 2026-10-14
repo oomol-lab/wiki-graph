@@ -457,7 +457,10 @@ async function openNativeNodeDatabase(
   });
 }
 
-async function openNodeZip(file: ReadonlyFile): Promise<HostZipReader> {
+async function openNodeZip(
+  file: ReadonlyFile,
+  options: { readonly entryNameMode?: "raw" | "normalized" } = {},
+): Promise<HostZipReader> {
   const path = getBrandedNodeResourcePath(file, "file");
   if (path === undefined) {
     throw new TypeError("The Node ZIP adapter requires a NodeFile");
@@ -534,7 +537,10 @@ async function openNodeZip(file: ReadonlyFile): Promise<HostZipReader> {
           alias = entry;
         }
       });
-      if (exact === undefined && aliasCollision) {
+      if (
+        (exact === undefined || options.entryNameMode === "normalized") &&
+        aliasCollision
+      ) {
         // The former Map ordered aliases by the first occurrence of each raw
         // name, but used its last duplicate's contents. Resolve this uncommon
         // ambiguity with rescans instead of retaining a set of all raw names.
@@ -563,7 +569,10 @@ async function openNodeZip(file: ReadonlyFile): Promise<HostZipReader> {
           candidates.close();
         }
       }
-      return await operation(zip, exact ?? alias);
+      return await operation(
+        zip,
+        options.entryNameMode === "normalized" ? alias : (exact ?? alias),
+      );
     });
   return {
     close: () => {

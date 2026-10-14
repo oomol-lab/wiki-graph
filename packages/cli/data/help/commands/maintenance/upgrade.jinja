@@ -2,7 +2,7 @@ Help Type: command
 Command: {{ commandName }} maintenance upgrade
 
 Purpose:
-  Explicitly upgrade persistent Wiki Graph data. Home state may be upgraded automatically before real commands; user archives and libraries are upgraded only through this maintenance command.
+  Explicitly upgrade persistent Wiki Graph data. Ordinary commands check schema versions and never upgrade Home, archives, or libraries automatically.
 
 Usage:
   {{ commandName }} maintenance upgrade <target> [--json]
@@ -16,7 +16,7 @@ Targets:
 
 Notes:
   - This maintenance command accepts filesystem paths. URI-targeted archive/object commands still require Wiki Graph URIs; see `{{ commandName }} help uri`.
-  - Home state may be schema-gated automatically before real commands, but this command is the explicit recovery and batch-upgrade entry point.
+  - An incompatible Home schema blocks ordinary commands and reports the manual upgrade command. Help and --version remain available without upgrading state.
   - Internal SQLite files are part of the home target and are not user-facing upgrade targets.
   - Standalone .wikg, home, and library targets are upgraded in place and do not support --output.
   - Library archive member URIs such as wikg://lib/arc/<archive-id>/ are not standalone upgrade targets; upgrade the whole library.

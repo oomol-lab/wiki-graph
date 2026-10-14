@@ -159,7 +159,12 @@ export interface HostZipReader {
 }
 
 export interface HostZipProvider {
-  open(file: ReadonlyFile): Promise<HostZipReader>;
+  /** Normalized lookups use the last distinct raw name in directory order,
+   * then the last entry with that raw name. No directory cache is required. */
+  open(
+    file: ReadonlyFile,
+    options?: { readonly entryNameMode?: "raw" | "normalized" },
+  ): Promise<HostZipReader>;
   /** Writes entries while allowing large payloads to remain file-backed. */
   write(
     file: File,

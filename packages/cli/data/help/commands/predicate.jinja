@@ -128,7 +128,7 @@ Notes:
 {% if "/index/embedding/summary" in uri %}
   - Summary embedding artifacts require an existing non-empty chapter summary.
 {% endif %}
-  - After artifacts change, sync the archive or library index cache before library query; archive-level query can create a missing archive cache from current artifacts on first use.
+  - After artifacts change, explicitly sync the archive or library index cache before querying. Queries never create or rebuild missing/dirty caches.
 {% elif predicate == "add" and target.name == "chapter-collection-scope" %}
 Purpose:
   Add a chapter to the archive.
@@ -455,7 +455,7 @@ Notes:
   - It reads chapter index artifacts from the archive and does not call an embeddings provider.
   - If required chapter artifacts are missing, sync reports that artifact readiness problem instead of building them.
   - Add `--skip-unindexed` only when you intentionally want the cache to include indexed chapters and ignore uncovered chapters.
-  - Archive-level query can create a missing cache from current artifacts on first use, but explicit sync avoids the first-query delay.
+  - Archive-level query requires a current cache and never builds it implicitly. Run this sync command before querying a missing or dirty cache.
   - If query reports a missing or outdated cache, run this sync command before retrying.
   - With `--jsonl`, progress is emitted as line-delimited event records.
 {% endif %}
