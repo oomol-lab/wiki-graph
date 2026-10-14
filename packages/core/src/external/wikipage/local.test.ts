@@ -15,11 +15,15 @@ describe("LocalWikimediaRequestGate", () => {
       .mockResolvedValue(Response.json({ entities: {} }));
     const client = new MediaWikiClient(fetcher, undefined, gate, {
       timeoutMs: 100,
+      retryWaitBudgetMs: 0,
     });
     const first = client.entities(["Q1"]).catch((error: unknown) => error);
     await vi.waitFor(() => expect(fetcher).toHaveBeenCalledOnce());
     const second = client.entities(["Q2"]);
-    expect(await first).toMatchObject({ code: "WIKIMEDIA_TIMEOUT" });
+    expect(await first).toMatchObject({
+      code: "retry-budget-exhausted",
+      cause: { code: "WIKIMEDIA_TIMEOUT" },
+    });
     await expect(second).resolves.toHaveLength(1);
   });
   it("removes an aborted request from the pending queue", async () => {
