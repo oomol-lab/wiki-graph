@@ -14,9 +14,10 @@ import {
 import {
   WikiGraphArchiveFile,
   WikiGraphDirectoryFile,
+  DirectoryDocument,
   type ReadonlyDocument,
 } from "wiki-graph-core";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { NodeDirectory, NodeFile } from "./node-platform.js";
 import { createWikiGraphSDK, type WikiGraphSDK } from "./sdk.js";
@@ -210,6 +211,7 @@ const ARTIFACT_EXPECTATIONS = {
 } satisfies Record<ChapterJobKind, ArtifactExpectation>;
 
 afterEach(async () => {
+  vi.restoreAllMocks();
   await Promise.all(
     temporaryDirectories
       .splice(0)
@@ -273,9 +275,15 @@ describe("real job artifact application matrix", () => {
         const reopened = await scenario.sdk.archives.open(
           scenario.archive.target,
         );
+        const readSummary = vi.spyOn(
+          DirectoryDocument.prototype,
+          "readSummary",
+        );
         const inspection = await reopened.inspect({
           chapterId: scenario.chapterId,
         });
+        expect(readSummary).not.toHaveBeenCalled();
+        readSummary.mockRestore();
         expect(
           inspection.chapters[0]?.capabilities.readingSummary.completed,
         ).toBe(true);

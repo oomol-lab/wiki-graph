@@ -335,6 +335,15 @@ export class SerialTextStream implements ReadonlySerialTextStream {
     );
   }
 
+  public async exists(): Promise<boolean> {
+    if (this.#fileAccess.getFileSize !== undefined) {
+      return (
+        (await this.#fileAccess.getFileSize(this.#getTextPath())) !== undefined
+      );
+    }
+    return (await this.#fileAccess.readFile(this.#getTextPath())) !== undefined;
+  }
+
   public async readText(): Promise<string | undefined> {
     const content = await this.#fileAccess.readFile(this.#getTextPath());
 

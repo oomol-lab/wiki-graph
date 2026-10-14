@@ -7,7 +7,12 @@ export async function resolveChapterStage(
   chapterId: number,
   fragmentCount: number,
 ): Promise<ChapterStage> {
-  if ((await document.readSummary(chapterId)) !== undefined) {
+  const summary = document.getSummaryFragments(chapterId);
+  const hasSummary =
+    summary.exists === undefined
+      ? (await document.readSummary(chapterId)) !== undefined
+      : await summary.exists();
+  if (hasSummary) {
     return "summarized";
   }
   if ((await document.serials.getById(chapterId))?.topologyReady === true) {
