@@ -49,10 +49,6 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Run tests
-        # Keep real filesystem/SQLite/ZIP behavior without hosted-disk fsync
-        # variance. These fixtures test process isolation, not host reboot durability.
-        env:
-          TMPDIR: /dev/shm
         run: pnpm test:run
 
   package-readiness:

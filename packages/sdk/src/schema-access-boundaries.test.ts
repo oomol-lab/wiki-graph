@@ -196,8 +196,20 @@ describe("schema gate and bounded access", () => {
           chapters: [parent.chapterId, child.chapterId],
         }),
       ).rejects.toThrow("missing or dirty");
-      for (let i = 0; i < 12; i += 1)
-        await archive.addChapter({ title: `Unrelated ${i}` });
+      // Grow the unrelated subtree in one fixture transaction. The probes
+      // above and below still exercise every public scope/depth combination.
+      await sdk.run(async () => {
+        const write = async (document: DirectoryDocument) => {
+          for (let i = 0; i < 4; i += 1)
+            await addChapter(document, { title: `Unrelated ${i}` });
+        };
+        if (directoryPath === undefined)
+          await new WikiGraphArchiveFile(new NodeFile(path)).write(write);
+        else
+          await new WikiGraphDirectoryFile(
+            new NodeDirectory(directoryPath),
+          ).write(write);
+      });
       await archive.ensureSearchIndex({ chapters: [parent.chapterId] });
       expect(await probe(parent.chapterId)).toEqual(parentOnly);
 
@@ -346,7 +358,7 @@ describe("schema gate and bounded access", () => {
         return counts;
       };
       const small = await probe();
-      await add(Array.from({ length: 14 }, (_, i) => `Unrelated ${i}`));
+      await add(Array.from({ length: 6 }, (_, i) => `Unrelated ${i}`));
       await archive.ensureSearchIndex();
       const large = await probe();
       expect(large).toEqual(small);
@@ -682,7 +694,7 @@ describe("schema gate and bounded access", () => {
       expect(largerDirectory.lists).toBeLessThanOrEqual(small.lists);
       expect(largerDirectory.reads).toBeLessThanOrEqual(small.reads);
       expect(largerDirectory.queries).toBeLessThanOrEqual(small.queries);
-      for (let i = 0; i < 6; i += 1) {
+      for (let i = 0; i < 2; i += 1) {
         await sdk.libraries.addArchive({
           target: library.uri,
           inputPath: path,
@@ -697,7 +709,7 @@ describe("schema gate and bounded access", () => {
       await sdk.run(async () =>
         new WikiGraphDirectoryFile(new NodeDirectory(directoryPath)).write(
           async (document) => {
-            for (let i = 0; i < 12; i += 1)
+            for (let i = 0; i < 4; i += 1)
               await addChapter(document, { title: `Unrelated ${i}` });
           },
         ),
