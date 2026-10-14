@@ -7,6 +7,13 @@ import type {
 import type { JobFile } from "./platform.js";
 
 const nonNegativeInteger = z.number().int().nonnegative();
+export class ChapterJobArtifactVersionError extends Error {
+  public readonly code = "CHAPTER_JOB_ARTIFACT_VERSION_UNSUPPORTED";
+  public constructor() {
+    super("Only embedding artifact metadata version 1 is supported");
+    this.name = "ChapterJobArtifactVersionError";
+  }
+}
 const sentenceFields = {
   sentenceIndex: nonNegativeInteger,
   text: z.string(),
@@ -110,6 +117,14 @@ export async function* readChapterJobArtifact(
   file: JobFile,
 ): AsyncIterable<ChapterJobArtifactRecord> {
   for await (const value of readJsonl(file)) {
+    if (
+      typeof value === "object" &&
+      value !== null &&
+      "type" in value &&
+      value.type === "embedding-metadata" &&
+      (!("version" in value) || value.version !== 1)
+    )
+      throw new ChapterJobArtifactVersionError();
     yield artifactRecordSchema.parse(value) as ChapterJobArtifactRecord;
   }
 }

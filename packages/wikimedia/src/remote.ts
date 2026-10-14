@@ -49,13 +49,13 @@ export class HttpWikimediaResolver implements WikimediaResolver {
   readonly #endpoint: string;
   readonly #fetcher: typeof fetch;
   readonly #token: string;
-  readonly #requestOptions: { readonly timeoutMs?: number };
+  readonly #requestOptions: { readonly timeoutMs?: number | null };
 
   public constructor(
     endpoint: string,
     token: string | undefined,
     fetcher: typeof fetch = fetch,
-    requestOptions: { readonly timeoutMs?: number } = {},
+    requestOptions: { readonly timeoutMs?: number | null } = {},
   ) {
     this.#endpoint = endpoint;
     this.#token = requireToken(token);

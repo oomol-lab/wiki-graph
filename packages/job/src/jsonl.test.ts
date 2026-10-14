@@ -3,12 +3,33 @@ import { describe, expect, it } from "vitest";
 import type { JobFile, JobFileReader, JobFileWriter } from "./platform.js";
 import {
   readChapterJobArtifact,
+  ChapterJobArtifactVersionError,
   readChapterJobInput,
   writeChapterJobArtifact,
   writeChapterJobInput,
 } from "./jsonl.js";
 
 describe("chapter job JSONL files", () => {
+  it.each([0, 2, undefined])(
+    "rejects embedding metadata version %s with a typed error",
+    async (version) => {
+      const file = new MemoryFile();
+      const writer = await file.openWriter();
+      await writer.write(
+        JSON.stringify({
+          type: "embedding-metadata",
+          version,
+          dimensions: 2,
+          model: "model",
+          source: "source",
+        }),
+      );
+      await writer.commit();
+      await expect(
+        collect(readChapterJobArtifact(file)),
+      ).rejects.toBeInstanceOf(ChapterJobArtifactVersionError);
+    },
+  );
   it("writes and incrementally reads input records", async () => {
     const file = new MemoryFile();
     const records = [

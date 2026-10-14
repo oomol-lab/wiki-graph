@@ -35,9 +35,11 @@ describe("MediaWikiClient", () => {
         .mockResolvedValue(Response.json({ entities: {} }));
       const client = new MediaWikiClient(fetcher, undefined, gate, {
         timeoutMs: 30,
+        retryWaitBudgetMs: 0,
       });
       await expect(client.entities(["Q1"])).rejects.toMatchObject({
-        code: "WIKIMEDIA_TIMEOUT",
+        code: "retry-budget-exhausted",
+        cause: { code: "WIKIMEDIA_TIMEOUT" },
       });
       await vi.waitFor(() => expect(active).toBe(0));
       if (stage === "body") expect(cancel).toHaveBeenCalledOnce();
@@ -45,6 +47,45 @@ describe("MediaWikiClient", () => {
       expect(active).toBe(0);
     },
   );
+  it("does not charge gate and retry waits to the per-attempt deadline", async () => {
+    vi.useFakeTimers();
+    try {
+      const fetcher = vi
+        .fn<typeof fetch>()
+        .mockResolvedValueOnce(Response.json({ error: { code: "maxlag" } }))
+        .mockResolvedValueOnce(Response.json({ entities: {} }));
+      const gate = {
+        async use<T>(operation: () => Promise<T>) {
+          await new Promise((resolve) => setTimeout(resolve, 100));
+          return await operation();
+        },
+      };
+      const client = new MediaWikiClient(fetcher, undefined, gate, {
+        timeoutMs: 30,
+        random: () => 0,
+      });
+      const result = client.entities(["Q1"]);
+      const assertion = expect(result).resolves.toHaveLength(1);
+      await vi.advanceTimersByTimeAsync(10_000);
+      await assertion;
+      expect(fetcher).toHaveBeenCalledTimes(2);
+      expect(vi.getTimerCount()).toBe(0);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+  it("retries a timed-out attempt with a fresh deadline", async () => {
+    const fetcher = vi
+      .fn<typeof fetch>()
+      .mockImplementationOnce(() => new Promise(() => undefined))
+      .mockResolvedValue(Response.json({ entities: {} }));
+    const client = new MediaWikiClient(fetcher, undefined, undefined, {
+      timeoutMs: 10,
+      wait: () => Promise.resolve(),
+    });
+    await expect(client.entities(["Q1"])).resolves.toHaveLength(1);
+    expect(fetcher).toHaveBeenCalledTimes(2);
+  });
   it("propagates cancellation to upstream fetch", async () => {
     const fetcher = vi.fn<typeof fetch>().mockImplementation((_input, init) => {
       return new Promise((_resolve, reject) => {
