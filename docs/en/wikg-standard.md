@@ -13,11 +13,22 @@ syntax.
 
 A `.wikg` file is a ZIP archive with a `.wikg` filename extension.
 
+Library-managed archives store the same logical entries in directories and use
+the same manifest/schema. The SDK and CLI select storage transparently and keep
+transactional coordination and recovery for both forms. Export standalone ZIP
+archives for distribution; do not edit managed directory files directly.
+
 Archive entry paths must use `/` separators and must be relative paths. Readers
 normalize incoming ZIP entry names by trimming whitespace, converting `\` to
 `/`, removing leading `/`, and collapsing `.` path components. Entries outside
 the `.wikg` whitelist are ignored by standard readers and are not preserved by
 standard writers.
+
+Logical entry enumeration returns each normalized path once. For legacy ZIPs
+with colliding names, distinct raw names are ordered by their first occurrence;
+the last name wins, using the last entry with that exact raw name. For example,
+`toc.json`, `./toc.json`, `toc.json` selects `./toc.json`. Writers produce one
+canonical entry per path.
 
 The current standard writer stores ZIP entries without compression. Standard
 readers accept stored ZIP entries and deflated ZIP entries.
@@ -70,12 +81,16 @@ its complete JSON shape is:
 
 ```json
 {
-  "formatVersion": 1
+  "formatVersion": 1,
+  "schemaVersion": 5
 }
 ```
 
 Readers must reject archives without `manifest.json`, archives with invalid
 JSON in `manifest.json`, and archives whose `formatVersion` is not supported.
+Ordinary access rejects incompatible schema versions and requires explicit
+maintenance to upgrade older archives. Legacy manifests without `schemaVersion`
+are interpreted as schema v1 for manual migration.
 
 ### `database.db`
 

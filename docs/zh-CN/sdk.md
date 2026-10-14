@@ -82,8 +82,8 @@ Error 方法和 stack。文件缺失、损坏、权限和数据库 I/O 错误不
 `wg maintenance upgrade <library-uri>`。Home v4 必须先手动升级到 v5；Archive schema
 仍为 v5。
 
-目录 Archive 直接读取 manifest 和目标路径。ZIP 冷打开仍需要将中央目录扫描到内存
-查找表（O(文件数)），查询数据库也可能需要物化 SQLite；目录只读查询不复制或哈希整个
+目录 Archive 直接读取 manifest 和目标路径。ZIP 查找按需遍历中央目录
+（O(文件数)），不保留全量条目内存 map，查询数据库也可能需要物化 SQLite；目录只读查询不复制或哈希整个
 数据库。已有搜索缓存也在会话锁保护下直接读取，显式缓存写入保留事务快照。
 全量扫描和 sync 是显式操作。绕过 SDK 的外部修改需要 scan/sync 检出，实际访问
 的成员仍进行局部检查。
@@ -160,6 +160,11 @@ await wikiGraph.openSession(
 
 浏览器适配器可以使用 OPFS、IndexedDB 或其他受限存储实现这些 capability。Core
 把资源 identity 当作不透明协调键，并把 ZIP 与数据库访问留在宿主 provider 后面。
+
+自定义 ZIP adapter 必须支持 WIKG 的
+`zip.open(file, { entryNameMode: "normalized" })`：归一化名称，按原始名称首次
+出现的顺序选择最后一个名称，再读取它最后一次出现的内容。默认/raw 模式保留
+EPUB 等容器的精确名称查找。包装 adapter 时必须转发 options，无需全量目录 cache。
 
 自行管理 worker 或清理进程的 Node 应用可以导入 `wiki-graph-sdk/worker` 和
 `wiki-graph-sdk/gc`。这些函数在当前进程中执行，不会自行创建或调度进程。两个入口

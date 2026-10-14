@@ -89,9 +89,9 @@ for an `upgrade-required` error whose target you retained. In the CLI use
 `wg maintenance upgrade <library-uri>` as indicated by the error. Home v4 must be
 manually upgraded to v5 before other state operations; archive schema remains v5.
 
-Directory archives read manifest and requested paths directly. ZIP cold opening
-scans the central directory into an in-memory map (O(files)); ZIP database queries
-may materialize a database. Directory read-only queries avoid database copying and
+Directory archives read manifest and requested paths directly. ZIP lookups scan
+the central directory on demand (O(files)) without retaining a full entry map;
+ZIP database queries may materialize a database. Directory read-only queries avoid database copying and
 hashing. Existing search caches are also read directly under a session lock; explicit
 cache writers retain transactional snapshots. Full scans and sync remain explicit. External changes outside SDK writes
 require scan/sync; accessed members still receive local checks.
@@ -205,6 +205,12 @@ await wikiGraph.openSession(
 Browser adapters may back these capabilities with OPFS, IndexedDB, or another
 scoped store. Core treats resource identities as opaque coordination keys and
 keeps ZIP and database access behind host providers.
+
+Custom ZIP adapters must honor `zip.open(file, { entryNameMode: "normalized" })`
+for WIKG access: normalize names, choose the last distinct raw name in
+first-occurrence order, and read its last duplicate. Default/raw mode retains
+exact-name lookup for EPUB and other containers. Wrappers must forward the
+options; an eager full-directory cache is not required.
 
 Node applications that own worker or cleanup processes can import
 `wiki-graph-sdk/worker` and `wiki-graph-sdk/gc`. These functions run in the

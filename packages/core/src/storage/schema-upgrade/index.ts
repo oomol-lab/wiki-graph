@@ -89,7 +89,9 @@ export async function readWikiGraphArchiveSchemaVersion(
             return file === undefined ? undefined : await readFileBytes(file);
           })()
         : await (async () => {
-            const reader = await getWikiGraphPlatform().zip.open(archive);
+            const reader = await getWikiGraphPlatform().zip.open(archive, {
+              entryNameMode: "normalized",
+            });
             try {
               return await reader.readEntry(WIKG_MANIFEST_PATH);
             } finally {

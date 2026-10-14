@@ -36,7 +36,8 @@ write the target schema marker.
 
 ## Archive Gate
 
-Archive schema belongs to each `.wikg` file. The archive gate runs at archive
+Archive schema belongs to each standalone `.wikg` file or managed directory.
+Both forms use manifest format v1 and archive schema v5. The archive gate runs at archive
 open/upgrade boundaries and covers archive entries such as `database.db`, an
 embedded `index.db`, and legacy embedded `fts.db`. It must not be reimplemented
 across query/list/search/evidence business paths.
@@ -138,7 +139,8 @@ normal file and directory operations.
 After v4, registered library folders remain opaque host capabilities because
 the default library can also be rebound. Build queue rows store deterministic
 `library`-root-relative locators for workspace, cache, log, and event resources.
-Opening an older queue migrates those four derived columns in place.
+Legacy queue state is invalidated by explicit Home maintenance; ordinary opening
+does not migrate those derived columns in place.
 Coordinator snapshot rows use `documentStore`-relative paths; the old workspace
 identity remains a read-only compatibility fallback for already persisted
 overlays.
@@ -163,12 +165,11 @@ physical identities for bounded archive ownership checks. Ordinary opening never
 adds columns or rebuilds membership tables. The marker is written last. Existing
 Library projections without readiness summaries require explicit index sync.
 
-After a home `core.sqlite` file is confirmed current, the home gate may memoize
-that result inside the current process for hot gated access. The memo must be
-bound to both the resolved `core.sqlite` path and a file fingerprint (`dev`,
-`ino`, `mtimeMs`, `size`), so replacing, deleting/recreating, or rewriting the
-same path forces the next gated access to re-read the home schema version before
-opening other home SQLite state.
+The Home gate reads the version marker on each gated access. It does not memoize
+a permanent ready flag or inspect every table/member. Replacing, deleting,
+recreating, or rewriting `core.sqlite` is therefore checked on the next access.
+Library registration/membership share Home schema v5; there is no independent
+Library schema marker and library lookup does not check all members.
 
 ## Product Upgrade Entry Points
 
@@ -224,7 +225,8 @@ scenarios, remaps library identities, removes copied credentials and transient
 work, and verifies source file hashes remain unchanged. External library paths
 and symlinks are rejected rather than followed.
 
-Validation on 2026-10-12 passed all three scenarios (4, 1, and 4 ZIP conversions).
+Validation on 2026-10-14 passed all three scenarios (4, 1, and 4 ZIP conversions),
+including explicit Home v4 -> v5 maintenance on each fresh copy before reads.
 Assertions include SQLite integrity and foreign keys, identical main database
 dumps and archive entry hashes, unchanged membership IDs/URIs/tokens, graph
 inventories (Cambridge: 9/17/14 chunks/entities/triples; DeepSeek OCR: 52/12/11),

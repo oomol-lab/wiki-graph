@@ -35,6 +35,7 @@ export class WikgArchiveReader {
         ? await openDirectoryArchive(fileRef)
         : await getWikiGraphPlatform().zip.open(
             await resolveHostReadonlyFile(fileRef),
+            { entryNameMode: "normalized" },
           );
     try {
       await assertCurrentArchive(
@@ -53,10 +54,13 @@ export class WikgArchiveReader {
   }
 
   public async listEntries(): Promise<readonly string[]> {
-    return (await this.#reader.listEntries())
-      .map(normalizeArchivePath)
-      .filter(isReadableWikgArchivePath)
-      .sort((left, right) => left.localeCompare(right));
+    return [
+      ...new Set(
+        (await this.#reader.listEntries())
+          .map(normalizeArchivePath)
+          .filter(isReadableWikgArchivePath),
+      ),
+    ].sort((left, right) => left.localeCompare(right));
   }
 
   public async readEntry(entryPath: string): Promise<Uint8Array | undefined> {
@@ -127,6 +131,7 @@ export async function readWikgArchiveMutationToken(
   }
   const reader = await getWikiGraphPlatform().zip.open(
     await resolveHostReadonlyFile(file),
+    { entryNameMode: "normalized" },
   );
   try {
     const content = await reader.readEntry(WIKG_MUTATION_TOKEN_PATH);

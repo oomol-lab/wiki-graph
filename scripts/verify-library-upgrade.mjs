@@ -160,6 +160,9 @@ try {
     for (const name of ["jobs", "cache", "tmp", "documents", "staging"]) {
       await rm(join(state, name), { force: true, recursive: true });
     }
+    // The old Home must be explicitly upgraded before even baseline reads.
+    // This affects only the fresh scenario copy, never the source sample.
+    await cli(state, ["maintenance", "upgrade", "home", "--json"]);
     const members = JSON.parse(
       sql(
         core,

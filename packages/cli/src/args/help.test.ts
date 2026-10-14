@@ -289,6 +289,12 @@ describe("cli/args/help", () => {
     expect(renderMaintenanceCommandHelpText("upgrade")).toContain(
       "wg maintenance upgrade home",
     );
+    expect(renderMaintenanceCommandHelpText("upgrade")).toContain(
+      "never upgrade Home, archives, or libraries automatically",
+    );
+    expect(renderMaintenanceCommandHelpText("upgrade")).not.toContain(
+      "may be upgraded automatically",
+    );
   });
 
   it("prints help topic pages", () => {
@@ -622,7 +628,7 @@ describe("cli/args/help", () => {
       "`wg <archive-uri>/index sync` builds or repairs local `index.db` cache from artifacts",
     );
     expect(renderHelpTopicText("readiness")).toContain(
-      "Archive-level query can create a missing cache from current artifacts on first use",
+      "Archive and library queries never create or rebuild missing/dirty caches",
     );
     expect(renderHelpTopicText("readiness")).toContain(
       "Broad query is grouped by result type first",

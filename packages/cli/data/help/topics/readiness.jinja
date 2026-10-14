@@ -31,7 +31,7 @@ Archive index readiness:
   Cache behavior:
     `{{ commandName }} <archive-uri>/index sync` builds or repairs local `index.db` cache from artifacts.
     Sync does not build missing artifacts and does not call an embeddings provider.
-    Archive-level query can create a missing cache from current artifacts on first use, but explicit sync avoids the first-query delay.
+    Archive and library queries never create or rebuild missing/dirty caches. Sync explicitly before querying.
     If query reports a missing or outdated cache, run `{{ commandName }} <archive-uri>/index sync`; library query always requires a current library cache.
     `{{ commandName }} <archive-uri>/index clean` deletes only the local cache.
 
@@ -147,9 +147,9 @@ WikiSpine readiness:
     https://raw.githubusercontent.com/oomol-lab/wiki-graph/refs/heads/main/docs/wikispine-runtime.md
 
 How to choose:
-  - Need lexical retrieval: build chapter FTS artifacts, then sync cache if you do not want lazy sync.
+  - Need lexical retrieval: build chapter FTS artifacts, then explicitly sync the index cache before querying.
   - Need semantic retrieval: configure embeddings, build source embedding artifacts, then sync cache.
-  - Need both lexical and semantic retrieval: build both FTS and source embedding artifacts, then sync the archive index cache if it already exists or query reports it outdated; query can create a missing archive cache and chooses Hybrid automatically once the cache is current.
+  - Need both lexical and semantic retrieval: build both FTS and source embedding artifacts, then explicitly sync the archive index cache. Hybrid uses both compatible channels once the cache is current.
   - Need searchable retrieval across a managed folder: sync the library index cache.
   - Need to intentionally drop local cache: clean index cache; artifacts remain in the archive.
   - Need generated Reading Graph or summaries: configure LLM and use local jobs.

@@ -1,5 +1,26 @@
 # Changelog
 
+## 0.9.1
+
+- Require explicit Home/Archive schema upgrades and index sync; ordinary SDK/CLI access checks versions and readiness without full member scans or implicit rebuilds.
+- Upgrade Home schema from v4 to v5 through manual maintenance, adding indexed physical identities and migrating membership columns. Archive schema remains v5.
+- Replace the ZIP entry metadata cache with on-demand lookups while preserving legacy normalized-name precedence and unique logical entry enumeration.
+- Centralize SDK object types as discriminated unions and expose optional raw `ftsScore` and `embeddingScore` on sentence hits and attributable source evidence. CLI output and ranking remain unchanged.
+
+### Migration from 0.9.0
+
+Update `wiki-graph-core`, `wiki-graph-sdk`, and `wiki-graph` together to `0.9.1`.
+Back up Home and registered Library folders, stop active jobs, then run
+`wg maintenance upgrade home`. Ordinary access rejects Home v4 and never upgrades
+it automatically. Existing v5 archives, including managed directories, need no
+archive migration. Libraries share the Home schema and have no separate schema
+version.
+
+Run `wg <archive-uri>/index sync` and `wg <library-uri>/index sync` before querying
+old projections that lack readiness summaries, or after artifacts/members change.
+Sync rebuilds derived caches from existing artifacts; it does not generate missing
+artifacts or call an embeddings provider. See [the schema upgrade guide](docs/schema-upgrade.md).
+
 ## 0.9.0
 
 - Store Library-managed archives as directories while keeping standalone `.wikg` archives as ZIP files for distribution.
