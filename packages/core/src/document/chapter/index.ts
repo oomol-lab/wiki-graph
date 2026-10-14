@@ -15,3 +15,4 @@ export {
   type ChapterTree,
   type ChapterTreeNode,
 } from "./types.js";
+export { resolveChapterStage } from "./completion.js";

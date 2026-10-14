@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, rm } from "fs/promises";
+import { mkdir, mkdtemp, rm, writeFile } from "fs/promises";
 import { tmpdir } from "os";
 import { join } from "path";
 
@@ -6,6 +6,7 @@ import {
   CHAPTER_JOB_KINDS,
   executeChapterJobFile,
   readChapterJobArtifact,
+  writeChapterJobInput,
   type ChapterJobArtifactRecord,
   type ChapterJobKind,
   type JobLlm,
@@ -13,9 +14,10 @@ import {
 import {
   WikiGraphArchiveFile,
   WikiGraphDirectoryFile,
+  DirectoryDocument,
   type ReadonlyDocument,
 } from "wiki-graph-core";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { NodeDirectory, NodeFile } from "./node-platform.js";
 import { createWikiGraphSDK, type WikiGraphSDK } from "./sdk.js";
@@ -209,6 +211,7 @@ const ARTIFACT_EXPECTATIONS = {
 } satisfies Record<ChapterJobKind, ArtifactExpectation>;
 
 afterEach(async () => {
+  vi.restoreAllMocks();
   await Promise.all(
     temporaryDirectories
       .splice(0)
@@ -220,6 +223,145 @@ afterEach(async () => {
 });
 
 describe("real job artifact application matrix", () => {
+  it.each(ARCHIVE_IDENTITIES)(
+    "%s preserves empty-summary completion through generation, apply, reopen, and reset",
+    async (identity) => {
+      const scenario = await createScenario(identity, "reading-summary");
+      try {
+        const inputPath = join(scenario.root, "empty-summary-input.jsonl");
+        await writeFile(inputPath, "");
+        await writeChapterJobInput(new NodeFile(inputPath), [
+          {
+            fragmentId: 0,
+            sentenceIndex: 0,
+            text: "Reference one.",
+            wordsCount: 2,
+            type: "source-sentence",
+          },
+          {
+            fragmentId: 1,
+            sentenceIndex: 1,
+            text: "Reference two.",
+            wordsCount: 2,
+            type: "source-sentence",
+          },
+        ]);
+        const workspacePath = join(scenario.root, "empty-summary-work");
+        await mkdir(workspacePath);
+        const artifact = await executeChapterJobFile({
+          inputFile: new NodeFile(inputPath),
+          kind: "reading-summary",
+          llm: {
+            request: () =>
+              Promise.reject(new Error("Empty groups must not call the LLM.")),
+          },
+          revision: await readTargetDocument(scenario, (document) =>
+            document.serials.getRevision(scenario.chapterId),
+          ),
+          workspace: new NodeDirectory(workspacePath),
+        });
+        expect(
+          await collect(readChapterJobArtifact(artifact.artifactFile)),
+        ).toEqual([{ position: 0, text: "", type: "summary-part" }]);
+        await applyWikiGraphJobArtifacts({
+          archive: scenario.archive.target,
+          artifacts: oneArtifact({
+            artifactPath: join(workspacePath, artifact.artifactFile.name),
+            chapterId: scenario.chapterId,
+            kind: "reading-summary",
+          }),
+          stateDir: scenario.stateDir,
+        });
+        const reopened = await scenario.sdk.archives.open(
+          scenario.archive.target,
+        );
+        const readSummary = vi.spyOn(
+          DirectoryDocument.prototype,
+          "readSummary",
+        );
+        const inspection = await reopened.inspect({
+          chapterId: scenario.chapterId,
+        });
+        expect(readSummary).not.toHaveBeenCalled();
+        readSummary.mockRestore();
+        expect(
+          inspection.chapters[0]?.capabilities.readingSummary.completed,
+        ).toBe(true);
+        expect(inspection.chapters[0]?.chapter.stage).toBe("summarized");
+        await readTargetDocument(scenario, async (document) => {
+          expect(await document.readSummary(scenario.chapterId)).toBe("");
+          expect(
+            await document
+              .getSummaryFragments(scenario.chapterId)
+              .listFragmentIds(),
+          ).toEqual([]);
+        });
+        const path = inspection.chapters[0]!.chapter.path;
+        await reopened.resetChapter(path, "graphed");
+        expect(
+          (await reopened.inspect({ chapterId: scenario.chapterId }))
+            .chapters[0]?.capabilities.readingSummary.completed,
+        ).toBe(false);
+      } finally {
+        scenario.sdk.close();
+      }
+    },
+    ARTIFACT_MATRIX_TEST_TIMEOUT_MS,
+  );
+
+  it.each([
+    { content: "", error: "missing its summary records" },
+    {
+      content: JSON.stringify({
+        type: "summary-part",
+        position: 1,
+        text: "Gap.",
+      }),
+      error: "contiguous and unique",
+    },
+    {
+      content: [
+        JSON.stringify({ type: "summary-part", position: 0, text: "First." }),
+        JSON.stringify({
+          type: "summary-part",
+          position: 0,
+          text: "Duplicate.",
+        }),
+      ].join("\n"),
+      error: "contiguous and unique",
+    },
+  ])(
+    "rejects an invalid summary artifact without replacing an existing summary: $error",
+    async ({ content, error }) => {
+      const scenario = await createScenario("standalone", "reading-summary");
+      try {
+        const chapter = (
+          await scenario.archive.inspect({ chapterId: scenario.chapterId })
+        ).chapters[0]!.chapter;
+        await scenario.archive.setChapterSummary(chapter.path, SUMMARY);
+        const file = join(scenario.root, "truncated.jsonl");
+        await writeFile(file, content);
+        await expect(
+          applyWikiGraphJobArtifacts({
+            archive: scenario.archive.target,
+            artifacts: oneArtifact({
+              artifactPath: file,
+              chapterId: scenario.chapterId,
+              kind: "reading-summary",
+            }),
+            stateDir: scenario.stateDir,
+          }),
+        ).rejects.toThrow(error);
+        await readTargetDocument(scenario, async (document) => {
+          expect(await document.readSummary(scenario.chapterId)).toBe(SUMMARY);
+        });
+      } finally {
+        scenario.sdk.close();
+      }
+    },
+    ARTIFACT_MATRIX_TEST_TIMEOUT_MS,
+  );
+
   it("keeps the matrix exhaustive when artifact kinds change", () => {
     expect(Object.keys(ARTIFACT_EXPECTATIONS).sort()).toEqual(
       [...CHAPTER_JOB_KINDS].sort(),

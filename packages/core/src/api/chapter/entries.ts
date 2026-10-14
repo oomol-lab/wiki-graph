@@ -9,7 +9,7 @@ import {
   type MutableTocFile,
   type MutableTocItem,
 } from "./tree.js";
-import type { ChapterEntry, ChapterStage } from "./types.js";
+import type { ChapterEntry } from "./types.js";
 
 export async function normalizeChapterToc(
   document: Document,
@@ -256,38 +256,6 @@ async function summarizeSerialSource(
   };
 }
 
-export async function resolveChapterStage(
-  document: ReadonlyDocument,
-  chapterId: number,
-  fragmentCount: number,
-): Promise<ChapterStage> {
-  const summarySentenceCount = await document.readDatabase(
-    async (database) =>
-      (await database.queryOne(
-        `
-          SELECT COUNT(*) AS count
-          FROM text_sentence_records
-          WHERE kind = 2 AND chapter_id = ?
-        `,
-        [chapterId],
-        (row) => Number(row.count),
-      )) ?? 0,
-  );
-
-  if (summarySentenceCount > 0) {
-    return "summarized";
-  }
-
-  const serial = await document.serials.getById(chapterId);
-
-  if (serial?.topologyReady === true) {
-    return "graphed";
-  }
-
-  if (fragmentCount > 0) {
-    return "sourced";
-  }
-
-  return "planned";
-}
+import { resolveChapterStage } from "../../document/chapter/index.js";
+export { resolveChapterStage } from "../../document/chapter/index.js";
 import { WikiGraphError } from "../../runtime/common/error.js";

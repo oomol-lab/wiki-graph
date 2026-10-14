@@ -1,4 +1,5 @@
 import type { ReadonlyDocument } from "../document/index.js";
+import { resolveChapterStage } from "../document/chapter/index.js";
 import { WikiGraphError } from "../runtime/common/error.js";
 import type {
   Directory,
@@ -94,25 +95,11 @@ export class WikiGraphArchive {
         );
       }
 
-      const summary = await document.readSummary(serialId);
-
-      if (summary !== undefined) {
-        return "summarized";
-      }
-
-      const serial = await document.serials.getById(serialId);
-
-      if (serial?.topologyReady === true) {
-        return "graphed";
-      }
-      if (
-        (await document.getSerialFragments(serialId).listFragmentIds()).length >
-        0
-      ) {
-        return "sourced";
-      }
-
-      return "planned";
+      return await resolveChapterStage(
+        document,
+        serialId,
+        (await document.getSerialFragments(serialId).listFragmentIds()).length,
+      );
     });
   }
 

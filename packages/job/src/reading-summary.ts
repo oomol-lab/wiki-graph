@@ -44,7 +44,7 @@ export async function* buildReadingSummaryRecords(options: {
     });
     await options.progress?.throwIfStopped?.();
     const text = await input.fragments.readText();
-    if (text !== "") yield { position: 0, text, type: "summary-part" };
+    yield { position: 0, text, type: "summary-part" };
     await options.progress?.updatePhase?.({
       done: 1,
       phase: "summary-compression",
@@ -87,6 +87,9 @@ export async function* buildReadingSummaryRecords(options: {
       total: groupIds.length,
       unit: "item",
     });
+  }
+  if (position === 0) {
+    yield { position: 0, text: "", type: "summary-part" };
   }
 }
 

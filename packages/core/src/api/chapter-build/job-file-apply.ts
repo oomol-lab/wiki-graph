@@ -205,6 +205,14 @@ async function applyReadingSummary(
     if (record.type === "summary-part") parts.push(record);
   }
   parts.sort((left, right) => left.position - right.position);
+  if (parts.length === 0) {
+    throw new Error("Reading Summary artifact is missing its summary records.");
+  }
+  if (parts.some((part, index) => part.position !== index)) {
+    throw new Error(
+      "Reading Summary artifact positions must be contiguous and unique.",
+    );
+  }
   await commitChapterSummaryArtifact(
     document,
     chapterId,

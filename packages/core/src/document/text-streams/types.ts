@@ -59,6 +59,7 @@ export interface ReadonlyTextStreams {
 }
 
 export interface ReadonlySerialTextStream {
+  exists?(): Promise<boolean>;
   getFragment(fragmentId: number): Promise<FragmentRecord>;
   getSentence?(sentenceIndex: number): Promise<SentenceRecord>;
   listSentencesInRange?(
