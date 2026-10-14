@@ -610,6 +610,13 @@ vi.mock(
 );
 
 vi.mock("../../../packages/core/src/api/index.js", () => ({
+  prepareArchivePage: vi.fn(
+    async (...args: Parameters<typeof WikiGraphCore.prepareArchivePage>) => {
+      const core = await import("wiki-graph-core");
+      const page = await core.readArchivePage(...args);
+      return () => Promise.resolve(page);
+    },
+  ),
   createContinuationCursor: vi.fn(() => Promise.resolve("c_next")),
   findArchiveObjects: vi.fn(
     (

@@ -4,6 +4,7 @@ import {
   listRelatedArchiveObjects,
   packArchiveContext,
   readArchivePage,
+  prepareArchivePage,
 } from "../retrieval/query/archive-view/index.js";
 import { PRECOMPUTED_SEARCH_INDEX_RESULT } from "../retrieval/query/archive-view/query-context.js";
 import {
@@ -344,26 +345,23 @@ export async function readWikiGraphLibraryPage(
   objectUri: string,
   options: Parameters<typeof readArchivePage>[2] = {},
 ): Promise<ArchivePage> {
-  return await withLibraryQueryLock(
+  const prepared = await withLibraryQueryLock(
     target,
     async () =>
-      await readWikiGraphLibraryPageUnlocked(target, objectUri, options),
+      await readIndexedArchiveResults(
+        target,
+        objectUri,
+        async (document, archive) => {
+          const read = await prepareArchivePage(document, objectUri, options);
+          const source = createLibrarySource(archive);
+          return async () => ({ ...(await read()), ...source });
+        },
+      ),
   );
-}
-
-async function readWikiGraphLibraryPageUnlocked(
-  target: ParsedWikiGraphLibraryUri,
-  objectUri: string,
-  options: NonNullable<Parameters<typeof readArchivePage>[2]>,
-): Promise<ArchivePage> {
-  const pages = await readIndexedArchiveResults(
-    target,
-    objectUri,
-    async (document, archive) => ({
-      ...(await readArchivePage(document, objectUri, options)),
-      ...createLibrarySource(archive),
-    }),
-  );
+  // Finish each external resolution before starting the next: the caller owns
+  // one resolver/cache lifetime and must not close it with siblings in flight.
+  const pages: ArchivePage[] = [];
+  for (const read of prepared) pages.push(await read());
 
   const page = createMultiArchivePage(pages);
   if ((page.type === "entity" || page.type === "triple") && pages.length > 1) {

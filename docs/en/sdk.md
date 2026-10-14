@@ -39,6 +39,26 @@ The SDK exposes typed methods and class instances. It intentionally does not
 provide `execute(command, args)`: argument parsing, help, terminal remediation,
 exit codes, and JSON/JSONL rendering belong to `wiki-graph`.
 
+## Wikipedia request isolation and cancellation
+
+`archive.page("wikg://entity/Q42/wikipage", { signal })` and
+`wikiGraph.libraries.page(libraryUri, "wikg://entity/Q42/wikipage", { signal })`
+resolve remote Wikipedia data after releasing local Archive/Library read
+sessions. A stalled or failed request does not block other local reads, searches
+or writes. Local transaction coordination remains in effect.
+
+Wikimedia resolution has a default 120-second deadline across fetch, streaming,
+cache waits and retries; expiry rejects with an error whose `code` is
+`"WIKIMEDIA_TIMEOUT"`. Caller cancellation rejects with the signal's reason.
+Pass your application's cancellation signal rather than only abandoning its
+outer promise:
+
+```ts
+const page = await archive.page("wikg://entity/Q42/wikipage", {
+  signal: AbortSignal.timeout(15_000),
+});
+```
+
 ## Schema versions and explicit maintenance
 
 Constructing the SDK starts no background I/O. Async archive opening and library

@@ -6,6 +6,12 @@ import type {
   WikimediaStreamEvent,
 } from "./types.js";
 
+import {
+  awaitWikimediaRequest,
+  cancelWikimediaBody,
+  createWikimediaRequest,
+} from "./request.js";
+
 const MAX_ENTITIES_PER_REQUEST = 1_000;
 
 export class WikimediaServiceError extends Error {
@@ -43,31 +49,44 @@ export class HttpWikimediaResolver implements WikimediaResolver {
   readonly #endpoint: string;
   readonly #fetcher: typeof fetch;
   readonly #token: string;
+  readonly #requestOptions: { readonly timeoutMs?: number };
 
   public constructor(
     endpoint: string,
     token: string | undefined,
     fetcher: typeof fetch = fetch,
+    requestOptions: { readonly timeoutMs?: number } = {},
   ) {
     this.#endpoint = endpoint;
     this.#token = requireToken(token);
     this.#fetcher = fetcher;
+    this.#requestOptions = requestOptions;
   }
 
   public async *resolve(
     input: readonly WikimediaResolveInput[],
     options?: { readonly signal?: AbortSignal },
   ): AsyncIterable<WikimediaResolvedItem> {
-    for (
-      let offset = 0;
-      offset < input.length;
-      offset += MAX_ENTITIES_PER_REQUEST
-    ) {
-      options?.signal?.throwIfAborted();
-      const batch = input.slice(offset, offset + MAX_ENTITIES_PER_REQUEST);
-      for await (const item of this.#resolveBatch(batch, options)) {
-        yield { index: offset + item.index, resolution: item.resolution };
+    const request = createWikimediaRequest(
+      options?.signal,
+      this.#requestOptions.timeoutMs,
+    );
+    try {
+      for (
+        let offset = 0;
+        offset < input.length;
+        offset += MAX_ENTITIES_PER_REQUEST
+      ) {
+        request.signal.throwIfAborted();
+        const batch = input.slice(offset, offset + MAX_ENTITIES_PER_REQUEST);
+        for await (const item of this.#resolveBatch(batch, {
+          signal: request.signal,
+        })) {
+          yield { index: offset + item.index, resolution: item.resolution };
+        }
       }
+    } finally {
+      request.close();
     }
   }
 
@@ -75,7 +94,7 @@ export class HttpWikimediaResolver implements WikimediaResolver {
     input: readonly WikimediaResolveInput[],
     options?: { readonly signal?: AbortSignal },
   ): AsyncIterable<WikimediaResolvedItem> {
-    const response = await this.#fetcher(resolveEndpoint(this.#endpoint), {
+    const pendingResponse = this.#fetcher(resolveEndpoint(this.#endpoint), {
       body: JSON.stringify({ entities: input }),
       headers: {
         Accept: "application/x-ndjson",
@@ -85,21 +104,40 @@ export class HttpWikimediaResolver implements WikimediaResolver {
       method: "POST",
       ...(options?.signal === undefined ? {} : { signal: options.signal }),
     });
+    // A transport that ignores abort may produce a response after we have settled.
+    void pendingResponse.then(
+      (response) => {
+        if (options?.signal?.aborted === true)
+          cancelWikimediaBody(response.body);
+      },
+      () => undefined,
+    );
+    const response = await awaitWikimediaRequest(
+      pendingResponse,
+      options?.signal,
+    );
     if (!response.ok) {
-      throw new WikimediaServiceError(
-        response.status,
-        await readErrorDetail(response),
-        response.headers.get("x-wg-request-id") ??
-          response.headers.get("x-fc-request-id") ??
-          undefined,
-      );
+      try {
+        throw new WikimediaServiceError(
+          response.status,
+          await awaitWikimediaRequest(
+            readErrorDetail(response),
+            options?.signal,
+          ),
+          response.headers.get("x-wg-request-id") ??
+            response.headers.get("x-fc-request-id") ??
+            undefined,
+        );
+      } finally {
+        cancelWikimediaBody(response.body);
+      }
     }
     const requestId =
       response.headers.get("x-wg-request-id") ??
       response.headers.get("x-fc-request-id") ??
       undefined;
     const received = new Set<number>();
-    for await (const event of readEvents(response)) {
+    for await (const event of readEvents(response, options?.signal)) {
       if (event.type === "heartbeat") continue;
       if (event.type === "resolution") {
         if (event.index >= input.length) {
@@ -178,9 +216,12 @@ function resolveEndpoint(endpoint: string): URL {
 
 async function* readEvents(
   response: Response,
+  signal?: AbortSignal,
 ): AsyncIterable<WikimediaStreamEvent> {
   if (response.body === null) {
-    for (const line of (await response.text()).split(/\r?\n/u)) {
+    for (const line of (
+      await awaitWikimediaRequest(response.text(), signal)
+    ).split(/\r?\n/u)) {
       if (line.trim() !== "") yield parseEvent(line);
     }
     return;
@@ -192,7 +233,10 @@ async function* readEvents(
   let completed = false;
   try {
     while (true) {
-      const { done, value } = await reader.read();
+      const { done, value } = await awaitWikimediaRequest(
+        reader.read(),
+        signal,
+      );
       if (done) {
         completed = true;
         break;
@@ -207,7 +251,8 @@ async function* readEvents(
     buffer += decoder.decode();
     if (buffer.trim() !== "") yield parseEvent(buffer);
   } finally {
-    if (!completed) await reader.cancel();
+    // Cancellation must not block stream failure/timeout settlement.
+    if (!completed) cancelWikimediaBody(reader);
     reader.releaseLock();
   }
 }

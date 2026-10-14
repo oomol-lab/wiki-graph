@@ -1,8 +1,27 @@
 import { describe, expect, it, vi } from "vitest";
 
 import { LocalWikimediaRequestGate } from "./local.js";
+import { MediaWikiClient } from "wiki-graph-wikimedia";
 
 describe("LocalWikimediaRequestGate", () => {
+  it("admits queued requests after an upstream request times out", async () => {
+    const gate = new LocalWikimediaRequestGate({
+      concurrency: 1,
+      intervalMs: 0,
+    });
+    const fetcher = vi
+      .fn<typeof fetch>()
+      .mockImplementationOnce(() => new Promise(() => undefined))
+      .mockResolvedValue(Response.json({ entities: {} }));
+    const client = new MediaWikiClient(fetcher, undefined, gate, {
+      timeoutMs: 100,
+    });
+    const first = client.entities(["Q1"]).catch((error: unknown) => error);
+    await vi.waitFor(() => expect(fetcher).toHaveBeenCalledOnce());
+    const second = client.entities(["Q2"]);
+    expect(await first).toMatchObject({ code: "WIKIMEDIA_TIMEOUT" });
+    await expect(second).resolves.toHaveLength(1);
+  });
   it("removes an aborted request from the pending queue", async () => {
     const gate = new LocalWikimediaRequestGate({
       concurrency: 1,

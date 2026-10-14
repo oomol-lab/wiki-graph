@@ -50,7 +50,7 @@ describe("packed CLI archive lifecycle", () => {
     );
     const version = await sandbox.run(["--version"]);
     expect(version.exitCode).toBe(0);
-    expect(version.stdout).toContain("0.9.1");
+    expect(version.stdout).toContain("0.9.2");
     expect(await readVersion()).toBe(4);
     const upgraded = await sandbox.run([
       "maintenance",

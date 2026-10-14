@@ -37,6 +37,23 @@ SDK 暴露逐项、类型化的方法和 class 实例，并且有意不提供
 `execute(command, args)`。argv 解析、help、终端 remediation、退出码以及
 JSON/JSONL 渲染属于 `wiki-graph`。
 
+## Wikipedia 请求隔离与取消
+
+`archive.page("wikg://entity/Q42/wikipage", { signal })` 和
+`wikiGraph.libraries.page(libraryUri, "wikg://entity/Q42/wikipage", { signal })`
+会先释放 Archive／Library 本地读取 session，再请求远程 Wikipedia 数据。
+远程请求挂起或失败不会阻塞其他本地读取、搜索或写入；本地事务协调机制保持有效。
+
+Wikimedia 解析默认限时 120 秒，覆盖 fetch、响应流、缓存等待及重试。
+超时会抛出 `code` 为 `"WIKIMEDIA_TIMEOUT"` 的错误，主动取消则保留 signal 的 reason。
+应用应传入自己的取消信号，而不是仅放弃等待外层 Promise：
+
+```ts
+const page = await archive.page("wikg://entity/Q42/wikipage", {
+  signal: AbortSignal.timeout(15_000),
+});
+```
+
 ## Schema 版本与显式维护
 
 SDK 同步构造不会启动后台 I/O。异步打开 Archive、获取 Library 会在返回对象前

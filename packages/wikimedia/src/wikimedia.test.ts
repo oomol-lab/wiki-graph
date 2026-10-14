@@ -4,6 +4,47 @@ import type { UpstreamError } from "./wikimedia.js";
 import { MediaWikiClient } from "./wikimedia.js";
 
 describe("MediaWikiClient", () => {
+  it.each(["fetch", "body"])(
+    "bounds stalled %s and releases the request gate",
+    async (stage) => {
+      let active = 0;
+      const gate = {
+        use: async <T>(operation: () => Promise<T>) => {
+          active += 1;
+          try {
+            return await operation();
+          } finally {
+            active -= 1;
+          }
+        },
+      };
+      const cancel = vi.fn(() => new Promise<void>(() => undefined));
+      const stalled = {
+        ok: true,
+        headers: new Headers(),
+        body: { cancel },
+        json: () => new Promise(() => undefined),
+      } as unknown as Response;
+      const fetcher = vi
+        .fn<typeof fetch>()
+        .mockImplementationOnce(() =>
+          stage === "fetch"
+            ? new Promise(() => undefined)
+            : Promise.resolve(stalled),
+        )
+        .mockResolvedValue(Response.json({ entities: {} }));
+      const client = new MediaWikiClient(fetcher, undefined, gate, {
+        timeoutMs: 30,
+      });
+      await expect(client.entities(["Q1"])).rejects.toMatchObject({
+        code: "WIKIMEDIA_TIMEOUT",
+      });
+      await vi.waitFor(() => expect(active).toBe(0));
+      if (stage === "body") expect(cancel).toHaveBeenCalledOnce();
+      await expect(client.entities(["Q1"])).resolves.toHaveLength(1);
+      expect(active).toBe(0);
+    },
+  );
   it("propagates cancellation to upstream fetch", async () => {
     const fetcher = vi.fn<typeof fetch>().mockImplementation((_input, init) => {
       return new Promise((_resolve, reject) => {
@@ -27,7 +68,7 @@ describe("MediaWikiClient", () => {
     controller.abort(new Error("cancelled"));
 
     await expect(request).rejects.toThrow("cancelled");
-    expect(fetcher.mock.calls[0]?.[1]?.signal).toBe(controller.signal);
+    expect(fetcher.mock.calls[0]?.[1]?.signal?.aborted).toBe(true);
   });
 
   it("batches Wikidata entities without changing their order", async () => {
@@ -181,7 +222,7 @@ describe("MediaWikiClient", () => {
     });
 
     await expect(client.entities(["Q1"])).resolves.toHaveLength(1);
-    expect(wait).toHaveBeenCalledWith(5_000, undefined);
+    expect(wait).toHaveBeenCalledWith(5_000, expect.any(AbortSignal));
   });
 });
 

@@ -12,6 +12,11 @@ import {
   createWikimediaRetryBudget,
   DEFAULT_WIKIMEDIA_RETRY_WAIT_BUDGET_MS,
 } from "./retry.js";
+import {
+  awaitWikimediaRequest,
+  cancelWikimediaBody,
+  createWikimediaRequest,
+} from "./request.js";
 
 export type WikimediaUpstreamErrorKind =
   | "api"
@@ -37,6 +42,7 @@ export class UpstreamError extends Error {
 }
 
 export interface MediaWikiRetryOptions {
+  readonly timeoutMs?: number;
   readonly random?: () => number;
   readonly retryWaitBudgetMs?: number;
   readonly wait?: (ms: number, signal?: AbortSignal) => Promise<void>;
@@ -52,6 +58,7 @@ export class MediaWikiClient implements WikimediaClient {
   readonly #random: () => number;
   readonly #retryWaitBudgetMs: number;
   readonly #wait: (ms: number, signal?: AbortSignal) => Promise<void>;
+  readonly #timeoutMs: number | undefined;
 
   public constructor(
     private readonly fetcher: typeof fetch = fetch,
@@ -65,6 +72,7 @@ export class MediaWikiClient implements WikimediaClient {
     this.#retryWaitBudgetMs =
       retry.retryWaitBudgetMs ?? DEFAULT_WIKIMEDIA_RETRY_WAIT_BUDGET_MS;
     this.#wait = retry.wait ?? delay;
+    this.#timeoutMs = retry.timeoutMs;
   }
 
   async entities(
@@ -251,14 +259,30 @@ export class MediaWikiClient implements WikimediaClient {
   }
 
   private async get(url: URL, options: WikimediaRequestOptions): Promise<any> {
+    const request = createWikimediaRequest(options.signal, this.#timeoutMs);
+    try {
+      return await awaitWikimediaRequest(
+        this.getWithinDeadline(url, { ...options, signal: request.signal }),
+        request.signal,
+      );
+    } finally {
+      request.close();
+    }
+  }
+
+  private async getWithinDeadline(
+    url: URL,
+    options: WikimediaRequestOptions,
+  ): Promise<any> {
     url.searchParams.set("maxlag", "5");
     for (let attempt = 0; ; attempt += 1) {
       options?.signal?.throwIfAborted();
       try {
         return await this.gate.use(async () => {
+          options.signal?.throwIfAborted();
           let response: Response;
           try {
-            response = await this.fetcher(url, {
+            const pending = this.fetcher(url, {
               headers: {
                 "Accept-Encoding": "gzip",
                 "User-Agent": this.userAgent,
@@ -267,6 +291,14 @@ export class MediaWikiClient implements WikimediaClient {
                 ? {}
                 : { signal: options.signal }),
             });
+            void pending.then(
+              (late) => {
+                if (options.signal?.aborted === true)
+                  cancelWikimediaBody(late.body);
+              },
+              () => undefined,
+            );
+            response = await awaitWikimediaRequest(pending, options.signal);
           } catch (error) {
             if (options.signal?.aborted === true) {
               throw options.signal.reason ?? error;
@@ -281,36 +313,43 @@ export class MediaWikiClient implements WikimediaClient {
               { cause: error },
             );
           }
-          const retryAfterMs = parseRetryAfter(
-            response.headers.get("retry-after"),
-          );
-          if (!response.ok) {
-            const classification = classifyHttpStatus(response.status);
-            throw new UpstreamError(
-              response.status,
-              retryAfterMs,
-              `Wikimedia ${response.status}`,
-              classification.kind,
-              `http-${response.status}`,
-              classification.retryable,
+          try {
+            const retryAfterMs = parseRetryAfter(
+              response.headers.get("retry-after"),
             );
-          }
-          const json = await response.json();
-          if (json.error !== undefined) {
-            const code = readErrorText(json.error.code) ?? "unknown";
-            const detail = readErrorText(json.error.info);
-            const isMaxlag = code === "maxlag";
-            const isRateLimited = code === "ratelimited";
-            throw new UpstreamError(
-              isMaxlag ? 503 : isRateLimited ? 429 : 502,
-              isMaxlag ? (retryAfterMs ?? 5000) : retryAfterMs,
-              `Wikimedia ${code}${detail === undefined ? "" : `: ${detail}`}`,
-              isMaxlag ? "maxlag" : isRateLimited ? "rate-limit" : "api",
-              code,
-              isMaxlag || isRateLimited,
+            if (!response.ok) {
+              const classification = classifyHttpStatus(response.status);
+              throw new UpstreamError(
+                response.status,
+                retryAfterMs,
+                `Wikimedia ${response.status}`,
+                classification.kind,
+                `http-${response.status}`,
+                classification.retryable,
+              );
+            }
+            const json = await awaitWikimediaRequest(
+              response.json(),
+              options.signal,
             );
+            if (json.error !== undefined) {
+              const code = readErrorText(json.error.code) ?? "unknown";
+              const detail = readErrorText(json.error.info);
+              const isMaxlag = code === "maxlag";
+              const isRateLimited = code === "ratelimited";
+              throw new UpstreamError(
+                isMaxlag ? 503 : isRateLimited ? 429 : 502,
+                isMaxlag ? (retryAfterMs ?? 5000) : retryAfterMs,
+                `Wikimedia ${code}${detail === undefined ? "" : `: ${detail}`}`,
+                isMaxlag ? "maxlag" : isRateLimited ? "rate-limit" : "api",
+                code,
+                isMaxlag || isRateLimited,
+              );
+            }
+            return json;
+          } finally {
+            cancelWikimediaBody(response.body);
           }
-          return json;
         }, options);
       } catch (error) {
         if (!isRetryable(error)) throw error;
@@ -321,12 +360,18 @@ export class MediaWikiClient implements WikimediaClient {
           if (budget.remainingMs > 0) {
             const remainingMs = budget.remainingMs;
             budget.consume(remainingMs);
-            await this.#wait(remainingMs, options.signal);
+            await awaitWikimediaRequest(
+              this.#wait(remainingMs, options.signal),
+              options.signal,
+            );
           }
           throw retryBudgetError(error);
         }
         budget.consume(waitMs);
-        await this.#wait(waitMs, options.signal);
+        await awaitWikimediaRequest(
+          this.#wait(waitMs, options.signal),
+          options.signal,
+        );
       }
     }
   }

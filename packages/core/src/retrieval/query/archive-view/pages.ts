@@ -225,6 +225,30 @@ export async function readArchivePage(
   }
 }
 
+/** Materialize local pages now, but defer external I/O until the session has closed. */
+export async function prepareArchivePage(
+  document: ReadonlyDocument,
+  id: string,
+  options: ArchivePageOptions = {},
+): Promise<() => Promise<ArchivePage>> {
+  if (isWikiGraphObjectUri(id)) {
+    const displayUri = normalizeWikiGraphObjectUri(id);
+    if (displayUri.endsWith("/wikipage")) {
+      const uri = await resolveChapterPathObjectUri(document, displayUri);
+      const reference = parseWikiGraphReference(uri);
+      if (reference.type === "entity-wikipage") {
+        return async () => ({
+          ...(await resolveEntityWikipage(reference.qid, options)),
+          id: displayUri,
+          type: "entity-wikipage",
+        });
+      }
+    }
+  }
+  const page = await readArchivePage(document, id, options);
+  return async () => page;
+}
+
 async function resolveChapterPathObjectUri(
   document: ReadonlyDocument,
   uri: string,

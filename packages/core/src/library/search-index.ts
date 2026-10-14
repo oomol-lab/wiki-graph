@@ -489,10 +489,15 @@ function parseIndexedObjectUri(objectUri: string):
     }
   | undefined {
   const path = objectUri.replace(/^wikg:\/\/|\/+$/gu, "");
-  const match = /^(?:chapter\/[1-9][0-9]*\/)?(chunk|entity)\/([^/]+)$/u.exec(
-    path,
-  );
-  if (match?.[1] === undefined || match[2] === undefined) {
+  const match =
+    /^(?:chapter\/[1-9][0-9]*\/)?(chunk|entity)\/([^/]+)(\/wikipage)?$/u.exec(
+      path,
+    );
+  if (
+    match?.[1] === undefined ||
+    match[2] === undefined ||
+    (match[3] !== undefined && match[1] !== "entity")
+  ) {
     return undefined;
   }
 

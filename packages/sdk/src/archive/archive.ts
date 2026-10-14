@@ -29,7 +29,7 @@ import {
   moveChapter,
   packArchiveContext,
   parseLocatedWikiGraphUri,
-  readArchivePage,
+  prepareArchivePage,
   readSearchIndexCapabilityStatus,
   rebuildArchiveSearchIndex,
   removeChapter,
@@ -862,15 +862,17 @@ export class WikiGraphArchiveHandle {
       async () =>
         await withConfiguredWikimediaResolver(
           objectUri,
-          async (wikimediaOptions) =>
-            await this.#readDocument(
+          async (wikimediaOptions) => {
+            const read = await this.#readDocument(
               async (document) =>
-                await readArchivePage(document, objectUri, {
+                await prepareArchivePage(document, objectUri, {
                   ...options,
                   ...wikimediaOptions,
                 }),
               options,
-            ),
+            );
+            return await read();
+          },
         ),
       options.signal,
     );
