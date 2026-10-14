@@ -822,8 +822,7 @@ async function readQueueReadinessReason(
     return "planned";
   }
   if (target === "index-embedding-summary") {
-    const summary = await document.readSummary(chapter.chapterId);
-    if (summary === undefined || summary.trim() === "") {
+    if (chapter.stage !== "summarized") {
       return "missing summary";
     }
   }

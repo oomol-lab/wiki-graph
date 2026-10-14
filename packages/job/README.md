@@ -20,3 +20,8 @@ Applying an explicit empty summary creates a present, empty summary text
 stream. Chapter stage, SDK inspection, and CLI state therefore report it as
 completed even though it has no sentences. Missing and empty summaries are
 distinct; resetting the reading graph or changing source removes completion.
+
+An empty summary-embedding snapshot is valid for a completed empty summary.
+Like an empty source-embedding snapshot, it produces an `embedding-metadata`
+record with no segments and does not call the embedding provider. Applying it
+creates a current empty index, distinct from a missing index.

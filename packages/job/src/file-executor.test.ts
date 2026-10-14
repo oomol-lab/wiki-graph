@@ -119,26 +119,42 @@ describe("file-based chapter jobs", () => {
     ]);
   });
 
-  it("rejects an empty summary embedding input at execution time", async () => {
-    const inputFile = new MemoryJobFile("input.jsonl");
-    await writeChapterJobInput(inputFile, []);
-
-    await expect(
-      executeChapterJobFile({
+  it.each(["index-embedding-source", "index-embedding-summary"] as const)(
+    "%s emits metadata for empty input without calling the provider",
+    async (kind) => {
+      const inputFile = new MemoryJobFile("input.jsonl");
+      await writeChapterJobInput(inputFile, []);
+      const embedTexts = vi.fn(() =>
+        Promise.reject(new Error("No text to embed.")),
+      );
+      const result = await executeChapterJobFile({
         embeddingProvider: {
           dimensions: 3,
-          embedTexts: () => Promise.resolve({ embeddings: [] }),
+          embedTexts,
+          identity: "test-profile",
           model: "test-model",
         },
         inputFile,
-        kind: "index-embedding-summary",
+        kind,
         revision: 4,
         workspace: new MemoryJobDirectory(),
-      }),
-    ).rejects.toThrow(
-      "Summary embedding job requires at least one summary sentence",
-    );
-  });
+      });
+      expect(
+        await collect(readChapterJobArtifact(result.artifactFile)),
+      ).toEqual([
+        {
+          dimensions: 3,
+          identity: "test-profile",
+          model: "test-model",
+          source: kind === "index-embedding-source" ? "source" : "summary",
+          type: "embedding-metadata",
+          version: 1,
+        },
+      ]);
+      expect(result.revision).toBe(4);
+      expect(embedTexts).not.toHaveBeenCalled();
+    },
+  );
 
   it("reports a complete summary phase for the single-fragment shortcut", async () => {
     const inputFile = new MemoryJobFile("input.jsonl");
