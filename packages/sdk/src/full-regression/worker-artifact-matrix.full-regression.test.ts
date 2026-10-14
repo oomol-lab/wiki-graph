@@ -19,14 +19,14 @@ import {
 } from "wiki-graph-core";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { NodeDirectory, NodeFile } from "./node-platform.js";
-import { createWikiGraphSDK, type WikiGraphSDK } from "./sdk.js";
+import { NodeDirectory, NodeFile } from "../node-platform.js";
+import { createWikiGraphSDK, type WikiGraphSDK } from "../sdk.js";
 import {
   applyWikiGraphJobArtifacts,
   writeChapterJobInputFile,
-} from "./worker.js";
-import { resolveWikiGraphArchiveLocation } from "./archive/target.js";
-import type { WikiGraphArchiveHandle } from "./archive/archive.js";
+} from "../worker.js";
+import { resolveWikiGraphArchiveLocation } from "../archive/target.js";
+import type { WikiGraphArchiveHandle } from "../archive/archive.js";
 
 const ARCHIVE_IDENTITIES = ["standalone", "library"] as const;
 const ARTIFACT_MATRIX_TEST_TIMEOUT_MS = 300_000;

@@ -1,0 +1,73 @@
+name: Full Regression
+
+on:
+  schedule:
+    - cron: "30 16 * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: full-regression-main
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  check-main-update:
+    name: Check main update
+    runs-on: ubuntu-latest
+    outputs:
+      should_run: ${{ steps.decision.outputs.should_run }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: main
+          fetch-depth: 1
+
+      - id: decision
+        name: Run only when main changed today
+        shell: bash
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "should_run=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          main_date="$(TZ=Asia/Shanghai git show -s --format=%cd --date=format:%F HEAD)"
+          today="$(TZ=Asia/Shanghai date +%F)"
+          echo "main commit date: ${main_date}"
+          echo "today: ${today}"
+          if [ "$main_date" = "$today" ]; then
+            echo "should_run=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "should_run=false" >> "$GITHUB_OUTPUT"
+          fi
+
+  tests:
+    name: Full regression tests
+    needs: check-main-update
+    if: needs.check-main-update.outputs.should_run == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: main
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v5
+        with:
+          cache: pnpm
+          node-version: 22
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Run full test suite
+        run: pnpm test:full-regression
+
+      - name: Build packages
+        run: pnpm build
+
+      - name: Run packed end-to-end suite
+        run: pnpm test:e2e:run

@@ -22,20 +22,20 @@ import {
   addChapter,
   setChapterSource,
 } from "wiki-graph-core";
-import { Database } from "../../core/src/document/database.js";
-import { assertWikiGraphLibraryIndexReady } from "../../core/src/library/search-index.js";
-import { runWikiGraphCLICaptured } from "../../cli/src/app/runner.js";
-import * as queryRuntime from "./query-runtime.js";
+import { Database } from "../../../core/src/document/database.js";
+import { assertWikiGraphLibraryIndexReady } from "../../../core/src/library/search-index.js";
+import { runWikiGraphCLICaptured } from "../../../cli/src/app/runner.js";
+import * as queryRuntime from "../query-runtime.js";
 import {
   createWikiGraphSDK,
   isWikiGraphSchemaVersionError,
   WikiGraphSchemaVersionError,
-} from "./index.js";
+} from "../index.js";
 import {
   NodeDirectory,
   NodeFile,
   nodeWikiGraphPlatform,
-} from "./node-platform.js";
+} from "../node-platform.js";
 
 const roots: string[] = [];
 // These scale fixtures exercise real durable transactions and ZIP settlements.

@@ -135,6 +135,24 @@ wg-dev "wikg://$PWD/.wikigraph/out/regression.wikg" inspect
 Use pnpm without installing when validating source changes, CLI behavior, help
 text, archive operations, state handling, or bug fixes in the current checkout.
 
+Pull-request checks use the faster test entry point:
+
+```bash
+pnpm test:pr
+```
+
+Tests that exercise large durable fixtures, repeated archive settlements, or
+full index rebuilds live under `full-regression/` and use the
+`.full-regression.test.ts` suffix. They are included in the daily main-branch
+regression run:
+
+```bash
+pnpm test:full-regression
+```
+
+The full regression workflow also runs the packed CLI E2E suite. It runs once
+per day and exits before running tests when `main` has no commit dated that day.
+
 Use the install workflow only when the question is about the packaged command
 itself: global `wg` resolution, package layout, `dist` artifacts, executable
 metadata, or previewing an unreleased branch outside this repository.

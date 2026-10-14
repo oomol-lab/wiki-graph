@@ -65,9 +65,9 @@ import {
   writeWikgArchive,
   writeWikgArchiveWithOverlays,
 } from "../storage/wikg/index.js";
-import { acquireWikiGraphLibraryLock } from "./lock.js";
+import { acquireWikiGraphLibraryLock } from "../library/lock.js";
 import { upgradeWikiGraphLibrarySchema } from "../maintenance/upgrade.js";
-import { listWikiGraphLibrarySearchIndex } from "./search-index.js";
+import { listWikiGraphLibrarySearchIndex } from "../library/search-index.js";
 import {
   getNodeResourcePath,
   NodeDirectory,

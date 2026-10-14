@@ -6,13 +6,13 @@ import { readChapterJobInput } from "wiki-graph-job";
 import { WikiGraphArchiveFile } from "wiki-graph-core";
 import { afterEach, describe, expect, it } from "vitest";
 
-import { createNodeWikiGraphStorage, NodeFile } from "./node-platform.js";
-import { getWikiGraphSDKStateDir } from "./runtime-context.js";
-import { createWikiGraphSDK } from "./sdk.js";
+import { createNodeWikiGraphStorage, NodeFile } from "../node-platform.js";
+import { getWikiGraphSDKStateDir } from "../runtime-context.js";
+import { createWikiGraphSDK } from "../sdk.js";
 import {
   applyWikiGraphJobArtifacts,
   extractWikiGraphJobSnapshots,
-} from "./worker.js";
+} from "../worker.js";
 
 const temporaryDirectories: string[] = [];
 
