@@ -226,11 +226,6 @@ async function* buildEmbeddingRecords(
   const iterator = segments[Symbol.asyncIterator]();
   const first = await iterator.next();
   if (first.done) {
-    if (source === "summary") {
-      throw new Error(
-        "Summary embedding job requires at least one summary sentence.",
-      );
-    }
     yield {
       dimensions: provider.dimensions ?? 0,
       ...(provider.identity === undefined
