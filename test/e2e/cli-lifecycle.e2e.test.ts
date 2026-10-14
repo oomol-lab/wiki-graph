@@ -50,7 +50,12 @@ describe("packed CLI archive lifecycle", () => {
     );
     const version = await sandbox.run(["--version"]);
     expect(version.exitCode).toBe(0);
-    const manifest = JSON.parse(await readFile(new URL("../../packages/cli/package.json", import.meta.url), "utf8")) as { version: string };
+    const manifest = JSON.parse(
+      await readFile(
+        new URL("../../packages/cli/package.json", import.meta.url),
+        "utf8",
+      ),
+    ) as { version: string };
     expect(version.stdout.trim()).toBe(manifest.version);
     expect(await readVersion()).toBe(4);
     const upgraded = await sandbox.run([
