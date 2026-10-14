@@ -27,7 +27,12 @@ including stream reads, cache waits and retries. Expiry throws
 `WikimediaTimeoutError` (`code: "WIKIMEDIA_TIMEOUT"`). Caller cancellation
 preserves the signal's reason. A direct resolver or `MediaWikiClient` accepts
 `timeoutMs` in its constructor options; a remote resolver accepts it in the
-fourth constructor argument. Cancellation settles callers even when a custom
+fourth constructor argument. Remote and direct resolvers accept `timeoutMs: null`
+to disable their total deadline while retaining caller cancellation.
+`MediaWikiClient` keeps a finite per-HTTP-attempt deadline; gate waiting and retry
+sleep are outside that deadline. A timed-out attempt supplies temporary network
+feedback and is retried within the retry-wait budget.
+Cancellation settles callers even when a custom
 transport ignores its signal; it cannot force that transport to stop underlying
 work. Stream cancellation is best effort and never delays error settlement.
 
@@ -36,6 +41,6 @@ and transport failures as temporary feedback. It retries with bounded
 exponential backoff and jitter rather than an attempt count. One resolver
 operation shares a 30-minute cumulative retry-wait budget across all upstream
 requests; ordinary processing time does not consume that budget. The request
-deadline takes precedence over this retry-wait budget. Terminal
+resolver deadline, when enabled, takes precedence over this retry-wait budget. Terminal
 stream errors preserve a stable code, retryability, and retry delay when the
 provider supplies them.

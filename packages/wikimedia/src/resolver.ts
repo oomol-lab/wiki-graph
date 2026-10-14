@@ -67,7 +67,7 @@ export class DirectWikimediaResolver implements WikimediaResolverContract {
   readonly #qidFlights = new Map<string, Promise<CachedWikimediaQid>>();
   readonly #retryWaitBudgetMs: number;
   readonly #ttlMs: number;
-  readonly #timeoutMs: number | undefined;
+  readonly #timeoutMs: number | null | undefined;
 
   public constructor(options: {
     readonly cache: WikimediaCache;
@@ -77,7 +77,7 @@ export class DirectWikimediaResolver implements WikimediaResolverContract {
     readonly observeCache?: (stats: WikimediaCacheStats) => void;
     readonly retryWaitBudgetMs?: number;
     readonly ttlMs?: number;
-    readonly timeoutMs?: number;
+    readonly timeoutMs?: number | null;
   }) {
     this.#cache = options.cache;
     this.#client = options.client;

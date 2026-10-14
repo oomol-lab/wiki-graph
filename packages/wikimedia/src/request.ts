@@ -13,18 +13,23 @@ export class WikimediaTimeoutError extends Error {
 
 export function createWikimediaRequest(
   signal?: AbortSignal,
-  timeoutMs = DEFAULT_WIKIMEDIA_TIMEOUT_MS,
+  timeoutMs: number | null = DEFAULT_WIKIMEDIA_TIMEOUT_MS,
 ): { signal: AbortSignal; close(): void } {
-  if (!Number.isFinite(timeoutMs) || timeoutMs <= 0)
-    throw new Error("Wikimedia timeoutMs must be a positive finite number");
+  if (timeoutMs !== null && (!Number.isFinite(timeoutMs) || timeoutMs <= 0))
+    throw new Error(
+      "Wikimedia timeoutMs must be null or a positive finite number",
+    );
   const controller = new AbortController();
   const abort = () => controller.abort(signal?.reason);
   signal?.addEventListener("abort", abort, { once: true });
   if (signal?.aborted === true) abort();
-  const timer = setTimeout(
-    () => controller.abort(new WikimediaTimeoutError(timeoutMs)),
-    timeoutMs,
-  );
+  const timer =
+    timeoutMs === null
+      ? undefined
+      : setTimeout(
+          () => controller.abort(new WikimediaTimeoutError(timeoutMs)),
+          timeoutMs,
+        );
   return {
     signal: controller.signal,
     close() {

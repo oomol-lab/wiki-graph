@@ -4,6 +4,33 @@ import type { WikimediaServiceError } from "./remote.js";
 import { HttpWikimediaResolver } from "./remote.js";
 
 describe("HttpWikimediaResolver", () => {
+  it("allows disabling the total deadline while preserving caller cancellation", async () => {
+    vi.useFakeTimers();
+    try {
+      const fetcher = vi.fn<typeof fetch>(() => new Promise(() => undefined));
+      const resolver = new HttpWikimediaResolver(
+        "https://service.example",
+        "key",
+        fetcher,
+        { timeoutMs: null },
+      );
+      const controller = new AbortController();
+      const result = collect(
+        resolver.resolve([{ qid: "Q1", disambiguation: false }], {
+          signal: controller.signal,
+        }),
+      ).catch((error: unknown) => error);
+      await vi.advanceTimersByTimeAsync(600_000);
+      expect(fetcher.mock.calls[0]?.[1]?.signal?.aborted).toBe(false);
+      expect(vi.getTimerCount()).toBe(0);
+      const reason = new Error("caller cancelled");
+      controller.abort(reason);
+      expect(await result).toBe(reason);
+      expect(fetcher.mock.calls[0]?.[1]?.signal?.aborted).toBe(true);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
   it("enforces the default deadline without a caller signal and clears timers", async () => {
     vi.useFakeTimers();
     try {

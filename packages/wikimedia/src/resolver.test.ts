@@ -15,6 +15,31 @@ import type {
 const identity = { modelId: "test-model", normalizerVersion: "v1" } as const;
 
 describe("DirectWikimediaResolver", () => {
+  it("keeps disabled deadlines cancellable during cache rebuild", async () => {
+    vi.useFakeTimers();
+    try {
+      const entities = vi.fn<WikimediaClient["entities"]>(
+        () => new Promise(() => undefined),
+      );
+      const resolver = createResolver(memoryCache(), {
+        entities,
+        timeoutMs: null,
+      });
+      const controller = new AbortController();
+      const result = collect(
+        resolver.resolve([{ qid: "Q1", disambiguation: false }], {
+          signal: controller.signal,
+        }),
+      ).catch((error: unknown) => error);
+      await vi.advanceTimersByTimeAsync(600_000);
+      expect(entities).toHaveBeenCalledOnce();
+      const reason = new Error("cancelled");
+      controller.abort(reason);
+      expect(await result).toBe(reason);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
   describe.each(["qid", "disambiguation"] as const)(
     "%s singleflight cancellation",
     (stage) => {
@@ -405,7 +430,7 @@ describe("DirectWikimediaResolver", () => {
 function createResolver(
   cache: WikimediaCache,
   overrides: {
-    readonly timeoutMs?: number;
+    readonly timeoutMs?: number | null;
     readonly disambiguation?: WikimediaClient["disambiguation"];
     readonly entities?: WikimediaClient["entities"];
     readonly normalize?: DisambiguationNormalizer["normalize"];
