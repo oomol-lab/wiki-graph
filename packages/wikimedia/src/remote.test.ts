@@ -282,14 +282,10 @@ describe("HttpWikimediaResolver", () => {
         fetcher,
       );
       await collect(resolver.resolve([{ disambiguation: false, qid: "Q1" }]));
-      expect(fetcher).toHaveBeenCalledWith(
-        expect.any(URL),
-        expect.objectContaining({
-          headers: expect.not.objectContaining({
-            Authorization: expect.anything(),
-          }),
-        }),
-      );
+      expect(fetcher).toHaveBeenCalledOnce();
+      expect(
+        new Headers(fetcher.mock.calls[0]?.[1]?.headers).has("Authorization"),
+      ).toBe(false);
     },
   );
 
