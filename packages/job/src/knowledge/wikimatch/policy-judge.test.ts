@@ -12,6 +12,20 @@ import {
 } from "../../guaranteed/index.js";
 
 describe("wikimatch/policy-judge", () => {
+  it("does not downgrade an LLM payment failure to a fallback result", async () => {
+    const payment = Object.assign(new Error("payment required"), {
+      statusCode: 402,
+    });
+    const request = vi.fn<GuaranteedRequest>().mockRejectedValue(payment);
+
+    await expect(
+      judgeWikimatchPolicy({
+        ...createInput(),
+        request,
+      }),
+    ).rejects.toBe(payment);
+  });
+
   it("retries with precise business errors when recalled mentions overlap", async () => {
     const input = createInput();
     const request = vi

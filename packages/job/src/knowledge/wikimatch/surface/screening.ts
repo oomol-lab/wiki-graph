@@ -7,6 +7,7 @@ import {
   type GuaranteedRequest,
 } from "../../../guaranteed/index.js";
 import type { JobLlmMessage } from "../../../ports.js";
+import { isPaymentRequiredError } from "../../../llm-errors.js";
 
 import type {
   WikimatchProtectedSurface,
@@ -57,6 +58,7 @@ export async function judgeWikimatchSurfaceProtection(
         : { maxRetries: options.maxRetries }),
     });
   } catch (error) {
+    if (isPaymentRequiredError(error)) throw error;
     return {
       fallback: {
         issues: [formatFallbackIssue(error)],

@@ -7,6 +7,7 @@ import {
   type GuaranteedRequest,
 } from "../../guaranteed/index.js";
 import type { JobLlmMessage } from "../../ports.js";
+import { isPaymentRequiredError } from "../../llm-errors.js";
 
 import { listCandidateSelectableQids } from "./options.js";
 import type {
@@ -68,6 +69,7 @@ export async function judgeWikimatchPolicy(
         : { maxRetries: options.maxRetries }),
     });
   } catch (error) {
+    if (isPaymentRequiredError(error)) throw error;
     return {
       continuations: [],
       fallback: {

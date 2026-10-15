@@ -7,6 +7,7 @@ import {
   type GuaranteedRequest,
 } from "../../guaranteed/index.js";
 import type { JobLlmMessage } from "../../ports.js";
+import { isPaymentRequiredError } from "../../llm-errors.js";
 
 import {
   filterCandidateQidOptions,
@@ -102,6 +103,7 @@ async function requestNarrowedChunk(
         : { maxRetries: options.maxRetries }),
     });
   } catch (error) {
+    if (isPaymentRequiredError(error)) throw error;
     return {
       candidate: {
         ...options.candidate,
