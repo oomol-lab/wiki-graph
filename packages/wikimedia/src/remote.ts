@@ -48,7 +48,7 @@ export class WikimediaServiceError extends Error {
 export class HttpWikimediaResolver implements WikimediaResolver {
   readonly #endpoint: string;
   readonly #fetcher: typeof fetch;
-  readonly #token: string;
+  readonly #token: string | undefined;
   readonly #requestOptions: { readonly timeoutMs?: number | null };
 
   public constructor(
@@ -58,7 +58,7 @@ export class HttpWikimediaResolver implements WikimediaResolver {
     requestOptions: { readonly timeoutMs?: number | null } = {},
   ) {
     this.#endpoint = endpoint;
-    this.#token = requireToken(token);
+    this.#token = token?.trim() || undefined;
     this.#fetcher = fetcher;
     this.#requestOptions = requestOptions;
   }
@@ -99,7 +99,9 @@ export class HttpWikimediaResolver implements WikimediaResolver {
       headers: {
         Accept: "application/x-ndjson",
         "Content-Type": "application/json",
-        Authorization: `Bearer ${this.#token}`,
+        ...(this.#token === undefined
+          ? {}
+          : { Authorization: `Bearer ${this.#token}` }),
       },
       method: "POST",
       ...(options?.signal === undefined ? {} : { signal: options.signal }),
@@ -197,14 +199,6 @@ async function readErrorDetail(
   } catch {
     return text;
   }
-}
-
-function requireToken(token: string | undefined): string {
-  const normalized = token?.trim();
-  if (normalized === undefined || normalized === "") {
-    throw new Error("wg-wikimedia requires a Bearer API key");
-  }
-  return normalized;
 }
 
 function resolveEndpoint(endpoint: string): URL {
