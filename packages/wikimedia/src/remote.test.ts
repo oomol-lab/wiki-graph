@@ -270,20 +270,24 @@ describe("HttpWikimediaResolver", () => {
     );
   });
 
-  it("rejects a missing API key before making a request", () => {
-    const fetcher = vi.fn<typeof fetch>();
-
-    expect(
-      () => new HttpWikimediaResolver("https://service.example", "", fetcher),
-    ).toThrow("requires a Bearer API key");
-    expect(fetcher).not.toHaveBeenCalled();
-  });
-
-  it("reports an omitted API key as a configuration error", () => {
-    expect(
-      () => new HttpWikimediaResolver("https://service.example", undefined),
-    ).toThrow("requires a Bearer API key");
-  });
+  it.each([undefined, "", "  "])(
+    "omits Authorization without a token (%s)",
+    async (token) => {
+      const fetcher = vi
+        .fn<typeof fetch>()
+        .mockResolvedValue(successfulBatchResponse(1));
+      const resolver = new HttpWikimediaResolver(
+        "https://service.example",
+        token,
+        fetcher,
+      );
+      await collect(resolver.resolve([{ disambiguation: false, qid: "Q1" }]));
+      expect(fetcher).toHaveBeenCalledOnce();
+      expect(
+        new Headers(fetcher.mock.calls[0]?.[1]?.headers).has("Authorization"),
+      ).toBe(false);
+    },
+  );
 
   it("preserves a gateway scope and sends the API key", async () => {
     const fetcher = vi
