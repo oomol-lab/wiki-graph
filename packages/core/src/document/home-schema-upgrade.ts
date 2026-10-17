@@ -15,7 +15,7 @@ import {
 } from "../runtime/common/error.js";
 import { getNumber, getString, Database } from "./database.js";
 
-const CURRENT_HOME_SCHEMA_VERSION = 5;
+const CURRENT_HOME_SCHEMA_VERSION = 6;
 const LOCK_STALE_TIMEOUT_MS = 5 * 60 * 1000;
 const HOME_SCHEMA_SQL = `
   CREATE TABLE IF NOT EXISTS schema_versions (
@@ -177,6 +177,12 @@ async function upgradeHomeSchema(root: Directory): Promise<void> {
         version = 5;
         break;
       }
+      case 5:
+        await assertHomeUpgradeSafe(root);
+        await cleanupHomeDerivedData(root);
+        await writeHomeSchemaVersion(file, 6);
+        version = 6;
+        break;
       default:
         throw new Error(
           `Unsupported Wiki Graph home schema version: ${version}.`,

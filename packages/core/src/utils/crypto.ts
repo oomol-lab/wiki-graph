@@ -47,6 +47,26 @@ export function randomUuid(): string {
   return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
 }
 
+/** A Windows-safe, compact encoding of a full 128-bit random UUID. */
+export function randomBase32Uuid(): string {
+  const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
+  const bytes = randomBytes(16);
+  let output = "";
+  let buffer = 0;
+  let bits = 0;
+  for (const byte of bytes) {
+    buffer = buffer * 256 + byte;
+    bits += 8;
+    while (bits >= 5) {
+      bits -= 5;
+      output += alphabet[Math.floor(buffer / 2 ** bits) % 32];
+    }
+    buffer %= 2 ** bits;
+  }
+  if (bits > 0) output += alphabet[(buffer * 2 ** (5 - bits)) % 32];
+  return output;
+}
+
 function createHasher(algorithm: HashAlgorithm): IncrementalHash {
   switch (algorithm) {
     case "sha1":

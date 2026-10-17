@@ -141,9 +141,10 @@ the default library can also be rebound. Build queue rows store deterministic
 `library`-root-relative locators for workspace, cache, log, and event resources.
 Legacy queue state is invalidated by explicit Home maintenance; ordinary opening
 does not migrate those derived columns in place.
-Coordinator snapshot rows use `documentStore`-relative paths; the old workspace
-identity remains a read-only compatibility fallback for already persisted
-overlays.
+Coordinator snapshot rows use `documentStore`-relative paths. Home v5 -> v6
+deliberately treats the coordinator workspace buffer as disposable cache: the
+old `.wikg-work` tree and transient coordinator state are discarded during the
+explicit upgrade, and unfinished temporary work must be regenerated.
 
 Before changing the registry or deleting derived state, the upgrader rejects
 fresh library/state/GC locks, an active build worker lease, and live
@@ -165,10 +166,15 @@ physical identities for bounded archive ownership checks. Ordinary opening never
 adds columns or rebuilds membership tables. The marker is written last. Existing
 Library projections without readiness summaries require explicit index sync.
 
+Home v5 -> v6 invalidates the disposable coordinator workspace/cache boundary
+used by the new snapshot layout. It runs only through explicit maintenance,
+after the same active-lock and coordinator checks, and does not attempt to read
+or migrate old `.wikg-work` snapshots. In-flight temporary work must be retried.
+
 The Home gate reads the version marker on each gated access. It does not memoize
 a permanent ready flag or inspect every table/member. Replacing, deleting,
 recreating, or rewriting `core.sqlite` is therefore checked on the next access.
-Library registration/membership share Home schema v5; there is no independent
+Library registration/membership share Home schema v6; there is no independent
 Library schema marker and library lookup does not check all members.
 
 ## Product Upgrade Entry Points

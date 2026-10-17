@@ -72,7 +72,7 @@ describe("empty host file entry points", () => {
         },
         async () => {
           await ensureWikiGraphHomeSchemaCurrent();
-          await expect(readWikiGraphHomeSchemaVersion()).resolves.toBe(5);
+          await expect(readWikiGraphHomeSchemaVersion()).resolves.toBe(6);
         },
       );
 

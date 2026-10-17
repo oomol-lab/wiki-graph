@@ -359,6 +359,34 @@ describe("Node File/Directory adapter", () => {
     });
   });
 
+  it("supports database and ZIP access below a long Windows path", async () => {
+    if (process.platform !== "win32") return;
+    await withTempDir("wikigraph-long-path-", async (path) => {
+      const longRoot = join(path, "a".repeat(210));
+      const root = new NodeDirectory(longRoot);
+      const databaseFile = await root.createFile("state.sqlite");
+      const database = await nodeWikiGraphPlatform.database.open(databaseFile, {
+        create: true,
+        mode: "readwrite",
+      });
+      await database.execute("CREATE TABLE marker (value TEXT NOT NULL)");
+      await database.close();
+
+      const zipFile = await root.createFile("state.zip");
+      await nodeWikiGraphPlatform.zip.write(zipFile, [
+        { data: new TextEncoder().encode("ok"), name: "marker.txt" },
+      ]);
+      const reader = await nodeWikiGraphPlatform.zip.open(zipFile);
+      try {
+        await expect(reader.readEntry("marker.txt")).resolves.toEqual(
+          new TextEncoder().encode("ok"),
+        );
+      } finally {
+        await reader.close();
+      }
+    });
+  });
+
   it("opens ZIPs without scanning and supports repeated lookups, duplicates and queued close", async () => {
     await withTempDir("wikigraph-zip-lookup-", async (path) => {
       const file = new NodeFile(join(path, "lookup.zip"));
