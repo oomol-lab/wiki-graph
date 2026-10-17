@@ -1638,6 +1638,7 @@ async function collectArchiveSerials(
 
 function asAsyncIterable<T>(values: readonly T[]): AsyncIterable<T> {
   return (async function* () {
+    await Promise.resolve();
     yield* values;
   })();
 }
