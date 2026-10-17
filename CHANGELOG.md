@@ -7,6 +7,7 @@
 - Expose stable SDK archive export/schema inspection and database platform types for host integrations.
 - Preserve existing WIKG mutation tokens on archive re-export and write deterministic ZIP timestamps.
 - Shorten WikiGraphTaskContext identifiers with full SHA-256 Base32 hashes and add cross-platform ZIP/SQLite regression coverage.
+- Add a read-only SDK archive facade for overview and chapter data, reusing the versioned `WikgObject` discriminated union without exposing Core readers.
 
 ## 0.9.4
 

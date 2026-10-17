@@ -15,6 +15,7 @@ import {
   assertNoActiveBuildJobs,
   deleteArchiveSearchSessions,
   createContinuationCursor,
+  createChapterReadingGraphObjectStream,
   deleteContinuationCursor,
   DirectoryDocument,
   findArchiveObjects,
@@ -40,6 +41,7 @@ import {
   setChapterSummary,
   setChapterTitle,
   getChapterTree,
+  getChapterDetails,
   WikiGraph,
   WikiGraphArchiveFile,
   WikiGraphDirectoryFile,
@@ -69,6 +71,8 @@ import {
   type SearchIndexEmbeddingProvider,
   type SearchIndexQueryMode,
   type WikiGraphProgressCallback,
+  type WikgObject,
+  type WikiGraphSerialEntry,
 } from "wiki-graph-core";
 import { copyFileContent } from "wiki-graph-core/platform";
 
@@ -167,6 +171,33 @@ export interface WikiGraphArchiveCover {
   readonly data: Uint8Array;
   readonly mediaType: string;
   readonly path: string;
+}
+
+/** Read-only archive metadata exposed by the SDK facade. */
+export interface WikiGraphArchiveOverview {
+  readonly metadata?: BookMeta;
+  readonly cover?: WikiGraphArchiveCover;
+  readonly toc?: WikiGraphArchiveTocFile;
+  readonly serials: readonly WikiGraphSerialEntry[];
+}
+
+export interface WikiGraphArchiveTocItem {
+  readonly key?: string | undefined;
+  readonly title?: string | null | undefined;
+  readonly serialId?: number | undefined;
+  readonly children: readonly WikiGraphArchiveTocItem[];
+}
+
+export interface WikiGraphArchiveTocFile {
+  readonly version: number;
+  readonly items: readonly WikiGraphArchiveTocItem[];
+}
+
+/** Read-only data for one chapter. Objects preserve the WikgObject schema. */
+export interface WikiGraphArchiveChapterData {
+  readonly chapter: ChapterDetails;
+  readonly summary?: string;
+  readonly objects: AsyncIterable<WikgObject>;
 }
 
 export interface WikiGraphArchiveIndexSyncOptions extends WikiGraphOperationOptions {
@@ -1090,6 +1121,56 @@ export class WikiGraphArchiveHandle {
     );
   }
 
+  /** Read archive-level data without exposing the underlying Core reader. */
+  public async readOverview(
+    options: WikiGraphOperationOptions = {},
+  ): Promise<WikiGraphArchiveOverview> {
+    return await this.#readDocument(async (document) => {
+      const [metadata, cover, toc] = await Promise.all([
+        document.readBookMeta(),
+        document.readCover(),
+        document.readToc(),
+      ]);
+      const serials =
+        toc === undefined
+          ? []
+          : await collectArchiveSerials(document, toc.items);
+      return {
+        ...(metadata === undefined ? {} : { metadata }),
+        ...(cover === undefined ? {} : { cover }),
+        ...(toc === undefined ? {} : { toc }),
+        serials,
+      };
+    }, options);
+  }
+
+  /** Read a chapter and expose its graph as the stable WikgObject stream. */
+  public async readChapterData(
+    serialId: number,
+    options: WikiGraphOperationOptions = {},
+  ): Promise<WikiGraphArchiveChapterData> {
+    const result = await this.#readDocument(async (document) => {
+      const [chapter, summary] = await Promise.all([
+        getChapterDetails(document, serialId),
+        document.readSummary(serialId),
+      ]);
+      const objects: WikgObject[] = [];
+      for await (const object of createChapterReadingGraphObjectStream({
+        chapterId: serialId,
+        document,
+      })) {
+        objects.push(object);
+      }
+      return { chapter, objects, summary };
+    }, options);
+
+    return {
+      chapter: result.chapter,
+      ...(result.summary === undefined ? {} : { summary: result.summary }),
+      objects: asAsyncIterable(result.objects),
+    };
+  }
+
   public async replaceBookMeta(
     meta: BookMeta,
     options: WikiGraphArchiveWriteOptions = {},
@@ -1524,6 +1605,41 @@ function requireChapter(
 
 function asTextStream(text: string): AsyncIterable<string> {
   return Readable.from([text]);
+}
+
+async function collectArchiveSerials(
+  document: ReadonlyDocument,
+  items: WikiGraphArchiveTocFile["items"],
+  ancestorTitles: readonly string[] = [],
+): Promise<readonly WikiGraphSerialEntry[]> {
+  const entries: WikiGraphSerialEntry[] = [];
+  for (const item of items) {
+    const title = item.title?.trim() || `Chapter ${item.serialId ?? "group"}`;
+    const tocPath = [...ancestorTitles, title];
+    if (
+      item.serialId !== undefined &&
+      (await document.readSummary(item.serialId)) !== undefined
+    ) {
+      entries.push({
+        fragmentCount: (
+          await document.getSerialFragments(item.serialId).listFragmentIds()
+        ).length,
+        serialId: item.serialId,
+        title: item.title ?? null,
+        tocPath,
+      });
+    }
+    entries.push(
+      ...(await collectArchiveSerials(document, item.children, tocPath)),
+    );
+  }
+  return entries;
+}
+
+function asAsyncIterable<T>(values: readonly T[]): AsyncIterable<T> {
+  return (async function* () {
+    yield* values;
+  })();
 }
 
 async function assertChapterResetAllowed(

@@ -261,6 +261,23 @@ try {
   );
   assertCommonJsExport(sdkInstallRoot, "wiki-graph-sdk", "WikiGraphSDK");
   assertEsmExport(sdkInstallRoot, "wiki-graph-sdk", "WikiGraphSDK");
+  runNodeScript(sdkInstallRoot, [
+    "-e",
+    [
+      'const { WikiGraphArchiveHandle } = require("wiki-graph-sdk");',
+      'if (typeof WikiGraphArchiveHandle.prototype.readOverview !== "function") throw new Error("Packed SDK archive overview facade is unavailable");',
+      'if (typeof WikiGraphArchiveHandle.prototype.readChapterData !== "function") throw new Error("Packed SDK chapter facade is unavailable");',
+    ].join("\n"),
+  ]);
+  runNodeScript(sdkInstallRoot, [
+    "--input-type=module",
+    "-e",
+    [
+      'import { WikiGraphArchiveHandle } from "wiki-graph-sdk";',
+      'if (typeof WikiGraphArchiveHandle.prototype.readOverview !== "function") throw new Error("Packed SDK archive overview facade is unavailable");',
+      'if (typeof WikiGraphArchiveHandle.prototype.readChapterData !== "function") throw new Error("Packed SDK chapter facade is unavailable");',
+    ].join("\n"),
+  ]);
   assertCommonJsExportMissing(sdkInstallRoot, "wiki-graph-sdk", "WikiGraph");
   assertEsmExportMissing(sdkInstallRoot, "wiki-graph-sdk", "WikiGraph");
   assertCommonJsExport(

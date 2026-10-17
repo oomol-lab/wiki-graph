@@ -83,6 +83,7 @@ export type {
   ChapterDetails,
   ChapterEntry,
   WikiGraphSerialEntry,
+  WikgObject,
   ChapterStage,
   ChapterTree,
   ChapterTreeApplyResult,
