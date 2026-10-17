@@ -247,6 +247,49 @@ try {
   });
   installTarballs(sdkInstallRoot, [sdkTarballPath]);
 
+  // Compile from a genuinely external package that only installs the packed
+  // SDK. This deliberately does not use the repository tsconfig/path aliases.
+  const consumerSource = join(sdkInstallRoot, "consumer.ts");
+  const consumerConfig = join(sdkInstallRoot, "tsconfig.json");
+  writeFileSync(
+    consumerSource,
+    [
+      'import { createWikiGraphSDK } from "wiki-graph-sdk";',
+      'import type { BookMeta, ChapterStage, HostDatabaseProvider, WikiGraphArchiveChapterData, WikiGraphArchiveOverview, WikgObject } from "wiki-graph-sdk";',
+      'const sdk = createWikiGraphSDK({ stateDir: "./state" });',
+      'const stage: ChapterStage = "planned";',
+      "const meta = undefined as BookMeta | undefined;",
+      "const object = undefined as unknown as WikgObject;",
+      "const overview = undefined as unknown as WikiGraphArchiveOverview;",
+      "const chapter = undefined as unknown as WikiGraphArchiveChapterData;",
+      "const provider = undefined as unknown as HostDatabaseProvider;",
+      "void [sdk, stage, meta, object, overview, chapter, provider];",
+    ].join("\n"),
+  );
+  writeFileSync(
+    consumerConfig,
+    JSON.stringify({
+      compilerOptions: {
+        module: "NodeNext",
+        moduleResolution: "NodeNext",
+        noEmit: true,
+        skipLibCheck: true,
+        strict: true,
+        target: "ES2022",
+      },
+      files: ["consumer.ts"],
+    }),
+  );
+  execFileSync(
+    process.execPath,
+    [
+      join(packageRoot, "node_modules", "typescript", "bin", "tsc"),
+      "-p",
+      consumerConfig,
+    ],
+    { cwd: sdkInstallRoot, stdio: "inherit" },
+  );
+
   assertCommonJsExport(sdkInstallRoot, "wiki-graph-sdk", "createWikiGraphSDK");
   assertEsmExport(sdkInstallRoot, "wiki-graph-sdk", "createWikiGraphSDK");
   assertCommonJsExport(

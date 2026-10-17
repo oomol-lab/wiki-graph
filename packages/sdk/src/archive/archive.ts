@@ -1625,7 +1625,7 @@ async function collectArchiveSerials(
           await document.getSerialFragments(item.serialId).listFragmentIds()
         ).length,
         serialId: item.serialId,
-        title: item.title ?? null,
+        title: title,
         tocPath,
       });
     }
