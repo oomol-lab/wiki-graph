@@ -13,6 +13,7 @@ import {
 import { tmpdir } from "os";
 import { basename, isAbsolute, join, relative, resolve } from "path";
 import { pathToFileURL } from "url";
+import { setTimeout as sleep } from "timers/promises";
 
 interface PackageDescriptor {
   readonly name: string;
@@ -33,6 +34,13 @@ interface RegistryPackage {
 }
 
 type PackageState = "missing" | "matching";
+
+const REGISTRY_RETRY_DELAYS_MS = [500, 1_000, 2_000, 4_000] as const;
+const PUBLISH_CONFIRMATION_DELAYS_MS = [
+  1_000, 2_000, 4_000, 8_000, 16_000,
+] as const;
+
+class RegistryFatalError extends Error {}
 
 const workspaceRoot = resolve(import.meta.dirname, "..");
 const releasePackages: readonly ReleasePackage[] = [
@@ -239,33 +247,29 @@ export function packageContentDifference(
 async function downloadPublishedPackage(
   descriptor: PackageDescriptor,
   destination: string,
+  options: { readonly allowIncomplete?: boolean } = {},
 ): Promise<string | undefined> {
   const registryUrl = new URL(
     `${encodeURIComponent(descriptor.name)}/${encodeURIComponent(descriptor.version)}`,
     "https://registry.npmjs.org/",
   );
-  const metadataResponse = await fetch(registryUrl);
-  if (metadataResponse.status === 404) {
-    return undefined;
-  }
-  if (!metadataResponse.ok) {
-    throw new Error(
-      `npm registry returned ${metadataResponse.status} for ${descriptor.name}@${descriptor.version}.`,
-    );
-  }
+  const metadataResponse = await fetchRegistry(registryUrl);
+  if (metadataResponse === undefined) return undefined;
 
   const metadata = (await metadataResponse.json()) as RegistryPackage;
   const tarballUrl = metadata.dist?.tarball;
   if (typeof tarballUrl !== "string" || tarballUrl.length === 0) {
+    if (options.allowIncomplete === true) return undefined;
     throw new Error(
       `npm metadata has no tarball for ${descriptor.name}@${descriptor.version}.`,
     );
   }
 
-  const tarballResponse = await fetch(tarballUrl);
-  if (!tarballResponse.ok) {
+  const tarballResponse = await fetchRegistry(new URL(tarballUrl));
+  if (tarballResponse === undefined) {
+    if (options.allowIncomplete === true) return undefined;
     throw new Error(
-      `npm registry returned ${tarballResponse.status} while downloading ${descriptor.name}@${descriptor.version}.`,
+      `npm registry did not make the tarball available for ${descriptor.name}@${descriptor.version}.`,
     );
   }
   const tarballPath = join(
@@ -274,6 +278,47 @@ async function downloadPublishedPackage(
   );
   writeFileSync(tarballPath, Buffer.from(await tarballResponse.arrayBuffer()));
   return tarballPath;
+}
+
+async function fetchRegistry(url: URL): Promise<Response | undefined> {
+  let lastStatus: number | undefined;
+  let lastError: unknown;
+  for (
+    let attempt = 0;
+    attempt <= REGISTRY_RETRY_DELAYS_MS.length;
+    attempt += 1
+  ) {
+    try {
+      const response = await fetch(url, {
+        headers: { "cache-control": "no-cache" },
+        signal: AbortSignal.timeout(30_000),
+      });
+      if (response.ok) return response;
+      lastStatus = response.status;
+      if (
+        response.status !== 404 &&
+        response.status < 500 &&
+        response.status !== 429
+      ) {
+        throw new RegistryFatalError(
+          `npm registry returned ${response.status} for ${url}.`,
+        );
+      }
+    } catch (error) {
+      if (error instanceof RegistryFatalError) throw error;
+      lastError = error;
+    }
+    const delay = REGISTRY_RETRY_DELAYS_MS[attempt];
+    if (delay !== undefined) await sleep(delay);
+  }
+  if (lastStatus === 404 && lastError === undefined) return undefined;
+  throw new Error(
+    `npm registry request failed for ${url}: ${
+      lastError instanceof Error
+        ? lastError.message
+        : `HTTP ${lastStatus ?? "unknown"}`
+    }`,
+  );
 }
 
 async function inspectPackage(
@@ -289,6 +334,21 @@ async function inspectPackage(
     return "missing";
   }
 
+  assertMatchingPackageContents(
+    descriptor,
+    localTarball,
+    publishedTarball,
+    tempDirectory,
+  );
+  return "matching";
+}
+
+function assertMatchingPackageContents(
+  descriptor: PackageDescriptor,
+  localTarball: string,
+  publishedTarball: string,
+  tempDirectory: string,
+): void {
   const localDirectory = extractTarball(
     localTarball,
     join(tempDirectory, `${descriptor.name}-local`),
@@ -310,14 +370,65 @@ async function inspectPackage(
       ].join("\n"),
     );
   }
-  return "matching";
 }
 
-function publishPackage(tarballPath: string): void {
+async function publishPackage(
+  descriptor: PackageDescriptor,
+  tarballPath: string,
+  tempDirectory: string,
+): Promise<void> {
   execFileSync("npm", ["publish", tarballPath, "--access", "public"], {
     cwd: workspaceRoot,
     stdio: "inherit",
   });
+
+  for (const delay of PUBLISH_CONFIRMATION_DELAYS_MS) {
+    try {
+      const publishedTarball = await downloadPublishedPackage(
+        descriptor,
+        tempDirectory,
+        { allowIncomplete: true },
+      );
+      if (publishedTarball !== undefined) {
+        assertMatchingPackageContents(
+          descriptor,
+          tarballPath,
+          publishedTarball,
+          tempDirectory,
+        );
+        return;
+      }
+    } catch (error) {
+      if (delay === PUBLISH_CONFIRMATION_DELAYS_MS.at(-1)) throw error;
+    }
+    await sleep(delay);
+  }
+  throw new Error(
+    `npm accepted ${descriptor.name}@${descriptor.version}, but the version did not become readable before the release timeout.`,
+  );
+}
+
+function assertReleaseTagIsAvailable(version: string): void {
+  const tag = `v${version}`;
+  let existingCommit: string;
+  try {
+    existingCommit = execFileSync("git", ["rev-list", "-n", "1", tag], {
+      cwd: workspaceRoot,
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "ignore"],
+    }).trim();
+  } catch {
+    return;
+  }
+  const currentCommit = execFileSync("git", ["rev-parse", "HEAD"], {
+    cwd: workspaceRoot,
+    encoding: "utf8",
+  }).trim();
+  if (existingCommit !== currentCommit) {
+    throw new Error(
+      `Tag ${tag} already points to ${existingCommit}, not ${currentCommit}.`,
+    );
+  }
 }
 
 async function release(): Promise<void> {
@@ -354,6 +465,8 @@ async function release(): Promise<void> {
     );
   }
 
+  assertReleaseTagIsAvailable(publicVersions[0]!);
+
   const tempDirectory = mkdtempSync(join(tmpdir(), "wiki-graph-release-"));
   try {
     const packageConfigsByName = new Map(
@@ -389,7 +502,7 @@ async function release(): Promise<void> {
       }
 
       console.log(`publish ${descriptor.name}@${descriptor.version}`);
-      publishPackage(localTarball);
+      await publishPackage(descriptor, localTarball, tempDirectory);
     }
   } finally {
     rmSync(tempDirectory, { force: true, recursive: true });
