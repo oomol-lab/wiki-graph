@@ -471,6 +471,18 @@ describe("Node File/Directory adapter", () => {
           }),
         );
       }
+
+      const cleanup = await nodeWikiGraphPlatform.database.open(file, {
+        create: false,
+        mode: "readwrite",
+      });
+      try {
+        await cleanup.execute(
+          "PRAGMA wal_checkpoint(TRUNCATE); PRAGMA journal_mode = DELETE;",
+        );
+      } finally {
+        await cleanup.close();
+      }
     });
   }, 120_000);
 
