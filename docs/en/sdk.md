@@ -106,8 +106,12 @@ appropriate; `newer-version` requires newer software.
 After operator approval, explicitly call `await sdk.maintenance.upgrade(error.target)`
 for an `upgrade-required` error whose target you retained. In the CLI use
 `wg maintenance upgrade home`, `wg maintenance upgrade <archive-path>`, or
-`wg maintenance upgrade <library-uri>` as indicated by the error. Home v4 must be
-manually upgraded to v5 before other state operations; archive schema remains v5.
+`wg maintenance upgrade <library-uri>` as indicated by the error. Home v5 must be
+manually upgraded to v6 before other state operations; archive schema remains v5.
+The v5-to-v6 upgrade is explicit and clears disposable coordinator workspace and
+cache state, including `.wikg-work`; unfinished snapshots and temporary tasks are
+not migrated and must be rerun. Archive contents, library registration, and
+completed persistent indexes are retained.
 
 ## Stable archive and host APIs
 

@@ -82,6 +82,7 @@ export type {
   BuildJobTarget,
   ChapterDetails,
   ChapterEntry,
+  WikiGraphSerialEntry,
   ChapterStage,
   ChapterTree,
   ChapterTreeApplyResult,

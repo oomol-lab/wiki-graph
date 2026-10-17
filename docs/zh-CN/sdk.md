@@ -96,8 +96,10 @@ Error 方法和 stack。文件缺失、损坏、权限和数据库 I/O 错误不
 操作者确认后，可对保留的 `upgrade-required` 错误目标显式调用
 `await sdk.maintenance.upgrade(error.target)`。CLI 根据错误目标执行
 `wg maintenance upgrade home`、`wg maintenance upgrade <archive-path>` 或
-`wg maintenance upgrade <library-uri>`。Home v4 必须先手动升级到 v5；Archive schema
-仍为 v5。
+`wg maintenance upgrade <library-uri>`。Home v5 必须先手动升级到 v6；Archive schema
+仍为 v5。v5 到 v6 只允许显式手动升级，并会清理 disposable coordinator workspace/cache，
+包括 `.wikg-work`；未完成的 snapshot 和临时任务不会迁移，需要重新执行。Archive 内容、
+Library 注册信息和已完成的持久索引会保留。
 
 ## 稳定的 Archive 与 Host API
 
