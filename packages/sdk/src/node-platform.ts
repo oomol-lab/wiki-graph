@@ -905,6 +905,11 @@ async function addNodeZipEntries(
   iterator: Iterator<HostZipWriteEntry> | AsyncIterator<HostZipWriteEntry>,
   state: { cancelled: boolean; complete: boolean },
 ): Promise<void> {
+  const stableZipOptions = {
+    compress: false,
+    forceDosTimestamp: true,
+    mtime: new Date(1980, 0, 2),
+  } as const;
   while (!state.cancelled) {
     const result = await iterator.next();
     if (state.cancelled) return;
@@ -916,17 +921,17 @@ async function addNodeZipEntries(
       zipFile.addReadStream(
         createNodeFileReadStream(result.value.file),
         result.value.name,
-        { compress: false },
+        stableZipOptions,
       );
     } else if ("data" in result.value) {
       zipFile.addBuffer(Buffer.from(result.value.data), result.value.name, {
-        compress: false,
+        ...stableZipOptions,
       });
     } else {
       zipFile.addReadStream(
         createNodeRangeReadStream(result.value),
         result.value.name,
-        { compress: false, size: result.value.size },
+        { ...stableZipOptions, size: result.value.size },
       );
     }
   }

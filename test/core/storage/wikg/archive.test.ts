@@ -162,6 +162,25 @@ describe("wikg/archive", () => {
     });
   });
 
+  it("preserves an existing mutation token when exporting a directory", async () => {
+    await withTempDir("wikigraph-archive-token-", async (path) => {
+      const sourceDir = `${path}/source`;
+      const firstArchive = `${path}/first.wikg`;
+      const secondArchive = `${path}/second.wikg`;
+      await mkdir(sourceDir, { recursive: true });
+      await writeFile(`${sourceDir}/database.db`, "sqlite", "utf8");
+
+      await writeWikgArchive(sourceDir, firstArchive);
+      const before = await readWikgArchiveMutationToken(firstArchive);
+      await extractWikgArchive(firstArchive, sourceDir);
+      await writeWikgArchive(sourceDir, secondArchive);
+
+      await expect(readWikgArchiveMutationToken(secondArchive)).resolves.toBe(
+        before,
+      );
+    });
+  });
+
   it("omits external FTS databases from new archives", async () => {
     await withTempDir("wikigraph-archive-", async (path) => {
       const sourceDir = `${path}/source`;

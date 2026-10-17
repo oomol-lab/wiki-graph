@@ -12,6 +12,25 @@ export function bytesToHex(value: Uint8Array): string {
   return output;
 }
 
+/** Encode bytes with the Windows-safe RFC 4648 Base32 alphabet. */
+export function bytesToBase32(value: Uint8Array): string {
+  const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
+  let output = "";
+  let buffer = 0;
+  let bits = 0;
+  for (const byte of value) {
+    buffer = buffer * 256 + byte;
+    bits += 8;
+    while (bits >= 5) {
+      bits -= 5;
+      output += alphabet[Math.floor(buffer / 2 ** bits) % 32];
+    }
+    buffer %= 2 ** bits;
+  }
+  if (bits > 0) output += alphabet[(buffer * 2 ** (5 - bits)) % 32];
+  return output;
+}
+
 export function hexToBytes(value: string): Uint8Array {
   if (value.length % 2 !== 0 || !/^[0-9a-f]*$/iu.test(value)) {
     throw new TypeError("Invalid hexadecimal byte string");

@@ -4,6 +4,7 @@ import {
   resolveHostDirectory,
   resolveHostFile,
   resolveHostReadonlyFile,
+  readFileBytes,
   type Directory,
   type File,
   type HostZipReader,
@@ -41,8 +42,14 @@ export async function writeWikgArchiveFromDirectory(
   const documentDirectory = await resolveHostDirectory(documentDirectoryRef);
   const outputFile = await resolveHostFile(outputFileRef);
   const entries = new Map<string, HostZipWriteEntry>();
+  const existingToken = await documentDirectory.getFile(
+    WIKG_MUTATION_TOKEN_PATH,
+  );
   entries.set(WIKG_MUTATION_TOKEN_PATH, {
-    data: createWikgMutationTokenContent(),
+    data:
+      existingToken === undefined
+        ? createWikgMutationTokenContent()
+        : await readFileBytes(existingToken),
     name: WIKG_MUTATION_TOKEN_PATH,
   });
   entries.set(WIKG_MANIFEST_PATH, {

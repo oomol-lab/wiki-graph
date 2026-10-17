@@ -393,7 +393,7 @@ describe("schema gate and bounded access", () => {
       code: "schema_version_incompatible",
       target: { kind: "home" },
       actualVersion: 4,
-      supportedVersion: 5,
+      supportedVersion: 6,
       reason: "upgrade-required",
     });
     expect(await readFile(join(stateDir, "core.sqlite"))).toEqual(before);

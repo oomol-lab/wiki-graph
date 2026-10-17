@@ -1,7 +1,7 @@
 import { sha1 } from "@noble/hashes/legacy.js";
 import { sha256, sha512 } from "@noble/hashes/sha2.js";
 
-import { bytesToHex, encodeUtf8 } from "./bytes.js";
+import { bytesToBase32, bytesToHex, encodeUtf8 } from "./bytes.js";
 
 type HashAlgorithm = "sha1" | "sha256" | "sha512";
 
@@ -36,6 +36,10 @@ export function randomBytes(length: number): Uint8Array {
   return bytes;
 }
 
+export function randomBase32Uuid(): string {
+  return bytesToBase32(randomBytes(16));
+}
+
 export function randomUuid(): string {
   if (typeof globalThis.crypto.randomUUID === "function") {
     return globalThis.crypto.randomUUID();
@@ -45,26 +49,6 @@ export function randomUuid(): string {
   bytes[8] = (bytes[8]! & 0x3f) | 0x80;
   const hex = bytesToHex(bytes);
   return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
-}
-
-/** A Windows-safe, compact encoding of a full 128-bit random UUID. */
-export function randomBase32Uuid(): string {
-  const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
-  const bytes = randomBytes(16);
-  let output = "";
-  let buffer = 0;
-  let bits = 0;
-  for (const byte of bytes) {
-    buffer = buffer * 256 + byte;
-    bits += 8;
-    while (bits >= 5) {
-      bits -= 5;
-      output += alphabet[Math.floor(buffer / 2 ** bits) % 32];
-    }
-    buffer %= 2 ** bits;
-  }
-  if (bits > 0) output += alphabet[(buffer * 2 ** (5 - bits)) % 32];
-  return output;
 }
 
 function createHasher(algorithm: HashAlgorithm): IncrementalHash {

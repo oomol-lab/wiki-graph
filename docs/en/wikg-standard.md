@@ -71,8 +71,10 @@ newline. `<token>` is a 43-character base64url string matching:
 [A-Za-z0-9_-]{43}
 ```
 
-Writers must refresh this token whenever they rewrite the archive. Readers use
-it to detect archive mutation and coordinate cached materializations.
+Writers that mutate archive contents refresh this token. A lossless export or
+repack of an existing source directory preserves its token; a source without a
+token receives a new one. Readers use the token to detect archive mutation and
+coordinate cached materializations.
 
 ### `manifest.json`
 
@@ -262,7 +264,8 @@ A conforming writer should:
 - write `.wikg-mutation-token` first;
 - write `manifest.json` with the current supported format version;
 - include only standard entry paths;
-- refresh `.wikg-mutation-token` on every archive rewrite;
+- refresh `.wikg-mutation-token` when archive contents are mutated;
+- preserve an existing token during lossless export/repack;
 - omit transient database files;
 - preserve source and summary text as UTF-8;
 - keep `database.db` consistent with `toc.json` and text stream serial ids.

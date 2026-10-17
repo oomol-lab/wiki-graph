@@ -24,7 +24,8 @@ describe("context/task-context", () => {
       taskType: "source-to-graph",
     });
 
-    expect(base).toHaveLength(128);
+    expect(base).toHaveLength(52);
+    expect(base).toMatch(/^[A-Z2-7]+$/u);
     expect(
       createWikiGraphTaskId({
         normalizedSource: "Alpha beta.",

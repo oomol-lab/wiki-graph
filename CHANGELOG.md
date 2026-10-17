@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.9.6
+
+- Expose stable SDK archive export/schema inspection and database platform types for host integrations.
+- Preserve existing WIKG mutation tokens on archive re-export and write deterministic ZIP timestamps.
+- Shorten WikiGraphTaskContext identifiers with full SHA-256 Base32 hashes and add cross-platform ZIP/SQLite regression coverage.
+
 ## 0.9.5
 
 - Shorten WIKG coordinator workspace snapshot paths with a single composite hash and compact Windows-safe snapshot names.

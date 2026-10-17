@@ -1,4 +1,4 @@
-import { access, rename } from "fs/promises";
+import { access, readFile, rename } from "fs/promises";
 import * as yauzl from "yauzl";
 import { join } from "path";
 import { describe, expect, it, vi } from "vitest";
@@ -385,6 +385,20 @@ describe("Node File/Directory adapter", () => {
       } finally {
         await reader.close();
       }
+    });
+  });
+
+  it("writes byte-stable ZIP metadata", async () => {
+    await withTempDir("wikigraph-stable-zip-", async (path) => {
+      const write = async (name: string) => {
+        const file = new NodeFile(join(path, name));
+        await nodeWikiGraphPlatform.zip.write(file, [
+          { data: new TextEncoder().encode("stable"), name: "entry.txt" },
+        ]);
+        return await readFile(file.path);
+      };
+
+      expect(await write("first.zip")).toEqual(await write("second.zip"));
     });
   });
 

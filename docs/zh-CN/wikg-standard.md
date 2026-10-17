@@ -57,7 +57,7 @@ wikg-mutation-token:v1
 [A-Za-z0-9_-]{43}
 ```
 
-Writer 每次重写归档时都必须刷新这个 token。Reader 使用它检测归档 mutation，并协调缓存的 materialization。
+会改变归档内容的 Writer 必须刷新这个 token。对已有 source directory 做无损导出或重新打包时必须保留原 token；没有 token 的 source 才生成新 token。Reader 使用它检测归档 mutation，并协调缓存的 materialization。
 
 ### `manifest.json`
 
@@ -219,7 +219,8 @@ database.db-shm
 - 首先写入 `.wikg-mutation-token`；
 - 用当前支持的格式版本写入 `manifest.json`；
 - 只包含标准 entry 路径；
-- 每次重写归档时刷新 `.wikg-mutation-token`；
+- 归档内容发生 mutation 时刷新 `.wikg-mutation-token`；
+- 无损导出或重新打包时保留已有 token；
 - 省略临时数据库文件；
 - 以 UTF-8 保留 source 和 summary text；
 - 保持 `database.db` 与 `toc.json`、text stream serial ids 一致。

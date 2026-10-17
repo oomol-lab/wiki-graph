@@ -8,7 +8,7 @@ import {
   writeFileContent,
   type Directory,
 } from "../platform/index.js";
-import { createHash } from "../../utils/hash.js";
+import { createBase32Hash } from "../../utils/hash.js";
 
 export const WIKI_GRAPH_CONTEXT_VERSION = 1;
 const TASK_STATUS_VERSION = 1;
@@ -137,7 +137,7 @@ export class WikiGraphTask {
 }
 
 export function createWikiGraphTaskId(identity: WikiGraphTaskIdentity): string {
-  return createHash({
+  return createBase32Hash({
     normalizedSource: identity.normalizedSource,
     parameters: identity.parameters,
     taskType: identity.taskType,

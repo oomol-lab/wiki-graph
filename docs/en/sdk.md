@@ -109,6 +109,20 @@ for an `upgrade-required` error whose target you retained. In the CLI use
 `wg maintenance upgrade <library-uri>` as indicated by the error. Home v4 must be
 manually upgraded to v5 before other state operations; archive schema remains v5.
 
+## Stable archive and host APIs
+
+The SDK is the stable Node-facing boundary for archive operations. Use
+`archive.export(path)` to export a standalone or managed archive without
+constructing Core file adapters, and `sdk.archives.inspectSchema(target)` to
+inspect an archive schema before an explicit upgrade. Node platform and
+database adapter types are exported from the SDK's Node entry point; host
+applications should not import `wiki-graph-core/platform`.
+
+Lossless directory exports preserve an existing `.wikg-mutation-token`; a new
+source receives a token. Archive mutations refresh the token. Node ZIP output
+uses deterministic entry metadata, including a fixed DOS-compatible timestamp,
+so repeated exports of unchanged content have stable bytes.
+
 Directory archives read manifest and requested paths directly. ZIP lookups scan
 the central directory on demand (O(files)) without retaining a full entry map;
 ZIP database queries may materialize a database. Directory read-only queries avoid database copying and
