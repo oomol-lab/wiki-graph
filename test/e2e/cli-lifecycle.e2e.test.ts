@@ -65,7 +65,7 @@ describe("packed CLI archive lifecycle", () => {
       "--json",
     ]);
     expect(upgraded.exitCode, upgraded.stderr).toBe(0);
-    expect(await readVersion()).toBe(5);
+    expect(await readVersion()).toBe(6);
     const inspect = await sandbox.run([
       sandbox.archiveUri,
       "inspect",

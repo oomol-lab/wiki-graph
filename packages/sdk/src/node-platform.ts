@@ -47,16 +47,18 @@ const NODE_RESOURCE_KIND = Symbol.for("wiki-graph-sdk.node-resource.v1");
 /** Install the Node implementation used by the CLI and its workers. */
 export class NodeFile implements File {
   public async getPhysicalIdentity(): Promise<string | undefined> {
-    const value = await fsPromises.stat(this.path).catch((error: unknown) => {
-      if (
-        typeof error === "object" &&
-        error !== null &&
-        "code" in error &&
-        error.code === "ENOENT"
-      )
-        return undefined;
-      throw error;
-    });
+    const value = await fsPromises
+      .stat(toNodeFilesystemPath(this.path))
+      .catch((error: unknown) => {
+        if (
+          typeof error === "object" &&
+          error !== null &&
+          "code" in error &&
+          error.code === "ENOENT"
+        )
+          return undefined;
+        throw error;
+      });
     if (value === undefined) return undefined;
     return `${value.dev}:${value.ino}`;
   }
@@ -74,7 +76,7 @@ export class NodeFile implements File {
   }
 
   public async openReader(): Promise<FileReader> {
-    const handle = await fsPromises.open(this.path, "r");
+    const handle = await fsPromises.open(toNodeFilesystemPath(this.path), "r");
     let closed = false;
     try {
       const stats = await handle.stat();
@@ -115,7 +117,7 @@ export class NodeFile implements File {
 
   public async getLastModified(): Promise<number | undefined> {
     try {
-      return (await fsPromises.stat(this.path)).mtimeMs;
+      return (await fsPromises.stat(toNodeFilesystemPath(this.path))).mtimeMs;
     } catch (error) {
       if (
         typeof error === "object" &&
@@ -130,9 +132,14 @@ export class NodeFile implements File {
   }
 
   public async openWriter(): Promise<FileWriter> {
-    await fsPromises.mkdir(pathModule.dirname(this.path), { recursive: true });
+    await fsPromises.mkdir(
+      toNodeFilesystemPath(pathModule.dirname(this.path)),
+      {
+        recursive: true,
+      },
+    );
     const temporary = `${this.path}.tmp-${crypto.randomUUID()}`;
-    const handle = await fsPromises.open(temporary, "wx");
+    const handle = await fsPromises.open(toNodeFilesystemPath(temporary), "wx");
     let closed = false;
     return {
       write: async (data) => {
@@ -147,14 +154,17 @@ export class NodeFile implements File {
       commit: async () => {
         if (!closed) {
           await handle.close();
-          await fsPromises.rename(temporary, this.path);
+          await fsPromises.rename(
+            toNodeFilesystemPath(temporary),
+            toNodeFilesystemPath(this.path),
+          );
         }
         closed = true;
       },
       abort: async () => {
         if (!closed) {
           await handle.close();
-          await fsPromises.rm(temporary, { force: true });
+          await fsPromises.rm(toNodeFilesystemPath(temporary), { force: true });
         }
         closed = true;
       },
@@ -204,16 +214,18 @@ function assertFileOffset(offset: number): void {
 
 export class NodeDirectory implements Directory {
   public async getPhysicalIdentity(): Promise<string | undefined> {
-    const value = await fsPromises.stat(this.path).catch((error: unknown) => {
-      if (
-        typeof error === "object" &&
-        error !== null &&
-        "code" in error &&
-        error.code === "ENOENT"
-      )
-        return undefined;
-      throw error;
-    });
+    const value = await fsPromises
+      .stat(toNodeFilesystemPath(this.path))
+      .catch((error: unknown) => {
+        if (
+          typeof error === "object" &&
+          error !== null &&
+          "code" in error &&
+          error.code === "ENOENT"
+        )
+          return undefined;
+        throw error;
+      });
     if (value === undefined) return undefined;
     return `${value.dev}:${value.ino}`;
   }
@@ -231,7 +243,9 @@ export class NodeDirectory implements Directory {
     assertChildName(name);
     const file = new NodeFile(pathModule.join(this.path, name));
     try {
-      return (await fsPromises.stat(file.path)).isFile() ? file : undefined;
+      return (await fsPromises.stat(toNodeFilesystemPath(file.path))).isFile()
+        ? file
+        : undefined;
     } catch (error) {
       if (
         typeof error === "object" &&
@@ -246,7 +260,7 @@ export class NodeDirectory implements Directory {
 
   public async getLastModified(): Promise<number | undefined> {
     try {
-      return (await fsPromises.stat(this.path)).mtimeMs;
+      return (await fsPromises.stat(toNodeFilesystemPath(this.path))).mtimeMs;
     } catch (error) {
       if (
         typeof error === "object" &&
@@ -264,7 +278,9 @@ export class NodeDirectory implements Directory {
     assertChildName(name);
     const directory = new NodeDirectory(pathModule.join(this.path, name));
     try {
-      return (await fsPromises.stat(directory.path)).isDirectory()
+      return (
+        await fsPromises.stat(toNodeFilesystemPath(directory.path))
+      ).isDirectory()
         ? directory
         : undefined;
     } catch (error) {
@@ -280,7 +296,7 @@ export class NodeDirectory implements Directory {
   }
 
   public async list(): Promise<ReadonlyArray<File | Directory>> {
-    const entries = await fsPromises.readdir(this.path, {
+    const entries = await fsPromises.readdir(toNodeFilesystemPath(this.path), {
       withFileTypes: true,
     });
     return entries.map((entry) =>
@@ -292,17 +308,23 @@ export class NodeDirectory implements Directory {
 
   public async createFile(name: string): Promise<File> {
     assertChildName(name);
-    await fsPromises.mkdir(this.path, { recursive: true });
+    await fsPromises.mkdir(toNodeFilesystemPath(this.path), {
+      recursive: true,
+    });
     const file = new NodeFile(pathModule.join(this.path, name));
-    await fsPromises.writeFile(file.path, "", { flag: "wx" });
+    await fsPromises.writeFile(toNodeFilesystemPath(file.path), "", {
+      flag: "wx",
+    });
     return file;
   }
 
   public async createDirectory(name: string): Promise<Directory> {
     assertChildName(name);
-    await fsPromises.mkdir(this.path, { recursive: true });
+    await fsPromises.mkdir(toNodeFilesystemPath(this.path), {
+      recursive: true,
+    });
     const directory = new NodeDirectory(pathModule.join(this.path, name));
-    await fsPromises.mkdir(directory.path);
+    await fsPromises.mkdir(toNodeFilesystemPath(directory.path));
     return directory;
   }
 
@@ -311,11 +333,25 @@ export class NodeDirectory implements Directory {
     options?: { readonly recursive?: boolean },
   ): Promise<void> {
     assertChildName(name);
-    await fsPromises.rm(pathModule.join(this.path, name), {
-      force: true,
-      recursive: options?.recursive === true,
-    });
+    await fsPromises.rm(
+      toNodeFilesystemPath(pathModule.join(this.path, name)),
+      {
+        force: true,
+        recursive: options?.recursive === true,
+      },
+    );
   }
+}
+
+function toNodeFilesystemPath(path: string): string {
+  if (nodeProcess.platform !== "win32" || path.startsWith("\\\\?\\")) {
+    return path;
+  }
+  const absolute = pathModule.resolve(path);
+  if (absolute.startsWith("\\\\")) {
+    return `\\\\?\\UNC\\${absolute.slice(2)}`;
+  }
+  return `\\\\?\\${absolute}`;
 }
 
 function encodeNodeResourceIdentity(
@@ -450,10 +486,14 @@ async function openNativeNodeDatabase(
     throw new TypeError("The Node database adapter requires a NodeFile");
   }
   return await new Promise((resolve, reject) => {
-    const database = new nodeSqlite3.Database(path, flags, (error) => {
-      if (error) reject(error);
-      else resolve(database);
-    });
+    const database = new nodeSqlite3.Database(
+      toNodeFilesystemPath(path),
+      flags,
+      (error) => {
+        if (error) reject(error);
+        else resolve(database);
+      },
+    );
   });
 }
 
@@ -465,7 +505,7 @@ async function openNodeZip(
   if (path === undefined) {
     throw new TypeError("The Node ZIP adapter requires a NodeFile");
   }
-  const handle = await fsPromises.open(path, "r");
+  const handle = await fsPromises.open(toNodeFilesystemPath(path), "r");
   let size: number;
   try {
     size = (await handle.stat()).size;

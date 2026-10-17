@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.9.5
+
+- Shorten WIKG coordinator workspace snapshot paths with a single composite hash and compact Windows-safe snapshot names.
+- Treat obsolete workspace snapshots as disposable cache during the explicit Home schema upgrade and add Windows long-path handling at Node filesystem, ZIP, and SQLite boundaries.
+
 ## 0.9.4
 
 - Close archive readers before archive settlement and physical replacement, preventing Windows `EPERM` failures when a `.wikg` archive is still open.

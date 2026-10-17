@@ -514,7 +514,7 @@ describe("schema-upgrade", () => {
         async () => {
           await expect(readWikiGraphHomeSchemaVersion()).resolves.toBe(0);
           await upgradeWikiGraphHomeSchema();
-          await expect(readWikiGraphHomeSchemaVersion()).resolves.toBe(5);
+          await expect(readWikiGraphHomeSchemaVersion()).resolves.toBe(6);
         },
       );
     });
@@ -532,11 +532,54 @@ describe("schema-upgrade", () => {
             async (storage) =>
               await withWikiGraphStorage(storage, async () => {
                 await upgradeWikiGraphHomeSchema();
-                await expect(readWikiGraphHomeSchemaVersion()).resolves.toBe(5);
+                await expect(readWikiGraphHomeSchemaVersion()).resolves.toBe(6);
               }),
           ),
         );
       });
+    });
+  });
+
+  it("clears obsolete WIKG workspace cache when upgrading a v5 home", async () => {
+    await withTempDir("wikigraph-home-v5-work-cache-", async (root) => {
+      const statePath = join(root, "state");
+      const corePath = join(statePath, "core.sqlite");
+      const oldSnapshot = join(
+        statePath,
+        "documents",
+        ".wikg-work",
+        "old-layout",
+        "old.snapshot",
+      );
+      await mkdir(join(oldSnapshot, ".."), { recursive: true });
+      await writeFile(oldSnapshot, "obsolete snapshot");
+      const database = await Database.open(new NodeFile(corePath), "", {
+        create: true,
+        mode: "readwrite",
+      });
+      try {
+        await database.execute(`
+          CREATE TABLE schema_versions (
+            scope TEXT PRIMARY KEY,
+            version INTEGER NOT NULL,
+            updated_at TEXT NOT NULL
+          );
+        `);
+        await database.run(
+          "INSERT INTO schema_versions VALUES ('home', 5, 'v5')",
+        );
+      } finally {
+        await database.close();
+      }
+
+      await withWikiGraphStorage(
+        createNodeWikiGraphStorage(statePath),
+        async () => {
+          await upgradeWikiGraphHomeSchema();
+          await expect(readWikiGraphHomeSchemaVersion()).resolves.toBe(6);
+          await expectPathMissing(join(statePath, "documents/.wikg-work"));
+        },
+      );
     });
   });
 
@@ -554,7 +597,7 @@ describe("schema-upgrade", () => {
         createNodeWikiGraphStorage(statePath),
         async () => {
           await upgradeWikiGraphHomeSchema();
-          await expect(readWikiGraphHomeSchemaVersion()).resolves.toBe(5);
+          await expect(readWikiGraphHomeSchemaVersion()).resolves.toBe(6);
 
           const database = await Database.open(
             new NodeFile(join(statePath, "core.sqlite")),
@@ -622,7 +665,7 @@ describe("schema-upgrade", () => {
           await expectPathMissing(join(statePath, "documents/.wikg-work"));
 
           await upgradeWikiGraphHomeSchema();
-          await expect(readWikiGraphHomeSchemaVersion()).resolves.toBe(5);
+          await expect(readWikiGraphHomeSchemaVersion()).resolves.toBe(6);
         },
       );
     });
@@ -643,7 +686,7 @@ describe("schema-upgrade", () => {
         upgradeWikiGraphArchiveSchemaFromPublicAPI(archive),
       ).resolves.toMatchObject({ changed: true, schemaChanged: true });
 
-      await expect(readWikiGraphHomeSchemaVersion()).resolves.toBe(5);
+      await expect(readWikiGraphHomeSchemaVersion()).resolves.toBe(6);
       await expect(readWikiGraphArchiveSchemaVersion(archive)).resolves.toBe(5);
       await expect(readWikgArchiveMutationToken(archive)).resolves.toBe(
         mutationToken,
@@ -697,7 +740,7 @@ describe("schema-upgrade", () => {
           }
 
           await upgradeWikiGraphHomeSchema();
-          await expect(readWikiGraphHomeSchemaVersion()).resolves.toBe(5);
+          await expect(readWikiGraphHomeSchemaVersion()).resolves.toBe(6);
         },
       );
     });
@@ -788,7 +831,7 @@ describe("schema-upgrade", () => {
             }
 
             await expect(upgradeWikiGraphHomeSchema()).resolves.toBeUndefined();
-            await expect(readWikiGraphHomeSchemaVersion()).resolves.toBe(5);
+            await expect(readWikiGraphHomeSchemaVersion()).resolves.toBe(6);
             expect(legacyReferences).toStrictEqual([libraryPath]);
             expect(identityReferences).toContain(migratedIdentity);
           },
@@ -874,7 +917,7 @@ describe("schema-upgrade", () => {
         createNodeWikiGraphStorage(statePath),
         async () => {
           await expect(upgradeWikiGraphHomeSchema()).resolves.toBeUndefined();
-          await expect(readWikiGraphHomeSchemaVersion()).resolves.toBe(5);
+          await expect(readWikiGraphHomeSchemaVersion()).resolves.toBe(6);
           await expectPathMissing(join(statePath, "cache/cache.sqlite"));
           await expectPathMissing(join(statePath, "jobs/job.sqlite"));
         },

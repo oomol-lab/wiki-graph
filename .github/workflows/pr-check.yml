@@ -78,8 +78,9 @@ jobs:
         run: >-
           pnpm exec vitest run
           test/core/storage/wikg/archive-coordination.test.ts
+          test/core/runtime/platform/node-platform.test.ts
           packages/sdk/src/full-regression/delivery.full-regression.test.ts
-          -t "keeps the archive owner registered until its ZIP reader closes|waits for an active standalone archive reader before replacing"
+          -t "keeps the archive owner registered until its ZIP reader closes|waits for an active standalone archive reader before replacing|supports database and ZIP access below a long Windows path"
           --maxWorkers=1
           --config vitest.config.ts
 

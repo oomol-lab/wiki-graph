@@ -21,9 +21,9 @@ describe("cli/maintenance upgrade", () => {
       expect(result).toStrictEqual({
         exitCode: 0,
         stderr: "",
-        stdout: "Home upgraded (schema v3 -> v5)\n",
+        stdout: "Home upgraded (schema v3 -> v6)\n",
       });
-      await expect(readHomeSchemaVersion(stateDir)).resolves.toBe(5);
+      await expect(readHomeSchemaVersion(stateDir)).resolves.toBe(6);
       await expect(access(join(stateDir, "jobs/job.sqlite"))).rejects.toThrow();
     });
   });

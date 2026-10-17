@@ -6,7 +6,7 @@ import {
   resolveHostFile,
   type File,
 } from "../../../runtime/platform/index.js";
-import { createPortableHash, randomUuid } from "../../../utils/crypto.js";
+import { createPortableHash, randomBase32Uuid } from "../../../utils/crypto.js";
 
 const WORK_ROOT = ".wikg-work";
 
@@ -14,13 +14,17 @@ export async function createWorkspaceSnapshot(
   archiveKey: string,
   entryPath: string,
 ): Promise<{ readonly file: File; readonly relativePath: string }> {
-  const entryKey = createPortableHash("sha256").update(entryPath).digest("hex");
-  const directoryPath = `${WORK_ROOT}/${archiveKey}/${entryKey}`;
+  const workspaceKey = createPortableHash("sha256")
+    .update(archiveKey)
+    .update("\0")
+    .update(entryPath)
+    .digest("hex");
+  const directoryPath = `${WORK_ROOT}/${workspaceKey}`;
   const directory = await ensureRelativeDirectory(
     getWikiGraphStorage().documentStore,
     directoryPath,
   );
-  const name = `${randomUuid()}.snapshot`;
+  const name = `${randomBase32Uuid()}.snapshot`;
   return {
     file: await directory.createFile(name),
     relativePath: `${directoryPath}/${name}`,
