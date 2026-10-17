@@ -5,7 +5,10 @@ import { fileURLToPath } from "url";
 import { describe, expect, it } from "vitest";
 
 import { DirectoryDocument } from "../../../../packages/core/src/document/index.js";
-import { withWikiGraphStorage } from "../../../../packages/core/src/runtime/platform/index.js";
+import {
+  installWikiGraphPlatform,
+  withWikiGraphStorage,
+} from "../../../../packages/core/src/runtime/platform/index.js";
 import {
   readWikgArchiveEntry,
   writeWikgArchive,
@@ -14,6 +17,7 @@ import { WikgCoordinator } from "../../../../packages/core/src/storage/wikg/coor
 import { WikiGraphArchiveFile } from "../../../../packages/core/src/storage/wikg/wiki-graph-archive-file.js";
 import {
   createNodeWikiGraphStorage,
+  nodeWikiGraphPlatform,
   NodeDirectory,
   NodeFile,
 } from "../../../../packages/cli/src/runtime/node-platform.js";
@@ -200,6 +204,69 @@ describe("wikg cross-process coordination", () => {
       await replacement;
       await reading;
       expect(readerEntered).toBe(true);
+    });
+  });
+
+  it("keeps the archive owner registered until its ZIP reader closes", async () => {
+    await withFixture(async ({ archivePath }) => {
+      let delaySessionReaderClose = false;
+      let delayedCloseConsumed = false;
+      let signalCloseStarted!: () => void;
+      const closeStarted = new Promise<void>((resolve) => {
+        signalCloseStarted = resolve;
+      });
+      let releaseClose!: () => void;
+      const releaseReaderClose = new Promise<void>((resolve) => {
+        releaseClose = resolve;
+      });
+      const originalZip = nodeWikiGraphPlatform.zip;
+
+      installWikiGraphPlatform({
+        ...nodeWikiGraphPlatform,
+        zip: {
+          ...originalZip,
+          open: async (file, options) => {
+            const reader = await originalZip.open(file, options);
+            return {
+              ...reader,
+              close: async () => {
+                if (delaySessionReaderClose && !delayedCloseConsumed) {
+                  delayedCloseConsumed = true;
+                  signalCloseStarted();
+                  await releaseReaderClose;
+                }
+                await reader.close();
+              },
+            };
+          },
+        },
+      });
+
+      try {
+        const archive = new NodeFile(archivePath);
+        const coordinator = new WikgCoordinator();
+        const reading = coordinator.withArchiveSession(archive, () => {
+          delaySessionReaderClose = true;
+        });
+        await closeStarted;
+
+        let replacementEntered = false;
+        const replacing = coordinator.withExclusiveArchiveReplacement(
+          archive,
+          () => {
+            replacementEntered = true;
+          },
+        );
+        await new Promise((resolve) => globalThis.setTimeout(resolve, 50));
+        expect(replacementEntered).toBe(false);
+
+        releaseClose();
+        await reading;
+        await replacing;
+        expect(replacementEntered).toBe(true);
+      } finally {
+        installWikiGraphPlatform(nodeWikiGraphPlatform);
+      }
     });
   });
 
