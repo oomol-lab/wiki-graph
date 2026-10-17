@@ -1154,20 +1154,13 @@ export class WikiGraphArchiveHandle {
         getChapterDetails(document, serialId),
         document.readSummary(serialId),
       ]);
-      const objects: WikgObject[] = [];
-      for await (const object of createChapterReadingGraphObjectStream({
-        chapterId: serialId,
-        document,
-      })) {
-        objects.push(object);
-      }
-      return { chapter, objects, summary };
+      return { chapter, summary };
     }, options);
 
     return {
       chapter: result.chapter,
       ...(result.summary === undefined ? {} : { summary: result.summary }),
-      objects: asAsyncIterable(result.objects),
+      objects: this.#readChapterObjects(serialId, options),
     };
   }
 
@@ -1301,6 +1294,38 @@ export class WikiGraphArchiveHandle {
       .catch((error: unknown) =>
         rethrowArchiveSchemaError(error, this.#location.target),
       );
+  }
+
+  async *#readChapterObjects(
+    serialId: number,
+    options: WikiGraphOperationOptions,
+  ): AsyncIterable<WikgObject> {
+    const queue = createAsyncValueQueue<WikgObject>();
+    const producer = this.#readDocument(async (document) => {
+      try {
+        for await (const object of createChapterReadingGraphObjectStream({
+          chapterId: serialId,
+          document,
+        })) {
+          if (!(await queue.push(object))) break;
+        }
+        queue.end();
+      } catch (error) {
+        queue.fail(error);
+        throw error;
+      }
+    }, options).catch((error: unknown) => {
+      queue.fail(error);
+      throw error;
+    });
+
+    try {
+      for await (const object of queue) yield object;
+      await producer;
+    } finally {
+      queue.cancel();
+      await producer.catch(() => undefined);
+    }
   }
 
   async #writeDocument<T>(
@@ -1616,10 +1641,7 @@ async function collectArchiveSerials(
   for (const item of items) {
     const title = item.title?.trim() || `Chapter ${item.serialId ?? "group"}`;
     const tocPath = [...ancestorTitles, title];
-    if (
-      item.serialId !== undefined &&
-      (await document.readSummary(item.serialId)) !== undefined
-    ) {
+    if (item.serialId !== undefined) {
       entries.push({
         fragmentCount: (
           await document.getSerialFragments(item.serialId).listFragmentIds()
@@ -1636,11 +1658,86 @@ async function collectArchiveSerials(
   return entries;
 }
 
-function asAsyncIterable<T>(values: readonly T[]): AsyncIterable<T> {
-  return (async function* () {
-    await Promise.resolve();
-    yield* values;
-  })();
+function createAsyncValueQueue<T>(): AsyncValueQueue<T> {
+  const values: T[] = [];
+  const readers: Array<{
+    readonly reject: (error: Error) => void;
+    readonly resolve: (result: IteratorResult<T>) => void;
+  }> = [];
+  const writers: Array<() => void> = [];
+  let cancelled = false;
+  let ended = false;
+  let failure: Error | undefined;
+
+  const settleReaders = (): void => {
+    while (readers.length > 0) {
+      const reader = readers.shift()!;
+      if (failure !== undefined) reader.reject(failure);
+      else if (values.length > 0) {
+        reader.resolve({ done: false, value: values.shift()! });
+        writers.shift()?.();
+      } else if (ended) reader.resolve({ done: true, value: undefined });
+      else {
+        readers.unshift(reader);
+        return;
+      }
+    }
+  };
+
+  return {
+    [Symbol.asyncIterator]: () => ({
+      next: async (): Promise<IteratorResult<T>> => {
+        if (failure !== undefined) throw failure;
+        if (values.length > 0) {
+          const value = values.shift()!;
+          writers.shift()?.();
+          return { done: false, value };
+        }
+        if (ended) return { done: true, value: undefined };
+        return await new Promise<IteratorResult<T>>((resolve, reject) => {
+          readers.push({ reject, resolve });
+        });
+      },
+    }),
+    cancel: () => {
+      cancelled = true;
+      ended = true;
+      values.length = 0;
+      while (writers.length > 0) writers.shift()!();
+      settleReaders();
+    },
+    end: () => {
+      ended = true;
+      settleReaders();
+    },
+    fail: (error: unknown) => {
+      failure = error instanceof Error ? error : new Error(String(error));
+      ended = true;
+      values.length = 0;
+      while (writers.length > 0) writers.shift()!();
+      settleReaders();
+    },
+    push: async (value: T): Promise<boolean> => {
+      if (cancelled || ended || failure !== undefined) return false;
+      if (readers.length > 0) {
+        readers.shift()!.resolve({ done: false, value });
+        return true;
+      }
+      if (values.length > 0) {
+        await new Promise<void>((resolve) => writers.push(resolve));
+        if (cancelled || ended || failure !== undefined) return false;
+      }
+      values.push(value);
+      return true;
+    },
+  };
+}
+
+interface AsyncValueQueue<T> extends AsyncIterable<T> {
+  readonly cancel: () => void;
+  readonly end: () => void;
+  readonly fail: (error: unknown) => void;
+  readonly push: (value: T) => Promise<boolean>;
 }
 
 async function assertChapterResetAllowed(
