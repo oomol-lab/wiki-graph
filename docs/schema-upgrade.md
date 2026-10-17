@@ -205,7 +205,7 @@ home or library target and must not become CLI targets.
   using the membership transaction, even at current SQL schema versions.
   Results report `migrated` separately from schema `upgraded`/`skipped`, and
   unavailable members produce `partial` with their URIs. Repeating the upgrade
-  is a no-op once schema and storage are current. Home v5 and archive v5 remain
+  is a no-op once schema and storage are current. Home v6 and archive v5 remain
   unchanged because the SQL and standalone ZIP formats have not changed.
   Directory members cannot be opened by 0.8.4. Keep a pre-upgrade backup for
   rollback, or export standalone ZIP archives for interchange; upgrading home

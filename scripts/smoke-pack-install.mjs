@@ -249,6 +249,16 @@ try {
 
   assertCommonJsExport(sdkInstallRoot, "wiki-graph-sdk", "createWikiGraphSDK");
   assertEsmExport(sdkInstallRoot, "wiki-graph-sdk", "createWikiGraphSDK");
+  assertCommonJsExport(
+    sdkInstallRoot,
+    "wiki-graph-sdk",
+    "formatWikiGraphLibraryUri",
+  );
+  assertEsmExport(
+    sdkInstallRoot,
+    "wiki-graph-sdk",
+    "formatWikiGraphLibraryUri",
+  );
   assertCommonJsExport(sdkInstallRoot, "wiki-graph-sdk", "WikiGraphSDK");
   assertEsmExport(sdkInstallRoot, "wiki-graph-sdk", "WikiGraphSDK");
   assertCommonJsExportMissing(sdkInstallRoot, "wiki-graph-sdk", "WikiGraph");
@@ -263,6 +273,7 @@ try {
     "-e",
     [
       'const { createWikiGraphSDK } = require("wiki-graph-sdk");',
+      'const { formatWikiGraphLibraryUri, parseWikiGraphLibraryUri } = require("wiki-graph-sdk");',
       'const { readLocalConfigSection } = require("wiki-graph-sdk/local-config");',
       'const { tryRunWikiGraphGc } = require("wiki-graph-sdk/gc");',
       'const { runBuildJobWorker } = require("wiki-graph-sdk/worker");',
@@ -270,6 +281,8 @@ try {
       'const { join } = require("path");',
       "void (async () => {",
       '  const root = join(process.cwd(), "runtime-smoke-cjs");',
+      '  if (formatWikiGraphLibraryUri() !== "wikg://lib") throw new Error("CommonJS URI facade is unavailable");',
+      '  if (parseWikiGraphLibraryUri("wikg://lib")?.kind !== "scope") throw new Error("CommonJS URI parser facade is unavailable");',
       '  mkdirSync(join(root, "sdk"), { recursive: true });',
       '  const sdk = createWikiGraphSDK({ stateDir: join(root, "sdk") });',
       "  const expectedJobConcurrency = 700000 + process.pid;",
@@ -295,12 +308,15 @@ try {
     "-e",
     [
       'import { createWikiGraphSDK } from "wiki-graph-sdk";',
+      'import { formatWikiGraphLibraryUri, parseWikiGraphLibraryUri } from "wiki-graph-sdk";',
       'import { tryRunWikiGraphGc } from "wiki-graph-sdk/gc";',
       'import { readLocalConfigSection } from "wiki-graph-sdk/local-config";',
       'import { runBuildJobWorker } from "wiki-graph-sdk/worker";',
       'import { mkdirSync } from "fs";',
       'import { join } from "path";',
       'const root = join(process.cwd(), "runtime-smoke");',
+      'if (formatWikiGraphLibraryUri() !== "wikg://lib") throw new Error("ESM URI facade is unavailable");',
+      'if (parseWikiGraphLibraryUri("wikg://lib")?.kind !== "scope") throw new Error("ESM URI parser facade is unavailable");',
       'mkdirSync(join(root, "sdk"), { recursive: true });',
       'const sdk = createWikiGraphSDK({ stateDir: join(root, "sdk") });',
       "const expectedJobConcurrency = 800000 + process.pid;",
