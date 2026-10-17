@@ -284,6 +284,34 @@ describe("opaque archive File adapter", () => {
       );
     });
   });
+
+  it("forwards ZIP commit lifecycle hooks through opaque files", async () => {
+    await withTempDir("wikigraph-opaque-before-commit-", async (path) => {
+      const file = wrapFile(new NodeFile(`${path}/archive.zip`));
+      let beforeCommitCalled = false;
+
+      await opaqueNodePlatform.zip.write(
+        file,
+        [{ name: "entry.txt", data: new TextEncoder().encode("content") }],
+        {
+          beforeCommit: () =>
+            Promise.resolve().then(() => {
+              beforeCommitCalled = true;
+            }),
+        },
+      );
+
+      expect(beforeCommitCalled).toBe(true);
+      const reader = await opaqueNodePlatform.zip.open(file);
+      try {
+        await expect(reader.readEntry("entry.txt")).resolves.toEqual(
+          Buffer.from("content"),
+        );
+      } finally {
+        await reader.close();
+      }
+    });
+  });
 });
 
 const backingFiles = new WeakMap<ReadonlyFile, NodeFile>();
