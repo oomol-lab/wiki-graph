@@ -42,6 +42,7 @@ import {
   WikiGraph,
   WikiGraphArchiveFile,
   WikiGraphDirectoryFile,
+  WikgCoordinator,
   TOC_FILE_VERSION,
   writeWikgArchive,
   type ArchiveCollectionOptions,
@@ -271,7 +272,10 @@ export class WikiGraphArchiveManager {
           });
         }
         if (options.replace === true) {
-          await rename(outputPath, path);
+          await new WikgCoordinator().withExclusiveArchiveReplacement(
+            new NodeFile(path),
+            async () => await rename(outputPath, path),
+          );
         } else {
           try {
             // A hard-link is an atomic no-clobber publish because the private
