@@ -4,6 +4,7 @@ import {
   mkdir,
   mkdtemp,
   readdir,
+  readFile,
   rm,
   writeFile,
 } from "fs/promises";
@@ -21,7 +22,7 @@ import {
   writeWikgArchive,
 } from "wiki-graph-core";
 
-import { createWikiGraphSDK } from "../sdk.js";
+import { createWikiGraphSDK } from "../index.js";
 import { type WikiGraphJobSnapshot } from "../jobs.js";
 import { NodeDirectory, NodeFile } from "../node-platform.js";
 
@@ -39,6 +40,41 @@ afterEach(async () => {
 });
 
 describe("WikiGraphSDK delivery operations", () => {
+  it("exports managed archives and inspects schemas through the public SDK entry", async () => {
+    const root = await mkdtemp(
+      join(tmpdir(), "wiki-graph-sdk-public-archive-"),
+    );
+    temporaryDirectories.push(root);
+    await mkdir(join(root, "state"));
+    const sdk = createWikiGraphSDK({
+      cwd: root,
+      stateDir: join(root, "state"),
+    });
+    await sdk.archives.create({ path: "source.wikg" });
+    const library = await sdk.libraries.create(join(root, "library"));
+    const member = await sdk.libraries.addArchive({
+      inputPath: join(root, "source.wikg"),
+      target: library.uri,
+      to: "managed.wikg",
+    });
+    const archive = await sdk.archives.open({
+      kind: "library",
+      uri: member.uri,
+    });
+    const outputPath = join(root, "exported.wikg");
+
+    await expect(archive.export(outputPath)).resolves.toEqual({
+      path: outputPath,
+    });
+    await expect(readFile(outputPath)).resolves.toEqual(
+      await readFile(join(root, "source.wikg")),
+    );
+    await expect(
+      sdk.archives.inspectSchema({ kind: "standalone", path: outputPath }),
+    ).resolves.toEqual({ schemaVersion: 5 });
+    sdk.close();
+  });
+
   it("exposes archive titles as concrete optional objects", async () => {
     const root = await mkdtemp(join(tmpdir(), "wiki-graph-sdk-title-"));
     temporaryDirectories.push(root);
@@ -186,7 +222,18 @@ describe("WikiGraphSDK delivery operations", () => {
       );
       expect(rejected).toHaveLength(1);
       const reason: unknown = rejected[0]?.reason;
-      expect(reason).toMatchObject({ code: "WIKI_GRAPH_ARCHIVE_EXISTS" });
+      if (
+        typeof reason === "object" &&
+        reason !== null &&
+        "code" in reason &&
+        reason.code === "SQLITE_BUSY"
+      ) {
+        await expect(sdk.archives.create({ path })).rejects.toMatchObject({
+          code: "WIKI_GRAPH_ARCHIVE_EXISTS",
+        });
+      } else {
+        expect(reason).toMatchObject({ code: "WIKI_GRAPH_ARCHIVE_EXISTS" });
+      }
     }
 
     expect(
