@@ -81,6 +81,8 @@ export async function writeWikgArchiveWithOverlays(
   const inputFile = await resolveHostReadonlyFile(inputFileRef);
   const outputFile = await resolveHostFile(outputFileRef);
   const reader = await getWikiGraphPlatform().zip.open(inputFile);
+  let closing: Promise<void> | undefined;
+  const closeReader = () => (closing ??= reader.close());
   try {
     const archiveEntries = new Map<string, string>();
     for (const hostName of await reader.listEntries()) {
@@ -164,9 +166,10 @@ export async function writeWikgArchiveWithOverlays(
           yield { file: source.file, name };
         }
       })(),
+      { beforeCommit: closeReader },
     );
   } finally {
-    await reader.close();
+    await closeReader();
   }
 }
 

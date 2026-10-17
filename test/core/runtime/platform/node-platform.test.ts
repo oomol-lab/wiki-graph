@@ -390,6 +390,84 @@ describe("Node File/Directory adapter", () => {
     });
   });
 
+  it("closes source readers after streaming entries and before replacing the ZIP", async () => {
+    await withTempDir("wikigraph-zip-replace-", async (path) => {
+      const file = new NodeFile(join(path, "archive.zip"));
+      const data = new TextEncoder().encode("original entry ".repeat(20_000));
+      await nodeWikiGraphPlatform.zip.write(file, [
+        { name: "large.txt", data },
+      ]);
+      const reader = await nodeWikiGraphPlatform.zip.open(file);
+      let reads = 0;
+      const beforeCommit = vi.fn(async () => {
+        expect(reads).toBeGreaterThan(1);
+        await reader.close();
+      });
+      try {
+        await nodeWikiGraphPlatform.zip.write(
+          file,
+          [
+            {
+              name: "large.txt",
+              size: data.byteLength,
+              read: async (offset, length) => {
+                expect(beforeCommit).not.toHaveBeenCalled();
+                reads++;
+                return (await reader.readEntryRange(
+                  "large.txt",
+                  offset,
+                  length,
+                ))!;
+              },
+            },
+          ],
+          { beforeCommit },
+        );
+        expect(beforeCommit).toHaveBeenCalledTimes(1);
+        const updated = await nodeWikiGraphPlatform.zip.open(file);
+        try {
+          expect(Buffer.from((await updated.readEntry("large.txt"))!)).toEqual(
+            Buffer.from(data),
+          );
+        } finally {
+          await updated.close();
+        }
+      } finally {
+        await reader.close();
+      }
+    });
+  });
+
+  it("aborts ZIP publication when releasing source resources fails", async () => {
+    await withTempDir("wikigraph-zip-abort-", async (path) => {
+      const file = new NodeFile(join(path, "archive.zip"));
+      const original = new TextEncoder().encode("original");
+      await nodeWikiGraphPlatform.zip.write(file, [
+        { name: "entry.txt", data: original },
+      ]);
+      const bytes = await readFile(file.path);
+      await expect(
+        nodeWikiGraphPlatform.zip.write(
+          file,
+          [
+            {
+              name: "entry.txt",
+              data: new TextEncoder().encode("replacement"),
+            },
+          ],
+          {
+            beforeCommit: () =>
+              Promise.reject(new Error("reader close failed")),
+          },
+        ),
+      ).rejects.toThrow("reader close failed");
+      expect(await readFile(file.path)).toEqual(bytes);
+      expect(
+        (await new NodeDirectory(path).list()).map((entry) => entry.name),
+      ).toEqual(["archive.zip"]);
+    });
+  });
+
   it("writes byte-stable ZIP metadata", async () => {
     await withTempDir("wikigraph-stable-zip-", async (path) => {
       const write = async (name: string) => {

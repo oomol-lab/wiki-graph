@@ -863,6 +863,7 @@ async function openNodeZipEntryStream(
 async function writeNodeZip(
   file: File,
   entries: Iterable<HostZipWriteEntry> | AsyncIterable<HostZipWriteEntry>,
+  options: { readonly beforeCommit?: () => Promise<void> } = {},
 ): Promise<void> {
   const zipFile = new yazl.ZipFile();
   const writer = await file.openWriter();
@@ -883,6 +884,7 @@ async function writeNodeZip(
     }
     zipFile.end();
     await outputDone;
+    await options.beforeCommit?.();
     await writer.commit();
   } catch (error) {
     entryState.cancelled = true;

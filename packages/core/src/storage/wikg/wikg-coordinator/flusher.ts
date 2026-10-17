@@ -109,6 +109,8 @@ async function commitOverlays(
   overlays: readonly EntryOverlay[],
 ): Promise<Uint8Array> {
   const reader = await WikgArchiveReader.open(archive);
+  let closing: Promise<void> | undefined;
+  const closeReader = () => (closing ??= reader.close());
   const overlayByPath = new Map(overlays.map((item) => [item.entryPath, item]));
   if (
     overlayByPath.has(DATABASE_ENTRY_PATH) ||
@@ -153,10 +155,11 @@ async function commitOverlays(
       await getWikiGraphPlatform().zip.write(
         archive,
         createArchiveEntries(reader, overlayByPath, paths, mutationToken),
+        { beforeCommit: closeReader },
       );
     }
   } finally {
-    await reader.close();
+    await closeReader();
   }
 
   // The archive is authoritative after its transactional writer commits.
