@@ -6,6 +6,7 @@ import { describe, expect, it } from "vitest";
 
 import { DirectoryDocument } from "../../../../packages/core/src/document/index.js";
 import {
+  copyFileContent,
   installWikiGraphPlatform,
   withWikiGraphStorage,
 } from "../../../../packages/core/src/runtime/platform/index.js";
@@ -42,10 +43,12 @@ describe("wikg cross-process coordination", () => {
         waitForMessage(metadata, "published"),
         waitForMessage(toc, "published"),
       ]);
-      metadata.send({ type: "finish" });
-      await waitForExit(metadata);
+      // ZIP replacement must wait for every open reader on every platform;
+      // Windows requires this at the filesystem level as well.
       toc.send({ type: "finish" });
       await waitForExit(toc);
+      metadata.send({ type: "finish" });
+      await waitForExit(metadata);
 
       await withWikiGraphStorage(storage, async () => {
         await expect(
@@ -144,6 +147,8 @@ describe("wikg cross-process coordination", () => {
     await withFixture(async ({ archivePath }) => {
       const archive = new NodeFile(archivePath);
       const coordinator = new WikgCoordinator();
+      let deletion!: Promise<void>;
+      let deleted = false;
       await coordinator.withArchiveSession(archive, async (readerSession) => {
         const document = await DirectoryDocument.openFileStore(
           readerSession.createFileStore({ readonlyDatabase: true }),
@@ -152,8 +157,7 @@ describe("wikg cross-process coordination", () => {
         const deleteStarted = new Promise<void>((resolve) => {
           startDelete = resolve;
         });
-        let deleted = false;
-        const deletion = coordinator.withArchiveSession(
+        deletion = coordinator.withArchiveSession(
           archive,
           async (writerSession) => {
             startDelete();
@@ -166,9 +170,9 @@ describe("wikg cross-process coordination", () => {
         await new Promise((resolve) => globalThis.setTimeout(resolve, 100));
         expect(deleted).toBe(false);
         await document.release();
-        await deletion;
-        expect(deleted).toBe(true);
       });
+      await deletion;
+      expect(deleted).toBe(true);
     });
   });
 
@@ -209,6 +213,11 @@ describe("wikg cross-process coordination", () => {
 
   it("keeps the archive owner registered until its ZIP reader closes", async () => {
     await withFixture(async ({ archivePath }) => {
+      const replacementPath = `${archivePath}.replacement`;
+      await copyFileContent(
+        new NodeFile(archivePath),
+        new NodeFile(replacementPath),
+      );
       let delaySessionReaderClose = false;
       let delayedCloseConsumed = false;
       let signalCloseStarted!: () => void;
@@ -253,8 +262,12 @@ describe("wikg cross-process coordination", () => {
         let replacementEntered = false;
         const replacing = coordinator.withExclusiveArchiveReplacement(
           archive,
-          () => {
+          async () => {
             replacementEntered = true;
+            await copyFileContent(
+              new NodeFile(replacementPath),
+              new NodeFile(archivePath),
+            );
           },
         );
         await new Promise((resolve) => globalThis.setTimeout(resolve, 50));
