@@ -378,9 +378,9 @@ describe("Node File/Directory adapter", () => {
       ]);
       const reader = await nodeWikiGraphPlatform.zip.open(zipFile);
       try {
-        await expect(reader.readEntry("marker.txt")).resolves.toEqual(
-          new TextEncoder().encode("ok"),
-        );
+        await expect(
+          Array.from((await reader.readEntry("marker.txt")) ?? []),
+        ).toEqual(Array.from(new TextEncoder().encode("ok")));
       } finally {
         await reader.close();
       }
