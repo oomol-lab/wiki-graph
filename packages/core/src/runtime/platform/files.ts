@@ -83,6 +83,8 @@ export async function appendFileText(
     if ((error as HostError | undefined)?.code === "ENOENT") return undefined;
     throw error;
   });
+  let closing: Promise<void> | undefined;
+  const closeReader = () => (closing ??= reader?.close() ?? Promise.resolve());
   let writer: Awaited<ReturnType<File["openWriter"]>> | undefined;
   try {
     writer = await file.openWriter();
@@ -97,12 +99,13 @@ export async function appendFileText(
       }
     }
     await writer.write(content);
+    await closeReader();
     await writer.commit();
   } catch (error) {
     await writer?.abort().catch(() => undefined);
     throw error;
   } finally {
-    await reader?.close();
+    await closeReader();
   }
 }
 

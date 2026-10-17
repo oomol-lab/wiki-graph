@@ -48,6 +48,67 @@ afterEach(() => {
 });
 
 describe("wikg/wiki-graph-archive-file", () => {
+  it("releases every source ZIP reader before publishing an archive mutation", async () => {
+    await withArchiveFixture(async ({ archive }) => {
+      let readers = 0;
+      let commits = 0;
+      const openZip = nodeWikiGraphPlatform.zip.open.bind(
+        nodeWikiGraphPlatform.zip,
+      );
+      const openWriter = archive.openWriter.bind(archive);
+      const zipSpy = vi
+        .spyOn(nodeWikiGraphPlatform.zip, "open")
+        .mockImplementation(async (file, options) => {
+          const reader = await openZip(file, options);
+          if (file.identity !== archive.identity) return reader;
+          readers++;
+          let closed = false;
+          return {
+            ...reader,
+            close: async () => {
+              await reader.close();
+              if (!closed) readers--;
+              closed = true;
+            },
+          };
+        });
+      const writerSpy = vi
+        .spyOn(archive, "openWriter")
+        .mockImplementation(async () => {
+          const writer = await openWriter();
+          return {
+            ...writer,
+            commit: async () => {
+              expect(readers).toBe(0);
+              await writer.commit();
+              commits++;
+            },
+          };
+        });
+      try {
+        const file = new WikiGraphArchiveFile(archive);
+        await file.write(async (document) => {
+          await document.replaceToc({
+            version: 1,
+            items: [
+              { children: [], key: "chapter", serialId: 1, title: "Updated" },
+            ],
+          });
+        });
+        expect(commits).toBe(1);
+        expect(readers).toBe(0);
+        await expect(
+          file.read(async (document) => await document.readToc()),
+        ).resolves.toMatchObject({
+          items: [{ title: "Updated" }],
+        });
+      } finally {
+        zipSpy.mockRestore();
+        writerSpy.mockRestore();
+      }
+    });
+  });
+
   it("releases the archive queue after a read callback fails", async () => {
     await withArchiveFixture(async ({ archive }) => {
       const file = new WikiGraphArchiveFile(archive);
@@ -1112,7 +1173,9 @@ async function addArchiveEntry(
       }
       yield { file: source, name: entryName };
     }
-    await nodeWikiGraphPlatform.zip.write(archive, entries());
+    await nodeWikiGraphPlatform.zip.write(archive, entries(), {
+      beforeCommit: () => reader.close(),
+    });
   } finally {
     await reader.close();
   }
@@ -1182,7 +1245,7 @@ function wrapPersistentCacheReaders(
       if (
         file === undefined ||
         name !== "index.db" ||
-        !relativePath.startsWith(".wikg-cache/")
+        !relativePath.replaceAll("\\", "/").startsWith(".wikg-cache/")
       ) {
         return file;
       }

@@ -485,15 +485,17 @@ async function openNativeNodeDatabase(
   if (path === undefined) {
     throw new TypeError("The Node database adapter requires a NodeFile");
   }
+  // SQLite 3.52 treats namespaced drive paths as UNC for WAL locking. Keep
+  // ordinary paths when the database and its longest sidecar fit MAX_PATH.
+  const filename =
+    nodeProcess.platform === "win32" && path.length + "-journal".length >= 260
+      ? toNodeFilesystemPath(path)
+      : path;
   return await new Promise((resolve, reject) => {
-    const database = new nodeSqlite3.Database(
-      toNodeFilesystemPath(path),
-      flags,
-      (error) => {
-        if (error) reject(error);
-        else resolve(database);
-      },
-    );
+    const database = new nodeSqlite3.Database(filename, flags, (error) => {
+      if (error) reject(error);
+      else resolve(database);
+    });
   });
 }
 
@@ -863,6 +865,7 @@ async function openNodeZipEntryStream(
 async function writeNodeZip(
   file: File,
   entries: Iterable<HostZipWriteEntry> | AsyncIterable<HostZipWriteEntry>,
+  options: { readonly beforeCommit?: () => Promise<void> } = {},
 ): Promise<void> {
   const zipFile = new yazl.ZipFile();
   const writer = await file.openWriter();
@@ -883,6 +886,7 @@ async function writeNodeZip(
     }
     zipFile.end();
     await outputDone;
+    await options.beforeCommit?.();
     await writer.commit();
   } catch (error) {
     entryState.cancelled = true;

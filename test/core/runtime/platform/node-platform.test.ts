@@ -215,6 +215,49 @@ describe("Node File/Directory adapter", () => {
     expect(closed).toBe(true);
   });
 
+  it("appends multiple chunks to an existing file before replacing it", async () => {
+    await withTempDir("wikigraph-append-", async (path) => {
+      const file = new NodeFile(join(path, "events.ndjson"));
+      const original = "first event\n".repeat(10000);
+      await appendFileText(file, original);
+      await appendFileText(file, "second event\n");
+      await appendFileText(file, "third event\n");
+      await expect(readFileText(file)).resolves.toBe(
+        `${original}second event\nthird event\n`,
+      );
+    });
+  });
+
+  it("preserves the original when the append reader cannot close", async () => {
+    await withTempDir("wikigraph-append-close-", async (path) => {
+      const backing = new NodeFile(join(path, "events.ndjson"));
+      await appendFileText(backing, "original\n");
+      const file: File = {
+        identity: backing.identity,
+        kind: "file",
+        name: backing.name,
+        openWriter: async () => await backing.openWriter(),
+        openReader: async () => {
+          const reader = await backing.openReader();
+          return {
+            size: reader.size,
+            read: async (offset, length) => await reader.read(offset, length),
+            close: async () => {
+              await reader.close();
+              throw new Error("reader close failed");
+            },
+          };
+        },
+      };
+
+      await expect(appendFileText(file, "next\n")).rejects.toThrow(
+        "reader close failed",
+      );
+      await expect(readFileText(backing)).resolves.toBe("original\n");
+      await expect(new NodeDirectory(path).list()).resolves.toHaveLength(1);
+    });
+  });
+
   it("closes the append reader when the writer cannot open", async () => {
     let closed = false;
     const file: File = {
@@ -361,6 +404,40 @@ describe("Node File/Directory adapter", () => {
     });
   });
 
+  it("supports concurrent WAL readers through repeated opens", async () => {
+    await withTempDir("wikigraph-wal-", async (path) => {
+      const root = new NodeDirectory(join(path, "spaces # percent %"));
+      const file = await root.createFile("state.sqlite");
+      const database = await nodeWikiGraphPlatform.database.open(file, {
+        create: true,
+        mode: "readwrite",
+      });
+      try {
+        await database.execute(
+          "PRAGMA journal_mode = WAL; CREATE TABLE marker(value INTEGER); INSERT INTO marker VALUES (42)",
+        );
+      } finally {
+        await database.close();
+      }
+      for (let iteration = 0; iteration < 250; iteration += 1) {
+        await Promise.all(
+          Array.from({ length: 5 }, async () => {
+            const reader = await nodeWikiGraphPlatform.database.open(file, {
+              mode: "readonly",
+            });
+            try {
+              await expect(
+                reader.queryOne("SELECT value FROM marker"),
+              ).resolves.toEqual({ value: 42 });
+            } finally {
+              await reader.close();
+            }
+          }),
+        );
+      }
+    });
+  }, 120_000);
+
   it("supports database and ZIP access below a long Windows path", async () => {
     if (process.platform !== "win32") return;
     await withTempDir("wikigraph-long-path-", async (path) => {
@@ -387,6 +464,84 @@ describe("Node File/Directory adapter", () => {
       } finally {
         await reader.close();
       }
+    });
+  });
+
+  it("closes source readers after streaming entries and before replacing the ZIP", async () => {
+    await withTempDir("wikigraph-zip-replace-", async (path) => {
+      const file = new NodeFile(join(path, "archive.zip"));
+      const data = new TextEncoder().encode("original entry ".repeat(20_000));
+      await nodeWikiGraphPlatform.zip.write(file, [
+        { name: "large.txt", data },
+      ]);
+      const reader = await nodeWikiGraphPlatform.zip.open(file);
+      let reads = 0;
+      const beforeCommit = vi.fn(async () => {
+        expect(reads).toBeGreaterThan(1);
+        await reader.close();
+      });
+      try {
+        await nodeWikiGraphPlatform.zip.write(
+          file,
+          [
+            {
+              name: "large.txt",
+              size: data.byteLength,
+              read: async (offset, length) => {
+                expect(beforeCommit).not.toHaveBeenCalled();
+                reads++;
+                return (await reader.readEntryRange(
+                  "large.txt",
+                  offset,
+                  length,
+                ))!;
+              },
+            },
+          ],
+          { beforeCommit },
+        );
+        expect(beforeCommit).toHaveBeenCalledTimes(1);
+        const updated = await nodeWikiGraphPlatform.zip.open(file);
+        try {
+          expect(Buffer.from((await updated.readEntry("large.txt"))!)).toEqual(
+            Buffer.from(data),
+          );
+        } finally {
+          await updated.close();
+        }
+      } finally {
+        await reader.close();
+      }
+    });
+  });
+
+  it("aborts ZIP publication when releasing source resources fails", async () => {
+    await withTempDir("wikigraph-zip-abort-", async (path) => {
+      const file = new NodeFile(join(path, "archive.zip"));
+      const original = new TextEncoder().encode("original");
+      await nodeWikiGraphPlatform.zip.write(file, [
+        { name: "entry.txt", data: original },
+      ]);
+      const bytes = await readFile(file.path);
+      await expect(
+        nodeWikiGraphPlatform.zip.write(
+          file,
+          [
+            {
+              name: "entry.txt",
+              data: new TextEncoder().encode("replacement"),
+            },
+          ],
+          {
+            beforeCommit: () =>
+              Promise.reject(new Error("reader close failed")),
+          },
+        ),
+      ).rejects.toThrow("reader close failed");
+      expect(await readFile(file.path)).toEqual(bytes);
+      expect(
+        (await new NodeDirectory(path).list()).map((entry) => entry.name),
+      ).toEqual(["archive.zip"]);
     });
   });
 

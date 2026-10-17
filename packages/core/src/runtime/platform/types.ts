@@ -169,6 +169,10 @@ export interface HostZipProvider {
   write(
     file: File,
     entries: Iterable<HostZipWriteEntry> | AsyncIterable<HostZipWriteEntry>,
+    options?: {
+      /** Runs after all entry reads and output writes finish, before publication. Failure aborts the writer. */
+      readonly beforeCommit?: () => Promise<void>;
+    },
   ): Promise<void>;
 }
 
