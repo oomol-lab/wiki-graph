@@ -19,6 +19,7 @@ import {
   replaceChapterFtsIndexArtifact,
   setChapterSource,
   TOC_FILE_VERSION,
+  type WikgObject,
   writeWikgArchive,
 } from "wiki-graph-core";
 
@@ -72,6 +73,45 @@ describe("WikiGraphSDK delivery operations", () => {
     await expect(
       sdk.archives.inspectSchema({ kind: "standalone", path: outputPath }),
     ).resolves.toEqual({ schemaVersion: 5 });
+    sdk.close();
+  });
+
+  it("reads archive data without requiring completed summaries", async () => {
+    const root = await mkdtemp(join(tmpdir(), "wiki-graph-sdk-archive-data-"));
+    temporaryDirectories.push(root);
+    await mkdir(join(root, "state"));
+    const sdk = createWikiGraphSDK({
+      cwd: root,
+      stateDir: join(root, "state"),
+    });
+    await sdk.archives.create({ path: "book.wikg" });
+    const archive = await sdk.archives.open(standalone("book.wikg"));
+    const chapter = await archive.addChapter({
+      source: "A chapter without a completed summary.",
+      title: "Pending chapter",
+    });
+
+    await expect(archive.readOverview()).resolves.toMatchObject({
+      serials: [
+        expect.objectContaining({
+          fragmentCount: 1,
+          serialId: chapter.chapterId,
+          title: "Pending chapter",
+          tocPath: ["Pending chapter"],
+        }),
+      ],
+    });
+
+    const data = await archive.readChapterData(chapter.chapterId);
+    expect(data.chapter.stage).toBe("sourced");
+    expect(data.summary).toBeUndefined();
+    const objects: WikgObject[] = [];
+    for await (const object of data.objects) objects.push(object);
+    expect(objects.map((object) => object.type)).toEqual([
+      "meta",
+      "source-fragment",
+      "end",
+    ]);
     sdk.close();
   });
 
