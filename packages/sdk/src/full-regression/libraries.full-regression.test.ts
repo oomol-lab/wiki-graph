@@ -244,6 +244,15 @@ describe("WikiGraphLibraryManager.readArchive", () => {
       await reading;
       await writing;
       expect(writeFinished).toBe(true);
+      if (operation === "replace") {
+        const archive = await setup.sdk.archives.open({
+          kind: "library",
+          uri: setup.memberUri,
+        });
+        expect(
+          JSON.stringify(await archive.page("wikg://chapter/1/title")),
+        ).toContain("Replacement");
+      }
       setup.sdk.close();
     });
   }

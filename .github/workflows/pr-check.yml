@@ -68,8 +68,19 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Run Windows archive coordination tests
-        run: pnpm exec vitest run test/core/storage/wikg/archive-coordination.test.ts --config vitest.pr.config.ts -t "keeps the archive owner registered until its ZIP reader closes"
+      - name: Verify code quality on Windows
+        run: pnpm verify
+
+      - name: Build packages on Windows
+        run: pnpm build
+
+      - name: Run Windows archive replacement tests
+        run: >-
+          pnpm exec vitest run
+          test/core/storage/wikg/archive-coordination.test.ts
+          packages/sdk/src/full-regression/libraries.full-regression.test.ts
+          packages/sdk/src/full-regression/delivery.full-regression.test.ts
+          --config vitest.config.ts
 
   package-readiness:
     name: End-to-End and Package Readiness

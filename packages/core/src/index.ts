@@ -201,6 +201,7 @@ export {
   requireLocatedObjectUri,
   WikiGraphArchiveFile,
   WikiGraphDirectoryFile,
+  WikgCoordinator,
   WIKI_GRAPH_JOB_URI_PREFIX,
   WIKI_GRAPH_URI_PREFIX,
   writeWikgArchive,

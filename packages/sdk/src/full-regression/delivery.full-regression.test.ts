@@ -14,6 +14,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import {
   addChapter,
   DirectoryDocument,
+  WikgCoordinator,
   replaceChapterFtsIndexArtifact,
   setChapterSource,
   TOC_FILE_VERSION,
@@ -114,6 +115,50 @@ describe("WikiGraphSDK delivery operations", () => {
     await expect(access(join(root, "failed.wikg"))).rejects.toMatchObject({
       code: "ENOENT",
     });
+    sdk.close();
+  });
+
+  it("waits for an active standalone archive reader before replacing", async () => {
+    const root = await mkdtemp(join(tmpdir(), "wiki-graph-sdk-create-reader-"));
+    temporaryDirectories.push(root);
+    const sdk = createWikiGraphSDK({
+      cwd: root,
+      stateDir: join(root, "state"),
+    });
+    const archivePath = join(root, "book.wikg");
+    await sdk.archives.create({ path: archivePath });
+
+    let releaseReader!: () => void;
+    const readerGate = new Promise<void>((resolve) => {
+      releaseReader = resolve;
+    });
+    let signalReaderEntered!: () => void;
+    const readerEntered = new Promise<void>((resolve) => {
+      signalReaderEntered = resolve;
+    });
+    const reading = sdk.run(async () =>
+      new WikgCoordinator().withArchiveSession(
+        new NodeFile(archivePath),
+        async (session) => {
+          await session.readEntry("manifest.json");
+          signalReaderEntered();
+          await readerGate;
+        },
+      ),
+    );
+    await readerEntered;
+
+    let replacementSettled = false;
+    const replacement = sdk.archives
+      .create({ path: archivePath, replace: true })
+      .finally(() => {
+        replacementSettled = true;
+      });
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    expect(replacementSettled).toBe(false);
+
+    releaseReader();
+    await Promise.all([reading, replacement]);
     sdk.close();
   });
 

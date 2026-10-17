@@ -630,12 +630,14 @@ export class HostWikgArchiveSession {
     this.#closed = true;
     globalThis.clearInterval(this.#heartbeat);
     const failures: unknown[] = [];
+    let archiveReaderClosed = true;
     // Release the archive reader before settlement can rewrite the archive.
     // On Windows, replacing a path while this handle is still open can fail
     // with EPERM even though the logical archive owner has not been released.
     try {
       if (this.#reader !== undefined) await (await this.#reader).close();
     } catch (error) {
+      archiveReaderClosed = false;
       failures.push(error);
     }
     try {
@@ -649,6 +651,8 @@ export class HostWikgArchiveSession {
             await deleteCleanOverlayIfUnused(overlay);
           }
         }
+      } else if (!archiveReaderClosed) {
+        await this.#rollbackChanges();
       } else if (!this.#aborted) {
         const writableArchive = requireWritableFile(this.#archive);
         for (const entryPath of this.#materializedEntryPaths) {
@@ -696,10 +700,21 @@ export class HostWikgArchiveSession {
     } catch (error) {
       failures.push(error);
     }
-    try {
-      await unregisterArchiveOwner(this.#archiveKey, this.#owner.ownerId);
-    } catch (error) {
-      failures.push(error);
+    if (archiveReaderClosed) {
+      try {
+        await unregisterArchiveOwner(this.#archiveKey, this.#owner.ownerId);
+      } catch (error) {
+        failures.push(error);
+      }
+    } else {
+      // Keep the owner visible to replacements until the stale-owner reaper can
+      // prove that this process has stopped. Unregistering here could expose a
+      // still-open Windows file handle to a physical replacement.
+      failures.push(
+        new Error(
+          "Archive owner was retained because its reader could not be closed.",
+        ),
+      );
     }
     if (failures.length > 0) throw failures[0];
   }
