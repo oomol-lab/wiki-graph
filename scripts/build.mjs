@@ -8,6 +8,7 @@ const result = spawnSync(command, ["-r", "--sort", "run", "build"], {
       .filter(Boolean)
       .join(" "),
   },
+  shell: process.platform === "win32",
   stdio: "inherit",
 });
 
