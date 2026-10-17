@@ -53,6 +53,9 @@ jobs:
       - name: Verify code quality
         run: pnpm verify
 
+      - name: Run full test suite
+        run: pnpm test:run
+
       - name: Build packages
         run: pnpm build
 
