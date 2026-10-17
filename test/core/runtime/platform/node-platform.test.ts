@@ -215,6 +215,49 @@ describe("Node File/Directory adapter", () => {
     expect(closed).toBe(true);
   });
 
+  it("appends multiple chunks to an existing file before replacing it", async () => {
+    await withTempDir("wikigraph-append-", async (path) => {
+      const file = new NodeFile(join(path, "events.ndjson"));
+      const original = "first event\n".repeat(10000);
+      await appendFileText(file, original);
+      await appendFileText(file, "second event\n");
+      await appendFileText(file, "third event\n");
+      await expect(readFileText(file)).resolves.toBe(
+        `${original}second event\nthird event\n`,
+      );
+    });
+  });
+
+  it("preserves the original when the append reader cannot close", async () => {
+    await withTempDir("wikigraph-append-close-", async (path) => {
+      const backing = new NodeFile(join(path, "events.ndjson"));
+      await appendFileText(backing, "original\n");
+      const file: File = {
+        identity: backing.identity,
+        kind: "file",
+        name: backing.name,
+        openWriter: async () => await backing.openWriter(),
+        openReader: async () => {
+          const reader = await backing.openReader();
+          return {
+            size: reader.size,
+            read: async (offset, length) => await reader.read(offset, length),
+            close: async () => {
+              await reader.close();
+              throw new Error("reader close failed");
+            },
+          };
+        },
+      };
+
+      await expect(appendFileText(file, "next\n")).rejects.toThrow(
+        "reader close failed",
+      );
+      await expect(readFileText(backing)).resolves.toBe("original\n");
+      await expect(new NodeDirectory(path).list()).resolves.toHaveLength(1);
+    });
+  });
+
   it("closes the append reader when the writer cannot open", async () => {
     let closed = false;
     const file: File = {
