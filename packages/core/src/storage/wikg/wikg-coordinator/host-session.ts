@@ -630,6 +630,14 @@ export class HostWikgArchiveSession {
     this.#closed = true;
     globalThis.clearInterval(this.#heartbeat);
     const failures: unknown[] = [];
+    // Release the archive reader before settlement can rewrite the archive.
+    // On Windows, replacing a path while this handle is still open can fail
+    // with EPERM even though the logical archive owner has not been released.
+    try {
+      if (this.#reader !== undefined) await (await this.#reader).close();
+    } catch (error) {
+      failures.push(error);
+    }
     try {
       for (const entryPath of [...this.#leasedEntryPaths]) {
         await this.releaseDatabaseLease(entryPath);
@@ -690,11 +698,6 @@ export class HostWikgArchiveSession {
     }
     try {
       await unregisterArchiveOwner(this.#archiveKey, this.#owner.ownerId);
-    } catch (error) {
-      failures.push(error);
-    }
-    try {
-      if (this.#reader !== undefined) await (await this.#reader).close();
     } catch (error) {
       failures.push(error);
     }

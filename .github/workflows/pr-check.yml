@@ -51,6 +51,26 @@ jobs:
       - name: Run tests
         run: pnpm test:pr
 
+  windows-archive-coordination:
+    name: Windows Archive Coordination
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v5
+        with:
+          cache: pnpm
+          node-version: 22
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Run Windows archive coordination tests
+        run: pnpm exec vitest run test/core/storage/wikg/archive-coordination.test.ts --config vitest.pr.config.ts -t "keeps the archive owner registered until its ZIP reader closes"
+
   package-readiness:
     name: End-to-End and Package Readiness
     runs-on: ubuntu-latest

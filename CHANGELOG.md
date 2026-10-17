@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.9.4
+
+- Close archive readers before archive settlement and physical replacement, preventing Windows `EPERM` failures when a `.wikg` archive is still open.
+- Keep archive ownership registered until reader, lease, writer, rollback, and recovery cleanup has completed.
+- Add ZIP archive coordination regression coverage for delayed reader release and replacement ordering.
+
 ## 0.9.2
 
 - Resolve entity Wikipedia pages outside Archive and Library local read sessions, so stalled external requests cannot block subsequent searches, reads or writes.
