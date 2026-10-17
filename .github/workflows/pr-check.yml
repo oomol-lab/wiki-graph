@@ -80,6 +80,7 @@ jobs:
           test/core/storage/wikg/archive-coordination.test.ts
           packages/sdk/src/full-regression/libraries.full-regression.test.ts
           packages/sdk/src/full-regression/delivery.full-regression.test.ts
+          -t "keeps the archive owner registered until its ZIP reader closes|holds the read lock while replace waits|waits for an active standalone archive reader before replacing"
           --config vitest.config.ts
 
   package-readiness:
