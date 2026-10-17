@@ -1,6 +1,8 @@
-import { access, rename } from "fs/promises";
+import { access, readFile, rename } from "fs/promises";
+import { spawnSync } from "child_process";
 import * as yauzl from "yauzl";
 import { join } from "path";
+import { pathToFileURL } from "url";
 import { describe, expect, it, vi } from "vitest";
 
 import {
@@ -386,6 +388,57 @@ describe("Node File/Directory adapter", () => {
         await reader.close();
       }
     });
+  });
+
+  it("writes byte-stable ZIP metadata", async () => {
+    await withTempDir("wikigraph-stable-zip-", async (path) => {
+      const write = async (name: string) => {
+        const file = new NodeFile(join(path, name));
+        await nodeWikiGraphPlatform.zip.write(file, [
+          { data: new TextEncoder().encode("stable"), name: "entry.txt" },
+        ]);
+        return await readFile(file.path);
+      };
+
+      expect(await write("first.zip")).toEqual(await write("second.zip"));
+    });
+  });
+
+  it("writes identical ZIP bytes across process time zones", () => {
+    const moduleUrl = pathToFileURL(
+      join(process.cwd(), "packages/sdk/src/node-platform.ts"),
+    ).href;
+    const script = `(async () => {
+      const { mkdtemp, readFile, rm } = await import("node:fs/promises");
+      const { tmpdir } = await import("node:os");
+      const { join } = await import("node:path");
+      const { nodeWikiGraphPlatform, NodeFile } = await import(${JSON.stringify(moduleUrl)});
+      const root = await mkdtemp(join(tmpdir(), "wikigraph-tz-"));
+      try {
+        const file = new NodeFile(join(root, "stable.zip"));
+        await nodeWikiGraphPlatform.zip.write(file, [
+          { data: new TextEncoder().encode("stable"), name: "entry.txt" },
+        ]);
+        process.stdout.write((await readFile(file.path)).toString("base64"));
+      } finally {
+        await rm(root, { force: true, recursive: true });
+      }
+    })();`;
+    const run = (timezone: string) => {
+      const result = spawnSync(
+        process.platform === "win32" ? "pnpm.cmd" : "pnpm",
+        ["exec", "tsx", "--eval", script],
+        {
+          cwd: process.cwd(),
+          encoding: "utf8",
+          env: { ...process.env, TZ: timezone },
+        },
+      );
+      expect(result.status, result.stderr).toBe(0);
+      return result.stdout;
+    };
+
+    expect(run("UTC")).toBe(run("Asia/Shanghai"));
   });
 
   it("opens ZIPs without scanning and supports repeated lookups, duplicates and queued close", async () => {

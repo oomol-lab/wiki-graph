@@ -99,6 +99,17 @@ Error 方法和 stack。文件缺失、损坏、权限和数据库 I/O 错误不
 `wg maintenance upgrade <library-uri>`。Home v4 必须先手动升级到 v5；Archive schema
 仍为 v5。
 
+## 稳定的 Archive 与 Host API
+
+SDK 是 Node 宿主访问 Archive 的稳定边界。使用 `archive.export(path)` 导出游离或
+托管 Archive，不需要构造 Core 的文件适配器；使用 `sdk.archives.inspectSchema(target)`
+在显式升级前检查 Archive schema。Node 平台和 database adapter 类型从 SDK 的 Node
+入口提供，宿主应用不应直接 import `wiki-graph-core/platform`。
+
+无损导出目录时会保留已有的 `.wikg-mutation-token`；没有 token 的新 source 才会生成。
+真正修改 Archive 内容时会刷新 token。Node ZIP 输出使用确定性的 entry 元数据，包括固定
+的 DOS 兼容时间戳，因此相同内容重复导出时字节稳定。
+
 目录 Archive 直接读取 manifest 和目标路径。ZIP 查找按需遍历中央目录
 （O(文件数)），不保留全量条目内存 map，查询数据库也可能需要物化 SQLite；目录只读查询不复制或哈希整个
 数据库。已有搜索缓存也在会话锁保护下直接读取，显式缓存写入保留事务快照。

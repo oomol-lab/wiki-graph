@@ -1,26 +1,36 @@
-import { createPortableHash } from "./crypto.js";
+import { createPortableHash, type PortableHash } from "./crypto.js";
+import { bytesToBase32, bytesToHex } from "./bytes.js";
 
 const UNSERIALIZABLE = Symbol("UNSERIALIZABLE");
 
 type ResolvedHashValue = boolean | number | object | string | null;
 
 export function createHash(value: unknown): string {
-  return new HashComputation().run(value);
+  return new HashComputation("sha512").run(value, "hex");
+}
+
+export function createBase32Hash(value: unknown): string {
+  return new HashComputation("sha256").run(value, "base32");
 }
 
 class HashComputation {
   readonly #activeObjects = new Set<object>();
-  readonly #hash = createPortableHash("sha512");
+  readonly #hash: PortableHash;
   readonly #resolvingObjects = new Set<object>();
 
-  public run(value: unknown): string {
+  public constructor(algorithm: "sha256" | "sha512") {
+    this.#hash = createPortableHash(algorithm);
+  }
+
+  public run(value: unknown, encoding: "hex" | "base32"): string {
     const hasSerializedValue = this.#writeValue(value, "");
 
     if (!hasSerializedValue) {
       throw new TypeError("Hash input must be JSON-serializable");
     }
 
-    return this.#hash.digest("hex");
+    const digest = this.#hash.digest();
+    return encoding === "hex" ? bytesToHex(digest) : bytesToBase32(digest);
   }
 
   #writeValue(value: unknown, key: string): boolean {

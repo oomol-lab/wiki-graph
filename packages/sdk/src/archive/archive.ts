@@ -10,6 +10,7 @@ import {
   assertArchiveQueryReady,
   resolveIndexedArchiveChapterScope,
   ensureWikiGraphArchiveSchemaCurrent,
+  readWikiGraphArchiveSchemaVersion,
   assertNoActiveBuildJobConflicts,
   assertNoActiveBuildJobs,
   deleteArchiveSearchSessions,
@@ -69,6 +70,7 @@ import {
   type SearchIndexQueryMode,
   type WikiGraphProgressCallback,
 } from "wiki-graph-core";
+import { copyFileContent } from "wiki-graph-core/platform";
 
 import type { WikiGraphJobRuntime } from "../jobs.js";
 import { WikiGraphConversionManager } from "../conversions.js";
@@ -129,6 +131,14 @@ export interface WikiGraphArchiveCreateOptions extends WikiGraphOperationOptions
 export interface WikiGraphArchiveCreateResult {
   readonly locatedUri: string;
   readonly path: string;
+}
+
+export interface WikiGraphArchiveExportResult {
+  readonly path: string;
+}
+
+export interface WikiGraphArchiveSchemaInspection {
+  readonly schemaVersion: number;
 }
 
 export class WikiGraphArchiveExistsError extends Error {
@@ -310,6 +320,22 @@ export class WikiGraphArchiveManager {
     }, options.signal);
     return new WikiGraphArchiveHandle(this.#runtime, location);
   }
+
+  public async inspectSchema(
+    target: WikiGraphArchiveTarget,
+    options: WikiGraphOperationOptions = {},
+  ): Promise<WikiGraphArchiveSchemaInspection> {
+    return await this.#runtime.run(
+      async () => ({
+        schemaVersion: await readWikiGraphArchiveSchemaVersion(
+          await resolveWikiGraphArchiveLocation(target).then(
+            (location) => location.archiveFile,
+          ),
+        ),
+      }),
+      options.signal,
+    );
+  }
 }
 
 export class WikiGraphArchiveHandle {
@@ -345,6 +371,20 @@ export class WikiGraphArchiveHandle {
 
   public get target(): WikiGraphArchiveTarget {
     return this.#location.target;
+  }
+
+  /** Export this archive through the SDK without exposing core file adapters. */
+  public async export(path: string): Promise<WikiGraphArchiveExportResult> {
+    return await this.#runtime.run(async () => {
+      const outputPath = await assertStandaloneWikiGraphArchivePath(path);
+      const output = new NodeFile(outputPath);
+      if (this.#location.archiveFile.kind === "directory") {
+        await writeWikgArchive(this.#location.archiveFile, output);
+      } else {
+        await copyFileContent(this.#location.archiveFile, output);
+      }
+      return { path: outputPath };
+    });
   }
 
   async #persistCursor(cursor: ContinuationCursor): Promise<string> {
