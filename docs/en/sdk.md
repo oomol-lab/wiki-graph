@@ -122,6 +122,14 @@ inspect an archive schema before an explicit upgrade. Node platform and
 database adapter types are exported from the SDK's Node entry point; host
 applications should not import `wiki-graph-core/platform`.
 
+For read-only archive data, use the versioned facade on an archive handle:
+`await archive.readOverview()` returns book metadata, cover, TOC, and serials;
+`await archive.readChapterData(serialId)` returns chapter details, an optional
+summary, and an `AsyncIterable<WikgObject>` containing source fragments and
+reading-graph objects. `WikgObject` is the archive serialization union and is
+separate from the URI/search `WikiGraphObject` model. The facade does not
+expose Core readers or stores.
+
 Lossless directory exports preserve an existing `.wikg-mutation-token`; a new
 source receives a token. Archive mutations refresh the token. Node ZIP output
 uses deterministic entry metadata, including a fixed DOS-compatible timestamp,

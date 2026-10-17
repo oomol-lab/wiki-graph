@@ -108,6 +108,13 @@ SDK 是 Node 宿主访问 Archive 的稳定边界。使用 `archive.export(path)
 在显式升级前检查 Archive schema。Node 平台和 database adapter 类型从 SDK 的 Node
 入口提供，宿主应用不应直接 import `wiki-graph-core/platform`。
 
+只读业务数据应使用 Archive handle 上稳定、版本化的 facade：
+`await archive.readOverview()` 返回书籍 metadata、封面、TOC 和 serial 列表；
+`await archive.readChapterData(serialId)` 返回 chapter 详情、可选 summary，以及包含
+source fragment 和 reading graph 对象的 `AsyncIterable<WikgObject>`。`WikgObject` 是归档
+序列化联合类型，与 URI/搜索使用的 `WikiGraphObject` 分层独立。该 facade 不暴露 Core
+reader 或 store。
+
 无损导出目录时会保留已有的 `.wikg-mutation-token`；没有 token 的新 source 才会生成。
 真正修改 Archive 内容时会刷新 token。Node ZIP 输出使用确定性的 entry 元数据，包括固定
 的 DOS 兼容时间戳，因此相同内容重复导出时字节稳定。

@@ -9,8 +9,11 @@ import type {
   HostDatabaseValue,
   WikiGraphPlatform,
   WikiGraphSerialEntry,
+  WikgObject,
+  WikiGraphArchiveOverview,
+  WikiGraphArchiveChapterData,
 } from "wiki-graph-sdk";
-import { createWikiGraphSDK } from "wiki-graph-sdk";
+import { createWikiGraphSDK, WikiGraphArchiveHandle } from "wiki-graph-sdk";
 
 type ConsumerSurface = {
   readonly bookMeta?: BookMeta;
@@ -22,6 +25,9 @@ type ConsumerSurface = {
   readonly row: HostDatabaseRow;
   readonly value: HostDatabaseValue;
   readonly platform: WikiGraphPlatform;
+  readonly object: WikgObject;
+  readonly overview: WikiGraphArchiveOverview;
+  readonly chapter: WikiGraphArchiveChapterData;
 };
 
 describe("SDK consumer public boundary", () => {
@@ -36,6 +42,12 @@ describe("SDK consumer public boundary", () => {
     });
     expect(typeof sdk.archives.inspectSchema).toBe("function");
     expect(typeof sdk.maintenance.upgrade).toBe("function");
+    expect(typeof WikiGraphArchiveHandle.prototype.readOverview).toBe(
+      "function",
+    );
+    expect(typeof WikiGraphArchiveHandle.prototype.readChapterData).toBe(
+      "function",
+    );
     sdk.close();
   });
 });
