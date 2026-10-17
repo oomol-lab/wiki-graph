@@ -404,6 +404,40 @@ describe("Node File/Directory adapter", () => {
     });
   });
 
+  it("supports concurrent WAL readers through repeated opens", async () => {
+    await withTempDir("wikigraph-wal-", async (path) => {
+      const root = new NodeDirectory(join(path, "spaces # percent %"));
+      const file = await root.createFile("state.sqlite");
+      const database = await nodeWikiGraphPlatform.database.open(file, {
+        create: true,
+        mode: "readwrite",
+      });
+      try {
+        await database.execute(
+          "PRAGMA journal_mode = WAL; CREATE TABLE marker(value INTEGER); INSERT INTO marker VALUES (42)",
+        );
+      } finally {
+        await database.close();
+      }
+      for (let iteration = 0; iteration < 250; iteration += 1) {
+        await Promise.all(
+          Array.from({ length: 5 }, async () => {
+            const reader = await nodeWikiGraphPlatform.database.open(file, {
+              mode: "readonly",
+            });
+            try {
+              await expect(
+                reader.queryOne("SELECT value FROM marker"),
+              ).resolves.toEqual({ value: 42 });
+            } finally {
+              await reader.close();
+            }
+          }),
+        );
+      }
+    });
+  }, 120_000);
+
   it("supports database and ZIP access below a long Windows path", async () => {
     if (process.platform !== "win32") return;
     await withTempDir("wikigraph-long-path-", async (path) => {

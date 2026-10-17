@@ -485,15 +485,17 @@ async function openNativeNodeDatabase(
   if (path === undefined) {
     throw new TypeError("The Node database adapter requires a NodeFile");
   }
+  // SQLite 3.52 treats namespaced drive paths as UNC for WAL locking. Keep
+  // ordinary paths when the database and its longest sidecar fit MAX_PATH.
+  const filename =
+    nodeProcess.platform === "win32" && path.length + "-journal".length >= 260
+      ? toNodeFilesystemPath(path)
+      : path;
   return await new Promise((resolve, reject) => {
-    const database = new nodeSqlite3.Database(
-      toNodeFilesystemPath(path),
-      flags,
-      (error) => {
-        if (error) reject(error);
-        else resolve(database);
-      },
-    );
+    const database = new nodeSqlite3.Database(filename, flags, (error) => {
+      if (error) reject(error);
+      else resolve(database);
+    });
   });
 }
 
