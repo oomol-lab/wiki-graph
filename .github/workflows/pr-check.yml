@@ -8,6 +8,10 @@ on:
         description: Run native SQLite A/B experiments (known-bad controls intentionally fail)
         type: boolean
         default: false
+      compatibleDiagnostics:
+        description: Investigate published async bindings without changing product dependencies
+        type: boolean
+        default: false
 
 concurrency:
   # Manual diagnostic comparisons must retain each commit's logs/artifacts.
@@ -18,6 +22,39 @@ permissions:
   contents: read
 
 jobs:
+  compatible-sqlite-diagnostic:
+    name: Compatible SQLite ${{ matrix.variant }} Node ${{ matrix.node }} (diagnostic only)
+    if: github.event_name == 'workflow_dispatch' && inputs.compatibleDiagnostics
+    runs-on: windows-latest
+    timeout-minutes: 35
+    strategy:
+      fail-fast: false
+      matrix:
+        variant: [official-5, appthreat-7, appthreat-8]
+        node: ["22.12.0"]
+    env:
+      SQLITE_DIAGNOSTIC_VARIANT: ${{ matrix.variant }}
+      SQLITE_DIAGNOSTIC_ROUNDS: 25
+    steps:
+      - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v5
+        with:
+          node-version: ${{ matrix.node }}
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Install isolated published binding (no compiler fallback)
+        run: node scripts/install-compatible-sqlite.mjs
+      - name: Native-only matrix and capability/error probes
+        run: node scripts/diagnose-windows-sqlite.mjs
+      - name: Upload complete native investigation
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sqlite-compatible-${{ matrix.variant }}-${{ matrix.node }}
+          path: test/.reports/sqlite-native.json
+          if-no-files-found: error
+
   native-sqlite-diagnostic:
     name: Native SQLite ${{ matrix.variant }} (diagnostic only)
     if: github.event_name == 'workflow_dispatch' && inputs.nativeDiagnostics
