@@ -164,22 +164,20 @@ schema/export and packed-consumer regression. No Home/Archive schema bump follow
 merely from changing the binding; file-format compatibility must still be tested.
 No production backend or release/distribution channel is changed by this experiment.
 
-## Recommended decision boundary
+## Compatible-runtime investigation
 
-If replacing the default backend is approved, prefer the maintained async
-`@appthreat/sqlite3@9.1.0` over maintaining a custom native distribution or moving
-all SQLite operations to synchronous calls. Its packaged Windows binding passed
-the standalone 12-cell matrix on Node 24.21.0, including FTS5/parameters/blobs/
-rollback/statement-error recovery. It still requires adopting Node >=24 and the
-independent maintainer. This is not a drop-in: for example a duplicate primary key
-returns `code: SQLITE_CONSTRAINT_PRIMARYKEY`, `primaryCode: SQLITE_CONSTRAINT`,
-where the current adapter/tests expect `code: SQLITE_CONSTRAINT`. Preserve the
-SDK error contract at its adapter boundary, then run the complete consumer and
-Electron regressions before adopting it. Reassess the release compatibility
-claim rather than silently raising the runtime floor in the prepared patch.
+The initial recommendation compared only recent candidates and was too narrow.
+It did not establish that compatible historical async releases were unavailable.
+See the complete [historical audit and compatible-runtime experiments](sqlite-compatibility.md).
+Engines predating the UNC locking change are tested, rather than dismissed for
+lacking the later fix. The new investigation preserves Node >=22.12, checks
+published prebuilds without compiler fallback, and adds packed CJS/ESM consumers
+and real offline FTS workers, separately from the original Node 24 experiment.
 
-If Node >=22.12 must remain supported, that recommendation cannot be applied.
-The smallest compatible delivery is an official sqlite3 release containing the
-native fix; none exists today. `better-sqlite3` plus actual async workers is a
-larger fallback with its own N-API floor and transaction-progress design, not a
-local one-line repair. A frozen old SQLite downgrade is not an evaluated fix.
+AppThreat 9.x is not recommended for the present runtime contract. Besides its
+Node >=24 manifest, its extended constraint error codes need adapter review;
+for example a duplicate primary key reports `SQLITE_CONSTRAINT_PRIMARYKEY`
+instead of the current `SQLITE_CONSTRAINT`. Neither a new native distribution
+channel nor a default-backend/runtime-floor change is authorized by diagnostic
+qualification. Full acceptance must use the actual chosen product dependency,
+not an addon injected only into an experiment.

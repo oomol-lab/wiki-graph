@@ -1,4 +1,4 @@
-// Replace only an ephemeral CI checkout's addon for the patched acceptance experiment.
+// Replace only an ephemeral CI checkout's addon for binding qualification.
 import assert from "assert/strict";
 import { createHash } from "crypto";
 import { copyFile, readFile } from "fs/promises";
@@ -39,6 +39,6 @@ console.log(
       .update(await readFile(target))
       .digest("hex"),
     warning:
-      "Diagnostic patched addon only; not the published/product binding and not release acceptance",
+      "Diagnostic addon only; not the published/product binding and not release acceptance",
   }),
 );

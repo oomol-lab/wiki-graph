@@ -86,7 +86,7 @@ try {
     "--no-audit",
     "--no-fund",
     sdkTarball,
-    "electron@33.4.11",
+    "electron@35.0.0",
   ]);
   const require = createRequire(join(root, "package.json"));
   const sqliteRoot = dirname(dirname(require.resolve("sqlite3")));
@@ -105,7 +105,7 @@ try {
   for (const [runtime, executable, env] of [
     ["node", process.execPath, process.env],
     [
-      "electron-33-run-as-node",
+      "electron-35-run-as-node",
       electron,
       { ...process.env, ELECTRON_RUN_AS_NODE: "1" },
     ],
@@ -130,11 +130,15 @@ try {
             passed: false,
             error: String(error),
           });
-          throw error;
         }
       }
     }
   }
+  assert.equal(
+    report.cases.filter((result) => !result.passed).length,
+    0,
+    "Candidate qualification failed; all independent runtime/entry cases were retained",
+  );
 } finally {
   await mkdir(dirname(artifacts), { recursive: true });
   await writeFile(artifacts, JSON.stringify(report, null, 2));

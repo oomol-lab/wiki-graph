@@ -77,12 +77,12 @@ jobs:
           path: test/.reports/sqlite-consumer.json
           if-no-files-found: error
       - uses: actions/setup-node@v5
-        if: matrix.variant != 'appthreat-8'
+        if: always() && matrix.variant != 'appthreat-8' && env.SQLITE_DIAGNOSTIC_MODULE != ''
         with:
           node-version: 22
           package-manager-cache: false
       - name: Qualify candidate native addon against the full regression set
-        if: matrix.variant != 'appthreat-8'
+        if: always() && matrix.variant != 'appthreat-8' && env.SQLITE_DIAGNOSTIC_MODULE != ''
         run: |
           node scripts/use-diagnostic-sqlite.mjs
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }

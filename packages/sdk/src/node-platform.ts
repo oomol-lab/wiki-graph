@@ -15,8 +15,13 @@ import { Environment, Loader, type LoaderSource } from "nunjucks";
 
 const nodeProcess =
   (process as unknown as { default?: typeof process }).default ?? process;
-const nodeSqlite3 =
+const nodeSqlite3Module =
   (sqlite3 as unknown as { default?: typeof sqlite3 }).default ?? sqlite3;
+// CJS builds wrap require(ESM) once more than native ESM imports. Unwrap the
+// underlying API before reading OPEN_* flags, not merely the named Database.
+const nodeSqlite3 =
+  (nodeSqlite3Module as unknown as { default?: typeof sqlite3 }).default ??
+  nodeSqlite3Module;
 
 import {
   getWikiGraphPlatform,
