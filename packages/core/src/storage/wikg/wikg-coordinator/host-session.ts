@@ -65,6 +65,7 @@ import {
 } from "./workspace.js";
 import { withStateLock } from "../../../state-lock.js";
 import { recoverDirectoryArchive } from "../archive/directory-backend.js";
+import { withArchiveCallback } from "./callback-context.js";
 
 interface SessionChange {
   current: EntryOverlay;
@@ -101,7 +102,10 @@ async function runHostArchiveSession<T>(
   const failures: unknown[] = [];
   let result: T | undefined;
   try {
-    result = await operation(session);
+    result = await withArchiveCallback(
+      archive.identity,
+      async () => await operation(session),
+    );
   } catch (error) {
     failures.push(error);
     try {

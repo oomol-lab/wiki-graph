@@ -66,6 +66,9 @@ describe("WikiGraphSDK delivery operations", () => {
         await new WikgCoordinator().withArchiveSession(
           new NodeFile(path),
           async () => {
+            await expect(
+              handle.export(join(root, "reentrant.wikg")),
+            ).rejects.toThrow("active Archive callback");
             entered();
             await gate;
           },

@@ -22,6 +22,7 @@ import {
 } from "./owners.js";
 import { OWNER_HEARTBEAT_INTERVAL_MS } from "./constants.js";
 import { writeWikgArchive } from "../archive/write.js";
+import { assertArchiveDrainNotReentrant } from "./callback-context.js";
 
 /** Coordinates archive access without observing the host File implementation. */
 export class WikgCoordinator {
@@ -30,6 +31,7 @@ export class WikgCoordinator {
     archive: File | Directory,
     output: File,
   ): Promise<void> {
+    assertArchiveDrainNotReentrant(archive.identity);
     if (archive.identity === output.identity) {
       throw new Error("Archive export target must differ from its source.");
     }
@@ -72,6 +74,7 @@ export class WikgCoordinator {
     archive: File,
     operation: () => Promise<T> | T,
   ): Promise<T> {
+    assertArchiveDrainNotReentrant(archive.identity);
     const archiveKey = createPortableHash("sha256")
       .update(archive.identity)
       .digest("hex");

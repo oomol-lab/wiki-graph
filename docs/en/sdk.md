@@ -49,7 +49,9 @@ coordinator state; the last drained session or a later writable session settles 
 into the ZIP. Do not delete coordinator buffers or copy the physical ZIP yourself
 while other sessions are active. `archive.export(otherPath)` drains standalone
 readers and settles pending writes before producing a coherent snapshot; its
-target must differ from the source. Do not mix workers from different releases.
+target must differ from the source. Export/replacement from an active callback on
+that same source is rejected to avoid self-deadlock. Do not mix workers from
+different releases.
 
 ## Wikipedia request isolation and cancellation
 

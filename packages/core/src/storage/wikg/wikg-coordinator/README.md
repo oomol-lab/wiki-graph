@@ -31,6 +31,8 @@ overlays. A capability that is truly readonly cannot perform this recovery write
 a later writable access must do so. Physical ZIP bytes can therefore lag logical
 writes while foreign readers remain active. Do not distribute raw bytes while
 sessions remain active; SDK export drains and settles before copying them.
+Export/replacement from an active callback on the same source is rejected before
+requesting a drain, since waiting for that callback would be a self-deadlock.
 
 ## Lock order and generation
 

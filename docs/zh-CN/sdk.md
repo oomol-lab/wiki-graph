@@ -44,7 +44,8 @@ Home 状态协调。ZIP reader 在关闭前保持原 mutation token 对应的数
 若其他会话此时完成逻辑写入，已发布 overlay 会保留在 coordinator 状态中，由最后排空的
 会话或后续可写会话落盘到 ZIP。其他会话仍活跃时，不要删除 coordinator buffer 或自行
 复制物理 ZIP。`archive.export(otherPath)` 会等待游离 Archive 的 reader 排空并结算后
-导出一致快照，目标不能是源文件本身。不要混用不同版本的 worker 并发访问同一 Home。
+导出一致快照，目标不能是源文件本身；在同一源归档的活跃回调内请求导出或替换会明确
+报错，避免等待自己退出。不要混用不同版本的 worker 并发访问同一 Home。
 
 ## Wikipedia 请求隔离与取消
 
