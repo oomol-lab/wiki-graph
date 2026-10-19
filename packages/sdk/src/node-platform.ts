@@ -8,7 +8,9 @@ import * as pathModule from "node:path";
 import * as process from "node:process";
 import { Readable, Writable } from "node:stream";
 import { pipeline } from "node:stream/promises";
-import * as sqlite3 from "sqlite3";
+// The pinned binding's extensionless main emits DEP0151 on native ESM import.
+// Resolve its shipped entry explicitly so ordinary SDK/CLI access stays quiet.
+import * as sqlite3 from "sqlite3/lib/sqlite3.js";
 import * as yauzl from "yauzl";
 import * as yazl from "yazl";
 import { Environment, Loader, type LoaderSource } from "nunjucks";
