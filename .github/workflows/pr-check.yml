@@ -32,6 +32,10 @@ jobs:
       matrix:
         variant: [official-5, appthreat-7, appthreat-8]
         node: ["22.12.0"]
+        include:
+          # This installer selects the distinct N-API 10 prebuild on current Node.
+          - variant: appthreat-7
+            node: "22"
     env:
       SQLITE_DIAGNOSTIC_VARIANT: ${{ matrix.variant }}
       SQLITE_DIAGNOSTIC_ROUNDS: 25
@@ -91,7 +95,7 @@ jobs:
         if: always() && matrix.variant != 'appthreat-8'
         uses: actions/upload-artifact@v4
         with:
-          name: sqlite-compatible-regressions-${{ matrix.variant }}
+          name: sqlite-compatible-regressions-${{ matrix.variant }}-${{ matrix.node }}
           path: test/.reports/windows-regressions.json
           if-no-files-found: error
 

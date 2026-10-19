@@ -26,13 +26,13 @@ const report = {
   root,
   cases: [],
 };
-function run(command, args, cwd = root, env = process.env) {
+function run(command, args, cwd = root, env = process.env, timeout = 600_000) {
   const result = spawnSync(command, args, {
     cwd,
     encoding: "utf8",
     env,
     shell: process.platform === "win32" && ["npm", "pnpm"].includes(command),
-    timeout: 600_000,
+    timeout,
     maxBuffer: 20 * 1024 * 1024,
   });
   process.stdout.write(result.stdout || "");
@@ -40,7 +40,7 @@ function run(command, args, cwd = root, env = process.env) {
   assert.equal(
     result.status,
     0,
-    `${command} ${args.join(" ")} failed: ${result.error || ""}`,
+    `${command} ${args.join(" ")} failed: ${result.error || ""}\n${(result.stderr || "").slice(-8192)}`,
   );
   return result.stdout;
 }
@@ -102,6 +102,47 @@ try {
     join(repo, "test", "windows", "fixtures", "sqlite-consumer.cjs"),
     fixture,
   );
+  // Check actual 0.9.5-era SQLite 3.52 files, not just files made by the candidate.
+  // Only this creator uses the built workspace SDK; every reader/writer below
+  // resolves the independently installed packed SDK and its candidate binding.
+  const previous = join(root, "from-current-sqlite");
+  await mkdir(previous);
+  run(
+    process.execPath,
+    [fixture, "cjs", "create", previous],
+    root,
+    {
+      ...process.env,
+      SQLITE_CONSUMER_BASELINE_ROOT: join(repo, "packages", "sdk"),
+    },
+    120_000,
+  );
+  for (const mode of ["reopen", "append", "reopen"]) {
+    try {
+      const output = run(
+        process.execPath,
+        [fixture, "cjs", mode, previous],
+        root,
+        process.env,
+        120_000,
+      );
+      report.cases.push({
+        runtime: "node-from-sqlite-3.52",
+        entry: "cjs",
+        mode,
+        passed: true,
+        output,
+      });
+    } catch (error) {
+      report.cases.push({
+        runtime: "node-from-sqlite-3.52",
+        entry: "cjs",
+        mode,
+        passed: false,
+        error: String(error),
+      });
+    }
+  }
   for (const [runtime, executable, env] of [
     ["node", process.execPath, process.env],
     [
@@ -120,6 +161,7 @@ try {
             [fixture, entry, mode, data],
             root,
             env,
+            120_000,
           );
           report.cases.push({ runtime, entry, mode, passed: true, output });
         } catch (error) {

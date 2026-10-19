@@ -5,12 +5,22 @@ const console = require("node:console");
 const assert = require("node:assert/strict");
 const { join } = require("node:path");
 const { Worker, workerData, parentPort } = require("node:worker_threads");
+const { createRequire } = require("node:module");
 const [entry, mode, root] = workerData || process.argv.slice(2);
 let phase = "imports";
 
 async function main() {
+  const baselineRequire = process.env.SQLITE_CONSUMER_BASELINE_ROOT
+    ? createRequire(
+        join(process.env.SQLITE_CONSUMER_BASELINE_ROOT, "package.json"),
+      )
+    : undefined;
   const load = async (specifier) =>
-    entry === "cjs" ? require(specifier) : await import(specifier);
+    baselineRequire
+      ? baselineRequire(specifier)
+      : entry === "cjs"
+        ? require(specifier)
+        : await import(specifier);
   const { createWikiGraphSDK } = await load("wiki-graph-sdk");
   const { nodeWikiGraphPlatform, NodeFile } = await load(
     "wiki-graph-sdk/node-platform",
@@ -30,6 +40,7 @@ async function main() {
     { mode: "readwrite", create: true },
   );
   let duplicate;
+  let native;
   try {
     phase = "database-schema";
     await db.execute(
@@ -51,6 +62,9 @@ async function main() {
       (await db.queryOne("PRAGMA integrity_check")).integrity_check,
       "ok",
     );
+    native = await db.queryOne(
+      "SELECT sqlite_version() AS version, sqlite_source_id() AS sourceId",
+    );
   } finally {
     phase = "database-close";
     await db.close();
@@ -61,9 +75,9 @@ async function main() {
     if (mode === "worker") {
       phase = "job-worker";
       await sdk.jobs.runWorker({ idleTimeoutMs: 100 });
-    } else if (mode === "create") {
+    } else if (mode === "create" || mode === "append") {
       phase = "archive-create";
-      await sdk.archives.create({ path: target.path });
+      if (mode === "create") await sdk.archives.create({ path: target.path });
       phase = "archive-open";
       const archive = await sdk.archives.open(target);
       phase = "chapter-source";
@@ -123,6 +137,7 @@ async function main() {
         electron: process.versions.electron,
         napi: process.versions.napi,
         duplicate,
+        native,
       }),
     );
   } finally {
