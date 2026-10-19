@@ -2,7 +2,7 @@ import { mkdtemp, rm } from "fs/promises";
 import { tmpdir } from "os";
 import { join } from "path";
 
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
   replaceChapterFtsIndexArtifact,
   replaceChapterSourceEmbeddingIndexArtifact,
@@ -15,24 +15,15 @@ import {
 
 import { createWikiGraphSDK, NodeFile, type WikiGraphSDK } from "../index.js";
 import { regressionPhase } from "../../../../test/helpers/regression-phase.js";
-
-const temporaryDirectories: string[] = [];
-
-afterEach(async () => {
-  await Promise.all(
-    temporaryDirectories
-      .splice(0)
-      .map(
-        async (directory) =>
-          await rm(directory, { force: true, recursive: true }),
-      ),
-  );
-});
+import {
+  regressionLifecycle,
+  regressionTest,
+} from "../../../../test/helpers/regression-lifecycle.js";
 
 describe("WikiGraphLibraryManager search pagination", () => {
   it.each(["standalone", "library"] as const)(
     "isolates a stalled wikipage from %s search, reads and writes",
-    async (scope) => {
+    regressionTest(async (scope: "standalone" | "library") => {
       const setup = await regressionPhase(`${scope}:fixture`, () =>
         createIndexedLibrary(false, true),
       );
@@ -48,7 +39,9 @@ describe("WikiGraphLibraryManager search pagination", () => {
             ? { kind: "standalone" as const, path: setup.archivePath }
             : { kind: "library" as const, uri: setup.memberUri }),
         });
-        await archive.ensureSearchIndex();
+        await regressionPhase(`${scope}:ensure-index`, () =>
+          archive.ensureSearchIndex(),
+        );
         const cancel = vi.fn(() => new Promise<void>(() => undefined));
         const fetcher = vi
           .fn<typeof fetch>()
@@ -71,30 +64,46 @@ describe("WikiGraphLibraryManager search pagination", () => {
                 id,
                 signal === undefined ? {} : { signal },
               );
-        pending = page("wikg://entity/Q1/wikipage", controller.signal);
-        const settled = pending.catch((error: unknown) => error);
+        pending = page(
+          "wikg://entity/Q1/wikipage",
+          AbortSignal.any([controller.signal, regressionLifecycle().signal]),
+        );
+        let remoteSettled = false;
+        const settled = pending
+          .catch((error: unknown) => error)
+          .finally(() => {
+            remoteSettled = true;
+          });
         await regressionPhase(`${scope}:remote-start`, async () => {
           await vi.waitFor(() => expect(fetcher).toHaveBeenCalledOnce());
         });
         // These must finish while the first request's stream is still stalled.
-        const results =
-          scope === "standalone"
-            ? await archive.search("needle", {
-                queryMode: "fts",
-                sourceContext: 0,
-                limit: 1000,
-              })
-            : await setup.sdk.libraries.search(setup.libraryUri, "needle", {
-                queryMode: "fts",
-                sourceContext: 0,
-                limit: 1000,
-              });
+        expect(remoteSettled).toBe(false);
+        const results = await regressionPhase(
+          `${scope}:search-while-stalled`,
+          async () =>
+            scope === "standalone"
+              ? await archive.search("needle", {
+                  queryMode: "fts",
+                  sourceContext: 0,
+                  limit: 1000,
+                })
+              : await setup.sdk.libraries.search(setup.libraryUri, "needle", {
+                  queryMode: "fts",
+                  sourceContext: 0,
+                  limit: 1000,
+                }),
+        );
         expect(results.items.length).toBeGreaterThan(0);
-        const localResults = await archive.search("needle", {
-          queryMode: "fts",
-          sourceContext: 0,
-          limit: 1000,
-        });
+        const localResults = await regressionPhase(
+          `${scope}:local-search`,
+          () =>
+            archive.search("needle", {
+              queryMode: "fts",
+              sourceContext: 0,
+              limit: 1000,
+            }),
+        );
         for (const type of ["entity", "triple", "source", "summary"] as const) {
           const hit = localResults.items.find((item) => item.type === type);
           expect(hit, type).toBeDefined();
@@ -102,8 +111,10 @@ describe("WikiGraphLibraryManager search pagination", () => {
             type === "source" || type === "summary"
               ? archive.page(hit!.id)
               : page(hit!.id);
-          await expect(localPage).resolves.toMatchObject({
-            type: type === "source" || type === "summary" ? "fragment" : type,
+          await regressionPhase(`${scope}:read-${type}`, async () => {
+            await expect(localPage).resolves.toMatchObject({
+              type: type === "source" || type === "summary" ? "fragment" : type,
+            });
           });
         }
         await expect(page("wikg://entity/Q2/wikipage")).resolves.toMatchObject({
@@ -120,13 +131,18 @@ describe("WikiGraphLibraryManager search pagination", () => {
                 "wikg://entity/Q1",
               );
         expect(evidence.items.length).toBeGreaterThan(0);
-        if (scope === "library")
-          await setup.sdk.libraries.rebuildIndex(setup.libraryUri);
-        else
-          await archive.addChapter({
-            source: "A later local write.",
-            title: "Still writable",
-          });
+        await regressionPhase(`${scope}:write-while-stalled`, async () => {
+          if (scope === "library")
+            await setup.sdk.libraries.rebuildIndex(setup.libraryUri);
+          else
+            await archive.addChapter({
+              source: "A later local write.",
+              title: "Still writable",
+            });
+        });
+        // A response/timeout that quietly released the first request would not
+        // prove isolation. It must remain pending through every local operation.
+        expect(remoteSettled).toBe(false);
         controller.abort(new Error("cancelled"));
         expect(await settled).toMatchObject({ message: "cancelled" });
         expect(cancel).toHaveBeenCalledOnce();
@@ -139,169 +155,175 @@ describe("WikiGraphLibraryManager search pagination", () => {
         vi.unstubAllGlobals();
         setup.sdk.close();
       }
-    },
+    }),
     15_000,
   );
 
-  it("keeps raw signals on SDK archive summaries and query evidence, including previews and next pages", async () => {
-    const setup = await createIndexedLibrary(true);
-    try {
-      const archive = await setup.sdk.archives.open({
-        kind: "standalone",
-        path: setup.archivePath,
-      });
-      await archive.ensureSearchIndex();
-      setup.embeddingProbe.reset();
-      const sourceFirst = await archive.search("needle", {
-        types: ["source"],
-        queryMode: "hybrid",
-        sourceContext: 0,
-        limit: 1,
-      });
-      const sourceCursor = sourceFirst.nextCursor();
-      expect(sourceCursor).not.toBeNull();
-      const sourceNext = await sourceCursor!.next({ limit: 1 });
-      for (const hit of [...sourceFirst.items, ...sourceNext.items]) {
-        expect(hit.ftsScore).toBeLessThan(0);
-        expect(hit.embeddingScore).toBeGreaterThan(0);
-      }
-      // Archive text continuations already query once per page; raw fields add no calls.
-      expect(setup.embeddingProbe.queryCount).toBe(2);
-      await sourceCursor!.release();
-      const summary = await archive.search("needle", {
-        types: ["summary"],
-        queryMode: "hybrid",
-        sourceContext: 0,
-      });
-      expect(summary.items[0]?.type).toBe("summary");
-      expect(summary.items[0]?.ftsScore).toBeLessThan(0);
-      expect(summary.items[0]?.embeddingScore).toBeGreaterThan(0);
-      const summaryVector = [1, "Needle summary sentence.".length / 100];
-      const queryVector = [1, "needle".length / 100];
-      const cosine =
-        (summaryVector[0]! * queryVector[0]! +
-          summaryVector[1]! * queryVector[1]!) /
-        (Math.hypot(...summaryVector) * Math.hypot(...queryVector));
-      expect(summary.items[0]?.embeddingScore).toBeCloseTo(cosine, 6);
-      for (const mode of ["fts", "hybrid"] as const) {
-        const first = await archive.evidence("wikg://entity/Q1", {
-          query: "needle",
-          queryMode: mode,
+  it(
+    "keeps raw signals on SDK archive summaries and query evidence, including previews and next pages",
+    regressionTest(async () => {
+      const setup = await createIndexedLibrary(true);
+      try {
+        const archive = await setup.sdk.archives.open({
+          kind: "standalone",
+          path: setup.archivePath,
+        });
+        await archive.ensureSearchIndex();
+        setup.embeddingProbe.reset();
+        const sourceFirst = await archive.search("needle", {
+          types: ["source"],
+          queryMode: "hybrid",
           sourceContext: 0,
           limit: 1,
         });
-        expect(first.items[0]?.ftsScore).toBeLessThan(0);
-        if (mode === "hybrid")
-          expect(first.items[0]?.embeddingScore).toBeGreaterThan(0);
-        else expect(first.items[0]?.embeddingScore).toBeUndefined();
-        const cursor = first.nextCursor();
-        expect(cursor).not.toBeNull();
-        const second = await cursor!.next();
-        expect(second.items[0]?.ftsScore).toBeLessThan(0);
-        await cursor!.release();
-      }
-      const search = await archive.search("needle", {
-        queryMode: "hybrid",
-        sourceContext: 0,
-        evidenceLimit: 2,
-      });
-      const entity = search.items.find(
-        (hit) => hit.type === "entity" && hit.id.endsWith("/Q1"),
-      );
-      expect(entity).toBeDefined();
-      expect(entity?.ftsScore).toBeUndefined();
-      expect(entity?.embeddingScore).toBeUndefined();
-      expect(entity?.evidence?.sources[0]?.ftsScore).toBeLessThan(0);
-      expect(entity?.evidence?.sources[0]?.embeddingScore).toBeGreaterThan(0);
-      const lexical = await archive.search("needle", {
-        types: ["entity", "source", "triple"],
-        queryMode: "fts",
-        sourceContext: 0,
-        evidenceLimit: 2,
-      });
-      for (const type of ["entity", "triple"] as const) {
-        const hit = lexical.items.find((hit) => hit.type === type);
-        expect(hit?.evidence?.sources[0]?.ftsScore).toBeLessThan(0);
-        expect(hit?.evidence?.sources[0]?.embeddingScore).toBeUndefined();
-      }
-      const tripleEvidence = await archive.evidence(
-        "wikg://triple/Q1/relates/Q2",
-        { query: "needle", queryMode: "hybrid", sourceContext: 0 },
-      );
-      expect(tripleEvidence.items.length).toBeGreaterThan(0);
-      expect(
-        tripleEvidence.items.every(
-          (hit) =>
-            hit.ftsScore !== undefined && hit.embeddingScore !== undefined,
-        ),
-      ).toBe(true);
-      const ordinary = await archive.evidence("wikg://entity/Q1", {
-        sourceContext: 0,
-      });
-      expect(
-        ordinary.items.every(
-          (hit) =>
-            hit.ftsScore === undefined && hit.embeddingScore === undefined,
-        ),
-      ).toBe(true);
-      const libraryEvidence = await setup.sdk.libraries.evidence(
-        setup.libraryUri,
-        "wikg://entity/Q1",
-        { query: "needle", queryMode: "hybrid", sourceContext: 0, limit: 1 },
-      );
-      expect(libraryEvidence.items[0]?.ftsScore).toBeLessThan(0);
-      expect(libraryEvidence.items[0]?.embeddingScore).toBeGreaterThan(0);
-    } finally {
-      setup.sdk.close();
-    }
-  });
-  it("shares one query build while bucket cursors advance independently", async () => {
-    const setup = await createIndexedLibrary();
-
-    try {
-      setup.embeddingProbe.reset();
-      const first = await setup.sdk.libraries.searchBuckets(
-        setup.libraryUri,
-        "needle",
-        {
-          buckets: [
-            { id: "text-a", types: ["source"] },
-            { id: "text-b", types: ["source"] },
-          ],
-          limitPerBucket: 5,
+        const sourceCursor = sourceFirst.nextCursor();
+        expect(sourceCursor).not.toBeNull();
+        const sourceNext = await sourceCursor!.next({ limit: 1 });
+        for (const hit of [...sourceFirst.items, ...sourceNext.items]) {
+          expect(hit.ftsScore).toBeLessThan(0);
+          expect(hit.embeddingScore).toBeGreaterThan(0);
+        }
+        // Archive text continuations already query once per page; raw fields add no calls.
+        expect(setup.embeddingProbe.queryCount).toBe(2);
+        await sourceCursor!.release();
+        const summary = await archive.search("needle", {
+          types: ["summary"],
           queryMode: "hybrid",
-        },
-      );
-      expect(setup.embeddingProbe.queryCount).toBe(1);
-      expect(first.buckets).toHaveLength(2);
-      expect(ids(first.buckets[0]!.items)).toEqual(
-        ids(first.buckets[1]!.items),
-      );
-      expect(first.buckets[0]!.rawNextCursor).not.toBeNull();
-      expect(first.buckets[1]!.rawNextCursor).not.toBeNull();
+          sourceContext: 0,
+        });
+        expect(summary.items[0]?.type).toBe("summary");
+        expect(summary.items[0]?.ftsScore).toBeLessThan(0);
+        expect(summary.items[0]?.embeddingScore).toBeGreaterThan(0);
+        const summaryVector = [1, "Needle summary sentence.".length / 100];
+        const queryVector = [1, "needle".length / 100];
+        const cosine =
+          (summaryVector[0]! * queryVector[0]! +
+            summaryVector[1]! * queryVector[1]!) /
+          (Math.hypot(...summaryVector) * Math.hypot(...queryVector));
+        expect(summary.items[0]?.embeddingScore).toBeCloseTo(cosine, 6);
+        for (const mode of ["fts", "hybrid"] as const) {
+          const first = await archive.evidence("wikg://entity/Q1", {
+            query: "needle",
+            queryMode: mode,
+            sourceContext: 0,
+            limit: 1,
+          });
+          expect(first.items[0]?.ftsScore).toBeLessThan(0);
+          if (mode === "hybrid")
+            expect(first.items[0]?.embeddingScore).toBeGreaterThan(0);
+          else expect(first.items[0]?.embeddingScore).toBeUndefined();
+          const cursor = first.nextCursor();
+          expect(cursor).not.toBeNull();
+          const second = await cursor!.next();
+          expect(second.items[0]?.ftsScore).toBeLessThan(0);
+          await cursor!.release();
+        }
+        const search = await archive.search("needle", {
+          queryMode: "hybrid",
+          sourceContext: 0,
+          evidenceLimit: 2,
+        });
+        const entity = search.items.find(
+          (hit) => hit.type === "entity" && hit.id.endsWith("/Q1"),
+        );
+        expect(entity).toBeDefined();
+        expect(entity?.ftsScore).toBeUndefined();
+        expect(entity?.embeddingScore).toBeUndefined();
+        expect(entity?.evidence?.sources[0]?.ftsScore).toBeLessThan(0);
+        expect(entity?.evidence?.sources[0]?.embeddingScore).toBeGreaterThan(0);
+        const lexical = await archive.search("needle", {
+          types: ["entity", "source", "triple"],
+          queryMode: "fts",
+          sourceContext: 0,
+          evidenceLimit: 2,
+        });
+        for (const type of ["entity", "triple"] as const) {
+          const hit = lexical.items.find((hit) => hit.type === type);
+          expect(hit?.evidence?.sources[0]?.ftsScore).toBeLessThan(0);
+          expect(hit?.evidence?.sources[0]?.embeddingScore).toBeUndefined();
+        }
+        const tripleEvidence = await archive.evidence(
+          "wikg://triple/Q1/relates/Q2",
+          { query: "needle", queryMode: "hybrid", sourceContext: 0 },
+        );
+        expect(tripleEvidence.items.length).toBeGreaterThan(0);
+        expect(
+          tripleEvidence.items.every(
+            (hit) =>
+              hit.ftsScore !== undefined && hit.embeddingScore !== undefined,
+          ),
+        ).toBe(true);
+        const ordinary = await archive.evidence("wikg://entity/Q1", {
+          sourceContext: 0,
+        });
+        expect(
+          ordinary.items.every(
+            (hit) =>
+              hit.ftsScore === undefined && hit.embeddingScore === undefined,
+          ),
+        ).toBe(true);
+        const libraryEvidence = await setup.sdk.libraries.evidence(
+          setup.libraryUri,
+          "wikg://entity/Q1",
+          { query: "needle", queryMode: "hybrid", sourceContext: 0, limit: 1 },
+        );
+        expect(libraryEvidence.items[0]?.ftsScore).toBeLessThan(0);
+        expect(libraryEvidence.items[0]?.embeddingScore).toBeGreaterThan(0);
+      } finally {
+        setup.sdk.close();
+      }
+    }),
+  );
+  it(
+    "shares one query build while bucket cursors advance independently",
+    regressionTest(async () => {
+      const setup = await createIndexedLibrary();
 
-      const pageA = await setup.sdk.libraries.continueSearchBucket(
-        setup.libraryUri,
-        first.buckets[0]!.rawNextCursor!,
-        { limit: 5 },
-      );
-      const pageB = await setup.sdk.libraries.continueSearchBucket(
-        setup.libraryUri,
-        first.buckets[1]!.rawNextCursor!,
-        { limit: 5 },
-      );
-      expect(pageA.id).toBe("text-a");
-      expect(pageB.id).toBe("text-b");
-      expect(ids(pageA.items)).toEqual(ids(pageB.items));
-      expect(setup.embeddingProbe.queryCount).toBe(1);
-    } finally {
-      setup.sdk.close();
-    }
-  });
+      try {
+        setup.embeddingProbe.reset();
+        const first = await setup.sdk.libraries.searchBuckets(
+          setup.libraryUri,
+          "needle",
+          {
+            buckets: [
+              { id: "text-a", types: ["source"] },
+              { id: "text-b", types: ["source"] },
+            ],
+            limitPerBucket: 5,
+            queryMode: "hybrid",
+          },
+        );
+        expect(setup.embeddingProbe.queryCount).toBe(1);
+        expect(first.buckets).toHaveLength(2);
+        expect(ids(first.buckets[0]!.items)).toEqual(
+          ids(first.buckets[1]!.items),
+        );
+        expect(first.buckets[0]!.rawNextCursor).not.toBeNull();
+        expect(first.buckets[1]!.rawNextCursor).not.toBeNull();
+
+        const pageA = await setup.sdk.libraries.continueSearchBucket(
+          setup.libraryUri,
+          first.buckets[0]!.rawNextCursor!,
+          { limit: 5 },
+        );
+        const pageB = await setup.sdk.libraries.continueSearchBucket(
+          setup.libraryUri,
+          first.buckets[1]!.rawNextCursor!,
+          { limit: 5 },
+        );
+        expect(pageA.id).toBe("text-a");
+        expect(pageB.id).toBe("text-b");
+        expect(ids(pageA.items)).toEqual(ids(pageB.items));
+        expect(setup.embeddingProbe.queryCount).toBe(1);
+      } finally {
+        setup.sdk.close();
+      }
+    }),
+  );
 
   it.each(["fts", "embedding", "hybrid"] as const)(
     "paginates a real aggregate index in %s mode",
-    async (queryMode) => {
+    regressionTest(async (queryMode: SearchIndexQueryMode) => {
       const setup = await createIndexedLibrary();
 
       try {
@@ -363,7 +385,7 @@ describe("WikiGraphLibraryManager search pagination", () => {
       } finally {
         setup.sdk.close();
       }
-    },
+    }),
   );
 });
 
@@ -378,13 +400,16 @@ async function createIndexedLibrary(
   readonly sdk: WikiGraphSDK;
 }> {
   const root = await mkdtemp(join(tmpdir(), "wiki-graph-sdk-pagination-"));
-  temporaryDirectories.push(root);
+  regressionLifecycle().defer(
+    async () => await rm(root, { force: true, recursive: true }),
+  );
   const embeddingProbe = createEmbeddingProvider();
   const provider = embeddingProbe.provider;
   const sdk = createWikiGraphSDK({
     providers: { embedding: provider },
     stateDir: join(root, "state"),
   });
+  regressionLifecycle().defer(() => sdk.close());
   const archivePath = join(root, "source.wikg");
   await regressionPhase("fixture:create", () =>
     sdk.archives.create({ path: archivePath }),

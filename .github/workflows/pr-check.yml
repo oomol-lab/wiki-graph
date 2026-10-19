@@ -30,6 +30,26 @@ permissions:
   contents: read
 
 jobs:
+  linux-workflows:
+    name: Linux archive workflow regressions
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: node scripts/check-linux-regressions.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: linux-workflows
+          path: test/.reports/linux-workflows.json
+          if-no-files-found: error
+
   linux-comparison:
     name: Linux archive workflow comparison (diagnostic only)
     if: github.event_name == 'workflow_dispatch' && inputs.linuxComparison

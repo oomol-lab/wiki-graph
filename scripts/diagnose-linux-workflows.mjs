@@ -21,6 +21,7 @@ const fixtures = [
   "packages/sdk/src/full-regression/library-search-pagination.full-regression.test.ts",
   "test/full-regression/cli/archive/source-ingestion.full-regression.test.ts",
   "test/helpers/regression-phase.ts",
+  "test/helpers/regression-lifecycle.ts",
 ];
 const bindingRoot = join(root, "official");
 mkdirSync(bindingRoot);
