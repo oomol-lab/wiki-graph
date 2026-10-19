@@ -7,7 +7,11 @@ import { dirname, join } from "path";
 
 assert.equal(process.platform, "win32");
 assert.equal(process.env.GITHUB_ACTIONS, "true");
-assert.equal(process.env.SQLITE_DIAGNOSTIC_VARIANT, "source-patched");
+assert.ok(
+  ["source-patched", "official-5", "appthreat-7"].includes(
+    process.env.SQLITE_DIAGNOSTIC_VARIANT,
+  ),
+);
 assert.ok(process.env.SQLITE_DIAGNOSTIC_MODULE);
 const require = createRequire(
   new URL("../packages/sdk/package.json", import.meta.url),

@@ -54,6 +54,7 @@ jobs:
       - uses: actions/setup-node@v5
         with:
           node-version: ${{ matrix.node }}
+          package-manager-cache: false
       - name: Install isolated published binding (no compiler fallback)
         run: node scripts/install-compatible-sqlite.mjs
       - name: Native-only matrix and capability/error probes
@@ -74,6 +75,24 @@ jobs:
         with:
           name: sqlite-consumer-${{ matrix.variant }}-${{ matrix.node }}
           path: test/.reports/sqlite-consumer.json
+          if-no-files-found: error
+      - uses: actions/setup-node@v5
+        if: matrix.variant != 'appthreat-8'
+        with:
+          node-version: 22
+          package-manager-cache: false
+      - name: Qualify candidate native addon against the full regression set
+        if: matrix.variant != 'appthreat-8'
+        run: |
+          node scripts/use-diagnostic-sqlite.mjs
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          node scripts/check-windows-regressions.mjs
+      - name: Upload candidate-addon regressions (not product acceptance)
+        if: always() && matrix.variant != 'appthreat-8'
+        uses: actions/upload-artifact@v4
+        with:
+          name: sqlite-compatible-regressions-${{ matrix.variant }}
+          path: test/.reports/windows-regressions.json
           if-no-files-found: error
 
   native-sqlite-diagnostic:
