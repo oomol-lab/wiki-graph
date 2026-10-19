@@ -2,6 +2,7 @@ name: PR Check
 
 on:
   pull_request:
+  workflow_dispatch:
 
 concurrency:
   group: pr-check-${{ github.event.pull_request.number || github.ref }}
