@@ -81,6 +81,8 @@ export interface HostAsyncContext<T> {
   run<R>(store: T, callback: () => R): R;
   enterWith(store: T): void;
   getStore(): T | undefined;
+  /** Release host tracking for a finished context. Existing hosts may omit it. */
+  disable?(): void;
 }
 
 export interface HostAsyncContextProvider {

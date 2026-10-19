@@ -53,6 +53,11 @@ JSON/JSONL 渲染属于 `wiki-graph`。
 
 ## Archive 并发访问
 
+数据库和文档关闭时会释放其短生命周期异步上下文，包括 Node 的
+async-hooks 跟踪。自定义 `HostAsyncContext` 可实现可选的同步 `disable()`
+钩子以释放同类资源；没有此钩子的现有 Host 仍兼容，默认 Node 实现已提供。
+每次创建的上下文应独立拥有资源，释放一个上下文不能影响其他仍在使用的上下文。
+
 同一个 SDK 实例可以并发调用；同一 Archive 的回调可能排队，跨进程会话通过共享
 Home 状态协调。ZIP reader 在关闭前保持原 mutation token 对应的数据视图。
 若其他会话此时完成逻辑写入，已发布 overlay 会保留在 coordinator 状态中，由最后排空的

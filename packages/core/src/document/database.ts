@@ -236,6 +236,10 @@ export class Database {
 
       await this.#closeDatabase();
       this.#closed = true;
+      // Node's async_hooks implementation retains each enabled ALS instance
+      // until disable(). Short-lived coordinator connections otherwise make
+      // every subsequent Promise progressively more expensive on Node 22.
+      this.#operationScope.disable?.();
     });
   }
 

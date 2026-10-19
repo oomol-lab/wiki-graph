@@ -494,7 +494,11 @@ export class DirectoryDocument implements Document {
       await this.flush();
       await this.#database.close();
     } finally {
-      await this.#fileStore.close();
+      try {
+        await this.#fileStore.close();
+      } finally {
+        this.#contextScope.disable?.();
+      }
     }
   }
 
