@@ -24,7 +24,7 @@ run("npm", [
   "--no-audit",
   "--no-fund",
   "sqlite3@6.0.1",
-  "node-gyp@12.0.0",
+  "node-gyp@13.1.0",
 ]);
 const pkg = join(root, "node_modules", "sqlite3");
 if (patched) {
