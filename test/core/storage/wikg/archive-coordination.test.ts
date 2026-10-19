@@ -1,4 +1,5 @@
 import { fork, type ChildProcess } from "child_process";
+import { AsyncLocalStorage } from "async_hooks";
 import { mkdir } from "fs/promises";
 import { join } from "path";
 import { fileURLToPath } from "url";
@@ -29,6 +30,8 @@ const workerPath = fileURLToPath(
   new URL("../../../helpers/archive-coordination-worker.ts", import.meta.url),
 );
 const workerErrors = new WeakMap<ChildProcess, string[]>();
+const workerClosures = new WeakMap<ChildProcess, Promise<void>>();
+const fixtureWorkers = new AsyncLocalStorage<Set<ChildProcess>>();
 
 describe("wikg cross-process coordination", () => {
   it("preserves disjoint writes when the later process commits last", async () => {
@@ -512,7 +515,23 @@ async function withFixture(
       }
       const archivePath = join(root, "book.wikg");
       await writeWikgArchive(directory, new NodeFile(archivePath));
-      await operation({ archivePath, stateRoot, storage });
+      const children = new Set<ChildProcess>();
+      try {
+        await fixtureWorkers.run(
+          children,
+          async () => await operation({ archivePath, stateRoot, storage }),
+        );
+      } finally {
+        // Assertion/IPC failures must not leave children holding coordinator.db
+        // and then replace the original error with a Windows cleanup EBUSY.
+        await Promise.all(
+          [...children].map(async (child) => {
+            if (child.exitCode === null && child.signalCode === null)
+              child.kill("SIGKILL");
+            await workerClosures.get(child);
+          }),
+        );
+      }
     });
   });
 }
@@ -527,7 +546,19 @@ function spawnWorker(
     silent: true,
   });
   const errors: string[] = [];
+  const startedAt = Date.now();
+  errors.push(`Worker ${action} spawned (pid ${child.pid})`);
+  child.on("message", (message) =>
+    errors.push(`[+${Date.now() - startedAt}ms] ${JSON.stringify(message)}`),
+  );
+  child.stdout?.resume();
   child.stderr?.on("data", (chunk) => errors.push(String(chunk)));
+  child.on("error", (error) => errors.push(String(error)));
+  workerClosures.set(
+    child,
+    new Promise((resolve) => child.once("close", () => resolve())),
+  );
+  fixtureWorkers.getStore()?.add(child);
   workerErrors.set(child, errors);
   return child;
 }
