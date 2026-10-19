@@ -28,7 +28,10 @@ The final experiment also probes FTS5, bound values, blobs, rollback and recover
 after a failed statement. A diagnostic failure exits nonzero; it never counts as
 acceptance success.
 
-Manually dispatch `pr-check.yml` on the pushed branch. Dispatch-only diagnostic
+Manually dispatch `pr-check.yml` on the pushed branch with
+`gh workflow run pr-check.yml --ref <branch> -f nativeDiagnostics=true`.
+The input defaults to false so normal PR/manual checks do not run intentionally
+failing old-binding controls. Dispatch-only diagnostic
 jobs compare the published prebuild with an isolated source control and the same
 source with **only** `winIsUNCPath` replaced. Both source builds use the same
 package, toolchain and flags. The exact replacement is asserted before building.
@@ -51,9 +54,84 @@ installation. The candidate package is likewise installed in a temporary root.
   (2026-06-12, Fossil `a4691489`) excludes local DOS-device drive names from
   UNC SHM locking. It is present in 3.53.4 and 3.54.0, but not 3.52.0 or
   3.53.0. The isolated patch uses that function, not a wholesale SQLite upgrade.
-- This source difference is a hypothesis until the actual source-control and
-  source-patched Windows results are compared. Neither a source diff nor an
-  unrelated successful macOS query proves causation.
+- The first controlled Windows experiment at commit
+  `5d4af6a49dd11c201b7b1bafbfb52032a7e29045` measured
+  [prebuilt: 9 passed / 3 failed](https://github.com/oomol-lab/wiki-graph/actions/runs/39209501670/job/117919608110),
+  [source control: 9 passed / 3 failed](https://github.com/oomol-lab/wiki-graph/actions/runs/39209501670/job/117919608079),
+  and [source patched: 12 passed / 0 failed](https://github.com/oomol-lab/wiki-graph/actions/runs/39209501670/job/117919607865).
+  All 12 matrix cells executed. All three bindings reported SQLite 3.52.0 and
+  source ID `2026-03-06 16:01:44 557aeb43869d3585137b17690cb3b64f7de6921774daae9e56403c3717dceab6`.
+  Ordinary files measured 70 characters, long files 302 before the device prefix.
+  Failures were `SQLITE_PROTOCOL` in single-process extended/long cells, with
+  both same-name and case-alias failures observed. No cross-process cell failed
+  within 25 waves. Exactly which single-process wave failed varied; passing one
+  bounded cell does not imply that spelling is immune.
+  Artifacts: [prebuilt](https://github.com/oomol-lab/wiki-graph/actions/runs/39209501670/artifacts/12166767360),
+  [source control](https://github.com/oomol-lab/wiki-graph/actions/runs/39209501670/artifacts/12167137457),
+  [source patched](https://github.com/oomol-lab/wiki-graph/actions/runs/39209501670/artifacts/12166957942).
+  This isolates the native path-classification defect from Wiki Graph's own
+  adapter/coordinator. It does not establish real SMB behavior or certify a
+  published replacement binding.
+
+## Subsequent Windows evidence
+
+The expanded experiment at commit
+`d6dddcaa5547eebaa320c5f45eb4f3192bfc745b` added the capability probes, a packaged
+async candidate, and complete regressions with the isolated patched addon:
+
+| Binding                                                        | Native matrix passed / failed | Job                                                                                            | JSON artifact                                                                                    |
+| -------------------------------------------------------------- | ----------------------------- | ---------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
+| Published sqlite3 6.0.1 prebuild                               | 10 / 2                        | [prebuilt](https://github.com/oomol-lab/wiki-graph/actions/runs/39210133494/job/117921445574)  | [report](https://github.com/oomol-lab/wiki-graph/actions/runs/39210133494/artifacts/12167451847) |
+| Unchanged sqlite3 6.0.1 source build                           | 9 / 3                         | [control](https://github.com/oomol-lab/wiki-graph/actions/runs/39210133494/job/117921445741)   | [report](https://github.com/oomol-lab/wiki-graph/actions/runs/39210133494/artifacts/12167775936) |
+| Same source, winIsUNCPath patch only                           | 12 / 0                        | [patched](https://github.com/oomol-lab/wiki-graph/actions/runs/39210133494/job/117921445734)   | [report](https://github.com/oomol-lab/wiki-graph/actions/runs/39210133494/artifacts/12166758278) |
+| Packaged @appthreat/sqlite3 9.1.0, Node 24.21.0, SQLite 3.53.4 | 12 / 0                        | [candidate](https://github.com/oomol-lab/wiki-graph/actions/runs/39210133494/job/117921445826) | [report](https://github.com/oomol-lab/wiki-graph/actions/runs/39210133494/artifacts/12167551373) |
+
+Every native-matrix cell ran; none was skipped. All four bindings passed the
+FTS5/parameters/BLOB/rollback/error-recovery probes. The same-process
+extended/long failures remain `SQLITE_PROTOCOL`; no cross-process failure was
+observed in the bounded matrix.
+
+The unchanged production binding's
+[Windows Archive Coordination job](https://github.com/oomol-lab/wiki-graph/actions/runs/39210133494/job/117921445646)
+passed all **105 assertions / 9 files, 0 failures, 0 skips, 0 todos**
+([JSON](https://github.com/oomol-lab/wiki-graph/actions/runs/39210133494/artifacts/12167312476)).
+The previous production run at 5d4af6a was **104 passed / 1 failed / 0 skips/todos**
+([job](https://github.com/oomol-lab/wiki-graph/actions/runs/39209501670/job/117919608084),
+[JSON](https://github.com/oomol-lab/wiki-graph/actions/runs/39209501670/artifacts/12167840724));
+its sole failure was the extended-drive cold-readonly case. Do not interpret the
+later green production job as a repair: the native-only prebuilt job at the
+**same commit** still fails. This is an intermittent native race, and both
+failing and passing evidence are retained. Runs were expanded for diagnosis,
+not repeated until a green result could be selected.
+
+The Linux quality, PR test and packed E2E/install/publish-dry-run jobs at d6dddca
+passed independently. These do not establish Windows behavior. No Electron
+packaged-app or actual SMB I/O acceptance is claimed.
+
+The [patched-addon regression job](https://github.com/oomol-lab/wiki-graph/actions/runs/39210133494/job/117921445734)
+also completed with **105 passed / 0 failed / 0 skipped / 0 todo**
+([JSON](https://github.com/oomol-lab/wiki-graph/actions/runs/39210133494/artifacts/12168125290)).
+The injection log records SHA-256
+`fb8d12f26d94cf23e9455a29cf7c19431d055476e103eef800a47d033723054e`,
+matching the isolated patched native-matrix report. Thus the full suite actually
+used that experimental addon, not the original prebuild.
+
+| Requirement / complete file                                                                                                                 | Passed in each d6dddca full Windows job |
+| ------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------: |
+| Reader-before-commit, abort, old ZIP/log preservation, native statement release, long-path access — node-platform.test.ts                   |                                      34 |
+| Opaque lifecycle forwarding and both close/commit failure + successful retry scenarios — opaque-file-adapter.test.ts                        |                                       7 |
+| Archive/cache settlement, abort, cleanup failure, token generations — wiki-graph-archive-file.test.ts                                       |                                      24 |
+| Cross-process disjoint writes, owner drain, concurrent close, interrupted settlement/reaping — archive-coordination.test.ts                 |                                      12 |
+| Probe registration before ZIP open, failed-close owner retention, admission fence, compatibility/adoption — settlement-coordination.test.ts |                                       5 |
+| Public SDK operations, export fence and reentrant rejection — delivery.full-regression.test.ts                                              |                                      14 |
+| Public SDK source/FTS/job events/ZIP and fresh-process query — sdk-workflow.test.ts                                                         |                                       1 |
+| Active WAL, >260 path, process interruption/recovery/integrity/continued writes/handle release — wal-recovery.test.ts                       |                                       3 |
+| Drive/extended/UNC conversion contracts, no SMB I/O claim — path-contract.test.ts                                                           |                                       5 |
+
+The standalone candidate matrix is not a full SDK consumer/Electron acceptance
+run. No published binding was changed, and all product code remains identical
+to c766775. The later evidence/opt-in-dispatch documentation commit is not
+misrepresented as the tested d6dddca commit.
 
 ## Installable alternatives (checked 2026-10-19)
 
@@ -85,3 +163,23 @@ full Node/Electron, CJS/ESM/worker, number/blob/error/statement, readonly, WAL,
 schema/export and packed-consumer regression. No Home/Archive schema bump follows
 merely from changing the binding; file-format compatibility must still be tested.
 No production backend or release/distribution channel is changed by this experiment.
+
+## Recommended decision boundary
+
+If replacing the default backend is approved, prefer the maintained async
+`@appthreat/sqlite3@9.1.0` over maintaining a custom native distribution or moving
+all SQLite operations to synchronous calls. Its packaged Windows binding passed
+the standalone 12-cell matrix on Node 24.21.0, including FTS5/parameters/blobs/
+rollback/statement-error recovery. It still requires adopting Node >=24 and the
+independent maintainer. This is not a drop-in: for example a duplicate primary key
+returns `code: SQLITE_CONSTRAINT_PRIMARYKEY`, `primaryCode: SQLITE_CONSTRAINT`,
+where the current adapter/tests expect `code: SQLITE_CONSTRAINT`. Preserve the
+SDK error contract at its adapter boundary, then run the complete consumer and
+Electron regressions before adopting it. Reassess the release compatibility
+claim rather than silently raising the runtime floor in the prepared patch.
+
+If Node >=22.12 must remain supported, that recommendation cannot be applied.
+The smallest compatible delivery is an official sqlite3 release containing the
+native fix; none exists today. `better-sqlite3` plus actual async workers is a
+larger fallback with its own N-API floor and transaction-progress design, not a
+local one-line repair. A frozen old SQLite downgrade is not an evaluated fix.

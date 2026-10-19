@@ -40,7 +40,7 @@ The cold-readonly stress case retains 25 groups of five readers and mixes case
 aliases, on both long and explicitly extended drive paths; it is not replaced by
 a warm-writer scenario.
 
-## Native SQLite prerequisite (product acceptance is not yet passing)
+## Known native SQLite defect (release acceptance remains incomplete)
 
 The production-source Windows run at
 [c766775](https://github.com/oomol-lab/wiki-graph/actions/runs/39195159000/job/117876312322)
