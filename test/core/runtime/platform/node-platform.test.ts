@@ -406,6 +406,37 @@ describe("Node File/Directory adapter", () => {
     });
   });
 
+  it("finalizes prepared statements after successes and failures before native close", async () => {
+    await withTempDir("wg-statement-release-", async (path) => {
+      const root = new NodeDirectory(path);
+      const file = await root.createFile("state.sqlite");
+      const db = await nodeWikiGraphPlatform.database.open(file, {
+        mode: "readwrite",
+        create: true,
+      });
+      try {
+        await expect(
+          db.queryAll("SELECT * FROM missing_table"),
+        ).rejects.toThrow("no such table");
+        await db.execute("CREATE TABLE marker(value INTEGER PRIMARY KEY)");
+        await db.run("INSERT INTO marker VALUES(?)", [1]);
+        await expect(
+          db.run("INSERT INTO marker VALUES(?)", [1]),
+        ).rejects.toMatchObject({ code: "SQLITE_CONSTRAINT" });
+        expect(
+          await db.queryOne("SELECT value FROM marker WHERE value = ?", [2]),
+        ).toBeUndefined();
+        expect(await db.queryAll("SELECT value FROM marker")).toEqual([
+          { value: 1 },
+        ]);
+      } finally {
+        await db.close();
+      }
+      await root.remove("state.sqlite");
+      expect(await root.list()).toEqual([]);
+    });
+  });
+
   it("supports concurrent WAL readers through repeated opens", async () => {
     await withTempDir("wikigraph-wal-", async (path) => {
       const root = new NodeDirectory(join(path, "spaces # percent %"));

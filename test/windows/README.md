@@ -36,14 +36,29 @@ The Node adapter suite also retains the older concurrent readonly reopen stress
 case after the last writer closes; it is separate from active WAL recovery.
 Concurrent reader groups await all cleanup before propagating an error, so a
 temporary-directory unlink failure cannot obscure the original SQLite failure.
-The namespaced local-drive SQLite adapter serializes only native open/initial header
-read/close transitions per case-folded filename. Queries and transactions are not
-put on that queue. The cold-readonly stress case retains 25 groups of five readers
-and mixes case aliases, on both long and explicitly extended drive paths; it is not replaced by a warm-writer scenario. SQLite 3.52's
+The cold-readonly stress case retains 25 groups of five readers and mixes case
+aliases, on both long and explicitly extended drive paths; it is not replaced by
+a warm-writer scenario.
+
+## Native SQLite prerequisite (acceptance remains blocked)
+
+The production-source Windows run at
+[c766775](https://github.com/oomol-lab/wiki-graph/actions/runs/39195159000/job/117876312322)
+passed the Archive protocol and active WAL regressions but failed cold readonly
+reopen with `SQLITE_PROTOCOL` (102 passed, 1 failed, no skips/todos). Keep that
+failure visible. The published `sqlite3@6.0.1` package bundles SQLite 3.52.0, whose
 [`winIsUNCPath`](https://github.com/sqlite/sqlite/blob/version-3.52.0/src/os_win.c)
-treats namespaced local drives as UNC. The bounded lifecycle workaround keeps
-long-path support and real SQLite locks without retries, DELETE/checkpoint cleanup,
-`immutable`, nolock VFSes, or a hidden writable anchor connection.
+classifies namespaced local drives as UNC; the
+[3.54.0 implementation](https://github.com/sqlite/sqlite/blob/version-3.54.0/src/os_win.c)
+explicitly excludes them. A binding build containing that fix must be selected
+and validated before claiming Windows acceptance.
+
+Do not hide this by keeping a writable anchor, forcing DELETE/checkpoint cleanup,
+using `immutable` or nolock VFSes, or serializing every native call in JavaScript.
+The latter can prevent one connection's COMMIT from running while another holds
+that JS gate inside SQLite's busy wait. Experiments with eager header priming and
+JS native-call gates were withdrawn rather than changing transaction concurrency.
+The Node adapter retains #346's short/long path policy unchanged.
 
 Local diagnostic run on any OS:
 

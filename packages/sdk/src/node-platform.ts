@@ -406,48 +406,16 @@ function assertChildName(name: string): void {
   }
 }
 
-type DatabaseLifecycle = <T>(operation: () => Promise<T>) => Promise<T>;
-
-const databaseLifecycles = new Map<
-  string,
-  { tail: Promise<unknown>; users: number }
->();
-
-async function withDatabaseLifecycle<T>(
-  filename: string,
-  operation: () => Promise<T>,
-): Promise<T> {
-  let queue = databaseLifecycles.get(filename);
-  if (queue === undefined) {
-    queue = { tail: Promise.resolve(), users: 0 };
-    databaseLifecycles.set(filename, queue);
-  }
-  queue.users++;
-  const result = queue.tail.then(operation);
-  queue.tail = result.catch(() => undefined);
-  try {
-    return await result;
-  } finally {
-    if (--queue.users === 0) databaseLifecycles.delete(filename);
-  }
-}
-
 class NodeDatabaseConnection implements HostDatabaseConnection {
-  public constructor(
-    private readonly database: sqlite3.Database,
-    private readonly lifecycle: DatabaseLifecycle,
-  ) {}
+  public constructor(private readonly database: sqlite3.Database) {}
 
   public async close(): Promise<void> {
-    await this.lifecycle(
-      async () =>
-        await new Promise<void>((resolve, reject) => {
-          this.database.close((error) => {
-            if (error) reject(error);
-            else resolve();
-          });
-        }),
-    );
+    await new Promise<void>((resolve, reject) => {
+      this.database.close((error) => {
+        if (error) reject(error);
+        else resolve();
+      });
+    });
   }
 
   public async execute(sql: string): Promise<void> {
@@ -506,55 +474,28 @@ async function openNodeDatabase(
       : nodeSqlite3.OPEN_READWRITE |
         (options.create ? nodeSqlite3.OPEN_CREATE : 0)) |
     nodeSqlite3.OPEN_FULLMUTEX;
-  return await openNativeNodeDatabase(file, flags);
+  return new NodeDatabaseConnection(await openNativeNodeDatabase(file, flags));
 }
 
 async function openNativeNodeDatabase(
   file: ReadonlyFile,
   flags: number,
-): Promise<NodeDatabaseConnection> {
+): Promise<sqlite3.Database> {
   const path = getBrandedNodeResourcePath(file, "file");
   if (path === undefined) {
     throw new TypeError("The Node database adapter requires a NodeFile");
   }
   // SQLite 3.52 treats namespaced drive paths as UNC for WAL locking. Keep
   // ordinary paths when the database and its longest sidecar fit MAX_PATH.
-  const needsNamespace =
-    nodeProcess.platform === "win32" && path.length + "-journal".length >= 260;
-  const filename = needsNamespace ? toNodeFilesystemPath(path) : path;
-  const namespaced =
-    nodeProcess.platform === "win32" &&
-    filename.startsWith("\\\\?\\") &&
-    /^[a-z]:[\\/]/i.test(filename.slice(4));
-  const lifecycle: DatabaseLifecycle = namespaced
-    ? async (operation) =>
-        await withDatabaseLifecycle(filename.toLowerCase(), operation)
-    : async (operation) => await operation();
-  return await lifecycle(async () => {
-    const database = await new Promise<sqlite3.Database>((resolve, reject) => {
-      const database = new nodeSqlite3.Database(filename, flags, (error) => {
-        if (error) reject(error);
-        else resolve(database);
-      });
+  const filename =
+    nodeProcess.platform === "win32" && path.length + "-journal".length >= 260
+      ? toNodeFilesystemPath(path)
+      : path;
+  return await new Promise((resolve, reject) => {
+    const database = new nodeSqlite3.Database(filename, flags, (error) => {
+      if (error) reject(error);
+      else resolve(database);
     });
-    try {
-      if (namespaced) {
-        // SQLite 3.52 shares its UNC SHM handle for namespaced local drives.
-        // Serialize cold-open/first WAL read/close transitions, not queries or
-        // transactions, to avoid a cold reader racing the last handle's close.
-        // This is a bounded header read, not a schema walk, checkpoint or retry.
-        await new Promise<void>((resolve, reject) => {
-          database.get("PRAGMA schema_version", (error) => {
-            if (error) reject(error);
-            else resolve();
-          });
-        });
-      }
-      return new NodeDatabaseConnection(database, lifecycle);
-    } catch (error) {
-      await new Promise<void>((resolve) => database.close(() => resolve()));
-      throw error;
-    }
   });
 }
 
