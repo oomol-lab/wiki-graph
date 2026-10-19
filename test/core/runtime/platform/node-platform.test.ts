@@ -513,8 +513,12 @@ describe("Node File/Directory adapter", () => {
       // regression. A rejected sibling must not leave cleanup racing readers.
       for (let iteration = 0; iteration < 25; iteration++) {
         const results = await Promise.allSettled(
-          Array.from({ length: 5 }, async () => {
-            const reader = await nodeWikiGraphPlatform.database.open(file, {
+          Array.from({ length: 5 }, async (_, index) => {
+            const alias =
+              index % 2 === 0
+                ? file
+                : new NodeFile(join(root.path, "STATE.sqlite"));
+            const reader = await nodeWikiGraphPlatform.database.open(alias, {
               mode: "readonly",
             });
             try {
