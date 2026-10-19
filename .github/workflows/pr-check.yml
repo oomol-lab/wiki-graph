@@ -4,6 +4,10 @@ on:
   pull_request:
   workflow_dispatch:
     inputs:
+      linuxComparison:
+        description: Compare Linux workflow phases before and after Archive coordination changes
+        type: boolean
+        default: false
       nativeDiagnostics:
         description: Run native SQLite A/B experiments (known-bad controls intentionally fail)
         type: boolean
@@ -26,6 +30,29 @@ permissions:
   contents: read
 
 jobs:
+  linux-comparison:
+    name: Linux archive workflow comparison (diagnostic only)
+    if: github.event_name == 'workflow_dispatch' && inputs.linuxComparison
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: node scripts/diagnose-linux-workflows.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: linux-comparison
+          path: test/.reports/linux-comparison
+          if-no-files-found: error
+
   packed-sqlite-consumer:
     name: Windows packed SDK Node ${{ matrix.node }} and Electron
     runs-on: windows-latest

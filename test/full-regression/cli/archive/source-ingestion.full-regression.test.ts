@@ -13,6 +13,7 @@ import { runWikiGraphCLICaptured } from "../../../../packages/cli/src/index.js";
 import { NodeFile } from "../../../../packages/cli/src/runtime/node-platform.js";
 
 import { withTempDir } from "../../../helpers/temp.js";
+import { regressionPhase } from "../../../helpers/regression-phase.js";
 
 const NEWTON_JSONL_PATH = resolve("test/fixtures/sources/newton.pdf.jsonl");
 const LITTLE_PRINCE_EPUB_PATH = resolve(
@@ -495,11 +496,13 @@ async function runJsonCLI(
   argv: readonly string[],
   stdin?: string,
 ): Promise<Record<string, unknown>> {
-  const result = await runWikiGraphCLICaptured({
-    argv,
-    stateDir,
-    ...(stdin === undefined ? {} : { stdin, stdinIsTTY: false }),
-  });
+  const result = await regressionPhase(`cli:${argv.join(" ")}`, () =>
+    runWikiGraphCLICaptured({
+      argv,
+      stateDir,
+      ...(stdin === undefined ? {} : { stdin, stdinIsTTY: false }),
+    }),
+  );
 
   expect(result.exitCode, result.stderr).toBe(0);
   expect(result.stderr).toBe("");
@@ -513,18 +516,21 @@ async function readSingleSerial(archivePath: string): Promise<SerialSnapshot> {
 }
 
 async function readSerials(archivePath: string): Promise<SerialSnapshot[]> {
-  return await new WikiGraphArchiveFile(new NodeFile(archivePath)).readDocument(
-    async (document) => {
-      const toc = await document.readToc();
-      const serialIds = collectSerialIds(toc?.items ?? []);
-      return await Promise.all(
-        serialIds.map(async (serialId) => ({
-          maps: await document.sourceProvenance.listMap(serialId),
-          serialId,
-          text: (await document.getSerialFragments(serialId).readText()) ?? "",
-        })),
-      );
-    },
+  return await regressionPhase("cli:read-serials", () =>
+    new WikiGraphArchiveFile(new NodeFile(archivePath)).readDocument(
+      async (document) => {
+        const toc = await document.readToc();
+        const serialIds = collectSerialIds(toc?.items ?? []);
+        return await Promise.all(
+          serialIds.map(async (serialId) => ({
+            maps: await document.sourceProvenance.listMap(serialId),
+            serialId,
+            text:
+              (await document.getSerialFragments(serialId).readText()) ?? "",
+          })),
+        );
+      },
+    ),
   );
 }
 

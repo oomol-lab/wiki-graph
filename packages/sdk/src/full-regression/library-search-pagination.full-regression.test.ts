@@ -14,6 +14,7 @@ import {
 } from "wiki-graph-core";
 
 import { createWikiGraphSDK, NodeFile, type WikiGraphSDK } from "../index.js";
+import { regressionPhase } from "../../../../test/helpers/regression-phase.js";
 
 const temporaryDirectories: string[] = [];
 
@@ -32,7 +33,9 @@ describe("WikiGraphLibraryManager search pagination", () => {
   it.each(["standalone", "library"] as const)(
     "isolates a stalled wikipage from %s search, reads and writes",
     async (scope) => {
-      const setup = await createIndexedLibrary(false, true);
+      const setup = await regressionPhase(`${scope}:fixture`, () =>
+        createIndexedLibrary(false, true),
+      );
       const controller = new AbortController();
       let pending: Promise<unknown> | undefined;
       try {
@@ -70,7 +73,9 @@ describe("WikiGraphLibraryManager search pagination", () => {
               );
         pending = page("wikg://entity/Q1/wikipage", controller.signal);
         const settled = pending.catch((error: unknown) => error);
-        await vi.waitFor(() => expect(fetcher).toHaveBeenCalledOnce());
+        await regressionPhase(`${scope}:remote-start`, async () => {
+          await vi.waitFor(() => expect(fetcher).toHaveBeenCalledOnce());
+        });
         // These must finish while the first request's stream is still stalled.
         const results =
           scope === "standalone"
@@ -381,93 +386,103 @@ async function createIndexedLibrary(
     stateDir: join(root, "state"),
   });
   const archivePath = join(root, "source.wikg");
-  await sdk.archives.create({ path: archivePath });
+  await regressionPhase("fixture:create", () =>
+    sdk.archives.create({ path: archivePath }),
+  );
   const archive = await sdk.archives.open({
     kind: "standalone",
     path: archivePath,
   });
-  const chapter = await archive.addChapter({
-    source: Array.from(
-      { length: 60 },
-      (_, index) =>
-        `Needle record ${index} remains independently searchable.${interleaved ? " Unrelated context." : ""}`,
-    ).join(" "),
-    title: "Pagination source",
-  });
-  await sdk.run(async () => {
-    await new WikiGraphArchiveFile(new NodeFile(archivePath)).write(
-      async (document) => {
-        await document.openSession(async (opened) => {
-          if (withChunk)
-            await opened.chunks.save({
-              content: "Needle reading chunk",
-              generation: 0,
-              id: 10,
-              label: "Needle chunk",
-              sentenceId: [chapter.chapterId, 0],
-              sentenceIds: [[chapter.chapterId, 0]],
-              weight: 1,
-              wordsCount: 3,
+  const chapter = await regressionPhase("fixture:add-chapter", () =>
+    archive.addChapter({
+      source: Array.from(
+        { length: 60 },
+        (_, index) =>
+          `Needle record ${index} remains independently searchable.${interleaved ? " Unrelated context." : ""}`,
+      ).join(" "),
+      title: "Pagination source",
+    }),
+  );
+  await regressionPhase("fixture:seed-indexes", () =>
+    sdk.run(async () => {
+      await new WikiGraphArchiveFile(new NodeFile(archivePath)).write(
+        async (document) => {
+          await document.openSession(async (opened) => {
+            if (withChunk)
+              await opened.chunks.save({
+                content: "Needle reading chunk",
+                generation: 0,
+                id: 10,
+                label: "Needle chunk",
+                sentenceId: [chapter.chapterId, 0],
+                sentenceIds: [[chapter.chapterId, 0]],
+                weight: 1,
+                wordsCount: 3,
+              });
+            await opened.writeSummary(
+              chapter.chapterId,
+              "Needle summary sentence.",
+            );
+            await opened.mentions.saveMany(
+              [0, 20].map((sentenceIndex) => ({
+                chapterId: chapter.chapterId,
+                id: `mention-${sentenceIndex}`,
+                qid: "Q1",
+                rangeStart: 0,
+                rangeEnd: 6,
+                sentenceIndex,
+                surface: "Needle Example",
+              })),
+            );
+            await opened.mentions.saveMany(
+              [0, 20].map((sentenceIndex) => ({
+                chapterId: chapter.chapterId,
+                id: `target-${sentenceIndex}`,
+                qid: "Q2",
+                rangeStart: 7,
+                rangeEnd: 13,
+                sentenceIndex,
+                surface: "Target",
+              })),
+            );
+            await opened.mentionLinks.save({
+              id: "relation",
+              sourceMentionId: "mention-0",
+              targetMentionId: "target-0",
+              predicate: "relates",
+              note: "Needle relation",
+              evidenceSentenceIds: [
+                [chapter.chapterId, 0],
+                [chapter.chapterId, 20],
+              ],
             });
-          await opened.writeSummary(
-            chapter.chapterId,
-            "Needle summary sentence.",
-          );
-          await opened.mentions.saveMany(
-            [0, 20].map((sentenceIndex) => ({
-              chapterId: chapter.chapterId,
-              id: `mention-${sentenceIndex}`,
-              qid: "Q1",
-              rangeStart: 0,
-              rangeEnd: 6,
-              sentenceIndex,
-              surface: "Needle Example",
-            })),
-          );
-          await opened.mentions.saveMany(
-            [0, 20].map((sentenceIndex) => ({
-              chapterId: chapter.chapterId,
-              id: `target-${sentenceIndex}`,
-              qid: "Q2",
-              rangeStart: 7,
-              rangeEnd: 13,
-              sentenceIndex,
-              surface: "Target",
-            })),
-          );
-          await opened.mentionLinks.save({
-            id: "relation",
-            sourceMentionId: "mention-0",
-            targetMentionId: "target-0",
-            predicate: "relates",
-            note: "Needle relation",
-            evidenceSentenceIds: [
-              [chapter.chapterId, 0],
-              [chapter.chapterId, 20],
-            ],
           });
-        });
-        await replaceChapterFtsIndexArtifact(document, chapter.chapterId);
-        await replaceChapterSourceEmbeddingIndexArtifact(
-          document,
-          chapter.chapterId,
-          provider,
-        );
-        await replaceChapterSummaryEmbeddingIndexArtifact(
-          document,
-          chapter.chapterId,
-          provider,
-        );
-      },
-    );
-  });
+          await replaceChapterFtsIndexArtifact(document, chapter.chapterId);
+          await replaceChapterSourceEmbeddingIndexArtifact(
+            document,
+            chapter.chapterId,
+            provider,
+          );
+          await replaceChapterSummaryEmbeddingIndexArtifact(
+            document,
+            chapter.chapterId,
+            provider,
+          );
+        },
+      );
+    }),
+  );
   const library = await sdk.libraries.create(join(root, "library"));
-  const member = await sdk.libraries.addArchive({
-    inputPath: archivePath,
-    target: library.uri,
-    to: "source.wikg",
-  });
-  await sdk.libraries.rebuildIndex(library.uri);
+  const member = await regressionPhase("fixture:add-to-library", () =>
+    sdk.libraries.addArchive({
+      inputPath: archivePath,
+      target: library.uri,
+      to: "source.wikg",
+    }),
+  );
+  await regressionPhase("fixture:rebuild-library", () =>
+    sdk.libraries.rebuildIndex(library.uri),
+  );
   return {
     archivePath,
     embeddingProbe,
