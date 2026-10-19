@@ -1,11 +1,5 @@
 # Changelog
 
-## 0.9.6
-
-- Release the initialization-only ZIP reader before entering an Archive session, so idle overlay-only writers do not prevent another process from committing on Windows. Actual source readers still close before settlement, and archive ownership remains registered through cleanup.
-- Run complete Windows Archive regression files with a fail-on-missing/skipped-test report gate. Add offline SDK/FTS/job-log cross-process acceptance, opaque ZIP failure/retry coverage, active WAL transaction and interrupted-writer recovery on ordinary/extended/long paths, and drive/UNC conversion contracts (not SMB I/O certification).
-- Core, SDK, and CLI advance together from the published 0.9.5 release; no persistent schema or archive format changes are required.
-
 ## 0.9.5
 
 - Shorten WIKG coordinator workspace snapshot paths with a single composite hash and compact Windows-safe snapshot names.

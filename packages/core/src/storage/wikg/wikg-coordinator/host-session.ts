@@ -185,10 +185,6 @@ export class HostWikgArchiveSession {
       const mutationToken = parseWikgMutationToken(
         new TextDecoder().decode(tokenBytes),
       );
-      // Initialization is not a source read session. Do not pin a native ZIP
-      // handle in an idle/overlay-only writer and block another owner's commit.
-      await reader.close();
-      reader = undefined;
       const session = new HostWikgArchiveSession({
         archive,
         archiveKey,
@@ -197,6 +193,7 @@ export class HostWikgArchiveSession {
           .digest("hex"),
         owner,
       });
+      session.#reader = Promise.resolve(reader);
       return session;
     } catch (error) {
       await reader?.close();

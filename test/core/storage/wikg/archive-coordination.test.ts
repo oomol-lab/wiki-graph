@@ -30,47 +30,6 @@ const workerPath = fileURLToPath(
 const workerErrors = new WeakMap<ChildProcess, string[]>();
 
 describe("wikg cross-process coordination", () => {
-  it("does not retain initialization readers in overlay-only sessions", async () => {
-    await withFixture(async ({ archivePath }) => {
-      const originalZip = nodeWikiGraphPlatform.zip;
-      let readers = 0;
-      installWikiGraphPlatform({
-        ...nodeWikiGraphPlatform,
-        zip: {
-          ...originalZip,
-          open: async (file, options) => {
-            const reader = await originalZip.open(file, options);
-            readers++;
-            let closed = false;
-            return {
-              ...reader,
-              close: async () => {
-                await reader.close();
-                if (!closed) readers--;
-                closed = true;
-              },
-            };
-          },
-        },
-      });
-      try {
-        await new WikgCoordinator().withArchiveSession(
-          new NodeFile(archivePath),
-          async (session) => {
-            expect(readers).toBe(0);
-            await session.writeEntry("toc.json", '{"items":[],"version":1}', {
-              overwrite: true,
-            });
-            expect(readers).toBe(0);
-          },
-        );
-        expect(readers).toBe(0);
-      } finally {
-        installWikiGraphPlatform(nodeWikiGraphPlatform);
-      }
-    });
-  });
-
   it("preserves disjoint writes when the later process commits last", async () => {
     await withFixture(async ({ archivePath, stateRoot, storage }) => {
       const metadata = spawnWorker(archivePath, stateRoot, "meta");
@@ -295,13 +254,9 @@ describe("wikg cross-process coordination", () => {
       try {
         const archive = new NodeFile(archivePath);
         const coordinator = new WikgCoordinator();
-        const reading = coordinator.withArchiveSession(
-          archive,
-          async (session) => {
-            await session.getEntrySize("toc.json");
-            delaySessionReaderClose = true;
-          },
-        );
+        const reading = coordinator.withArchiveSession(archive, () => {
+          delaySessionReaderClose = true;
+        });
         await closeStarted;
 
         let replacementEntered = false;
