@@ -215,6 +215,25 @@ describe("database lifecycle", () => {
       await second.close();
     }
   }, 2_000);
+  it("retains reentrant admission until a callback that closes its database exits", async () => {
+    const database = new Database({
+      close: () => Promise.resolve(),
+      execute: () => Promise.resolve(),
+      queryAll: () => Promise.resolve([]),
+      queryOne: () => Promise.resolve(undefined),
+      run: () => Promise.resolve(),
+    });
+    await database.transaction(async () => {
+      await database.close();
+      // Without deferring context disposal, this queued behind its own parent
+      // transaction forever instead of reaching the existing closed guard.
+      await expect(database.run("after close")).rejects.toThrow(
+        "Database is already closed",
+      );
+    });
+    await database.close();
+  }, 2_000);
+
   it.each([true, false])(
     "does not delete a damaged cache while opening (readonly=%s)",
     async (readonly) => {
