@@ -152,6 +152,7 @@ function writeInstallWorkspace(cwd, name, overrides = {}) {
     [
       "allowBuilds:",
       "  sqlite3: true",
+      '  "@appthreat/sqlite3": true',
       ...(overrideLines.length === 0 ? [] : ["overrides:", ...overrideLines]),
       "",
     ].join("\n"),

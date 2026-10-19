@@ -1,8 +1,9 @@
 # Compatible asynchronous SQLite candidates
 
-This continues [the native A/B investigation](sqlite-investigation.md). None of
-these experiments changes the product dependency, Node engine, schema or native
-distribution channel. Checked against published npm tarballs on 2026-10-19.
+This continues [the native A/B investigation](sqlite-investigation.md). The
+historical experiments below did not change product dependencies. The subsequent
+approved delivery decision is recorded at the end. Published npm tarballs were
+checked on 2026-10-19.
 
 ## Historical package audit
 
@@ -182,10 +183,9 @@ package's own type declarations and the full repository typecheck passed. That
 checkout was removed; the real worktree dependency and lockfile remain unchanged.
 Linux/macOS evidence never substitutes for Windows acceptance.
 
-## Recommendation and remaining product decision
+## Recommendation and approved delivery decision
 
-Recommend an **exact** `npm:@appthreat/sqlite3@7.0.1` alias in SDK and CLI, subject
-to explicit authorization for changing the default binding. This is an async
+Recommend an **exact** `npm:@appthreat/sqlite3@7.0.1` alias in SDK and CLI. This is an async
 callback-compatible published prebuilt package, preserves Node >=22.12 and the
 qualified Electron 35 entry/worker behavior, includes Windows ARM64 prebuilds,
 and avoids a compiler or project-owned binary release channel. It is a temporary
@@ -198,6 +198,22 @@ Exact official sqlite3 5.1.7 passed earlier workflows but has the unresolved
 startup timeout above and downgrades the engine further to 3.44.2; it is not the
 recommended delivery path. Latest AppThreat 9.x would solve the
 native defect with a current SQLite, but raises Node to >=24 and is therefore
-outside the approved compatibility boundary. No dependency switch has been
-made by these diagnostic jobs. A product-default final-HEAD run remains required
-after an authorized choice; an injected candidate pass cannot substitute for it.
+outside the approved compatibility boundary. No dependency switch was made by
+the historical diagnostic jobs.
+
+On 2026-10-19 the product owner explicitly approved the exact AppThreat 7.0.1
+alias, accepting the maintainer and SQLite-engine change while retaining Node
+
+> =22.12 and upstream prebuilt installation. SDK and CLI now use that alias;
+> the lockfile and pnpm build permissions are updated. The existing double-default
+> interop adapter handles packed CJS and ESM imports; constraint errors retain
+> `SQLITE_CONSTRAINT` / errno 19. Home v6, Archive v5 and format v1 are unchanged.
+> No release is authorized by this decision.
+
+Product acceptance now runs the normal Windows regression job and separate
+packed Node 22.12/current Node 22 + Electron 35 jobs **without** a SQLite override
+or injected addon. The packed fixture asserts package identity/version, actual
+SQLite 3.50.4, error semantics and fresh-process FTS/event persistence. Those
+final-HEAD product reports, not the historical injected-addon reports, are the
+required release evidence. The workflow result belongs in the issue/PR delivery
+report; this document does not predeclare that an unexecuted commit passed.

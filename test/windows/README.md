@@ -40,7 +40,7 @@ The cold-readonly stress case retains 25 groups of five readers and mixes case
 aliases, on both long and explicitly extended drive paths; it is not replaced by
 a warm-writer scenario.
 
-## Known native SQLite defect (release acceptance remains incomplete)
+## Native SQLite defect and binding qualification
 
 The production-source Windows run at
 [c766775](https://github.com/oomol-lab/wiki-graph/actions/runs/39195159000/job/117876312322)
@@ -59,8 +59,19 @@ The [compatible binding qualification](sqlite-compatibility.md) records Node
 prebuild evidence, including failures. At code SHA 515397c the default binding
 still fails two cold readonly cases (104 passed / 2 failed), while isolated
 AppThreat 7.0.1 N-API 9/10 runs each pass all 106 cases without skips or todos.
-These are candidate experiments, not authorization to replace the default
-binding or final product acceptance.
+Those historical runs were candidate experiments. The approved product now pins
+`npm:@appthreat/sqlite3@7.0.1` (SQLite 3.50.4), without changing Node >=22.12,
+Home/Archive schemas or introducing a project-owned native distribution channel.
+Later 7.x versions contain the native defect; keep the pin exact. A historical
+release does not imply a separately maintained security branch.
+
+The ordinary **Windows Archive Coordination** job tests the actual product
+dependency. Two **Windows packed SDK Node … and Electron** jobs additionally
+install the SDK tarball without any SQLite dependency override or injected addon,
+assert the exact package/engine and error codes, and run eight CJS/ESM workflow
+cases per Node 22.12 / current Node 22, including Electron 35 run-as-node and
+real FTS workers. `sqlite-product-consumer-*` artifacts record the actual SHA,
+package, runtime and results. This is not GUI/ASAR packaging certification.
 
 Do not hide this by keeping a writable anchor, forcing DELETE/checkpoint cleanup,
 using `immutable` or nolock VFSes, or serializing every native call in JavaScript.

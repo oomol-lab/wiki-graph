@@ -2,6 +2,7 @@
 
 ## 0.9.6
 
+- Pin the SDK/CLI asynchronous SQLite binding to `npm:@appthreat/sqlite3@7.0.1` (SQLite 3.50.4) to avoid official sqlite3 6.0.1 / SQLite 3.52.0's Windows extended-drive WAL locking regression. Preserve Node >=22.12 and published upstream prebuild installation; no project-owned native distribution or schema migration. Later 7.x versions contain the defect, so the pin is exact; this historical release is not a security-maintenance guarantee.
 - Fence Archive reader admission against physical commits, including manifest/schema probes, and distinguish reading, drained settlement, and completed logical operations across processes. Defer ZIP settlement behind active readers without blocking callbacks; the last drained session or recovery reaper persists completed overlays. Keep mutation tokens pinned to their original source reader and discard search caches built over deferred changes.
 - Make SDK standalone export drain readers and settle pending writes before copying a coherent snapshot; reject exporting onto the source itself. Directory export uses the existing transaction/recovery lock.
 - Verify disposable SQLite overlay digests inside the lease-admission transaction, preventing concurrent reader cleanup from discarding a writer's completed index changes.

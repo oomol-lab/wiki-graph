@@ -57,6 +57,8 @@ async function main() {
       };
     }
     assert.ok(duplicate, "duplicate must reject");
+    assert.equal(duplicate.code, "SQLITE_CONSTRAINT");
+    assert.equal(duplicate.errno, 19);
     phase = "integrity-after-error";
     assert.equal(
       (await db.queryOne("PRAGMA integrity_check")).integrity_check,
@@ -65,6 +67,8 @@ async function main() {
     native = await db.queryOne(
       "SELECT sqlite_version() AS version, sqlite_source_id() AS sourceId",
     );
+    if (process.env.SQLITE_CONSUMER_PRODUCT === "true")
+      assert.equal(native.version, "3.50.4");
   } finally {
     phase = "database-close";
     await db.close();

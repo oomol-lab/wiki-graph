@@ -13,6 +13,20 @@ $ npm install wiki-graph-sdk
 该包要求 Node.js `>=22.12.0`，并依赖运行时无关的 `wiki-graph-core`；应用无需再
 单独安装 Core。
 
+从 0.9.6 起，SDK 和 CLI 将异步 SQLite 绑定精确固定为
+`npm:@appthreat/sqlite3@7.0.1`（SQLite 3.50.4），替换官方 sqlite3 6.0.1
+（SQLite 3.52.0），以避开 Windows extended-drive 路径的 WAL 锁回归。
+Node 下限保持 `>=22.12.0`，此绑定变更不要求升级 Archive 或 Home schema。
+请保留精确版本：后续 7.x 已重新引入该原生缺陷。这一历史版本并不代表独立维护的
+安全更新分支；后续升级仍须通过原生回归验证。
+
+上游提供 Windows、macOS、Linux 的 x64/ARM64 预编译包（包括 Linux musl）。
+使用相应预编译包不需要 C++ 编译器或 Wiki Graph 自建二进制下载服务。
+包可下载并不表示所有平台组合均已实测：Windows 验证覆盖 Node 22.12 的 N-API 9、
+当前 Node 22 的 N-API 10，以及 Electron 35 run-as-node 模式下的 CJS/ESM 和
+FTS worker；macOS、Linux 分别执行 Node 检查。这些检查不认证 Electron GUI/ASAR
+打包或真实 SMB/WAL I/O；自定义 database provider 仍使用自己的引擎和部署要求。
+
 ## 运行实例
 
 每个应用运行上下文创建一个实例。测试和嵌入式应用应显式传入选项；默认值与 CLI

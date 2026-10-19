@@ -14,6 +14,23 @@ $ npm install wiki-graph-sdk
 The package requires Node.js `>=22.12.0`. It depends on the runtime-neutral
 `wiki-graph-core`; applications do not need to install Core separately.
 
+In 0.9.6, the SDK and CLI pin their asynchronous SQLite binding to
+`npm:@appthreat/sqlite3@7.0.1` (SQLite 3.50.4), replacing official sqlite3 6.0.1
+(SQLite 3.52.0) to avoid a Windows extended-drive WAL locking regression. The
+Node requirement stays `>=22.12.0`; no archive or Home schema migration follows
+from this binding change. Keep the exact version: later 7.x releases reintroduce
+the native defect. This historical release is not a promise of an independently
+maintained security branch; future upgrades require native regression validation.
+
+Published prebuilds cover Windows, macOS and Linux x64/ARM64 (including Linux
+musl). Supported prebuilt installations need no C++ compiler or Wiki Graph binary
+download service. Availability is not a claim that every platform was exercised:
+the Windows qualification covers Node 22.12 N-API 9, current Node 22 N-API 10,
+and Electron 35 in run-as-node mode with CJS/ESM and FTS workers. macOS and Linux
+have separate Node checks. Electron GUI/ASAR packaging and real SMB/WAL I/O are
+not certified by these checks; custom database providers retain their own engine
+and deployment requirements.
+
 ## Runtime Instance
 
 Create one instance for each application runtime context. Explicit options are

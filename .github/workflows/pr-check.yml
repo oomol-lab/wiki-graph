@@ -26,6 +26,43 @@ permissions:
   contents: read
 
 jobs:
+  packed-sqlite-consumer:
+    name: Windows packed SDK Node ${{ matrix.node }} and Electron
+    runs-on: windows-latest
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        node: ["22.12.0", "22"]
+    env:
+      SQLITE_CONSUMER_PRODUCT: "true"
+    steps:
+      - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Build and pack actual product dependencies
+        run: |
+          pnpm build
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          node scripts/check-compatible-sqlite-consumer.mjs --pack
+      - uses: actions/setup-node@v5
+        with:
+          node-version: ${{ matrix.node }}
+          package-manager-cache: false
+      - name: Packed CJS/ESM SDK and FTS workers without SQLite overrides
+        run: node scripts/check-compatible-sqlite-consumer.mjs
+      - name: Upload product consumer evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sqlite-product-consumer-${{ matrix.node }}
+          path: test/.reports/sqlite-consumer.json
+          if-no-files-found: error
+
   sqlite-path-diagnostic:
     name: Official SQLite long-path VFS URI (diagnostic only)
     if: github.event_name == 'workflow_dispatch' && inputs.pathDiagnostics
@@ -43,6 +80,10 @@ jobs:
           node-version: 22
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      - name: Select the original official binding for this historical hypothesis
+        run: node scripts/install-compatible-sqlite.mjs
+        env:
+          SQLITE_DIAGNOSTIC_VARIANT: official-6
       - run: node scripts/diagnose-windows-sqlite.mjs
       - name: Upload URI hypothesis matrix including failures
         if: always()
@@ -152,6 +193,11 @@ jobs:
       - name: Install isolated async candidate (no source build)
         if: matrix.variant == 'appthreat-candidate'
         run: node scripts/build-diagnostic-sqlite.mjs candidate
+      - name: Select original official prebuilt control
+        if: matrix.variant == 'prebuilt'
+        run: node scripts/install-compatible-sqlite.mjs
+        env:
+          SQLITE_DIAGNOSTIC_VARIANT: official-6
       - name: Build isolated control binding
         if: matrix.variant == 'source-control'
         run: node scripts/build-diagnostic-sqlite.mjs control

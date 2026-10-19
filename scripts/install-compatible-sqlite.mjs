@@ -8,6 +8,7 @@ import { dirname, join } from "path";
 
 const specs = {
   "official-5": "sqlite3@5.1.7",
+  "official-6": "sqlite3@6.0.1",
   "appthreat-7": "@appthreat/sqlite3@7.0.1",
   "appthreat-8": "@appthreat/sqlite3@8.0.2",
 };
@@ -31,7 +32,7 @@ run("npm", [
   specs[variant],
 ]);
 const require = createRequire(join(root, "package.json"));
-const name = variant === "official-5" ? "sqlite3" : "@appthreat/sqlite3";
+const name = variant.startsWith("official-") ? "sqlite3" : "@appthreat/sqlite3";
 const modulePath = require.resolve(name);
 const pkg = dirname(dirname(modulePath));
 if (variant !== "appthreat-8") {

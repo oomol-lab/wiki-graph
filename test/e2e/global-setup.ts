@@ -91,6 +91,7 @@ function writeInstallWorkspace(
     [
       "allowBuilds:",
       "  sqlite3: true",
+      '  "@appthreat/sqlite3": true',
       "overrides:",
       ...Object.entries(overrides).map(
         ([packageName, tarball]) =>

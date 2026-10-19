@@ -4,3 +4,4 @@ packages:
 allowBuilds:
   esbuild: true
   sqlite3: true
+  "@appthreat/sqlite3": true

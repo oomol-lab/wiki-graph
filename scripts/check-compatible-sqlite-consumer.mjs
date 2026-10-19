@@ -1,4 +1,4 @@
-// Isolated candidate qualification; does not edit workspace dependencies or ship addons.
+// Packed consumer qualification; product mode never overrides SQLite dependencies.
 import assert from "assert/strict";
 import { spawnSync } from "child_process";
 import {
@@ -14,6 +14,7 @@ import { tmpdir } from "os";
 import { dirname, join, resolve } from "path";
 
 const spec = process.env.SQLITE_CANDIDATE_SPEC;
+const product = process.env.SQLITE_CONSUMER_PRODUCT === "true";
 const repo = resolve(import.meta.dirname, "..");
 const root =
   process.env.SQLITE_CONSUMER_ROOT ||
@@ -22,6 +23,7 @@ const artifacts = resolve("test/.reports/sqlite-consumer.json");
 const report = {
   commit: process.env.GITHUB_SHA,
   spec,
+  product,
   node: process.version,
   root,
   cases: [],
@@ -67,14 +69,19 @@ if (process.argv[2] === "--pack") {
   await appendFile(process.env.GITHUB_ENV, `SQLITE_CONSUMER_ROOT=${root}\n`);
   process.exit(0);
 }
-assert.ok(["sqlite3@5.1.7", "@appthreat/sqlite3@7.0.1"].includes(spec));
+assert.ok(
+  product || ["sqlite3@5.1.7", "@appthreat/sqlite3@7.0.1"].includes(spec),
+);
 try {
   const { overrides, sdkTarball } = JSON.parse(
     await readFile(join(root, "packed.json"), "utf8"),
   );
-  overrides.sqlite3 = spec.startsWith("sqlite3@")
-    ? spec.slice(8)
-    : `npm:${spec}`;
+  // Product acceptance must install the tarball's actual dependency, without
+  // substituting a diagnostic binding through npm overrides or addon injection.
+  if (!product)
+    overrides.sqlite3 = spec.startsWith("sqlite3@")
+      ? spec.slice(8)
+      : `npm:${spec}`;
   await writeFile(
     join(root, "package.json"),
     JSON.stringify({ private: true, overrides }),
@@ -90,6 +97,21 @@ try {
   ]);
   const require = createRequire(join(root, "package.json"));
   const sqliteRoot = dirname(dirname(require.resolve("sqlite3")));
+  const binding = JSON.parse(
+    await readFile(join(sqliteRoot, "package.json"), "utf8"),
+  );
+  report.binding = { name: binding.name, version: binding.version };
+  if (product) {
+    assert.equal(binding.name, "@appthreat/sqlite3");
+    assert.equal(binding.version, "7.0.1");
+    const sdk = JSON.parse(
+      await readFile(
+        join(root, "node_modules/wiki-graph-sdk/package.json"),
+        "utf8",
+      ),
+    );
+    assert.equal(sdk.dependencies.sqlite3, "npm:@appthreat/sqlite3@7.0.1");
+  }
   run(
     process.execPath,
     [require.resolve("prebuild-install/bin.js"), "-r", "napi", "--verbose"],
@@ -102,45 +124,47 @@ try {
     join(repo, "test", "windows", "fixtures", "sqlite-consumer.cjs"),
     fixture,
   );
-  // Check actual 0.9.5-era SQLite 3.52 files, not just files made by the candidate.
-  // Only this creator uses the built workspace SDK; every reader/writer below
-  // resolves the independently installed packed SDK and its candidate binding.
-  const previous = join(root, "from-current-sqlite");
-  await mkdir(previous);
-  run(
-    process.execPath,
-    [fixture, "cjs", "create", previous],
-    root,
-    {
-      ...process.env,
-      SQLITE_CONSUMER_BASELINE_ROOT: join(repo, "packages", "sdk"),
-    },
-    120_000,
-  );
-  for (const mode of ["reopen", "append", "reopen"]) {
-    try {
-      const output = run(
-        process.execPath,
-        [fixture, "cjs", mode, previous],
-        root,
-        process.env,
-        120_000,
-      );
-      report.cases.push({
-        runtime: "node-from-sqlite-3.52",
-        entry: "cjs",
-        mode,
-        passed: true,
-        output,
-      });
-    } catch (error) {
-      report.cases.push({
-        runtime: "node-from-sqlite-3.52",
-        entry: "cjs",
-        mode,
-        passed: false,
-        error: String(error),
-      });
+  // Optional diagnostic compares the workspace binding with the installed one.
+  // Historical 515397c reports used SQLite 3.52 here; never assume the workspace
+  // still uses that engine after the approved product dependency switch.
+  if (!product) {
+    const previous = join(root, "from-current-sqlite");
+    await mkdir(previous);
+    run(
+      process.execPath,
+      [fixture, "cjs", "create", previous],
+      root,
+      {
+        ...process.env,
+        SQLITE_CONSUMER_BASELINE_ROOT: join(repo, "packages", "sdk"),
+      },
+      120_000,
+    );
+    for (const mode of ["reopen", "append", "reopen"]) {
+      try {
+        const output = run(
+          process.execPath,
+          [fixture, "cjs", mode, previous],
+          root,
+          process.env,
+          120_000,
+        );
+        report.cases.push({
+          runtime: "node-from-workspace-binding",
+          entry: "cjs",
+          mode,
+          passed: true,
+          output,
+        });
+      } catch (error) {
+        report.cases.push({
+          runtime: "node-from-workspace-binding",
+          entry: "cjs",
+          mode,
+          passed: false,
+          error: String(error),
+        });
+      }
     }
   }
   for (const [runtime, executable, env] of [

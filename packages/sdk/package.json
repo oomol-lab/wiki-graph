@@ -142,7 +142,7 @@
     "@ai-sdk/openai-compatible": "^2.0.41",
     "ai": "^6.0.154",
     "nunjucks": "^3.2.4",
-    "sqlite3": "^6.0.1",
+    "sqlite3": "npm:@appthreat/sqlite3@7.0.1",
     "wiki-graph-core": "workspace:*",
     "yauzl": "^3.3.0",
     "yazl": "^3.3.1",
