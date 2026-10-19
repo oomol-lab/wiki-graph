@@ -1,6 +1,7 @@
 import { execFileSync } from "child_process";
 import {
   existsSync,
+  cpSync,
   mkdirSync,
   mkdtempSync,
   readdirSync,
@@ -58,6 +59,17 @@ export default function setup({
 
     return async () => {
       try {
+        const casesRoot = join(suiteRoot, "cases");
+        if (
+          existsSync(casesRoot) &&
+          readdirSync(casesRoot).some((name) =>
+            existsSync(join(casesRoot, name, "cli-failure.json")),
+          )
+        ) {
+          cpSync(casesRoot, join(projectRoot, "test/.reports/cli-e2e"), {
+            recursive: true,
+          });
+        }
         await waitForWorkersToExit(suiteRoot, 30_000);
       } finally {
         rmSync(suiteRoot, { force: true, recursive: true });

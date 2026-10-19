@@ -327,6 +327,15 @@ jobs:
       - name: Run packed CLI end-to-end tests
         run: pnpm test:e2e:run
 
+      - name: Preserve failed packed CLI sandbox diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cli-e2e-failure
+          path: test/.reports/cli-e2e
+          include-hidden-files: true
+          if-no-files-found: warn
+
       - name: Smoke test packed install
         run: pnpm smoke:pack-install
 
