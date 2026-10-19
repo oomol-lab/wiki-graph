@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { join } from "path";
 import {
   installWikiGraphPlatform,
@@ -20,13 +20,89 @@ import {
   listOrphanOverlayPaths,
   listSettleableOverlays,
   publishDeleteOverlay,
+  publishFileOverlay,
+  readFileDigest,
+  readOverlay,
+  deleteCleanOverlayIfUnused,
 } from "../../../../packages/core/src/storage/wikg/wikg-coordinator/overlays.js";
 import { withCoordinatorState } from "../../../../packages/core/src/storage/wikg/wikg-coordinator/state.js";
+import * as coordinatorState from "../../../../packages/core/src/storage/wikg/wikg-coordinator/state.js";
+import { createWorkspaceSnapshot } from "../../../../packages/core/src/storage/wikg/wikg-coordinator/workspace.js";
+import { Database } from "../../../../packages/core/src/document/database.js";
 import { withArchiveZipProbe } from "../../../../packages/core/src/storage/wikg/wikg-coordinator/reader-intent.js";
 import { createPortableHash } from "../../../../packages/core/src/utils/crypto.js";
 import { withTempDir } from "../../../helpers/temp.js";
 
 describe("archive reader admission and settlement phases", () => {
+  it("rechecks the SQLite digest after a writer completes before cleanup admission", async () => {
+    await withState(async () => {
+      const snapshot = await createWorkspaceSnapshot("archive", "database.db");
+      const database = await Database.open(
+        snapshot.file,
+        "CREATE TABLE items (value TEXT)",
+        {
+          create: true,
+          mode: "readwrite",
+        },
+      );
+      await database.close();
+      await publishFileOverlay({
+        archiveIdentity: "opaque-archive",
+        archiveKey: "archive",
+        baseDigest: await readFileDigest(snapshot.file),
+        entryPath: "database.db",
+        owner: createCoordinatorOwner(),
+        workspacePath: snapshot.relativePath,
+      });
+      const overlay = (await readOverlay("archive", "database.db"))!;
+      const originalState = coordinatorState.withCoordinatorState;
+      // A writer can acquire/release its lease and checkpoint between a
+      // cleaner's early digest read and admission to the coordinator transaction.
+      // Schedule that completed write at the admission boundary, without timers.
+      const admission = vi
+        .spyOn(coordinatorState, "withCoordinatorState")
+        .mockImplementationOnce(async (operation) => {
+          const writer = await Database.open(snapshot.file, "", {
+            create: false,
+            mode: "readwrite",
+          });
+          try {
+            await writer.run("INSERT INTO items VALUES (?)", ["persisted FTS"]);
+          } finally {
+            await writer.close();
+          }
+          return await originalState(operation);
+        });
+      try {
+        expect(await deleteCleanOverlayIfUnused(overlay)).toBe(false);
+      } finally {
+        admission.mockRestore();
+      }
+      expect(await readOverlay("archive", "database.db")).toEqual(overlay);
+      const reopened = await Database.open(snapshot.file, "", {
+        mode: "readonly",
+      });
+      try {
+        expect(
+          await reopened.queryAll(
+            "SELECT value FROM items",
+            undefined,
+            (row) => row.value,
+          ),
+        ).toEqual(["persisted FTS"]);
+        expect(
+          await reopened.queryOne(
+            "PRAGMA integrity_check",
+            undefined,
+            (row) => row.integrity_check,
+          ),
+        ).toBe("ok");
+      } finally {
+        await reopened.close();
+      }
+    });
+  });
+
   it("retains a probe owner as reading when native close fails", async () => {
     await withState(async (root) => {
       const file = new NodeFile(join(root, "close-failure.wikg"));

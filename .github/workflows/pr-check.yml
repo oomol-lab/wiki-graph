@@ -12,6 +12,10 @@ on:
         description: Investigate published async bindings without changing product dependencies
         type: boolean
         default: false
+      pathDiagnostics:
+        description: Probe the existing official binding with SQLite long-path VFS URIs (diagnostic only)
+        type: boolean
+        default: false
 
 concurrency:
   # Manual diagnostic comparisons must retain each commit's logs/artifacts.
@@ -22,6 +26,32 @@ permissions:
   contents: read
 
 jobs:
+  sqlite-path-diagnostic:
+    name: Official SQLite long-path VFS URI (diagnostic only)
+    if: github.event_name == 'workflow_dispatch' && inputs.pathDiagnostics
+    runs-on: windows-latest
+    timeout-minutes: 15
+    env:
+      SQLITE_DIAGNOSTIC_VARIANT: official-uri-longpath
+      SQLITE_DIAGNOSTIC_URI_LONGPATH: "true"
+      SQLITE_DIAGNOSTIC_ROUNDS: 25
+    steps:
+      - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: node scripts/diagnose-windows-sqlite.mjs
+      - name: Upload URI hypothesis matrix including failures
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sqlite-official-uri-longpath
+          path: test/.reports/sqlite-native.json
+          if-no-files-found: error
+
   compatible-sqlite-diagnostic:
     name: Compatible SQLite ${{ matrix.variant }} Node ${{ matrix.node }} (diagnostic only)
     if: github.event_name == 'workflow_dispatch' && inputs.compatibleDiagnostics

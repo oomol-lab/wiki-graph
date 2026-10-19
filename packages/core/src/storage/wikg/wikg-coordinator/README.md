@@ -48,6 +48,12 @@ discarded instead of being published under an old physical mutation token.
 Directory sessions retain the existing directory transaction/recovery lock; they
 use the same owner phases but do not acquire ZIP handles.
 
+Discarding an unchanged SQLite materialization requires a fresh digest while the
+coordinator's `BEGIN IMMEDIATE` transaction excludes new lease admission and the
+lease count is zero. A digest calculated before that transaction is insufficient:
+a writer can checkpoint and release its lease without changing the overlay row.
+Deleting based on that stale digest would discard the completed logical write.
+
 ## Failure and recovery
 
 Before logical completion, callback/reader/commit failures preserve the existing

@@ -9,22 +9,23 @@ export async function withTempDir<T>(
   const path = await mkdtemp(join(tmpdir(), prefix));
   let failed = false;
   let operationError: unknown;
+  let result: T | undefined;
   try {
-    return await operation(path);
+    result = await operation(path);
   } catch (error) {
     failed = true;
     operationError = error;
-    throw error;
-  } finally {
-    try {
-      await rm(path, { force: true, recursive: true });
-    } catch (cleanupError) {
-      if (failed)
-        throw new AggregateError(
-          [operationError, cleanupError],
-          "Temporary-directory operation and cleanup both failed",
-        );
-      throw cleanupError;
-    }
   }
+  try {
+    await rm(path, { force: true, recursive: true });
+  } catch (cleanupError) {
+    if (failed)
+      throw new AggregateError(
+        [operationError, cleanupError],
+        "Temporary-directory operation and cleanup both failed",
+      );
+    throw cleanupError;
+  }
+  if (failed) throw operationError;
+  return result as T;
 }

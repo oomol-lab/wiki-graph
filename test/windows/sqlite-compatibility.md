@@ -112,3 +112,53 @@ Neither incomplete packed qualification nor a green native matrix alone is
 release acceptance. The full candidate-addon runs in this first dispatch were
 not executed after consumer failures; subsequent diagnostics make them
 independent so a wrapper failure cannot suppress necessary native investigation.
+
+## Qualification at 348385c and 78b663b
+
+[Run 39213414166](https://github.com/oomol-lab/wiki-graph/actions/runs/39213414166)
+at `348385c5d850cf8de3d8ceeb5022bbb50edaae49` passed each candidate's 12 native
+cells, eight packed Node 22.12 / Electron 35 CJS/ESM worker cases, and all 105
+Windows archive/WAL regressions (zero failed/skipped/todo): AppThreat 7.0.1 job
+117931683073 and official 5.1.7 job 117931682849. Product-default sqlite3 6.0.1
+still failed, so the isolated-addon passes do not qualify the product for release.
+
+[Run 39214088886](https://github.com/oomol-lab/wiki-graph/actions/runs/39214088886)
+at `78b663b30cfd083f2f7a2cc6de7920e589d0daa1` adds the distinct AppThreat N-API
+10 prebuild (Node 22.23.3), alongside N-API 9 on Node 22.12, and tests opening,
+updating/reindexing and reopening an archive produced by the existing SQLite
+3.52.0 binding. All three candidate jobs succeeded: AppThreat N-API 9 job
+117933813446, AppThreat N-API 10 job 117933813401 and official 5.1.7 job 117933813432. Each ran 12 native cells, 11 packed cases and 105 Windows
+regressions, with zero failures/skips/todos. Reports are in the corresponding
+`sqlite-compatible-*`, `sqlite-consumer-*` and `sqlite-compatible-regressions-*`
+artifacts; verbose records are in those jobs. AppThreat 8.0.2 remains a failing
+negative control, not an eligible replacement.
+
+The same SHA's product-default Windows job 117933813047 failed one extended-drive
+readonly reopen (`SQLITE_PROTOCOL`; 104 passed / 1 failed). Linux packed E2E job
+117933813300 also failed: a succeeded FTS job was followed by missing-current-FTS
+readiness. These are retained failures, not final-HEAD acceptance. Investigation
+found a deterministic independent overlay-cleanup race: a digest checked before
+the cleanup transaction could become stale after a writer checkpointed and
+released its lease. A controlled real-SQLite regression fails before the fix
+and passes after moving the check inside the lease-admission transaction. This
+proves that race; it does not retrospectively prove the exact Linux failure's
+interleaving. Both product workflows must run again on the final implementation.
+
+## Recommendation and remaining product decision
+
+Recommend an **exact** `npm:@appthreat/sqlite3@7.0.1` alias in SDK and CLI, subject
+to explicit authorization for changing the default binding. This is an async
+callback-compatible published prebuilt package, preserves Node >=22.12 and the
+qualified Electron 35 entry/worker behavior, includes Windows ARM64 prebuilds,
+and avoids a compiler or project-owned binary release channel. It is a temporary
+engine downgrade from 3.52.0 to 3.50.4; qualification above covers existing
+archive reopen/update and the required FTS/error/transaction behavior, not every
+SQLite feature a custom host might use. Do not use a caret: 7.0.2 reintroduces the
+UNC defect. Historical versions are not promised security-maintained branches.
+
+Exact official sqlite3 5.1.7 is a tested fallback with the same passing workflow,
+but downgrades the engine further to 3.44.2. Latest AppThreat 9.x would solve the
+native defect with a current SQLite, but raises Node to >=24 and is therefore
+outside the approved compatibility boundary. No dependency switch has been
+made by these diagnostic jobs. A product-default final-HEAD run remains required
+after an authorized choice; an injected candidate pass cannot substitute for it.

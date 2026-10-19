@@ -7,7 +7,7 @@ import { mkdtemp, mkdir, readFile, rm, writeFile } from "fs/promises";
 import { createRequire } from "module";
 import { tmpdir } from "os";
 import { dirname, join, resolve, toNamespacedPath } from "path";
-import { fileURLToPath } from "url";
+import { fileURLToPath, pathToFileURL } from "url";
 
 const script = fileURLToPath(import.meta.url);
 const require = createRequire(
@@ -18,6 +18,20 @@ const modulePath =
 const imported = require(modulePath);
 const sqlite = imported.default || imported;
 const rounds = Number(process.env.SQLITE_DIAGNOSTIC_ROUNDS || 25);
+const uriLongPath = process.env.SQLITE_DIAGNOSTIC_URI_LONGPATH === "true";
+function sqliteFilename(filename) {
+  if (!uriLongPath || filename === ":memory:") return filename;
+  // Isolated VFS hypothesis: let SQLite's own long-path VFS accept a local
+  // drive URI without confusing the caller's extended-drive prefix with UNC.
+  // Real UNC is deliberately not rewritten or claimed supported by this probe.
+  const local = /^\\\\\?\\[a-z]:\\/iu.test(filename)
+    ? filename.slice(4)
+    : filename;
+  assert.match(local, /^[a-z]:\\/iu);
+  const uri = pathToFileURL(local);
+  uri.searchParams.set("vfs", "win32-longpath");
+  return uri.href;
+}
 const call = (db, method, ...args) =>
   new Promise((resolve, reject) => {
     db[method](...args, (error, value) =>
@@ -27,8 +41,8 @@ const call = (db, method, ...args) =>
 const open = (filename, flags) =>
   new Promise((resolve, reject) => {
     const db = new sqlite.Database(
-      filename,
-      flags | sqlite.OPEN_FULLMUTEX,
+      sqliteFilename(filename),
+      flags | sqlite.OPEN_FULLMUTEX | (uriLongPath ? sqlite.OPEN_URI : 0),
       (error) => {
         if (error) reject(error);
         else resolve(db);
@@ -230,6 +244,7 @@ async function runCase(kind, aliases, processes) {
     physical,
     physicalLength: physical.length,
     filename,
+    sqliteFilename: sqliteFilename(filename),
     native,
     rounds,
     completedRounds,
@@ -272,6 +287,7 @@ if (process.argv[2] === "--reader") {
     ).version,
     rounds,
     variant: process.env.SQLITE_DIAGNOSTIC_VARIANT || "prebuilt",
+    uriLongPath,
     cases: [],
     capabilities: await probeCapabilities(),
   };

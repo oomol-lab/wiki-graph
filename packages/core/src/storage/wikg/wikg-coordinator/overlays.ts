@@ -274,7 +274,7 @@ export async function deleteCommittedOverlay(
 export async function deleteCleanOverlayIfUnused(
   overlay: EntryOverlay,
 ): Promise<boolean> {
-  if (overlay.baseDigest === undefined || (await isDirtyOverlay(overlay))) {
+  if (overlay.baseDigest === undefined) {
     return false;
   }
   const deleted = await withCoordinatorState(async (database) => {
@@ -296,6 +296,10 @@ WHERE archive_key = ? AND entry_path = ?
       if ((leaseCount ?? 0) > 0 || !sameOverlay(current, overlay)) {
         return false;
       }
+      // BEGIN IMMEDIATE fences new lease admission while we verify the bytes.
+      // An earlier digest can become stale if a writer checkpoints and releases
+      // its lease before this transaction, even when the overlay row is unchanged.
+      if (await isDirtyOverlay(overlay)) return false;
       await database.run(
         "DELETE FROM entry_overlays WHERE archive_key = ? AND entry_path = ?",
         [overlay.archiveKey, overlay.entryPath],
