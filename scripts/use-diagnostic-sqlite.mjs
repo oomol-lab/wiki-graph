@@ -1,7 +1,7 @@
 // Replace only an ephemeral CI checkout's addon for binding qualification.
 import assert from "assert/strict";
 import { createHash } from "crypto";
-import { copyFile, readFile } from "fs/promises";
+import { copyFile, readFile, unlink } from "fs/promises";
 import { createRequire } from "module";
 import { dirname, join } from "path";
 
@@ -30,11 +30,18 @@ const target = join(
   "Release",
   "node_sqlite3.node",
 );
+const originalSha256 = createHash("sha256")
+  .update(await readFile(target))
+  .digest("hex");
+// pnpm may import files as hardlinks. Replace the directory entry rather than
+// overwriting a shared inode, so the experiment cannot poison the package cache.
+await unlink(target);
 await copyFile(source, target);
 console.log(
   JSON.stringify({
     source,
     target,
+    originalSha256,
     sha256: createHash("sha256")
       .update(await readFile(target))
       .digest("hex"),
