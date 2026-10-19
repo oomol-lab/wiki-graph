@@ -688,7 +688,14 @@ export class HostWikgArchiveSession {
             this.#searchCacheKey = createSearchCacheKey(mutationToken);
           }
         }
-        await reapArchive(this.#archiveKey, this.#owner, writableArchive);
+        const reapedToken = await reapArchive(
+          this.#archiveKey,
+          this.#owner,
+          writableArchive,
+        );
+        if (reapedToken !== undefined) {
+          this.#searchCacheKey = createSearchCacheKey(reapedToken);
+        }
         // A cache built over deferred logical overlays cannot be published
         // under the unchanged physical archive's mutation token.
         if (this.#searchCacheDirty) {

@@ -621,6 +621,32 @@ describe("wikg/wiki-graph-archive-file", () => {
     },
   );
 
+  it("keys a surviving cache by the final reaper generation after deferred writes", async () => {
+    await withArchiveFixture(async ({ archive }) => {
+      await withHostArchiveSession(archive, async (lastReader) => {
+        await withHostArchiveSession(archive, async (writer) => {
+          await writer.writeEntry("toc.json", '{"version":1,"items":[]}', {
+            overwrite: true,
+          });
+        });
+        await lastReader.writeEntry("texts/summary/1.txt", "Last writer", {
+          overwrite: true,
+        });
+        const cache = await lastReader.materializeSearchIndexCache({
+          createIfMissing: true,
+        });
+        await createLargeSearchDatabase(cache);
+        lastReader.markSearchIndexCacheDirty(cache);
+      });
+      await withHostArchiveSession(archive, async (fresh) => {
+        const cache = await fresh.materializeSearchIndexCache({
+          createIfMissing: false,
+        });
+        expect(await readSearchMarker(cache)).toBe(1);
+      });
+    });
+  });
+
   it("does not publish a deferred overlay's search cache under the pinned old token", async () => {
     await withArchiveFixture(async ({ archive }) => {
       await withHostArchiveSession(archive, async (reader) => {
