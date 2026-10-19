@@ -255,6 +255,8 @@ describe("Node File/Directory adapter", () => {
       );
       await expect(readFileText(backing)).resolves.toBe("original\n");
       await expect(new NodeDirectory(path).list()).resolves.toHaveLength(1);
+      await appendFileText(backing, "retried\n");
+      await expect(readFileText(backing)).resolves.toBe("original\nretried\n");
     });
   });
 
@@ -629,8 +631,8 @@ describe("Node File/Directory adapter", () => {
     })();`;
     const run = (timezone: string) => {
       const result = spawnSync(
-        process.platform === "win32" ? "pnpm.cmd" : "pnpm",
-        ["exec", "tsx", "--eval", script],
+        process.execPath,
+        ["--import", "tsx", "--eval", script],
         {
           cwd: process.cwd(),
           encoding: "utf8",

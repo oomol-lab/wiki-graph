@@ -74,16 +74,16 @@ jobs:
       - name: Build packages on Windows
         run: pnpm build
 
-      - name: Run Windows archive replacement tests
-        run: >-
-          pnpm exec vitest run
-          test/core/storage/wikg/archive-coordination.test.ts
-          test/core/storage/wikg/opaque-file-adapter.test.ts
-          test/core/runtime/platform/node-platform.test.ts
-          packages/sdk/src/full-regression/delivery.full-regression.test.ts
-          -t "keeps the archive owner registered until its ZIP reader closes|waits for an active standalone archive reader before replacing|supports database and ZIP access below a long Windows path|supports concurrent WAL readers below a long Windows path|supports concurrent WAL readers through repeated opens|appends multiple chunks to an existing file before replacing it|preserves the original when the append reader cannot close|closes the append reader when the writer cannot open|does not replace a file when its append reader fails|appends to a new file after an explicit missing-file error|closes source readers after streaming entries and before replacing the ZIP|aborts ZIP publication when releasing source resources fails|keeps the archive intact when the host ZIP commit fails"
-          --maxWorkers=1
-          --config vitest.config.ts
+      - name: Run Windows archive and WAL acceptance (no skipped tests)
+        run: node scripts/check-windows-regressions.mjs
+
+      - name: Upload Windows acceptance evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-regressions
+          path: test/.reports/windows-regressions.json
+          if-no-files-found: error
 
   package-readiness:
     name: End-to-End and Package Readiness

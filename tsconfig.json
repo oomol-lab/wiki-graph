@@ -53,7 +53,8 @@
     "evals/**/*.ts",
     "vitest.config.ts",
     "vitest.pr.config.ts",
-    "vitest.e2e.config.ts"
+    "vitest.e2e.config.ts",
+    "vitest.windows.config.ts"
   ],
   "exclude": ["packages/*/dist", "dist", "coverage", "node_modules"]
 }

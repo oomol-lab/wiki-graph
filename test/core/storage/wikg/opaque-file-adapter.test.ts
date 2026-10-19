@@ -280,6 +280,14 @@ describe("opaque archive File adapter", () => {
           await expect(readTitle(new NodeFile(archivePath))).resolves.toBe(
             "Before",
           );
+          await new WikiGraphArchiveFile(new NodeFile(archivePath)).write(
+            async (document) => {
+              await document.replaceBookMeta(createMeta("Recovered"));
+            },
+          );
+          await expect(readTitle(new NodeFile(archivePath))).resolves.toBe(
+            "Recovered",
+          );
         },
       );
     });
@@ -312,6 +320,80 @@ describe("opaque archive File adapter", () => {
       }
     });
   });
+
+  it.each(["reader-close", "commit"])(
+    "preserves opaque ZIP bytes and allows retry after %s failure",
+    async (failure) => {
+      await withTempDir("wikigraph-opaque-publish-", async (path) => {
+        const backing = new NodeFile(`${path}/archive.zip`);
+        const file = wrapFile(backing);
+        await opaqueNodePlatform.zip.write(file, [
+          { name: "entry.txt", data: Buffer.from("original") },
+        ]);
+        const original = await readFile(backing.path);
+        const source = await opaqueNodePlatform.zip.open(file);
+        let closed = false;
+        const openWriter = backing.openWriter.bind(backing);
+        let aborted = false;
+        backing.openWriter = async () => {
+          const writer = await openWriter();
+          return {
+            ...writer,
+            commit: () => {
+              expect(closed).toBe(true);
+              return Promise.reject(new Error("commit failure"));
+            },
+            abort: async () => {
+              aborted = true;
+              await writer.abort();
+            },
+          };
+        };
+        try {
+          await expect(
+            opaqueNodePlatform.zip.write(
+              file,
+              [
+                {
+                  name: "entry.txt",
+                  size: 8,
+                  read: async (offset, length) =>
+                    (await source.readEntryRange("entry.txt", offset, length))!,
+                },
+              ],
+              {
+                beforeCommit: async () => {
+                  await source.close();
+                  closed = true;
+                  if (failure === "reader-close")
+                    throw new Error("reader-close failure");
+                },
+              },
+            ),
+          ).rejects.toThrow(`${failure} failure`);
+          expect(aborted).toBe(true);
+          expect(await readFile(backing.path)).toEqual(original);
+        } finally {
+          await source.close();
+          backing.openWriter = openWriter;
+        }
+        await opaqueNodePlatform.zip.write(file, [
+          { name: "entry.txt", data: Buffer.from("retried") },
+        ]);
+        const reopened = await opaqueNodePlatform.zip.open(file);
+        try {
+          expect(Buffer.from((await reopened.readEntry("entry.txt"))!)).toEqual(
+            Buffer.from("retried"),
+          );
+        } finally {
+          await reopened.close();
+        }
+        expect(
+          (await new NodeDirectory(path).list()).map((entry) => entry.name),
+        ).toEqual(["archive.zip"]);
+      });
+    },
+  );
 });
 
 const backingFiles = new WeakMap<ReadonlyFile, NodeFile>();
