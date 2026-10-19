@@ -31,6 +31,10 @@ stays alive while the reader pins a transaction; after a second committed write,
 an uncommitted insert is interrupted by terminating the writer without close.
 A fresh process must see only committed rows and successfully write again.
 No explicit checkpoint or switch to DELETE is used to hide recovery failures.
+The Node adapter suite also retains the older concurrent readonly reopen stress
+case after the last writer closes; it is separate from active WAL recovery.
+Concurrent reader groups await all cleanup before propagating an error, so a
+temporary-directory unlink failure cannot obscure the original SQLite failure.
 
 Local diagnostic run on any OS:
 
