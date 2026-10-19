@@ -519,9 +519,13 @@ async function openNativeNodeDatabase(
   }
   // SQLite 3.52 treats namespaced drive paths as UNC for WAL locking. Keep
   // ordinary paths when the database and its longest sidecar fit MAX_PATH.
-  const namespaced =
+  const needsNamespace =
     nodeProcess.platform === "win32" && path.length + "-journal".length >= 260;
-  const filename = namespaced ? toNodeFilesystemPath(path) : path;
+  const filename = needsNamespace ? toNodeFilesystemPath(path) : path;
+  const namespaced =
+    nodeProcess.platform === "win32" &&
+    filename.startsWith("\\\\?\\") &&
+    /^[a-z]:[\\/]/i.test(filename.slice(4));
   const lifecycle: DatabaseLifecycle = namespaced
     ? async (operation) =>
         await withDatabaseLifecycle(filename.toLowerCase(), operation)

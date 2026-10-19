@@ -36,10 +36,10 @@ The Node adapter suite also retains the older concurrent readonly reopen stress
 case after the last writer closes; it is separate from active WAL recovery.
 Concurrent reader groups await all cleanup before propagating an error, so a
 temporary-directory unlink failure cannot obscure the original SQLite failure.
-The namespaced-path SQLite adapter serializes only native open/initial header
+The namespaced local-drive SQLite adapter serializes only native open/initial header
 read/close transitions per case-folded filename. Queries and transactions are not
 put on that queue. The cold-readonly stress case retains 25 groups of five readers
-and mixes case aliases; it is not replaced by a warm-writer scenario. SQLite 3.52's
+and mixes case aliases, on both long and explicitly extended drive paths; it is not replaced by a warm-writer scenario. SQLite 3.52's
 [`winIsUNCPath`](https://github.com/sqlite/sqlite/blob/version-3.52.0/src/os_win.c)
 treats namespaced local drives as UNC. The bounded lifecycle workaround keeps
 long-path support and real SQLite locks without retries, DELETE/checkpoint cleanup,
