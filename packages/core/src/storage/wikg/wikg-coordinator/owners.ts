@@ -25,6 +25,12 @@ export async function registerArchiveOwner(
           () => true,
         );
         if (replacement === true) return false;
+        const commit = await database.queryOne(
+          "SELECT owner_id FROM archive_commit_locks WHERE archive_key = ?",
+          [archiveKey],
+          () => true,
+        );
+        if (commit === true) return false;
         const now = Date.now();
         await database.run(
           `
@@ -50,6 +56,12 @@ export async function registerArchiveReplacementOwner(
     const registered = await withCoordinatorState(async (database) => {
       return await database.transaction(async () => {
         await cleanupStaleState(database, archiveKey);
+        const commit = await database.queryOne(
+          "SELECT owner_id FROM archive_commit_locks WHERE archive_key = ?",
+          [archiveKey],
+          () => true,
+        );
+        if (commit === true) return false;
         const now = Date.now();
         await database.run(
           `
@@ -123,12 +135,33 @@ WHERE archive_key = ? AND owner_id = ?
   });
 }
 
+/** Only call after the source reader and every SQLite lease have closed. */
+export async function markArchiveSettlement(
+  archiveKey: string,
+  ownerId: string,
+  completed = false,
+): Promise<void> {
+  await withCoordinatorState(async (database) => {
+    await database.run(
+      `INSERT INTO archive_settlements (archive_key, owner_id, completed)
+VALUES (?, ?, ?)
+ON CONFLICT(archive_key, owner_id) DO UPDATE
+SET completed = MAX(archive_settlements.completed, excluded.completed)`,
+      [archiveKey, ownerId, completed ? 1 : 0],
+    );
+  });
+}
+
 export async function unregisterArchiveOwner(
   archiveKey: string,
   ownerId: string,
 ): Promise<void> {
   await withCoordinatorState(async (database) => {
     await database.transaction(async () => {
+      await database.run(
+        "DELETE FROM archive_settlements WHERE archive_key = ? AND owner_id = ?",
+        [archiveKey, ownerId],
+      );
       await database.run(
         "DELETE FROM entry_sqlite_leases WHERE archive_key = ? AND owner_id = ?",
         [archiveKey, ownerId],

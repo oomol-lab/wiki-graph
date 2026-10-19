@@ -67,6 +67,13 @@ CREATE TABLE IF NOT EXISTS archive_replacement_locks (
   owner_id TEXT NOT NULL,
   created_at INTEGER NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS archive_settlements (
+  archive_key TEXT NOT NULL,
+  owner_id TEXT NOT NULL,
+  completed INTEGER NOT NULL DEFAULT 0 CHECK (completed IN (0, 1)),
+  PRIMARY KEY (archive_key, owner_id)
+);
 `;
 
 const STATE_DATABASE_SEMAPHORE = new AsyncSemaphore(1);
@@ -140,6 +147,10 @@ ${archiveKey === undefined ? "" : "WHERE archive_key = ?"}
   );
   await database.run(
     `DELETE FROM archive_replacement_locks WHERE owner_id IN (${placeholders})`,
+    values,
+  );
+  await database.run(
+    `DELETE FROM archive_settlements WHERE owner_id IN (${placeholders})`,
     values,
   );
   await database.run(

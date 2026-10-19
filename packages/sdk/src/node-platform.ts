@@ -8,15 +8,22 @@ import * as pathModule from "node:path";
 import * as process from "node:process";
 import { Readable, Writable } from "node:stream";
 import { pipeline } from "node:stream/promises";
-import * as sqlite3 from "sqlite3";
+// The pinned binding's extensionless main emits DEP0151 on native ESM import.
+// Resolve its shipped entry explicitly so ordinary SDK/CLI access stays quiet.
+import * as sqlite3 from "sqlite3/lib/sqlite3.js";
 import * as yauzl from "yauzl";
 import * as yazl from "yazl";
 import { Environment, Loader, type LoaderSource } from "nunjucks";
 
 const nodeProcess =
   (process as unknown as { default?: typeof process }).default ?? process;
-const nodeSqlite3 =
+const nodeSqlite3Module =
   (sqlite3 as unknown as { default?: typeof sqlite3 }).default ?? sqlite3;
+// CJS builds wrap require(ESM) once more than native ESM imports. Unwrap the
+// underlying API before reading OPEN_* flags, not merely the named Database.
+const nodeSqlite3 =
+  (nodeSqlite3Module as unknown as { default?: typeof sqlite3 }).default ??
+  nodeSqlite3Module;
 
 import {
   getWikiGraphPlatform,

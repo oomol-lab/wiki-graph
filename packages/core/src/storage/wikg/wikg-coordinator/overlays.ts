@@ -62,11 +62,15 @@ FROM entry_overlays AS overlay
 LEFT JOIN archive_owners AS publishing_owner
   ON publishing_owner.archive_key = overlay.archive_key
  AND publishing_owner.owner_id = overlay.owner_id
+LEFT JOIN archive_settlements AS settlement
+  ON settlement.archive_key = overlay.archive_key
+ AND settlement.owner_id = overlay.owner_id
 WHERE overlay.archive_key = ?
   AND overlay.entry_path IN (${createPlaceholders(paths.length)})
   AND (
     overlay.owner_id = ?
     OR publishing_owner.owner_id IS NULL
+    OR settlement.completed = 1
   )
 ORDER BY overlay.entry_path
 `,
@@ -87,7 +91,11 @@ FROM entry_overlays AS overlay
 LEFT JOIN archive_owners AS owner
   ON owner.archive_key = overlay.archive_key
  AND owner.owner_id = overlay.owner_id
-WHERE overlay.archive_key = ? AND owner.owner_id IS NULL
+LEFT JOIN archive_settlements AS settlement
+  ON settlement.archive_key = overlay.archive_key
+ AND settlement.owner_id = overlay.owner_id
+WHERE overlay.archive_key = ?
+  AND (owner.owner_id IS NULL OR settlement.completed = 1)
 `,
       [archiveKey],
       mapEntryOverlay,
@@ -266,7 +274,7 @@ export async function deleteCommittedOverlay(
 export async function deleteCleanOverlayIfUnused(
   overlay: EntryOverlay,
 ): Promise<boolean> {
-  if (overlay.baseDigest === undefined || (await isDirtyOverlay(overlay))) {
+  if (overlay.baseDigest === undefined) {
     return false;
   }
   const deleted = await withCoordinatorState(async (database) => {
@@ -288,6 +296,10 @@ WHERE archive_key = ? AND entry_path = ?
       if ((leaseCount ?? 0) > 0 || !sameOverlay(current, overlay)) {
         return false;
       }
+      // BEGIN IMMEDIATE fences new lease admission while we verify the bytes.
+      // An earlier digest can become stale if a writer checkpoints and releases
+      // its lease before this transaction, even when the overlay row is unchanged.
+      if (await isDirtyOverlay(overlay)) return false;
       await database.run(
         "DELETE FROM entry_overlays WHERE archive_key = ? AND entry_path = ?",
         [overlay.archiveKey, overlay.entryPath],

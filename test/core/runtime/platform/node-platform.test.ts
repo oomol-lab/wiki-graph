@@ -1,7 +1,7 @@
 import { access, readFile, rename } from "fs/promises";
 import { spawnSync } from "child_process";
 import * as yauzl from "yauzl";
-import { join } from "path";
+import { join, toNamespacedPath } from "path";
 import { pathToFileURL } from "url";
 import { describe, expect, it, vi } from "vitest";
 
@@ -255,6 +255,8 @@ describe("Node File/Directory adapter", () => {
       );
       await expect(readFileText(backing)).resolves.toBe("original\n");
       await expect(new NodeDirectory(path).list()).resolves.toHaveLength(1);
+      await appendFileText(backing, "retried\n");
+      await expect(readFileText(backing)).resolves.toBe("original\nretried\n");
     });
   });
 
@@ -404,6 +406,37 @@ describe("Node File/Directory adapter", () => {
     });
   });
 
+  it("finalizes prepared statements after successes and failures before native close", async () => {
+    await withTempDir("wg-statement-release-", async (path) => {
+      const root = new NodeDirectory(path);
+      const file = await root.createFile("state.sqlite");
+      const db = await nodeWikiGraphPlatform.database.open(file, {
+        mode: "readwrite",
+        create: true,
+      });
+      try {
+        await expect(
+          db.queryAll("SELECT * FROM missing_table"),
+        ).rejects.toThrow("no such table");
+        await db.execute("CREATE TABLE marker(value INTEGER PRIMARY KEY)");
+        await db.run("INSERT INTO marker VALUES(?)", [1]);
+        await expect(
+          db.run("INSERT INTO marker VALUES(?)", [1]),
+        ).rejects.toMatchObject({ code: "SQLITE_CONSTRAINT" });
+        expect(
+          await db.queryOne("SELECT value FROM marker WHERE value = ?", [2]),
+        ).toBeUndefined();
+        expect(await db.queryAll("SELECT value FROM marker")).toEqual([
+          { value: 1 },
+        ]);
+      } finally {
+        await db.close();
+      }
+      await root.remove("state.sqlite");
+      expect(await root.list()).toEqual([]);
+    });
+  });
+
   it("supports concurrent WAL readers through repeated opens", async () => {
     await withTempDir("wikigraph-wal-", async (path) => {
       const root = new NodeDirectory(join(path, "spaces # percent %"));
@@ -443,6 +476,7 @@ describe("Node File/Directory adapter", () => {
     await withTempDir("wikigraph-wal-long-path-", async (path) => {
       const root = new NodeDirectory(join(path, "a".repeat(210)));
       const file = await root.createFile("state.sqlite");
+      expect(join(root.path, "state.sqlite").length).toBeGreaterThan(260);
       const database = await nodeWikiGraphPlatform.database.open(file, {
         create: true,
         mode: "readwrite",
@@ -451,40 +485,122 @@ describe("Node File/Directory adapter", () => {
         await database.execute(
           "PRAGMA journal_mode = WAL; CREATE TABLE marker(value INTEGER); INSERT INTO marker VALUES (42)",
         );
+        expect(await database.queryOne("PRAGMA journal_mode")).toEqual({
+          journal_mode: "wal",
+        });
+        for (let iteration = 0; iteration < 25; iteration += 1) {
+          // Keep a writer alive; wait for every reader's finally even if one
+          // fails, so cleanup cannot mask the original SQLite error with EBUSY.
+          const reads = await Promise.allSettled(
+            Array.from({ length: 5 }, async () => {
+              const reader = await nodeWikiGraphPlatform.database.open(file, {
+                mode: "readonly",
+              });
+              try {
+                await expect(
+                  reader.queryOne("SELECT value FROM marker"),
+                ).resolves.toEqual({ value: 42 });
+              } finally {
+                await reader.close();
+              }
+            }),
+          );
+          for (const read of reads) {
+            if (read.status === "rejected") throw read.reason;
+          }
+        }
+        expect(await database.queryOne("PRAGMA integrity_check")).toEqual({
+          integrity_check: "ok",
+        });
       } finally {
         await database.close();
       }
-
-      for (let iteration = 0; iteration < 25; iteration += 1) {
-        await Promise.all(
-          Array.from({ length: 5 }, async () => {
-            const reader = await nodeWikiGraphPlatform.database.open(file, {
-              mode: "readonly",
-            });
-            try {
-              await expect(
-                reader.queryOne("SELECT value FROM marker"),
-              ).resolves.toEqual({ value: 42 });
-            } finally {
-              await reader.close();
-            }
-          }),
-        );
-      }
-
-      const cleanup = await nodeWikiGraphPlatform.database.open(file, {
-        create: false,
-        mode: "readwrite",
-      });
-      try {
-        await cleanup.execute(
-          "PRAGMA wal_checkpoint(TRUNCATE); PRAGMA journal_mode = DELETE;",
-        );
-      } finally {
-        await cleanup.close();
-      }
+      expect((await root.list()).map((entry) => entry.name)).toEqual([
+        "state.sqlite",
+      ]);
+      await root.remove("state.sqlite");
+      expect(await root.list()).toEqual([]);
     });
   }, 120_000);
+
+  it.each(["long", "extended-drive"])(
+    "reopens concurrent readonly WAL connections after the last writer closes (%s path)",
+    async (kind) => {
+      if (process.platform !== "win32") return;
+      await withTempDir("wikigraph-wal-readonly-", async (path) => {
+        const root = new NodeDirectory(
+          join(path, kind === "long" ? "a".repeat(210) : "short"),
+        );
+        const file = await root.createFile("state.sqlite");
+        if (kind === "long")
+          expect(join(root.path, "state.sqlite").length).toBeGreaterThan(260);
+        const input =
+          kind === "extended-drive"
+            ? new NodeFile(toNamespacedPath(join(root.path, "state.sqlite")))
+            : file;
+        const database = await nodeWikiGraphPlatform.database.open(input, {
+          create: true,
+          mode: "readwrite",
+        });
+        try {
+          await database.execute(
+            "PRAGMA journal_mode=WAL; CREATE TABLE marker(value INTEGER); INSERT INTO marker VALUES(42)",
+          );
+        } finally {
+          await database.close();
+        }
+        // Retain the older closed-writer scenario as well as the active-writer
+        // regression. A rejected sibling must not leave cleanup racing readers.
+        for (let iteration = 0; iteration < 25; iteration++) {
+          const results = await Promise.allSettled(
+            Array.from({ length: 5 }, async (_, index) => {
+              const alias =
+                index % 2 === 0
+                  ? input
+                  : new NodeFile(
+                      kind === "extended-drive"
+                        ? toNamespacedPath(join(root.path, "STATE.sqlite"))
+                        : join(root.path, "STATE.sqlite"),
+                    );
+              const reader = await nodeWikiGraphPlatform.database.open(alias, {
+                mode: "readonly",
+              });
+              try {
+                expect(
+                  await reader.queryOne("SELECT value FROM marker"),
+                ).toEqual({
+                  value: 42,
+                });
+              } finally {
+                await reader.close();
+              }
+            }),
+          );
+          for (const result of results) {
+            if (result.status === "rejected") throw result.reason;
+          }
+        }
+        const reopened = await nodeWikiGraphPlatform.database.open(file, {
+          create: false,
+          mode: "readwrite",
+        });
+        try {
+          expect(await reopened.queryOne("PRAGMA integrity_check")).toEqual({
+            integrity_check: "ok",
+          });
+          expect(await reopened.queryOne("PRAGMA journal_mode")).toEqual({
+            journal_mode: "wal",
+          });
+        } finally {
+          await reopened.close();
+        }
+        expect((await root.list()).map((entry) => entry.name)).toEqual([
+          "state.sqlite",
+        ]);
+      });
+    },
+    120_000,
+  );
 
   it("supports database and ZIP access below a long Windows path", async () => {
     if (process.platform !== "win32") return;
@@ -629,8 +745,8 @@ describe("Node File/Directory adapter", () => {
     })();`;
     const run = (timezone: string) => {
       const result = spawnSync(
-        process.platform === "win32" ? "pnpm.cmd" : "pnpm",
-        ["exec", "tsx", "--eval", script],
+        process.execPath,
+        ["--import", "tsx", "--eval", script],
         {
           cwd: process.cwd(),
           encoding: "utf8",
@@ -681,7 +797,15 @@ describe("Node File/Directory adapter", () => {
         await nodeWikiGraphPlatform.zip.write(replacement, [
           { name: "a.txt", data: encode("replacement") },
         ]);
-        await rename(join(path, "replacement.zip"), join(path, "lookup.zip"));
+        const replace = () =>
+          rename(join(path, "replacement.zip"), join(path, "lookup.zip"));
+        if (process.platform === "win32") {
+          // An open native ZIP reader prevents replacement on Windows. This
+          // low-level probe deliberately bypasses the archive coordinator.
+          await expect(replace()).rejects.toMatchObject({ code: "EPERM" });
+        } else {
+          await replace();
+        }
         const reads = Promise.all([
           reader.readEntry("a.txt"),
           reader.readEntryRange("nested/b.txt", 1, 2),
@@ -694,6 +818,15 @@ describe("Node File/Directory adapter", () => {
         expect(results[2]).toBeUndefined();
         await closing;
         await expect(reader.listEntries()).rejects.toThrow("closed ZIP");
+        if (process.platform === "win32") await replace();
+        const replaced = await nodeWikiGraphPlatform.zip.open(file);
+        try {
+          expect(
+            new TextDecoder().decode(await replaced.readEntry("a.txt")),
+          ).toBe("replacement");
+        } finally {
+          await replaced.close();
+        }
       } finally {
         scan.mockRestore();
         await reader.close();

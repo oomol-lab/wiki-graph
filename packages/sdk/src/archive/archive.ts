@@ -74,7 +74,6 @@ import {
   type WikgObject,
   type WikiGraphSerialEntry,
 } from "wiki-graph-core";
-import { copyFileContent } from "wiki-graph-core/platform";
 
 import type { WikiGraphJobRuntime } from "../jobs.js";
 import { WikiGraphConversionManager } from "../conversions.js";
@@ -409,11 +408,10 @@ export class WikiGraphArchiveHandle {
     return await this.#runtime.run(async () => {
       const outputPath = await assertStandaloneWikiGraphArchivePath(path);
       const output = new NodeFile(outputPath);
-      if (this.#location.archiveFile.kind === "directory") {
-        await writeWikgArchive(this.#location.archiveFile, output);
-      } else {
-        await copyFileContent(this.#location.archiveFile, output);
-      }
+      await new WikgCoordinator().exportArchive(
+        this.#location.archiveFile,
+        output,
+      );
       return { path: outputPath };
     });
   }

@@ -621,6 +621,97 @@ describe("wikg/wiki-graph-archive-file", () => {
     },
   );
 
+  it("does not roll back a deferred logical write when obsolete snapshot cleanup fails", async () => {
+    await withArchiveFixture(async ({ archive }) => {
+      const storage = getWikiGraphStorage();
+      let failCleanup = false;
+      const documentStore = new Proxy(storage.documentStore, {
+        get(target, property, receiver) {
+          if (property === "getDirectory")
+            return async (name: string) => {
+              if (failCleanup && name === ".wikg-work")
+                throw new Error("obsolete cleanup failed");
+              return await target.getDirectory(name);
+            };
+          const value = Reflect.get(target, property, receiver) as unknown;
+          return typeof value === "function" ? value.bind(target) : value;
+        },
+      });
+      await withWikiGraphStorage({ ...storage, documentStore }, async () => {
+        await withHostArchiveSession(archive, async (first) => {
+          await first.writeEntry("toc.json", '{"version":1,"items":[]}', {
+            overwrite: true,
+          });
+          await withHostArchiveSession(archive, async (second) => {
+            await second.writeEntry(
+              "toc.json",
+              '{"version":1,"items":[],"marker":"latest"}',
+              { overwrite: true },
+            );
+            failCleanup = true;
+          });
+          failCleanup = false;
+          expect(
+            new TextDecoder().decode(await first.readEntry("toc.json")),
+          ).toContain('"latest"');
+        });
+      });
+      expect(
+        new TextDecoder().decode(
+          await readWikgArchiveEntry(archive, "toc.json"),
+        ),
+      ).toContain('"latest"');
+    });
+  });
+
+  it("keys a surviving cache by the final reaper generation after deferred writes", async () => {
+    await withArchiveFixture(async ({ archive }) => {
+      await withHostArchiveSession(archive, async (lastReader) => {
+        await withHostArchiveSession(archive, async (writer) => {
+          await writer.writeEntry("toc.json", '{"version":1,"items":[]}', {
+            overwrite: true,
+          });
+        });
+        await lastReader.writeEntry("texts/summary/1.txt", "Last writer", {
+          overwrite: true,
+        });
+        const cache = await lastReader.materializeSearchIndexCache({
+          createIfMissing: true,
+        });
+        await createLargeSearchDatabase(cache);
+        lastReader.markSearchIndexCacheDirty(cache);
+      });
+      await withHostArchiveSession(archive, async (fresh) => {
+        const cache = await fresh.materializeSearchIndexCache({
+          createIfMissing: false,
+        });
+        expect(await readSearchMarker(cache)).toBe(1);
+      });
+    });
+  });
+
+  it("does not publish a deferred overlay's search cache under the pinned old token", async () => {
+    await withArchiveFixture(async ({ archive }) => {
+      await withHostArchiveSession(archive, async (reader) => {
+        const originalKey = reader.searchCacheIdentity;
+        await withHostArchiveSession(archive, async (writer) => {
+          const cache = await writer.materializeSearchIndexCache({
+            createIfMissing: true,
+          });
+          await createLargeSearchDatabase(cache);
+          writer.markSearchIndexCacheDirty(cache);
+          await writer.writeEntry("toc.json", '{"version":1,"items":[]}', {
+            overwrite: true,
+          });
+        });
+        expect(reader.searchCacheIdentity).toBe(originalKey);
+        await expect(
+          reader.materializeSearchIndexCache({ createIfMissing: false }),
+        ).rejects.toThrow("Archive SQLite entry is missing");
+      });
+    });
+  });
+
   it("copies a persistent search cache through bounded file reads", async () => {
     await withArchiveFixture(async ({ archive }) => {
       let sourceSize = 0;

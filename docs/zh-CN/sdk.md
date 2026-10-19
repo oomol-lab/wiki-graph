@@ -13,6 +13,20 @@ $ npm install wiki-graph-sdk
 该包要求 Node.js `>=22.12.0`，并依赖运行时无关的 `wiki-graph-core`；应用无需再
 单独安装 Core。
 
+从 0.9.6 起，SDK 和 CLI 将异步 SQLite 绑定精确固定为
+`npm:@appthreat/sqlite3@7.0.1`（SQLite 3.50.4），替换官方 sqlite3 6.0.1
+（SQLite 3.52.0），以避开 Windows extended-drive 路径的 WAL 锁回归。
+Node 下限保持 `>=22.12.0`，此绑定变更不要求升级 Archive 或 Home schema。
+请保留精确版本：后续 7.x 已重新引入该原生缺陷。这一历史版本并不代表独立维护的
+安全更新分支；后续升级仍须通过原生回归验证。
+
+上游提供 Windows、macOS、Linux 的 x64/ARM64 预编译包（包括 Linux musl）。
+使用相应预编译包不需要 C++ 编译器或 Wiki Graph 自建二进制下载服务。
+包可下载并不表示所有平台组合均已实测：Windows 验证覆盖 Node 22.12 的 N-API 9、
+当前 Node 22 的 N-API 10，以及 Electron 35 run-as-node 模式下的 CJS/ESM 和
+FTS worker；macOS、Linux 分别执行 Node 检查。这些检查不认证 Electron GUI/ASAR
+打包或真实 SMB/WAL I/O；自定义 database provider 仍使用自己的引擎和部署要求。
+
 ## 运行实例
 
 每个应用运行上下文创建一个实例。测试和嵌入式应用应显式传入选项；默认值与 CLI
@@ -36,6 +50,16 @@ wikiGraph.close();
 SDK 暴露逐项、类型化的方法和 class 实例，并且有意不提供
 `execute(command, args)`。argv 解析、help、终端 remediation、退出码以及
 JSON/JSONL 渲染属于 `wiki-graph`。
+
+## Archive 并发访问
+
+同一个 SDK 实例可以并发调用；同一 Archive 的回调可能排队，跨进程会话通过共享
+Home 状态协调。ZIP reader 在关闭前保持原 mutation token 对应的数据视图。
+若其他会话此时完成逻辑写入，已发布 overlay 会保留在 coordinator 状态中，由最后排空的
+会话或后续可写会话落盘到 ZIP。其他会话仍活跃时，不要删除 coordinator buffer 或自行
+复制物理 ZIP。`archive.export(otherPath)` 会等待游离 Archive 的 reader 排空并结算后
+导出一致快照，目标不能是源文件本身；在同一源归档的活跃回调内请求导出或替换会明确
+报错，避免等待自己退出。不要混用不同版本的 worker 并发访问同一 Home。
 
 ## Wikipedia 请求隔离与取消
 

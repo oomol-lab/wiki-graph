@@ -1,5 +1,5 @@
 import { spawn } from "child_process";
-import { mkdir, mkdtemp, readFile } from "fs/promises";
+import { mkdir, mkdtemp, readFile, writeFile } from "fs/promises";
 import { fileURLToPath } from "url";
 import { join } from "path";
 import { inject } from "vitest";
@@ -56,15 +56,24 @@ export async function createCLISandbox(name: string): Promise<CLISandbox> {
   const run = async (
     args: readonly string[],
     options: { readonly input?: string; readonly timeoutMs?: number } = {},
-  ): Promise<CLIResult> =>
-    await runCLI(cliPath, args, {
-      cwd,
-      env,
-      ...(options.input === undefined ? {} : { input: options.input }),
-      ...(options.timeoutMs === undefined
-        ? {}
-        : { timeoutMs: options.timeoutMs }),
-    });
+  ): Promise<CLIResult> => {
+    try {
+      return await runCLI(cliPath, args, {
+        cwd,
+        env,
+        ...(options.input === undefined ? {} : { input: options.input }),
+        ...(options.timeoutMs === undefined
+          ? {}
+          : { timeoutMs: options.timeoutMs }),
+      });
+    } catch (error) {
+      await writeFile(
+        join(root, "cli-failure.json"),
+        JSON.stringify({ args, error: String(error) }, null, 2),
+      );
+      throw error;
+    }
+  };
 
   return {
     archivePath,
@@ -170,7 +179,12 @@ async function runCLI(
       child.kill("SIGKILL");
       reject(
         new Error(
-          `wg ${args.join(" ")} exceeded ${options.timeoutMs ?? 30_000}ms.`,
+          [
+            `wg ${args.join(" ")} exceeded ${options.timeoutMs ?? 30_000}ms.`,
+            `cwd: ${options.cwd}`,
+            `stdout: ${Buffer.concat(stdout).toString("utf8")}`,
+            `stderr: ${Buffer.concat(stderr).toString("utf8")}`,
+          ].join("\n"),
         ),
       );
     }, options.timeoutMs ?? 30_000);

@@ -2,15 +2,234 @@ name: PR Check
 
 on:
   pull_request:
+  workflow_dispatch:
+    inputs:
+      nativeDiagnostics:
+        description: Run native SQLite A/B experiments (known-bad controls intentionally fail)
+        type: boolean
+        default: false
+      compatibleDiagnostics:
+        description: Investigate published async bindings without changing product dependencies
+        type: boolean
+        default: false
+      pathDiagnostics:
+        description: Probe the existing official binding with SQLite long-path VFS URIs (diagnostic only)
+        type: boolean
+        default: false
 
 concurrency:
-  group: pr-check-${{ github.event.pull_request.number || github.ref }}
+  # Manual diagnostic comparisons must retain each commit's logs/artifacts.
+  group: pr-check-${{ github.event.pull_request.number || github.run_id }}
   cancel-in-progress: true
 
 permissions:
   contents: read
 
 jobs:
+  packed-sqlite-consumer:
+    name: Windows packed SDK Node ${{ matrix.node }} and Electron
+    runs-on: windows-latest
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        node: ["22.12.0", "22"]
+    env:
+      SQLITE_CONSUMER_PRODUCT: "true"
+    steps:
+      - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Build and pack actual product dependencies
+        run: |
+          pnpm build
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          node scripts/check-compatible-sqlite-consumer.mjs --pack
+      - uses: actions/setup-node@v5
+        with:
+          node-version: ${{ matrix.node }}
+          package-manager-cache: false
+      - name: Packed CJS/ESM SDK and FTS workers without SQLite overrides
+        run: node scripts/check-compatible-sqlite-consumer.mjs
+      - name: Upload product consumer evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sqlite-product-consumer-${{ matrix.node }}
+          path: test/.reports/sqlite-consumer.json
+          if-no-files-found: error
+
+  sqlite-path-diagnostic:
+    name: Official SQLite long-path VFS URI (diagnostic only)
+    if: github.event_name == 'workflow_dispatch' && inputs.pathDiagnostics
+    runs-on: windows-latest
+    timeout-minutes: 15
+    env:
+      SQLITE_DIAGNOSTIC_VARIANT: official-uri-longpath
+      SQLITE_DIAGNOSTIC_URI_LONGPATH: "true"
+      SQLITE_DIAGNOSTIC_ROUNDS: 25
+    steps:
+      - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Select the original official binding for this historical hypothesis
+        run: node scripts/install-compatible-sqlite.mjs
+        env:
+          SQLITE_DIAGNOSTIC_VARIANT: official-6
+      - run: node scripts/diagnose-windows-sqlite.mjs
+      - name: Upload URI hypothesis matrix including failures
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sqlite-official-uri-longpath
+          path: test/.reports/sqlite-native.json
+          if-no-files-found: error
+
+  compatible-sqlite-diagnostic:
+    name: Compatible SQLite ${{ matrix.variant }} Node ${{ matrix.node }} (diagnostic only)
+    if: github.event_name == 'workflow_dispatch' && inputs.compatibleDiagnostics
+    runs-on: windows-latest
+    timeout-minutes: 35
+    strategy:
+      fail-fast: false
+      matrix:
+        variant: [official-5, appthreat-7, appthreat-8]
+        node: ["22.12.0"]
+        include:
+          # This installer selects the distinct N-API 10 prebuild on current Node.
+          - variant: appthreat-7
+            node: "22"
+    env:
+      SQLITE_DIAGNOSTIC_VARIANT: ${{ matrix.variant }}
+      SQLITE_DIAGNOSTIC_ROUNDS: 25
+    steps:
+      - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Build and pack with repository tooling runtime
+        if: matrix.variant != 'appthreat-8'
+        run: |
+          pnpm build
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          node scripts/check-compatible-sqlite-consumer.mjs --pack
+      # pnpm 11 itself needs >=22.13; qualify consumers on the lower supported
+      # runtime only after packing. Consumer installation uses npm, not pnpm.
+      - uses: actions/setup-node@v5
+        with:
+          node-version: ${{ matrix.node }}
+          package-manager-cache: false
+      - name: Install isolated published binding (no compiler fallback)
+        run: node scripts/install-compatible-sqlite.mjs
+      - name: Native-only matrix and capability/error probes
+        run: node scripts/diagnose-windows-sqlite.mjs
+      - name: Upload complete native investigation
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sqlite-compatible-${{ matrix.variant }}-${{ matrix.node }}
+          path: test/.reports/sqlite-native.json
+          if-no-files-found: error
+      - name: Packed CJS/ESM consumer and real FTS worker on Node and Electron
+        if: matrix.variant != 'appthreat-8'
+        run: node scripts/check-compatible-sqlite-consumer.mjs
+      - name: Upload packed candidate evidence
+        if: always() && matrix.variant != 'appthreat-8'
+        uses: actions/upload-artifact@v4
+        with:
+          name: sqlite-consumer-${{ matrix.variant }}-${{ matrix.node }}
+          path: test/.reports/sqlite-consumer.json
+          if-no-files-found: error
+      - uses: actions/setup-node@v5
+        if: always() && matrix.variant != 'appthreat-8' && env.SQLITE_DIAGNOSTIC_MODULE != ''
+        with:
+          node-version: 22
+          package-manager-cache: false
+      - name: Qualify candidate native addon against the full regression set
+        if: always() && matrix.variant != 'appthreat-8' && env.SQLITE_DIAGNOSTIC_MODULE != ''
+        run: |
+          node scripts/use-diagnostic-sqlite.mjs
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          node scripts/check-windows-regressions.mjs
+      - name: Upload candidate-addon regressions (not product acceptance)
+        if: always() && matrix.variant != 'appthreat-8'
+        uses: actions/upload-artifact@v4
+        with:
+          name: sqlite-compatible-regressions-${{ matrix.variant }}-${{ matrix.node }}
+          path: test/.reports/windows-regressions.json
+          if-no-files-found: error
+
+  native-sqlite-diagnostic:
+    name: Native SQLite ${{ matrix.variant }} (diagnostic only)
+    if: github.event_name == 'workflow_dispatch' && inputs.nativeDiagnostics
+    runs-on: windows-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        variant: [prebuilt, source-control, source-patched, appthreat-candidate]
+    env:
+      SQLITE_DIAGNOSTIC_VARIANT: ${{ matrix.variant }}
+      SQLITE_DIAGNOSTIC_ROUNDS: 25
+    steps:
+      - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v5
+        with:
+          node-version: ${{ matrix.variant == 'appthreat-candidate' && 24 || 22 }}
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Install isolated async candidate (no source build)
+        if: matrix.variant == 'appthreat-candidate'
+        run: node scripts/build-diagnostic-sqlite.mjs candidate
+      - name: Select original official prebuilt control
+        if: matrix.variant == 'prebuilt'
+        run: node scripts/install-compatible-sqlite.mjs
+        env:
+          SQLITE_DIAGNOSTIC_VARIANT: official-6
+      - name: Build isolated control binding
+        if: matrix.variant == 'source-control'
+        run: node scripts/build-diagnostic-sqlite.mjs control
+      - name: Build isolated patched binding
+        if: matrix.variant == 'source-patched'
+        run: node scripts/build-diagnostic-sqlite.mjs patched
+      - name: Native-only path, alias and process matrix
+        run: node scripts/diagnose-windows-sqlite.mjs
+      - name: Upload native matrix (including failures)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sqlite-native-${{ matrix.variant }}
+          path: test/.reports/sqlite-native.json
+          if-no-files-found: error
+      - name: Inject patched addon into ephemeral CI checkout only
+        if: matrix.variant == 'source-patched'
+        run: node scripts/use-diagnostic-sqlite.mjs
+      - name: Build and test the patched-binding hypothesis against all regressions
+        if: matrix.variant == 'source-patched'
+        run: |
+          pnpm build
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          node scripts/check-windows-regressions.mjs
+      - name: Upload patched-binding experiment (not product acceptance)
+        if: always() && matrix.variant == 'source-patched'
+        uses: actions/upload-artifact@v4
+        with:
+          name: sqlite-patched-regressions
+          path: test/.reports/windows-regressions.json
+          if-no-files-found: error
+
   quality:
     name: Code Quality
     runs-on: ubuntu-latest
@@ -74,16 +293,16 @@ jobs:
       - name: Build packages on Windows
         run: pnpm build
 
-      - name: Run Windows archive replacement tests
-        run: >-
-          pnpm exec vitest run
-          test/core/storage/wikg/archive-coordination.test.ts
-          test/core/storage/wikg/opaque-file-adapter.test.ts
-          test/core/runtime/platform/node-platform.test.ts
-          packages/sdk/src/full-regression/delivery.full-regression.test.ts
-          -t "keeps the archive owner registered until its ZIP reader closes|waits for an active standalone archive reader before replacing|supports database and ZIP access below a long Windows path|supports concurrent WAL readers below a long Windows path|supports concurrent WAL readers through repeated opens|appends multiple chunks to an existing file before replacing it|preserves the original when the append reader cannot close|closes the append reader when the writer cannot open|does not replace a file when its append reader fails|appends to a new file after an explicit missing-file error|closes source readers after streaming entries and before replacing the ZIP|aborts ZIP publication when releasing source resources fails|keeps the archive intact when the host ZIP commit fails"
-          --maxWorkers=1
-          --config vitest.config.ts
+      - name: Run Windows archive and WAL acceptance (no skipped tests)
+        run: node scripts/check-windows-regressions.mjs
+
+      - name: Upload Windows acceptance evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-regressions
+          path: test/.reports/windows-regressions.json
+          if-no-files-found: error
 
   package-readiness:
     name: End-to-End and Package Readiness
@@ -107,6 +326,15 @@ jobs:
 
       - name: Run packed CLI end-to-end tests
         run: pnpm test:e2e:run
+
+      - name: Preserve failed packed CLI sandbox diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cli-e2e-failure
+          path: test/.reports/cli-e2e
+          include-hidden-files: true
+          if-no-files-found: warn
 
       - name: Smoke test packed install
         run: pnpm smoke:pack-install

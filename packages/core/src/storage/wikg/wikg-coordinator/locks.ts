@@ -16,11 +16,24 @@ import type {
 export async function acquireArchiveCommitLock(
   archiveKey: string,
   owner: CoordinatorOwner,
-): Promise<() => Promise<void>> {
+): Promise<(() => Promise<void>) | undefined> {
   while (true) {
     const acquired = await withCoordinatorState(async (database) => {
       return await database.transaction(async () => {
         await cleanupStaleState(database, archiveKey);
+        const readers = await database.queryOne(
+          `SELECT 1 AS present FROM archive_owners AS owner
+LEFT JOIN archive_settlements AS settlement
+  ON settlement.archive_key = owner.archive_key
+ AND settlement.owner_id = owner.owner_id
+WHERE owner.archive_key = ? AND owner.owner_id <> ?
+  AND settlement.owner_id IS NULL LIMIT 1`,
+          [archiveKey, owner.ownerId],
+          () => true,
+        );
+        // Waiting here can deadlock: the foreign callback may be awaiting this
+        // session's completion. Published overlays remain durable for settlement.
+        if (readers === true) return "deferred" as const;
         await database.run(
           `
 INSERT OR IGNORE INTO archive_commit_locks (
@@ -38,6 +51,7 @@ INSERT OR IGNORE INTO archive_commit_locks (
         );
       });
     });
+    if (acquired === "deferred") return undefined;
     if (acquired) {
       return async () => {
         await withCoordinatorState(async (database) => {

@@ -1,4 +1,5 @@
 import { fork, type ChildProcess } from "child_process";
+import { AsyncLocalStorage } from "async_hooks";
 import { mkdir } from "fs/promises";
 import { join } from "path";
 import { fileURLToPath } from "url";
@@ -15,6 +16,7 @@ import {
   writeWikgArchive,
 } from "../../../../packages/core/src/storage/wikg/archive/index.js";
 import { WikgCoordinator } from "../../../../packages/core/src/storage/wikg/coordinator.js";
+import { withCoordinatorState } from "../../../../packages/core/src/storage/wikg/wikg-coordinator/state.js";
 import { WikiGraphArchiveFile } from "../../../../packages/core/src/storage/wikg/wiki-graph-archive-file.js";
 import {
   createNodeWikiGraphStorage,
@@ -28,10 +30,16 @@ const workerPath = fileURLToPath(
   new URL("../../../helpers/archive-coordination-worker.ts", import.meta.url),
 );
 const workerErrors = new WeakMap<ChildProcess, string[]>();
+const workerClosures = new WeakMap<ChildProcess, Promise<void>>();
+const fixtureWorkers = new AsyncLocalStorage<Set<ChildProcess>>();
 
 describe("wikg cross-process coordination", () => {
   it("preserves disjoint writes when the later process commits last", async () => {
     await withFixture(async ({ archivePath, stateRoot, storage }) => {
+      const token = await readWikgArchiveEntry(
+        new NodeFile(archivePath),
+        ".wikg-mutation-token",
+      );
       const metadata = spawnWorker(archivePath, stateRoot, "meta");
       await waitForMessage(metadata, "ready");
       const toc = spawnWorker(archivePath, stateRoot, "toc");
@@ -47,8 +55,27 @@ describe("wikg cross-process coordination", () => {
       // Windows requires this at the filesystem level as well.
       toc.send({ type: "finish" });
       await waitForExit(toc);
+      // TOC's logical write completes without waiting for the idle metadata
+      // callback. No physical generation may change under its pinned reader.
+      expect(
+        await readWikgArchiveEntry(
+          new NodeFile(archivePath),
+          ".wikg-mutation-token",
+        ),
+      ).toEqual(token);
+      await expect(
+        readJsonEntry(archivePath, "toc.json"),
+      ).resolves.toMatchObject({
+        items: [{ title: "Original" }],
+      });
       metadata.send({ type: "finish" });
       await waitForExit(metadata);
+      expect(
+        await readWikgArchiveEntry(
+          new NodeFile(archivePath),
+          ".wikg-mutation-token",
+        ),
+      ).not.toEqual(token);
 
       await withWikiGraphStorage(storage, async () => {
         await expect(
@@ -62,6 +89,73 @@ describe("wikg cross-process coordination", () => {
           items: [{ title: "Written by TOC worker" }],
         });
       });
+    });
+  });
+
+  it("settles both disjoint writes when the processes close concurrently", async () => {
+    await withFixture(async ({ archivePath, stateRoot }) => {
+      const metadata = spawnWorker(archivePath, stateRoot, "meta");
+      await waitForMessage(metadata, "ready");
+      const toc = spawnWorker(archivePath, stateRoot, "toc");
+      await waitForMessage(toc, "ready");
+      metadata.send({ type: "write" });
+      toc.send({ type: "write" });
+      await Promise.all([
+        waitForMessage(metadata, "published"),
+        waitForMessage(toc, "published"),
+      ]);
+      const exited = Promise.all([waitForExit(metadata), waitForExit(toc)]);
+      metadata.send({ type: "finish" });
+      toc.send({ type: "finish" });
+      await exited;
+      await expect(
+        readJsonEntry(archivePath, "cover/info.json"),
+      ).resolves.toMatchObject({
+        title: "Written by metadata worker",
+      });
+      await expect(
+        readJsonEntry(archivePath, "toc.json"),
+      ).resolves.toMatchObject({
+        items: [{ title: "Written by TOC worker" }],
+      });
+      await expectCoordinationDrained();
+    });
+  });
+
+  it("recovers a dead settler's phase, commit fence and published overlay", async () => {
+    await withFixture(async ({ archivePath, stateRoot }) => {
+      const writer = spawnWorker(archivePath, stateRoot, "settle-crash");
+      await waitForMessage(writer, "ready");
+      writer.send({ type: "write" });
+      await waitForMessage(writer, "published");
+      const settling = waitForMessage(writer, "settling");
+      writer.send({ type: "finish" });
+      await settling;
+      await withCoordinatorState(async (db) => {
+        expect(
+          await db.queryAll(
+            "SELECT completed FROM archive_settlements",
+            undefined,
+            (row) => row,
+          ),
+        ).toEqual([{ completed: 0 }]);
+        expect(
+          await db.queryAll(
+            "SELECT * FROM archive_commit_locks",
+            undefined,
+            (row) => row,
+          ),
+        ).toHaveLength(1);
+      });
+      writer.send({ type: "crash" });
+      await waitForExit(writer);
+      await reapThroughCoordinator(archivePath);
+      await expect(
+        readJsonEntry(archivePath, "cover/info.json"),
+      ).resolves.toMatchObject({
+        title: "Written by metadata worker",
+      });
+      await expectCoordinationDrained();
     });
   });
 
@@ -258,6 +352,15 @@ describe("wikg cross-process coordination", () => {
           delaySessionReaderClose = true;
         });
         await closeStarted;
+        await withCoordinatorState(async (db) => {
+          expect(
+            await db.queryAll(
+              "SELECT * FROM archive_settlements",
+              undefined,
+              (row) => row,
+            ),
+          ).toEqual([]);
+        });
 
         let replacementEntered = false;
         const replacing = coordinator.withExclusiveArchiveReplacement(
@@ -357,6 +460,24 @@ describe("wikg cross-process coordination", () => {
   });
 });
 
+async function expectCoordinationDrained() {
+  await withCoordinatorState(async (db) => {
+    for (const table of [
+      "archive_owners",
+      "archive_settlements",
+      "archive_commit_locks",
+      "entry_locks",
+      "entry_sqlite_leases",
+      "entry_overlays",
+    ]) {
+      expect(
+        await db.queryAll(`SELECT * FROM ${table}`, undefined, (row) => row),
+        table,
+      ).toEqual([]);
+    }
+  });
+}
+
 async function withFixture(
   operation: (input: {
     readonly archivePath: string;
@@ -394,7 +515,23 @@ async function withFixture(
       }
       const archivePath = join(root, "book.wikg");
       await writeWikgArchive(directory, new NodeFile(archivePath));
-      await operation({ archivePath, stateRoot, storage });
+      const children = new Set<ChildProcess>();
+      try {
+        await fixtureWorkers.run(
+          children,
+          async () => await operation({ archivePath, stateRoot, storage }),
+        );
+      } finally {
+        // Assertion/IPC failures must not leave children holding coordinator.db
+        // and then replace the original error with a Windows cleanup EBUSY.
+        await Promise.all(
+          [...children].map(async (child) => {
+            if (child.exitCode === null && child.signalCode === null)
+              child.kill("SIGKILL");
+            await workerClosures.get(child);
+          }),
+        );
+      }
     });
   });
 }
@@ -409,7 +546,19 @@ function spawnWorker(
     silent: true,
   });
   const errors: string[] = [];
+  const startedAt = Date.now();
+  errors.push(`Worker ${action} spawned (pid ${child.pid})`);
+  child.on("message", (message) =>
+    errors.push(`[+${Date.now() - startedAt}ms] ${JSON.stringify(message)}`),
+  );
+  child.stdout?.resume();
   child.stderr?.on("data", (chunk) => errors.push(String(chunk)));
+  child.on("error", (error) => errors.push(String(error)));
+  workerClosures.set(
+    child,
+    new Promise((resolve) => child.once("close", () => resolve())),
+  );
+  fixtureWorkers.getStore()?.add(child);
   workerErrors.set(child, errors);
   return child;
 }
@@ -474,7 +623,11 @@ async function waitForExit(child: ChildProcess): Promise<void> {
       globalThis.clearTimeout(timeout);
       if (code === 0) resolve();
       else
-        reject(new Error(`Archive coordination worker exited with ${code}.`));
+        reject(
+          new Error(
+            `Archive coordination worker exited with ${code}: ${workerErrors.get(child)?.join("") ?? ""}`,
+          ),
+        );
     });
   });
 }

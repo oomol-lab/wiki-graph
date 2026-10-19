@@ -26,6 +26,8 @@ import {
 import { createWikiGraphSDK } from "../index.js";
 import { type WikiGraphJobSnapshot } from "../jobs.js";
 import { NodeDirectory, NodeFile } from "../node-platform.js";
+import { nodeWikiGraphPlatform } from "../node-platform.js";
+import { withCoordinatorState } from "../../../core/src/storage/wikg/wikg-coordinator/state.js";
 
 const temporaryDirectories: string[] = [];
 
@@ -41,6 +43,100 @@ afterEach(async () => {
 });
 
 describe("WikiGraphSDK delivery operations", () => {
+  it("exports a settled standalone snapshot rather than stale bytes behind an active reader", async () => {
+    const root = await mkdtemp(join(tmpdir(), "wg-export-drain-"));
+    temporaryDirectories.push(root);
+    const sdk = createWikiGraphSDK({
+      cwd: root,
+      stateDir: join(root, "state"),
+    });
+    const path = join(root, "book.wikg");
+    await sdk.archives.create({ path });
+    const handle = await sdk.archives.open({ kind: "standalone", path });
+    let entered!: () => void;
+    const ready = new Promise<void>((resolve) => {
+      entered = resolve;
+    });
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const reading = sdk.run(
+      async () =>
+        await new WikgCoordinator().withArchiveSession(
+          new NodeFile(path),
+          async () => {
+            await expect(
+              handle.export(join(root, "reentrant.wikg")),
+            ).rejects.toThrow("active Archive callback");
+            entered();
+            await gate;
+          },
+        ),
+    );
+    await ready;
+    await sdk.run(
+      async () =>
+        await new WikgCoordinator().withArchiveSession(
+          new NodeFile(path),
+          async (session) => {
+            await session.writeEntry(
+              "texts/summary/1.txt",
+              "Deferred summary",
+              { overwrite: true },
+            );
+          },
+        ),
+    );
+    const before = await nodeWikiGraphPlatform.zip.open(new NodeFile(path));
+    try {
+      expect(await before.readEntry("texts/summary/1.txt")).toBeUndefined();
+    } finally {
+      await before.close();
+    }
+    let finished = false;
+    const output = join(root, "exported.wikg");
+    const exporting = handle.export(output).finally(() => {
+      finished = true;
+    });
+    try {
+      await sdk.run(async () => {
+        const deadline = Date.now() + 30_000;
+        while (true) {
+          const locked = await withCoordinatorState(
+            async (db) =>
+              await db.queryOne(
+                "SELECT owner_id FROM archive_replacement_locks",
+                undefined,
+                () => true,
+              ),
+          );
+          if (locked === true) break;
+          if (Date.now() >= deadline)
+            throw new Error("Export did not request reader drain");
+          await new Promise((resolve) => setTimeout(resolve, 5));
+        }
+      });
+      expect(finished).toBe(false);
+    } finally {
+      release();
+      await Promise.all([reading, exporting]);
+    }
+    const exported = await nodeWikiGraphPlatform.zip.open(new NodeFile(output));
+    try {
+      expect(
+        new TextDecoder().decode(
+          await exported.readEntry("texts/summary/1.txt"),
+        ),
+      ).toBe("Deferred summary");
+    } finally {
+      await exported.close();
+    }
+    expect(await readFile(output)).toEqual(await readFile(path));
+    await expect(handle.export(path)).rejects.toThrow("must differ");
+    sdk.close();
+  });
+
   it("exports managed archives and inspects schemas through the public SDK entry", async () => {
     const root = await mkdtemp(
       join(tmpdir(), "wiki-graph-sdk-public-archive-"),
