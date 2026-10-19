@@ -2,6 +2,9 @@
 
 The **Windows Archive Coordination** PR job runs
 `node scripts/check-windows-regressions.mjs` on `windows-latest`.
+It can also be run before a PR exists with
+`gh workflow run pr-check.yml --ref <pushed-branch>`; the same job and report gate
+apply to both triggers.
 It runs complete files from `vitest.windows.config.ts`, including every
 `test/windows/**/*.test.ts`. There is no test-name filter. The report gate fails
 on missing required files, empty files, failures, skips or todo cases; this also

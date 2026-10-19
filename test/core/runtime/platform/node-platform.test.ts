@@ -445,6 +445,7 @@ describe("Node File/Directory adapter", () => {
     await withTempDir("wikigraph-wal-long-path-", async (path) => {
       const root = new NodeDirectory(join(path, "a".repeat(210)));
       const file = await root.createFile("state.sqlite");
+      expect(file.path.length).toBeGreaterThan(260);
       const database = await nodeWikiGraphPlatform.database.open(file, {
         create: true,
         mode: "readwrite",
@@ -453,38 +454,41 @@ describe("Node File/Directory adapter", () => {
         await database.execute(
           "PRAGMA journal_mode = WAL; CREATE TABLE marker(value INTEGER); INSERT INTO marker VALUES (42)",
         );
+        expect(await database.queryOne("PRAGMA journal_mode")).toEqual({
+          journal_mode: "wal",
+        });
+        for (let iteration = 0; iteration < 25; iteration += 1) {
+          // Keep a writer alive; wait for every reader's finally even if one
+          // fails, so cleanup cannot mask the original SQLite error with EBUSY.
+          const reads = await Promise.allSettled(
+            Array.from({ length: 5 }, async () => {
+              const reader = await nodeWikiGraphPlatform.database.open(file, {
+                mode: "readonly",
+              });
+              try {
+                await expect(
+                  reader.queryOne("SELECT value FROM marker"),
+                ).resolves.toEqual({ value: 42 });
+              } finally {
+                await reader.close();
+              }
+            }),
+          );
+          for (const read of reads) {
+            if (read.status === "rejected") throw read.reason;
+          }
+        }
+        expect(await database.queryOne("PRAGMA integrity_check")).toEqual({
+          integrity_check: "ok",
+        });
       } finally {
         await database.close();
       }
-
-      for (let iteration = 0; iteration < 25; iteration += 1) {
-        await Promise.all(
-          Array.from({ length: 5 }, async () => {
-            const reader = await nodeWikiGraphPlatform.database.open(file, {
-              mode: "readonly",
-            });
-            try {
-              await expect(
-                reader.queryOne("SELECT value FROM marker"),
-              ).resolves.toEqual({ value: 42 });
-            } finally {
-              await reader.close();
-            }
-          }),
-        );
-      }
-
-      const cleanup = await nodeWikiGraphPlatform.database.open(file, {
-        create: false,
-        mode: "readwrite",
-      });
-      try {
-        await cleanup.execute(
-          "PRAGMA wal_checkpoint(TRUNCATE); PRAGMA journal_mode = DELETE;",
-        );
-      } finally {
-        await cleanup.close();
-      }
+      expect((await root.list()).map((entry) => entry.name)).toEqual([
+        "state.sqlite",
+      ]);
+      await root.remove("state.sqlite");
+      expect(await root.list()).toEqual([]);
     });
   }, 120_000);
 
