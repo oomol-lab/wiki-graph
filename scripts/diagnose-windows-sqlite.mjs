@@ -15,7 +15,8 @@ const require = createRequire(
 );
 const modulePath =
   process.env.SQLITE_DIAGNOSTIC_MODULE || require.resolve("sqlite3");
-const sqlite = require(modulePath);
+const imported = require(modulePath);
+const sqlite = imported.default || imported;
 const rounds = Number(process.env.SQLITE_DIAGNOSTIC_ROUNDS || 25);
 const call = (db, method, ...args) =>
   new Promise((resolve, reject) => {
@@ -49,6 +50,48 @@ async function read(filename) {
     assert.deepEqual(await call(db, "get", "PRAGMA journal_mode"), {
       journal_mode: "wal",
     });
+  } finally {
+    await call(db, "close");
+  }
+}
+
+async function probeCapabilities() {
+  const db = await open(":memory:", sqlite.OPEN_READWRITE | sqlite.OPEN_CREATE);
+  try {
+    await call(
+      db,
+      "exec",
+      "CREATE VIRTUAL TABLE texts USING fts5(content); INSERT INTO texts VALUES('needle'); CREATE TABLE data(value BLOB)",
+    );
+    assert.deepEqual(
+      await call(db, "get", "SELECT content FROM texts WHERE texts MATCH ?", [
+        "needle",
+      ]),
+      { content: "needle" },
+    );
+    await call(db, "run", "INSERT INTO data VALUES(?)", [
+      Buffer.from([1, 2, 255]),
+    ]);
+    assert.deepEqual(await call(db, "get", "SELECT value FROM data"), {
+      value: Buffer.from([1, 2, 255]),
+    });
+    await call(db, "exec", "BEGIN; DELETE FROM data; ROLLBACK");
+    assert.deepEqual(
+      await call(db, "get", "SELECT count(*) AS count FROM data"),
+      { count: 1 },
+    );
+    await assert.rejects(call(db, "get", "SELECT missing_column FROM data"));
+    assert.deepEqual(await call(db, "get", "PRAGMA integrity_check"), {
+      integrity_check: "ok",
+    });
+    return {
+      fts5: true,
+      parameterBinding: true,
+      blobs: true,
+      rollback: true,
+      errorRecovery: true,
+      compileOptions: await call(db, "all", "PRAGMA compile_options"),
+    };
   } finally {
     await call(db, "close");
   }
@@ -230,6 +273,7 @@ if (process.argv[2] === "--reader") {
     rounds,
     variant: process.env.SQLITE_DIAGNOSTIC_VARIANT || "prebuilt",
     cases: [],
+    capabilities: await probeCapabilities(),
   };
   // Every matrix cell has a fresh DB/process; failures do not suppress other cells.
   for (const kind of ["ordinary", "extended-drive", "long"]) {

@@ -8,6 +8,7 @@ import { join } from "path";
 
 assert.equal(process.platform, "win32");
 const patched = process.argv[2] === "patched";
+const candidate = process.argv[2] === "candidate";
 const root = await mkdtemp(join(tmpdir(), "sqlite-ab-"));
 function run(command, args, cwd = root) {
   const result = spawnSync(command, args, {
@@ -23,10 +24,12 @@ run("npm", [
   "--ignore-scripts",
   "--no-audit",
   "--no-fund",
-  "sqlite3@6.0.1",
+  candidate ? "@appthreat/sqlite3@9.1.0" : "sqlite3@6.0.1",
   "node-gyp@13.1.0",
 ]);
-const pkg = join(root, "node_modules", "sqlite3");
+const pkg = candidate
+  ? join(root, "node_modules", "@appthreat", "sqlite3")
+  : join(root, "node_modules", "sqlite3");
 if (patched) {
   const tarball = join(pkg, "deps", "sqlite-autoconf-3520000.tar.gz");
   run("tar", ["-xzf", tarball, "-C", root]);
@@ -63,15 +66,16 @@ if (patched) {
   run("tar", ["-czf", tarball, "-C", root, "sqlite-autoconf-3520000"]);
 }
 const require = createRequire(join(root, "package.json"));
-run(
-  process.execPath,
-  [
-    require.resolve("node-gyp/bin/node-gyp.js"),
-    "rebuild",
-    "--napi_build_version=6",
-  ],
-  pkg,
-);
+if (!candidate)
+  run(
+    process.execPath,
+    [
+      require.resolve("node-gyp/bin/node-gyp.js"),
+      "rebuild",
+      "--napi_build_version=6",
+    ],
+    pkg,
+  );
 await appendFile(
   process.env.GITHUB_ENV,
   `SQLITE_DIAGNOSTIC_MODULE=${join(pkg, "lib", "sqlite3.js")}\n`,

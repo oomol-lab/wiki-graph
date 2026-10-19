@@ -40,7 +40,7 @@ The cold-readonly stress case retains 25 groups of five readers and mixes case
 aliases, on both long and explicitly extended drive paths; it is not replaced by
 a warm-writer scenario.
 
-## Native SQLite prerequisite (acceptance remains blocked)
+## Native SQLite prerequisite (product acceptance is not yet passing)
 
 The production-source Windows run at
 [c766775](https://github.com/oomol-lab/wiki-graph/actions/runs/39195159000/job/117876312322)
@@ -50,8 +50,10 @@ failure visible. The published `sqlite3@6.0.1` package bundles SQLite 3.52.0, wh
 [`winIsUNCPath`](https://github.com/sqlite/sqlite/blob/version-3.52.0/src/os_win.c)
 classifies namespaced local drives as UNC; the
 [3.54.0 implementation](https://github.com/sqlite/sqlite/blob/version-3.54.0/src/os_win.c)
-explicitly excludes them. A binding build containing that fix must be selected
-and validated before claiming Windows acceptance.
+explicitly excludes them. The standalone reproduction, controlled source A/B
+experiment, and installable binding comparison are documented in
+[sqlite-investigation.md](./sqlite-investigation.md). Patched diagnostic builds
+are not evidence that the unchanged product dependency passes acceptance.
 
 Do not hide this by keeping a writable anchor, forcing DELETE/checkpoint cleanup,
 using `immutable` or nolock VFSes, or serializing every native call in JavaScript.

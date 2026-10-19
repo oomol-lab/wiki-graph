@@ -20,7 +20,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        variant: [prebuilt, source-control, source-patched]
+        variant: [prebuilt, source-control, source-patched, appthreat-candidate]
     env:
       SQLITE_DIAGNOSTIC_VARIANT: ${{ matrix.variant }}
       SQLITE_DIAGNOSTIC_ROUNDS: 25
@@ -29,9 +29,12 @@ jobs:
       - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v5
         with:
-          node-version: 22
+          node-version: ${{ matrix.variant == 'appthreat-candidate' && 24 || 22 }}
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      - name: Install isolated async candidate (no source build)
+        if: matrix.variant == 'appthreat-candidate'
+        run: node scripts/build-diagnostic-sqlite.mjs candidate
       - name: Build isolated control binding
         if: matrix.variant == 'source-control'
         run: node scripts/build-diagnostic-sqlite.mjs control
@@ -46,6 +49,22 @@ jobs:
         with:
           name: sqlite-native-${{ matrix.variant }}
           path: test/.reports/sqlite-native.json
+          if-no-files-found: error
+      - name: Inject patched addon into ephemeral CI checkout only
+        if: matrix.variant == 'source-patched'
+        run: node scripts/use-diagnostic-sqlite.mjs
+      - name: Build and test the patched-binding hypothesis against all regressions
+        if: matrix.variant == 'source-patched'
+        run: |
+          pnpm build
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          node scripts/check-windows-regressions.mjs
+      - name: Upload patched-binding experiment (not product acceptance)
+        if: always() && matrix.variant == 'source-patched'
+        uses: actions/upload-artifact@v4
+        with:
+          name: sqlite-patched-regressions
+          path: test/.reports/windows-regressions.json
           if-no-files-found: error
 
   quality:
