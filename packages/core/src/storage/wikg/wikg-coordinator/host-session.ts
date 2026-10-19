@@ -920,7 +920,11 @@ export class HostWikgArchiveSession {
   async #cleanupSupersededSnapshots(): Promise<void> {
     for (const change of this.#changes.values()) {
       if (change.previous?.workspacePath !== change.current.workspacePath) {
-        await removeWorkspaceSnapshot(change.previous?.workspacePath);
+        // Publication may be deferred behind another reader. Garbage cleanup
+        // must not roll that logical write back to an already removed snapshot.
+        await removeWorkspaceSnapshot(change.previous?.workspacePath).catch(
+          () => undefined,
+        );
       }
     }
     this.#changes.clear();

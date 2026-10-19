@@ -621,6 +621,49 @@ describe("wikg/wiki-graph-archive-file", () => {
     },
   );
 
+  it("does not roll back a deferred logical write when obsolete snapshot cleanup fails", async () => {
+    await withArchiveFixture(async ({ archive }) => {
+      const storage = getWikiGraphStorage();
+      let failCleanup = false;
+      const documentStore = new Proxy(storage.documentStore, {
+        get(target, property, receiver) {
+          if (property === "getDirectory")
+            return async (name: string) => {
+              if (failCleanup && name === ".wikg-work")
+                throw new Error("obsolete cleanup failed");
+              return await target.getDirectory(name);
+            };
+          const value = Reflect.get(target, property, receiver) as unknown;
+          return typeof value === "function" ? value.bind(target) : value;
+        },
+      });
+      await withWikiGraphStorage({ ...storage, documentStore }, async () => {
+        await withHostArchiveSession(archive, async (first) => {
+          await first.writeEntry("toc.json", '{"version":1,"items":[]}', {
+            overwrite: true,
+          });
+          await withHostArchiveSession(archive, async (second) => {
+            await second.writeEntry(
+              "toc.json",
+              '{"version":1,"items":[],"marker":"latest"}',
+              { overwrite: true },
+            );
+            failCleanup = true;
+          });
+          failCleanup = false;
+          expect(
+            new TextDecoder().decode(await first.readEntry("toc.json")),
+          ).toContain('"latest"');
+        });
+      });
+      expect(
+        new TextDecoder().decode(
+          await readWikgArchiveEntry(archive, "toc.json"),
+        ),
+      ).toContain('"latest"');
+    });
+  });
+
   it("keys a surviving cache by the final reaper generation after deferred writes", async () => {
     await withArchiveFixture(async ({ archive }) => {
       await withHostArchiveSession(archive, async (lastReader) => {
