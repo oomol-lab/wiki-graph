@@ -5,7 +5,8 @@ on:
   workflow_dispatch:
 
 concurrency:
-  group: pr-check-${{ github.event.pull_request.number || github.ref }}
+  # Manual diagnostic comparisons must retain each commit's logs/artifacts.
+  group: pr-check-${{ github.event.pull_request.number || github.run_id }}
   cancel-in-progress: true
 
 permissions:
