@@ -474,7 +474,11 @@ async function waitForExit(child: ChildProcess): Promise<void> {
       globalThis.clearTimeout(timeout);
       if (code === 0) resolve();
       else
-        reject(new Error(`Archive coordination worker exited with ${code}.`));
+        reject(
+          new Error(
+            `Archive coordination worker exited with ${code}: ${workerErrors.get(child)?.join("") ?? ""}`,
+          ),
+        );
     });
   });
 }

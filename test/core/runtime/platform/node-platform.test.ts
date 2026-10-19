@@ -683,7 +683,15 @@ describe("Node File/Directory adapter", () => {
         await nodeWikiGraphPlatform.zip.write(replacement, [
           { name: "a.txt", data: encode("replacement") },
         ]);
-        await rename(join(path, "replacement.zip"), join(path, "lookup.zip"));
+        const replace = () =>
+          rename(join(path, "replacement.zip"), join(path, "lookup.zip"));
+        if (process.platform === "win32") {
+          // An open native ZIP reader prevents replacement on Windows. This
+          // low-level probe deliberately bypasses the archive coordinator.
+          await expect(replace()).rejects.toMatchObject({ code: "EPERM" });
+        } else {
+          await replace();
+        }
         const reads = Promise.all([
           reader.readEntry("a.txt"),
           reader.readEntryRange("nested/b.txt", 1, 2),
@@ -696,6 +704,15 @@ describe("Node File/Directory adapter", () => {
         expect(results[2]).toBeUndefined();
         await closing;
         await expect(reader.listEntries()).rejects.toThrow("closed ZIP");
+        if (process.platform === "win32") await replace();
+        const replaced = await nodeWikiGraphPlatform.zip.open(file);
+        try {
+          expect(
+            new TextDecoder().decode(await replaced.readEntry("a.txt")),
+          ).toBe("replacement");
+        } finally {
+          await replaced.close();
+        }
       } finally {
         scan.mockRestore();
         await reader.close();
