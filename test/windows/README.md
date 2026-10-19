@@ -54,6 +54,13 @@ explicitly excludes them. The standalone reproduction, controlled source A/B
 experiment, and installable binding comparison are documented in
 [sqlite-investigation.md](./sqlite-investigation.md). Patched diagnostic builds
 are not evidence that the unchanged product dependency passes acceptance.
+The [compatible binding qualification](sqlite-compatibility.md) records Node
+22.12 / current Node 22, Electron, packed worker, existing-archive and historical
+prebuild evidence, including failures. At code SHA 515397c the default binding
+still fails two cold readonly cases (104 passed / 2 failed), while isolated
+AppThreat 7.0.1 N-API 9/10 runs each pass all 106 cases without skips or todos.
+These are candidate experiments, not authorization to replace the default
+binding or final product acceptance.
 
 Do not hide this by keeping a writable anchor, forcing DELETE/checkpoint cleanup,
 using `immutable` or nolock VFSes, or serializing every native call in JavaScript.

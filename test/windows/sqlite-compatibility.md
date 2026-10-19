@@ -144,6 +144,44 @@ and passes after moving the check inside the lease-admission transaction. This
 proves that race; it does not retrospectively prove the exact Linux failure's
 interleaving. Both product workflows must run again on the final implementation.
 
+## Follow-up at 515397c
+
+[Run 39216217683](https://github.com/oomol-lab/wiki-graph/actions/runs/39216217683)
+tested product code at `515397c5a69f973699898042ae69bcfb551dcb9c`, including the
+overlay-cleanup fix. AppThreat 7.0.1 again passed 12 native cells and 11 packed
+cases on both N-API versions. Its full Windows reports now contain **106 passed /
+0 failed / 0 skipped / 0 todo** each: N-API 9 job 117940579255 and N-API 10 job 117940579408. Both JSON reports were downloaded and inspected, including the
+opaque lifecycle/failure cases, multiprocess SDK workflow, three active WAL
+recovery cases and the new real-SQLite cleanup regression.
+
+The default-binding job 117940579273 remains **104 passed / 2 failed**, zero
+skipped/todo. Only the long and extended-drive cold readonly WAL reopen cases
+fail, both with `SQLITE_PROTOCOL`; the coordination and cleanup cases pass.
+Official 5.1.7 passed the native/packed qualification, but its full-regression
+job 117940579295 timed out waiting five seconds for the first metadata worker's
+`ready` message (**105 passed / 1 failed**). Child teardown preserved the original
+timeout instead of masking it with an EBUSY cleanup error. This does not establish
+the startup timeout's root cause, and the fallback is **not fully qualified on
+this commit**. No deadline was increased, assertion weakened, case skipped or
+failed test rerun to manufacture success.
+
+An additional attempt to retain the current binding used SQLite's own
+`win32-longpath` VFS with `OPEN_URI` and a local drive file URI, without the
+extended prefix. Job 117940579041 and artifact `sqlite-official-uri-longpath`
+record **8 passed / 4 failed**: the short/extended-short cells pass, but all four
+physical-path-over-280 cells fail to open with `SQLITE_CANTOPEN`. This is not a
+solution that preserves long-path capability; it is isolated diagnostic code,
+not a product path policy or a claim of UNC/network I/O support.
+
+At the same code SHA, Linux quality, PR tests (**1,356 passed / 4 Windows-only
+skipped**), packed CLI E2E (**18 passed**), packed install smoke and all five
+package publish dry runs pass (jobs 117940579158, 117940579156 and 117940579246).
+Local macOS full tests pass **1,475 / 4 Windows-only skipped**; packed E2E and
+install smoke also pass. In a disposable checkout, SDK/CLI resolved the candidate
+package's own type declarations and the full repository typecheck passed. That
+checkout was removed; the real worktree dependency and lockfile remain unchanged.
+Linux/macOS evidence never substitutes for Windows acceptance.
+
 ## Recommendation and remaining product decision
 
 Recommend an **exact** `npm:@appthreat/sqlite3@7.0.1` alias in SDK and CLI, subject
@@ -156,8 +194,9 @@ archive reopen/update and the required FTS/error/transaction behavior, not every
 SQLite feature a custom host might use. Do not use a caret: 7.0.2 reintroduces the
 UNC defect. Historical versions are not promised security-maintained branches.
 
-Exact official sqlite3 5.1.7 is a tested fallback with the same passing workflow,
-but downgrades the engine further to 3.44.2. Latest AppThreat 9.x would solve the
+Exact official sqlite3 5.1.7 passed earlier workflows but has the unresolved
+startup timeout above and downgrades the engine further to 3.44.2; it is not the
+recommended delivery path. Latest AppThreat 9.x would solve the
 native defect with a current SQLite, but raises Node to >=24 and is therefore
 outside the approved compatibility boundary. No dependency switch has been
 made by these diagnostic jobs. A product-default final-HEAD run remains required
