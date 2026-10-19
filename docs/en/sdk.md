@@ -58,6 +58,13 @@ exit codes, and JSON/JSONL rendering belong to `wiki-graph`.
 
 ## Concurrent archive access
 
+Short-lived database/document contexts are released when their resources close,
+including Node's async-hooks tracking. Custom `HostAsyncContext` providers may
+implement the optional synchronous `disable()` hook for equivalent cleanup;
+existing providers without the hook remain compatible. The default Node provider
+already implements it. Hosts must give each created context independent ownership
+and must not invalidate other live contexts when disabling one.
+
 An SDK instance can be called concurrently. Same-archive callbacks may be queued;
 cross-process sessions coordinate through the shared Home state. A ZIP reader
 retains its mutation-token generation until it closes. If another session finishes

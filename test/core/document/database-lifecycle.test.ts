@@ -11,6 +11,7 @@ import { openSearchIndexDatabase } from "../../../packages/core/src/document/dir
 import type { DocumentFileStore } from "../../../packages/core/src/document/directory/types.js";
 import {
   installWikiGraphPlatform,
+  type HostAsyncContext,
   type HostDatabaseConnection,
 } from "../../../packages/core/src/runtime/platform/index.js";
 import { withTempDir } from "../../helpers/temp.js";
@@ -18,6 +19,221 @@ import { withTempDir } from "../../helpers/temp.js";
 afterEach(() => installWikiGraphPlatform(nodeWikiGraphPlatform));
 
 describe("database lifecycle", () => {
+  it("disables short-lived transaction contexts instead of accumulating enabled async hooks", async () => {
+    const active = new Set<object>();
+    const created: Array<{ disabled: number }> = [];
+    installWikiGraphPlatform({
+      ...nodeWikiGraphPlatform,
+      asyncContext: {
+        create<T>(): HostAsyncContext<T> {
+          const native = nodeWikiGraphPlatform.asyncContext.create<T>();
+          const record = { disabled: 0 };
+          created.push(record);
+          return {
+            getStore: () => native.getStore(),
+            enterWith: (store) => {
+              active.add(record);
+              native.enterWith(store);
+            },
+            run: (store, operation) => {
+              active.add(record);
+              return native.run(store, operation);
+            },
+            disable: () => {
+              record.disabled++;
+              active.delete(record);
+              native.disable?.();
+            },
+          };
+        },
+      },
+    });
+    // No wall-clock threshold or forced GC: enabled context count is the
+    // invariant, including on runtimes with a faster ALS implementation.
+    for (let index = 0; index < 100; index++) {
+      const database = new Database({
+        close: () => Promise.resolve(),
+        execute: () => Promise.resolve(),
+        queryAll: () => Promise.resolve([]),
+        queryOne: () => Promise.resolve(undefined),
+        run: () => Promise.resolve(),
+      });
+      await database.transaction(async () => {
+        expect(active.size).toBe(1);
+        await database.run("INSERT");
+      });
+      await database.close();
+      await database.close();
+      expect(active.size).toBe(0);
+    }
+    expect(created).toHaveLength(100);
+    expect(created.every((record) => record.disabled === 1)).toBe(true);
+  });
+
+  it("does not disable a connection's context until a failed native close can be retried", async () => {
+    const disable = vi.fn();
+    installWikiGraphPlatform({
+      ...nodeWikiGraphPlatform,
+      asyncContext: {
+        create<T>(): HostAsyncContext<T> {
+          const native = nodeWikiGraphPlatform.asyncContext.create<T>();
+          return {
+            getStore: () => native.getStore(),
+            enterWith: (store) => native.enterWith(store),
+            run: (store, operation) => native.run(store, operation),
+            disable: () => {
+              disable();
+              native.disable?.();
+            },
+          };
+        },
+      },
+    });
+    const close = vi
+      .fn()
+      .mockRejectedValueOnce(new Error("close failed"))
+      .mockResolvedValue(undefined);
+    const database = new Database({
+      close,
+      execute: () => Promise.resolve(),
+      queryAll: () => Promise.resolve([]),
+      queryOne: () => Promise.resolve(undefined),
+      run: () => Promise.resolve(),
+    });
+    await database.transaction(async () => {
+      await database.run("INSERT");
+    });
+    await expect(database.close()).rejects.toThrow("close failed");
+    expect(disable).not.toHaveBeenCalled();
+    await database.transaction(async () => {
+      await database.run("INSERT");
+    });
+    await database.close();
+    expect(disable).toHaveBeenCalledOnce();
+  });
+
+  it("keeps older host contexts without disable compatible", async () => {
+    installWikiGraphPlatform({
+      ...nodeWikiGraphPlatform,
+      asyncContext: {
+        create<T>(): HostAsyncContext<T> {
+          const native = nodeWikiGraphPlatform.asyncContext.create<T>();
+          // The old host contract has no disposal hook. The host owns its
+          // implementation; this test releases its own native tracker explicitly.
+          cleanups.push(() => native.disable?.());
+          return {
+            getStore: () => native.getStore(),
+            enterWith: (store) => native.enterWith(store),
+            run: (store, operation) => native.run(store, operation),
+          };
+        },
+      },
+    });
+    const cleanups: Array<() => void> = [];
+    try {
+      const database = new Database({
+        close: () => Promise.resolve(),
+        execute: () => Promise.resolve(),
+        queryAll: () => Promise.resolve([]),
+        queryOne: () => Promise.resolve(undefined),
+        run: () => Promise.resolve(),
+      });
+      await database.transaction(async () => {
+        await database.run("INSERT");
+      });
+      await database.close();
+    } finally {
+      for (const cleanup of cleanups) cleanup();
+    }
+  });
+
+  it.each([false, true])(
+    "releases document contexts even if store close fails (%s)",
+    async (failClose) => {
+      const disabled: Array<boolean> = [];
+      installWikiGraphPlatform({
+        ...nodeWikiGraphPlatform,
+        asyncContext: {
+          create<T>(): HostAsyncContext<T> {
+            const native = nodeWikiGraphPlatform.asyncContext.create<T>();
+            const index = disabled.push(false) - 1;
+            return {
+              run: (store, operation) => native.run(store, operation),
+              enterWith: (store) => native.enterWith(store),
+              getStore: () => native.getStore(),
+              disable: () => {
+                disabled[index] = true;
+                native.disable?.();
+              },
+            };
+          },
+        },
+      });
+      await withTempDir("wg-document-context-", async (root) => {
+        const store = new DirectoryFileStore(new NodeDirectory(root));
+        if (failClose)
+          vi.spyOn(store, "close").mockRejectedValue(
+            new Error("store close failed"),
+          );
+        const document = await DirectoryDocument.openFileStore(store);
+        await document.openSession(async (opened) => {
+          await opened.serials.listIds();
+        });
+        if (failClose)
+          await expect(document.release()).rejects.toThrow(
+            "store close failed",
+          );
+        else await document.release();
+        expect(disabled.length).toBeGreaterThanOrEqual(2);
+        expect(disabled.every(Boolean)).toBe(true);
+      });
+    },
+  );
+
+  it("closing one context does not destroy another database's nested transaction scope", async () => {
+    const backend = () => ({
+      close: () => Promise.resolve(),
+      execute: () => Promise.resolve(),
+      queryAll: () => Promise.resolve([]),
+      queryOne: () => Promise.resolve(undefined),
+      run: () => Promise.resolve(),
+    });
+    const first = new Database(backend());
+    const second = new Database(backend());
+    try {
+      await first.transaction(async () => {
+        await second.transaction(async () => {
+          await first.run("nested write");
+        });
+        await second.close();
+        await first.transaction(async () => {
+          await first.run("still nested");
+        });
+      });
+    } finally {
+      await first.close();
+      await second.close();
+    }
+  }, 2_000);
+  it("retains reentrant admission until a callback that closes its database exits", async () => {
+    const database = new Database({
+      close: () => Promise.resolve(),
+      execute: () => Promise.resolve(),
+      queryAll: () => Promise.resolve([]),
+      queryOne: () => Promise.resolve(undefined),
+      run: () => Promise.resolve(),
+    });
+    await database.transaction(async () => {
+      await database.close();
+      // Without deferring context disposal, this queued behind its own parent
+      // transaction forever instead of reaching the existing closed guard.
+      await expect(database.run("after close")).rejects.toThrow(
+        "Database is already closed",
+      );
+    });
+    await database.close();
+  }, 2_000);
+
   it.each([true, false])(
     "does not delete a damaged cache while opening (readonly=%s)",
     async (readonly) => {

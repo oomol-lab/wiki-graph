@@ -54,7 +54,8 @@
     "vitest.config.ts",
     "vitest.pr.config.ts",
     "vitest.e2e.config.ts",
-    "vitest.windows.config.ts"
+    "vitest.windows.config.ts",
+    "vitest.linux-workflows.config.ts"
   ],
   "exclude": ["packages/*/dist", "dist", "coverage", "node_modules"]
 }

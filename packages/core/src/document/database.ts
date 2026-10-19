@@ -217,6 +217,7 @@ export class Database {
         this.#transactionDepth -= 1;
         if (isRootTransaction) {
           this.#activeTransactionScope = undefined;
+          if (this.#closed) this.#operationScope.disable?.();
         }
       }
     });
@@ -236,6 +237,13 @@ export class Database {
 
       await this.#closeDatabase();
       this.#closed = true;
+      // Node's async_hooks implementation retains each enabled ALS instance
+      // until disable(). Short-lived coordinator connections otherwise make
+      // every subsequent Promise progressively more expensive on Node 22.
+      // A close requested from inside a transaction must keep the reentrant
+      // scope until its callback exits, so later calls fail as closed instead
+      // of queuing behind that same callback and deadlocking.
+      if (this.#transactionDepth === 0) this.#operationScope.disable?.();
     });
   }
 
