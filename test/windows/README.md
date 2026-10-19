@@ -21,6 +21,7 @@ the individual case names and the final pass/skip counts.
 | Active read snapshot across a writer commit; killed writer with pending transaction; fresh-process recovery and continued writes | `wal-recovery.test.ts`: ordinary, extended drive and >260-character paths, asserted WAL mode, data, integrity and sidecar cleanup                     |
 | Ordinary/extended drive and UNC/extended UNC conversion                                                                          | `path-contract.test.ts`: filesystem-boundary probes only, no SMB I/O                                                                                  |
 | Archive session/lease recovery, replacement waits for readers                                                                    | Full `archive-coordination.test.ts` and SDK delivery suite                                                                                            |
+| Reading/drained/completed owner phases, admission fence, old coordinator state, concurrent close and dead-settler recovery       | `settlement-coordination.test.ts`, `archive-coordination.test.ts` and SDK export/drain test                                                           |
 
 The SDK workflow invokes the public source SDK through `tsx` in independent
 processes. It is an SDK end-to-end workflow, **not a packed CLI acceptance test**.

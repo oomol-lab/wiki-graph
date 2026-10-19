@@ -62,11 +62,15 @@ FROM entry_overlays AS overlay
 LEFT JOIN archive_owners AS publishing_owner
   ON publishing_owner.archive_key = overlay.archive_key
  AND publishing_owner.owner_id = overlay.owner_id
+LEFT JOIN archive_settlements AS settlement
+  ON settlement.archive_key = overlay.archive_key
+ AND settlement.owner_id = overlay.owner_id
 WHERE overlay.archive_key = ?
   AND overlay.entry_path IN (${createPlaceholders(paths.length)})
   AND (
     overlay.owner_id = ?
     OR publishing_owner.owner_id IS NULL
+    OR settlement.completed = 1
   )
 ORDER BY overlay.entry_path
 `,
@@ -87,7 +91,11 @@ FROM entry_overlays AS overlay
 LEFT JOIN archive_owners AS owner
   ON owner.archive_key = overlay.archive_key
  AND owner.owner_id = overlay.owner_id
-WHERE overlay.archive_key = ? AND owner.owner_id IS NULL
+LEFT JOIN archive_settlements AS settlement
+  ON settlement.archive_key = overlay.archive_key
+ AND settlement.owner_id = overlay.owner_id
+WHERE overlay.archive_key = ?
+  AND (owner.owner_id IS NULL OR settlement.completed = 1)
 `,
       [archiveKey],
       mapEntryOverlay,

@@ -4,6 +4,7 @@ import type {
   File,
   ReadonlyFile,
 } from "../../../runtime/platform/index.js";
+import { copyFileContent } from "../../../runtime/platform/index.js";
 import { createPortableHash } from "../../../utils/crypto.js";
 
 import {
@@ -20,9 +21,31 @@ import {
   waitForOtherArchiveOwnersToDrain,
 } from "./owners.js";
 import { OWNER_HEARTBEAT_INTERVAL_MS } from "./constants.js";
+import { writeWikgArchive } from "../archive/write.js";
 
 /** Coordinates archive access without observing the host File implementation. */
 export class WikgCoordinator {
+  /** Export only after pending logical writes are settled into a coherent file. */
+  public async exportArchive(
+    archive: File | Directory,
+    output: File,
+  ): Promise<void> {
+    if (archive.identity === output.identity) {
+      throw new Error("Archive export target must differ from its source.");
+    }
+    if (archive.kind === "directory") {
+      // Directory sessions already take the directory transaction/recovery lock.
+      await this.withArchiveSession(
+        archive,
+        async () => await writeWikgArchive(archive, output),
+      );
+    } else {
+      await this.withExclusiveArchiveReplacement(
+        archive,
+        async () => await copyFileContent(archive, output),
+      );
+    }
+  }
   public createFileStore(
     _archive: ReadonlyFile | Directory,
     options: {

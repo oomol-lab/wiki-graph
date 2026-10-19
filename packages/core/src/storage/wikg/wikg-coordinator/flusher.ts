@@ -44,13 +44,13 @@ export async function reapArchive(
   archiveKey: string,
   owner: CoordinatorOwner,
   archive: File | Directory,
-): Promise<void> {
+): Promise<Uint8Array | undefined> {
   await withCoordinatorState(async (database) => {
     await cleanupStaleState(database, archiveKey);
   });
   const orphanPaths = await listOrphanOverlayPaths(archiveKey);
   if (orphanPaths.size > 0) {
-    await flushArchiveOverlays(archiveKey, owner, orphanPaths, archive);
+    return await flushArchiveOverlays(archiveKey, owner, orphanPaths, archive);
   }
 }
 
@@ -73,6 +73,10 @@ export async function flushArchiveOverlays(
     ...new Set(candidates.map((item) => item.entryPath)),
   ].sort((left, right) => left.localeCompare(right));
   const releases: Array<() => Promise<void>> = [];
+  // Fence admission before taking entry locks. An active reader may itself be
+  // waiting on this operation, so drain means defer, never wait while locked.
+  const releaseCommit = await acquireArchiveCommitLock(archiveKey, owner);
+  if (releaseCommit === undefined) return undefined;
   try {
     for (const entryPath of entryPaths) {
       releases.push(
@@ -93,14 +97,13 @@ export async function flushArchiveOverlays(
     );
     if (overlays.length === 0) return undefined;
 
-    const releaseCommit = await acquireArchiveCommitLock(archiveKey, owner);
+    return await commitOverlays(archive, overlays);
+  } finally {
     try {
-      return await commitOverlays(archive, overlays);
+      for (const release of releases.reverse()) await release();
     } finally {
       await releaseCommit();
     }
-  } finally {
-    for (const release of releases.reverse()) await release();
   }
 }
 

@@ -6,6 +6,7 @@ export const windowsRegressionFiles = [
   "test/core/storage/wikg/opaque-file-adapter.test.ts",
   "test/core/storage/wikg/wiki-graph-archive-file.test.ts",
   "test/core/storage/wikg/archive-coordination.test.ts",
+  "test/core/storage/wikg/settlement-coordination.test.ts",
   "packages/sdk/src/full-regression/delivery.full-regression.test.ts",
 ];
 

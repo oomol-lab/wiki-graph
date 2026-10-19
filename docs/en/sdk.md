@@ -39,6 +39,18 @@ The SDK exposes typed methods and class instances. It intentionally does not
 provide `execute(command, args)`: argument parsing, help, terminal remediation,
 exit codes, and JSON/JSONL rendering belong to `wiki-graph`.
 
+## Concurrent archive access
+
+An SDK instance can be called concurrently. Same-archive callbacks may be queued;
+cross-process sessions coordinate through the shared Home state. A ZIP reader
+retains its mutation-token generation until it closes. If another session finishes
+a logical write while that reader remains active, its published overlay stays in
+coordinator state; the last drained session or a later writable session settles it
+into the ZIP. Do not delete coordinator buffers or copy the physical ZIP yourself
+while other sessions are active. `archive.export(otherPath)` drains standalone
+readers and settles pending writes before producing a coherent snapshot; its
+target must differ from the source. Do not mix workers from different releases.
+
 ## Wikipedia request isolation and cancellation
 
 `archive.page("wikg://entity/Q42/wikipage", { signal })` and

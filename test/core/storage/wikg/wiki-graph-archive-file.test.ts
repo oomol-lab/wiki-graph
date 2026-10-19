@@ -621,6 +621,28 @@ describe("wikg/wiki-graph-archive-file", () => {
     },
   );
 
+  it("does not publish a deferred overlay's search cache under the pinned old token", async () => {
+    await withArchiveFixture(async ({ archive }) => {
+      await withHostArchiveSession(archive, async (reader) => {
+        const originalKey = reader.searchCacheIdentity;
+        await withHostArchiveSession(archive, async (writer) => {
+          const cache = await writer.materializeSearchIndexCache({
+            createIfMissing: true,
+          });
+          await createLargeSearchDatabase(cache);
+          writer.markSearchIndexCacheDirty(cache);
+          await writer.writeEntry("toc.json", '{"version":1,"items":[]}', {
+            overwrite: true,
+          });
+        });
+        expect(reader.searchCacheIdentity).toBe(originalKey);
+        await expect(
+          reader.materializeSearchIndexCache({ createIfMissing: false }),
+        ).rejects.toThrow("Archive SQLite entry is missing");
+      });
+    });
+  });
+
   it("copies a persistent search cache through bounded file reads", async () => {
     await withArchiveFixture(async ({ archive }) => {
       let sourceSize = 0;

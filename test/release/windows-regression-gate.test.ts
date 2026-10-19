@@ -9,6 +9,7 @@ const files = [
   "opaque-file-adapter.test.ts",
   "wiki-graph-archive-file.test.ts",
   "archive-coordination.test.ts",
+  "settlement-coordination.test.ts",
   "delivery.full-regression.test.ts",
   "sdk-workflow.test.ts",
   "wal-recovery.test.ts",
@@ -35,7 +36,7 @@ describe("Windows acceptance report gate", () => {
           report,
           JSON.stringify({
             success: true,
-            numPassedTests: 8,
+            numPassedTests: files.length,
             numPendingTests: 0,
             numTodoTests: 0,
             testResults,

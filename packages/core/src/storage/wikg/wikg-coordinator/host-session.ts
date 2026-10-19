@@ -39,6 +39,7 @@ import {
 import {
   createCoordinatorOwner,
   heartbeatArchiveOwner,
+  markArchiveSettlement,
   registerArchiveOwner,
   unregisterArchiveOwner,
 } from "./owners.js";
@@ -164,8 +165,6 @@ export class HostWikgArchiveSession {
   public static async open(
     archive: ReadonlyFile | Directory,
   ): Promise<HostWikgArchiveSession> {
-    const validationReader = await WikgArchiveReader.open(archive);
-    await validationReader.close();
     const archiveKey = createPortableHash("sha256")
       .update(archive.identity)
       .digest("hex");
@@ -173,6 +172,11 @@ export class HostWikgArchiveSession {
     await registerArchiveOwner(archiveKey, owner);
     let reader: WikgArchiveReader | undefined;
     try {
+      // Owner registration is the reader intent and shares the commit fence.
+      // Even validation must not open a native handle before admission.
+      reader = await WikgArchiveReader.open(archive);
+      await reader.close();
+      reader = undefined;
       if (isWritableFile(archive)) {
         await reapArchive(archiveKey, owner, archive);
       }
@@ -628,9 +632,9 @@ export class HostWikgArchiveSession {
   public async close(): Promise<void> {
     if (this.#closed) return;
     this.#closed = true;
-    globalThis.clearInterval(this.#heartbeat);
     const failures: unknown[] = [];
     let archiveReaderClosed = true;
+    let leasesReleased = false;
     // Release the archive reader before settlement can rewrite the archive.
     // On Windows, replacing a path while this handle is still open can fail
     // with EPERM even though the logical archive owner has not been released.
@@ -643,6 +647,10 @@ export class HostWikgArchiveSession {
     try {
       for (const entryPath of [...this.#leasedEntryPaths]) {
         await this.releaseDatabaseLease(entryPath);
+      }
+      leasesReleased = true;
+      if (archiveReaderClosed) {
+        await markArchiveSettlement(this.#archiveKey, this.#owner.ownerId);
       }
       if (!this.#writable) {
         for (const entryPath of this.#materializedEntryPaths) {
@@ -677,6 +685,17 @@ export class HostWikgArchiveSession {
           }
         }
         await reapArchive(this.#archiveKey, this.#owner, writableArchive);
+        // A cache built over deferred logical overlays cannot be published
+        // under the unchanged physical archive's mutation token.
+        if (this.#searchCacheDirty) {
+          for (const overlay of await listOverlays(this.#archiveKey)) {
+            if (await isDirtyOverlay(overlay)) {
+              this.#searchCacheDirty = false;
+              this.#searchCacheDelete = true;
+              break;
+            }
+          }
+        }
         await this.#settleSearchIndexCache();
         for (const entryPath of this.#materializedEntryPaths) {
           const overlay = await readOverlay(this.#archiveKey, entryPath);
@@ -700,11 +719,33 @@ export class HostWikgArchiveSession {
     } catch (error) {
       failures.push(error);
     }
-    if (archiveReaderClosed) {
+    if (archiveReaderClosed && leasesReleased) {
       try {
-        await unregisterArchiveOwner(this.#archiveKey, this.#owner.ownerId);
+        if (failures.length === 0 && !this.#aborted) {
+          // Completing the logical operation makes deferred overlays eligible
+          // for other settlers, even before this owner unregisters. Otherwise
+          // two simultaneous closers can both miss the other's last obligation.
+          await markArchiveSettlement(
+            this.#archiveKey,
+            this.#owner.ownerId,
+            true,
+          );
+          if (this.#writable) {
+            await reapArchive(
+              this.#archiveKey,
+              this.#owner,
+              requireWritableFile(this.#archive),
+            );
+          }
+        }
       } catch (error) {
         failures.push(error);
+      } finally {
+        try {
+          await unregisterArchiveOwner(this.#archiveKey, this.#owner.ownerId);
+        } catch (error) {
+          failures.push(error);
+        }
       }
     } else {
       // Keep the owner visible to replacements until the stale-owner reaper can
@@ -712,10 +753,11 @@ export class HostWikgArchiveSession {
       // still-open Windows file handle to a physical replacement.
       failures.push(
         new Error(
-          "Archive owner was retained because its reader could not be closed.",
+          "Archive owner was retained because its reader or leases could not be closed.",
         ),
       );
     }
+    globalThis.clearInterval(this.#heartbeat);
     if (failures.length > 0) throw failures[0];
   }
 

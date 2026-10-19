@@ -34,6 +34,7 @@ const required = [
   "opaque-file-adapter.test.ts",
   "wiki-graph-archive-file.test.ts",
   "archive-coordination.test.ts",
+  "settlement-coordination.test.ts",
   "delivery.full-regression.test.ts",
   "sdk-workflow.test.ts",
   "wal-recovery.test.ts",

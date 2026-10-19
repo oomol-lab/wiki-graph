@@ -5,6 +5,10 @@ import { WikgCoordinator } from "../../packages/core/src/storage/wikg/coordinato
 import { createWorkspaceSnapshot } from "../../packages/core/src/storage/wikg/wikg-coordinator/workspace.js";
 import { createPortableHash } from "../../packages/core/src/utils/crypto.js";
 import {
+  getWikiGraphPlatform,
+  installWikiGraphPlatform,
+} from "../../packages/core/src/runtime/platform/index.js";
+import {
   installNodeWikiGraphPlatform,
   NodeFile,
 } from "../../packages/cli/src/runtime/node-platform.js";
@@ -19,6 +23,22 @@ if (
 }
 
 installNodeWikiGraphPlatform(stateRoot);
+if (action === "settle-crash") {
+  const platform = getWikiGraphPlatform();
+  installWikiGraphPlatform({
+    ...platform,
+    zip: {
+      ...platform.zip,
+      write: async () => {
+        // The owner is drained and holds the commit fence, but no target writer
+        // has opened yet. Killing here leaves a phase/lock/overlay to recover.
+        send({ type: "settling" });
+        await waitFor("crash");
+        process.exit(0);
+      },
+    },
+  });
+}
 const archive = new NodeFile(archivePath);
 const coordinator = new WikgCoordinator();
 
@@ -81,7 +101,7 @@ async function run(): Promise<void> {
   await coordinator.withArchiveSession(archive, async (session) => {
     send({ type: "ready" });
     await waitFor("write");
-    if (action === "meta") {
+    if (action === "meta" || action === "settle-crash") {
       await session.writeEntry(
         "cover/info.json",
         `${JSON.stringify({ title: "Written by metadata worker" })}\n`,

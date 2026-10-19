@@ -41,6 +41,7 @@ import {
 import {
   assertArchiveUpgradeCoordinatorSafe,
   clearArchiveUpgradeDerivedOverlays,
+  withArchiveZipProbe,
 } from "../wikg/wikg-coordinator/index.js";
 import { withStateLock } from "../../state-lock.js";
 import { WikiGraphSchemaVersionError } from "../../runtime/common/error.js";
@@ -88,16 +89,10 @@ export async function readWikiGraphArchiveSchemaVersion(
             const file = await archive.getFile(WIKG_MANIFEST_PATH);
             return file === undefined ? undefined : await readFileBytes(file);
           })()
-        : await (async () => {
-            const reader = await getWikiGraphPlatform().zip.open(archive, {
-              entryNameMode: "normalized",
-            });
-            try {
-              return await reader.readEntry(WIKG_MANIFEST_PATH);
-            } finally {
-              await reader.close();
-            }
-          })();
+        : await withArchiveZipProbe(
+            archive,
+            async (reader) => await reader.readEntry(WIKG_MANIFEST_PATH),
+          );
     if (manifest === undefined) {
       throw new Error(`Missing WIKG manifest: ${WIKG_MANIFEST_PATH}.`);
     }
