@@ -12,6 +12,42 @@ permissions:
   contents: read
 
 jobs:
+  native-sqlite-diagnostic:
+    name: Native SQLite ${{ matrix.variant }} (diagnostic only)
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: windows-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        variant: [prebuilt, source-control, source-patched]
+    env:
+      SQLITE_DIAGNOSTIC_VARIANT: ${{ matrix.variant }}
+      SQLITE_DIAGNOSTIC_ROUNDS: 25
+    steps:
+      - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Build isolated control binding
+        if: matrix.variant == 'source-control'
+        run: node scripts/build-diagnostic-sqlite.mjs control
+      - name: Build isolated patched binding
+        if: matrix.variant == 'source-patched'
+        run: node scripts/build-diagnostic-sqlite.mjs patched
+      - name: Native-only path, alias and process matrix
+        run: node scripts/diagnose-windows-sqlite.mjs
+      - name: Upload native matrix (including failures)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sqlite-native-${{ matrix.variant }}
+          path: test/.reports/sqlite-native.json
+          if-no-files-found: error
+
   quality:
     name: Code Quality
     runs-on: ubuntu-latest
