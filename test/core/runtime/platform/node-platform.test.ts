@@ -445,7 +445,7 @@ describe("Node File/Directory adapter", () => {
     await withTempDir("wikigraph-wal-long-path-", async (path) => {
       const root = new NodeDirectory(join(path, "a".repeat(210)));
       const file = await root.createFile("state.sqlite");
-      expect(file.path.length).toBeGreaterThan(260);
+      expect(join(root.path, "state.sqlite").length).toBeGreaterThan(260);
       const database = await nodeWikiGraphPlatform.database.open(file, {
         create: true,
         mode: "readwrite",
