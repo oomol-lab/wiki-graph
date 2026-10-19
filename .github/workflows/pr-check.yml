@@ -40,9 +40,20 @@ jobs:
       - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v5
         with:
-          node-version: ${{ matrix.node }}
+          node-version: 22
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      - name: Build and pack with repository tooling runtime
+        if: matrix.variant != 'appthreat-8'
+        run: |
+          pnpm build
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          node scripts/check-compatible-sqlite-consumer.mjs --pack
+      # pnpm 11 itself needs >=22.13; qualify consumers on the lower supported
+      # runtime only after packing. Consumer installation uses npm, not pnpm.
+      - uses: actions/setup-node@v5
+        with:
+          node-version: ${{ matrix.node }}
       - name: Install isolated published binding (no compiler fallback)
         run: node scripts/install-compatible-sqlite.mjs
       - name: Native-only matrix and capability/error probes
@@ -53,6 +64,16 @@ jobs:
         with:
           name: sqlite-compatible-${{ matrix.variant }}-${{ matrix.node }}
           path: test/.reports/sqlite-native.json
+          if-no-files-found: error
+      - name: Packed CJS/ESM consumer and real FTS worker on Node and Electron
+        if: matrix.variant != 'appthreat-8'
+        run: node scripts/check-compatible-sqlite-consumer.mjs
+      - name: Upload packed candidate evidence
+        if: always() && matrix.variant != 'appthreat-8'
+        uses: actions/upload-artifact@v4
+        with:
+          name: sqlite-consumer-${{ matrix.variant }}-${{ matrix.node }}
+          path: test/.reports/sqlite-consumer.json
           if-no-files-found: error
 
   native-sqlite-diagnostic:
