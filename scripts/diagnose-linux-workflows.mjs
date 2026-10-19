@@ -88,6 +88,7 @@ ${variant.endsWith("official") ? `{find: /^sqlite3(?:\\/lib\\/sqlite3\\.js)?$/, 
       "--config",
       "diagnostic.config.ts",
       ...fixtures.slice(0, 2),
+      "--testNamePattern=isolates a stalled wikipage|creates an EPUB archive",
       "--reporter=verbose",
     ],
     {

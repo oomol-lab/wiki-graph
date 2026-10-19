@@ -32,6 +32,7 @@ permissions:
 jobs:
   linux-workflows:
     name: Linux archive workflow regressions
+    if: github.event_name != 'workflow_dispatch' || !inputs.linuxComparison
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -75,6 +76,7 @@ jobs:
 
   packed-sqlite-consumer:
     name: Windows packed SDK Node ${{ matrix.node }} and Electron
+    if: github.event_name != 'workflow_dispatch' || !inputs.linuxComparison
     runs-on: windows-latest
     timeout-minutes: 25
     strategy:
@@ -279,6 +281,7 @@ jobs:
 
   quality:
     name: Code Quality
+    if: github.event_name != 'workflow_dispatch' || !inputs.linuxComparison
     runs-on: ubuntu-latest
 
     steps:
@@ -299,6 +302,7 @@ jobs:
 
   tests:
     name: Tests
+    if: github.event_name != 'workflow_dispatch' || !inputs.linuxComparison
     runs-on: ubuntu-latest
 
     steps:
@@ -319,6 +323,7 @@ jobs:
 
   windows-archive-coordination:
     name: Windows Archive Coordination
+    if: github.event_name != 'workflow_dispatch' || !inputs.linuxComparison
     runs-on: windows-latest
 
     steps:
@@ -353,6 +358,7 @@ jobs:
 
   package-readiness:
     name: End-to-End and Package Readiness
+    if: github.event_name != 'workflow_dispatch' || !inputs.linuxComparison
     runs-on: ubuntu-latest
 
     steps:
