@@ -1,3 +1,4 @@
+import { ProviderRuntime } from "wiki-graph-runtime";
 import { createCache } from "./files.js";
 import { normalizeGenerationInput } from "./generation.js";
 import {
@@ -70,6 +71,7 @@ export class LLM<S extends string> {
   readonly #requestLimiter: AsyncSemaphore;
   readonly #retryIntervalSeconds: number;
   readonly #retryTimes: number;
+  readonly #providerRuntime = new ProviderRuntime();
   readonly #sampling: SamplingScopeConfig<S> | undefined;
   readonly #stream: boolean;
   readonly #templateEnvironment: ReturnType<typeof createEnv>;
@@ -282,164 +284,149 @@ export class LLM<S extends string> {
       }
     }
 
-    let response: string | undefined;
+    let transportAttempts = 0;
+    let response: string;
     let tokenUsage: LLMTokenUsage | undefined;
-    let lastError: unknown;
-
-    for (let attempt = 0; attempt <= this.#retryTimes; attempt += 1) {
-      try {
-        response = await this.#requestLimiter.use(async () => {
-          if (this.#streamProvider !== undefined) {
-            const textChunks: string[] = [];
-            input.signal?.throwIfAborted();
-            const iterator = this.#streamProvider
-              .stream(input.messages, {
-                ...(input.signal === undefined ? {} : { signal: input.signal }),
-                ...(input.scope === undefined ? {} : { scope: input.scope }),
-                ...(input.retryIndex === undefined
-                  ? {}
-                  : { retryIndex: input.retryIndex }),
-                ...(input.retryMax === undefined
-                  ? {}
-                  : { retryMax: input.retryMax }),
-                ...(resolvedTemperature === undefined
-                  ? {}
-                  : { temperature: resolvedTemperature }),
-                ...(resolvedTopP === undefined ? {} : { topP: resolvedTopP }),
-              })
-              [Symbol.asyncIterator]();
-            let completed = false;
-            try {
-              while (true) {
-                const result = await nextWithSignal(iterator, input.signal);
-                input.signal?.throwIfAborted();
-                if (result.done) {
-                  completed = true;
-                  break;
+    try {
+      response = await this.#providerRuntime.run(
+        async (signal) =>
+          await this.#requestLimiter.use(async () => {
+            if (this.#streamProvider !== undefined) {
+              const textChunks: string[] = [];
+              signal?.throwIfAborted();
+              const iterator = this.#streamProvider
+                .stream(input.messages, {
+                  ...(signal === undefined ? {} : { signal: signal }),
+                  ...(input.scope === undefined ? {} : { scope: input.scope }),
+                  ...(input.retryIndex === undefined
+                    ? {}
+                    : { retryIndex: input.retryIndex }),
+                  ...(input.retryMax === undefined
+                    ? {}
+                    : { retryMax: input.retryMax }),
+                  ...(resolvedTemperature === undefined
+                    ? {}
+                    : { temperature: resolvedTemperature }),
+                  ...(resolvedTopP === undefined ? {} : { topP: resolvedTopP }),
+                })
+                [Symbol.asyncIterator]();
+              let completed = false;
+              try {
+                while (true) {
+                  const result = await nextWithSignal(iterator, signal);
+                  signal?.throwIfAborted();
+                  if (result.done) {
+                    completed = true;
+                    break;
+                  }
+                  const event = result.value;
+                  if (event.type === "text-delta") {
+                    textChunks.push(event.text);
+                    await this.#emitStreamProgress(event.text.length);
+                  } else {
+                    tokenUsage = event.usage;
+                    await this.#emitTokenUsage(event.usage);
+                  }
                 }
-                const event = result.value;
-                if (event.type === "text-delta") {
-                  textChunks.push(event.text);
-                  await this.#emitStreamProgress(event.text.length);
-                } else {
-                  tokenUsage = event.usage;
-                  await this.#emitTokenUsage(event.usage);
-                }
+              } finally {
+                if (!completed) closeIteratorWithoutWaiting(iterator);
               }
-            } finally {
-              if (!completed) closeIteratorWithoutWaiting(iterator);
+              signal?.throwIfAborted();
+              return textChunks.join("");
             }
-            input.signal?.throwIfAborted();
-            return textChunks.join("");
-          }
 
-          const generationInput: {
-            abortSignal?: AbortSignal;
-            maxRetries: number;
-            messages: ModelMessage[];
-            model: LanguageModel;
-            system?: string | SystemModelMessage | SystemModelMessage[];
-            temperature?: number;
-            timeout?: number;
-            topP?: number;
-          } = normalizeGenerationInput({
-            maxRetries: 0,
-            messages: [...input.messages],
-            model: this.#model!,
-            timeout: this.#timeoutMs,
-          });
-
-          if (input.signal !== undefined) {
-            generationInput.abortSignal = input.signal;
-          }
-
-          if (resolvedTemperature !== undefined) {
-            generationInput.temperature = resolvedTemperature;
-          }
-
-          if (resolvedTopP !== undefined) {
-            generationInput.topP = resolvedTopP;
-          }
-
-          if (this.#stream) {
-            const textChunks: string[] = [];
-            let streamError: unknown;
-            const result = streamText({
-              ...generationInput,
-              onError: ({ error }) => {
-                streamError = error;
-              },
+            const generationInput: {
+              abortSignal?: AbortSignal;
+              maxRetries: number;
+              messages: ModelMessage[];
+              model: LanguageModel;
+              system?: string | SystemModelMessage | SystemModelMessage[];
+              temperature?: number;
+              timeout?: number;
+              topP?: number;
+            } = normalizeGenerationInput({
+              maxRetries: 0,
+              messages: [...input.messages],
+              model: this.#model!,
+              timeout: this.#timeoutMs,
             });
 
-            for await (const chunk of result.textStream) {
-              textChunks.push(chunk);
-              await this.#emitStreamProgress(chunk.length);
+            if (signal !== undefined) {
+              generationInput.abortSignal = signal;
             }
 
-            if (streamError !== undefined) {
-              throw streamError instanceof Error
-                ? streamError
-                : new Error(formatError(streamError), { cause: streamError });
+            if (resolvedTemperature !== undefined) {
+              generationInput.temperature = resolvedTemperature;
             }
 
-            tokenUsage = toLLMTokenUsage(await result.totalUsage);
-            await this.#emitTokenUsage(tokenUsage);
-            return textChunks.join("");
-          } else {
-            const result = await generateText(generationInput);
+            if (resolvedTopP !== undefined) {
+              generationInput.topP = resolvedTopP;
+            }
 
-            tokenUsage = toLLMTokenUsage(result.usage);
-            await this.#emitStreamProgress(result.text.length);
-            await this.#emitTokenUsage(tokenUsage);
-            return result.text;
-          }
-        });
+            if (this.#stream) {
+              const textChunks: string[] = [];
+              let streamError: unknown;
+              const result = streamText({
+                ...generationInput,
+                onError: ({ error }) => {
+                  streamError = error;
+                },
+              });
 
-        await requestLog.append(`[[Response]]:\n${response}\n\n`);
-        break;
-      } catch (error) {
-        lastError = error;
+              for await (const chunk of result.textStream) {
+                textChunks.push(chunk);
+                await this.#emitStreamProgress(chunk.length);
+              }
 
-        if (isPaymentRequiredError(error)) {
-          const paymentError = new LLMPaymentRequiredError(undefined, {
-            cause: error,
-          });
+              if (streamError !== undefined) {
+                throw streamError instanceof Error
+                  ? streamError
+                  : new Error(formatError(streamError), { cause: streamError });
+              }
 
-          await requestLog.append(
-            `[[Error]]:\n${formatError(paymentError)}\n\n`,
-          );
-          await requestLog.append(formatRequestResultLog(tokenUsage, error));
-          throw paymentError;
-        }
+              tokenUsage = toLLMTokenUsage(await result.totalUsage);
+              await this.#emitTokenUsage(tokenUsage);
+              return textChunks.join("");
+            } else {
+              const result = await generateText(generationInput);
 
-        if (!isRetryableError(error)) {
-          await requestLog.append(`[[Error]]:\n${formatError(error)}\n\n`);
-          await requestLog.append(formatRequestResultLog(tokenUsage, error));
-          throw error;
-        }
-
-        await requestLog.append(
-          `[[Warning]]:\nRequest failed with connection error, retrying... (${attempt + 1} times)\n\n`,
-        );
-
-        if (attempt < this.#retryTimes && this.#retryIntervalSeconds > 0) {
-          await delay(this.#retryIntervalSeconds * 1000, input.signal);
-        }
-      }
-    }
-
-    if (response === undefined) {
-      const failureMessage =
-        lastError === undefined
-          ? `LLM request failed after ${this.#retryTimes + 1} attempts`
-          : `LLM request failed after ${this.#retryTimes + 1} attempts: ${formatError(lastError)}`;
-
-      await requestLog.append(`[[Error]]:\n${failureMessage}\n\n`);
-      await requestLog.append(formatRequestResultLog(tokenUsage, lastError));
-
-      throw new Error(failureMessage, {
-        ...(lastError === undefined ? {} : { cause: lastError }),
-      });
+              tokenUsage = toLLMTokenUsage(result.usage);
+              await this.#emitStreamProgress(result.text.length);
+              await this.#emitTokenUsage(tokenUsage);
+              return result.text;
+            }
+          }),
+        {
+          ...(input.signal === undefined ? {} : { signal: input.signal }),
+          ...(input.deadline === undefined ? {} : { deadline: input.deadline }),
+          policy: {
+            retries: this.#retryTimes,
+            delayMs: this.#retryIntervalSeconds * 1000,
+            backoff: "fixed",
+            jitter: false,
+            totalTimeoutMs: this.#timeoutMs,
+            maxRetryWaitMs:
+              this.#retryTimes * this.#retryIntervalSeconds * 1000,
+          },
+          onEvent: (event) => {
+            transportAttempts = event.transportAttempt;
+          },
+          retryable: isRetryableError,
+        },
+      );
+      await requestLog.append(`[[Response]]:\n${response}\n\n`);
+    } catch (error) {
+      const failure = isPaymentRequiredError(error)
+        ? new LLMPaymentRequiredError(undefined, { cause: error })
+        : transportAttempts > this.#retryTimes && isRetryableError(error)
+          ? new Error(
+              `LLM request failed after ${transportAttempts} attempts: ${formatError(error)}`,
+              { cause: error },
+            )
+          : error;
+      await requestLog.append(`[[Error]]:\n${formatError(failure)}\n\n`);
+      await requestLog.append(formatRequestResultLog(tokenUsage, error));
+      throw failure;
     }
 
     if (cacheKey !== undefined && this.#cache !== undefined && useCache) {
@@ -535,25 +522,4 @@ function closeIteratorWithoutWaiting<T>(iterator: AsyncIterator<T>): void {
   } catch {
     return;
   }
-}
-
-async function delay(
-  milliseconds: number,
-  signal?: AbortSignal,
-): Promise<void> {
-  await new Promise<void>((resolve, reject) => {
-    if (signal?.aborted === true) {
-      reject(signal.reason);
-      return;
-    }
-    const timeout = globalThis.setTimeout(resolve, milliseconds);
-    signal?.addEventListener(
-      "abort",
-      () => {
-        globalThis.clearTimeout(timeout);
-        reject(signal.reason);
-      },
-      { once: true },
-    );
-  });
 }

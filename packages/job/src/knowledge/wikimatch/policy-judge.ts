@@ -1,3 +1,4 @@
+import { GuaranteedRequestFailureError } from "wiki-graph-runtime";
 import { z } from "zod";
 
 import {
@@ -69,7 +70,11 @@ export async function judgeWikimatchPolicy(
         : { maxRetries: options.maxRetries }),
     });
   } catch (error) {
-    if (isPaymentRequiredError(error)) throw error;
+    if (
+      isPaymentRequiredError(error) ||
+      !(error instanceof GuaranteedRequestFailureError)
+    )
+      throw error;
     return {
       continuations: [],
       fallback: {

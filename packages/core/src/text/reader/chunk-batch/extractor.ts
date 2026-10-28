@@ -233,8 +233,11 @@ export class ChunkExtractor<S extends string> {
             responseIntentClassifierPrompt: this.#llm.loadSystemPrompt(
               RESPONSE_INTENT_CLASSIFIER_PROMPT_TEMPLATE,
             ),
-            request: async (messages, index, maxRetries) =>
+            request: async (messages, index, maxRetries, execution) =>
               await context.request(messages, {
+                ...(execution?.deadline === undefined
+                  ? {}
+                  : { deadline: execution.deadline }),
                 retryIndex: index,
                 retryMax: maxRetries,
                 scope: this.#scopes.extraction,
@@ -362,8 +365,11 @@ export class ChunkExtractor<S extends string> {
       responseIntentClassifierPrompt: this.#llm.loadSystemPrompt(
         RESPONSE_INTENT_CLASSIFIER_PROMPT_TEMPLATE,
       ),
-      request: async (messages, index, maxRetries) =>
+      request: async (messages, index, maxRetries, execution) =>
         await this.#llm.request(messages, {
+          ...(execution?.deadline === undefined
+            ? {}
+            : { deadline: execution.deadline }),
           retryIndex: index,
           retryMax: maxRetries,
           scope: this.#scopes.extraction,

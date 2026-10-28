@@ -41,6 +41,9 @@ export function createLocalChapterJobFileExecutor(
       : {
           async request(messages, requestOptions) {
             return await coreLlm.request(messages, {
+              ...(requestOptions.deadline === undefined
+                ? {}
+                : { deadline: requestOptions.deadline }),
               ...(requestOptions.retryIndex === undefined
                 ? {}
                 : { retryIndex: requestOptions.retryIndex }),

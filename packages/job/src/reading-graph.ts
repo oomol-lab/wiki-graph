@@ -42,6 +42,9 @@ export async function* buildReadingGraphRecords(options: {
     type: "job-parameter",
   };
 
+  let acceptedExtractions = 0;
+  let fallbackExtractions = 0;
+  let firstFailure: unknown;
   let nextChunkId = 1;
   const reader = new Reader({
     attention: {
@@ -50,7 +53,15 @@ export async function* buildReadingGraphRecords(options: {
       idGenerator: () => Promise.resolve(nextChunkId++),
     },
     extractionGuidance: extractionPrompt,
-    llm: createReadingLlm(options),
+    llm: createReadingLlm({
+      ...options,
+      onOutcome: (outcome, error) => {
+        if (outcome === "accepted") acceptedExtractions++;
+        else {
+          if (fallbackExtractions++ === 0) firstFailure = error;
+        }
+      },
+    }),
     scopes: {
       choice: JOB_LLM_SCOPES.readingGraphEvidenceChoice,
       extraction: JOB_LLM_SCOPES.readingGraphExtraction,
@@ -105,6 +116,11 @@ export async function* buildReadingGraphRecords(options: {
     });
   }
 
+  if (fallbackExtractions > 0 && acceptedExtractions === 0) {
+    throw new Error("All Reading Graph extractions failed validation", {
+      cause: firstFailure,
+    });
+  }
   const result = await topology.finalize();
   for (const chunk of result.chunks) {
     yield {

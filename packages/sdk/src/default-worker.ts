@@ -282,8 +282,15 @@ async function openJobExecutor(
           messages: readonly LLMessage[],
           index: number,
           maxRetries: number,
+          execution?: {
+            readonly deadline?: number;
+            readonly signal?: AbortSignal;
+          },
         ) =>
           await llm.request(messages, {
+            ...(execution?.deadline === undefined
+              ? {}
+              : { deadline: execution.deadline }),
             retryIndex: index,
             retryMax: maxRetries,
             scope: WikiGraphScope.ReaderExtraction,

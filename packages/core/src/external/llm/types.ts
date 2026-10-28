@@ -21,6 +21,7 @@ export interface LLMRequestOptions<S extends string> {
   readonly topP?: TemperatureSetting;
   readonly scope?: S;
   readonly useCache?: boolean;
+  readonly deadline?: number;
   readonly retryIndex?: number;
   readonly retryMax?: number;
 }

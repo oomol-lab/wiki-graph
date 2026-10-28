@@ -150,8 +150,16 @@ export class CompressionReviewer<S extends string> {
                 responseIntentClassifierPrompt: this.#llm.loadSystemPrompt(
                   RESPONSE_INTENT_CLASSIFIER_PROMPT_TEMPLATE,
                 ),
-                request: async (retryMessages, retryIndex, retryMax) =>
+                request: async (
+                  retryMessages,
+                  retryIndex,
+                  retryMax,
+                  execution,
+                ) =>
                   await request(retryMessages, {
+                    ...(execution?.deadline === undefined
+                      ? {}
+                      : { deadline: execution.deadline }),
                     retryIndex,
                     retryMax,
                     scope: this.#reviewScope,

@@ -5,6 +5,7 @@ export type GuaranteedRequest = (
   messages: readonly LLMessage[],
   index: number,
   maxRetries: number,
+  context?: { readonly deadline?: number; readonly signal?: AbortSignal },
 ) => Promise<string | undefined>;
 
 export type GuaranteedLazyRequest = <T>(
@@ -28,4 +29,7 @@ export interface GuaranteedRequestOptions<TData, TResult> {
   readonly messages: readonly LLMessage[];
   readonly parse: GuaranteedParser<TData, TResult>;
   readonly maxRetries?: number;
+  readonly signal?: AbortSignal;
+  readonly deadline?: number;
+  readonly timeoutMs?: number;
 }

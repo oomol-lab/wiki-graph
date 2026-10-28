@@ -213,15 +213,22 @@ function createGuaranteedRequest(options: {
   readonly progress?: JobProgressSink;
   readonly signal?: AbortSignal;
 }): GuaranteedRequestController {
-  return async (messages, retryIndex, retryMax) => {
+  return async (messages, retryIndex, retryMax, execution) => {
     const response = await options.llm.request(messages, {
+      ...(execution?.deadline === undefined
+        ? {}
+        : { deadline: execution.deadline }),
       retryIndex,
       retryMax,
       scope:
         messages[0]?.content === RESPONSE_INTENT_CLASSIFIER_PROMPT
           ? JOB_LLM_SCOPES.guaranteedResponseIntent
           : JOB_LLM_SCOPES.knowledgeGraph,
-      ...(options.signal === undefined ? {} : { signal: options.signal }),
+      signal: AbortSignal.any(
+        [options.signal, execution?.signal].filter(
+          (value): value is AbortSignal => value !== undefined,
+        ),
+      ),
       ...(options.progress?.addTokenUsage === undefined
         ? {}
         : {

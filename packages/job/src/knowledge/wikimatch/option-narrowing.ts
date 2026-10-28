@@ -1,3 +1,4 @@
+import { GuaranteedRequestFailureError } from "wiki-graph-runtime";
 import { z } from "zod";
 
 import {
@@ -103,7 +104,11 @@ async function requestNarrowedChunk(
         : { maxRetries: options.maxRetries }),
     });
   } catch (error) {
-    if (isPaymentRequiredError(error)) throw error;
+    if (
+      isPaymentRequiredError(error) ||
+      !(error instanceof GuaranteedRequestFailureError)
+    )
+      throw error;
     return {
       candidate: {
         ...options.candidate,

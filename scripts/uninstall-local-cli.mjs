@@ -20,6 +20,7 @@ execFileSync(
     "wiki-graph-sdk",
     "wiki-graph-core",
     "wiki-graph-job",
+    "wiki-graph-runtime",
     "wiki-graph-wikimedia",
   ],
   {

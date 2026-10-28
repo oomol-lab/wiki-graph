@@ -132,7 +132,11 @@ export async function executeChapterJobFile(
         break;
     }
   } catch (error) {
-    await options.workspace.remove(artifactFile.name);
+    try {
+      await options.workspace.remove(artifactFile.name);
+    } catch {
+      /* Preserve the execution failure. */
+    }
     throw error;
   }
   return { artifactFile, revision: options.revision };

@@ -15,6 +15,7 @@ export interface JobLlm {
   request(
     messages: readonly JobLlmMessage[],
     options: {
+      readonly deadline?: number;
       readonly retryIndex?: number;
       readonly retryMax?: number;
       readonly scope: string;

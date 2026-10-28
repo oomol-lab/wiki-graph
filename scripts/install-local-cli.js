@@ -6,6 +6,7 @@ import { pathToFileURL } from "url";
 
 const workspaceRoot = resolve(import.meta.dirname, "..");
 export const localCliPackageRoots = [
+  "runtime",
   "job",
   "wikimedia",
   "core",
