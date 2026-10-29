@@ -41,7 +41,8 @@
       "wiki-graph-sdk/wikispine": ["packages/sdk/src/wikispine.ts"],
       "wiki-graph-sdk/worker": ["packages/sdk/src/worker.ts"],
       "wiki-graph-job": ["packages/job/src/index.ts"],
-      "wiki-graph-wikimedia": ["packages/wikimedia/src/index.ts"]
+      "wiki-graph-wikimedia": ["packages/wikimedia/src/index.ts"],
+      "wiki-graph-runtime": ["packages/runtime/src/index.ts"]
     }
   },
   "include": [

@@ -261,6 +261,7 @@ export class SerialGeneration {
       await progressTracker?.advance(wordsCount);
     }
 
+    reader.assertUsable();
     await this.#writeSemaphore.use(async () => {
       await topology.finalize();
       await this.#serials.setTopologyReady(serialId);

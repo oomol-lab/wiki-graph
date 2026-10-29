@@ -49,7 +49,7 @@ function run(command, args, cwd = root, env = process.env, timeout = 600_000) {
 if (process.argv[2] === "--pack") {
   const overrides = {};
   let sdkTarball;
-  for (const name of ["job", "wikimedia", "core", "sdk"]) {
+  for (const name of ["runtime", "job", "wikimedia", "core", "sdk"]) {
     const packed = JSON.parse(
       run(
         "pnpm",

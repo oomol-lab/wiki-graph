@@ -1,0 +1,35 @@
+{
+  "name": "wiki-graph-runtime",
+  "version": "0.1.0",
+  "description": "Portable provider execution and recovery for Wiki Graph hosts.",
+  "license": "Apache-2.0",
+  "type": "module",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/oomol-lab/wiki-graph",
+    "directory": "packages/runtime"
+  },
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist",
+    "README.md",
+    "README_zh-CN.md"
+  ],
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs",
+      "default": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.portable.json --noEmit && node ../../scripts/check-package-portability.mjs src && rimraf dist && tsup --config tsup.config.ts && node ../../scripts/check-package-portability.mjs dist --artifact"
+  },
+  "dependencies": {
+    "jsonrepair": "^3.13.3",
+    "zod": "^4.3.6"
+  }
+}

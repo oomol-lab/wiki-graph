@@ -1,3 +1,4 @@
+import { GuaranteedRequestFailureError } from "wiki-graph-runtime";
 import { z } from "zod";
 
 import {
@@ -182,7 +183,7 @@ export async function discoverWikilinkRelations(
   }
 
   try {
-    return await requestGuaranteedJson({
+    const result = await requestGuaranteedJson({
       messages: buildRelationMessages(options),
       parse: (response) => parseRelationResponse(options, response),
       request: options.request,
@@ -193,7 +194,11 @@ export async function discoverWikilinkRelations(
         ? {}
         : { maxRetries: options.maxRetries }),
     });
-  } catch {
+    options.request.quality?.record("relations", "accepted");
+    return result;
+  } catch (error) {
+    if (!(error instanceof GuaranteedRequestFailureError)) throw error;
+    options.request.quality?.record("relations", "fallback", error);
     return [];
   }
 }

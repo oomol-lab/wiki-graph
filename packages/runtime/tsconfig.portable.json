@@ -1,0 +1,5 @@
+{
+  "extends": "../../tsconfig.portable.json",
+  "include": ["src/**/*.ts"],
+  "exclude": ["src/**/*.test.ts", "dist", "node_modules"]
+}

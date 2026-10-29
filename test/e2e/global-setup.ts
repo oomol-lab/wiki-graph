@@ -24,6 +24,7 @@ export default function setup({
     const installRoot = join(suiteRoot, "install");
     const bootstrapRoot = join(suiteRoot, "bootstrap");
     const packageRoots = {
+      "wiki-graph-runtime": join(projectRoot, "packages", "runtime"),
       "wiki-graph-core": join(projectRoot, "packages", "core"),
       "wiki-graph-job": join(projectRoot, "packages", "job"),
       "wiki-graph-sdk": join(projectRoot, "packages", "sdk"),

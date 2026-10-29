@@ -16,8 +16,14 @@ export async function requestJobJson<T>(options: {
   return await requestGuaranteedJson({
     messages: options.messages,
     parse: (data) => data,
-    request: async (messages, retryIndex, retryMax) =>
+    request: async (messages, retryIndex, retryMax, execution) =>
       await options.llm.request(messages, {
+        ...(execution?.candidate === undefined
+          ? {}
+          : { candidate: execution.candidate }),
+        ...(execution?.deadline === undefined
+          ? {}
+          : { deadline: execution.deadline }),
         retryIndex,
         retryMax,
         scope: options.scope,

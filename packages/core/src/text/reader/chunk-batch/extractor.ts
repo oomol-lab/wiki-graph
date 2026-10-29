@@ -72,6 +72,7 @@ const TRANSLATED_CHUNKS_SCHEMA = z.array(TRANSLATED_CHUNK_SCHEMA);
 const MAX_TRANSLATION_RETRIES = 3;
 
 export class ChunkExtractor<S extends string> {
+  readonly #quality: ChunkBatchOptions<S>["quality"];
   readonly #extractionGuidance: string;
   readonly #llm: LLM<S>;
   readonly #scopes: ChunkBatchOptions<S>["scopes"];
@@ -79,6 +80,7 @@ export class ChunkExtractor<S extends string> {
   readonly #userLanguage: Language | undefined;
 
   public constructor(options: ChunkBatchOptions<S>) {
+    this.#quality = options.quality;
     this.#extractionGuidance = options.extractionGuidance;
     this.#llm = options.llm;
     this.#scopes = options.scopes;
@@ -233,20 +235,28 @@ export class ChunkExtractor<S extends string> {
             responseIntentClassifierPrompt: this.#llm.loadSystemPrompt(
               RESPONSE_INTENT_CLASSIFIER_PROMPT_TEMPLATE,
             ),
-            request: async (messages, index, maxRetries) =>
+            request: async (messages, index, maxRetries, execution) =>
               await context.request(messages, {
+                ...(execution?.candidate === undefined
+                  ? {}
+                  : { candidate: execution.candidate }),
+                ...(execution?.deadline === undefined
+                  ? {}
+                  : { deadline: execution.deadline }),
                 retryIndex: index,
                 retryMax: maxRetries,
                 scope: this.#scopes.extraction,
               }),
           });
 
+          this.#quality?.record("reading-extraction", "accepted");
           return {
             parser,
             result,
           };
         } catch (error) {
           if (isRecoverableChunkExtractionFailure(error)) {
+            this.#quality?.record("reading-extraction", "fallback", error);
             return {
               parser,
               result: {
@@ -362,8 +372,14 @@ export class ChunkExtractor<S extends string> {
       responseIntentClassifierPrompt: this.#llm.loadSystemPrompt(
         RESPONSE_INTENT_CLASSIFIER_PROMPT_TEMPLATE,
       ),
-      request: async (messages, index, maxRetries) =>
+      request: async (messages, index, maxRetries, execution) =>
         await this.#llm.request(messages, {
+          ...(execution?.candidate === undefined
+            ? {}
+            : { candidate: execution.candidate }),
+          ...(execution?.deadline === undefined
+            ? {}
+            : { deadline: execution.deadline }),
           retryIndex: index,
           retryMax: maxRetries,
           scope: this.#scopes.extraction,

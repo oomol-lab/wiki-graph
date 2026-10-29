@@ -1,3 +1,4 @@
+import { QualityGate, type QualityPolicy } from "wiki-graph-runtime";
 import type {
   ChapterJobArtifactRecord,
   JobFragmentGroupRecord,
@@ -24,6 +25,7 @@ import { compressText } from "./summary/editor/compression.js";
 import type { SnakeRecord, SummaryDocument } from "./summary/model.js";
 
 export async function* buildReadingSummaryRecords(options: {
+  readonly qualityPolicy?: QualityPolicy;
   readonly inputFile: JobFile;
   readonly language?: string;
   readonly llm: JobLlm;
@@ -31,6 +33,7 @@ export async function* buildReadingSummaryRecords(options: {
   readonly progress?: JobProgressSink;
   readonly signal?: AbortSignal;
 }): AsyncIterable<ChapterJobArtifactRecord> {
+  const quality = new QualityGate(options.qualityPolicy);
   const input = await SummaryInputDocument.read(options.inputFile);
   const language = options.language ?? input.jobOptions.language;
   const prompt = options.prompt ?? input.jobOptions.prompt;
@@ -54,7 +57,11 @@ export async function* buildReadingSummaryRecords(options: {
     return;
   }
 
-  const llm = createReadingLlm(options);
+  const llm = createReadingLlm({
+    ...options,
+    onOutcome: (outcome, error, stage) =>
+      quality.record(stage ?? "summary", outcome, error),
+  });
   const groupIds = [
     ...new Set(input.groups.map((group) => group.groupId)),
   ].sort((left, right) => left - right);
@@ -77,6 +84,7 @@ export async function* buildReadingSummaryRecords(options: {
       ...(prompt === undefined ? {} : { userPrompt: prompt }),
       ...(language === undefined ? {} : { userLanguage: language }),
     });
+    quality.assertUsable();
     if (summary.trim() !== "") {
       yield { position, text: summary.trim(), type: "summary-part" };
       position += 1;

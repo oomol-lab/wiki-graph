@@ -1,3 +1,5 @@
+import { CandidateAcceptance } from "wiki-graph-runtime";
+import { collectConcurrent } from "wiki-graph-runtime";
 import type { Language } from "../../runtime/common/language.js";
 import type { LLM } from "../../external/llm/index.js";
 import type {
@@ -138,101 +140,126 @@ class EditorOperation<S extends string> {
       originalText.length * this.#compressionRatio,
     );
     const versions: CompressionVersion[] = [];
-    const reviewerHistories = Object.create(null) as ReviewerHistories;
-    let previousCompressedText: string | undefined;
-    let revisionFeedback: string | undefined;
+    const candidates = new Map<number, CandidateAcceptance>();
+    let failed = false;
+    try {
+      const reviewerHistories = Object.create(null) as ReviewerHistories;
+      let previousCompressedText: string | undefined;
+      let revisionFeedback: string | undefined;
 
-    for (let iteration = 1; iteration <= this.#maxIterations; iteration += 1) {
-      await this.#log.appendIterationHeader(iteration, revisionFeedback);
+      for (
+        let iteration = 1;
+        iteration <= this.#maxIterations;
+        iteration += 1
+      ) {
+        await this.#log.appendIterationHeader(iteration, revisionFeedback);
 
-      const fullResponse = await this.#compressor.request({
-        markedText: markedOriginalText,
-        targetLength,
-        ...(previousCompressedText === undefined
-          ? {}
-          : {
-              previousCompressedText,
-            }),
-        ...(revisionFeedback === undefined
-          ? {}
-          : {
-              revisionFeedback,
-            }),
-      });
-      const compressedText = cleanChunkTags(
-        extractCompressedText(fullResponse),
-      );
-      const thinkingText = extractThinkingText(fullResponse);
-
-      await this.#log.appendCompressionResult({
-        compressedText,
-        thinkingText,
-      });
-
-      const reviewOutput = await this.#reviewer.reviewCompression(
-        compressedText,
-        clueReviewers,
-        reviewerHistories,
-      );
-      const reviews = [...reviewOutput.reviews];
-      const languageReview = checkOutputLanguage({
-        compressedText,
-        ...(this.#userLanguage === undefined
-          ? {}
-          : {
-              userLanguage: this.#userLanguage,
-            }),
-      });
-
-      if (languageReview !== undefined) {
-        reviews.push(languageReview.review);
-        await this.#log.appendLanguageMismatch({
-          detectedLanguageCode: languageReview.detectedLanguageCode,
-          review: languageReview.review,
-          targetLanguageCode: languageReview.targetLanguageCode,
-          userLanguage: this.#userLanguage,
+        const candidate = new CandidateAcceptance();
+        candidates.set(iteration, candidate);
+        const fullResponse = await this.#compressor.request({
+          candidate,
+          markedText: markedOriginalText,
+          targetLength,
+          ...(previousCompressedText === undefined
+            ? {}
+            : {
+                previousCompressedText,
+              }),
+          ...(revisionFeedback === undefined
+            ? {}
+            : {
+                revisionFeedback,
+              }),
         });
-      }
+        const compressedText = cleanChunkTags(
+          extractCompressedText(fullResponse),
+        );
+        const thinkingText = extractThinkingText(fullResponse);
 
-      const score = calculateScore(reviews);
+        await this.#log.appendCompressionResult({
+          compressedText,
+          thinkingText,
+        });
 
-      versions.push({
-        iteration,
-        reviews,
-        score,
-        text: compressedText,
-      });
+        const reviewOutput = await this.#reviewer.reviewCompression(
+          compressedText,
+          clueReviewers,
+          reviewerHistories,
+        );
+        const reviews = [...reviewOutput.reviews];
+        const languageReview = checkOutputLanguage({
+          compressedText,
+          ...(this.#userLanguage === undefined
+            ? {}
+            : {
+                userLanguage: this.#userLanguage,
+              }),
+        });
 
-      if (score === 0) {
-        break;
-      }
+        if (languageReview !== undefined) {
+          reviews.push(languageReview.review);
+          await this.#log.appendLanguageMismatch({
+            detectedLanguageCode: languageReview.detectedLanguageCode,
+            review: languageReview.review,
+            targetLanguageCode: languageReview.targetLanguageCode,
+            userLanguage: this.#userLanguage,
+          });
+        }
 
-      if (iteration >= this.#maxIterations) {
-        continue;
-      }
+        const score = calculateScore(reviews);
 
-      revisionFeedback = createRevisionFeedback({
-        llm: this.#llm,
-        reviews,
-      });
-      previousCompressedText = compressedText;
+        versions.push({
+          iteration,
+          reviews,
+          score,
+          text: compressedText,
+        });
 
-      for (const clueId of Object.keys(reviewOutput.rawResponses)) {
-        const rawResponse = reviewOutput.rawResponses[clueId];
+        if (score === 0) {
+          break;
+        }
 
-        if (rawResponse === undefined) {
+        if (iteration >= this.#maxIterations) {
           continue;
         }
 
-        reviewerHistories[clueId] = [compressedText, rawResponse];
+        revisionFeedback = createRevisionFeedback({
+          llm: this.#llm,
+          reviews,
+        });
+        previousCompressedText = compressedText;
+
+        for (const clueId of Object.keys(reviewOutput.rawResponses)) {
+          const rawResponse = reviewOutput.rawResponses[clueId];
+
+          if (rawResponse === undefined) {
+            continue;
+          }
+
+          reviewerHistories[clueId] = [compressedText, rawResponse];
+        }
+      }
+
+      const bestVersion = pickBestVersion(versions);
+
+      await this.#log.appendFinalSelection(bestVersion, originalText.length);
+
+      await candidates.get(bestVersion.iteration)?.accept();
+      return bestVersion.text;
+    } catch (error) {
+      failed = true;
+      throw error;
+    } finally {
+      const settled = await Promise.allSettled(
+        [...candidates.values()].map((candidate) => candidate.reject(failed)),
+      );
+      if (!failed) {
+        const rejected = settled.find((result) => result.status === "rejected");
+        // No primary failure is active on this branch.
+        // eslint-disable-next-line no-unsafe-finally
+        if (rejected?.status === "rejected") throw rejected.reason;
       }
     }
-
-    const bestVersion = pickBestVersion(versions);
-
-    await this.#log.appendFinalSelection(bestVersion, originalText.length);
-
-    return bestVersion.text;
   }
 
   async #listTargetGroups(): Promise<readonly SentenceGroup[]> {
@@ -279,14 +306,12 @@ class EditorOperation<S extends string> {
   }
 
   async #getFullText(groups: readonly SentenceGroup[]): Promise<string> {
-    const fragments = await Promise.all(
-      groups.map(async (group) => ({
-        sentences: await this.#listGroupSentences(
-          group.startSentenceIndex,
-          group.endSentenceIndex,
-        ),
-      })),
-    );
+    const fragments = await collectConcurrent(groups, async (group) => ({
+      sentences: await this.#listGroupSentences(
+        group.startSentenceIndex,
+        group.endSentenceIndex,
+      ),
+    }));
 
     return fragments
       .flatMap((fragment) =>
@@ -309,24 +334,21 @@ class EditorOperation<S extends string> {
     const segmentStartIndexes = [
       ...(await this.#serialFragments.listFragmentIds()),
     ].sort(compareNumber);
-    const fragments = await Promise.all(
-      segmentStartIndexes
-        .filter((segmentStartIndex, index) => {
-          const nextStartSentenceIndex = segmentStartIndexes[index + 1];
-          const segmentEndSentenceIndex =
-            nextStartSentenceIndex === undefined
-              ? Infinity
-              : nextStartSentenceIndex - 1;
+    const fragments = await collectConcurrent(
+      segmentStartIndexes.filter((segmentStartIndex, index) => {
+        const nextStartSentenceIndex = segmentStartIndexes[index + 1];
+        const segmentEndSentenceIndex =
+          nextStartSentenceIndex === undefined
+            ? Infinity
+            : nextStartSentenceIndex - 1;
 
-          return (
-            segmentStartIndex <= endSentenceIndex &&
-            segmentEndSentenceIndex >= startSentenceIndex
-          );
-        })
-        .map(
-          async (startSentenceIndex) =>
-            await this.#serialFragments.getFragment(startSentenceIndex),
-        ),
+        return (
+          segmentStartIndex <= endSentenceIndex &&
+          segmentEndSentenceIndex >= startSentenceIndex
+        );
+      }),
+      async (startSentenceIndex) =>
+        await this.#serialFragments.getFragment(startSentenceIndex),
     );
 
     return fragments.flatMap((fragment) =>

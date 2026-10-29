@@ -1,3 +1,4 @@
+import type { UsageSnapshot } from "wiki-graph-runtime";
 import { readdir, readFile } from "fs/promises";
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -992,3 +993,39 @@ async function readRequestLogs(logDirectory: string): Promise<string[]> {
       .map(async (entry) => await readFile(`${logDirectory}/${entry}`, "utf8")),
   );
 }
+
+it("does not cache rejected candidates and publishes only accepted responses", async () => {
+  const { CandidateAcceptance } = await import("wiki-graph-runtime");
+  await withTempDir("wikigraph-validated-cache-", async (path) => {
+    const statistics: UsageSnapshot[] = [];
+    const llm = new LLM({
+      onStatistics: (snapshot) => {
+        statistics.push(snapshot);
+      },
+      cacheDirectory: new NodeDirectory(path),
+      model: { modelId: "test", provider: "test" } as never,
+      stream: false,
+    });
+    const messages = [{ role: "user", content: "candidate-cache" }] as const;
+    aiMockState.generateTextResponse = "rejected";
+    const rejected = new CandidateAcceptance();
+    await llm.request(messages, { candidate: rejected });
+    await rejected.reject();
+    aiMockState.generateTextResponse = "accepted";
+    const accepted = new CandidateAcceptance();
+    expect(await llm.request(messages, { candidate: accepted })).toBe(
+      "accepted",
+    );
+    await accepted.accept();
+    aiMockState.generateTextResponse = "must be cached";
+    expect(await llm.request(messages)).toBe("accepted");
+    expect(statistics.at(-1)?.totals).toMatchObject({
+      attempts: 2,
+      acceptedAttempts: 1,
+      rejectedAttempts: 1,
+      inputTokens: 22,
+      outputTokens: 14,
+      unknownUsageAttempts: 0,
+    });
+  });
+});

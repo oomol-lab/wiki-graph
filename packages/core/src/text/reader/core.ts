@@ -1,3 +1,4 @@
+import { QualityGate } from "wiki-graph-runtime";
 import { Attention } from "./attention/core.js";
 import {
   extractBookCoherenceChunkBatch,
@@ -26,6 +27,7 @@ export class Reader<S extends string> {
       options.attention.idGenerator,
     );
     this.#chunkBatchOptions = {
+      quality: options.quality ?? new QualityGate(options.llm.qualityPolicy),
       extractionGuidance: options.extractionGuidance,
       llm: options.llm,
       scopes: options.scopes,
@@ -37,6 +39,10 @@ export class Reader<S extends string> {
           }),
     };
     this.#segmenter = options.segmenter;
+  }
+
+  public assertUsable(): void {
+    this.#chunkBatchOptions.quality?.assertUsable();
   }
 
   public get capacity(): number {

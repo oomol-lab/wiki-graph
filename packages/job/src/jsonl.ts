@@ -198,7 +198,11 @@ async function writeJsonl<T>(
     }
     await writer.commit();
   } catch (error) {
-    await writer.abort();
+    try {
+      await writer.abort();
+    } catch {
+      /* Preserve the failed validation/write/commit. */
+    }
     throw error;
   }
 }

@@ -45,6 +45,10 @@ class RegistryFatalError extends Error {}
 const workspaceRoot = resolve(import.meta.dirname, "..");
 const releasePackages: readonly ReleasePackage[] = [
   {
+    directory: join(workspaceRoot, "packages", "runtime"),
+    expectedName: "wiki-graph-runtime",
+  },
+  {
     directory: join(workspaceRoot, "packages", "wikimedia"),
     expectedName: "wiki-graph-wikimedia",
   },

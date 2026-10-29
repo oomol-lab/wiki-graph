@@ -1,3 +1,4 @@
+import { collectConcurrent } from "wiki-graph-runtime";
 import { z } from "zod";
 
 import {
@@ -67,39 +68,39 @@ export class CompressionReviewer<S extends string> {
   public async generateClueReviewers(
     clues: readonly Clue[],
   ): Promise<readonly ClueReviewerInfo[]> {
-    return await Promise.all(
-      clues.map(
-        async (clue) =>
-          await this.#llm.withContext(async (context) => {
-            const clueText = await formatClueAsBook({
-              chunks: clue.chunks,
-              fullMarkup: true,
-              serialFragments: this.#serialFragments,
-            });
-            const messages: JobLlmMessage[] = [
-              {
-                content: this.#llm.loadSystemPrompt(
-                  CLUE_REVIEWER_GENERATOR_PROMPT_TEMPLATE,
-                ),
-                role: "system",
-              },
-              {
-                content: clueText,
-                role: "user",
-              },
-            ];
-            const reviewerInfo = await context.request(messages, {
-              scope: this.#reviewGuideScope,
-            });
+    return await collectConcurrent(
+      clues,
+      async (clue, _index, signal) =>
+        await this.#llm.withContext(async (context) => {
+          const clueText = await formatClueAsBook({
+            chunks: clue.chunks,
+            fullMarkup: true,
+            serialFragments: this.#serialFragments,
+          });
+          const messages: JobLlmMessage[] = [
+            {
+              content: this.#llm.loadSystemPrompt(
+                CLUE_REVIEWER_GENERATOR_PROMPT_TEMPLATE,
+              ),
+              role: "system",
+            },
+            {
+              content: clueText,
+              role: "user",
+            },
+          ];
+          const reviewerInfo = await context.request(messages, {
+            scope: this.#reviewGuideScope,
+            signal,
+          });
 
-            return {
-              clueId: clue.clueId,
-              label: clue.label,
-              reviewerInfo: reviewerInfo.trim(),
-              weight: clue.weight,
-            };
-          }),
-      ),
+          return {
+            clueId: clue.clueId,
+            label: clue.label,
+            reviewerInfo: reviewerInfo.trim(),
+            weight: clue.weight,
+          };
+        }),
     );
   }
 
@@ -111,69 +112,79 @@ export class CompressionReviewer<S extends string> {
     readonly rawResponses: Readonly<Record<string, string | undefined>>;
     readonly reviews: readonly ReviewResult[];
   }> {
-    const results = await Promise.all(
-      clueReviewers.map(
-        async (clueReviewer) =>
-          await this.#llm.withContext(async (context) => {
-            const systemPrompt = this.#llm.loadSystemPrompt(
-              CLUE_REVIEWER_PROMPT_TEMPLATE,
-              {
-                thread_info: clueReviewer.reviewerInfo,
-                user_language: this.#userLanguage,
-              },
-            );
-            const previousHistory =
-              reviewerHistories[String(clueReviewer.clueId)];
-            const messages = buildReviewMessages(
-              {
-                compressedText,
-                systemPrompt,
-              },
-              previousHistory,
-            );
+    const results = await collectConcurrent(
+      clueReviewers,
+      async (clueReviewer, _index, signal) =>
+        await this.#llm.withContext(async (context) => {
+          const systemPrompt = this.#llm.loadSystemPrompt(
+            CLUE_REVIEWER_PROMPT_TEMPLATE,
+            {
+              thread_info: clueReviewer.reviewerInfo,
+              user_language: this.#userLanguage,
+            },
+          );
+          const previousHistory =
+            reviewerHistories[String(clueReviewer.clueId)];
+          const messages = buildReviewMessages(
+            {
+              compressedText,
+              systemPrompt,
+            },
+            previousHistory,
+          );
 
-            try {
-              return await requestGuaranteedJson({
-                messages,
-                parse: (data) => ({
-                  rawResponse: JSON.stringify(data),
-                  review: {
-                    clueId: clueReviewer.clueId,
-                    issues: data.issues.map((issue) => ({
-                      ...issue,
-                      severity: expectReviewSeverity(issue.severity),
-                    })),
-                    weight: clueReviewer.weight,
-                  },
-                }),
-                responseIntentClassifierPrompt: this.#llm.loadSystemPrompt(
-                  RESPONSE_INTENT_CLASSIFIER_PROMPT_TEMPLATE,
-                ),
-                request: async (retryMessages, retryIndex, retryMax) =>
-                  await context.request(retryMessages, {
-                    retryIndex,
-                    retryMax,
-                    scope: this.#reviewScope,
-                    useCache: false,
-                  }),
-                schema: reviewResponseSchema,
-              });
-            } catch (error) {
-              if (!(error instanceof GuaranteedRequestFailureError)) {
-                throw error;
-              }
-
-              return {
-                rawResponse: undefined,
+          try {
+            const result = await requestGuaranteedJson({
+              signal,
+              messages,
+              parse: (data) => ({
+                rawResponse: JSON.stringify(data),
                 review: {
                   clueId: clueReviewer.clueId,
-                  issues: [],
+                  issues: data.issues.map((issue) => ({
+                    ...issue,
+                    severity: expectReviewSeverity(issue.severity),
+                  })),
                   weight: clueReviewer.weight,
                 },
-              };
+              }),
+              responseIntentClassifierPrompt: this.#llm.loadSystemPrompt(
+                RESPONSE_INTENT_CLASSIFIER_PROMPT_TEMPLATE,
+              ),
+              request: async (retryMessages, retryIndex, retryMax, execution) =>
+                await context.request(retryMessages, {
+                  ...(execution?.candidate === undefined
+                    ? {}
+                    : { candidate: execution.candidate }),
+                  ...(execution?.deadline === undefined
+                    ? {}
+                    : { deadline: execution.deadline }),
+                  retryIndex,
+                  retryMax,
+                  scope: this.#reviewScope,
+                  signal,
+                  useCache: false,
+                }),
+              schema: reviewResponseSchema,
+            });
+            context.onOutcome?.("accepted", undefined, "summary-review");
+            return result;
+          } catch (error) {
+            if (!(error instanceof GuaranteedRequestFailureError)) {
+              throw error;
             }
-          }),
-      ),
+
+            context.onOutcome?.("fallback", error, "summary-review");
+            return {
+              rawResponse: undefined,
+              review: {
+                clueId: clueReviewer.clueId,
+                issues: [],
+                weight: clueReviewer.weight,
+              },
+            };
+          }
+        }),
     );
     const rawResponses = Object.create(null) as Record<
       string,

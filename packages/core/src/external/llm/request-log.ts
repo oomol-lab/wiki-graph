@@ -11,6 +11,7 @@ export class RequestLog {
 
   public constructor(filePromise?: Promise<File>) {
     this.#filePromise = filePromise;
+    void filePromise?.catch(() => {});
   }
 
   public get filePath(): undefined {
@@ -19,7 +20,11 @@ export class RequestLog {
 
   public async append(content: string): Promise<void> {
     if (this.#filePromise !== undefined) {
-      await appendFileText(await this.#filePromise, content);
+      try {
+        await appendFileText(await this.#filePromise, content);
+      } catch {
+        /* Logging is best effort. */
+      }
     }
   }
 }

@@ -1,3 +1,4 @@
+import { GuaranteedRequestFailureError } from "wiki-graph-runtime";
 import { z } from "zod";
 
 import {
@@ -43,7 +44,7 @@ export async function judgeWikimatchSurfaceProtection(
   }
 
   try {
-    return await requestGuaranteedJson({
+    const result = await requestGuaranteedJson({
       messages: buildProtectionMessages(options),
       parse: (response) =>
         parseSurfaceProtectionResponse(
@@ -57,8 +58,15 @@ export async function judgeWikimatchSurfaceProtection(
         ? {}
         : { maxRetries: options.maxRetries }),
     });
+    options.request.quality?.record("screening", "accepted");
+    return result;
   } catch (error) {
-    if (isPaymentRequiredError(error)) throw error;
+    if (
+      isPaymentRequiredError(error) ||
+      !(error instanceof GuaranteedRequestFailureError)
+    )
+      throw error;
+    options.request.quality?.record("screening", "fallback", error);
     return {
       fallback: {
         issues: [formatFallbackIssue(error)],

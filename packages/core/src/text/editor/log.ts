@@ -64,7 +64,7 @@ export class CompressionLog {
       "",
     );
 
-    await appendFileText(this.#file, `${parts.join("\n")}\n`);
+    await appendFileText(this.#file, `${parts.join("\n")}\n`).catch(() => {});
   }
 
   public async appendFinalSelection(
@@ -101,7 +101,7 @@ export class CompressionLog {
       );
     }
 
-    await appendFileText(this.#file, `${parts.join("\n")}\n`);
+    await appendFileText(this.#file, `${parts.join("\n")}\n`).catch(() => {});
   }
 
   public async appendIterationHeader(
@@ -130,7 +130,7 @@ export class CompressionLog {
       );
     }
 
-    await appendFileText(this.#file, `${parts.join("\n")}\n`);
+    await appendFileText(this.#file, `${parts.join("\n")}\n`).catch(() => {});
   }
 
   public async appendLanguageMismatch(input: {
@@ -162,7 +162,7 @@ export class CompressionLog {
       "",
     ];
 
-    await appendFileText(this.#file, `${parts.join("\n")}\n`);
+    await appendFileText(this.#file, `${parts.join("\n")}\n`).catch(() => {});
   }
 
   public async initialize(clues: readonly Clue[]): Promise<void> {
@@ -176,7 +176,7 @@ export class CompressionLog {
       category: "editor",
       logDirectory: this.#logDirectory,
       prefix: `compression-serial-${this.#serialId}-group-${this.#groupId}`,
-    });
+    }).catch(() => undefined);
 
     if (this.#file === undefined) {
       return;
@@ -195,7 +195,7 @@ export class CompressionLog {
         formatChunkHierarchy(clues, this.#groupId, this.#serialId),
         "",
       ].join("\n"),
-    );
+    ).catch(() => {});
   }
 }
 

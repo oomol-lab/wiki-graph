@@ -1,3 +1,4 @@
+import { QualityGate } from "wiki-graph-runtime";
 import type { ReadonlyDocument } from "../../document/index.js";
 import {
   enrichWikimatchCandidates,
@@ -45,6 +46,16 @@ export async function generateChapterKnowledgeGraphArtifactFromSnapshot(
     );
   }
 
+  const originalRequest = options.request;
+  const quality = originalRequest.quality ?? new QualityGate();
+  options = {
+    ...options,
+    request: Object.assign(
+      (...args: Parameters<typeof originalRequest>) => originalRequest(...args),
+      originalRequest,
+      { quality },
+    ),
+  };
   const fragments = snapshot.fragments;
   const text = joinFragmentText(fragments);
   const sentences = createWikimatchSentences(fragments);
@@ -146,6 +157,7 @@ export async function generateChapterKnowledgeGraphArtifactFromSnapshot(
   });
   await options.progressTracker?.throwIfStopped();
 
+  quality.assertUsable();
   return await buildChapterKnowledgeGraphArtifact(chapterId, {
     mentionLinks,
     mentions,

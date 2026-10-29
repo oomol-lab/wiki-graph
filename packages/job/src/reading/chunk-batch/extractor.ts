@@ -233,20 +233,28 @@ export class ChunkExtractor<S extends string> {
             responseIntentClassifierPrompt: this.#llm.loadSystemPrompt(
               RESPONSE_INTENT_CLASSIFIER_PROMPT_TEMPLATE,
             ),
-            request: async (messages, index, maxRetries) =>
+            request: async (messages, index, maxRetries, execution) =>
               await context.request(messages, {
+                ...(execution?.candidate === undefined
+                  ? {}
+                  : { candidate: execution.candidate }),
+                ...(execution?.deadline === undefined
+                  ? {}
+                  : { deadline: execution.deadline }),
                 retryIndex: index,
                 retryMax: maxRetries,
                 scope: this.#scopes.extraction,
               }),
           });
 
+          context.onOutcome?.("accepted");
           return {
             parser,
             result,
           };
         } catch (error) {
           if (isRecoverableChunkExtractionFailure(error)) {
+            context.onOutcome?.("fallback", error);
             return {
               parser,
               result: {
@@ -362,8 +370,14 @@ export class ChunkExtractor<S extends string> {
       responseIntentClassifierPrompt: this.#llm.loadSystemPrompt(
         RESPONSE_INTENT_CLASSIFIER_PROMPT_TEMPLATE,
       ),
-      request: async (messages, index, maxRetries) =>
+      request: async (messages, index, maxRetries, execution) =>
         await this.#llm.request(messages, {
+          ...(execution?.candidate === undefined
+            ? {}
+            : { candidate: execution.candidate }),
+          ...(execution?.deadline === undefined
+            ? {}
+            : { deadline: execution.deadline }),
           retryIndex: index,
           retryMax: maxRetries,
           scope: this.#scopes.extraction,

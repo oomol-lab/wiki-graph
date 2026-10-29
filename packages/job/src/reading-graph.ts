@@ -1,3 +1,4 @@
+import { QualityGate, type QualityPolicy } from "wiki-graph-runtime";
 import type {
   ChapterJobArtifactRecord,
   JobOptionsRecord,
@@ -23,6 +24,7 @@ const DEFAULT_GROUP_WORDS_COUNT = 3840;
 const DEFAULT_WORKING_MEMORY_CAPACITY = 7;
 
 export async function* buildReadingGraphRecords(options: {
+  readonly qualityPolicy?: QualityPolicy;
   readonly inputFile: JobFile;
   readonly language?: string;
   readonly llm: JobLlm;
@@ -30,6 +32,7 @@ export async function* buildReadingGraphRecords(options: {
   readonly progress?: JobProgressSink;
   readonly signal?: AbortSignal;
 }): AsyncIterable<ChapterJobArtifactRecord> {
+  const quality = new QualityGate(options.qualityPolicy);
   const input = await readInput(options.inputFile);
   const language = options.language ?? input.jobOptions.language;
   const extractionPrompt = resolveExtractionPrompt(
@@ -42,6 +45,9 @@ export async function* buildReadingGraphRecords(options: {
     type: "job-parameter",
   };
 
+  let acceptedExtractions = 0;
+  let fallbackExtractions = 0;
+  let firstFailure: unknown;
   let nextChunkId = 1;
   const reader = new Reader({
     attention: {
@@ -50,7 +56,16 @@ export async function* buildReadingGraphRecords(options: {
       idGenerator: () => Promise.resolve(nextChunkId++),
     },
     extractionGuidance: extractionPrompt,
-    llm: createReadingLlm(options),
+    llm: createReadingLlm({
+      ...options,
+      onOutcome: (outcome, error) => {
+        quality.record("reading-extraction", outcome, error);
+        if (outcome === "accepted") acceptedExtractions++;
+        else {
+          if (fallbackExtractions++ === 0) firstFailure = error;
+        }
+      },
+    }),
     scopes: {
       choice: JOB_LLM_SCOPES.readingGraphEvidenceChoice,
       extraction: JOB_LLM_SCOPES.readingGraphExtraction,
@@ -105,6 +120,12 @@ export async function* buildReadingGraphRecords(options: {
     });
   }
 
+  if (fallbackExtractions > 0 && acceptedExtractions === 0) {
+    throw new Error("All Reading Graph extractions failed validation", {
+      cause: firstFailure,
+    });
+  }
+  quality.assertUsable();
   const result = await topology.finalize();
   for (const chunk of result.chunks) {
     yield {

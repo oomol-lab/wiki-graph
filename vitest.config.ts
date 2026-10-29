@@ -4,6 +4,11 @@ export default defineConfig({
   resolve: {
     alias: [
       {
+        find: /^wiki-graph-runtime$/,
+        replacement: new URL("./packages/runtime/src/index.ts", import.meta.url)
+          .pathname,
+      },
+      {
         find: /^wiki-graph-sdk\/entry-context$/,
         replacement: new URL(
           "./packages/sdk/src/entry-context.ts",

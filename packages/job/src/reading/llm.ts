@@ -29,10 +29,16 @@ const PROMPTS: Readonly<Record<string, string>> = {
 
 export function createReadingLlm(input: {
   readonly llm: JobLlm;
+  readonly onOutcome?: (
+    outcome: "accepted" | "fallback",
+    error?: unknown,
+    stage?: string,
+  ) => void;
   readonly progress?: JobProgressSink;
   readonly signal?: AbortSignal;
 }): ReadingLlm<string> {
   const context: ReadingLlm<string> = {
+    ...(input.onOutcome === undefined ? {} : { onOutcome: input.onOutcome }),
     loadSystemPrompt(templateName, values = {}) {
       const template = PROMPTS[templateName];
       if (template === undefined) {
@@ -42,6 +48,12 @@ export function createReadingLlm(input: {
     },
     async request(messages, options = {}) {
       const response = await input.llm.request(messages, {
+        ...(options?.candidate === undefined
+          ? {}
+          : { candidate: options.candidate }),
+        ...(options.deadline === undefined
+          ? {}
+          : { deadline: options.deadline }),
         ...(options.retryIndex === undefined
           ? {}
           : { retryIndex: options.retryIndex }),
@@ -49,7 +61,11 @@ export function createReadingLlm(input: {
           ? {}
           : { retryMax: options.retryMax }),
         scope: options.scope ?? JOB_LLM_SCOPES.readingGraphExtraction,
-        ...(input.signal === undefined ? {} : { signal: input.signal }),
+        signal: AbortSignal.any(
+          [input.signal, options.signal].filter(
+            (value): value is AbortSignal => value !== undefined,
+          ),
+        ),
         ...(input.progress?.addTokenUsage === undefined
           ? {}
           : {
