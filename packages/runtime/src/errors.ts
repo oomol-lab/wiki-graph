@@ -91,6 +91,7 @@ const temporaryCodes = new Set([
   "UND_ERR_SOCKET",
 ]);
 const terminalCodes = new Set([
+  "OBSERVER_FAILED",
   "insufficient_balance",
   "CERT_HAS_EXPIRED",
   "ERR_TLS_CERT_ALTNAME_INVALID",

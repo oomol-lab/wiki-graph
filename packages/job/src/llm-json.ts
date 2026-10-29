@@ -18,6 +18,9 @@ export async function requestJobJson<T>(options: {
     parse: (data) => data,
     request: async (messages, retryIndex, retryMax, execution) =>
       await options.llm.request(messages, {
+        ...(execution?.candidate === undefined
+          ? {}
+          : { candidate: execution.candidate }),
         ...(execution?.deadline === undefined
           ? {}
           : { deadline: execution.deadline }),

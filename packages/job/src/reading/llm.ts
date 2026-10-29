@@ -32,6 +32,7 @@ export function createReadingLlm(input: {
   readonly onOutcome?: (
     outcome: "accepted" | "fallback",
     error?: unknown,
+    stage?: string,
   ) => void;
   readonly progress?: JobProgressSink;
   readonly signal?: AbortSignal;
@@ -47,6 +48,9 @@ export function createReadingLlm(input: {
     },
     async request(messages, options = {}) {
       const response = await input.llm.request(messages, {
+        ...(options?.candidate === undefined
+          ? {}
+          : { candidate: options.candidate }),
         ...(options.deadline === undefined
           ? {}
           : { deadline: options.deadline }),

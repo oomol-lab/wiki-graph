@@ -1,3 +1,4 @@
+import type { QualityPolicy } from "wiki-graph-runtime";
 import type { ChapterJobKind } from "./contracts.js";
 import type {
   ChapterJobArtifactRecord,
@@ -23,6 +24,7 @@ import { buildReadingGraphRecords } from "./reading-graph.js";
 import { buildReadingSummaryRecords } from "./reading-summary.js";
 
 export interface ChapterJobFileExecutionOptions {
+  readonly qualityPolicy?: QualityPolicy;
   readonly inputFile: JobFile;
   readonly embeddingProvider?: JobEmbeddingProvider;
   readonly kind: ChapterJobKind;
@@ -75,6 +77,9 @@ export async function executeChapterJobFile(
         await writeChapterJobArtifact(
           artifactFile,
           buildReadingGraphRecords({
+            ...(options.qualityPolicy === undefined
+              ? {}
+              : { qualityPolicy: options.qualityPolicy }),
             inputFile: options.inputFile,
             ...(options.language === undefined
               ? {}
@@ -92,6 +97,9 @@ export async function executeChapterJobFile(
         await writeChapterJobArtifact(
           artifactFile,
           buildReadingSummaryRecords({
+            ...(options.qualityPolicy === undefined
+              ? {}
+              : { qualityPolicy: options.qualityPolicy }),
             inputFile: options.inputFile,
             ...(options.language === undefined
               ? {}
@@ -109,6 +117,9 @@ export async function executeChapterJobFile(
         await writeChapterJobArtifact(
           artifactFile,
           buildKnowledgeGraphRecords({
+            ...(options.qualityPolicy === undefined
+              ? {}
+              : { qualityPolicy: options.qualityPolicy }),
             inputFile: options.inputFile,
             ...(options.language === undefined
               ? {}

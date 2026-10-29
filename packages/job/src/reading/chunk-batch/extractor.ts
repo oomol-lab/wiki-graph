@@ -235,6 +235,9 @@ export class ChunkExtractor<S extends string> {
             ),
             request: async (messages, index, maxRetries, execution) =>
               await context.request(messages, {
+                ...(execution?.candidate === undefined
+                  ? {}
+                  : { candidate: execution.candidate }),
                 ...(execution?.deadline === undefined
                   ? {}
                   : { deadline: execution.deadline }),
@@ -369,6 +372,9 @@ export class ChunkExtractor<S extends string> {
       ),
       request: async (messages, index, maxRetries, execution) =>
         await this.#llm.request(messages, {
+          ...(execution?.candidate === undefined
+            ? {}
+            : { candidate: execution.candidate }),
           ...(execution?.deadline === undefined
             ? {}
             : { deadline: execution.deadline }),

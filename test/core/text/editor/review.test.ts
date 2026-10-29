@@ -107,7 +107,7 @@ describe("editor/review", () => {
     );
   });
 
-  it("falls back to no issues when a reviewer cannot produce valid JSON", async () => {
+  it("rejects an entirely failed review stage instead of accepting no issues", async () => {
     const llm = new ScriptedLLM<WikiGraphScope>(Array(13).fill(""));
     const reviewer = new CompressionReviewer(
       llm as never,
@@ -119,27 +119,20 @@ describe("editor/review", () => {
       Language.English,
     );
 
-    const result = await reviewer.reviewCompression(
-      "Current compressed text",
-      [
-        {
-          clueId: 1,
-          label: "Alpha clue",
-          reviewerInfo: "Check continuity",
-          weight: 0.8,
-        },
-      ],
-      {},
-    );
-
-    expect(result.rawResponses["1"]).toBeUndefined();
-    expect(result.reviews).toStrictEqual([
-      {
-        clueId: 1,
-        issues: [],
-        weight: 0.8,
-      },
-    ]);
+    await expect(
+      reviewer.reviewCompression(
+        "Current compressed text",
+        [
+          {
+            clueId: 1,
+            label: "Alpha clue",
+            reviewerInfo: "Check continuity",
+            weight: 0.8,
+          },
+        ],
+        {},
+      ),
+    ).rejects.toThrow("All summary-review candidates failed validation");
   });
 
   it("does not hide regular LLM request errors during review", async () => {

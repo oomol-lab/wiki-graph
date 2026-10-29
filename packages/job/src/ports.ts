@@ -1,3 +1,4 @@
+import type { CandidateAcceptance, UsageSnapshot } from "wiki-graph-runtime";
 import type { JobDirectory } from "./platform.js";
 
 export interface JobLlmMessage {
@@ -15,6 +16,7 @@ export interface JobLlm {
   request(
     messages: readonly JobLlmMessage[],
     options: {
+      readonly candidate?: CandidateAcceptance;
       readonly deadline?: number;
       readonly retryIndex?: number;
       readonly retryMax?: number;
@@ -105,10 +107,12 @@ export type JobProgressPhase =
   | "summary-compression";
 
 export interface JobProgressSink {
+  recordStatistics?(snapshot: UsageSnapshot): Promise<void> | void;
   addOutputCharacters?(characters: number): Promise<void> | void;
   addTokenUsage?(usage: JobLlmUsage): Promise<void> | void;
   throwIfStopped?(): Promise<void> | void;
   updatePhase?(input: {
+    readonly attempt?: number;
     readonly done: number;
     readonly force?: boolean;
     readonly phase: JobProgressPhase;

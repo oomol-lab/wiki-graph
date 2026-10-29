@@ -1,3 +1,5 @@
+import type { QualityGate } from "../quality.js";
+import type { RequestExecution } from "../candidate.js";
 import type { ZodType } from "zod";
 
 export interface RuntimeMessage {
@@ -6,12 +8,12 @@ export interface RuntimeMessage {
 }
 type JobLlmMessage = RuntimeMessage;
 
-export type GuaranteedRequest = (
+export type GuaranteedRequest = ((
   messages: readonly JobLlmMessage[],
   index: number,
   maxRetries: number,
-  context?: { readonly deadline?: number; readonly signal?: AbortSignal },
-) => Promise<string | undefined>;
+  context?: RequestExecution,
+) => Promise<string | undefined>) & { readonly quality?: QualityGate };
 
 export type GuaranteedLazyRequest = <T>(
   operation: (request: GuaranteedRequest) => Promise<T>,
@@ -42,7 +44,7 @@ export interface GuaranteedRequestOptions<
     messages: readonly (TMessage | RuntimeMessage)[],
     index: number,
     maxRetries: number,
-    context?: { readonly deadline?: number; readonly signal?: AbortSignal },
+    context?: RequestExecution,
   ) => Promise<string | undefined>;
   readonly responseIntentClassifierPrompt: string;
   readonly schema: ZodType<TData>;

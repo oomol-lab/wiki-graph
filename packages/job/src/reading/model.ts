@@ -1,3 +1,4 @@
+import type { CandidateAcceptance } from "wiki-graph-runtime";
 import type { JobLlmMessage } from "../ports.js";
 export type { JobLlmMessage } from "../ports.js";
 
@@ -104,6 +105,7 @@ export interface ReadonlySerialFragments {
 }
 
 export interface ReadingLlmRequestOptions<S extends string> {
+  readonly candidate?: CandidateAcceptance;
   readonly deadline?: number;
   readonly signal?: AbortSignal;
   readonly retryIndex?: number;
@@ -113,7 +115,11 @@ export interface ReadingLlmRequestOptions<S extends string> {
 }
 
 export interface ReadingLlm<S extends string> {
-  onOutcome?(outcome: "accepted" | "fallback", error?: unknown): void;
+  onOutcome?(
+    outcome: "accepted" | "fallback",
+    error?: unknown,
+    stage?: string,
+  ): void;
   loadSystemPrompt(
     templateName: string,
     context?: Readonly<Record<string, unknown>>,

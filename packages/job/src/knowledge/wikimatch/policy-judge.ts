@@ -54,7 +54,7 @@ export async function judgeWikimatchPolicy(
   options: JudgeWikimatchPolicyOptions,
 ): Promise<WikimatchPolicyJudgeResult> {
   try {
-    return await requestGuaranteedJson({
+    const result = await requestGuaranteedJson({
       messages: buildPolicyMessages(options),
       parse: (response) =>
         parsePolicyResponse(
@@ -69,12 +69,15 @@ export async function judgeWikimatchPolicy(
         ? {}
         : { maxRetries: options.maxRetries }),
     });
+    options.request.quality?.record("grounding", "accepted");
+    return result;
   } catch (error) {
     if (
       isPaymentRequiredError(error) ||
       !(error instanceof GuaranteedRequestFailureError)
     )
       throw error;
+    options.request.quality?.record("grounding", "fallback", error);
     return {
       continuations: [],
       fallback: {

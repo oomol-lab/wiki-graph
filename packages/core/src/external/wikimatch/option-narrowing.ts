@@ -1,3 +1,4 @@
+import { GuaranteedRequestFailureError } from "wiki-graph-runtime";
 import { z } from "zod";
 
 import {
@@ -87,7 +88,7 @@ async function requestNarrowedChunk(
   options: NarrowWikimatchCandidateOptionsOptions,
 ): Promise<WikimatchCandidateOptionNarrowingResult> {
   try {
-    return await requestGuaranteedJson({
+    const result = await requestGuaranteedJson({
       messages: buildNarrowingMessages(options),
       parse: (response) =>
         parseNarrowingResponse(
@@ -102,7 +103,11 @@ async function requestNarrowedChunk(
         ? {}
         : { maxRetries: options.maxRetries }),
     });
+    options.request.quality?.record("narrowing", "accepted");
+    return result;
   } catch (error) {
+    if (!(error instanceof GuaranteedRequestFailureError)) throw error;
+    options.request.quality?.record("narrowing", "fallback", error);
     return {
       candidate: {
         ...options.candidate,

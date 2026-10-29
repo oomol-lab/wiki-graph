@@ -1,3 +1,4 @@
+import { QualityGate, type QualityPolicy } from "wiki-graph-runtime";
 import type {
   ChapterJobArtifactRecord,
   JobOptionsRecord,
@@ -43,6 +44,7 @@ const DEFAULT_KNOWLEDGE_GRAPH_RECALL_PROMPT = [
 ].join(" ");
 
 export async function* buildKnowledgeGraphRecords(options: {
+  readonly qualityPolicy?: QualityPolicy;
   readonly inputFile: JobFile;
   readonly language?: string;
   readonly llm: JobLlm;
@@ -127,7 +129,8 @@ export async function* buildKnowledgeGraphRecords(options: {
       ];
     },
   );
-  const request = createGuaranteedRequest(options);
+  const quality = new QualityGate(options.qualityPolicy);
+  const request = Object.assign(createGuaranteedRequest(options), { quality });
   const screenedCandidates = await screenCandidates({
     candidates: rawCandidates,
     policyPrompt,
@@ -180,6 +183,7 @@ export async function* buildKnowledgeGraphRecords(options: {
   const mentions = accepted.map((mention, index) =>
     toMentionRecord(mention, located, index + 1),
   );
+  quality.assertUsable();
   for (const mention of mentions) {
     const { chapterId: _, ...record } = mention;
     yield { ...record, type: "mention" };
@@ -192,6 +196,7 @@ export async function* buildKnowledgeGraphRecords(options: {
     request,
   });
   await progressTracker.throwIfStopped();
+  quality.assertUsable();
   for (const [index, link] of links.entries()) {
     yield {
       ...(link.confidence === undefined ? {} : { confidence: link.confidence }),
@@ -215,6 +220,9 @@ function createGuaranteedRequest(options: {
 }): GuaranteedRequestController {
   return async (messages, retryIndex, retryMax, execution) => {
     const response = await options.llm.request(messages, {
+      ...(execution?.candidate === undefined
+        ? {}
+        : { candidate: execution.candidate }),
       ...(execution?.deadline === undefined
         ? {}
         : { deadline: execution.deadline }),

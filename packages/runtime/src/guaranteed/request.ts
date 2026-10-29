@@ -1,3 +1,4 @@
+import { CandidateAcceptance } from "../candidate.js";
 import { requestBudget } from "../lifecycle.js";
 import {
   buildResponseIntentClassificationMessages,
@@ -37,14 +38,24 @@ export async function requestGuaranteedJson<TData, TResult, TMessage>(
   const request = options.request;
   options = {
     ...options,
-    request: async (messages, index, maxRetries) => {
-      budget.signal.throwIfAborted();
-      const response = await request(messages, index, maxRetries, {
-        deadline,
-        signal: budget.signal,
-      });
-      budget.signal.throwIfAborted();
-      return response;
+    request: async (messages, index, maxRetries, context) => {
+      const candidate = context?.candidate ?? new CandidateAcceptance();
+      let failed = false;
+      try {
+        budget.signal.throwIfAborted();
+        const response = await request(messages, index, maxRetries, {
+          candidate,
+          deadline,
+          signal: budget.signal,
+        });
+        budget.signal.throwIfAborted();
+        return response;
+      } catch (error) {
+        failed = true;
+        throw error;
+      } finally {
+        if (!context?.candidate) await candidate.reject(failed);
+      }
     },
   };
   try {
@@ -55,123 +66,140 @@ export async function requestGuaranteedJson<TData, TResult, TMessage>(
     const maxRetries = options.maxRetries ?? DEFAULT_MAX_RETRIES;
 
     for (let index = 0; index <= maxRetries; index += 1) {
-      const response = await options.request(
-        currentMessages,
-        index,
-        maxRetries,
-      );
-      if (response === undefined || response.trim() === "") {
-        if (index >= maxRetries) {
-          throw new GuaranteedEmptyResponseError(index + 1, maxRetries);
-        }
-        continue;
-      }
-      let parsedData: unknown;
+      const candidate = new CandidateAcceptance();
+      let failed = false;
       try {
-        parsedData = JSON.parse(repairJsonText(extractJsonText(response)));
-      } catch (error) {
-        const intent = await classifyResponseIntent(options, response, index);
-        if (intent === "natural_language") {
-          consecutiveProtocolDerailments += 1;
-          consecutiveMalformedJsonFailures = 0;
-          if (consecutiveProtocolDerailments >= 2 || index >= maxRetries) {
-            throw new SuspectedModelRefusalError(index + 1, maxRetries, {
-              reason:
-                index >= maxRetries
-                  ? "last retry still returned natural-language content"
-                  : "two consecutive retries returned natural-language content",
-              response,
-            });
+        const response = await options.request(
+          currentMessages,
+          index,
+          maxRetries,
+          { candidate },
+        );
+        if (response === undefined || response.trim() === "") {
+          if (index >= maxRetries) {
+            throw new GuaranteedEmptyResponseError(index + 1, maxRetries);
           }
+          continue;
+        }
+        let parsedData: unknown;
+        try {
+          parsedData = JSON.parse(repairJsonText(extractJsonText(response)));
+        } catch (error) {
+          const intent = await classifyResponseIntent(options, response, index);
+          if (intent === "natural_language") {
+            consecutiveProtocolDerailments += 1;
+            consecutiveMalformedJsonFailures = 0;
+            if (consecutiveProtocolDerailments >= 2 || index >= maxRetries) {
+              throw new SuspectedModelRefusalError(index + 1, maxRetries, {
+                reason:
+                  index >= maxRetries
+                    ? "last retry still returned natural-language content"
+                    : "two consecutive retries returned natural-language content",
+                response,
+              });
+            }
+            currentMessages = buildRetryMessages(
+              initialMessages,
+              response,
+              buildNaturalLanguageMessage(),
+              false,
+            );
+            continue;
+          }
+          consecutiveProtocolDerailments = 0;
+          consecutiveMalformedJsonFailures += 1;
           currentMessages = buildRetryMessages(
             initialMessages,
             response,
-            buildNaturalLanguageMessage(),
-            false,
+            intent === "malformed_json"
+              ? buildMalformedJsonMessage(asSyntaxError(error))
+              : buildSyntaxErrorMessage(asSyntaxError(error)),
+            consecutiveMalformedJsonFailures <
+              MAX_MALFORMED_JSON_REPAIR_HISTORY_ATTEMPTS,
           );
           continue;
         }
         consecutiveProtocolDerailments = 0;
-        consecutiveMalformedJsonFailures += 1;
-        currentMessages = buildRetryMessages(
-          initialMessages,
-          response,
-          intent === "malformed_json"
-            ? buildMalformedJsonMessage(asSyntaxError(error))
-            : buildSyntaxErrorMessage(asSyntaxError(error)),
-          consecutiveMalformedJsonFailures <
-            MAX_MALFORMED_JSON_REPAIR_HISTORY_ATTEMPTS,
-        );
-        continue;
-      }
-      consecutiveProtocolDerailments = 0;
-      consecutiveMalformedJsonFailures = 0;
+        consecutiveMalformedJsonFailures = 0;
 
-      const validation = await options.schema.safeParseAsync(parsedData);
-      if (!validation.success) {
-        if (
-          shouldTreatSchemaFailureAsNaturalLanguage(
-            validation.error,
-            parsedData,
-          ) &&
-          (await classifyResponseIntent(options, response, index)) ===
-            "natural_language"
-        ) {
-          consecutiveProtocolDerailments += 1;
-          if (consecutiveProtocolDerailments >= 2 || index >= maxRetries) {
-            throw new SuspectedModelRefusalError(index + 1, maxRetries, {
-              reason:
-                index >= maxRetries
-                  ? "last retry still returned natural-language content"
-                  : "two consecutive retries returned natural-language content",
+        const validation = await options.schema.safeParseAsync(parsedData);
+        if (!validation.success) {
+          if (
+            shouldTreatSchemaFailureAsNaturalLanguage(
+              validation.error,
+              parsedData,
+            ) &&
+            (await classifyResponseIntent(options, response, index)) ===
+              "natural_language"
+          ) {
+            consecutiveProtocolDerailments += 1;
+            if (consecutiveProtocolDerailments >= 2 || index >= maxRetries) {
+              throw new SuspectedModelRefusalError(index + 1, maxRetries, {
+                reason:
+                  index >= maxRetries
+                    ? "last retry still returned natural-language content"
+                    : "two consecutive retries returned natural-language content",
+                response,
+              });
+            }
+            currentMessages = buildRetryMessages(
+              initialMessages,
               response,
-            });
+              buildNaturalLanguageMessage(),
+              false,
+            );
+            continue;
+          }
+          const feedback = buildSchemaErrorMessage(validation.error);
+          if (index >= maxRetries) {
+            throw new GuaranteedSchemaValidationError(
+              index + 1,
+              maxRetries,
+              { issues: listSchemaIssues(validation.error), response },
+              validation.error,
+            );
           }
           currentMessages = buildRetryMessages(
             initialMessages,
             response,
-            buildNaturalLanguageMessage(),
-            false,
+            feedback,
+            true,
           );
           continue;
         }
-        const feedback = buildSchemaErrorMessage(validation.error);
-        if (index >= maxRetries) {
-          throw new GuaranteedSchemaValidationError(
-            index + 1,
-            maxRetries,
-            { issues: listSchemaIssues(validation.error), response },
-            validation.error,
-          );
-        }
-        currentMessages = buildRetryMessages(
-          initialMessages,
-          response,
-          feedback,
-          true,
-        );
-        continue;
-      }
 
-      try {
-        return await options.parse(validation.data, index, maxRetries);
-      } catch (error) {
-        if (!(error instanceof ParsedJsonError)) throw error;
-        const feedback = buildBusinessErrorMessage(error.issues);
-        if (index >= maxRetries) {
-          throw new GuaranteedParseValidationError(
-            index + 1,
+        try {
+          const result = await options.parse(
+            validation.data,
+            index,
             maxRetries,
-            { issues: error.issues, response },
-            error,
+          );
+          budget.signal.throwIfAborted();
+          await candidate.accept();
+          return result;
+        } catch (error) {
+          if (!(error instanceof ParsedJsonError)) throw error;
+          const feedback = buildBusinessErrorMessage(error.issues);
+          if (index >= maxRetries) {
+            throw new GuaranteedParseValidationError(
+              index + 1,
+              maxRetries,
+              { issues: error.issues, response },
+              error,
+            );
+          }
+          currentMessages = buildRetryMessages(
+            initialMessages,
+            response,
+            feedback,
+            true,
           );
         }
-        currentMessages = buildRetryMessages(
-          initialMessages,
-          response,
-          feedback,
-          true,
-        );
+      } catch (error) {
+        failed = true;
+        throw error;
+      } finally {
+        await candidate.reject(failed);
       }
     }
     throw new Error("requestGuaranteedJson failed unexpectedly");

@@ -1,3 +1,4 @@
+import { collectConcurrent } from "wiki-graph-runtime";
 import {
   ChunkRetention,
   type ChunkImportance,
@@ -329,12 +330,10 @@ async function loadFragments(
     FragmentRecord | undefined
   >;
 
-  await Promise.all(
-    startSentenceIndexes.map(async (startSentenceIndex) => {
-      fragments[String(startSentenceIndex)] =
-        await serialFragments.getFragment(startSentenceIndex);
-    }),
-  );
+  await collectConcurrent(startSentenceIndexes, async (startSentenceIndex) => {
+    fragments[String(startSentenceIndex)] =
+      await serialFragments.getFragment(startSentenceIndex);
+  });
 
   return fragments;
 }

@@ -41,6 +41,9 @@ export function createLocalChapterJobFileExecutor(
       : {
           async request(messages, requestOptions) {
             return await coreLlm.request(messages, {
+              ...(requestOptions?.candidate === undefined
+                ? {}
+                : { candidate: requestOptions.candidate }),
               ...(requestOptions.deadline === undefined
                 ? {}
                 : { deadline: requestOptions.deadline }),
@@ -79,9 +82,11 @@ export function createLocalChapterJobFileExecutor(
       }
     },
   };
-  return async (execution) =>
-    await executeChapterJobFile({
+  return async (execution) => {
+    const qualityPolicy = execution.qualityPolicy ?? coreLlm?.qualityPolicy;
+    return await executeChapterJobFile({
       ...execution,
+      ...(qualityPolicy === undefined ? {} : { qualityPolicy }),
       ...(options.embeddingProvider === undefined
         ? {}
         : { embeddingProvider: options.embeddingProvider }),
@@ -91,6 +96,7 @@ export function createLocalChapterJobFileExecutor(
         : { wikimedia: options.wikimediaResolver }),
       wikispine,
     });
+  };
 }
 
 function mapJobLlmScope(scope: string): WikiGraphScope {

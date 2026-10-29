@@ -42,3 +42,31 @@ it("shares one absolute deadline across business repair and supports async parsi
   expect(deadlines[0]).toBeTypeOf("number");
   expect(deadlines[1]).toBe(deadlines[0]);
 });
+
+it("publishes only the business-accepted candidate and rejects failed attempts", async () => {
+  const published: number[] = [];
+  const rejected: number[] = [];
+  const result = await requestGuaranteedJson({
+    messages: [],
+    schema: z.object({ value: z.number() }),
+    responseIntentClassifierPrompt: "classify",
+    request: (_messages, index, _max, execution) => {
+      execution?.candidate?.defer(
+        () => {
+          published.push(index);
+        },
+        () => {
+          rejected.push(index);
+        },
+      );
+      return Promise.resolve(JSON.stringify({ value: index }));
+    },
+    parse: (data) => {
+      if (data.value === 0) throw new ParsedJsonError(["must be positive"]);
+      return data.value;
+    },
+  });
+  expect(result).toBe(1);
+  expect(published).toEqual([1]);
+  expect(rejected).toEqual([0]);
+});

@@ -1,12 +1,17 @@
+import { CapacityPool, type ResourceLease } from "./capacity.js";
 import {
   classifyFailure,
   observe,
   safeErrorGraph,
   type SafeError,
 } from "./errors.js";
-import { abortableDelay, requestBudget } from "./lifecycle.js";
+import { abortableDelay, requestBudget, withSignal } from "./lifecycle.js";
 
+export interface AttemptContext {
+  phase: "request" | "response" | "stream" | "cleanup" | "persistence";
+}
 export interface RequestEvent {
+  readonly phase?: AttemptContext["phase"];
   readonly event:
     | "provider.attempt"
     | "provider.retry"
@@ -40,8 +45,22 @@ export interface RequestOptions {
 /** Shared per credential/provider scope, never a process-wide singleton. */
 export class ProviderRuntime {
   #cooldownUntil = 0;
+  readonly #capacity: CapacityPool;
+  public constructor(
+    options: { concurrency?: number; maxQueued?: number } = {},
+  ) {
+    this.#capacity = new CapacityPool(
+      options.concurrency ?? 6,
+      options.maxQueued ?? 256,
+    );
+  }
   public async run<T>(
-    operation: (signal: AbortSignal, attempt: number) => Promise<T>,
+    operation: (
+      signal: AbortSignal,
+      attempt: number,
+      lease: ResourceLease,
+      context: AttemptContext,
+    ) => Promise<T>,
     options: RequestOptions = {},
   ): Promise<T> {
     const policy = options.policy ?? {};
@@ -81,6 +100,7 @@ export class ProviderRuntime {
           waited += cooldown;
           await abortableDelay(cooldown, budget.signal);
         }
+        const context: AttemptContext = { phase: "request" };
         const base = {
           ...(options.contentRound === undefined
             ? {}
@@ -89,15 +109,29 @@ export class ProviderRuntime {
           attemptId: crypto.randomUUID(),
           transportAttempt: attempt + 1,
         };
-        observe(options.onEvent, { ...base, event: "provider.attempt" });
         try {
           // Operation must settle its resources before returning or rejecting.
-          const result = await operation(budget.signal, attempt);
+          const result = await this.#capacity.use(async (lease) => {
+            observe(options.onEvent, { ...base, event: "provider.attempt" });
+            const running = Promise.resolve().then(() =>
+              operation(budget.signal, attempt, lease, context),
+            );
+            lease.retainUntil(running);
+            return await withSignal(running, budget.signal);
+          }, budget.signal);
           budget.signal.throwIfAborted();
           observe(options.onEvent, { ...base, event: "provider.success" });
           return result;
         } catch (error) {
-          if (budget.signal.aborted) throw budget.signal.reason;
+          if (budget.signal.aborted) {
+            observe(options.onEvent, {
+              ...base,
+              phase: context.phase,
+              event: "provider.failure",
+              error: safeErrorGraph(budget.signal.reason),
+            });
+            throw budget.signal.reason;
+          }
           const kind = classifyFailure(error);
           const retryable =
             kind === "transient" ||
@@ -106,6 +140,7 @@ export class ProviderRuntime {
           if (!retryable || attempt >= retries) {
             observe(options.onEvent, {
               ...base,
+              phase: context.phase,
               event: "provider.failure",
               error: safeErrorGraph(error),
             });
@@ -128,6 +163,7 @@ export class ProviderRuntime {
           if (waited + sleep > waitLimit) throw error;
           observe(options.onEvent, {
             ...base,
+            phase: context.phase,
             event: "provider.retry",
             delayMs: sleep,
             error: safeErrorGraph(error),

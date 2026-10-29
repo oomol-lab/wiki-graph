@@ -1,3 +1,4 @@
+import { CandidateAcceptance } from "wiki-graph-runtime";
 import type { LLMessage, LLM } from "../../external/llm/index.js";
 import { TEXT_COMPRESSOR_PROMPT_TEMPLATE } from "./prompt-templates.js";
 
@@ -22,6 +23,7 @@ export class CompressionRequester<S extends string> {
   }
 
   public async request(input: {
+    candidate?: CandidateAcceptance;
     markedText: string;
     previousCompressedText?: string;
     revisionFeedback?: string;
@@ -51,33 +53,57 @@ export class CompressionRequester<S extends string> {
 
     return await this.#llm.request(async (request) => {
       let currentMessages = messages;
+      const deadline = Date.now() + 360_000;
 
       for (let retryIndex = 0; retryIndex <= MAX_RETRIES; retryIndex += 1) {
-        const response = await request(currentMessages, {
-          retryIndex,
-          retryMax: MAX_RETRIES,
-          scope: this.#scope,
-          ...(retryIndex === 0 ? {} : { useCache: false }),
-        });
-
+        const candidate = new CandidateAcceptance();
+        let retained = false;
+        let failed = false;
         try {
-          return extractFinalCompressedText(response);
-        } catch (error) {
-          if (retryIndex >= MAX_RETRIES) {
-            throw error;
-          }
+          const response = await request(currentMessages, {
+            candidate,
+            deadline,
+            retryIndex,
+            retryMax: MAX_RETRIES,
+            scope: this.#scope,
+            ...(retryIndex === 0 ? {} : { useCache: false }),
+          });
 
-          currentMessages = [
-            ...currentMessages,
-            {
-              content: response,
-              role: "assistant",
-            },
-            {
-              content: buildCompressionRetryFeedback(error),
-              role: "user",
-            },
-          ];
+          let result: string;
+          try {
+            result = extractFinalCompressedText(response);
+          } catch (error) {
+            if (retryIndex >= MAX_RETRIES) {
+              throw error;
+            }
+
+            currentMessages = [
+              ...currentMessages,
+              {
+                content: response,
+                role: "assistant",
+              },
+              {
+                content: buildCompressionRetryFeedback(error),
+                role: "user",
+              },
+            ];
+            continue;
+          }
+          if (input.candidate) {
+            input.candidate.defer(
+              () => candidate.accept(),
+              () => candidate.reject(),
+            );
+            retained = true;
+          } else await candidate.accept();
+
+          return result;
+        } catch (error) {
+          failed = true;
+          throw error;
+        } finally {
+          if (!retained) await candidate.reject(failed);
         }
       }
 

@@ -15,3 +15,5 @@ Retries of POST requests may duplicate provider work and billing. Usage callback
 `safeErrorGraph` projects bounded nested diagnostics without messages, request bodies or headers. `mapConcurrent` pulls bounded windows, preserves the first failure and drains cooperative sibling work before closing its input. Hosts must isolate uncooperative operations; a timeout alone cannot release their resources.
 
 See [runtime maintenance](../../docs/provider-runtime.md) for adapter and regression contracts.
+
+`CapacityPool` and resource leases bound both active work and queued callers; cancelled work keeps its slot until its resources settle. `CandidateAcceptance` defers publication until validation, `QualityGate` makes partial fallback configurable, and `UsageLedger` retains known consumption independently of candidate acceptance. `ProgressTracker` deduplicates monotonic phase/unit/attempt progress. Awaited statistics persistence failures propagate; diagnostic sink failures are isolated.

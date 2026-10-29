@@ -15,3 +15,5 @@ POST 重试可能重复执行和计费。用量回调给出每次尝试的累计
 `safeErrorGraph` 输出有限深度的嵌套诊断，不包含 message、请求体和 headers。`mapConcurrent` 按有限窗口拉取任务，保留首因，等待可协作取消的兄弟任务释放资源后关闭输入。不可终止的操作必须由宿主隔离，超时本身不会释放资源。
 
 适配和回归约束见 [runtime maintenance](../../docs/provider-runtime.md)。
+
+`CapacityPool` 与资源 lease 限制在途工作和等待队列；取消后的资源实际释放后才归还容量。`CandidateAcceptance` 将发布推迟到业务验收之后，`QualityGate` 配置局部降级，`UsageLedger` 独立保留已知消费，不因候选被拒绝而清零。`ProgressTracker` 对阶段、单位、尝试内的进度进行单调去重。统计持久化失败会向上抛出，诊断日志失败则隔离处理。

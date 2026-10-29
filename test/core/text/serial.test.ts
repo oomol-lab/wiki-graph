@@ -12,13 +12,18 @@ const EMPTY_DELTA: ReaderGraphDelta = {
   edges: [],
 };
 
-const { compressTextMock, readerFragmentSummaryMock, readerSegmentMock } =
-  vi.hoisted(() => ({
-    compressTextMock: vi.fn(),
-    readerFragmentSummaryMock: vi.fn<() => string>(),
-    readerSegmentMock:
-      vi.fn<(stream: ReaderTextStream) => AsyncIterable<ReaderSegment>>(),
-  }));
+const {
+  compressTextMock,
+  readerFragmentSummaryMock,
+  readerSegmentMock,
+  readerQualityMock,
+} = vi.hoisted(() => ({
+  readerQualityMock: vi.fn<() => void>(),
+  compressTextMock: vi.fn(),
+  readerFragmentSummaryMock: vi.fn<() => string>(),
+  readerSegmentMock:
+    vi.fn<(stream: ReaderTextStream) => AsyncIterable<ReaderSegment>>(),
+}));
 
 vi.mock("../../../packages/core/src/text/editor/index.js", () => ({
   compressText: compressTextMock,
@@ -26,6 +31,9 @@ vi.mock("../../../packages/core/src/text/editor/index.js", () => ({
 
 vi.mock("../../../packages/core/src/text/reader/index.js", () => ({
   Reader: class {
+    public assertUsable(): void {
+      readerQualityMock();
+    }
     public segment(stream: ReaderTextStream): AsyncIterable<ReaderSegment> {
       return readerSegmentMock(stream);
     }
@@ -86,6 +94,7 @@ import { withTempDir } from "../../helpers/temp.js";
 
 describe("serial", () => {
   beforeEach(() => {
+    readerQualityMock.mockReset();
     compressTextMock.mockReset();
     readerFragmentSummaryMock.mockReset();
     readerSegmentMock.mockReset();
@@ -292,6 +301,38 @@ describe("serial", () => {
           sourceStart: 3,
           text: secondText,
         });
+      } finally {
+        await document.release();
+      }
+    });
+  });
+
+  it("does not complete an operation when quality validation rejects all candidates", async () => {
+    await withTempDir("wikigraph-quality-", async (path) => {
+      const document = await DirectoryDocument.open(path);
+      const failure = new Error("all extractions failed");
+      readerQualityMock.mockImplementationOnce(() => {
+        throw failure;
+      });
+      readerSegmentMock.mockReturnValueOnce(
+        createSentenceStream([
+          { offset: 0, text: "Alpha beta.", wordsCount: 2 },
+        ]),
+      );
+      const progress = {
+        advance: vi.fn(() => Promise.resolve()),
+        complete: vi.fn(() => Promise.resolve()),
+      };
+      try {
+        await expect(
+          new SerialGeneration({ document, llm: {} as never }).generateInto(
+            1,
+            ["Alpha beta."],
+            { extractionPrompt: "Keep key beats" },
+            progress as never,
+          ),
+        ).rejects.toBe(failure);
+        expect(progress.complete).not.toHaveBeenCalled();
       } finally {
         await document.release();
       }

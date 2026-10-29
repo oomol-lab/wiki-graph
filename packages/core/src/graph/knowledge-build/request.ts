@@ -15,8 +15,13 @@ export async function mapLazyGuaranteedRequests<TItem, TResult>(
   for await (const result of mapConcurrent(
     items,
     async (item, signal) => {
-      const run = async (delegate: GuaranteedRequest) =>
-        await operation(item, (messages, index, maxRetries, context) => {
+      const run = async (delegate: GuaranteedRequest) => {
+        const child: GuaranteedRequest = (
+          messages,
+          index,
+          maxRetries,
+          context,
+        ) => {
           signal.throwIfAborted();
           return delegate(messages, index, maxRetries, {
             ...context,
@@ -24,7 +29,15 @@ export async function mapLazyGuaranteedRequests<TItem, TResult>(
               ? AbortSignal.any([context.signal, signal])
               : signal,
           });
-        });
+        };
+        return await operation(
+          item,
+          Object.assign(
+            child,
+            request.quality ? { quality: request.quality } : {},
+          ),
+        );
+      };
       return request.lazy ? await request.lazy(run) : await run(request);
     },
     { concurrency: request.lazy ? LAZY_REQUEST_WORKERS : 1 },

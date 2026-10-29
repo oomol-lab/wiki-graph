@@ -1,3 +1,4 @@
+import { collectConcurrent } from "wiki-graph-runtime";
 import type { ChunkRecord, SnakeRecord, SummaryDocument } from "../model.js";
 
 interface Clue {
@@ -19,15 +20,13 @@ export async function extractCluesFromDocument(input: {
     input.serialId,
     input.groupId,
   );
-  const snakes = await Promise.all(
-    snakeIds.map(
-      async (snakeId) => await input.document.snakes.getById(snakeId),
-    ),
+  const snakes = await collectConcurrent(
+    snakeIds,
+    async (snakeId) => await input.document.snakes.getById(snakeId),
   );
-  const clues = await Promise.all(
-    snakes
-      .filter((snake): snake is SnakeRecord => snake !== undefined)
-      .map(async (snake) => await convertSnakeToClue(snake, input.document)),
+  const clues = await collectConcurrent(
+    snakes.filter((snake): snake is SnakeRecord => snake !== undefined),
+    async (snake) => await convertSnakeToClue(snake, input.document),
   );
 
   if (clues.length <= input.maxClues) {
@@ -145,8 +144,9 @@ async function convertSnakeToClue(
 ): Promise<Clue> {
   const chunkIds = await document.snakeChunks.listChunkIds(snake.id);
   const chunks = (
-    await Promise.all(
-      chunkIds.map(async (chunkId) => await document.chunks.getById(chunkId)),
+    await collectConcurrent(
+      chunkIds,
+      async (chunkId) => await document.chunks.getById(chunkId),
     )
   ).filter((chunk): chunk is ChunkRecord => chunk !== undefined);
 

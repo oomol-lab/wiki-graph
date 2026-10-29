@@ -78,7 +78,11 @@ export class LLMContext<S extends string> {
       return result;
     } catch (error) {
       await this.rollback();
-      this.#printLogFiles();
+      try {
+        this.#printLogFiles();
+      } catch {
+        /* Diagnostics cannot replace the primary failure. */
+      }
       throw error;
     }
   }

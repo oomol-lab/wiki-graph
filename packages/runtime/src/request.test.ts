@@ -216,3 +216,34 @@ it("DONE terminates and cancels an otherwise open response", async () => {
   ).toBe("done");
   expect(cancelled).toBe(true);
 });
+
+it("retains known consumption from interrupted and business-rejected attempts", async () => {
+  const { UsageLedger } = await import("./usage.js");
+  const { CandidateAcceptance } = await import("./candidate.js");
+  const ledger = new UsageLedger();
+  const candidate = new CandidateAcceptance();
+  const fetcher = vi
+    .fn<typeof fetch>()
+    .mockResolvedValueOnce(sse("discard", false))
+    .mockResolvedValueOnce(sse("candidate"));
+  await createOpenAICompletion(
+    new ProviderRuntime(),
+    ledger,
+  )({
+    url: "https://example.test",
+    model: "m",
+    messages: [],
+    fetch: fetcher,
+    policy,
+    candidate,
+  });
+  await candidate.reject();
+  expect(ledger.snapshot().totals).toMatchObject({
+    attempts: 2,
+    rejectedAttempts: 2,
+    acceptedAttempts: 0,
+    inputTokens: 16,
+    unknownUsageAttempts: 2,
+    pendingAttempts: 0,
+  });
+});

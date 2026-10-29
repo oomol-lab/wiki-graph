@@ -1,12 +1,14 @@
+import type { QualityGate } from "wiki-graph-runtime";
+import type { RequestExecution } from "wiki-graph-runtime";
 import type { LLMessage } from "../llm/index.js";
 import type { ZodType } from "zod";
 
-export type GuaranteedRequest = (
+export type GuaranteedRequest = ((
   messages: readonly LLMessage[],
   index: number,
   maxRetries: number,
-  context?: { readonly deadline?: number; readonly signal?: AbortSignal },
-) => Promise<string | undefined>;
+  context?: RequestExecution,
+) => Promise<string | undefined>) & { readonly quality?: QualityGate };
 
 export type GuaranteedLazyRequest = <T>(
   operation: (request: GuaranteedRequest) => Promise<T>,

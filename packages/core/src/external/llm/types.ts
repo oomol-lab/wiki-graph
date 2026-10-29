@@ -1,3 +1,8 @@
+import type {
+  CandidateAcceptance,
+  UsageSnapshot,
+  QualityPolicy,
+} from "wiki-graph-runtime";
 import type { LanguageModel, ModelMessage } from "ai";
 import type { Directory } from "../../runtime/platform/index.js";
 
@@ -21,6 +26,7 @@ export interface LLMRequestOptions<S extends string> {
   readonly topP?: TemperatureSetting;
   readonly scope?: S;
   readonly useCache?: boolean;
+  readonly candidate?: CandidateAcceptance;
   readonly deadline?: number;
   readonly retryIndex?: number;
   readonly retryMax?: number;
@@ -69,6 +75,8 @@ export type LLMTokenUsageCallback = (
 ) => void | Promise<void>;
 
 export interface LLMOptions<S extends string> {
+  readonly qualityPolicy?: QualityPolicy;
+  readonly onStatistics?: (snapshot: UsageSnapshot) => Promise<void> | void;
   readonly model?: LLMModel;
   readonly streamProvider?: LLMStreamProvider<S>;
   readonly cacheDirectory?: Directory;

@@ -1,3 +1,4 @@
+import { QualityGate, type QualityPolicy } from "wiki-graph-runtime";
 import type {
   ChapterJobArtifactRecord,
   JobOptionsRecord,
@@ -23,6 +24,7 @@ const DEFAULT_GROUP_WORDS_COUNT = 3840;
 const DEFAULT_WORKING_MEMORY_CAPACITY = 7;
 
 export async function* buildReadingGraphRecords(options: {
+  readonly qualityPolicy?: QualityPolicy;
   readonly inputFile: JobFile;
   readonly language?: string;
   readonly llm: JobLlm;
@@ -30,6 +32,7 @@ export async function* buildReadingGraphRecords(options: {
   readonly progress?: JobProgressSink;
   readonly signal?: AbortSignal;
 }): AsyncIterable<ChapterJobArtifactRecord> {
+  const quality = new QualityGate(options.qualityPolicy);
   const input = await readInput(options.inputFile);
   const language = options.language ?? input.jobOptions.language;
   const extractionPrompt = resolveExtractionPrompt(
@@ -56,6 +59,7 @@ export async function* buildReadingGraphRecords(options: {
     llm: createReadingLlm({
       ...options,
       onOutcome: (outcome, error) => {
+        quality.record("reading-extraction", outcome, error);
         if (outcome === "accepted") acceptedExtractions++;
         else {
           if (fallbackExtractions++ === 0) firstFailure = error;
@@ -121,6 +125,7 @@ export async function* buildReadingGraphRecords(options: {
       cause: firstFailure,
     });
   }
+  quality.assertUsable();
   const result = await topology.finalize();
   for (const chunk of result.chunks) {
     yield {

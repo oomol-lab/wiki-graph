@@ -1,4 +1,11 @@
-import { ProviderRuntime } from "wiki-graph-runtime";
+import {
+  CapacityPool as AsyncSemaphore,
+  UsageLedger,
+  ProviderRuntime,
+  boundedCleanup,
+  withSignal,
+  ProviderFailure,
+} from "wiki-graph-runtime";
 import { createCache } from "./files.js";
 import { normalizeGenerationInput } from "./generation.js";
 import {
@@ -20,7 +27,6 @@ import {
 
 import { getLogger } from "../../../runtime/common/logging.js";
 import { createEnv } from "../../../runtime/common/template.js";
-import { AsyncSemaphore } from "../../../utils/async-semaphore.js";
 import { createHash } from "../../../utils/hash.js";
 import { formatError } from "../../../utils/host-error.js";
 import type { LLMCache } from "../cache.js";
@@ -56,6 +62,9 @@ type LLMRequestSessionInput<S extends string> = Omit<
   };
 
 export class LLM<S extends string> {
+  public readonly qualityPolicy: LLMOptions<S>["qualityPolicy"];
+  readonly #usageLedger = new UsageLedger();
+  readonly #onStatistics: LLMOptions<S>["onStatistics"];
   readonly #cache: LLMCache | undefined;
   readonly #lazyRequestLimiter: AsyncSemaphore;
   readonly #logDirectory:
@@ -71,7 +80,7 @@ export class LLM<S extends string> {
   readonly #requestLimiter: AsyncSemaphore;
   readonly #retryIntervalSeconds: number;
   readonly #retryTimes: number;
-  readonly #providerRuntime = new ProviderRuntime();
+  readonly #providerRuntime: ProviderRuntime;
   readonly #sampling: SamplingScopeConfig<S> | undefined;
   readonly #stream: boolean;
   readonly #templateEnvironment: ReturnType<typeof createEnv>;
@@ -124,6 +133,8 @@ export class LLM<S extends string> {
         : { provider: modelInfo.provider }),
       ...(sampling === undefined ? {} : { sampling }),
     });
+    this.#onStatistics = options.onStatistics;
+    this.qualityPolicy = options.qualityPolicy;
     this.#cache = createCache(options.cacheDirectory);
     this.#lazyRequestLimiter = new AsyncSemaphore(concurrent);
     this.#logDirectory = options.logDirectory;
@@ -135,6 +146,7 @@ export class LLM<S extends string> {
     this.#onTokenUsage = options.onTokenUsage;
     this.#streamProvider = options.streamProvider;
     this.#requestLimiter = new AsyncSemaphore(concurrent);
+    this.#providerRuntime = new ProviderRuntime({ concurrency: concurrent });
     this.#retryIntervalSeconds = options.retryIntervalSeconds ?? 6;
     this.#retryTimes = options.retryTimes ?? 5;
     this.#sampling = sampling;
@@ -290,112 +302,174 @@ export class LLM<S extends string> {
     try {
       response = await this.#providerRuntime.run(
         async (signal) =>
-          await this.#requestLimiter.use(async () => {
-            if (this.#streamProvider !== undefined) {
-              const textChunks: string[] = [];
-              signal?.throwIfAborted();
-              const iterator = this.#streamProvider
-                .stream(input.messages, {
-                  ...(signal === undefined ? {} : { signal: signal }),
-                  ...(input.scope === undefined ? {} : { scope: input.scope }),
-                  ...(input.retryIndex === undefined
-                    ? {}
-                    : { retryIndex: input.retryIndex }),
-                  ...(input.retryMax === undefined
-                    ? {}
-                    : { retryMax: input.retryMax }),
-                  ...(resolvedTemperature === undefined
-                    ? {}
-                    : { temperature: resolvedTemperature }),
-                  ...(resolvedTopP === undefined ? {} : { topP: resolvedTopP }),
-                })
-                [Symbol.asyncIterator]();
-              let completed = false;
+          await this.#requestLimiter.use(async (lease) => {
+            const accounting = this.#usageLedger.begin();
+            const publish = async () => {
               try {
-                while (true) {
-                  const result = await nextWithSignal(iterator, signal);
+                await this.#onStatistics?.(this.#usageLedger.snapshot());
+              } catch (error) {
+                throw new ProviderFailure({
+                  code: "OBSERVER_FAILED",
+                  cause: error,
+                });
+              }
+            };
+            tokenUsage = undefined;
+            try {
+              const generate = async () => {
+                if (this.#streamProvider !== undefined) {
+                  const textChunks: string[] = [];
                   signal?.throwIfAborted();
-                  if (result.done) {
-                    completed = true;
-                    break;
+                  const iterator = this.#streamProvider
+                    .stream(input.messages, {
+                      ...(signal === undefined ? {} : { signal: signal }),
+                      ...(input.scope === undefined
+                        ? {}
+                        : { scope: input.scope }),
+                      ...(input.retryIndex === undefined
+                        ? {}
+                        : { retryIndex: input.retryIndex }),
+                      ...(input.retryMax === undefined
+                        ? {}
+                        : { retryMax: input.retryMax }),
+                      ...(resolvedTemperature === undefined
+                        ? {}
+                        : { temperature: resolvedTemperature }),
+                      ...(resolvedTopP === undefined
+                        ? {}
+                        : { topP: resolvedTopP }),
+                    })
+                    [Symbol.asyncIterator]();
+                  let pending: Promise<unknown> = Promise.resolve();
+                  try {
+                    while (true) {
+                      const next = iterator.next();
+                      pending = next;
+                      const result = await withSignal(next, signal);
+                      signal?.throwIfAborted();
+                      if (result.done) {
+                        break;
+                      }
+                      const event = result.value;
+                      if (event.type === "text-delta") {
+                        textChunks.push(event.text);
+                        await this.#emitStreamProgress(event.text.length);
+                      } else {
+                        tokenUsage = event.usage;
+                        accounting.record(event.usage);
+                        await publish();
+                        await this.#emitTokenUsage(event.usage);
+                      }
+                    }
+                  } catch (error) {
+                    const closing = Promise.resolve().then(() =>
+                      iterator.return?.(),
+                    );
+                    lease.retainUntil(Promise.allSettled([pending, closing]));
+                    if (!(await boundedCleanup(() => closing))) {
+                      throw new ProviderFailure({
+                        code: "RESOURCE_CLEANUP_TIMEOUT",
+                        cause: error,
+                      });
+                    }
+                    throw error;
                   }
-                  const event = result.value;
-                  if (event.type === "text-delta") {
-                    textChunks.push(event.text);
-                    await this.#emitStreamProgress(event.text.length);
-                  } else {
-                    tokenUsage = event.usage;
-                    await this.#emitTokenUsage(event.usage);
-                  }
+                  signal?.throwIfAborted();
+                  return textChunks.join("");
                 }
-              } finally {
-                if (!completed) closeIteratorWithoutWaiting(iterator);
+
+                const generationInput: {
+                  abortSignal?: AbortSignal;
+                  maxRetries: number;
+                  messages: ModelMessage[];
+                  model: LanguageModel;
+                  system?: string | SystemModelMessage | SystemModelMessage[];
+                  temperature?: number;
+                  timeout?: number;
+                  topP?: number;
+                } = normalizeGenerationInput({
+                  maxRetries: 0,
+                  messages: [...input.messages],
+                  model: this.#model!,
+                  timeout: this.#timeoutMs,
+                });
+
+                if (signal !== undefined) {
+                  generationInput.abortSignal = signal;
+                }
+
+                if (resolvedTemperature !== undefined) {
+                  generationInput.temperature = resolvedTemperature;
+                }
+
+                if (resolvedTopP !== undefined) {
+                  generationInput.topP = resolvedTopP;
+                }
+
+                if (this.#stream) {
+                  const textChunks: string[] = [];
+                  let streamError: unknown;
+                  const result = streamText({
+                    ...generationInput,
+                    onError: ({ error }) => {
+                      streamError = error;
+                    },
+                  });
+
+                  for await (const chunk of result.textStream) {
+                    textChunks.push(chunk);
+                    await this.#emitStreamProgress(chunk.length);
+                  }
+
+                  if (streamError !== undefined) {
+                    throw streamError instanceof Error
+                      ? streamError
+                      : new Error(formatError(streamError), {
+                          cause: streamError,
+                        });
+                  }
+
+                  tokenUsage = toLLMTokenUsage(await result.totalUsage);
+                  if (tokenUsage) accounting.record(tokenUsage);
+                  await publish();
+                  await this.#emitTokenUsage(tokenUsage);
+                  return textChunks.join("");
+                } else {
+                  const result = await generateText(generationInput);
+
+                  tokenUsage = toLLMTokenUsage(result.usage);
+                  if (tokenUsage) accounting.record(tokenUsage);
+                  await publish();
+                  await this.#emitStreamProgress(result.text.length);
+                  await this.#emitTokenUsage(tokenUsage);
+                  return result.text;
+                }
+              };
+              const result = await generate();
+              if (input.candidate)
+                input.candidate.defer(
+                  async () => {
+                    accounting.finish("accepted");
+                    await publish();
+                  },
+                  async () => {
+                    accounting.finish("rejected");
+                    await publish();
+                  },
+                );
+              else accounting.finish("unclassified");
+              await publish();
+              return result;
+            } catch (error) {
+              accounting.finish("rejected");
+              try {
+                await publish();
+              } catch {
+                /* Preserve the first failure. */
               }
-              signal?.throwIfAborted();
-              return textChunks.join("");
+              throw error;
             }
-
-            const generationInput: {
-              abortSignal?: AbortSignal;
-              maxRetries: number;
-              messages: ModelMessage[];
-              model: LanguageModel;
-              system?: string | SystemModelMessage | SystemModelMessage[];
-              temperature?: number;
-              timeout?: number;
-              topP?: number;
-            } = normalizeGenerationInput({
-              maxRetries: 0,
-              messages: [...input.messages],
-              model: this.#model!,
-              timeout: this.#timeoutMs,
-            });
-
-            if (signal !== undefined) {
-              generationInput.abortSignal = signal;
-            }
-
-            if (resolvedTemperature !== undefined) {
-              generationInput.temperature = resolvedTemperature;
-            }
-
-            if (resolvedTopP !== undefined) {
-              generationInput.topP = resolvedTopP;
-            }
-
-            if (this.#stream) {
-              const textChunks: string[] = [];
-              let streamError: unknown;
-              const result = streamText({
-                ...generationInput,
-                onError: ({ error }) => {
-                  streamError = error;
-                },
-              });
-
-              for await (const chunk of result.textStream) {
-                textChunks.push(chunk);
-                await this.#emitStreamProgress(chunk.length);
-              }
-
-              if (streamError !== undefined) {
-                throw streamError instanceof Error
-                  ? streamError
-                  : new Error(formatError(streamError), { cause: streamError });
-              }
-
-              tokenUsage = toLLMTokenUsage(await result.totalUsage);
-              await this.#emitTokenUsage(tokenUsage);
-              return textChunks.join("");
-            } else {
-              const result = await generateText(generationInput);
-
-              tokenUsage = toLLMTokenUsage(result.usage);
-              await this.#emitStreamProgress(result.text.length);
-              await this.#emitTokenUsage(tokenUsage);
-              return result.text;
-            }
-          }),
+          }, signal),
         {
           ...(input.signal === undefined ? {} : { signal: input.signal }),
           ...(input.deadline === undefined ? {} : { deadline: input.deadline }),
@@ -432,14 +506,18 @@ export class LLM<S extends string> {
     if (cacheKey !== undefined && this.#cache !== undefined && useCache) {
       const entry = this.#cache.createEntry(cacheKey, response);
 
-      if (
-        input.sessionId !== undefined &&
-        input.pendingCacheEntries !== undefined
-      ) {
-        input.pendingCacheEntries.set(entry.cacheKey, entry);
-      } else {
-        await this.#cache.write(entry);
-      }
+      const publish = async () => {
+        if (
+          input.sessionId !== undefined &&
+          input.pendingCacheEntries !== undefined
+        ) {
+          input.pendingCacheEntries.set(entry.cacheKey, entry);
+        } else {
+          await this.#cache!.write(entry);
+        }
+      };
+      if (input.candidate) input.candidate.defer(publish);
+      else await publish();
     }
 
     await requestLog.append(formatRequestResultLog(tokenUsage));
@@ -486,40 +564,4 @@ function toLLMTokenUsage(
       ? {}
       : { outputTokens: usage.outputTokens }),
   };
-}
-
-async function nextWithSignal<T>(
-  iterator: AsyncIterator<T>,
-  signal: AbortSignal | undefined,
-): Promise<IteratorResult<T>> {
-  signal?.throwIfAborted();
-  const next = iterator.next();
-  if (signal === undefined) return await next;
-
-  let rejectOnAbort: (() => void) | undefined;
-  const aborted = new Promise<never>((_resolve, reject) => {
-    rejectOnAbort = () => {
-      try {
-        signal.throwIfAborted();
-      } catch (error) {
-        reject(error);
-      }
-    };
-    signal.addEventListener("abort", rejectOnAbort, { once: true });
-    if (signal.aborted) rejectOnAbort();
-  });
-  try {
-    return await Promise.race([next, aborted]);
-  } finally {
-    signal.removeEventListener("abort", rejectOnAbort!);
-  }
-}
-
-function closeIteratorWithoutWaiting<T>(iterator: AsyncIterator<T>): void {
-  try {
-    const closing = iterator.return?.();
-    if (closing !== undefined) void Promise.resolve(closing).catch(() => {});
-  } catch {
-    return;
-  }
 }

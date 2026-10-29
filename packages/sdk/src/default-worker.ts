@@ -282,19 +282,21 @@ async function openJobExecutor(
           messages: readonly LLMessage[],
           index: number,
           maxRetries: number,
-          execution?: {
-            readonly deadline?: number;
-            readonly signal?: AbortSignal;
-          },
+          execution?: Parameters<GuaranteedRequest>[3],
         ) =>
           await llm.request(messages, {
+            ...(execution?.candidate === undefined
+              ? {}
+              : { candidate: execution.candidate }),
             ...(execution?.deadline === undefined
               ? {}
               : { deadline: execution.deadline }),
             retryIndex: index,
             retryMax: maxRetries,
             scope: WikiGraphScope.ReaderExtraction,
-            signal,
+            signal: execution?.signal
+              ? AbortSignal.any([signal, execution.signal])
+              : signal,
           });
   if (request !== undefined && llm !== undefined) {
     request.lazy = async <T>(

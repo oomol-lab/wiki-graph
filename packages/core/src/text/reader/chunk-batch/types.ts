@@ -1,3 +1,4 @@
+import type { QualityGate } from "wiki-graph-runtime";
 import type { Language } from "../../../runtime/common/language.js";
 import type { LLM } from "../../../external/llm/index.js";
 import type {
@@ -60,6 +61,7 @@ export interface ChunkTranslationOutput {
 }
 
 export interface ChunkBatchOptions<S extends string> {
+  readonly quality?: QualityGate;
   readonly extractionGuidance: string;
   readonly llm: LLM<S>;
   readonly scopes: ChunkExtractionScopes<S>;

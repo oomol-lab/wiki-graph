@@ -66,3 +66,26 @@ export async function* mapConcurrent<T, R>(
     }
   }
 }
+
+/** Materializes only the requested output; in-flight work stays bounded. */
+export async function collectConcurrent<T, R>(
+  input: Iterable<T>,
+  operation: (value: T, index: number, signal: AbortSignal) => Promise<R>,
+  options: { concurrency?: number; signal?: AbortSignal } = {},
+): Promise<R[]> {
+  function* indexed() {
+    let index = 0;
+    for (const value of input) yield { value, index: index++ };
+  }
+  const results: R[] = [];
+  for await (const result of mapConcurrent(
+    indexed(),
+    ({ value, index }, signal) => operation(value, index, signal),
+    {
+      concurrency: options.concurrency ?? 4,
+      ...(options.signal === undefined ? {} : { signal: options.signal }),
+    },
+  ))
+    results.push(result);
+  return results;
+}
