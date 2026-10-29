@@ -8,6 +8,8 @@
 
 `requestGuaranteedJson` 负责 JSON 修复、异步 schema/业务校验和拒答识别。只有 `ParsedJsonError` 触发业务修复；provider、取消和普通程序错误直接向上传递。请求回调第四个参数携带共同 deadline 和 signal，适配器必须转发。通过校验的空 JSON 结果仍然合法。
 
+`createJsonRequest` 将相同的传输策略用于 embedding 等 JSON POST 接口，包括响应体读取失败。响应最多缓冲 `maxResponseBytes`（默认 16 MiB）；成功响应的 JSON 无效或超限时直接失败，不重放请求。它不负责内容修复或业务校验。限流冷却同样约束已排队的调用，即使收到限流的请求已经耗尽自身重试次数。
+
 默认传输策略最多重试两次，使用指数退避和抖动，等待预算 60 秒，操作 deadline 360 秒。内容修复共用一个 deadline，不随候选重置。Core 保留重试次数和间隔配置，但 timeout 现在覆盖包含重试的整个请求。
 
 POST 重试可能重复执行和计费。用量回调给出每次尝试的累计快照，宿主需去重；候选被拒绝也不能抹除已消费用量。缺失用量视为未知。
