@@ -18,6 +18,62 @@ const sse = (text: string, end = true) =>
   );
 
 describe("provider recovery boundary", () => {
+  it("retries a temporary HTTP failure even when its error body stream fails", async () => {
+    const fetcher = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(
+        new Response(
+          new ReadableStream({
+            pull(controller) {
+              controller.error(networkError());
+            },
+          }),
+          { status: 503 },
+        ),
+      )
+      .mockResolvedValueOnce(sse("accepted"));
+    await expect(
+      createOpenAICompletion()({
+        url: "https://example.test",
+        model: "m",
+        messages: [],
+        fetch: fetcher,
+        policy,
+      }),
+    ).resolves.toBe("accepted");
+    expect(fetcher).toHaveBeenCalledTimes(2);
+  });
+  it("retries an errored SSE reader without treating its stored error as failed cleanup", async () => {
+    let reads = 0;
+    const fetcher = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(
+        new Response(
+          new ReadableStream<Uint8Array>({
+            pull(controller) {
+              if (reads++ === 0)
+                controller.enqueue(
+                  new TextEncoder().encode(
+                    'data: {"choices":[{"delta":{"content":"discard"}}]}\n\n',
+                  ),
+                );
+              else controller.error(networkError());
+            },
+          }),
+        ),
+      )
+      .mockResolvedValueOnce(sse("accepted"));
+    await expect(
+      createOpenAICompletion()({
+        url: "https://example.test",
+        model: "m",
+        messages: [],
+        fetch: fetcher,
+        policy,
+      }),
+    ).resolves.toBe("accepted");
+    expect(fetcher).toHaveBeenCalledTimes(2);
+  });
   it("recovers pre-header network failure without losing nested diagnostics", async () => {
     const error = networkError();
     const fetcher = vi

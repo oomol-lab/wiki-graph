@@ -90,16 +90,23 @@ export class ProviderRuntime {
     const budget = requestBudget(options.signal, deadline);
     const logicalRequestId = crypto.randomUUID();
     let waited = 0;
+    const waitForCooldown = async () => {
+      // Other in-flight requests can extend the cooldown while this one sleeps.
+      while (true) {
+        budget.signal.throwIfAborted();
+        const cooldown = Math.max(0, this.#cooldownUntil - Date.now());
+        if (cooldown === 0) return;
+        if (waited + cooldown > waitLimit)
+          throw new Error("Provider retry waiting budget exhausted");
+        waited += cooldown;
+        await abortableDelay(cooldown, budget.signal);
+      }
+    };
     try {
       for (let attempt = 0; ; attempt++) {
         budget.signal.throwIfAborted();
-        const cooldown = Math.max(0, this.#cooldownUntil - Date.now());
-        if (cooldown > 0) {
-          if (waited + cooldown > waitLimit)
-            throw new Error("Provider retry waiting budget exhausted");
-          waited += cooldown;
-          await abortableDelay(cooldown, budget.signal);
-        }
+        await waitForCooldown();
+        let retryDelay: number | undefined;
         const context: AttemptContext = { phase: "request" };
         const base = {
           ...(options.contentRound === undefined
@@ -112,10 +119,25 @@ export class ProviderRuntime {
         try {
           // Operation must settle its resources before returning or rejecting.
           const result = await this.#capacity.use(async (lease) => {
+            // A request may have queued before a sibling received a 429.
+            await waitForCooldown();
             observe(options.onEvent, { ...base, event: "provider.attempt" });
-            const running = Promise.resolve().then(() =>
-              operation(budget.signal, attempt, lease, context),
-            );
+            const running = Promise.resolve()
+              .then(() => operation(budget.signal, attempt, lease, context))
+              .catch((error: unknown) => {
+                if (
+                  !budget.signal.aborted &&
+                  classifyFailure(error) === "rate-limit"
+                ) {
+                  retryDelay = retryDelayMs(error, policy, attempt);
+                  // Publish before releasing the slot, even on the last attempt.
+                  this.#cooldownUntil = Math.max(
+                    this.#cooldownUntil,
+                    Date.now() + retryDelay,
+                  );
+                }
+                throw error;
+              });
             lease.retainUntil(running);
             return await withSignal(running, budget.signal);
           }, budget.signal);
@@ -146,20 +168,7 @@ export class ProviderRuntime {
             });
             throw error;
           }
-          const retryAfter = (error as { retryAfterMs?: number } | null)
-            ?.retryAfterMs;
-          const exponential = Math.min(
-            policy.maxDelayMs ?? 30_000,
-            delay * (policy.backoff === "fixed" ? 1 : 2 ** attempt),
-          );
-          const sleep = Math.max(
-            typeof retryAfter === "number" && Number.isFinite(retryAfter)
-              ? retryAfter
-              : 0,
-            policy.jitter === false
-              ? exponential
-              : exponential * (0.5 + Math.random() * 0.5),
-          );
+          const sleep = retryDelay ?? retryDelayMs(error, policy, attempt);
           if (waited + sleep > waitLimit) throw error;
           observe(options.onEvent, {
             ...base,
@@ -168,11 +177,6 @@ export class ProviderRuntime {
             delayMs: sleep,
             error: safeErrorGraph(error),
           });
-          if (kind === "rate-limit")
-            this.#cooldownUntil = Math.max(
-              this.#cooldownUntil,
-              Date.now() + sleep,
-            );
           waited += sleep;
           await abortableDelay(sleep, budget.signal);
         }
@@ -181,4 +185,24 @@ export class ProviderRuntime {
       budget.close();
     }
   }
+}
+
+function retryDelayMs(
+  error: unknown,
+  policy: RequestPolicy,
+  attempt: number,
+): number {
+  const retryAfter = (error as { retryAfterMs?: number } | null)?.retryAfterMs;
+  const exponential = Math.min(
+    policy.maxDelayMs ?? 30_000,
+    (policy.delayMs ?? 1000) * (policy.backoff === "fixed" ? 1 : 2 ** attempt),
+  );
+  return Math.max(
+    typeof retryAfter === "number" && Number.isFinite(retryAfter)
+      ? retryAfter
+      : 0,
+    policy.jitter === false
+      ? exponential
+      : exponential * (0.5 + Math.random() * 0.5),
+  );
 }

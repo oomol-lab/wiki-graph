@@ -8,6 +8,8 @@ Portable provider execution for SDK and service hosts. This package does not rea
 
 `requestGuaranteedJson` owns JSON repair, asynchronous schema/business validation and refusal detection. Only `ParsedJsonError` requests business repair; provider, cancellation and programming failures propagate. Its fourth request callback argument carries the shared deadline and signal; adapters must forward both. Accepted empty JSON results remain valid.
 
+`createJsonRequest` applies the same transport policy to JSON POST endpoints such as embeddings, including response-body read failures. It buffers up to `maxResponseBytes` (16 MiB by default); malformed or oversized successful responses fail without replay. It does not repair or validate business content. Rate-limit cooldowns also apply to queued callers, even when the request that received the rate limit has exhausted its retries.
+
 The default transport policy allows two retries, exponential jittered delay, a 60-second waiting budget and a 360-second operation deadline. A content repair loop shares one deadline rather than renewing it per candidate. Core retains its retry count and interval settings, with timeout now bounding the complete request including retries.
 
 Retries of POST requests may duplicate provider work and billing. Usage callbacks report cumulative snapshots per attempt; hosts must deduplicate snapshots and retain consumed usage even if a candidate is rejected. Missing usage is unknown.

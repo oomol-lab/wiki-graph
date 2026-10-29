@@ -52,7 +52,7 @@ export async function* mapConcurrent<T, R>(
     }
   } catch (error) {
     scope.fail(error);
-    throw error;
+    scope.throwIfFailed();
   } finally {
     scope.fail(new DOMException("Consumer closed", "AbortError"));
     // Drain before releasing resources; an uncooperative host must isolate work.

@@ -107,8 +107,11 @@ export function createOpenAICompletion(
         let doneEvent = false;
         let cleanupAttempted = false;
         let eof = false;
+        let readFailed = false;
         let pendingRead: Promise<unknown> = Promise.resolve();
         const close = async (reason?: unknown) => {
+          // An errored stream is already closed; cancel would reject again.
+          if (readFailed) return true;
           const previous = context.phase;
           context.phase = "cleanup";
           const closing = Promise.resolve().then(() => reader.cancel(reason));
@@ -176,7 +179,10 @@ export function createOpenAICompletion(
         };
         try {
           while (true) {
-            const reading = reader.read();
+            const reading = reader.read().catch((error: unknown) => {
+              readFailed = true;
+              throw error;
+            });
             pendingRead = reading;
             const result = await withSignal(reading, signal);
             if (result.done) {
@@ -270,10 +276,14 @@ async function readLimitedBody(
   const reader = response.body.getReader();
   const decoder = new TextDecoder();
   let result = "";
+  let readFailed = false;
   let pendingRead: Promise<unknown> = Promise.resolve();
   try {
     while (result.length < 16_384) {
-      const reading = reader.read();
+      const reading = reader.read().catch((error: unknown) => {
+        readFailed = true;
+        throw error;
+      });
       pendingRead = reading;
       const chunk = await withSignal(reading, signal);
       if (chunk.done) return result + decoder.decode();
@@ -281,7 +291,9 @@ async function readLimitedBody(
     }
     return result.slice(0, 16_384);
   } finally {
-    const closing = Promise.resolve().then(() => reader.cancel());
+    const closing = Promise.resolve().then(() =>
+      readFailed ? undefined : reader.cancel(),
+    );
     lease.retainUntil(Promise.allSettled([pendingRead, closing]));
     if (!(await boundedCleanup(() => closing))) {
       // A stuck body must stop retries; the lease retains the connection.
