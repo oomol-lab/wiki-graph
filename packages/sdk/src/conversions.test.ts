@@ -1,5 +1,5 @@
 import { createWriteStream } from "fs";
-import { mkdtemp, rm } from "fs/promises";
+import { mkdtemp, readFile, rm } from "fs/promises";
 import { tmpdir } from "os";
 import { join } from "path";
 
@@ -23,72 +23,160 @@ afterEach(async () => {
 });
 
 describe("PCEX conversion", () => {
-  it("creates sourced WIKG chapters with PDF locators", async () => {
-    const root = await mkdtemp(join(tmpdir(), "wiki-graph-pcex-"));
+  it.each([4, 5])(
+    "creates sourced WIKG chapters with PDF locators from PCEX v%i",
+    async (version) => {
+      const root = await mkdtemp(join(tmpdir(), "wiki-graph-pcex-"));
+      temporary.push(root);
+      await writePcex(join(root, "book.pcex"), { version });
+      const sdk = createWikiGraphSDK({
+        cwd: root,
+        stateDir: join(root, "state"),
+      });
+      try {
+        const digest = "a".repeat(64);
+        const result = await sdk.conversions.convert({
+          input: {
+            format: "pcex",
+            path: "book.pcex",
+            sourcePdf: { digest, name: "source.pdf" },
+          },
+          output: { format: "wikg", path: "book.wikg" },
+          targetStage: "sourced",
+        });
+        expect(result).toMatchObject({
+          chapterCount: 1,
+          chapterPaths: [expect.any(String)],
+          sourceArtifact: {
+            digest,
+            mediaType: "application/pdf",
+            name: "source.pdf",
+          },
+        });
+        const archive = await sdk.archives.open({
+          kind: "standalone",
+          path: "book.wikg",
+        });
+        const tree = await archive.getChapterTree();
+        expect(tree.chapters).toHaveLength(1);
+        const source = await archive.page(`${tree.chapters[0]!.uri}/source`);
+        expect(source).toMatchObject({
+          fragment: { sentenceCount: 1, text: "A😀 world." },
+          type: "fragment",
+        });
+        const path = tree.chapters[0]!.uri.replace("wikg://chapter/", "");
+        const located = formatLocatedWikiGraphUri(
+          join(root, "book.wikg"),
+          `wikg://chapter/${path}/source/locators`,
+        );
+        const parsed = parseLocatedWikiGraphUri(located);
+        const locators = await (
+          await sdk.archives.open({
+            kind: "standalone",
+            path: parsed.archivePath!,
+            ...(parsed.objectUri === undefined
+              ? {}
+              : { objectUri: parsed.objectUri }),
+          })
+        ).list();
+        expect(locators).toMatchObject({
+          items: [
+            {
+              range: [1, 3],
+              uri: `wikg://artifact/${digest.slice(0, 12)}#page=1&bbox=0.1,0.6,0.5,0.8`,
+            },
+            {
+              range: [4, 9],
+              uri: `wikg://artifact/${digest.slice(0, 12)}#page=1&bbox=0.5,0.6,0.9,0.8`,
+            },
+          ],
+        });
+      } finally {
+        sdk.close();
+      }
+    },
+  );
+
+  it("imports v5 image fields with PDF provenance without changing the source", async () => {
+    const root = await mkdtemp(join(tmpdir(), "wiki-graph-pcex-v5-"));
     temporary.push(root);
-    await writePcex(join(root, "book.pcex"));
+    const input = join(root, "book.pcex");
+    await writePcex(input, {
+      version: 5,
+      chapterXml:
+        '<chapter id="1" level="0"><flow><text role="body"><fragment page_index="1" source_order="0" bbox="100,400,500,800">Narrative.</fragment></text><standalone-asset><asset ref="image" page_index="1" bbox="100,900,900,1200"><title>Figure title. </title><content><p>Image description. </p></content><caption>Figure caption.</caption></asset></standalone-asset></flow></chapter>',
+    });
+    const original = await readFile(input);
     const sdk = createWikiGraphSDK({
       cwd: root,
       stateDir: join(root, "state"),
     });
     try {
-      const digest = "a".repeat(64);
-      const result = await sdk.conversions.convert({
+      await sdk.conversions.convert({
         input: {
           format: "pcex",
           path: "book.pcex",
-          sourcePdf: { digest, name: "source.pdf" },
+          sourcePdf: { digest: "c".repeat(64) },
         },
         output: { format: "wikg", path: "book.wikg" },
         targetStage: "sourced",
-      });
-      expect(result).toMatchObject({
-        chapterCount: 1,
-        chapterPaths: [expect.any(String)],
-        sourceArtifact: {
-          digest,
-          mediaType: "application/pdf",
-          name: "source.pdf",
-        },
       });
       const archive = await sdk.archives.open({
         kind: "standalone",
         path: "book.wikg",
       });
       const tree = await archive.getChapterTree();
-      expect(tree.chapters).toHaveLength(1);
       const source = await archive.page(`${tree.chapters[0]!.uri}/source`);
       expect(source).toMatchObject({
-        fragment: { sentenceCount: 1, text: "A😀 world." },
-        type: "fragment",
+        fragment: {
+          text: "Narrative.\n\nFigure title. Image description. Figure caption.",
+        },
       });
-      const path = tree.chapters[0]!.uri.replace("wikg://chapter/", "");
-      const located = formatLocatedWikiGraphUri(
-        join(root, "book.wikg"),
-        `wikg://chapter/${path}/source/locators`,
-      );
-      const parsed = parseLocatedWikiGraphUri(located);
       const locators = await (
         await sdk.archives.open({
           kind: "standalone",
-          path: parsed.archivePath!,
-          ...(parsed.objectUri === undefined
-            ? {}
-            : { objectUri: parsed.objectUri }),
+          path: "book.wikg",
+          objectUri: `${tree.chapters[0]!.uri}/source/locators`,
         })
       ).list();
       expect(locators).toMatchObject({
         items: [
           {
-            range: [1, 3],
-            uri: `wikg://artifact/${digest.slice(0, 12)}#page=1&bbox=0.1,0.6,0.5,0.8`,
+            range: [1, 10],
+            uri: `wikg://artifact/${"c".repeat(12)}#page=1&bbox=0.1,0.6,0.5,0.8`,
           },
           {
-            range: [4, 9],
-            uri: `wikg://artifact/${digest.slice(0, 12)}#page=1&bbox=0.5,0.6,0.9,0.8`,
+            range: [13, 60],
+            uri: `wikg://artifact/${"c".repeat(12)}#page=1&bbox=0.1,0.4,0.9,0.55`,
           },
         ],
       });
+      expect(await readFile(input)).toEqual(original);
+    } finally {
+      sdk.close();
+    }
+  });
+
+  it("rejects unknown future PCEX versions", async () => {
+    const root = await mkdtemp(join(tmpdir(), "wiki-graph-pcex-future-"));
+    temporary.push(root);
+    await writePcex(join(root, "book.pcex"), { version: 6 });
+    const sdk = createWikiGraphSDK({
+      cwd: root,
+      stateDir: join(root, "state"),
+    });
+    try {
+      await expect(
+        sdk.conversions.convert({
+          input: {
+            format: "pcex",
+            path: "book.pcex",
+            sourcePdf: { digest: "d".repeat(64) },
+          },
+          output: { format: "wikg", path: "book.wikg" },
+          targetStage: "sourced",
+        }),
+      ).rejects.toThrow("PCEX manifest.json is invalid or unsupported.");
     } finally {
       sdk.close();
     }
@@ -136,13 +224,17 @@ describe("PCEX conversion", () => {
 
 async function writePcex(
   path: string,
-  options: { readonly nestedToc?: boolean } = {},
+  options: {
+    readonly nestedToc?: boolean;
+    readonly version?: number;
+    readonly chapterXml?: string;
+  } = {},
 ): Promise<void> {
   const zip = new ZipFile();
   zip.addBuffer(
     Buffer.from(
       JSON.stringify({
-        format_version: 4,
+        format_version: options.version ?? 4,
         producer: { name: "test", version: "1" },
         document: {
           title: "Test book",
@@ -165,7 +257,8 @@ async function writePcex(
   );
   zip.addBuffer(
     Buffer.from(
-      '<chapter id="1" level="0"><flow><text role="body"><fragment page_index="1" source_order="0" bbox="100,400,500,800">A😀 </fragment><fragment page_index="1" source_order="1" bbox="500,400,900,800">world.</fragment></text></flow></chapter>',
+      options.chapterXml ??
+        '<chapter id="1" level="0"><flow><text role="body"><fragment page_index="1" source_order="0" bbox="100,400,500,800">A😀 </fragment><fragment page_index="1" source_order="1" bbox="500,400,900,800">world.</fragment></text></flow></chapter>',
     ),
     "chapters/chapter_1.xml",
   );
