@@ -198,7 +198,7 @@ function readManifest(value: unknown) {
     !isRecord(value) ||
     !Number.isInteger(value.format_version) ||
     (value.format_version as number) < 1 ||
-    (value.format_version as number) > 4 ||
+    (value.format_version as number) > 5 ||
     !isRecord(value.document)
   ) {
     throw new Error("PCEX manifest.json is invalid or unsupported.");

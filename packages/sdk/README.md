@@ -6,6 +6,10 @@ the runtime-neutral APIs from `wiki-graph-core`.
 
 Requires Node.js `>=22.12.0`.
 
+PCEX source conversion accepts format versions 1–5. Version 5 image titles,
+content, and captions retain their asset-level PDF page/bbox provenance;
+conversion reads the source archive without rewriting or upgrading it.
+
 ```bash
 npm install wiki-graph-sdk
 ```
